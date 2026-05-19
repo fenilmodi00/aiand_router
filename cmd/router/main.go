@@ -131,6 +131,10 @@ func main() {
 	// must NOT taint envKeyedProviders since hard-pin can't rely on
 	// every inbound request carrying Anthropic credentials.
 	anthropicPassthroughEligible := false
+	// openaiPassthroughEligible mirrors anthropicPassthroughEligible for the
+	// OpenAI provider — Codex's logged-in plan flow. Same invariant: must NOT
+	// taint envKeyedProviders.
+	openaiPassthroughEligible := false
 
 	// Credit billing service: wired by default in managed mode. The
 	// boot-time health check exists only to surface the "tables actually
@@ -203,7 +207,10 @@ func main() {
 			envKeyedProviders[providers.ProviderOpenAI] = struct{}{}
 			logger.Info("OpenAI provider enabled", "base_url", openaiBaseURL)
 		default:
-			logger.Info("OpenAI provider registered (BYOK only — set OPENAI_API_KEY for deployment-level use)", "base_url", openaiBaseURL)
+			// OpenAI in selfhosted with no env key serves the passthrough
+			// path on client Authorization headers (Codex plan flow).
+			openaiPassthroughEligible = true
+			logger.Info("OpenAI provider enabled (client auth passthrough)", "base_url", openaiBaseURL)
 		}
 	}
 
@@ -458,15 +465,28 @@ func main() {
 		}
 	}
 
-	// Default-eligible set for proxy.Service: env-keyed providers + the
-	// Anthropic passthrough path. BYOK and client-supplied credentials add
-	// to this set per-request inside enabledProvidersForRequest.
-	deploymentEligible := make(map[string]struct{}, len(envKeyedProviders)+1)
+	// Default-eligible set for proxy.Service: env-keyed providers only.
+	// BYOK and client-supplied credentials add to this set per-request
+	// inside enabledProvidersForRequest.
+	deploymentEligible := make(map[string]struct{}, len(envKeyedProviders))
 	for p := range envKeyedProviders {
 		deploymentEligible[p] = struct{}{}
 	}
+
+	// Passthrough-eligible providers join the eligible set ONLY when the
+	// inbound request matches their surface (see WithPassthroughEligibleProviders
+	// in internal/proxy/service.go). Adding them to deploymentEligible above
+	// would let an Anthropic-surface request route to OpenAI in passthrough
+	// mode, which would forward the inbound `x-api-key` (an Anthropic token)
+	// to api.openai.com — a cross-provider credential leak. Surface-scoping
+	// keeps each provider's passthrough credentials inside their own trust
+	// boundary.
+	passthroughEligible := make(map[string]struct{}, 2)
 	if anthropicPassthroughEligible {
-		deploymentEligible[providers.ProviderAnthropic] = struct{}{}
+		passthroughEligible[providers.ProviderAnthropic] = struct{}{}
+	}
+	if openaiPassthroughEligible {
+		passthroughEligible[providers.ProviderOpenAI] = struct{}{}
 	}
 
 	// Planner + handover config (Prism-style cache-aware routing). Defaults
@@ -504,6 +524,7 @@ func main() {
 	proxySvc := proxy.NewService(rtr, providerMap, emitter, embedOnlyUser, semanticCache, pinStore, hardPinExplore, hardPinProvider, hardPinModel, repo.Telemetry).
 		WithByokOnly(byokOnly).
 		WithDeploymentKeyedProviders(deploymentEligible).
+		WithPassthroughEligibleProviders(passthroughEligible).
 		WithHardPinResolver(hardPinResolver).
 		WithTierClampResolver(tierClampResolver).
 		WithPlannerEnabled(plannerEnabled).
