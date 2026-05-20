@@ -269,9 +269,10 @@ type ResponsesWriter struct {
 	responseID     string
 	createdAt      int64
 
-	statusCode int
-	streaming  bool
-	buf        bytes.Buffer
+	statusCode      int
+	streaming       bool
+	httpHeadersSent bool
+	buf             bytes.Buffer
 
 	seq int64
 
@@ -335,17 +336,20 @@ func NewResponsesWriter(w http.ResponseWriter, model string) *ResponsesWriter {
 func (t *ResponsesWriter) Header() http.Header { return t.inner.Header() }
 
 func (t *ResponsesWriter) WriteHeader(code int) {
-	t.statusCode = code
-	ct := t.inner.Header().Get("Content-Type")
-	t.streaming = strings.Contains(ct, "text/event-stream") && code < 400
-
-	// The proxy stamps the routing decision on the response headers before the
-	// downstream writer is given any bytes. Prefer the routed model name so
-	// Codex's TUI (and any other client that reads `response.model`) displays
-	// what the router actually picked instead of the requested alias.
+	// Always pick up the routed model when upstream calls WriteHeader, even if
+	// Prelude already committed the HTTP status. Prelude fires before routing
+	// completes, so the x-router-model header hasn't been stamped yet; the
+	// later upstream call is our only chance to learn the routed name for the
+	// badge and response.completed event.
 	if routed := t.inner.Header().Get("x-router-model"); routed != "" {
 		t.model = routed
 	}
+	if t.httpHeadersSent {
+		return
+	}
+	t.statusCode = code
+	ct := t.inner.Header().Get("Content-Type")
+	t.streaming = strings.Contains(ct, "text/event-stream") && code < 400
 
 	t.inner.Header().Del("Content-Length")
 	t.inner.Header().Del("Content-Encoding")
@@ -353,6 +357,7 @@ func (t *ResponsesWriter) WriteHeader(code int) {
 	if t.streaming {
 		t.inner.Header().Set("Content-Type", "text/event-stream")
 		t.inner.WriteHeader(code)
+		t.httpHeadersSent = true
 	}
 }
 
@@ -369,6 +374,26 @@ func (t *ResponsesWriter) Write(data []byte) (int, error) {
 		t.headersEmitted = true
 	}
 	return n, t.processSSEBuffer()
+}
+
+// Prelude commits headers and emits response.created immediately so Codex
+// stops waiting on upstream prefill before showing any feedback. Call right
+// after routing decides when the client requested streaming (streaming=true).
+// Safe to call once; the headersEmitted guard prevents duplicate creation
+// when upstream Write later runs.
+func (t *ResponsesWriter) Prelude(streaming bool) error {
+	if !streaming || t.headersEmitted {
+		return nil
+	}
+	t.inner.Header().Set("Content-Type", "text/event-stream")
+	t.streaming = true
+	t.statusCode = http.StatusOK
+	if !t.httpHeadersSent {
+		t.inner.WriteHeader(http.StatusOK)
+		t.httpHeadersSent = true
+	}
+	t.headersEmitted = true
+	return t.emitCreated()
 }
 
 func (t *ResponsesWriter) Flush() {
