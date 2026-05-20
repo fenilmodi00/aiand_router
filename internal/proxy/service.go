@@ -668,6 +668,19 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	clientID := ClientIdentityFrom(ctx)
 	bypassEval := hasEvalOverrideHeader(r)
 
+	// Handle /force-model <model> and /unforce-model commands before routing.
+	// The command is stripped from env.body so the upstream never sees it.
+	// Session key is derived before extraction: ExtractForceModelCommand mutates
+	// env.body, and DeriveSessionKey falls back to prompt text when
+	// metadata.user_id is absent. Deriving after the strip would produce a key
+	// that mismatches subsequent turns where the unstripped message is present.
+	if s.pinStore != nil {
+		cmdSessionKey := DeriveSessionKey(env, apiKeyID)
+		if cmd, hasCmd := env.ExtractForceModelCommand(); hasCmd {
+			return s.handleForceModelCommand(w, env, cmd, installationID, cmdSessionKey)
+		}
+	}
+
 	// Anthropic packs sub-agent identity into metadata.user_id; the
 	// x-weave-subagent-type header is for non-Anthropic ingress only.
 	routeStart := time.Now()
@@ -1445,6 +1458,19 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	}
 
 	bypassEval := hasEvalOverrideHeader(r)
+
+	// Handle /force-model <model> and /unforce-model commands before routing.
+	// The command is stripped from env.body so the upstream never sees it.
+	// Session key is derived before extraction: ExtractForceModelCommand mutates
+	// env.body, and DeriveSessionKey falls back to prompt text when
+	// metadata.user_id is absent. Deriving after the strip would produce a key
+	// that mismatches subsequent turns where the unstripped message is present.
+	if s.pinStore != nil {
+		cmdSessionKey := DeriveSessionKey(env, apiKeyID)
+		if cmd, hasCmd := env.ExtractForceModelCommand(); hasCmd {
+			return s.handleForceModelCommand(w, env, cmd, installationID, cmdSessionKey)
+		}
+	}
 
 	// OpenAI signals sub-agent identity via x-weave-subagent-type (no metadata.user_id).
 	subAgentHint := r.Header.Get("x-weave-subagent-type")
