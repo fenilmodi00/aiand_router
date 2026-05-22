@@ -143,8 +143,15 @@ func copyMap(m map[string]any) map[string]any {
 func writeGeminiFromOpenAI(jw *jsonWriter, body []byte, opts EmitOptions) error {
 	msgs := gjson.GetBytes(body, "messages")
 
-	// First pass: build tool_call ID → function name map for role:tool messages.
+	// First pass: build tool_call ID → function name map for role:tool messages,
+	// and detect any tool_call lacking a thoughtSignature. Gemini 3.x rejects
+	// requests whose history carries a functionCall without one, so when even
+	// one is missing we drop ALL tool_call + role:tool blocks. Mirrors the
+	// guard in writeGeminiFromAnthropic — covers OpenAI-surface clients whose
+	// assistant history was produced by a non-Gemini provider before a
+	// mid-session router switch.
 	toolNames := make(map[string]string)
+	anyToolCallMissingSig := false
 	msgs.ForEach(func(_, msg gjson.Result) bool {
 		if msg.Get("role").String() != "assistant" {
 			return true
@@ -153,10 +160,14 @@ func writeGeminiFromOpenAI(jw *jsonWriter, body []byte, opts EmitOptions) error 
 			if id := tc.Get("id").String(); id != "" {
 				toolNames[id] = tc.Get("function.name").String()
 			}
+			if extractThoughtSignature(tc) == "" {
+				anyToolCallMissingSig = true
+			}
 			return true
 		})
 		return true
 	})
+	dropToolBlocks := anyToolCallMissingSig && isGemini3xModel(opts.TargetModel)
 
 	// Collect system text.
 	var sysParts []string
@@ -195,8 +206,14 @@ func writeGeminiFromOpenAI(jw *jsonWriter, body []byte, opts EmitOptions) error 
 		jw.EndObj()
 	}
 
-	// Second pass: write contents array.
-	hasContents := false
+	// Second pass: build content entries, then post-process for role
+	// alternation before emitting. Two-pass is necessary because dropping
+	// sig-less tool turns can leave placeholder entries adjacent to real
+	// content of the same role — e.g. the OpenAI per-tool_call_id
+	// `role:"tool"` messages each contribute a user placeholder and the
+	// following real user turn would land right after. The collapser merges
+	// placeholders with real content of the same role.
+	entries := make([]contentEntry, 0, 8)
 	var walkErr error
 	msgs.ForEach(func(_, msg gjson.Result) bool {
 		role := msg.Get("role").String()
@@ -208,85 +225,52 @@ func writeGeminiFromOpenAI(jw *jsonWriter, body []byte, opts EmitOptions) error 
 			if len(parts) == 0 {
 				return true
 			}
-			if !hasContents {
-				jw.Key("contents")
-				jw.Arr()
-				hasContents = true
-			}
-			jw.Obj()
-			jw.Key("role")
-			jw.Str("user")
-			jw.Key("parts")
-			jw.Arr()
-			for _, p := range parts {
-				jw.Raw(p)
-			}
-			jw.EndArr()
-			jw.EndObj()
+			entries = append(entries, contentEntry{role: "user", parts: parts})
 		case "assistant":
 			parts, parseErr := openAIAssistantPartsGJSON(msg)
 			if parseErr != nil {
 				walkErr = parseErr
 				return false
 			}
+			placeholder := false
+			if dropToolBlocks {
+				before := len(parts)
+				parts = filterOutGeminiFunctionCallParts(parts)
+				if before > 0 && len(parts) == 0 {
+					parts = []string{geminiTextPart(droppedToolCallPlaceholder)}
+					placeholder = true
+				}
+			}
 			if len(parts) == 0 {
 				return true
 			}
-			if !hasContents {
-				jw.Key("contents")
-				jw.Arr()
-				hasContents = true
-			}
-			jw.Obj()
-			jw.Key("role")
-			jw.Str("model")
-			jw.Key("parts")
-			jw.Arr()
-			for _, p := range parts {
-				jw.Raw(p)
-			}
-			jw.EndArr()
-			jw.EndObj()
+			entries = append(entries, contentEntry{role: "model", parts: parts, placeholder: placeholder})
 		case "tool":
+			if dropToolBlocks {
+				entries = append(entries, contentEntry{
+					role:        "user",
+					parts:       []string{geminiTextPart(droppedToolResultPlaceholder)},
+					placeholder: true,
+				})
+				return true
+			}
 			tcID := msg.Get("tool_call_id").String()
 			name := toolNames[tcID]
 			if name == "" {
 				return true
 			}
 			result := toolResultContentGJSON(msg.Get("content"))
-			if !hasContents {
-				jw.Key("contents")
-				jw.Arr()
-				hasContents = true
-			}
-			jw.Obj()
-			jw.Key("role")
-			jw.Str("user")
-			jw.Key("parts")
-			jw.Arr()
-			jw.Obj()
-			jw.Key("functionResponse")
-			jw.Obj()
-			jw.Key("name")
-			jw.Str(name)
-			jw.Key("response")
-			jw.Obj()
-			jw.Key("result")
-			jw.Str(result)
-			jw.EndObj()
-			jw.EndObj()
-			jw.EndObj()
-			jw.EndArr()
-			jw.EndObj()
+			entries = append(entries, contentEntry{
+				role:  "user",
+				parts: []string{geminiFunctionResponsePart(name, result)},
+			})
 		}
 		return true
 	})
 	if walkErr != nil {
 		return walkErr
 	}
-	if hasContents {
-		jw.EndArr()
-	}
+	emitGeminiContents(jw, collapseConsecutiveRoles(entries))
 
 	writeGeminiToolsFromOpenAI(jw, body)
 	writeGeminiToolChoiceFromOpenAI(jw, body)
@@ -352,6 +336,22 @@ func openAIAssistantPartsGJSON(msg gjson.Result) ([]string, error) {
 		parts = append(parts, geminiTextPart(text))
 	}
 
+	// Inherit any sig from sibling tool_calls or message-level thought_signature
+	// so every functionCall carries one on round-trip to Gemini 3.x.
+	var inheritedSig string
+	if sig := msg.Get("thought_signature").String(); sig != "" {
+		inheritedSig = sig
+	}
+	if inheritedSig == "" {
+		msg.Get("tool_calls").ForEach(func(_, tc gjson.Result) bool {
+			if sig := extractThoughtSignature(tc); sig != "" {
+				inheritedSig = sig
+				return false
+			}
+			return true
+		})
+	}
+
 	var parseErr error
 	msg.Get("tool_calls").ForEach(func(_, tc gjson.Result) bool {
 		name := tc.Get("function.name").String()
@@ -374,7 +374,11 @@ func openAIAssistantPartsGJSON(msg gjson.Result) ([]string, error) {
 			pw.Raw("{}")
 		}
 		pw.EndObj()
-		if sig := extractThoughtSignature(tc); sig != "" {
+		sig := extractThoughtSignature(tc)
+		if sig == "" {
+			sig = inheritedSig
+		}
+		if sig != "" {
 			pw.Key("thoughtSignature")
 			pw.Str(sig)
 		}
@@ -598,8 +602,16 @@ func writeGeminiFromAnthropic(jw *jsonWriter, body []byte, opts EmitOptions) {
 
 	msgs := gjson.GetBytes(body, "messages")
 
-	// First pass: collect tool_use ID → name for tool_result recovery.
+	// First pass: collect tool_use ID → name for tool_result recovery, and
+	// detect any tool_use lacking a thoughtSignature. Gemini 3.x rejects any
+	// request whose history contains a functionCall without a signature, so
+	// when even one is missing we drop ALL tool_use/tool_result blocks from
+	// the history. This prevents 400s on sticky-pin Gemini turns whose
+	// history was produced by a different provider (mimo/qwen/etc.) before
+	// a mid-session router switch.
 	toolNames := make(map[string]string)
+	anyToolUseMissingSig := false
+	dropToolBlocks := false
 	msgs.ForEach(func(_, msg gjson.Result) bool {
 		if msg.Get("role").String() != "assistant" {
 			return true
@@ -609,67 +621,190 @@ func writeGeminiFromAnthropic(jw *jsonWriter, body []byte, opts EmitOptions) {
 				if id := block.Get("id").String(); id != "" {
 					toolNames[id] = block.Get("name").String()
 				}
+				if extractThoughtSignature(block) == "" {
+					anyToolUseMissingSig = true
+				}
 			}
 			return true
 		})
 		return true
 	})
+	// Only Gemini 3.x preview models hard-require thoughtSignature on every
+	// functionCall part. 2.x accepts sig-less calls, so don't molest those
+	// requests — the lossless translation is correct there.
+	if anyToolUseMissingSig && isGemini3xModel(opts.TargetModel) {
+		dropToolBlocks = true
+	}
 
-	// Second pass: write contents array.
-	hasContents := false
+	// Second pass: build entries, then collapse + emit. See contentEntry /
+	// collapseConsecutiveRoles — they preserve role alternation when the
+	// sig-less-tool drop guard would otherwise produce same-role runs.
+	entries := make([]contentEntry, 0, 8)
 	msgs.ForEach(func(_, msg gjson.Result) bool {
 		role := msg.Get("role").String()
 		switch role {
 		case "user":
 			parts := anthropicUserPartsGJSON(msg.Get("content"), toolNames)
+			placeholder := false
+			if dropToolBlocks {
+				before := len(parts)
+				parts = filterOutGeminiToolResponseParts(parts)
+				if before > 0 && len(parts) == 0 {
+					parts = []string{geminiTextPart(droppedToolResultPlaceholder)}
+					placeholder = true
+				}
+			}
 			if len(parts) == 0 {
 				return true
 			}
-			if !hasContents {
-				jw.Key("contents")
-				jw.Arr()
-				hasContents = true
-			}
-			jw.Obj()
-			jw.Key("role")
-			jw.Str("user")
-			jw.Key("parts")
-			jw.Arr()
-			for _, p := range parts {
-				jw.Raw(p)
-			}
-			jw.EndArr()
-			jw.EndObj()
+			entries = append(entries, contentEntry{role: "user", parts: parts, placeholder: placeholder})
 		case "assistant":
 			parts := anthropicAssistantPartsGJSON(msg.Get("content"))
+			placeholder := false
+			if dropToolBlocks {
+				before := len(parts)
+				parts = filterOutGeminiFunctionCallParts(parts)
+				if before > 0 && len(parts) == 0 {
+					parts = []string{geminiTextPart(droppedToolCallPlaceholder)}
+					placeholder = true
+				}
+			}
 			if len(parts) == 0 {
 				return true
 			}
-			if !hasContents {
-				jw.Key("contents")
-				jw.Arr()
-				hasContents = true
-			}
-			jw.Obj()
-			jw.Key("role")
-			jw.Str("model")
-			jw.Key("parts")
-			jw.Arr()
-			for _, p := range parts {
-				jw.Raw(p)
-			}
-			jw.EndArr()
-			jw.EndObj()
+			entries = append(entries, contentEntry{role: "model", parts: parts, placeholder: placeholder})
 		}
 		return true
 	})
-	if hasContents {
-		jw.EndArr()
-	}
+	emitGeminiContents(jw, collapseConsecutiveRoles(entries))
 
 	writeGeminiToolsFromAnthropic(jw, body)
 	writeGeminiToolChoiceFromAnthropic(jw, body)
 	writeGeminiGenerationConfigFromAnthropic(jw, body, opts.TargetModel)
+}
+
+// contentEntry is a buffered Gemini `contents` array entry. Both `Prepare*`
+// paths collect entries first so a post-pass can merge placeholders with
+// real same-role content before emitting, preserving role alternation.
+type contentEntry struct {
+	role        string   // "user" or "model"
+	parts       []string // pre-serialized Gemini part JSON objects
+	placeholder bool     // synthesized by the sig-less-tool drop guard
+}
+
+// collapseConsecutiveRoles merges adjacent entries that share a role. When
+// a placeholder neighbors real same-role content, the real content wins and
+// the placeholder is dropped. Two real same-role entries merge their parts.
+// Two placeholders collapse to one. Required because the sig-less-tool drop
+// guard can otherwise emit user/user or model/model sequences (Gemini 400s
+// on non-alternating roles).
+func collapseConsecutiveRoles(in []contentEntry) []contentEntry {
+	if len(in) == 0 {
+		return in
+	}
+	out := make([]contentEntry, 0, len(in))
+	for _, e := range in {
+		if len(out) == 0 || out[len(out)-1].role != e.role {
+			out = append(out, e)
+			continue
+		}
+		prev := &out[len(out)-1]
+		switch {
+		case prev.placeholder && !e.placeholder:
+			*prev = e
+		case !prev.placeholder && e.placeholder:
+			// keep prev, drop incoming placeholder
+		default:
+			prev.parts = append(prev.parts, e.parts...)
+		}
+	}
+	return out
+}
+
+// emitGeminiContents writes the contents array from a collapsed entry slice.
+// Skips writing the key entirely when there are no entries so absence and
+// emptiness aren't conflated downstream.
+func emitGeminiContents(jw *jsonWriter, entries []contentEntry) {
+	if len(entries) == 0 {
+		return
+	}
+	jw.Key("contents")
+	jw.Arr()
+	for _, e := range entries {
+		jw.Obj()
+		jw.Key("role")
+		jw.Str(e.role)
+		jw.Key("parts")
+		jw.Arr()
+		for _, p := range e.parts {
+			jw.Raw(p)
+		}
+		jw.EndArr()
+		jw.EndObj()
+	}
+	jw.EndArr()
+}
+
+// geminiFunctionResponsePart serializes a Gemini functionResponse part.
+func geminiFunctionResponsePart(name, result string) string {
+	pw := newJSONWriter()
+	pw.Obj()
+	pw.Key("functionResponse")
+	pw.Obj()
+	pw.Key("name")
+	pw.Str(name)
+	pw.Key("response")
+	pw.Obj()
+	pw.Key("result")
+	pw.Str(result)
+	pw.EndObj()
+	pw.EndObj()
+	pw.EndObj()
+	return string(pw.Bytes())
+}
+
+// Placeholders inserted when Gemini 3.x sig-less tool blocks are dropped from
+// the request. They preserve role alternation in the `contents` array so a
+// run of dropped tool turns doesn't collapse adjacent assistant or user turns
+// into back-to-back same-role entries (Gemini 400s on non-alternating roles).
+const (
+	droppedToolCallPlaceholder   = "[router: prior tool call omitted — provider's signed thinking state was unavailable for cross-model carry-over]"
+	droppedToolResultPlaceholder = "[router: prior tool result omitted — paired with a dropped tool call]"
+)
+
+// isGemini3xModel returns true for Gemini 3.x preview models, which require
+// thoughtSignature on every functionCall part across turns. 2.x and earlier
+// accept sig-less calls.
+func isGemini3xModel(model string) bool {
+	return strings.HasPrefix(model, "gemini-3")
+}
+
+// filterOutGeminiFunctionCallParts strips functionCall parts from a slice of
+// serialized Gemini parts. Used when the assistant history contains tool_use
+// blocks without thoughtSignature — emitting them to Gemini 3.x would 400.
+func filterOutGeminiFunctionCallParts(parts []string) []string {
+	out := parts[:0]
+	for _, p := range parts {
+		if gjson.Get(p, "functionCall").Exists() {
+			continue
+		}
+		out = append(out, p)
+	}
+	return out
+}
+
+// filterOutGeminiToolResponseParts strips functionResponse parts so tool_results
+// dangle no longer reference functionCalls we dropped. Without this, Gemini
+// rejects functionResponses whose matching functionCalls aren't in history.
+func filterOutGeminiToolResponseParts(parts []string) []string {
+	out := parts[:0]
+	for _, p := range parts {
+		if gjson.Get(p, "functionResponse").Exists() {
+			continue
+		}
+		out = append(out, p)
+	}
+	return out
 }
 
 // anthropicUserPartsGJSON converts an Anthropic user content value to raw JSON part strings.
@@ -751,6 +886,18 @@ func anthropicAssistantPartsGJSON(content gjson.Result) []string {
 		}
 		return []string{geminiTextPart(s)}
 	case gjson.JSON:
+		// First pass: find any thought_signature in the assistant turn so
+		// functionCall blocks without their own sig can inherit it. Gemini 3.x
+		// rejects requests with missing thoughtSignature on any functionCall
+		// part — only one block per turn typically carries the original sig.
+		var inheritedSig string
+		content.ForEach(func(_, block gjson.Result) bool {
+			if sig := extractThoughtSignature(block); sig != "" {
+				inheritedSig = sig
+				return false
+			}
+			return true
+		})
 		var parts []string
 		content.ForEach(func(_, block gjson.Result) bool {
 			switch block.Get("type").String() {
@@ -784,8 +931,14 @@ func anthropicAssistantPartsGJSON(content gjson.Result) []string {
 				pw.Key("args")
 				pw.Raw(inputRaw)
 				pw.EndObj()
-				// thought_signature may live on the block or be smuggled in block.id.
-				if sig := extractThoughtSignature(block); sig != "" {
+				// thought_signature may live on the block or be smuggled in
+				// block.id. Fall back to the assistant turn's first sig so
+				// every functionCall carries one on round-trip.
+				sig := extractThoughtSignature(block)
+				if sig == "" {
+					sig = inheritedSig
+				}
+				if sig != "" {
 					pw.Key("thoughtSignature")
 					pw.Str(sig)
 				}

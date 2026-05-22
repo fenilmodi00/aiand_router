@@ -498,6 +498,108 @@ func TestCrossFormat_OpenAIToGemini_ToolConversation(t *testing.T) {
 	assert.Equal(t, "package main\n\nfunc main() {}", result["result"])
 }
 
+// TestCrossFormat_OpenAIToGemini_DropsSigLessToolsForGemini3x covers the
+// mirror of the Anthropic→Gemini guard for the OpenAI surface. An OpenAI
+// client whose assistant history was produced by a non-Gemini provider
+// carries `tool_calls` without `thought_signature`. Routed to a Gemini 3.x
+// preview model, the upstream rejects the request with 400 on missing
+// thoughtSignature. The translator must drop the sig-less tool history.
+func TestCrossFormat_OpenAIToGemini_DropsSigLessToolsForGemini3x(t *testing.T) {
+	env, err := translate.ParseOpenAI(openAIToolConversation)
+	require.NoError(t, err)
+
+	prep, err := env.PrepareGemini(http.Header{}, translate.EmitOptions{TargetModel: "gemini-3.1-pro-preview"})
+	require.NoError(t, err)
+
+	doc := unmarshalBody(t, prep.Body)
+	contents := getArray(t, doc, "contents")
+
+	// No part across any turn should carry a functionCall or
+	// functionResponse — they were all sig-less and would 400.
+	var lastRole string
+	for i, c := range contents {
+		msg := c.(map[string]any)
+		role, _ := msg["role"].(string)
+		assert.NotEqual(t, lastRole, role,
+			"contents[%d] role=%q must not match preceding turn's role — Gemini rejects non-alternating roles; placeholders should keep alternation across drops",
+			i, role)
+		lastRole = role
+		parts, _ := msg["parts"].([]any)
+		for _, p := range parts {
+			pmap := p.(map[string]any)
+			assert.Nil(t, pmap["functionCall"], "contents[%d] must not carry functionCall when sig-less history was dropped", i)
+			assert.Nil(t, pmap["functionResponse"], "contents[%d] must not carry functionResponse when matching functionCall was dropped", i)
+		}
+	}
+}
+
+// Multi-tool turns produce one `role:"tool"` message per tool_call_id. When
+// the sig-less drop guard fires, each tool message would naively emit its
+// own user placeholder, producing consecutive `user` entries that Gemini
+// 400s on. Verify a run of consecutive tool messages coalesces into a single
+// placeholder so role alternation is preserved.
+func TestCrossFormat_OpenAIToGemini_MultiToolDropCoalescesPlaceholders(t *testing.T) {
+	body := []byte(`{
+		"model":"gpt-5",
+		"messages":[
+			{"role":"user","content":"do two things"},
+			{"role":"assistant","content":null,"tool_calls":[
+				{"id":"call_a","type":"function","function":{"name":"Bash","arguments":"{\"cmd\":\"ls\"}"}},
+				{"id":"call_b","type":"function","function":{"name":"Read","arguments":"{\"path\":\"x\"}"}}
+			]},
+			{"role":"tool","tool_call_id":"call_a","content":"ok-a"},
+			{"role":"tool","tool_call_id":"call_b","content":"ok-b"},
+			{"role":"user","content":"thanks"}
+		]
+	}`)
+	env, err := translate.ParseOpenAI(body)
+	require.NoError(t, err)
+
+	prep, err := env.PrepareGemini(http.Header{}, translate.EmitOptions{TargetModel: "gemini-3.1-pro-preview"})
+	require.NoError(t, err)
+
+	doc := unmarshalBody(t, prep.Body)
+	contents := getArray(t, doc, "contents")
+
+	var lastRole string
+	for i, c := range contents {
+		role, _ := c.(map[string]any)["role"].(string)
+		assert.NotEqual(t, lastRole, role,
+			"contents[%d] role=%q must not match preceding turn's role — consecutive tool messages must coalesce into one placeholder",
+			i, role)
+		lastRole = role
+	}
+}
+
+// Gemini 2.x accepts sig-less tool calls, so the drop guard must NOT fire
+// there — same OpenAI fixture, different target model.
+func TestCrossFormat_OpenAIToGemini_KeepsToolsForGemini2x(t *testing.T) {
+	env, err := translate.ParseOpenAI(openAIToolConversation)
+	require.NoError(t, err)
+
+	prep, err := env.PrepareGemini(http.Header{}, translate.EmitOptions{TargetModel: "gemini-2.5-pro"})
+	require.NoError(t, err)
+
+	doc := unmarshalBody(t, prep.Body)
+	contents := getArray(t, doc, "contents")
+
+	var hasFunctionCall, hasFunctionResponse bool
+	for _, c := range contents {
+		parts, _ := c.(map[string]any)["parts"].([]any)
+		for _, p := range parts {
+			pmap := p.(map[string]any)
+			if pmap["functionCall"] != nil {
+				hasFunctionCall = true
+			}
+			if pmap["functionResponse"] != nil {
+				hasFunctionResponse = true
+			}
+		}
+	}
+	assert.True(t, hasFunctionCall, "Gemini 2.x must still receive functionCall parts")
+	assert.True(t, hasFunctionResponse, "Gemini 2.x must still receive functionResponse parts")
+}
+
 func TestCrossFormat_OpenAIToGemini_Image(t *testing.T) {
 	openAIBase64Body := []byte(`{
 		"model": "gpt-4",
