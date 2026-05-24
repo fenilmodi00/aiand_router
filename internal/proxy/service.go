@@ -41,6 +41,10 @@ type Service struct {
 	// pinCache absorbs the hot path; 30s TTL is short enough that pinned_until
 	// in the pin store remains source of truth for validity.
 	pinCache *expirable.LRU[string, sessionpin.Pin]
+	// noProgress tracks per-session dispatch fingerprints to catch the
+	// cross-envelope subagent loop (parent agent re-spawning identical
+	// sub-conversations). Nil disables the detector.
+	noProgress *noProgressTracker
 	// pinWriteSem bounds concurrent async pin-upsert goroutines with drop-on-full semantics.
 	pinWriteSem chan struct{}
 	// usageWriteSem bounds concurrent async last-turn-usage writeback goroutines,
@@ -257,6 +261,7 @@ func NewService(r router.Router, providerMap map[string]providers.Client, emitte
 		semanticCache:        semanticCache,
 		pinStore:             pinStore,
 		pinCache:             pinCache,
+		noProgress:           newNoProgressTracker(),
 		pinWriteSem:          pinWriteSem,
 		usageWriteSem:        usageWriteSem,
 		hardPinExplore:       hardPinExplore,
@@ -703,13 +708,14 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 
 	// Anthropic packs sub-agent identity into metadata.user_id; the
 	// x-weave-subagent-type header is for non-Anthropic ingress only.
+	enabledProviders := s.enabledProvidersForRequest(ctx, providers.ProviderAnthropic, r.Header)
 	routeStart := time.Now()
 	routeRes, routeErr := s.runTurnLoop(ctx, env, feats, apiKeyID, installationID, "", r.Header, router.Request{
 		RequestedModel:       feats.Model,
 		EstimatedInputTokens: feats.Tokens,
 		HasTools:             feats.HasTools,
 		PromptText:           promptText,
-		EnabledProviders:     s.enabledProvidersForRequest(ctx, providers.ProviderAnthropic, r.Header),
+		EnabledProviders:     enabledProviders,
 		ExcludedModels:       s.excludedModelsForRequest(ctx),
 		RoutingKnobs:         router.RoutingKnobsFromContext(ctx),
 	})
@@ -724,6 +730,19 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	pinAgeSec := routeRes.PinAgeSec
 	routeMs := time.Since(routeStart).Milliseconds()
 	s.logPlannerOutcome(routeRes)
+
+	// Cross-envelope no-progress detector: if this session has dispatched the
+	// same (decision_model, decision_provider, prompt-prefix) burst >=
+	// noProgressMatchThreshold times within noProgressTimeWindow, the parent
+	// agent is in a sub-agent spawn loop and another dispatch will only
+	// reproduce the same useless response. Break the pin and emit a synthetic
+	// stop instead.
+	if fp := computeNoProgressFingerprint(decision, promptText); s.noProgress != nil {
+		role := roleForTier(catalog.TierFor(feats.Model))
+		if looped, count := s.noProgress.recordAndDetect(routeRes.SessionKey, installationID, role, fp, time.Now()); looped {
+			return s.handleNoProgressBreak(w, env, count, installationID, routeRes.SessionKey, role, decision.Model, decision.Provider)
+		}
+	}
 
 	// Semantic-cache eligibility: configured, non-streaming, decision has
 	// metadata, externalID present, not eval traffic.
@@ -817,6 +836,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	var proxyErr error
 	crossFormat := false
 	var extractor *otel.UsageExtractor
+	var fallback fallbackOutcome
 
 	switch decision.Provider {
 	case providers.ProviderAnthropic:
@@ -834,12 +854,6 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		proxyErr = p.Proxy(ctx, decision, prep, proxyWriter, r)
 	case providers.ProviderOpenAI, providers.ProviderOpenRouter, providers.ProviderFireworks, providers.ProviderDeepInfra, providers.ProviderBedrock:
 		crossFormat = true
-		prep, emitErr := env.PrepareOpenAI(r.Header, opts)
-		if emitErr != nil {
-			log.Error("Failed to translate Anthropic request to OpenAI format", "err", emitErr, "decision_provider", decision.Provider)
-			return fmt.Errorf("translate anthropic request: %w", emitErr)
-		}
-		logUpstreamBody(log, routeRes.SessionKey, decision, feats, prep.Body)
 		var usage otel.UsageSink
 		if s.usageRequired() {
 			extractor = otel.NewUsageExtractor(nil, decision.Provider)
@@ -851,7 +865,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		if err := translator.Prelude(env.Stream()); err != nil {
 			log.Error("Anthropic SSE prelude failed (OpenAI upstream)", "err", err)
 		}
-		proxyErr = p.Proxy(ctx, decision, prep, translator, r)
+		proxyErr, fallback = s.proxyWithFallback(ctx, &decision, env, opts, enabledProviders, translator, r)
 		proxyErr = finalizeAfterProxy(proxyErr, translator.Finalize)
 	case providers.ProviderGoogle:
 		crossFormat = true
@@ -979,7 +993,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		s.emitBilling(ctx, requestID, externalID, decision, actPricing, routeRes, in, out, cacheCreation, cacheRead)
 	}
 
-	log.Info("ProxyMessages complete", "requested_model", feats.Model, "baseline_model", s.baselineFor(feats.Model), "decision_model", decision.Model, "decision_provider", decision.Provider, "decision_reason", decision.Reason, "requested_tier", routeRes.RequestedTier.String(), "decision_tier", catalog.TierFor(decision.Model).String(), "tier_clamped", routeRes.TierClamped, "pre_clamp_model", routeRes.PreClampModel, "embedded_tokens", len(promptText)/4, "total_input_tokens", feats.Tokens, "has_tools", feats.HasTools, "message_count", feats.MessageCount, "last_kind", feats.LastKind, "last_preview", feats.LastPreview, "embed_input", embedInput, "cross_format", crossFormat, "sticky_hit", stickyHit, "route_ms", routeMs, "proxy_ms", proxyMs, "proxy_err", proxyErr, "upstream_status", upstreamStatus(proxyErr))
+	log.Info("ProxyMessages complete", "requested_model", feats.Model, "baseline_model", s.baselineFor(feats.Model), "decision_model", decision.Model, "decision_provider", decision.Provider, "decision_reason", decision.Reason, "requested_tier", routeRes.RequestedTier.String(), "decision_tier", catalog.TierFor(decision.Model).String(), "tier_clamped", routeRes.TierClamped, "pre_clamp_model", routeRes.PreClampModel, "embedded_tokens", len(promptText)/4, "total_input_tokens", feats.Tokens, "has_tools", feats.HasTools, "message_count", feats.MessageCount, "last_kind", feats.LastKind, "last_preview", feats.LastPreview, "embed_input", embedInput, "cross_format", crossFormat, "sticky_hit", stickyHit, "route_ms", routeMs, "proxy_ms", proxyMs, "proxy_err", proxyErr, "upstream_status", upstreamStatus(proxyErr), "fallback_attempted", fallback.Attempted, "fallback_from_provider", fallback.FromProvider, "fallback_to_provider", fallback.ToProvider, "fallback_reason", fallback.Reason)
 	return proxyErr
 }
 
@@ -1516,13 +1530,14 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	// OpenAI signals sub-agent identity via x-weave-subagent-type (no metadata.user_id).
 	subAgentHint := r.Header.Get("x-weave-subagent-type")
 
+	enabledProviders := s.enabledProvidersForRequest(ctx, providers.ProviderOpenAI, r.Header)
 	routeStart := time.Now()
 	routeRes, err := s.runTurnLoop(ctx, env, feats, apiKeyID, installationID, subAgentHint, r.Header, router.Request{
 		RequestedModel:       feats.Model,
 		EstimatedInputTokens: feats.Tokens,
 		HasTools:             feats.HasTools,
 		PromptText:           promptText,
-		EnabledProviders:     s.enabledProvidersForRequest(ctx, providers.ProviderOpenAI, r.Header),
+		EnabledProviders:     enabledProviders,
 		ExcludedModels:       s.excludedModelsForRequest(ctx),
 		RoutingKnobs:         router.RoutingKnobsFromContext(ctx),
 	})
@@ -1645,20 +1660,16 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	var proxyErr error
 	crossFormat := false
 	var extractor *otel.UsageExtractor
+	var fallback fallbackOutcome
 
 	switch decision.Provider {
 	case providers.ProviderOpenAI, providers.ProviderOpenRouter, providers.ProviderFireworks, providers.ProviderDeepInfra, providers.ProviderBedrock:
-		prep, emitErr := env.PrepareOpenAI(r.Header, opts)
-		if emitErr != nil {
-			log.Error("Failed to emit OpenAI body", "err", emitErr)
-			return fmt.Errorf("emit body: %w", emitErr)
-		}
 		proxyWriter := sink
 		if s.usageRequired() {
 			extractor = otel.NewUsageExtractor(sink, decision.Provider)
 			proxyWriter = extractor
 		}
-		proxyErr = p.Proxy(ctx, decision, prep, proxyWriter, r)
+		proxyErr, fallback = s.proxyWithFallback(ctx, &decision, env, opts, enabledProviders, proxyWriter, r)
 	case providers.ProviderGoogle:
 		crossFormat = true
 		prep, emitErr := env.PrepareGemini(r.Header, opts)
@@ -1787,7 +1798,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		})
 	}
 
-	log.Info("ProxyOpenAIChatCompletion complete", "requested_model", feats.Model, "baseline_model", s.baselineFor(feats.Model), "decision_model", decision.Model, "decision_provider", decision.Provider, "decision_reason", decision.Reason, "requested_tier", routeRes.RequestedTier.String(), "decision_tier", catalog.TierFor(decision.Model).String(), "tier_clamped", routeRes.TierClamped, "pre_clamp_model", routeRes.PreClampModel, "embedded_tokens", len(promptText)/4, "total_input_tokens", feats.Tokens, "has_tools", feats.HasTools, "embed_input", embedInput, "cross_format", crossFormat, "sticky_hit", stickyHit, "pin_tier", pinTier, "turn_type", string(tt), "route_ms", routeMs, "proxy_ms", proxyMs, "proxy_err", proxyErr, "upstream_status", upstreamStatus(proxyErr))
+	log.Info("ProxyOpenAIChatCompletion complete", "requested_model", feats.Model, "baseline_model", s.baselineFor(feats.Model), "decision_model", decision.Model, "decision_provider", decision.Provider, "decision_reason", decision.Reason, "requested_tier", routeRes.RequestedTier.String(), "decision_tier", catalog.TierFor(decision.Model).String(), "tier_clamped", routeRes.TierClamped, "pre_clamp_model", routeRes.PreClampModel, "embedded_tokens", len(promptText)/4, "total_input_tokens", feats.Tokens, "has_tools", feats.HasTools, "embed_input", embedInput, "cross_format", crossFormat, "sticky_hit", stickyHit, "pin_tier", pinTier, "turn_type", string(tt), "route_ms", routeMs, "proxy_ms", proxyMs, "proxy_err", proxyErr, "upstream_status", upstreamStatus(proxyErr), "fallback_attempted", fallback.Attempted, "fallback_from_provider", fallback.FromProvider, "fallback_to_provider", fallback.ToProvider, "fallback_reason", fallback.Reason)
 	return proxyErr
 }
 
