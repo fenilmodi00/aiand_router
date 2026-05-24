@@ -774,9 +774,8 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	w.Header().Set("x-router-provider", decision.Provider)
 	w.Header().Set("x-router-model", decision.Model)
 
-	p, provErr := s.provider(decision.Provider)
-	if provErr != nil {
-		return provErr
+	if _, err := s.provider(decision.Provider); err != nil {
+		return err
 	}
 
 	reqPricing := otel.Lookup(s.baselineFor(feats.Model))
@@ -825,10 +824,23 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 
 	ctx = resolveAndInjectCredentials(ctx, decision.Provider, r.Header)
 
+	// Determine binding list up front. When more than one is eligible, wrap
+	// the client writer with a preludeBuffer so the per-attempt Prelude
+	// bytes don't commit the response before the upstream first byte —
+	// otherwise the first attempt's Prelude would lock in HTTP 200 +
+	// message_start and any retry would smash a second response envelope
+	// onto the wire.
+	bindings := s.resolveBindingsForDispatch(ctx, decision)
+	var preludeBuf *preludeBuffer
+	var rootSink http.ResponseWriter = w
+	if len(bindings) > 1 {
+		preludeBuf = newPreludeBuffer(w)
+		rootSink = preludeBuf
+	}
 	var captureW *captureWriter
-	var sink http.ResponseWriter = w
+	var sink http.ResponseWriter = rootSink
 	if cacheEligible {
-		captureW = newCaptureWriter(w, semanticCacheMaxBodyBytes)
+		captureW = newCaptureWriter(rootSink, semanticCacheMaxBodyBytes)
 		sink = captureW
 	}
 
@@ -836,8 +848,8 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	var proxyErr error
 	crossFormat := false
 	var extractor *otel.UsageExtractor
-	var fallback fallbackOutcome
 
+	var attempt dispatchAttempt
 	switch decision.Provider {
 	case providers.ProviderAnthropic:
 		prep, emitErr := env.PrepareAnthropic(r.Header, opts)
@@ -846,27 +858,58 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 			return fmt.Errorf("emit body: %w", emitErr)
 		}
 		logUpstreamBody(log, routeRes.SessionKey, decision, feats, prep.Body)
-		proxyWriter := sink
-		if s.usageRequired() {
-			extractor = otel.NewUsageExtractor(sink, decision.Provider)
-			proxyWriter = extractor
+		attempt = func(actx context.Context, d router.Decision, p providers.Client) error {
+			proxyWriter := sink
+			if s.usageRequired() {
+				extractor = otel.NewUsageExtractor(sink, d.Provider)
+				proxyWriter = extractor
+			}
+			if preludeBuf != nil {
+				preludeBuf.Seal()
+			}
+			return p.Proxy(actx, d, prep, proxyWriter, r)
 		}
-		proxyErr = p.Proxy(ctx, decision, prep, proxyWriter, r)
 	case providers.ProviderOpenAI, providers.ProviderOpenRouter, providers.ProviderFireworks, providers.ProviderDeepInfra, providers.ProviderBedrock:
 		crossFormat = true
-		var usage otel.UsageSink
-		if s.usageRequired() {
-			extractor = otel.NewUsageExtractor(nil, decision.Provider)
-			usage = extractor
+		// Prep rebuilt per attempt: targetIsOpenRouter(opts) gates four
+		// OpenRouter-only body fields (provider hint, reasoning, system
+		// reminder, tool-temp override). If the primary is Fireworks and
+		// we fail over to OpenRouter, the second attempt's body must be
+		// re-emitted with TargetProvider = openrouter so those gates fire.
+		attempt = func(actx context.Context, d router.Decision, p providers.Client) error {
+			attemptOpts := opts
+			attemptOpts.TargetProvider = d.Provider
+			prep, emitErr := env.PrepareOpenAI(r.Header, attemptOpts)
+			if emitErr != nil {
+				log.Error("Failed to translate Anthropic request to OpenAI format", "err", emitErr, "decision_provider", d.Provider)
+				return fmt.Errorf("translate anthropic request: %w", emitErr)
+			}
+			logUpstreamBody(log, routeRes.SessionKey, d, feats, prep.Body)
+			var usage otel.UsageSink
+			if s.usageRequired() {
+				extractor = otel.NewUsageExtractor(nil, d.Provider)
+				usage = extractor
+			}
+			translator := translate.NewAnthropicSSETranslator(sink, d.Model, usage).
+				WithRoutingMarker(routingMarkerFor(routeRes)).
+				WithEstimatedInputTokens(feats.Tokens)
+			if err := translator.Prelude(env.Stream()); err != nil {
+				log.Error("Anthropic SSE prelude failed (OpenAI upstream)", "err", err)
+			}
+			if preludeBuf != nil {
+				preludeBuf.Seal()
+			}
+			err := p.Proxy(actx, d, prep, translator, r)
+			// Single-binding streaming: Prelude already committed
+			// HTTP 200 + message_start; render the upstream error as
+			// an in-stream `event: error` frame so the SSE stream
+			// stays coherent rather than getting a trailing JSON
+			// envelope appended by the dispatch loop's flushErr.
+			if err != nil && env.Stream() && preludeBuf == nil {
+				err = emitAnthropicSSEErrorEvent(sink, err)
+			}
+			return finalizeAfterProxy(err, translator.Finalize)
 		}
-		translator := translate.NewAnthropicSSETranslator(sink, decision.Model, usage).
-			WithRoutingMarker(routingMarkerFor(routeRes)).
-			WithEstimatedInputTokens(feats.Tokens)
-		if err := translator.Prelude(env.Stream()); err != nil {
-			log.Error("Anthropic SSE prelude failed (OpenAI upstream)", "err", err)
-		}
-		proxyErr, fallback = s.proxyWithFallback(ctx, &decision, env, opts, enabledProviders, translator, r)
-		proxyErr = finalizeAfterProxy(proxyErr, translator.Finalize)
 	case providers.ProviderGoogle:
 		crossFormat = true
 		prep, emitErr := env.PrepareGemini(r.Header, opts)
@@ -875,24 +918,60 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 			return fmt.Errorf("translate anthropic request to gemini: %w", emitErr)
 		}
 		logUpstreamBody(log, routeRes.SessionKey, decision, feats, prep.Body)
-		var usage otel.UsageSink
-		if s.usageRequired() {
-			extractor = otel.NewUsageExtractor(nil, decision.Provider)
-			usage = extractor
+		attempt = func(actx context.Context, d router.Decision, p providers.Client) error {
+			var usage otel.UsageSink
+			if s.usageRequired() {
+				extractor = otel.NewUsageExtractor(nil, d.Provider)
+				usage = extractor
+			}
+			// SSE chain: Gemini → OpenAI → Anthropic.
+			anthropicTr := translate.NewAnthropicSSETranslator(sink, d.Model, usage).
+				WithRoutingMarker(routingMarkerFor(routeRes)).
+				WithEstimatedInputTokens(feats.Tokens)
+			if err := anthropicTr.Prelude(env.Stream()); err != nil {
+				log.Error("Anthropic SSE prelude failed (Gemini upstream)", "err", err)
+			}
+			if preludeBuf != nil {
+				preludeBuf.Seal()
+			}
+			geminiTr := translate.NewGeminiToOpenAISSETranslator(anthropicTr, d.Model, nil)
+			err := p.Proxy(actx, d, prep, geminiTr, r)
+			// Single-binding streaming: see ProxyMessages OpenAI-compat
+			// case for rationale — render upstream error as in-stream
+			// `event: error` rather than corrupt the SSE stream.
+			if err != nil && env.Stream() && preludeBuf == nil {
+				err = emitAnthropicSSEErrorEvent(sink, err)
+			}
+			err = finalizeAfterProxy(err, geminiTr.Finalize)
+			return finalizeAfterProxy(err, anthropicTr.Finalize)
 		}
-		// SSE chain: Gemini → OpenAI → Anthropic.
-		anthropicTr := translate.NewAnthropicSSETranslator(sink, decision.Model, usage).
-			WithRoutingMarker(routingMarkerFor(routeRes)).
-			WithEstimatedInputTokens(feats.Tokens)
-		if err := anthropicTr.Prelude(env.Stream()); err != nil {
-			log.Error("Anthropic SSE prelude failed (Gemini upstream)", "err", err)
-		}
-		geminiTr := translate.NewGeminiToOpenAISSETranslator(anthropicTr, decision.Model, nil)
-		proxyErr = p.Proxy(ctx, decision, prep, geminiTr, r)
-		proxyErr = finalizeAfterProxy(proxyErr, geminiTr.Finalize)
-		proxyErr = finalizeAfterProxy(proxyErr, anthropicTr.Finalize)
 	default:
 		return fmt.Errorf("%w: %s (no translation path defined for inbound Anthropic Messages)", ErrProviderNotConfigured, decision.Provider)
+	}
+
+	primaryProvider := decision.Provider
+	var winnerIdx int
+	winnerIdx, proxyErr = s.dispatchWithFallback(ctx, failoverInputs{
+		w:               w,
+		buf:             preludeBuf,
+		initialDecision: decision,
+		bindings:        bindings,
+		attempt:         attempt,
+		flushErr:        flushUpstreamErrorAsAnthropic,
+	})
+	finalProvider := primaryProvider
+	if winnerIdx >= 0 && winnerIdx < len(bindings) {
+		finalProvider = bindings[winnerIdx].Provider
+	}
+	decision.Provider = finalProvider
+
+	// Re-resolve actual pricing for the binding that actually served the
+	// request. The pre-dispatch lookup (`otel.Lookup(decision.Model)`)
+	// always returns the catalog's PRIMARY binding price; on a successful
+	// failover we'd otherwise debit + report the primary's per-1M rate
+	// while the request was actually billed at the fallback's rate.
+	if actBindingPricing, ok := catalog.PriceFor(finalProvider, decision.Model); ok {
+		actPricing = actBindingPricing
 	}
 
 	// Cache store: only on success when body fits. Any top-p cluster id
@@ -932,7 +1011,11 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		Int64("latency.upstream_ms", proxyMs).
 		Int64("latency.total_ms", time.Since(requestStart).Milliseconds()).
 		Int64("upstream.status_code", int64(upstreamStatus(proxyErr))).
-		Bool("routing.cross_format", crossFormat)
+		Bool("routing.cross_format", crossFormat).
+		String("dispatch.primary_provider", primaryProvider).
+		String("dispatch.final_provider", finalProvider).
+		Int64("dispatch.fallback_attempts", int64(winnerIdx)).
+		Bool("dispatch.failover_used", finalProvider != primaryProvider)
 	applyPlannerAttrs(upstreamBuilder, routeRes)
 	addTimingAttrs(ctx, upstreamBuilder)
 
@@ -993,7 +1076,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		s.emitBilling(ctx, requestID, externalID, decision, actPricing, routeRes, in, out, cacheCreation, cacheRead)
 	}
 
-	log.Info("ProxyMessages complete", "requested_model", feats.Model, "baseline_model", s.baselineFor(feats.Model), "decision_model", decision.Model, "decision_provider", decision.Provider, "decision_reason", decision.Reason, "requested_tier", routeRes.RequestedTier.String(), "decision_tier", catalog.TierFor(decision.Model).String(), "tier_clamped", routeRes.TierClamped, "pre_clamp_model", routeRes.PreClampModel, "embedded_tokens", len(promptText)/4, "total_input_tokens", feats.Tokens, "has_tools", feats.HasTools, "message_count", feats.MessageCount, "last_kind", feats.LastKind, "last_preview", feats.LastPreview, "embed_input", embedInput, "cross_format", crossFormat, "sticky_hit", stickyHit, "route_ms", routeMs, "proxy_ms", proxyMs, "proxy_err", proxyErr, "upstream_status", upstreamStatus(proxyErr), "fallback_attempted", fallback.Attempted, "fallback_from_provider", fallback.FromProvider, "fallback_to_provider", fallback.ToProvider, "fallback_reason", fallback.Reason)
+	log.Info("ProxyMessages complete", "requested_model", feats.Model, "baseline_model", s.baselineFor(feats.Model), "decision_model", decision.Model, "decision_provider", decision.Provider, "primary_provider", primaryProvider, "fallback_attempts", winnerIdx, "failover_used", finalProvider != primaryProvider, "decision_reason", decision.Reason, "requested_tier", routeRes.RequestedTier.String(), "decision_tier", catalog.TierFor(decision.Model).String(), "tier_clamped", routeRes.TierClamped, "pre_clamp_model", routeRes.PreClampModel, "embedded_tokens", len(promptText)/4, "total_input_tokens", feats.Tokens, "has_tools", feats.HasTools, "message_count", feats.MessageCount, "last_kind", feats.LastKind, "last_preview", feats.LastPreview, "embed_input", embedInput, "cross_format", crossFormat, "sticky_hit", stickyHit, "route_ms", routeMs, "proxy_ms", proxyMs, "proxy_err", proxyErr, "upstream_status", upstreamStatus(proxyErr))
 	return proxyErr
 }
 
@@ -1442,11 +1525,18 @@ func logBillingDebitFailure(ctx context.Context, p billing.DebitInferenceParams,
 	)
 }
 
-// upstreamStatus extracts the HTTP status from an UpstreamStatusError, or 0.
+// upstreamStatus extracts the HTTP status from an upstream-typed error.
+// Covers both UpstreamStatusError (bytes already flushed to client) and
+// UpstreamErrorResponse (body buffered by the openaicompat adapter for
+// the failover loop). Returns 0 for non-upstream errors.
 func upstreamStatus(err error) int {
-	var e *providers.UpstreamStatusError
-	if errors.As(err, &e) {
-		return e.Status
+	var statusErr *providers.UpstreamStatusError
+	if errors.As(err, &statusErr) {
+		return statusErr.Status
+	}
+	var bufferedErr *providers.UpstreamErrorResponse
+	if errors.As(err, &bufferedErr) {
+		return bufferedErr.Status
 	}
 	return 0
 }
@@ -1577,9 +1667,8 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		}
 	}
 
-	p, provErr := s.provider(decision.Provider)
-	if provErr != nil {
-		return provErr
+	if _, err := s.provider(decision.Provider); err != nil {
+		return err
 	}
 
 	w.Header().Set("x-router-decision", decision.Reason)
@@ -1632,44 +1721,93 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 
 	ctx = resolveAndInjectCredentials(ctx, decision.Provider, r.Header)
 
+	// See ProxyMessages for the preludeBuffer rationale — wrap only when
+	// failover is possible so single-binding requests keep main #220's
+	// TTFB-decoupled Prelude semantics exactly.
+	bindings := s.resolveBindingsForDispatch(ctx, decision)
+	var preludeBuf *preludeBuffer
+	var rootSink http.ResponseWriter = w
+	if len(bindings) > 1 {
+		preludeBuf = newPreludeBuffer(w)
+		rootSink = preludeBuf
+	}
+
+	// Responses entry point delegates the eager response.created emit to
+	// this layer because it has the post-routing binding count. Fire only
+	// when single-binding so multi-binding requests stay failover-safe
+	// (Codex client sees response.created via ResponsesWriter's lazy
+	// emitCreated on the first upstream byte instead).
+	if rw, ok := w.(*translate.ResponsesWriter); ok && len(bindings) <= 1 {
+		if err := rw.Prelude(env.Stream()); err != nil {
+			log.Error("Responses prelude failed", "err", err)
+		}
+	}
+
 	var captureW *captureWriter
-	var sink http.ResponseWriter = w
+	var sink http.ResponseWriter = rootSink
 	if cacheEligible {
-		captureW = newCaptureWriter(w, semanticCacheMaxBodyBytes)
+		captureW = newCaptureWriter(rootSink, semanticCacheMaxBodyBytes)
 		sink = captureW
 	}
 
-	if marker := routingMarkerFor(routeRes); marker != "" {
-		// Skip the marker wrap when the outer sink is ResponsesWriter (Codex):
-		// it injects its own badge on the first text delta, and an extra
-		// marker chunk would produce a duplicate. ResponsesWriter's own
-		// Prelude is fired upstream of this call.
-		if _, isResponses := sink.(*translate.ResponsesWriter); !isResponses {
-			mw := translate.NewOpenAIRoutingMarkerWriter(sink, decision.Model, marker)
-			// Flush the marker chunk + HTTP 200 immediately so TTFB is decoupled
-			// from upstream prefill. Locks in 200; any later upstream error must
-			// surface in-stream rather than as an HTTP status.
-			if err := mw.Prelude(env.Stream()); err != nil {
-				log.Error("OpenAI routing-marker prelude failed", "err", err)
-			}
-			sink = mw
+	marker := routingMarkerFor(routeRes)
+	_, isResponses := w.(*translate.ResponsesWriter)
+	// markerSink wraps sink with an OpenAIRoutingMarkerWriter that emits
+	// the routing-marker chunk + HTTP 200 eagerly (Prelude). Skipped when
+	// the inbound is /v1/responses (ResponsesWriter handles its own badge)
+	// and when no marker is configured for this route. Called per attempt
+	// so retries re-emit into a fresh preludeBuffer state.
+	makeMarkerSink := func() http.ResponseWriter {
+		if marker == "" || isResponses {
+			return sink
 		}
+		mw := translate.NewOpenAIRoutingMarkerWriter(sink, decision.Model, marker)
+		if err := mw.Prelude(env.Stream()); err != nil {
+			log.Error("OpenAI routing-marker prelude failed", "err", err)
+		}
+		return mw
 	}
 
 	proxyStart := time.Now()
 	var proxyErr error
 	crossFormat := false
 	var extractor *otel.UsageExtractor
-	var fallback fallbackOutcome
 
+	var attempt dispatchAttempt
 	switch decision.Provider {
 	case providers.ProviderOpenAI, providers.ProviderOpenRouter, providers.ProviderFireworks, providers.ProviderDeepInfra, providers.ProviderBedrock:
-		proxyWriter := sink
-		if s.usageRequired() {
-			extractor = otel.NewUsageExtractor(sink, decision.Provider)
-			proxyWriter = extractor
+		// Prep rebuilt per attempt: targetIsOpenRouter(opts) gates four
+		// OpenRouter-only body fields (provider hint, reasoning, system
+		// reminder, tool-temp override) that the Fireworks/DeepInfra/
+		// Bedrock primary should not see. On failover to OpenRouter the
+		// body must be re-emitted with TargetProvider = openrouter.
+		attempt = func(actx context.Context, d router.Decision, p providers.Client) error {
+			attemptOpts := opts
+			attemptOpts.TargetProvider = d.Provider
+			prep, emitErr := env.PrepareOpenAI(r.Header, attemptOpts)
+			if emitErr != nil {
+				log.Error("Failed to emit OpenAI body", "err", emitErr, "decision_provider", d.Provider)
+				return fmt.Errorf("emit body: %w", emitErr)
+			}
+			attemptSink := makeMarkerSink()
+			proxyWriter := attemptSink
+			if s.usageRequired() {
+				extractor = otel.NewUsageExtractor(attemptSink, d.Provider)
+				proxyWriter = extractor
+			}
+			if preludeBuf != nil {
+				preludeBuf.Seal()
+			}
+			err := p.Proxy(actx, d, prep, proxyWriter, r)
+			// Single-binding streaming: the routing-marker Prelude already
+			// committed HTTP 200 + the marker chunk to the wire; render the
+			// upstream error as an in-stream `data: {...}` frame instead of
+			// letting dispatch's flushErr append a corrupting JSON envelope.
+			if err != nil && env.Stream() && preludeBuf == nil {
+				err = emitOpenAISSEErrorEvent(sink, err)
+			}
+			return err
 		}
-		proxyErr, fallback = s.proxyWithFallback(ctx, &decision, env, opts, enabledProviders, proxyWriter, r)
 	case providers.ProviderGoogle:
 		crossFormat = true
 		prep, emitErr := env.PrepareGemini(r.Header, opts)
@@ -1677,14 +1815,24 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 			log.Error("Failed to translate OpenAI request to Gemini format", "err", emitErr)
 			return fmt.Errorf("translate openai request to gemini: %w", emitErr)
 		}
-		var usage otel.UsageSink
-		if s.usageRequired() {
-			extractor = otel.NewUsageExtractor(nil, decision.Provider)
-			usage = extractor
+		attempt = func(actx context.Context, d router.Decision, p providers.Client) error {
+			var usage otel.UsageSink
+			if s.usageRequired() {
+				extractor = otel.NewUsageExtractor(nil, d.Provider)
+				usage = extractor
+			}
+			attemptSink := makeMarkerSink()
+			translator := translate.NewGeminiToOpenAISSETranslator(attemptSink, d.Model, usage)
+			if preludeBuf != nil {
+				preludeBuf.Seal()
+			}
+			err := p.Proxy(actx, d, prep, translator, r)
+			// Single-binding streaming: see same-format OpenAI case above.
+			if err != nil && env.Stream() && preludeBuf == nil {
+				err = emitOpenAISSEErrorEvent(sink, err)
+			}
+			return finalizeAfterProxy(err, translator.Finalize)
 		}
-		translator := translate.NewGeminiToOpenAISSETranslator(sink, decision.Model, usage)
-		proxyErr = p.Proxy(ctx, decision, prep, translator, r)
-		proxyErr = finalizeAfterProxy(proxyErr, translator.Finalize)
 	case providers.ProviderAnthropic:
 		crossFormat = true
 		prep, emitErr := env.PrepareAnthropic(r.Header, opts)
@@ -1692,16 +1840,48 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 			log.Error("Failed to translate OpenAI request to Anthropic format", "err", emitErr)
 			return fmt.Errorf("translate openai request: %w", emitErr)
 		}
-		var usage otel.UsageSink
-		if s.usageRequired() {
-			extractor = otel.NewUsageExtractor(nil, providers.ProviderAnthropic)
-			usage = extractor
+		attempt = func(actx context.Context, d router.Decision, p providers.Client) error {
+			var usage otel.UsageSink
+			if s.usageRequired() {
+				extractor = otel.NewUsageExtractor(nil, providers.ProviderAnthropic)
+				usage = extractor
+			}
+			attemptSink := makeMarkerSink()
+			translator := translate.NewSSETranslator(attemptSink, d.Model, usage)
+			if preludeBuf != nil {
+				preludeBuf.Seal()
+			}
+			err := p.Proxy(actx, d, prep, translator, r)
+			// Single-binding streaming: see same-format OpenAI case above.
+			if err != nil && env.Stream() && preludeBuf == nil {
+				err = emitOpenAISSEErrorEvent(sink, err)
+			}
+			return finalizeAfterProxy(err, translator.Finalize)
 		}
-		translator := translate.NewSSETranslator(sink, decision.Model, usage)
-		proxyErr = p.Proxy(ctx, decision, prep, translator, r)
-		proxyErr = finalizeAfterProxy(proxyErr, translator.Finalize)
 	default:
 		return fmt.Errorf("%w: %s (no translation path defined)", ErrProviderNotConfigured, decision.Provider)
+	}
+
+	primaryProvider := decision.Provider
+	var winnerIdx int
+	winnerIdx, proxyErr = s.dispatchWithFallback(ctx, failoverInputs{
+		w:               w,
+		buf:             preludeBuf,
+		initialDecision: decision,
+		bindings:        bindings,
+		attempt:         attempt,
+		flushErr:        flushBufferedIfPresent,
+	})
+	finalProvider := primaryProvider
+	if winnerIdx >= 0 && winnerIdx < len(bindings) {
+		finalProvider = bindings[winnerIdx].Provider
+	}
+	decision.Provider = finalProvider
+
+	// Re-resolve actual pricing for the binding that actually served the
+	// request — see ProxyMessages for the rationale.
+	if actBindingPricing, ok := catalog.PriceFor(finalProvider, decision.Model); ok {
+		actPricing = actBindingPricing
 	}
 
 	if cacheEligible && proxyErr == nil && captureW != nil {
@@ -1739,7 +1919,11 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		Int64("latency.upstream_ms", proxyMs).
 		Int64("latency.total_ms", time.Since(requestStart).Milliseconds()).
 		Int64("upstream.status_code", int64(upstreamStatus(proxyErr))).
-		Bool("routing.cross_format", crossFormat)
+		Bool("routing.cross_format", crossFormat).
+		String("dispatch.primary_provider", primaryProvider).
+		String("dispatch.final_provider", finalProvider).
+		Int64("dispatch.fallback_attempts", int64(winnerIdx)).
+		Bool("dispatch.failover_used", finalProvider != primaryProvider)
 	applyPlannerAttrs(openaiUpstreamBuilder, routeRes)
 	addTimingAttrs(ctx, openaiUpstreamBuilder)
 
@@ -1798,7 +1982,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		})
 	}
 
-	log.Info("ProxyOpenAIChatCompletion complete", "requested_model", feats.Model, "baseline_model", s.baselineFor(feats.Model), "decision_model", decision.Model, "decision_provider", decision.Provider, "decision_reason", decision.Reason, "requested_tier", routeRes.RequestedTier.String(), "decision_tier", catalog.TierFor(decision.Model).String(), "tier_clamped", routeRes.TierClamped, "pre_clamp_model", routeRes.PreClampModel, "embedded_tokens", len(promptText)/4, "total_input_tokens", feats.Tokens, "has_tools", feats.HasTools, "embed_input", embedInput, "cross_format", crossFormat, "sticky_hit", stickyHit, "pin_tier", pinTier, "turn_type", string(tt), "route_ms", routeMs, "proxy_ms", proxyMs, "proxy_err", proxyErr, "upstream_status", upstreamStatus(proxyErr), "fallback_attempted", fallback.Attempted, "fallback_from_provider", fallback.FromProvider, "fallback_to_provider", fallback.ToProvider, "fallback_reason", fallback.Reason)
+	log.Info("ProxyOpenAIChatCompletion complete", "requested_model", feats.Model, "baseline_model", s.baselineFor(feats.Model), "decision_model", decision.Model, "decision_provider", decision.Provider, "primary_provider", primaryProvider, "fallback_attempts", winnerIdx, "failover_used", finalProvider != primaryProvider, "decision_reason", decision.Reason, "requested_tier", routeRes.RequestedTier.String(), "decision_tier", catalog.TierFor(decision.Model).String(), "tier_clamped", routeRes.TierClamped, "pre_clamp_model", routeRes.PreClampModel, "embedded_tokens", len(promptText)/4, "total_input_tokens", feats.Tokens, "has_tools", feats.HasTools, "embed_input", embedInput, "cross_format", crossFormat, "sticky_hit", stickyHit, "pin_tier", pinTier, "turn_type", string(tt), "route_ms", routeMs, "proxy_ms", proxyMs, "proxy_err", proxyErr, "upstream_status", upstreamStatus(proxyErr))
 	return proxyErr
 }
 
@@ -1808,16 +1992,19 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 // re-emitted as Responses-shaped SSE / JSON. This keeps the turn loop, cache,
 // pricing, and translation matrix unchanged.
 func (s *Service) ProxyOpenAIResponses(ctx context.Context, body []byte, w http.ResponseWriter, r *http.Request) error {
-	chatBody, stream, model, err := translate.ResponsesToChatCompletions(body)
+	chatBody, _, model, err := translate.ResponsesToChatCompletions(body)
 	if err != nil {
 		return fmt.Errorf("translate responses request: %w", err)
 	}
 	wrapper := translate.NewResponsesWriter(w, model)
-	// Emit response.created immediately so Codex stops staring at a blank TUI
-	// while upstream prefills. Decoupled from upstream first-byte latency.
-	if err := wrapper.Prelude(stream); err != nil {
-		observability.Get().Error("Responses prelude failed", "err", err)
-	}
+	// Prelude (response.created emit) deferred to ProxyOpenAIChatCompletion.
+	// It knows the post-routing decision and the binding count; only fires
+	// eagerly when the request is single-binding (no failover possible).
+	// Multi-binding requests rely on ResponsesWriter.Write's lazy
+	// emitCreated on first upstream byte instead — losing #220's TTFB win
+	// on /v1/responses for multi-binding models, but preserving the failover
+	// invariant that nothing reaches the client before the upstream
+	// commits.
 	proxyErr := s.ProxyOpenAIChatCompletion(ctx, chatBody, wrapper, r)
 	if proxyErr != nil {
 		// On error, let the handler write the error envelope unless we've
