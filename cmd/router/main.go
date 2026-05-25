@@ -22,6 +22,7 @@ import (
 	"workweave/router/internal/billing"
 	"workweave/router/internal/config"
 	"workweave/router/internal/observability"
+	"workweave/router/internal/observability/apm"
 	"workweave/router/internal/observability/otel"
 	"workweave/router/internal/postgres"
 	"workweave/router/internal/providers"
@@ -592,12 +593,19 @@ func main() {
 		logger.Info("Model exclusion override active", "excluded_models", cleaned)
 	}
 
+	// APM (SigNoz) — adds standard HTTP server spans and Go runtime metrics
+	// to the same OTel resource shape as the rest of the Weave services.
+	// No-op when WV_APM_OTLP_ENDPOINT is unset. Flushed explicitly in the
+	// graceful-shutdown path below; defer would run after SIGKILL.
+	apm.Init()
+
 	engine := gin.New()
 	engine.UnescapePathValues = true
 	engine.UseRawPath = true
 	engine.Use(
 		observability.Middleware(),
 		observability.AccessLog(),
+		apm.Middleware(),
 		gin.Recovery(),
 	)
 
@@ -637,25 +645,40 @@ func main() {
 	select {
 	case err := <-serverErr:
 		logger.Error("Server exited with error", "err", err)
+		// Flush APM here too: a ListenAndServe failure bypasses the SIGTERM
+		// path below, so without an explicit shutdown the buffered SDK
+		// traces + metrics describing the failure itself would never reach
+		// SigNoz — exactly when they'd be most useful.
+		apmFailCtx, apmFailCancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
+		defer apmFailCancel()
+		apm.ShutdownWithContext(apmFailCtx)
 		return
 	case sig := <-stop:
 		logger.Info("Received shutdown signal; draining", "signal", sig.String())
 	}
 
-	// Cloud Run gives 10s between SIGTERM and SIGKILL; 8s leaves margin
-	// for log flush and pool close after Shutdown returns.
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	// Cloud Run gives 10s between SIGTERM and SIGKILL. Budget across three
+	// flush stages so the SDK trace/metric batch actually exports before
+	// SIGKILL — a defer on apm.Shutdown would never run in time.
+	//
+	//   srv.Shutdown:    6.0s — long-lived streams are the hard part
+	//   emitter.Shutdown: 1.5s — custom OTLP/HTTP decision spans
+	//   apm.Shutdown:    1.5s — SDK trace + metric batchers
+	//                    ----
+	//                    9.0s, leaving ~1s slack before SIGKILL
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		logger.Error("Graceful shutdown failed", "err", err)
 	}
-	// Emitter gets a dedicated drain budget so it can flush remaining spans
-	// even if the server consumed the full shutdown timeout above.
-	emitterCtx, emitterCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	emitterCtx, emitterCancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
 	defer emitterCancel()
 	if err := emitter.Shutdown(emitterCtx); err != nil {
 		logger.Warn("OTel emitter shutdown incomplete", "err", err)
 	}
+	apmCtx, apmCancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
+	defer apmCancel()
+	apm.ShutdownWithContext(apmCtx)
 }
 
 // parseOtelHeaders parses a comma-separated key=value string into a map.
