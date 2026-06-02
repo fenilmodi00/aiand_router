@@ -706,13 +706,14 @@ write_pi_models_config() {
 }
 
 # write_pi_settings_config makes the `weave` provider pi's default and loads the
-# @workweave/router extension. defaultProvider/defaultModel are set only when
-# unset (don't clobber a user's pick); the npm package source is appended to
-# `packages` idempotently — pi auto-installs missing packages on startup, so the
-# source entry is enough — and the legacy `npm:@workweave/pi-router` id (from
-# before the extension was folded into @workweave/router) is dropped so a config
-# from the old layout can't keep a dangling/duplicate entry. No secret lives
-# here, so no chmod 600.
+# @workweave/router extension. defaultProvider is always set to "weave" — the
+# installer's job is to route via Weave; uninstall reverts it. defaultModel is set
+# only when unset (don't clobber a user's model pick). The npm package source is
+# appended to `packages` idempotently — pi auto-installs missing packages on
+# startup — and the legacy `npm:@workweave/pi-router` id (from before the
+# extension was folded into @workweave/router) is dropped so a config from the
+# old layout can't keep a dangling/duplicate entry. No secret lives here, so no
+# chmod 600.
 #
 # Usage: write_pi_settings_config <settings_file>
 write_pi_settings_config() {
@@ -724,7 +725,7 @@ write_pi_settings_config() {
       (.packages //= [])
       | (.packages -= ["npm:@workweave/pi-router"])
       | (if (.packages | index($pkg)) then . else .packages += [$pkg] end)
-      | (if (.defaultProvider // "") == "" then .defaultProvider = "weave" else . end)
+      | .defaultProvider = "weave"
       | (if (.defaultModel // "") == "" then .defaultModel = "claude-sonnet-4-6" else . end)
     ' "$settings_file")"
   else
