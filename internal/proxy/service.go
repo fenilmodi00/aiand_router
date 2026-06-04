@@ -45,6 +45,10 @@ type Service struct {
 	// cross-envelope subagent loop (parent agent re-spawning identical
 	// sub-conversations). Nil disables the detector.
 	noProgress *noProgressTracker
+	// compaction detects Claude Code context compaction events (message count
+	// drops) so the router can rewrite non-Anthropic requests with a handover
+	// summary before the model loses awareness of prior completed work.
+	compaction *compactionTracker
 	// pinWriteSem bounds concurrent async pin-upsert goroutines with drop-on-full semantics.
 	pinWriteSem chan struct{}
 	// usageWriteSem bounds concurrent async last-turn-usage writeback goroutines,
@@ -330,6 +334,7 @@ func NewService(r router.Router, providerMap map[string]providers.Client, emitte
 		pinStore:             pinStore,
 		pinCache:             pinCache,
 		noProgress:           newNoProgressTracker(),
+		compaction:           newCompactionTracker(),
 		pinWriteSem:          pinWriteSem,
 		usageWriteSem:        usageWriteSem,
 		hardPinExplore:       hardPinExplore,
@@ -856,6 +861,13 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		)
 	}
 
+	// Snapshot inbound tool-call count before runTurnLoop potentially mutates
+	// env (model-switch handover calls TrimLastN / RewriteForHandover). The
+	// compaction tracker must compare the count the client actually sent, not
+	// the post-router-trim count, to avoid false-positive detection when the
+	// router itself is the one that shortened the message window.
+	inboundToolCallCount := len(env.AssistantToolCallSignatures())
+
 	routeStart := time.Now()
 	routeRes, routeErr := s.runTurnLoop(ctx, env, feats, apiKeyID, installationID, "", r.Header, router.Request{
 		RequestedModel:       feats.Model,
@@ -897,9 +909,45 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		}
 	}
 
+	// Compaction-aware handover: Claude Code can trim its history window in two
+	// ways — full compaction (messageCount drops sharply) or rolling-window
+	// trimming (messageCount flat but tool-call count shrinks by one per turn).
+	// Either case leaves the non-Anthropic model without awareness of edits and
+	// decisions that lived only in the now-elided turns. Detect either drop and
+	// rewrite the envelope with a handover summary before dispatch.
+	compactionHandoverRan := false
+	var compactionHandoverOutcome handoverOutcome
+	// Skip detection for all hard-pinned turn types (Compaction, Probe, TitleGen,
+	// Classifier, SubAgentDispatch with hardPinExplore). These turns carry far
+	// fewer messages than main-loop turns — a Probe or TitleGen after a long
+	// session would show a sharp count drop that mimics client history trimming
+	// and falsely trigger runCompactionHandover. Hard-pinned turns also do not
+	// model the conversational context the compaction handover is meant to
+	// preserve, so rewrites there would be both wrong and wasteful.
+	//
+	// Also skip when the planner already ran a model-switch handover for this
+	// turn (routeRes.Handover.Invoked). Applying runCompactionHandover on top of
+	// an already-rewritten envelope would double-trim it.
+	if decision.Provider != providers.ProviderAnthropic && s.compaction != nil && !routeRes.HardPinned && !routeRes.Handover.Invoked {
+		role := roleForTier(catalog.TierFor(feats.Model))
+		if s.compaction.checkAndRecord(routeRes.SessionKey, installationID, role, feats.MessageCount, inboundToolCallCount) {
+			log.Info("Context trimming detected on non-Anthropic route; rewriting context with handover summary",
+				"message_count", feats.MessageCount,
+				"tool_call_count", inboundToolCallCount,
+				"decision_model", decision.Model,
+				"decision_provider", decision.Provider,
+			)
+			compactionHandoverOutcome = s.runCompactionHandover(ctx, env, r.Header, decision.Model)
+			compactionHandoverRan = true
+		}
+	}
+
 	// Semantic-cache eligibility: configured, non-streaming, decision has
 	// metadata, externalID present, not eval traffic.
-	cacheEligible := s.semanticCache != nil && !env.Stream() && decision.Metadata != nil && externalID != "" && !bypassEval
+	// Skip when a compaction handover rewrote env: the embedding in
+	// decision.Metadata was computed from the pre-handover body, so a cache
+	// hit would return a response built for different upstream context.
+	cacheEligible := s.semanticCache != nil && !env.Stream() && decision.Metadata != nil && externalID != "" && !bypassEval && !compactionHandoverRan
 	if cacheEligible {
 		if resp, hit := s.semanticCache.Lookup(externalID, cache.FormatAnthropic, decision.Metadata.Embedding, decision.Metadata.ClusterIDs, decision.Metadata.ClusterRouterVersion, decision.Metadata.EffectiveKnobsHash); hit {
 			s.writeCachedResponse(w, resp, decision)
@@ -1253,6 +1301,24 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	// point on a real upstream call.
 	if proxyErr == nil {
 		s.emitBilling(ctx, requestID, externalID, decision, actPricing, routeRes, in, out, cacheCreation, cacheRead)
+		if compactionHandoverOutcome.Invoked && !compactionHandoverOutcome.FallbackToTrim {
+			sumUsage := compactionHandoverOutcome.SummaryUsage
+			if sumUsage.Model != "" && (sumUsage.InputTokens > 0 || sumUsage.OutputTokens > 0) {
+				sumPricing, _ := catalog.PrimaryPriceFor(sumUsage.Model)
+				s.fireBilling(ctx, billing.DebitInferenceParams{
+					OrganizationID:  externalID,
+					RouterRequestID: requestID + "_compaction_summary",
+					Model:           sumUsage.Model,
+					Provider:        sumUsage.Provider,
+					InputTokens:     sumUsage.InputTokens,
+					OutputTokens:    sumUsage.OutputTokens,
+					CacheCreation:   sumUsage.CacheCreation,
+					CacheRead:       sumUsage.CacheRead,
+					Pricing:         sumPricing,
+					HasOverride:     billing.HasOverrideFromContext(ctx),
+				})
+			}
+		}
 	}
 
 	// Two-strike pin eviction: a session pinned to a model that keeps
