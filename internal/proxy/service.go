@@ -1017,7 +1017,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		Capabilities:       router.Lookup(decision.Model),
 		IncludeStreamUsage: s.usageRequired(),
 		SessionAffinity:    sessionAffinityHint(routeRes.SessionKey),
-		ModelSwitched:      routeRes.PriorServedModel != "" && routeRes.PriorServedModel != decision.Model,
+		ModelSwitched:      routeRes.modelSwitched(),
 	}
 
 	ctx = resolveAndInjectCredentials(ctx, decision.Provider, r.Header)
@@ -1964,7 +1964,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		Capabilities:       router.Lookup(decision.Model),
 		IncludeStreamUsage: s.usageRequired(),
 		SessionAffinity:    sessionAffinityHint(routeRes.SessionKey),
-		ModelSwitched:      routeRes.PriorServedModel != "" && routeRes.PriorServedModel != decision.Model,
+		ModelSwitched:      routeRes.modelSwitched(),
 	}
 
 	ctx = resolveAndInjectCredentials(ctx, decision.Provider, r.Header)

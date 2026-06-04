@@ -95,11 +95,11 @@ func TestRecordTurnUsage_WritesToStore(t *testing.T) {
 	assert.False(t, store.lastUsage.EndedAt.IsZero(), "EndedAt must be stamped — the planner uses IsZero() as its no-prior-usage gate")
 }
 
-// TestLoadPin_DiscardsExpiredPostgresPin guards the expiry filter: rows whose
-// PinnedUntil has passed must be treated as misses so the orchestrator
-// re-routes via the cluster scorer. The sweeper is best-effort and races
-// against high-throughput sessions, so loadPin must guard for itself.
-func TestLoadPin_DiscardsExpiredPostgresPin(t *testing.T) {
+// TestLoadPin_DoesNotServeExpiredPostgresPinButKeepsEmitHistory guards the
+// expiry filter: expired rows must be routing misses, but their
+// has_ever_switched / last_served_model history still protects Anthropic emit
+// from poisoned thinking blocks that remain in the client transcript.
+func TestLoadPin_DoesNotServeExpiredPostgresPinButKeepsEmitHistory(t *testing.T) {
 	store := newStubPinStore()
 	svc := NewService(
 		nil,
@@ -120,19 +120,29 @@ func TestLoadPin_DiscardsExpiredPostgresPin(t *testing.T) {
 	}
 
 	store.getPin = sessionpin.Pin{
-		SessionKey:  sessionKey,
-		Role:        sessionpin.DefaultRole,
-		Provider:    "anthropic",
-		Model:       "claude-opus-4-7",
-		Reason:      "fresh",
-		TurnCount:   1,
-		PinnedUntil: time.Now().Add(-time.Minute),
+		SessionKey:      sessionKey,
+		Role:            sessionpin.DefaultRole,
+		Provider:        "anthropic",
+		Model:           "claude-opus-4-7",
+		Reason:          "fresh",
+		TurnCount:       1,
+		PinnedUntil:     time.Now().Add(-time.Minute),
+		LastServedModel: "claude-opus-4-7",
+		HasEverSwitched: true,
 	}
 	store.getFound = true
 
 	pin, found := svc.loadPin(context.Background(), sessionKey, sessionpin.DefaultRole)
 	assert.False(t, found, "expired Postgres row must not be served")
-	assert.Equal(t, sessionpin.Pin{}, pin, "miss must return the zero pin")
+	assert.Equal(t, "claude-opus-4-7", pin.LastServedModel, "expired row history must be available for emit")
+	assert.True(t, pin.HasEverSwitched, "expired row latch must be available for emit")
+
+	res := turnLoopResult{
+		Decision:            router.Decision{Model: "claude-opus-4-7"},
+		PriorServedModel:    pin.LastServedModel,
+		SessionEverSwitched: pin.HasEverSwitched,
+	}
+	assert.True(t, res.modelSwitched(), "expired switched-session history must still strip thinking blocks")
 }
 
 // TestLoadPin_ServesFreshPostgresPin is the companion: a non-expired Postgres
@@ -171,4 +181,61 @@ func TestLoadPin_ServesFreshPostgresPin(t *testing.T) {
 	require.True(t, found, "non-expired Postgres row must be returned")
 	assert.Equal(t, "claude-opus-4-7", pin.Model)
 	assert.Equal(t, "anthropic", pin.Provider)
+}
+
+// TestModelSwitched covers the switch → stay → stay lifecycle that motivated
+// the has_ever_switched latch. The transition turn alone is not enough: once a
+// session has served two models, the stale-signed thinking blocks persist in
+// the client transcript, so every subsequent same-model turn must keep
+// stripping or Anthropic 400s.
+func TestModelSwitched(t *testing.T) {
+	tests := []struct {
+		name             string
+		priorServedModel string
+		decisionModel    string
+		everSwitched     bool
+		want             bool
+	}{
+		{
+			name:          "first turn of a session never switches",
+			decisionModel: "claude-opus-4-7",
+			want:          false,
+		},
+		{
+			name:             "steady-state same model, never switched",
+			priorServedModel: "claude-opus-4-7",
+			decisionModel:    "claude-opus-4-7",
+			want:             false,
+		},
+		{
+			name:             "transition turn flips models",
+			priorServedModel: "deepseek-v4-pro",
+			decisionModel:    "claude-opus-4-7",
+			want:             true,
+		},
+		{
+			name:             "switch-back transition turn",
+			priorServedModel: "deepseek-v4-pro",
+			decisionModel:    "claude-opus-4-7",
+			everSwitched:     true,
+			want:             true,
+		},
+		{
+			name:             "stay turn after a prior switch still strips",
+			priorServedModel: "claude-opus-4-7",
+			decisionModel:    "claude-opus-4-7",
+			everSwitched:     true,
+			want:             true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			res := turnLoopResult{
+				Decision:            router.Decision{Model: tc.decisionModel},
+				PriorServedModel:    tc.priorServedModel,
+				SessionEverSwitched: tc.everSwitched,
+			}
+			assert.Equal(t, tc.want, res.modelSwitched())
+		})
+	}
 }
