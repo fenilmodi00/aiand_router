@@ -1069,6 +1069,16 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	// for Anthropic-native passthrough — that path skips the translator.
 	var reqStats providers.RequestMutationStats
 
+	marker := suppressMarkerIfRequested(r.Header, routingMarkerFor(routeRes))
+	// markerSink wraps sink with an AnthropicRoutingMarkerWriter per attempt.
+	// Unlike translator-backed paths, the Anthropic-native writer must wait
+	// for upstream headers so non-2xx responses can stay buffered/retryable.
+	makeMarkerSink := func() http.ResponseWriter {
+		if marker == "" {
+			return sink
+		}
+		return translate.NewAnthropicRoutingMarkerWriter(sink, decision.Model, marker)
+	}
 	var attempt dispatchAttempt
 	switch decision.Provider {
 	case providers.ProviderAnthropic:
@@ -1079,15 +1089,26 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		}
 		logUpstreamBody(log, routeRes.SessionKey, decision, feats, prep.Body)
 		attempt = func(actx context.Context, d router.Decision, p providers.Client) error {
-			proxyWriter := sink
+			attemptSink := makeMarkerSink()
+			proxyWriter := attemptSink
 			if s.usageRequired() {
-				extractor = otel.NewUsageExtractor(sink, d.Provider)
+				extractor = otel.NewUsageExtractor(attemptSink, d.Provider)
 				proxyWriter = extractor
 			}
 			if preludeBuf != nil {
 				preludeBuf.Seal()
 			}
-			return p.Proxy(actx, d, prep, proxyWriter, r)
+			err := p.Proxy(actx, d, prep, proxyWriter, r)
+			// Post-commit streaming error: the routing-marker chunk has
+			// already been flushed past the buffer to the wire; render
+			// the upstream error as an in-stream `data: {...}` frame
+			// instead of letting dispatch's flushErr append a corrupting
+			// Anthropic envelope. Pre-commit errors are handled by
+			// dispatchWithFallback (Discard + flushErr).
+			if err != nil && env.Stream() && preludeBuf.Committed() {
+				err = emitAnthropicSSEErrorEvent(sink, err)
+			}
+			return err
 		}
 	case providers.ProviderOpenAI, providers.ProviderOpenRouter, providers.ProviderFireworks, providers.ProviderDeepInfra, providers.ProviderBedrock:
 		crossFormat = true
