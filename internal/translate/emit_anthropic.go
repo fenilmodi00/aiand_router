@@ -634,6 +634,11 @@ func writeAnthropicTextBlock(jw *jsonWriter, text string) {
 // (required pattern: ^[a-zA-Z0-9_-]+$). Non-Anthropic upstreams (e.g.
 // Kimi-k2.6) emit IDs like "functions.Read:0" containing dots and colons; when
 // the router switches a session back to Anthropic those IDs cause a 400.
+//
+// Length is NOT clamped here: this helper is shared by the Anthropic and Gemini
+// emit paths, where a Gemini thoughtSignature smuggled into the id by
+// embedSignatureInID makes the id intentionally longer than 64 bytes. OpenAI's
+// 64-char limit is enforced separately in clampOpenAIToolCallID.
 func sanitizeToolUseID(id string) string {
 	if id == "" {
 		return id
