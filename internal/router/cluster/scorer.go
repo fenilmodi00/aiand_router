@@ -691,6 +691,31 @@ func (s *Scorer) Route(ctx context.Context, req router.Request) (router.Decision
 	copy(clustersCopy, topClusters)
 	candidatesCopy := make([]string, len(eligibleModels))
 	copy(candidatesCopy, eligibleModels)
+	// Surface the full pre-argmax score vector for off-policy logging. This is
+	// the same map argmax just read; copying it changes no decision. Restricted
+	// to eligible models so the logged vector matches the candidate set.
+	scoresCopy := make(map[string]float32, len(eligibleModels))
+	for _, m := range eligibleModels {
+		if v, ok := scores[m]; ok {
+			scoresCopy[m] = v
+		}
+	}
+	// Per-request provider binding per eligible model, for a wrapping explorer.
+	// resolvedProvider is set only when EnabledProviders gates the request;
+	// otherwise fall back to each candidate's default (first-binding-wins).
+	providersCopy := make(map[string]string, len(eligibleModels))
+	for _, m := range eligibleModels {
+		if p, ok := resolvedProvider[m]; ok {
+			providersCopy[m] = p
+		}
+	}
+	if req.EnabledProviders == nil {
+		for _, c := range s.candidates {
+			if _, seen := providersCopy[c.Model]; !seen {
+				providersCopy[c.Model] = c.Provider
+			}
+		}
+	}
 	// Prefer the per-request resolved binding (which may differ from the
 	// boot-time default when the request's EnabledProviders narrows or
 	// widens the deployment set, e.g. self-hoster with only OPENROUTER_API_KEY
@@ -713,6 +738,12 @@ func (s *Scorer) Route(ctx context.Context, req router.Request) (router.Decision
 			ChosenScore:          chosenScore,
 			ClusterRouterVersion: s.version,
 			EffectiveKnobsHash:   effectiveKnobsHash,
+			CandidateScores:      scoresCopy,
+			CandidateProviders:   providersCopy,
+			// Deterministic argmax: the chosen model was selected with
+			// certainty. An exploration policy wrapping this scorer overwrites
+			// Propensity with its sampling probability.
+			Propensity: 1.0,
 		},
 	}
 	log.Info(
