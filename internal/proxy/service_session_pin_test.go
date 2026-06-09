@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -897,6 +898,80 @@ func TestService_ForcedPin_UnclampedReasonStaysUserForced(t *testing.T) {
 	assert.Equal(t, 0, clampCalls, "in-ceiling forced pin must not invoke the clamp resolver")
 	assert.Equal(t, "claude-opus-4-7", rec.Header().Get(proxy.HeaderRouterModel))
 	assert.Equal(t, translate.ReasonUserForceModel, rec.Header().Get(proxy.HeaderRouterDecision), "in-ceiling forced pin keeps the plain user_forced reason")
+}
+
+// TestService_LoopEscalationPin_HonoredAsImmutableSticky verifies a
+// loop_escalation pin is treated like a /force-model pin: the scorer's (cheap)
+// decision is bypassed and the session stays on the escalated opus model.
+func TestService_LoopEscalationPin_HonoredAsImmutableSticky(t *testing.T) {
+	store := newFakePinStore()
+	store.hasPin = true
+	store.pin = sessionpin.Pin{
+		Provider:    providers.ProviderAnthropic,
+		Model:       "claude-opus-4-8",
+		Reason:      translate.ReasonLoopEscalation,
+		PinnedUntil: time.Now().Add(30 * time.Minute),
+	}
+	// Scorer would pick a cheap model; the escalation pin must win.
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-haiku-4-5", Reason: "cluster:v0.65"}}
+	svc := newPinSvc(fr, store)
+
+	ctx := authedCtx(uuid.New().String())
+	rec := httptest.NewRecorder()
+	httpReq := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	require.NoError(t, svc.ProxyMessages(ctx, []byte(pinTestBody), rec, httpReq))
+
+	assert.Equal(t, "claude-opus-4-8", rec.Header().Get(proxy.HeaderRouterModel), "escalation pin must keep the session on opus")
+	assert.Equal(t, translate.ReasonLoopEscalation, rec.Header().Get(proxy.HeaderRouterDecision), "escalation pin must report loop_escalation, not the scorer reason")
+}
+
+// buildCyclicLoopBody returns an Anthropic request whose assistant history is a
+// wide re-read cycle (same few files Read many times, no edits) — enough to trip
+// detectCyclicToolCallLoop.
+func buildCyclicLoopBody(t *testing.T, nFiles, total int) []byte {
+	t.Helper()
+	msgs := []any{map[string]any{"role": "user", "content": "do the task"}}
+	for i := 0; i < total; i++ {
+		id := "toolu_" + strconv.Itoa(i)
+		msgs = append(msgs,
+			map[string]any{"role": "assistant", "content": []any{
+				map[string]any{"type": "tool_use", "id": id, "name": "Read",
+					"input": map[string]any{"file_path": "/app/f" + strconv.Itoa(i%nFiles) + ".go"}},
+			}},
+			map[string]any{"role": "user", "content": []any{
+				map[string]any{"type": "tool_result", "tool_use_id": id, "content": "x"},
+			}},
+		)
+	}
+	b, err := json.Marshal(map[string]any{"model": "claude-opus-4-8", "max_tokens": 256, "messages": msgs})
+	require.NoError(t, err)
+	return b
+}
+
+// TestService_LoopEscalation_DoesNotOverwriteUserForcedPin verifies a user's
+// explicit /force-model choice outranks auto-escalation: a cyclic loop on a
+// forced session is recorded but must NOT replace the user_forced pin with opus.
+func TestService_LoopEscalation_DoesNotOverwriteUserForcedPin(t *testing.T) {
+	store := newFakePinStore()
+	store.hasPin = true
+	store.pin = sessionpin.Pin{
+		Provider:    providers.ProviderAnthropic,
+		Model:       "claude-haiku-4-5",
+		Reason:      translate.ReasonUserForceModel,
+		PinnedUntil: time.Now().Add(30 * time.Minute),
+	}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-haiku-4-5", Reason: "cluster:v0.65"}}
+	svc := newPinSvc(fr, store)
+
+	ctx := authedCtx(uuid.New().String())
+	rec := httptest.NewRecorder()
+	httpReq := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	require.NoError(t, svc.ProxyMessages(ctx, buildCyclicLoopBody(t, 5, 26), rec, httpReq))
+
+	for _, p := range store.upserts {
+		assert.NotEqual(t, translate.ReasonLoopEscalation, p.Reason, "escalation must not overwrite a user_forced pin")
+	}
+	assert.Equal(t, "claude-haiku-4-5", rec.Header().Get(proxy.HeaderRouterModel), "session stays on the user's forced model, not opus")
 }
 
 // TestService_TierClamp_UnknownRequestedModelDisablesClamp regression-
