@@ -6,12 +6,29 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/tidwall/gjson"
+
 	"workweave/router/internal/translate"
 	"workweave/router/internal/translate/toolcheck"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func firstSignatureDelta(t *testing.T, body string) string {
+	t.Helper()
+	for _, line := range strings.Split(body, "\n") {
+		data, ok := strings.CutPrefix(line, "data: ")
+		if !ok || gjson.Get(data, "delta.type").String() != "signature_delta" {
+			continue
+		}
+		sig := gjson.Get(data, "delta.signature").String()
+		require.NotEmpty(t, sig)
+		return sig
+	}
+	t.Fatal("missing signature_delta")
+	return ""
+}
 
 // responsesStreamFixture is a representative OpenAI Responses streaming SSE
 // sequence: a reasoning summary, an output_text message, and one function_call
@@ -21,7 +38,7 @@ const responsesStreamFixture = `event: response.created
 data: {"type":"response.created","response":{"id":"resp_abc","status":"in_progress","model":"gpt-5.5","output":[]}}
 
 event: response.output_item.added
-data: {"type":"response.output_item.added","output_index":0,"item":{"id":"rs_1","type":"reasoning","summary":[],"status":"in_progress"}}
+data: {"type":"response.output_item.added","output_index":0,"item":{"id":"rs_1","type":"reasoning","encrypted_content":"enc_stream","summary":[],"status":"in_progress"}}
 
 event: response.reasoning_summary_text.delta
 data: {"type":"response.reasoning_summary_text.delta","item_id":"rs_1","output_index":0,"summary_index":0,"delta":"Checking the weather "}
@@ -30,7 +47,7 @@ event: response.reasoning_summary_text.delta
 data: {"type":"response.reasoning_summary_text.delta","item_id":"rs_1","output_index":0,"summary_index":0,"delta":"tool."}
 
 event: response.output_item.done
-data: {"type":"response.output_item.done","output_index":0,"item":{"id":"rs_1","type":"reasoning","summary":[{"type":"summary_text","text":"Checking the weather tool."}],"status":"completed"}}
+data: {"type":"response.output_item.done","output_index":0,"item":{"id":"rs_1","type":"reasoning","encrypted_content":"enc_stream","summary":[{"type":"summary_text","text":"Checking the weather tool."}],"status":"completed"}}
 
 event: response.output_item.added
 data: {"type":"response.output_item.added","output_index":1,"item":{"id":"msg_1","type":"message","role":"assistant","status":"in_progress","content":[]}}
@@ -57,7 +74,7 @@ event: response.output_item.done
 data: {"type":"response.output_item.done","output_index":2,"item":{"id":"fc_1","type":"function_call","call_id":"call_xyz","name":"get_weather","arguments":"{\"location\":\"NYC\"}","status":"completed"}}
 
 event: response.completed
-data: {"type":"response.completed","response":{"id":"resp_abc","status":"completed","model":"gpt-5.5","incomplete_details":null,"output":[{"id":"rs_1","type":"reasoning","summary":[{"type":"summary_text","text":"Checking the weather tool."}]},{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"output_text","text":"Let me check the weather."}]},{"id":"fc_1","type":"function_call","call_id":"call_xyz","name":"get_weather","arguments":"{\"location\":\"NYC\"}"}],"usage":{"input_tokens":150,"input_tokens_details":{"cached_tokens":0},"output_tokens":45}}}
+data: {"type":"response.completed","response":{"id":"resp_abc","status":"completed","model":"gpt-5.5","incomplete_details":null,"output":[{"id":"rs_1","type":"reasoning","encrypted_content":"enc_stream","summary":[{"type":"summary_text","text":"Checking the weather tool."}]},{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"output_text","text":"Let me check the weather."}]},{"id":"fc_1","type":"function_call","call_id":"call_xyz","name":"get_weather","arguments":"{\"location\":\"NYC\"}"}],"usage":{"input_tokens":150,"input_tokens_details":{"cached_tokens":0},"output_tokens":45}}}
 
 `
 
@@ -80,11 +97,17 @@ func TestResponsesToAnthropicWriter_StreamingClient(t *testing.T) {
 	assert.Contains(t, body, `"content_block":{"type":"thinking"`)
 	assert.Contains(t, body, "Checking the weather ")
 	assert.Contains(t, body, "tool.")
+	sig := firstSignatureDelta(t, body)
+	sigEnv := decodeOpenAIReasoningTestSignature(t, sig)
+	assert.Equal(t, "rs_1", sigEnv["id"])
+	assert.Equal(t, "enc_stream", sigEnv["enc"])
 	assert.Contains(t, body, `"content_block":{"type":"text"`)
 	// Text arrives as separate live deltas, not one concatenated string.
 	assert.Contains(t, body, `"text_delta","text":"Let me check"`)
 	assert.Contains(t, body, `"text_delta","text":" the weather."`)
-	assert.Contains(t, body, `"type":"tool_use","id":"call_xyz","name":"get_weather"`)
+	// The reasoning item's signature is carried on the tool_use id so it survives
+	// the Claude Code round-trip; the id is the call_id plus an opaque suffix.
+	assert.Contains(t, body, `"type":"tool_use","id":"call_xyz__openai_reasoning__`)
 	assert.Contains(t, body, `"partial_json":"{\"location\":\"NYC\"}"`,
 		"tool args concatenated from both deltas and emitted as one validated input_json_delta")
 	assert.Contains(t, body, `"stop_reason":"tool_use"`)
@@ -97,8 +120,9 @@ func TestResponsesToAnthropicWriter_StreamingClient(t *testing.T) {
 	order := []string{
 		"event: message_start",
 		`"content_block":{"type":"thinking"`,
+		`"type":"signature_delta"`,
 		`"content_block":{"type":"text"`,
-		`"type":"tool_use","id":"call_xyz"`,
+		`"type":"tool_use","id":"call_xyz__openai_reasoning__`,
 		"event: message_delta",
 		"event: message_stop",
 	}
@@ -139,7 +163,9 @@ func TestResponsesToAnthropicWriter_NonStreamingClient(t *testing.T) {
 	require.Len(t, content, 3)
 	b2, _ := content[2].(map[string]any)
 	assert.Equal(t, "tool_use", b2["type"])
-	assert.Equal(t, "call_xyz", b2["id"])
+	toolID, _ := b2["id"].(string)
+	assert.True(t, strings.HasPrefix(toolID, "call_xyz"), "tool id keeps call_id prefix, got %q", toolID)
+	assert.Contains(t, toolID, "__openai_reasoning__", "tool id carries the reasoning signature for replay")
 	input, _ := b2["input"].(map[string]any)
 	assert.Equal(t, "NYC", input["location"])
 }
@@ -373,7 +399,7 @@ data: {"type":"response.function_call_arguments.delta","item_id":"fc_1","output_
 // blocks on the streaming path, rather than an empty assistant turn.
 func TestResponsesToAnthropicWriter_DoneOnlyContent(t *testing.T) {
 	const fixture = `event: response.output_item.added
-data: {"type":"response.output_item.added","output_index":0,"item":{"id":"rs_1","type":"reasoning","summary":[],"status":"in_progress"}}
+data: {"type":"response.output_item.added","output_index":0,"item":{"id":"rs_1","type":"reasoning","encrypted_content":"enc_stream","summary":[],"status":"in_progress"}}
 
 event: response.output_item.done
 data: {"type":"response.output_item.done","output_index":0,"item":{"id":"rs_1","type":"reasoning","summary":[{"type":"summary_text","text":"weighed the options"}],"status":"completed"}}

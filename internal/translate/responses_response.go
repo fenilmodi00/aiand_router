@@ -67,13 +67,16 @@ func responsesToAnthropicResponse(body []byte, requestModel string, toolValidato
 	jw.Key("content")
 	jw.Arr()
 	var issues []toolcheck.Issue
+	pendingReasoningSignature := ""
 	root.Get("output").ForEach(func(_, item gjson.Result) bool {
 		switch item.Get("type").String() {
 		case "reasoning":
-			// Join the reasoning summary text; emit a thinking block only when
-			// the model surfaced summary text (encrypted-only reasoning has none).
 			text := joinReasoningSummary(item.Get("summary"))
-			if text == "" {
+			sig := encodeOpenAIReasoningSignature(item.Get("id").String(), item.Get("encrypted_content").String())
+			if sig != "" {
+				pendingReasoningSignature = sig
+			}
+			if text == "" && sig == "" {
 				return true
 			}
 			jw.Obj()
@@ -81,8 +84,10 @@ func responsesToAnthropicResponse(body []byte, requestModel string, toolValidato
 			jw.Str("thinking")
 			jw.Key("thinking")
 			jw.Str(text)
-			jw.Key("signature")
-			jw.Str(item.Get("id").String())
+			if sig != "" {
+				jw.Key("signature")
+				jw.Str(sig)
+			}
 			jw.EndObj()
 		case "message":
 			item.Get("content").ForEach(func(_, part gjson.Result) bool {
@@ -103,7 +108,12 @@ func responsesToAnthropicResponse(body []byte, requestModel string, toolValidato
 			jw.Key("type")
 			jw.Str("tool_use")
 			jw.Key("id")
-			jw.Str(item.Get("call_id").String())
+			id := item.Get("call_id").String()
+			if pendingReasoningSignature != "" {
+				id = embedOpenAIReasoningSignatureInID(id, pendingReasoningSignature)
+				pendingReasoningSignature = ""
+			}
+			jw.Str(id)
 			jw.Key("name")
 			name := item.Get("name").String()
 			jw.Str(name)
