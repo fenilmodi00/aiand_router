@@ -1566,6 +1566,19 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	s.recordTurnUsage(routeRes, in, out, cacheCreation, cacheRead)
 
 	if installationID != uuid.Nil {
+		failoverUsed := finalProvider != primaryProvider
+		degShadow := proxyErr == nil && isDegenerateResponse(out, respSummary.ToolUseBlocks, respSummary.StopReason, respSummary.StopReasonDemoted)
+		if degShadow {
+			log.Info("router.degenerate_shadow",
+				"model", decision.Model,
+				"provider", finalProvider,
+				"output_tokens", out,
+				"tool_use_blocks", respSummary.ToolUseBlocks,
+				"stop_reason", respSummary.StopReason,
+				"upstream_finish_reason", respSummary.UpstreamFinishReason,
+				"would_failover", true,
+			)
+		}
 		s.fireTelemetry(InsertTelemetryParams{
 			InstallationID:         installationID.String(),
 			RequestID:              requestID,
@@ -1605,6 +1618,16 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 			ClientApp:              clientID.ClientApp,
 			TurnType:               string(routeRes.TurnType),
 			RolloutID:              clientID.RolloutID,
+			UpstreamFinishReason:   stringPtrOrEmpty(respSummary.UpstreamFinishReason),
+			StopReason:             stringPtrOrEmpty(respSummary.StopReason),
+			// ToolUseBlocks and InvalidToolArgsBlocks are only valid when a
+			// translator ran (StopReason is populated). The Anthropic-native
+			// passthrough path leaves respSummary zero; storing 0 there would
+			// look like a measured zero-tool turn rather than missing data.
+			ToolUseBlocks:         int32PtrIfKnown(int32(respSummary.ToolUseBlocks), respSummary.StopReason != ""),
+			InvalidToolArgsBlocks: int32PtrIfKnown(int32(respSummary.InvalidToolArgsBlocks), respSummary.StopReason != ""),
+			FailoverUsed:          boolPtrTrue(failoverUsed),
+			DegenerateShadow:      boolPtrOrNil(degShadow),
 		})
 	}
 
@@ -1956,6 +1979,60 @@ func cacheTokenPtr(n int) *int32 {
 	}
 	v := int32(n)
 	return &v
+}
+
+// int32PtrIfKnown returns a pointer to v when known is true, else nil.
+// Used for nullable integer telemetry columns where 0 is a valid value
+// (e.g. tool_use_blocks = 0 means zero tools) but the value may be absent
+// when the translator did not run (Anthropic-native passthrough path).
+func int32PtrIfKnown(v int32, known bool) *int32 {
+	if !known {
+		return nil
+	}
+	return &v
+}
+
+// boolPtrOrNil returns a pointer to v only when v is true. False is treated as
+// "not set" so routine non-events don't fill nullable boolean columns.
+func boolPtrOrNil(v bool) *bool {
+	if !v {
+		return nil
+	}
+	return &v
+}
+
+// boolPtrTrue always returns a non-nil pointer to v. Used for failover_used
+// where both true and false are meaningful values to record.
+func boolPtrTrue(v bool) *bool {
+	return &v
+}
+
+// stringPtrOrEmpty returns a pointer to s when it is non-empty, else nil.
+func stringPtrOrEmpty(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
+// degenerateOutputThreshold is the output-token count below which a
+// normal-completion response with no tool calls is flagged as degenerate.
+const degenerateOutputThreshold = 10
+
+// isDegenerateResponse returns true when the upstream produced a suspiciously
+// short response: fewer than degenerateOutputThreshold output tokens, no tool
+// calls emitted, and a normal end_turn stop reason. A valid tool-only turn or
+// a brief legitimate end_turn must not trip this.
+//
+// stopReasonDemoted guards against false positives from cross-format demotions:
+// broken finish_reason="tool_calls" turns that the translator demotes to end_turn
+// (zero surviving tool blocks) must not fire the degenerate shadow — they are
+// handled translation failures, not genuinely empty completions.
+func isDegenerateResponse(outputTokens, toolUseBlocks int, stopReason string, stopReasonDemoted bool) bool {
+	return outputTokens < degenerateOutputThreshold &&
+		toolUseBlocks == 0 &&
+		stopReason == "end_turn" &&
+		!stopReasonDemoted
 }
 
 // fireTelemetry persists a telemetry row asynchronously. Telemetry loss is acceptable.
@@ -2597,6 +2674,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 			ClientApp:              clientID.ClientApp,
 			TurnType:               string(routeRes.TurnType),
 			RolloutID:              clientID.RolloutID,
+			FailoverUsed:           boolPtrTrue(finalProvider != primaryProvider),
 		})
 	}
 
