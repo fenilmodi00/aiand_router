@@ -63,6 +63,15 @@ type Service struct {
 	tierClampResolver func(enabled, excluded map[string]struct{}, ceiling catalog.Tier) (provider, model string, ok bool)
 	// telemetry is an optional repository for persisting per-request telemetry.
 	telemetry TelemetryRepository
+	// captureMode controls whether high-fidelity `router.call` OTLP log
+	// records carry full request/response bodies, content hashes, or are
+	// suppressed entirely. Default CaptureOff (no log records emitted).
+	captureMode ContentCaptureMode
+	// captureMaxBytes caps the buffered response body when capture is on;
+	// larger bodies are dropped and flagged io.truncated.
+	captureMaxBytes int
+	// redactor scrubs captured content before export. Nil passes through.
+	redactor Redactor
 	// byokOnly disables deployment-level credential fallback so customer
 	// requests never silently consume the platform's API key budget.
 	byokOnly bool
@@ -523,6 +532,19 @@ func (s *Service) WithSpiralShadowStore(store SpiralShadowStore) *Service {
 // submissions (router.router_feedback). Nil degrades to span + log only.
 func (s *Service) WithRouterFeedbackStore(store RouterFeedbackStore) *Service {
 	s.feedbackStore = store
+	return s
+}
+
+// WithContentCapture configures high-fidelity `router.call` OTLP log emission.
+// mode selects off/hashed/full; maxBytes caps the buffered response body;
+// redactor (optional) scrubs content before export. No-op effect when the
+// emitter is disabled. Default (unset) is CaptureOff.
+func (s *Service) WithContentCapture(mode ContentCaptureMode, maxBytes int, redactor Redactor) *Service {
+	s.captureMode = mode
+	if maxBytes > 0 {
+		s.captureMaxBytes = maxBytes
+	}
+	s.redactor = redactor
 	return s
 }
 
@@ -1309,7 +1331,8 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	// The TTFB cost is a single round-trip's worth of buffered SSE bytes
 	// (~200B) released the moment the upstream's first byte arrives.
 	bindings := s.resolveBindingsForDispatch(ctx, decision)
-	preludeBuf := newPreludeBuffer(w)
+	contentSink, contentCap := s.maybeCaptureResponse(w)
+	preludeBuf := newPreludeBuffer(contentSink)
 	var rootSink http.ResponseWriter = preludeBuf
 	var captureW *captureWriter
 	var sink http.ResponseWriter = rootSink
@@ -1497,7 +1520,9 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	primaryProvider := decision.Provider
 	var winnerIdx int
 	winnerIdx, proxyErr = s.dispatchWithFallback(ctx, failoverInputs{
-		w:               w,
+		// contentSink routes the failover-exhaustion error envelope through the
+		// content-capture writer; it is the raw w when capture is off.
+		w:               contentSink,
 		buf:             preludeBuf,
 		initialDecision: decision,
 		bindings:        bindings,
@@ -1547,6 +1572,11 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		String("client.app", clientID.ClientApp).
 		String("requested.model", feats.Model).
 		String("decision.model", decision.Model).
+		String("decision.provider", finalProvider).
+		String("decision.reason", decision.Reason).
+		String("routing.turn_type", string(routeRes.TurnType)).
+		String("upstream.finish_reason", respSummary.UpstreamFinishReason).
+		String("upstream.stop_reason", respSummary.StopReason).
 		Int64("usage.input_tokens", int64(in)).
 		Int64("usage.output_tokens", int64(out)).
 		Int64("usage.cache_creation_input_tokens", int64(cacheCreation)).
@@ -1575,6 +1605,8 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		End:   time.Now(),
 		Attrs: upstreamBuilder.Build(),
 	})
+	respBody, respTrunc := capturedResponse(contentCap)
+	s.recordCallLog(ctx, upstreamBuilder.Build(), proxyErr != nil, body, respBody, respTrunc)
 	otel.Flush(ctx)
 
 	s.recordTurnUsage(routeRes, in, out, cacheCreation, cacheRead)
@@ -2429,7 +2461,8 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	// so single-binding upstream errors don't strand the routing-marker chunk
 	// on the wire when the upstream never produces a first byte.
 	bindings := s.resolveBindingsForDispatch(ctx, decision)
-	preludeBuf := newPreludeBuffer(w)
+	contentSink, contentCap := s.maybeCaptureResponse(w)
+	preludeBuf := newPreludeBuffer(contentSink)
 	var rootSink http.ResponseWriter = preludeBuf
 
 	// Responses entry point delegates the eager response.created emit to
@@ -2567,7 +2600,9 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	primaryProvider := decision.Provider
 	var winnerIdx int
 	winnerIdx, proxyErr = s.dispatchWithFallback(ctx, failoverInputs{
-		w:               w,
+		// contentSink routes the failover-exhaustion error envelope through the
+		// content-capture writer; it is the raw w when capture is off.
+		w:               contentSink,
 		buf:             preludeBuf,
 		initialDecision: decision,
 		bindings:        bindings,
@@ -2612,6 +2647,9 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		String("client.app", clientID.ClientApp).
 		String("requested.model", feats.Model).
 		String("decision.model", decision.Model).
+		String("decision.provider", finalProvider).
+		String("decision.reason", decision.Reason).
+		String("routing.turn_type", string(routeRes.TurnType)).
 		Int64("usage.input_tokens", int64(in)).
 		Int64("usage.output_tokens", int64(out)).
 		Int64("usage.cache_creation_input_tokens", int64(cacheCreation)).
@@ -2640,7 +2678,25 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		End:   time.Now(),
 		Attrs: openaiUpstreamBuilder.Build(),
 	})
-	otel.Flush(ctx)
+	callLogBase := openaiUpstreamBuilder.Build()
+	emitCallLog := func() {
+		reqBody := body
+		if h := deferredCallLogFrom(ctx); h != nil && h.requestBody != nil {
+			reqBody = h.requestBody
+		}
+		respBody, respTrunc := capturedResponse(contentCap)
+		s.recordCallLog(ctx, callLogBase, proxyErr != nil, reqBody, respBody, respTrunc)
+		otel.Flush(ctx)
+	}
+	// The /v1/responses surface (ProxyOpenAIResponses) finalizes its
+	// ResponsesWriter only after this function returns, so the captured body
+	// isn't complete yet — defer the read+emit to run post-Finalize. All other
+	// callers emit inline.
+	if h := deferredCallLogFrom(ctx); h != nil {
+		h.fn = emitCallLog
+	} else {
+		emitCallLog()
+	}
 
 	s.recordTurnUsage(routeRes, in, out, cacheCreation, cacheRead)
 
@@ -2711,6 +2767,14 @@ func (s *Service) ProxyOpenAIResponses(ctx context.Context, body []byte, w http.
 		return fmt.Errorf("translate responses request: %w", err)
 	}
 	wrapper := translate.NewResponsesWriter(w, model)
+	// Defer the high-fidelity call-log emission until after Finalize: the
+	// ResponsesWriter buffers (non-streaming) and emits tail events only in
+	// Finalize, so the captured io.response_body is incomplete until then.
+	ctx, deferredLog := withDeferredCallLog(ctx)
+	// Capture the client's original Responses JSON as the request body so the
+	// call log's io.request_body matches the Responses-format response body
+	// (ProxyOpenAIChatCompletion otherwise sees the translated chatBody).
+	deferredLog.requestBody = body
 	// Prelude (response.created emit) deferred to ProxyOpenAIChatCompletion.
 	// It knows the post-routing decision and the binding count; only fires
 	// eagerly when the request is single-binding (no failover possible).
@@ -2724,7 +2788,10 @@ func (s *Service) ProxyOpenAIResponses(ctx context.Context, body []byte, w http.
 		// On error, let the handler write the error envelope unless we've
 		// already committed to streaming — in which case the chat-completions
 		// path will have surfaced a status error and we just propagate.
+		deferredLog.run()
 		return proxyErr
 	}
-	return wrapper.Finalize()
+	finErr := wrapper.Finalize()
+	deferredLog.run()
+	return finErr
 }

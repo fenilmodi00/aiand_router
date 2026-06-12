@@ -161,7 +161,8 @@ func (s *Service) ProxyGeminiGenerateContent(ctx context.Context, body []byte, w
 
 	proxyStart := time.Now()
 	var extractor *otel.UsageExtractor
-	var sink http.ResponseWriter = w
+	contentSink, contentCap := s.maybeCaptureResponse(w)
+	var sink http.ResponseWriter = contentSink
 	if marker := suppressMarkerIfRequested(r.Header, routingMarkerFor(routeRes)); marker != "" {
 		mw := translate.NewGeminiRoutingMarkerWriter(sink, marker)
 		// Flush marker + HTTP 200 immediately so TTFB is decoupled from
@@ -190,6 +191,9 @@ func (s *Service) ProxyGeminiGenerateContent(ctx context.Context, body []byte, w
 		String("client.app", clientID.ClientApp).
 		String("requested.model", feats.Model).
 		String("decision.model", decision.Model).
+		String("decision.provider", decision.Provider).
+		String("decision.reason", decision.Reason).
+		String("routing.turn_type", string(tt)).
 		Int64("usage.input_tokens", int64(in)).
 		Int64("usage.output_tokens", int64(out)).
 		Int64("usage.cache_creation_input_tokens", int64(cacheCreation)).
@@ -210,6 +214,8 @@ func (s *Service) ProxyGeminiGenerateContent(ctx context.Context, body []byte, w
 		End:   time.Now(),
 		Attrs: geminiUpstreamBuilder.Build(),
 	})
+	respBody, respTrunc := capturedResponse(contentCap)
+	s.recordCallLog(ctx, geminiUpstreamBuilder.Build(), proxyErr != nil, body, respBody, respTrunc)
 	otel.Flush(ctx)
 
 	// Persist last-turn usage to the pin row so the next turn's planner
