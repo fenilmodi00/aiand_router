@@ -236,6 +236,8 @@ prices='{
 # END_GENERATED_PRICES
 
 routed=""
+forced="false"
+forced_model=""
 session_savings=""
 tot_in=0
 tot_out=0
@@ -271,6 +273,36 @@ if [[ -n "$transcript_path" && -f "$transcript_path" ]]; then
     routed="failure"
   else
     routed="$(normalize_model "$routed")"
+  fi
+
+  # Detect an active /force-model pin from the router's synthetic ack turns —
+  # the only turns stamped message.model == "weave-router". The router emits
+  # one whenever a pin changes state:
+  #   * /force-model              → "force-model applied: <model> (<provider>) …"
+  #   * /unforce-model            → "force-model cleared …"
+  #   * loop / no-progress break  → "… clearing the session pin …" (expires the
+  #                                  pin, including a user-forced one)
+  #   * unrecognized model        → "… isn't a recognized model · keeping
+  #                                  automatic routing" — a NO-OP: the prior
+  #                                  pin, if any, is left untouched
+  # These persist on disk (the ingress stripper only scrubs them from upstream
+  # requests). Classify each weave-router turn newest-first, skip the no-op
+  # "rejected" acks, and let the latest real state change decide: an "applied"
+  # marker means the session is pinned (and names the model); anything else
+  # (cleared / loop-break / no-progress) means automatic routing has resumed.
+  # Restricting to weave-router turns keeps a normal reply that merely quotes
+  # these phrases from flipping the tag. (A silent server-side TTL expiry emits
+  # no turn and so can't be reflected here — the pin TTL outlives a session.)
+  force_state="$("${reverse[@]}" "$transcript_path" 2>/dev/null \
+    | jq -r 'select(.type=="assistant" and .message.model=="weave-router")
+        | ([.message.content[]? | select(.type? == "text") | .text] | join(" ") | gsub("[\n\r]"; " ")) as $t
+        | if ($t | test("force-model applied:")) then "APPLIED " + ($t | capture("force-model applied: (?<m>[^ ]+)").m)
+          elif ($t | test("isn.t a recognized model")) then "REJECTED"
+          else "CLEARED" end' 2>/dev/null \
+    | grep -m1 -v '^REJECTED$' || true)"
+  if [[ "$force_state" == APPLIED\ * ]]; then
+    forced="true"
+    forced_model="${force_state#APPLIED }"
   fi
 
   # Compute a session running total: savings across every assistant turn
@@ -375,7 +407,14 @@ if [[ "$tot_in" -gt 0 || "$tot_out" -gt 0 || "$tot_cache_read" -gt 0 || "$tot_ca
   fi
 fi
 
-if [[ "$routed" == "failure" ]]; then
+if [[ "$forced" == "true" ]]; then
+  # Session is pinned via /force-model. The "← selection · saved $X" clause
+  # describes automatic routing and would be misleading on a manual pin, so
+  # show the pinned model with a [forced] tag instead. forced_model comes from
+  # the marker; fall back to the routed/selected id if parsing came up empty.
+  forced_display="${forced_model:-${routed:-$selected_display}}"
+  printf '%s — %s [forced]%s' "$brand" "$forced_display" "$tokens_clause"
+elif [[ "$routed" == "failure" ]]; then
   # Latest turn was a CC-synthesized error stub — don't claim a routing
   # swap or compute savings against a non-model.
   printf '%s — %s%s' "$brand" "$routed" "$tokens_clause"
