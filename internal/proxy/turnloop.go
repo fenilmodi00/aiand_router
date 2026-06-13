@@ -322,18 +322,57 @@ func (s *Service) runTurnLoop(
 	// Context-window overflow guard: if the pre-filter in ProxyMessages /
 	// ProxyOpenAIChatCompletion added the pinned model to ExcludedModels
 	// (because this turn's estimated context exceeds the model's window),
-	// treat the pin as missing so downstream sticky branches (ToolResult,
-	// OutcomeStay, !plannerEnabled) cannot re-anchor to an over-capacity
-	// model. Sessions grow over time; the filter correctly evicts the pin
-	// on the turn where the window is first breached.
+	// verify with a direct fit-check before evicting the pin. The pre-filter
+	// uses body_bytes÷5 as a conservative token estimate; the pin guard uses
+	// the same formula but checks the model's actual context window, so a
+	// conservative over-estimate that only slightly overshoots a large-window
+	// model does not cause an unnecessary mid-session switch.
+	// A confirmed overflow (needed > model window) still evicts the pin.
 	if pinFound {
 		if _, overCapacity := req.ExcludedModels[pin.Model]; overCapacity {
-			log.Info("Session pin excluded by context-window pre-filter; falling through to scorer",
-				"pin_model", pin.Model,
-				"pin_provider", pin.Provider,
-			)
-			pinFound = false
-			pin = sessionpin.Pin{}
+			outputReserveForPin := contextWindowOutputReserve
+			if feats.MaxTokens > outputReserveForPin {
+				outputReserveForPin = feats.MaxTokens
+			}
+			needed := env.FullTokenEstimate() + outputReserveForPin
+			modelCW := contextWindowForRequest(pin.Model, false)
+			if needed > modelCW {
+				log.Info("Session pin excluded by context-window pre-filter; falling through to scorer",
+					"pin_model", pin.Model,
+					"pin_provider", pin.Provider,
+					"token_estimate", env.FullTokenEstimate(),
+					"needed", needed,
+					"model_context_window", modelCW,
+				)
+				pinFound = false
+				pin = sessionpin.Pin{}
+			} else {
+				// Pre-filter was overly conservative — pin model fits.
+				// Remove it from ExcludedModels only if it was added
+				// exclusively by the context-overflow filter, NOT by an
+				// operator/installation policy exclusion. Policy exclusions
+				// are a hard operator constraint; lifting them here would
+				// let sticky routing bypass an operator-excluded model on
+				// the very turns where the context window happens to fit.
+				policyExcluded := s.excludedModelsForRequest(ctx)
+				if _, policyExcludes := policyExcluded[pin.Model]; !policyExcludes {
+					if len(req.ExcludedModels) > 0 {
+						pruned := make(map[string]struct{}, len(req.ExcludedModels)-1)
+						for k := range req.ExcludedModels {
+							if k != pin.Model {
+								pruned[k] = struct{}{}
+							}
+						}
+						req.ExcludedModels = pruned
+					}
+				}
+				log.Info("Session pin preserved despite context-window pre-filter exclusion",
+					"pin_model", pin.Model,
+					"token_estimate", env.FullTokenEstimate(),
+					"needed", needed,
+					"model_context_window", modelCW,
+				)
+			}
 		}
 	}
 
