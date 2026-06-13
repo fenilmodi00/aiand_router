@@ -737,7 +737,7 @@ function ModelSelectionPanel() {
       setExcluded(ex);
       setSavedExcluded(ex);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to save");
+      setError(err instanceof Error ? err.message : "Failed to save excluded models.");
     } finally {
       setSaving(false);
     }
@@ -872,7 +872,7 @@ function ProviderSelectionPanel() {
       setExcluded(ex);
       setSavedExcluded(ex);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to save");
+      setError(err instanceof Error ? err.message : "Failed to save excluded providers.");
     } finally {
       setSaving(false);
     }
