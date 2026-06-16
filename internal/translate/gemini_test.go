@@ -614,6 +614,90 @@ func TestPrepareGemini_StripsJSONSchemaFieldsGoogleRejects(t *testing.T) {
 	assert.Equal(t, "URL to fetch", url["description"])
 }
 
+func TestPrepareGemini_PrunesDanglingRequired(t *testing.T) {
+	// Regression: Gemini's strict function-calling validator 400s
+	// ("Request contains an invalid argument") when "required" names a
+	// property that isn't in "properties". Well-formed JSON Schema permits
+	// it, so an inbound MCP tool schema can carry one; prune it.
+	body := []byte(`{
+		"messages": [{"role":"user","content":"hi"}],
+		"tools": [{
+			"name":"DoThing",
+			"description":"d",
+			"input_schema":{
+				"type":"object",
+				"properties":{"x":{"type":"string"}},
+				"required":["x","ghost"]
+			}
+		},{
+			"name":"AllDangling",
+			"description":"d",
+			"input_schema":{
+				"type":"object",
+				"properties":{"a":{"type":"string"}},
+				"required":["missing"]
+			}
+		}]
+	}`)
+	env, err := translate.ParseAnthropic(body)
+	require.NoError(t, err)
+	prep, err := env.PrepareGemini(http.Header{}, translate.EmitOptions{})
+	require.NoError(t, err)
+
+	out := mustUnmarshal(t, prep.Body)
+	decls := out["tools"].([]any)[0].(map[string]any)["functionDeclarations"].([]any)
+
+	// Tool 1: keep the real property, drop the dangling one.
+	p0 := decls[0].(map[string]any)["parameters"].(map[string]any)
+	assert.Equal(t, []any{"x"}, p0["required"], "dangling 'ghost' must be pruned, 'x' kept")
+
+	// Tool 2: nothing in required survives → drop the key entirely.
+	p1 := decls[1].(map[string]any)["parameters"].(map[string]any)
+	assert.NotContains(t, p1, "required", "an all-dangling required must be removed, not left empty")
+}
+
+func TestPrepareGemini_PreservesPropertyNamedRequired(t *testing.T) {
+	// Pruning must run only in schema-node context: inside a "properties"
+	// map the keys are user-defined parameter names, so a parameter literally
+	// named "required" is a property schema, not the "required" keyword, and
+	// must survive untouched (incl. its own nested "required" keyword).
+	body := []byte(`{
+		"messages": [{"role":"user","content":"hi"}],
+		"tools": [{
+			"name":"DoThing",
+			"description":"d",
+			"input_schema":{
+				"type":"object",
+				"properties":{
+					"required":{
+						"type":"object",
+						"properties":{"inner":{"type":"string"}},
+						"required":["inner"]
+					}
+				},
+				"required":["required"]
+			}
+		}]
+	}`)
+	env, err := translate.ParseAnthropic(body)
+	require.NoError(t, err)
+	prep, err := env.PrepareGemini(http.Header{}, translate.EmitOptions{})
+	require.NoError(t, err)
+
+	out := mustUnmarshal(t, prep.Body)
+	params := out["tools"].([]any)[0].(map[string]any)["functionDeclarations"].([]any)[0].(map[string]any)["parameters"].(map[string]any)
+
+	// The schema-level "required" naming the real "required" property is kept.
+	assert.Equal(t, []any{"required"}, params["required"])
+	// The property named "required" is preserved as an object schema, not
+	// rewritten into an array or deleted.
+	prop, ok := params["properties"].(map[string]any)["required"].(map[string]any)
+	require.True(t, ok, `parameter named "required" must remain a schema object`)
+	assert.Equal(t, "object", prop["type"])
+	// Its own nested "required" keyword (valid: "inner" exists) is intact.
+	assert.Equal(t, []any{"inner"}, prop["required"])
+}
+
 func TestPrepareGemini_StripsVendorExtensionAndDollarPrefixedKeys(t *testing.T) {
 	// Regression: MCP tool schemas derived from Google APIs (and friends)
 	// embed vendor extensions like `x-google-enum-descriptions` at every
