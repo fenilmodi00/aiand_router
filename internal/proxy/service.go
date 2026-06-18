@@ -206,6 +206,11 @@ type ExternalIDContextKey struct{}
 // CredentialsContextKey is the request-context key for resolved per-request credentials.
 type CredentialsContextKey struct{}
 
+// AnthropicSubscriptionContextKey is the request-context key for a caller's raw
+// Claude subscription OAuth token, stashed by the auth middleware from the
+// X-Weave-Anthropic-Subscription header on router-keyed requests.
+type AnthropicSubscriptionContextKey struct{}
+
 // InstallationExcludedModelsContextKey is the context key for the authed
 // installation's model exclusion list. Carried as []string.
 type InstallationExcludedModelsContextKey struct{}
@@ -533,6 +538,23 @@ func CredentialsFromContext(ctx context.Context) *Credentials {
 	}
 	creds, _ := v.(*Credentials)
 	return creds
+}
+
+// anthropicSubscriptionFromContext returns the raw Claude subscription token
+// stashed by the auth middleware (router-keyed path), or "" when none.
+func anthropicSubscriptionFromContext(ctx context.Context) string {
+	v, _ := ctx.Value(AnthropicSubscriptionContextKey{}).(string)
+	return v
+}
+
+// servedOnSubscription reports whether the turn's resolved credential is a
+// Claude subscription OAuth token — i.e. the customer's own plan paid for it,
+// so billing applies only the subscription fee rather than full cost. The
+// credential is read from the same ctx that resolveAndInjectCredentials
+// stamped and dispatch used.
+func servedOnSubscription(ctx context.Context) bool {
+	creds := CredentialsFromContext(ctx)
+	return creds != nil && creds.OAuth
 }
 
 // DefaultPlannerThresholdUSD is the minimum positive EV over remaining-turn
@@ -2091,6 +2113,20 @@ func (s *Service) enabledProvidersForRequest(ctx context.Context, surfaceProvide
 		}
 		out[k.Provider] = struct{}{}
 	}
+	// A caller's Claude subscription enrolls Anthropic for routing
+	// eligibility, mirroring resolveAndInjectCredentials so the scorer can
+	// actually pick a Claude model. The dedicated X-Weave-Anthropic-Subscription
+	// header unambiguously carries only a subscription token, so — like
+	// credential injection — it is honored even on router-keyed requests, past
+	// the installation guard below. Without this a managed request carrying
+	// only a subscription token (no BYOK) leaves Anthropic out of the enabled
+	// set and the scorer fails with ErrNoEligibleProvider before any Claude
+	// turn runs. Anthropic-only: the token can't authenticate any other
+	// upstream. (The self-hosted inbound-bearer path is already covered by the
+	// ExtractClientCredentials block below.)
+	if subscriptionCredsFromHeaderValue(anthropicSubscriptionFromContext(ctx)) != nil {
+		out[providers.ProviderAnthropic] = struct{}{}
+	}
 	// Passthrough-eligible providers are surface-scoped: a provider
 	// registered without a deployment key joins the eligible set only when
 	// the inbound surface matches. Otherwise an Anthropic-surface request's
@@ -2135,17 +2171,48 @@ func (s *Service) enabledProvidersForRequest(ctx context.Context, surfaceProvide
 }
 
 // resolveAndInjectCredentials resolves credentials for provider and stashes
-// them on ctx. When authed via a router key, client-header extraction is
-// skipped — prevents the client's inbound Anthropic key from being
-// forwarded to a different upstream provider. Deployment-level env key on
-// the provider client is the correct fallback in that case.
+// them on ctx, in precedence order: a caller's Claude subscription token
+// (Anthropic only) first, then BYOK, then a client-supplied header credential.
+//
+// Subscription-first lets a caller's own Claude subscription pay for their
+// Claude turns. It arrives one of two ways: the dedicated
+// X-Weave-Anthropic-Subscription header on router-keyed requests (read past the
+// router-key guard below, since that header unambiguously carries only a
+// subscription token), or — when not authed via a router key — the inbound
+// Authorization bearer via ExtractClientCredentials.
+//
+// When authed via a router key, inbound client-header extraction is otherwise
+// skipped: it prevents the client's inbound Anthropic key from being forwarded
+// to a different upstream provider. The deployment-level env key on the
+// provider client is the correct fallback in that case.
 func resolveAndInjectCredentials(ctx context.Context, provider string, headers http.Header) context.Context {
+	routerKeyed := installationIDFromContext(ctx) != (uuid.UUID{})
+	if provider == providers.ProviderAnthropic {
+		// Subscription-first (precedence: subscription -> BYOK -> deployment). A
+		// caller's Claude subscription pays for their Claude turns ahead of any
+		// BYOK or deployment key. It arrives via the dedicated header on
+		// router-keyed requests, or — when not router-keyed — as the inbound
+		// Authorization bearer. Resolving it before the BYOK lookup keeps the
+		// precedence explicit here rather than relying on BYOK being absent off
+		// the router-key path (it is today, but a future BYOK-loading path must
+		// not silently outrank the subscription).
+		if sub := subscriptionCredsFromHeaderValue(anthropicSubscriptionFromContext(ctx)); sub != nil {
+			observability.FromContext(ctx).Debug("Resolved Claude subscription credential for Anthropic turn", "credential_source", sub.Source)
+			return context.WithValue(ctx, CredentialsContextKey{}, sub)
+		}
+		if !routerKeyed {
+			if inbound := ExtractClientCredentials(provider, headers); inbound != nil && inbound.OAuth {
+				observability.FromContext(ctx).Debug("Resolved Claude subscription credential for Anthropic turn", "credential_source", inbound.Source)
+				return context.WithValue(ctx, CredentialsContextKey{}, inbound)
+			}
+		}
+	}
 	byok := BuildCredentialsMap(externalKeysFromContext(ctx))
 	var creds *Credentials
 	if byok != nil {
 		creds = byok[provider]
 	}
-	if creds == nil && installationIDFromContext(ctx) == (uuid.UUID{}) {
+	if creds == nil && !routerKeyed {
 		creds = ExtractClientCredentials(provider, headers)
 	}
 	if creds != nil {
@@ -2306,18 +2373,22 @@ func (s *Service) emitBilling(ctx context.Context, requestID, externalID string,
 	}
 	hasOverride := billing.HasOverrideFromContext(ctx)
 	s.fireBilling(ctx, billing.DebitInferenceParams{
-		OrganizationID:  externalID,
-		RouterRequestID: requestID,
-		Model:           decision.Model,
-		Provider:        decision.Provider,
-		InputTokens:     in,
-		OutputTokens:    out,
-		CacheCreation:   cacheCreation,
-		CacheRead:       cacheRead,
-		Pricing:         actPricing,
-		HasOverride:     hasOverride,
+		OrganizationID:     externalID,
+		RouterRequestID:    requestID,
+		Model:              decision.Model,
+		Provider:           decision.Provider,
+		InputTokens:        in,
+		OutputTokens:       out,
+		CacheCreation:      cacheCreation,
+		CacheRead:          cacheRead,
+		Pricing:            actPricing,
+		HasOverride:        hasOverride,
+		SubscriptionServed: servedOnSubscription(ctx),
 	})
 
+	// The handover summary runs on the deployment/BYOK key (never the
+	// subscription token — see resolveSummarizerCreds), so it bills at full
+	// cost regardless of whether the main turn was subscription-served.
 	if routeRes.Handover.Invoked && !routeRes.Handover.FallbackToFullHistory {
 		sumUsage := routeRes.Handover.SummaryUsage
 		if sumUsage.Model != "" && (sumUsage.InputTokens > 0 || sumUsage.OutputTokens > 0) {
