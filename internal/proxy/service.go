@@ -285,7 +285,19 @@ const (
 	markerReasonStayed        = "stayed on your last pick"
 	markerReasonTierUpgrade   = "upgraded to a stronger tier"
 	markerReasonBestPick      = "best pick for this turn"
+	markerReasonBaseline      = "fell back to baseline after provider outage"
 )
+
+// baselineRoutingMarkerFor renders the routing badge for an in-turn baseline
+// failover. The requested model now serves on Anthropic, so the badge names the
+// baseline model rather than the cost-routed OSS slug that went dark. Honors
+// suggestion mode like routingMarkerFor; the caller applies the opt-out header.
+func baselineRoutingMarkerFor(res turnLoopResult, baselineModel string) string {
+	if res.SuggestionMode || baselineModel == "" {
+		return ""
+	}
+	return "✦ **Weave Router** → " + baselineModel + " · " + markerReasonBaseline + "\n\n"
+}
 
 // routingReasonShort returns a short user-facing reason for the routing
 // decision, or empty when the underlying code is internal recovery noise.
@@ -1169,6 +1181,49 @@ func truncateBodyForLog(body []byte, head, tail int) (string, bool, int) {
 
 // ProxyMessages routes a raw Anthropic-Messages request body and streams the
 // upstream response back. The routing decision is reflected in x-router-* headers.
+// anthropicNativeAttempt builds the per-binding dispatch closure for an
+// Anthropic-native upstream (no cross-format translation). prep is the
+// emitted body for the attempt's model; the marker sink and usage extractor
+// are rebuilt per attempt off the dispatched decision (d) so a baseline
+// failover that switches the model id renders the routing marker for the
+// model that actually served. setExtractor publishes the attempt's extractor
+// to the caller for post-dispatch token attribution.
+func (s *Service) anthropicNativeAttempt(
+	env *translate.RequestEnvelope,
+	r *http.Request,
+	prep providers.PreparedRequest,
+	sink http.ResponseWriter,
+	preludeBuf *preludeBuffer,
+	marker string,
+	setExtractor func(*otel.UsageExtractor),
+) dispatchAttempt {
+	return func(actx context.Context, d router.Decision, p providers.Client) error {
+		attemptSink := sink
+		if marker != "" {
+			attemptSink = translate.NewAnthropicRoutingMarkerWriter(sink, d.Model, marker)
+		}
+		proxyWriter := attemptSink
+		if s.usageRequired() {
+			ex := otel.NewUsageExtractor(attemptSink, d.Provider)
+			proxyWriter = ex
+			setExtractor(ex)
+		}
+		if preludeBuf != nil {
+			preludeBuf.Seal()
+		}
+		err := p.Proxy(actx, d, prep, proxyWriter, r)
+		// Post-commit streaming error: the routing-marker chunk has already
+		// been flushed past the buffer to the wire; render the upstream error
+		// as an in-stream `data: {...}` frame instead of letting dispatch's
+		// flushErr append a corrupting Anthropic envelope. Pre-commit errors
+		// are handled by dispatchWithFallback (Discard + flushErr).
+		if err != nil && env.Stream() && preludeBuf.Committed() {
+			err = emitAnthropicSSEErrorEvent(sink, err)
+		}
+		return err
+	}
+}
+
 func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.ResponseWriter, r *http.Request) error {
 	log := observability.FromContext(ctx)
 	requestStart := time.Now()
@@ -1572,12 +1627,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	// markerSink wraps sink with an AnthropicRoutingMarkerWriter per attempt.
 	// Unlike translator-backed paths, the Anthropic-native writer must wait
 	// for upstream headers so non-2xx responses can stay buffered/retryable.
-	makeMarkerSink := func() http.ResponseWriter {
-		if marker == "" {
-			return sink
-		}
-		return translate.NewAnthropicRoutingMarkerWriter(sink, decision.Model, marker)
-	}
+	setExtractor := func(e *otel.UsageExtractor) { extractor = e }
 	var attempt dispatchAttempt
 	switch decision.Provider {
 	case providers.ProviderAnthropic:
@@ -1587,28 +1637,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 			return fmt.Errorf("emit body: %w", emitErr)
 		}
 		logUpstreamBody(log, routeRes.SessionKey, decision, feats, prep.Body)
-		attempt = func(actx context.Context, d router.Decision, p providers.Client) error {
-			attemptSink := makeMarkerSink()
-			proxyWriter := attemptSink
-			if s.usageRequired() {
-				extractor = otel.NewUsageExtractor(attemptSink, d.Provider)
-				proxyWriter = extractor
-			}
-			if preludeBuf != nil {
-				preludeBuf.Seal()
-			}
-			err := p.Proxy(actx, d, prep, proxyWriter, r)
-			// Post-commit streaming error: the routing-marker chunk has
-			// already been flushed past the buffer to the wire; render
-			// the upstream error as an in-stream `data: {...}` frame
-			// instead of letting dispatch's flushErr append a corrupting
-			// Anthropic envelope. Pre-commit errors are handled by
-			// dispatchWithFallback (Discard + flushErr).
-			if err != nil && env.Stream() && preludeBuf.Committed() {
-				err = emitAnthropicSSEErrorEvent(sink, err)
-			}
-			return err
-		}
+		attempt = s.anthropicNativeAttempt(env, r, prep, sink, preludeBuf, marker, setExtractor)
 	case providers.ProviderOpenAI, providers.ProviderOpenRouter, providers.ProviderFireworks, providers.ProviderDeepInfra, providers.ProviderBedrock:
 		crossFormat = true
 		// Prep rebuilt per attempt: targetIsOpenRouter(opts) gates four
@@ -1725,21 +1754,115 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		return fmt.Errorf("%w: %s (no translation path defined for inbound Anthropic Messages)", ErrProviderNotConfigured, decision.Provider)
 	}
 
+	// In-turn baseline failover eligibility. When the router cost-routes an
+	// Anthropic-model request to an OSS/Gemini model and every binding for that
+	// model fails (provider outage or model-not-found), the turn should fall
+	// back to the requested model on Anthropic rather than hard-fail with
+	// "the selected model may not exist". Eligible only when: the request isn't
+	// BYOK/inbound-credential bound (those resolve to a single provider),
+	// Anthropic isn't excluded for the installation (otherwise failing over to
+	// Anthropic would violate the exclusion contract — and deferring the OSS
+	// error to a baseline that then can't dispatch would surface a generic
+	// gateway failure instead of the real upstream error), the routed model
+	// isn't already Anthropic, and the baseline is a known Anthropic-served
+	// catalog model distinct from the routed one. Computed pre-dispatch so the
+	// primary dispatch defers its exhaustion flush to us.
+	baselineModel := s.baselineFor(feats.Model)
+	baselineCatalog, baselineKnown := catalog.ByID(baselineModel)
+	_, anthropicExcluded := s.excludedProvidersForRequest(ctx)[providers.ProviderAnthropic]
+	baselineEligible := s.shouldFailover(ctx) &&
+		!anthropicExcluded &&
+		decision.Provider != providers.ProviderAnthropic &&
+		baselineModel != decision.Model &&
+		baselineKnown && baselineCatalog.PrimaryProvider() == providers.ProviderAnthropic
+
 	primaryProvider := decision.Provider
 	var winnerIdx int
 	winnerIdx, proxyErr = s.dispatchWithFallback(ctx, failoverInputs{
 		// contentSink routes the failover-exhaustion error envelope through the
 		// content-capture writer; it is the raw w when capture is off.
-		w:               contentSink,
-		buf:             preludeBuf,
-		initialDecision: decision,
-		bindings:        bindings,
-		attempt:         attempt,
-		flushErr:        flushUpstreamErrorAsAnthropic,
+		w:                      contentSink,
+		buf:                    preludeBuf,
+		initialDecision:        decision,
+		bindings:               bindings,
+		attempt:                attempt,
+		flushErr:               flushUpstreamErrorAsAnthropic,
+		deferFlushOnExhaustion: baselineEligible,
 	})
+
+	// The routed model's bindings all failed with a fault a different model
+	// could satisfy, and nothing reached the client yet — re-dispatch the
+	// requested model on Anthropic. crossFormat/respSummary/reqStats are reset
+	// to their Anthropic-native (no-translator) values so completion telemetry
+	// reflects the binding that actually served.
+	baselineFailoverUsed := false
+	baselineAttempted := false
+	if baselineEligible && proxyErr != nil && !preludeBuf.Committed() &&
+		(providers.IsRetryable(proxyErr) || providers.IsUpstreamModelNotFound(proxyErr)) {
+		baselineDecision := decision
+		baselineDecision.Model = baselineModel
+		baselineDecision.Provider = providers.ProviderAnthropic
+		baselineOpts := opts
+		baselineOpts.TargetModel = baselineModel
+		baselineOpts.TargetProvider = providers.ProviderAnthropic
+		baselineOpts.Capabilities = router.Lookup(baselineModel)
+		// Recompute the switch flag against the baseline model that actually
+		// serves (not the cost-routed OSS id). Otherwise PrepareAnthropic may
+		// leave stale signed thinking blocks the baseline model rejects → 400.
+		baselineOpts.ModelSwitched = routeRes.PriorServedModel != baselineModel || routeRes.SessionEverSwitched
+		if s.effortEscalation {
+			baselineOpts.ForceReasoningEffort = forcedReasoningEffort(baselineModel, routeRes.EscalateEffort)
+		}
+		baselinePrep, baselineEmitErr := env.PrepareAnthropic(r.Header, baselineOpts)
+		if baselineEmitErr != nil {
+			log.Error("Baseline failover: emit Anthropic body failed; surfacing original error", "err", baselineEmitErr, "baseline_model", baselineModel)
+			flushUpstreamErrorAsAnthropic(contentSink, proxyErr)
+		} else {
+			log.Warn("Baseline failover: routed model exhausted, retrying requested model on Anthropic",
+				"failed_model", decision.Model,
+				"failed_provider", primaryProvider,
+				"baseline_model", baselineModel,
+				"err", proxyErr)
+			baselineCtx := resolveAndInjectCredentials(ctx, providers.ProviderAnthropic, r.Header)
+			baselineBindings := s.resolveBindingsForDispatch(baselineCtx, baselineDecision)
+			baselineMarker := suppressMarkerIfRequested(r.Header, baselineRoutingMarkerFor(routeRes, baselineModel))
+			baselineAttempt := s.anthropicNativeAttempt(env, r, baselinePrep, sink, preludeBuf, baselineMarker, setExtractor)
+			crossFormat = false
+			respSummary = translate.ResponseSummary{}
+			reqStats = providers.RequestMutationStats{}
+			logUpstreamBody(log, routeRes.SessionKey, baselineDecision, feats, baselinePrep.Body)
+			winnerIdx, proxyErr = s.dispatchWithFallback(baselineCtx, failoverInputs{
+				w:               contentSink,
+				buf:             preludeBuf,
+				initialDecision: baselineDecision,
+				bindings:        baselineBindings,
+				attempt:         baselineAttempt,
+				flushErr:        flushUpstreamErrorAsAnthropic,
+			})
+			decision = baselineDecision
+			bindings = baselineBindings
+			baselineAttempted = true
+			// Reflect whether the baseline actually served the turn — a failed
+			// Anthropic retry must not report baseline_failover=true and skew
+			// bake-off / incident analysis.
+			baselineFailoverUsed = proxyErr == nil
+		}
+	} else if baselineEligible && proxyErr != nil {
+		// We deferred the primary's exhaustion flush but didn't run the baseline
+		// (response committed mid-stream, or a non-failoverable error). Surface
+		// the original upstream error envelope now.
+		flushUpstreamErrorAsAnthropic(contentSink, proxyErr)
+	}
+
 	finalProvider := primaryProvider
 	if winnerIdx >= 0 && winnerIdx < len(bindings) {
 		finalProvider = bindings[winnerIdx].Provider
+	} else if baselineAttempted {
+		// Baseline failover ran but no binding served (winnerIdx == -1). The
+		// last provider attempted was Anthropic with the baseline model, so
+		// finalProvider must match decision.Model rather than reverting to the
+		// OSS primary that never served the requested baseline model.
+		finalProvider = providers.ProviderAnthropic
 	}
 	decision.Provider = finalProvider
 
@@ -1801,7 +1924,8 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		String("dispatch.primary_provider", primaryProvider).
 		String("dispatch.final_provider", finalProvider).
 		Int64("dispatch.fallback_attempts", int64(winnerIdx)).
-		Bool("dispatch.failover_used", finalProvider != primaryProvider)
+		Bool("dispatch.failover_used", finalProvider != primaryProvider).
+		Bool("dispatch.baseline_failover", baselineFailoverUsed)
 	applyPlannerAttrs(upstreamBuilder, routeRes)
 	addTimingAttrs(ctx, upstreamBuilder)
 
@@ -1818,7 +1942,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	s.recordCallLog(ctx, upstreamBuilder.Build(), proxyErr != nil, body, respBody, respTrunc)
 	otel.Flush(ctx)
 
-	s.recordTurnUsage(routeRes, in, out, cacheCreation, cacheRead)
+	s.recordTurnUsage(routeRes, decision.Model, in, out, cacheCreation, cacheRead)
 
 	if installationID != uuid.Nil {
 		failoverUsed := finalProvider != primaryProvider
@@ -2032,7 +2156,7 @@ func (s *Service) logPlannerOutcome(ctx context.Context, res turnLoopResult) {
 	)
 }
 
-func (s *Service) recordTurnUsage(res turnLoopResult, in, out, cacheCreation, cacheRead int) {
+func (s *Service) recordTurnUsage(res turnLoopResult, servedModel string, in, out, cacheCreation, cacheRead int) {
 	if s.pinStore == nil || res.HardPinned {
 		return
 	}
@@ -2049,7 +2173,7 @@ func (s *Service) recordTurnUsage(res turnLoopResult, in, out, cacheCreation, ca
 		CachedWriteTokens: cacheCreation,
 		OutputTokens:      out,
 		EndedAt:           time.Now(),
-		ServedModel:       res.Decision.Model,
+		ServedModel:       servedModel,
 	}
 	role := res.PinRole
 	if role == "" {
@@ -3052,7 +3176,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		emitCallLog()
 	}
 
-	s.recordTurnUsage(routeRes, in, out, cacheCreation, cacheRead)
+	s.recordTurnUsage(routeRes, decision.Model, in, out, cacheCreation, cacheRead)
 
 	if proxyErr == nil {
 		s.emitBilling(ctx, requestID, externalID, decision, actPricing, routeRes, in, out, cacheCreation, cacheRead)
