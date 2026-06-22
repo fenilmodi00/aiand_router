@@ -136,6 +136,133 @@ func TestResolveAndInjectCredentials_RouterKeyedInboundApiKeyNotForwarded(t *tes
 		"a non-OAuth inbound API key must not be forwarded on the router-key path; the deployment key is the correct fallback")
 }
 
+const codexTestJWT = "eyJhbGciOiJSUzI1NiJ9.codex-access.signature"
+
+func TestResolveAndInjectCredentials_CodexDedicatedHeadersBeatBYOK(t *testing.T) {
+	// Router-keyed request with a BYOK OpenAI key and the dedicated Codex
+	// subscription headers. The subscription must win and be read past the
+	// router-key guard, mirroring the Anthropic dedicated-header path.
+	ctx := context.WithValue(context.Background(), InstallationIDContextKey{}, testInstallationID)
+	ctx = context.WithValue(ctx, ExternalAPIKeysContextKey{}, []*auth.ExternalAPIKey{
+		{Provider: providers.ProviderOpenAI, Plaintext: []byte("sk-oai-byok")},
+	})
+	ctx = context.WithValue(ctx, OpenAISubscriptionContextKey{}, codexTestJWT)
+	ctx = context.WithValue(ctx, OpenAIAccountIDContextKey{}, "acct-999")
+
+	out := resolveAndInjectCredentials(ctx, providers.ProviderOpenAI, http.Header{})
+	creds := CredentialsFromContext(out)
+	require.NotNil(t, creds)
+	assert.True(t, creds.OAuth)
+	assert.Equal(t, credSourceCodexSubscription, creds.Source)
+	assert.Equal(t, []byte(codexTestJWT), creds.APIKey)
+	assert.Equal(t, []byte("acct-999"), creds.AccountID)
+}
+
+func TestResolveAndInjectCredentials_CodexInboundBeatsBYOK(t *testing.T) {
+	// Self-hosted (no router key): an inbound Authorization JWT + ChatGPT-Account-ID
+	// must beat a present BYOK OpenAI key so the turn bills at the subscription fee.
+	ctx := context.WithValue(context.Background(), ExternalAPIKeysContextKey{}, []*auth.ExternalAPIKey{
+		{Provider: providers.ProviderOpenAI, Plaintext: []byte("sk-oai-byok")},
+	})
+	headers := http.Header{
+		"Authorization":      []string{"Bearer " + codexTestJWT},
+		"Chatgpt-Account-Id": []string{"acct-999"},
+	}
+	out := resolveAndInjectCredentials(ctx, providers.ProviderOpenAI, headers)
+	creds := CredentialsFromContext(out)
+	require.NotNil(t, creds)
+	assert.True(t, creds.OAuth, "the inbound Codex subscription must win over BYOK")
+	assert.Equal(t, credSourceCodexSubscription, creds.Source)
+	assert.Equal(t, []byte("acct-999"), creds.AccountID)
+}
+
+func TestResolveAndInjectCredentials_RouterKeyedInboundCodexSubscription(t *testing.T) {
+	// Codex CLI routed through the Weave Router: the router key authenticates via
+	// X-Weave-Router-Key (installation set), while Codex leaves its own ChatGPT
+	// auth in Authorization + ChatGPT-Account-ID. No dedicated header, no BYOK.
+	// The inbound bearer must resolve as the Codex subscription credential so the
+	// turn bills at the 5% fee — the managed-Codex case mirroring #460.
+	ctx := context.WithValue(context.Background(), InstallationIDContextKey{}, testInstallationID)
+	headers := http.Header{
+		"Authorization":      []string{"Bearer " + codexTestJWT},
+		"Chatgpt-Account-Id": []string{"acct-999"},
+	}
+	out := resolveAndInjectCredentials(ctx, providers.ProviderOpenAI, headers)
+	creds := CredentialsFromContext(out)
+	require.NotNil(t, creds)
+	assert.True(t, creds.OAuth,
+		"a managed Codex turn must resolve its inbound subscription bearer even when router-keyed")
+	assert.Equal(t, credSourceCodexSubscription, creds.Source)
+	assert.Equal(t, []byte("acct-999"), creds.AccountID)
+}
+
+func TestResolveAndInjectCredentials_RouterKeyedInboundOpenAIApiKeyNotForwarded(t *testing.T) {
+	// The router-key path still must NOT forward a general inbound OpenAI API key:
+	// only the Codex OAuth subset (JWT + ChatGPT-Account-ID) is honored. A plain
+	// client key in Authorization, with no account-id, must resolve to no
+	// credential so the deployment key is the upstream fallback.
+	ctx := context.WithValue(context.Background(), InstallationIDContextKey{}, testInstallationID)
+	headers := http.Header{"Authorization": []string{"Bearer sk-proj-real-client-key"}}
+	out := resolveAndInjectCredentials(ctx, providers.ProviderOpenAI, headers)
+	assert.Nil(t, CredentialsFromContext(out),
+		"a non-OAuth inbound OpenAI key must not be forwarded on the router-key path; the deployment key is the correct fallback")
+}
+
+func TestResolveAndInjectCredentials_CodexHeadersIgnoredForNonOpenAI(t *testing.T) {
+	// The Codex token can only pay for OpenAI; a non-OpenAI route must not
+	// resolve it.
+	ctx := context.WithValue(context.Background(), InstallationIDContextKey{}, testInstallationID)
+	ctx = context.WithValue(ctx, ExternalAPIKeysContextKey{}, []*auth.ExternalAPIKey{
+		{Provider: providers.ProviderAnthropic, Plaintext: []byte("sk-ant-api-byok")},
+	})
+	ctx = context.WithValue(ctx, OpenAISubscriptionContextKey{}, codexTestJWT)
+	ctx = context.WithValue(ctx, OpenAIAccountIDContextKey{}, "acct-999")
+
+	out := resolveAndInjectCredentials(ctx, providers.ProviderAnthropic, http.Header{})
+	creds := CredentialsFromContext(out)
+	require.NotNil(t, creds)
+	assert.False(t, creds.OAuth)
+	assert.Equal(t, []byte("sk-ant-api-byok"), creds.APIKey,
+		"an Anthropic route must use its own BYOK key, never the Codex subscription token")
+}
+
+func TestCodexResponsesRequest(t *testing.T) {
+	t.Run("dedicated headers on a router-keyed request", func(t *testing.T) {
+		ctx := context.WithValue(context.Background(), InstallationIDContextKey{}, testInstallationID)
+		ctx = context.WithValue(ctx, OpenAISubscriptionContextKey{}, codexTestJWT)
+		ctx = context.WithValue(ctx, OpenAIAccountIDContextKey{}, "acct-1")
+		assert.True(t, codexResponsesRequest(ctx, http.Header{}))
+	})
+	t.Run("inbound bearer + account-id off the router key", func(t *testing.T) {
+		headers := http.Header{
+			"Authorization":      []string{"Bearer " + codexTestJWT},
+			"Chatgpt-Account-Id": []string{"acct-1"},
+		}
+		assert.True(t, codexResponsesRequest(context.Background(), headers))
+	})
+	t.Run("inbound bearer + account-id on a router-keyed request", func(t *testing.T) {
+		// Managed Codex: the router key authenticates via X-Weave-Router-Key
+		// (installation set) while Codex CLI leaves its ChatGPT auth in
+		// Authorization, with no dedicated header. resolveAndInjectCredentials
+		// resolves this as the Codex subscription, so detection must agree and
+		// route to the Codex backend — not be gated on the installation's absence.
+		ctx := context.WithValue(context.Background(), InstallationIDContextKey{}, testInstallationID)
+		headers := http.Header{
+			"Authorization":      []string{"Bearer " + codexTestJWT},
+			"Chatgpt-Account-Id": []string{"acct-1"},
+		}
+		assert.True(t, codexResponsesRequest(ctx, headers))
+	})
+	t.Run("dedicated token without account-id is not a Codex request", func(t *testing.T) {
+		ctx := context.WithValue(context.Background(), InstallationIDContextKey{}, testInstallationID)
+		ctx = context.WithValue(ctx, OpenAISubscriptionContextKey{}, codexTestJWT)
+		assert.False(t, codexResponsesRequest(ctx, http.Header{}))
+	})
+	t.Run("plain request is not a Codex request", func(t *testing.T) {
+		assert.False(t, codexResponsesRequest(context.Background(), http.Header{}))
+	})
+}
+
 func TestClearCredentials(t *testing.T) {
 	ctx := context.WithValue(context.Background(), CredentialsContextKey{},
 		&Credentials{APIKey: []byte("sk-ant-oat01-token"), Source: credSourceSubscription, OAuth: true})

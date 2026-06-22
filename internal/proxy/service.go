@@ -27,6 +27,7 @@ import (
 	"workweave/router/internal/translate"
 
 	"github.com/google/uuid"
+	"github.com/tidwall/sjson"
 )
 
 // Service orchestrates routing decisions and provider dispatch.
@@ -210,6 +211,20 @@ type CredentialsContextKey struct{}
 // Claude subscription OAuth token, stashed by the auth middleware from the
 // X-Weave-Anthropic-Subscription header on router-keyed requests.
 type AnthropicSubscriptionContextKey struct{}
+
+// OpenAISubscriptionContextKey and OpenAIAccountIDContextKey are the
+// request-context keys for a caller's raw Codex (ChatGPT) subscription OAuth JWT
+// and its paired ChatGPT-Account-ID, stashed by the auth middleware from the
+// X-Weave-OpenAI-Subscription / X-Weave-OpenAI-Account-ID headers on router-keyed
+// requests.
+type OpenAISubscriptionContextKey struct{}
+type OpenAIAccountIDContextKey struct{}
+
+// codexResponsesBodyContextKey carries the caller's ORIGINAL Responses request
+// body on a Codex (ChatGPT) subscription turn. ProxyOpenAIResponses stashes it
+// so ProxyOpenAIChatCompletion can route normally but dispatch the untranslated
+// Responses body to the Codex backend (its presence marks the passthrough).
+type codexResponsesBodyContextKey struct{}
 
 // InstallationExcludedModelsContextKey is the context key for the authed
 // installation's model exclusion list. Carried as []string.
@@ -589,13 +604,52 @@ func anthropicSubscriptionFromContext(ctx context.Context) string {
 }
 
 // servedOnSubscription reports whether the turn's resolved credential is a
-// Claude subscription OAuth token — i.e. the customer's own plan paid for it,
-// so billing applies only the subscription fee rather than full cost. The
-// credential is read from the same ctx that resolveAndInjectCredentials
+// subscription OAuth token (Claude or Codex) — i.e. the customer's own plan
+// paid for it, so billing applies only the subscription fee rather than full
+// cost. The credential is read from the same ctx that resolveAndInjectCredentials
 // stamped and dispatch used.
 func servedOnSubscription(ctx context.Context) bool {
 	creds := CredentialsFromContext(ctx)
 	return creds != nil && creds.OAuth
+}
+
+// openaiSubscriptionFromContext / openaiAccountIDFromContext return the raw Codex
+// (ChatGPT) subscription JWT and paired account-id stashed by the auth middleware
+// (router-keyed path), or "" when none.
+func openaiSubscriptionFromContext(ctx context.Context) string {
+	v, _ := ctx.Value(OpenAISubscriptionContextKey{}).(string)
+	return v
+}
+
+func openaiAccountIDFromContext(ctx context.Context) string {
+	v, _ := ctx.Value(OpenAIAccountIDContextKey{}).(string)
+	return v
+}
+
+// codexSubscriptionFromContext resolves a Codex subscription credential from the
+// dedicated router-keyed headers (token + account-id), or nil when either is
+// absent or the pair isn't a usable Codex subscription.
+func codexSubscriptionFromContext(ctx context.Context) *Credentials {
+	return codexSubscriptionCreds(openaiSubscriptionFromContext(ctx), openaiAccountIDFromContext(ctx))
+}
+
+// codexResponsesRequest reports whether this /v1/responses request carries a
+// usable Codex (ChatGPT) subscription — the dedicated header pair, or an inbound
+// Authorization bearer + ChatGPT-Account-ID. When true, ProxyOpenAIResponses
+// routes the turn to the Codex backend instead of the chat-completions canonical
+// path. Mirrors the resolution precedence in resolveAndInjectCredentials so
+// detection and injection never disagree: the inbound-bearer shape is honored
+// even on a router-keyed request (Codex CLI keeps its ChatGPT auth in
+// Authorization while the router key rides in X-Weave-Router-Key), so it must
+// not be gated on the installation being absent.
+func codexResponsesRequest(ctx context.Context, headers http.Header) bool {
+	if codexSubscriptionFromContext(ctx) != nil {
+		return true
+	}
+	if c := ExtractClientCredentials(providers.ProviderOpenAI, headers); c != nil && c.OAuth {
+		return true
+	}
+	return false
 }
 
 // DefaultPlannerThresholdUSD is the minimum positive EV over remaining-turn
@@ -2358,6 +2412,28 @@ func (s *Service) enabledProvidersForRequest(ctx context.Context, surfaceProvide
 	if c := ExtractClientCredentials(providers.ProviderAnthropic, headers); c != nil && c.OAuth {
 		out[providers.ProviderAnthropic] = struct{}{}
 	}
+	// A caller's Codex (ChatGPT) subscription enrolls OpenAI for routing
+	// eligibility, mirroring the Anthropic block above so the scorer can pick an
+	// OpenAI model. The dedicated X-Weave-OpenAI-Subscription / -Account-ID
+	// headers unambiguously carry only a subscription, so they are honored even
+	// on router-keyed requests. Enrollment requires BOTH token and account-id
+	// (codexSubscriptionFromContext returns nil without the account-id) so the
+	// scorer can't pick OpenAI for a turn the Codex backend would 401 on for a
+	// missing ChatGPT-Account-ID. OpenAI-only: the JWT can't authenticate any
+	// other upstream.
+	if codexSubscriptionFromContext(ctx) != nil {
+		out[providers.ProviderOpenAI] = struct{}{}
+	}
+	// And, mirroring the Anthropic inbound-bearer block, a Codex subscription
+	// bearer in the inbound Authorization (paired with ChatGPT-Account-ID)
+	// enrolls OpenAI even on router-keyed requests — the managed Codex CLI path
+	// keeps its ChatGPT JWT in Authorization while the router key rides in
+	// X-Weave-Router-Key. OAuth-subset only (ExtractClientCredentials flags
+	// OAuth only for a JWT + account-id pairing): a plain client API key still
+	// cannot enroll OpenAI on the router-key path.
+	if c := ExtractClientCredentials(providers.ProviderOpenAI, headers); c != nil && c.OAuth {
+		out[providers.ProviderOpenAI] = struct{}{}
+	}
 	// Passthrough-eligible providers are surface-scoped: a provider
 	// registered without a deployment key joins the eligible set only when
 	// the inbound surface matches. Otherwise an Anthropic-surface request's
@@ -2445,6 +2521,28 @@ func resolveAndInjectCredentials(ctx context.Context, provider string, headers h
 		if inbound := ExtractClientCredentials(provider, headers); inbound != nil && inbound.OAuth {
 			observability.FromContext(ctx).Info("Resolved Claude subscription credential",
 				"credential_source", inbound.Source)
+			return context.WithValue(ctx, CredentialsContextKey{}, inbound)
+		}
+	}
+	if provider == providers.ProviderOpenAI {
+		// Codex (ChatGPT) subscription-first (precedence: subscription -> BYOK ->
+		// deployment), mirroring the Anthropic block above. The dedicated headers
+		// carry token + account-id on router-keyed requests.
+		if sub := codexSubscriptionFromContext(ctx); sub != nil {
+			observability.FromContext(ctx).Debug("Resolved Codex subscription credential for OpenAI turn", "credential_source", sub.Source)
+			return context.WithValue(ctx, CredentialsContextKey{}, sub)
+		}
+		// A Codex subscription bearer (ChatGPT OAuth JWT paired with a
+		// ChatGPT-Account-ID) in the inbound Authorization is honored even on
+		// router-keyed requests. Codex CLI routed through the Weave Router keeps
+		// its own ChatGPT auth in Authorization while the router key rides in
+		// X-Weave-Router-Key, so a managed Codex turn pays from the caller's own
+		// plan without needing the dedicated header. Restricted to the OAuth
+		// subset: ExtractClientCredentials flags OAuth only for a JWT + account-id
+		// pairing, so a general inbound OpenAI API key is still NOT forwarded on
+		// the router-key path (the cross-provider-leak guard below still applies).
+		if inbound := ExtractClientCredentials(provider, headers); inbound != nil && inbound.OAuth {
+			observability.FromContext(ctx).Debug("Resolved Codex subscription credential for OpenAI turn", "credential_source", inbound.Source)
 			return context.WithValue(ctx, CredentialsContextKey{}, inbound)
 		}
 	}
@@ -2843,6 +2941,17 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 
 	enabledProviders := s.enabledProvidersForRequest(ctx, providers.ProviderOpenAI, r.Header)
 
+	// Codex (ChatGPT) subscription passthrough: ProxyOpenAIResponses stashed the
+	// caller's original Responses body. Such turns dispatch to the Codex backend
+	// over the Responses API and stream Responses SSE straight back, so they
+	// constrain routing to OpenAI (the only provider the ChatGPT plan can pay
+	// for) and skip the chat-completions routing marker + semantic cache below.
+	codexBody, _ := ctx.Value(codexResponsesBodyContextKey{}).([]byte)
+	codexPassthrough := len(codexBody) > 0
+	if codexPassthrough {
+		enabledProviders = map[string]struct{}{providers.ProviderOpenAI: {}}
+	}
+
 	// Pre-filter models whose context window cannot fit this request.
 	outputReserveOAI := contextWindowOutputReserve
 	if feats.MaxTokens > outputReserveOAI {
@@ -2893,7 +3002,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	pinAgeSec := routeRes.PinAgeSec
 	s.logPlannerOutcome(ctx, routeRes)
 
-	cacheEligible := s.semanticCache != nil && !env.Stream() && decision.Metadata != nil && externalID != "" && !bypassEval
+	cacheEligible := s.semanticCache != nil && !env.Stream() && decision.Metadata != nil && externalID != "" && !bypassEval && !codexPassthrough
 	if cacheEligible {
 		if resp, hit := s.semanticCache.Lookup(externalID, cache.FormatOpenAI, decision.Metadata.Embedding, decision.Metadata.ClusterIDs, decision.Metadata.ClusterRouterVersion, decision.Metadata.EffectiveKnobsHash); hit {
 			s.writeCachedResponse(w, resp, decision)
@@ -3005,6 +3114,11 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	}
 
 	marker := suppressMarkerIfRequested(r.Header, routingMarkerFor(routeRes))
+	if codexPassthrough {
+		// The client receives raw Responses SSE from the Codex backend; a
+		// chat-completions routing-marker chunk would corrupt that stream.
+		marker = ""
+	}
 	_, isResponses := w.(*translate.ResponsesWriter)
 	// markerSink wraps sink with an OpenAIRoutingMarkerWriter that emits
 	// the routing-marker chunk + HTTP 200 eagerly (Prelude). Skipped when
@@ -3036,12 +3150,27 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		// Bedrock primary should not see. On failover to OpenRouter the
 		// body must be re-emitted with TargetProvider = openrouter.
 		attempt = func(actx context.Context, d router.Decision, p providers.Client) error {
-			attemptOpts := opts
-			attemptOpts.TargetProvider = d.Provider
-			prep, emitErr := env.PrepareOpenAI(r.Header, attemptOpts)
-			if emitErr != nil {
-				log.Error("Failed to emit OpenAI body", "err", emitErr, "decision_provider", d.Provider)
-				return fmt.Errorf("emit body: %w", emitErr)
+			var prep providers.PreparedRequest
+			if codexPassthrough {
+				// Dispatch the caller's ORIGINAL Responses body (untranslated)
+				// to the Codex backend, rewriting only the model to the routed
+				// pick. The OpenAI client switches to chatgpt.com/backend-api/
+				// codex when it sees the Codex subscription credential.
+				outBody, setErr := sjson.SetBytes(codexBody, "model", d.Model)
+				if setErr != nil {
+					log.Error("Failed to set routed model on Codex Responses body", "err", setErr, "decision_model", d.Model)
+					return fmt.Errorf("set codex model: %w", setErr)
+				}
+				prep = providers.PreparedRequest{Body: outBody, Endpoint: providers.EndpointResponses, Headers: make(http.Header)}
+			} else {
+				attemptOpts := opts
+				attemptOpts.TargetProvider = d.Provider
+				var emitErr error
+				prep, emitErr = env.PrepareOpenAI(r.Header, attemptOpts)
+				if emitErr != nil {
+					log.Error("Failed to emit OpenAI body", "err", emitErr, "decision_provider", d.Provider)
+					return fmt.Errorf("emit body: %w", emitErr)
+				}
 			}
 			attemptSink := makeMarkerSink()
 			proxyWriter := attemptSink
@@ -3058,8 +3187,11 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 			// the upstream error as an in-stream `data: {...}` frame
 			// instead of letting dispatch's flushErr append a corrupting
 			// JSON envelope. Pre-commit errors are handled by
-			// dispatchWithFallback (Discard + flushErr).
-			if err != nil && env.Stream() && preludeBuf.Committed() {
+			// dispatchWithFallback (Discard + flushErr). Skipped for the Codex
+			// passthrough: the client speaks Responses, so a chat-completions
+			// error frame would corrupt the stream — the upstream's own
+			// Responses error event has already reached the client.
+			if err != nil && !codexPassthrough && env.Stream() && preludeBuf.Committed() {
 				err = emitOpenAISSEErrorEvent(sink, err)
 			}
 			return err
@@ -3325,6 +3457,17 @@ func (s *Service) ProxyOpenAIResponses(ctx context.Context, body []byte, w http.
 	chatBody, _, model, err := translate.ResponsesToChatCompletions(body)
 	if err != nil {
 		return fmt.Errorf("translate responses request: %w", err)
+	}
+	// Codex (ChatGPT) subscription: serve the turn on the caller's plan via the
+	// Codex backend (chatgpt.com/backend-api/codex), which speaks the Responses
+	// API natively. Stash the caller's ORIGINAL Responses body and write the
+	// upstream Responses SSE straight to w (no ResponsesWriter round-trip), so
+	// reasoning/tool/encrypted content is never lossily re-translated through
+	// chat completions. Routing, billing (5% subscription fee), and telemetry
+	// are reused via ProxyOpenAIChatCompletion (chatBody feeds routing only).
+	if codexResponsesRequest(ctx, r.Header) {
+		ctx = context.WithValue(ctx, codexResponsesBodyContextKey{}, body)
+		return s.ProxyOpenAIChatCompletion(ctx, chatBody, w, r)
 	}
 	wrapper := translate.NewResponsesWriter(w, model)
 	// Defer the high-fidelity call-log emission until after Finalize: the
