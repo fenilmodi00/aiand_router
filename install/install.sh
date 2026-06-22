@@ -657,20 +657,39 @@ write_opencode_config() {
   fi
 
   # Merge into any existing opencode.json. We always overwrite provider.weave
-  # and provider."weave-codex" so re-install reflects the latest key/identity,
-  # but we leave the rest of the file (other providers, mcp, agent settings)
-  # untouched. Top-level `model` is only set when the user hasn't already
-  # picked one. The plugin path is added to `plugin` (de-duplicated so re-runs
-  # don't append it twice) only when we actually wrote the file above.
+  # so re-install reflects the latest key/identity, but we leave the rest of the
+  # file (other providers, mcp, agent settings) untouched. Top-level `model` is
+  # only set when the user hasn't already picked one.
+  #
+  # The weave-codex provider AND its plugin entry are written together only when
+  # the bundled plugin was present and copied ($plugin non-empty). Codex
+  # subscription auth depends on that plugin, so registering the provider
+  # without it (e.g. the `curl | sh` path, which carries no plugin source)
+  # would leave a non-working provider — instead we omit it (and strip any
+  # stale one from a prior install).
   local merged
   if [ -f "$config_file" ]; then
     merged="$(jq \
       --argjson block "$block" \
       --argjson codex "$codex_block" \
-      --arg plugin "$plugin_arg" '
-      .provider = ((.provider // {}) | .weave = $block | ."weave-codex" = $codex)
-      | (if $plugin != "" then .plugin = ((.plugin // []) | if index($plugin) then . else . + [$plugin] end) else . end)
+      --arg plugin "$plugin_arg" \
+      --arg pluginspec "$plugin_spec" '
+      .provider = ((.provider // {}) | .weave = $block)
+      | (if $plugin != "" then .provider["weave-codex"] = $codex else .provider |= del(."weave-codex") end)
+      # Register the managed plugin path when we installed it; otherwise strip a
+      # stale entry left by a prior install (the provider was just removed, so a
+      # lingering plugin reference would be dead weight).
+      | (if $plugin != ""
+           then .plugin = ((.plugin // []) | if index($plugin) then . else . + [$plugin] end)
+           else (if (.plugin | type) == "array"
+                   then (.plugin -= [$pluginspec]) | (if (.plugin | length) == 0 then del(.plugin) else . end)
+                   else . end)
+         end)
       | (if (.model // "") == "" then .model = "weave/claude-sonnet-4-6" else . end)
+      # If we just stripped weave-codex (plugin-less re-install) but the default
+      # model still points at it, reset to the Anthropic weave model so opencode
+      # does not boot with a model whose provider no longer exists.
+      | (if $plugin == "" and (.model // "" | tostring | startswith("weave-codex/")) then .model = "weave/claude-sonnet-4-6" else . end)
       | (.["$schema"] //= "https://opencode.ai/config.json")
     ' "$config_file")"
   else
@@ -681,9 +700,9 @@ write_opencode_config() {
       {
         "$schema": "https://opencode.ai/config.json",
         model: "weave/claude-sonnet-4-6",
-        provider: { weave: $block, "weave-codex": $codex }
+        provider: { weave: $block }
       }
-      | (if $plugin != "" then .plugin = [$plugin] else . end)
+      | (if $plugin != "" then .provider["weave-codex"] = $codex | .plugin = [$plugin] else . end)
     ')"
   fi
   printf '%s\n' "$merged" >"$config_file"
@@ -1524,7 +1543,9 @@ toggle_opencode() {
     model="$(jq -r '.model // empty' "$f" 2>/dev/null || true)"
     if [ "$(jq -r '((.provider // {}) | has("weave"))' "$f" 2>/dev/null || true)" = "true" ]; then has_weave="true"; fi
   fi
-  case "$model" in weave/*) on="true" ;; esac
+  # Either managed provider counts as router-on: the Anthropic-shaped `weave/…`
+  # default or a caller-selected `weave-codex/…` Codex-subscription model.
+  case "$model" in weave/* | weave-codex/*) on="true" ;; esac
 
   case "$mode" in
     status)
@@ -1817,9 +1838,14 @@ if [ "$target" = "opencode" ]; then
   printf "\n"
   printf "%s✓%s %s%sWeave Router installed for opencode.%s\n" \
     "$C_GREEN" "$C_RESET" "$C_BOLD" "$C_BRAND" "$C_RESET"
-  # Surface the optional Codex-subscription path. The weave-codex provider +
-  # plugin are installed but dormant until the user links their ChatGPT plan.
-  info "To pay for opencode turns with your own ChatGPT (Codex) subscription: run ${C_BOLD}opencode auth login${C_RESET} → ${C_BOLD}ChatGPT Pro/Plus${C_RESET}, then pick a ${C_BOLD}weave-codex${C_RESET} model."
+  # Surface the optional Codex-subscription path only when this run actually
+  # registered the weave-codex provider. Gate on the provider's presence in the
+  # written config (authoritative) rather than a plugin file on disk — a
+  # leftover plugin from a prior install can outlive a plugin-less re-install
+  # that stripped the provider, which would make these instructions misleading.
+  if jq -e '(.provider // {}) | has("weave-codex")' "$opencode_config_file" >/dev/null 2>&1; then
+    info "To pay for opencode turns with your own ChatGPT (Codex) subscription: run ${C_BOLD}opencode auth login${C_RESET} → ${C_BOLD}ChatGPT Pro/Plus${C_RESET}, then pick a ${C_BOLD}weave-codex${C_RESET} model."
+  fi
   if [ -n "$install_dir" ]; then
     # --dir installs land outside opencode's discovery roots, so the caller
     # has to point opencode at the file explicitly.
