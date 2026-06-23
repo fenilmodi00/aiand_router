@@ -89,7 +89,9 @@ func (s Snapshot) CostFactor(epsilon, gamma float64) float64 {
 }
 
 // Observer stores the most recent Snapshot per credential. Concurrency-safe;
-// entries expire after TTL (stale headroom must not pin the cost signal).
+// each entry stays authoritative for the life of its binding quota window (see
+// freshFor) — stale headroom must not pin the cost signal, but a reading must not
+// age out faster than the window it describes.
 type Observer struct {
 	mu   sync.RWMutex
 	salt []byte
@@ -98,13 +100,52 @@ type Observer struct {
 	data map[CredentialKey]Snapshot
 }
 
-// NewObserver builds an Observer. salt keys credentials; ttl bounds staleness;
-// now is the injected clock (real time in prod, fake in tests).
+// NewObserver builds an Observer. salt keys credentials; ttl is the MINIMUM
+// freshness floor (for readings that carry no window length) — a reading that
+// does report a window stays fresh for that window, not just ttl; now is the
+// injected clock (real time in prod, fake in tests).
 func NewObserver(salt []byte, ttl time.Duration, now func() time.Time) *Observer {
 	if now == nil {
 		now = time.Now
 	}
 	return &Observer{salt: salt, ttl: ttl, now: now, data: make(map[CredentialKey]Snapshot)}
+}
+
+// windowConstrainedFraction is the utilization at/above which a window is a real
+// constraint whose full length must be waited out before its quota resets. Below
+// it a window is effectively slack — its CostFactor contribution is already near
+// epsilon — so it need not extend retention, and re-reading it as cold-start
+// slack costs nothing.
+const windowConstrainedFraction = 0.5
+
+// freshFor reports how long a snapshot stays authoritative. Quota is perishable
+// and refills only when its window resets, so a reading is meaningful until every
+// window that is actually near cap would reset — NOT a flat ttl far shorter than
+// any quota window (5h / weekly). Without this a near-cap reading ages out after
+// the short ttl, Snapshot returns false, and the cold-start path re-applies the
+// optimistic epsilon to a credential that is in fact still capped — routing back
+// into it until a fresh response or 429 corrects it.
+//
+// The horizon is the LONGEST window among those at/above windowConstrainedFraction
+// (not just the binding/most-utilized one): when the 5h primary binds CostFactor
+// but the weekly window is also near cap, the entry must outlive the 5h window so
+// it does not reset to optimistic while weekly quota is still exhausted. A slack
+// window does not extend the horizon, so a 5h-capped + weekly-slack reading still
+// expires at ~5h rather than being stranded at full price for a week. Floored at
+// ttl so a reading carrying no constrained window still expires promptly; once
+// every constrained window has elapsed the entry is evicted and the credential
+// reads as never-observed again — correct, its quota has by then reset.
+func (o *Observer) freshFor(s Snapshot) time.Duration {
+	horizon := o.ttl
+	for _, w := range [...]Window{s.Primary, s.Secondary} {
+		if w.UsedPercent < windowConstrainedFraction {
+			continue
+		}
+		if d := time.Duration(w.WindowMinutes) * time.Minute; d > horizon {
+			horizon = d
+		}
+	}
+	return horizon
 }
 
 // Key derives the CredentialKey for a token under this observer's salt.
@@ -125,7 +166,7 @@ func (o *Observer) Record(key CredentialKey, snap Snapshot) {
 	// and over-discounting until TTL. A genuinely reset window reports used≈0
 	// (still present), so it correctly overwrites; only an OMITTED window is
 	// preserved from the prior snapshot.
-	if prev, ok := o.data[key]; ok && o.now().Sub(prev.ObservedAt) <= o.ttl {
+	if prev, ok := o.data[key]; ok && o.now().Sub(prev.ObservedAt) <= o.freshFor(prev) {
 		if !snap.Primary.present() {
 			snap.Primary = prev.Primary
 		}
@@ -146,9 +187,9 @@ func (o *Observer) Snapshot(key CredentialKey) (Snapshot, bool) {
 	if !ok {
 		return Snapshot{}, false
 	}
-	if o.now().Sub(snap.ObservedAt) > o.ttl {
+	if o.now().Sub(snap.ObservedAt) > o.freshFor(snap) {
 		o.mu.Lock()
-		if cur, still := o.data[key]; still && o.now().Sub(cur.ObservedAt) > o.ttl {
+		if cur, still := o.data[key]; still && o.now().Sub(cur.ObservedAt) > o.freshFor(cur) {
 			delete(o.data, key)
 		}
 		o.mu.Unlock()
@@ -163,7 +204,7 @@ func (o *Observer) Sweep() {
 	cutoff := o.now()
 	o.mu.Lock()
 	for k, s := range o.data {
-		if cutoff.Sub(s.ObservedAt) > o.ttl {
+		if cutoff.Sub(s.ObservedAt) > o.freshFor(s) {
 			delete(o.data, k)
 		}
 	}
@@ -176,20 +217,28 @@ func (o *Observer) Sweep() {
 // rate-limit headers (primary = rolling/~5h, secondary = weekly). Reports false
 // if neither window is present. Used-percent headers are 0-100; we store [0,1].
 func ParseCodexHeaders(h http.Header) (Snapshot, bool) {
-	primary, pOK := parseCodexWindow(h, "primary")
-	secondary, sOK := parseCodexWindow(h, "secondary")
+	primary, pOK := parseCodexWindow(h, "primary", 5*60)
+	secondary, sOK := parseCodexWindow(h, "secondary", 7*24*60)
 	if !pOK && !sOK {
 		return Snapshot{}, false
 	}
 	return Snapshot{Primary: primary, Secondary: secondary}, true
 }
 
-func parseCodexWindow(h http.Header, which string) (Window, bool) {
+// parseCodexWindow reads one Codex window. defaultWindowMinutes is the known
+// window length (primary ~5h, secondary weekly) used when the upstream omits the
+// x-codex-*-window-minutes header — mirroring ParseAnthropicUnifiedHeaders, which
+// hardcodes its window lengths. This guarantees every observed reading carries a
+// window length, so freshFor never falls back to the short ttl floor for a real
+// subscription: a near-cap Codex reading keeps suppressing the subsidy for the
+// life of its window rather than aging out and re-applying the optimistic
+// epsilon to a still-capped credential.
+func parseCodexWindow(h http.Header, which string, defaultWindowMinutes int) (Window, bool) {
 	used, ok := parsePercent(h.Get("x-codex-" + which + "-used-percent"))
 	if !ok {
 		return Window{}, false
 	}
-	w := Window{UsedPercent: used}
+	w := Window{UsedPercent: used, WindowMinutes: defaultWindowMinutes}
 	if m, ok := parseInt(h.Get("x-codex-" + which + "-window-minutes")); ok {
 		w.WindowMinutes = m
 	}

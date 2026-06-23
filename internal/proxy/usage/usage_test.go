@@ -48,6 +48,20 @@ func TestParseCodexHeaders_NoneReportsFalse(t *testing.T) {
 	assert.False(t, ok)
 }
 
+// When Codex reports used-percent but omits window-minutes, the parser must
+// still supply the known window length (primary ~5h, secondary weekly) so a
+// near-cap reading stays authoritative for the window's life instead of aging
+// out after the short ttl floor and re-subsidizing a still-capped credential.
+func TestParseCodexHeaders_DefaultsWindowWhenOmitted(t *testing.T) {
+	h := http.Header{}
+	h.Set("x-codex-primary-used-percent", "80")
+	h.Set("x-codex-secondary-used-percent", "97")
+	snap, ok := usage.ParseCodexHeaders(h)
+	require.True(t, ok)
+	assert.Equal(t, 300, snap.Primary.WindowMinutes, "primary defaults to ~5h")
+	assert.Equal(t, 10080, snap.Secondary.WindowMinutes, "secondary defaults to weekly")
+}
+
 func TestParseAnthropicUnified_FromRemainingLimit(t *testing.T) {
 	h := http.Header{}
 	h.Set("anthropic-ratelimit-unified-5h-limit", "1000")
@@ -122,10 +136,85 @@ func TestObserver_RecordGetTTL(t *testing.T) {
 	require.True(t, ok)
 	assert.InDelta(t, 0.5, got.Primary.UsedPercent, 1e-9)
 
-	// Past TTL → expired, dropped.
+	// A short idle gap (past the 10-min floor) must NOT drop a reading whose
+	// quota window (5h) is still open — its headroom is still authoritative.
 	now = now.Add(11 * time.Minute)
 	_, ok = o.Snapshot(key)
+	assert.True(t, ok, "a 5h-window reading survives a short idle gap")
+
+	// Past the binding window → quota has reset → expired, dropped.
+	now = now.Add(300 * time.Minute)
+	_, ok = o.Snapshot(key)
 	assert.False(t, ok)
+}
+
+// TestObserver_NearCapDoesNotResetToOptimistic is the regression for the
+// reviewer-flagged bug: a credential observed near its cap must not age out after
+// a short idle gap and then read as cold-start slack (which would re-subsidize a
+// still-capped subscription). Its near-1.0 factor must persist for the life of
+// the binding window, and only after that window resets should the entry drop so
+// the cold-start path can legitimately treat it as never-observed again.
+func TestObserver_NearCapDoesNotResetToOptimistic(t *testing.T) {
+	const eps, gamma = 0.05, 2.0
+	now := time.Unix(2_000_000, 0)
+	clock := func() time.Time { return now }
+	o := usage.NewObserver([]byte("salt"), 10*time.Minute, clock)
+	key := o.Key([]byte("sk-ant-oat01-capped"))
+
+	// Weekly window nearly exhausted.
+	o.Record(key, usage.Snapshot{Secondary: usage.Window{UsedPercent: 0.98, WindowMinutes: 10080}})
+
+	// 11 minutes later (past the old flat TTL): still observed, still ~full price.
+	now = now.Add(11 * time.Minute)
+	snap, ok := o.Snapshot(key)
+	require.True(t, ok, "a near-cap reading must survive past the 10-min floor")
+	assert.Greater(t, snap.CostFactor(eps, gamma), 0.9, "still near full price, not optimistic epsilon")
+
+	// After the weekly window elapses, the quota has reset → drop → cold start.
+	now = now.Add(10080 * time.Minute)
+	_, ok = o.Snapshot(key)
+	assert.False(t, ok, "after the binding window resets, the reading is no longer authoritative")
+}
+
+// TestObserver_LongWindowOutlivesShortBindingWindow guards the case where the 5h
+// primary window is the more-utilized (binding) one but the weekly window is also
+// near cap: the entry must survive past the 5h window so it does not reset to
+// optimistic epsilon while weekly quota is still exhausted.
+func TestObserver_LongWindowOutlivesShortBindingWindow(t *testing.T) {
+	now := time.Unix(3_000_000, 0)
+	clock := func() time.Time { return now }
+	o := usage.NewObserver([]byte("salt"), 10*time.Minute, clock)
+	key := o.Key([]byte("tok"))
+	o.Record(key, usage.Snapshot{
+		Primary:   usage.Window{UsedPercent: 0.99, WindowMinutes: 300},   // binds CostFactor
+		Secondary: usage.Window{UsedPercent: 0.90, WindowMinutes: 10080}, // also near cap
+	})
+
+	// 6h later: past the 5h primary window, but the weekly window still binds.
+	now = now.Add(6 * 60 * time.Minute)
+	_, ok := o.Snapshot(key)
+	assert.True(t, ok, "a near-cap weekly window keeps the entry alive past the 5h primary")
+}
+
+// TestObserver_SlackWindowDoesNotStrand is the converse: a 5h-capped reading whose
+// weekly window is slack must expire at ~5h, not be held at full price for the
+// (much longer) weekly window — otherwise a recovered primary quota would be
+// stranded on cash/OSS for a week.
+func TestObserver_SlackWindowDoesNotStrand(t *testing.T) {
+	now := time.Unix(4_000_000, 0)
+	clock := func() time.Time { return now }
+	o := usage.NewObserver([]byte("salt"), 10*time.Minute, clock)
+	key := o.Key([]byte("tok"))
+	o.Record(key, usage.Snapshot{
+		Primary:   usage.Window{UsedPercent: 0.99, WindowMinutes: 300},   // capped, 5h
+		Secondary: usage.Window{UsedPercent: 0.05, WindowMinutes: 10080}, // slack
+	})
+
+	// Just past the 5h primary window: the slack weekly window must not keep the
+	// stale primary-capped reading alive.
+	now = now.Add(301 * time.Minute)
+	_, ok := o.Snapshot(key)
+	assert.False(t, ok, "a slack long window must not strand a recovered short-window quota")
 }
 
 func TestObserver_RecordMergesWindows(t *testing.T) {
