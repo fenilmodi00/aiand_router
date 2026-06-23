@@ -157,6 +157,11 @@ func (s *Service) runTurnLoop(
 		"sub_agent_hint", subAgentHint,
 	)
 
+	// Subscription-aware cost discount: discount covered models' cost term by the
+	// observed rate-limit headroom of the caller's present subscription(s). nil
+	// (feature off / no sub / no headroom observed yet) leaves scoring unchanged.
+	req.SubsidizedModelCostFactor = s.subsidyFactors(ctx)
+
 	// Hard pins bypass pin lookup, pin write, planner, and scorer entirely.
 	// Probes and title-gen MUST NOT create a session pin — the Anthropic SDK
 	// fires probes on init before the first real user turn, and Claude Code
@@ -558,6 +563,10 @@ func (s *Service) runTurnLoop(
 		EstimatedInputTokens: feats.Tokens,
 		AvailableModels:      s.availableModels,
 		PinCacheCold:         pinFound && !cacheWarm(pin),
+		// Price covered models at their subsidized marginal cost in the EV math
+		// too, so the discount takes effect on sticky (pinned) sessions, not just
+		// the fresh decision. nil when subscription-aware routing is off.
+		SubsidizedCostFactor: req.SubsidizedModelCostFactor,
 	}
 	if !pinFound {
 		plannerIn.Pin = sessionpin.Pin{}

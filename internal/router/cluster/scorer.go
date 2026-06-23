@@ -262,7 +262,7 @@ func (s *Scorer) computeDialCalibration() []float64 {
 		}
 		counts := make(map[string]int, len(s.models))
 		for c := 0; c < k; c++ {
-			scores := s.blendScoresV2(centroidTopClusters[c], knobs, s.models)
+			scores := s.blendScoresV2(centroidTopClusters[c], knobs, s.models, nil)
 			winner, _ := argmax(scores, s.models)
 			// Mirror RoutingDistribution's accounting exactly: skip an empty
 			// winner so a cluster that flips between "" and a real model can't
@@ -631,9 +631,12 @@ func (s *Scorer) Route(ctx context.Context, req router.Request) (router.Decision
 			activeKnobs.PerModelVerbosity,
 		)
 
-		scores = s.blendScoresV2(topClusters, activeKnobs, eligibleModels)
+		scores = s.blendScoresV2(topClusters, activeKnobs, eligibleModels, req.SubsidizedModelCostFactor)
 	} else {
-		// Legacy v1 flow
+		// Legacy v1 flow: static cluster rankings, no cost axis at all — so there
+		// is no cost term to discount and req.SubsidizedModelCostFactor does not
+		// apply. Subscription-aware routing is V2-only by construction; all
+		// deployed bundles run V2 (the v1 path is a legacy fallback).
 		scores = make(map[string]float32, len(eligibleModels))
 		for _, k := range topClusters {
 			row := s.rankings[k]
@@ -841,7 +844,18 @@ var _ router.Router = (*Scorer)(nil)
 // distribution preview scores identically to live routing (single source of
 // truth for the cost/quality/speed blend). Caller owns knob validation and the
 // QualityBias->Alpha derivation; this method consumes the resolved alpha vector.
-func (s *Scorer) blendScoresV2(topClusters []int, activeKnobs DefaultRoutingKnobs, eligibleModels []string) map[string]float32 {
+func (s *Scorer) blendScoresV2(topClusters []int, activeKnobs DefaultRoutingKnobs, eligibleModels []string, subsidyFactors map[string]float64) map[string]float32 {
+	// Confine the subscription discount to eligible models. costs (and the
+	// cMin/cMax cost normalization) range over the full deployed set, so
+	// discounting an EXCLUDED covered model (context overflow, pin max-out,
+	// operator filter) could make it the artificial cost floor and weaken the
+	// cost axis for models that can actually win. An ineligible model can't be
+	// chosen, so subsidizing it serves no purpose.
+	eligibleSet := make(map[string]struct{}, len(eligibleModels))
+	for _, m := range eligibleModels {
+		eligibleSet[m] = struct{}{}
+	}
+
 	// 2. Effective per-model cost (knob-dependent)
 	costs := make(map[string]float64, len(s.models))
 	for _, m := range s.models {
@@ -859,6 +873,15 @@ func (s *Scorer) blendScoresV2(topClusters []int, activeKnobs DefaultRoutingKnob
 			outputPer1K = *axis.OutputPer1KUSD
 		}
 		costs[m] = inputPer1K + activeKnobs.OutputCostRatio*outputPer1K*vFactor
+		// Subscription-aware discount: scale the cost term for models a caller's
+		// presented subscription covers, by the observed rate-limit headroom
+		// factor (~epsilon when slack, →1 as the window binds). Applied here so it
+		// rides the same per-cluster alpha/lambda blend as the base cost.
+		if f, ok := subsidyFactors[m]; ok {
+			if _, eligible := eligibleSet[m]; eligible {
+				costs[m] *= f
+			}
+		}
 	}
 
 	// 3. Effective per-model speed

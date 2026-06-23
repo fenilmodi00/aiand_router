@@ -13,6 +13,35 @@ import (
 	"workweave/router/internal/router"
 )
 
+// UpstreamHeaderObserver receives the call's context and an upstream response's
+// headers so the proxy can record subscription rate-limit headroom (see
+// internal/proxy/usage) without coupling provider adapters to the observer. The
+// context lets the observer check the call's resolved credential, so it records
+// only responses actually served on the caller's subscription (not, e.g., the
+// handover summarizer's deployment-key call on the same request). Provider
+// clients invoke it (when present on the context) right after the upstream
+// responds; it must be cheap and non-blocking.
+type UpstreamHeaderObserver func(context.Context, http.Header)
+
+type upstreamHeaderObserverKey struct{}
+
+// WithUpstreamHeaderObserver returns ctx carrying obs; a nil obs leaves ctx unchanged.
+func WithUpstreamHeaderObserver(ctx context.Context, obs UpstreamHeaderObserver) context.Context {
+	if obs == nil {
+		return ctx
+	}
+	return context.WithValue(ctx, upstreamHeaderObserverKey{}, obs)
+}
+
+// ObserveUpstreamHeaders invokes the context's UpstreamHeaderObserver with ctx
+// and h, if one is set. Provider adapters call this after receiving an upstream
+// response.
+func ObserveUpstreamHeaders(ctx context.Context, h http.Header) {
+	if obs, ok := ctx.Value(upstreamHeaderObserverKey{}).(UpstreamHeaderObserver); ok && obs != nil {
+		obs(ctx, h)
+	}
+}
+
 const (
 	ProviderAnthropic  = "anthropic"
 	ProviderOpenAI     = "openai"
