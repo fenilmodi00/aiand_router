@@ -171,6 +171,101 @@ func TestRoutingDistribution_MidDialIsPricierThanLowDial(t *testing.T) {
 		"the 50%% dial must route a meaningfully pricier (higher-quality) mix than the 20%% dial")
 }
 
+// loadV0_70 loads the committed v0.70 bundle (the first shaped bundle whose
+// default alpha protects agentic/code clusters at 0.96 and lets conversational
+// clusters cheapen at 0.8). Like loadV0_67 it uses a fake embedder; the dial
+// tests below never embed a prompt — they score cluster centroids directly.
+func loadV0_70(t *testing.T) *Scorer {
+	t.Helper()
+	bundle, err := LoadBundle("v0.70")
+	require.NoError(t, err)
+	require.True(t, bundle.IsV2)
+	s, err := NewScorer(bundle, DefaultConfig(), &fakeEmbedder{dim: bundle.Centroids.Dim}, allProviders())
+	require.NoError(t, err)
+	return s
+}
+
+// clusterWinnerAt scores the centroid of cluster c at the given dial position
+// through the exact production path (defaultActiveKnobs -> applyDialAlpha ->
+// blendScoresV2 -> argmax over the top-P union) and returns the winning model.
+// withFloor=false reproduces the OLD uniform-dial behavior (the bug) so a test
+// can assert the floor changed the realized routing.
+func clusterWinnerAt(s *Scorer, c int, t float64, withFloor bool) string {
+	knobs := s.defaultActiveKnobs()
+	floor := knobs.AlphaFloor
+	if !withFloor {
+		floor = nil // reproduce the old uniform dial (no alpha_floor)
+	}
+	s.applyDialAlpha(t, knobs.Alpha, floor)
+	top := topPNearest(s.centroids.Row(c), s.centroids, s.cfg.TopP)
+	scores := s.blendScoresV2(top, knobs, s.models, nil)
+	winner, _ := argmax(scores, s.models)
+	return winner
+}
+
+func TestApplyDialAlpha_HoldsEachClusterAtItsDeclaredFloor(t *testing.T) {
+	s := loadV0_70(t)
+	knobs := s.defaultActiveKnobs()
+	floor := knobs.AlphaFloor
+	require.Len(t, floor, s.centroids.K, "v0.70 must ship a full per-cluster alpha_floor")
+
+	// At the price extreme (t=0, dialToAlpha=0) every cluster is held at exactly
+	// its declared floor — no cluster collapses to alpha 0 (the cheapest model).
+	s.applyDialAlpha(0.0, knobs.Alpha, floor)
+	for i := range knobs.Alpha {
+		assert.InDelta(t, floor[i], knobs.Alpha[i], 1e-9,
+			"cluster %d must be held at its declared floor at the price extreme", i)
+	}
+
+	// Above a cluster's floor the dial governs (max(dialAlpha, floor)); at the
+	// quality extreme (t=1, dialToAlpha=1) every cluster reaches 1.0.
+	knobs2 := s.defaultActiveKnobs()
+	s.applyDialAlpha(1.0, knobs2.Alpha, knobs2.AlphaFloor)
+	for i := range knobs2.Alpha {
+		assert.InDelta(t, 1.0, knobs2.Alpha[i], 1e-9, "cluster %d must reach 1.0 at the quality extreme", i)
+	}
+}
+
+func TestApplyDialAlpha_NilFloorIsUniformDial(t *testing.T) {
+	// A bundle that ships no alpha_floor keeps the legacy uniform-dial behavior:
+	// every cluster gets dialToAlpha(t) verbatim.
+	s := loadV0_70(t)
+	knobs := s.defaultActiveKnobs()
+	s.applyDialAlpha(0.3, knobs.Alpha, nil)
+	want := s.dialToAlpha(0.3)
+	for i := range knobs.Alpha {
+		assert.Equal(t, want, knobs.Alpha[i], "cluster %d must equal the uniform dial alpha with no floor", i)
+	}
+}
+
+func TestApplyDialAlpha_AgenticStaysOffCheapModelAtLowDial(t *testing.T) {
+	// The reported bug, end to end: under a price-leaning dial the agentic
+	// cluster routed to minimax-m3 (a model that can't drive the Claude Code
+	// skill/tool protocol). Cluster 0 is the agentic catch-all. Without the
+	// floor (old uniform dial) the centroid routes to a cheap OSS model; with
+	// the floor it stays on a frontier model.
+	s := loadV0_70(t)
+	const lowDial = 0.2
+
+	without := clusterWinnerAt(s, 0, lowDial, false)
+	with := clusterWinnerAt(s, 0, lowDial, true)
+
+	assert.NotEqual(t, with, without,
+		"the floor must change the agentic winner at a low dial (old=%s)", without)
+	// The fixed winner must be a genuine agentic-capable frontier model, not the
+	// cheap pack the uniform dial fell through to.
+	frontier := map[string]struct{}{
+		"claude-opus-4-8":          {},
+		"claude-opus-4-7":          {},
+		"claude-sonnet-4-6":        {},
+		"gemini-3.1-pro-preview":   {},
+		"gpt-5.5":                  {},
+		"deepseek/deepseek-v4-pro": {},
+	}
+	_, isFrontier := frontier[with]
+	assert.True(t, isFrontier, "with the floor the agentic cluster must route to a frontier model, got %s", with)
+}
+
 // mixSignatureOf renders a DistributionPoint's model shares as a stable key for
 // comparing whether two dial positions route the same mix.
 func mixSignatureOf(models []ModelShare) string {

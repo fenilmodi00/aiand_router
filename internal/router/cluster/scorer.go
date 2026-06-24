@@ -178,6 +178,20 @@ func NewScorer(bundle *Bundle, cfg Config, embed Embedder, availableProviders ma
 			if len(dk.Alpha) != bundle.Centroids.K {
 				return nil, fmt.Errorf("cluster %s: default_routing_knobs.alpha length %d must equal K=%d", bundle.Version, len(dk.Alpha), bundle.Centroids.K)
 			}
+			// alpha_floor is optional, but when present must be a full per-cluster
+			// vector with each entry a valid quality weight: applyDialAlpha writes
+			// floor[i] straight into the alpha slot, so a bad length or out-of-range
+			// value would silently produce an invalid blend.
+			if dk.AlphaFloor != nil {
+				if len(dk.AlphaFloor) != bundle.Centroids.K {
+					return nil, fmt.Errorf("cluster %s: default_routing_knobs.alpha_floor length %d must equal K=%d", bundle.Version, len(dk.AlphaFloor), bundle.Centroids.K)
+				}
+				for i, f := range dk.AlphaFloor {
+					if f < 0 || f > 1 {
+						return nil, fmt.Errorf("cluster %s: default_routing_knobs.alpha_floor[%d] (%f) must be in [0, 1]", bundle.Version, i, f)
+					}
+				}
+			}
 		}
 	} else {
 		for k := 0; k < bundle.Centroids.K; k++ {
@@ -325,6 +339,30 @@ func (s *Scorer) dialToAlpha(t float64) float64 {
 	}
 	frac := x - float64(i)
 	return bp[i] + frac*(bp[i+1]-bp[i])
+}
+
+// applyDialAlpha resolves the QualityBias dial position t into the effective
+// per-cluster alpha, writing in place into alpha. It maps t through the
+// bundle's mix-change calibration (dialToAlpha) to a uniform alpha, then floors
+// each cluster at the bundle-declared floor[i]: alpha[i] = max(dialAlpha,
+// floor[i]). The floor is the LOWEST quality weight the bundle tolerates per
+// cluster at maximum price-sensitivity, so a price-leaning dial still routes
+// each cluster to the best model for that budget instead of collapsing the
+// whole vector to the cheapest model (which stranded agentic main-loop turns
+// on models that can't drive the harness). floor==nil disables flooring (the
+// plain uniform dial, legacy behavior for bundles that ship no alpha_floor).
+// Single source of truth for the dial->alpha resolution shared by Route and
+// RoutingDistribution. Caller guarantees len(floor) == len(alpha) when non-nil
+// (validated against K at load time).
+func (s *Scorer) applyDialAlpha(t float64, alpha, floor []float64) {
+	a := s.dialToAlpha(t)
+	for i := range alpha {
+		if floor != nil && floor[i] > a {
+			alpha[i] = floor[i]
+		} else {
+			alpha[i] = a
+		}
+	}
 }
 
 // resolveProviderFor walks the catalog's ordered ProviderBinding list for
@@ -553,19 +591,18 @@ func (s *Scorer) Route(ctx context.Context, req router.Request) (router.Decision
 			switch {
 			case req.RoutingKnobs.QualityBias != nil:
 				// Dial path: map the single dial position through this bundle's
-				// mix-change calibration to a uniform alpha, so the slider spends
-				// equal travel on each distinct routed mix (no dead zone) while
-				// the endpoints still pin to all-cheapest / best-per-cluster.
-				// Takes precedence over a co-set Alpha (the higher-level intent
-				// wins).
+				// mix-change calibration (so the slider spends equal travel on
+				// each distinct routed mix, no dead zone), then floor each
+				// cluster at a fraction of its shipped default so the dial
+				// preserves the bundle's per-cluster alpha shape instead of
+				// flattening it — a price-leaning dial cheapens conversational
+				// turns but never strands agentic on a cheap model. Takes
+				// precedence over a co-set Alpha (the higher-level intent wins).
 				t := *req.RoutingKnobs.QualityBias
 				if math.IsNaN(t) || math.IsInf(t, 0) || t < 0 || t > 1 {
 					return router.Decision{}, fmt.Errorf("%w: quality_bias (%f) must be a finite value in [0, 1]", ErrInvalidRoutingKnobs, t)
 				}
-				a := s.dialToAlpha(t)
-				for i := range activeKnobs.Alpha {
-					activeKnobs.Alpha[i] = a
-				}
+				s.applyDialAlpha(t, activeKnobs.Alpha, activeKnobs.AlphaFloor)
 			case req.RoutingKnobs.Alpha != nil:
 				// Sledgehammer behavior: uniformly replace every alpha with the
 				// scalar (eval/debug lever, ignores per-cluster dispersion).
