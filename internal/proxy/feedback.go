@@ -151,19 +151,63 @@ func (s *Service) emitFeedbackSpan(p SubmitFeedbackParams) {
 	buf.Flush()
 }
 
+// mintFeedbackToken signs a feedback-link token for one request, or returns ""
+// when the feature is unwired or any required id is missing (e.g. anonymous /
+// no-external-id deployments). Callers treat "" as "feedback disabled".
+func (s *Service) mintFeedbackToken(installationID uuid.UUID, externalID, requestID, routerUserID string) string {
+	if s.feedbackSigner == nil || s.feedbackBaseURL == "" {
+		return ""
+	}
+	if installationID == uuid.Nil || externalID == "" || requestID == "" {
+		return ""
+	}
+	return s.feedbackSigner.Mint(installationID.String(), externalID, requestID, routerUserID)
+}
+
 // setFeedbackLinkHeader mints a signed feedback link for the request and sets
 // it on the response. No-op when the feature is unwired or any required id is
 // missing (e.g. anonymous / no-external-id deployments).
 func (s *Service) setFeedbackLinkHeader(w http.ResponseWriter, installationID uuid.UUID, externalID, requestID, routerUserID string) {
-	if s.feedbackSigner == nil || s.feedbackBaseURL == "" {
-		return
-	}
-	if installationID == uuid.Nil || externalID == "" || requestID == "" {
-		return
-	}
-	token := s.feedbackSigner.Mint(installationID.String(), externalID, requestID, routerUserID)
+	token := s.mintFeedbackToken(installationID, externalID, requestID, routerUserID)
 	if token == "" {
 		return
 	}
 	w.Header().Set(HeaderRouterFeedbackURL, s.feedbackBaseURL+"/f/"+token)
+}
+
+// terminalFeedbackClients are the coding agents whose entire streamed response
+// is user-facing chat, so a trailing rating hint renders cleanly and the user
+// can reply with /rf+ or /rf-. IDEs (cursor) and unknown clients are excluded:
+// they reuse the same endpoint for inline edits, applied diffs, and commit
+// messages, where an appended footer contaminates non-chat output.
+var terminalFeedbackClients = map[string]struct{}{
+	ClientAppClaudeCode: {},
+	ClientAppCodex:      {},
+	ClientAppOpencode:   {},
+}
+
+// feedbackFooterText is the trailing rating hint appended to streamed answers
+// for terminal coding agents. It is deliberately link-free: Claude Code's
+// markdown renderer prints a [label](url) link as "label (url)" rather than
+// hiding the URL, so embedding the signed rate link dumps the entire token
+// inline. The typed /rf+ /rf- commands keep feedback one keystroke away and
+// render identically across the TUI, print mode, and IDEs.
+// translate.feedbackFooterPattern matches this on ingress to strip it back out
+// of upstream context — keep the two in sync.
+const feedbackFooterText = "\n\n_Weave Router feedback:_ `/rf+` good experience · `/rf-` poor experience · note optional, e.g. `/rf- too slow`"
+
+// feedbackFooter returns the in-terminal rating hint appended to a streamed
+// response, or "" to stay fully transparent. Gated to terminal coding agents
+// (terminalFeedbackClients) so IDEs never get chat text injected into non-chat
+// surfaces, and to deployments with durable feedback storage so we never
+// advertise a rating command we can't record. The signed feedback link still
+// ships invisibly via the x-router-feedback-url header for rich GUI clients.
+func (s *Service) feedbackFooter(clientApp string) string {
+	if s.feedbackStore == nil {
+		return ""
+	}
+	if _, ok := terminalFeedbackClients[clientApp]; !ok {
+		return ""
+	}
+	return feedbackFooterText
 }

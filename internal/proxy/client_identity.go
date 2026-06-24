@@ -151,6 +151,7 @@ const (
 	ClientAppCodex      = "codex"
 	ClientAppCursor     = "cursor"
 	ClientAppGeminiCLI  = "gemini-cli"
+	ClientAppOpencode   = "opencode"
 )
 
 // clientAppAliases maps the raw X-App values some clients send to their
@@ -190,6 +191,8 @@ func NormalizeClientApp(xApp, userAgent string) string {
 		return ClientAppCursor
 	case strings.Contains(ua, "gemini-cli") || strings.Contains(ua, "google-genai"):
 		return ClientAppGeminiCLI
+	case strings.Contains(ua, "opencode"):
+		return ClientAppOpencode
 	}
 	return ""
 }
