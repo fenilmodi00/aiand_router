@@ -173,10 +173,15 @@ type Service struct {
 	// feedback-link header emission on proxied responses.
 	feedbackBaseURL string
 	// usageObserver records per-credential subscription rate-limit headroom from
-	// upstream response headers; subsidyFactors reads it to discount covered
-	// models' cost term. Nil disables subscription-aware routing entirely (the
-	// header observer is not installed and no factors are computed).
+	// upstream response headers. Two independent consumers read it: the
+	// subscription-aware cost discount (subsidyFactors, gated by subsidyEnabled)
+	// and the per-installation usage-bypass gate (usageBypassEngaged). It is
+	// wired whenever EITHER feature may be used; nil disables both.
 	usageObserver *usage.Observer
+	// subsidyEnabled gates the subscription-aware cost discount independently of
+	// the observer: the observer can be wired (so the usage-bypass gate works)
+	// without the discount being active (ROUTER_SUBSCRIPTION_AWARE_ROUTING=false).
+	subsidyEnabled bool
 	// subsidyEpsilon/subsidyGamma parameterize usage.Snapshot.CostFactor: the
 	// floor multiplier for a fully-slack covered model and the curvature that
 	// keeps the factor near epsilon until the window is genuinely near its cap.
@@ -257,6 +262,36 @@ type InstallationExcludedProvidersContextKey struct{}
 // per-request x-weave-routing-* header override takes precedence over it. See
 // routingKnobsForRequest.
 type InstallationRoutingKnobsContextKey struct{}
+
+// InstallationUsageBypassContextKey is the context key for the authed
+// installation's subscription usage-bypass gate config. Carried as
+// UsageBypassConfig. Absent when the installation hasn't enabled the gate.
+type InstallationUsageBypassContextKey struct{}
+
+// UsageBypassConfig is the per-installation subscription usage-bypass setting,
+// stashed on ctx by the auth middleware. Threshold is nil when the toggle is on
+// but no value has been chosen yet; the request path falls back to
+// defaultUsageBypassThreshold in that case.
+type UsageBypassConfig struct {
+	Enabled   bool
+	Threshold *float64
+}
+
+// defaultUsageBypassThreshold is the utilization at/above which the bypass gate
+// disengages when an installation has enabled the gate without choosing an
+// explicit threshold. Mirrors the conservative default of the legacy
+// ROUTER_USAGE_BYPASS_THRESHOLD knob.
+const defaultUsageBypassThreshold = 0.95
+
+// usageBypassFromContext returns the per-installation bypass config stashed on
+// ctx by the auth middleware, and whether one is present and enabled.
+func usageBypassFromContext(ctx context.Context) (UsageBypassConfig, bool) {
+	cfg, ok := ctx.Value(InstallationUsageBypassContextKey{}).(UsageBypassConfig)
+	if !ok || !cfg.Enabled {
+		return UsageBypassConfig{}, false
+	}
+	return cfg, true
+}
 
 // installationExcludedModelsFromContext returns the per-installation exclusion
 // list stashed on ctx by the auth middleware, or nil when none is present.
@@ -1518,6 +1553,15 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	if routeErr != nil {
 		log.Error("Routing failed", "err", routeErr, "route_ms", time.Since(routeStart).Milliseconds(), "requested_model", feats.Model, "total_input_tokens", feats.Tokens)
 		return routeErr
+	}
+
+	// Subscription usage-bypass: the gate engaged inside runTurnLoop (after the
+	// hard-pin, force-pin, and tool-result sticky branches, so those still win).
+	// The caller's own Claude subscription has headroom, so serve the requested
+	// model straight through to Anthropic with no model substitution and no
+	// billing debit — the turn is paid for by the customer's plan.
+	if routeRes.UsageBypass {
+		return s.bypassToAnthropic(ctx, env, feats, routeRes.modelSwitched(), requestStart, requestID, externalID, r, w)
 	}
 	routeRes.SuggestionMode = r.Header.Get("x-weave-suggestion-mode") == "true"
 	decision := routeRes.Decision
