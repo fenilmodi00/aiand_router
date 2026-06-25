@@ -43,19 +43,23 @@ func DefaultConfig() Config {
 
 // Scorer is the cluster router for one frozen artifact version.
 type Scorer struct {
-	version         string
-	cfg             Config
-	embed           Embedder
-	centroids       *Centroids
-	rankings        Rankings
-	registry        *ModelRegistry
-	candidates      []DeployedEntry
-	models          []string
-	metadata        *ArtifactMetadata // nil if absent; cache threshold source.
-	isV2            bool
-	qualityMeans    Rankings
-	modelAxes       map[string]ModelAxis
-	medianVerbosity float64
+	version    string
+	cfg        Config
+	embed      Embedder
+	centroids  *Centroids
+	rankings   Rankings
+	registry   *ModelRegistry
+	candidates []DeployedEntry
+	// availableProviders is the deployment's wired provider set (the same set
+	// candidates were boot-filtered against). Retained so the dial preview can
+	// reproduce Route's provider gate when projecting under an exclusion set.
+	availableProviders map[string]struct{}
+	models             []string
+	metadata           *ArtifactMetadata // nil if absent; cache threshold source.
+	isV2               bool
+	qualityMeans       Rankings
+	modelAxes          map[string]ModelAxis
+	medianVerbosity    float64
 	// dialAlphaBreakpoints calibrates the QualityBias dial against this bundle's
 	// actual routing behavior. It holds the ascending uniform-alpha values at
 	// which the routed model mix changes (one entry per distinct mix, first =
@@ -208,19 +212,20 @@ func NewScorer(bundle *Bundle, cfg Config, embed Embedder, availableProviders ma
 	}
 
 	s := &Scorer{
-		version:         bundle.Version,
-		cfg:             cfg,
-		embed:           embed,
-		centroids:       bundle.Centroids,
-		rankings:        bundle.Rankings,
-		registry:        bundle.Registry,
-		candidates:      candidates,
-		models:          models,
-		metadata:        bundle.Metadata,
-		isV2:            bundle.IsV2,
-		qualityMeans:    bundle.QualityMeans,
-		modelAxes:       bundle.ModelAxes,
-		medianVerbosity: bundle.MedianVerbosity,
+		version:            bundle.Version,
+		cfg:                cfg,
+		embed:              embed,
+		centroids:          bundle.Centroids,
+		rankings:           bundle.Rankings,
+		registry:           bundle.Registry,
+		candidates:         candidates,
+		availableProviders: availableProviders,
+		models:             models,
+		metadata:           bundle.Metadata,
+		isV2:               bundle.IsV2,
+		qualityMeans:       bundle.QualityMeans,
+		modelAxes:          bundle.ModelAxes,
+		medianVerbosity:    bundle.MedianVerbosity,
 	}
 	// The dial calibration replays the scorer across the alpha range, so it must
 	// be computed after the fields it reads (qualityMeans, modelAxes, models,
@@ -401,6 +406,46 @@ func filterByProviders(entries []DeployedEntry, available map[string]struct{}) [
 		}
 		e.Provider = resolved
 		out = append(out, e)
+	}
+	return out
+}
+
+// eligibleForDistribution returns the deployed model ids that survive the
+// caller's exclusions, mirroring the eligibility Route enforces: a model is
+// dropped when it is named in excludedModels, or when none of its bindings
+// resolves against the deployment's wired providers minus the excluded ones.
+// Empty exclusion sets return the full roster unchanged. Iterates s.candidates
+// so the order matches Route.
+func (s *Scorer) eligibleForDistribution(excludedModels, excludedProviders map[string]struct{}) []string {
+	if len(excludedModels) == 0 && len(excludedProviders) == 0 {
+		return s.models
+	}
+
+	// Mirror Route's provider gate: a model survives only if one of its bindings
+	// resolves under the wired providers minus the excluded ones. Checking the
+	// full catalog binding list instead would keep a model whose only WIRED
+	// provider is excluded (its other catalog binding isn't deployed, so Route
+	// would drop it). With no provider exclusions the effective set is the wired
+	// set and every candidate resolves, leaving only the model filter.
+	effective := s.availableProviders
+	if len(excludedProviders) > 0 {
+		effective = make(map[string]struct{}, len(s.availableProviders))
+		for p := range s.availableProviders {
+			if _, excluded := excludedProviders[p]; !excluded {
+				effective[p] = struct{}{}
+			}
+		}
+	}
+
+	out := make([]string, 0, len(s.models))
+	for _, c := range s.candidates {
+		if _, drop := excludedModels[c.Model]; drop {
+			continue
+		}
+		if resolveProviderFor(c.Model, c.Provider, effective) == "" {
+			continue
+		}
+		out = append(out, c.Model)
 	}
 	return out
 }
