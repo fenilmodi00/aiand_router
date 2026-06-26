@@ -52,6 +52,12 @@ type Window struct {
 	UsedPercent float64
 	// WindowMinutes is the window length (0 if the upstream didn't report it).
 	WindowMinutes int
+	// ResetAt is the absolute instant this window's quota refills, parsed from
+	// the upstream's *-reset header. Zero when the upstream didn't report it.
+	// freshFor prefers it over WindowMinutes so a near-cap reading (and any
+	// exhaustion suppression keyed off it) expires at the real refill, not a full
+	// window length from when it was observed.
+	ResetAt time.Time
 }
 
 func (w Window) present() bool { return w.WindowMinutes > 0 || w.UsedPercent > 0 }
@@ -66,6 +72,26 @@ type Snapshot struct {
 }
 
 func (s Snapshot) hasData() bool { return s.Primary.present() || s.Secondary.present() }
+
+// exhaustedFraction is the per-window utilization at/above which a subscription
+// window is spent: the upstream 429s any further turn until the window resets.
+// Distinct from the usage-bypass/subsidy threshold (which governs when to START
+// conserving while the token still works) — this marks the credential as
+// currently unusable, so the proxy serves the turn on a fallback key rather than
+// re-hitting a token that will keep rejecting. Just under 1.0 to absorb integer
+// rounding in the upstream's reported utilization (Anthropic reports 0-100).
+const exhaustedFraction = 0.999
+
+// Exhausted reports whether either observed window has bound to the point where
+// the subscription can no longer serve a turn (the upstream 429s until the
+// window resets). A snapshot with no usable data is never exhausted — absence of
+// a reading is treated as cold-start slack, not a spent plan.
+func (s Snapshot) Exhausted() bool {
+	if !s.hasData() {
+		return false
+	}
+	return s.Primary.UsedPercent >= exhaustedFraction || s.Secondary.UsedPercent >= exhaustedFraction
+}
 
 // CostFactor maps observed utilization to a multiplier on a covered model's
 // catalog cost: epsilon when the binding window has slack, rising to 1.0 as it
@@ -141,7 +167,19 @@ func (o *Observer) freshFor(s Snapshot) time.Duration {
 		if w.UsedPercent < windowConstrainedFraction {
 			continue
 		}
-		if d := time.Duration(w.WindowMinutes) * time.Minute; d > horizon {
+		d := time.Duration(w.WindowMinutes) * time.Minute
+		// Prefer the upstream-reported reset instant when present: a window
+		// observed near cap late in its period refills long before a full window
+		// length from now, so retaining for WindowMinutes strands the reading past
+		// the real reset. Clamp to the window length so a garbage/far-future reset
+		// can't over-retain, and ignore a non-positive delta (reset already passed
+		// or clock skew) so it never shortens below the ttl floor below.
+		if !w.ResetAt.IsZero() {
+			if untilReset := w.ResetAt.Sub(s.ObservedAt); untilReset > 0 && untilReset < d {
+				d = untilReset
+			}
+		}
+		if d > horizon {
 			horizon = d
 		}
 	}
@@ -261,8 +299,9 @@ func ParseAnthropicUnifiedHeaders(h http.Header) (Snapshot, bool) {
 
 func parseAnthropicWindow(h http.Header, which string, windowMinutes int) (Window, bool) {
 	prefix := "anthropic-ratelimit-unified-" + which + "-"
+	resetAt, _ := parseResetTime(h.Get(prefix + "reset"))
 	if used, ok := parsePercent(h.Get(prefix + "utilization")); ok {
-		return Window{UsedPercent: used, WindowMinutes: windowMinutes}, true
+		return Window{UsedPercent: used, WindowMinutes: windowMinutes, ResetAt: resetAt}, true
 	}
 	limit, lOK := parseFloat(h.Get(prefix + "limit"))
 	remaining, rOK := parseFloat(h.Get(prefix + "remaining"))
@@ -270,7 +309,27 @@ func parseAnthropicWindow(h http.Header, which string, windowMinutes int) (Windo
 		return Window{}, false
 	}
 	used := math.Max(0, 1-remaining/limit)
-	return Window{UsedPercent: used, WindowMinutes: windowMinutes}, true
+	return Window{UsedPercent: used, WindowMinutes: windowMinutes, ResetAt: resetAt}, true
+}
+
+// parseResetTime parses a rate-limit *-reset header into an absolute instant.
+// Anthropic emits these as RFC 3339 timestamps (the standard
+// anthropic-ratelimit-*-reset format); a bare unix-seconds value is accepted as
+// a fallback so a format shift doesn't silently disable reset-aware retention.
+// Returns (zero, false) when absent or unparseable — callers then fall back to
+// the window-length horizon.
+func parseResetTime(s string) (time.Time, bool) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return time.Time{}, false
+	}
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return t.UTC(), true
+	}
+	if secs, ok := parseFloat(s); ok && secs > 0 {
+		return time.Unix(int64(secs), 0).UTC(), true
+	}
+	return time.Time{}, false
 }
 
 // parsePercent parses a 0-100 percent header (Codex used-percent, Anthropic
