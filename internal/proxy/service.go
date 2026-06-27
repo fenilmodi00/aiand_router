@@ -2140,6 +2140,12 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	}
 	decision.Provider = finalProvider
 
+	// Re-resolve credentials for the binding that actually served the turn.
+	// During failover, each attempt gets its own per-attempt context with
+	// potentially different credentials. Update ctx so credentialKeyParts
+	// reads the correct key parts for telemetry.
+	ctx = resolveAndInjectCredentials(ctx, finalProvider, r.Header)
+
 	// Re-resolve actual pricing for the binding that actually served the
 	// request. The pre-dispatch lookup (`otel.Lookup(decision.Model)`)
 	// always returns the catalog's PRIMARY binding price; on a successful
@@ -2219,6 +2225,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	s.recordTurnUsage(routeRes, decision.Model, in, out, cacheCreation, cacheRead)
 
 	if installationID != uuid.Nil {
+		credentialKeyPrefix, credentialKeySuffix, credSource := s.credentialKeyParts(ctx)
 		failoverUsed := finalProvider != primaryProvider
 		degShadow := proxyErr == nil && isDegenerateResponse(out, respSummary.ToolUseBlocks, respSummary.StopReason, respSummary.StopReasonDemoted)
 		if degShadow {
@@ -2307,6 +2314,12 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 			// tool_result turns (the structural triviality signal). NULL on turns
 			// with no trailing tool_result. No routing action is taken on it.
 			ToolResultBytes: toolResultBytesPtr(inboundLastUser, tt),
+			// Credential attribution: which safe display key parts actually paid for
+			// the turn. Lets a shared subscription token (one Claude account, many
+			// seats) be detected via equal prefix/suffix across router_user_ids.
+			CredentialKeyPrefix: credentialKeyPrefix,
+			CredentialKeySuffix: credentialKeySuffix,
+			CredentialSource:    credSource,
 		})
 	}
 
@@ -3558,6 +3571,12 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	}
 	decision.Provider = finalProvider
 
+	// Re-resolve credentials for the binding that actually served the turn.
+	// During failover, each attempt gets its own per-attempt context with
+	// potentially different credentials. Update ctx so credentialKeyParts
+	// reads the correct key parts for telemetry.
+	ctx = resolveAndInjectCredentials(ctx, finalProvider, r.Header)
+
 	// Re-resolve actual pricing for the binding that actually served the
 	// request — see ProxyMessages for the rationale.
 	if actBindingPricing, ok := catalog.PriceFor(finalProvider, decision.Model); ok {
@@ -3653,6 +3672,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 
 	installationIDOAI, _ := ctx.Value(InstallationIDContextKey{}).(string)
 	if installationIDOAI != "" {
+		credentialKeyPrefix, credentialKeySuffix, credSource := s.credentialKeyParts(ctx)
 		s.fireTelemetry(InsertTelemetryParams{
 			InstallationID:         installationIDOAI,
 			RequestID:              requestID,
@@ -3704,6 +3724,10 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 			// tool_result turns (the structural triviality signal). NULL on turns
 			// with no trailing tool_result. No routing action is taken on it.
 			ToolResultBytes: toolResultBytesPtr(inboundLastUser, tt),
+			// Credential attribution — see the Anthropic-path write site.
+			CredentialKeyPrefix: credentialKeyPrefix,
+			CredentialKeySuffix: credentialKeySuffix,
+			CredentialSource:    credSource,
 		})
 	}
 
