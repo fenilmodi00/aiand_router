@@ -13,7 +13,7 @@ import (
 )
 
 const getSessionPin = `-- name: GetSessionPin :one
-SELECT session_key, role, installation_id, pinned_provider, pinned_model, decision_reason, turn_count, pinned_until, first_pinned_at, last_seen_at, last_input_tokens, last_cached_read_tokens, last_cached_write_tokens, last_output_tokens, last_turn_ended_at, consecutive_upstream_errors, last_served_model, has_ever_switched
+SELECT session_key, role, installation_id, pinned_provider, pinned_model, decision_reason, turn_count, pinned_until, first_pinned_at, last_seen_at, last_input_tokens, last_cached_read_tokens, last_cached_write_tokens, last_output_tokens, last_turn_ended_at, consecutive_upstream_errors, last_served_model, has_ever_switched, paired_provider, paired_model
 FROM router.session_pins
 WHERE session_key = $1::bytea
   AND role        = $2::varchar
@@ -31,7 +31,7 @@ type GetSessionPinParams struct {
 // last_turn_ended_at carry the previous turn's upstream usage; the
 // planner reads them to weigh switch EV against eviction cost.
 //
-//	SELECT session_key, role, installation_id, pinned_provider, pinned_model, decision_reason, turn_count, pinned_until, first_pinned_at, last_seen_at, last_input_tokens, last_cached_read_tokens, last_cached_write_tokens, last_output_tokens, last_turn_ended_at, consecutive_upstream_errors, last_served_model, has_ever_switched
+//	SELECT session_key, role, installation_id, pinned_provider, pinned_model, decision_reason, turn_count, pinned_until, first_pinned_at, last_seen_at, last_input_tokens, last_cached_read_tokens, last_cached_write_tokens, last_output_tokens, last_turn_ended_at, consecutive_upstream_errors, last_served_model, has_ever_switched, paired_provider, paired_model
 //	FROM router.session_pins
 //	WHERE session_key = $1::bytea
 //	  AND role        = $2::varchar
@@ -57,6 +57,8 @@ func (q *Queries) GetSessionPin(ctx context.Context, arg GetSessionPinParams) (R
 		&i.ConsecutiveUpstreamErrors,
 		&i.LastServedModel,
 		&i.HasEverSwitched,
+		&i.PairedProvider,
+		&i.PairedModel,
 	)
 	return i, err
 }
@@ -209,11 +211,13 @@ func (q *Queries) UpdateSessionPinUsage(ctx context.Context, arg UpdateSessionPi
 const upsertSessionPin = `-- name: UpsertSessionPin :exec
 INSERT INTO router.session_pins (
   session_key, role, installation_id, pinned_provider,
-  pinned_model, decision_reason, turn_count, pinned_until
+  pinned_model, paired_provider, paired_model,
+  decision_reason, turn_count, pinned_until
 ) VALUES (
   $1::bytea, $2::varchar, $3::uuid,
   $4::varchar, $5::varchar,
-  $6::text, $7::int, $8::timestamp
+  $6::varchar, $7::varchar,
+  $8::text, $9::int, $10::timestamp
 )
 ON CONFLICT (session_key, role) DO UPDATE SET
   pinned_provider = EXCLUDED.pinned_provider,
@@ -222,6 +226,28 @@ ON CONFLICT (session_key, role) DO UPDATE SET
   turn_count      = router.session_pins.turn_count + 1,
   pinned_until    = EXCLUDED.pinned_until,
   last_seen_at    = CURRENT_TIMESTAMP,
+  -- Band pair maintenance, in priority order:
+  --   1. A fresh scorer decision supplies a non-empty pair -> take it.
+  --   2. Empty incoming pair but the pinned model is unchanged (sticky refresh,
+  --      reconstructed re-anchor of the same model) -> preserve the stored pair.
+  --   3. Empty incoming pair and the pinned model changed (force-model,
+  --      loop-escalation, eviction -- non-scorer writes) -> clear the pair, so a
+  --      model change never inherits a stale runner-up or collapses pinned_model
+  --      and paired_model onto the same slug.
+  paired_provider = CASE
+    WHEN EXCLUDED.paired_model <> ''
+      THEN EXCLUDED.paired_provider
+    WHEN EXCLUDED.pinned_model = router.session_pins.pinned_model
+      THEN router.session_pins.paired_provider
+    ELSE ''
+  END,
+  paired_model = CASE
+    WHEN EXCLUDED.paired_model <> ''
+      THEN EXCLUDED.paired_model
+    WHEN EXCLUDED.pinned_model = router.session_pins.pinned_model
+      THEN router.session_pins.paired_model
+    ELSE ''
+  END,
   consecutive_upstream_errors = CASE
     WHEN router.session_pins.pinned_model = EXCLUDED.pinned_model
       THEN router.session_pins.consecutive_upstream_errors
@@ -235,6 +261,8 @@ type UpsertSessionPinParams struct {
 	InstallationID uuid.UUID
 	PinnedProvider string
 	PinnedModel    string
+	PairedProvider string
+	PairedModel    string
 	DecisionReason string
 	TurnCount      int32
 	PinnedUntil    pgtype.Timestamp
@@ -256,13 +284,26 @@ type UpsertSessionPinParams struct {
 // slate). The reset on switch also covers the loop-break / force-model
 // pin-expiry writes, which set pinned_model to the empty string.
 //
+// paired_provider / paired_model hold the runner-up half of the band pair the
+// scorer picks. On the conflict update they refresh to a fresh scorer runner-up
+// (non-empty incoming pair), are preserved when the pinned model is unchanged
+// (sticky refresh / same-model re-anchor carry an empty pair), and are cleared
+// when the pinned model changes without a fresh pair (force-model,
+// loop-escalation, eviction -- non-scorer writes). This keeps the stored pair
+// consistent with the live decision: it tracks genuine re-routes, never
+// inherits a stale runner-up across a non-scorer model change, and never
+// collapses pinned_model and paired_model onto the same slug. A later per-turn
+// swap policy reads the pair that matches the active decision.
+//
 //	INSERT INTO router.session_pins (
 //	  session_key, role, installation_id, pinned_provider,
-//	  pinned_model, decision_reason, turn_count, pinned_until
+//	  pinned_model, paired_provider, paired_model,
+//	  decision_reason, turn_count, pinned_until
 //	) VALUES (
 //	  $1::bytea, $2::varchar, $3::uuid,
 //	  $4::varchar, $5::varchar,
-//	  $6::text, $7::int, $8::timestamp
+//	  $6::varchar, $7::varchar,
+//	  $8::text, $9::int, $10::timestamp
 //	)
 //	ON CONFLICT (session_key, role) DO UPDATE SET
 //	  pinned_provider = EXCLUDED.pinned_provider,
@@ -271,6 +312,28 @@ type UpsertSessionPinParams struct {
 //	  turn_count      = router.session_pins.turn_count + 1,
 //	  pinned_until    = EXCLUDED.pinned_until,
 //	  last_seen_at    = CURRENT_TIMESTAMP,
+//	  -- Band pair maintenance, in priority order:
+//	  --   1. A fresh scorer decision supplies a non-empty pair -> take it.
+//	  --   2. Empty incoming pair but the pinned model is unchanged (sticky refresh,
+//	  --      reconstructed re-anchor of the same model) -> preserve the stored pair.
+//	  --   3. Empty incoming pair and the pinned model changed (force-model,
+//	  --      loop-escalation, eviction -- non-scorer writes) -> clear the pair, so a
+//	  --      model change never inherits a stale runner-up or collapses pinned_model
+//	  --      and paired_model onto the same slug.
+//	  paired_provider = CASE
+//	    WHEN EXCLUDED.paired_model <> ''
+//	      THEN EXCLUDED.paired_provider
+//	    WHEN EXCLUDED.pinned_model = router.session_pins.pinned_model
+//	      THEN router.session_pins.paired_provider
+//	    ELSE ''
+//	  END,
+//	  paired_model = CASE
+//	    WHEN EXCLUDED.paired_model <> ''
+//	      THEN EXCLUDED.paired_model
+//	    WHEN EXCLUDED.pinned_model = router.session_pins.pinned_model
+//	      THEN router.session_pins.paired_model
+//	    ELSE ''
+//	  END,
 //	  consecutive_upstream_errors = CASE
 //	    WHEN router.session_pins.pinned_model = EXCLUDED.pinned_model
 //	      THEN router.session_pins.consecutive_upstream_errors
@@ -283,6 +346,8 @@ func (q *Queries) UpsertSessionPin(ctx context.Context, arg UpsertSessionPinPara
 		arg.InstallationID,
 		arg.PinnedProvider,
 		arg.PinnedModel,
+		arg.PairedProvider,
+		arg.PairedModel,
 		arg.DecisionReason,
 		arg.TurnCount,
 		arg.PinnedUntil,

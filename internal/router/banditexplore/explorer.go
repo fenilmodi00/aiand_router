@@ -97,6 +97,12 @@ func (e *Explorer) Route(ctx context.Context, req router.Request) (router.Decisi
 	// only on a real switch keeps argmax-cache reuse intact when we draw it.
 	if pick.model != argmaxModel && dec.Metadata != nil {
 		dec.Metadata.EffectiveKnobsHash = mixModel(dec.Metadata.EffectiveKnobsHash, pick.model)
+		// Only a real switch can collapse the band pair: the scorer's runner-up
+		// was computed against the argmax, so it may equal the now-served peer.
+		// Recompute it against the served model. When we draw the argmax the
+		// scorer's pair is already distinct, so leave its metadata untouched
+		// rather than overwrite it with our own tie-break.
+		e.repairBandPair(&dec.Metadata.PairedModel, &dec.Metadata.PairedProvider, &dec.Metadata.PairedScore, dec, pick.model)
 	}
 	return dec, nil
 }
@@ -200,4 +206,36 @@ func (e *Explorer) annotate(dec *router.Decision, model, provider string, bandSi
 			dec.Metadata.ChosenScore = s
 		}
 	}
+}
+
+// repairBandPair recomputes the band pair's runner-up after exploration has
+// rewritten the served model, writing it back through the metadata pointers.
+// It picks the highest-scoring servable peer other than served (tie-broken by
+// name for reproducibility), and clears the pair when no other model has a
+// resolvable provider — never leaving a runner-up equal to the served model.
+func (e *Explorer) repairBandPair(outModel, outProvider *string, outScore *float32, dec router.Decision, served string) {
+	scores := dec.Metadata.CandidateScores
+	models := make([]string, 0, len(scores))
+	for m := range scores {
+		models = append(models, m)
+	}
+	sort.Strings(models)
+
+	bestModel, bestProvider := "", ""
+	var bestScore float32
+	for _, m := range models {
+		if m == served {
+			continue
+		}
+		sc := scores[m]
+		if bestModel != "" && sc <= bestScore {
+			continue
+		}
+		provider, ok := e.providerForRequest(dec, m)
+		if !ok {
+			continue
+		}
+		bestModel, bestProvider, bestScore = m, provider, sc
+	}
+	*outModel, *outProvider, *outScore = bestModel, bestProvider, bestScore
 }

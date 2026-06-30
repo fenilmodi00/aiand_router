@@ -34,11 +34,24 @@ const DefaultRole = "default"
 // turn. Upsert preserves it on a same-model refresh and resets it on
 // a switch (different model).
 type Pin struct {
-	SessionKey                [SessionKeyLen]byte
-	Role                      string
-	InstallationID            uuid.UUID
-	Provider                  string
-	Model                     string
+	SessionKey     [SessionKeyLen]byte
+	Role           string
+	InstallationID uuid.UUID
+	Provider       string
+	Model          string
+	// PairedProvider / PairedModel are the other half of the band pair the
+	// scorer picks (the runner-up model and its provider). Upsert refreshes them
+	// on a genuine scorer re-run (first turn, switch, expired-pin re-route),
+	// preserves them on a same-model sticky refresh or re-anchor (which pass an
+	// empty pair), and clears them when the pinned model changes without a fresh
+	// pair (force-model, loop-break, eviction) — so the stored pair always
+	// matches the live routing decision and never collapses onto Model.
+	// PairedModel is empty for pins created outside the scorer path (force-model,
+	// loop-break) or when only one model was eligible. A later per-turn policy
+	// reads them to swap between {Model, PairedModel} without re-running the
+	// scorer.
+	PairedProvider            string
+	PairedModel               string
 	Reason                    string
 	TurnCount                 int
 	PinnedUntil               time.Time
