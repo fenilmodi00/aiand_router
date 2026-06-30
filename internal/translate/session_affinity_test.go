@@ -120,3 +120,107 @@ func TestSessionAffinity_EmptyIsNoOp(t *testing.T) {
 	_, hasBody := promptCacheKey(t, out.Body)
 	assert.False(t, hasBody)
 }
+
+// Without a session key, an OpenAI cross-format route still carries a
+// prompt_cache_key — a stable hash of the cacheable prefix — so OpenAI's
+// prompt caching engages instead of re-billing the full prefix every turn.
+func TestSessionAffinity_OpenAIFallsBackToStablePrefixKey(t *testing.T) {
+	src := []byte(`{"model":"claude-opus-4-7","system":"you are a helpful assistant","tools":[{"name":"read","input_schema":{"type":"object"}}],"messages":[{"role":"user","content":"hi"}],"max_tokens":256}`)
+
+	prepare := func(t *testing.T) string {
+		env, err := translate.ParseAnthropic(src)
+		require.NoError(t, err)
+		out, err := env.PrepareOpenAI(nil, translate.EmitOptions{
+			TargetModel:    "gpt-5.5",
+			TargetProvider: providers.ProviderOpenAI,
+		})
+		require.NoError(t, err)
+		v, ok := promptCacheKey(t, out.Body)
+		require.True(t, ok, "OpenAI must carry a prompt_cache_key even without a session key")
+		assert.NotEmpty(t, v)
+		return v
+	}
+
+	first := prepare(t)
+	second := prepare(t)
+	assert.Equal(t, first, second, "fallback prompt_cache_key must be stable for the same prefix")
+}
+
+// A different cacheable prefix (different system + tools) yields a different
+// fallback key, so unrelated conversations don't share one cache bucket.
+func TestSessionAffinity_OpenAIFallbackKeyVariesByPrefix(t *testing.T) {
+	keyFor := func(t *testing.T, system string) string {
+		src := []byte(`{"model":"claude-opus-4-7","system":` + system + `,"messages":[{"role":"user","content":"hi"}],"max_tokens":256}`)
+		env, err := translate.ParseAnthropic(src)
+		require.NoError(t, err)
+		out, err := env.PrepareOpenAI(nil, translate.EmitOptions{
+			TargetModel:    "gpt-5.5",
+			TargetProvider: providers.ProviderOpenAI,
+		})
+		require.NoError(t, err)
+		v, ok := promptCacheKey(t, out.Body)
+		require.True(t, ok)
+		return v
+	}
+
+	a := keyFor(t, `"prompt A"`)
+	b := keyFor(t, `"prompt B"`)
+	assert.NotEqual(t, a, b, "different cacheable prefixes must map to different cache keys")
+}
+
+// A same-format OpenAI caller that partitions caching with its own
+// prompt_cache_key must keep it — the router's synthetic prefix hash must not
+// clobber a deliberate caller key on the keyless fallback path.
+func TestSessionAffinity_OpenAIPreservesCallerPromptCacheKey(t *testing.T) {
+	const callerKey = "caller-partition-key"
+	src := []byte(`{"model":"gpt-5.5","prompt_cache_key":"` + callerKey + `","messages":[{"role":"system","content":"sys"},{"role":"user","content":"hi"}]}`)
+	env, err := translate.ParseOpenAI(src)
+	require.NoError(t, err)
+
+	out, err := env.PrepareOpenAI(nil, translate.EmitOptions{
+		TargetModel:    "gpt-5.5",
+		TargetProvider: providers.ProviderOpenAI,
+	})
+	require.NoError(t, err)
+
+	v, ok := promptCacheKey(t, out.Body)
+	require.True(t, ok)
+	assert.Equal(t, callerKey, v, "caller-supplied prompt_cache_key must be preserved")
+}
+
+// A keyless request with no cacheable prefix (no system, no tools) must stay
+// unhinted: hashing the empty prefix would herd every such conversation onto
+// one synthetic cache key.
+func TestSessionAffinity_OpenAIEmptyPrefixStaysUnhinted(t *testing.T) {
+	src := []byte(`{"model":"gpt-5.5","messages":[{"role":"user","content":"hi"}]}`)
+	env, err := translate.ParseOpenAI(src)
+	require.NoError(t, err)
+
+	out, err := env.PrepareOpenAI(nil, translate.EmitOptions{
+		TargetModel:    "gpt-5.5",
+		TargetProvider: providers.ProviderOpenAI,
+	})
+	require.NoError(t, err)
+
+	_, ok := promptCacheKey(t, out.Body)
+	assert.False(t, ok, "a prefix-less keyless request must not carry a synthetic prompt_cache_key")
+}
+
+// An empty tools array ("tools":[]) is not a cacheable prefix: gjson's
+// .Exists() is true and .Raw is "[]" (non-empty), so a naive presence check
+// would herd every such keyless request onto one synthetic key. It must stay
+// unhinted just like a request with no tools field at all.
+func TestSessionAffinity_OpenAIEmptyToolsArrayStaysUnhinted(t *testing.T) {
+	src := []byte(`{"model":"gpt-5.5","messages":[{"role":"user","content":"hi"}],"tools":[]}`)
+	env, err := translate.ParseOpenAI(src)
+	require.NoError(t, err)
+
+	out, err := env.PrepareOpenAI(nil, translate.EmitOptions{
+		TargetModel:    "gpt-5.5",
+		TargetProvider: providers.ProviderOpenAI,
+	})
+	require.NoError(t, err)
+
+	_, ok := promptCacheKey(t, out.Body)
+	assert.False(t, ok, "an empty tools array must not count as a cacheable prefix")
+}

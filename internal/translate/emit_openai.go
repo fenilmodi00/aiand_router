@@ -77,28 +77,100 @@ func (e *RequestEnvelope) PrepareOpenAI(in http.Header, opts EmitOptions) (provi
 // knob:
 //   - Fireworks / DeepInfra: x-session-affinity request header
 //   - OpenRouter: x-session-id request header (its sticky-routing key, ≤256 chars)
-//   - OpenAI: prompt_cache_key body field (combined with the prefix hash)
+//   - OpenAI: prompt_cache_key body field
+//
+// The serverless-affinity *headers* (Fireworks/DeepInfra/OpenRouter) are gated
+// on a real session key: collapsing every keyless request onto one synthetic
+// affinity bucket would herd unrelated conversations onto a single replica,
+// which is worse than letting them load-balance. OpenAI's prompt_cache_key is
+// different — it is a soft cache-routing hint, not a hard replica pin, so it is
+// always set on OpenAI-format cross-format routes (extended beyond the
+// session-affinity-only case): with a session key we use it directly; otherwise
+// we fall back to a stable hash of the request's cacheable prefix (system +
+// tools) — but only when the caller hasn't supplied its own prompt_cache_key
+// (which we preserve) and the request actually has a cacheable prefix (a
+// prefix-less request stays unhinted rather than collapsing onto one synthetic
+// key). Without prompt_cache_key, an Anthropic→OpenAI route carries no cache
+// hint at all and re-bills the full stable prefix every turn (NULL cache_read
+// in prod across all cross-format OpenAI traffic). OpenAI's automatic prompt
+// caching covers prompts >1024 tokens regardless, and the explicit key only
+// raises the hit rate.
 //
 // Bedrock (explicit cachePoint caching, centrally routed — no replica roulette)
-// and any unrecognized target get nothing. No-op when SessionAffinity is empty,
-// which also covers the handover summarizer's empty-TargetProvider calls.
+// and any unrecognized target get nothing.
 func applySessionAffinity(body []byte, headers http.Header, opts EmitOptions) ([]byte, error) {
-	if opts.SessionAffinity == "" {
-		return body, nil
-	}
 	switch opts.TargetProvider {
 	case providers.ProviderFireworks, providers.ProviderDeepInfra:
-		headers.Set("x-session-affinity", opts.SessionAffinity)
+		if opts.SessionAffinity != "" {
+			headers.Set("x-session-affinity", opts.SessionAffinity)
+		}
 	case providers.ProviderOpenRouter:
-		headers.Set("x-session-id", opts.SessionAffinity)
+		if opts.SessionAffinity != "" {
+			headers.Set("x-session-id", opts.SessionAffinity)
+		}
 	case providers.ProviderOpenAI:
-		out, err := sjson.SetBytes(body, "prompt_cache_key", opts.SessionAffinity)
+		cacheKey := opts.SessionAffinity
+		if cacheKey == "" {
+			// A same-format OpenAI caller may partition caching with its own
+			// prompt_cache_key; don't clobber it with our synthetic prefix hash.
+			if gjson.GetBytes(body, "prompt_cache_key").Exists() {
+				return body, nil
+			}
+			// Fall back to a prefix hash only when there's an actual cacheable
+			// prefix (system and/or tools). With neither, hashing the empty
+			// prefix would collapse every keyless, prefix-less conversation
+			// onto one synthetic key, so leave such requests unhinted.
+			cacheKey = stablePromptCacheKey(body)
+			if cacheKey == "" {
+				return body, nil
+			}
+		}
+		out, err := sjson.SetBytes(body, "prompt_cache_key", cacheKey)
 		if err != nil {
 			return nil, fmt.Errorf("set prompt_cache_key: %w", err)
 		}
 		return out, nil
 	}
 	return body, nil
+}
+
+// stablePromptCacheKey derives a deterministic OpenAI prompt_cache_key from the
+// request's cacheable prefix — the system message(s) and tool definitions,
+// which are stable across the turns of a conversation while user/assistant
+// turns grow. Used as a fallback when no session key is available (e.g. the
+// handover summarizer, or requests with no derivable session) so the OpenAI
+// route still carries a consistent cache hint instead of none.
+//
+// Returns "" when the request has no cacheable prefix at all (no system
+// content and no non-empty tools array). Hashing an empty prefix would yield one constant key
+// shared by every prefix-less conversation, herding unrelated keyless requests
+// onto a single synthetic cache bucket; such requests are better left unhinted.
+func stablePromptCacheKey(body []byte) string {
+	h := sha1.New()
+	var hasPrefix bool
+	gjson.GetBytes(body, "messages").ForEach(func(_, msg gjson.Result) bool {
+		if msg.Get("role").String() == "system" {
+			if content := msg.Get("content"); content.Raw != "" {
+				h.Write([]byte(content.Raw))
+				hasPrefix = true
+			}
+		}
+		return true
+	})
+	h.Write([]byte{0x00})
+	// An empty tools array ("tools":[]) is not a cacheable prefix —
+	// gjson's .Exists() is true for it and .Raw is "[]" (non-empty), so
+	// gate on a non-empty array to avoid herding unrelated keyless,
+	// prefix-less requests (common with same-format OpenAI bodies that keep
+	// "tools":[]) onto one synthetic key.
+	if hasNonEmptyTools(body) {
+		h.Write([]byte(gjson.GetBytes(body, "tools").Raw))
+		hasPrefix = true
+	}
+	if !hasPrefix {
+		return ""
+	}
+	return "wv_" + hex.EncodeToString(h.Sum(nil))
 }
 
 func (e *RequestEnvelope) buildOpenAIFromOpenAI(opts EmitOptions) ([]byte, error) {
