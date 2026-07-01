@@ -322,8 +322,9 @@ func (t *ResponsesToAnthropicWriter) translateResponsesEvent(raw []byte) error {
 		// response.failed is always an upstream failure — surface it as an error
 		// even when no error object rode along (responsesError fills a generic
 		// message), matching the buffered path's status:"failed" rejection.
-		e := gjson.GetBytes(data, "response.error")
-		return t.emitStreamErrorEvent(e.Get("code").String(), e.Get("message").String())
+		resp := gjson.GetBytes(data, "response")
+		errType, msg := responsesFailureFromResponse(resp)
+		return t.emitStreamErrorEvent(errType, msg)
 	case "response.completed", "response.incomplete":
 		// Terminal envelope: the turn is finishing, so this is progress (and a
 		// post-trip cancel would be moot anyway).
@@ -640,7 +641,13 @@ func (t *ResponsesToAnthropicWriter) finalizeBuffered() error {
 	// truncated response and is left to ResponsesToAnthropicResponse.
 	respErr := gjson.GetBytes(finalResp, "error")
 	if gjson.GetBytes(finalResp, "status").String() == "failed" || (respErr.Exists() && respErr.Type != gjson.Null) {
-		observability.Get().Error("ResponsesToAnthropic: upstream response failed", "request_model", t.requestModel)
+		errType, errMsg := responsesFailureFromResponse(gjson.ParseBytes(finalResp))
+		observability.Get().Error("ResponsesToAnthropic: upstream response failed",
+			"request_model", t.requestModel,
+			"upstream_status", gjson.GetBytes(finalResp, "status").String(),
+			"upstream_error_type", errType,
+			"upstream_error_message", errMsg,
+		)
 		return t.finalizeError()
 	}
 	anthropic, issues, err := responsesToAnthropicResponse(finalResp, t.requestModel, t.toolValidator)
@@ -727,13 +734,49 @@ func (t *ResponsesToAnthropicWriter) anthropicErrorFromBuffer() []byte {
 		switch gjson.GetBytes(data, "type").String() {
 		case "error":
 			return responsesError(gjson.GetBytes(data, "code").String(), gjson.GetBytes(data, "message").String())
-		case "response.failed", "response.incomplete":
-			if e := gjson.GetBytes(data, "response.error"); e.Exists() {
-				return responsesError(e.Get("code").String(), e.Get("message").String())
+		case "response.failed":
+			resp := gjson.GetBytes(data, "response")
+			errType, msg := responsesFailureFromResponse(resp)
+			return responsesError(errType, msg)
+		case "response.incomplete":
+			// An incomplete terminal is only an error when it carries an error
+			// object (finalizeBuffered routes that case here); a plain
+			// max_output_tokens incomplete is a valid truncated response and
+			// must not short-circuit the scan.
+			resp := gjson.GetBytes(data, "response")
+			if e := resp.Get("error"); e.Exists() && e.Type != gjson.Null {
+				errType, msg := responsesFailureFromResponse(resp)
+				return responsesError(errType, msg)
 			}
 		}
 	}
 	return responsesError("api_error", "upstream Responses stream ended without a terminal response event")
+}
+
+// responsesFailureFromResponse extracts an error type/message from a Responses
+// API `response` object on a response.failed terminal event. A parsed error
+// code/type is preserved even when the message is empty and a fallback message
+// is used (responsesError defaults an empty type to "api_error").
+func responsesFailureFromResponse(resp gjson.Result) (errType, msg string) {
+	if !resp.Exists() {
+		return "", ""
+	}
+	if e := resp.Get("error"); e.Exists() && e.Type != gjson.Null {
+		errType = e.Get("code").String()
+		if errType == "" {
+			errType = e.Get("type").String()
+		}
+		if msg = e.Get("message").String(); msg != "" {
+			return errType, msg
+		}
+	}
+	if reason := resp.Get("incomplete_details.reason").String(); reason != "" {
+		return errType, "upstream Responses request incomplete: " + reason
+	}
+	if resp.Get("status").String() == "failed" {
+		return errType, "upstream Responses request failed (status: failed)"
+	}
+	return errType, ""
 }
 
 // responsesError builds an Anthropic error envelope from a Responses-style
