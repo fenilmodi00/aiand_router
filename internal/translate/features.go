@@ -1,12 +1,27 @@
 package translate
 
 import (
+	"bytes"
 	"strings"
 
 	"github.com/tidwall/gjson"
 )
 
 const previewMaxChars = 120
+
+// contentBytesPerToken is the byte-to-token ratio for the dense JSON + code +
+// tool-result content that dominates a Claude Code request body, measured
+// against real upstream token counts (~4.2 bytes/token). Used by
+// ContextOverflowTokenEstimate. Deliberately lower than FullTokenEstimate's ÷6:
+// that divisor is tuned so base64 thought-signatures don't over-count and evict
+// the 1M Anthropic models; the overflow estimate instead subtracts the
+// signature bytes explicitly, so the remaining content divides at its true
+// ratio.
+const contentBytesPerToken = 4
+
+// signatureFieldMarker precedes a base64 thought-signature payload in an
+// Anthropic request body.
+var signatureFieldMarker = []byte(`"signature":"`)
 
 // RoutingFeatures bundles router inputs and per-request metadata for logging.
 type RoutingFeatures struct {
@@ -37,6 +52,58 @@ func (e *RequestEnvelope) FullTokenEstimate() int {
 	// Base64 thought signatures heavily inflate the byte length, often leading
 	// to false context-window evictions for Opus. Divide by 6 to account for this.
 	return len(e.body) / 6
+}
+
+// ContextOverflowTokenEstimate estimates the token count of the full body for
+// context-window overflow pre-filtering — the count a signature-KEEPING target
+// (an Anthropic-family upstream) receives. Divides raw body bytes by
+// contentBytesPerToken (~4.2 real bytes/token on dense Claude Code bodies),
+// deliberately lower than FullTokenEstimate's ÷6 so a genuinely large,
+// signature-light body is no longer undercounted onto a too-small window (the
+// bug: a ~263K prompt estimated ~175K under ÷6 and 400'd on a 256K OSS model).
+// FullTokenEstimate stays ÷6 so the extended-context beta trigger keeps its
+// existing calibration. Signature-STRIPPING targets subtract
+// SignatureTokenSavings from this figure — see excludeContextOverflowModels.
+func (e *RequestEnvelope) ContextOverflowTokenEstimate() int {
+	return len(e.body) / contentBytesPerToken
+}
+
+// SignatureTokenSavings returns the tokens a signature-STRIPPING target saves
+// versus ContextOverflowTokenEstimate: the translator drops base64
+// thought-signature blocks before dispatch to any non-Anthropic model, so those
+// bytes never occupy that target's window. Zero for non-Anthropic inbound
+// formats — they carry no Anthropic thought-signatures, so a stray "signature"
+// field there is caller data, not a block to strip (which would falsely
+// undercount an OpenAI/Gemini request).
+func (e *RequestEnvelope) SignatureTokenSavings() int {
+	if e.format != FormatAnthropic {
+		return 0
+	}
+	return base64SignatureBytes(e.body) / contentBytesPerToken
+}
+
+// base64SignatureBytes sums the byte length of every base64 thought-signature
+// payload in body. Signatures are pure base64 ([A-Za-z0-9+/=], no quotes or
+// backslashes), so each payload runs from its field marker to the next double
+// quote. These bytes inflate the raw body length far out of proportion to their
+// token cost and are stripped before dispatch to any non-Anthropic model, so
+// the overflow estimate excludes them.
+func base64SignatureBytes(body []byte) int {
+	total := 0
+	for i := 0; ; {
+		rel := bytes.Index(body[i:], signatureFieldMarker)
+		if rel < 0 {
+			break
+		}
+		start := i + rel + len(signatureFieldMarker)
+		end := bytes.IndexByte(body[start:], '"')
+		if end < 0 {
+			break
+		}
+		total += end
+		i = start + end + 1
+	}
+	return total
 }
 
 // RoutingFeatures extracts routing inputs from the envelope. When
