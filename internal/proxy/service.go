@@ -61,6 +61,11 @@ type Service struct {
 	// drops) so the router can rewrite non-Anthropic requests with a handover
 	// summary before the model loses awareness of prior completed work.
 	compaction *compactionTracker
+	// prefixTrimFreeSwitch treats a detected client history trim as a
+	// free-switch window: the planner prices the pin's cache as cold on that
+	// turn and the switch handover is skipped. Kill switch:
+	// ROUTER_PREFIX_TRIM_FREE_SWITCH.
+	prefixTrimFreeSwitch bool
 	// hardPinExplore gates the Explore sub-agent hard-pin.
 	hardPinExplore bool
 	// hardPinProvider/hardPinModel route compaction (and, when hardPinExplore is
@@ -824,6 +829,10 @@ const DefaultPlannerExpectedRemainingTurns = 3
 // turn can't pin a Low-tier model for the session.
 const DefaultPlannerTierUpgradeEnabled = true
 
+// DefaultPlannerColdPinFollowFresh ships off: size it against the planner_*
+// shadow telemetry before arming.
+const DefaultPlannerColdPinFollowFresh = false
+
 func NewService(r router.Router, providerMap map[string]providers.Client, emitter *otel.Emitter, embedOnlyUserMessage bool, semanticCache *cache.Cache, pinStore sessionpin.Store, hardPinExplore bool, hardPinProvider, hardPinModel string, telemetry TelemetryRepository) *Service {
 	return &Service{
 		router:               r,
@@ -834,6 +843,7 @@ func NewService(r router.Router, providerMap map[string]providers.Client, emitte
 		pinStore:             pinStore,
 		noProgress:           newNoProgressTracker(),
 		compaction:           newCompactionTracker(),
+		prefixTrimFreeSwitch: true,
 		spiralTracker:        newSpiralTracker(),
 		spiralShadowEnabled:  true,
 		hardPinExplore:       hardPinExplore,
@@ -859,6 +869,7 @@ func (s *Service) WithPlanner(cfg planner.EVConfig) *Service {
 		s.planner.ExpectedRemainingTurns = cfg.ExpectedRemainingTurns
 	}
 	s.planner.TierUpgradeEnabled = cfg.TierUpgradeEnabled
+	s.planner.ColdPinFollowFresh = cfg.ColdPinFollowFresh
 	return s
 }
 
@@ -866,6 +877,13 @@ func (s *Service) WithPlanner(cfg planner.EVConfig) *Service {
 // preserves first-decision-wins behavior.
 func (s *Service) WithPlannerEnabled(enabled bool) *Service {
 	s.plannerEnabled = enabled
+	return s
+}
+
+// WithPrefixTrimFreeSwitch is the kill switch for the prefix-trim free-switch
+// window. Detection and the post-routing compaction handover are unaffected.
+func (s *Service) WithPrefixTrimFreeSwitch(enabled bool) *Service {
+	s.prefixTrimFreeSwitch = enabled
 	return s
 }
 
@@ -1806,29 +1824,19 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	// rewrite the envelope with a handover summary before dispatch.
 	compactionHandoverRan := false
 	var compactionHandoverOutcome handoverOutcome
-	// Skip detection for all hard-pinned turn types (Compaction, Probe, TitleGen,
-	// Classifier, SubAgentDispatch with hardPinExplore). These turns carry far
-	// fewer messages than main-loop turns — a Probe or TitleGen after a long
-	// session would show a sharp count drop that mimics client history trimming
-	// and falsely trigger runCompactionHandover. Hard-pinned turns also do not
-	// model the conversational context the compaction handover is meant to
-	// preserve, so rewrites there would be both wrong and wasteful.
-	//
-	// Also skip when the planner already ran a model-switch handover for this
-	// turn (routeRes.Handover.Invoked). Applying runCompactionHandover on top of
-	// an already-rewritten envelope would double-trim it.
-	if decision.Provider != providers.ProviderAnthropic && s.compaction != nil && !routeRes.HardPinned && !routeRes.Handover.Invoked {
-		role := roleForTier(catalog.TierFor(feats.Model))
-		if s.compaction.checkAndRecord(routeRes.SessionKey, installationID, role, feats.MessageCount, inboundToolCallCount) {
-			log.Info("Context trimming detected on non-Anthropic route; rewriting context with handover summary",
-				"message_count", feats.MessageCount,
-				"tool_call_count", inboundToolCallCount,
-				"decision_model", decision.Model,
-				"decision_provider", decision.Provider,
-			)
-			compactionHandoverOutcome = s.runCompactionHandover(ctx, env, r.Header, decision.Model)
-			compactionHandoverRan = true
-		}
+	// Detection runs pre-routing in runTurnLoop; routeRes.PrefixTrimmed carries
+	// the verdict (re-recording here would compare this turn's counts against
+	// themselves and never fire). Skip when a model-switch handover already
+	// rewrote the envelope this turn — a second rewrite would double-trim it.
+	if decision.Provider != providers.ProviderAnthropic && !routeRes.HardPinned && !routeRes.Handover.Invoked && routeRes.PrefixTrimmed {
+		log.Info("Context trimming detected on non-Anthropic route; rewriting context with handover summary",
+			"message_count", feats.MessageCount,
+			"tool_call_count", inboundToolCallCount,
+			"decision_model", decision.Model,
+			"decision_provider", decision.Provider,
+		)
+		compactionHandoverOutcome = s.runCompactionHandover(ctx, env, r.Header, decision.Model)
+		compactionHandoverRan = true
 	}
 
 	// Semantic-cache eligibility: configured, non-streaming, decision has

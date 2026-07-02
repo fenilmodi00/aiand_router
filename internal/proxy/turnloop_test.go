@@ -14,6 +14,7 @@ import (
 	"workweave/router/internal/proxy"
 	"workweave/router/internal/router"
 	"workweave/router/internal/router/handover"
+	"workweave/router/internal/router/planner"
 	"workweave/router/internal/router/sessionpin"
 	"workweave/router/internal/translate"
 
@@ -489,6 +490,159 @@ func TestTurnLoop_UsageWritebackPersistsCacheStats(t *testing.T) {
 	assert.Equal(t, 80, got.OutputTokens)
 	assert.Equal(t, 900, got.CachedReadTokens)
 	assert.Equal(t, 200, got.CachedWriteTokens)
+}
+
+// trimSessionTurn builds a main-loop Anthropic body with msgCount alternating
+// user/assistant messages. The first user message is constant so every turn
+// derives the same session key (the compaction tracker's bucket).
+func trimSessionTurn(t *testing.T, msgCount int) []byte {
+	t.Helper()
+	require.True(t, msgCount%2 == 1, "odd msgCount keeps the trailing message a user turn")
+	msgs := make([]string, 0, msgCount)
+	for i := 0; i < msgCount; i++ {
+		role := "user"
+		if i%2 == 1 {
+			role = "assistant"
+		}
+		msgs = append(msgs, `{"role":"`+role+`","content":"TRIM-SESSION turn `+itoa(i)+`"}`)
+	}
+	msgs[0] = `{"role":"user","content":"TRIM-SESSION refactor the dispatch loop"}`
+	return []byte(`{"model":"claude-opus-4-7","system":"sys","messages":[` + strings.Join(msgs, ",") + `]}`)
+}
+
+// warmOpusPin's prior turn billed 1.5k input tokens seconds ago (warm), so an
+// opus→haiku switch is an EV-negative stay unless something prices the cache
+// as cold.
+func warmOpusPin() sessionpin.Pin {
+	return sessionpin.Pin{
+		Provider:        providers.ProviderAnthropic,
+		Model:           "claude-opus-4-7",
+		Reason:          "cluster:v0.2",
+		PinnedUntil:     time.Now().Add(time.Hour),
+		LastInputTokens: 1500,
+		LastTurnEndedAt: time.Now().Add(-30 * time.Second),
+	}
+}
+
+// A client history trim must make the planner price the warm pin's cache as
+// dead — letting the cold-pin follow-fresh lever switch — without invoking
+// the switch summarizer.
+func TestTurnLoop_PrefixTrimPricesPinColdAndSkipsSummarizer(t *testing.T) {
+	store := newFakePinStore()
+	store.hasPin = true
+	store.pin = warmOpusPin()
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-haiku-4-5", Reason: "cluster:v0.2"}}
+	sz := &fakeSummarizer{summary: "Prior conversation summary."}
+	svc := newPinSvc(fr, store).WithSummarizer(sz).WithPlanner(planner.EVConfig{
+		ThresholdUSD:           0.001,
+		ExpectedRemainingTurns: 3,
+		ColdPinFollowFresh:     true,
+	})
+	ctx := authedCtx(uuid.New().String())
+
+	// Turn 1 (9 messages) records the compaction baseline.
+	rec1 := httptest.NewRecorder()
+	req1 := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	require.NoError(t, svc.ProxyMessages(ctx, trimSessionTurn(t, 9), rec1, req1))
+	require.Equal(t, "claude-opus-4-7", rec1.Header().Get(proxy.HeaderRouterModel),
+		"warm pin must stay on turn 1 (cold lever must not fire on a warm cache)")
+
+	// Turn 2 drops to 3 messages: a full-compaction trim.
+	rec2 := httptest.NewRecorder()
+	req2 := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	require.NoError(t, svc.ProxyMessages(ctx, trimSessionTurn(t, 3), rec2, req2))
+	assert.Equal(t, "claude-haiku-4-5", rec2.Header().Get(proxy.HeaderRouterModel),
+		"trim turn must price the pin cold and switch to the fresh pick")
+	assert.Equal(t, int32(0), sz.calls.Load(),
+		"switch on a trim turn must skip the summarizer — the client's compaction summary already bounds the body")
+}
+
+// With the kill switch off, the trim is still detected and recorded but the
+// planner keeps pricing the pin warm and stays — even with the cold-pin
+// follow-fresh lever armed.
+func TestTurnLoop_PrefixTrimKillSwitchPreservesWarmStay(t *testing.T) {
+	store := newFakePinStore()
+	store.hasPin = true
+	store.pin = warmOpusPin()
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-haiku-4-5", Reason: "cluster:v0.2"}}
+	sz := &fakeSummarizer{summary: "Prior conversation summary."}
+	svc := newPinSvc(fr, store).WithSummarizer(sz).WithPrefixTrimFreeSwitch(false).WithPlanner(planner.EVConfig{
+		ThresholdUSD:           0.001,
+		ExpectedRemainingTurns: 3,
+		ColdPinFollowFresh:     true,
+	})
+	ctx := authedCtx(uuid.New().String())
+
+	rec1 := httptest.NewRecorder()
+	req1 := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	require.NoError(t, svc.ProxyMessages(ctx, trimSessionTurn(t, 9), rec1, req1))
+	require.Equal(t, "claude-opus-4-7", rec1.Header().Get(proxy.HeaderRouterModel))
+
+	rec2 := httptest.NewRecorder()
+	req2 := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	require.NoError(t, svc.ProxyMessages(ctx, trimSessionTurn(t, 3), rec2, req2))
+	assert.Equal(t, "claude-opus-4-7", rec2.Header().Get(proxy.HeaderRouterModel),
+		"kill switch off must preserve the warm-priced EV stay on the trim turn")
+	assert.Equal(t, int32(0), sz.calls.Load())
+}
+
+// A trim turn must skip the expired-pin re-anchor (guard (h)): the prior
+// model's cache is dead regardless of pin expiry, so the fresh pick wins.
+func TestTurnLoop_PrefixTrimSkipsExpiredPinReAnchor(t *testing.T) {
+	store := newFakePinStore()
+	store.hasPin = true
+	expired := warmOpusPin()
+	expired.PinnedUntil = time.Now().Add(-time.Minute)
+	store.pin = expired
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-haiku-4-5", Reason: "cluster:v0.2"}}
+	svc := newPinSvc(fr, store).WithAvailableModels(map[string]struct{}{
+		"claude-opus-4-7":  {},
+		"claude-haiku-4-5": {},
+	})
+	ctx := authedCtx(uuid.New().String())
+
+	// Turn 1 (9 messages, no trim): the expired pin re-anchors, proving the
+	// re-anchor path is live before the trim turn bypasses it.
+	rec1 := httptest.NewRecorder()
+	req1 := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	require.NoError(t, svc.ProxyMessages(ctx, trimSessionTurn(t, 9), rec1, req1))
+	require.Equal(t, "claude-opus-4-7", rec1.Header().Get(proxy.HeaderRouterModel),
+		"expired pin must re-anchor on a normal turn (guard baseline)")
+
+	rec2 := httptest.NewRecorder()
+	req2 := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	require.NoError(t, svc.ProxyMessages(ctx, trimSessionTurn(t, 3), rec2, req2))
+	assert.Equal(t, "claude-haiku-4-5", rec2.Header().Get(proxy.HeaderRouterModel),
+		"trim turn must skip the expired-pin re-anchor and follow the fresh pick")
+}
+
+// A sub-agent's small opening turn derives its own session key and compaction
+// bucket, so it must not read as a trim of the main loop's baseline.
+func TestTurnLoop_SubAgentDoesNotInheritMainLoopTrimBaseline(t *testing.T) {
+	store := newFakePinStore()
+	store.hasPin = true
+	store.pin = warmOpusPin()
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-haiku-4-5", Reason: "cluster:v0.2"}}
+	sz := &fakeSummarizer{summary: "Prior conversation summary."}
+	svc := newPinSvc(fr, store).WithSummarizer(sz)
+	ctx := authedCtx(uuid.New().String())
+
+	rec1 := httptest.NewRecorder()
+	req1 := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	require.NoError(t, svc.ProxyMessages(ctx, trimSessionTurn(t, 9), rec1, req1))
+	require.Equal(t, "claude-opus-4-7", rec1.Header().Get(proxy.HeaderRouterModel))
+
+	subAgentBody := []byte(`{"model":"claude-opus-4-7","system":"sys","messages":[
+		{"role":"user","content":"SUB-AGENT find every .go file under internal/"},
+		{"role":"assistant","content":"searching"},
+		{"role":"user","content":"narrow to the proxy package"}
+	]}`)
+	rec2 := httptest.NewRecorder()
+	req2 := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	require.NoError(t, svc.ProxyMessages(ctx, subAgentBody, rec2, req2))
+	assert.Equal(t, "claude-opus-4-7", rec2.Header().Get(proxy.HeaderRouterModel),
+		"a sub-agent's small opening turn must not read as a trim of the main loop's baseline")
+	assert.Equal(t, int32(0), sz.calls.Load())
 }
 
 // TestTurnLoop_MaxedOutPinExcludedFromCandidates locks in the

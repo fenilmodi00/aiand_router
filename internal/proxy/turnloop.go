@@ -93,6 +93,11 @@ type turnLoopResult struct {
 	// x-weave-suggestion-mode header. The routing marker is suppressed so
 	// the badge does not appear in suggestion-overlay responses.
 	SuggestionMode bool
+	// PrefixTrimmed is true when the compaction tracker detected a client-side
+	// history trim on this turn. Detected before routing so the planner can
+	// price the pin's cache as cold; ProxyMessages also reads it post-routing
+	// for the compaction handover without re-recording the tracker.
+	PrefixTrimmed bool
 	// EscalateEffort is true when the previous turn in this session looked like
 	// an observable failure (produced no output, or the pin carried a consecutive
 	// upstream error). The escalate-on-failure effort policy reads it to bump a
@@ -230,6 +235,28 @@ func (s *Service) runTurnLoop(
 		return res, nil
 	}
 
+	// res.SessionKey must stay zero in no-pin-store mode, but trim detection
+	// needs the key either way.
+	sessionKey := DeriveSessionKey(env, apiKeyID)
+
+	// Trim detection runs before routing so the planner can price the pin's
+	// cache as dead on the turn the client rewrote the prompt prefix. env has
+	// not been rewritten yet, so the counts match what the client sent.
+	res.PrefixTrimmed = s.compaction.checkAndRecord(
+		sessionKey, installationID, res.PinRole,
+		feats.MessageCount, len(env.AssistantToolCallSignatures()),
+	)
+	// prefixTrimFreeSwitch gates the actions only; detection stays
+	// unconditional so the post-routing compaction handover keeps working
+	// when the lever is off.
+	prefixBroken := s.prefixTrimFreeSwitch && res.PrefixTrimmed
+	if res.PrefixTrimmed {
+		log.Info("turnloop detected client history trim",
+			"message_count", feats.MessageCount,
+			"free_switch_armed", prefixBroken,
+		)
+	}
+
 	// Without a pin store, run the scorer and return its decision. The usage
 	// bypass intercepts the fresh scorer decision here too (no pins to honor).
 	if s.pinStore == nil {
@@ -247,7 +274,7 @@ func (s *Service) runTurnLoop(
 		return res, nil
 	}
 
-	res.SessionKey = DeriveSessionKey(env, apiKeyID)
+	res.SessionKey = sessionKey
 
 	pin, pinFound := s.loadPin(ctx, res.SessionKey, res.PinRole)
 	res.PriorServedModel = pin.LastServedModel
@@ -569,8 +596,11 @@ func (s *Service) runTurnLoop(
 	//   (g) this turn does NOT carry images if the prior model is text-only
 	//       (image guard mirrors the live-pin check above — re-anchoring a
 	//       text-only model on an image-bearing turn would immediately 4xx)
+	//   (h) the client did NOT trim its history this turn — a trim kills the
+	//       prior model's cache regardless of pin expiry, so the scorer's
+	//       fresh pick should win
 	// When re-anchoring, write a new pin so the next turn is a sticky hit.
-	if !pinFound && pin.Model != "" {
+	if !pinFound && pin.Model != "" && !prefixBroken {
 		pinTier := catalog.TierFor(pin.Model)
 		freshTier := catalog.TierFor(fresh.Model)
 		if pinTier != catalog.TierUnknown && freshTier != catalog.TierUnknown && freshTier <= pinTier {
@@ -622,7 +652,8 @@ func (s *Service) runTurnLoop(
 		Fresh:                fresh,
 		EstimatedInputTokens: feats.Tokens,
 		AvailableModels:      s.availableModels,
-		PinCacheCold:         pinFound && !cacheWarm(pin),
+		// A trimmed prefix kills the cache even inside the provider TTL.
+		PinCacheCold: pinFound && (!cacheWarm(pin) || prefixBroken),
 		// Price covered models at their subsidized marginal cost in the EV math
 		// too, so the discount takes effect on sticky (pinned) sessions, not just
 		// the fresh decision. nil when subscription-aware routing is off.
@@ -662,7 +693,16 @@ func (s *Service) runTurnLoop(
 	// Only when the request is BYOK/client-keyed AND no matching creds for
 	// the summarizer's provider were forwarded do we skip summarization and
 	// pass the full history through.
-	if pinFound {
+	if pinFound && prefixBroken {
+		// The client just trimmed its own history: the body already carries
+		// its compaction summary and is as small as it gets. Summarizing it
+		// again is pure cost, so forward it unchanged.
+		log.Info("Handover summarizer skipped: client history trim already bounded this switch turn",
+			"pin_model", pin.Model,
+			"fresh_model", fresh.Model,
+		)
+	}
+	if pinFound && !prefixBroken {
 		var (
 			sumProvider       string
 			sumCreds          *Credentials

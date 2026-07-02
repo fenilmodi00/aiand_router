@@ -60,6 +60,11 @@ type EVConfig struct {
 	// TierUpgradeEnabled overturns an EV stay when fresh is strictly higher
 	// tier than pin. Upgrade-only by design.
 	TierUpgradeEnabled bool
+	// ColdPinFollowFresh overturns an EV stay when the pin's cache is cold:
+	// with nothing warm to preserve, the scorer's fresh pick wins. EV-positive
+	// and tier-upgrade take precedence (more specific reasons). Off by
+	// default; measure against shadow telemetry before arming.
+	ColdPinFollowFresh bool
 }
 
 // Inputs is the full per-turn input to Decide.
@@ -93,6 +98,7 @@ const (
 	ReasonEVPositive      = "ev_positive"
 	ReasonEVNegative      = "ev_negative"
 	ReasonTierUpgrade     = "tier_upgrade"
+	ReasonColdPinFresh    = "cold_pin_follow_fresh"
 )
 
 // Decide returns the planner verdict for this turn.
@@ -162,6 +168,9 @@ func Decide(in Inputs, cfg EVConfig) Decision {
 	case cfg.TierUpgradeEnabled && tierUpgrade(in.Pin.Model, in.Fresh.Model):
 		d.Outcome = OutcomeSwitch
 		d.Reason = ReasonTierUpgrade
+	case cfg.ColdPinFollowFresh && in.PinCacheCold:
+		d.Outcome = OutcomeSwitch
+		d.Reason = ReasonColdPinFresh
 	default:
 		d.Outcome = OutcomeStay
 		d.Reason = ReasonEVNegative
