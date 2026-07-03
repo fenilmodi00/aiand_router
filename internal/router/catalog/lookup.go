@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"workweave/router/internal/router"
 )
 
 // byID is built once at init from Models so accessors are O(1).
@@ -17,12 +19,12 @@ func init() {
 }
 
 // ByID returns the model with the given ID. If the exact ID isn't found,
-// retries after stripping a trailing date suffix (e.g. "-20251001").
+// retries after stripping a trailing Anthropic (-20251001) or OpenAI (-2024-08-06) date suffix.
 func ByID(id string) (Model, bool) {
 	if m, ok := byID[id]; ok {
 		return m, true
 	}
-	if base := stripDateSuffix(id); base != id {
+	if base := router.StripDateSuffix(id); base != id {
 		if m, ok := byID[base]; ok {
 			return m, true
 		}
@@ -228,21 +230,4 @@ func ValidateDeployed(deployed []string) error {
 	}
 	sort.Strings(missing)
 	return fmt.Errorf("catalog: deployed models missing or unconfigured — add or fix them in internal/router/catalog/catalog.go: %s", strings.Join(missing, ", "))
-}
-
-// stripDateSuffix removes a trailing "-XXXXXXXX" (hyphen + 8 digits).
-func stripDateSuffix(model string) string {
-	if len(model) < 10 {
-		return model
-	}
-	tail := model[len(model)-9:]
-	if tail[0] != '-' {
-		return model
-	}
-	for _, c := range tail[1:] {
-		if c < '0' || c > '9' {
-			return model
-		}
-	}
-	return model[:len(model)-9]
 }

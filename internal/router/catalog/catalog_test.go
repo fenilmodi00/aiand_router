@@ -60,6 +60,18 @@ func TestByID_DateStrippedFallback(t *testing.T) {
 	assert.Equal(t, "claude-opus-4-7", m.ID)
 }
 
+func TestByID_OpenAIDashedDateStrippedFallback(t *testing.T) {
+	// Regression: catalog's stripper previously only handled Anthropic's compact
+	// 8-digit suffix and missed OpenAI's dashed YYYY-MM-DD shape.
+	m, ok := ByID("gpt-4o-2024-08-06")
+	require.True(t, ok)
+	assert.Equal(t, "gpt-4o", m.ID)
+
+	p, ok := PriceFor(providers.ProviderOpenAI, "gpt-4o-2024-08-06")
+	require.True(t, ok)
+	assert.Greater(t, p.InputUSDPer1M, 0.0)
+}
+
 func TestByID_UnknownReturnsFalse(t *testing.T) {
 	_, ok := ByID("definitely-not-a-model")
 	assert.False(t, ok)
