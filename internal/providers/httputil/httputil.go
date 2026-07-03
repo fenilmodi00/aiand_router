@@ -9,10 +9,12 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"workweave/router/internal/auth"
 	"workweave/router/internal/observability/otel"
 	"workweave/router/internal/providers"
 )
@@ -136,6 +138,20 @@ func idleTimeoutFromEnv(envVar string, fallback time.Duration) time.Duration {
 // NewTransport. Streaming upstreams return headers immediately, so 30s is ample
 // for them; it only bites a non-streaming upstream that buffers a slow response.
 const DefaultResponseHeaderTimeout = 30 * time.Second
+
+// SanitizeInboundAuthHeader returns v unchanged unless it carries a
+// router-issued key as a Bearer token, in which case it returns "" so the
+// caller skips forwarding it upstream. Prefix match is case-insensitive to
+// guard against `bearer rk_...` bypassing the scrub.
+func SanitizeInboundAuthHeader(v string) string {
+	const bearerPrefix = "Bearer "
+	if len(v) > len(bearerPrefix) && strings.EqualFold(v[:len(bearerPrefix)], bearerPrefix) {
+		if auth.HasAPIKeyPrefix(strings.TrimSpace(v[len(bearerPrefix):])) {
+			return ""
+		}
+	}
+	return v
+}
 
 // NewTransport returns a pooled http.Transport sized for sustained traffic to a single upstream host.
 //

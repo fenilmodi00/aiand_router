@@ -49,6 +49,9 @@ const subscriptionTokenPrefix = "sk-ant-oat"
 // credential (subscription/BYOK/client), deployment key, then client-sent auth
 // headers. A subscription OAuth credential authenticates via Authorization:
 // Bearer and must NOT send x-api-key; everything else uses x-api-key.
+//
+// The passthrough tier scrubs router-issued Bearer tokens via
+// httputil.SanitizeInboundAuthHeader before relaying inbound auth upstream.
 func (c *Client) setAuth(ctx context.Context, upstream *http.Request, inbound *http.Request) {
 	if creds := proxy.CredentialsFromContext(ctx); creds != nil {
 		if creds.OAuth {
@@ -62,7 +65,7 @@ func (c *Client) setAuth(ctx context.Context, upstream *http.Request, inbound *h
 		upstream.Header.Set("x-api-key", c.apiKey)
 		return
 	}
-	if v := inbound.Header.Get("authorization"); v != "" {
+	if v := httputil.SanitizeInboundAuthHeader(inbound.Header.Get("authorization")); v != "" {
 		upstream.Header.Set("authorization", v)
 	}
 	if v := inbound.Header.Get("x-api-key"); v != "" {
