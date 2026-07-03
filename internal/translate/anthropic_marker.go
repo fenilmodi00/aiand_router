@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"workweave/router/internal/providers"
 	"workweave/router/internal/sse"
 
 	"github.com/tidwall/gjson"
@@ -27,6 +28,8 @@ type AnthropicRoutingMarkerWriter struct {
 	streaming      bool
 	headersEmitted bool
 	markerEmitted  bool
+
+	onOutputProgress func()
 }
 
 // NewAnthropicRoutingMarkerWriter injects marker as a text block at index 0.
@@ -172,6 +175,10 @@ func (w *AnthropicRoutingMarkerWriter) processUpstream(data []byte) (int, error)
 			continue
 
 		case "content_block_start", "content_block_delta", "content_block_stop":
+			// Mark on output-bearing content_block_delta only; start/stop are structural.
+			if string(eventType) == "content_block_delta" && w.onOutputProgress != nil {
+				w.onOutputProgress()
+			}
 			// Rewrite the index field: shift by +1.
 			currentIdx := gjson.GetBytes(eventData, "index").Int()
 			rewritten, err := sjson.SetBytes(eventData, "index", currentIdx+1)
@@ -204,5 +211,17 @@ func (w *AnthropicRoutingMarkerWriter) processUpstream(data []byte) (int, error)
 	return len(data), nil
 }
 
+// ArmOutputProgress fires mark on output-bearing content_block_delta frames only
+// (not pings or structural frames) so the native output-stall watchdog tracks
+// time-since-last-output. Returns false when not streaming or without a marker.
+func (w *AnthropicRoutingMarkerWriter) ArmOutputProgress(mark func()) (armed bool) {
+	if !w.streaming || w.marker == "" {
+		return false
+	}
+	w.onOutputProgress = mark
+	return true
+}
+
 var _ http.ResponseWriter = (*AnthropicRoutingMarkerWriter)(nil)
 var _ http.Flusher = (*AnthropicRoutingMarkerWriter)(nil)
+var _ providers.OutputProgressArmer = (*AnthropicRoutingMarkerWriter)(nil)
