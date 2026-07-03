@@ -34,6 +34,14 @@ import (
 	"github.com/tidwall/sjson"
 )
 
+// TelemetryEmitter is the narrow interface proxy owns for OTel: a
+// request-scoped span/log buffer. Implemented by *otel.Emitter.
+type TelemetryEmitter interface {
+	// NewBuffer returns a request-scoped span/log buffer, or nil when the
+	// emitter itself is disabled.
+	NewBuffer() *otel.Buffer
+}
+
 // Service orchestrates routing decisions and provider dispatch.
 type Service struct {
 	router router.Router
@@ -47,7 +55,7 @@ type Service struct {
 	// is unset at boot; the strategy header then 503s.
 	banditRouter         router.Router
 	providers            map[string]providers.Client
-	emitter              *otel.Emitter
+	emitter              TelemetryEmitter
 	embedOnlyUserMessage bool
 	semanticCache        *cache.Cache
 	// pinStore persists session-sticky routing decisions. Nil when the feature
@@ -776,7 +784,7 @@ const DefaultPlannerTierUpgradeEnabled = true
 // shadow telemetry before arming.
 const DefaultPlannerColdPinFollowFresh = false
 
-func NewService(r router.Router, providerMap map[string]providers.Client, emitter *otel.Emitter, embedOnlyUserMessage bool, semanticCache *cache.Cache, pinStore sessionpin.Store, hardPinExplore bool, hardPinProvider, hardPinModel string, telemetry TelemetryRepository) *Service {
+func NewService(r router.Router, providerMap map[string]providers.Client, emitter TelemetryEmitter, embedOnlyUserMessage bool, semanticCache *cache.Cache, pinStore sessionpin.Store, hardPinExplore bool, hardPinProvider, hardPinModel string, telemetry TelemetryRepository) *Service {
 	return &Service{
 		router:               r,
 		providers:            providerMap,
@@ -1065,6 +1073,15 @@ func (s *Service) ExcludedProvidersOverride() []string {
 // OTel export, DB telemetry persistence, and credit billing all need it.
 func (s *Service) usageRequired() bool {
 	return s.emitter != nil || s.telemetry != nil || s.billing != nil
+}
+
+// newTelemetryBuffer returns a request-scoped buffer, or nil when OTel is
+// disabled — guards against a nil-interface method-call panic.
+func (s *Service) newTelemetryBuffer() *otel.Buffer {
+	if s.emitter == nil {
+		return nil
+	}
+	return s.emitter.NewBuffer()
 }
 
 // WithBillingService installs the credit-billing service. Nil disables the
@@ -1407,7 +1424,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	log := observability.FromContext(ctx)
 	requestStart := time.Now()
 	requestID := uuid.New().String()
-	buf := otel.NewBuffer(s.emitter)
+	buf := s.newTelemetryBuffer()
 	ctx = buf.WithContext(ctx)
 
 	// Strip the routing marker prior responses injected as assistant text —
@@ -3121,7 +3138,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	log := observability.FromContext(ctx)
 	requestStart := time.Now()
 	requestID := uuid.New().String()
-	buf := otel.NewBuffer(s.emitter)
+	buf := s.newTelemetryBuffer()
 	ctx = buf.WithContext(ctx)
 
 	apiKeyID, _ := ctx.Value(APIKeyIDContextKey{}).(string)
