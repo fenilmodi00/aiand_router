@@ -31,6 +31,9 @@ type Request struct {
 	// loop evicts a text-only session pin.
 	HasImages  bool
 	PromptText string
+	// ConversationMessages is provider-neutral visible history for sidecar
+	// routers that need multi-turn context.
+	ConversationMessages []ConversationMessage
 	// Per-request provider gating — nil means unrestricted.
 	EnabledProviders map[string]struct{}
 	// Per-request model exclusion — nil or empty means no exclusion.
@@ -50,6 +53,23 @@ type Request struct {
 	// at full catalog so Haiku↔Opus spread is preserved); the planner instead
 	// treats it as a literal cost multiplier for dollar-EV cache-switch math.
 	SubsidizedModelCostFactor map[string]float64
+}
+
+type ConversationMessage struct {
+	Role        string
+	Text        string
+	ToolCalls   []ConversationToolCall
+	ToolResults []ConversationToolResult
+}
+
+type ConversationToolCall struct {
+	Name      string
+	InputKeys []string
+}
+
+type ConversationToolResult struct {
+	ToolUseID string
+	IsError   bool
 }
 
 type Decision struct {
