@@ -448,10 +448,12 @@ func (s *Service) runTurnLoop(
 		return res, nil
 	}
 
-	// Tool-result turns are mid-turn continuations. Re-routing them on
-	// trailing tool_result embedding flips decisions to noisy candidates;
-	// reuse the pin verbatim when present and refresh the TTL.
-	if res.TurnType == turntype.ToolResult && pinFound {
+	// Tool-result turns: by default, fall through to the scorer + planner for
+	// MainLoop parity. Kill switch preserves the legacy #82 verbatim-reuse path.
+	// The #82 noisy-embedding concern is stale under only_user_message embed mode:
+	// translate.userPromptTextGJSON strips tool_result blocks from the embed input.
+	// Switches degrade safely — handover.RewriteEnvelope strips orphaned tool_results.
+	if !s.scoreToolResultTurns && res.TurnType == turntype.ToolResult && pinFound {
 		decision := pinDecision(pin)
 		res.Decision = decision
 		res.StickyHit = true

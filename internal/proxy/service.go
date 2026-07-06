@@ -132,9 +132,15 @@ type Service struct {
 	// plannerEnabled is the kill switch. When false, the orchestrator falls
 	// back to first-decision-wins behavior.
 	plannerEnabled bool
-	// effortEscalation enables escalate-on-failure reasoning effort: gpt-5.x
-	// serves low by default, high after a failed/no-progress turn; gemini
-	// stays pinned low. Off by default (ROUTER_EFFORT_ESCALATION).
+	// scoreToolResultTurns is the kill switch (ROUTER_SCORE_TOOL_RESULT_TURNS).
+	// When true (default), ToolResult turns run the cluster scorer + planner
+	// for MainLoop parity; when false, the pin is reused verbatim (#82 path).
+	// Runs the embedder on ToolResult traffic (majority of turns).
+	scoreToolResultTurns bool
+	// effortEscalation enables the escalate-on-failure reasoning-effort policy:
+	// gpt-5.x serves low effort by default and high after an observed
+	// failed/no-progress turn; gemini is pinned low. Off by default (set from
+	// ROUTER_EFFORT_ESCALATION) so it can be baked off before enabling.
 	effortEscalation bool
 	// bandSwap is the per-turn large-vs-small action classifier. Non-nil only
 	// when ROUTER_BAND_SWAP is on and the head loaded; a sticky MainLoop STAY
@@ -866,6 +872,7 @@ func NewService(r router.Router, providerMap map[string]providers.Client, emitte
 			TierUpgradeEnabled:     DefaultPlannerTierUpgradeEnabled,
 		},
 		plannerEnabled:        true,
+		scoreToolResultTurns:  true,
 		loopEscalationEnabled: true,
 	}
 }
@@ -887,6 +894,12 @@ func (s *Service) WithPlanner(cfg planner.EVConfig) *Service {
 // preserves first-decision-wins behavior.
 func (s *Service) WithPlannerEnabled(enabled bool) *Service {
 	s.plannerEnabled = enabled
+	return s
+}
+
+// WithScoreToolResultTurns sets ROUTER_SCORE_TOOL_RESULT_TURNS; see scoreToolResultTurns.
+func (s *Service) WithScoreToolResultTurns(enabled bool) *Service {
+	s.scoreToolResultTurns = enabled
 	return s
 }
 

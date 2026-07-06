@@ -654,8 +654,8 @@ func TestService_SessionPin_OpenAI_ForceModelCommandStreamShape(t *testing.T) {
 }
 
 func TestService_SessionPin_OpenAI_ToolResultShortCircuit(t *testing.T) {
-	// Trailing role=="tool" → turntype.ToolResult. With a pin, short-circuit
-	// the scorer (tool-result embeddings are noisy and flip decisions).
+	// Kill switch OFF: pinned tool_result reuses the pin verbatim (legacy #82 path).
+	// Default (scorer runs) is covered by turnloop_test.go.
 	const toolResultBody = `{
 		"model":"gpt-4o",
 		"messages":[
@@ -674,14 +674,14 @@ func TestService_SessionPin_OpenAI_ToolResultShortCircuit(t *testing.T) {
 		PinnedUntil: time.Now().Add(30 * time.Minute),
 	}
 	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "gpt-4o", Reason: "fresh"}}
-	svc := newOpenAIPinSvc(fr, store)
+	svc := newOpenAIPinSvc(fr, store).WithScoreToolResultTurns(false)
 
 	ctx := authedCtx(uuid.New().String())
 	rec := httptest.NewRecorder()
 	httpReq := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(""))
 	require.NoError(t, svc.ProxyOpenAIChatCompletion(ctx, []byte(toolResultBody), rec, httpReq))
 
-	assert.Equal(t, 0, fr.routeCalls, "tool-result with existing pin must not re-run the scorer")
+	assert.Equal(t, 0, fr.routeCalls, "disabled tool-result scoring must not re-run the scorer")
 	assert.Equal(t, "gpt-5", rec.Header().Get(proxy.HeaderRouterModel))
 }
 
