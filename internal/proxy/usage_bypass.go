@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"workweave/router/internal/auth"
 	"workweave/router/internal/observability"
 	"workweave/router/internal/observability/otel"
 	"workweave/router/internal/providers"
@@ -227,6 +228,14 @@ func (s *Service) bypassToAnthropic(
 		return fmt.Errorf("emit bypass body: %w", emitErr)
 	}
 
+	// Tap the response stream so the bypass span carries token usage for
+	// Weave's router cost-savings metric — subscription turns are otherwise invisible.
+	var extractor *otel.UsageExtractor
+	if s.usageRequired() {
+		extractor = otel.NewUsageExtractor(w, decision.Provider)
+		w = extractor
+	}
+
 	proxyStart := time.Now()
 	proxyErr := p.Proxy(ctx, decision, prep, w, r)
 	// The Anthropic adapter returns a buffered *UpstreamErrorResponse on 4xx/5xx
@@ -246,17 +255,40 @@ func (s *Service) bypassToAnthropic(
 		flushUpstreamErrorAsAnthropic(w, proxyErr)
 		proxyErr = nil
 	}
+	// Bypass never substitutes the model, so requested == actual; Weave credits
+	// actual to $0 downstream when cost.subscription_served is set.
+	in, out := extractor.Tokens()
+	cacheCreation, cacheRead := extractor.CacheTokens()
+	pricing, _ := catalog.PriceFor(decision.Provider, decision.Model)
+	inputCost := catalog.EffectiveInputCost(in, cacheCreation, cacheRead, pricing.InputUSDPer1M, pricing, decision.Provider)
+	outputCost := catalog.EffectiveOutputCost(out, pricing.OutputUSDPer1M)
+
+	// Same identity block as the routed upstream span so Weave groups bypass turns by user/session.
+	clientID := ClientIdentityFrom(ctx)
 	otel.Record(ctx, otel.Span{
 		Name:  "router.usage_bypass",
 		Start: requestStart,
 		End:   time.Now(),
-		Attrs: otel.NewAttrBuilder(6).
+		Attrs: otel.NewAttrBuilder(18).
 			String("request_id", requestID).
 			String("external_id", externalID).
+			String("router_user_id", auth.UserIDFrom(ctx)).
+			String("client.app", clientID.ClientApp).
+			String("client.session_id", clientID.SessionID).
+			// Bypass never substitutes, so requested model IS the served model.
+			String("requested.model", decision.Model).
 			String("decision.model", decision.Model).
 			String("decision.provider", decision.Provider).
 			String("decision.reason", decision.Reason).
 			Bool("cost.subscription_served", servedOnSubscription(ctx)).
+			Int64("usage.input_tokens", int64(in)).
+			Int64("usage.output_tokens", int64(out)).
+			Int64("usage.cache_creation_input_tokens", int64(cacheCreation)).
+			Int64("usage.cache_read_input_tokens", int64(cacheRead)).
+			Float64("cost.requested_input_usd", inputCost).
+			Float64("cost.requested_output_usd", outputCost).
+			Float64("cost.actual_input_usd", inputCost).
+			Float64("cost.actual_output_usd", outputCost).
 			Build(),
 	})
 	otel.Flush(ctx)
