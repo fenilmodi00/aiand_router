@@ -74,3 +74,61 @@ func TestResolveAndInjectCredentials_SuppressionDoesNotClearCodexOpenAITurn(t *t
 	require.NotNil(t, got, "a Codex subscription must still resolve for its OpenAI turn")
 	assert.Equal(t, credSourceCodexSubscription, got.Source)
 }
+
+// subscriptionDisabledCtx returns a router-keyed ctx with subscription routing
+// disabled (the "use my subscription first" toggle off).
+func subscriptionDisabledCtx() context.Context {
+	return context.WithValue(routerKeyedCtx(), InstallationSubscriptionRoutingDisabledContextKey{}, true)
+}
+
+// Toggle off must suppress the Claude subscription so the turn bills prepaid.
+func TestResolveAndInjectCredentials_DisabledSuppressesClaudeSubscription(t *testing.T) {
+	headers := http.Header{}
+	headers.Set("Authorization", "Bearer sk-ant-oat01-live")
+
+	out := resolveAndInjectCredentials(subscriptionDisabledCtx(), providers.ProviderAnthropic, headers)
+
+	assert.Nil(t, CredentialsFromContext(out),
+		"toggle off must suppress the Claude subscription so the turn bills prepaid")
+}
+
+// Unlike exhaustion (Anthropic-only), the disabled toggle is provider-wide and
+// must suppress Codex too.
+func TestResolveAndInjectCredentials_DisabledSuppressesCodexSubscription(t *testing.T) {
+	headers := http.Header{}
+	headers.Set("Authorization", "Bearer eyJhbGciOi.codex.jwt")
+	headers.Set("ChatGPT-Account-ID", "acct-1")
+
+	out := resolveAndInjectCredentials(subscriptionDisabledCtx(), providers.ProviderOpenAI, headers)
+
+	assert.Nil(t, CredentialsFromContext(out),
+		"toggle off must suppress the Codex subscription so the turn bills prepaid")
+}
+
+// Toggle off must also drop the Codex /v1/responses verbatim-passthrough path,
+// so the turn takes normal chat->Responses translation and bills prepaid.
+func TestCodexResponsesRequest_DisabledDropsPassthrough(t *testing.T) {
+	headers := http.Header{}
+	headers.Set("Authorization", "Bearer eyJhbGciOi.codex.jwt")
+	headers.Set("ChatGPT-Account-ID", "acct-1")
+
+	assert.True(t, codexResponsesRequest(routerKeyedCtx(), headers),
+		"a Codex sub normally takes the passthrough path")
+	assert.False(t, codexResponsesRequest(subscriptionDisabledCtx(), headers),
+		"toggle off must drop the Codex passthrough path")
+}
+
+// Regression guard: an inbound Codex subscription bearer on the router-key path
+// must not slip back in via the client-credential branch when the toggle is off.
+func TestResolveAndInjectCredentials_DisabledCodexNotReResolvedFromContext(t *testing.T) {
+	spentCodex := &Credentials{APIKey: []byte("eyJhbGciOi.codex.jwt"), AccountID: []byte("acct-1"), Source: credSourceCodexSubscription, OAuth: true}
+	ctx := context.WithValue(subscriptionDisabledCtx(), CredentialsContextKey{}, spentCodex)
+	headers := http.Header{}
+	headers.Set("Authorization", "Bearer eyJhbGciOi.codex.jwt")
+	headers.Set("ChatGPT-Account-ID", "acct-1")
+
+	out := resolveAndInjectCredentials(ctx, providers.ProviderOpenAI, headers)
+
+	assert.Nil(t, CredentialsFromContext(out),
+		"a disabled Codex subscription carried on ctx must be cleared, not re-resolved")
+}

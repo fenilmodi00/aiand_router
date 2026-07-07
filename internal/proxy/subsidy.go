@@ -75,6 +75,11 @@ func (s *Service) WithUsageObserver(obs *usage.Observer) *Service {
 // the prepaid balance gate (server/middleware) has no Service handle but must
 // agree with this path on what counts as "a subscription is present".
 func presentSubscriptionTokens(ctx context.Context, headers http.Header) (codex, anthropic string) {
+	// Subscription routing disabled: treat as absent so subsidy, usage-bypass, and
+	// balance gate all agree the turn is prepaid.
+	if subscriptionRoutingDisabledForRequest(ctx) {
+		return "", ""
+	}
 	if codexSubscriptionFromContext(ctx) != nil {
 		codex = openaiSubscriptionFromContext(ctx)
 	} else if c := ExtractClientCredentials(providers.ProviderOpenAI, headers); c != nil && c.OAuth {
