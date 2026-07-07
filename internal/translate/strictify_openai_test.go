@@ -180,6 +180,50 @@ func TestStrictify_PropertyNamesDroppedToDescription(t *testing.T) {
 	assert.Contains(t, desc, "propertyNames", "dropped constraint must survive as description guidance")
 }
 
+// A typeless anyOf branch (e.g. "any"/`{}`) cannot be expressed in strict
+// mode; strictify must bail rather than emit a schema OpenAI 400s on.
+func TestStrictify_TypelessAnyOfBranchBails(t *testing.T) {
+	_, ok := strictifyFromJSON(t, `{
+		"type":"object",
+		"properties":{
+			"logs":{
+				"type":"array",
+				"items":{
+					"type":"object",
+					"properties":{
+						"expected_output":{"anyOf":[{},{"type":"null"}]}
+					},
+					"required":["expected_output"]
+				}
+			}
+		},
+		"required":["logs"]
+	}`)
+	require.False(t, ok, "typeless anyOf branch must fall back to non-strict emission")
+}
+
+// An object-by-properties anyOf branch without an explicit type must be stamped type:"object".
+func TestStrictify_ObjectBranchGetsExplicitType(t *testing.T) {
+	out, ok := strictifyFromJSON(t, `{
+		"type":"object",
+		"properties":{
+			"payload":{"anyOf":[
+				{"properties":{"id":{"type":"string"}},"required":["id"]},
+				{"type":"null"}
+			]}
+		},
+		"required":["payload"]
+	}`)
+	require.True(t, ok)
+
+	payload := out["properties"].(map[string]any)["payload"].(map[string]any)
+	branches := payload["anyOf"].([]any)
+	objBranch := branches[0].(map[string]any)
+	assert.Equal(t, "object", objBranch["type"],
+		"an object-by-properties branch must be stamped type:object for strict mode")
+	assert.Equal(t, false, objBranch["additionalProperties"])
+}
+
 // Schema-defining keywords strict mode cannot express must bail to the
 // non-strict fallback rather than emit a lossy strict schema.
 func TestStrictify_UnevaluatedPropertiesBails(t *testing.T) {

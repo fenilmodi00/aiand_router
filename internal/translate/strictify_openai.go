@@ -104,6 +104,11 @@ func strictifyNode(node map[string]any, depth int, propCount *int) (out map[stri
 			if !sok {
 				return nil, false
 			}
+			// OpenAI strict mode: every anyOf branch needs a concrete type; bail
+			// rather than emit a typeless branch that 400s.
+			if !schemaHasStrictType(sb) {
+				return nil, false
+			}
 			outBranches = append(outBranches, sb)
 		}
 		res["anyOf"] = outBranches
@@ -135,7 +140,9 @@ func strictifyNode(node map[string]any, depth int, propCount *int) (out map[stri
 	}
 
 	// Object node: additionalProperties:false, all properties required,
-	// originally-optional properties become nullable.
+	// originally-optional properties become nullable. Stamp type:"object" so
+	// a properties-only node inside anyOf carries an explicit type.
+	res["type"] = "object"
 	res["additionalProperties"] = false
 	originallyRequired := make(map[string]struct{})
 	if reqList, present := res["required"].([]any); present {
@@ -201,6 +208,21 @@ func makeNullable(node map[string]any) map[string]any {
 	}
 	// No type and no anyOf (e.g. bare enum): wrap the node itself.
 	return map[string]any{"anyOf": []any{node, map[string]any{"type": "null"}}}
+}
+
+// schemaHasStrictType reports whether node carries a type OpenAI strict mode
+// can consume: an explicit "type", a nested "anyOf", or an "enum".
+func schemaHasStrictType(node map[string]any) bool {
+	if _, ok := node["type"]; ok {
+		return true
+	}
+	if _, ok := node["anyOf"]; ok {
+		return true
+	}
+	if _, ok := node["enum"]; ok {
+		return true
+	}
+	return false
 }
 
 // compactJSONValue renders a dropped constraint value for a description note.
