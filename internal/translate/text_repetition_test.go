@@ -86,6 +86,27 @@ func TestTrailingAssistantTexts_SystemReminderToolResultTurnIsNotABoundary(t *te
 		env.TrailingAssistantTexts(), "a reminder-bearing tool_result turn must not reset the window")
 }
 
+func TestTrailingAssistantTexts_CommandInjectionIsNotABoundary(t *testing.T) {
+	// CC injects wrapper blocks beyond <system-reminder> (e.g. <command-name>);
+	// those turns must not reset the repetition window.
+	body := mustMarshalJSON(t, map[string]any{
+		"model": "claude-sonnet-4-6",
+		"messages": []any{
+			map[string]any{"role": "assistant", "content": "narration one from the loop"},
+			map[string]any{"role": "user", "content": []any{
+				map[string]any{"type": "text", "text": "<command-name>/status</command-name>"},
+			}},
+			map[string]any{"role": "assistant", "content": "narration two from the loop"},
+		},
+		"max_tokens": 256,
+	})
+	env, err := translate.ParseAnthropic(body)
+	require.NoError(t, err)
+
+	require.Equal(t, []string{"narration one from the loop", "narration two from the loop"},
+		env.TrailingAssistantTexts(), "a command-injection-only turn must not reset the window")
+}
+
 func TestTrailingAssistantTexts_PlainStringContent(t *testing.T) {
 	body := mustMarshalJSON(t, map[string]any{
 		"model": "claude-sonnet-4-6",
