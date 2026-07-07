@@ -9,6 +9,16 @@ import (
 	"workweave/router/internal/router/catalog"
 )
 
+// Inference route paths (gin FullPath templates) whose upstream cost a caller
+// subscription can cover: the Anthropic Messages API is served by a Claude
+// subscription, the OpenAI chat/responses APIs by a Codex subscription. Other
+// gated routes (Gemini /v1beta, /v1/route) have no consumer subscription.
+const (
+	routePathMessages        = "/v1/messages"
+	routePathChatCompletions = "/v1/chat/completions"
+	routePathResponses       = "/v1/responses"
+)
+
 // codexCoveredModels is the conservative set of GPT models a ChatGPT/Codex
 // subscription actually pays for via the Codex backend (chatgpt.com/backend-api/
 // codex). Deliberately a curated allowlist, not "every OpenAI model": the plan
@@ -60,18 +70,46 @@ func (s *Service) WithUsageObserver(obs *usage.Observer) *Service {
 // subsidy works for all three harnesses, not just opencode. The token doubles as
 // the usage-observer key, and equals the eventually-resolved credential, so
 // record and read agree regardless of source.
-func (s *Service) presentSubscriptionTokens(ctx context.Context, headers http.Header) (codex, anthropic string) {
+//
+// A free function (not a *Service method) because it reads only ctx + headers:
+// the prepaid balance gate (server/middleware) has no Service handle but must
+// agree with this path on what counts as "a subscription is present".
+func presentSubscriptionTokens(ctx context.Context, headers http.Header) (codex, anthropic string) {
 	if codexSubscriptionFromContext(ctx) != nil {
 		codex = openaiSubscriptionFromContext(ctx)
 	} else if c := ExtractClientCredentials(providers.ProviderOpenAI, headers); c != nil && c.OAuth {
 		codex = string(c.APIKey)
 	}
-	if t := anthropicSubscriptionFromContext(ctx); t != "" {
-		anthropic = t
+	// Validate the dedicated Anthropic header via subscriptionCredsFromHeaderValue
+	// (requires sk-ant-oat), NOT a bare non-empty check: a junk header is never
+	// injected as a subscription, so treating it as present would let the balance
+	// gate exempt a turn that then routes to a paid model.
+	if creds := subscriptionCredsFromHeaderValue(anthropicSubscriptionFromContext(ctx)); creds != nil {
+		anthropic = string(creds.APIKey)
 	} else if c := ExtractClientCredentials(providers.ProviderAnthropic, headers); c != nil && c.OAuth {
 		anthropic = string(c.APIKey)
 	}
 	return codex, anthropic
+}
+
+// RequestPresentsCoveringSubscription reports whether the request carries a
+// validated subscription credential capable of serving inference on routePath:
+// a Claude (sk-ant-oat…) sub for /v1/messages, a Codex sub for /v1/chat/completions
+// and /v1/responses. Any other route returns false.
+//
+// Scoped to the covering family (not "any subscription present") so a Codex
+// bearer on /v1/messages — which can't serve that route — doesn't exempt a
+// turn that would debit the prepaid balance.
+func RequestPresentsCoveringSubscription(ctx context.Context, headers http.Header, routePath string) bool {
+	codex, anthropic := presentSubscriptionTokens(ctx, headers)
+	switch routePath {
+	case routePathMessages:
+		return anthropic != ""
+	case routePathChatCompletions, routePathResponses:
+		return codex != ""
+	default:
+		return false
+	}
 }
 
 // withUsageObserver installs a context header observer that records the present
@@ -81,7 +119,7 @@ func (s *Service) withUsageObserver(ctx context.Context, headers http.Header) co
 	if s.usageObserver == nil {
 		return ctx
 	}
-	codexTok, anthroTok := s.presentSubscriptionTokens(ctx, headers)
+	codexTok, anthroTok := presentSubscriptionTokens(ctx, headers)
 	if codexTok == "" && anthroTok == "" {
 		return ctx
 	}
@@ -138,7 +176,7 @@ func (s *Service) subsidyFactors(ctx context.Context, headers http.Header) map[s
 	if subscriptionRoutingDisabledForRequest(ctx) {
 		return nil
 	}
-	codexTok, anthroTok := s.presentSubscriptionTokens(ctx, headers)
+	codexTok, anthroTok := presentSubscriptionTokens(ctx, headers)
 	factors := make(map[string]float64)
 	if codexTok != "" {
 		f := s.observedOrOptimisticFactor(codexTok)

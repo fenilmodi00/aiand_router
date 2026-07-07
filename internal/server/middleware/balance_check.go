@@ -7,6 +7,7 @@ import (
 
 	"workweave/router/internal/billing"
 	"workweave/router/internal/observability"
+	"workweave/router/internal/proxy"
 
 	"github.com/gin-gonic/gin"
 )
@@ -19,10 +20,14 @@ const TopUpURL = "https://app.workweave.ai/settings/billing/router-credits"
 // Attached only in managed mode and only after WithAuth, so the
 // installation lookup below is guaranteed to be populated.
 //
-// Behavior:
+// Behavior (evaluated in order):
 //   - Override row present → pass through; flag the request context so
 //     the proxy's debit hook writes a delta=0 ledger row.
-//   - Balance ≤ minBalanceMicros → HTTP 402 with structured JSON body.
+//   - Balance ≤ minBalanceMicros (or no balance row) → HTTP 402. A
+//     subscription-exempt request (UsageBypassEnabled + a validated Claude/Codex
+//     cred that covers this route) instead gates at a negative overdraft floor,
+//     so free traffic keeps flowing while any paid failover is bounded. Override
+//     detection above still runs.
 //   - Otherwise → pass through.
 //
 // The balance read is a single indexed SELECT (~2-5ms in-region). Any
@@ -46,9 +51,25 @@ func WithBalanceCheck(svc *billing.Service, minBalanceMicros int64) gin.HandlerF
 		}
 
 		orgID := installation.ExternalID
+
+		// Subscription turns debit $0, so gating them on prepaid credits blocks
+		// free traffic. Covers only the route's matching family (Codex can't serve
+		// /v1/messages) and is applied only to 402 paths below — CheckBalance still
+		// runs so an active override is detected and its context flag set.
+		subscriptionExempt := installation.UsageBypassEnabled &&
+			proxy.RequestPresentsCoveringSubscription(c.Request.Context(), c.Request.Header, c.FullPath())
+
 		result, err := svc.CheckBalance(c.Request.Context(), orgID)
 		if err != nil {
 			if errors.Is(err, billing.ErrBalanceRowMissing) {
+				// A subscription usage-bypass org may never have had a balance
+				// row; its turns are free, so exempt them here too.
+				if subscriptionExempt {
+					log.Debug("Balance check skipped: subscription usage-bypass request, no balance row",
+						"organization_id", orgID)
+					c.Next()
+					return
+				}
 				log.Info("Balance check rejected: balance row missing", "organization_id", orgID)
 				c.AbortWithStatusJSON(http.StatusPaymentRequired, gin.H{
 					"error":              "insufficient_credits",
@@ -77,11 +98,22 @@ func WithBalanceCheck(svc *billing.Service, minBalanceMicros int64) gin.HandlerF
 			return
 		}
 
-		if result.BalanceMicros <= minBalanceMicros {
+		// Subscription-covered requests may run negative to a bounded overdraft
+		// floor before gating (see SubscriptionOverdraftFloorMicros): the turn is
+		// expected to be free but can fail over to a paid model, and we'd rather
+		// stay optimistic than 402 free traffic at $0. Everyone else gates at
+		// minBalanceMicros.
+		threshold := minBalanceMicros
+		if subscriptionExempt {
+			threshold = billing.SubscriptionOverdraftFloorMicros
+		}
+
+		if result.BalanceMicros <= threshold {
 			log.Info("Balance check rejected: balance at or below threshold",
 				"organization_id", orgID,
 				"balance_usd_micros", result.BalanceMicros,
-				"threshold_usd_micros", minBalanceMicros,
+				"threshold_usd_micros", threshold,
+				"subscription_exempt", subscriptionExempt,
 			)
 			c.AbortWithStatusJSON(http.StatusPaymentRequired, gin.H{
 				"error":              "insufficient_credits",
