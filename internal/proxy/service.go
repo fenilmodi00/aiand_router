@@ -55,8 +55,9 @@ type Service struct {
 	rlRouter router.Router
 	// hmmRouter is the opt-in policy router selected per-request via
 	// x-weave-router-strategy: hmm.
-	hmmRouter          router.Router
-	hmmOutcomeReporter hmm.OutcomeReporter
+	hmmRouter           router.Router
+	hmmOutcomeReporter  hmm.OutcomeReporter
+	hmmFeedbackReporter hmm.FeedbackReporter
 	// banditRouter is the opt-in Thompson-sampling router, selected per-request
 	// via x-weave-router-strategy: bandit. Nil when ROUTER_BANDIT_POSTERIOR_FILE
 	// is unset at boot; the strategy header then 503s.
@@ -368,6 +369,7 @@ const routingMarkerHeader = "X-Weave-Routing-Marker"
 const routingMarkerPrefix = "✦ **Weave Router** → "
 const maxSidecarDisplayMarkerRunes = 512
 const hmmOutcomeReportTimeout = 2 * time.Second
+const hmmFeedbackReportTimeout = 2 * time.Second
 const hmmOutcomeResponseMaxBytes = 256 * 1024
 
 type hmmOutcomeResponse struct {
@@ -1457,6 +1459,11 @@ func (s *Service) WithHMMRouter(r router.Router) *Service {
 	} else {
 		s.hmmOutcomeReporter = nil
 	}
+	if reporter, ok := r.(hmm.FeedbackReporter); ok {
+		s.hmmFeedbackReporter = reporter
+	} else {
+		s.hmmFeedbackReporter = nil
+	}
 	return s
 }
 
@@ -1960,10 +1967,14 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		PromptText:           promptText,
 		ConversationMessages: conversationMessagesForRouting(env),
 		AvailableTools:       availableToolsForRouting(env),
-		EnabledProviders:     enabledProviders,
-		ExcludedModels:       excluded,
-		PreferredModels:      s.preferredModelsForRequest(ctx),
-		RoutingKnobs:         routingKnobsForRequest(ctx),
+		// Keep this tied to client-visible history so a later feedback command
+		// can correlate with the route even if local compaction rewrites env.
+		FeedbackKey:      hex.EncodeToString(sessionKey[:]),
+		FeedbackRole:     roleForTier(catalog.TierFor(feats.Model)),
+		EnabledProviders: enabledProviders,
+		ExcludedModels:   excluded,
+		PreferredModels:  s.preferredModelsForRequest(ctx),
+		RoutingKnobs:     routingKnobsForRequest(ctx),
 	}
 	routeRes, routeErr := s.runTurnLoop(ctx, env, feats, apiKeyID, installationID, "", r.Header, req)
 	if routeErr != nil {
@@ -3866,10 +3877,14 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		PromptText:           promptText,
 		ConversationMessages: conversationMessagesForRouting(env),
 		AvailableTools:       availableToolsForRouting(env),
-		EnabledProviders:     enabledProviders,
-		ExcludedModels:       excludedOAI,
-		PreferredModels:      s.preferredModelsForRequest(ctx),
-		RoutingKnobs:         routingKnobsForRequest(ctx),
+		// Keep this tied to client-visible history so a later feedback command
+		// can correlate with the route even if local compaction rewrites env.
+		FeedbackKey:      hex.EncodeToString(sessionKey[:]),
+		FeedbackRole:     roleForTier(catalog.TierFor(feats.Model)),
+		EnabledProviders: enabledProviders,
+		ExcludedModels:   excludedOAI,
+		PreferredModels:  s.preferredModelsForRequest(ctx),
+		RoutingKnobs:     routingKnobsForRequest(ctx),
 	})
 	routeMs := time.Since(routeStart).Milliseconds()
 	if err != nil {
