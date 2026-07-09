@@ -92,7 +92,7 @@
     },
     {
       "model": "deepseek/deepseek-v4-flash",
-      "provider": "deepinfra",
+      "provider": "makora",
       "bench_column": "routerarena_deepseek/deepseek-v4-flash",
       "direct_label": "routerarena",
       "extra_bench_columns": [
@@ -116,7 +116,7 @@
     },
     {
       "model": "xiaomi/mimo-v2.5-pro",
-      "provider": "deepinfra",
+      "provider": "openrouter",
       "bench_column": "routerarena_xiaomi/mimo-v2.5-pro",
       "direct_label": "aa",
       "extra_bench_columns": [
