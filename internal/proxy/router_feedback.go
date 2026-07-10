@@ -116,7 +116,12 @@ func (s *Service) handleRouterFeedbackCommand(
 	}
 	strategy := router.StrategyFromContext(ctx)
 	if registered, ok := s.strategies[strategy]; ok && registered.feedback != nil {
-		s.reportRouterFeedback(ctx, registered.feedback, strategy, installationID, sessionKey, role, routerUserID, clientID, env.Model(), servedModel, rating, feedback)
+		trainingAllowed, _ := ctx.Value(PolicyTrainingAllowedContextKey{}).(bool)
+		var trainingDelta []router.ConversationMessage
+		if strategy == router.StrategyHMM && trainingAllowed {
+			trainingDelta = routerFeedbackTrainingDelta(env)
+		}
+		s.reportRouterFeedback(ctx, registered.feedback, strategy, externalID, installationID, sessionKey, role, routerUserID, clientID, env.Model(), servedModel, rating, feedback, trainingDelta)
 	}
 
 	now := time.Now()
@@ -155,6 +160,7 @@ func (s *Service) reportRouterFeedback(
 	ctx context.Context,
 	reporter policy.FeedbackReporter,
 	strategy router.Strategy,
+	organizationID string,
 	installationID uuid.UUID,
 	sessionKey [sessionpin.SessionKeyLen]byte,
 	role string,
@@ -164,6 +170,7 @@ func (s *Service) reportRouterFeedback(
 	servedModel string,
 	rating string,
 	feedback string,
+	trainingDelta []router.ConversationMessage,
 ) {
 	payload := map[string]interface{}{
 		"strategy":          string(strategy),
@@ -177,6 +184,9 @@ func (s *Service) reportRouterFeedback(
 		"client_app":        clientID.ClientApp,
 		"client_session_id": clientID.SessionID,
 	}
+	if organizationID != "" {
+		payload["organization_id"] = organizationID
+	}
 	rolloutID := clientID.RolloutID
 	if persistedRolloutID, ok := ctx.Value(PolicyRolloutIDContextKey{}).(string); ok && persistedRolloutID != "" {
 		rolloutID = persistedRolloutID
@@ -187,12 +197,45 @@ func (s *Service) reportRouterFeedback(
 	if installationID != uuid.Nil {
 		payload["installation_id"] = installationID.String()
 	}
+	if strategy == router.StrategyHMM && trainingAllowed && len(trainingDelta) > 0 {
+		payload["training_conversation_delta"] = trainingDelta
+	}
 	log := observability.FromContext(ctx)
 	observability.SafeGo(log, policyFeedbackReportTimeout, "reportPolicyFeedback", func(reportCtx context.Context) {
 		if err := reporter.ReportFeedback(reportCtx, payload); err != nil {
 			log.Error("/router-feedback: policy feedback report failed", "strategy", strategy, "err", err)
 		}
 	})
+}
+
+func routerFeedbackTrainingDelta(env *translate.RequestEnvelope) []router.ConversationMessage {
+	messages := conversationMessagesForRouting(env)
+	if len(messages) == 0 {
+		return nil
+	}
+	ratedAssistant := -1
+	for i := len(messages) - 1; i >= 0; i-- {
+		if strings.EqualFold(strings.TrimSpace(messages[i].Role), "assistant") {
+			ratedAssistant = i
+			break
+		}
+	}
+	if ratedAssistant < 0 {
+		return nil
+	}
+	start := 0
+	for i := ratedAssistant - 1; i >= 0; i-- {
+		if strings.EqualFold(strings.TrimSpace(messages[i].Role), "assistant") {
+			start = i + 1
+			break
+		}
+	}
+	if start == 0 {
+		for start < ratedAssistant && !strings.EqualFold(strings.TrimSpace(messages[start].Role), "user") {
+			start++
+		}
+	}
+	return append([]router.ConversationMessage(nil), messages[start:ratedAssistant+1]...)
 }
 
 // routerFeedbackAck renders the acknowledgment, echoing the verdict. The

@@ -121,36 +121,37 @@ func (c *Client) post(ctx context.Context, path string, payload map[string]inter
 }
 
 type routeRequest struct {
-	SchemaVersion        string             `json:"schema_version"`
-	Strategy             string             `json:"strategy"`
-	ExecutionMode        string             `json:"execution_mode"`
-	RouteID              string             `json:"route_id"`
-	OrganizationID       string             `json:"organization_id,omitempty"`
-	InstallationID       string             `json:"installation_id,omitempty"`
-	ClientApp            string             `json:"client_app,omitempty"`
-	Harness              string             `json:"harness,omitempty"`
-	RolloutID            string             `json:"rollout_id,omitempty"`
-	RequestedModel       string             `json:"requested_model,omitempty"`
-	PromptText           string             `json:"prompt_text"`
-	LatestUserText       string             `json:"latest_user_text,omitempty"`
-	TurnIndex            int                `json:"turn_index"`
-	ConversationMessages []routeMessage     `json:"conversation_messages,omitempty"`
-	AvailableTools       []string           `json:"available_tools,omitempty"`
-	FeedbackKey          string             `json:"feedback_key,omitempty"`
-	FeedbackRole         string             `json:"feedback_role,omitempty"`
-	EstimatedInputTokens int                `json:"estimated_input_tokens"`
-	HasTools             bool               `json:"has_tools"`
-	HasImages            bool               `json:"has_images"`
-	RoutingIntent        string             `json:"routing_intent,omitempty"`
-	PreferredModels      []string           `json:"preferred_models,omitempty"`
-	RoutingKnobs         *routingKnobs      `json:"routing_knobs,omitempty"`
-	QualityBias          *float64           `json:"quality_bias,omitempty"`
-	TrainingAllowed      bool               `json:"training_allowed"`
-	CaptureMode          string             `json:"capture_mode,omitempty"`
-	DebugEnabled         bool               `json:"debug_enabled"`
-	Candidates           []policy.Candidate `json:"candidates"`
-	CandidateModels      []string           `json:"candidate_models"`
-	CandidateProviders   map[string]string  `json:"candidate_providers"`
+	SchemaVersion             string             `json:"schema_version"`
+	Strategy                  string             `json:"strategy"`
+	ExecutionMode             string             `json:"execution_mode"`
+	RouteID                   string             `json:"route_id"`
+	OrganizationID            string             `json:"organization_id,omitempty"`
+	InstallationID            string             `json:"installation_id,omitempty"`
+	ClientApp                 string             `json:"client_app,omitempty"`
+	Harness                   string             `json:"harness,omitempty"`
+	RolloutID                 string             `json:"rollout_id,omitempty"`
+	RequestedModel            string             `json:"requested_model,omitempty"`
+	PromptText                string             `json:"prompt_text"`
+	LatestUserText            string             `json:"latest_user_text,omitempty"`
+	TurnIndex                 int                `json:"turn_index"`
+	ConversationMessages      []routeMessage     `json:"conversation_messages,omitempty"`
+	TrainingConversationDelta []routeMessage     `json:"training_conversation_delta,omitempty"`
+	AvailableTools            []string           `json:"available_tools,omitempty"`
+	FeedbackKey               string             `json:"feedback_key,omitempty"`
+	FeedbackRole              string             `json:"feedback_role,omitempty"`
+	EstimatedInputTokens      int                `json:"estimated_input_tokens"`
+	HasTools                  bool               `json:"has_tools"`
+	HasImages                 bool               `json:"has_images"`
+	RoutingIntent             string             `json:"routing_intent,omitempty"`
+	PreferredModels           []string           `json:"preferred_models,omitempty"`
+	RoutingKnobs              *routingKnobs      `json:"routing_knobs,omitempty"`
+	QualityBias               *float64           `json:"quality_bias,omitempty"`
+	TrainingAllowed           bool               `json:"training_allowed"`
+	CaptureMode               string             `json:"capture_mode,omitempty"`
+	DebugEnabled              bool               `json:"debug_enabled"`
+	Candidates                []policy.Candidate `json:"candidates"`
+	CandidateModels           []string           `json:"candidate_models"`
+	CandidateProviders        map[string]string  `json:"candidate_providers"`
 }
 
 type routingKnobs struct {
@@ -170,11 +171,13 @@ type routeMessage struct {
 type routeToolCall struct {
 	Name      string   `json:"name,omitempty"`
 	InputKeys []string `json:"input_keys,omitempty"`
+	InputJSON string   `json:"input_json,omitempty"`
 }
 
 type routeToolResult struct {
 	ToolUseID string `json:"tool_use_id,omitempty"`
 	IsError   bool   `json:"is_error,omitempty"`
+	Text      string `json:"text,omitempty"`
 }
 
 type routeResponse struct {
@@ -222,37 +225,42 @@ func (c *Client) Decide(ctx context.Context, query policy.Query) (policy.Result,
 		providerMap[candidate.RosterID] = candidate.Provider
 	}
 	messages := routeMessages(query.ConversationMessages)
+	var trainingDelta []routeMessage
+	if query.Strategy == router.StrategyHMM && query.TrainingAllowed {
+		trainingDelta = trainingRouteMessageDelta(query.ConversationMessages)
+	}
 	body, err := json.Marshal(routeRequest{
-		SchemaVersion:        policy.SchemaVersionV1,
-		Strategy:             string(query.Strategy),
-		ExecutionMode:        query.ExecutionMode,
-		RouteID:              query.RouteID,
-		OrganizationID:       query.OrganizationID,
-		InstallationID:       query.InstallationID,
-		ClientApp:            query.ClientApp,
-		Harness:              query.ClientApp,
-		RolloutID:            query.RolloutID,
-		RequestedModel:       query.RequestedModel,
-		PromptText:           query.PromptText,
-		LatestUserText:       latestUserText(messages),
-		TurnIndex:            turnIndex(messages),
-		ConversationMessages: messages,
-		AvailableTools:       clipRouteValues(query.AvailableTools, maxRouteToolCallInputKeys, maxRouteToolCallInputChars),
-		FeedbackKey:          query.FeedbackKey,
-		FeedbackRole:         query.FeedbackRole,
-		EstimatedInputTokens: query.EstimatedInputTokens,
-		HasTools:             query.HasTools,
-		HasImages:            query.HasImages,
-		RoutingIntent:        query.RoutingIntent,
-		PreferredModels:      query.PreferredModels,
-		RoutingKnobs:         wireRoutingKnobs(query.RoutingKnobs),
-		QualityBias:          qualityBias(query.RoutingKnobs),
-		TrainingAllowed:      query.TrainingAllowed,
-		CaptureMode:          query.CaptureMode,
-		DebugEnabled:         query.DebugEnabled,
-		Candidates:           query.Candidates,
-		CandidateModels:      models,
-		CandidateProviders:   providerMap,
+		SchemaVersion:             policy.SchemaVersionV1,
+		Strategy:                  string(query.Strategy),
+		ExecutionMode:             query.ExecutionMode,
+		RouteID:                   query.RouteID,
+		OrganizationID:            query.OrganizationID,
+		InstallationID:            query.InstallationID,
+		ClientApp:                 query.ClientApp,
+		Harness:                   query.ClientApp,
+		RolloutID:                 query.RolloutID,
+		RequestedModel:            query.RequestedModel,
+		PromptText:                query.PromptText,
+		LatestUserText:            latestUserText(messages),
+		TurnIndex:                 turnIndex(messages),
+		ConversationMessages:      messages,
+		TrainingConversationDelta: trainingDelta,
+		AvailableTools:            clipRouteValues(query.AvailableTools, maxRouteToolCallInputKeys, maxRouteToolCallInputChars),
+		FeedbackKey:               query.FeedbackKey,
+		FeedbackRole:              query.FeedbackRole,
+		EstimatedInputTokens:      query.EstimatedInputTokens,
+		HasTools:                  query.HasTools,
+		HasImages:                 query.HasImages,
+		RoutingIntent:             query.RoutingIntent,
+		PreferredModels:           query.PreferredModels,
+		RoutingKnobs:              wireRoutingKnobs(query.RoutingKnobs),
+		QualityBias:               qualityBias(query.RoutingKnobs),
+		TrainingAllowed:           query.TrainingAllowed,
+		CaptureMode:               query.CaptureMode,
+		DebugEnabled:              query.DebugEnabled,
+		Candidates:                query.Candidates,
+		CandidateModels:           models,
+		CandidateProviders:        providerMap,
 	})
 	if err != nil {
 		return policy.Result{}, fmt.Errorf("marshal policy route request: %w", err)
@@ -384,13 +392,63 @@ func qualityBias(knobs *router.Overrides) *float64 {
 	return knobs.QualityBias
 }
 
+type routeMessageLimits struct {
+	maxMessages           int
+	maxTextChars          int
+	maxTotalTextChars     int
+	maxToolCallInputKeys  int
+	maxToolCallInputChars int
+	includeToolCallInput  bool
+	includeToolResultText bool
+}
+
 func routeMessages(messages []router.ConversationMessage) []routeMessage {
+	return convertRouteMessages(messages, routeMessageLimits{
+		maxMessages:           maxRouteMessages,
+		maxTextChars:          maxRouteMessageTextChars,
+		maxTotalTextChars:     maxRouteMessageTotalChars,
+		maxToolCallInputKeys:  maxRouteToolCallInputKeys,
+		maxToolCallInputChars: maxRouteToolCallInputChars,
+	})
+}
+
+func trainingRouteMessageDelta(messages []router.ConversationMessage) []routeMessage {
+	if len(messages) == 0 {
+		return nil
+	}
+
+	// Each route happens before its next assistant response. Preserve the new
+	// exchange since the last response so training can reconstruct the turn.
+	start := 0
+	latestUser := -1
+	for i := len(messages) - 1; i >= 0; i-- {
+		if routeRole(messages[i].Role) == "user" {
+			latestUser = i
+			break
+		}
+	}
+	if latestUser >= 0 {
+		for i := latestUser - 1; i >= 0; i-- {
+			if routeRole(messages[i].Role) == "assistant" {
+				start = i
+				break
+			}
+		}
+	}
+
+	return convertRouteMessages(messages[start:], routeMessageLimits{
+		includeToolCallInput:  true,
+		includeToolResultText: true,
+	})
+}
+
+func convertRouteMessages(messages []router.ConversationMessage, limits routeMessageLimits) []routeMessage {
 	if len(messages) == 0 {
 		return nil
 	}
 	start := 0
-	if len(messages) > maxRouteMessages {
-		start = len(messages) - maxRouteMessages
+	if limits.maxMessages > 0 && len(messages) > limits.maxMessages {
+		start = len(messages) - limits.maxMessages
 	}
 	reversed := make([]routeMessage, 0, len(messages)-start)
 	totalText := 0
@@ -400,9 +458,9 @@ func routeMessages(messages []router.ConversationMessage) []routeMessage {
 		if role == "" {
 			continue
 		}
-		text := clipRouteText(message.Text, maxRouteMessageTextChars)
-		if totalText+len(text) > maxRouteMessageTotalChars {
-			remaining := maxRouteMessageTotalChars - totalText
+		text := clipRouteText(message.Text, limits.maxTextChars)
+		if limits.maxTotalTextChars > 0 && totalText+len(text) > limits.maxTotalTextChars {
+			remaining := limits.maxTotalTextChars - totalText
 			if remaining <= 0 {
 				text = ""
 			} else {
@@ -412,25 +470,36 @@ func routeMessages(messages []router.ConversationMessage) []routeMessage {
 		totalText += len(text)
 		calls := make([]routeToolCall, 0, len(message.ToolCalls))
 		for _, call := range message.ToolCalls {
-			name := clipRouteText(call.Name, maxRouteToolCallInputChars)
+			name := clipRouteText(call.Name, limits.maxToolCallInputChars)
 			if name == "" {
 				continue
 			}
 			keys := call.InputKeys
-			if len(keys) > maxRouteToolCallInputKeys {
-				keys = keys[:maxRouteToolCallInputKeys]
+			if limits.maxToolCallInputKeys > 0 && len(keys) > limits.maxToolCallInputKeys {
+				keys = keys[:limits.maxToolCallInputKeys]
 			}
 			inputKeys := make([]string, 0, len(keys))
 			for _, key := range keys {
-				if clipped := clipRouteText(key, maxRouteToolCallInputChars); clipped != "" {
+				if clipped := clipRouteText(key, limits.maxToolCallInputChars); clipped != "" {
 					inputKeys = append(inputKeys, clipped)
 				}
 			}
-			calls = append(calls, routeToolCall{Name: name, InputKeys: inputKeys})
+			routeCall := routeToolCall{Name: name, InputKeys: inputKeys}
+			if limits.includeToolCallInput {
+				routeCall.InputJSON = clipRouteText(call.InputJSON, limits.maxTextChars)
+			}
+			calls = append(calls, routeCall)
 		}
 		results := make([]routeToolResult, 0, len(message.ToolResults))
 		for _, result := range message.ToolResults {
-			results = append(results, routeToolResult{ToolUseID: clipRouteText(result.ToolUseID, maxRouteToolCallInputChars), IsError: result.IsError})
+			routeResult := routeToolResult{
+				ToolUseID: clipRouteText(result.ToolUseID, limits.maxToolCallInputChars),
+				IsError:   result.IsError,
+			}
+			if limits.includeToolResultText {
+				routeResult.Text = clipRouteText(result.Text, limits.maxTextChars)
+			}
+			results = append(results, routeResult)
 		}
 		if text == "" && len(calls) == 0 && len(results) == 0 {
 			continue

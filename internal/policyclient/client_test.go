@@ -64,10 +64,11 @@ func TestClientPostsVersionedRouteAndParsesPolicyMetadata(t *testing.T) {
 		ConversationMessages: []router.ConversationMessage{
 			{Role: "user", Text: "please explore the repo"},
 			{Role: "assistant", Text: "done"},
-			{Role: "tool", Text: "raw tool result is omitted"},
-			{Role: "user", Text: "latest hello", ToolCalls: []router.ConversationToolCall{{Name: "Read", InputKeys: []string{"file_path"}}}},
+			{Role: "user", ToolResults: []router.ConversationToolResult{{ToolUseID: "toolu_123", Text: "full tool result"}}},
+			{Role: "user", Text: "latest hello", ToolCalls: []router.ConversationToolCall{{Name: "Read", InputKeys: []string{"file_path"}, InputJSON: `{"file_path":"README.md"}`}}},
 		},
-		AvailableTools: []string{"Read", "Grep", "Read", ""},
+		AvailableTools:  []string{"Read", "Grep", "Read", ""},
+		TrainingAllowed: true,
 		Candidates: []policy.Candidate{{
 			RosterID:       "moonshotai/kimi-k2.7-code",
 			CatalogID:      "moonshotai/kimi-k2.7",
@@ -90,11 +91,19 @@ func TestClientPostsVersionedRouteAndParsesPolicyMetadata(t *testing.T) {
 	assert.Equal(t, []string{"moonshotai/kimi-k2.7"}, got.PreferredModels)
 	require.NotNil(t, got.QualityBias)
 	assert.Equal(t, 0.7, *got.QualityBias)
-	assert.False(t, got.TrainingAllowed)
+	assert.True(t, got.TrainingAllowed)
 	assert.True(t, got.DebugEnabled)
 	assert.Equal(t, "latest hello", got.LatestUserText)
 	assert.Equal(t, 1, got.TurnIndex)
 	assert.Equal(t, []string{"Read", "Grep"}, got.AvailableTools)
+	require.Len(t, got.TrainingConversationDelta, 3)
+	assert.Equal(t, "assistant", got.TrainingConversationDelta[0].Role)
+	require.Len(t, got.TrainingConversationDelta[1].ToolResults, 1)
+	assert.Equal(t, "full tool result", got.TrainingConversationDelta[1].ToolResults[0].Text)
+	require.Len(t, got.TrainingConversationDelta[2].ToolCalls, 1)
+	assert.Equal(t, `{"file_path":"README.md"}`, got.TrainingConversationDelta[2].ToolCalls[0].InputJSON)
+	assert.Empty(t, got.ConversationMessages[2].ToolResults[0].Text)
+	assert.Empty(t, got.ConversationMessages[3].ToolCalls[0].InputJSON)
 	require.Len(t, got.Candidates, 1)
 	assert.Equal(t, "moonshotai/kimi-k2.7", got.Candidates[0].CatalogID)
 	assert.Equal(t, "accounts/fireworks/models/kimi-k2p5", got.Candidates[0].UpstreamID)
@@ -121,6 +130,29 @@ func TestClientAcceptsLegacyRouteResponse(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "anthropic/claude-opus-4-8", result.Model)
 	assert.Empty(t, result.SchemaVersion)
+}
+
+func TestClientOmitsHMMTrainingTranscriptWithoutPermission(t *testing.T) {
+	var got routeRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		require.NoError(t, json.NewDecoder(request.Body).Decode(&got))
+		_ = json.NewEncoder(w).Encode(routeResponse{SelectedRosterID: "model"})
+	}))
+	defer server.Close()
+
+	_, err := New(server.URL, server.Client(), 0).Decide(context.Background(), policy.Query{
+		Strategy: router.StrategyHMM,
+		ConversationMessages: []router.ConversationMessage{
+			{Role: "user", Text: "request"},
+			{Role: "assistant", Text: "response"},
+			{Role: "user", Text: "next request"},
+		},
+		Candidates: []policy.Candidate{{RosterID: "model"}},
+	})
+
+	require.NoError(t, err)
+	assert.False(t, got.TrainingAllowed)
+	assert.Empty(t, got.TrainingConversationDelta)
 }
 
 func TestClientRejectsUnknownRouteSchema(t *testing.T) {

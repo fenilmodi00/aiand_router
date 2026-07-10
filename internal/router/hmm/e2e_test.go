@@ -19,6 +19,8 @@ func TestHTTPRouterEndToEndWithSidecar(t *testing.T) {
 	var gotRoute struct {
 		RouteID            string            `json:"route_id"`
 		PromptText         string            `json:"prompt_text"`
+		OrganizationID     string            `json:"organization_id"`
+		InstallationID     string            `json:"installation_id"`
 		HasTools           bool              `json:"has_tools"`
 		EstimatedTokens    int               `json:"estimated_input_tokens"`
 		CandidateModels    []string          `json:"candidate_models"`
@@ -55,6 +57,8 @@ func TestHTTPRouterEndToEndWithSidecar(t *testing.T) {
 		PromptText:           "please inspect the router source",
 		EstimatedInputTokens: 123,
 		HasTools:             true,
+		OrganizationID:       "org-test",
+		InstallationID:       "installation-test",
 	})
 
 	require.NoError(t, err)
@@ -67,6 +71,8 @@ func TestHTTPRouterEndToEndWithSidecar(t *testing.T) {
 	assert.Equal(t, "please inspect the router source", gotRoute.PromptText)
 	assert.True(t, gotRoute.HasTools)
 	assert.Equal(t, 123, gotRoute.EstimatedTokens)
+	assert.Equal(t, "org-test", gotRoute.OrganizationID)
+	assert.Equal(t, "installation-test", gotRoute.InstallationID)
 
 	err = r.ReportOutcome(context.Background(), map[string]interface{}{
 		"route_id":     decision.Metadata.RouteID,

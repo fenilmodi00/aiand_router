@@ -170,6 +170,7 @@ func TestService_RouterFeedbackCommand_ForwardsPolicyFeedback(t *testing.T) {
 	assert.Equal(t, "claude-haiku-4-5", payload["served_model"])
 	assert.Equal(t, installationID, payload["installation_id"])
 	assert.Equal(t, string(router.StrategyRL), payload["strategy"])
+	assert.NotContains(t, payload, "training_conversation_delta")
 	assert.NotEmpty(t, payload["feedback_key"])
 	assert.NotEmpty(t, payload["feedback_role"])
 }
@@ -221,6 +222,31 @@ func TestService_RouterFeedbackCommand_AcksBeforePolicyFeedbackCompletes(t *test
 	assert.Contains(t, first["text"], "Feedback recorded")
 }
 
+func TestService_RouterFeedbackCommand_OmitsTrainingTranscriptWithoutPermission(t *testing.T) {
+	const body = `{
+		"model":"claude-sonnet-4-6",
+		"max_tokens":1024,
+		"messages":[
+			{"role":"user","content":"first request"},
+			{"role":"assistant","content":"first response"},
+			{"role":"user","content":"/rf+"}
+		]
+	}`
+	store := newFakePinStore()
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	policyFeedback := &fakePolicyFeedbackRouter{}
+	svc := newPinSvc(fr, store).WithHMMRouter(policyFeedback)
+
+	ctx := router.WithStrategy(authedCtx(uuid.NewString()), router.StrategyHMM)
+	require.NoError(t, svc.ProxyMessages(ctx, []byte(body), httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))))
+	require.Eventually(t, func() bool {
+		return len(policyFeedback.Payloads()) == 1
+	}, time.Second, 10*time.Millisecond)
+	payload := policyFeedback.Payloads()[0]
+	assert.Equal(t, false, payload["training_allowed"])
+	assert.NotContains(t, payload, "training_conversation_delta")
+}
+
 func TestService_RouterFeedbackCommand_CorrelatesCompactedHMMRoute(t *testing.T) {
 	routeBody := []byte(`{
 		"model":"claude-haiku-4-5",
@@ -248,13 +274,18 @@ func TestService_RouterFeedbackCommand_CorrelatesCompactedHMMRoute(t *testing.T)
 		WithHMMRouter(policyFeedback).
 		WithAvailableModels(map[string]struct{}{"claude-haiku-4-5": {}}).
 		WithCompaction(nil, proxy.DefaultCompactionTriggerPct)
-	ctx := router.WithStrategy(authedCtx(uuid.NewString()), router.StrategyHMM)
+	installationID := uuid.NewString()
+	ctx := router.WithStrategy(authedCtx(installationID), router.StrategyHMM)
+	ctx = context.WithValue(ctx, proxy.ExternalIDContextKey{}, "org-test")
+	ctx = context.WithValue(ctx, proxy.PolicyTrainingAllowedContextKey{}, true)
 	httpReq := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
 	require.NoError(t, svc.ProxyMessages(ctx, routeBody, httptest.NewRecorder(), httpReq))
 
 	requests := policyFeedback.Requests()
 	require.Len(t, requests, 1)
 	assert.Equal(t, rawFeedbackKey, requests[0].FeedbackKey)
+	assert.Equal(t, "org-test", requests[0].OrganizationID)
+	assert.Equal(t, installationID, requests[0].InstallationID)
 
 	feedbackBody := []byte(`{
 		"model":"claude-haiku-4-5",
@@ -275,6 +306,15 @@ func TestService_RouterFeedbackCommand_CorrelatesCompactedHMMRoute(t *testing.T)
 	require.Len(t, payloads, 1)
 	assert.Equal(t, requests[0].FeedbackKey, payloads[0]["feedback_key"])
 	assert.Equal(t, requests[0].FeedbackRole, payloads[0]["feedback_role"])
+	assert.Equal(t, "org-test", payloads[0]["organization_id"])
+	assert.Equal(t, true, payloads[0]["training_allowed"])
+	delta, ok := payloads[0]["training_conversation_delta"].([]router.ConversationMessage)
+	require.True(t, ok)
+	require.Len(t, delta, 2)
+	assert.Equal(t, "user", delta[0].Role)
+	assert.Equal(t, "latest request", delta[0].Text)
+	assert.Equal(t, "assistant", delta[1].Role)
+	assert.Equal(t, "done", delta[1].Text)
 }
 
 func TestService_RouterFeedbackCommand_DoesNotForwardPolicyFeedbackOutsideHMM(t *testing.T) {

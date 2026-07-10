@@ -1578,7 +1578,10 @@ func (s *Service) routeWithStrategy(ctx context.Context, strategy router.Strateg
 
 func (s *Service) withPolicyRequestContext(ctx context.Context, req router.Request) router.Request {
 	req.OrganizationID, _ = ctx.Value(ExternalIDContextKey{}).(string)
-	req.InstallationID, _ = ctx.Value(InstallationIDContextKey{}).(string)
+	req.InstallationID = ""
+	if installationID := installationIDFromContext(ctx); installationID != uuid.Nil {
+		req.InstallationID = installationID.String()
+	}
 	clientIdentity := ClientIdentityFrom(ctx)
 	req.ClientApp = clientIdentity.ClientApp
 	req.RolloutID = policyRolloutIDFromContext(ctx)
@@ -1633,6 +1636,11 @@ func (s *Service) RouteAnthropicRequest(ctx context.Context, body []byte) (decis
 	if embedFlag && feats.OnlyUserMessageText != "" {
 		promptText = feats.OnlyUserMessageText
 	}
+	organizationID, _ := ctx.Value(ExternalIDContextKey{}).(string)
+	installationID := ""
+	if id := installationIDFromContext(ctx); id != uuid.Nil {
+		installationID = id.String()
+	}
 
 	decision, err = s.Route(ctx, router.Request{
 		RequestedModel:       feats.Model,
@@ -1641,6 +1649,8 @@ func (s *Service) RouteAnthropicRequest(ctx context.Context, body []byte) (decis
 		PromptText:           promptText,
 		ConversationMessages: conversationMessagesForRouting(env),
 		AvailableTools:       availableToolsForRouting(env),
+		OrganizationID:       organizationID,
+		InstallationID:       installationID,
 		RoutingKnobs:         router.RoutingKnobsFromContext(ctx),
 	})
 	return decision, err
@@ -2078,6 +2088,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		PromptText:           promptText,
 		ConversationMessages: conversationMessagesForRouting(env),
 		AvailableTools:       availableToolsForRouting(env),
+		OrganizationID:       externalID,
 		// Keep this tied to client-visible history so a later feedback command
 		// can correlate with the route even if local compaction rewrites env.
 		FeedbackKey:      hex.EncodeToString(sessionKey[:]),
@@ -2086,6 +2097,9 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		ExcludedModels:   excluded,
 		PreferredModels:  s.preferredModelsForRequest(ctx),
 		RoutingKnobs:     routingKnobsForRequest(ctx),
+	}
+	if installationID != uuid.Nil {
+		req.InstallationID = installationID.String()
 	}
 	routeRes, routeErr := s.runTurnLoop(ctx, env, feats, apiKeyID, installationID, "", r.Header, req)
 	if routeErr != nil {
