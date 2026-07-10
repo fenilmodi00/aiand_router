@@ -344,6 +344,9 @@ type PolicyDebugEnabledContextKey struct{}
 // PolicyRoutingIntentContextKey carries a strategy-neutral routing preset.
 type PolicyRoutingIntentContextKey struct{}
 
+// PolicyRolloutIDContextKey carries the installation-level rollout identifier.
+type PolicyRolloutIDContextKey struct{}
+
 // UsageBypassConfig is the per-installation subscription usage-bypass setting,
 // stashed on ctx by the auth middleware. Threshold is nil when the toggle is on
 // but no value has been chosen yet; the request path falls back to
@@ -1474,6 +1477,20 @@ func (s *Service) PolicyCapabilities(strategy router.Strategy) (policy.Capabilit
 	return registered.capabilities, ok
 }
 
+// RegisteredStrategies returns every configured non-default strategy in
+// deterministic order. Middleware uses this list instead of hardcoding IDs.
+func (s *Service) RegisteredStrategies() []router.Strategy {
+	if s == nil {
+		return nil
+	}
+	strategies := make([]router.Strategy, 0, len(s.strategies))
+	for strategy := range s.strategies {
+		strategies = append(strategies, strategy)
+	}
+	sort.Slice(strategies, func(i, j int) bool { return strategies[i] < strategies[j] })
+	return strategies
+}
+
 // WithRLRouter is retained for source compatibility. New wiring should call
 // WithPolicyStrategy directly.
 func (s *Service) WithRLRouter(r router.Router) *Service {
@@ -1541,12 +1558,19 @@ func (s *Service) withPolicyRequestContext(ctx context.Context, req router.Reque
 	req.InstallationID, _ = ctx.Value(InstallationIDContextKey{}).(string)
 	clientIdentity := ClientIdentityFrom(ctx)
 	req.ClientApp = clientIdentity.ClientApp
-	req.RolloutID = clientIdentity.RolloutID
+	req.RolloutID = policyRolloutIDFromContext(ctx)
 	req.CaptureMode = s.captureMode.String()
 	req.TrainingAllowed, _ = ctx.Value(PolicyTrainingAllowedContextKey{}).(bool)
 	req.DebugEnabled, _ = ctx.Value(PolicyDebugEnabledContextKey{}).(bool)
 	req.RoutingIntent, _ = ctx.Value(PolicyRoutingIntentContextKey{}).(string)
 	return req
+}
+
+func policyRolloutIDFromContext(ctx context.Context) string {
+	if rolloutID, ok := ctx.Value(PolicyRolloutIDContextKey{}).(string); ok && rolloutID != "" {
+		return rolloutID
+	}
+	return ClientIdentityFrom(ctx).RolloutID
 }
 
 func defaultStrategyUnavailable(strategy router.Strategy) error {
@@ -2803,7 +2827,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 			RouterUserID:           auth.UserIDFrom(ctx),
 			ClientApp:              clientID.ClientApp,
 			TurnType:               string(routeRes.TurnType),
-			RolloutID:              clientID.RolloutID,
+			RolloutID:              policyRolloutIDFromContext(ctx),
 			UpstreamFinishReason:   stringPtrOrEmpty(respSummary.UpstreamFinishReason),
 			StopReason:             stringPtrOrEmpty(respSummary.StopReason),
 			// Only valid when a translator ran (StopReason populated) — the
@@ -3124,7 +3148,7 @@ func (s *Service) reportPolicyOutcome(ctx context.Context, res turnLoopResult, d
 		"organization_id":        organizationID,
 		"installation_id":        installationID,
 		"client_app":             clientIdentity.ClientApp,
-		"rollout_id":             clientIdentity.RolloutID,
+		"rollout_id":             policyRolloutIDFromContext(ctx),
 		"training_allowed":       trainingAllowed,
 		"capture_mode":           s.captureMode.String(),
 		"policy_route_key":       routeMetadata.PolicyRouteKey,
@@ -4448,7 +4472,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 			RouterUserID:           auth.UserIDFrom(ctx),
 			ClientApp:              clientID.ClientApp,
 			TurnType:               string(routeRes.TurnType),
-			RolloutID:              clientID.RolloutID,
+			RolloutID:              policyRolloutIDFromContext(ctx),
 			FailoverUsed:           boolPtrTrue(finalProvider != primaryProvider),
 			// (session_key, role) join key — see the Anthropic-path write site.
 			SessionKey: sessionKey[:],
