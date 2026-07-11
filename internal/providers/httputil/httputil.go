@@ -233,6 +233,11 @@ func StartIdleWatchdogCause(ctx context.Context, cancel context.CancelCauseFunc,
 // call mark() on every output-bearing delta, and stop() via defer.
 // minDeltas <= 0, window <= 0, or cancel == nil disables the watchdog (no-op).
 // minElapsed <= 0 evaluates as soon as a full window of data exists.
+//
+// Zero-mark windows never fire: silence is a stall (output-stall watchdog's domain).
+// Reasoning models (e.g. interleaved thinking) can produce nothing output-bearing
+// for minutes; only persistent dribble is the target. Firing requires two consecutive
+// sub-floor productive windows; a zero-mark window resets the streak.
 func StartThroughputWatchdog(ctx context.Context, cancel context.CancelCauseFunc, window, minElapsed time.Duration, minDeltas int, cause error) (mark func(), stop func()) {
 	if minDeltas <= 0 || window <= 0 || cancel == nil {
 		return func() {}, func() {}
@@ -250,6 +255,7 @@ func StartThroughputWatchdog(ctx context.Context, cancel context.CancelCauseFunc
 		// Anchors the trailing window: marks-in-window = current - snapshot.
 		var windowStartCount int64
 		windowStart := start
+		subFloorStreak := 0
 		for {
 			select {
 			case <-ctx.Done():
@@ -272,10 +278,16 @@ func StartThroughputWatchdog(ctx context.Context, cancel context.CancelCauseFunc
 					continue
 				}
 				cur := count.Load()
-				rate := float64(cur-windowStartCount) / elapsed.Seconds()
-				if rate < floorRate {
-					cancel(cause)
-					return
+				marks := cur - windowStartCount
+				rate := float64(marks) / elapsed.Seconds()
+				if marks > 0 && rate < floorRate {
+					subFloorStreak++
+					if subFloorStreak >= 2 {
+						cancel(cause)
+						return
+					}
+				} else {
+					subFloorStreak = 0
 				}
 				// Slide the window forward.
 				windowStartCount = cur
