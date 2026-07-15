@@ -573,8 +573,19 @@ func main() {
 	var rlRouter router.Router
 	if rlSidecarURL := config.GetOr("ROUTER_RL_SIDECAR_URL", ""); rlSidecarURL != "" {
 		rlTimeout := parseEnvDurationMs("ROUTER_RL_SIDECAR_TIMEOUT_MS", rl.DefaultTimeout)
-		rlRouter = rl.New(rl.NewHTTPDecider(rlSidecarURL, nil, rlTimeout), availableModels, availableProviders)
-		logger.Info("RL policy router wired", "sidecar_url", rlSidecarURL, "timeout_ms", rlTimeout.Milliseconds(), "candidate_models", len(availableModels))
+		rlHeaders := rlSidecarHeadersFromEnv()
+		rlRouter = rl.New(
+			rl.NewHTTPDeciderWithHeaders(rlSidecarURL, nil, rlTimeout, rlHeaders),
+			availableModels,
+			availableProviders,
+		)
+		logger.Info(
+			"RL policy router wired",
+			"sidecar_url", rlSidecarURL,
+			"timeout_ms", rlTimeout.Milliseconds(),
+			"candidate_models", len(availableModels),
+			"modal_proxy_auth", len(rlHeaders) > 0,
+		)
 	} else {
 		logger.Info("RL policy router disabled (ROUTER_RL_SIDECAR_URL unset); x-weave-router-strategy: rl will return 503")
 	}
@@ -1179,6 +1190,30 @@ func boolDefault(b bool) string {
 		return "true"
 	}
 	return "false"
+}
+
+// rlSidecarHeadersFromEnv builds Modal-Key / Modal-Secret headers when
+// both env vars are set (Modal ASGI requires_proxy_auth=True). A partial
+// pair logs an error and returns nil so misconfig surfaces at startup.
+func rlSidecarHeadersFromEnv() map[string]string {
+	key := strings.TrimSpace(config.GetOr("ROUTER_RL_SIDECAR_MODAL_KEY", ""))
+	secret := strings.TrimSpace(config.GetOr("ROUTER_RL_SIDECAR_MODAL_SECRET", ""))
+	if key == "" && secret == "" {
+		return nil
+	}
+	if key == "" || secret == "" {
+		observability.Get().Error(
+			"Partial Modal RL sidecar proxy auth config; omitting headers",
+			"has_key", key != "",
+			"has_secret", secret != "",
+			"hint", "set both ROUTER_RL_SIDECAR_MODAL_KEY and ROUTER_RL_SIDECAR_MODAL_SECRET",
+		)
+		return nil
+	}
+	return map[string]string{
+		"Modal-Key":    key,
+		"Modal-Secret": secret,
+	}
 }
 
 // parseEnvDurationMs reads an env var as a millisecond integer and returns
