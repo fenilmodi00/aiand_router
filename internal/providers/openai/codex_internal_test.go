@@ -123,3 +123,65 @@ func TestProxy_NoCodexCredHitsOpenAI(t *testing.T) {
 	assert.Equal(t, "/v1/chat/completions", gotPath)
 	assert.Empty(t, gotAccount, "a non-subscription request must not send the Codex account-id header")
 }
+
+// TestProxy_ResponsesMaxEffortClampedWithoutCodexCred guards against the
+// api.openai.com 400 on "max" effort: without a Codex credential the request
+// lands on api.openai.com (not the Codex backend), which rejects "max".
+func TestProxy_ResponsesMaxEffortClampedWithoutCodexCred(t *testing.T) {
+	var gotPath string
+	var gotBody []byte
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotBody, _ = io.ReadAll(r.Body)
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, "event: response.completed\ndata: {\"type\":\"response.completed\"}\n\n")
+	}))
+	defer upstream.Close()
+
+	c := NewClient("deployment-key", upstream.URL)
+	c.codexBaseURL = "https://chatgpt.example.invalid" // must NOT be used
+
+	body := []byte(`{"model":"gpt-5.6-sol","input":"hi","stream":true,"reasoning":{"effort":"max","summary":"detailed"}}`)
+	prep := providers.PreparedRequest{Body: body, Endpoint: providers.EndpointResponses, Headers: make(http.Header)}
+	rec := httptest.NewRecorder()
+	clientReq := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(""))
+
+	// No Codex subscription credential in ctx — mirrors a router-keyed /
+	// BYOK / deployment-key Codex turn.
+	err := c.Proxy(context.Background(), router.Decision{Model: "gpt-5.6-sol", Provider: providers.ProviderOpenAI}, prep, rec, clientReq)
+	require.NoError(t, err)
+
+	assert.Equal(t, "/v1/responses", gotPath, "must dispatch to the public Responses API, not the Codex backend")
+	assert.JSONEq(t,
+		`{"model":"gpt-5.6-sol","input":"hi","stream":true,"reasoning":{"effort":"xhigh","summary":"detailed"}}`,
+		string(gotBody),
+		"'max' must be clamped to 'xhigh' (the top public-API level) before reaching api.openai.com; nothing else in the body changes")
+}
+
+// TestProxy_ResponsesMaxEffortUnchangedWithCodexCred confirms the clamp is
+// scoped to the non-Codex-backend branch; the Codex backend accepts "max" natively.
+func TestProxy_ResponsesMaxEffortUnchangedWithCodexCred(t *testing.T) {
+	var gotBody []byte
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotBody, _ = io.ReadAll(r.Body)
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, "event: response.completed\ndata: {\"type\":\"response.completed\"}\n\n")
+	}))
+	defer upstream.Close()
+
+	c := NewClient("deployment-key", upstream.URL)
+	c.codexBaseURL = upstream.URL
+
+	body := []byte(`{"model":"gpt-5.6-sol","input":"hi","stream":true,"reasoning":{"effort":"max","summary":"detailed"}}`)
+	prep := providers.PreparedRequest{Body: body, Endpoint: providers.EndpointResponses, Headers: make(http.Header)}
+	rec := httptest.NewRecorder()
+	clientReq := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(""))
+
+	ctx := codexCtx("eyJhbGciOiJ-codex-jwt", "acct-12345")
+	err := c.Proxy(ctx, router.Decision{Model: "gpt-5.6-sol", Provider: providers.ProviderOpenAI}, prep, rec, clientReq)
+	require.NoError(t, err)
+
+	assert.Equal(t, body, gotBody, "the Codex backend understands 'max' natively; the body must not be altered")
+}

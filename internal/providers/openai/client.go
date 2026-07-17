@@ -17,6 +17,9 @@ import (
 	"workweave/router/internal/proxy"
 	"workweave/router/internal/router"
 	"workweave/router/internal/timing"
+
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 const DefaultBaseURL = "https://api.openai.com"
@@ -36,6 +39,20 @@ const (
 	codexUserAgentHeader  = "User-Agent"
 	codexUserAgentValue   = "codex_cli_rs"
 )
+
+// maxEffortToXhigh clamps reasoning.effort from "max" to "xhigh" in a
+// Responses-API body. "max" is valid only on the Codex backend; the public
+// api.openai.com Responses API tops out at "xhigh" and 400s on "max".
+func maxEffortToXhigh(body []byte) []byte {
+	if gjson.GetBytes(body, "reasoning.effort").String() != "max" {
+		return body
+	}
+	out, err := sjson.SetBytes(body, "reasoning.effort", "xhigh")
+	if err != nil {
+		return body
+	}
+	return out
+}
 
 // codexSubscriptionCreds returns the resolved credential when it's a Codex
 // (ChatGPT) subscription bearer (OAuth token with a paired account id), else
@@ -180,11 +197,16 @@ func (c *Client) Proxy(ctx context.Context, decision router.Decision, prep provi
 	if prep.Endpoint == providers.EndpointResponses {
 		path = "/v1/responses"
 	}
+	reqBody := prep.Body
 	if useCodex {
 		baseURL = c.codexBaseURL
 		path = codexResponsesPath
+	} else if prep.Endpoint == providers.EndpointResponses {
+		// Only the direct api.openai.com Responses path needs the clamp; the
+		// Codex backend branch above understands "max" natively.
+		reqBody = maxEffortToXhigh(reqBody)
 	}
-	upstream, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+path, bytes.NewReader(prep.Body))
+	upstream, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+path, bytes.NewReader(reqBody))
 	if err != nil {
 		return fmt.Errorf("build upstream request: %w", err)
 	}
