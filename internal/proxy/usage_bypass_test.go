@@ -174,17 +174,55 @@ func TestUsageBypass_NoSubscription_EngagesRouting(t *testing.T) {
 	assert.Equal(t, 1, fr.routeCalls, "no subscription credential means nothing to bypass onto — scorer must run")
 }
 
-// TestUsageBypass_ExcludedModel_EngagesRouting: a model on the installation's
-// deny list must force routing even under threshold, so the bypass can't serve
-// a policy-blocked model.
-func TestUsageBypass_ExcludedModel_EngagesRouting(t *testing.T) {
-	svc, fr, _ := bypassFixture(t, 0.20)
+// TestUsageBypass_InstallationExcludedModel_StillBypasses: installation
+// excluded_models is a routing preference, not a hard block. A bypass-enabled
+// caller must be served on their own subscription even for a policy-excluded model.
+func TestUsageBypass_InstallationExcludedModel_StillBypasses(t *testing.T) {
+	svc, fr, p := bypassFixture(t, 0.20)
 	svc = svc.WithExcludedModelsOverride([]string{bypassRequestedMdl})
 	rec, req, body := bypassRequest(t)
 
 	require.NoError(t, svc.ProxyMessages(bypassCtx(0.80), body, rec, req))
 
-	assert.Equal(t, 1, fr.routeCalls, "an excluded requested model must force routing even under threshold")
+	assert.Equal(t, 0, fr.routeCalls, "an installation-excluded model must still bypass — the exclusion is a routing preference, not a hard block")
+	require.Len(t, p.proxyBodies, 1, "the requested model must be dispatched to the subscription exactly once")
+	assert.Equal(t, bypassRequestedMdl, rec.Header().Get("x-router-model"), "bypass must serve the requested model, not a substituted one")
+}
+
+// TestUsageBypass_MaxedOutModel_EngagesRouting: the maxed-out guard writes
+// the saturated model to SafetyExcludedModels so an auto-continue re-request
+// falls through to the scorer, preventing bypass from reopening the max-output loop.
+func TestUsageBypass_MaxedOutModel_EngagesRouting(t *testing.T) {
+	store := newFakePinStore()
+	store.hasPin = true
+	store.pin = sessionpin.Pin{
+		Provider:         providers.ProviderAnthropic,
+		Model:            bypassRequestedMdl, // the model the client keeps requesting
+		LastServedModel:  bypassRequestedMdl, // saturated the output cap last turn
+		Reason:           "cluster:v0.2",
+		PinnedUntil:      time.Now().Add(30 * time.Minute),
+		FirstPinnedAt:    time.Now().Add(-5 * time.Minute),
+		LastOutputTokens: 8192, // >= prevTurnMaxedOutThreshold
+		LastTurnEndedAt:  time.Now().Add(-10 * time.Second),
+	}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: bypassScorerPickMdl, Reason: "fresh"}}
+	obs := usage.NewObserver([]byte("salt"), 10*time.Minute, time.Now)
+	obs.Record(obs.Key([]byte(bypassSubToken)), usage.Snapshot{Primary: usage.Window{UsedPercent: 0.20, WindowMinutes: 300}})
+	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAnthropic: &fakeProvider{}}, nil, false, nil, store, false, providers.ProviderAnthropic, bypassScorerPickMdl, nil).
+		WithSubscriptionAwareRouting(obs, 0.05, 2.0)
+
+	ctx := context.WithValue(authedCtx(uuid.New().String()), proxy.AnthropicSubscriptionContextKey{}, bypassSubToken)
+	threshold := 0.80
+	ctx = context.WithValue(ctx, proxy.InstallationUsageBypassContextKey{}, proxy.UsageBypassConfig{Enabled: true, Threshold: &threshold})
+	rec, req, body := bypassRequest(t)
+
+	require.NoError(t, svc.ProxyMessages(ctx, body, rec, req))
+
+	assert.Equal(t, 1, fr.routeCalls, "a maxed-out model must fall through to the scorer, not re-bypass and reopen the loop")
+	require.NotNil(t, fr.capturedReq)
+	assert.Contains(t, fr.capturedReq.SafetyExcludedModels, bypassRequestedMdl,
+		"the maxed-out model must be in the safety-exclusion set so the bypass gate refuses it")
+	assert.Equal(t, bypassScorerPickMdl, rec.Header().Get("x-router-model"), "scorer's pick replaces the saturated model")
 }
 
 // TestUsageBypass_ToolResult_BeatsStalePin: a session that previously routed
