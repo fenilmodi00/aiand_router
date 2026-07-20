@@ -109,6 +109,7 @@ func (r *SidecarRouter) PreviewRoute(ctx context.Context, req router.Request) (P
 	resolved := r.resolver.Resolve(req)
 	requestRouteID := uuid.NewString()
 	result, err := previewer.Preview(ctx, Query{
+		SchemaVersion:        r.resolver.SchemaVersion(),
 		Strategy:             strategy,
 		ExecutionMode:        ExecutionModePreview,
 		RouteID:              requestRouteID,
@@ -141,17 +142,21 @@ func (r *SidecarRouter) PreviewRoute(ctx context.Context, req router.Request) (P
 	if result.RouteID != "" && result.RouteID != requestRouteID {
 		return PreviewResult{}, fmt.Errorf("%s: preview route id mismatch: %w", strategy, r.config.Unavailable)
 	}
-	if err := validatePreviewResult(result); err != nil {
+	if err := validatePreviewResult(result, r.resolver.SchemaVersion()); err != nil {
 		return PreviewResult{}, fmt.Errorf("%s: invalid preview result: %v: %w", strategy, err, r.config.Unavailable)
 	}
 
+	eligibleCandidates := resolved.ByRosterID
+	if r.resolver.SchemaVersion() == SchemaVersionV2 {
+		eligibleCandidates = resolved.ByArmID
+	}
 	seen := make(map[string]struct{}, len(result.EligibleRosterIDs))
 	for _, rosterID := range result.EligibleRosterIDs {
 		if _, duplicate := seen[rosterID]; duplicate {
 			return PreviewResult{}, fmt.Errorf("%s: preview returned duplicate roster id %q: %w", strategy, rosterID, r.config.Unavailable)
 		}
 		seen[rosterID] = struct{}{}
-		if _, offered := resolved.ByRosterID[rosterID]; !offered {
+		if _, offered := eligibleCandidates[rosterID]; !offered {
 			return PreviewResult{}, fmt.Errorf("%s: preview returned unknown roster id %q: %w", strategy, rosterID, r.config.Unavailable)
 		}
 	}
@@ -166,8 +171,8 @@ func (r *SidecarRouter) PreviewRoute(ctx context.Context, req router.Request) (P
 	return result, nil
 }
 
-func validatePreviewResult(result PreviewResult) error {
-	if result.SchemaVersion != SchemaVersionV1 {
+func validatePreviewResult(result PreviewResult, expectedSchemaVersion string) error {
+	if result.SchemaVersion != expectedSchemaVersion {
 		return fmt.Errorf("unsupported schema %q", result.SchemaVersion)
 	}
 	if result.PolicyArtifactID == "" || result.PolicyArtifactSHA256 == "" || result.RosterSHA256 == "" {
@@ -274,6 +279,7 @@ func (r *SidecarRouter) Route(ctx context.Context, req router.Request) (router.D
 	}
 	requestRouteID := uuid.NewString()
 	res, err := r.decider.Decide(ctx, Query{
+		SchemaVersion:        r.resolver.SchemaVersion(),
 		Strategy:             strategy,
 		ExecutionMode:        executionMode,
 		RouteID:              requestRouteID,
@@ -304,9 +310,9 @@ func (r *SidecarRouter) Route(ctx context.Context, req router.Request) (router.D
 		observability.FromContext(ctx).Error("Policy router sidecar decision failed", "strategy", strategy, "err", err)
 		return router.Decision{}, fmt.Errorf("%s: sidecar decide: %w: %w", strategy, err, r.config.Unavailable)
 	}
-	binding, ok := resolved.ByRosterID[res.Model]
+	binding, ok := resolved.BindingForSelection(res.ArmID, res.Model)
 	if !ok {
-		return router.Decision{}, fmt.Errorf("%s: sidecar returned unknown model %q: %w", strategy, res.Model, r.config.Unavailable)
+		return router.Decision{}, fmt.Errorf("%s: sidecar returned unknown arm %q or model %q: %w", strategy, res.ArmID, res.Model, r.config.Unavailable)
 	}
 	if res.Provider != "" && res.Provider != binding.Provider {
 		return router.Decision{}, fmt.Errorf("%s: sidecar returned provider %q for %q, expected %q: %w", strategy, res.Provider, res.Model, binding.Provider, r.config.Unavailable)
@@ -337,6 +343,7 @@ func (r *SidecarRouter) Route(ctx context.Context, req router.Request) (router.D
 		"route_id", routeID,
 		"model", binding.CatalogID,
 		"provider", binding.Provider,
+		"arm_id", res.ArmID,
 		"roster_model", res.Model,
 		"score", res.Score,
 	)
@@ -348,6 +355,8 @@ func (r *SidecarRouter) Route(ctx context.Context, req router.Request) (router.D
 			CandidateModels:               resolved.CandidateModels(),
 			CandidateProviders:            resolved.CandidateProviders(),
 			CandidateScores:               resolved.CatalogCandidateScores(res.CandidateScores),
+			CandidateArmProviders:         resolved.CandidateArmProviders(),
+			CandidateArmScores:            resolved.ArmCandidateScores(res.CandidateScores),
 			ChosenScore:                   float32(res.Score),
 			Propensity:                    propensity,
 			DisplayMarker:                 res.DisplayMarker,
@@ -357,9 +366,13 @@ func (r *SidecarRouter) Route(ctx context.Context, req router.Request) (router.D
 			PolicyArtifactID:              res.PolicyArtifactID,
 			PolicyArtifactSHA256:          res.PolicyArtifactSHA256,
 			RosterVersion:                 res.RosterVersion,
+			SelectedArmID:                 res.ArmID,
 			SidecarSchemaVersion:          res.SchemaVersion,
 			DebugRef:                      debugRef,
 			AuthoritativePerTurnSelection: capabilities.AuthoritativePerTurnSelection,
+			SelectedUpstreamID:            binding.UpstreamID,
+			BindingIndex:                  binding.BindingIndex,
+			CandidateArmIDs:               resolved.CandidateArmIDs(),
 		},
 	}, nil
 }

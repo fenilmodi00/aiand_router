@@ -101,7 +101,7 @@ func (c *Client) Capabilities(ctx context.Context) (policy.Capabilities, error) 
 	if err := json.Unmarshal(payload, &capabilities); err != nil {
 		return policy.Capabilities{}, fmt.Errorf("decode policy capabilities response: %w", err)
 	}
-	if capabilities.SchemaVersion != policy.SchemaVersionV1 {
+	if capabilities.SchemaVersion != policy.SchemaVersionV1 && capabilities.SchemaVersion != policy.SchemaVersionV2 {
 		return policy.Capabilities{}, fmt.Errorf("unsupported policy capabilities schema %q", capabilities.SchemaVersion)
 	}
 	return capabilities, nil
@@ -140,47 +140,71 @@ func (c *Client) post(ctx context.Context, path string, payload map[string]inter
 }
 
 type routeRequest struct {
-	SchemaVersion             string             `json:"schema_version"`
-	Strategy                  string             `json:"strategy"`
-	ExecutionMode             string             `json:"execution_mode"`
-	RouteID                   string             `json:"route_id"`
-	OrganizationID            string             `json:"organization_id,omitempty"`
-	InstallationID            string             `json:"installation_id,omitempty"`
-	ClientApp                 string             `json:"client_app,omitempty"`
-	Harness                   string             `json:"harness,omitempty"`
-	RolloutID                 string             `json:"rollout_id,omitempty"`
-	RequestedModel            string             `json:"requested_model,omitempty"`
-	PromptText                string             `json:"prompt_text"`
-	LatestUserText            string             `json:"latest_user_text,omitempty"`
-	TurnIndex                 int                `json:"turn_index"`
-	VisibleTurnIndex          *int               `json:"visible_turn_index,omitempty"`
-	SessionTurnCount          *int               `json:"session_turn_count,omitempty"`
-	TurnType                  string             `json:"turn_type,omitempty"`
-	PreviousServedModel       string             `json:"previous_served_model,omitempty"`
-	PreviousProvider          string             `json:"previous_provider,omitempty"`
-	CacheState                string             `json:"cache_state,omitempty"`
-	PriorOutputTokens         *int               `json:"prior_output_tokens,omitempty"`
-	SessionEverSwitched       *bool              `json:"session_ever_switched,omitempty"`
-	HistoryTruncated          *bool              `json:"history_truncated,omitempty"`
-	ConversationMessages      []routeMessage     `json:"conversation_messages,omitempty"`
-	TrainingConversationDelta []routeMessage     `json:"training_conversation_delta,omitempty"`
-	AvailableTools            []string           `json:"available_tools,omitempty"`
-	FeedbackKey               string             `json:"feedback_key,omitempty"`
-	FeedbackRole              string             `json:"feedback_role,omitempty"`
-	ClientSessionID           string             `json:"client_session_id,omitempty"`
-	EstimatedInputTokens      int                `json:"estimated_input_tokens"`
-	HasTools                  bool               `json:"has_tools"`
-	HasImages                 bool               `json:"has_images"`
-	RoutingIntent             string             `json:"routing_intent,omitempty"`
-	PreferredModels           []string           `json:"preferred_models,omitempty"`
-	RoutingKnobs              *routingKnobs      `json:"routing_knobs,omitempty"`
-	QualityBias               *float64           `json:"quality_bias,omitempty"`
-	TrainingAllowed           bool               `json:"training_allowed"`
-	CaptureMode               string             `json:"capture_mode,omitempty"`
-	DebugEnabled              bool               `json:"debug_enabled"`
-	Candidates                []policy.Candidate `json:"candidates"`
-	CandidateModels           []string           `json:"candidate_models"`
-	CandidateProviders        map[string]string  `json:"candidate_providers"`
+	SchemaVersion             string            `json:"schema_version"`
+	Strategy                  string            `json:"strategy"`
+	ExecutionMode             string            `json:"execution_mode"`
+	RouteID                   string            `json:"route_id"`
+	OrganizationID            string            `json:"organization_id,omitempty"`
+	InstallationID            string            `json:"installation_id,omitempty"`
+	ClientApp                 string            `json:"client_app,omitempty"`
+	Harness                   string            `json:"harness,omitempty"`
+	RolloutID                 string            `json:"rollout_id,omitempty"`
+	RequestedModel            string            `json:"requested_model,omitempty"`
+	PromptText                string            `json:"prompt_text"`
+	LatestUserText            string            `json:"latest_user_text,omitempty"`
+	TurnIndex                 int               `json:"turn_index"`
+	VisibleTurnIndex          *int              `json:"visible_turn_index,omitempty"`
+	SessionTurnCount          *int              `json:"session_turn_count,omitempty"`
+	TurnType                  string            `json:"turn_type,omitempty"`
+	PreviousServedModel       string            `json:"previous_served_model,omitempty"`
+	PreviousProvider          string            `json:"previous_provider,omitempty"`
+	CacheState                string            `json:"cache_state,omitempty"`
+	PriorOutputTokens         *int              `json:"prior_output_tokens,omitempty"`
+	SessionEverSwitched       *bool             `json:"session_ever_switched,omitempty"`
+	HistoryTruncated          *bool             `json:"history_truncated,omitempty"`
+	ConversationMessages      []routeMessage    `json:"conversation_messages,omitempty"`
+	TrainingConversationDelta []routeMessage    `json:"training_conversation_delta,omitempty"`
+	AvailableTools            []string          `json:"available_tools,omitempty"`
+	FeedbackKey               string            `json:"feedback_key,omitempty"`
+	FeedbackRole              string            `json:"feedback_role,omitempty"`
+	ClientSessionID           string            `json:"client_session_id,omitempty"`
+	EstimatedInputTokens      int               `json:"estimated_input_tokens"`
+	HasTools                  bool              `json:"has_tools"`
+	HasImages                 bool              `json:"has_images"`
+	RoutingIntent             string            `json:"routing_intent,omitempty"`
+	PreferredModels           []string          `json:"preferred_models,omitempty"`
+	RoutingKnobs              *routingKnobs     `json:"routing_knobs,omitempty"`
+	QualityBias               *float64          `json:"quality_bias,omitempty"`
+	TrainingAllowed           bool              `json:"training_allowed"`
+	CaptureMode               string            `json:"capture_mode,omitempty"`
+	DebugEnabled              bool              `json:"debug_enabled"`
+	Candidates                []routeCandidate  `json:"candidates"`
+	CandidateModels           []string          `json:"candidate_models"`
+	CandidateProviders        map[string]string `json:"candidate_providers"`
+}
+
+type routeCandidate struct {
+	RosterID                  string                       `json:"roster_id"`
+	CatalogID                 string                       `json:"catalog_id"`
+	Provider                  string                       `json:"provider"`
+	UpstreamID                string                       `json:"upstream_id"`
+	PreferenceRank            *int                         `json:"preference_rank,omitempty"`
+	InputUSDPer1M             float64                      `json:"input_usd_per_1m"`
+	OutputUSDPer1M            float64                      `json:"output_usd_per_1m"`
+	EstimatedCostUSD          float64                      `json:"estimated_cost_usd"`
+	CacheReadMultiplier       float64                      `json:"cache_read_multiplier"`
+	MarginalCostFactor        float64                      `json:"marginal_cost_factor"`
+	EffectiveInputUSDPer1M    float64                      `json:"effective_input_usd_per_1m"`
+	EffectiveOutputUSDPer1M   float64                      `json:"effective_output_usd_per_1m"`
+	EffectiveEstimatedCostUSD float64                      `json:"effective_estimated_cost_usd"`
+	Capabilities              policy.CandidateCapabilities `json:"capabilities"`
+
+	ArmID                        string `json:"arm_id,omitempty"`
+	BindingIndex                 *int   `json:"binding_index,omitempty"`
+	Endpoint                     string `json:"endpoint,omitempty"`
+	ModelRevision                string `json:"model_revision,omitempty"`
+	ReasoningConfigurationSHA256 string `json:"reasoning_configuration_sha256,omitempty"`
+	ToolConfigurationSHA256      string `json:"tool_configuration_sha256,omitempty"`
 }
 
 type routingKnobs struct {
@@ -216,6 +240,7 @@ type routeToolResult struct {
 type routeResponse struct {
 	SchemaVersion        string                 `json:"schema_version"`
 	RouteID              string                 `json:"route_id"`
+	SelectedArmID        string                 `json:"selected_arm_id"`
 	SelectedRosterID     string                 `json:"selected_roster_id"`
 	SelectedProvider     string                 `json:"selected_provider"`
 	Model                string                 `json:"model"`
@@ -290,12 +315,12 @@ func (c *Client) Decide(ctx context.Context, query policy.Query) (policy.Result,
 		}
 		return policy.Result{}, fmt.Errorf("policy sidecar status %d", resp.StatusCode)
 	}
-	if parsed.SchemaVersion != "" && parsed.SchemaVersion != policy.SchemaVersionV1 {
+	if parsed.SchemaVersion != "" && parsed.SchemaVersion != policy.SchemaVersionV1 && parsed.SchemaVersion != policy.SchemaVersionV2 {
 		return policy.Result{}, fmt.Errorf("unsupported policy route schema %q", parsed.SchemaVersion)
 	}
 	selectedModel := firstNonEmpty(parsed.SelectedRosterID, parsed.Model)
-	if selectedModel == "" {
-		return policy.Result{}, fmt.Errorf("policy sidecar returned empty model")
+	if parsed.SelectedArmID == "" && selectedModel == "" {
+		return policy.Result{}, fmt.Errorf("policy sidecar returned empty arm and model")
 	}
 	score := parsed.Score
 	if parsed.ChosenScore != nil {
@@ -304,6 +329,7 @@ func (c *Client) Decide(ctx context.Context, query policy.Query) (policy.Result,
 	return policy.Result{
 		SchemaVersion:        parsed.SchemaVersion,
 		RouteID:              parsed.RouteID,
+		ArmID:                parsed.SelectedArmID,
 		Model:                selectedModel,
 		Provider:             parsed.SelectedProvider,
 		Score:                score,
@@ -351,7 +377,7 @@ func (c *Client) Preview(ctx context.Context, query policy.Query) (policy.Previe
 		}
 		return policy.PreviewResult{}, fmt.Errorf("policy preview status %d", resp.StatusCode)
 	}
-	if parsed.SchemaVersion != policy.SchemaVersionV1 {
+	if parsed.SchemaVersion != policy.SchemaVersionV1 && parsed.SchemaVersion != policy.SchemaVersionV2 {
 		return policy.PreviewResult{}, fmt.Errorf("unsupported policy preview schema %q", parsed.SchemaVersion)
 	}
 	return policy.PreviewResult{
@@ -372,11 +398,20 @@ func (c *Client) Preview(ctx context.Context, query policy.Query) (policy.Previe
 }
 
 func marshalRouteRequest(query policy.Query) ([]byte, error) {
+	schemaVersion := query.SchemaVersion
+	if schemaVersion == "" {
+		schemaVersion = policy.SchemaVersionV1
+	}
+	candidates := routeCandidates(query.Candidates, schemaVersion)
 	models := make([]string, 0, len(query.Candidates))
 	providerMap := make(map[string]string, len(query.Candidates))
 	for _, candidate := range query.Candidates {
-		models = append(models, candidate.RosterID)
-		providerMap[candidate.RosterID] = candidate.Provider
+		providerKey := candidate.RosterID
+		if schemaVersion == policy.SchemaVersionV2 {
+			providerKey = candidate.ArmID
+		}
+		models = append(models, providerKey)
+		providerMap[providerKey] = candidate.Provider
 	}
 	messages := routeMessages(query.ConversationMessages)
 	wireTurnIndex := turnIndex(messages)
@@ -409,7 +444,7 @@ func marshalRouteRequest(query policy.Query) ([]byte, error) {
 		trainingDelta = trainingRouteMessageDelta(query.ConversationMessages)
 	}
 	body, err := json.Marshal(routeRequest{
-		SchemaVersion:             policy.SchemaVersionV1,
+		SchemaVersion:             schemaVersion,
 		Strategy:                  string(query.Strategy),
 		ExecutionMode:             query.ExecutionMode,
 		RouteID:                   query.RouteID,
@@ -447,7 +482,7 @@ func marshalRouteRequest(query policy.Query) ([]byte, error) {
 		TrainingAllowed:           query.TrainingAllowed,
 		CaptureMode:               query.CaptureMode,
 		DebugEnabled:              query.DebugEnabled,
-		Candidates:                query.Candidates,
+		Candidates:                candidates,
 		CandidateModels:           models,
 		CandidateProviders:        providerMap,
 	})
@@ -455,6 +490,39 @@ func marshalRouteRequest(query policy.Query) ([]byte, error) {
 		return nil, fmt.Errorf("marshal policy route request: %w", err)
 	}
 	return body, nil
+}
+
+func routeCandidates(candidates []policy.Candidate, schemaVersion string) []routeCandidate {
+	result := make([]routeCandidate, 0, len(candidates))
+	for _, candidate := range candidates {
+		wireCandidate := routeCandidate{
+			RosterID:                  candidate.RosterID,
+			CatalogID:                 candidate.CatalogID,
+			Provider:                  candidate.Provider,
+			UpstreamID:                candidate.UpstreamID,
+			PreferenceRank:            candidate.PreferenceRank,
+			InputUSDPer1M:             candidate.InputUSDPer1M,
+			OutputUSDPer1M:            candidate.OutputUSDPer1M,
+			EstimatedCostUSD:          candidate.EstimatedCostUSD,
+			CacheReadMultiplier:       candidate.CacheReadMultiplier,
+			MarginalCostFactor:        candidate.MarginalCostFactor,
+			EffectiveInputUSDPer1M:    candidate.EffectiveInputUSDPer1M,
+			EffectiveOutputUSDPer1M:   candidate.EffectiveOutputUSDPer1M,
+			EffectiveEstimatedCostUSD: candidate.EffectiveEstimatedCostUSD,
+			Capabilities:              candidate.Capabilities,
+		}
+		if schemaVersion == policy.SchemaVersionV2 {
+			bindingIndex := candidate.BindingIndex
+			wireCandidate.ArmID = candidate.ArmID
+			wireCandidate.BindingIndex = &bindingIndex
+			wireCandidate.Endpoint = candidate.Endpoint
+			wireCandidate.ModelRevision = candidate.ModelRevision
+			wireCandidate.ReasoningConfigurationSHA256 = candidate.ReasoningConfigurationSHA256
+			wireCandidate.ToolConfigurationSHA256 = candidate.ToolConfigurationSHA256
+		}
+		result = append(result, wireCandidate)
+	}
+	return result
 }
 
 func pointerTo[T any](value T) *T {

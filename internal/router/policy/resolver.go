@@ -64,20 +64,27 @@ type Diagnostic struct {
 
 // Candidate is one catalog-backed model offered to a policy sidecar.
 type Candidate struct {
-	RosterID                  string                `json:"roster_id"`
-	CatalogID                 string                `json:"catalog_id"`
-	Provider                  string                `json:"provider"`
-	UpstreamID                string                `json:"upstream_id"`
-	PreferenceRank            *int                  `json:"preference_rank,omitempty"`
-	InputUSDPer1M             float64               `json:"input_usd_per_1m"`
-	OutputUSDPer1M            float64               `json:"output_usd_per_1m"`
-	EstimatedCostUSD          float64               `json:"estimated_cost_usd"`
-	CacheReadMultiplier       float64               `json:"cache_read_multiplier"`
-	MarginalCostFactor        float64               `json:"marginal_cost_factor"`
-	EffectiveInputUSDPer1M    float64               `json:"effective_input_usd_per_1m"`
-	EffectiveOutputUSDPer1M   float64               `json:"effective_output_usd_per_1m"`
-	EffectiveEstimatedCostUSD float64               `json:"effective_estimated_cost_usd"`
-	Capabilities              CandidateCapabilities `json:"capabilities"`
+	// ArmID is a configuration-level temporal-Q action ID; equals RosterID on the legacy resolver.
+	ArmID                        string                `json:"arm_id"`
+	RosterID                     string                `json:"roster_id"`
+	CatalogID                    string                `json:"catalog_id"`
+	Provider                     string                `json:"provider"`
+	UpstreamID                   string                `json:"upstream_id"`
+	BindingIndex                 int                   `json:"binding_index"`
+	Endpoint                     string                `json:"endpoint"`
+	ModelRevision                string                `json:"model_revision"`
+	ReasoningConfigurationSHA256 string                `json:"reasoning_configuration_sha256"`
+	ToolConfigurationSHA256      string                `json:"tool_configuration_sha256"`
+	PreferenceRank               *int                  `json:"preference_rank,omitempty"`
+	InputUSDPer1M                float64               `json:"input_usd_per_1m"`
+	OutputUSDPer1M               float64               `json:"output_usd_per_1m"`
+	EstimatedCostUSD             float64               `json:"estimated_cost_usd"`
+	CacheReadMultiplier          float64               `json:"cache_read_multiplier"`
+	MarginalCostFactor           float64               `json:"marginal_cost_factor"`
+	EffectiveInputUSDPer1M       float64               `json:"effective_input_usd_per_1m"`
+	EffectiveOutputUSDPer1M      float64               `json:"effective_output_usd_per_1m"`
+	EffectiveEstimatedCostUSD    float64               `json:"effective_estimated_cost_usd"`
+	Capabilities                 CandidateCapabilities `json:"capabilities"`
 }
 
 // CandidateCapabilities describes only dispatch-relevant catalog facts. It is
@@ -91,31 +98,65 @@ type CandidateCapabilities struct {
 
 // Binding is the authoritative dispatch binding for an offered roster ID.
 type Binding struct {
-	CatalogID string
-	Provider  string
+	ArmID                        string
+	CatalogID                    string
+	Provider                     string
+	UpstreamID                   string
+	BindingIndex                 int
+	Endpoint                     string
+	ModelRevision                string
+	ReasoningConfigurationSHA256 string
+	ToolConfigurationSHA256      string
 }
 
 // ResolvedCandidates is the complete result of candidate resolution.
 type ResolvedCandidates struct {
 	Candidates  []Candidate
+	ByArmID     map[string]Binding
 	ByRosterID  map[string]Binding
 	Diagnostics []Diagnostic
 }
 
-// CandidateModels returns catalog IDs in deterministic candidate order.
+// CandidateModels returns unique catalog IDs in first-candidate order.
 func (r ResolvedCandidates) CandidateModels() []string {
 	models := make([]string, 0, len(r.Candidates))
+	seen := make(map[string]struct{}, len(r.Candidates))
 	for _, candidate := range r.Candidates {
+		if _, exists := seen[candidate.CatalogID]; exists {
+			continue
+		}
+		seen[candidate.CatalogID] = struct{}{}
 		models = append(models, candidate.CatalogID)
 	}
 	return models
+}
+
+// CandidateArmIDs returns configuration-level action IDs in candidate order.
+func (r ResolvedCandidates) CandidateArmIDs() []string {
+	armIDs := make([]string, 0, len(r.Candidates))
+	for _, candidate := range r.Candidates {
+		armIDs = append(armIDs, candidate.ArmID)
+	}
+	return armIDs
 }
 
 // CandidateProviders returns the resolved provider for each catalog model.
 func (r ResolvedCandidates) CandidateProviders() map[string]string {
 	result := make(map[string]string, len(r.Candidates))
 	for _, candidate := range r.Candidates {
+		if _, exists := result[candidate.CatalogID]; exists {
+			continue
+		}
 		result[candidate.CatalogID] = candidate.Provider
+	}
+	return result
+}
+
+// CandidateArmProviders returns the resolved provider for every configuration-level arm.
+func (r ResolvedCandidates) CandidateArmProviders() map[string]string {
+	result := make(map[string]string, len(r.Candidates))
+	for _, candidate := range r.Candidates {
+		result[candidate.ArmID] = candidate.Provider
 	}
 	return result
 }
@@ -123,9 +164,30 @@ func (r ResolvedCandidates) CandidateProviders() map[string]string {
 // CatalogCandidateScores translates sidecar roster IDs to telemetry catalog IDs.
 func (r ResolvedCandidates) CatalogCandidateScores(scores map[string]float32) map[string]float32 {
 	result := make(map[string]float32, len(scores))
-	for rosterID, score := range scores {
-		if binding, ok := r.ByRosterID[rosterID]; ok {
-			result[binding.CatalogID] = score
+	for _, candidate := range r.Candidates {
+		if _, exists := result[candidate.CatalogID]; exists {
+			continue
+		}
+		score, ok := scores[candidate.ArmID]
+		if !ok {
+			score, ok = scores[candidate.RosterID]
+		}
+		if ok {
+			result[candidate.CatalogID] = score
+		}
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
+}
+
+// ArmCandidateScores keeps arm-level scores distinct for configuration-aware telemetry.
+func (r ResolvedCandidates) ArmCandidateScores(scores map[string]float32) map[string]float32 {
+	result := make(map[string]float32, len(scores))
+	for armID, score := range scores {
+		if _, ok := r.ByArmID[armID]; ok {
+			result[armID] = score
 		}
 	}
 	if len(result) == 0 {
@@ -136,12 +198,13 @@ func (r ResolvedCandidates) CatalogCandidateScores(scores map[string]float32) ma
 
 // Resolver builds the eligible catalog-backed candidate set for a policy.
 type Resolver struct {
-	deployed       map[string]struct{}
-	available      map[string]struct{}
-	mapper         RosterMapper
-	providerPolicy ProviderPolicy
-	toolLow        map[string]struct{}
-	imageLow       map[string]struct{}
+	deployed          map[string]struct{}
+	available         map[string]struct{}
+	mapper            RosterMapper
+	providerPolicy    ProviderPolicy
+	enumerateBindings bool
+	toolLow           map[string]struct{}
+	imageLow          map[string]struct{}
 }
 
 // NewResolver constructs a reusable policy candidate resolver.
@@ -156,6 +219,21 @@ func NewResolver(deployed, available map[string]struct{}, mapper RosterMapper, p
 	}
 }
 
+// NewArmResolver enumerates every enabled provider binding as a distinct candidate for arm-scoring policies; use NewResolver for model-scoring policies.
+func NewArmResolver(deployed, available map[string]struct{}, mapper RosterMapper, providerPolicy ProviderPolicy) *Resolver {
+	resolver := NewResolver(deployed, available, mapper, providerPolicy)
+	resolver.enumerateBindings = true
+	return resolver
+}
+
+// SchemaVersion returns the sidecar contract required by this resolver.
+func (r *Resolver) SchemaVersion() string {
+	if r.enumerateBindings {
+		return SchemaVersionV2
+	}
+	return SchemaVersionV1
+}
+
 type eligibleCandidate struct {
 	Candidate
 }
@@ -166,6 +244,7 @@ func (r *Resolver) Resolve(req router.Request) ResolvedCandidates {
 	diagnostics := make([]Diagnostic, 0)
 	base := make([]eligibleCandidate, 0, len(r.deployed))
 	preferenceRanks := preferenceRanks(req.PreferredModels)
+	armContext := DeriveArmContext(req)
 
 	deployedIDs := make([]string, 0, len(r.deployed))
 	for id := range r.deployed {
@@ -198,58 +277,87 @@ func (r *Resolver) Resolve(req router.Request) ResolvedCandidates {
 		if providerSet == nil {
 			providerSet = r.available
 		}
-		binding, ok := catalog.ResolveBinding(id, r.allowedProviders(providerSet))
-		if !ok {
+		allowedBindings := catalog.EnumerateBindings(
+			id,
+			r.allowedProviders(providerSet),
+		)
+		if len(allowedBindings) == 0 {
 			reason := ExclusionNoProvider
-			if unrestrictedBinding, found := catalog.ResolveBinding(id, providerSet); found && !r.providerPolicy.Allows(unrestrictedBinding.Provider) {
+			if unrestrictedBindings := catalog.EnumerateBindings(id, providerSet); len(unrestrictedBindings) > 0 {
 				reason = ExclusionProviderPolicy
 			}
 			diagnostics = append(diagnostics, Diagnostic{CatalogID: id, RosterID: rosterID, Reason: reason})
 			continue
 		}
 
-		marginalCostFactor := 1.0
-		if factor, found := req.SubsidizedModelCostFactor[id]; found && factor > 0 {
-			marginalCostFactor = factor
+		if !r.enumerateBindings {
+			allowedBindings = allowedBindings[:1]
 		}
-		base = append(base, eligibleCandidate{Candidate: Candidate{
-			RosterID:                  rosterID,
-			CatalogID:                 id,
-			Provider:                  binding.Provider,
-			UpstreamID:                upstreamID(id, binding.UpstreamID),
-			PreferenceRank:            preferenceRanks[id],
-			InputUSDPer1M:             binding.Price.InputUSDPer1M,
-			OutputUSDPer1M:            binding.Price.OutputUSDPer1M,
-			EstimatedCostUSD:          estimatedCostUSD(req, binding.Price),
-			CacheReadMultiplier:       binding.Price.EffectiveCacheReadMultiplier(),
-			MarginalCostFactor:        marginalCostFactor,
-			EffectiveInputUSDPer1M:    binding.Price.InputUSDPer1M * marginalCostFactor,
-			EffectiveOutputUSDPer1M:   binding.Price.OutputUSDPer1M * marginalCostFactor,
-			EffectiveEstimatedCostUSD: estimatedCostUSD(req, binding.Price) * marginalCostFactor,
-			Capabilities: CandidateCapabilities{
-				ContextWindow:  contextWindow,
-				Tier:           model.Tier.String(),
-				SupportsTools:  model.ToolUseQuality != catalog.ToolUseLow && model.AgenticUse != catalog.AgenticLow,
-				SupportsImages: model.ImageInput != catalog.ImageInputUnsupported,
-			},
-		}})
+		for _, binding := range allowedBindings {
+			upstreamID := catalog.UpstreamIDFor(id, binding.UpstreamID)
+			armID := rosterID
+			if r.enumerateBindings {
+				armID = MakeArmID(ArmIdentity{
+					CanonicalModel:               id,
+					Provider:                     binding.Provider,
+					UpstreamID:                   upstreamID,
+					Endpoint:                     armContext.Endpoint,
+					ModelRevision:                armContext.ModelRevision,
+					ReasoningConfigurationSHA256: armContext.ReasoningConfigurationSHA256,
+					ToolConfigurationSHA256:      armContext.ToolConfigurationSHA256,
+				})
+			}
+			marginalCostFactor := 1.0
+			if factor, found := req.SubsidizedModelCostFactor[id]; found && factor > 0 {
+				marginalCostFactor = factor
+			}
+			base = append(base, eligibleCandidate{Candidate: Candidate{
+				ArmID:                        armID,
+				RosterID:                     rosterID,
+				CatalogID:                    id,
+				Provider:                     binding.Provider,
+				UpstreamID:                   upstreamID,
+				BindingIndex:                 binding.Index,
+				Endpoint:                     armContext.Endpoint,
+				ModelRevision:                armContext.ModelRevision,
+				ReasoningConfigurationSHA256: armContext.ReasoningConfigurationSHA256,
+				ToolConfigurationSHA256:      armContext.ToolConfigurationSHA256,
+				PreferenceRank:               preferenceRanks[id],
+				InputUSDPer1M:                binding.Price.InputUSDPer1M,
+				OutputUSDPer1M:               binding.Price.OutputUSDPer1M,
+				EstimatedCostUSD:             estimatedCostUSD(req, binding.Price),
+				CacheReadMultiplier:          binding.Price.EffectiveCacheReadMultiplier(),
+				MarginalCostFactor:           marginalCostFactor,
+				EffectiveInputUSDPer1M:       binding.Price.InputUSDPer1M * marginalCostFactor,
+				EffectiveOutputUSDPer1M:      binding.Price.OutputUSDPer1M * marginalCostFactor,
+				EffectiveEstimatedCostUSD:    estimatedCostUSD(req, binding.Price) * marginalCostFactor,
+				Capabilities: CandidateCapabilities{
+					ContextWindow:  contextWindow,
+					Tier:           model.Tier.String(),
+					SupportsTools:  model.ToolUseQuality != catalog.ToolUseLow && model.AgenticUse != catalog.AgenticLow,
+					SupportsImages: model.ImageInput != catalog.ImageInputUnsupported,
+				},
+			}})
+		}
 	}
 
 	base, diagnostics = softFilter(base, req.HasImages, r.imageLow, ExclusionImageCapability, diagnostics)
 	base, diagnostics = softFilter(base, req.HasTools, r.toolLow, ExclusionToolCapability, diagnostics)
 
-	rosterCounts := make(map[string]int, len(base))
+	selectionCounts := make(map[string]int, len(base))
 	for _, candidate := range base {
-		rosterCounts[candidate.RosterID]++
+		selectionCounts[candidate.ArmID]++
 	}
 
 	resolved := ResolvedCandidates{
 		Candidates:  make([]Candidate, 0, len(base)),
+		ByArmID:     make(map[string]Binding, len(base)),
 		ByRosterID:  make(map[string]Binding, len(base)),
 		Diagnostics: diagnostics,
 	}
+	ambiguousRosterIDs := make(map[string]struct{})
 	for _, candidate := range base {
-		if rosterCounts[candidate.RosterID] > 1 {
+		if selectionCounts[candidate.ArmID] > 1 {
 			resolved.Diagnostics = append(resolved.Diagnostics, Diagnostic{
 				CatalogID: candidate.CatalogID,
 				RosterID:  candidate.RosterID,
@@ -258,16 +366,40 @@ func (r *Resolver) Resolve(req router.Request) ResolvedCandidates {
 			continue
 		}
 		resolved.Candidates = append(resolved.Candidates, candidate.Candidate)
-		resolved.ByRosterID[candidate.RosterID] = Binding{CatalogID: candidate.CatalogID, Provider: candidate.Provider}
+		binding := Binding{
+			ArmID:                        candidate.ArmID,
+			CatalogID:                    candidate.CatalogID,
+			Provider:                     candidate.Provider,
+			UpstreamID:                   candidate.UpstreamID,
+			BindingIndex:                 candidate.BindingIndex,
+			Endpoint:                     candidate.Endpoint,
+			ModelRevision:                candidate.ModelRevision,
+			ReasoningConfigurationSHA256: candidate.ReasoningConfigurationSHA256,
+			ToolConfigurationSHA256:      candidate.ToolConfigurationSHA256,
+		}
+		resolved.ByArmID[candidate.ArmID] = binding
+		if _, ambiguous := ambiguousRosterIDs[candidate.RosterID]; ambiguous {
+			continue
+		}
+		if _, exists := resolved.ByRosterID[candidate.RosterID]; !exists {
+			resolved.ByRosterID[candidate.RosterID] = binding
+		} else {
+			delete(resolved.ByRosterID, candidate.RosterID)
+			ambiguousRosterIDs[candidate.RosterID] = struct{}{}
+		}
 	}
 	return resolved
 }
 
-func upstreamID(catalogID, bindingID string) string {
-	if bindingID != "" {
-		return bindingID
+// BindingForSelection resolves a sidecar selection by arm ID first, then
+// preserves legacy roster-ID selection for existing policy artifacts.
+func (r ResolvedCandidates) BindingForSelection(armID, rosterID string) (Binding, bool) {
+	if armID != "" {
+		binding, ok := r.ByArmID[armID]
+		return binding, ok
 	}
-	return catalogID
+	binding, ok := r.ByRosterID[rosterID]
+	return binding, ok
 }
 
 func estimatedCostUSD(req router.Request, pricing catalog.Pricing) float64 {

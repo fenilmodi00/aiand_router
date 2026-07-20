@@ -303,6 +303,13 @@ type OpenAIAccountIDContextKey struct{}
 // Responses body to the Codex backend (its presence marks the passthrough).
 type codexResponsesBodyContextKey struct{}
 
+// nativeResponsesReasoningHashContextKey preserves reasoning that only native
+// Responses dispatch can represent.
+type nativeResponsesReasoningHashContextKey struct{}
+
+// nativeResponsesToolHashContextKey preserves native Responses tool identity.
+type nativeResponsesToolHashContextKey struct{}
+
 // InstallationExcludedModelsContextKey is the context key for the authed
 // installation's model exclusion list. Carried as []string.
 type InstallationExcludedModelsContextKey struct{}
@@ -2153,17 +2160,19 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 
 	routeStart := time.Now()
 	req := router.Request{
-		RequestedModel:          feats.Model,
-		ForceModel:              forceModel,
-		EstimatedInputTokens:    feats.Tokens,
-		HasTools:                feats.HasTools,
-		HasImages:               feats.HasImages,
-		TranslationRequirements: env.TranslationRequirements(router.EndpointAnthropicMessages),
-		PromptText:              promptText,
-		ConversationMessages:    conversationMessagesForRouting(env),
-		AvailableTools:          availableToolsForRouting(env),
-		HistoryTruncated:        compRes.Applied,
-		OrganizationID:          externalID,
+		RequestedModel:               feats.Model,
+		ForceModel:                   forceModel,
+		EstimatedInputTokens:         feats.Tokens,
+		HasTools:                     feats.HasTools,
+		HasImages:                    feats.HasImages,
+		TranslationRequirements:      env.TranslationRequirements(router.EndpointAnthropicMessages),
+		ReasoningConfigurationSHA256: env.ReasoningConfigurationSHA256(),
+		ToolConfigurationSHA256:      env.ToolConfigurationSHA256(),
+		PromptText:                   promptText,
+		ConversationMessages:         conversationMessagesForRouting(env),
+		AvailableTools:               availableToolsForRouting(env),
+		HistoryTruncated:             compRes.Applied,
+		OrganizationID:               externalID,
 		// Keep this tied to client-visible history so a later feedback command
 		// can correlate with the route even if local compaction rewrites env.
 		FeedbackKey:          hex.EncodeToString(sessionKey[:]),
@@ -4195,6 +4204,14 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	// provider.
 	responsesBody, _ := ctx.Value(codexResponsesBodyContextKey{}).([]byte)
 	responsesPassthrough := len(responsesBody) > 0
+	reasoningConfigurationHash := env.ReasoningConfigurationSHA256()
+	if nativeResponsesHash, ok := ctx.Value(nativeResponsesReasoningHashContextKey{}).(string); ok {
+		reasoningConfigurationHash = nativeResponsesHash
+	}
+	toolConfigurationHash := env.ToolConfigurationSHA256()
+	if nativeResponsesHash, ok := ctx.Value(nativeResponsesToolHashContextKey{}).(string); ok {
+		toolConfigurationHash = nativeResponsesHash
+	}
 
 	// Pre-filter models whose context window cannot fit this request.
 	outputReserveOAI := contextWindowOutputReserve
@@ -4249,15 +4266,18 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	}
 
 	routeRequest := router.Request{
-		RequestedModel:       feats.Model,
-		ForceModel:           forceModel,
-		EstimatedInputTokens: feats.Tokens,
-		HasTools:             feats.HasTools,
-		HasImages:            feats.HasImages,
-		PromptText:           promptText,
-		ConversationMessages: conversationMessagesForRouting(env),
-		AvailableTools:       availableToolsForRouting(env),
-		HistoryTruncated:     compResOAI.Applied,
+		RequestedModel:               feats.Model,
+		ForceModel:                   forceModel,
+		EstimatedInputTokens:         feats.Tokens,
+		HasTools:                     feats.HasTools,
+		HasImages:                    feats.HasImages,
+		TranslationRequirements:      env.TranslationRequirements(router.EndpointOpenAIChat),
+		ReasoningConfigurationSHA256: reasoningConfigurationHash,
+		ToolConfigurationSHA256:      toolConfigurationHash,
+		PromptText:                   promptText,
+		ConversationMessages:         conversationMessagesForRouting(env),
+		AvailableTools:               availableToolsForRouting(env),
+		HistoryTruncated:             compResOAI.Applied,
 		// Keep this tied to client-visible history so a later feedback command
 		// can correlate with the route even if local compaction rewrites env.
 		FeedbackKey:          hex.EncodeToString(sessionKey[:]),
@@ -4846,6 +4866,14 @@ func (s *Service) ProxyOpenAIResponses(ctx context.Context, body []byte, w http.
 	// Completions (NativeOnly) or a Codex subscription is using its direct endpoint.
 	if conversion.Requirements.NativeOnly || codexResponsesRequest(ctx, r.Header) {
 		ctx = context.WithValue(ctx, codexResponsesBodyContextKey{}, conversion.OriginalBody)
+	}
+	if conversion.Requirements.NativeOnly {
+		originalEnvelope, parseErr := translate.ParseOpenAI(conversion.OriginalBody)
+		if parseErr != nil {
+			return fmt.Errorf("parse native Responses request: %w", parseErr)
+		}
+		ctx = context.WithValue(ctx, nativeResponsesReasoningHashContextKey{}, originalEnvelope.ReasoningConfigurationSHA256())
+		ctx = context.WithValue(ctx, nativeResponsesToolHashContextKey{}, originalEnvelope.ToolConfigurationSHA256())
 	}
 	ctx = context.WithValue(ctx, responsesRequirementsContextKey{}, conversion.Requirements)
 	ctx = context.WithValue(ctx, responsesTransformsContextKey{}, conversion.Report)

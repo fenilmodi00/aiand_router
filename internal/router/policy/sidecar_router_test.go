@@ -106,6 +106,7 @@ func TestSidecarRouterOnboardsFutureStrategyWithoutProxyChanges(t *testing.T) {
 	assert.True(t, decision.Metadata.AuthoritativePerTurnSelection)
 	assert.Empty(t, decision.Metadata.DebugRef)
 	assert.Equal(t, strategy, decider.query.Strategy)
+	assert.Equal(t, policy.SchemaVersionV1, decider.query.SchemaVersion)
 	assert.Equal(t, policy.ExecutionModeServing, decider.query.ExecutionMode)
 	assert.Equal(t, "org-1", decider.query.OrganizationID)
 	assert.Equal(t, "cursor", decider.query.ClientApp)
@@ -123,6 +124,46 @@ func TestSidecarRouterOnboardsFutureStrategyWithoutProxyChanges(t *testing.T) {
 	require.NoError(t, adapter.ReportFeedback(context.Background(), map[string]interface{}{"feedback": "positive"}))
 	assert.Equal(t, "route-future", decider.outcome["route_id"])
 	assert.Equal(t, "positive", decider.feedback["feedback"])
+}
+
+func TestSidecarRouterDispatchesSidecarSelectedArm(t *testing.T) {
+	resolver := policy.NewArmResolver(
+		set("deepseek/deepseek-v4-pro"),
+		set(providers.ProviderMakora, providers.ProviderFireworks),
+		func(model catalog.Model) string { return model.ID },
+		policy.ManagedProviderPolicy(),
+	)
+	resolved := resolver.Resolve(router.Request{})
+	require.Len(t, resolved.Candidates, 2)
+	selected := resolved.Candidates[1]
+	decider := &recordingPolicy{result: policy.Result{
+		ArmID:    selected.ArmID,
+		Provider: selected.Provider,
+		Score:    0.9,
+		CandidateScores: map[string]float32{
+			resolved.Candidates[0].ArmID: 0.1,
+			resolved.Candidates[1].ArmID: 0.9,
+		},
+	}}
+	adapter := policy.NewSidecarRouter(policy.SidecarRouterConfig{
+		Strategy: router.Strategy("future-policy"),
+	}, decider, resolver)
+
+	decision, err := adapter.Route(context.Background(), router.Request{})
+
+	require.NoError(t, err)
+	assert.Equal(t, selected.CatalogID, decision.Model)
+	assert.Equal(t, selected.Provider, decision.Provider)
+	assert.Equal(t, selected.ArmID, decision.Metadata.SelectedArmID)
+	assert.Equal(t, map[string]string{
+		resolved.Candidates[0].ArmID: resolved.Candidates[0].Provider,
+		resolved.Candidates[1].ArmID: resolved.Candidates[1].Provider,
+	}, decision.Metadata.CandidateArmProviders)
+	assert.Equal(t, map[string]float32{
+		resolved.Candidates[0].ArmID: 0.1,
+		resolved.Candidates[1].ArmID: 0.9,
+	}, decision.Metadata.CandidateArmScores)
+	assert.Equal(t, policy.SchemaVersionV2, decider.query.SchemaVersion)
 }
 
 func TestSidecarRouterMarksShadowDecisionsNonLearning(t *testing.T) {
@@ -189,12 +230,52 @@ func TestSidecarRouterPreviewReturnsAllEligibleArmsWithoutLifecycleCallbacks(t *
 	assert.Equal(t, []string{"claude-opus-4-8", "gpt-5.5"}, result.EligibleRosterIDs)
 	assert.Equal(t, router.StrategyHMM, result.Strategy)
 	assert.NotEmpty(t, result.RouteID)
+	assert.Equal(t, policy.SchemaVersionV1, decider.previewQuery.SchemaVersion)
 	assert.Equal(t, policy.ExecutionModePreview, decider.previewQuery.ExecutionMode)
 	assert.False(t, decider.previewQuery.TrainingAllowed)
 	assert.True(t, decider.previewQuery.DebugEnabled)
 	assert.Len(t, decider.previewQuery.Candidates, 2)
 	assert.Nil(t, decider.outcome)
 	assert.Nil(t, decider.feedback)
+}
+
+func TestSidecarRouterPreviewUsesArmSchemaAndIDs(t *testing.T) {
+	resolver := policy.NewArmResolver(
+		set("deepseek/deepseek-v4-pro"),
+		set(providers.ProviderMakora, providers.ProviderFireworks),
+		catalogRosterID,
+		policy.ManagedProviderPolicy(),
+	)
+	resolved := resolver.Resolve(router.Request{})
+	require.Len(t, resolved.Candidates, 2)
+	selectedArmID := resolved.Candidates[0].ArmID
+	decider := &recordingPolicy{preview: policy.PreviewResult{
+		SchemaVersion:         policy.SchemaVersionV2,
+		PolicyArtifactID:      "temporal-q-v1",
+		PolicyArtifactSHA256:  "sha256:artifact",
+		RosterSHA256:          "sha256:roster",
+		HMMStateID:            0,
+		HMMStatePath:          []int{0},
+		HMMStateProbabilities: []float64{1},
+		ClassOrder:            []string{"provider-aware"},
+		ClassProbabilities:    map[string]float64{"provider-aware": 1},
+		RankedFallback: []policy.PreviewGroup{{
+			Group:        "provider-aware",
+			Probability:  1,
+			EligibleArms: []string{selectedArmID},
+		}},
+		SelectedGroup:     "provider-aware",
+		EligibleRosterIDs: []string{selectedArmID},
+	}}
+	adapter := policy.NewSidecarRouter(policy.SidecarRouterConfig{
+		Strategy: router.Strategy("temporal-q"),
+	}, decider, resolver).WithCapabilities(policy.Capabilities{SupportsPreview: true})
+
+	result, err := adapter.PreviewRoute(context.Background(), router.Request{})
+
+	require.NoError(t, err)
+	assert.Equal(t, policy.SchemaVersionV2, decider.previewQuery.SchemaVersion)
+	assert.Equal(t, []string{selectedArmID}, result.EligibleRosterIDs)
 }
 
 func TestSidecarRouterPreviewRecordsZeroEligibleArms(t *testing.T) {

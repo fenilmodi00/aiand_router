@@ -47,6 +47,67 @@ func TestResolverDefaultsUpstreamIDToCatalogID(t *testing.T) {
 
 	require.Len(t, resolved.Candidates, 1)
 	assert.Equal(t, "claude-opus-4-8", resolved.Candidates[0].UpstreamID)
+	assert.Equal(t, resolved.Candidates[0].RosterID, resolved.Candidates[0].ArmID)
+}
+
+func TestArmResolverEnumeratesEachAllowedProviderBinding(t *testing.T) {
+	resolver := policy.NewArmResolver(
+		set("deepseek/deepseek-v4-pro"),
+		set(providers.ProviderMakora, providers.ProviderFireworks),
+		catalogRosterID,
+		policy.ManagedProviderPolicy(),
+	)
+
+	resolved := resolver.Resolve(router.Request{})
+
+	require.Len(t, resolved.Candidates, 2)
+	assert.Equal(t, "deepseek/deepseek-v4-pro", resolved.Candidates[0].RosterID)
+	assert.Equal(t, "deepseek/deepseek-v4-pro", resolved.Candidates[1].RosterID)
+	assert.NotEqual(t, resolved.Candidates[0].ArmID, resolved.Candidates[1].ArmID)
+	assert.Empty(t, resolved.ByRosterID)
+	assert.Equal(t, []string{"deepseek/deepseek-v4-pro"}, resolved.CandidateModels())
+	assert.Equal(t, map[string]string{
+		resolved.Candidates[0].ArmID: resolved.Candidates[0].Provider,
+		resolved.Candidates[1].ArmID: resolved.Candidates[1].Provider,
+	}, resolved.CandidateArmProviders())
+	armScores := map[string]float32{
+		resolved.Candidates[0].ArmID: 0.1,
+		resolved.Candidates[1].ArmID: 0.2,
+	}
+	assert.Equal(t, armScores, resolved.ArmCandidateScores(armScores))
+	assert.Equal(t, map[string]string{
+		resolved.Candidates[0].CatalogID: resolved.Candidates[0].Provider,
+	}, resolved.CandidateProviders())
+	assert.Equal(t, map[string]float32{
+		resolved.Candidates[0].CatalogID: 0.1,
+	}, resolved.CatalogCandidateScores(armScores))
+	for _, candidate := range resolved.Candidates {
+		binding, ok := resolved.BindingForSelection(candidate.ArmID, "")
+		require.True(t, ok)
+		assert.Equal(t, candidate.Provider, binding.Provider)
+		assert.Equal(t, candidate.UpstreamID, binding.UpstreamID)
+	}
+}
+
+func TestArmResolverRejectsRosterOnlySelectionForThreeBindings(t *testing.T) {
+	resolver := policy.NewArmResolver(
+		set("deepseek/deepseek-v4-pro"),
+		set(
+			providers.ProviderMakora,
+			providers.ProviderTogether,
+			providers.ProviderFireworks,
+			providers.ProviderOpenRouter,
+		),
+		func(catalog.Model) string { return "shared/arm" },
+		policy.ProviderPolicy{},
+	)
+
+	resolved := resolver.Resolve(router.Request{})
+
+	require.Len(t, resolved.Candidates, 4)
+	assert.Empty(t, resolved.ByRosterID)
+	_, ok := resolved.BindingForSelection("", "shared/arm")
+	assert.False(t, ok)
 }
 
 func TestResolverAppliesHardFiltersAndPreferenceRanks(t *testing.T) {

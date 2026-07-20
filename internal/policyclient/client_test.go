@@ -25,6 +25,7 @@ func TestClientPostsVersionedRouteAndParsesPolicyMetadata(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(routeResponse{
 			SchemaVersion:        policy.SchemaVersionV1,
 			RouteID:              "route-1",
+			SelectedArmID:        "arm-kimi-fireworks",
 			SelectedRosterID:     "moonshotai/kimi-k2.7-code",
 			SelectedProvider:     providers.ProviderFireworks,
 			ChosenScore:          floatPtr(0.91),
@@ -91,6 +92,7 @@ func TestClientPostsVersionedRouteAndParsesPolicyMetadata(t *testing.T) {
 		ClientSessionID: "client-session-abc",
 		TrainingAllowed: true,
 		Candidates: []policy.Candidate{{
+			ArmID:          "arm-kimi-fireworks",
 			RosterID:       "moonshotai/kimi-k2.7-code",
 			CatalogID:      "moonshotai/kimi-k2.7",
 			Provider:       providers.ProviderFireworks,
@@ -146,6 +148,8 @@ func TestClientPostsVersionedRouteAndParsesPolicyMetadata(t *testing.T) {
 	assert.Equal(t, "success", got.ConversationMessages[2].ToolResults[0].ExitCategory)
 	assert.Empty(t, got.ConversationMessages[3].ToolCalls[0].InputJSON)
 	require.Len(t, got.Candidates, 1)
+	assert.Empty(t, got.Candidates[0].ArmID)
+	assert.Nil(t, got.Candidates[0].BindingIndex)
 	assert.Equal(t, "moonshotai/kimi-k2.7", got.Candidates[0].CatalogID)
 	assert.Equal(t, "accounts/fireworks/models/kimi-k2p5", got.Candidates[0].UpstreamID)
 	assert.Equal(t, "balanced|open", result.PolicyRouteKey)
@@ -153,9 +157,108 @@ func TestClientPostsVersionedRouteAndParsesPolicyMetadata(t *testing.T) {
 	assert.Equal(t, "hmm-prod", result.PolicyArtifactID)
 	assert.Equal(t, "sha256:abc", result.PolicyArtifactSHA256)
 	assert.Equal(t, "roster-v2", result.RosterVersion)
+	assert.Equal(t, "arm-kimi-fireworks", result.ArmID)
 	assert.Equal(t, "debug-1", result.DebugRef)
 	assert.Equal(t, 0.91, result.Score)
 	assert.Equal(t, map[string]float32{"moonshotai/kimi-k2.7-code": 0.91}, result.CandidateScores)
+}
+
+func TestClientOmitsV2CandidateFieldsFromV1(t *testing.T) {
+	body, err := marshalRouteRequest(policy.Query{
+		SchemaVersion: policy.SchemaVersionV1,
+		Candidates: []policy.Candidate{{
+			ArmID:                        "arm-fireworks",
+			RosterID:                     "deepseek/deepseek-v4-pro",
+			CatalogID:                    "deepseek/deepseek-v4-pro",
+			Provider:                     providers.ProviderFireworks,
+			BindingIndex:                 0,
+			Endpoint:                     string(router.EndpointAnthropicMessages),
+			ModelRevision:                "2026-07-20",
+			ReasoningConfigurationSHA256: "reasoning-hash",
+			ToolConfigurationSHA256:      "tool-hash",
+		}},
+	})
+
+	require.NoError(t, err)
+	var payload struct {
+		Candidates []map[string]json.RawMessage `json:"candidates"`
+	}
+	require.NoError(t, json.Unmarshal(body, &payload))
+	require.Len(t, payload.Candidates, 1)
+	for _, field := range []string{
+		"arm_id",
+		"binding_index",
+		"endpoint",
+		"model_revision",
+		"reasoning_configuration_sha256",
+		"tool_configuration_sha256",
+	} {
+		assert.NotContains(t, payload.Candidates[0], field)
+	}
+}
+
+func TestClientPostsArmProviderMapForV2(t *testing.T) {
+	var got routeRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		require.NoError(t, json.NewDecoder(request.Body).Decode(&got))
+		_ = json.NewEncoder(w).Encode(routeResponse{
+			SchemaVersion:    policy.SchemaVersionV2,
+			SelectedArmID:    "arm-fireworks",
+			SelectedRosterID: "deepseek/deepseek-v4-pro",
+		})
+	}))
+	defer server.Close()
+
+	_, err := New(server.URL, server.Client(), 0).Decide(context.Background(), policy.Query{
+		SchemaVersion: policy.SchemaVersionV2,
+		Candidates: []policy.Candidate{
+			{
+				ArmID:        "arm-fireworks",
+				RosterID:     "deepseek/deepseek-v4-pro",
+				CatalogID:    "deepseek/deepseek-v4-pro",
+				Provider:     providers.ProviderFireworks,
+				BindingIndex: 0,
+			},
+			{
+				ArmID:        "arm-makora",
+				RosterID:     "deepseek/deepseek-v4-pro",
+				CatalogID:    "deepseek/deepseek-v4-pro",
+				Provider:     providers.ProviderMakora,
+				BindingIndex: 1,
+			},
+		},
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{
+		"arm-fireworks": providers.ProviderFireworks,
+		"arm-makora":    providers.ProviderMakora,
+	}, got.CandidateProviders)
+	assert.Equal(t, []string{"arm-fireworks", "arm-makora"}, got.CandidateModels)
+	require.NotNil(t, got.Candidates[0].BindingIndex)
+	assert.Equal(t, 0, *got.Candidates[0].BindingIndex)
+	assert.Equal(t, "arm-fireworks", got.Candidates[0].ArmID)
+}
+
+func TestClientPreviewAcceptsV2Schema(t *testing.T) {
+	var got routeRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		require.NoError(t, json.NewDecoder(request.Body).Decode(&got))
+		_ = json.NewEncoder(w).Encode(previewResponse{
+			SchemaVersion: policy.SchemaVersionV2,
+		})
+	}))
+	defer server.Close()
+
+	result, err := New(server.URL, server.Client(), 0).Preview(context.Background(), policy.Query{
+		SchemaVersion: policy.SchemaVersionV2,
+		ExecutionMode: policy.ExecutionModePreview,
+		Candidates:    []policy.Candidate{{ArmID: "arm-a", RosterID: "model-a"}},
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, policy.SchemaVersionV2, got.SchemaVersion)
+	assert.Equal(t, policy.SchemaVersionV2, result.SchemaVersion)
 }
 
 func TestClientAcceptsLegacyRouteResponse(t *testing.T) {
@@ -311,16 +414,24 @@ func TestClientReturnsErrorAfterTransientRetriesExhausted(t *testing.T) {
 }
 
 func TestClientCapabilities(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
-		require.Equal(t, "/capabilities", request.URL.Path)
-		_ = json.NewEncoder(w).Encode(policy.Capabilities{SchemaVersion: policy.SchemaVersionV1, ReportsFeedback: true})
-	}))
-	defer server.Close()
+	for _, schemaVersion := range []string{policy.SchemaVersionV1, policy.SchemaVersionV2} {
+		t.Run(schemaVersion, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+				require.Equal(t, "/capabilities", request.URL.Path)
+				_ = json.NewEncoder(w).Encode(policy.Capabilities{
+					SchemaVersion:   schemaVersion,
+					ReportsFeedback: true,
+				})
+			}))
+			defer server.Close()
 
-	capabilities, err := New(server.URL, server.Client(), 0).Capabilities(context.Background())
+			capabilities, err := New(server.URL, server.Client(), 0).Capabilities(context.Background())
 
-	require.NoError(t, err)
-	assert.True(t, capabilities.ReportsFeedback)
+			require.NoError(t, err)
+			assert.Equal(t, schemaVersion, capabilities.SchemaVersion)
+			assert.True(t, capabilities.ReportsFeedback)
+		})
+	}
 }
 
 func TestClientCheckHealth(t *testing.T) {
