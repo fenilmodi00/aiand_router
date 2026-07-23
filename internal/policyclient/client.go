@@ -107,6 +107,42 @@ func (c *Client) Capabilities(ctx context.Context) (policy.Capabilities, error) 
 	return capabilities, nil
 }
 
+// rosterResponse is the shape of the sidecar's GET /roster body.
+type rosterResponse struct {
+	SchemaVersion string   `json:"schema_version"`
+	RosterVersion string   `json:"roster_version"`
+	RosterIDs     []string `json:"roster_ids"`
+}
+
+// Roster fetches roster arm IDs from the sidecar; unlike the cluster
+// artifact registry, this is the set the HMM strategy actually routes across.
+func (c *Client) Roster(ctx context.Context) ([]string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/roster", nil)
+	if err != nil {
+		return nil, fmt.Errorf("build policy roster request: %w", err)
+	}
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("call policy roster endpoint: %w", err)
+	}
+	defer resp.Body.Close()
+	payload, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return nil, fmt.Errorf("read policy roster response: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("policy roster status %d", resp.StatusCode)
+	}
+	var roster rosterResponse
+	if err := json.Unmarshal(payload, &roster); err != nil {
+		return nil, fmt.Errorf("decode policy roster response: %w", err)
+	}
+	if roster.SchemaVersion != policy.SchemaVersionV1 && roster.SchemaVersion != policy.SchemaVersionV2 {
+		return nil, fmt.Errorf("unsupported policy roster schema %q", roster.SchemaVersion)
+	}
+	return roster.RosterIDs, nil
+}
+
 func (c *Client) post(ctx context.Context, path string, payload map[string]interface{}, label string) error {
 	body, err := json.Marshal(payload)
 	if err != nil {
