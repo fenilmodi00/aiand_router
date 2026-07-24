@@ -33,3 +33,15 @@ func rosterIDFor(m catalog.Model) string {
 	}
 	return ""
 }
+
+// CatalogIDForRoster maps a roster arm ID back to its catalog model ID via the
+// same forward mapping the resolver uses. Returns the arm ID unchanged when no
+// catalog model maps to it.
+func CatalogIDForRoster(rosterID string) string {
+	for _, m := range catalog.Models {
+		if rosterIDFor(m) == rosterID {
+			return m.ID
+		}
+	}
+	return rosterID
+}

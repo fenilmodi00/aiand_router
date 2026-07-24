@@ -45,7 +45,11 @@ class PreviewingPolicy:
 
 
 class RosterPolicy:
-    roster_version = "b" * 64
+    clusters = {
+        "maximum": {"arms": ["provider/opus", "provider/fable"]},
+        "fast": {"arms": ["provider/haiku"]},
+    }
+    roster_version = "c" * 64
 
     def roster_ids(self) -> list[str]:
         return ["openai/gpt-5.6-sol", "anthropic/claude-opus-4.8"]
@@ -69,7 +73,27 @@ def test_capabilities_are_frozen_and_do_not_request_content_callbacks() -> None:
     assert payload["reports_outcomes"] is False
     assert payload["reports_feedback"] is False
     assert payload["supports_shadow"] is True
+    assert payload["reports_ranked_fallback"] is True
     assert payload["learning"]["state"] == "frozen_policy"
+
+
+def test_roster_returns_ordered_cluster_arms() -> None:
+    with TestClient(app) as client:
+        app.state.policy = RosterPolicy()
+        response = client.get("/roster")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["clusters"]["maximum"] == ["provider/opus", "provider/fable"]
+    assert payload["clusters"]["fast"] == ["provider/haiku"]
+    assert payload["roster_version"] == "c" * 64
+
+
+def test_roster_fails_closed_without_a_policy() -> None:
+    with TestClient(app) as client:
+        response = client.get("/roster")
+
+    assert response.status_code == 503
 
 
 def test_disabled_callbacks_are_contract_compatible_noops() -> None:

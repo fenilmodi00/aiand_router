@@ -90,6 +90,7 @@ def capabilities() -> JSONResponse:
             "supports_debug_route_detail": True,
             "supports_preview": True,
             "supports_shadow": True,
+            "reports_ranked_fallback": True,
             "authoritative_per_turn_selection": False,
             "learning": {
                 "enabled": False,
@@ -102,14 +103,20 @@ def capabilities() -> JSONResponse:
 
 @app.get("/roster")
 def roster() -> JSONResponse:
+    """Return the frozen roster: flat arm union + per-cluster ordered arm lists."""
     policy: FrozenPolicy | None = getattr(app.state, "policy", None)
     if policy is None:
         return JSONResponse({"error": "policy unavailable"}, status_code=503)
+    clusters: dict[str, list[str]] = {
+        label: [str(arm) for arm in cluster.get("arms") or []]
+        for label, cluster in policy.clusters.items()
+    }
     return JSONResponse(
         {
             "schema_version": SCHEMA_VERSION,
             "roster_version": policy.roster_version,
             "roster_ids": policy.roster_ids(),
+            "clusters": clusters,
         }
     )
 

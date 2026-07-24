@@ -361,7 +361,8 @@ func main() {
 
 	authSvc := auth.NewService(repo.Installations, repo.APIKeys, repo.ExternalAPIKeys, repo.Users, cache, userCache, time.Now).
 		WithEncryptor(encryptor).
-		WithInstallationChangeNotifier(notifier)
+		WithInstallationChangeNotifier(notifier).
+		WithClusterModelLists(repo.ClusterModelLists)
 
 	// Fans out Pub/Sub invalidations to this replica's cache; the 5-min TTL
 	// is the safety net if the listener falls behind.
@@ -608,6 +609,7 @@ func main() {
 	var hmmEmbeddingRouter router.Router
 	var hmmCapabilities policy.Capabilities
 	var hmmReadinessChecker admin.HealthChecker
+	var hmmRosterSource policy.RosterSource
 	var hmmRosterModels admin.HMMRosterSource
 	if hmmSidecarURL := config.GetOr("ROUTER_HMM_SIDECAR_URL", ""); hmmSidecarURL != "" {
 		hmmTimeout := parseEnvDurationMs("ROUTER_HMM_SIDECAR_TIMEOUT_MS", policyclient.DefaultTimeout)
@@ -618,6 +620,7 @@ func main() {
 			panic(clientErr)
 		}
 		hmmReadinessChecker = hmmClient
+		hmmRosterSource = hmmClient
 		hmmRosterModels = newHMMRosterSource(hmmClient, hmmTimeout)
 		capabilityCtx, cancelCapabilityDiscovery := context.WithTimeout(context.Background(), hmmTimeout)
 		var capabilityErr error
@@ -856,7 +859,7 @@ func main() {
 	// Lets the admin model-selection handler surface deployed models; nil
 	// fallback keeps non-cluster routers bootable.
 	deployedModels, _ := rtr.(*cluster.Multiversion)
-	server.Register(engine, authSvc, proxySvc, deployedModels, hmmRosterModels, deploymentMode, billingSvc, hmmReadinessChecker)
+	server.Register(engine, authSvc, proxySvc, deployedModels, hmmRosterModels, deploymentMode, billingSvc, hmmReadinessChecker, hmmRosterSource)
 
 	srv := &http.Server{
 		Addr:    ":" + config.GetOr("PORT", "8080"),

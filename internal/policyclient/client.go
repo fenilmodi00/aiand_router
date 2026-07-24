@@ -109,38 +109,56 @@ func (c *Client) Capabilities(ctx context.Context) (policy.Capabilities, error) 
 
 // rosterResponse is the shape of the sidecar's GET /roster body.
 type rosterResponse struct {
-	SchemaVersion string   `json:"schema_version"`
-	RosterVersion string   `json:"roster_version"`
-	RosterIDs     []string `json:"roster_ids"`
+	SchemaVersion string              `json:"schema_version"`
+	RosterVersion string              `json:"roster_version"`
+	RosterIDs     []string            `json:"roster_ids"`
+	Clusters      map[string][]string `json:"clusters"`
 }
 
 // Roster fetches roster arm IDs from the sidecar; unlike the cluster
 // artifact registry, this is the set the HMM strategy actually routes across.
 func (c *Client) Roster(ctx context.Context) ([]string, error) {
+	roster, err := c.fetchRoster(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return roster.RosterIDs, nil
+}
+
+// ClusterRoster fetches the sidecar's frozen per-cluster arm roster.
+func (c *Client) ClusterRoster(ctx context.Context) (policy.RosterSnapshot, error) {
+	roster, err := c.fetchRoster(ctx)
+	if err != nil {
+		return policy.RosterSnapshot{}, err
+	}
+	return policy.RosterSnapshot{Clusters: roster.Clusters, RosterSHA256: roster.RosterVersion}, nil
+}
+
+func (c *Client) fetchRoster(ctx context.Context) (rosterResponse, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/roster", nil)
 	if err != nil {
-		return nil, fmt.Errorf("build policy roster request: %w", err)
+		return rosterResponse{}, fmt.Errorf("build policy roster request: %w", err)
 	}
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("call policy roster endpoint: %w", err)
+		return rosterResponse{}, fmt.Errorf("call policy roster endpoint: %w", err)
 	}
 	defer resp.Body.Close()
 	payload, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
-		return nil, fmt.Errorf("read policy roster response: %w", err)
+		return rosterResponse{}, fmt.Errorf("read policy roster response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("policy roster status %d", resp.StatusCode)
+		return rosterResponse{}, fmt.Errorf("policy roster status %d", resp.StatusCode)
 	}
 	var roster rosterResponse
 	if err := json.Unmarshal(payload, &roster); err != nil {
-		return nil, fmt.Errorf("decode policy roster response: %w", err)
+		return rosterResponse{}, fmt.Errorf("decode policy roster response: %w", err)
 	}
 	if roster.SchemaVersion != policy.SchemaVersionV1 && roster.SchemaVersion != policy.SchemaVersionV2 {
-		return nil, fmt.Errorf("unsupported policy roster schema %q", roster.SchemaVersion)
+		return rosterResponse{}, fmt.Errorf("unsupported policy roster schema %q", roster.SchemaVersion)
 	}
-	return roster.RosterIDs, nil
+	return roster, nil
 }
 
 func (c *Client) post(ctx context.Context, path string, payload map[string]interface{}, label string) error {
@@ -307,6 +325,7 @@ type routeResponse struct {
 	RosterVersion        string                 `json:"roster_version"`
 	DebugRef             string                 `json:"debug_ref"`
 	Debug                map[string]interface{} `json:"debug"`
+	RankedFallback       []policy.PreviewGroup  `json:"ranked_fallback"`
 	Error                string                 `json:"error"`
 }
 
@@ -385,6 +404,7 @@ func (c *Client) Decide(ctx context.Context, query policy.Query) (policy.Result,
 		RosterVersion:        parsed.RosterVersion,
 		DebugRef:             parsed.DebugRef,
 		Debug:                parsed.Debug,
+		RankedFallback:       parsed.RankedFallback,
 	}, nil
 }
 
@@ -888,3 +908,4 @@ var _ policy.Decider = (*Client)(nil)
 var _ policy.PreviewDecider = (*Client)(nil)
 var _ policy.OutcomeReporter = (*Client)(nil)
 var _ policy.FeedbackReporter = (*Client)(nil)
+var _ policy.RosterSource = (*Client)(nil)
