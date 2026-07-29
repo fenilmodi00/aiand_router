@@ -75,6 +75,17 @@ count_stamps() { # count_stamps <cache_home> [<name_filter>]
   fi
 }
 
+# wait_for re-invokes its argv on every poll, so a value that changes over time
+# has to be recomputed inside the callee. Interpolating `$(...)` at the call site
+# freezes it at its first value and the wait can only ever time out.
+stamp_count_is() { # stamp_count_is <cache_home> <filter> <expected>
+  [ "$(count_stamps "$1" "$2")" = "$3" ]
+}
+
+line_count_at_least() { # line_count_at_least <file> <n>
+  [ "$(wc -l < "$1" | tr -d ' ')" -ge "$2" ]
+}
+
 # curl must speak file:// for the offline fixtures to work. Fail loudly rather
 # than silently skipping the download-dependent cases.
 probe="$work/probe.txt"
@@ -164,7 +175,7 @@ fi
 c="$work/c3"; mkdir -p "$c/cache"; make_installed "$c/cc.sh" stale
 seed_periodic_stamp "$c/cache" "$c/cc.sh"
 render "$c/cc.sh" "$c/cache" "file://$work/does-not-exist.sh" "$STALE_MODEL" >/dev/null
-if wait_for 20 test "$(count_stamps "$c/cache" .miss.)" = 0; then
+if wait_for 20 stamp_count_is "$c/cache" .miss. 0; then
   ok "failed download does not consume the retry interval"
 else
   no "failed download does not consume the retry interval" "miss stamp removed" "stamp still present"
@@ -186,6 +197,49 @@ check "never-priced model refreshes at most once per interval" \
   "$(count_stamps "$c/cache" .miss.)" 1
 check "miss stamp does not replace the periodic stamp" \
   "$(count_stamps "$c/cache")" 2
+
+# On a cold cache the periodic check and the pricing-miss retry both fire in one
+# invocation. They must not share a download path: concurrent curl -o plus mv on
+# one temp file can install a truncated script, and a syntax-broken statusline
+# can never self-heal because it cannot run its own refresh.
+c="$work/c4b"; mkdir -p "$c/cache" "$c/bin"; make_installed "$c/cc.sh" stale
+# Resolve curl before the shim dir shadows it, and delegate through that. A
+# hardcoded /usr/bin/curl would silently fail its downloads wherever curl lives
+# elsewhere, leaving the -o log populated but no refresh actually performed.
+real_curl="$(command -v curl)"
+cat > "$c/bin/curl" <<'SHIM'
+#!/usr/bin/env bash
+# Record each download target, then delegate to the real curl.
+args=("$@")
+for i in "${!args[@]}"; do
+  if [ "${args[$i]}" = "-o" ]; then echo "${args[$((i + 1))]}" >> "$WEAVE_TEST_CURL_LOG"; fi
+done
+exec "$WEAVE_TEST_REAL_CURL" "$@"
+SHIM
+chmod +x "$c/bin/curl"
+curl_log="$c/targets.log"; : > "$curl_log"
+echo "{\"model\":{\"id\":\"$STALE_MODEL\"},\"transcript_path\":\"$transcript\"}" \
+  | PATH="$c/bin:$PATH" WEAVE_TEST_CURL_LOG="$curl_log" WEAVE_TEST_REAL_CURL="$real_curl" \
+    XDG_CACHE_HOME="$c/cache" WEAVE_STATUSLINE_URL="file://$upstream" \
+    bash "$c/cc.sh" >/dev/null 2>&1
+wait_for 20 line_count_at_least "$curl_log" 2
+downloads="$(wc -l < "$curl_log" | tr -d ' ')"
+distinct="$(sort -u "$curl_log" | wc -l | tr -d ' ')"
+check "cold cache fires both the periodic and price-miss refresh" "$downloads" 2
+check "concurrent refreshes use distinct temp files" "$distinct" "$downloads"
+# Counting -o targets alone would pass even if every download failed, so assert
+# the refresh landed and left a script that still parses — a corrupt one is the
+# actual consequence of sharing the temp path.
+if wait_for 20 grep -q "\"$STALE_MODEL\":" "$c/cc.sh"; then
+  ok "concurrent refreshes actually install the new script"
+else
+  no "concurrent refreshes actually install the new script" "price entries restored" "still missing"
+fi
+if bash -n "$c/cc.sh" 2>/dev/null; then
+  ok "script surviving concurrent refreshes still parses"
+else
+  no "script surviving concurrent refreshes still parses" "valid bash" "syntax error"
+fi
 
 # Malformed pricing must fail closed: no crash, no refresh loop.
 c="$work/c5"; mkdir -p "$c/cache"; make_installed_bad_prices "$c/cc.sh"
