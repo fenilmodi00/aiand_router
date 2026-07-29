@@ -230,8 +230,11 @@ func handleAuthError(c *gin.Context, err error) {
 	case errors.Is(err, auth.ErrInvalidToken):
 		logger.Debug("Auth rejected: bearer token did not match an active key")
 	default:
-		// Infra failure (DB unreachable, etc.). Still 401 to the caller; logged as Error for on-call.
+		// Infra failure — not a bad key. 503 so clients retry instead of treating it as terminal.
 		logger.Error("Auth check errored", "err", err)
+		c.Header("Retry-After", "1")
+		c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"error": "auth_unavailable"})
+		return
 	}
 	c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid_key"})
 }
