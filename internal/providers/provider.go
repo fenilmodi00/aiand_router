@@ -337,6 +337,35 @@ func IsUpstreamModelNotFound(err error) bool {
 	return false
 }
 
+// capabilityRejectionPhrases are prose 400 bodies meaning the model cannot
+// serve this request shape. Substring-matching is the only signal; keep phrases
+// narrow — a loose match fires on ordinary validation errors.
+var capabilityRejectionPhrases = []string{
+	"not a multimodal model",
+	"does not support image",
+	"image input is not supported",
+	"image input is unsupported",
+	"does not support vision",
+	"multimodal input is not supported",
+}
+
+// IsUpstreamCapabilityRejection reports whether err is a buffered upstream 400
+// stating the model cannot handle a modality the request carries. Deliberately
+// not a cross-binding signal — the same model rejects identically elsewhere.
+func IsUpstreamCapabilityRejection(err error) bool {
+	var buffered *UpstreamErrorResponse
+	if !errors.As(err, &buffered) || buffered.Status != http.StatusBadRequest {
+		return false
+	}
+	body := strings.ToLower(string(buffered.Body))
+	for _, phrase := range capabilityRejectionPhrases {
+		if strings.Contains(body, phrase) {
+			return true
+		}
+	}
+	return false
+}
+
 // PreparedRequest holds the encoded target-format request body and format-specific header overrides.
 // Endpoint selects which upstream path a provider client POSTs to. Zero value
 // is chat/completions; EndpointResponses routes to `/v1/responses`, required

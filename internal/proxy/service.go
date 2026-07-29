@@ -2714,14 +2714,16 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	baselineModel := s.baselineFor(feats.Model)
 	baselineCatalog, baselineKnown := catalog.ByID(baselineModel)
 	_, anthropicExcluded := s.excludedProvidersForRequest(ctx)[providers.ProviderAnthropic]
-	baselineEligible := !routeRes.AuthoritativePerTurn &&
-		!agentShadowMode &&
+	// baselineViable omits authoritative-per-turn: that contract governs which
+	// model the policy picks, not whether a provably-unservable request can be rescued.
+	baselineViable := !agentShadowMode &&
 		decision.Reason != translate.ReasonUserForceModel &&
 		s.shouldFailover(ctx) &&
 		!anthropicExcluded &&
 		decision.Provider != providers.ProviderAnthropic &&
 		baselineModel != decision.Model &&
 		baselineKnown && baselineCatalog.PrimaryProvider() == providers.ProviderAnthropic
+	baselineEligible := !routeRes.AuthoritativePerTurn && baselineViable
 
 	// Subscription-credit failover eligibility. A Claude turn served on the
 	// caller's subscription (sk-ant-oat) is pinned to a single Anthropic
@@ -2757,7 +2759,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		bindings:               bindings,
 		attempt:                attempt,
 		flushErr:               flushUpstreamErrorAsAnthropic,
-		deferFlushOnExhaustion: baselineEligible || subscriptionRetryEligible,
+		deferFlushOnExhaustion: baselineViable || subscriptionRetryEligible,
 	})
 
 	// The routed model's bindings all failed with a fault another model could
@@ -2766,8 +2768,19 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	// telemetry reflects the binding that actually served.
 	baselineFailoverUsed := false
 	baselineAttempted := false
-	if baselineEligible && proxyErr != nil && !preludeBuf.Committed() &&
-		(providers.IsRetryable(proxyErr) || providers.IsUpstreamModelNotFound(proxyErr)) {
+	// Capability rejection means the routed model cannot serve this shape at all —
+	// rescue via baseline even when the policy owns per-turn selection.
+	capabilityRejected := providers.IsUpstreamCapabilityRejection(proxyErr)
+	if capabilityRejected {
+		log.Error("Upstream rejected the request as unsupported by the routed model",
+			"model", decision.Model,
+			"provider", primaryProvider,
+			"upstream_status", upstreamStatus(proxyErr),
+			"has_images", feats.HasImages)
+	}
+	if proxyErr != nil && !preludeBuf.Committed() &&
+		((baselineEligible && (providers.IsRetryable(proxyErr) || providers.IsUpstreamModelNotFound(proxyErr))) ||
+			(baselineViable && capabilityRejected)) {
 		baselineDecision := decision
 		baselineDecision.Model = baselineModel
 		baselineDecision.Provider = providers.ProviderAnthropic
@@ -2822,9 +2835,10 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 			// not report baseline_failover=true and skew bake-off analysis.
 			baselineFailoverUsed = proxyErr == nil
 		}
-	} else if baselineEligible && proxyErr != nil {
+	} else if baselineViable && proxyErr != nil {
 		// Baseline didn't run (mid-stream commit, or non-failoverable error);
-		// surface the deferred original error now.
+		// surface the deferred original error now. Guard must match
+		// deferFlushOnExhaustion above, or a deferred error is never flushed.
 		flushUpstreamErrorAsAnthropic(contentSink, proxyErr)
 	}
 
