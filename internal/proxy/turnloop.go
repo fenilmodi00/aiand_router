@@ -170,11 +170,19 @@ type handoverOutcome struct {
 	SummaryUsage handover.Usage
 }
 
+// hasSubAgentOverride reports whether both sub-agent override fields are set;
+// a partial override is treated as unconfigured.
+func (s *Service) hasSubAgentOverride() bool {
+	return s.subAgentProvider != "" && s.subAgentModel != ""
+}
+
 // isHardPinnedTurn reports whether a turn type bypasses pin lookup/write,
 // planner, and scorer entirely via the boot-time hard pin. These turns are
 // also skipped by proactive compaction: they are either tiny (probe/title-gen/
 // classifier) or carry their own dedicated flow (Claude Code's compaction turn,
-// whose request the router must not rewrite).
+// whose request the router must not rewrite). SubAgentDispatch hard-pins when
+// the legacy hardPinExplore is on OR a per-sub-agent override is configured;
+// the HMM strategy keeps its own sub-agent handling path so it overrides both.
 func (s *Service) isHardPinnedTurn(ctx context.Context, tt turntype.TurnType) bool {
 	switch tt {
 	case turntype.Compaction, turntype.Probe, turntype.TitleGen, turntype.Classifier:
@@ -183,7 +191,7 @@ func (s *Service) isHardPinnedTurn(ctx context.Context, tt turntype.TurnType) bo
 		if router.IsHMMStrategy(router.StrategyFromContext(ctx)) {
 			return false
 		}
-		return s.hardPinExplore
+		return s.hardPinExplore || s.hasSubAgentOverride()
 	default:
 		return false
 	}
@@ -338,12 +346,18 @@ func (s *Service) runTurnLoop(
 	// cheap-model decision into the conversation that follows.
 	if hardPinnedTurn {
 		provider, model := s.hardPinProvider, s.hardPinModel
+		// Sub-agent override is explicit operator config (mirrors ROUTER_HARD_PIN_MODEL
+		// semantics), so it skips hardPinResolver rather than being resolved dynamically.
+		useSubAgentOverride := res.TurnType == turntype.SubAgentDispatch && s.hasSubAgentOverride()
+		if useSubAgentOverride {
+			provider, model = s.subAgentProvider, s.subAgentModel
+		}
 		// The boot-time hard-pin was computed over every registered provider,
 		// but a BYOK request may only authenticate to a subset. Resolve
 		// per-request against enabled-providers, and apply ExcludedModels
 		// here too — this path bypasses the scorer, the only other place
 		// exclusions are honored.
-		if s.hardPinResolver != nil {
+		if s.hardPinResolver != nil && !useSubAgentOverride {
 			p, m, ok := s.hardPinResolver(req.EnabledProviders, req.ExcludedModels)
 			if !ok {
 				log.Warn(

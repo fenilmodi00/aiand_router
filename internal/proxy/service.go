@@ -89,6 +89,11 @@ type Service struct {
 	// authenticate to, and honors excluded_models on the hard-pin tier via
 	// denySet. ok=false signals no eligible provider.
 	hardPinResolver func(enabled, denySet map[string]struct{}) (provider, model string, ok bool)
+	// subAgentProvider/subAgentModel override hardPinProvider/hardPinModel
+	// for SubAgentDispatch turns only; unset leaves compaction/probe/title-gen/
+	// classifier on the shared hard pin.
+	subAgentProvider string
+	subAgentModel    string
 	// telemetry is an optional repository for persisting per-request telemetry.
 	telemetry TelemetryRepository
 	// captureMode controls whether high-fidelity `router.call` OTLP log
@@ -1230,6 +1235,15 @@ func (s *Service) WithHardPinResolver(resolver func(enabled, denySet map[string]
 // the inbound RequestedModel has no pricing entry. Empty disables.
 func (s *Service) WithDefaultBaselineModel(model string) *Service {
 	s.defaultBaselineModel = model
+	return s
+}
+
+// WithSubAgentOverride pins SubAgentDispatch turns to a distinct provider/model,
+// leaving MainLoop/ToolResult routing untouched. Both must be non-empty;
+// either empty is a no-op (falls back to hardPinExplore behavior).
+func (s *Service) WithSubAgentOverride(provider, model string) *Service {
+	s.subAgentProvider = provider
+	s.subAgentModel = model
 	return s
 }
 
