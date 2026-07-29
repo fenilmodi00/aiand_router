@@ -1999,10 +1999,21 @@ set -euo pipefail
 # lives in their per-user cache dir, and on no-content-change days we skip
 # the mv entirely so the repo working tree stays clean. When upstream does
 # change, the first teammate's commit propagates the new version to the rest.
+# A pricing-table miss also triggers a refresh off-schedule — see
+# weave_refresh_on_price_miss below.
 #
 # Opt out entirely with `export WEAVE_STATUSLINE_UPDATE=0`. Override the
 # source with `WEAVE_STATUSLINE_URL=...`, e.g. for self-hosters who fork.
+#
+# $1 is an optional stamp suffix, so a caller refreshing for a reason other than
+# "the interval elapsed" rate-limits on its own clock rather than sharing the
+# periodic check's budget. $2=1 drops the stamp again if the download fails, for
+# callers recovering from a known-bad state where waiting out the full interval
+# on a transient network error is worse than retrying next turn.
 weave_self_refresh() {
+  local stamp_suffix="${1:-}"
+  local retry_on_fail="${2:-0}"
+
   [ "${WEAVE_STATUSLINE_UPDATE:-1}" = "0" ] && return 0
   command -v curl >/dev/null 2>&1 || return 0
 
@@ -2019,7 +2030,7 @@ weave_self_refresh() {
   mkdir -p "$cache_dir" 2>/dev/null || return 0
   local script_slug
   script_slug="$(printf '%s' "$self" | tr -c 'A-Za-z0-9._-' '_')"
-  local stamp="$cache_dir/checked-at${script_slug}"
+  local stamp="$cache_dir/checked-at${script_slug}${stamp_suffix}"
 
   local now stamp_mtime
   now="$(date +%s 2>/dev/null)" || return 0
@@ -2062,6 +2073,11 @@ weave_self_refresh() {
       fi
     else
       rm -f "$tmp"
+      # A download that never landed shouldn't spend the caller's whole
+      # interval; drop the stamp so the next turn can try again.
+      if [ "$retry_on_fail" = "1" ]; then
+        rm -f "$stamp"
+      fi
     fi
   ) >/dev/null 2>&1 &
   disown 2>/dev/null || true
@@ -2364,6 +2380,42 @@ if [[ -n "$transcript_path" && -f "$transcript_path" ]]; then
            END{printf "%.4f %d %d %d %d\n", s, i, o, r, w}'
   ) || true
 fi
+
+# ---------- refresh when a model isn't in the pricing table ----------
+#
+# A model that shipped after this copy of the script has no price entry, so the
+# jq guard above zeroes savings on every turn and the line reads "saved $0.00"
+# — indistinguishable from "the router ran and didn't beat your selection". The
+# periodic check heals that eventually, but a week late, and a model launch is
+# exactly when the number gets looked at. Refresh off-schedule instead.
+#
+# Keyed on its own stamp per unpriced id: a model we never price (self-hosted,
+# unrecognized) then costs one download per interval, not one per turn, and
+# can't starve the periodic check.
+weave_refresh_on_price_miss() {
+  local candidates="" m
+  for m in "$@"; do
+    case "$m" in
+      "" | "?" | failure | weave-router | "<synthetic>") continue ;;
+    esac
+    candidates="${candidates}${m}"$'\n'
+  done
+  [ -n "$candidates" ] || return 0
+
+  # A malformed $prices emits nothing here, which fails closed (no refresh)
+  # rather than re-downloading every turn.
+  local missing
+  missing="$(printf '%s' "$candidates" \
+    | jq -rR --argjson p "$prices" \
+        'select($p.input[.] == null or $p.output[.] == null)' 2>/dev/null \
+    | head -n 1)" || return 0
+  [ -n "$missing" ] || return 0
+
+  local model_slug
+  model_slug="$(printf '%s' "$missing" | tr -c 'A-Za-z0-9._-' '_')"
+  weave_self_refresh ".miss.${model_slug}" 1
+}
+weave_refresh_on_price_miss "$requested_norm" "$routed" 2>/dev/null || true
 
 # Brand color (#FF6C47) on terminals that grok 24-bit truecolor — that's
 # every modern one (iTerm2, Apple Terminal, vscode, ghostty, alacritty,
