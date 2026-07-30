@@ -65,6 +65,15 @@ func (s *forcedPinStore) IncrementUpstreamErrors(context.Context, [sessionpin.Se
 func (s *forcedPinStore) ResetUpstreamErrors(context.Context, [sessionpin.SessionKeyLen]byte, string) error {
 	return nil
 }
+func (s *forcedPinStore) IncrementOverloadErrors(context.Context, [sessionpin.SessionKeyLen]byte, string) (int, error) {
+	return 0, nil
+}
+func (s *forcedPinStore) ResetOverloadErrors(context.Context, [sessionpin.SessionKeyLen]byte, string) error {
+	return nil
+}
+func (s *forcedPinStore) DisableProvider(context.Context, [sessionpin.SessionKeyLen]byte, string, string) error {
+	return nil
+}
 func (s *forcedPinStore) SweepExpired(context.Context) error { return nil }
 
 type overwritingPinStore struct {
@@ -94,6 +103,15 @@ func (s *overwritingPinStore) IncrementUpstreamErrors(context.Context, [sessionp
 	return 0, nil
 }
 func (s *overwritingPinStore) ResetUpstreamErrors(context.Context, [sessionpin.SessionKeyLen]byte, string) error {
+	return nil
+}
+func (s *overwritingPinStore) IncrementOverloadErrors(context.Context, [sessionpin.SessionKeyLen]byte, string) (int, error) {
+	return 0, nil
+}
+func (s *overwritingPinStore) ResetOverloadErrors(context.Context, [sessionpin.SessionKeyLen]byte, string) error {
+	return nil
+}
+func (s *overwritingPinStore) DisableProvider(context.Context, [sessionpin.SessionKeyLen]byte, string, string) error {
 	return nil
 }
 func (s *overwritingPinStore) SweepExpired(context.Context) error { return nil }
@@ -188,6 +206,52 @@ func TestRunTurnLoop_ForcedModelOverridesHardPin(t *testing.T) {
 	assert.Equal(t, translate.ReasonUserForceModel, res.Decision.Reason)
 	assert.True(t, res.StickyHit)
 	assert.False(t, res.HardPinned)
+	assert.Empty(t, fr.captured, "a forced pin must not invoke the scorer")
+}
+
+// Regression: a forced pin targeting a session-struck-out provider must
+// serve through the fast path; the breaker skips force-model to avoid
+// silently reverting an explicit user choice.
+func TestRunTurnLoop_ForcedModelServesDespiteDisabledProvider(t *testing.T) {
+	store := &forcedPinStore{pin: sessionpin.Pin{
+		Provider:          providers.ProviderAnthropic,
+		Model:             "claude-opus-4-8",
+		Reason:            translate.ReasonUserForceModel,
+		PinnedUntil:       time.Now().Add(time.Hour),
+		DisabledProviders: []string{providers.ProviderAnthropic},
+	}}
+	fr := &tierProbeRouter{available: map[string]struct{}{"claude-haiku-4-5": {}}}
+	svc := NewService(
+		fr,
+		nil,
+		nil,
+		false,
+		nil,
+		store,
+		false,
+		providers.ProviderAnthropic,
+		"claude-haiku-4-5",
+		nil,
+	)
+
+	env, err := translate.ParseAnthropic([]byte(`{
+		"model":"claude-opus-4-8",
+		"messages":[{"role":"user","content":"hello"}]
+	}`))
+	require.NoError(t, err)
+	feats := env.RoutingFeatures(false)
+
+	res, err := svc.runTurnLoop(context.Background(), env, feats, "key-1", uuid.New(), "", nil, router.Request{
+		RequestedModel:   feats.Model,
+		EnabledProviders: map[string]struct{}{providers.ProviderAnthropic: {}},
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, "claude-opus-4-8", res.Decision.Model,
+		"force-model must serve through the pinned provider despite the session-level disable")
+	assert.Equal(t, providers.ProviderAnthropic, res.Decision.Provider)
+	assert.Equal(t, translate.ReasonUserForceModel, res.Decision.Reason)
+	assert.True(t, res.StickyHit)
 	assert.Empty(t, fr.captured, "a forced pin must not invoke the scorer")
 }
 

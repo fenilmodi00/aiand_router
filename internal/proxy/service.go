@@ -327,6 +327,11 @@ type InstallationExcludedModelsContextKey struct{}
 // installation's provider exclusion list. Carried as []string.
 type InstallationExcludedProvidersContextKey struct{}
 
+// SessionDisabledProvidersContextKey carries providers struck out by repeated
+// 529 exhaustion ([]string). Stashed after runTurnLoop so
+// resolveBindingsForDispatch's failover walk honors the exclusion too.
+type SessionDisabledProvidersContextKey struct{}
+
 // InstallationPreferredModelsContextKey is the context key for the authed
 // installation's model priority ranking. Carried as []string in descending
 // preference (index 0 = first preference). See preferredModelsForRequest.
@@ -628,18 +633,38 @@ func installationExcludedProvidersFromContext(ctx context.Context) []string {
 	return out
 }
 
-// excludedProvidersForRequest returns the request's provider exclusion set.
-// Env override wins; otherwise the installation list is converted to a set.
-func (s *Service) excludedProvidersForRequest(ctx context.Context) map[string]struct{} {
-	if s.excludedProvidersOverride != nil {
-		return s.excludedProvidersOverride
-	}
-	excluded := installationExcludedProvidersFromContext(ctx)
-	if len(excluded) == 0 {
+// sessionDisabledProvidersFromContext extracts the SessionDisabledProvidersContextKey
+// value set by runTurnLoop.
+func sessionDisabledProvidersFromContext(ctx context.Context) []string {
+	v := ctx.Value(SessionDisabledProvidersContextKey{})
+	if v == nil {
 		return nil
 	}
-	out := make(map[string]struct{}, len(excluded))
-	for _, p := range excluded {
+	out, _ := v.([]string)
+	return out
+}
+
+// excludedProvidersForRequest merges the deployment/installation exclusion list
+// with any providers this session has struck out for repeated 529 exhaustion.
+func (s *Service) excludedProvidersForRequest(ctx context.Context) map[string]struct{} {
+	var base map[string]struct{}
+	if s.excludedProvidersOverride != nil {
+		base = s.excludedProvidersOverride
+	} else if excluded := installationExcludedProvidersFromContext(ctx); len(excluded) > 0 {
+		base = make(map[string]struct{}, len(excluded))
+		for _, p := range excluded {
+			base[p] = struct{}{}
+		}
+	}
+	sessionDisabled := sessionDisabledProvidersFromContext(ctx)
+	if len(sessionDisabled) == 0 {
+		return base
+	}
+	out := make(map[string]struct{}, len(base)+len(sessionDisabled))
+	for p := range base {
+		out[p] = struct{}{}
+	}
+	for _, p := range sessionDisabled {
 		out[p] = struct{}{}
 	}
 	return out
@@ -2249,6 +2274,11 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		log.Error("Routing failed", "err", routeErr, "route_ms", time.Since(routeStart).Milliseconds(), "requested_model", feats.Model, "total_input_tokens", feats.Tokens)
 		return routeErr
 	}
+	if len(routeRes.SessionDisabledProviders) > 0 {
+		// resolveBindingsForDispatch reads excludedProvidersForRequest from ctx,
+		// not req.EnabledProviders, so stash here for the failover walk too.
+		ctx = context.WithValue(ctx, SessionDisabledProvidersContextKey{}, routeRes.SessionDisabledProviders)
+	}
 
 	// On a retryable 429 the bypass falls through to re-routing; rate-limit
 	// headers prime the observer so the retry discounts Anthropic.
@@ -3168,6 +3198,14 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	// persistent counter hits threshold; successful turns reset it.
 	if !agentShadowMode {
 		s.maybeEvictPinAfterUpstreamErr(ctx, stickyHit, proxyErr, decision.Reason, installationID, routeRes.SessionKey, stickyStateRole(routeRes))
+
+		// Two-strike provider disable: complements the 4xx eviction above;
+		// 529 is retryable in-turn so it never trips that counter.
+		// Skipped when baseline rescue ran: finalProvider is the rescue
+		// provider, not the sticky pin's, so disabling it evicts the wrong pin.
+		if !baselineAttempted {
+			s.maybeDisableProviderAfterOverload(ctx, stickyHit, proxyErr, finalProvider, decision.Reason, installationID, routeRes.SessionKey, stickyStateRole(routeRes), routeRes.PinRole)
+		}
 
 		// Re-pin the session off the refusing model if a cyber refusal was observed.
 		s.maybeRepinOnRefusal(ctx, refusalObs, routeRes.SessionKey, stickyStateRole(routeRes), decision)
@@ -4372,6 +4410,9 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		log.Error("Routing failed for OpenAI request", "err", err, "route_ms", routeMs, "requested_model", feats.Model, "total_input_tokens", feats.Tokens)
 		return err
 	}
+	if len(routeRes.SessionDisabledProviders) > 0 {
+		ctx = context.WithValue(ctx, SessionDisabledProvidersContextKey{}, routeRes.SessionDisabledProviders)
+	}
 	routeRes.SuggestionMode = r.Header.Get("x-weave-suggestion-mode") == "true"
 	decision := routeRes.Decision
 	s.firePolicyShadowForServingDecision(ctx, decision, routeRequest)
@@ -4841,6 +4882,8 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 
 	// See ProxyMessages for the two-strike eviction rationale.
 	s.maybeEvictPinAfterUpstreamErr(ctx, stickyHit, proxyErr, decision.Reason, installationIDFromContext(ctx), routeRes.SessionKey, stickyStateRole(routeRes))
+	// See ProxyMessages for the two-strike provider-disable rationale.
+	s.maybeDisableProviderAfterOverload(ctx, stickyHit, proxyErr, finalProvider, decision.Reason, installationIDFromContext(ctx), routeRes.SessionKey, stickyStateRole(routeRes), routeRes.PinRole)
 
 	installationIDOAI, _ := ctx.Value(InstallationIDContextKey{}).(string)
 	if installationIDOAI != "" {

@@ -35,6 +35,32 @@ func addToSet(set map[string]struct{}, model string) map[string]struct{} {
 	return out
 }
 
+// mergeDisabledProviders unions two pins' DisabledProviders (deduped): either
+// the active pin or its HMM history row can carry overload strikes independently.
+func mergeDisabledProviders(a, b []string) []string {
+	if len(a) == 0 {
+		return b
+	}
+	if len(b) == 0 {
+		return a
+	}
+	seen := make(map[string]struct{}, len(a)+len(b))
+	out := make([]string, 0, len(a)+len(b))
+	for _, p := range a {
+		if _, ok := seen[p]; !ok {
+			seen[p] = struct{}{}
+			out = append(out, p)
+		}
+	}
+	for _, p := range b {
+		if _, ok := seen[p]; !ok {
+			seen[p] = struct{}{}
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
 // installationIDFromContext reads the installation ID stashed by auth
 // middleware. Returns uuid.Nil (which skips the async pin upsert) if missing or invalid.
 func installationIDFromContext(ctx context.Context) uuid.UUID {
@@ -121,6 +147,10 @@ type turnLoopResult struct {
 	// the escalate-on-failure policy (Service.effortEscalation) reads it to
 	// bump a gpt-5.x turn from low to high effort, and is a no-op when disabled.
 	EscalateEffort bool
+	// SessionDisabledProviders are providers struck out by repeated 529
+	// exhaustion. Stashed on ctx so resolveBindingsForDispatch's failover
+	// walk also honors the exclusion, not just this turn's scorer.
+	SessionDisabledProviders []string
 }
 
 // modelSwitched reports whether the Anthropic emit path must strip historical
@@ -437,6 +467,37 @@ func (s *Service) runTurnLoop(
 
 	pin, pinFound := s.loadPin(ctx, res.SessionKey, res.PinRole)
 	hmmHistory := s.loadHMMHistory(ctx, res.SessionKey, res.PinRole)
+	// Applied regardless of pinFound: eviction sets PinnedUntil in the past
+	// (routing miss) but DisabledProviders must still steer the scorer away
+	// from the struck-out provider this same turn; HMM-sticky strikes write
+	// to _hmm_history, not PinRole, so either row can carry evidence.
+	disabledProviders := mergeDisabledProviders(pin.DisabledProviders, hmmHistory.DisabledProviders)
+	// User-forced pin exempts its own provider: an explicit /force-model
+	// must not be silently reverted by the session-level breaker.
+	if pinFound && pin.Provider != "" && isUserForcedReason(pin.Reason) {
+		filtered := make([]string, 0, len(disabledProviders))
+		for _, p := range disabledProviders {
+			if p != pin.Provider {
+				filtered = append(filtered, p)
+			}
+		}
+		disabledProviders = filtered
+	}
+	if len(disabledProviders) > 0 {
+		res.SessionDisabledProviders = disabledProviders
+		// nil EnabledProviders means "unrestricted"; skip rather than
+		// produce an empty map that reads as "every provider excluded."
+		if req.EnabledProviders != nil {
+			filtered := make(map[string]struct{}, len(req.EnabledProviders))
+			for p := range req.EnabledProviders {
+				filtered[p] = struct{}{}
+			}
+			for _, p := range disabledProviders {
+				delete(filtered, p)
+			}
+			req.EnabledProviders = filtered
+		}
+	}
 	res.PriorServedModel, res.SessionEverSwitched = switchHistoryFromPins(pin, hmmHistory)
 	req.PolicyTurnContext = buildPolicyTurnContext(req, res, pin, hmmHistory)
 	// Computed before any same-turn pin-drop guards below so it reflects the

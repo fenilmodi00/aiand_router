@@ -80,6 +80,16 @@ ON CONFLICT (session_key, role) DO UPDATE SET
     WHEN router.session_pins.pinned_model = EXCLUDED.pinned_model
       THEN router.session_pins.consecutive_upstream_errors
     ELSE 0
+  END,
+  -- Mirrors consecutive_upstream_errors above: a stray 529 strike must not
+  -- survive an unrelated pin rewrite (degenerate eviction, loop-break, 4xx
+  -- eviction, planner switch) onto a different model, or one 529 on the
+  -- fresh pin could immediately hit the two-strike threshold instead of
+  -- requiring two genuine consecutive strikes on the SAME served provider.
+  consecutive_overload_errors = CASE
+    WHEN router.session_pins.pinned_model = EXCLUDED.pinned_model
+      THEN router.session_pins.consecutive_overload_errors
+    ELSE 0
   END;
 
 -- Records the previous turn's upstream token usage on an existing pin
@@ -137,6 +147,47 @@ SET consecutive_upstream_errors = 0
 WHERE session_key = @session_key::bytea
   AND role        = @role::varchar
   AND consecutive_upstream_errors > 0;
+
+-- Atomically increments consecutive_overload_errors and returns the new
+-- value. The turn loop calls this after a turn exhausts with a
+-- client-visible 529 (Anthropic overloaded_error) on a sticky-pinned
+-- turn; the returned count drives the two-strike provider-disable
+-- decision. Returns sql.ErrNoRows if no pin exists, which the adapter
+-- maps to a no-op. Separate from IncrementSessionPinUpstreamErrors
+-- because a 529 is retryable in-turn and must not also trip the
+-- non-retryable-4xx eviction counter.
+-- name: IncrementSessionPinOverloadErrors :one
+UPDATE router.session_pins
+SET consecutive_overload_errors = consecutive_overload_errors + 1
+WHERE session_key = @session_key::bytea
+  AND role        = @role::varchar
+RETURNING consecutive_overload_errors;
+
+-- Clears the overload strike counter after a successful turn. UPDATE
+-- matches by (session_key, role); zero rows affected on missing pin is
+-- a successful no-op like ResetSessionPinUpstreamErrors.
+-- name: ResetSessionPinOverloadErrors :exec
+UPDATE router.session_pins
+SET consecutive_overload_errors = 0
+WHERE session_key = @session_key::bytea
+  AND role        = @role::varchar
+  AND consecutive_overload_errors > 0;
+
+-- Appends a provider to disabled_providers (deduped) and resets the
+-- overload strike counter in the same statement, fired once the
+-- two-strike threshold is reached. disabled_providers only grows for the
+-- life of this pin row -- UpsertSessionPin's ON CONFLICT update never
+-- touches it, so a struck-out provider stays disabled until the pin
+-- itself is evicted/expires, with no separate time-based cooldown.
+-- name: DisableSessionPinProvider :exec
+UPDATE router.session_pins
+SET disabled_providers = CASE
+      WHEN @provider::varchar = ANY(disabled_providers) THEN disabled_providers
+      ELSE array_append(disabled_providers, @provider::varchar)
+    END,
+    consecutive_overload_errors = 0
+WHERE session_key = @session_key::bytea
+  AND role        = @role::varchar;
 
 -- Garbage-collects pins that have been expired for >24h. The 24h grace
 -- means a transient Postgres outage doesn't immediately prune live pins;

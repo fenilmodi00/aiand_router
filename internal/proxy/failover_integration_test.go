@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"workweave/router/internal/providers"
 	"workweave/router/internal/providers/anthropic"
@@ -16,7 +17,9 @@ import (
 	"workweave/router/internal/providers/openaicompat"
 	"workweave/router/internal/proxy"
 	"workweave/router/internal/router"
+	"workweave/router/internal/router/sessionpin"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -366,6 +369,132 @@ func TestProxyMessages_AnthropicSSEOverloadExhaustionRecords529(t *testing.T) {
 	assert.Contains(t, rec.Body.String(), "overloaded_error")
 	row := telemetry.firstRow(t)
 	assert.Equal(t, int32(529), row.UpstreamStatusCode)
+}
+
+// TestProxyMessages_TwoConsecutiveOverloadExhaustionsDisableProvider drives
+// two full turns exhausting on 529, asserts disabled_providers gains
+// "anthropic" after the second, and the third turn excludes it from
+// EnabledProviders.
+func TestProxyMessages_TwoConsecutiveOverloadExhaustionsDisableProvider(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, "event: error\ndata: {\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\",\"message\":\"Overloaded\"}}\n\n")
+	}))
+	defer upstream.Close()
+
+	store := newFakePinStore()
+	store.hasPin = true
+	store.pin = sessionpin.Pin{
+		Provider:      providers.ProviderAnthropic,
+		Model:         "claude-haiku-4-5",
+		Reason:        "fresh",
+		PinnedUntil:   time.Now().Add(30 * time.Minute),
+		FirstPinnedAt: time.Now().Add(-5 * time.Minute),
+	}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-haiku-4-5", Reason: "fresh"}}
+	svc := proxy.NewService(
+		fr,
+		map[string]providers.Client{providers.ProviderAnthropic: anthropic.NewClient("test-key", upstream.URL)},
+		nil, false, nil, store, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil,
+	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAnthropic: {}}).
+		WithPlannerEnabled(false) // first-decision-wins: a pin hit serves straight through without scorer-vs-planner EV noise.
+
+	ctx := authedCtx(uuid.New().String())
+	body := []byte(`{"model":"claude-haiku-4-5","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
+
+	// Turn 1: exhausts on 529, one strike recorded, not yet disabled.
+	rec1 := httptest.NewRecorder()
+	req1 := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	err1 := svc.ProxyMessages(ctx, body, rec1, req1)
+	var upstreamErr *providers.UpstreamErrorResponse
+	require.ErrorAs(t, err1, &upstreamErr)
+	assert.Equal(t, 529, upstreamErr.Status)
+	assert.Empty(t, store.disabledProviders, "one exhausted 529 must not yet disable the provider")
+
+	// Turn 2: exhausts on 529 again — second consecutive strike disables
+	// anthropic for the session and evicts the pin.
+	rec2 := httptest.NewRecorder()
+	req2 := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	err2 := svc.ProxyMessages(ctx, body, rec2, req2)
+	require.ErrorAs(t, err2, &upstreamErr)
+	require.Contains(t, store.disabledProviders, providers.ProviderAnthropic,
+		"second consecutive exhausted 529 must strike the provider out for the session")
+
+	// Turn 3: pin was evicted, so this is a fresh scorer call. The
+	// disabled provider must be excluded from EnabledProviders, proving
+	// the exclusion reaches the scorer rather than just the pin row.
+	rec3 := httptest.NewRecorder()
+	req3 := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	_ = svc.ProxyMessages(ctx, body, rec3, req3)
+	require.NotNil(t, fr.capturedReq)
+	_, stillEnabled := fr.capturedReq.EnabledProviders[providers.ProviderAnthropic]
+	assert.False(t, stillEnabled, "anthropic must be excluded from EnabledProviders on the turn after being struck out")
+}
+
+// TestProxyMessages_BaselineOverloadExhaustionDoesNotDisableAnthropic
+// asserts that a baseline-rescue Anthropic 529 (OSS primary 503 -> Anthropic
+// failover) never disables Anthropic or evicts the unrelated OSS pin.
+func TestProxyMessages_BaselineOverloadExhaustionDoesNotDisableAnthropic(t *testing.T) {
+	ossUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = w.Write([]byte(`{"error":{"message":"oss provider down"}}`))
+	}))
+	defer ossUpstream.Close()
+
+	anthropicUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, "event: error\ndata: {\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\",\"message\":\"Overloaded\"}}\n\n")
+	}))
+	defer anthropicUpstream.Close()
+
+	store := newFakePinStore()
+	store.hasPin = true
+	store.pin = sessionpin.Pin{
+		Provider:      providers.ProviderFireworks,
+		Model:         "deepseek/deepseek-v4-pro",
+		Reason:        "fresh",
+		PinnedUntil:   time.Now().Add(30 * time.Minute),
+		FirstPinnedAt: time.Now().Add(-5 * time.Minute),
+	}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderFireworks, Model: "deepseek/deepseek-v4-pro", Reason: "fresh"}}
+	svc := proxy.NewService(
+		fr,
+		map[string]providers.Client{
+			providers.ProviderFireworks: openaicompat.NewClient("test-fw-key", ossUpstream.URL),
+			providers.ProviderAnthropic: anthropic.NewClient("test-key", anthropicUpstream.URL),
+		},
+		nil, false, nil, store, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil,
+	).WithDeploymentKeyedProviders(map[string]struct{}{
+		providers.ProviderFireworks: {},
+		providers.ProviderAnthropic: {},
+	}).WithPlannerEnabled(false)
+
+	ctx := authedCtx(uuid.New().String())
+	// "model" resolves baselineFor to claude-haiku-4-5 (a known Anthropic
+	// catalog model), so a retryable OSS exhaustion rescues onto Anthropic.
+	body := []byte(`{"model":"claude-haiku-4-5","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
+
+	// Turn 1: OSS primary 503s (retryable), baseline rescues onto Anthropic,
+	// which itself exhausts on 529. First Anthropic strike, not yet disabled.
+	rec1 := httptest.NewRecorder()
+	req1 := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	err1 := svc.ProxyMessages(ctx, body, rec1, req1)
+	require.Error(t, err1)
+	assert.Empty(t, store.disabledProviders, "one baseline-rescue exhaustion must not yet disable anthropic")
+
+	// Turn 2: same OSS-fails-then-Anthropic-529s sequence. Without the fix,
+	// this would be the second consecutive Anthropic strike and disable it.
+	rec2 := httptest.NewRecorder()
+	req2 := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	err2 := svc.ProxyMessages(ctx, body, rec2, req2)
+	require.Error(t, err2)
+	assert.Empty(t, store.disabledProviders,
+		"anthropic must never be disabled for 529s hit only via baseline rescue of an unrelated OSS pin")
+	assert.True(t, store.hasPin, "the OSS pin must not be evicted by a baseline-rescue overload strike")
+	assert.Equal(t, "deepseek/deepseek-v4-pro", store.pin.Model, "the OSS pin's identity must be untouched")
 }
 
 func TestProxyMessages_ResponsesFailureBeforeOutputFallsBackToBaseline(t *testing.T) {
