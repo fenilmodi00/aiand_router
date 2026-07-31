@@ -913,6 +913,33 @@ func servedOnSubscription(ctx context.Context) bool {
 	return creds != nil && creds.OAuth
 }
 
+// servedOnBYOK reports whether the turn's resolved credential is a customer-owned
+// provider key. Keys off the resolved credential rather than the presence of
+// a BYOK row: the row may exist for a provider this turn didn't route to.
+func servedOnBYOK(ctx context.Context) bool {
+	creds := CredentialsFromContext(ctx)
+	return creds != nil && creds.Source == credSourceBYOK
+}
+
+// byokServedForProvider reports whether the installation has a usable BYOK key
+// for provider. Used to bill summarizer calls at the fee rate: those dispatch on
+// their own credential context, so the outer ctx's resolved credential is stale.
+// Inspects Plaintext emptiness only — never key bytes — to satisfy CodeQL
+// go/clear-text-logging.
+func byokServedForProvider(ctx context.Context, provider string) bool {
+	if provider == "" {
+		return false
+	}
+	for _, key := range externalKeysFromContext(ctx) {
+		// Mirrors BuildCredentialsMap's filter: an empty-plaintext row can't
+		// authenticate an upstream call, so it isn't "served on BYOK".
+		if key.Provider == provider && len(key.Plaintext) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // openaiSubscriptionFromContext / openaiAccountIDFromContext return the raw Codex
 // (ChatGPT) subscription JWT and paired account-id stashed by the auth middleware
 // (router-keyed path), or "" when none.
@@ -1793,6 +1820,7 @@ func (s *Service) PassthroughToNamedProvider(ctx context.Context, providerName s
 	if err != nil {
 		return err
 	}
+	ctx = resolveAndInjectCredentials(ctx, providerName, r.Header)
 
 	// Claude Code sends its 1M-context model variant tag (e.g.
 	// "claude-opus-4-8[1m]") in the body. It is a client display convention,
@@ -3187,6 +3215,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 					CacheRead:       sumUsage.CacheRead,
 					Pricing:         sumPricing,
 					HasOverride:     billing.HasOverrideFromContext(ctx),
+					ByokServed:      byokServedForProvider(ctx, sumUsage.Provider),
 					APIKeyID:        apiKeyID,
 					RouterUserID:    auth.UserIDFrom(ctx),
 				})
@@ -4059,12 +4088,14 @@ func (s *Service) emitBilling(ctx context.Context, requestID, externalID string,
 		Pricing:            actPricing,
 		HasOverride:        hasOverride,
 		SubscriptionServed: routeRes.UsageBypass || servedOnSubscription(ctx),
+		ByokServed:         servedOnBYOK(ctx),
 		APIKeyID:           apiKeyID,
 		RouterUserID:       auth.UserIDFrom(ctx),
 	})
 
-	// The handover summary always runs on the deployment/BYOK key (never the
-	// subscription token), so it bills full cost regardless of the main turn.
+	// The handover summary runs on the deployment/BYOK key, never the subscription
+	// token. If a BYOK key was used, that spend hit the customer's account —
+	// so bill the fee rather than full cost.
 	if routeRes.Handover.Invoked && !routeRes.Handover.FallbackToFullHistory {
 		sumUsage := routeRes.Handover.SummaryUsage
 		if sumUsage.Model != "" && (sumUsage.InputTokens > 0 || sumUsage.OutputTokens > 0) {
@@ -4080,6 +4111,7 @@ func (s *Service) emitBilling(ctx context.Context, requestID, externalID string,
 				CacheRead:       sumUsage.CacheRead,
 				Pricing:         sumPricing,
 				HasOverride:     hasOverride,
+				ByokServed:      byokServedForProvider(ctx, sumUsage.Provider),
 				APIKeyID:        apiKeyID,
 				RouterUserID:    auth.UserIDFrom(ctx),
 			})
@@ -4114,6 +4146,7 @@ func (s *Service) fireBilling(ctx context.Context, p billing.DebitInferenceParam
 			"balance_usd_micros", balance,
 			"override", p.HasOverride,
 			"subscription_served", p.SubscriptionServed,
+			"byok_served", p.ByokServed,
 		)
 		return
 	}
@@ -4135,6 +4168,7 @@ func logBillingDebitFailure(ctx context.Context, p billing.DebitInferenceParams,
 		"cache_read_tokens", p.CacheRead,
 		"has_override", p.HasOverride,
 		"subscription_served", p.SubscriptionServed,
+		"byok_served", p.ByokServed,
 	)
 }
 

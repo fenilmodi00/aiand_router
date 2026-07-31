@@ -39,6 +39,19 @@ type Credentials struct {
 	// AccountID is the ChatGPT-Account-ID paired with a Codex subscription
 	// bearer; the Codex backend 401/403s without it. Never logged.
 	AccountID []byte
+	// BaseURL overrides the upstream endpoint per-request; non-empty only on BYOK
+	// credentials, where the boot-time deployment URL is provider-wide, not per-key.
+	BaseURL string
+}
+
+// EffectiveBaseURL returns the BYOK key's per-request base URL if set,
+// or fallback (the provider's boot-time deployment URL).
+func EffectiveBaseURL(ctx context.Context, fallback string) string {
+	creds := CredentialsFromContext(ctx)
+	if creds == nil || creds.BaseURL == "" {
+		return fallback
+	}
+	return strings.TrimRight(creds.BaseURL, "/")
 }
 
 // ExternalAPIKeysContextKey is the request-context key for external API keys
@@ -58,8 +71,9 @@ func BuildCredentialsMap(keys []*auth.ExternalAPIKey) map[string]*Credentials {
 			continue
 		}
 		m[key.Provider] = &Credentials{
-			APIKey: key.Plaintext,
-			Source: credSourceBYOK,
+			APIKey:  key.Plaintext,
+			Source:  credSourceBYOK,
+			BaseURL: key.BaseURL,
 		}
 	}
 	if len(m) == 0 {

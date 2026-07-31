@@ -61,6 +61,15 @@ func SubscriptionOnlyFromContext(ctx context.Context) bool {
 // router.organization_credit_ledger.entry_type.
 const EntryTypeInference = "inference"
 
+// EntryTypeByokFee is the entry_type for Weave's platform fee on a turn served
+// by the customer's own provider key. Keep in sync with the CHECK constraint on
+// router.organization_credit_ledger.entry_type.
+const EntryTypeByokFee = "byok_fee"
+
+// ByokFeeRate is Weave's platform fee on a BYOK turn, as a fraction of the
+// upstream cost the customer paid their own provider.
+const ByokFeeRate = 0.05
+
 // MinBalanceMicros: requests 402 when balance <= this. 0 matches
 // OpenAI/Anthropic prepaid semantics — block at zero, let in-flight
 // debits settle.
@@ -193,6 +202,9 @@ type DebitInferenceParams struct {
 	// SubscriptionServed: turn ran on the customer's own Anthropic/Codex
 	// subscription token, so Weave charges nothing.
 	SubscriptionServed bool
+	// ByokServed: turn ran on the customer's own provider key; Weave charges
+	// only ByokFeeRate of the upstream cost rather than full inference cost.
+	ByokServed bool
 	// APIKeyID attributes the debit to the authenticating key for
 	// spend-cap tracking; empty leaves per-key spend untouched.
 	APIKeyID string
@@ -206,22 +218,33 @@ type DebitInferenceParams struct {
 // pass-through or subscription-served turn (already paid for), but always
 // records NotionalCostMicros as a shadow trail.
 //
+// A BYOK turn debits 0 on the inference row (the customer paid their own
+// provider) and adds a byok_fee row for ByokFeeRate of the upstream cost.
+// Override and subscription outrank BYOK.
+//
 // Returns the post-debit balance (0 on override, since balance doesn't
 // change).
 func (s *Service) DebitForInference(ctx context.Context, p DebitInferenceParams) (int64, error) {
 	warnOnUnknownPricing(p)
 	notional := computeNotionalMicros(p)
 	delta := -notional
+	var fee int64
 	switch {
 	case p.HasOverride, p.SubscriptionServed:
 		// Already paid for — debit nothing, but still record notional cost below.
 		delta = 0
+	case p.ByokServed:
+		// Customer paid their upstream directly; Weave charges only the fee.
+		delta = 0
+		fee = -byokFeeMicros(notional)
 	}
 	balanceAfter, err := s.repo.DebitInference(ctx, DebitParams{
 		OrganizationID:     p.OrganizationID,
 		DeltaUsdMicros:     delta,
 		NotionalCostMicros: notional,
 		EntryType:          EntryTypeInference,
+		FeeUsdMicros:       fee,
+		FeeEntryType:       EntryTypeByokFee,
 		RouterRequestID:    p.RouterRequestID,
 		RouterModel:        p.Model,
 		APIKeyID:           p.APIKeyID,
@@ -230,7 +253,7 @@ func (s *Service) DebitForInference(ctx context.Context, p DebitInferenceParams)
 	if err != nil {
 		return balanceAfter, err
 	}
-	s.maybeSignalRecharge(ctx, p.OrganizationID, delta, balanceAfter)
+	s.maybeSignalRecharge(ctx, p.OrganizationID, delta+fee, balanceAfter)
 	return balanceAfter, nil
 }
 
@@ -292,4 +315,16 @@ func computeNotionalMicros(p DebitInferenceParams) int64 {
 	inUSD := catalog.EffectiveInputCost(p.InputTokens, p.CacheCreation, p.CacheRead, p.Pricing.InputUSDPer1M, p.Pricing, p.Provider)
 	outUSD := catalog.EffectiveOutputCost(p.OutputTokens, p.Pricing.OutputUSDPer1M)
 	return catalog.USDToMicros(inUSD + outUSD)
+}
+
+// byokFeeMicros returns Weave's platform fee as a positive micros magnitude.
+// Integer math avoids a float round-trip; rounds half away from zero so a
+// sub-micro fee rounds up rather than disappearing.
+func byokFeeMicros(notionalMicros int64) int64 {
+	if notionalMicros <= 0 {
+		return 0
+	}
+	const scale = 10_000 // ByokFeeRate expressed as basis-points-of-a-basis-point
+	rate := int64(ByokFeeRate * scale)
+	return (notionalMicros*rate + scale/2) / scale
 }
