@@ -346,6 +346,10 @@ type EmitOverrides struct {
 	DefaultMaxTokensValue   int64
 	InjectStreamUsage       bool
 	StripThinkingBlocks     bool
+	// StripUnsignedThinkingBlocks removes `thinking` blocks lacking a non-empty
+	// `signature`. Set unconditionally for Anthropic targets: unsigned blocks are
+	// cross-format artifacts; Anthropic 400s on them regardless of switch state.
+	StripUnsignedThinkingBlocks bool
 	// SanitizeToolUseIDs rewrites tool_use.id / tool_use_id values outside
 	// ^[a-zA-Z0-9_-]+$. Always set for Anthropic targets: upstreams like
 	// Kimi-k2.6 emit IDs (e.g. "functions.Read:0") Anthropic rejects on replay.
@@ -386,6 +390,11 @@ func applyOverrides(body []byte, ov EmitOverrides) ([]byte, error) {
 		out, err = stripThinkingBlocksBytes(out)
 		if err != nil {
 			return nil, fmt.Errorf("strip thinking blocks: %w", err)
+		}
+	} else if ov.StripUnsignedThinkingBlocks {
+		out, err = stripUnsignedThinkingBlocksBytes(out)
+		if err != nil {
+			return nil, fmt.Errorf("strip unsigned thinking blocks: %w", err)
 		}
 	}
 
@@ -518,6 +527,9 @@ func clampFieldBytes(body []byte, key string, maxVal int64) []byte {
 // rewriteMessageBlocks walks messages[*].content[*], rewriting each block for
 // which needsRewrite reports true by calling rewrite with that block's raw
 // JSON. rewrite returning "" drops the block from its message's content array.
+// A message whose content array is emptied by rewriting is dropped entirely —
+// Anthropic rejects an assistant/user message with content:[] outright, so
+// leaving the shell behind would trade one 400 for another.
 // Uses two-phase reconstruction per message (cheap predicate scan, then
 // rebuild only messages that actually matched) for O(B) work. Returns body
 // unchanged if nothing matched.
@@ -577,6 +589,12 @@ func rewriteMessageBlocks(
 			return false
 		}
 
+		if len(kept) == 0 {
+			// Every block in this message was dropped; drop the message itself
+			// rather than emit an empty content array.
+			return true
+		}
+
 		newMsg, err := sjson.SetRaw(msg.Raw, "content", "["+strings.Join(kept, ",")+"]")
 		if err != nil {
 			walkErr = fmt.Errorf("replace content in message: %w", err)
@@ -605,6 +623,17 @@ func stripThinkingBlocksBytes(body []byte) ([]byte, error) {
 func isThinkingBlock(block gjson.Result) bool {
 	blockType := block.Get("type").String()
 	return blockType == "thinking" || blockType == "redacted_thinking"
+}
+
+// stripUnsignedThinkingBlocksBytes removes `thinking` blocks with absent or
+// empty `signature` from messages[*].content[*]. Unsigned blocks only come from
+// cross-format emit; Anthropic rejects them. redacted_thinking is exempt.
+func stripUnsignedThinkingBlocksBytes(body []byte) ([]byte, error) {
+	return rewriteMessageBlocks(body, isUnsignedThinkingBlock, dropMatchedBlock)
+}
+
+func isUnsignedThinkingBlock(block gjson.Result) bool {
+	return block.Get("type").String() == "thinking" && block.Get("signature").String() == ""
 }
 
 // dropMatchedBlock drops any block that matched needsRewrite by returning "".
@@ -1114,6 +1143,10 @@ func resolveAnthropicOverrides(body []byte, opts EmitOptions) EmitOverrides {
 	if opts.ModelSwitched {
 		ov.StripThinkingBlocks = true
 	}
+
+	// Floor under the switch-history guard: Anthropic rejects unsigned blocks
+	// regardless of pin TTL, so strip them unconditionally (#860).
+	ov.StripUnsignedThinkingBlocks = true
 
 	if !gjson.GetBytes(body, "max_tokens").Exists() {
 		ov.DefaultMaxTokensKey = "max_tokens"
