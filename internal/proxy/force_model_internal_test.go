@@ -62,6 +62,34 @@ func TestResolveForceModel(t *testing.T) {
 			wantKnown:    true,
 		},
 		{
+			name:         "native openai prefix",
+			input:        "openai/gpt-5.6-luna",
+			wantID:       "gpt-5.6-luna",
+			wantProvider: providers.ProviderOpenAI,
+			wantKnown:    true,
+		},
+		{
+			name:         "native openai prefix with version alias",
+			input:        "openai/gpt-5.6",
+			wantID:       "gpt-5.6-sol",
+			wantProvider: providers.ProviderOpenAI,
+			wantKnown:    true,
+		},
+		{
+			name:         "native openai prefix with model alias",
+			input:        "openai/luna",
+			wantID:       "gpt-5.6-luna",
+			wantProvider: providers.ProviderOpenAI,
+			wantKnown:    true,
+		},
+		{
+			name:         "native openai prefix rejects cross-provider alias",
+			input:        "openai/claude",
+			wantID:       "claude",
+			wantProvider: providers.ProviderOpenAI,
+			wantKnown:    false,
+		},
+		{
 			name:         "alias claude",
 			input:        "claude",
 			wantID:       "claude-opus-5",
@@ -118,6 +146,13 @@ func TestResolveForceModel(t *testing.T) {
 			input:        "mistral/mistral-small-2603",
 			wantID:       "mistral/mistral-small-2603",
 			wantProvider: providers.ProviderOpenRouter,
+			wantKnown:    false,
+		},
+		{
+			name:         "unknown native openai prefix",
+			input:        "openai/gpt-6",
+			wantID:       "gpt-6",
+			wantProvider: providers.ProviderOpenAI,
 			wantKnown:    false,
 		},
 		{
