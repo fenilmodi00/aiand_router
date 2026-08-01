@@ -1026,6 +1026,16 @@ func (s *Service) hmmCostGatedDecision(
 		}
 	}
 
+	// Runs after the upgrade block, so only a plain ReasonEVPositive switch
+	// reaches here; a confident upgrade has already changed Reason.
+	if s.hmmSameTierPin && base.Outcome == planner.OutcomeSwitch && base.Reason == planner.ReasonEVPositive {
+		pinTier, freshTier := catalog.TierFor(stayPin.Model), catalog.TierFor(fresh.Model)
+		if pinTier != catalog.TierUnknown && pinTier == freshTier {
+			base.Outcome = planner.OutcomeStay
+			base.Reason = planner.ReasonSameTierPinned
+		}
+	}
+
 	if base.Outcome == planner.OutcomeStay && stayPin.Model != fresh.Model {
 		return pinDecision(stayPin), base, true, stayPin.Model
 	}

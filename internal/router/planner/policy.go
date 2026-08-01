@@ -99,6 +99,9 @@ const (
 	ReasonEVNegative      = "ev_negative"
 	ReasonTierUpgrade     = "tier_upgrade"
 	ReasonColdPinFresh    = "cold_pin_follow_fresh"
+	// ReasonSameTierPinned is set by the caller (not Decide) when a same-tier
+	// lateral switch is suppressed by hmmSameTierPin.
+	ReasonSameTierPinned = "same_tier_pinned"
 )
 
 // Decide returns the planner verdict for this turn.
