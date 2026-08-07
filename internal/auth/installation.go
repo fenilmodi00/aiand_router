@@ -73,6 +73,10 @@ type Installation struct {
 	// ByokEnabled opts a managed-mode installation into BYOK; managed deploys
 	// are off by default (they bill via prepaid credits). Self-hosted ignores it.
 	ByokEnabled bool
+	// ContentCaptureMode caps content capture for this installation
+	// ("off"|"hashed"|"full"); nil means no override; can only tighten
+	// WV_CAPTURE_CONTENT.
+	ContentCaptureMode *string
 }
 
 type CreateInstallationParams struct {
@@ -105,4 +109,7 @@ type InstallationRepository interface {
 	// the installation. When true, the scorer's subscription subsidy bonus is
 	// suppressed so routing decides on merits.
 	UpdateSubscriptionRoutingDisabled(ctx context.Context, externalID, id string, disabled bool) error
+	// UpdateContentCaptureMode sets the per-installation capture ceiling; nil
+	// clears the override.
+	UpdateContentCaptureMode(ctx context.Context, externalID, id string, mode *string) error
 }

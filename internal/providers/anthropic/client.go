@@ -20,10 +20,32 @@ import (
 
 const DefaultBaseURL = "https://api.anthropic.com"
 
+// AuthScheme selects which credential header an Anthropic-spec upstream expects.
+type AuthScheme int
+
+const (
+	// AuthAPIKeyHeader sends the credential as x-api-key (api.anthropic.com).
+	AuthAPIKeyHeader AuthScheme = iota
+	// AuthBearer sends the credential as Authorization: Bearer. Subscription
+	// OAuth tokens use Bearer under either scheme.
+	AuthBearer
+)
+
+// Option configures a Client at construction.
+type Option func(*Client)
+
+// WithAuthScheme sets how the resolved credential is presented upstream.
+func WithAuthScheme(scheme AuthScheme) Option {
+	return func(c *Client) { c.authScheme = scheme }
+}
+
 type Client struct {
 	apiKey  string
 	baseURL string
 	http    *http.Client
+	// authScheme is the credential header this upstream expects; zero value
+	// (AuthAPIKeyHeader) preserves Anthropic's own behavior.
+	authScheme AuthScheme
 	// sseIdleTimeout overrides httputil.DefaultSSEIdleTimeout when > 0; tests set
 	// it small so the output-stall watchdog fires before this one.
 	sseIdleTimeout time.Duration
@@ -37,15 +59,21 @@ type Client struct {
 	throughputOverride   bool
 }
 
-func NewClient(apiKey, baseURL string) *Client {
-	if baseURL == "" {
-		baseURL = DefaultBaseURL
-	}
-	return &Client{
+func NewClient(apiKey, baseURL string, opts ...Option) *Client {
+	c := &Client{
 		apiKey:  apiKey,
 		baseURL: baseURL,
 		http:    &http.Client{Transport: httputil.NewTransport(10*time.Second, 10*time.Second)},
 	}
+	for _, opt := range opts {
+		opt(c)
+	}
+	// Bearer gateways have no safe default; stay empty so a misconfigured client
+	// fails rather than silently hitting api.anthropic.com.
+	if c.baseURL == "" && c.authScheme == AuthAPIKeyHeader {
+		c.baseURL = DefaultBaseURL
+	}
+	return c
 }
 
 // NewClientWithStallTimeouts is NewClient with watchdog budgets injected for testing.
@@ -100,7 +128,7 @@ const subscriptionTokenPrefix = "sk-ant-oat"
 // httputil.SanitizeInboundAuthHeader before relaying inbound auth upstream.
 func (c *Client) setAuth(ctx context.Context, upstream *http.Request, inbound *http.Request) {
 	if creds := proxy.CredentialsFromContext(ctx); creds != nil {
-		if creds.OAuth {
+		if creds.OAuth || c.authScheme == AuthBearer {
 			upstream.Header.Set("authorization", "Bearer "+string(creds.APIKey))
 			return
 		}
@@ -108,7 +136,16 @@ func (c *Client) setAuth(ctx context.Context, upstream *http.Request, inbound *h
 		return
 	}
 	if c.apiKey != "" {
+		if c.authScheme == AuthBearer {
+			upstream.Header.Set("authorization", "Bearer "+c.apiKey)
+			return
+		}
 		upstream.Header.Set("x-api-key", c.apiKey)
+		return
+	}
+	// A Bearer gateway is a different tenant boundary; relaying the caller's
+	// Anthropic credential there would leak it across that boundary.
+	if c.authScheme == AuthBearer {
 		return
 	}
 	if v := httputil.SanitizeInboundAuthHeader(inbound.Header.Get("authorization")); v != "" {
