@@ -353,8 +353,16 @@ func (s *Service) runTurnLoop(
 	threadSessionKey := DeriveSessionKey(env, apiKeyID)
 	hardPinnedTurn := s.isHardPinnedTurn(ctx, res.TurnType)
 	if s.pinStore != nil && hardPinnedTurn {
-		if forcedPin, found := s.loadPin(ctx, threadSessionKey, res.PinRole); found &&
-			isUserForcedReason(forcedPin.Reason) && forcedPinEligible(forcedPin, req) {
+		forcedPin, found := s.loadPin(ctx, threadSessionKey, res.PinRole)
+		permitted := found && isUserForcedReason(forcedPin.Reason)
+		// Same binding remap as the main path: excluded primary whose fallback
+		// is permitted stays forced; excluded outright, hard pin wins quietly.
+		if permitted {
+			binding, reason := s.forcedModelBinding(ctx, forcedPin.Model, forcedPin.Provider)
+			forcedPin.Provider = binding
+			permitted = reason == ""
+		}
+		if permitted && forcedPinEligible(forcedPin, req) {
 			res.SessionKey = threadSessionKey
 			res.PinModel = forcedPin.Model
 			res.PinAgeSec = pinAge(forcedPin)
@@ -471,6 +479,22 @@ func (s *Service) runTurnLoop(
 	// (routing miss) but DisabledProviders must still steer the scorer away
 	// from the struck-out provider this same turn; HMM-sticky strikes write
 	// to _hmm_history, not PinRole, so either row can carry evidence.
+	// Before the strike exemption below, so the exemption covers the binding
+	// the pin is remapped to, not the (possibly excluded) stored provider.
+	if pinFound && isUserForcedReason(pin.Reason) {
+		binding, reason := s.forcedModelBinding(ctx, pin.Model, pin.Provider)
+		if reason != "" {
+			log.Warn("turnloop: forced pin refers to an excluded model",
+				"pin_model", pin.Model,
+				"pin_provider", pin.Provider,
+				"reason", reason,
+			)
+			return res, &ForcedModelExcludedError{Model: pin.Model, Reason: reason}
+		}
+		// The model survives on another binding, so follow it there instead of
+		// letting the eligibility check below drop the pin.
+		pin.Provider = binding
+	}
 	disabledProviders := mergeDisabledProviders(pin.DisabledProviders, hmmHistory.DisabledProviders)
 	// User-forced pin exempts its own provider: an explicit /force-model
 	// must not be silently reverted by the session-level breaker.
