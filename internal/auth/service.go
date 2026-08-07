@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"workweave/router/internal/observability"
+	"workweave/router/internal/providers"
 
 	"github.com/hashicorp/golang-lru/v2/expirable"
 )
@@ -18,6 +19,12 @@ var ErrUnknownModel = errors.New("auth: unknown model id")
 
 // ErrUnknownProvider is returned when a requested provider name is not in the caller-supplied allowed set.
 var ErrUnknownProvider = errors.New("auth: unknown provider")
+
+// ErrInvalidBaseURL is returned for a BYOK endpoint override that is not an absolute http(s) URL.
+var ErrInvalidBaseURL = errors.New("auth: invalid base url")
+
+// ErrBaseURLRequired is returned when a provider with no deployment endpoint is given no base URL.
+var ErrBaseURLRequired = errors.New("auth: base url required for provider")
 
 type Clock func() time.Time
 
@@ -190,8 +197,17 @@ func (s *Service) ListExternalAPIKeys(ctx context.Context, installationID string
 	return s.externalKeys.GetForInstallation(ctx, installationID)
 }
 
-// UpsertExternalAPIKey replaces any existing key for the provider and inserts a new one.
-func (s *Service) UpsertExternalAPIKey(ctx context.Context, installationID, provider, rawKey string, name *string, createdBy *string) (*ExternalAPIKey, error) {
+// UpsertExternalAPIKey replaces the provider's key for the installation.
+// baseURL overrides the provider's deployment endpoint; nil leaves the default in place.
+func (s *Service) UpsertExternalAPIKey(ctx context.Context, installationID, provider, rawKey string, name *string, baseURL *string, createdBy *string) (*ExternalAPIKey, error) {
+	normalizedBaseURL, err := NormalizeBaseURL(baseURL)
+	if err != nil {
+		return nil, err
+	}
+	// Checked after normalization: a slash-only value normalizes away to nil.
+	if normalizedBaseURL == nil && providers.RequiresBaseURL(provider) {
+		return nil, fmt.Errorf("%w: %s", ErrBaseURLRequired, provider)
+	}
 	// Generate external ID first so it binds into the ciphertext as AAD.
 	externalID := GenerateID("ekid")
 	ciphertext, err := s.encryptor.Encrypt([]byte(rawKey), externalID, provider)
@@ -211,6 +227,7 @@ func (s *Service) UpsertExternalAPIKey(ctx context.Context, installationID, prov
 		KeySuffix:      suffix,
 		KeyFingerprint: hash,
 		Name:           name,
+		BaseURL:        normalizedBaseURL,
 		CreatedBy:      createdBy,
 	})
 	if err != nil {

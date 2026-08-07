@@ -2,6 +2,9 @@ package auth
 
 import (
 	"context"
+	"fmt"
+	"net/url"
+	"strings"
 	"time"
 )
 
@@ -33,6 +36,26 @@ type CreateExternalAPIKeyParams struct {
 	Name           *string
 	BaseURL        *string
 	CreatedBy      *string
+}
+
+// NormalizeBaseURL validates and normalizes a BYOK endpoint override: trims whitespace,
+// strips trailing slashes (providers append their own path), and rejects non-absolute http(s) URLs.
+func NormalizeBaseURL(raw *string) (*string, error) {
+	if raw == nil {
+		return nil, nil
+	}
+	trimmed := strings.TrimRight(strings.TrimSpace(*raw), "/")
+	if trimmed == "" {
+		return nil, nil
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %q", ErrInvalidBaseURL, trimmed)
+	}
+	if (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+		return nil, fmt.Errorf("%w: %q", ErrInvalidBaseURL, trimmed)
+	}
+	return &trimmed, nil
 }
 
 // ExternalAPIKeyRepository manages external API keys in storage.
