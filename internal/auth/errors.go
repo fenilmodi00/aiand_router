@@ -8,6 +8,14 @@ var (
 	ErrInvalidPrefix = errors.New("invalid bearer key prefix")
 	ErrInvalidToken  = errors.New("invalid bearer key")
 
+	// ErrWrongKeyScope is returned when a key is valid but its scope doesn't
+	// cover the surface — analytics on data plane, or routing on export. Both collapse to 401.
+	ErrWrongKeyScope = errors.New("bearer key scope not valid for this surface")
+
+	// ErrInvalidKeyScope is returned when issuing a key with a scope the
+	// router doesn't recognize.
+	ErrInvalidKeyScope = errors.New("unknown api key scope")
+
 	// ErrAPIKeyNotFound is returned when a rotate/delete targets a key that is
 	// either missing or owned by a different installation.
 	ErrAPIKeyNotFound = errors.New("api key not found")

@@ -5,8 +5,13 @@ import (
 	"strings"
 )
 
-// APIKeyPrefix fronts every router-issued bearer token: "<prefix>_<24 random chars>".
+// APIKeyPrefix fronts a routing (data-plane) bearer token: "rk_<24 random chars>".
 const APIKeyPrefix = "rk"
+
+// AnalyticsAPIKeyPrefix fronts a read-only analytics export token: "ra_<24 random chars>".
+// A distinct prefix makes the credential's authority visible in logs and configs
+// without requiring a DB lookup on the token alone.
+const AnalyticsAPIKeyPrefix = "ra"
 
 const (
 	idLength               = 24
@@ -42,6 +47,9 @@ func GenerateID(prefix string) string {
 	return b.String()
 }
 
+// HasAPIKeyPrefix reports whether the token carries any router-issued prefix (rk_ or ra_).
+// Scope enforcement happens in VerifyAPIKey / VerifyAnalyticsAPIKey, not here.
 func HasAPIKeyPrefix(token string) bool {
-	return strings.HasPrefix(token, APIKeyPrefix+"_")
+	return strings.HasPrefix(token, APIKeyPrefix+"_") ||
+		strings.HasPrefix(token, AnalyticsAPIKeyPrefix+"_")
 }
