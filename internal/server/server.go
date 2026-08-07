@@ -8,7 +8,9 @@ import (
 	"strings"
 	"time"
 
+	"workweave/router/internal/analytics"
 	"workweave/router/internal/api/admin"
+	analyticsapi "workweave/router/internal/api/analytics"
 	anthropicapi "workweave/router/internal/api/anthropic"
 	feedbackapi "workweave/router/internal/api/feedback"
 	geminiapi "workweave/router/internal/api/gemini"
@@ -41,6 +43,9 @@ const (
 	// feedbackTimeout bounds the no-login feedback link reads/writes. Both are
 	// single-row Postgres ops plus an async span emit, so 5s is generous.
 	feedbackTimeout = 5 * time.Second
+	// analyticsTimeout bounds an export page. Keyset scans on a high-volume
+	// telemetry table warrant a batch-job budget, not an interactive one.
+	analyticsTimeout = 60 * time.Second
 )
 
 // DeploymentMode gates whether the self-hoster admin dashboard and its
@@ -72,7 +77,10 @@ const (
 //
 // hmmRosterSource, when non-nil, mounts GET /v1/router/hmm-roster for the
 // control plane's cluster allowlist UI.
-func Register(engine *gin.Engine, authSvc *auth.Service, proxySvc *proxy.Service, deployedModels admin.DeployedModelsSource, hmmModels admin.HMMRosterSource, mode DeploymentMode, billingSvc *billing.Service, readinessChecker admin.HealthChecker, hmmRosterSource policy.RosterSource) {
+//
+// analyticsSvc, when non-nil, mounts the /v1/analytics/* export surface;
+// nil leaves it unmounted (tests, deployments without telemetry storage).
+func Register(engine *gin.Engine, authSvc *auth.Service, proxySvc *proxy.Service, deployedModels admin.DeployedModelsSource, hmmModels admin.HMMRosterSource, mode DeploymentMode, billingSvc *billing.Service, readinessChecker admin.HealthChecker, hmmRosterSource policy.RosterSource, analyticsSvc *analytics.Service) {
 	// Managed mode: BYOK is opt-in per installation (see WithAuth).
 	byokRequiresOptIn := mode == DeploymentModeManaged
 
@@ -245,6 +253,19 @@ func Register(engine *gin.Engine, authSvc *auth.Service, proxySvc *proxy.Service
 		middleware.WithRoutingKnobsOverride(),
 	)
 	previewGroup.POST("/v1/route/preview", anthropicapi.PreviewRouteHandler(proxySvc))
+
+	// Read-only routing-decision export. Product surface, so it mounts in both
+	// modes; ra_ keys only, no spend path.
+	if analyticsSvc != nil {
+		analyticsGroup := engine.Group("/v1/analytics",
+			middleware.WithTimeout(analyticsTimeout),
+			middleware.WithAnalyticsKey(authSvc),
+			middleware.WithAnalyticsRateLimit(middleware.AnalyticsRequestsPerMinute),
+		)
+		analyticsGroup.GET("/routing-decisions", analyticsapi.RoutingDecisionsHandler(analyticsSvc))
+		analyticsGroup.GET("/models", analyticsapi.ModelsHandler())
+		analyticsGroup.GET("/schema", analyticsapi.SchemaHandler())
+	}
 
 	// No-login feedback link: the signed HMAC token in the URL/body is the
 	// sole credential, so no auth middleware. Mounted only when
