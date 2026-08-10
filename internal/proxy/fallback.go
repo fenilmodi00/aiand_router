@@ -282,10 +282,11 @@ func (s *Service) dispatchWithFallback(ctx context.Context, in failoverInputs) (
 			}
 		}
 
-		// 404 model-not-found isn't in IsRetryable (retrying the same provider
-		// is futile) but a different binding may carry the model, rescuing a
-		// stale/renamed upstream id that would otherwise hard-fail the turn.
-		canFailover := providers.IsRetryable(attemptErr) || providers.IsUpstreamModelNotFound(attemptErr)
+		// 404 and 402 aren't in IsRetryable (retrying the same binding is futile),
+		// but a different binding may serve the model.
+		canFailover := providers.IsRetryable(attemptErr) ||
+			providers.IsUpstreamModelNotFound(attemptErr) ||
+			providers.IsUpstreamProviderBillingBlocked(attemptErr)
 		if !canFailover || i == len(in.bindings)-1 {
 			// Final attempt or non-failable: discard so the client sees the
 			// error envelope next, not a half-emitted message_start.

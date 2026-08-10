@@ -360,6 +360,17 @@ func IsUpstreamModelNotFound(err error) bool {
 	return false
 }
 
+// IsUpstreamProviderBillingBlocked reports whether err is a buffered 402
+// (provider refuses the model on this account). Like 404, it is fatal for
+// the binding but not the model, so it gates cross-binding failover only.
+func IsUpstreamProviderBillingBlocked(err error) bool {
+	var buffered *UpstreamErrorResponse
+	if errors.As(err, &buffered) {
+		return buffered.Status == http.StatusPaymentRequired
+	}
+	return false
+}
+
 // capabilityRejectionPhrases are prose 400 bodies meaning the model cannot
 // serve this request shape. Substring-matching is the only signal; keep phrases
 // narrow — a loose match fires on ordinary validation errors.
