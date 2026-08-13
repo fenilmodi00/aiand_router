@@ -133,6 +133,9 @@ type Service struct {
 	// hmmSameTierPin suppresses EV-positive same-tier lateral switches once a
 	// session pin is live. Env ROUTER_HMM_SAME_TIER_PIN, off by default.
 	hmmSameTierPin bool
+	// hmPinStickyOnArmSelectorUnavail suppresses a fresh decision that came from the arm-selector
+	// unavailable fallback bandit. Env ROUTER_HMM_PIN_STICKY_ON_ARM_SELECTOR_UNAVAIL, off by default.
+	hmPinStickyOnArmSelectorUnavail bool
 	// plannerEnabled is the kill switch. When false, the orchestrator falls
 	// back to first-decision-wins behavior.
 	plannerEnabled bool
@@ -1115,6 +1118,13 @@ func (s *Service) WithHMMUpgradeConfidenceThreshold(v float64) *Service {
 // suppressing an EV-positive HMM switch between two same-tier models.
 func (s *Service) WithHMMSameTierPin(enabled bool) *Service {
 	s.hmmSameTierPin = enabled
+	return s
+}
+
+// WithHMPinStickyOnArmSelectorUnavail is the kill switch (ROUTER_HMM_PIN_STICKY_ON_ARM_SELECTOR_UNAVAIL)
+// for suppressing a reroute caused by the arm-selector unavailable fallback bandit.
+func (s *Service) WithHMPinStickyOnArmSelectorUnavail(enabled bool) *Service {
+	s.hmPinStickyOnArmSelectorUnavail = enabled
 	return s
 }
 

@@ -40,9 +40,13 @@ type Pin struct {
 	// eviction) so the stored pair never goes stale. Empty for non-scorer pins
 	// or single-candidate routing; a later per-turn policy swaps between the
 	// pair without re-scoring.
-	PairedProvider            string
-	PairedModel               string
-	Reason                    string
+	PairedProvider string
+	PairedModel    string
+	Reason         string
+	// PolicyGroup is the HMM complexity cluster the pinned decision came from
+	// (RoutingMetadata.PolicyGroup). Compared to the fresh decision's group to
+	// distinguish a within-cluster reroute from a genuine cluster change.
+	PolicyGroup               string
 	TurnCount                 int
 	PinnedUntil               time.Time
 	FirstPinnedAt             time.Time
