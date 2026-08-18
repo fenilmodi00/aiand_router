@@ -92,6 +92,23 @@ func pinCacheCold(pin sessionpin.Pin, prefixBroken bool) bool {
 	return !cacheWarm(pin) || prefixBroken
 }
 
+func applyPinEvidence(res *turnLoopResult, pin sessionpin.Pin) {
+	res.PinModel = pin.Model
+	res.PinProvider = pin.Provider
+	res.PinAgeSec = pinAge(pin)
+	if !pin.LastTurnEndedAt.IsZero() {
+		gapMS := time.Since(pin.LastTurnEndedAt).Milliseconds()
+		res.PriorTurnGapMS = &gapMS
+	}
+}
+
+func clearPinEvidence(res *turnLoopResult) {
+	res.PinModel = ""
+	res.PinProvider = ""
+	res.PinAgeSec = 0
+	res.PriorTurnGapMS = nil
+}
+
 // turnLoopResult bundles the routing decision and pin/planner state.
 type turnLoopResult struct {
 	Decision       router.Decision
@@ -109,6 +126,11 @@ type turnLoopResult struct {
 	UsageBypass bool
 	PinTier     string
 	PinAgeSec   int64
+	// PinProvider, PrefixBroken, and PriorTurnGapMS preserve the cache-state
+	// evidence used by the planner for span-level shadow analysis.
+	PinProvider    string
+	PrefixBroken   bool
+	PriorTurnGapMS *int64
 	// PolicyFallback is true when the decision came from degrading a policy sidecar
 	// deadline to a session pin or tier-3 default. Exclude from bandit training and
 	// flag on the OTel span so degraded-mode spend is distinguishable.
@@ -523,6 +545,7 @@ func (s *Service) runTurnLoop(
 	// prefixTrimFreeSwitch gates actions only; detection stays unconditional
 	// so the compaction handover keeps working when the lever is off.
 	prefixBroken := s.prefixTrimFreeSwitch && res.PrefixTrimmed
+	res.PrefixBroken = prefixBroken
 	if res.PrefixTrimmed {
 		log.Info("turnloop detected client history trim",
 			"message_count", feats.MessageCount,
@@ -608,8 +631,7 @@ func (s *Service) runTurnLoop(
 	res.EscalateEffort = pinFound && !pin.LastTurnEndedAt.IsZero() &&
 		(pin.LastOutputTokens == 0 || pin.ConsecutiveUpstreamErrors > 0)
 	if pinFound {
-		res.PinModel = pin.Model
-		res.PinAgeSec = pinAge(pin)
+		applyPinEvidence(&res, pin)
 		log.Info("turnloop pin lookup hit",
 			"pin_model", pin.Model,
 			"pin_provider", pin.Provider,
@@ -809,6 +831,9 @@ func (s *Service) runTurnLoop(
 		pinFound = false
 		pin = sessionpin.Pin{}
 	}
+	if !pinFound {
+		clearPinEvidence(&res)
+	}
 
 	// Positioned after hard-pin/forced-pin (higher precedence) and after all
 	// pin-drop guards (context overflow, provider disabled, images, maxed-out),
@@ -967,6 +992,9 @@ func (s *Service) runTurnLoop(
 		res.PlannerDecision = hmmPlannerDecision
 		if hmmStayModel != "" {
 			res.PinModel = hmmStayModel
+			if hmmPin, ok := s.hmmStayPin(req, activePin, hmmHistory); ok && hmmPin.Model == hmmStayModel {
+				applyPinEvidence(&res, hmmPin)
+			}
 		}
 		if hmmSticky {
 			res.StickyHit = true
