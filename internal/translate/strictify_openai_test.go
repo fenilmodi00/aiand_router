@@ -102,6 +102,32 @@ func TestStrictify_ArrayItemsRecurse(t *testing.T) {
 	assert.Equal(t, false, items["additionalProperties"])
 }
 
+// An array typed node with no "items" key has no declared element type;
+// strict mode can't express that and must bail rather than guess.
+func TestStrictify_ArrayWithoutItemsKeyBails(t *testing.T) {
+	_, ok := strictifyFromJSON(t, `{
+		"type":"object",
+		"properties":{
+			"value":{"type":"array","description":"Filter value(s) as array"}
+		},
+		"required":["value"]
+	}`)
+	require.False(t, ok, "an array with no declared element type is not expressible in strict mode; must bail")
+}
+
+// sanitizeOpenAIToolSchema inserts items:{} for bare arrays before strictify
+// runs — this exercises that path; must also bail.
+func TestStrictify_ArrayWithEmptyItemsPlaceholderBails(t *testing.T) {
+	_, ok := strictifyFromJSON(t, `{
+		"type":"object",
+		"properties":{
+			"value":{"type":"array","items":{},"description":"Filter value(s) as array"}
+		},
+		"required":["value"]
+	}`)
+	require.False(t, ok, "an empty items placeholder carries no element type; must bail like the no-items-key case")
+}
+
 func TestStrictify_EnumOptionalWrapsInAnyOf(t *testing.T) {
 	out, ok := strictifyFromJSON(t, `{
 		"type":"object",

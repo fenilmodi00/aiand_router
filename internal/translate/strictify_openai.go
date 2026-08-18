@@ -124,7 +124,15 @@ func strictifyNode(node map[string]any, depth int, propCount *int) (out map[stri
 		if !sok {
 			return nil, false
 		}
+		if !schemaHasStrictType(si) {
+			// No declared element type — synthesizing would silently reject valid
+			// non-primitive elements; bail the whole tool to non-strict instead.
+			return nil, false
+		}
 		res["items"] = si
+	} else if typeIncludesArray(res["type"]) {
+		// Same "no declared element type" case as above.
+		return nil, false
 	}
 
 	properties, hasProps := res["properties"].(map[string]any)
@@ -219,12 +227,34 @@ func makeNullable(node map[string]any) map[string]any {
 		"additionalProperties": false,
 		"properties":           map[string]any{},
 		"required":             []any{},
-		"items":                map[string]any{"type": []any{"string", "number", "boolean", "null"}},
+		"items":                permissiveAnySchema(),
 	}
 	for k, v := range node {
 		branch[k] = v
 	}
 	return map[string]any{"anyOf": []any{branch, map[string]any{"type": "null"}}}
+}
+
+// typeIncludesArray reports whether a node's "type" value (string or union
+// list form) includes "array".
+func typeIncludesArray(t any) bool {
+	switch v := t.(type) {
+	case string:
+		return v == "array"
+	case []any:
+		for _, e := range v {
+			if s, isStr := e.(string); isStr && s == "array" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// permissiveAnySchema returns the items sub-schema for a bare array node —
+// excludes "array"/"object" to avoid recursive strictification.
+func permissiveAnySchema() map[string]any {
+	return map[string]any{"type": []any{"string", "number", "boolean", "null"}}
 }
 
 // schemaHasStrictType reports whether node carries a type OpenAI strict mode
