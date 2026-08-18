@@ -109,6 +109,13 @@ func clearPinEvidence(res *turnLoopResult) {
 	res.PriorTurnGapMS = nil
 }
 
+func cacheablePrefixTokens(pin sessionpin.Pin, total int, prefixBroken bool) int {
+	if prefixBroken {
+		return 0
+	}
+	return min(pin.LastCachedReadTokens+pin.LastCachedWriteTokens, total)
+}
+
 // turnLoopResult bundles the routing decision and pin/planner state.
 type turnLoopResult struct {
 	Decision       router.Decision
@@ -1069,10 +1076,11 @@ func (s *Service) runTurnLoop(
 	}
 
 	plannerIn := planner.Inputs{
-		Pin:                  pin,
-		Fresh:                fresh,
-		EstimatedInputTokens: feats.Tokens,
-		AvailableModels:      s.availableModels,
+		Pin:                   pin,
+		Fresh:                 fresh,
+		EstimatedInputTokens:  feats.Tokens,
+		CacheablePrefixTokens: cacheablePrefixTokens(pin, feats.Tokens, prefixBroken),
+		AvailableModels:       s.availableModels,
 		// A trimmed prefix kills the cache even inside the provider TTL.
 		PinCacheCold: pinFound && pinCacheCold(pin, prefixBroken),
 		// Applies the subsidy discount to pinned sessions too, not just fresh
@@ -1192,12 +1200,13 @@ func (s *Service) hmmCostGatedDecision(
 	// because HMM clusters and catalog tiers are not the same axis.
 	cfg.TierUpgradeEnabled = false
 	base := planner.Decide(planner.Inputs{
-		Pin:                  stayPin,
-		Fresh:                fresh,
-		EstimatedInputTokens: estimatedInputTokens,
-		AvailableModels:      s.availableModels,
-		PinCacheCold:         pinCacheCold(stayPin, prefixBroken),
-		SubsidizedCostFactor: req.SubsidizedModelCostFactor,
+		Pin:                   stayPin,
+		Fresh:                 fresh,
+		EstimatedInputTokens:  estimatedInputTokens,
+		CacheablePrefixTokens: cacheablePrefixTokens(stayPin, estimatedInputTokens, prefixBroken),
+		AvailableModels:       s.availableModels,
+		PinCacheCold:          pinCacheCold(stayPin, prefixBroken),
+		SubsidizedCostFactor:  req.SubsidizedModelCostFactor,
 	}, cfg)
 
 	if hmmFreshIsMoreExpensive(stayPin.Model, fresh.Model, req.SubsidizedModelCostFactor) {

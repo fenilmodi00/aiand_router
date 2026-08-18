@@ -124,6 +124,16 @@ func TestApplyPinEvidence_UsesAvailablePriorTurnData(t *testing.T) {
 	assert.Nil(t, withHistory.PriorTurnGapMS)
 }
 
+func TestCacheablePrefixTokens_UsesReadOrWriteEvidence(t *testing.T) {
+	t.Parallel()
+
+	pin := sessionpin.Pin{LastCachedReadTokens: 4_000, LastCachedWriteTokens: 3_000}
+	assert.Equal(t, 4_000, cacheablePrefixTokens(sessionpin.Pin{LastCachedWriteTokens: 4_000}, 10_000, false))
+	assert.Equal(t, 2_000, cacheablePrefixTokens(sessionpin.Pin{LastCachedReadTokens: 4_000}, 2_000, false))
+	assert.Equal(t, 7_000, cacheablePrefixTokens(pin, 10_000, false))
+	assert.Zero(t, cacheablePrefixTokens(pin, 10_000, true))
+}
+
 // TestRecordTurnUsage_WritesToStore guards the synchronous UpdateUsage write:
 // recordTurnUsage must persist Last* fields in-line so the planner has
 // prior-turn evidence by the next turn.
