@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -16,6 +17,7 @@ import (
 	"workweave/router/internal/router/catalog"
 	"workweave/router/internal/router/cluster"
 	"workweave/router/internal/router/handover"
+	"workweave/router/internal/router/hmm"
 	"workweave/router/internal/router/planner"
 	"workweave/router/internal/router/sessionpin"
 	"workweave/router/internal/router/turntype"
@@ -102,6 +104,10 @@ type turnLoopResult struct {
 	UsageBypass bool
 	PinTier     string
 	PinAgeSec   int64
+	// PolicyFallback is true when the decision came from degrading a policy sidecar
+	// deadline to a session pin or tier-3 default. Exclude from bandit training and
+	// flag on the OTel span so degraded-mode spend is distinguishable.
+	PolicyFallback bool
 	// RequestedTier drives the session-pin role split (roleForTier) so a
 	// low-tier background turn and a high-tier main turn never share a pin.
 	RequestedTier catalog.Tier
@@ -224,6 +230,27 @@ func stickPinOnArmSelectorUnavailable(fresh router.Decision, pin sessionpin.Pin,
 		return false
 	}
 	return true
+}
+
+// policyDeadlineFallbackReason is set as PinTier when a policy sidecar deadline degrades to a pin or tier-3 default.
+const policyDeadlineFallbackReason = "policy_deadline_last_known_good"
+
+// policyDeadlineDefaultReason is the Decision.Reason when a deadline miss with no pin falls to the tier-3 default.
+const policyDeadlineDefaultReason = "policy_deadline_default_model"
+
+// isPolicyDeadlineErr reports whether err is a policy sidecar deadline/transport
+// failure (safe to degrade) rather than a contract violation (must fail closed).
+// Both context.DeadlineExceeded/Canceled and hmm.ErrHMMUnavailable must be present —
+// sidecar_router.go also wraps contract violations with ErrHMMUnavailable, so the
+// deadline/cancel check is load-bearing.
+func isPolicyDeadlineErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	if !errors.Is(err, hmm.ErrHMMUnavailable) {
+		return false
+	}
+	return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
 }
 
 func hmmHistoryRole(role string) string {
@@ -847,6 +874,46 @@ func (s *Service) runTurnLoop(
 	if !routed {
 		dec, err := s.routeFor(ctx, req)
 		if err != nil {
+			// Deadline != correctness failure: all candidates were dispatchable; only
+			// ranking is lost. Contract violations still fail closed via isPolicyDeadlineErr.
+			if s.policyDeadlineFallback && isPolicyDeadlineErr(err) {
+				if pinFound && pin.Model != "" {
+					decision := pinDecision(pin)
+					// Use a distinct Reason so degraded-mode turns don't
+					// read identically to genuine policy-chosen STAYs in analytics.
+					decision.Reason = policyDeadlineFallbackReason
+					res.Decision = decision
+					res.StickyHit = true
+					res.PinTier = policyDeadlineFallbackReason
+					res.PolicyFallback = true
+					log.Warn("policy sidecar missed its deadline; serving session pin",
+						"err", err,
+						"pin_model", pin.Model,
+						"pin_provider", pin.Provider,
+						"pin_policy_group", pin.PolicyGroup,
+						"requested_model", req.RequestedModel,
+					)
+					// Persist the pin's own reason, not the degraded-mode one:
+					// isHMMPinReason gates later HMM stickiness on it.
+					refreshed := decision
+					refreshed.Reason = pin.Reason
+					s.refreshPin(ctx, installationID, res.SessionKey, pin, res.PinRole, refreshed)
+					return res, nil
+				}
+				if decision, ok := s.policyDeadlineDefaultDecision(req); ok {
+					res.Decision = decision
+					res.PinTier = policyDeadlineFallbackReason
+					res.PolicyFallback = true
+					log.Warn("policy sidecar missed its deadline; no session pin, serving tier-3 default",
+						"err", err,
+						"default_model", decision.Model,
+						"default_provider", decision.Provider,
+						"requested_model", req.RequestedModel,
+					)
+					s.writeNewPin(ctx, installationID, res.SessionKey, res.PinRole, decision)
+					return res, nil
+				}
+			}
 			log.Error("turnloop scorer failed", "err", err, "requested_model", req.RequestedModel)
 			return res, err
 		}

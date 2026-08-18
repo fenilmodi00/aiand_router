@@ -136,6 +136,12 @@ type Service struct {
 	// hmPinStickyOnArmSelectorUnavail suppresses a fresh decision that came from the arm-selector
 	// unavailable fallback bandit. Env ROUTER_HMM_PIN_STICKY_ON_ARM_SELECTOR_UNAVAIL, off by default.
 	hmPinStickyOnArmSelectorUnavail bool
+	// policyDeadlineFallback degrades a policy sidecar deadline/transport failure to
+	// the session pin instead of a 503. Kill switch: env ROUTER_POLICY_DEADLINE_FALLBACK, off by default.
+	policyDeadlineFallback bool
+	// policyDeadlineDefaultModel is the tier-3 static fallback on a policy deadline
+	// miss with no session pin (~0.2% of failures); empty = fail-closed (503). Env ROUTER_POLICY_DEADLINE_DEFAULT_MODEL.
+	policyDeadlineDefaultModel string
 	// plannerEnabled is the kill switch. When false, the orchestrator falls
 	// back to first-decision-wins behavior.
 	plannerEnabled bool
@@ -1141,6 +1147,19 @@ func (s *Service) WithHMMSameTierPin(enabled bool) *Service {
 // for suppressing a reroute caused by the arm-selector unavailable fallback bandit.
 func (s *Service) WithHMPinStickyOnArmSelectorUnavail(enabled bool) *Service {
 	s.hmPinStickyOnArmSelectorUnavail = enabled
+	return s
+}
+
+// WithPolicyDeadlineFallback sets the kill switch (ROUTER_POLICY_DEADLINE_FALLBACK) for degrading a policy sidecar deadline to the session pin instead of a 503.
+func (s *Service) WithPolicyDeadlineFallback(enabled bool) *Service {
+	s.policyDeadlineFallback = enabled
+	return s
+}
+
+// WithPolicyDeadlineDefaultModel sets ROUTER_POLICY_DEADLINE_DEFAULT_MODEL: the tier-3 static fallback
+// on a deadline miss with no pin yet. Empty preserves fail-closed (503) for pinless sessions.
+func (s *Service) WithPolicyDeadlineDefaultModel(model string) *Service {
+	s.policyDeadlineDefaultModel = model
 	return s
 }
 
@@ -2591,6 +2610,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		String("decision.model", decision.Model).
 		String("decision.provider", decision.Provider).
 		String("decision.reason", decision.Reason).
+		Bool("routing.policy_fallback", routeRes.PolicyFallback).
 		Bool("routing.sticky_hit", stickyHit).
 		Bool("routing.session_pin_hit", pinTier == "in_proc" || pinTier == "postgres").
 		String("routing.session_pin_tier", pinTier).
@@ -3691,6 +3711,42 @@ func pinDecision(p sessionpin.Pin) router.Decision {
 	}
 }
 
+// policyDeadlineDefaultDecision resolves ROUTER_POLICY_DEADLINE_DEFAULT_MODEL to a
+// dispatchable Decision, honouring this turn's eligibility (enabled providers and
+// excluded models). Reports false when unset, excluded, or without a live binding —
+// callers must fail closed (503), not serve an ineligible decision.
+func (s *Service) policyDeadlineDefaultDecision(req router.Request) (router.Decision, bool) {
+	if s.policyDeadlineDefaultModel == "" {
+		return router.Decision{}, false
+	}
+	if _, excluded := req.ExcludedModels[s.policyDeadlineDefaultModel]; excluded {
+		return router.Decision{}, false
+	}
+	if _, excluded := req.SafetyExcludedModels[s.policyDeadlineDefaultModel]; excluded {
+		return router.Decision{}, false
+	}
+	// nil EnabledProviders means unrestricted, so fall back to everything this
+	// deployment registered; otherwise only providers this turn can authenticate.
+	providerSet := make(map[string]struct{}, len(s.providers))
+	for provider := range s.providers {
+		if req.EnabledProviders != nil {
+			if _, enabled := req.EnabledProviders[provider]; !enabled {
+				continue
+			}
+		}
+		providerSet[provider] = struct{}{}
+	}
+	binding, ok := catalog.ResolveBinding(s.policyDeadlineDefaultModel, providerSet)
+	if !ok {
+		return router.Decision{}, false
+	}
+	return router.Decision{
+		Provider: binding.Provider,
+		Model:    s.policyDeadlineDefaultModel,
+		Reason:   policyDeadlineDefaultReason,
+	}, true
+}
+
 // bandSwapServed picks which half of a pinned band pair serves this sticky
 // turn. Returns the pin's anchor unchanged when the swap head is disabled,
 // the pin has no runner-up, the turn isn't MainLoop, the embedding is
@@ -4648,6 +4704,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		String("decision.model", decision.Model).
 		String("decision.provider", decision.Provider).
 		String("decision.reason", decision.Reason).
+		Bool("routing.policy_fallback", routeRes.PolicyFallback).
 		Bool("routing.sticky_hit", stickyHit).
 		Bool("routing.session_pin_hit", pinTier == "in_proc" || pinTier == "postgres").
 		String("routing.session_pin_tier", pinTier).
