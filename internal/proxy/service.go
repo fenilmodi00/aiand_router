@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
 	"sort"
 	"strings"
@@ -2624,6 +2625,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		Float64("catalog.actual_input_per_1m", actPricing.InputUSDPer1M).
 		Float64("catalog.actual_output_per_1m", actPricing.OutputUSDPer1M).
 		Int64("latency.route_ms", routeMs)
+	applyEmbedLatencyAttr(decisionBuilder, routeRes)
 	applyPlannerAttrs(decisionBuilder, routeRes)
 	applyRoutingStateAttrs(decisionBuilder, routeRes, decision.Model, sessionKey)
 	otel.Record(ctx, otel.Span{
@@ -3392,6 +3394,16 @@ func applyPlannerAttrs(b *otel.AttrBuilder, res turnLoopResult) *otel.AttrBuilde
 		Int64("handover.latency_ms", res.Handover.LatencyMS).
 		Int64("handover.summary_tokens", int64(res.Handover.SummaryTokens)).
 		Bool("handover.fallback_to_full_history", res.Handover.FallbackToFullHistory)
+	return b
+}
+
+// applyEmbedLatencyAttr reads Fresh.Metadata, not the served decision:
+// STAY replaces the decision with a pin (nil Metadata) even when the
+// sidecar embedded this turn. Absent = no embedding; present 0 = warm cache.
+func applyEmbedLatencyAttr(b *otel.AttrBuilder, res turnLoopResult) *otel.AttrBuilder {
+	if res.Fresh.Metadata != nil && res.Fresh.Metadata.EmbedMs != nil {
+		b.Int64("latency.embed_ms", int64(math.Round(*res.Fresh.Metadata.EmbedMs)))
+	}
 	return b
 }
 
@@ -4718,6 +4730,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		Float64("catalog.actual_input_per_1m", actPricing.InputUSDPer1M).
 		Float64("catalog.actual_output_per_1m", actPricing.OutputUSDPer1M).
 		Int64("latency.route_ms", routeMs)
+	applyEmbedLatencyAttr(openaiDecisionBuilder, routeRes)
 	applyPlannerAttrs(openaiDecisionBuilder, routeRes)
 	applyRoutingStateAttrs(openaiDecisionBuilder, routeRes, decision.Model, sessionKey)
 	otel.Record(ctx, otel.Span{

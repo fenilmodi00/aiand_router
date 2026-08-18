@@ -263,6 +263,9 @@ type RoutingMetadata struct {
 	PolicyArtifactID     string
 	PolicyArtifactSHA256 string
 	RosterVersion        string
+	// EmbedMs is set only on fresh sidecar decisions; never persist into pins
+	// or a replayed pin re-emits a stale measurement.
+	EmbedMs              *float64
 	SelectedArmID        string
 	SelectedUpstreamID   string
 	BindingIndex         int
