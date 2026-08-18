@@ -134,6 +134,244 @@ func TestService_RouterFeedbackCommand_PersistsAndAcks(t *testing.T) {
 	assert.Contains(t, text, "Feedback recorded")
 }
 
+func TestService_RouterFeedbackCommand_PreservesAutomaticPinForOneFollowup(t *testing.T) {
+	const feedbackBody = `{
+		"model":"claude-sonnet-4-6",
+		"max_tokens":1024,
+		"metadata":{"user_id":"pi:post-command-continuation"},
+		"messages":[
+			{"role":"user","content":"inspect the router state"},
+			{"role":"assistant","content":"I found the route."},
+			{"role":"user","content":"/rf+"}
+		]
+	}`
+	const followupBody = `{
+		"model":"claude-sonnet-4-6",
+		"max_tokens":1024,
+		"metadata":{"user_id":"pi:post-command-continuation"},
+		"messages":[
+			{"role":"user","content":"inspect the router state"},
+			{"role":"assistant","content":"I found the route."},
+			{"role":"user","content":"/rf+"},
+			{"role":"assistant","content":"✦ **Weave Router** → Feedback recorded 👍.\n\n"},
+			{"role":"user","content":"continue"}
+		]
+	}`
+	const laterBody = `{
+		"model":"claude-sonnet-4-6",
+		"max_tokens":1024,
+		"metadata":{"user_id":"pi:post-command-continuation"},
+		"messages":[
+			{"role":"user","content":"inspect the router state"},
+			{"role":"assistant","content":"I found the route."},
+			{"role":"user","content":"/rf+"},
+			{"role":"assistant","content":"✦ **Weave Router** → Feedback recorded 👍.\n\n"},
+			{"role":"user","content":"continue"},
+			{"role":"assistant","content":"Continuing on the existing route."},
+			{"role":"user","content":"now assess another task"}
+		]
+	}`
+
+	sourceExpiry := time.Now().Add(time.Minute)
+	store := newFakePinStore()
+	store.hasPin = true
+	store.pin = sessionpin.Pin{
+		Provider:        providers.ProviderAnthropic,
+		Model:           "claude-haiku-4-5",
+		Reason:          "hmm_policy(label=balanced)",
+		LastServedModel: "claude-haiku-4-5",
+		PinnedUntil:     sourceExpiry,
+	}
+	policyRouter := &fakePolicyFeedbackRouter{decision: router.Decision{
+		Provider: providers.ProviderAnthropic,
+		Model:    "claude-sonnet-4-6",
+		Reason:   "hmm_policy(label=high)",
+		Metadata: &router.RoutingMetadata{Strategy: string(router.StrategyHMMEmbedding)},
+	}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	svc := newPinSvc(fr, store).WithPolicyStrategy(policy.StrategySpec{
+		Strategy: router.StrategyHMMEmbedding,
+		Router:   policyRouter,
+		Capabilities: policy.Capabilities{
+			SchemaVersion:                 policy.SchemaVersionV1,
+			AuthoritativePerTurnSelection: true,
+		},
+	})
+	ctx := router.WithStrategy(authedCtx(uuid.NewString()), router.StrategyHMMEmbedding)
+	httpReq := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+
+	require.NoError(t, svc.ProxyMessages(ctx, []byte(feedbackBody), httptest.NewRecorder(), httpReq))
+	assert.Empty(t, policyRouter.Requests(), "the synthetic feedback response must not route")
+	store.mu.Lock()
+	continuations := make([]sessionpin.Pin, 0, len(store.commandContinuations))
+	for _, continuation := range store.commandContinuations {
+		continuations = append(continuations, continuation)
+	}
+	store.mu.Unlock()
+	require.Len(t, continuations, 1)
+	assert.True(t, continuations[0].PinnedUntil.After(sourceExpiry),
+		"the continuation must renew a near-expiry automatic pin")
+
+	followupRecorder := httptest.NewRecorder()
+	require.NoError(t, svc.ProxyMessages(ctx, []byte(followupBody), followupRecorder, httpReq))
+	assert.Empty(t, policyRouter.Requests(), "the first normal turn after a slash command must reuse the automatic pin")
+	assert.Equal(t, "claude-haiku-4-5", followupRecorder.Header().Get(proxy.HeaderRouterModel))
+
+	laterRecorder := httptest.NewRecorder()
+	require.NoError(t, svc.ProxyMessages(ctx, []byte(laterBody), laterRecorder, httpReq))
+	require.Len(t, policyRouter.Requests(), 1, "the one-shot continuation must be consumed after one normal turn")
+	assert.Equal(t, "claude-sonnet-4-6", laterRecorder.Header().Get(proxy.HeaderRouterModel))
+}
+
+func TestService_RouterFeedbackCommand_DoesNotContinueMaxedPin(t *testing.T) {
+	const feedbackBody = `{
+		"model":"claude-sonnet-4-6",
+		"max_tokens":1024,
+		"metadata":{"user_id":"pi:maxed-post-command"},
+		"messages":[
+			{"role":"user","content":"inspect the router state"},
+			{"role":"assistant","content":"I found the route."},
+			{"role":"user","content":"/rf+"}
+		]
+	}`
+	const followupBody = `{
+		"model":"claude-sonnet-4-6",
+		"max_tokens":1024,
+		"metadata":{"user_id":"pi:maxed-post-command"},
+		"messages":[
+			{"role":"user","content":"inspect the router state"},
+			{"role":"assistant","content":"I found the route."},
+			{"role":"user","content":"/rf+"},
+			{"role":"assistant","content":"✦ **Weave Router** → Feedback recorded 👍.\n\n"},
+			{"role":"user","content":"continue"}
+		]
+	}`
+
+	store := newFakePinStore()
+	store.hasPin = true
+	store.pin = sessionpin.Pin{
+		Provider:        providers.ProviderAnthropic,
+		Model:           "claude-haiku-4-5",
+		Reason:          "hmm_policy(label=balanced)",
+		LastServedModel: "claude-haiku-4-5",
+		// Keep this in sync with prevTurnMaxedOutThreshold. A saturated source
+		// pin must not be copied into a one-shot post-command continuation.
+		LastOutputTokens: 8000,
+		PinnedUntil:      time.Now().Add(time.Minute),
+	}
+	policyRouter := &fakePolicyFeedbackRouter{decision: router.Decision{
+		Provider: providers.ProviderAnthropic,
+		Model:    "claude-sonnet-4-6",
+		Reason:   "hmm_policy(label=high)",
+		Metadata: &router.RoutingMetadata{Strategy: string(router.StrategyHMMEmbedding)},
+	}}
+	fr := &fakeRouter{decision: router.Decision{
+		Provider: providers.ProviderAnthropic,
+		Model:    "claude-sonnet-4-6",
+		Reason:   "cluster",
+	}}
+	svc := newPinSvc(fr, store).WithPolicyStrategy(policy.StrategySpec{
+		Strategy: router.StrategyHMMEmbedding,
+		Router:   policyRouter,
+		Capabilities: policy.Capabilities{
+			SchemaVersion:                 policy.SchemaVersionV1,
+			AuthoritativePerTurnSelection: true,
+		},
+	})
+	ctx := router.WithStrategy(authedCtx(uuid.NewString()), router.StrategyHMMEmbedding)
+	httpReq := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+
+	require.NoError(t, svc.ProxyMessages(ctx, []byte(feedbackBody), httptest.NewRecorder(), httpReq))
+	assert.Empty(t, policyRouter.Requests(), "the synthetic feedback response must not route")
+	store.mu.Lock()
+	continuationCount := len(store.commandContinuations)
+	store.mu.Unlock()
+	assert.Zero(t, continuationCount, "a maxed source pin must not create a continuation")
+
+	followupRecorder := httptest.NewRecorder()
+	require.NoError(t, svc.ProxyMessages(ctx, []byte(followupBody), followupRecorder, httpReq))
+	require.Len(t, policyRouter.Requests(), 1, "the maxed source pin must be excluded before fresh routing")
+	assert.Equal(t, "claude-sonnet-4-6", followupRecorder.Header().Get(proxy.HeaderRouterModel))
+}
+
+func TestService_RouterFeedbackCommand_DoesNotResurrectClearedPin(t *testing.T) {
+	const feedbackBody = `{
+		"model":"claude-sonnet-4-6",
+		"max_tokens":1024,
+		"metadata":{"user_id":"pi:cleared-post-command"},
+		"messages":[
+			{"role":"user","content":"inspect the router state"},
+			{"role":"assistant","content":"I found the route."},
+			{"role":"user","content":"/rf+"}
+		]
+	}`
+	const followupBody = `{
+		"model":"claude-sonnet-4-6",
+		"max_tokens":1024,
+		"metadata":{"user_id":"pi:cleared-post-command"},
+		"messages":[
+			{"role":"user","content":"inspect the router state"},
+			{"role":"assistant","content":"I found the route."},
+			{"role":"user","content":"/rf+"},
+			{"role":"assistant","content":"✦ **Weave Router** → Feedback recorded 👍.\n\n"},
+			{"role":"user","content":"continue"}
+		]
+	}`
+
+	store := newFakePinStore()
+	store.hasPin = true
+	store.pin = sessionpin.Pin{
+		Provider:        providers.ProviderAnthropic,
+		Model:           "claude-haiku-4-5",
+		Reason:          "hmm_policy(label=balanced)",
+		LastServedModel: "claude-haiku-4-5",
+		PinnedUntil:     time.Now().Add(time.Minute),
+	}
+	policyRouter := &fakePolicyFeedbackRouter{decision: router.Decision{
+		Provider: providers.ProviderAnthropic,
+		Model:    "claude-sonnet-4-6",
+		Reason:   "hmm_policy(label=high)",
+		Metadata: &router.RoutingMetadata{Strategy: string(router.StrategyHMMEmbedding)},
+	}}
+	fr := &fakeRouter{decision: router.Decision{
+		Provider: providers.ProviderAnthropic,
+		Model:    "claude-sonnet-4-6",
+		Reason:   "cluster",
+	}}
+	svc := newPinSvc(fr, store).WithPolicyStrategy(policy.StrategySpec{
+		Strategy: router.StrategyHMMEmbedding,
+		Router:   policyRouter,
+		Capabilities: policy.Capabilities{
+			SchemaVersion:                 policy.SchemaVersionV1,
+			AuthoritativePerTurnSelection: true,
+		},
+	})
+	ctx := router.WithStrategy(authedCtx(uuid.NewString()), router.StrategyHMMEmbedding)
+	httpReq := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+
+	require.NoError(t, svc.ProxyMessages(ctx, []byte(feedbackBody), httptest.NewRecorder(), httpReq))
+	store.mu.Lock()
+	continuationCount := len(store.commandContinuations)
+	// Simulate a later intentional eviction. The continuation remains here to
+	// verify the turn loop cannot revive the cleared source pin if cleanup was
+	// delayed or ran on another process.
+	store.pin = sessionpin.Pin{
+		Reason:      "degenerate_response",
+		PinnedUntil: time.Now().Add(-time.Second),
+	}
+	store.mu.Unlock()
+	require.Equal(t, 1, continuationCount, "feedback must create the expected one-shot continuation")
+
+	followupRecorder := httptest.NewRecorder()
+	require.NoError(t, svc.ProxyMessages(ctx, []byte(followupBody), followupRecorder, httpReq))
+	require.Len(t, policyRouter.Requests(), 1, "a stale continuation must not restore an intentionally cleared route")
+	assert.Equal(t, "claude-sonnet-4-6", followupRecorder.Header().Get(proxy.HeaderRouterModel))
+	store.mu.Lock()
+	continuationCount = len(store.commandContinuations)
+	store.mu.Unlock()
+	assert.Zero(t, continuationCount, "the rejected continuation must be consumed")
+}
+
 func TestService_RouterFeedbackCommand_ForwardsPolicyFeedback(t *testing.T) {
 	const body = `{
 		"model":"claude-sonnet-4-6",
