@@ -681,7 +681,16 @@ func main() {
 	if hmmSidecarURL := config.GetOr("ROUTER_HMM_SIDECAR_URL", ""); hmmSidecarURL != "" {
 		hmmTimeout := parseEnvDurationMs("ROUTER_HMM_SIDECAR_TIMEOUT_MS", policyclient.DefaultTimeout)
 		hmmAuthMode := config.GetOr("ROUTER_HMM_SIDECAR_AUTH", policySidecarAuthNone)
-		hmmClient, clientErr := buildHMMPolicyClient(hmmSidecarURL, hmmAuthMode, hmmTimeout)
+		hmmAttemptTimeout := parseEnvAttemptTimeoutMs(
+			"ROUTER_HMM_SIDECAR_ATTEMPT_TIMEOUT_MS",
+			policyclient.DeriveAttemptTimeout(hmmTimeout),
+		)
+		hmmClient, clientErr := buildHMMPolicyClient(
+			hmmSidecarURL,
+			hmmAuthMode,
+			hmmTimeout,
+			policyclient.WithAttemptTimeout(hmmAttemptTimeout),
+		)
 		if clientErr != nil {
 			logger.Error("HMM policy sidecar client failed to build; refusing to boot", "auth_mode", hmmAuthMode, "err", clientErr)
 			panic(clientErr)
@@ -730,6 +739,7 @@ func main() {
 			"sidecar_url", hmmSidecarURL,
 			"auth_mode", hmmAuthMode,
 			"timeout_ms", hmmTimeout.Milliseconds(),
+			"attempt_timeout_ms", hmmAttemptTimeout.Milliseconds(),
 			"candidate_models", len(routingTargets),
 			"strategies", []router.Strategy{router.StrategyHMM, router.StrategyHMMEmbedding},
 		)
@@ -1350,6 +1360,16 @@ func parseEnvDurationMs(key string, fallback time.Duration) time.Duration {
 		return fallback
 	}
 	return time.Duration(ms) * time.Millisecond
+}
+
+// parseEnvAttemptTimeoutMs is parseEnvDurationMs with 0 kept as a real value:
+// it is how an operator disables the per-attempt bound, which the shared parser
+// would otherwise reject and invert into the derived bound.
+func parseEnvAttemptTimeoutMs(key string, fallback time.Duration) time.Duration {
+	if ms, err := strconv.Atoi(config.GetOr(key, "")); err == nil && ms == 0 {
+		return 0
+	}
+	return parseEnvDurationMs(key, fallback)
 }
 
 // buildSemanticCache constructs the cross-request semantic cache, or nil when
