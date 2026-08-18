@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func ctxWithCreds(creds *Credentials) context.Context {
@@ -53,4 +54,19 @@ func TestCredentialKeyParts_ShortKey(t *testing.T) {
 	assert.Equal(t, "short-key", prefix)
 	assert.Empty(t, suffix)
 	assert.Equal(t, credSourceClient, src)
+}
+
+// These string values are a wire contract with the SQL export query; changing them breaks subscription_served.
+func TestCredentialSources_OAuthValuesMatchExportContract(t *testing.T) {
+	assert.Equal(t, "subscription", credSourceSubscription)
+	assert.Equal(t, "codex_subscription", credSourceCodexSubscription)
+
+	for _, creds := range []*Credentials{
+		subscriptionCredsFromToken("sk-ant-oat01-live"),
+		codexSubscriptionCreds("chatgpt-jwt", "acct_123"),
+	} {
+		require.NotNil(t, creds)
+		assert.True(t, creds.OAuth, "%s must be an OAuth credential", creds.Source)
+		assert.Contains(t, []string{credSourceSubscription, credSourceCodexSubscription}, creds.Source)
+	}
 }

@@ -77,8 +77,9 @@ func decisionFromExportRow(row sqlc.GetRoutingDecisionsForExportRow) analytics.D
 		CacheCreationTokens:  int32PtrToInt64(row.CacheCreationTokens),
 		CacheReadTokens:      int32PtrToInt64(row.CacheReadTokens),
 
-		ActualInputCostUSD:  microsPtrToUSD(row.ActualInputCostUsd),
-		ActualOutputCostUSD: microsPtrToUSD(row.ActualOutputCostUsd),
+		SubscriptionServed:  row.SubscriptionServed,
+		ActualInputCostUSD:  servedCostUSD(row.ActualInputCostUsd, row.SubscriptionServed),
+		ActualOutputCostUSD: servedCostUSD(row.ActualOutputCostUsd, row.SubscriptionServed),
 
 		RouteLatencyMs:        row.RouteLatencyMs,
 		UpstreamLatencyMs:     row.UpstreamLatencyMs,
@@ -98,6 +99,18 @@ func int32PtrToInt64(v *int32) *int64 {
 	}
 	out := int64(*v)
 	return &out
+}
+
+// servedCostUSD returns $0 for subscription-served turns (quota already paid) and the catalog rate otherwise.
+func servedCostUSD(micros *int64, subscriptionServed bool) *float64 {
+	if micros == nil {
+		return nil
+	}
+	if subscriptionServed {
+		zero := 0.0
+		return &zero
+	}
+	return microsPtrToUSD(micros)
 }
 
 func microsPtrToUSD(micros *int64) *float64 {
