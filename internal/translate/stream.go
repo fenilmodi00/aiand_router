@@ -213,7 +213,9 @@ func (t *SSETranslator) handleMessageStart(data []byte) error {
 	if id := gjson.GetBytes(data, "message.id").Str; id != "" {
 		t.msgID = strings.Clone(id)
 	}
-	if m := gjson.GetBytes(data, "message.model").Str; m != "" {
+	// Only when the route named no model: the upstream reports a BYOK
+	// endpoint's alias, which must not reach the client.
+	if m := gjson.GetBytes(data, "message.model").Str; m != "" && t.model == "" {
 		t.model = strings.Clone(m)
 	}
 
@@ -1434,10 +1436,7 @@ func upstreamErrorMessage(body string, status int) string {
 }
 
 func (t *AnthropicSSETranslator) emitMessageStart() error {
-	model := t.modelFromUpstream
-	if model == "" {
-		model = t.requestModel
-	}
+	model := clientFacingModel(t.requestModel, t.modelFromUpstream)
 	// Fires eagerly from Prelude before any upstream id arrives, so a
 	// generated fallback is the common case. Must be unique per response:
 	// clients like ccusage dedupe usage records by message id, so a constant

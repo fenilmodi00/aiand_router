@@ -13,16 +13,22 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+// clientFacingModel returns requestModel when set, so BYOK aliases (model_aliases) never leak
+// to the client and streaming/non-streaming responses agree on the same id.
+func clientFacingModel(requestModel, upstreamModel string) string {
+	if requestModel != "" {
+		return requestModel
+	}
+	return upstreamModel
+}
+
 // AnthropicToOpenAIResponse converts a non-streaming Anthropic response to OpenAI format.
 func AnthropicToOpenAIResponse(body []byte, requestModel string) ([]byte, error) {
 	if !gjson.ValidBytes(body) {
 		return nil, fmt.Errorf("unmarshal anthropic response: invalid JSON")
 	}
 	msgID := gjson.GetBytes(body, "id").String()
-	model := gjson.GetBytes(body, "model").String()
-	if model == "" {
-		model = requestModel
-	}
+	model := clientFacingModel(requestModel, gjson.GetBytes(body, "model").String())
 	stopReason := mapStopReason(gjson.GetBytes(body, "stop_reason").String())
 
 	jw := newJSONWriter()
@@ -185,10 +191,7 @@ func openAIToAnthropicResponse(body []byte, requestModel string, toolValidator *
 	// Per-response nonce so deterministic upstream ids don't repeat across turns
 	// (see uniqueToolUseIDWithNonce for full rationale).
 	toolIDNonce := randomHex(6)
-	model := gjson.GetBytes(body, "model").String()
-	if model == "" {
-		model = requestModel
-	}
+	model := clientFacingModel(requestModel, gjson.GetBytes(body, "model").String())
 
 	firstChoice := gjson.GetBytes(body, "choices.0")
 	message := firstChoice.Get("message")
