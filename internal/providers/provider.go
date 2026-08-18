@@ -58,6 +58,10 @@ const (
 	// ProviderAnthropicGateway is an Anthropic-spec enterprise gateway using
 	// Bearer auth; its endpoint is per-tenant with no deployment default.
 	ProviderAnthropicGateway = "anthropic_gateway"
+	// ProviderOpenAIGateway is the OpenAI-Chat-Completions-spec counterpart
+	// to ProviderAnthropicGateway: a per-tenant endpoint, bearer auth, no
+	// deployment default. Serves model classes the Anthropic spec cannot carry.
+	ProviderOpenAIGateway = "openai_gateway"
 )
 
 // TranslationFamily is the wire-format family a provider speaks; the proxy
@@ -94,6 +98,7 @@ var ProviderFamilies = map[string]TranslationFamily{
 	ProviderXAI:        FamilyOpenAICompat,
 
 	ProviderAnthropicGateway: FamilyAnthropic,
+	ProviderOpenAIGateway:    FamilyOpenAICompat,
 }
 
 // FamilyFor returns the translation family for a provider, or FamilyUnknown
@@ -150,6 +155,8 @@ var APIKeyEnvVars = map[string]string{
 	ProviderXAI:        "XAI_API_KEY",
 	// Pairs with ANTHROPIC_GATEWAY_BASE_URL, the endpoint the token is scoped to.
 	ProviderAnthropicGateway: "ANTHROPIC_GATEWAY_TOKEN",
+	// Pairs with OPENAI_GATEWAY_BASE_URL, likewise.
+	ProviderOpenAIGateway: "OPENAI_GATEWAY_TOKEN",
 }
 
 // APIKeyEnvVar returns the env-var name for the given provider, or empty
@@ -162,6 +169,7 @@ func APIKeyEnvVar(provider string) string {
 // credential without a base URL is undispatchable.
 var baseURLRequiredProviders = map[string]struct{}{
 	ProviderAnthropicGateway: {},
+	ProviderOpenAIGateway:    {},
 }
 
 // RequiresBaseURL reports whether a BYOK credential for this provider must
@@ -187,6 +195,7 @@ var CacheTTL = map[string]time.Duration{
 	// A gateway publishes no prompt-cache lifetime of its own, so it keeps the
 	// conservative window rather than inheriting Anthropic's 1h extended cache.
 	ProviderAnthropicGateway: 5 * time.Minute,
+	ProviderOpenAIGateway:    5 * time.Minute,
 }
 
 // DefaultCacheTTL is the conservative fallback cache lifetime for providers
