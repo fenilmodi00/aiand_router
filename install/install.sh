@@ -64,6 +64,22 @@
 # `claude` start; Codex and opencode re-read config every invocation.
 # Cursor's base URL lives in its own settings UI (no file we own), so there's
 # nothing to toggle here — flip "Override OpenAI Base URL" in Cursor settings.
+#
+# Inspect and edit which models this installation lets the router pick from —
+# the same lists the router dashboard's settings page renders. The endpoint and
+# router key both come from the install already on disk, so nothing is prompted
+# and no key is ever passed on the command line:
+#   npx @workweave/router models --claude                            # every model, with its on/off state
+#   npx @workweave/router models disable gpt-5.6 --claude            # take a model out of rotation
+#   npx @workweave/router models enable gpt-5.6 --claude             # put it back
+#   npx @workweave/router models providers --claude                  # same, one row per provider
+#   npx @workweave/router models providers disable openai --claude   # drop a whole provider
+#   npx @workweave/router models prefer claude-opus-5 --claude       # set the preferred-model ranking
+#   npx @workweave/router models list --json --claude                # machine-readable, for scripts
+# Editing needs a router that mounts the model-selection API (self-hosted and
+# local routers do). The Weave-hosted router keeps model selection with the
+# organization, in the Weave dashboard — there `models` lists and points you at
+# it rather than editing.
 
 set -euo pipefail
 
@@ -98,8 +114,17 @@ target_explicit="false"
 # never-prompting install that reuses the key already on disk. "off"/"on"/
 # "status" toggle or report an existing install without touching the router
 # key/identity — see the toggle_* helpers and the dispatch block below.
+# "models" reads and edits the installation's model selection over the router's
+# admin API; it touches no local config at all.
 mode="install"
 disable_routing_alias="false"
+
+# `models` sub-verb plus its operands (model / provider ids), newline-delimited
+# in argument order. Catalog ids and provider names never contain whitespace,
+# so a newline-delimited string stays readable where a bash 3.2 array under
+# `set -u` would not. --json switches the output to the raw API payload.
+models_args=""
+models_json="false"
 
 # --rotate-key forces the interactive key prompt even when a usable key is
 # already installed, so a rotated key can replace it.
@@ -994,11 +1019,30 @@ while [ $# -gt 0 ]; do
       # so `disable-routing --claude` cannot silently change Claude settings.
       mode="off"; disable_routing_alias="true"; shift
       ;;
+    models|--models)
+      # Model selection. Sub-verb and operand collection happens in the
+      # catch-all arm below (guarded on mode="models"), not here — that lets
+      # `--claude`/`--json`/etc. appear before, after, or between operands
+      # instead of only after every operand has been consumed.
+      mode="models"; shift
+      ;;
+    --json)
+      models_json="true"; shift
+      ;;
     -h|--help)
       usage 0
       ;;
     *)
-      err "Unknown flag: $1."; usage 2
+      # In `models` mode, a bare (non-dashed) word is a sub-verb or operand —
+      # collect it and keep parsing, so a flag can appear before, after, or
+      # between them (`models --claude enable x` and `models enable x --claude`
+      # both work). A dashed token nothing above matched is still an error,
+      # models mode or not.
+      if [ "$mode" = "models" ] && [ "${1#-}" = "$1" ]; then
+        models_args="${models_args}${models_args:+$'\n'}$1"; shift
+      else
+        err "Unknown flag: $1."; usage 2
+      fi
       ;;
   esac
 done
@@ -1014,13 +1058,37 @@ fi
 
 # Toggle verbs only flip config install.sh already wrote: no key, no identity,
 # no prompts. Require an explicit client so we never guess which config to
-# touch, and suppress every interactive prompt downstream.
+# touch, and suppress every interactive prompt downstream. `models` edits no
+# local config, but it still reads the endpoint and key out of one install, so
+# it needs the same explicit choice.
 if [ "$mode" != "install" ] && [ "$mode" != "update" ]; then
   non_interactive="true"
   if [ "$target_explicit" != "true" ]; then
-    err "'$mode' requires an explicit client: --claude, --codex, or --opencode."
+    if [ "$mode" = "models" ]; then
+      err "'models' requires an explicit client: --claude."
+    else
+      err "'$mode' requires an explicit client: --claude, --codex, or --opencode."
+    fi
     exit 2
   fi
+fi
+
+# Only Claude Code's settings are read back for a key today (read_installed_key),
+# so `models` can't authenticate as any other client. Fail fast here rather than
+# falling through to the toggle dispatch, which would flip config nobody asked
+# to change.
+if [ "$mode" = "models" ] && [ "$target" != "claude" ]; then
+  err "'models' currently supports --claude only (it reads the router key from Claude Code's settings)."
+  exit 2
+fi
+
+# --json prints the API payload verbatim, so nothing else may reach stdout.
+if [ "$models_json" = "true" ]; then
+  if [ "$mode" != "models" ]; then
+    err "--json only applies to 'models'."
+    exit 2
+  fi
+  quiet="true"
 fi
 
 # `update` is an install that never prompts: it refreshes the managed config
@@ -1156,7 +1224,9 @@ fi
 
 # ---------- pre-flight ----------
 
-if [ "$mode" != "install" ] && [ "$mode" != "update" ]; then
+# `models` skips this line: it prints its own header carrying the endpoint it
+# resolved, which is the part a reader actually needs.
+if [ "$mode" != "install" ] && [ "$mode" != "update" ] && [ "$mode" != "models" ]; then
   [ "$quiet" = "true" ] || info "mode=${C_BOLD}${mode}${C_RESET}  scope=${C_BOLD}${scope}${C_RESET}  target=${C_BOLD}${target}${C_RESET}"
 fi
 
@@ -1167,12 +1237,17 @@ fi
 if [ "$target" = "claude" ] || [ "$target" = "opencode" ] || [ "$target" = "pi" ]; then
   require_cmd jq    "macOS: 'brew install jq' · Debian/Ubuntu: 'sudo apt install jq'"
 fi
-# curl is only used by the install/update paths' health/validate probes;
-# toggles never hit the network.
-if [ "$mode" = "install" ] || [ "$mode" = "update" ]; then
+# curl is used by the install/update paths' health/validate probes and by every
+# `models` call; the on/off/status toggles never hit the network.
+if [ "$mode" = "install" ] || [ "$mode" = "update" ] || [ "$mode" = "models" ]; then
   require_cmd curl  "macOS/Linux: usually preinstalled — check your package manager"
 fi
 
+# Every warning below says the client's config will be written anyway, which is
+# true for install/update/toggles and false for `models` — it only reads that
+# config to find the router. Whether the client itself is installed has no
+# bearing on a model-selection call, so skip the check there entirely.
+if [ "$mode" != "models" ]; then
 case "$target" in
   claude)
     if ! command -v claude >/dev/null 2>&1; then
@@ -1199,6 +1274,7 @@ case "$target" in
     fi
     ;;
 esac
+fi
 
 script_dir="$(cd "$(dirname "$0")" 2>/dev/null && pwd || true)"
 
@@ -1394,6 +1470,105 @@ read_claude_key() {
 # authenticate.
 claude_key_present() {
   [ -n "$(read_claude_key "$1")" ]
+}
+
+# read_installed_key prints the router key this install already has on disk, or
+# nothing. Only Claude Code is supported today; the other targets still prompt.
+# Defined up here rather than with the rest of token handling because `models`
+# dispatches (and needs a key) before that section runs.
+#
+# models_key_file_order echoes the precedence this uses, so a caller that needs
+# to know *which* file the key came from can walk the same list (a command
+# substitution around this function would discard any global it set).
+models_key_file_order() {
+  if [ "$scope" = "project" ] && [ -z "$install_dir" ]; then
+    printf '%s\n%s\n%s\n' "$local_settings_file" "$settings_file" "$settings_dir/.weave-parked.json"
+  else
+    printf '%s\n%s\n%s\n' "$settings_file" "$local_settings_file" "$settings_dir/.weave-parked.json"
+  fi
+}
+
+read_installed_key() {
+  [ "$target" = "claude" ] || return 0
+  local key="" candidate
+  # Mirror where the install path writes the key: project scope (no --dir) puts
+  # it in the gitignored settings.local.json, everything else inlines it into
+  # settings.json. Check the other file too — a scope was possibly changed, or a
+  # project checkout may carry a committed header from an older install.
+  # The parked sidecar is last: `off` moves the key header out of the settings
+  # files and into it, so a run while toggled off finds nothing above even
+  # though the key is still on disk. Same {"env":{…}} shape, so read_claude_key
+  # reads it directly.
+  while IFS= read -r candidate; do
+    [ -n "$candidate" ] || continue
+    key="$(read_claude_key "$candidate")"
+    [ -n "$key" ] && break
+  done <<<"$(models_key_file_order)"
+  printf '%s' "$key"
+}
+
+# resolve_installed_base_url prints the router endpoint this Claude Code install
+# already points at, or nothing when none of its files carry a router-shaped
+# one. The parked sidecar comes first: `off` moves the router URL there and
+# leaves api.anthropic.com in the live file, so reading the live file while
+# toggled off would report Anthropic as the router.
+#
+# models_base_file_order echoes that same precedence for callers that need to
+# know which file supplied the endpoint (see models_key_file_order).
+models_base_file_order() {
+  printf '%s\n%s\n%s\n' "$settings_dir/.weave-parked.json" "$settings_file" "$local_settings_file"
+}
+
+resolve_installed_base_url() {
+  local candidate found
+  while IFS= read -r candidate; do
+    [ -n "$candidate" ] || continue
+    found="$(json_get "$candidate" '.env.ANTHROPIC_BASE_URL')"
+    if router_shaped_url "$found"; then
+      printf '%s' "${found%/}"
+      return 0
+    fi
+  done <<<"$(models_base_file_order)"
+  printf ''
+}
+
+# models_endpoint_is_trusted returns 0 when it is safe to send the router key
+# resolved from $2 to the endpoint resolved from $1.
+#
+# Project scope deliberately splits the two: the endpoint lives in the
+# committed settings.json (teammates share it) while each teammate's key lives
+# in the gitignored settings.local.json. That split is fine on its own, but it
+# means a *hostile* repo can commit a settings.json naming an endpoint it
+# controls and have this command mail the developer's key to it. Endpoint and
+# credential from the same file are self-consistent and always fine. When they
+# differ, the endpoint must be one the user vouched for out-of-band — the
+# hosted default, or an explicit --base-url — rather than whatever the checkout
+# happened to contain.
+models_endpoint_is_trusted() {
+  local url="$1" base_src="$2" key_src="$3"
+  [ "$base_url_explicit" = "true" ] && return 0
+  [ "$url" = "$HOSTED_BASE_URL" ] && return 0
+  [ -n "$base_src" ] && [ "$base_src" = "$key_src" ] && return 0
+  # Project-scoped self-hosted installs intentionally split the endpoint and
+  # key. The installer writes a gitignored marker beside the key; require that
+  # marker to match before trusting the split. A tracked/symlinked local file is
+  # not a teammate's private configuration and cannot vouch for an endpoint.
+  if [ "$key_src" = "$local_settings_file" ] && [ ! -L "$key_src" ]; then
+    local marked_url
+    marked_url="$(json_get "$key_src" '.env.WEAVE_ROUTER_BASE_URL')"
+    if [ "${marked_url%/}" = "${url%/}" ]; then
+      command -v git >/dev/null 2>&1 || return 1
+      git -C "$(dirname "$key_src")" ls-files --error-unmatch -- "$key_src" >/dev/null 2>&1 && return 1
+      return 0
+    fi
+  fi
+  # A repo can only pre-plant a file git tracks; an untracked local file is the
+  # user's own. If the endpoint's file isn't tracked, it wasn't planted. Checked
+  # inline rather than via weave_command_tracked_by_git, which is defined further
+  # down (inside the statusline heredoc's neighborhood) and isn't in scope here.
+  command -v git >/dev/null 2>&1 || return 1
+  git -C "$(dirname "$base_src")" ls-files --error-unmatch -- "$base_src" >/dev/null 2>&1 || return 0
+  return 1
 }
 
 # gitignore_add appends an entry to the repo .gitignore in project scope so a
@@ -1698,6 +1873,393 @@ toggle_opencode() {
   esac
 }
 
+# ---------- model selection ----------
+#
+# `models` reads and edits the installation's model/provider selection through
+# the router's /admin/v1 API — the same lists the router dashboard's settings
+# page renders, backed by the same columns. Nothing local is written: the
+# endpoint and router key are read out of the install already on disk so a
+# self-hosted install talks to its own router with its own key.
+#
+# The Weave-hosted router runs in `managed` mode and mounts no /admin/v1 at
+# all — there model selection belongs to the organization and is edited in the
+# Weave dashboard. That surfaces as a 404, which reads (for a list) as "fall
+# back to the public catalog and say where to edit" and (for an edit) as a
+# refusal naming the dashboard.
+
+# Public, unauthed catalog of everything the router can route to. Mounted in
+# both deployment modes, so it is the one listing that always works.
+MODELS_CATALOG_PATH="/v1/router/models"
+MODELS_DASHBOARD_URL="https://router.workweave.ai/dashboard/settings"
+
+# Set by models_api on every call.
+models_http_status=""
+models_http_body=""
+
+# models_api METHOD PATH [JSON_BODY] — call the router and capture status+body.
+# The key rides in on stdin (curl --header @-) rather than a -H argument so it
+# never appears in the process arg list, which any other local user can read.
+models_api() {
+  local method="$1" path="$2" body="${3:-}"
+  local out status=""
+  out="$(mktemp)" || { err "Could not create a temp file."; exit 1; }
+  if [ -n "$body" ]; then
+    status="$(printf '%s: %s\n' "$router_key_header" "$api_key" \
+      | curl -sS --max-time 20 -X "$method" \
+             -H 'Content-Type: application/json' --data-binary "$body" \
+             --header @- -o "$out" -w '%{http_code}' "$base_url$path" 2>/dev/null)" || status=""
+  else
+    status="$(printf '%s: %s\n' "$router_key_header" "$api_key" \
+      | curl -sS --max-time 20 -X "$method" \
+             --header @- -o "$out" -w '%{http_code}' "$base_url$path" 2>/dev/null)" || status=""
+  fi
+  models_http_status="$status"
+  models_http_body="$(cat "$out" 2>/dev/null || true)"
+  rm -f "$out"
+  case "$models_http_status" in
+    2*) return 0 ;;
+    *)  return 1 ;;
+  esac
+}
+
+# models_api_error prints the router's own `error` field, when it sent one.
+models_api_error() {
+  printf '%s' "$models_http_body" | jq -r '.error // empty' 2>/dev/null || true
+}
+
+# models_fail turns the status left by models_api into a message that says what
+# to do next, then exits. $1 names the attempted operation.
+models_fail() {
+  local what="$1" detail
+  detail="$(models_api_error)"
+  case "$models_http_status" in
+    ""|000)
+      err "Could not reach the router at $base_url. Is it running?"
+      ;;
+    401|403)
+      # 403 with a message is the ROUTER_EXCLUDED_MODELS/PROVIDERS env pin,
+      # which is actionable on its own; a bare 401/403 is a key problem.
+      if [ -n "$detail" ]; then
+        err "$detail"
+      else
+        err "The router rejected this installation's key. Re-run 'npx @workweave/router --claude --rotate-key' to install a current one."
+      fi
+      ;;
+    404)
+      err "This router does not expose the model-selection API, so $what is not available here."
+      printf "  %sWeave-hosted routers keep model selection with the organization — edit it at %s%s\n" \
+        "$C_DIM" "$MODELS_DASHBOARD_URL" "$C_RESET" >&2
+      printf "  %sSelf-hosted? Update the router to a build that serves /admin/v1/models.%s\n" \
+        "$C_DIM" "$C_RESET" >&2
+      ;;
+    *)
+      if [ -n "$detail" ]; then
+        err "$what failed (HTTP $models_http_status): $detail"
+      else
+        err "$what failed (HTTP $models_http_status)."
+      fi
+      ;;
+  esac
+  exit 1
+}
+
+# models_render_list prints the [{model,provider,enabled}] payload as a
+# provider-grouped checklist. The API sorts by provider then model, which is
+# what group_by needs, and what keeps two runs comparable.
+models_render_list() {
+  local payload="$1" total enabled
+  total="$(printf '%s' "$payload" | jq 'length')"
+  enabled="$(printf '%s' "$payload" | jq '[.[] | select(.enabled)] | length')"
+  printf "%s%sWeave Router models%s %s· %s%s\n" "$C_BOLD" "$C_BRAND" "$C_RESET" "$C_DIM" "$base_url" "$C_RESET"
+  printf "%s%s of %s enabled%s\n\n" "$C_DIM" "$enabled" "$total" "$C_RESET"
+  printf '%s' "$payload" | jq -r --arg on "$C_GREEN" --arg off "$C_DIM" --arg reset "$C_RESET" --arg bold "$C_BOLD" '
+    group_by(.provider)[]
+    | ($bold + .[0].provider + $reset),
+      (.[] | if .enabled
+             then "  " + $on + "[x]" + $reset + " " + .model
+             else "  " + $off + "[ ] " + .model + $reset
+             end)
+  '
+}
+
+# models_render_providers prints the [{provider,enabled}] payload.
+models_render_providers() {
+  local payload="$1"
+  printf "%s%sWeave Router providers%s %s· %s%s\n\n" "$C_BOLD" "$C_BRAND" "$C_RESET" "$C_DIM" "$base_url" "$C_RESET"
+  printf '%s' "$payload" | jq -r --arg on "$C_GREEN" --arg off "$C_DIM" --arg reset "$C_RESET" '
+    .[] | if .enabled
+          then "  " + $on + "[x]" + $reset + " " + .provider
+          else "  " + $off + "[ ] " + .provider + $reset
+          end
+  '
+}
+
+# models_print_preferred appends the priority ranking when one is set. Absent
+# is the norm (the router picks per turn), so silence is the right output.
+models_print_preferred() {
+  models_api GET "/admin/v1/preferred-models" || return 0
+  local list
+  list="$(printf '%s' "$models_http_body" | jq -r '(.preferred // []) | join(" > ")' 2>/dev/null || true)"
+  [ -n "$list" ] || return 0
+  printf "\n%sPreferred order:%s %s\n" "$C_DIM" "$C_RESET" "$list"
+}
+
+# models_list_catalog is the read-only fallback for a router with no
+# model-selection API: list what it can route to and say where to change it.
+# Deliberately not rendered as a checklist — this endpoint reports the deployed
+# catalog, not the installation's selection, so marking every row [x] would
+# claim models are enabled that the dashboard may well have excluded.
+#
+# $1 selects what to print from the same catalog payload: "models" (the
+# default) or "providers" — `models providers` hits this same 404 and must
+# degrade the same way `models list` does rather than hard-failing, since both
+# are read-only listing commands.
+models_list_catalog() {
+  local what="${1:-models}"
+  models_api GET "$MODELS_CATALOG_PATH" || models_fail "listing $what"
+  if [ "$models_json" = "true" ]; then
+    if [ "$what" = "providers" ]; then
+      printf '%s' "$models_http_body" | jq -c '[.models[].provider] | unique'
+    else
+      printf '%s\n' "$models_http_body"
+    fi
+    return 0
+  fi
+  printf "%s%sWeave Router %s%s %s· %s%s\n" "$C_BOLD" "$C_BRAND" "$what" "$C_RESET" "$C_DIM" "$base_url" "$C_RESET"
+  printf "%severything this router can route to%s\n\n" "$C_DIM" "$C_RESET"
+  if [ "$what" = "providers" ]; then
+    printf '%s' "$models_http_body" | jq -r '[.models[].provider] | unique[] | "  " + .'
+  else
+    printf '%s' "$models_http_body" | jq -r --arg reset "$C_RESET" --arg bold "$C_BOLD" '
+      .models | group_by(.provider)[]
+      | ($bold + .[0].provider + $reset),
+        (.[] | "  " + .model)
+    '
+  fi
+  printf "\n%sThis router does not report which of them your installation has enabled:%s\n" "$C_DIM" "$C_RESET"
+  printf "%sselection is an organization-wide setting here. See it, and change it, at%s\n" "$C_DIM" "$C_RESET"
+  printf "%s%s%s\n" "$C_DIM" "$MODELS_DASHBOARD_URL" "$C_RESET"
+}
+
+models_list() {
+  if ! models_api GET "/admin/v1/models"; then
+    # Only a missing API is worth degrading for; anything else is a real error.
+    [ "$models_http_status" = "404" ] || models_fail "listing models"
+    models_list_catalog models
+    return 0
+  fi
+  if [ "$models_json" = "true" ]; then
+    printf '%s\n' "$models_http_body"
+    return 0
+  fi
+  models_render_list "$models_http_body"
+  models_print_preferred
+  printf "\n%sEnable a model:%s  npx @workweave/router models enable <id> --claude\n" "$C_DIM" "$C_RESET"
+  printf "%sDisable a model:%s npx @workweave/router models disable <id> --claude\n" "$C_DIM" "$C_RESET"
+}
+
+models_providers_list() {
+  if ! models_api GET "/admin/v1/providers"; then
+    # Same 404 degrade as models_list: a router with no model-selection API
+    # still answers the unauthed catalog, and this is a read-only listing
+    # command same as `models list` — no reason to hard-fail one and not
+    # the other.
+    [ "$models_http_status" = "404" ] || models_fail "listing providers"
+    models_list_catalog providers
+    return 0
+  fi
+  if [ "$models_json" = "true" ]; then
+    printf '%s\n' "$models_http_body"
+    return 0
+  fi
+  models_render_providers "$models_http_body"
+}
+
+# models_toggle KIND ACTION IDS — flip one or more models/providers on or off.
+# Each id is its own request so a typo in the third id can't roll back the two
+# that already applied, and so the report names exactly what changed.
+models_toggle() {
+  local kind="$1" action="$2" ids="$3"
+  local path body id label doing
+  case "$kind" in
+    model)    path="/admin/v1/excluded-models"    ; label="model"    ;;
+    provider) path="/admin/v1/excluded-providers" ; label="provider" ;;
+  esac
+  # Enabling means dropping the id from the exclusion list, disabling means
+  # adding it — the API's remove/add endpoints, inverted here so the CLI reads
+  # the way the dashboard's checkboxes do.
+  doing="disabling"
+  if [ "$action" = "enable" ]; then
+    doing="enabling"
+    path="$path/remove"
+  fi
+
+  # Fed by a here-string, not a pipe: a pipe would run the loop in a subshell
+  # where models_fail's exit only kills that subshell.
+  while IFS= read -r id; do
+    [ -n "$id" ] || continue
+    body="$(jq -nc --arg v "$id" --arg k "$label" '{($k): $v}')"
+    if ! models_api POST "$path" "$body"; then
+      models_fail "$doing $label '$id'"
+    fi
+    # Under --json the router's own response body is the output: a scripted
+    # caller parses stdout, and printing prose there makes it report a parse
+    # failure for a mutation that already succeeded.
+    if [ "$models_json" = "true" ]; then
+      printf '%s\n' "$models_http_body"
+    elif [ "$action" = "enable" ]; then
+      printf "%s✓%s %s %s%s%s is enabled\n" "$C_GREEN" "$C_RESET" "$label" "$C_BOLD" "$id" "$C_RESET"
+    else
+      printf "%s✓%s %s %s%s%s is disabled — the router will not pick it\n" "$C_GREEN" "$C_RESET" "$label" "$C_BOLD" "$id" "$C_RESET"
+    fi
+  done <<<"$ids"
+}
+
+# models_prefer replaces the priority ranking outright (the API's PUT), because
+# a ranking is an ordering: appending one id at a time can't express "this one
+# first". `clear` drops it and returns the installation to plain routing.
+models_prefer() {
+  local ids="$1" body stored
+  if [ "$ids" = "clear" ] || [ "$ids" = "none" ]; then
+    body='{"preferred":[]}'
+  else
+    body="$(printf '%s' "$ids" | jq -c -R -s '{preferred: (split("\n") | map(select(length > 0)))}')"
+  fi
+  models_api PUT "/admin/v1/preferred-models" "$body" || models_fail "setting the preferred-model ranking"
+  if [ "$models_json" = "true" ]; then
+    printf '%s\n' "$models_http_body"
+    return 0
+  fi
+  stored="$(printf '%s' "$models_http_body" | jq -r '(.preferred // []) | join(" > ")')"
+  if [ -n "$stored" ]; then
+    printf "%s✓%s Preferred order: %s\n" "$C_GREEN" "$C_RESET" "$stored"
+  else
+    printf "%s✓%s Preferred-model ranking cleared.\n" "$C_GREEN" "$C_RESET"
+  fi
+}
+
+models_usage() {
+  err "$1"
+  printf '%s\n' \
+    "  npx @workweave/router models --claude                          # list models" \
+    "  npx @workweave/router models enable  <id> [<id>…] --claude" \
+    "  npx @workweave/router models disable <id> [<id>…] --claude" \
+    "  npx @workweave/router models providers --claude                # list providers" \
+    "  npx @workweave/router models providers disable <name> --claude" \
+    "  npx @workweave/router models prefer <id> [<id>…] --claude      # ranking ('clear' to drop)" >&2
+  exit 2
+}
+
+run_models() {
+  local verb operands
+  verb="$(printf '%s' "$models_args" | head -n 1)"
+  operands="$(printf '%s' "$models_args" | tail -n +2)"
+
+  # `models providers …` shifts one more word: the sub-verb is the second word.
+  case "$verb" in
+    ""|list)
+      [ -z "$operands" ] || models_usage "'models $verb' takes no arguments."
+      models_list
+      ;;
+    enable|disable)
+      [ -n "$operands" ] || models_usage "'models $verb' needs at least one model id."
+      models_toggle model "$verb" "$operands"
+      ;;
+    prefer)
+      [ -n "$operands" ] || models_usage "'models prefer' needs model ids, or 'clear'."
+      models_prefer "$operands"
+      ;;
+    providers)
+      local sub rest
+      sub="$(printf '%s' "$operands" | head -n 1)"
+      rest="$(printf '%s' "$operands" | tail -n +2)"
+      case "$sub" in
+        ""|list)
+          models_providers_list
+          ;;
+        enable|disable)
+          [ -n "$rest" ] || models_usage "'models providers $sub' needs at least one provider name."
+          models_toggle provider "$sub" "$rest"
+          ;;
+        *)
+          models_usage "Unknown providers sub-command: '$sub'."
+          ;;
+      esac
+      ;;
+    *)
+      models_usage "Unknown models sub-command: '$verb'."
+      ;;
+  esac
+}
+
+if [ "$mode" = "models" ]; then
+  # Which file supplied the endpoint / the key. Empty means "not from a settings
+  # file" — an explicit --base-url, or WEAVE_ROUTER_KEY. Initialized before the
+  # branches below so `set -u` holds on every path.
+  models_base_source=""
+  models_key_source=""
+  # Editing model selection needs the endpoint and key of one specific install,
+  # never the hosted defaults: a self-hosted user pointing at their own router
+  # would otherwise silently edit the hosted one's installation.
+  if [ "$base_url_explicit" != "true" ]; then
+    models_base="$(resolve_installed_base_url)"
+    if [ -z "$models_base" ]; then
+      err "No Weave Router install found for Claude Code in this scope. Run 'npx @workweave/router --claude' first, or pass --base-url."
+      exit 1
+    fi
+    base_url="$models_base"
+    # resolve_installed_base_url ran in a command substitution, so any global it
+    # set died with that subshell. Recover the source by walking the same
+    # precedence to find which file holds the endpoint we just adopted.
+    while IFS= read -r models_src_candidate; do
+      [ -n "$models_src_candidate" ] || continue
+      models_src_url="$(json_get "$models_src_candidate" '.env.ANTHROPIC_BASE_URL')"
+      if [ "${models_src_url%/}" = "$models_base" ]; then
+        models_base_source="$models_src_candidate"
+        break
+      fi
+    done <<<"$(models_base_file_order)"
+  fi
+  # WEAVE_ROUTER_KEY is the user's own choice, so it pairs with any endpoint.
+  if [ -n "${WEAVE_ROUTER_KEY:-}" ]; then
+    api_key="$WEAVE_ROUTER_KEY"
+    models_key_source="env:WEAVE_ROUTER_KEY"
+  else
+    api_key="$(read_installed_key)"
+    # Same subshell caveat as the endpoint above: recover which file the key
+    # came from by re-reading them in read_installed_key's own precedence.
+    models_key_source=""
+    while IFS= read -r models_src_candidate; do
+      [ -n "$models_src_candidate" ] || continue
+      if [ -n "$(read_claude_key "$models_src_candidate")" ]; then
+        models_key_source="$models_src_candidate"
+        break
+      fi
+    done <<<"$(models_key_file_order)"
+  fi
+  if [ -z "$api_key" ]; then
+    err "No router key found for Claude Code in this scope. Re-run 'npx @workweave/router --claude', or export WEAVE_ROUTER_KEY."
+    exit 1
+  fi
+  # Never send a key to an endpoint the checkout supplied. See
+  # models_endpoint_is_trusted: a hostile repo can commit a settings.json naming
+  # its own router, and pairing that with the teammate key from the gitignored
+  # settings.local.json would hand the key to whoever wrote the repo.
+  if [ "$models_key_source" != "env:WEAVE_ROUTER_KEY" ] \
+     && ! models_endpoint_is_trusted "$base_url" "$models_base_source" "$models_key_source"; then
+    err "Refusing to send this installation's router key to $base_url."
+    printf "  %sThat endpoint comes from %s, which git tracks — a checked-out repo can set it —%s\n" \
+      "$C_DIM" "${models_base_source##*/}" "$C_RESET" >&2
+    printf "  %swhile the key comes from %s. Pass --base-url <url> to confirm the endpoint,%s\n" \
+      "$C_DIM" "${models_key_source##*/}" "$C_RESET" >&2
+    printf "  %sor re-run 'npx @workweave/router --claude' to install against the one you want.%s\n" \
+      "$C_DIM" "$C_RESET" >&2
+    exit 1
+  fi
+  run_models
+  exit 0
+fi
+
 if [ "$mode" != "install" ] && [ "$mode" != "update" ]; then
   case "$target" in
     claude)   toggle_claude ;;
@@ -1719,16 +2281,7 @@ fi
 # sidecar is the authority while toggled off — reading the live file there would
 # pin the install to api.anthropic.com.
 if [ "$mode" = "update" ] && [ "$base_url_explicit" != "true" ] && [ "$target" = "claude" ]; then
-  installed_base=""
-  for candidate in \
-    "$settings_dir/.weave-parked.json" \
-    "$settings_file" \
-    "$local_settings_file"
-  do
-    installed_base="$(json_get "$candidate" '.env.ANTHROPIC_BASE_URL')"
-    router_shaped_url "$installed_base" && break
-    installed_base=""
-  done
+  installed_base="$(resolve_installed_base_url)"
   if [ -n "$installed_base" ]; then
     base_url="${installed_base%/}"
   fi
@@ -1747,30 +2300,7 @@ fi
 # a re-run painless — the installer refreshes assets and config shape often
 # enough that users re-run it routinely, and re-pasting a key every time is pure
 # friction. --rotate-key skips the read-back so a new key can replace the old.
-
-# read_installed_key prints the router key this install already has on disk, or
-# nothing. Only Claude Code is supported today; the other targets still prompt.
-read_installed_key() {
-  [ "$target" = "claude" ] || return 0
-  local key=""
-  # Mirror where the install path writes the key: project scope (no --dir) puts
-  # it in the gitignored settings.local.json, everything else inlines it into
-  # settings.json. Check the other file too — a scope was possibly changed, or a
-  # project checkout may carry a committed header from an older install.
-  if [ "$scope" = "project" ] && [ -z "$install_dir" ]; then
-    key="$(read_claude_key "$local_settings_file")"
-    [ -n "$key" ] || key="$(read_claude_key "$settings_file")"
-  else
-    key="$(read_claude_key "$settings_file")"
-    [ -n "$key" ] || key="$(read_claude_key "$local_settings_file")"
-  fi
-  # Last resort: `off` moves the key header out of the settings files and into
-  # the parked sidecar, so an install/update run while toggled off finds nothing
-  # above even though the key is still on disk. Same {"env":{…}} shape, so
-  # read_claude_key reads it directly.
-  [ -n "$key" ] || key="$(read_claude_key "$settings_dir/.weave-parked.json")"
-  printf '%s' "$key"
-}
+# read_installed_key itself is defined above, next to the other settings readers.
 
 # prompt_for_key reads a key from the controlling terminal into $api_key. Only
 # ever called on an interactive install; callers check first.
@@ -1893,12 +2423,14 @@ install_slash_commands() {
   # command-capable clients. The router-off/on/status wrappers shell out to
   # this installer to flip the *local* config, so they're Claude Code-only and
   # need the install scope baked into the command (the .md can't discover it
-  # at invocation time). {{SCOPE}} is substituted accordingly.
+  # at invocation time). {{SCOPE}} is substituted accordingly. router-models
+  # (alias models) is in the same boat: it shells out to read this install's
+  # endpoint and key.
   installed="force-model, unforce-model, router-feedback, fm, ufm, rf"
   cmds="force-model unforce-model router-feedback fm ufm rf"
   if [ "$target" = "claude" ]; then
-    cmds="$cmds router-off router-on router-status router-session"
-    installed="$installed, router-off, router-on, router-status, router-session"
+    cmds="$cmds router-off router-on router-status router-session router-models models"
+    installed="$installed, router-off, router-on, router-status, router-session, router-models, models"
   fi
 
   # Bake the same scope selector the toggle needs to find this install: --dir
@@ -2490,7 +3022,8 @@ weave_sync_commands() {
     # everything so no output leaks into the statusline.
     exec </dev/null
     for name in force-model unforce-model router-feedback fm ufm rf \
-                router-off router-on router-status router-session; do
+                router-off router-on router-status router-session \
+                router-models models; do
       installed="$cmd_dir/$name.md"
       # Only ever refresh a wrapper that is already installed: a missing one
       # was uninstalled or deliberately deleted, and resurrecting it would be
@@ -3038,8 +3571,8 @@ write_claude_settings() {
   ok "Settings written to $settings_file"
 
   if [ "$scope" = "project" ] && [ -z "$install_dir" ]; then
-    jq -n --arg header "$custom_headers" '{
-      env: { ANTHROPIC_CUSTOM_HEADERS: $header }
+    jq -n --arg header "$custom_headers" --arg router_url "$base_url" '{
+      env: { ANTHROPIC_CUSTOM_HEADERS: $header, WEAVE_ROUTER_BASE_URL: $router_url }
     }' >"$tmp_patch"
     if [ -f "$local_settings_file" ]; then
       # Also strip ANTHROPIC_BASE_URL: `off` in project scope points this file
