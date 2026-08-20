@@ -178,3 +178,57 @@ func TestOpenAISameFormat_ExplicitMaxTokensClampsToKimiK3Ceiling(t *testing.T) {
 	out := parseAndEmit(t, body, "openai", opts)
 	assert.Equal(t, float64(32000), out["max_tokens"])
 }
+
+// Regression: qwen/qwen3.8-max was absent from modelMaxOutputTokens, so
+// explicit max_tokens was clamped to the 8192 fallback instead of 64000.
+func TestOpenAISameFormat_ExplicitMaxTokensNotClampedTo8192ForQwen38Max(t *testing.T) {
+	body := []byte(`{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}],"max_tokens":32000}`)
+	opts := translate.EmitOptions{
+		TargetModel:  "qwen/qwen3.8-max",
+		Capabilities: router.Lookup("qwen/qwen3.8-max"),
+	}
+	out := parseAndEmit(t, body, "openai", opts)
+	assert.Equal(t, float64(32000), out["max_tokens"])
+}
+
+// Regression: the Bedrock-primary Qwen arms must stay clamped at Bedrock's
+// 16K output ceiling; a pass-through of Claude Code's 64000 would hard-400.
+func TestOpenAISameFormat_BedrockQwenClampedAt16384Ceiling(t *testing.T) {
+	for _, model := range []string{"qwen/qwen3-coder-next", "qwen/qwen3-235b-a22b-2507", "qwen/qwen3-next-80b-a3b-instruct"} {
+		body := []byte(`{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}],"max_tokens":64000}`)
+		opts := translate.EmitOptions{
+			TargetModel:  model,
+			Capabilities: router.Lookup(model),
+		}
+		out := parseAndEmit(t, body, "openai", opts)
+		assert.Equal(t, float64(16384), out["max_tokens"], model)
+	}
+}
+
+// The flag ceiling (64000) is preserved — the clamp must not ask Qwen for
+// more than its served output limit.
+func TestOpenAISameFormat_Qwen38MaxClampsAt64000Ceiling(t *testing.T) {
+	body := []byte(`{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}],"max_tokens":65536}`)
+	opts := translate.EmitOptions{
+		TargetModel:  "qwen/qwen3.8-max",
+		Capabilities: router.Lookup("qwen/qwen3.8-max"),
+	}
+	out := parseAndEmit(t, body, "openai", opts)
+	assert.Equal(t, float64(64000), out["max_tokens"])
+}
+
+// Same shape on the Anthropic->OpenAI cross-format path (the actual Claude
+// Code route): the explicit 64000 must not be clamped to 8192.
+func TestCrossFormat_AnthropicToOpenAI_Qwen38MaxExplicitMaxTokensPassedThrough(t *testing.T) {
+	body := []byte(`{"model":"claude-sonnet-4-20250514","messages":[{"role":"user","content":"hi"}],"max_tokens":64000}`)
+	env, err := translate.ParseAnthropic(body)
+	require.NoError(t, err)
+	prep, err := env.PrepareOpenAI(http.Header{}, translate.EmitOptions{
+		TargetModel:  "qwen/qwen3.8-max",
+		Capabilities: router.Lookup("qwen/qwen3.8-max"),
+	})
+	require.NoError(t, err)
+	var out map[string]any
+	require.NoError(t, json.Unmarshal(prep.Body, &out))
+	assert.Equal(t, float64(64000), out["max_tokens"])
+}
