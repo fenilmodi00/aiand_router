@@ -372,13 +372,18 @@ type routeResponse struct {
 	Error                string                 `json:"error"`
 }
 
-// routeTimings is the sidecar's optional per-request latency breakdown.
-// Fields are nil (not zero) when the sidecar didn't measure that stage;
+// routeTimings is the sidecar's optional per-request latency breakdown plus
+// serving stats. Fields are nil (not zero) when not measured/reported;
 // route_ms spans the whole decision and is a superset of the other stages.
 type routeTimings struct {
-	RouteMs  *float64 `json:"route_ms"`
-	SelectMs *float64 `json:"select_ms"`
-	EmbedMs  *float64 `json:"embed_ms"`
+	RouteMs             *float64 `json:"route_ms"`
+	SelectMs            *float64 `json:"select_ms"`
+	EmbedMs             *float64 `json:"embed_ms"`
+	EmbedCacheHits      *int64   `json:"embed_cache_hits"`
+	EmbedCacheMisses    *int64   `json:"embed_cache_misses"`
+	EmbedCacheEvictions *int64   `json:"embed_cache_evictions"`
+	RoutesInflight      *int64   `json:"routes_inflight"`
+	OverrunsLive        *int64   `json:"overruns_live"`
 }
 
 // decomposeTimings converts sidecar wire timings into non-overlapping stages; nil when nothing was measured.
@@ -407,6 +412,26 @@ func floatOrZero(value *float64) float64 {
 		return 0
 	}
 	return *value
+}
+
+// extractServingStats reads the sidecar's serving stats from the same wire
+// payload as decomposeTimings, but separately: stats are exempt from the
+// route_ms consistency check that can drop the latency breakdown wholesale.
+func extractServingStats(wire *routeTimings) *router.SidecarServingStats {
+	if wire == nil {
+		return nil
+	}
+	if wire.EmbedCacheHits == nil && wire.EmbedCacheMisses == nil && wire.EmbedCacheEvictions == nil &&
+		wire.RoutesInflight == nil && wire.OverrunsLive == nil {
+		return nil
+	}
+	return &router.SidecarServingStats{
+		EmbedCacheHits:      wire.EmbedCacheHits,
+		EmbedCacheMisses:    wire.EmbedCacheMisses,
+		EmbedCacheEvictions: wire.EmbedCacheEvictions,
+		RoutesInflight:      wire.RoutesInflight,
+		OverrunsLive:        wire.OverrunsLive,
+	}
 }
 
 type previewResponse struct {
@@ -486,6 +511,7 @@ func (c *Client) Decide(ctx context.Context, query policy.Query) (policy.Result,
 		Debug:                parsed.Debug,
 		RankedFallback:       parsed.RankedFallback,
 		Timings:              decomposeTimings(parsed.Timings),
+		ServingStats:         extractServingStats(parsed.Timings),
 	}, nil
 }
 
