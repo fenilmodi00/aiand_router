@@ -68,6 +68,21 @@ func TestClassifyDispatchError_NoEligibleProviderIsClientErrorAndWarns(t *testin
 	assert.False(t, cls.RetryAfter)
 }
 
+// ErrAllowlistEmptiesPool wraps ErrNoEligibleProvider, so switch ordering is
+// load-bearing: the generic case must not match first and misattribute the cause.
+func TestClassifyDispatchError_AllowlistEmptiesPoolPrecedesNoEligibleProvider(t *testing.T) {
+	cls, ok := proxy.ClassifyDispatchError(cluster.ErrAllowlistEmptiesPool)
+
+	require.True(t, ok)
+	assert.Equal(t, proxy.DispatchErrorAllowlistEmptiesPool, cls.Kind)
+	assert.NotEqual(t, proxy.DispatchErrorNoEligibleProvider, cls.Kind, "must not fall through to the generic no-eligible-provider case")
+	assert.Equal(t, http.StatusBadRequest, cls.Status)
+	assert.True(t, cls.Kind.IsClientError())
+	assert.Equal(t, "warn", cls.LogLevel)
+	assert.False(t, cls.RetryAfter)
+	assert.Contains(t, cls.Message, "allowlist")
+}
+
 func TestClassifyDispatchError_BanditRLandHMMUnavailableRetry(t *testing.T) {
 	for _, err := range []error{bandit.ErrBanditUnavailable, rl.ErrPolicyUnavailable, hmm.ErrHMMUnavailable} {
 		cls, ok := proxy.ClassifyDispatchError(err)

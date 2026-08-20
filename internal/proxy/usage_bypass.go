@@ -89,6 +89,14 @@ func (s *Service) usageBypassEngaged(ctx context.Context, headers http.Header, r
 	if _, excluded := req.SafetyExcludedModels[model]; excluded {
 		return "", false
 	}
+	// Allowlist is a compliance boundary, not a routing preference —
+	// unlike excluded_models the bypass must honor it. Checked explicitly
+	// because SafetyExcludedModels has different readers and semantics.
+	if len(req.AllowedModels) > 0 {
+		if _, allowed := req.AllowedModels[model]; !allowed {
+			return "", false
+		}
+	}
 	if token == "" {
 		return "", false
 	}

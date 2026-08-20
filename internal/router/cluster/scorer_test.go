@@ -1001,6 +1001,29 @@ func TestScorer_ExcludedModelsEmptyingPoolReturnsErrNoEligibleProvider(t *testin
 	assert.False(t, errors.Is(err, ErrClusterUnavailable))
 }
 
+// ErrAllowlistEmptiesPool must wrap ErrNoEligibleProvider (existing checks keep
+// matching) and name the allowlist, not the desugared exclusion list.
+func TestScorer_AllowlistEmptyingPoolReturnsErrAllowlistEmptiesPool(t *testing.T) {
+	emb := &fakeEmbedder{vec: makeOpusVec()}
+	s := newTwoProviderScorer(t, emb)
+
+	_, err := s.Route(context.Background(), router.Request{
+		PromptText: strings.Repeat("x", 100),
+		// The proxy desugars the allowlist into ExcludedModels; AllowedModels
+		// only names the cause.
+		ExcludedModels: map[string]struct{}{
+			"gpt-5":           {},
+			"claude-opus-4-7": {},
+		},
+		AllowedModels: map[string]struct{}{"some-retired-model": {}},
+	})
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrAllowlistEmptiesPool))
+	assert.True(t, errors.Is(err, ErrNoEligibleProvider), "must still satisfy existing ErrNoEligibleProvider checks")
+	assert.Contains(t, err.Error(), "some-retired-model", "the error must name the allowlist, not the desugared exclusions")
+	assert.False(t, errors.Is(err, ErrClusterUnavailable))
+}
+
 // has_tools=true must subtract catalog.ToolUseLowSet from the argmax pool
 // so weak tool-callers like qwen3-235b-Instruct aren't picked for agentic work.
 func TestScorer_HasToolsExcludesToolUseLowFromArgmax(t *testing.T) {

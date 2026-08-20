@@ -357,6 +357,11 @@ type nativeResponsesToolHashContextKey struct{}
 // installation's model exclusion list. Carried as []string.
 type InstallationExcludedModelsContextKey struct{}
 
+// InstallationAllowedModelsContextKey is the context key for the authed
+// installation's positive model allowlist. Carried as []string; empty/absent
+// means no restriction.
+type InstallationAllowedModelsContextKey struct{}
+
 // InstallationExcludedProvidersContextKey is the context key for the authed
 // installation's provider exclusion list. Carried as []string.
 type InstallationExcludedProvidersContextKey struct{}
@@ -632,6 +637,59 @@ func installationExcludedModelsFromContext(ctx context.Context) []string {
 	return out
 }
 
+// installationAllowedModelsFromContext returns the per-installation positive
+// allowlist stashed on ctx by the auth middleware, or nil when absent.
+func installationAllowedModelsFromContext(ctx context.Context) []string {
+	v := ctx.Value(InstallationAllowedModelsContextKey{})
+	if v == nil {
+		return nil
+	}
+	out, _ := v.([]string)
+	return out
+}
+
+// allowedModelsForRequest returns the org's positive model allowlist as a set,
+// or nil when empty (no restriction).
+func allowedModelsForRequest(ctx context.Context) map[string]struct{} {
+	allowed := installationAllowedModelsFromContext(ctx)
+	if len(allowed) == 0 {
+		return nil
+	}
+	out := make(map[string]struct{}, len(allowed))
+	for _, m := range allowed {
+		out[m] = struct{}{}
+	}
+	return out
+}
+
+// modelPermittedByAllowlist reports whether model clears the org's positive
+// allowlist. Must be used directly for models outside routableUniverse —
+// passthrough-only models (no Tier) never enter the desugared exclusion set.
+// Empty allowlist = no restriction.
+func modelPermittedByAllowlist(ctx context.Context, model string) bool {
+	allowed := allowedModelsForRequest(ctx)
+	if len(allowed) == 0 {
+		return true
+	}
+	_, ok := allowed[model]
+	return ok
+}
+
+// routableUniverse is every model this deployment can serve: the configured
+// availableModels set, or the whole catalog when it is nil. Extracted so the
+// allowlist desugaring and restrictToTier share one universe definition and
+// cannot drift.
+func (s *Service) routableUniverse() map[string]struct{} {
+	if s.availableModels != nil {
+		return s.availableModels
+	}
+	out := make(map[string]struct{}, len(catalog.Models))
+	for _, m := range catalog.Models {
+		out[m.ID] = struct{}{}
+	}
+	return out
+}
+
 // subscriptionRoutingDisabledForRequest reports whether the authed installation
 // has turned off subscription-aware routing. When true, the subscription
 // subsidy bonus is suppressed for this request so routing decides on merits.
@@ -683,18 +741,27 @@ func (s *Service) safetyExcludedModels(env *translate.RequestEnvelope, outputRes
 }
 
 // excludedModelsForRequest returns the request's model exclusion set.
-// Env override wins; otherwise the installation list is converted to a set.
+// Env override wins (intentional escape hatch, not an oversight).
+// Otherwise desugars the positive allowlist into the exclusion set:
+// every routable model absent from a non-empty allowlist is excluded.
 func (s *Service) excludedModelsForRequest(ctx context.Context) map[string]struct{} {
 	if s.excludedModelsOverride != nil {
 		return s.excludedModelsOverride
 	}
 	excluded := installationExcludedModelsFromContext(ctx)
-	if len(excluded) == 0 {
-		return nil
-	}
 	out := make(map[string]struct{}, len(excluded))
 	for _, m := range excluded {
 		out[m] = struct{}{}
+	}
+	if allowed := allowedModelsForRequest(ctx); len(allowed) > 0 {
+		for model := range s.routableUniverse() {
+			if _, ok := allowed[model]; !ok {
+				out[model] = struct{}{}
+			}
+		}
+	}
+	if len(out) == 0 {
+		return nil
 	}
 	return out
 }
@@ -2496,6 +2563,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		EnabledProviders:     enabledProviders,
 		CustomBindings:       s.customBindingsForRequest(ctx),
 		ExcludedModels:       excluded,
+		AllowedModels:        allowedModelsForRequest(ctx),
 		SafetyExcludedModels: s.safetyExcludedModels(env, outputReserve),
 		PreferredModels:      s.preferredModelsForRequest(ctx),
 		RoutingKnobs:         routingKnobsForRequest(ctx),
@@ -3031,12 +3099,14 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	baselineModel := s.baselineFor(feats.Model)
 	baselineCatalog, baselineKnown := catalog.ByID(baselineModel)
 	_, anthropicExcluded := s.excludedProvidersForRequest(ctx)[providers.ProviderAnthropic]
+	baselineAllowed := modelPermittedByAllowlist(ctx, baselineModel)
 	// baselineViable omits authoritative-per-turn: that contract governs which
 	// model the policy picks, not whether a provably-unservable request can be rescued.
 	baselineViable := !agentShadowMode &&
 		decision.Reason != translate.ReasonUserForceModel &&
 		s.shouldFailover(ctx) &&
 		!anthropicExcluded &&
+		baselineAllowed &&
 		decision.Provider != providers.ProviderAnthropic &&
 		baselineModel != decision.Model &&
 		baselineKnown && baselineCatalog.PrimaryProvider() == providers.ProviderAnthropic
@@ -4899,6 +4969,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		EnabledProviders:     enabledProviders,
 		CustomBindings:       s.customBindingsForRequest(ctx),
 		ExcludedModels:       excludedOAI,
+		AllowedModels:        allowedModelsForRequest(ctx),
 		SafetyExcludedModels: s.safetyExcludedModels(env, outputReserveOAI),
 		PreferredModels:      s.preferredModelsForRequest(ctx),
 		RoutingKnobs:         routingKnobsForRequest(ctx),
