@@ -587,6 +587,9 @@ func main() {
 	// Shadow mode is log-only, so it ships enabled; the switch just sheds the
 	// per-turn signal-scan cost if it misbehaves.
 	spiralShadowEnabled := config.GetOr("ROUTER_SPIRAL_SHADOW_ENABLED", "true") == "true"
+	// Session-level struggle detector, also log-only and shipped enabled.
+	// Switch sheds the per-turn check if it misbehaves; exists for symmetry with the spiral detector.
+	struggleShadowEnabled := config.GetOr("ROUTER_STRUGGLE_SHADOW_ENABLED", "true") == "true"
 	// Enforcing text-repetition break ships enabled; the switch is the kill
 	// switch if it ever false-positives on legit repeated narration.
 	textRepetitionBreakEnabled := config.GetOr("ROUTER_TEXT_REPETITION_BREAK_ENABLED", "true") == "true"
@@ -825,6 +828,8 @@ func main() {
 		WithLoopEscalationStore(repo.Telemetry).
 		WithSpiralShadowConfig(spiralShadowEnabled).
 		WithSpiralShadowStore(repo.Telemetry).
+		WithStruggleShadowConfig(struggleShadowEnabled).
+		WithStruggleShadowStore(repo.Telemetry).
 		WithTextRepetitionBreak(textRepetitionBreakEnabled).
 		WithRouterFeedbackStore(repo.Telemetry).
 		WithPlanner(plannerCfg).

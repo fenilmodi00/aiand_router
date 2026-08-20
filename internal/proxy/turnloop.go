@@ -187,6 +187,10 @@ type turnLoopResult struct {
 	// the escalate-on-failure policy (Service.effortEscalation) reads it to
 	// bump a gpt-5.x turn from low to high effort, and is a no-op when disabled.
 	EscalateEffort bool
+	// PinTurnCount and PinFirstPinnedAt are session age + turn count from the
+	// loaded pin; zero when no pin exists, so the detector no-ops on fresh sessions.
+	PinTurnCount     int
+	PinFirstPinnedAt time.Time
 	// SessionDisabledProviders are providers struck out by repeated 529
 	// exhaustion. Stashed on ctx so resolveBindingsForDispatch's failover
 	// walk also honors the exclusion, not just this turn's scorer.
@@ -655,6 +659,12 @@ func (s *Service) runTurnLoop(
 	res.EscalateEffort = pinFound && !pin.LastTurnEndedAt.IsZero() &&
 		(pin.LastOutputTokens == 0 || pin.ConsecutiveUpstreamErrors > 0)
 	if pinFound {
+		// Stamped before pin-drop guards (context-window eviction, exclusion)
+		// so the detector still sees them on the turn the pin is dropped.
+		// +1: stored count is completed turns; this in-flight turn is the next,
+		// so thresholds fire ON 30/80 (matching Phase 0's inclusive mining).
+		res.PinTurnCount = pin.TurnCount + 1
+		res.PinFirstPinnedAt = pin.FirstPinnedAt
 		applyPinEvidence(&res, pin)
 		log.Info("turnloop pin lookup hit",
 			"pin_model", pin.Model,
