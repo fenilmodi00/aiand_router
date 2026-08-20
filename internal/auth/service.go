@@ -441,6 +441,16 @@ func (s *Service) SetInstallationSubscriptionRoutingDisabled(ctx context.Context
 	return nil
 }
 
+// SetInstallationHideTerminalSurfaces persists the toggle and invalidates the
+// auth cache so the change takes effect on the next request.
+func (s *Service) SetInstallationHideTerminalSurfaces(ctx context.Context, externalID, installationID string, hide bool) error {
+	if err := s.installations.UpdateHideTerminalSurfaces(ctx, externalID, installationID, hide); err != nil {
+		return err
+	}
+	s.invalidateInstallation(installationID)
+	return nil
+}
+
 // ErrInvalidCaptureMode is returned for a content-capture mode outside the
 // off/hashed/full set.
 var ErrInvalidCaptureMode = errors.New("auth: invalid content capture mode")

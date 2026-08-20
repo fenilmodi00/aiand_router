@@ -77,6 +77,9 @@ type Installation struct {
 	// ("off"|"hashed"|"full"); nil means no override; can only tighten
 	// WV_CAPTURE_CONTENT.
 	ContentCaptureMode *string
+	// HideTerminalSurfaces suppresses the routing marker, feedback footer, and
+	// statusline; routing and feedback recording are unaffected. Defaults false.
+	HideTerminalSurfaces bool
 }
 
 type CreateInstallationParams struct {
@@ -112,4 +115,7 @@ type InstallationRepository interface {
 	// UpdateContentCaptureMode sets the per-installation capture ceiling; nil
 	// clears the override.
 	UpdateContentCaptureMode(ctx context.Context, externalID, id string, mode *string) error
+	// UpdateHideTerminalSurfaces toggles hiding the router's terminal surfaces
+	// (routing marker, feedback footer, statusline) for the installation.
+	UpdateHideTerminalSurfaces(ctx context.Context, externalID, id string, hide bool) error
 }
