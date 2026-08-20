@@ -543,6 +543,7 @@ func (s *Service) VerifyAPIKey(ctx context.Context, rawToken string) (*Installat
 				return nil, nil, nil, nil, ErrWrongKeyScope
 			}
 			s.fireMarkUsed(cached.APIKey.ID)
+			s.fireMarkFirstRequestServed(cached.APIKey.InstallationID)
 			return cached.Installation, cached.APIKey, s.resolveUpstreamSecrets(ctx, cached.ExternalKeys), cached.ClusterModelLists, nil
 		}
 		// Malformed positive entry (nil APIKey): fall through to DB lookup.
@@ -590,6 +591,7 @@ func (s *Service) VerifyAPIKey(ctx context.Context, rawToken string) (*Installat
 		s.cache.Set(keyHash, CachedKey{APIKey: apiKey, Installation: installation, ExternalKeys: externalKeys, ClusterModelLists: clusterModelLists})
 	}
 	s.fireMarkUsed(apiKey.ID)
+	s.fireMarkFirstRequestServed(apiKey.InstallationID)
 	return installation, apiKey, s.resolveUpstreamSecrets(ctx, externalKeys), clusterModelLists, nil
 }
 
@@ -704,6 +706,17 @@ func (s *Service) fireMarkUsed(apiKeyID string) {
 	observability.SafeGo(log, 2*time.Second, "fireMarkUsed", func(ctx context.Context) {
 		if err := s.apiKeys.MarkUsed(ctx, apiKeyID); err != nil {
 			log.Warn("Failed to mark router api key used", "err", err)
+		}
+	})
+}
+
+// fireMarkFirstRequestServed stamps the installation-level onboarding flag
+// off the request path (same rationale as fireMarkUsed; not called on the analytics path).
+func (s *Service) fireMarkFirstRequestServed(installationID string) {
+	log := observability.Get().With("installation_id", installationID)
+	observability.SafeGo(log, 2*time.Second, "fireMarkFirstRequestServed", func(ctx context.Context) {
+		if err := s.installations.MarkFirstRequestServed(ctx, installationID); err != nil {
+			log.Warn("Failed to mark installation first request served", "err", err)
 		}
 	})
 }

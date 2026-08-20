@@ -84,6 +84,9 @@ type Installation struct {
 	// HideTerminalSurfaces suppresses the routing marker, feedback footer, and
 	// statusline; routing and feedback recording are unaffected. Defaults false.
 	HideTerminalSurfaces bool
+	// FirstRequestServedAt is when this installation first routed a request.
+	// Set once and never cleared so it survives key rotation.
+	FirstRequestServedAt *time.Time
 }
 
 type CreateInstallationParams struct {
@@ -98,6 +101,8 @@ type InstallationRepository interface {
 	Get(ctx context.Context, externalID, id string) (*Installation, error)
 	ListForExternalID(ctx context.Context, externalID string) ([]*Installation, error)
 	SoftDelete(ctx context.Context, externalID, id string) error
+	// MarkFirstRequestServed stamps FirstRequestServedAt once; a no-op thereafter, so key rotation can't reset it.
+	MarkFirstRequestServed(ctx context.Context, id string) error
 	// UpdateExcludedModels replaces the per-installation exclusion list.
 	// An empty (or nil) slice clears the list.
 	UpdateExcludedModels(ctx context.Context, externalID, id string, models []string) error
