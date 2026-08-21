@@ -18,18 +18,29 @@ import (
 	"workweave/router/internal/router/policy"
 )
 
-// DefaultTimeout bounds a single delegated policy decision.
-const DefaultTimeout = 3 * time.Second
+// DefaultTimeout bounds a single delegated policy decision. It has to hold more
+// than one full attempt: 2x1.8s + a 50ms backoff = 3.65s, so the old 3s starved
+// attempt 2 and left attempt 3 unreachable.
+const DefaultTimeout = 4500 * time.Millisecond
 
 const (
 	defaultRouteAttempts = 3
 	routeRetryBackoff    = 50 * time.Millisecond
 )
 
-// Per-attempt bound so a stalled instance cannot consume the whole decision budget and prevent retries.
+// Per-attempt bound so a stalled instance cannot consume the whole decision
+// budget and prevent retries. Sized so a second full attempt still fits
+// (2 x fraction x timeout + backoff <= timeout); three full attempts
+// deliberately do not fit — the third covers fast failures only. The bound must
+// exceed the sidecar's own inference deadline (HMM: 1.5s), or the router
+// cancels a request it was about to answer. 0.4 x 4.5s = 1.8s satisfies both.
 const (
-	defaultAttemptFraction = 0.6
+	defaultAttemptFraction = 0.4
 	minAttemptTimeout      = 500 * time.Millisecond
+	// sidecarInferenceFloor is the smallest per-attempt bound that still
+	// outlives a policy sidecar's own inference deadline (constant, not
+	// fraction-scaling). Applied only when the budget can afford a retry too.
+	sidecarInferenceFloor = 1800 * time.Millisecond
 )
 
 // Option customizes a policy sidecar client.
@@ -48,6 +59,10 @@ func DeriveAttemptTimeout(timeout time.Duration) time.Duration {
 		timeout = DefaultTimeout
 	}
 	attemptTimeout := time.Duration(float64(timeout) * defaultAttemptFraction)
+	// Budgets too small to seat the floor and still leave a retry keep the old behaviour.
+	if attemptTimeout < sidecarInferenceFloor && timeout >= sidecarInferenceFloor+minAttemptTimeout {
+		attemptTimeout = sidecarInferenceFloor
+	}
 	if attemptTimeout < minAttemptTimeout {
 		attemptTimeout = minAttemptTimeout
 	}
@@ -693,16 +708,21 @@ func pointerTo[T any](value T) *T {
 }
 
 func (c *Client) doPolicyRequest(ctx context.Context, path string, body []byte) (*http.Response, []byte, error) {
-	var lastErr error
+	// lastStatusErr is the sidecar's own diagnosis; it diverges from lastErr when the budget cuts a final attempt short.
+	var lastErr, lastStatusErr error
 	for attempt := 1; attempt <= defaultRouteAttempts; attempt++ {
 		if err := ctx.Err(); err != nil {
-			return nil, nil, fmt.Errorf("policy sidecar retries exhausted: %w", err)
+			return nil, nil, exhaustedPolicyErr(lastStatusErr, lastErr, err)
 		}
 		resp, payload, done, attemptErr := c.doPolicyAttempt(ctx, attempt, path, body)
 		if done {
 			return resp, payload, attemptErr
 		}
 		lastErr = attemptErr
+		var statusErr *PolicyStatusError
+		if errors.As(attemptErr, &statusErr) {
+			lastStatusErr = attemptErr
+		}
 		if attempt == defaultRouteAttempts {
 			break
 		}
@@ -710,11 +730,59 @@ func (c *Client) doPolicyRequest(ctx context.Context, path string, body []byte) 
 		select {
 		case <-ctx.Done():
 			timer.Stop()
-			return nil, nil, fmt.Errorf("policy sidecar retries exhausted: %w", ctx.Err())
+			return nil, nil, exhaustedPolicyErr(lastStatusErr, lastErr, ctx.Err())
 		case <-timer.C:
 		}
 	}
-	return nil, nil, fmt.Errorf("policy sidecar retries exhausted: %w", lastErr)
+	return nil, nil, exhaustedPolicyErr(lastStatusErr, lastErr, nil)
+}
+
+// preferStatusErr picks the sidecar's own status over a transport failure, so an
+// exhausted ladder surfaces the sidecar's diagnosis and not the budget expiry.
+func preferStatusErr(statusErr, lastErr error) error {
+	if statusErr != nil {
+		return statusErr
+	}
+	return lastErr
+}
+
+// exhaustedPolicyErr reports why the ladder ended. Both the sidecar's status and
+// the deadline are preserved: the status is the sidecar's own diagnosis; the
+// deadline keeps isPolicyDeadlineErr matching so the policy-deadline fallback
+// still degrades rather than surfacing the 503 that fallback exists to prevent.
+func exhaustedPolicyErr(statusErr, lastErr, ctxErr error) error {
+	primary := preferStatusErr(statusErr, lastErr)
+	deadline := cancellationSignal(ctxErr, lastErr, statusErr)
+	switch {
+	case primary == nil && deadline == nil:
+		return errors.New("policy sidecar retries exhausted")
+	case primary == nil:
+		return fmt.Errorf("policy sidecar retries exhausted: %w", deadline)
+	// errors.Is keeps a transport deadline from being printed twice; the
+	// sentinel is already reachable through primary.
+	case deadline == nil || errors.Is(primary, deadline):
+		return fmt.Errorf("policy sidecar retries exhausted: %w", primary)
+	default:
+		return fmt.Errorf("policy sidecar retries exhausted: %w: %w", primary, deadline)
+	}
+}
+
+// cancellationSignal returns the first context sentinel reachable from any
+// candidate, so preferring a status error for its diagnosis never costs the
+// caller the deadline it needs to degrade on.
+func cancellationSignal(candidates ...error) error {
+	for _, candidate := range candidates {
+		if candidate == nil {
+			continue
+		}
+		if errors.Is(candidate, context.DeadlineExceeded) {
+			return context.DeadlineExceeded
+		}
+		if errors.Is(candidate, context.Canceled) {
+			return context.Canceled
+		}
+	}
+	return nil
 }
 
 // doPolicyAttempt runs one bounded attempt; returns done=true on a final outcome (success or fatal error).
@@ -777,15 +845,27 @@ func isTransientPolicyStatus(status int) bool {
 		status == http.StatusGatewayTimeout
 }
 
+// PolicyStatusError is a non-2xx response from the sidecar, typed so the retry
+// ladder can prefer it over a transport error: a status is the sidecar's own
+// diagnosis; "context deadline exceeded" only says the budget ran out.
+type PolicyStatusError struct {
+	Status  int
+	Message string
+}
+
+func (e *PolicyStatusError) Error() string {
+	if e.Message != "" {
+		return fmt.Sprintf("policy sidecar status %d: %s", e.Status, e.Message)
+	}
+	return fmt.Sprintf("policy sidecar status %d", e.Status)
+}
+
 func policyStatusError(status int, payload []byte) error {
 	var parsed struct {
 		Error string `json:"error"`
 	}
 	_ = json.Unmarshal(payload, &parsed)
-	if parsed.Error != "" {
-		return fmt.Errorf("policy sidecar status %d: %s", status, parsed.Error)
-	}
-	return fmt.Errorf("policy sidecar status %d", status)
+	return &PolicyStatusError{Status: status, Message: parsed.Error}
 }
 
 func wireRoutingKnobs(knobs *router.Overrides) *routingKnobs {
