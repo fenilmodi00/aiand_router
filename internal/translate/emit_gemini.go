@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"workweave/router/internal/observability"
 	"workweave/router/internal/providers"
 	"workweave/router/internal/router"
 
@@ -489,10 +490,12 @@ func writeGeminiToolsFromOpenAI(jw *jsonWriter, body []byte) error {
 			}
 			clean, err := sanitizeSchemaForGemini(schema)
 			if err != nil {
-				emitErr = fmt.Errorf("function %q parameters: %w", name, err)
-				return false
+				// Tool schemas are generation hints; a parameterless declaration is
+				// safe — the client validates against the ORIGINAL schema.
+				observability.Get().Warn("Gemini tool schema is unrepresentable — emitting declaration without parameters", "tool_name", name, "err", err)
+			} else {
+				declaration["parameters"] = clean
 			}
-			declaration["parameters"] = clean
 		}
 		declarations = append(declarations, declaration)
 		return true
@@ -982,10 +985,12 @@ func writeGeminiToolsFromAnthropic(jw *jsonWriter, body []byte) error {
 			}
 			clean, err := sanitizeSchemaForGemini(schema)
 			if err != nil {
-				emitErr = fmt.Errorf("function %q input_schema: %w", name, err)
-				return false
+				// See writeGeminiToolsFromOpenAI: a widened/missing schema is
+				// always safe here, so degrade instead of failing the request.
+				observability.Get().Warn("Gemini tool schema is unrepresentable — emitting declaration without parameters", "tool_name", name, "err", err)
+			} else {
+				declaration["parameters"] = clean
 			}
-			declaration["parameters"] = clean
 		}
 		declarations = append(declarations, declaration)
 		return true
@@ -1316,15 +1321,28 @@ func sanitizeGeminiSchemaNode(v any, path string) (any, error) {
 	}
 
 	if allOf, exists := node["allOf"]; exists {
-		merged, err := mergeGeminiAllOf(allOf, path+".allOf")
+		merged, widened, err := mergeGeminiAllOf(allOf, path+".allOf")
 		if err != nil {
 			return nil, err
 		}
 		base := mergeSchemaMaps(node, nil, false)
 		delete(base, "allOf")
-		node, ok = mergeSchemaMapsExact(base, merged)
+		// The merged branches arrived here already nullability-normalized
+		// (type:["x","null"] lowered to type + nullable:true); the sibling map
+		// is still raw, so normalize it before intersecting on equal footing.
+		if err := normalizeGeminiNullableType(base, path); err != nil {
+			return nil, err
+		}
+		node, ok = intersectGeminiSchemas(base, merged)
 		if !ok {
-			return nil, fmt.Errorf("%w at %s.allOf: branches conflict with sibling constraints", ErrGeminiSchemaIncompatible, path)
+			// No longer fatal: generation hints only need a superset-safe schema,
+			// so keep the sibling (base) side on conflict.
+			node = mergeSchemaMapsLenient(base, merged)
+			widened = true
+			observability.Get().Info("Gemini allOf conflicts with sibling constraints — keeping sibling values", "path", path)
+		}
+		if widened {
+			pruneGeminiRequired(node)
 		}
 	}
 	if _, exists := node["oneOf"]; exists {
@@ -1425,7 +1443,7 @@ func sanitizeGeminiSchemaNode(v any, path string) (any, error) {
 		return nil, err
 	}
 	resolveGeminiEnum(out)
-	return out, nil
+	return stripEmptyNullable(out), nil
 }
 
 // resolveGeminiExclusiveBound writes the inclusive bound key ("minimum" or
@@ -1459,28 +1477,57 @@ func resolveGeminiExclusiveBound(node, out map[string]any, key, exclusiveKey, pa
 	return nil
 }
 
-func mergeGeminiAllOf(v any, path string) (map[string]any, error) {
+// mergeGeminiAllOf merges allOf branches into a single Gemini-representable
+// schema, widening (dropping unrepresentable branches) instead of rejecting.
+// widened reports whether any branch was dropped, so the caller can
+// re-validate constraints (e.g. required) that assumed every branch merged.
+func mergeGeminiAllOf(v any, path string) (merged map[string]any, widened bool, err error) {
 	branches, ok := v.([]any)
 	if !ok || len(branches) == 0 {
-		return nil, fmt.Errorf("%w at %s: expected non-empty array", ErrGeminiSchemaIncompatible, path)
+		return nil, false, fmt.Errorf("%w at %s: expected non-empty array", ErrGeminiSchemaIncompatible, path)
 	}
-	merged := map[string]any{}
+	merged = map[string]any{}
+	var (
+		matched  bool
+		firstErr error
+	)
 	for i, branch := range branches {
-		clean, err := sanitizeGeminiSchemaNode(branch, fmt.Sprintf("%s[%d]", path, i))
-		if err != nil {
-			return nil, err
+		branchPath := fmt.Sprintf("%s[%d]", path, i)
+		clean, cleanErr := sanitizeGeminiSchemaNode(branch, branchPath)
+		if cleanErr != nil {
+			widened = true
+			if firstErr == nil {
+				firstErr = cleanErr
+			}
+			observability.Get().Info("Gemini allOf branch is unrepresentable — widening by dropping it", "path", branchPath, "err", cleanErr)
+			continue
 		}
-		object, ok := clean.(map[string]any)
-		if !ok {
-			return nil, fmt.Errorf("%w at %s[%d]: branch is not an object schema", ErrGeminiSchemaIncompatible, path, i)
+		object, isObject := clean.(map[string]any)
+		if !isObject {
+			widened = true
+			branchErr := fmt.Errorf("%w at %s: branch is not an object schema", ErrGeminiSchemaIncompatible, branchPath)
+			if firstErr == nil {
+				firstErr = branchErr
+			}
+			observability.Get().Info("Gemini allOf branch is unrepresentable — widening by dropping it", "path", branchPath, "err", branchErr)
+			continue
 		}
-		var mergedOK bool
-		merged, mergedOK = mergeSchemaMapsExact(merged, object)
+		candidate, mergedOK := intersectGeminiSchemas(merged, object)
 		if !mergedOK {
-			return nil, fmt.Errorf("%w at %s[%d]: branches conflict", ErrGeminiSchemaIncompatible, path, i)
+			widened = true
+			if firstErr == nil {
+				firstErr = fmt.Errorf("%w at %s: branch conflicts with prior branches", ErrGeminiSchemaIncompatible, branchPath)
+			}
+			observability.Get().Info("Gemini allOf branch is unrepresentable — widening by dropping it", "path", branchPath, "conflict", "branch conflicts with prior branches")
+			continue
 		}
+		merged = candidate
+		matched = true
 	}
-	return merged, nil
+	if !matched {
+		return nil, false, firstErr
+	}
+	return stripEmptyNullable(merged), widened, nil
 }
 
 func mergeSchemaMaps(base, extra map[string]any, overwrite bool) map[string]any {
@@ -1496,7 +1543,34 @@ func mergeSchemaMaps(base, extra map[string]any, overwrite bool) map[string]any 
 	return out
 }
 
-func mergeSchemaMapsExact(left, right map[string]any) (map[string]any, bool) {
+// geminiAnnotationKeys carry no validation semantics, so two allOf branches
+// disagreeing on one is not a conflict — the left (earlier) value wins.
+// pattern is absent: regexes cannot be intersected, so differing patterns conflict.
+var geminiAnnotationKeys = map[string]struct{}{
+	"description": {},
+	"title":       {},
+	"default":     {},
+	"example":     {},
+}
+
+// geminiStricterBoundKeys map a bound keyword to whether the intersection of
+// two values is the larger one (lower bounds) or the smaller one (upper).
+var geminiStricterBoundKeys = map[string]bool{
+	"minimum":       true,
+	"minLength":     true,
+	"minItems":      true,
+	"minProperties": true,
+	"maximum":       false,
+	"maxLength":     false,
+	"maxItems":      false,
+	"maxProperties": false,
+}
+
+// intersectGeminiSchemas merges two allOf branches: bounds narrow, annotations
+// defer to the left branch, and only disagreeing types or disjoint enums conflict.
+func intersectGeminiSchemas(left, right map[string]any) (map[string]any, bool) {
+	left = clampNullableTyped(left)
+	right = clampNullableTyped(right)
 	out := mergeSchemaMaps(left, nil, false)
 	for key, value := range right {
 		current, exists := out[key]
@@ -1510,7 +1584,7 @@ func mergeSchemaMapsExact(left, right map[string]any) (map[string]any, bool) {
 			if !leftOK || !rightOK {
 				return nil, false
 			}
-			mergedProperties, ok := mergeSchemaMapsExact(leftProperties, rightProperties)
+			mergedProperties, ok := mergeGeminiPropertyMaps(leftProperties, rightProperties)
 			if !ok {
 				return nil, false
 			}
@@ -1524,11 +1598,252 @@ func mergeSchemaMapsExact(left, right map[string]any) (map[string]any, bool) {
 			}
 			continue
 		}
+		if key == "items" {
+			leftItems, leftOK := current.(map[string]any)
+			rightItems, rightOK := value.(map[string]any)
+			if !leftOK || !rightOK {
+				return nil, false
+			}
+			mergedItems, ok := intersectGeminiSchemas(leftItems, rightItems)
+			if !ok {
+				return nil, false
+			}
+			out[key] = mergedItems
+			continue
+		}
+		if _, isAnnotation := geminiAnnotationKeys[key]; isAnnotation {
+			continue
+		}
+		// nullable ANDs across clamps: a typed operand with no nullable key was
+		// explicitly set to false above, so the intersection requires both to
+		// admit null.
+		if key == "nullable" {
+			leftNullable, leftOK := current.(bool)
+			rightNullable, rightOK := value.(bool)
+			if !leftOK || !rightOK {
+				return nil, false
+			}
+			out[key] = leftNullable && rightNullable
+			continue
+		}
+		if key == "enum" {
+			shared, ok := intersectEnums(current, value)
+			if !ok {
+				return nil, false
+			}
+			out[key] = shared
+			continue
+		}
+		if larger, isBound := geminiStricterBoundKeys[key]; isBound {
+			stricter, ok := stricterBound(current, value, larger)
+			if !ok {
+				return nil, false
+			}
+			out[key] = stricter
+			continue
+		}
 		if !semanticJSONEqual(current, value) {
 			return nil, false
 		}
 	}
 	return out, true
+}
+
+// clampNullableTyped makes implicit non-nullability explicit on typed schemas:
+// Gemini treats an absent nullable as false, so AND-ing two ops needs the
+// value present on both sides. A raw operand's type:[T,"null"] array is
+// lowered here too — nested siblings reach intersection before their own
+// sanitize pass normalizes them.
+func clampNullableTyped(schema map[string]any) map[string]any {
+	typeValue, hasType := schema["type"]
+	if !hasType {
+		return schema
+	}
+	if types, isArray := typeValue.([]any); isArray {
+		primary, ok := lowerNullableTypeArray(types)
+		if !ok {
+			return schema
+		}
+		out := mergeSchemaMaps(schema, nil, false)
+		out["type"] = primary
+		out["nullable"] = true
+		return out
+	}
+	if _, hasNullable := schema["nullable"]; hasNullable {
+		return schema
+	}
+	out := mergeSchemaMaps(schema, nil, false)
+	out["nullable"] = false
+	return out
+}
+
+// lowerNullableTypeArray reports the non-null member of an exact [T, "null"]
+// type pair; any other array shape is left for the sanitize pass to reject.
+func lowerNullableTypeArray(types []any) (string, bool) {
+	if len(types) != 2 {
+		return "", false
+	}
+	primary := ""
+	hasNull := false
+	for _, candidate := range types {
+		name, ok := candidate.(string)
+		if !ok {
+			return "", false
+		}
+		if name == "null" {
+			if hasNull {
+				return "", false
+			}
+			hasNull = true
+			continue
+		}
+		if primary != "" {
+			return "", false
+		}
+		primary = name
+	}
+	if primary == "" || !hasNull {
+		return "", false
+	}
+	return primary, true
+}
+
+// stripEmptyNullable removes a nullable:false that is indistinguishable from an
+// absent key, keeping emitted schemas clean. A typed schema may carry a
+// redundant nullable:false after intersection.
+func stripEmptyNullable(schema map[string]any) map[string]any {
+	if _, hasType := schema["type"]; !hasType {
+		return schema
+	}
+	if nullable, ok := schema["nullable"].(bool); ok && !nullable {
+		delete(schema, "nullable")
+	}
+	return schema
+}
+
+// mergeGeminiPropertyMaps merges two `properties` maps. A name declared by
+// both branches has its two subschemas intersected, not compared for equality.
+func mergeGeminiPropertyMaps(left, right map[string]any) (map[string]any, bool) {
+	out := mergeSchemaMaps(left, nil, false)
+	for name, value := range right {
+		current, exists := out[name]
+		if !exists {
+			out[name] = deepCopyJSON(value)
+			continue
+		}
+		leftSchema, leftOK := current.(map[string]any)
+		rightSchema, rightOK := value.(map[string]any)
+		if !leftOK || !rightOK {
+			if !semanticJSONEqual(current, value) {
+				return nil, false
+			}
+			continue
+		}
+		merged, ok := intersectGeminiSchemas(leftSchema, rightSchema)
+		if !ok {
+			return nil, false
+		}
+		out[name] = merged
+	}
+	return out, true
+}
+
+// intersectEnums keeps the members present in both branches, preserving the
+// left order. A disjoint pair is unsatisfiable, so it reports a conflict.
+func intersectEnums(left, right any) (any, bool) {
+	leftValues, leftOK := left.([]any)
+	rightValues, rightOK := right.([]any)
+	if !leftOK || !rightOK {
+		return nil, false
+	}
+	shared := make([]any, 0, len(leftValues))
+	for _, candidate := range leftValues {
+		if valueInEnum(candidate, rightValues) {
+			shared = append(shared, deepCopyJSON(candidate))
+		}
+	}
+	if len(shared) == 0 {
+		return nil, false
+	}
+	return shared, true
+}
+
+// stricterBound returns whichever of the two numeric bounds is the tighter
+// one, which is exactly the intersection for a bound keyword.
+func stricterBound(left, right any, larger bool) (any, bool) {
+	leftValue, leftOK := left.(float64)
+	rightValue, rightOK := right.(float64)
+	if !leftOK || !rightOK {
+		if !semanticJSONEqual(left, right) {
+			return nil, false
+		}
+		return deepCopyJSON(left), true
+	}
+	if larger == (rightValue > leftValue) {
+		return rightValue, true
+	}
+	return leftValue, true
+}
+
+// mergeSchemaMapsLenient merges like intersectGeminiSchemas but never fails:
+// once a branch has been widened away the goal shifts from "prove no conflict"
+// to "produce some representable schema" — properties recurse, required unions,
+// any other conflict keeps left.
+func mergeSchemaMapsLenient(left, right map[string]any) map[string]any {
+	out := mergeSchemaMaps(left, nil, false)
+	for key, value := range right {
+		current, exists := out[key]
+		if !exists {
+			out[key] = deepCopyJSON(value)
+			continue
+		}
+		if key == "properties" {
+			leftProperties, leftOK := current.(map[string]any)
+			rightProperties, rightOK := value.(map[string]any)
+			if !leftOK || !rightOK {
+				continue
+			}
+			out[key] = mergeSchemaMapsLenient(leftProperties, rightProperties)
+			continue
+		}
+		if key == "required" {
+			if merged := uniqueStrings(current, value); merged != nil {
+				out[key] = merged
+			}
+			continue
+		}
+		// Any other conflict keeps left (out[key] is already current).
+	}
+	return out
+}
+
+// pruneGeminiRequired drops required entries whose property was removed by
+// widening; Gemini 400s on required-without-property, defeating the widen.
+func pruneGeminiRequired(node map[string]any) {
+	required, ok := node["required"].([]any)
+	if !ok {
+		return
+	}
+	properties, _ := node["properties"].(map[string]any)
+	if properties == nil {
+		delete(node, "required")
+		return
+	}
+	kept := make([]any, 0, len(required))
+	for _, entry := range required {
+		name, ok := entry.(string)
+		if !ok {
+			continue
+		}
+		if _, exists := properties[name]; exists {
+			kept = append(kept, name)
+		}
+	}
+	if len(kept) == 0 {
+		delete(node, "required")
+		return
+	}
+	node["required"] = kept
 }
 
 func uniqueStrings(left, right any) any {

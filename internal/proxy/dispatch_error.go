@@ -50,6 +50,7 @@ const (
 	DispatchErrorForcedModelUnknown
 	DispatchErrorForcedClusterUnsupportedStrategy
 	DispatchErrorForcedClusterUnservable
+	DispatchErrorRoutedModelIncompatible
 )
 
 // DispatchErrorClass is the format-agnostic classification of a dispatch
@@ -170,6 +171,15 @@ func ClassifyDispatchError(err error) (DispatchErrorClass, bool) {
 			RetryAfter: true,
 			LogLevel:   "warn",
 			LogMessage: "Compatible translation provider unavailable",
+		}, true
+	case translate.IsIntrinsicallyIncompatible(err):
+		// Only reached when every rescue was unavailable or also failed.
+		return DispatchErrorClass{
+			Kind:       DispatchErrorRoutedModelIncompatible,
+			Status:     http.StatusBadGateway,
+			Message:    "The routed model cannot serve this request's shape (tool schema, reasoning intent, or tool history). Please retry.",
+			LogLevel:   "warn",
+			LogMessage: "Routed model cannot serve this request shape; no failover was available",
 		}, true
 	// Must precede the ErrNoEligibleProvider case: ErrAllowlistEmptiesPool
 	// wraps it, so the generic case would otherwise match first and report a

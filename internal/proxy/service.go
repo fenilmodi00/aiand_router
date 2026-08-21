@@ -3087,7 +3087,9 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		}
 	}
 	attempt, attemptBuildErr := buildAttempt(decision, opts, marker)
-	if attemptBuildErr != nil {
+	// An intrinsically-incompatible build error means the routed model provably
+	// can't serve this shape — let it fall through to the baseline rescue below.
+	if attemptBuildErr != nil && !translate.IsIntrinsicallyIncompatible(attemptBuildErr) {
 		return attemptBuildErr
 	}
 
@@ -3152,16 +3154,21 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 
 	primaryProvider := decision.Provider
 	var winnerIdx int
-	winnerIdx, proxyErr = s.dispatchWithFallback(ctx, failoverInputs{
-		// contentSink is the raw w when capture is off.
-		w:                      contentSink,
-		buf:                    preludeBuf,
-		initialDecision:        decision,
-		bindings:               bindings,
-		attempt:                attempt,
-		flushErr:               flushUpstreamErrorAsAnthropic,
-		deferFlushOnExhaustion: baselineViable || subscriptionRetryEligible || siblingViable,
-	})
+	if attemptBuildErr != nil {
+		// Nothing was dispatched — enters the rescue chain as if every binding pre-committed failed.
+		winnerIdx, proxyErr = -1, attemptBuildErr
+	} else {
+		winnerIdx, proxyErr = s.dispatchWithFallback(ctx, failoverInputs{
+			// contentSink is the raw w when capture is off.
+			w:                      contentSink,
+			buf:                    preludeBuf,
+			initialDecision:        decision,
+			bindings:               bindings,
+			attempt:                attempt,
+			flushErr:               flushUpstreamErrorAsAnthropic,
+			deferFlushOnExhaustion: baselineViable || subscriptionRetryEligible || siblingViable,
+		})
+	}
 
 	// The deferred upstream error must reach the client exactly once: each
 	// rescue hands ownership to the next, and whichever declines to run flushes.
@@ -3193,7 +3200,8 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	}
 	if proxyErr != nil && !preludeBuf.Committed() &&
 		((baselineEligible && (providers.IsRetryable(proxyErr) || providers.IsUpstreamModelNotFound(proxyErr))) ||
-			(baselineViable && capabilityRejected)) {
+			(baselineViable && capabilityRejected) ||
+			(baselineViable && translate.IsIntrinsicallyIncompatible(proxyErr))) {
 		baselineDecision := decision
 		baselineDecision.Model = baselineModel
 		baselineDecision.Provider = providers.ProviderAnthropic
@@ -3218,7 +3226,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 				flushDeferredErr()
 			}
 		} else {
-			log.Warn("Baseline failover: routed model exhausted, retrying requested model on Anthropic",
+			log.Warn("Baseline failover: retrying requested model on Anthropic",
 				"failed_model", decision.Model,
 				"failed_provider", primaryProvider,
 				"baseline_model", baselineModel,
