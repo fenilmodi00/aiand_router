@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/tidwall/gjson"
 	"net/http"
 	"net/url"
 	"sort"
@@ -407,6 +408,65 @@ func IsUpstreamCapabilityRejection(err error) bool {
 		}
 	}
 	return false
+}
+
+// schemaRejectionPhrases are prose 400 bodies from provider grammar/schema
+// compilation. Unlike capability rejections (a model property, same phrasing on
+// any binding), a schema rejection is compiler-specific — a sibling or baseline
+// binding CAN accept the same schemas. Keep phrases narrow: a loose match
+// rescues a genuinely malformed request onto another provider, masking the bug.
+var schemaRejectionPhrases = []string{
+	// Fireworks grammar-compiler conflict across tool schemas.
+	"conflict in schema definitions",
+	// Generic grammar/structured-output rejection phrasings.
+	"failed to compile grammar",
+	"could not compile grammar",
+	"invalid tool schema",
+	"invalid function schema",
+	"schema is not representable",
+	"invalid input schema",
+}
+
+// IsUpstreamSchemaRejection reports whether err is a buffered upstream 400 from
+// the provider's tool-schema/grammar compilation — the class behind the
+// Fireworks "Conflict in schema definitions" dead turns. Cross-binding
+// retryable (a different provider's compiler accepts the same schemas); not a
+// same-binding retry signal (identical re-POST 400s identically).
+func IsUpstreamSchemaRejection(err error) bool {
+	var buffered *UpstreamErrorResponse
+	if !errors.As(err, &buffered) || buffered.Status != http.StatusBadRequest {
+		return false
+	}
+	body := strings.ToLower(string(buffered.Body))
+	for _, phrase := range schemaRejectionPhrases {
+		if strings.Contains(body, phrase) {
+			return true
+		}
+	}
+	return false
+}
+
+// UpstreamErrorBodyMessage extracts a provider's error message from a buffered
+// non-2xx body for diagnostics: prefers {"error":{"message":...}}, then
+// top-level "message", then truncated raw body. Returns "" for non-buffered or
+// empty bodies. Capped at 1 KiB.
+func UpstreamErrorBodyMessage(err error) string {
+	const maxBodyLogBytes = 1024
+	var buffered *UpstreamErrorResponse
+	if !errors.As(err, &buffered) || len(buffered.Body) == 0 {
+		return ""
+	}
+	body := buffered.Body
+	if len(body) > maxBodyLogBytes {
+		body = body[:maxBodyLogBytes]
+	}
+	if msg := gjson.GetBytes(body, "error.message"); msg.Exists() {
+		return msg.String()
+	}
+	if msg := gjson.GetBytes(body, "message"); msg.Exists() {
+		return msg.String()
+	}
+	return strings.TrimSpace(string(body))
 }
 
 // PreparedRequest holds the encoded target-format request body and format-specific header overrides.

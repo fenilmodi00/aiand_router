@@ -14,8 +14,17 @@ import (
 )
 
 // pinEvictionStrikeThreshold is the consecutive-non-retryable-4xx count that
-// expires a sticky pin. Two (not one) tolerates a single transient 400
-// without flushing a working pin's prompt cache.
+// expires a sticky pin. One strike: a non-retryable 400 (provider grammar/
+// schema rejection, capability rejection) is deterministic per-arm, so a
+// second attempt on the same pinned model 400s identically — waiting for two
+// locks the session onto a dead arm for its lifetime (the 2026-08-21 Fireworks
+// "Conflict in schema definitions" lockout). The prompt-cache cost of a single
+// spurious eviction is far cheaper than a dead session.
+// Generic counter: a single request-specific 400 (validation, malformed body)
+// must not throw away a working pin's prompt cache — the deterministic
+// dead-arm classes (schema/capability/intrinsically-incompatible) evict
+// immediately via maybeExpireDeadArmPin, so this threshold only guards the
+// residual non-deterministic 4xx noise.
 const pinEvictionStrikeThreshold = 2
 
 // expireSessionPin writes an already-expired sessionpin.Pin so the next
@@ -121,6 +130,29 @@ func (s *Service) evictPinAfterDegenerateResponse(
 	log.Info("session pin evicted after degenerate response",
 		"role", role,
 	)
+}
+
+// maybeExpireDeadArmPin expires the sticky pin when the pinned arm provably
+// cannot serve the request shape (schema/capability rejection) even after a
+// sibling/baseline rescue. A successful rescue nils proxyErr, so
+// maybeEvictPinAfterUpstreamErr resets the strike counter and the dead arm
+// stays pinned — every subsequent turn burns another deterministic 400. Never
+// expires a user force-model pin (HasPrefix covers the +tier_clamp suffix).
+func (s *Service) maybeExpireDeadArmPin(
+	ctx context.Context,
+	deadArmRejected bool,
+	decisionReason string,
+	installationID uuid.UUID,
+	sessionKey [sessionpin.SessionKeyLen]byte,
+	role string,
+) {
+	if !deadArmRejected || s.pinStore == nil || installationID == uuid.Nil || sessionKey == ([sessionpin.SessionKeyLen]byte{}) || strings.HasPrefix(decisionReason, translate.ReasonUserForceModel) {
+		return
+	}
+	log := observability.FromContext(ctx)
+	if err := s.expireSessionPin(ctx, installationID, sessionKey, role, "dead_arm_rejected"); err != nil {
+		log.Error("pin eviction after dead-arm rejection failed", "err", err, "role", role)
+	}
 }
 
 // maybeEvictPinAfterUpstreamErr applies the two-strike eviction policy for a

@@ -113,8 +113,10 @@ func nonZeroSessionKey() [sessionpin.SessionKeyLen]byte {
 	return k
 }
 
-// A single 400 must increment the counter but not evict — eviction waits for
-// a second consecutive strike so one-off bad requests don't flush a warm pin.
+// A single 400 must increment the counter but not evict — eviction waits for a
+// second consecutive strike so a one-off request-specific 400 doesn't flush a
+// warm pin. The deterministic dead-arm classes (schema/capability rejection)
+// evict immediately via maybeExpireDeadArmPin instead of this generic counter.
 func TestMaybeEvictPin_FirstStrikeOnlyIncrements(t *testing.T) {
 	store := &evictionStubPinStore{incrementNext: []int{1}}
 	svc := newEvictionTestService(store)
@@ -365,4 +367,40 @@ func TestMaybeEvictPin_NonUpstreamErrorIgnored(t *testing.T) {
 
 	assert.Zero(t, store.incrementCalls)
 	assert.Empty(t, store.upserts)
+}
+
+// TestMaybeExpireDeadArmPin guards the successful-rescue path: when a
+// schema/capability rejection is rescued by a sibling/baseline arm, the rescue
+// nils proxyErr so the strike counter resets — the pin must be expired
+// regardless, and a force-model pin never evicted.
+func TestMaybeExpireDeadArmPin(t *testing.T) {
+	installationID := uuid.New()
+	sessionKey := nonZeroSessionKey()
+
+	cases := []struct {
+		name           string
+		rejected       bool
+		decisionReason string
+		wantFired      bool
+	}{
+		{"dead-arm rejection evicts the pin", true, "hmm_policy(...)", true},
+		{"no rejection leaves the pin", false, "hmm_policy(...)", false},
+		{"force-model pin is never evicted", true, translate.ReasonUserForceModel + "+tier_clamp", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store := &evictionStubPinStore{}
+			svc := newEvictionTestService(store)
+			svc.maybeExpireDeadArmPin(context.Background(), tc.rejected, tc.decisionReason, installationID, sessionKey, sessionpin.DefaultRole)
+			if tc.wantFired {
+				require.Len(t, store.upserts, 1, "dead-arm rejection must expire the pin")
+				expired := store.upserts[0]
+				assert.Equal(t, sessionpin.DefaultRole, expired.Role)
+				assert.Equal(t, installationID, expired.InstallationID)
+				assert.True(t, expired.PinnedUntil.Before(time.Now()), "eviction expires the pin")
+			} else {
+				assert.Empty(t, store.upserts, "pin must survive")
+			}
+		})
+	}
 }
