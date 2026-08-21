@@ -94,11 +94,12 @@ var forceModelAliases = map[string]string{
 	"gpt-5-5-pro":   "gpt-5.5-pro",
 	"gpt-5-5-mini":  "gpt-5.5-mini",
 	"gpt-5-5-nano":  "gpt-5.5-nano",
-	"grok":          "grok-4.5",
-	"grok-4.5":      "grok-4.5",
-	"grok4.5":       "grok-4.5",
-	"xai":           "grok-4.5",
-	// "grok" stays at 4.5 for backward compat; "grok-max" surfaces 4.6.
+	// grok-4.5 is retired from routing (no AA Agentic Index score, never rostered).
+	// Family aliases follow flagship 4.6; own-name alias keeps grok-4.5 as passthrough.
+	"grok":                  "grok-4.6",
+	"grok-4.5":              "grok-4.5",
+	"grok4.5":               "grok-4.5",
+	"xai":                   "grok-4.6",
 	"grok-4.6":              "grok-4.6",
 	"grok4.6":               "grok-4.6",
 	"grok-max":              "grok-4.6",
