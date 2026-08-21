@@ -1,21 +1,32 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
-import { registerCompaction, parseRoutedContextWindow, repairClampedToolContinuation } from "../src/compaction.js";
+import {
+	registerCompaction,
+	ROUTED_COMPACTION_CONTINUATION,
+	repairClampedToolContinuation,
+} from "../src/compaction.js";
+import { parseRoutedContextWindow } from "../src/context-window.js";
 
 type CapturedHandler = (event: any, ctx: ExtensionContext) => unknown;
+type SendOptions = Parameters<ExtensionAPI["sendUserMessage"]>[1];
 
 function extensionHarness(schedule?: (callback: () => void) => unknown) {
 	const handlers = new Map<string, CapturedHandler[]>();
+	const sentMessages: Array<{ content: string; options?: SendOptions }> = [];
 	const pi = {
 		on(event: string, handler: CapturedHandler) {
 			const eventHandlers = handlers.get(event) ?? [];
 			eventHandlers.push(handler);
 			handlers.set(event, eventHandlers);
 		},
+		sendUserMessage(message: string, options?: SendOptions) {
+			sentMessages.push({ content: message, options });
+		},
 	} as unknown as ExtensionAPI;
 	registerCompaction(pi, schedule);
 	return {
+		sentMessages: () => sentMessages,
 		emit(event: string, payload: unknown, ctx: ExtensionContext) {
 			for (const handler of handlers.get(event) ?? []) handler(payload, ctx);
 		},
@@ -37,12 +48,13 @@ function assistant(totalTokens: number) {
 	};
 }
 
-function contextHarness(registeredWindow = 200_000) {
+function contextHarness(registeredWindow = 200_000, idle = true) {
 	let compactCalls = 0;
 	let status: string | undefined;
 	const branch: any[] = [];
 	const ctx = {
 		hasUI: true,
+		isIdle: () => idle,
 		model: { contextWindow: registeredWindow },
 		getContextUsage: () => ({ tokens: 0, contextWindow: registeredWindow, percent: 0 }),
 		sessionManager: { getBranch: () => branch },
@@ -102,6 +114,28 @@ test("compacts once after a routed tool loop crosses the virtual context window"
 	assert.equal(continuation.max_tokens, 16_384);
 	assert.equal(compactCalls(), 1);
 	assert.equal(status(), undefined);
+	assert.deepEqual(extension.sentMessages(), [{ content: ROUTED_COMPACTION_CONTINUATION, options: undefined }]);
+});
+
+test("queues a manual-compaction continuation as a follow-up when Pi is active", () => {
+	const extension = extensionHarness((callback) => callback());
+	const { ctx, compactCalls } = contextHarness(200_000, false);
+	extension.emit("agent_start", { type: "agent_start" }, ctx);
+	extension.emit("turn_end", { type: "turn_end", message: assistant(210_910), toolResults: [] }, ctx);
+
+	const continuation = {
+		max_tokens: 1,
+		messages: [{ role: "user", content: [{ type: "tool_result", tool_use_id: "tool-1", content: "done" }] }],
+		tools: [{ name: "bash" }],
+	};
+	extension.emit("before_provider_request", { type: "before_provider_request", payload: continuation }, ctx);
+	extension.emit("turn_end", { type: "turn_end", message: assistant(135_652), toolResults: [] }, ctx);
+	extension.emit("agent_end", { type: "agent_end", messages: [] }, ctx);
+
+	assert.equal(compactCalls(), 1);
+	assert.deepEqual(extension.sentMessages(), [
+		{ content: ROUTED_COMPACTION_CONTINUATION, options: { deliverAs: "followUp" } },
+	]);
 });
 
 test("does not compact a run that stays below Pi's normal reserve threshold", () => {
@@ -112,6 +146,7 @@ test("does not compact a run that stays below Pi's normal reserve threshold", ()
 	extension.emit("agent_end", { type: "agent_end", messages: [] }, ctx);
 
 	assert.equal(compactCalls(), 0);
+	assert.deepEqual(extension.sentMessages(), []);
 });
 
 test("leaves an over-threshold final turn to Pi's built-in compaction", () => {
@@ -122,6 +157,20 @@ test("leaves an over-threshold final turn to Pi's built-in compaction", () => {
 	extension.emit("agent_end", { type: "agent_end", messages: [] }, ctx);
 
 	assert.equal(compactCalls(), 0);
+	assert.deepEqual(extension.sentMessages(), []);
+});
+
+test("does not inject a continuation for Pi-owned threshold compaction", () => {
+	const extension = extensionHarness((callback) => callback());
+	const { ctx } = contextHarness();
+
+	extension.emit(
+		"session_compact",
+		{ type: "session_compact", fromExtension: false, reason: "threshold", willRetry: false },
+		ctx,
+	);
+
+	assert.deepEqual(extension.sentMessages(), []);
 });
 
 test("parseRoutedContextWindow accepts only sane positive integers", () => {
