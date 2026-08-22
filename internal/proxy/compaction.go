@@ -73,13 +73,13 @@ type compactionResult struct {
 // per-model discount in excludeContextOverflowModels, so a signature-heavy
 // session isn't falsely 413'd when a stripping model would still fit. Zero when
 // none are known (availableModels unset), which disables compaction.
-func (s *Service) maxEligibleContextWindow(policyExcluded map[string]struct{}, sigSavings int) int {
+func (s *Service) maxEligibleContextWindow(policyExcluded, enabledProviders map[string]struct{}, sigSavings int) int {
 	maxWindow := 0
 	for model := range s.availableModels {
 		if _, excluded := policyExcluded[model]; excluded {
 			continue
 		}
-		w := contextWindowForRequest(model)
+		w := maxContextWindowForModel(model, enabledProviders)
 		if sigSavings > 0 && modelStripsAnthropicSignatures(model) {
 			w += sigSavings
 		}
@@ -88,6 +88,33 @@ func (s *Service) maxEligibleContextWindow(policyExcluded map[string]struct{}, s
 		}
 	}
 	return maxWindow
+}
+
+// maxContextWindowForModel returns the largest context window any enabled
+// binding of model can serve. Uses MAX (not MIN) because compaction decides
+// when to SHRINK — a 1M fallback justifies holding off even with a 512K primary.
+// Falls back to the model-level window when enabledProviders is nil.
+func maxContextWindowForModel(model string, enabledProviders map[string]struct{}) int {
+	if len(enabledProviders) == 0 {
+		return contextWindowForRequest(model)
+	}
+	m, ok := catalog.ByID(model)
+	if !ok || len(m.Providers) == 0 {
+		return contextWindowForRequest(model)
+	}
+	cw := 0
+	for _, b := range m.Providers {
+		if _, enabled := enabledProviders[b.Provider]; !enabled {
+			continue
+		}
+		if w := contextWindowForRequest(model, b.Provider); w > cw {
+			cw = w
+		}
+	}
+	if cw == 0 {
+		return contextWindowForRequest(model)
+	}
+	return cw
 }
 
 // selectCompactionSummarizer returns the cheapest configured summarizer model

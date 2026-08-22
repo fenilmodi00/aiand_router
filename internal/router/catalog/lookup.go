@@ -283,6 +283,26 @@ func ContextWindowFor(id string) int {
 	return m.ContextWindow
 }
 
+// ContextWindowForBinding returns the context window for modelID on provider,
+// preferring a non-zero ProviderBinding.ContextWindow over the model-level value.
+// Returns DefaultContextWindow for an unknown model.
+func ContextWindowForBinding(modelID, provider string) int {
+	m, ok := ByID(modelID)
+	if !ok {
+		return DefaultContextWindow
+	}
+	cw := m.ContextWindow
+	if cw <= 0 {
+		cw = DefaultContextWindow
+	}
+	for _, b := range m.Providers {
+		if b.Provider == provider && b.ContextWindow > 0 {
+			return b.ContextWindow
+		}
+	}
+	return cw
+}
+
 // ToolUseLowSet returns model IDs with ToolUseLow quality. The cluster scorer
 // excludes these when req.HasTools, falling back to the unfiltered pool if
 // that would empty the eligible set.
