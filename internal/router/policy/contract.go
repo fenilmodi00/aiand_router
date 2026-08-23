@@ -117,6 +117,8 @@ type Result struct {
 	RosterVersion string
 	DebugRef      string
 	Debug         map[string]interface{}
+	// ArmScores holds per-arm WMI scores for hysteresis; absent on pre-B1 sidecars.
+	ArmScores map[string]float32
 	// RankedFallback is every classifier group in serving fallback order, each
 	// with its full and eligible roster arms. Populated when ReportsRankedFallback;
 	// empty on older sidecars (arm override fails open).

@@ -8,6 +8,7 @@ import (
 	"workweave/router/internal/providers"
 	"workweave/router/internal/router"
 	"workweave/router/internal/router/catalog"
+	"workweave/router/internal/translate"
 )
 
 // RosterMapper maps a catalog model to the identifier understood by a policy
@@ -112,6 +113,9 @@ type Binding struct {
 	ModelRevision                string
 	ReasoningConfigurationSHA256 string
 	ToolConfigurationSHA256      string
+	// Effort is the canonical reasoning-effort level, split from the arm ID
+	// when the roster carries effort-qualified arms (e.g. "model:xhigh").
+	Effort string
 }
 
 // ResolvedCandidates is the complete result of candidate resolution.
@@ -406,13 +410,39 @@ func (r *Resolver) Resolve(req router.Request) ResolvedCandidates {
 
 // BindingForSelection resolves a sidecar selection by arm ID first, then
 // preserves legacy roster-ID selection for existing policy artifacts.
+// Effort-qualified selections (e.g. "anthropic/claude-opus-5:xhigh") are split
+// so the base arm/roster ID drives the lookup — resolver maps are keyed on base
+// IDs — and the canonical effort level is copied onto the returned binding.
 func (r ResolvedCandidates) BindingForSelection(armID, rosterID string) (Binding, bool) {
 	if armID != "" {
-		binding, ok := r.ByArmID[armID]
-		return binding, ok
+		lookup, effort := splitEffort(armID)
+		if binding, ok := r.ByArmID[lookup]; ok {
+			binding.Effort = effort
+			return binding, ok
+		}
 	}
-	binding, ok := r.ByRosterID[rosterID]
+	lookup, effort := splitEffort(rosterID)
+	binding, ok := r.ByRosterID[lookup]
+	if ok {
+		binding.Effort = effort
+	}
 	return binding, ok
+}
+
+// splitEffort separates a canonical effort suffix from an arm ID, mirroring
+// hmm.SplitEffort so only recognized levels are treated as effort suffixes and
+// non-effort model IDs containing ":" (e.g. "upsonic/tiger-rag") stay intact.
+func splitEffort(armID string) (string, string) {
+	for i := len(armID) - 1; i > 0; i-- {
+		if armID[i] == ':' {
+			suffix := armID[i+1:]
+			if translate.CanonicalizeEffort(suffix) == suffix && translate.IsValidEffort(suffix) {
+				return armID[:i], suffix
+			}
+			return armID, ""
+		}
+	}
+	return armID, ""
 }
 
 func estimatedCostUSD(req router.Request, pricing catalog.Pricing) float64 {
