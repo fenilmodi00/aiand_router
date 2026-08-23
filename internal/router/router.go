@@ -238,9 +238,27 @@ const (
 type Decision struct {
 	Provider string
 	Model    string
-	Reason   string
+	// Effort is the canonical reasoning-effort level selected for this turn
+	// ("low".."xhigh"), empty when the policy expressed no preference. Model
+	// stays a bare catalog ID so catalog.ByID lookups keep working; effort is
+	// applied by the emit path via EmitOptions.ForceEffort. An effort-only
+	// change registers as a model switch via ServedIdentity() because it
+	// invalidates thinking-block signatures and the prompt-cache prefix.
+	Effort string
+	Reason string
 	// Nil for non-content-aware routers; nil-check before dereferencing.
 	Metadata *RoutingMetadata
+}
+
+// ServedIdentity returns the model identity to persist and compare across
+// turns: the bare model when no effort was selected, else "model:effort".
+// Pins written before effort existed hold a bare ID, so the first post-rollout
+// turn compares "m" against "m:high" and reports a switch — conservative, not unsafe.
+func (d Decision) ServedIdentity() string {
+	if d.Effort == "" {
+		return d.Model
+	}
+	return d.Model + ":" + d.Effort
 }
 
 // RoutingMetadata lets downstream components reuse the embedding and

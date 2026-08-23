@@ -203,7 +203,9 @@ type turnLoopResult struct {
 // turn, so stale-signed blocks from an earlier cross-model excursion would
 // otherwise 400 with "Invalid signature in thinking block" on every later turn.
 func (r turnLoopResult) modelSwitched() bool {
-	transition := r.PriorServedModel != "" && r.PriorServedModel != r.Decision.Model
+	// Compare serving identities: a same-model effort change reshapes the
+	// prompt-cache prefix and invalidates thinking-block signatures.
+	transition := r.PriorServedModel != "" && r.PriorServedModel != r.Decision.ServedIdentity()
 	return transition || r.SessionEverSwitched || r.StripThinkingBlocks
 }
 
@@ -1447,7 +1449,19 @@ func maxedOutServedModel(pin sessionpin.Pin) string {
 	if model == "" {
 		model = pin.Model
 	}
-	return model
+	// ExcludedModels / SafetyExcludedModels key on bare catalog IDs; strip effort
+	// so the exclusion matches. Exclusion is model-level: saturate at any effort
+	// and the model is barred at every effort for this turn.
+	return baseModelOf(model)
+}
+
+// baseModelOf strips a trailing ":effort" from a serving identity, returning the
+// bare catalog ID. Safe on inputs that carry no effort.
+func baseModelOf(servedIdentity string) string {
+	if idx := strings.LastIndex(servedIdentity, ":"); idx > 0 {
+		return servedIdentity[:idx]
+	}
+	return servedIdentity
 }
 
 // roleForTier maps a requested-model tier to its session-pin role. Each tier
