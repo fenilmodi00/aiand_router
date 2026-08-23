@@ -146,12 +146,29 @@ func TestMessagesHandler_RequestTooLarge(t *testing.T) {
 	svc := newTestService(&fakeRouter{}, "", nil)
 	engine := messagesEngine(svc)
 
-	oversized := bytes.Repeat([]byte("a"), 10*1024*1024+1)
+	oversized := bytes.Repeat([]byte("a"), proxy.MaxRequestBodyBytes+1)
 	rec := postMessages(engine, oversized)
 
 	require.Equal(t, http.StatusRequestEntityTooLarge, rec.Code)
 	errObj := errorEnvelope(t, rec.Body.Bytes())
 	assert.Equal(t, "invalid_request_error", errObj["type"])
+}
+
+// Bodies over the old 10 MB cap but under Anthropic's 32 MB limit must not be rejected.
+func TestMessagesHandler_BodyOverLegacyTenMegabyteCapIsAccepted(t *testing.T) {
+	svc := newTestService(&fakeRouter{}, "", nil)
+	engine := messagesEngine(svc)
+
+	padding := bytes.Repeat([]byte("a"), 12*1024*1024)
+	body, err := json.Marshal(map[string]any{
+		"model":    "claude-fable-5",
+		"messages": []map[string]string{{"role": "user", "content": string(padding)}},
+	})
+	require.NoError(t, err)
+
+	rec := postMessages(engine, body)
+
+	assert.NotEqual(t, http.StatusRequestEntityTooLarge, rec.Code)
 }
 
 func TestMessagesHandler_MalformedBodyReturns400(t *testing.T) {
@@ -363,7 +380,7 @@ func TestRouteHandler_RequestTooLarge(t *testing.T) {
 	svc := newTestService(&fakeRouter{}, "", nil)
 	engine := routeEngine(svc)
 
-	oversized := bytes.Repeat([]byte("a"), 10*1024*1024+1)
+	oversized := bytes.Repeat([]byte("a"), proxy.MaxRequestBodyBytes+1)
 	rec := httptest.NewRecorder()
 	engine.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/v1/route", bytes.NewReader(oversized)))
 
@@ -537,7 +554,7 @@ func TestPassthroughHandler_RequestTooLarge(t *testing.T) {
 	svc := newTestService(&fakeRouter{}, "", nil)
 	engine := passthroughEngine(svc)
 
-	oversized := bytes.Repeat([]byte("a"), 10*1024*1024+1)
+	oversized := bytes.Repeat([]byte("a"), proxy.MaxRequestBodyBytes+1)
 	rec := httptest.NewRecorder()
 	engine.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/v1/messages/count_tokens", bytes.NewReader(oversized)))
 
