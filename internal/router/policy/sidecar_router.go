@@ -362,6 +362,11 @@ func (r *SidecarRouter) Route(ctx context.Context, req router.Request) (router.D
 		}
 	}
 
+	selectedRosterArmID := overrideArmID
+	if selectedRosterArmID == "" {
+		selectedRosterArmID = overrideRosterID
+	}
+
 	binding, ok := resolved.BindingForSelection(overrideArmID, overrideRosterID)
 	if !ok {
 		return router.Decision{}, fmt.Errorf("%s: sidecar returned unknown arm %q or model %q: %w", strategy, overrideArmID, overrideRosterID, r.config.Unavailable)
@@ -433,12 +438,14 @@ func (r *SidecarRouter) Route(ctx context.Context, req router.Request) (router.D
 			SidecarTimings:                res.Timings,
 			SidecarStats:                  res.ServingStats,
 			SelectedArmID:                 binding.ArmID,
+			SelectedRosterArmID:           selectedRosterArmID,
 			SidecarSchemaVersion:          res.SchemaVersion,
 			DebugRef:                      debugRef,
 			AuthoritativePerTurnSelection: capabilities.AuthoritativePerTurnSelection,
 			SelectedUpstreamID:            binding.UpstreamID,
 			BindingIndex:                  binding.BindingIndex,
 			CandidateArmIDs:               resolved.CandidateArmIDs(),
+			ArmScores:                     res.ArmScores,
 		},
 	}, nil
 }
