@@ -4,6 +4,8 @@ import (
 	"time"
 
 	"workweave/router/internal/auth"
+	"workweave/router/internal/flags"
+	"workweave/router/internal/observability"
 	"workweave/router/internal/router"
 	"workweave/router/internal/sqlc"
 
@@ -27,6 +29,19 @@ func toAuthInstallation(row sqlc.RouterModelRouterInstallation) *auth.Installati
 	allowed := row.AllowedModels
 	if allowed == nil {
 		allowed = []string{}
+	}
+	// Parsed once per API-key cache fill, not per request. A malformed or
+	// retired-key payload degrades to "no overrides" rather than failing the
+	// request — a stored row must not be able to take an org's traffic down.
+	overrides, err := flags.ParseOverrides(row.FlagOverrides)
+	if err != nil {
+		observability.Get().Error(
+			"Failed to parse installation flag overrides; falling back to deployment defaults",
+			"err", err,
+			"installation_id", row.ID.String(),
+			"external_id", row.ExternalID,
+		)
+		overrides = flags.Overrides{}
 	}
 	return &auth.Installation{
 		ID:                           row.ID.String(),
@@ -55,6 +70,7 @@ func toAuthInstallation(row sqlc.RouterModelRouterInstallation) *auth.Installati
 		ContentCaptureMode:           row.ContentCaptureMode,
 		HideTerminalSurfaces:         row.HideTerminalSurfaces,
 		FirstRequestServedAt:         timestamptzPtr(row.FirstRequestServedAt),
+		FlagOverrides:                overrides,
 	}
 }
 

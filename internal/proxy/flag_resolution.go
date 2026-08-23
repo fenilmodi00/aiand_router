@@ -1,0 +1,101 @@
+package proxy
+
+import (
+	"context"
+
+	"workweave/router/internal/flags"
+)
+
+// Per-organization resolution for the behavioral feature flags registered in
+// internal/flags. Precedence is per-org override > deployment default.
+// Call sites must use these instead of reading Service fields directly;
+// a direct field read silently ignores any per-org override.
+// ResolveEmbedOnlyUserMessage lives in service.go (header > per-org > default).
+
+// ResolveStruggleShadowEnabled reports whether the session-level struggle
+// detector runs for this request.
+func (s *Service) ResolveStruggleShadowEnabled(ctx context.Context) bool {
+	return flags.BoolOr(ctx, flags.KeyStruggleShadowEnabled, s.struggleShadowEnabled)
+}
+
+// ResolveStruggleEscalationEnabled reports whether struggling sessions may make
+// an early sideways escalation for this request.
+func (s *Service) ResolveStruggleEscalationEnabled(ctx context.Context) bool {
+	return flags.BoolOr(ctx, flags.KeyStruggleEscalationEnabled, s.struggleEscalationEnabled)
+}
+
+// ResolveStruggleEscalationHoldoutPct returns the percentage of struggle
+// detections recorded without escalating, as a self-recovery baseline.
+func (s *Service) ResolveStruggleEscalationHoldoutPct(ctx context.Context) int {
+	return flags.IntOr(ctx, flags.KeyStruggleEscalationHoldout, s.struggleEscalationHoldoutPct)
+}
+
+func (s *Service) ResolveSpiralShadowEnabled(ctx context.Context) bool {
+	return flags.BoolOr(ctx, flags.KeySpiralShadowEnabled, s.spiralShadowEnabled)
+}
+
+// ResolveLoopEscalationEnabled reports whether a detected cyclic loop may
+// escalate the routed model. Detection telemetry is recorded either way.
+func (s *Service) ResolveLoopEscalationEnabled(ctx context.Context) bool {
+	return flags.BoolOr(ctx, flags.KeyLoopEscalationEnabled, s.loopEscalationEnabled)
+}
+
+// ResolveLoopEscalationHoldoutPct returns the percentage of loop detections
+// recorded without escalating, as a self-recovery baseline.
+func (s *Service) ResolveLoopEscalationHoldoutPct(ctx context.Context) int {
+	return flags.IntOr(ctx, flags.KeyLoopEscalationHoldoutPct, s.loopEscalationHoldoutPct)
+}
+
+// ResolveTextRepetitionBreakEnabled reports whether the enforcing text-repetition
+// loop break is armed for this request.
+func (s *Service) ResolveTextRepetitionBreakEnabled(ctx context.Context) bool {
+	return flags.BoolOr(ctx, flags.KeyTextRepetitionBreak, s.textRepetitionBreakEnabled)
+}
+
+// ResolvePlannerEnabled reports whether the cache-aware EV planner may propose a
+// mid-session switch for this request.
+func (s *Service) ResolvePlannerEnabled(ctx context.Context) bool {
+	return flags.BoolOr(ctx, flags.KeyPlannerEnabled, s.plannerEnabled)
+}
+
+// ResolveScoreToolResultTurns reports whether tool-result turns are re-scored
+// instead of following the session pin.
+func (s *Service) ResolveScoreToolResultTurns(ctx context.Context) bool {
+	return flags.BoolOr(ctx, flags.KeyScoreToolResultTurns, s.scoreToolResultTurns)
+}
+
+// ResolvePrefixTrimFreeSwitch reports whether a trimmed prompt prefix counts as a
+// free switch point.
+func (s *Service) ResolvePrefixTrimFreeSwitch(ctx context.Context) bool {
+	return flags.BoolOr(ctx, flags.KeyPrefixTrimFreeSwitch, s.prefixTrimFreeSwitch)
+}
+
+// ResolveAuthoritativeUpgradeGate reports whether the confidence floor stays
+// active for authoritative-per-turn policies.
+func (s *Service) ResolveAuthoritativeUpgradeGate(ctx context.Context) bool {
+	return flags.BoolOr(ctx, flags.KeyAuthoritativeUpgradeGate, s.authoritativeUpgradeGate)
+}
+
+// ResolveSiblingFailover reports whether an exhausted model may degrade to a
+// same-cluster candidate.
+func (s *Service) ResolveSiblingFailover(ctx context.Context) bool {
+	return flags.BoolOr(ctx, flags.KeySiblingFailover, s.siblingFailover)
+}
+
+// ResolveEffortEscalation reports whether policy-requested reasoning-effort
+// escalation is applied.
+func (s *Service) ResolveEffortEscalation(ctx context.Context) bool {
+	return flags.BoolOr(ctx, flags.KeyEffortEscalation, s.effortEscalation)
+}
+
+// ResolveCyberRefusalRepin reports whether a cyber safety refusal re-pins the
+// session off the refusing model.
+func (s *Service) ResolveCyberRefusalRepin(ctx context.Context) bool {
+	return flags.BoolOr(ctx, flags.KeyCyberRefusalRepin, s.cyberRefusalRepin)
+}
+
+// ResolveCyberRefusalFallbackModel returns the model to re-pin to on a cyber
+// refusal with no runner-up.
+func (s *Service) ResolveCyberRefusalFallbackModel(ctx context.Context) string {
+	return flags.StringOr(ctx, flags.KeyCyberRefusalFallback, s.cyberRefusalFallbackModel)
+}
