@@ -43,6 +43,9 @@ type observationContext struct {
 	// TTFTMs is the upstream-request-to-first-byte delta in ms. Pointer because
 	// zero is a legitimate sub-millisecond measurement.
 	TTFTMs *int64
+	// FirstOutputMs is upstream-request to first OUTPUT-BEARING frame;
+	// unlike TTFTMs, not satisfied by a reasoning-only envelope.
+	FirstOutputMs *int64
 	// CandidateScores is the pre-argmax score vector, JSON-marshaled for the
 	// jsonb column (nil if none). Off-policy substrate only — never read on the request path.
 	CandidateScores []byte
@@ -162,6 +165,9 @@ func buildObservationContext(ctx context.Context, decision, fresh router.Decisio
 		if ms := t.Ms(&t.UpstreamRequestNanos, &t.UpstreamFirstByteNanos); ms > 0 {
 			obs.TTFTMs = &ms
 		}
+		if ms := t.Ms(&t.UpstreamRequestNanos, &t.UpstreamFirstOutputNanos); ms > 0 {
+			obs.FirstOutputMs = &ms
+		}
 	}
 	return obs
 }
@@ -219,5 +225,8 @@ func (o observationContext) applySpanAttrs(b *otel.AttrBuilder) {
 	}
 	if o.TTFTMs != nil {
 		b.Int64("latency.ttft_ms", *o.TTFTMs)
+	}
+	if o.FirstOutputMs != nil {
+		b.Int64("latency.first_output_ms", *o.FirstOutputMs)
 	}
 }
