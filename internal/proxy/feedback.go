@@ -203,7 +203,10 @@ const feedbackFooterText = "\n\n_Weave Router feedback:_ `/rf +` good experience
 // dispatches and machine turns (compaction, probe, title-gen, classifier)
 // render final text the user didn't directly initiate, where a trailing /rf
 // hint would strand beneath it (e.g. under an Explore subagent's result).
-func (s *Service) feedbackFooter(ctx context.Context, clientApp string, tt turntype.TurnType) string {
+// echoedSinceHumanTurn suppresses the hint when the history already
+// shows it since the user's last real input (background-task continuations
+// each produce a natural stop and would otherwise stack duplicate hints).
+func (s *Service) feedbackFooter(ctx context.Context, clientApp string, tt turntype.TurnType, echoedSinceHumanTurn bool) string {
 	if hideTerminalSurfacesForRequest(ctx) {
 		return ""
 	}
@@ -214,6 +217,9 @@ func (s *Service) feedbackFooter(ctx context.Context, clientApp string, tt turnt
 		return ""
 	}
 	if tt != turntype.MainLoop && tt != turntype.ToolResult {
+		return ""
+	}
+	if echoedSinceHumanTurn {
 		return ""
 	}
 	return feedbackFooterText
