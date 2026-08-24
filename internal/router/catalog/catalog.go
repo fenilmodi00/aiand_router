@@ -83,10 +83,7 @@ type ProviderBinding struct {
 	// Provider is one of the providers.Provider* constants.
 	Provider string
 	// UpstreamID is the model ID the upstream API expects. Empty means
-	// "same as Model.ID" (no rewrite). Non-empty is fed to the
-	// openaicompat client's modelIDMap so the body's "model" field is
-	// rewritten at proxy time (e.g. Bedrock's dot-form, Makora's
-	// HuggingFace form).
+	// "same as Model.ID" (no rewrite); non-empty is rewritten at proxy time.
 	UpstreamID string
 	// Price is the per-provider pricing for this binding.
 	Price Pricing
@@ -338,8 +335,9 @@ var Models = []Model{
 	{ID: "gpt-5.6-luna", Tier: TierMid, ContextWindow: 1_050_000, Providers: []ProviderBinding{
 		{Provider: providers.ProviderOpenAI, Price: Pricing{InputUSDPer1M: 1.00, OutputUSDPer1M: 6.00, CacheReadMultiplier: 0.10}},
 	}},
+	// Pi roster aliases dispatch to their native OpenAI model IDs.
 	{ID: "gpt-5.6-luna-pro", HMMTarget: true, ContextWindow: 1_050_000, Providers: []ProviderBinding{
-		{Provider: providers.ProviderOpenAI, Price: Pricing{InputUSDPer1M: 0.20, OutputUSDPer1M: 1.20, CacheReadMultiplier: 0.10}},
+		{Provider: providers.ProviderOpenAI, UpstreamID: "gpt-5.6-luna", Price: Pricing{InputUSDPer1M: 1.00, OutputUSDPer1M: 6.00, CacheReadMultiplier: 0.10}},
 	}},
 	{ID: "gpt-5.6-terra", Tier: TierHigh, ContextWindow: 1_050_000, Providers: []ProviderBinding{
 		{Provider: providers.ProviderOpenAI, Price: Pricing{InputUSDPer1M: 2.50, OutputUSDPer1M: 15.00, CacheReadMultiplier: 0.10}},
@@ -348,7 +346,7 @@ var Models = []Model{
 		{Provider: providers.ProviderOpenAI, Price: Pricing{InputUSDPer1M: 5.00, OutputUSDPer1M: 30.00, CacheReadMultiplier: 0.10}},
 	}},
 	{ID: "gpt-5.6-sol-pro", HMMTarget: true, ContextWindow: 1_050_000, Providers: []ProviderBinding{
-		{Provider: providers.ProviderOpenAI, Price: Pricing{InputUSDPer1M: 2.50, OutputUSDPer1M: 15.00, CacheReadMultiplier: 0.10}},
+		{Provider: providers.ProviderOpenAI, UpstreamID: "gpt-5.6-sol", Price: Pricing{InputUSDPer1M: 5.00, OutputUSDPer1M: 30.00, CacheReadMultiplier: 0.10}},
 	}},
 
 	// --- xAI Grok --- native only; OpenRouter unused in prod.
