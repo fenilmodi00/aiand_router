@@ -35,6 +35,10 @@ func (e *RequestEnvelope) PrepareAnthropic(in http.Header, opts EmitOptions) (pr
 	if err != nil {
 		return providers.PreparedRequest{}, err
 	}
+	body, err = applyServerSideFallback(body, opts)
+	if err != nil {
+		return providers.PreparedRequest{}, err
+	}
 	return providers.PreparedRequest{Body: body, Headers: deriveAnthropicHeaders(in, opts, body)}, nil
 }
 
@@ -52,6 +56,9 @@ func deriveAnthropicHeaders(in http.Header, opts EmitOptions, body []byte) http.
 	if gjson.GetBytes(body, "context_management").Exists() {
 		beta = ensureBetaToken(beta, contextManagementBeta)
 	}
+	if gjson.GetBytes(body, "fallbacks").Exists() {
+		beta = ensureBetaToken(beta, serverSideFallbackBeta)
+	}
 	if beta != "" {
 		h.Set("anthropic-beta", beta)
 	}
@@ -63,6 +70,28 @@ func deriveAnthropicHeaders(in http.Header, opts EmitOptions, body []byte) http.
 const context1MBeta = "context-1m-2025-08-07"
 
 const contextManagementBeta = "context-management-2025-06-27"
+
+// serverSideFallbackBeta is the first-party Anthropic beta for server-side
+// fallback; gateways reject the unknown top-level key with a 400.
+const serverSideFallbackBeta = "server-side-fallback-2026-07-01"
+
+// applyServerSideFallback injects fallbacks:"default" so Anthropic re-serves
+// a safety-refused turn instead of returning stop_reason:"refusal" (HTTP 200).
+// A client-supplied "fallbacks" is left untouched; on non-CapServerSideFallback
+// targets (re-pin destination, gateway) the field is dropped — forwarding it 400s.
+func applyServerSideFallback(body []byte, opts EmitOptions) ([]byte, error) {
+	if opts.TargetProvider != providers.ProviderAnthropic ||
+		!opts.Capabilities.Supports(router.CapServerSideFallback) {
+		if !gjson.GetBytes(body, "fallbacks").Exists() {
+			return body, nil
+		}
+		return sjson.DeleteBytes(body, "fallbacks")
+	}
+	if !opts.EnableServerSideFallback || gjson.GetBytes(body, "fallbacks").Exists() {
+		return body, nil
+	}
+	return sjson.SetBytes(body, "fallbacks", "default")
+}
 
 // ensureBetaToken appends token to a comma-separated anthropic-beta list when
 // absent, preserving any tokens the client already sent.
@@ -89,6 +118,9 @@ func filterBetaHeader(beta, targetModel string) string {
 }
 
 func betaCompatible(token string, spec router.ModelSpec) bool {
+	if strings.Contains(token, "server-side-fallback") {
+		return spec.Supports(router.CapServerSideFallback)
+	}
 	if strings.Contains(token, "context-1m") {
 		return spec.Supports(router.CapExtendedContext)
 	}
