@@ -23,6 +23,7 @@ import (
 	"workweave/router/internal/auth"
 	"workweave/router/internal/billing"
 	"workweave/router/internal/config"
+	"workweave/router/internal/entra"
 	"workweave/router/internal/feedback"
 	"workweave/router/internal/flags"
 	"workweave/router/internal/observability"
@@ -427,6 +428,7 @@ func main() {
 		WithClusterModelLists(repo.ClusterModelLists).
 		WithUserClusterModelLists(repo.UserClusterModelLists, userClusterCache).
 		WithWIFTokenSource(buildWIFTokenSource(logger)).
+		WithEntraTokenSource(buildEntraTokenSource(logger)).
 		WithFlagOverridesDisabled(flagOverridesDisabled)
 
 	// Fans out Pub/Sub invalidations to this replica's cache; the 5-min TTL
@@ -1281,6 +1283,13 @@ func buildClusterScorer(availableProviders map[string]struct{}) (router.Router, 
 	}
 
 	return multi, defaultEmbedderID, nil
+}
+
+// buildEntraTokenSource returns the lazy Microsoft Entra client-credentials token source;
+// a deployment without Azure keys never contacts Microsoft Entra.
+func buildEntraTokenSource(logger *slog.Logger) auth.EntraTokenSource {
+	logger.Debug("Microsoft Entra client credentials token source initialized")
+	return entra.NewClientCredentialsSource(&http.Client{Timeout: 10 * time.Second}, time.Now)
 }
 
 // buildWIFTokenSource constructs the workload attestation source backing BYOK
