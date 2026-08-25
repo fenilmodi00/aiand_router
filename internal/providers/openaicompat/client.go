@@ -34,6 +34,8 @@ const (
 	TogetherBaseURL = "https://api.together.xyz/v1"
 	// XAIBaseURL is SpaceXAI's OpenAI-compatible Chat Completions surface.
 	XAIBaseURL = "https://api.x.ai/v1"
+	// WaferBaseURL is Wafer Serverless' OpenAI-compatible surface.
+	WaferBaseURL = "https://pass.wafer.ai/v1"
 )
 
 // BedrockMantleBaseURLTemplate is the OpenAI-compatible bedrock-mantle endpoint
@@ -71,6 +73,12 @@ type Client struct {
 	throughputMinElapsed time.Duration
 	throughputMinDeltas  int
 	throughputOverride   bool
+	// defaultHeaders are set on every upstream request before prep.Headers
+	// apply, so per-request values override them.
+	defaultHeaders http.Header
+	// protectedHeaders are set after prep.Headers / inbound headers apply, so
+	// provider-mandated values cannot be overridden.
+	protectedHeaders http.Header
 }
 
 func NewClient(apiKey, baseURL string) *Client {
@@ -100,6 +108,36 @@ func newClient(apiKey, baseURL string, modelIDMap map[string]string) *Client {
 		baseURL:    strings.TrimRight(baseURL, "/"),
 		http:       &http.Client{Transport: httputil.NewTransport(5*time.Second, 5*time.Second)},
 		modelIDMap: modelIDMap,
+	}
+}
+
+// WithDefaultHeaders returns c with headers set on every upstream request.
+// Prepared and inbound per-request headers can override these values.
+func (c *Client) WithDefaultHeaders(h http.Header) *Client {
+	c.defaultHeaders = h.Clone()
+	return c
+}
+
+// WithProtectedHeaders returns c with headers that cannot be overridden by
+// prepared or inbound per-request headers.
+func (c *Client) WithProtectedHeaders(h http.Header) *Client {
+	c.protectedHeaders = h.Clone()
+	return c
+}
+
+// applyDefaultHeaders sets c.defaultHeaders on req before callers layer their
+// own headers on top.
+func (c *Client) applyDefaultHeaders(req *http.Request) {
+	for k, vs := range c.defaultHeaders {
+		req.Header[http.CanonicalHeaderKey(k)] = append([]string(nil), vs...)
+	}
+}
+
+// applyProtectedHeaders restores c.protectedHeaders after callers layer their
+// own headers.
+func (c *Client) applyProtectedHeaders(req *http.Request) {
+	for k, vs := range c.protectedHeaders {
+		req.Header[http.CanonicalHeaderKey(k)] = append([]string(nil), vs...)
 	}
 }
 
@@ -196,10 +234,12 @@ func (c *Client) Proxy(ctx context.Context, decision router.Decision, prep provi
 	if err != nil {
 		return fmt.Errorf("build upstream request: %w", err)
 	}
+	c.applyDefaultHeaders(upstream)
 	upstream.Header.Set("Content-Type", "application/json")
 	for k, vs := range prep.Headers {
 		upstream.Header[http.CanonicalHeaderKey(k)] = vs
 	}
+	c.applyProtectedHeaders(upstream)
 	c.setAuth(ctx, upstream)
 	proxy.ApplyWIFTokenType(ctx, upstream)
 	proxy.ApplyIdentityHeader(ctx, upstream)
@@ -312,12 +352,14 @@ func (c *Client) Passthrough(ctx context.Context, prep providers.PreparedRequest
 	if err != nil {
 		return fmt.Errorf("build upstream passthrough request: %w", err)
 	}
+	c.applyDefaultHeaders(upstream)
 	if ct := r.Header.Get("Content-Type"); ct != "" {
 		upstream.Header.Set("Content-Type", ct)
 	}
 	for k, vs := range prep.Headers {
 		upstream.Header[http.CanonicalHeaderKey(k)] = vs
 	}
+	c.applyProtectedHeaders(upstream)
 	c.setAuth(ctx, upstream)
 	proxy.ApplyWIFTokenType(ctx, upstream)
 	if v := r.Header.Get("Accept"); v != "" {

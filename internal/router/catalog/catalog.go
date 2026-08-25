@@ -443,6 +443,12 @@ var Models = []Model{
 		{Provider: providers.ProviderMakora, UpstreamID: "deepseek-ai/DeepSeek-V4-Flash",
 			Price: Pricing{InputUSDPer1M: 0.1134, OutputUSDPer1M: 0.2791, CacheReadMultiplier: 0.20}},
 		{Provider: providers.ProviderOpenRouter, Price: Pricing{InputUSDPer1M: 0.140, OutputUSDPer1M: 0.280, CacheReadMultiplier: 0.10}},
+		// Trailing Wafer bindings ($0.28/$0.56 fast tier): resolve only when
+		// Makora and OpenRouter are unwired; wafer_anthropic trails wafer.
+		{Provider: providers.ProviderWafer, UpstreamID: "DeepSeek-V4-Flash-0731-Fast",
+			Price: Pricing{InputUSDPer1M: 0.280, OutputUSDPer1M: 0.560, CacheReadMultiplier: 0.07 / 0.280}},
+		{Provider: providers.ProviderWaferAnthropic, UpstreamID: "DeepSeek-V4-Flash-0731-Fast",
+			Price: Pricing{InputUSDPer1M: 0.280, OutputUSDPer1M: 0.560, CacheReadMultiplier: 0.07 / 0.280}},
 	}},
 	// Untiered: Makora EOL'd V4-Pro and recommends V4-Flash, which takes the
 	// tier. Priced and bound so session pins and /force-model still dispatch.
@@ -498,6 +504,13 @@ var Models = []Model{
 		{Provider: providers.ProviderFireworks, UpstreamID: "accounts/fireworks/models/kimi-k3",
 			Price: Pricing{InputUSDPer1M: 3.000, OutputUSDPer1M: 15.000, CacheReadMultiplier: 0.10}},
 		{Provider: providers.ProviderOpenRouter, Price: Pricing{InputUSDPer1M: 3.000, OutputUSDPer1M: 15.000, CacheReadMultiplier: 0.10}},
+		// Trailing Wafer bindings (see glm-5.2): resolve only when Fireworks
+		// and OpenRouter are both unwired or excluded. wafer_anthropic carries
+		// the Anthropic-spec Messages surface, trailing the OpenAI-compat wafer.
+		{Provider: providers.ProviderWafer, UpstreamID: "Kimi-K3",
+			Price: Pricing{InputUSDPer1M: 3.000, OutputUSDPer1M: 15.000, CacheReadMultiplier: 0.10}},
+		{Provider: providers.ProviderWaferAnthropic, UpstreamID: "Kimi-K3",
+			Price: Pricing{InputUSDPer1M: 3.000, OutputUSDPer1M: 15.000, CacheReadMultiplier: 0.10}},
 	}},
 	// AA top-performer additions (2026-05-18): ranked by composite of quality
 	// (Intelligence Index v4.0), cost (blended 3:1), and effective time per
@@ -561,6 +574,12 @@ var Models = []Model{
 			Price: Pricing{InputUSDPer1M: 1.400, OutputUSDPer1M: 4.400, CacheReadMultiplier: 0.26 / 1.400}},
 		{Provider: providers.ProviderFireworks, UpstreamID: "accounts/fireworks/models/glm-5p2",
 			Price: Pricing{InputUSDPer1M: 1.400, OutputUSDPer1M: 4.400, CacheReadMultiplier: 0.20}},
+		// Trailing Wafer bindings: resolve only when earlier providers are unwired.
+		// wafer_anthropic trails the OpenAI-compat wafer (same pattern as kimi-k3).
+		{Provider: providers.ProviderWafer, UpstreamID: "GLM-5.2",
+			Price: Pricing{InputUSDPer1M: 1.260, OutputUSDPer1M: 3.960, CacheReadMultiplier: 0.23 / 1.260}},
+		{Provider: providers.ProviderWaferAnthropic, UpstreamID: "GLM-5.2",
+			Price: Pricing{InputUSDPer1M: 1.260, OutputUSDPer1M: 3.960, CacheReadMultiplier: 0.23 / 1.260}},
 	}},
 	// Fireworks-dedicated rows below carry an OpenRouter trailing binding so
 	// managed-prod deploys without a Fireworks key can still resolve them.
