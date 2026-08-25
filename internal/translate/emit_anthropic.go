@@ -180,8 +180,9 @@ func (e *RequestEnvelope) buildAnthropicFromOpenAI(opts EmitOptions) ([]byte, er
 	return jw.Bytes(), nil
 }
 
-// writeAnthropicSystemAndMessages extracts system-role messages into the
-// Anthropic "system" field and writes the rest as Anthropic content.
+// writeAnthropicSystemAndMessages extracts the leading run of system-role
+// messages into the Anthropic "system" field; mid-conversation system messages
+// become user messages in place so they don't shift the cached prefix.
 func writeAnthropicSystemAndMessages(jw *jsonWriter, body []byte) {
 	messages := gjson.GetBytes(body, "messages")
 	if !messages.Exists() {
@@ -197,6 +198,7 @@ func writeAnthropicSystemAndMessages(jw *jsonWriter, body []byte) {
 	var systemBlocks []string
 	var msgParts []string // raw JSON message objects, flushed after tool batching
 	var pending pendingToolBatch
+	leading := true // still in the run of system messages before any turn
 
 	flushToolBatch := func() {
 		if !pending.active {
@@ -223,8 +225,12 @@ func writeAnthropicSystemAndMessages(jw *jsonWriter, body []byte) {
 		role := msg.Get("role").String()
 		content := msg.Get("content")
 
-		switch role {
-		case "system":
+		switch {
+		case role == "system" && !leading:
+			flushToolBatch()
+			msgParts = append(msgParts, cacheControlOnLastBlockWithPolicy(buildAnthropicUserMessage("user", content), sourceMessageCacheControl(msg)))
+
+		case role == "system":
 			policy := sourceMessageCacheControl(msg)
 			// Collect text from system messages into the top-level system field.
 			if content.Type == gjson.String {
@@ -256,18 +262,21 @@ func writeAnthropicSystemAndMessages(jw *jsonWriter, body []byte) {
 				})
 			}
 
-		case "tool":
+		case role == "tool":
+			leading = false
 			// Merge consecutive tool messages into a single Anthropic user message.
 			toolCallID := msg.Get("tool_call_id").String()
 			blockRaw := buildToolResultBlock(toolCallID, content)
 			pending.active = true
 			pending.blocks = append(pending.blocks, blockRaw)
 
-		case "assistant":
+		case role == "assistant":
+			leading = false
 			flushToolBatch()
 			msgParts = append(msgParts, cacheControlOnLastBlockWithPolicy(buildAnthropicAssistantMessage(msg), sourceMessageCacheControl(msg)))
 
 		default: // "user" and anything unrecognized
+			leading = false
 			flushToolBatch()
 			msgParts = append(msgParts, cacheControlOnLastBlockWithPolicy(buildAnthropicUserMessage(role, content), sourceMessageCacheControl(msg)))
 		}
@@ -685,28 +694,46 @@ func (e *RequestEnvelope) buildAnthropicFromAnthropic(opts EmitOptions) ([]byte,
 	return applyOverrides(body, ov)
 }
 
-// hoistAnthropicSystemMessages moves role:"system" entries out of "messages"
-// into the top-level "system" field. Anthropic's Messages API 400s on a system
-// role inside messages, which can happen on a mid-session switch back to an
-// Anthropic model; this mirrors the hoisting writeAnthropicSystemAndMessages
-// already does on the OpenAI->Anthropic path. No-op if none present.
+// hoistAnthropicSystemMessages clears role:"system" entries from "messages"
+// (Anthropic's API 400s on them after a mid-session model switch). Only the
+// leading run is hoisted; mid-conversation ones are rewritten as user messages
+// in place to keep the cached prefix stable. No-op if none present.
 func hoistAnthropicSystemMessages(body []byte) ([]byte, error) {
 	msgs := gjson.GetBytes(body, "messages")
 	if !msgs.IsArray() {
 		return body, nil
 	}
 
-	var hoisted []string // text extracted from in-array system messages, in order
-	var kept []string    // raw non-system message objects
+	var hoisted []string // text from the leading system run, in order
+	var kept []string    // raw message objects, system entries demoted to user
+	leading := true
+	rewritten := false
 	for _, msg := range msgs.Array() {
-		if msg.Get("role").String() == "system" {
+		isSystem := msg.Get("role").String() == "system"
+		switch {
+		case isSystem && leading:
 			hoisted = append(hoisted, anthropicSystemTexts(msg.Get("content"))...)
-			continue
+		case isSystem:
+			demoted, err := sjson.Set(msg.Raw, "role", "user")
+			if err != nil {
+				return nil, fmt.Errorf("demote system message: %w", err)
+			}
+			kept = append(kept, demoted)
+			rewritten = true
+		default:
+			leading = false
+			kept = append(kept, msg.Raw)
 		}
-		kept = append(kept, msg.Raw)
+	}
+	if len(hoisted) == 0 && !rewritten {
+		return body, nil
 	}
 	if len(hoisted) == 0 {
-		return body, nil
+		out, err := sjson.SetRawBytes(body, "messages", []byte("["+strings.Join(kept, ",")+"]"))
+		if err != nil {
+			return nil, fmt.Errorf("rebuild messages: %w", err)
+		}
+		return out, nil
 	}
 
 	// Merge: existing top-level system blocks first, then the hoisted text.
