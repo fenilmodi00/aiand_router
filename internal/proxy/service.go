@@ -1683,6 +1683,23 @@ func (s *Service) HasExcludedModelsOverride() bool {
 	return s.excludedModelsOverride != nil
 }
 
+// RoutableModels returns a copy of the set of models this deployment can
+// route, so the admin guard and request-time desugaring share one definition
+// and cannot drift.
+func (s *Service) RoutableModels() map[string]struct{} {
+	// A nil Service arrives as a typed-nil interface from server.Register;
+	// return nil rather than panicking.
+	if s == nil {
+		return nil
+	}
+	universe := s.routableUniverse()
+	out := make(map[string]struct{}, len(universe))
+	for m := range universe {
+		out[m] = struct{}{}
+	}
+	return out
+}
+
 // ExcludedModelsOverride returns a sorted copy of the override list.
 func (s *Service) ExcludedModelsOverride() []string {
 	if s.excludedModelsOverride == nil {

@@ -945,7 +945,7 @@ func main() {
 		WithSummarizer(summarizer).
 		WithWebSearchExecutor(cortexWebSearch(logger)).
 		WithCompaction(compactionSz, compactionPct).
-		WithAvailableModels(routingTargets).
+		WithAvailableModels(proxyRoutableModels(routingTargets, availableProviders, hmmRouter != nil)).
 		WithDefaultBaselineModel(resolveDefaultBaselineModel()).
 		WithBillingService(billingSvc)
 	for _, spec := range configuredPolicySpecs {
@@ -1433,6 +1433,21 @@ func parseEnvInt(key string, fallback int) int {
 // parseEnvFloat reads an env var as a float64, falling back on unset/empty/
 // unparseable. Zero and negative values are valid — e.g. operators set
 // ROUTER_SWITCH_EV_THRESHOLD_USD <= 0 to force aggressive planner switching.
+// proxyRoutableModels is RoutingTargetSet plus HMM-only rows when HMM is wired.
+func proxyRoutableModels(generic, providers map[string]struct{}, hmmWired bool) map[string]struct{} {
+	if !hmmWired {
+		return generic
+	}
+	out := catalog.HMMRoutingTargetSet(providers)
+	if len(generic) == 0 {
+		return out
+	}
+	for m := range generic {
+		out[m] = struct{}{}
+	}
+	return out
+}
+
 func parseEnvFloat(key string, fallback float64) float64 {
 	raw := config.GetOr(key, "")
 	if raw == "" {
