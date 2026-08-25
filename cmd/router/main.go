@@ -655,6 +655,9 @@ func main() {
 			struggleEscalationHoldoutPct = n
 		}
 	}
+	// Behavioral evidence arming ships off: the spiral signals' operating points
+	// are still being read off the shadow corpus.
+	struggleEvidenceArming := config.GetOr("ROUTER_STRUGGLE_EVIDENCE_ARMING", "false") == "true"
 	var struggleRoster proxy.StruggleEscalationRoster
 	// Enforcing text-repetition break ships enabled; the switch is the kill
 	// switch if it ever false-positives on legit repeated narration.
@@ -870,6 +873,7 @@ func main() {
 		flags.KeyStruggleShadowEnabled:     boolDefault(struggleShadowEnabled),
 		flags.KeyStruggleEscalationEnabled: boolDefault(struggleEscalationEnabled),
 		flags.KeyStruggleEscalationHoldout: strconv.Itoa(struggleEscalationHoldoutPct),
+		flags.KeyStruggleEvidenceArming:    boolDefault(struggleEvidenceArming),
 		flags.KeySpiralShadowEnabled:       boolDefault(spiralShadowEnabled),
 		flags.KeyLoopEscalationEnabled:     boolDefault(loopEscalationEnabled),
 		flags.KeyLoopEscalationHoldoutPct:  strconv.Itoa(loopEscalationHoldoutPct),
@@ -930,6 +934,7 @@ func main() {
 		WithStruggleShadowConfig(struggleShadowEnabled).
 		WithStruggleShadowStore(repo.Telemetry).
 		WithStruggleEscalationConfig(struggleEscalationEnabled, struggleEscalationHoldoutPct).
+		WithStruggleEvidenceArming(struggleEvidenceArming).
 		WithStruggleEscalationStore(repo.Telemetry).
 		WithStruggleEscalationRoster(struggleRoster).
 		WithTextRepetitionBreak(textRepetitionBreakEnabled).
