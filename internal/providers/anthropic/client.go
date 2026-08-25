@@ -111,6 +111,9 @@ type Client struct {
 	throughputMinElapsed time.Duration
 	throughputMinDeltas  int
 	throughputOverride   bool
+	// versionMemo resolves gateway base URLs that already carry the "/v1"
+	// segment this adapter appends.
+	versionMemo providers.GatewayVersionMemo
 }
 
 func NewClient(apiKey, baseURL string, opts ...Option) *Client {
@@ -280,7 +283,23 @@ func (c *Client) Proxy(ctx context.Context, decision router.Decision, prep provi
 	body := rewriteModelField(prep.Body, c.modelIDMap)
 	// Applied after the catalog map so a BYOK endpoint's own naming wins.
 	body = proxy.ApplyModelAlias(ctx, body, decision.Model)
-	upstream, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/v1/messages", bytes.NewReader(body))
+
+	// 404s are buffered before reaching w, so a duplicate "/v1" can be re-tried.
+	// firstErr is returned on double-miss so the probe's 404 doesn't mask the original.
+	urls := c.versionMemo.URLs(baseURL, "/v1/messages")
+	firstErr := c.proxyTo(ctx, cancel, urls[0], body, decision, prep, w, r)
+	if len(urls) == 1 || !providers.IsUpstreamModelNotFound(firstErr) {
+		return firstErr
+	}
+	if err := c.proxyTo(ctx, cancel, urls[1], body, decision, prep, w, r); err == nil {
+		c.versionMemo.Learn(baseURL)
+		return nil
+	}
+	return firstErr
+}
+
+func (c *Client) proxyTo(ctx context.Context, cancel context.CancelCauseFunc, url string, body []byte, decision router.Decision, prep providers.PreparedRequest, w http.ResponseWriter, r *http.Request) error {
+	upstream, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("build upstream request: %w", err)
 	}

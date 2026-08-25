@@ -79,6 +79,9 @@ type Client struct {
 	// protectedHeaders are set after prep.Headers / inbound headers apply, so
 	// provider-mandated values cannot be overridden.
 	protectedHeaders http.Header
+	// versionMemo resolves gateway base URLs that mount chat/completions one
+	// "/v1" below where the stored base URL points.
+	versionMemo providers.GatewayVersionMemo
 }
 
 func NewClient(apiKey, baseURL string) *Client {
@@ -230,7 +233,23 @@ func (c *Client) Proxy(ctx context.Context, decision router.Decision, prep provi
 	// Applied after the catalog map so a BYOK endpoint's own naming wins.
 	body = proxy.ApplyModelAlias(ctx, body, decision.Model)
 	baseURL := proxy.EffectiveBaseURL(ctx, c.baseURL)
-	upstream, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/chat/completions", bytes.NewReader(body))
+
+	// 404s are buffered before reaching w, so a missing "/v1" segment can be retried.
+	// firstErr is returned on double-miss so the probe's 404 doesn't mask the original.
+	urls := c.versionMemo.URLs(baseURL, "/chat/completions")
+	firstErr := c.proxyTo(ctx, cancel, urls[0], baseURL, body, decision, prep, w, r)
+	if len(urls) == 1 || !providers.IsUpstreamModelNotFound(firstErr) {
+		return firstErr
+	}
+	if err := c.proxyTo(ctx, cancel, urls[1], baseURL, body, decision, prep, w, r); err == nil {
+		c.versionMemo.Learn(baseURL)
+		return nil
+	}
+	return firstErr
+}
+
+func (c *Client) proxyTo(ctx context.Context, cancel context.CancelCauseFunc, url, baseURL string, body []byte, decision router.Decision, prep providers.PreparedRequest, w http.ResponseWriter, r *http.Request) error {
+	upstream, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("build upstream request: %w", err)
 	}
