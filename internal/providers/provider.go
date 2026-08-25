@@ -135,6 +135,14 @@ func IsGateway(provider string) bool {
 	}
 }
 
+// SupportsAnthropicServerTools reports whether the provider natively executes
+// Anthropic's server-side tools (web_search_*, web_fetch_*). Speaking the
+// Anthropic wire format is not the same: gateways relay to function-tool-only
+// backends and reject a server tool with a 400.
+func SupportsAnthropicServerTools(provider string) bool {
+	return FamilyFor(provider) == FamilyAnthropic && !IsGateway(provider)
+}
+
 // AllProviders returns every known Provider* constant (every ProviderFamilies
 // key), sorted for deterministic iteration and display order.
 func AllProviders() []string {
