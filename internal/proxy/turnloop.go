@@ -109,11 +109,51 @@ func clearPinEvidence(res *turnLoopResult) {
 	res.PriorTurnGapMS = nil
 }
 
-func cacheablePrefixTokens(pin sessionpin.Pin, total int, prefixBroken bool) int {
+// cacheablePrefixTokens projects the pin's previous-turn cache-hit share
+// onto this turn's prompt. The share is a ratio of two measured counters, not
+// measured cached tokens over an estimated current total — the latter biases k
+// toward 1. Reports false when the pin carries no usage telemetry.
+func cacheablePrefixTokens(pin sessionpin.Pin, total int, prefixBroken bool) (int, bool) {
 	if prefixBroken {
-		return 0
+		return 0, true // a client trim really did evict the prefix
 	}
-	return min(pin.LastCachedReadTokens+pin.LastCachedWriteTokens, total)
+	cached := pin.LastCachedReadTokens + pin.LastCachedWriteTokens
+	// input_tokens is fresh-only on Anthropic (disjoint from read/write) but is
+	// prompt_tokens — already cache-inclusive — everywhere else. Mirrors
+	// catalog.EffectiveInputCost's provider branch.
+	prior := pin.LastInputTokens
+	if pin.Provider == providers.ProviderAnthropic {
+		prior += cached
+	}
+	if prior <= 0 {
+		return 0, false
+	}
+	share := min(1.0, float64(cached)/float64(prior))
+	return int(share * float64(total)), true
+}
+
+// plannerInputTokens returns the planner's prompt-size estimate from
+// env.FullTokenEstimate. feats.Tokens is text-only and runs low; do NOT replace
+// it at its call sites — it is an HMM sidecar feature calibrated on those
+// values and seeds client-visible input_tokens.
+func plannerInputTokens(env *translate.RequestEnvelope, feats translate.RoutingFeatures) int {
+	if env == nil {
+		return feats.Tokens
+	}
+	if full := env.FullTokenEstimate(); full > feats.Tokens {
+		return full
+	}
+	return feats.Tokens
+}
+
+// plannerTokensFor keeps the corrected estimate behind the flag. Legacy EV
+// scales linearly with token count against a fixed dollar threshold, so feeding
+// it a bigger number would move STAY/SWITCH on deploy.
+func (s *Service) plannerTokensFor(env *translate.RequestEnvelope, feats translate.RoutingFeatures) int {
+	if !s.planner.CorrectedEconomics {
+		return feats.Tokens
+	}
+	return plannerInputTokens(env, feats)
 }
 
 // turnLoopResult bundles the routing decision and pin/planner state.
@@ -1074,7 +1114,7 @@ func (s *Service) runTurnLoop(
 			activePin,
 			hmmHistory,
 			fresh,
-			feats.Tokens,
+			s.plannerTokensFor(env, feats),
 			prefixBroken,
 		)
 		res.Decision = hmmDecision
@@ -1168,11 +1208,15 @@ func (s *Service) runTurnLoop(
 		return res, nil
 	}
 
+	plannerTokens := s.plannerTokensFor(env, feats)
+	prefixTokens, prefixKnown := cacheablePrefixTokens(pin, plannerTokens, prefixBroken)
 	plannerIn := planner.Inputs{
 		Pin:                   pin,
 		Fresh:                 fresh,
-		EstimatedInputTokens:  feats.Tokens,
-		CacheablePrefixTokens: cacheablePrefixTokens(pin, feats.Tokens, prefixBroken),
+		EstimatedInputTokens:  plannerTokens,
+		CacheablePrefixTokens: prefixTokens,
+		CachePrefixKnown:      prefixKnown,
+		PriorOutputTokens:     pin.LastOutputTokens,
 		AvailableModels:       s.availableModels,
 		// A trimmed prefix kills the cache even inside the provider TTL.
 		PinCacheCold: pinFound && pinCacheCold(pin, prefixBroken),
@@ -1292,11 +1336,14 @@ func (s *Service) hmmCostGatedDecision(
 	// HMM owns semantic selection; the shared Go planner owns cache economics
 	// because HMM clusters and catalog tiers are not the same axis.
 	cfg.TierUpgradeEnabled = false
+	stayPrefix, stayPrefixKnown := cacheablePrefixTokens(stayPin, estimatedInputTokens, prefixBroken)
 	base := planner.Decide(planner.Inputs{
 		Pin:                   stayPin,
 		Fresh:                 fresh,
 		EstimatedInputTokens:  estimatedInputTokens,
-		CacheablePrefixTokens: cacheablePrefixTokens(stayPin, estimatedInputTokens, prefixBroken),
+		CacheablePrefixTokens: stayPrefix,
+		CachePrefixKnown:      stayPrefixKnown,
+		PriorOutputTokens:     stayPin.LastOutputTokens,
 		AvailableModels:       s.availableModels,
 		PinCacheCold:          pinCacheCold(stayPin, prefixBroken),
 		SubsidizedCostFactor:  req.SubsidizedModelCostFactor,
