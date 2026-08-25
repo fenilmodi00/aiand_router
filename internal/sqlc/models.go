@@ -108,6 +108,10 @@ type RouterModelRouterExternalAPIKey struct {
 	AuthUser *string
 	// Weave account that soft-deleted or replaced this key; NULL when the router deleted it internally or attribution predates the column
 	DeletedBy *string
+	// Inbound client header names copied verbatim to this key's endpoint; NULL forwards nothing
+	ForwardedClientHeaders []string
+	// JSON baggage header forwarded to this key's endpoint with the resolved caller email under on-behalf-of; NULL forwards nothing
+	BaggageHeader *string
 }
 
 // Customer router installations; owns API keys
