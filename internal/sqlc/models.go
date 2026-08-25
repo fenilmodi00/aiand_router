@@ -226,6 +226,24 @@ type RouterModelRouterRequestTelemetry struct {
 	CaptureMode          *string
 	DebugRef             *string
 	UnifiedLimitHeaders  []byte
+	// Planner verdict for this turn: stay or switch. NULL when the planner did not run.
+	PlannerOutcome *string
+	// Snake-case planner reason (ev_positive, ev_negative, same_model, no_pin, …). NULL when the planner did not run.
+	PlannerReason *string
+	// Pinned model the planner compared against. On a switch this is the model that was abandoned; decision_model is the one served.
+	PlannerPinModel *string
+	// Provider binding of the pin the planner priced. Distinct from decision_provider on a switch.
+	PlannerPinProvider *string
+	// Planner expected_savings as USD micros (USD × 1e6), not float USD. NULL when the planner did not run.
+	PlannerExpectedSavingsUsdMicros *int64
+	// Planner eviction_cost as USD micros (USD × 1e6), not float USD. NULL when the planner did not run.
+	PlannerEvictionCostUsdMicros *int64
+	// Whether the EV math priced the pin as cache-cold. NULL when the planner did not run.
+	PlannerPinCacheCold *bool
+	// Shadow (corrected-economics) verdict: stay or switch. NULL when the shadow was not computed.
+	PlannerShadowOutcome *string
+	// Shadow expected_savings as USD micros (USD × 1e6). NULL when the shadow was not computed.
+	PlannerShadowSavingsUsdMicros *int64
 }
 
 // End-user identities seen on inbound requests, scoped to an installation. Replaces the per-user API key pattern.
