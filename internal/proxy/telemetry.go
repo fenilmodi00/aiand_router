@@ -141,6 +141,21 @@ type InsertTelemetryParams struct {
 	PlannerPinCacheCold             *bool
 	PlannerShadowOutcome            string
 	PlannerShadowExpectedSavingsUSD *float64
+	// AuthorityShadow* columns persist the counterfactual cache-gate verdict on
+	// authoritative-per-turn turns, where the gate itself never runs. nil/empty
+	// when the shadow did not run. Never a served decision.
+	AuthorityShadowOutcome             string
+	AuthorityShadowWouldDiverge        *bool
+	AuthorityShadowReason              string
+	AuthorityShadowStayModel           string
+	AuthorityShadowStayProvider        string
+	AuthorityShadowExpectedSavingsUSD  *float64
+	AuthorityShadowEvictionCostUSD     *float64
+	AuthorityShadowPinCacheCold        *bool
+	AuthorityShadowCorrectedOutcome    string
+	AuthorityShadowCorrectedSavingsUSD *float64
+	AuthorityShadowStayScore           *float64
+	AuthorityShadowFreshScore          *float64
 }
 
 // TelemetrySummary holds aggregated totals for the dashboard cards.
@@ -224,4 +239,43 @@ func applyPlannerTelemetry(p *InsertTelemetryParams, res turnLoopResult) {
 		shadow := res.PlannerDecision.ShadowExpectedSavingsUSD
 		p.PlannerShadowExpectedSavingsUSD = &shadow
 	}
+}
+
+// applyAuthorityShadowTelemetry copies the authority-turn cache-gate shadow onto
+// p. No-ops unless the shadow ran, keeping all AuthorityShadow* columns NULL
+// rather than zero (zero would read as a computed verdict). These never describe
+// what was served: an authoritative turn always serves decision_model.
+func applyAuthorityShadowTelemetry(p *InsertTelemetryParams, res turnLoopResult) {
+	if p == nil || !res.AuthorityShadow.Computed {
+		return
+	}
+	shadow := res.AuthorityShadow
+	p.AuthorityShadowOutcome = plannerOutcome(shadow.Decision.Outcome)
+	diverge := shadow.Sticky
+	p.AuthorityShadowWouldDiverge = &diverge
+	p.AuthorityShadowReason = shadow.Decision.Reason
+	p.AuthorityShadowStayModel = shadow.StayModel
+	p.AuthorityShadowStayProvider = shadow.StayProvider
+	p.AuthorityShadowStayScore = shadow.StayScore
+	p.AuthorityShadowFreshScore = shadow.FreshScore
+	if !shadow.EVRan() {
+		// An early exit (no_pin, no_prior_usage, same_model, pricing_missing)
+		// carries no cost arithmetic: Decision's float fields are still their zero
+		// values and PinCacheCold is documented as meaningless there. Outcome and
+		// reason above are real and stay; the EV columns must be NULL, not 0.
+		return
+	}
+	savings := shadow.Decision.ExpectedSavingsUSD
+	eviction := shadow.Decision.EvictionCostUSD
+	p.AuthorityShadowExpectedSavingsUSD = &savings
+	p.AuthorityShadowEvictionCostUSD = &eviction
+	cold := shadow.Decision.PinCacheCold
+	p.AuthorityShadowPinCacheCold = &cold
+	// planner.Decide computes the corrected-economics counterfactual on every EV
+	// turn regardless of the deployed config, so the corrected verdict comes for
+	// free. It is pre-gate: hmmCostGatedDecision overrides Outcome for a confident
+	// upgrade or a same-tier pin and does not mirror those onto ShadowOutcome.
+	p.AuthorityShadowCorrectedOutcome = plannerOutcome(shadow.Decision.ShadowOutcome)
+	corrected := shadow.Decision.ShadowExpectedSavingsUSD
+	p.AuthorityShadowCorrectedSavingsUSD = &corrected
 }

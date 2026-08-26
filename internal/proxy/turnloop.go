@@ -236,6 +236,46 @@ type turnLoopResult struct {
 	// exhaustion. Stashed on ctx so resolveBindingsForDispatch's failover
 	// walk also honors the exclusion, not just this turn's scorer.
 	SessionDisabledProviders []string
+	// AuthorityShadow is the counterfactual HMM cache-gate verdict on an
+	// authoritative-per-turn turn. Observation only: it never touches Decision.
+	AuthorityShadow authorityCacheShadow
+}
+
+// authorityCacheShadow records what hmmCostGatedDecision would have returned on
+// an authoritative-per-turn turn. Computed=false keeps every column NULL rather
+// than zero, which would read as "the gate ran and found nothing".
+type authorityCacheShadow struct {
+	Computed bool
+	Decision planner.Decision
+	// StayModel/StayProvider are the pin the shadow priced against, empty when
+	// no eligible pin existed (Decision.Reason is no_pin in that case).
+	StayModel    string
+	StayProvider string
+	// Sticky is the gate's own verdict that it would have served StayModel instead
+	// of the authoritative fresh pick. Persisted rather than re-derived in SQL:
+	// StayModel carries ":effort" while decision_model is a bare catalog ID, so a
+	// string compare reports a false divergence on every effort-bearing pin.
+	Sticky bool
+	// StayScore/FreshScore are the sidecar's candidate scores. Nil when the sidecar
+	// reported no score; the nil rate is a measurement result in itself.
+	StayScore  *float64
+	FreshScore *float64
+}
+
+// Reason returns the gate's reason string, or "" when the shadow did not run.
+func (a authorityCacheShadow) Reason() string {
+	if !a.Computed {
+		return ""
+	}
+	return a.Decision.Reason
+}
+
+// EVRan reports whether the gate reached planner.Decide's cost arithmetic.
+// ShadowComputed is set immediately after that block; every early return
+// (no_pin, no_prior_usage, same_model, pricing_missing) exits above it, so
+// the flag is an exact witness for "the EV terms mean something".
+func (a authorityCacheShadow) EVRan() bool {
+	return a.Computed && a.Decision.ShadowComputed
 }
 
 // modelSwitched reports whether the Anthropic emit path must strip historical
@@ -1073,6 +1113,17 @@ func (s *Service) runTurnLoop(
 	)
 	res.Fresh = fresh
 	if res.AuthoritativePerTurn {
+		// Shadow before the pin-preserving gates so it covers every authoritative
+		// exit. PinTier partitions the result: authoritative_per_turn = fresh was
+		// served, sticky/confidence = pin was already kept.
+		activePin := sessionpin.Pin{}
+		if pinFound {
+			activePin = pin
+		}
+		res.AuthorityShadow = s.authorityCacheShadowFor(
+			ctx, req, activePin, hmmHistory, fresh, s.plannerTokensFor(env, feats), prefixBroken,
+		)
+		s.logAuthorityCacheShadow(ctx, res)
 		if s.hmPinStickyOnArmSelectorUnavail && stickPinOnArmSelectorUnavailable(fresh, pin, pinFound, prefixBroken) {
 			decision := pinDecision(pin)
 			res.Decision = decision
@@ -1386,6 +1437,100 @@ func (s *Service) hmmCostGatedDecision(
 		return pinDecision(stayPin), base, true, stayPin.Model
 	}
 	return fresh, base, false, stayPin.Model
+}
+
+// authorityCacheShadowFor computes the HMM cache gate's verdict for an
+// authoritative-per-turn turn without changing the served decision. Calls
+// hmmCostGatedDecision unmodified -- a shadow that approximates the rule is not
+// a preview of it, and that function is pure.
+func (s *Service) authorityCacheShadowFor(
+	ctx context.Context,
+	req router.Request,
+	activePin sessionpin.Pin,
+	hmmHistory sessionpin.Pin,
+	fresh router.Decision,
+	estimatedInputTokens int,
+	prefixBroken bool,
+) authorityCacheShadow {
+	if !s.ResolveAuthorityCacheShadow(ctx) {
+		return authorityCacheShadow{}
+	}
+	// The gate's rules are HMM-specific: hmmStayPin only accepts HMM-written
+	// pins and the upgrade override reads a sidecar confidence, so a verdict
+	// against a non-HMM decision describes a rollout that cannot happen.
+	if !isHMMDecision(fresh) {
+		return authorityCacheShadow{}
+	}
+	_, plannerDecision, sticky, stayModel := s.hmmCostGatedDecision(
+		req, activePin, hmmHistory, fresh, estimatedInputTokens, prefixBroken,
+	)
+	shadow := authorityCacheShadow{
+		Computed:   true,
+		Decision:   plannerDecision,
+		StayModel:  stayModel,
+		Sticky:     sticky,
+		StayScore:  candidateScoreFor(fresh, stayModel),
+		FreshScore: candidateScoreFor(fresh, fresh.Model),
+	}
+	// Re-resolve the provider; guard on model equality because normalizeHMMStayPin
+	// consults the clock and a concurrently expiring pin must not pair a stale
+	// binding with the model the gate actually priced.
+	if stayPin, ok := s.hmmStayPin(req, activePin, hmmHistory); ok && stayPin.Model == stayModel {
+		shadow.StayProvider = stayPin.Provider
+	}
+	return shadow
+}
+
+// candidateScoreFor reads the sidecar's pre-argmax score for servedIdentity.
+// Returns nil when the sidecar reported no score -- nil must not be coerced to 0.
+//
+// CandidateScores is keyed by bare catalog ID, so the effort suffix is stripped.
+// CandidateArmScores is NOT consulted: it is keyed by roster arm ID
+// ("anthropic/claude-opus-4-7:xhigh"), a different namespace from catalog IDs,
+// so a serving identity never matches an entry there.
+func candidateScoreFor(dec router.Decision, servedIdentity string) *float64 {
+	if servedIdentity == "" || dec.Metadata == nil {
+		return nil
+	}
+	score, ok := dec.Metadata.CandidateScores[baseModelOf(servedIdentity)]
+	if !ok {
+		return nil
+	}
+	value := float64(score)
+	return &value
+}
+
+// logAuthorityCacheShadow emits the shadow verdict as a structured line. The
+// Postgres columns are the analysis surface; this exists so a single session can
+// be traced in logs without a query, matching logPlannerOutcome.
+func (s *Service) logAuthorityCacheShadow(ctx context.Context, res turnLoopResult) {
+	if !res.AuthorityShadow.Computed {
+		return
+	}
+	shadow := res.AuthorityShadow
+	log := observability.FromContext(ctx)
+	log.Info("authoritative turn cache-gate shadow",
+		"turn_type", string(res.TurnType),
+		"fresh_model", res.Fresh.Model,
+		"shadow_outcome", plannerOutcome(shadow.Decision.Outcome),
+		"shadow_reason", shadow.Decision.Reason,
+		"shadow_stay_model", shadow.StayModel,
+		"shadow_would_diverge", shadow.Sticky,
+		"shadow_ev_ran", shadow.EVRan(),
+	)
+	if !shadow.EVRan() {
+		// OutcomeStay is the zero value and plannerOutcome renders it "stay", so
+		// logging these on an early exit would report a verdict and a cost that
+		// were never computed -- and would disagree with the NULL columns.
+		return
+	}
+	log.Info("authoritative turn cache-gate shadow EV",
+		"shadow_expected_savings_usd", shadow.Decision.ExpectedSavingsUSD,
+		"shadow_eviction_cost_usd", shadow.Decision.EvictionCostUSD,
+		"shadow_pin_cache_cold", shadow.Decision.PinCacheCold,
+		"shadow_corrected_outcome", plannerOutcome(shadow.Decision.ShadowOutcome),
+		"shadow_corrected_savings_usd", shadow.Decision.ShadowExpectedSavingsUSD,
+	)
 }
 
 func (s *Service) hmmStayPin(req router.Request, activePin sessionpin.Pin, hmmHistory sessionpin.Pin) (sessionpin.Pin, bool) {

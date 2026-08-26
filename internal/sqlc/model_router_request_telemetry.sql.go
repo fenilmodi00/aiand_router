@@ -1699,7 +1699,19 @@ INSERT INTO router.model_router_request_telemetry (
     planner_eviction_cost_usd_micros,
     planner_pin_cache_cold,
     planner_shadow_outcome,
-    planner_shadow_savings_usd_micros
+    planner_shadow_savings_usd_micros,
+    authority_shadow_outcome,
+    authority_shadow_would_diverge,
+    authority_shadow_reason,
+    authority_shadow_stay_model,
+    authority_shadow_stay_provider,
+    authority_shadow_savings_usd_micros,
+    authority_shadow_eviction_cost_usd_micros,
+    authority_shadow_pin_cache_cold,
+    authority_shadow_corrected_outcome,
+    authority_shadow_corrected_savings_usd_micros,
+    authority_shadow_stay_score,
+    authority_shadow_fresh_score
 ) VALUES (
     $1::uuid,
     $2::uuid,
@@ -1775,87 +1787,111 @@ INSERT INTO router.model_router_request_telemetry (
     $72::bigint,
     $73::boolean,
     $74::varchar,
-    $75::bigint
+    $75::bigint,
+    $76::varchar,
+    $77::boolean,
+    $78::varchar,
+    $79::varchar,
+    $80::varchar,
+    $81::bigint,
+    $82::bigint,
+    $83::boolean,
+    $84::varchar,
+    $85::bigint,
+    $86::double precision,
+    $87::double precision
 )
 ON CONFLICT (installation_id, request_id, span_type) DO NOTHING
 `
 
 type InsertRequestTelemetryParams struct {
-	InstallationID                  uuid.UUID
-	APIKeyID                        pgtype.UUID
-	RequestID                       string
-	SpanType                        string
-	TraceID                         string
-	Timestamp                       pgtype.Timestamptz
-	RequestedModel                  string
-	DecisionModel                   string
-	DecisionProvider                string
-	DecisionReason                  string
-	EstimatedInputTokens            int32
-	StickyHit                       bool
-	EmbedInput                      string
-	InputTokens                     int32
-	OutputTokens                    int32
-	RequestedInputCostUsd           int64
-	RequestedOutputCostUsd          int64
-	ActualInputCostUsd              int64
-	ActualOutputCostUsd             int64
-	RouteLatencyMs                  int64
-	UpstreamLatencyMs               int64
-	TotalLatencyMs                  int64
-	CrossFormat                     bool
-	UpstreamStatusCode              int32
-	ClusterIds                      []int32
-	CandidateModels                 []string
-	ChosenScore                     *float64
-	CandidateScores                 []byte
-	Propensity                      *float64
-	AlphaBreakdown                  []byte
-	ClusterRouterVersion            *string
-	Strategy                        *string
-	RouteID                         *string
-	PolicyRouteKey                  *string
-	PolicyArtifactID                *string
-	PolicyArtifactSha256            *string
-	RosterVersion                   *string
-	SidecarSchemaVersion            *string
-	TrainingAllowed                 bool
-	CaptureMode                     string
-	DebugRef                        *string
-	TtftMs                          *int64
-	CacheCreationTokens             *int32
-	CacheReadTokens                 *int32
-	DeviceID                        *string
-	SessionID                       *string
-	RouterUserID                    pgtype.UUID
-	ClientApp                       *string
-	TurnType                        string
-	RolloutID                       *string
-	UpstreamFinishReason            *string
-	StopReason                      *string
-	ToolUseBlocks                   *int32
-	InvalidToolArgsBlocks           *int32
-	FailoverUsed                    *bool
-	DegenerateShadow                *bool
-	SessionKey                      []byte
-	Role                            *string
-	FreshDecisionModel              *string
-	FreshCandidateScores            []byte
-	PinAgeSec                       *int64
-	ToolResultBytes                 *int32
-	CredentialKeyPrefix             *string
-	CredentialKeySuffix             *string
-	CredentialSource                *string
-	UnifiedLimitHeaders             []byte
-	PlannerOutcome                  *string
-	PlannerReason                   *string
-	PlannerPinModel                 *string
-	PlannerPinProvider              *string
-	PlannerExpectedSavingsUsdMicros *int64
-	PlannerEvictionCostUsdMicros    *int64
-	PlannerPinCacheCold             *bool
-	PlannerShadowOutcome            *string
-	PlannerShadowSavingsUsdMicros   *int64
+	InstallationID                           uuid.UUID
+	APIKeyID                                 pgtype.UUID
+	RequestID                                string
+	SpanType                                 string
+	TraceID                                  string
+	Timestamp                                pgtype.Timestamptz
+	RequestedModel                           string
+	DecisionModel                            string
+	DecisionProvider                         string
+	DecisionReason                           string
+	EstimatedInputTokens                     int32
+	StickyHit                                bool
+	EmbedInput                               string
+	InputTokens                              int32
+	OutputTokens                             int32
+	RequestedInputCostUsd                    int64
+	RequestedOutputCostUsd                   int64
+	ActualInputCostUsd                       int64
+	ActualOutputCostUsd                      int64
+	RouteLatencyMs                           int64
+	UpstreamLatencyMs                        int64
+	TotalLatencyMs                           int64
+	CrossFormat                              bool
+	UpstreamStatusCode                       int32
+	ClusterIds                               []int32
+	CandidateModels                          []string
+	ChosenScore                              *float64
+	CandidateScores                          []byte
+	Propensity                               *float64
+	AlphaBreakdown                           []byte
+	ClusterRouterVersion                     *string
+	Strategy                                 *string
+	RouteID                                  *string
+	PolicyRouteKey                           *string
+	PolicyArtifactID                         *string
+	PolicyArtifactSha256                     *string
+	RosterVersion                            *string
+	SidecarSchemaVersion                     *string
+	TrainingAllowed                          bool
+	CaptureMode                              string
+	DebugRef                                 *string
+	TtftMs                                   *int64
+	CacheCreationTokens                      *int32
+	CacheReadTokens                          *int32
+	DeviceID                                 *string
+	SessionID                                *string
+	RouterUserID                             pgtype.UUID
+	ClientApp                                *string
+	TurnType                                 string
+	RolloutID                                *string
+	UpstreamFinishReason                     *string
+	StopReason                               *string
+	ToolUseBlocks                            *int32
+	InvalidToolArgsBlocks                    *int32
+	FailoverUsed                             *bool
+	DegenerateShadow                         *bool
+	SessionKey                               []byte
+	Role                                     *string
+	FreshDecisionModel                       *string
+	FreshCandidateScores                     []byte
+	PinAgeSec                                *int64
+	ToolResultBytes                          *int32
+	CredentialKeyPrefix                      *string
+	CredentialKeySuffix                      *string
+	CredentialSource                         *string
+	UnifiedLimitHeaders                      []byte
+	PlannerOutcome                           *string
+	PlannerReason                            *string
+	PlannerPinModel                          *string
+	PlannerPinProvider                       *string
+	PlannerExpectedSavingsUsdMicros          *int64
+	PlannerEvictionCostUsdMicros             *int64
+	PlannerPinCacheCold                      *bool
+	PlannerShadowOutcome                     *string
+	PlannerShadowSavingsUsdMicros            *int64
+	AuthorityShadowOutcome                   *string
+	AuthorityShadowWouldDiverge              *bool
+	AuthorityShadowReason                    *string
+	AuthorityShadowStayModel                 *string
+	AuthorityShadowStayProvider              *string
+	AuthorityShadowSavingsUsdMicros          *int64
+	AuthorityShadowEvictionCostUsdMicros     *int64
+	AuthorityShadowPinCacheCold              *bool
+	AuthorityShadowCorrectedOutcome          *string
+	AuthorityShadowCorrectedSavingsUsdMicros *int64
+	AuthorityShadowStayScore                 *float64
+	AuthorityShadowFreshScore                *float64
 }
 
 // Records a completed proxied request for the dashboard UI and routing
@@ -1964,7 +2000,19 @@ type InsertRequestTelemetryParams struct {
 //	    planner_eviction_cost_usd_micros,
 //	    planner_pin_cache_cold,
 //	    planner_shadow_outcome,
-//	    planner_shadow_savings_usd_micros
+//	    planner_shadow_savings_usd_micros,
+//	    authority_shadow_outcome,
+//	    authority_shadow_would_diverge,
+//	    authority_shadow_reason,
+//	    authority_shadow_stay_model,
+//	    authority_shadow_stay_provider,
+//	    authority_shadow_savings_usd_micros,
+//	    authority_shadow_eviction_cost_usd_micros,
+//	    authority_shadow_pin_cache_cold,
+//	    authority_shadow_corrected_outcome,
+//	    authority_shadow_corrected_savings_usd_micros,
+//	    authority_shadow_stay_score,
+//	    authority_shadow_fresh_score
 //	) VALUES (
 //	    $1::uuid,
 //	    $2::uuid,
@@ -2040,7 +2088,19 @@ type InsertRequestTelemetryParams struct {
 //	    $72::bigint,
 //	    $73::boolean,
 //	    $74::varchar,
-//	    $75::bigint
+//	    $75::bigint,
+//	    $76::varchar,
+//	    $77::boolean,
+//	    $78::varchar,
+//	    $79::varchar,
+//	    $80::varchar,
+//	    $81::bigint,
+//	    $82::bigint,
+//	    $83::boolean,
+//	    $84::varchar,
+//	    $85::bigint,
+//	    $86::double precision,
+//	    $87::double precision
 //	)
 //	ON CONFLICT (installation_id, request_id, span_type) DO NOTHING
 func (q *Queries) InsertRequestTelemetry(ctx context.Context, arg InsertRequestTelemetryParams) error {
@@ -2120,6 +2180,18 @@ func (q *Queries) InsertRequestTelemetry(ctx context.Context, arg InsertRequestT
 		arg.PlannerPinCacheCold,
 		arg.PlannerShadowOutcome,
 		arg.PlannerShadowSavingsUsdMicros,
+		arg.AuthorityShadowOutcome,
+		arg.AuthorityShadowWouldDiverge,
+		arg.AuthorityShadowReason,
+		arg.AuthorityShadowStayModel,
+		arg.AuthorityShadowStayProvider,
+		arg.AuthorityShadowSavingsUsdMicros,
+		arg.AuthorityShadowEvictionCostUsdMicros,
+		arg.AuthorityShadowPinCacheCold,
+		arg.AuthorityShadowCorrectedOutcome,
+		arg.AuthorityShadowCorrectedSavingsUsdMicros,
+		arg.AuthorityShadowStayScore,
+		arg.AuthorityShadowFreshScore,
 	)
 	return err
 }
