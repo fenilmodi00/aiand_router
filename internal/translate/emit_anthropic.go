@@ -799,9 +799,15 @@ func sanitizeAnthropicTools(v any) any {
 			continue
 		}
 		copied := make(map[string]any, len(tool))
+		nativeDomainFilter := isAnthropicNativeDomainFilterTool(tool)
 		for k, child := range tool {
 			if k == "input_schema" {
 				copied[k] = sanitizeAnthropicSchema(child)
+				continue
+			}
+			// Anthropic 400s empty allowed_domains/blocked_domains ("Empty list of
+			// domains is ambiguous"); omit so the field is absent rather than [].
+			if nativeDomainFilter && (k == "allowed_domains" || k == "blocked_domains") && isEmptyDomainList(child) {
 				continue
 			}
 			copied[k] = child
@@ -809,6 +815,22 @@ func sanitizeAnthropicTools(v any) any {
 		out = append(out, copied)
 	}
 	return out
+}
+
+func isAnthropicNativeDomainFilterTool(tool map[string]any) bool {
+	typ, _ := tool["type"].(string)
+	return strings.HasPrefix(typ, "web_search_") || strings.HasPrefix(typ, "web_fetch_")
+}
+
+func isEmptyDomainList(v any) bool {
+	switch arr := v.(type) {
+	case []any:
+		return len(arr) == 0
+	case []string:
+		return len(arr) == 0
+	default:
+		return false
+	}
 }
 
 func sanitizeAnthropicSchema(v any) any {
