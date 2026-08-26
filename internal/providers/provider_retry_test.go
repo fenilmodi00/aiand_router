@@ -195,6 +195,74 @@ func TestIsUpstreamSchemaRejection(t *testing.T) {
 	assert.False(t, providers.IsUpstreamSchemaRejection(fmt.Errorf("transport blew up")))
 }
 
+// TestIsUpstreamOutputConfigFormatRejection pins the gateway 400 that names
+// the structured-output knob as an unknown field; a schema-contents complaint
+// naming the same field must not match — it would silently unstructure a turn
+// the caller could have fixed.
+func TestIsUpstreamOutputConfigFormatRejection(t *testing.T) {
+	cases := []struct {
+		name   string
+		status int
+		body   string
+		want   bool
+	}{
+		{
+			name:   "gateway rejects the structured-output knob",
+			status: http.StatusBadRequest,
+			body:   `{"message":"output_config.format: Extra inputs are not permitted"}`,
+			want:   true,
+		},
+		{
+			name:   "pydantic loc list phrasing",
+			status: http.StatusBadRequest,
+			body:   `{"detail":[{"loc":["body","output_config","format"],"msg":"extra fields not permitted"}]}`,
+			want:   true,
+		},
+		{
+			name:   "upstream dislikes the schema but serves the knob",
+			status: http.StatusBadRequest,
+			body:   `{"message":"output_config.format.schema: For 'object' type, 'additionalProperties' must be explicitly set to false"}`,
+			want:   false,
+		},
+		{
+			name:   "cortex rejects a missing schema member, not the knob",
+			status: http.StatusBadRequest,
+			body:   `{"message":"missing field ` + "`schema`" + ` at line 1 column 89"}`,
+			want:   false,
+		},
+		{
+			name:   "a different unknown output_config member is not this class",
+			status: http.StatusBadRequest,
+			body:   `{"message":"output_config.effort: Extra inputs are not permitted"}`,
+			want:   false,
+		},
+		{
+			name:   "unrelated validation 400",
+			status: http.StatusBadRequest,
+			body:   `{"error":{"message":"messages: at least one message is required"}}`,
+			want:   false,
+		},
+		{
+			name:   "500 mentioning the field is not a rejection",
+			status: http.StatusInternalServerError,
+			body:   `{"message":"output_config.format: Extra inputs are not permitted"}`,
+			want:   false,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := &providers.UpstreamErrorResponse{Status: tc.status, Body: []byte(tc.body)}
+			assert.Equal(t, tc.want, providers.IsUpstreamOutputConfigFormatRejection(err))
+			if tc.want {
+				assert.False(t, providers.IsRetryable(err),
+					"an identical re-POST 400s; only the knob-stripped re-emit may retry")
+			}
+		})
+	}
+	assert.False(t, providers.IsUpstreamOutputConfigFormatRejection(nil))
+	assert.False(t, providers.IsUpstreamOutputConfigFormatRejection(fmt.Errorf("transport blew up")))
+}
+
 // TestUpstreamErrorBodyMessage pins the buffered-body extraction used by the
 // ProxyMessages complete log: nested error.message wins, top-level message is
 // the fallback, and a non-JSON body is returned truncated rather than dropped.

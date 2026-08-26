@@ -70,6 +70,10 @@ type EmitOptions struct {
 	// tools are always stripped. Set from ROUTER_CC_ORCH_TOOLS_CROSSVENDOR;
 	// zero value false preserves historical strip-all behavior.
 	KeepCrossVendorOrchestrationTools bool
+	// StripOutputConfigFormat drops output_config.format. Anthropic-spec
+	// gateways are documented to serve the knob (Cortex does), so the proxy sets
+	// this only on a one-shot retry after one 400s on it.
+	StripOutputConfigFormat bool
 	// DowngradeGeminiValidatedToAuto emits functionCallingConfig.mode=AUTO
 	// instead of VALIDATED for Gemini 3.x. VALIDATED compiles tool schemas into
 	// a decode-time grammar and 400s INVALID_ARGUMENT if one won't compile; the
@@ -379,6 +383,9 @@ type EmitOverrides struct {
 	// and the heuristic OutputConfigEffort — user knob beats request-derived default.
 	// Value is already cap-applied (xhigh→max) by resolveForceEffort upstream.
 	ForceOutputConfigEffort string
+	// StripOutputConfigFormat drops output_config.format, pruning output_config
+	// when nothing else remains. Mirrors EmitOptions.StripOutputConfigFormat.
+	StripOutputConfigFormat bool
 	// ClampEffortXhighTo downgrades a caller-supplied "xhigh" effort (`effort`
 	// and `output_config.effort`) to this value. Set when the target lacks
 	// xhigh (router.CapXhighEffort) so a mid-session re-route doesn't forward
@@ -522,6 +529,33 @@ func applyOverrides(body []byte, ov EmitOverrides) ([]byte, error) {
 		}
 	}
 
+	if ov.StripOutputConfigFormat {
+		out, err = stripOutputConfigFormatBytes(out)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return out, nil
+}
+
+// stripOutputConfigFormatBytes drops output_config.format and, when that
+// leaves output_config empty, the container too.
+func stripOutputConfigFormatBytes(body []byte) ([]byte, error) {
+	if !gjson.GetBytes(body, "output_config.format").Exists() {
+		return body, nil
+	}
+	out, err := sjson.DeleteBytes(body, "output_config.format")
+	if err != nil {
+		return nil, fmt.Errorf("delete output_config.format: %w", err)
+	}
+	if len(gjson.GetBytes(out, "output_config").Map()) > 0 {
+		return out, nil
+	}
+	out, err = sjson.DeleteBytes(out, "output_config")
+	if err != nil {
+		return nil, fmt.Errorf("delete empty output_config: %w", err)
+	}
 	return out, nil
 }
 
@@ -1171,6 +1205,8 @@ func resolveAnthropicOverrides(body []byte, opts EmitOptions) EmitOverrides {
 			}
 		}
 	}
+
+	ov.StripOutputConfigFormat = opts.StripOutputConfigFormat
 
 	// "xhigh" is opus-4-7+ only; clamp to the max every adaptive model accepts
 	// so a re-route can't turn a valid request into an invalid one.

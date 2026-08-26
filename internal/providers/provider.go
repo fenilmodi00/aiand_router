@@ -480,6 +480,39 @@ func IsUpstreamSchemaRejection(err error) bool {
 	return false
 }
 
+// unknownFieldPhrases are the verdicts meaning the upstream's request schema
+// has no such field at all, as opposed to disliking its contents.
+var unknownFieldPhrases = []string{
+	"extra inputs are not permitted",
+	"extra inputs not permitted",
+	"extra fields not permitted",
+	"unknown field",
+	"unrecognized field",
+	"unexpected field",
+	"additional properties are not allowed",
+}
+
+// IsUpstreamOutputConfigFormatRejection reports whether err is a buffered 400
+// rejecting output_config.format as an unknown field — licensing a one-shot retry.
+// A schema-contents complaint names the same field but is caller-fixable and must
+// not match (e.g. additionalProperties must be explicitly set to false).
+func IsUpstreamOutputConfigFormatRejection(err error) bool {
+	var buffered *UpstreamErrorResponse
+	if !errors.As(err, &buffered) || buffered.Status != http.StatusBadRequest {
+		return false
+	}
+	body := strings.ToLower(string(buffered.Body))
+	if !strings.Contains(body, "output_config") || !strings.Contains(body, "format") {
+		return false
+	}
+	for _, phrase := range unknownFieldPhrases {
+		if strings.Contains(body, phrase) {
+			return true
+		}
+	}
+	return false
+}
+
 // responsesUnsupportedPhrases are prose bodies meaning the gateway does not
 // serve /v1/responses at all (as opposed to rejecting this particular body).
 // Snowflake Cortex gates the surface per account and answers 400/403 rather
