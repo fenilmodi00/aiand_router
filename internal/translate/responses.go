@@ -227,6 +227,12 @@ func responsesInputItemToMessages(item gjson.Result) ([]map[string]any, error) {
 			role = "user"
 		}
 		text, toolCalls := responsesContentToChatContent(item.Get("content"), role)
+		// A badge-only assistant message strips to nothing; keeping the shell
+		// puts a blank assistant turn ahead of the real function_call, which
+		// some providers reject.
+		if role == "assistant" && text == "" && len(toolCalls) == 0 {
+			return nil, nil
+		}
 		msg := map[string]any{"role": role}
 		if text != "" || len(toolCalls) == 0 {
 			msg["content"] = text
@@ -296,6 +302,7 @@ func StripRoutingBadgeFromResponsesInput(body []byte) ([]byte, error) {
 
 	out := body
 	changed := false
+	var emptied []int
 	for itemIndex, item := range input.Array() {
 		itemType := item.Get("type").Str
 		if itemType != "message" && !(itemType == "" && item.Get("role").Str != "") {
@@ -309,6 +316,11 @@ func StripRoutingBadgeFromResponsesInput(body []byte) ([]byte, error) {
 		if content.Type == gjson.String {
 			stripped := codexResponsesBadgePattern.ReplaceAllString(content.Str, "")
 			if stripped == content.Str {
+				continue
+			}
+			if stripped == "" {
+				emptied = append(emptied, itemIndex)
+				changed = true
 				continue
 			}
 			var err error
@@ -337,6 +349,10 @@ func StripRoutingBadgeFromResponsesInput(body []byte) ([]byte, error) {
 					}
 					changed = true
 				}
+				if stripped == "" && !responsesContentHasBody(content, partIndex) {
+					emptied = append(emptied, itemIndex)
+					changed = true
+				}
 				// The egress marker is only ever prepended to the first text part.
 				// Do not strip a marker-like string from later assistant content.
 				break contentParts
@@ -346,7 +362,34 @@ func StripRoutingBadgeFromResponsesInput(body []byte) ([]byte, error) {
 	if !changed {
 		return body, nil
 	}
+	// Descending: an earlier delete would shift the indices still pending.
+	for i := len(emptied) - 1; i >= 0; i-- {
+		var err error
+		out, err = sjson.DeleteBytes(out, "input."+strconv.Itoa(emptied[i]))
+		if err != nil {
+			return nil, fmt.Errorf("drop badge-only Responses input item: %w", err)
+		}
+	}
 	return out, nil
+}
+
+// responsesContentHasBody reports whether a content array carries anything
+// beyond the (now stripped) part at skipIndex. Non-text parts always count.
+func responsesContentHasBody(content gjson.Result, skipIndex int) bool {
+	for i, part := range content.Array() {
+		if i == skipIndex {
+			continue
+		}
+		switch part.Get("type").Str {
+		case "input_text", "output_text", "text":
+			if part.Get("text").Str != "" {
+				return true
+			}
+		default:
+			return true
+		}
+	}
+	return false
 }
 
 // responsesContentToChatContent flattens a content array. For assistant
@@ -402,10 +445,9 @@ type ResponsesWriter struct {
 	flusher http.Flusher
 	bw      *bufio.Writer
 
-	model          string // routed model, set from x-router-model when known
-	requestedModel string // originally requested model (from the client's request)
-	responseID     string
-	createdAt      int64
+	model      string // routed model, set from x-router-model when known
+	responseID string
+	createdAt  int64
 
 	statusCode       int
 	streaming        bool
@@ -485,16 +527,15 @@ func toolCallItemIDPrefix(custom bool) string {
 func NewResponsesWriter(w http.ResponseWriter, model string) *ResponsesWriter {
 	flusher, _ := w.(http.Flusher)
 	return &ResponsesWriter{
-		inner:          w,
-		flusher:        flusher,
-		bw:             bufio.NewWriterSize(w, 8192),
-		model:          model,
-		requestedModel: model,
-		responseID:     newResponsesID("resp"),
-		createdAt:      time.Now().Unix(),
-		toolItems:      map[int]*responsesToolItem{},
-		lifecycle:      NewStreamLifecycle(),
-		toolLedger:     NewToolCallLedger(),
+		inner:      w,
+		flusher:    flusher,
+		bw:         bufio.NewWriterSize(w, 8192),
+		model:      model,
+		responseID: newResponsesID("resp"),
+		createdAt:  time.Now().Unix(),
+		toolItems:  map[int]*responsesToolItem{},
+		lifecycle:  NewStreamLifecycle(),
+		toolLedger: NewToolCallLedger(),
 	}
 }
 
@@ -709,7 +750,7 @@ func (t *ResponsesWriter) Finalize() error {
 		return err
 	}
 
-	translated, err := chatCompletionToResponse(body, t.responseID, t.model, t.createdAt, t.toolMappings)
+	translated, err := chatCompletionToResponse(body, t.responseID, t.model, t.createdAt, t.toolMappings, t.computeBadgeText())
 	if err != nil {
 		t.inner.Header().Set("Content-Type", "application/json")
 		t.inner.WriteHeader(http.StatusBadGateway)
@@ -1121,6 +1162,11 @@ func (t *ResponsesWriter) translateChunk(raw []byte) error {
 
 	if fr := choice.Get("finish_reason"); fr.Type == gjson.String && fr.Str != "" {
 		t.finishReason = fr.Str
+		// Reasoning-only turns emit no delta this writer translates, so the
+		// badge would never be reached through appendText/appendToolCall.
+		if err := t.ensureBadgeItem(); err != nil {
+			return err
+		}
 		if err := t.closeOpenItems(); err != nil {
 			return err
 		}
@@ -1136,43 +1182,68 @@ func (t *ResponsesWriter) translateChunk(raw []byte) error {
 }
 
 func (t *ResponsesWriter) appendText(s string) error {
-	if t.textItem == nil {
-		t.textItem = &responsesTextItem{
-			itemID: newResponsesID("msg"),
-		}
-		// Must assign after t.textItem is reachable, else nextOutputIndex
-		// undercounts it (Go evaluates struct-literal RHS before assignment).
-		t.textItem.outputIndex = t.nextOutputIndex()
-		if err := t.emitMessageItemAdded(t.textItem); err != nil {
-			return err
-		}
-		if err := t.emitContentPartAdded(t.textItem); err != nil {
-			return err
-		}
-		t.textItem.openedPart = true
+	if err := t.ensureBadgeItem(); err != nil {
+		return err
+	}
+	if err := t.openTextItem(); err != nil {
+		return err
 	}
 	if err := t.lifecycle.Output(t.textItem.outputIndex); err != nil {
 		return err
-	}
-
-	// Prepend the badge to the first text delta: Codex desktop drops
-	// reasoning-summary items from custom providers, so text is the only
-	// surface guaranteed to render.
-	if !t.badgePrepended {
-		t.badgePrepended = true
-		if line := t.computeBadgeText(); line != "" {
-			t.textItem.text.WriteString(line)
-			if err := t.emitTextDelta(t.textItem, line); err != nil {
-				return err
-			}
-		}
 	}
 
 	t.textItem.text.WriteString(s)
 	return t.emitTextDelta(t.textItem, s)
 }
 
+// openTextItem lazily opens the assistant text item the badge and every text
+// delta share. Idempotent.
+func (t *ResponsesWriter) openTextItem() error {
+	if t.textItem != nil {
+		return nil
+	}
+	t.textItem = &responsesTextItem{
+		itemID: newResponsesID("msg"),
+	}
+	// Must assign after t.textItem is reachable, else nextOutputIndex
+	// undercounts it (Go evaluates struct-literal RHS before assignment).
+	t.textItem.outputIndex = t.nextOutputIndex()
+	if err := t.emitMessageItemAdded(t.textItem); err != nil {
+		return err
+	}
+	if err := t.emitContentPartAdded(t.textItem); err != nil {
+		return err
+	}
+	t.textItem.openedPart = true
+	return nil
+}
+
+// ensureBadgeItem prepends the routing badge before the first text delta, tool call, or finish.
+// Codex drops reasoning-summary items from custom providers (text is the only guaranteed surface),
+// and tool-call-only turns produce no text of their own without this.
+func (t *ResponsesWriter) ensureBadgeItem() error {
+	if t.badgePrepended {
+		return nil
+	}
+	t.badgePrepended = true
+	line := t.computeBadgeText()
+	if line == "" {
+		return nil
+	}
+	if err := t.openTextItem(); err != nil {
+		return err
+	}
+	if err := t.lifecycle.Output(t.textItem.outputIndex); err != nil {
+		return err
+	}
+	t.textItem.text.WriteString(line)
+	return t.emitTextDelta(t.textItem, line)
+}
+
 func (t *ResponsesWriter) appendToolCall(idx int, tc gjson.Result) error {
+	if err := t.ensureBadgeItem(); err != nil {
+		return err
+	}
 	entry := t.toolLedger.Upsert(idx, tc.Get("id").Str, tc.Get("function.name").Str)
 	item, ok := t.toolItems[idx]
 	justOpened := false
@@ -1249,23 +1320,14 @@ func (t *ResponsesWriter) nextOutputIndex() int {
 	return count - 1
 }
 
-// computeBadgeText builds the badge prepended to the assistant's first text
-// delta, e.g. "**Weave Router** — <routed> ← <requested>" (arrow only when
-// swapped). Returns "" if no routed model is known yet.
+// computeBadgeText returns the routing badge to surface for this turn, with the
+// Codex provenance sentinel applied when enabled. Empty when the proxy supplied
+// no marker — suppression is decided there, not here.
 func (t *ResponsesWriter) computeBadgeText() string {
-	var badge string
-	if t.badgeText != "" {
-		badge = t.badgeText
-	} else {
-		if t.model == "" {
-			return ""
-		}
-		badge = "**Weave Router** — " + t.model
-		if t.requestedModel != "" && t.requestedModel != t.model {
-			badge += " ← " + t.requestedModel
-		}
-		badge += "\n\n"
+	if t.badgeText == "" {
+		return ""
 	}
+	badge := t.badgeText
 	if t.codexBadgeProvenance && !strings.HasPrefix(badge, codexResponsesBadgeSentinel) {
 		badge = codexResponsesBadgeSentinel + badge
 	}
@@ -1645,8 +1707,10 @@ func (t *ResponsesWriter) assembleOutput() []any {
 
 // chatCompletionToResponse converts a buffered chat-completions JSON body into
 // a Responses-shaped JSON body. Only used when the client requested
-// stream:false; Codex always streams, but other clients may not.
-func chatCompletionToResponse(body []byte, responseID, model string, createdAt int64, mappings map[string]ResponsesToolMapping) ([]byte, error) {
+// stream:false; Codex always streams, but other clients may not. A non-empty
+// badge leads the assistant text, synthesizing the message item when the turn
+// produced only tool calls.
+func chatCompletionToResponse(body []byte, responseID, model string, createdAt int64, mappings map[string]ResponsesToolMapping, badge string) ([]byte, error) {
 	if !gjson.ValidBytes(body) {
 		return nil, fmt.Errorf("invalid JSON")
 	}
@@ -1665,7 +1729,11 @@ func chatCompletionToResponse(body []byte, responseID, model string, createdAt i
 
 	choice := root.Get("choices.0.message")
 	output := make([]any, 0, 2)
-	if content := choice.Get("content"); content.Type == gjson.String && content.Str != "" {
+	text := badge
+	if content := choice.Get("content"); content.Type == gjson.String {
+		text += content.Str
+	}
+	if text != "" {
 		output = append(output, map[string]any{
 			"id":     newResponsesID("msg"),
 			"type":   "message",
@@ -1673,7 +1741,7 @@ func chatCompletionToResponse(body []byte, responseID, model string, createdAt i
 			"role":   "assistant",
 			"content": []any{map[string]any{
 				"type":        "output_text",
-				"text":        content.Str,
+				"text":        text,
 				"annotations": []any{},
 			}},
 		})
