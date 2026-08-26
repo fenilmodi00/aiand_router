@@ -377,6 +377,25 @@ func resolveProviderWithCustom(modelID, registryProvider string, available map[s
 	return catalog.CustomProviderFor(modelID, available, custom)
 }
 
+// resolveGatewayProvider routes only via the key's aliased gateway providers;
+// catalog vendor bindings are not consulted.
+func resolveGatewayProvider(modelID string, available map[string]struct{}, custom map[string][]string, gateways map[string]struct{}) string {
+	m, known := catalog.ByID(modelID)
+	if !known || m.Tier == catalog.TierUnknown {
+		return ""
+	}
+	for _, provider := range custom[m.ID] {
+		if _, isGateway := gateways[provider]; !isGateway {
+			continue
+		}
+		if _, enabled := available[provider]; !enabled {
+			continue
+		}
+		return provider
+	}
+	return ""
+}
+
 // filterByProviders drops entries with no ProviderBinding resolvable under
 // available, and rewrites each surviving entry's Provider to the resolved
 // binding. For multi-binding rows (e.g. fireworks primary, openrouter

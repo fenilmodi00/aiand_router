@@ -19,6 +19,7 @@ import (
 	"workweave/router/internal/router/handover"
 	"workweave/router/internal/router/hmm"
 	"workweave/router/internal/router/planner"
+	"workweave/router/internal/router/policy"
 	"workweave/router/internal/router/sessionpin"
 	"workweave/router/internal/router/turntype"
 	"workweave/router/internal/translate"
@@ -554,14 +555,25 @@ func (s *Service) runTurnLoop(
 		// here too — this path bypasses the scorer, the only other place
 		// exclusions are honored.
 		if s.hardPinResolver != nil && !useSubAgentOverride {
-			p, m, ok := s.hardPinResolver(req.EnabledProviders, req.ExcludedModels)
+			p, m, ok := s.hardPinResolver(HardPinRequest{
+				EnabledProviders: req.EnabledProviders,
+				ExcludedModels:   req.ExcludedModels,
+				CustomBindings:   req.CustomBindings,
+				GatewayProviders: req.GatewayProviders,
+			})
 			if !ok {
+				// Gateway empty result = no aliases configured (customer fix), not a router fault.
+				hardPinErr := cluster.ErrClusterUnavailable
+				if len(req.GatewayProviders) > 0 {
+					hardPinErr = policy.ErrGatewayServesNoDeployedModel
+				}
 				log.Warn(
-					"Hard-pin: no eligible provider for request; returning ErrClusterUnavailable",
+					"Hard-pin: no eligible provider for request",
 					"turn_type", string(res.TurnType),
 					"enabled_providers", sortedEnabledKeys(req.EnabledProviders),
+					"err", hardPinErr,
 				)
-				return res, fmt.Errorf("hard-pin: no eligible provider for %s: %w", res.TurnType, cluster.ErrClusterUnavailable)
+				return res, fmt.Errorf("hard-pin: no eligible provider for %s: %w", res.TurnType, hardPinErr)
 			}
 			provider, model = p, m
 		} else {
