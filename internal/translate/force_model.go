@@ -28,95 +28,211 @@ type ForceModelResult struct {
 	Model string
 	// Clear is true for /unforce-model.
 	Clear bool
+	// FromToolResult is true when an agent invoked the command through a tool.
+	FromToolResult bool
 }
 
-// ExtractForceModelCommand scans the last user-role message in env for a
-// /force-model <model> or /unforce-model directive, stripping it from
-// env.body. Returns (zero, false) when no command is present.
+// ExtractForceModelCommand scans the trailing user or tool-result message in env for a
+// /force-model <model> or /unforce-model directive, stripping it from env.body.
+// FromToolResult distinguishes agent-issued commands from user-typed ones.
+// Returns (zero, false) when no command is present.
 func (env *RequestEnvelope) ExtractForceModelCommand() (ForceModelResult, bool) {
 	var res ForceModelResult
-	found := env.extractLeadingCommand(func(text string) (bool, string) {
+	found, fromToolResult := env.extractLeadingCommandWithSource(func(text string) (bool, string) {
 		r, ok, stripped := parseForceModelCommand(text)
 		if ok {
 			res = r
 		}
 		return ok, stripped
 	})
+	res.FromToolResult = found && fromToolResult
 	return res, found
 }
 
-// extractLeadingCommand scans the last user-role message (Anthropic/OpenAI
-// shapes only) for a directive recognized by parse, which receives candidate
-// text and returns (found, strippedText). On a match, the matched content is
-// replaced in env.body with the stripped remainder.
+// extractLeadingCommand scans the trailing user or tool-result message
+// (Anthropic/OpenAI shapes only) for a directive recognized by parse.
 func (env *RequestEnvelope) extractLeadingCommand(parse func(text string) (found bool, stripped string)) bool {
+	originalBody := env.body
+	found, fromToolResult := env.extractLeadingCommandWithSource(parse)
+	if fromToolResult {
+		env.body = originalBody
+		return false
+	}
+	return found
+}
+
+type commandTextCandidate struct {
+	path     string
+	dropPath string
+	text     string
+}
+
+// extractLeadingCommandWithSource returns whether the command came from a
+// tool-result turn as well as whether it matched.
+func (env *RequestEnvelope) extractLeadingCommandWithSource(parse func(text string) (found bool, stripped string)) (bool, bool) {
 	switch env.format {
 	case FormatAnthropic, FormatOpenAI:
 	default:
-		return false
+		return false, false
 	}
 	msgs := gjson.GetBytes(env.body, "messages")
 	if !msgs.IsArray() {
-		return false
+		return false, false
 	}
 
+	all := msgs.Array()
 	lastIdx := -1
+	lastRole := ""
 	var lastContent gjson.Result
-	msgs.ForEach(func(key, msg gjson.Result) bool {
-		if msg.Get("role").String() == "user" {
-			lastIdx = int(key.Int())
-			lastContent = msg.Get("content")
+	for i := len(all) - 1; i >= 0; i-- {
+		switch role := all[i].Get("role").String(); role {
+		case "user", "tool":
+			lastIdx, lastRole, lastContent = i, role, all[i].Get("content")
 		}
-		return true
-	})
+		if lastIdx >= 0 {
+			break
+		}
+	}
 	if lastIdx < 0 {
-		return false
+		return false, false
+	}
+	// Commands belong only to the trailing turn; skip if a conversational turn
+	// follows. Non-conversational role:"system" notices (Claude Code deferred
+	// tools) don't count as a newer turn.
+	for i := lastIdx + 1; i < len(all); i++ {
+		if isConversationTurn(all[i].Get("role").String()) {
+			return false, false
+		}
 	}
 
-	idxStr := strconv.Itoa(lastIdx)
-
+	idxPath := "messages." + strconv.Itoa(lastIdx) + ".content"
+	// OpenAI marks tool-result provenance with role:"tool", not a content block.
+	// Preserve that message when stripping the command so tool_calls stays paired.
+	isToolMessage := lastRole == "tool"
+	fromToolResult := isToolMessage || followsAssistantToolUse(all, lastIdx)
+	dropPathFor := func(path string) string {
+		if isToolMessage {
+			return ""
+		}
+		return path
+	}
+	var candidates []commandTextCandidate
 	switch {
 	case lastContent.Type == gjson.String:
-		found, stripped := parse(lastContent.String())
-		if !found {
-			return false
-		}
-		if newBody, err := sjson.SetBytes(env.body, "messages."+idxStr+".content", stripped); err == nil {
-			env.body = newBody
-		}
-		return true
-
-	case lastContent.Type == gjson.JSON && lastContent.IsArray():
-		// Scan every text block: Claude Code sometimes splits the user turn
-		// into multiple parts (injected tags in one, typed directive in
-		// another), so checking only the first block could miss it.
-		type textBlock struct {
-			idx  int
-			text string
-		}
-		var blocks []textBlock
+		candidates = append(candidates, commandTextCandidate{
+			path: idxPath, dropPath: dropPathFor("messages." + strconv.Itoa(lastIdx)), text: lastContent.String(),
+		})
+	case lastContent.IsArray():
 		lastContent.ForEach(func(key, block gjson.Result) bool {
-			if block.Get("type").String() == "text" {
-				blocks = append(blocks, textBlock{idx: int(key.Int()), text: block.Get("text").String()})
+			blockPath := idxPath + "." + strconv.Itoa(int(key.Int()))
+			switch block.Get("type").String() {
+			case "text":
+				candidates = append(candidates, commandTextCandidate{
+					path: blockPath + ".text", dropPath: dropPathFor(blockPath), text: block.Get("text").String(),
+				})
+			case "tool_result":
+				fromToolResult = true
+				candidates = append(candidates, toolResultCommandCandidates(blockPath, block.Get("content"))...)
 			}
 			return true
 		})
-		for _, b := range blocks {
-			found, stripped := parse(b.text)
-			if !found {
-				continue
-			}
-			blockPath := "messages." + idxStr + ".content." + strconv.Itoa(b.idx) + ".text"
-			if newBody, err := sjson.SetBytes(env.body, blockPath, stripped); err == nil {
-				env.body = newBody
-			}
-			return true
-		}
-		return false
-
 	default:
+		return false, false
+	}
+
+	for _, candidate := range candidates {
+		found, stripped := parse(candidate.text)
+		if !found {
+			continue
+		}
+		if fromToolResult && stripped == "" && candidate.dropPath != "" {
+			if newBody, ok := dropCommandBlock(env.body, candidate.dropPath, lastIdx); ok {
+				env.body = newBody
+				return true, fromToolResult
+			}
+		}
+		if newBody, err := sjson.SetBytes(env.body, candidate.path, stripped); err == nil {
+			env.body = newBody
+		}
+		return true, fromToolResult
+	}
+	return false, false
+}
+
+// dropCommandBlock deletes the block at dropPath, cascading to the whole
+// message when that empties its content array, and reports false when the
+// result would be an empty history (providers reject empty content arrays).
+func dropCommandBlock(body []byte, dropPath string, msgIdx int) ([]byte, bool) {
+	out, err := sjson.DeleteBytes(body, dropPath)
+	if err != nil {
+		return nil, false
+	}
+	msgPath := "messages." + strconv.Itoa(msgIdx)
+	if dropPath != msgPath && gjson.GetBytes(out, msgPath+".content").Get("#").Int() == 0 {
+		if out, err = sjson.DeleteBytes(out, msgPath); err != nil {
+			return nil, false
+		}
+	}
+	if gjson.GetBytes(out, "messages").Get("#").Int() == 0 {
+		return nil, false
+	}
+	return out, true
+}
+
+func toolResultCommandCandidates(blockPath string, content gjson.Result) []commandTextCandidate {
+	if content.Type == gjson.String {
+		return []commandTextCandidate{{path: blockPath + ".content", text: content.String()}}
+	}
+	if !content.IsArray() {
+		return nil
+	}
+	var candidates []commandTextCandidate
+	content.ForEach(func(key, part gjson.Result) bool {
+		if part.Get("type").String() == "text" {
+			candidates = append(candidates, commandTextCandidate{
+				path: blockPath + ".content." + strconv.Itoa(int(key.Int())) + ".text",
+				text: part.Get("text").String(),
+			})
+		}
+		return true
+	})
+	return candidates
+}
+
+// isConversationTurn reports whether role is part of the user/assistant
+// exchange, as opposed to an out-of-band notice the client interleaves.
+func isConversationTurn(role string) bool {
+	switch role {
+	case "user", "assistant", "tool":
+		return true
+	}
+	return false
+}
+
+func followsAssistantToolUse(messages []gjson.Result, userIdx int) bool {
+	prev := -1
+	for i := userIdx - 1; i >= 0; i-- {
+		if isConversationTurn(messages[i].Get("role").String()) {
+			prev = i
+			break
+		}
+	}
+	if prev < 0 || messages[prev].Get("role").String() != "assistant" {
 		return false
 	}
+	assistant := messages[prev]
+	if toolCalls := assistant.Get("tool_calls"); toolCalls.IsArray() && len(toolCalls.Array()) > 0 {
+		return true
+	}
+	content := assistant.Get("content")
+	if content.IsArray() {
+		for _, block := range content.Array() {
+			if block.Get("type").String() == "tool_use" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // parseForceModelCommand scans text for a /force-model (alias /fm) or
