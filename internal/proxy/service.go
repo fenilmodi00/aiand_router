@@ -2275,7 +2275,7 @@ func writeLocalCountTokens(w http.ResponseWriter, body []byte) error {
 // provider. No model rewriting, no routing decision. Anthropic targets get
 // the body scrubbed via envelope parsing; others receive it verbatim.
 func (s *Service) PassthroughToNamedProvider(ctx context.Context, providerName string, body []byte, w http.ResponseWriter, r *http.Request) error {
-	log := observability.Get()
+	log := observability.FromContext(ctx)
 	p, err := s.provider(providerName)
 	if err != nil {
 		return err
@@ -2320,7 +2320,7 @@ func (s *Service) PassthroughToNamedProvider(ctx context.Context, providerName s
 	proxyStart := time.Now()
 	proxyErr := p.Passthrough(ctx, prep, w, r)
 	proxyMs := time.Since(proxyStart).Milliseconds()
-	log.Info("PassthroughToProvider complete", "provider", providerName, "path", r.URL.Path, "method", r.Method, "proxy_ms", proxyMs, "proxy_err", proxyErr)
+	log.Info("PassthroughToProvider complete", "provider", providerName, "proxy_ms", proxyMs, "proxy_err", proxyErr)
 	return proxyErr
 }
 
@@ -2579,7 +2579,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	ctx = s.withUsageObserver(ctx, r.Header)
 	log := observability.FromContext(ctx)
 	requestStart := time.Now()
-	requestID := uuid.New().String()
+	requestID := requestIDFor(ctx)
 	buf := s.newTelemetryBuffer()
 	ctx = buf.WithContext(ctx)
 
@@ -2741,7 +2741,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 			escalatedLoop = true
 		}
 		if !escalatedLoop {
-			if loop, sig, count := detectToolCallLoop(env); loop {
+			if loop, sig, count := detectToolCallLoop(ctx, env); loop {
 				loopRole := roleForTier(catalog.TierFor(feats.Model))
 				log.Info("ProxyMessages tool-call loop detected", "tool_sig", sig, "repeat_count", count, "role", loopRole)
 				return s.handleToolCallLoopBreak(ctx, w, env, sig, count, installationID, sessionKey, loopRole, feats.Model, providers.ProviderAnthropic, feats.Tokens)
@@ -3291,6 +3291,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 						WithToolValidator(toolValidator)
 				} else {
 					translator = translate.NewAnthropicSSETranslator(sink, d.Model, usage).
+						WithLogger(log).
 						WithRoutingMarker(targetMarker).
 						WithEstimatedInputTokens(feats.Tokens).
 						WithRequestHadTools(feats.HasTools).
@@ -3375,6 +3376,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 				}
 				// SSE chain: Gemini → OpenAI → Anthropic.
 				anthropicTr := translate.NewAnthropicSSETranslator(sink, d.Model, usage).
+					WithLogger(log).
 					WithRoutingMarker(targetMarker).
 					WithEstimatedInputTokens(feats.Tokens).
 					WithRequestHadTools(feats.HasTools).
@@ -5057,14 +5059,14 @@ func (s *Service) fireBilling(ctx context.Context, p billing.DebitInferenceParam
 	if p.OrganizationID == "" {
 		// Shouldn't happen on managed-mode authed requests. Debug level so a
 		// synthetic test exercising the hook doesn't page on-call.
-		observability.Get().Debug("Billing debit skipped: no organization_id on request")
+		observability.FromContext(ctx).Debug("Billing debit skipped: no organization_id on request")
 		return
 	}
 	dbCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	balance, err := s.billing.DebitForInference(dbCtx, p)
 	if err == nil {
-		observability.Get().Debug("Billing debit complete",
+		observability.FromContext(ctx).Debug("Billing debit complete",
 			"organization_id", p.OrganizationID,
 			"router_request_id", p.RouterRequestID,
 			"model", p.Model,
@@ -5081,7 +5083,7 @@ func (s *Service) fireBilling(ctx context.Context, p billing.DebitInferenceParam
 // logBillingDebitFailure emits a structured Error log so on-call alerting can
 // fire on the resulting log rate without a new prometheus dependency.
 func logBillingDebitFailure(ctx context.Context, p billing.DebitInferenceParams, err error) {
-	observability.Get().Error("router_billing_debit_failed",
+	observability.FromContext(ctx).Error("router_billing_debit_failed",
 		"err", err,
 		"organization_id", p.OrganizationID,
 		"router_request_id", p.RouterRequestID,
@@ -5141,7 +5143,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	ctx = s.withUsageObserver(ctx, r.Header)
 	log := observability.FromContext(ctx)
 	requestStart := time.Now()
-	requestID := uuid.New().String()
+	requestID := requestIDFor(ctx)
 	buf := s.newTelemetryBuffer()
 	ctx = buf.WithContext(ctx)
 
@@ -5280,7 +5282,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	// Tool-call loop break: same path as the Anthropic ingress. See the
 	// detectToolCallLoop / handleToolCallLoopBreak doc comments for rationale.
 	if !escalatedLoop {
-		if loop, sig, count := detectToolCallLoop(env); loop {
+		if loop, sig, count := detectToolCallLoop(ctx, env); loop {
 			loopRole := roleForTier(catalog.TierFor(feats.Model))
 			log.Info("ProxyOpenAIChatCompletion tool-call loop detected", "tool_sig", sig, "repeat_count", count, "role", loopRole)
 			return s.handleToolCallLoopBreak(ctx, w, env, sig, count, installationID, sessionKey, loopRole, feats.Model, providers.ProviderOpenAI, feats.Tokens)
