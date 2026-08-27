@@ -137,6 +137,8 @@ func (c *Client) Search(ctx context.Context, q websearch.Query) (websearch.Respo
 	if c.role != "" {
 		req.Header.Set("X-Snowflake-Role", c.role)
 	}
+	// Correlation headers aren't on req; pull them from the ingress snapshot on ctx.
+	proxy.ApplyForwardedClientHeaders(ctx, req, nil)
 
 	resp, err := c.http.Do(req)
 	if err != nil {

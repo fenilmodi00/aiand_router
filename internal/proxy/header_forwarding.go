@@ -4,11 +4,60 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+
+	"workweave/router/internal/auth"
 )
 
 // baggageOnBehalfOf is the key the router adds to the vendor's baggage header.
 // Wire shape agreed with Snowflake Cortex: raw JSON, no percent-encoding.
 const baggageOnBehalfOf = "on-behalf-of"
+
+// ClaudeCodeSessionHeader carries Claude Code's session id. Older CLI builds
+// omit it and embed the id in metadata.user_id; ClientIdentity resolves both.
+const ClaudeCodeSessionHeader = "X-Claude-Code-Session-Id"
+
+// ForwardedHeaderSnapshotContextKey is the request-context key for the inbound
+// correlation headers captured at ingress.
+type ForwardedHeaderSnapshotContextKey struct{}
+
+// WithForwardedHeaderSnapshot captures inbound values of every header the
+// installation's external keys forward, so router-built requests (compaction
+// summaries, Cortex web search) reach the tenant's endpoint correlated.
+func WithForwardedHeaderSnapshot(ctx context.Context, keys []*auth.ExternalAPIKey, inbound http.Header) context.Context {
+	var snapshot http.Header
+	capture := func(name string) {
+		if name == "" {
+			return
+		}
+		v := inbound.Get(name)
+		if v == "" {
+			return
+		}
+		if snapshot == nil {
+			snapshot = make(http.Header, 4)
+		}
+		snapshot.Set(name, v)
+	}
+	for _, key := range keys {
+		if key == nil {
+			continue
+		}
+		for _, name := range key.ForwardedClientHeaders {
+			capture(name)
+		}
+		capture(key.BaggageHeader)
+	}
+	if snapshot == nil {
+		return ctx
+	}
+	return context.WithValue(ctx, ForwardedHeaderSnapshotContextKey{}, snapshot)
+}
+
+// ForwardedHeaderSnapshotFrom reads the ingress header snapshot stashed on ctx.
+func ForwardedHeaderSnapshotFrom(ctx context.Context) http.Header {
+	h, _ := ctx.Value(ForwardedHeaderSnapshotContextKey{}).(http.Header)
+	return h
+}
 
 // ApplyForwardedClientHeaders copies configured inbound headers and re-emits the baggage header
 // with the resolved email. Must be called after prep.Headers are set and protected headers reapplied.
@@ -18,16 +67,33 @@ func ApplyForwardedClientHeaders(ctx context.Context, upstream *http.Request, in
 		return
 	}
 	for _, name := range creds.ForwardedClientHeaders {
-		if v := inbound.Get(name); v != "" {
+		if v := forwardedValue(ctx, inbound, name); v != "" {
 			upstream.Header.Set(name, v)
 		}
 	}
 	if creds.BaggageHeader == "" {
 		return
 	}
-	if merged := mergeBaggageEmail(inbound.Get(creds.BaggageHeader), ClientIdentityFrom(ctx).Email); merged != "" {
+	baggage := forwardedValue(ctx, inbound, creds.BaggageHeader)
+	if merged := mergeBaggageEmail(baggage, ClientIdentityFrom(ctx).Email); merged != "" {
 		upstream.Header.Set(creds.BaggageHeader, merged)
 	}
+}
+
+// forwardedValue returns the first non-empty value from: inbound header,
+// ingress snapshot, or (for X-Claude-Code-Session-Id only) the resolved
+// identity — covering clients that embed the id in the body, not a header.
+func forwardedValue(ctx context.Context, inbound http.Header, name string) string {
+	if v := inbound.Get(name); v != "" {
+		return v
+	}
+	if v := ForwardedHeaderSnapshotFrom(ctx).Get(name); v != "" {
+		return v
+	}
+	if http.CanonicalHeaderKey(name) == ClaudeCodeSessionHeader {
+		return ClientIdentityFrom(ctx).SessionID
+	}
+	return ""
 }
 
 // mergeBaggageEmail injects the router-resolved email as on-behalf-of, overwriting any
