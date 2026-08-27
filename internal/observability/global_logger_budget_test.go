@@ -48,6 +48,10 @@ var globalLoggerBudget = map[string]int{
 	"internal/router/banditexplore": 1,
 	"internal/postgres":             1,
 	"internal/billing":              1,
+
+	// Transport construction (cmd/router composition root) has no request ctx;
+	// this log reports h2 budget scaling — a process-level config warning.
+	"internal/providers/httputil": 1,
 }
 
 // TestGlobalLoggerBudget fails when a package gains an untagged log site.
