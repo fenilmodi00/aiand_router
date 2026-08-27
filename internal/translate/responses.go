@@ -585,6 +585,17 @@ func (t *ResponsesWriter) Header() http.Header { return t.inner.Header() }
 // routing, before Prelude).
 func (t *ResponsesWriter) SetPassthrough() { t.passthrough = true }
 
+// ClearPassthrough returns the writer to translation mode, reporting false
+// when bytes already committed it. Used for pre-commit fallback to chat/completions.
+func (t *ResponsesWriter) ClearPassthrough() bool {
+	if t.httpHeadersSent || t.headersEmitted || t.buf.Len() > 0 {
+		return false
+	}
+	t.passthrough = false
+	t.passthroughBadge = false
+	return true
+}
+
 // SetPassthroughBadge switches to native Responses passthrough while opting
 // into a Codex-visible routed-model badge. It rewrites only existing text
 // fields in the first assistant message; event order, sequence numbers,

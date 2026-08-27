@@ -391,6 +391,10 @@ type OpenAIAccountIDContextKey struct{}
 // Responses body to the Codex backend (its presence marks the passthrough).
 type codexResponsesBodyContextKey struct{}
 
+// nativeResponsesBodyContextKey carries the caller's original /v1/responses
+// body (badge-stripped for Codex); which model needs it is only known post-routing.
+type nativeResponsesBodyContextKey struct{}
+
 // nativeResponsesReasoningHashContextKey preserves reasoning that only native
 // Responses dispatch can represent.
 type nativeResponsesReasoningHashContextKey struct{}
@@ -5604,12 +5608,32 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		marker = subscriptionOnlyWarningMarkerCodex
 	}
 
+	// gpt-5.6 applies its own effort on chat/completions, so a /v1/responses
+	// caller's original bytes serve it natively — preserving reasoning the chat
+	// projection drops. Skip when compaction or a handover rewrote the envelope
+	// (stale bytes); pre-routing readers of responsesPassthrough already ran.
+	responsesEndpointKey := EffectiveBaseURL(ctx, decision.Provider)
+	promotedToResponses := false
+	if !responsesPassthrough && !compResOAI.Applied && !routeRes.Handover.Invoked &&
+		decision.Provider == providers.ProviderOpenAI &&
+		translate.UseOpenAIResponsesAPI(decision.Provider, opts.Capabilities, feats.HasTools) &&
+		!s.gatewayLacksResponses(responsesEndpointKey) {
+		if native, ok := ctx.Value(nativeResponsesBodyContextKey{}).([]byte); ok && len(native) > 0 {
+			responsesBody = native
+			responsesPassthrough = true
+			promotedToResponses = true
+		}
+	}
+
 	// Previously gated on policy debug; ordinary Codex turns fell through to
 	// ResponsesWriter's legacy badge that ignored suppression and never showed the routing reason.
 	verbatimPassthrough := responsesPassthrough && decision.Provider == providers.ProviderOpenAI
 	if rw, ok := w.(*translate.ResponsesWriter); ok && marker != "" && !verbatimPassthrough {
 		rw.SetBadgeText(marker)
 	}
+	// Outlives the passthrough teardown of marker below, so a chat/completions
+	// re-dispatch can still badge the translated stream.
+	translatedMarker := marker
 
 	// Responses entry point delegates the eager response.created emit to
 	// this layer because it has the post-routing binding count. Fire only
@@ -5691,9 +5715,11 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		// Prep rebuilt per attempt: targetIsOpenRouter(opts) gates four
 		// OpenRouter-only body fields that Fireworks/Bedrock/Makora/Together
 		// should not see. On failover to OpenRouter the body must be re-emitted.
-		attempt = func(actx context.Context, d router.Decision, p providers.Client) error {
+		// Split from attempt so a native dispatch that finds no Responses surface
+		// can re-emit onto chat/completions while still pre-commit.
+		dispatchOpenAI := func(actx context.Context, d router.Decision, p providers.Client, native bool) error {
 			var prep providers.PreparedRequest
-			if responsesPassthrough && d.Provider == providers.ProviderOpenAI {
+			if native {
 				// Dispatch the caller's ORIGINAL Responses body (untranslated) to
 				// the OpenAI Responses endpoint, rewriting only the model. This keeps
 				// native Responses extensions lossless.
@@ -5732,16 +5758,40 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 			err := p.Proxy(actx, d, prep, proxyWriter, r)
 			// Post-commit: bytes already on the wire, render as an in-stream
 			// frame instead of a corrupting envelope (pre-commit goes through
-			// dispatchWithFallback). Gate on THIS attempt being the verbatim
-			// Codex backend, not responsesPassthrough alone: a native request can
-			// still route to Claude/OSS through the translating ResponsesWriter,
-			// which needs its own error frame — only the verbatim Codex attempt
-			// already delivered the upstream's own Responses error event.
-			verbatimCodex := responsesPassthrough && d.Provider == providers.ProviderOpenAI
-			if err != nil && !verbatimCodex && env.Stream() && preludeBuf.Committed() {
+			// dispatchWithFallback). Gate on THIS attempt being native: a non-native
+			// request through the translating ResponsesWriter still needs its own
+			// error frame; a native attempt already delivered the upstream's.
+			if err != nil && !native && env.Stream() && preludeBuf.Committed() {
 				err = emitOpenAISSEErrorEvent(sink, err)
 			}
 			return err
+		}
+		attempt = func(actx context.Context, d router.Decision, p providers.Client) error {
+			native := responsesPassthrough && d.Provider == providers.ProviderOpenAI
+			err := dispatchOpenAI(actx, d, p, native)
+			// Only a promoted turn (with a chat projection to fall back to) retries;
+			// the result is memoized so later turns skip the probe.
+			if err == nil || !native || !promotedToResponses ||
+				committed(preludeBuf) || !providers.IsUpstreamResponsesUnsupported(err) {
+				return err
+			}
+			rw, ok := w.(*translate.ResponsesWriter)
+			if !ok || !rw.ClearPassthrough() {
+				return err
+			}
+			s.rememberGatewayLacksResponses(responsesEndpointKey)
+			log.Warn("OpenAI endpoint rejected the Responses API; retrying on chat/completions",
+				"model", d.Model,
+				"decision_provider", d.Provider,
+				"request_id", requestID)
+			responsesPassthrough = false
+			if translatedMarker != "" {
+				rw.SetBadgeText(translatedMarker)
+			}
+			if preludeBuf != nil {
+				preludeBuf.Discard()
+			}
+			return dispatchOpenAI(actx, d, p, false)
 		}
 	case providers.FamilyGemini:
 		crossFormat = true
@@ -6046,21 +6096,22 @@ func (s *Service) ProxyOpenAIResponses(ctx context.Context, body []byte, w http.
 	}
 	chatBody, model := conversion.Body, conversion.Model
 	codexNativeRequest := codexResponsesRequest(ctx, r.Header)
-	// Keep original bytes only when the request is unrepresentable as Chat
-	// Completions (NativeOnly) or a Codex subscription is using its direct endpoint.
-	if conversion.Requirements.NativeOnly || codexNativeRequest {
-		nativeBody := conversion.OriginalBody
-		if clientAppCodex {
-			// Codex records response.output_item.done as conversation history and
-			// sends it back in the next native request. Remove only the badge this
-			// client opted into so router text never reaches the selected model.
-			nativeBody, err = translate.StripRoutingBadgeFromResponsesInput(nativeBody)
-			if err != nil {
-				return fmt.Errorf("strip native Responses routing badge: %w", err)
-			}
+	nativeBody := conversion.OriginalBody
+	if clientAppCodex {
+		// Codex records response.output_item.done as conversation history and
+		// sends it back in the next native request. Remove only the badge this
+		// client opted into so router text never reaches the selected model.
+		nativeBody, err = translate.StripRoutingBadgeFromResponsesInput(nativeBody)
+		if err != nil {
+			return fmt.Errorf("strip native Responses routing badge: %w", err)
 		}
+	}
+	// Every Responses turn stashes its original bytes for post-routing native
+	// dispatch; NativeOnly and Codex-subscription turns also dispatch verbatim now.
+	if conversion.Requirements.NativeOnly || codexNativeRequest {
 		ctx = context.WithValue(ctx, codexResponsesBodyContextKey{}, nativeBody)
 	}
+	ctx = context.WithValue(ctx, nativeResponsesBodyContextKey{}, nativeBody)
 	// Routing and sticky-state hashes must describe the exact native payload
 	// that an OpenAI/Codex decision will receive, even when the portable Codex
 	// projection lets HMM consider other deployed providers.

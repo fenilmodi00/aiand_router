@@ -43,6 +43,15 @@ func reasoningEffortAcceptedOnChatCompletions(opts EmitOptions, hasTools bool) b
 	return true
 }
 
+// toolTurnNeedsExplicitEffortNone reports whether the target refuses a
+// function-tool turn on chat/completions unless reasoning_effort is "none".
+// gpt-5.6 applies its own effort when the field is absent; /v1/responses
+// dispatch is what preserves reasoning. Gateways excluded: proxy downgrades them.
+func toolTurnNeedsExplicitEffortNone(opts EmitOptions, hasTools bool) bool {
+	return hasTools && opts.TargetProvider == providers.ProviderOpenAI &&
+		strings.HasPrefix(opts.TargetModel, "gpt-5.6")
+}
+
 // samplersAcceptedOnChatCompletions reports whether the target accepts
 // temperature / top_p on /v1/chat/completions. Reasoning gpt-5.x models 400 on
 // non-default values; OSS CapReasoning targets (OpenRouter, xAI) sample normally.
@@ -205,6 +214,12 @@ func (e *RequestEnvelope) buildOpenAIFromOpenAI(opts EmitOptions) ([]byte, error
 		body, err = sjson.SetBytes(body, "reasoning_effort", forced)
 		if err != nil {
 			return nil, fmt.Errorf("set reasoning_effort: %w", err)
+		}
+	}
+	if toolTurnNeedsExplicitEffortNone(opts, hasNonEmptyTools(body)) {
+		body, err = sjson.SetBytes(body, "reasoning_effort", "none")
+		if err != nil {
+			return nil, fmt.Errorf("set reasoning_effort none: %w", err)
 		}
 	}
 	if targetIsOpenRouter(opts) {
