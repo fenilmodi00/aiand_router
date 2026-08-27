@@ -185,6 +185,9 @@ type Service struct {
 	// for degrading to a same-cluster candidate when every binding of the
 	// routed model fails with a transient upstream fault.
 	siblingFailover bool
+	// openAIResponsesBroad is the deployment default for
+	// ROUTER_OPENAI_RESPONSES_BROAD; see ResolveOpenAIResponsesBroad.
+	openAIResponsesBroad bool
 	// sseKeepalive is the client-silence budget before a ping is injected
 	// (ROUTER_SSE_KEEPALIVE_INTERVAL_SECONDS; 0 disables). See sse.KeepaliveWriter.
 	sseKeepalive time.Duration
@@ -1271,6 +1274,7 @@ func NewService(r router.Router, providerMap map[string]providers.Client, emitte
 		cyberRefusalRepin:             true,
 		anthropicServerSideFallback:   true,
 		siblingFailover:               true,
+		openAIResponsesBroad:          true,
 		cyberRefusalFallbackModel:     "claude-sonnet-5",
 	}
 }
@@ -1332,6 +1336,13 @@ func (s *Service) WithAnthropicServerSideFallback(enabled bool) *Service {
 // (ROUTER_SIBLING_FAILOVER); see siblingFailover.
 func (s *Service) WithSiblingFailover(enabled bool) *Service {
 	s.siblingFailover = enabled
+	return s
+}
+
+// WithOpenAIResponsesBroad sets the rollout flag for direct-OpenAI Responses
+// routing (ROUTER_OPENAI_RESPONSES_BROAD).
+func (s *Service) WithOpenAIResponsesBroad(enabled bool) *Service {
+	s.openAIResponsesBroad = enabled
 	return s
 }
 
@@ -3368,14 +3379,16 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 				return rawErr, finalize
 			}
 			return func(actx context.Context, d router.Decision, p providers.Client) error {
-				// Reasoning models reject tools alongside an effort on
-				// chat/completions, so an agentic tool turn goes to Responses —
-				// on direct OpenAI and on gateways that mount it (Cortex 400s a
-				// 5.6 tool turn on chat/completions no matter what we send).
+				// Direct OpenAI serves every expressible turn on Responses;
+				// gateways only the reasoning tool turn chat/completions rejects.
 				gatewayKey := gatewayResponsesKey(actx, d.Provider)
-				useResponses := translate.UseOpenAIResponsesAPI(
-					d.Provider, targetOpts.Capabilities, feats.HasTools) &&
-					!s.gatewayLacksResponses(gatewayKey)
+				useResponses := translate.UseOpenAIResponsesAPI(translate.ResponsesRoute{
+					Provider:       d.Provider,
+					Capabilities:   targetOpts.Capabilities,
+					HasTools:       feats.HasTools,
+					ChatOnlyParams: env.RequiresChatCompletionsParams(targetOpts.Capabilities),
+					Broad:          s.ResolveOpenAIResponsesBroad(actx),
+				}) && !s.gatewayLacksResponses(gatewayKey)
 				rawErr, finalize := dispatchOpenAICompat(actx, d, p, useResponses)
 				// A gateway with no usable Responses surface answers 404, or 4xx
 				// prose saying the API is off for this account. Re-emit onto
@@ -5616,7 +5629,13 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	promotedToResponses := false
 	if !responsesPassthrough && !compResOAI.Applied && !routeRes.Handover.Invoked &&
 		decision.Provider == providers.ProviderOpenAI &&
-		translate.UseOpenAIResponsesAPI(decision.Provider, opts.Capabilities, feats.HasTools) &&
+		translate.UseOpenAIResponsesAPI(translate.ResponsesRoute{
+			Provider:       decision.Provider,
+			Capabilities:   opts.Capabilities,
+			HasTools:       feats.HasTools,
+			ChatOnlyParams: env.RequiresChatCompletionsParams(opts.Capabilities),
+			Broad:          s.ResolveOpenAIResponsesBroad(ctx),
+		}) &&
 		!s.gatewayLacksResponses(responsesEndpointKey) {
 		if native, ok := ctx.Value(nativeResponsesBodyContextKey{}).([]byte); ok && len(native) > 0 {
 			responsesBody = native
