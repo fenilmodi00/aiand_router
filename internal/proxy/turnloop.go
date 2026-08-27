@@ -666,12 +666,10 @@ func (s *Service) runTurnLoop(
 	// bypass intercepts the fresh scorer decision here too (no pins to honor).
 	if s.pinStore == nil {
 		req.PolicyTurnContext = buildPolicyTurnContext(req, res, sessionpin.Pin{}, sessionpin.Pin{})
-		if !res.AuthoritativePerTurn {
-			if dec, ok := s.usageBypassDecision(ctx, reqHeaders, req); ok {
-				res.Decision = dec
-				res.UsageBypass = true
-				return res, nil
-			}
+		if dec, ok := s.usageBypassDecision(ctx, reqHeaders, req); ok {
+			res.Decision = dec
+			res.UsageBypass = true
+			return res, nil
 		}
 		decision, err := s.routeFor(ctx, req)
 		if err != nil {
@@ -998,12 +996,14 @@ func (s *Service) runTurnLoop(
 	// stale pin from a prior routed stretch can't make a tool_result
 	// continuation diverge from the bypassed tool_use turn. The pin itself is
 	// untouched and resumes once utilization crosses the threshold.
-	if !res.AuthoritativePerTurn {
-		if dec, ok := s.usageBypassDecision(ctx, reqHeaders, req); ok {
-			res.Decision = dec
-			res.UsageBypass = true
-			return res, nil
-		}
+	//
+	// Bypass settles whether the turn is routed at all (caller's prepaid quota,
+	// not a routing-quality opinion) — AuthoritativePerTurn controls which model
+	// is chosen for a routed turn, so the gate must not apply here.
+	if dec, ok := s.usageBypassDecision(ctx, reqHeaders, req); ok {
+		res.Decision = dec
+		res.UsageBypass = true
+		return res, nil
 	}
 
 	// Tool-result turns: by default, fall through to the scorer + planner for
