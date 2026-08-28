@@ -43,6 +43,10 @@ type EmitOptions struct {
 	// stickiness hint so a session lands on the same warm replica instead of
 	// a cold one. Knob differs per upstream — see applySessionAffinity.
 	SessionAffinity string
+	// StripPromptCacheKey drops prompt_cache_key instead of injecting the
+	// affinity hint. Set when a gateway's schema trails the spec and rejected
+	// the field as unknown, so the retry and later turns go out without it.
+	StripPromptCacheKey bool
 	// ModelSwitched reports the serving model changed since the last turn.
 	// Thinking-block signatures are only valid for the model that produced
 	// them, so carried-over blocks make Anthropic 400 with "Invalid signature

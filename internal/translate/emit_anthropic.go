@@ -39,7 +39,29 @@ func (e *RequestEnvelope) PrepareAnthropic(in http.Header, opts EmitOptions) (pr
 	if err != nil {
 		return providers.PreparedRequest{}, err
 	}
+	body, err = applyAnthropicSessionAffinity(body, opts)
+	if err != nil {
+		return providers.PreparedRequest{}, err
+	}
 	return providers.PreparedRequest{Body: body, Headers: deriveAnthropicHeaders(in, opts, body)}, nil
+}
+
+// applyAnthropicSessionAffinity sets metadata.user_id to the session-affinity
+// key for anthropic_gateway targets. Uses a spec Messages field so body-forwarding
+// gateways pass it without unknown-field 400s. Skips if the caller already set
+// user_id, or if the target is first-party Anthropic.
+func applyAnthropicSessionAffinity(body []byte, opts EmitOptions) ([]byte, error) {
+	if opts.TargetProvider != providers.ProviderAnthropicGateway || opts.SessionAffinity == "" {
+		return body, nil
+	}
+	if gjson.GetBytes(body, "metadata.user_id").String() != "" {
+		return body, nil
+	}
+	out, err := sjson.SetBytes(body, "metadata.user_id", opts.SessionAffinity)
+	if err != nil {
+		return nil, fmt.Errorf("set metadata.user_id: %w", err)
+	}
+	return out, nil
 }
 
 func deriveAnthropicHeaders(in http.Header, opts EmitOptions, body []byte) http.Header {

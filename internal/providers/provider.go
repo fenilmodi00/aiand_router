@@ -513,6 +513,26 @@ func IsUpstreamOutputConfigFormatRejection(err error) bool {
 	return false
 }
 
+// IsUpstreamPromptCacheKeyRejection reports whether err is a buffered 400
+// that rejects prompt_cache_key as an unknown field — some gateways trail the
+// spec and 400 bodies naming it — licensing a one-shot hint-stripped retry.
+func IsUpstreamPromptCacheKeyRejection(err error) bool {
+	var buffered *UpstreamErrorResponse
+	if !errors.As(err, &buffered) || buffered.Status != http.StatusBadRequest {
+		return false
+	}
+	body := strings.ToLower(string(buffered.Body))
+	if !strings.Contains(body, "prompt_cache_key") {
+		return false
+	}
+	for _, phrase := range unknownFieldPhrases {
+		if strings.Contains(body, phrase) {
+			return true
+		}
+	}
+	return false
+}
+
 // responsesUnsupportedPhrases are prose bodies meaning the gateway does not
 // serve /v1/responses at all (as opposed to rejecting this particular body).
 // Snowflake Cortex gates the surface per account and answers 400/403 rather
