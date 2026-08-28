@@ -581,19 +581,24 @@ var Models = []Model{
 		{Provider: providers.ProviderWaferAnthropic, UpstreamID: "GLM-5.2",
 			Price: Pricing{InputUSDPer1M: 1.260, OutputUSDPer1M: 3.960, CacheReadMultiplier: 0.23 / 1.260}},
 	}},
-	// GLM-5.3-Flash: first native-multimodal (image+video) model in the GLM-5
-	// line, so ImageInput stays default (unlike 5/5.1/5.2, which 4xx on image
-	// parts). Thinking cannot be disabled (docs.z.ai/guides/vlm/glm-5.3-flash:
-	// "thinking.type only supports enabled") — do not add it to
-	// openRouterReasoningHint. OpenRouter-only for now: Together and Fireworks
-	// both list it "coming soon" with no live serverless price as of
-	// 2026-08-27. Priced at the standard post-promo rate ($0.15/$0.50, cache
-	// $0.03 — matching Z.ai's own list price) rather than the $0.075/$0.25
-	// introductory rate shared across Z.ai/NovitaAI/GMICloud (through
-	// 2026-09-09 16:00 UTC) — avoids a compile-time price going stale (cf.
-	// gemini-3.7-flash).
-	{ID: "z-ai/glm-5.3-flash", Tier: TierLow, ContextWindow: 1_310_720, Providers: []ProviderBinding{
-		{Provider: providers.ProviderOpenRouter,
+	// GLM-5.3: text-only (AA inputModalityImage=false); Fireworks is the only
+	// managed binding. ContextWindow is 1,048,576 (Fireworks served max), not
+	// 1,310,720 (Cloudflare-only) — overstating causes upstream 400 on overflow.
+	{ID: "z-ai/glm-5.3", Tier: TierHigh, ContextWindow: 1_048_576, ImageInput: ImageInputUnsupported, Providers: []ProviderBinding{
+		{Provider: providers.ProviderFireworks, UpstreamID: "accounts/fireworks/models/glm-5p3",
+			Price: Pricing{InputUSDPer1M: 1.400, OutputUSDPer1M: 4.400, CacheReadMultiplier: 0.26 / 1.400}},
+	}},
+	// GLM-5.3-Flash: first native-multimodal (image+video) in the GLM-5 line —
+	// ImageInput stays default. Thinking cannot be disabled — do not add it to
+	// openRouterReasoningHint. Together leads, Wafer trails. Priced at post-promo
+	// rate, not $0.075/$0.25 introductory (cf. gemini-3.7-flash). ContextWindow
+	// 1,048,576 (Together served max); 1,310,720 is Cloudflare-only.
+	{ID: "z-ai/glm-5.3-flash", Tier: TierLow, ContextWindow: 1_048_576, Providers: []ProviderBinding{
+		{Provider: providers.ProviderTogether, UpstreamID: "zai-org/GLM-5.3-Flash",
+			Price: Pricing{InputUSDPer1M: 0.150, OutputUSDPer1M: 0.500, CacheReadMultiplier: 0.03 / 0.150}},
+		{Provider: providers.ProviderWafer, UpstreamID: "GLM-5.3-Flash",
+			Price: Pricing{InputUSDPer1M: 0.150, OutputUSDPer1M: 0.500, CacheReadMultiplier: 0.03 / 0.150}},
+		{Provider: providers.ProviderWaferAnthropic, UpstreamID: "GLM-5.3-Flash",
 			Price: Pricing{InputUSDPer1M: 0.150, OutputUSDPer1M: 0.500, CacheReadMultiplier: 0.03 / 0.150}},
 	}},
 	// Fireworks-dedicated rows below carry an OpenRouter trailing binding so
