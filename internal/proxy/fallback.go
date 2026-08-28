@@ -296,6 +296,12 @@ func (s *Service) dispatchWithFallback(ctx context.Context, in failoverInputs) (
 			}
 		}
 
+		// Memo the refusal so later turns skip this alias; the Responses-surface
+		// variant never reaches here (re-emitted onto chat/completions pre-commit).
+		if providers.IsUpstreamModelNotFound(attemptErr) {
+			s.rememberGatewayLacksModel(attemptCtx, b.Provider, decision.Model)
+		}
+
 		// 404 and 402 aren't in IsRetryable (retrying the same binding is futile),
 		// but a different binding may serve the model.
 		canFailover := providers.IsRetryable(attemptErr) ||
