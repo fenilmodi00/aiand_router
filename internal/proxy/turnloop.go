@@ -174,6 +174,12 @@ type turnLoopResult struct {
 	UsageBypass bool
 	PinTier     string
 	PinAgeSec   int64
+	// ForcedPinDropped records that a /force-model pin existed but could not be
+	// served (provider not enabled, excluded, or not image-capable); surfaced so
+	// the turn does not silently contradict the "force-model applied" ack.
+	ForcedPinDropped    bool
+	ForcedPinDropReason string
+	ForcedPinModel      string
 	// PinProvider, PrefixBroken, and PriorTurnGapMS preserve the cache-state
 	// evidence used by the planner for span-level shadow analysis.
 	PinProvider    string
@@ -797,6 +803,27 @@ func (s *Service) runTurnLoop(
 			res.StickyHit = true
 			s.refreshPin(ctx, installationID, res.SessionKey, pin, res.PinRole, pinDecision(pin))
 			return res, nil
+		}
+		// A forced pin is an explicit user instruction; dropping it silently reverts
+		// to the scorer while the user still trusts the "force-model applied" ack.
+		dropReason := "excluded"
+		switch {
+		case !providerEligible:
+			dropReason = "provider_not_enabled"
+		case !imageCapable:
+			dropReason = "not_image_capable"
+		}
+		log.Info("Forced session pin dropped for this turn",
+			"pin_model", pin.Model,
+			"pin_provider", pin.Provider,
+			"pin_reason", pin.Reason,
+			"drop_reason", dropReason,
+			"role", res.PinRole,
+		)
+		if isUserForcedReason(pin.Reason) {
+			res.ForcedPinDropped = true
+			res.ForcedPinDropReason = dropReason
+			res.ForcedPinModel = pin.Model
 		}
 		if excluded || !imageCapable {
 			// User still asked for this tier; constrain the fresh decision
