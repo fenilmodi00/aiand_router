@@ -309,6 +309,9 @@ type RoutingMetadata struct {
 	// AuthoritativePerTurnSelection means downstream orchestration may retry
 	// providers but must not replace this decision's model on this turn.
 	AuthoritativePerTurnSelection bool
+	// PinStickyOverrideEligible is the typed successor of the pin-sticky
+	// sentinel; nil when the sidecar does not report it (sentinel match applies).
+	PinStickyOverrideEligible *bool
 	// DisplayMarker is an optional, already-humanized route badge. Sidecars
 	// use this to show strategy-specific labels without moving their display
 	// logic into router-internal.
