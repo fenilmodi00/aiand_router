@@ -61,9 +61,18 @@ type Service struct {
 	strategies                   map[router.Strategy]registeredStrategy
 	providers                    map[string]providers.Client
 	translationCompatibilityMode TranslationCompatibilityMode
-	emitter                      TelemetryEmitter
-	embedOnlyUserMessage         bool
-	semanticCache                *cache.Cache
+	// scopedSearchRequirement gates CitationsOrSearch on actual (current or recent)
+	// search-tool use, not mere advertisement; env ROUTER_SCOPED_SEARCH_REQUIREMENT.
+	scopedSearchRequirement bool
+	// searchRequirementDecayTurns bounds how many routed turns after the last
+	// actual use keep the requirement. Env ROUTER_SEARCH_REQUIREMENT_DECAY_TURNS.
+	searchRequirementDecayTurns int
+	// searchUse tracks per-session recent search-tool use for
+	// scopedSearchRequirement.
+	searchUse            *searchUseTracker
+	emitter              TelemetryEmitter
+	embedOnlyUserMessage bool
+	semanticCache        *cache.Cache
 	// pinStore persists session-sticky routing decisions. Nil when the feature
 	// flag is off; the orchestrator then runs the scorer every turn.
 	pinStore sessionpin.Store
@@ -1277,6 +1286,8 @@ func NewService(r router.Router, providerMap map[string]providers.Client, emitte
 		semanticCache:                semanticCache,
 		pinStore:                     pinStore,
 		noProgress:                   newNoProgressTracker(),
+		searchUse:                    newSearchUseTracker(),
+		searchRequirementDecayTurns:  DefaultSearchRequirementDecayTurns,
 		compaction:                   newCompactionTracker(),
 		prefixTrimFreeSwitch:         true,
 		spiralTracker:                newSpiralTracker(),
@@ -1315,6 +1326,17 @@ func (s *Service) WithTranslationCompatibilityMode(mode TranslationCompatibility
 	switch mode {
 	case TranslationCompatibilityOff, TranslationCompatibilityShadow, TranslationCompatibilityEnforce:
 		s.translationCompatibilityMode = mode
+	}
+	return s
+}
+
+// WithScopedSearchRequirement gates the citations/search native requirement on actual (current
+// or recent) web-search tool use, not mere tool advertisement (ROUTER_SCOPED_SEARCH_REQUIREMENT).
+// Non-positive decayTurns keeps the default.
+func (s *Service) WithScopedSearchRequirement(enabled bool, decayTurns int) *Service {
+	s.scopedSearchRequirement = enabled
+	if decayTurns > 0 {
+		s.searchRequirementDecayTurns = decayTurns
 	}
 	return s
 }
