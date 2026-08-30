@@ -1440,6 +1440,7 @@ router-status||local-toggle|yes|yes|no|no|manual|command,skill
 router-session||prompt|yes|no|no|no|manual|command
 router-models|models|local-toggle|yes|yes|no|no|manual|command,skill
 disable-routing||local-toggle|no|yes|no|no|manual|skill
+beta||prompt|yes|no|no|yes|manual|command
 WEAVE_REGISTRY_EOF
 )
 

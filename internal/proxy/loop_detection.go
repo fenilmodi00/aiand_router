@@ -7,6 +7,7 @@ import (
 
 	"workweave/router/internal/observability"
 	"workweave/router/internal/providers"
+	"workweave/router/internal/router"
 	"workweave/router/internal/router/sessionpin"
 	"workweave/router/internal/translate"
 
@@ -146,7 +147,7 @@ func (s *Service) handleLoopEscalation(
 		existing, found, err := s.pinStore.Get(ctx, sessionKey, role)
 		if err != nil {
 			log.Error("loop-escalation: prior pin lookup failed", "err", err)
-		} else if found {
+		} else if found && pinMatchesEffectiveStrategy(ctx, existing) {
 			if existing.Reason == translate.ReasonLoopEscalation {
 				return // already rescued this session; don't re-pin or double-log
 			}
@@ -218,7 +219,7 @@ func (s *Service) handleLoopEscalation(
 			return
 		}
 		var lastServed string
-		if existing, found, err := s.pinStore.Get(ctx, sessionKey, role); err == nil && found {
+		if existing, found, err := s.pinStore.Get(ctx, sessionKey, role); err == nil && found && pinMatchesEffectiveStrategy(ctx, existing) {
 			lastServed = existing.LastServedModel
 		}
 		pin := sessionpin.Pin{
@@ -228,6 +229,7 @@ func (s *Service) handleLoopEscalation(
 			Provider:        providers.ProviderAnthropic,
 			Model:           escalateModel,
 			Reason:          translate.ReasonLoopEscalation,
+			Strategy:        router.StrategyFromContext(ctx),
 			TurnCount:       1,
 			PinnedUntil:     time.Now().Add(pinSessionTTL),
 			LastServedModel: lastServed,

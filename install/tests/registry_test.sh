@@ -65,9 +65,10 @@ check "names shared across clients are the expected shared directives" \
 check "an alias resolves to its canonical directive" "force-model" "$(weave_registry_canonical_for fm)"
 check "a canonical name resolves to itself" "router-feedback" "$(weave_registry_canonical_for router-feedback)"
 
-# Pi implements /fm and /ufm in its extension rather than through installed
-# files. Its registered names must still match the shared registry.
-pi_registered="$(grep -oE '"(fm|force-model|ufm|unforce-model)"' "$install_dir/pi-router/src/force-model.ts" \
+# Pi implements /fm, /ufm and /beta in its extension rather than through
+# installed files. Its registered names must still match the shared registry.
+pi_registered="$(grep -hoE '"(fm|force-model|ufm|unforce-model|beta)"' \
+  "$install_dir/pi-router/src/force-model.ts" "$install_dir/pi-router/src/beta.ts" \
   | tr -d '"' | sort -u | tr '\n' ' ' | sed 's/ $//')"
 check "the pi extension registers exactly the registry's pi names" \
   "$(weave_registry_names pi | sort -u | tr '\n' ' ' | sed 's/ $//')" "$pi_registered"
