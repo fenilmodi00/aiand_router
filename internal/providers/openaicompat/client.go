@@ -38,6 +38,12 @@ const (
 	WaferBaseURL = "https://pass.wafer.ai/v1"
 )
 
+// grokResponseHeaderTimeout is the time-to-first-byte guard for Grok models;
+// Snowflake Cortex prefill can push first-byte past the default 30s. Streaming
+// inactivity stays bounded by StreamBody's idle watchdog. Tunable via
+// ROUTER_GROK_HEADER_TIMEOUT_SECONDS.
+var grokResponseHeaderTimeout = httputil.TimeoutFromEnv("ROUTER_GROK_HEADER_TIMEOUT_SECONDS", 90*time.Second)
+
 // BedrockMantleBaseURLTemplate is the OpenAI-compatible bedrock-mantle endpoint
 // template. Substitute the region via BedrockMantleBaseURL.
 const BedrockMantleBaseURLTemplate = "https://bedrock-mantle.%s.api.aws/v1"
@@ -56,6 +62,9 @@ type Client struct {
 	apiKey  string
 	baseURL string
 	http    *http.Client
+	// grokHTTP carries the wider time-to-first-byte guard used for Grok
+	// models; see grokResponseHeaderTimeout.
+	grokHTTP *http.Client
 	// modelIDMap rewrites the request body's "model" field before sending, when
 	// the router's public slug differs from the upstream's canonical ID
 	// (Bedrock dot-form, Makora/Together HuggingFace-form). Nil/empty = no rewrite.
@@ -110,8 +119,18 @@ func newClient(apiKey, baseURL string, modelIDMap map[string]string) *Client {
 		apiKey:     apiKey,
 		baseURL:    strings.TrimRight(baseURL, "/"),
 		http:       httputil.NewClient(httputil.NewTransport(5*time.Second, 5*time.Second)),
+		grokHTTP:   httputil.NewClient(httputil.NewTransportWithResponseHeaderTimeout(5*time.Second, 5*time.Second, grokResponseHeaderTimeout)),
 		modelIDMap: modelIDMap,
 	}
+}
+
+// httpFor picks the HTTP client for a routed model: Grok models get the
+// wider time-to-first-byte guard, everything else the default transport.
+func (c *Client) httpFor(model string) *http.Client {
+	if strings.HasPrefix(model, "grok") && c.grokHTTP != nil {
+		return c.grokHTTP
+	}
+	return c.http
 }
 
 // WithDefaultHeaders returns c with headers set on every upstream request.
@@ -142,6 +161,15 @@ func (c *Client) applyProtectedHeaders(req *http.Request) {
 	for k, vs := range c.protectedHeaders {
 		req.Header[http.CanonicalHeaderKey(k)] = append([]string(nil), vs...)
 	}
+}
+
+// NewClientWithHeaderTimeouts is NewClient with injected header-timeout
+// values so tests can exercise transport selection without real-latency waits.
+func NewClientWithHeaderTimeouts(apiKey, baseURL string, defaultTimeout, grokTimeout time.Duration) *Client {
+	c := NewClient(apiKey, baseURL)
+	c.http = httputil.NewClient(httputil.NewTransportWithResponseHeaderTimeout(5*time.Second, 5*time.Second, defaultTimeout))
+	c.grokHTTP = httputil.NewClient(httputil.NewTransportWithResponseHeaderTimeout(5*time.Second, 5*time.Second, grokTimeout))
+	return c
 }
 
 // NewClientWithStallTimeouts is NewClient with injected byte-idle and
@@ -288,7 +316,7 @@ func (c *Client) proxyTo(ctx context.Context, cancel context.CancelCauseFunc, ur
 
 	t := timing.TimingFrom(ctx)
 	t.StampUpstreamRequest()
-	resp, err := c.http.Do(upstream)
+	resp, err := c.httpFor(decision.Model).Do(upstream)
 	if err != nil {
 		return fmt.Errorf("upstream call: %w", err)
 	}
