@@ -435,6 +435,15 @@ type InstallationExcludedModelsContextKey struct{}
 // means no restriction.
 type InstallationAllowedModelsContextKey struct{}
 
+// InstallationSubscriptionModelsWhenActiveContextKey is the context key for the active-subscription conditional model allowlist.
+type InstallationSubscriptionModelsWhenActiveContextKey struct{}
+
+// InstallationSubscriptionModelsWhenInactiveContextKey is the context key for the exhausted-subscription conditional model allowlist.
+type InstallationSubscriptionModelsWhenInactiveContextKey struct{}
+
+// InstallationSubscriptionConditionalModelsContextKey is the context key for the request-selected conditional model allowlist.
+type InstallationSubscriptionConditionalModelsContextKey struct{}
+
 // InstallationExcludedProvidersContextKey is the context key for the authed
 // installation's provider exclusion list. Carried as []string.
 type InstallationExcludedProvidersContextKey struct{}
@@ -738,16 +747,62 @@ func installationAllowedModelsFromContext(ctx context.Context) []string {
 	return out
 }
 
-// allowedModelsForRequest returns the org's positive model allowlist as a set,
-// or nil when empty (no restriction).
-func allowedModelsForRequest(ctx context.Context) map[string]struct{} {
-	allowed := installationAllowedModelsFromContext(ctx)
-	if len(allowed) == 0 {
+func installationSubscriptionModelsWhenActiveFromContext(ctx context.Context) []string {
+	v := ctx.Value(InstallationSubscriptionModelsWhenActiveContextKey{})
+	if v == nil {
 		return nil
 	}
-	out := make(map[string]struct{}, len(allowed))
-	for _, m := range allowed {
-		out[m] = struct{}{}
+	out, _ := v.([]string)
+	return out
+}
+
+func installationSubscriptionModelsWhenInactiveFromContext(ctx context.Context) []string {
+	v := ctx.Value(InstallationSubscriptionModelsWhenInactiveContextKey{})
+	if v == nil {
+		return nil
+	}
+	out, _ := v.([]string)
+	return out
+}
+
+func subscriptionConditionalModelsForRequest(ctx context.Context) []string {
+	v := ctx.Value(InstallationSubscriptionConditionalModelsContextKey{})
+	if v == nil {
+		return nil
+	}
+	out, _ := v.([]string)
+	return out
+}
+
+// allowedModelsForRequest returns the effective positive model allowlist as a set,
+// intersecting the installation list with the selected subscription-state list.
+// Nil = no policy; non-nil empty = fails closed (intentional empty intersection).
+func allowedModelsForRequest(ctx context.Context) map[string]struct{} {
+	base := installationAllowedModelsFromContext(ctx)
+	conditional := subscriptionConditionalModelsForRequest(ctx)
+	if len(base) == 0 && len(conditional) == 0 {
+		return nil
+	}
+	if len(base) == 0 {
+		base = conditional
+		conditional = nil
+	}
+	if len(conditional) == 0 {
+		out := make(map[string]struct{}, len(base))
+		for _, m := range base {
+			out[m] = struct{}{}
+		}
+		return out
+	}
+	conditionalSet := make(map[string]struct{}, len(conditional))
+	for _, m := range conditional {
+		conditionalSet[m] = struct{}{}
+	}
+	out := make(map[string]struct{}, len(base))
+	for _, m := range base {
+		if _, ok := conditionalSet[m]; ok {
+			out[m] = struct{}{}
+		}
 	}
 	return out
 }
@@ -755,10 +810,11 @@ func allowedModelsForRequest(ctx context.Context) map[string]struct{} {
 // modelPermittedByAllowlist reports whether model clears the org's positive
 // allowlist. Must be used directly for models outside routableUniverse —
 // passthrough-only models (no Tier) never enter the desugared exclusion set.
-// Empty allowlist = no restriction.
+// A nil allowlist means no restriction; an empty effective intersection fails
+// closed.
 func modelPermittedByAllowlist(ctx context.Context, model string) bool {
 	allowed := allowedModelsForRequest(ctx)
-	if len(allowed) == 0 {
+	if allowed == nil {
 		return true
 	}
 	_, ok := allowed[model]
@@ -832,8 +888,8 @@ func (s *Service) safetyExcludedModels(env *translate.RequestEnvelope, outputRes
 
 // excludedModelsForRequest returns the request's model exclusion set.
 // Env override wins (intentional escape hatch, not an oversight).
-// Otherwise desugars the positive allowlist into the exclusion set:
-// every routable model absent from a non-empty allowlist is excluded.
+// Otherwise desugars the positive allowlists into the exclusion set: every
+// routable model absent from the effective allowlist is excluded.
 func (s *Service) excludedModelsForRequest(ctx context.Context) map[string]struct{} {
 	if s.excludedModelsOverride != nil {
 		return s.excludedModelsOverride
@@ -843,7 +899,7 @@ func (s *Service) excludedModelsForRequest(ctx context.Context) map[string]struc
 	for _, m := range excluded {
 		out[m] = struct{}{}
 	}
-	if allowed := allowedModelsForRequest(ctx); len(allowed) > 0 {
+	if allowed := allowedModelsForRequest(ctx); allowed != nil {
 		for model := range s.routableUniverse() {
 			if _, ok := allowed[model]; !ok {
 				out[model] = struct{}{}
@@ -2705,7 +2761,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	if err != nil {
 		return err
 	}
-	ctx = s.withUsageObserver(ctx, r.Header)
+	ctx = s.withUsageObserver(ctx, r.Header, routePathMessages)
 	log := observability.FromContext(ctx)
 	requestStart := time.Now()
 	requestID := requestIDFor(ctx)
@@ -3182,7 +3238,9 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	// Subscription-only turns are excluded (like the OpenAI path): the mode is an
 	// unfoldable routing signal absent from the cache key, so a stored body would
 	// bypass the exhausted-sub 402 guard and the depleted-credits warning below.
-	cacheEligible := s.semanticCacheAllowed(ctx) && s.semanticCache != nil && !env.Stream() && decision.Metadata != nil && externalID != "" && !bypassEval && !compactionHandoverRan && !billing.SubscriptionOnlyFromContext(ctx) && len(s.subsidyFactors(ctx, r.Header)) == 0
+	// Subscription-state conditional model lists are likewise absent from the
+	// cache key, so never cache a request after one has been selected.
+	cacheEligible := s.semanticCacheAllowed(ctx) && s.semanticCache != nil && !env.Stream() && decision.Metadata != nil && externalID != "" && !bypassEval && !compactionHandoverRan && !billing.SubscriptionOnlyFromContext(ctx) && len(s.subsidyFactors(ctx, r.Header)) == 0 && len(subscriptionConditionalModelsForRequest(ctx)) == 0
 	if cacheEligible {
 		if resp, hit := s.semanticCache.Lookup(externalID, cache.FormatAnthropic, decision.Metadata.Embedding, decision.Metadata.ClusterIDs, decision.Metadata.ClusterRouterVersion, decision.Metadata.EffectiveKnobsHash); hit {
 			s.writeCachedResponse(w, resp, decision)
@@ -5348,7 +5406,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	if err != nil {
 		return err
 	}
-	ctx = s.withUsageObserver(ctx, r.Header)
+	ctx = s.withUsageObserver(ctx, r.Header, routePathChatCompletions)
 	log := observability.FromContext(ctx)
 	requestStart := time.Now()
 	requestID := requestIDFor(ctx)
@@ -5644,9 +5702,9 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	pinAgeSec := routeRes.PinAgeSec
 	s.logPlannerOutcome(ctx, routeRes)
 
-	// See the ProxyMessages cache-eligibility note: subsidized requests bypass the
-	// semantic cache (the key doesn't capture headroom-dependent model choice).
-	cacheEligible := s.semanticCacheAllowed(ctx) && s.semanticCache != nil && !env.Stream() && decision.Metadata != nil && externalID != "" && !bypassEval && !responsesPassthrough && !billing.SubscriptionOnlyFromContext(ctx) && len(s.subsidyFactors(ctx, r.Header)) == 0
+	// See the ProxyMessages cache-eligibility note: subsidized and subscription-state-conditional
+	// requests bypass the semantic cache (key doesn't capture headroom-dependent model choice).
+	cacheEligible := s.semanticCacheAllowed(ctx) && s.semanticCache != nil && !env.Stream() && decision.Metadata != nil && externalID != "" && !bypassEval && !responsesPassthrough && !billing.SubscriptionOnlyFromContext(ctx) && len(s.subsidyFactors(ctx, r.Header)) == 0 && len(subscriptionConditionalModelsForRequest(ctx)) == 0
 	if cacheEligible {
 		if resp, hit := s.semanticCache.Lookup(externalID, cache.FormatOpenAI, decision.Metadata.Embedding, decision.Metadata.ClusterIDs, decision.Metadata.ClusterRouterVersion, decision.Metadata.EffectiveKnobsHash); hit {
 			s.writeCachedResponse(w, resp, decision)
@@ -6354,7 +6412,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 // re-emitted as Responses-shaped SSE / JSON. This keeps the turn loop, cache,
 // pricing, and translation matrix unchanged.
 func (s *Service) ProxyOpenAIResponses(ctx context.Context, body []byte, w http.ResponseWriter, r *http.Request) error {
-	ctx = s.withUsageObserver(ctx, r.Header)
+	ctx = s.withUsageObserver(ctx, r.Header, routePathResponses)
 	clientAppCodex := ClientIdentityFrom(ctx).ClientApp == ClientAppCodex
 	if translate.FeedbackFooterSinceLastHumanTurnInResponses(body) {
 		ctx = context.WithValue(ctx, responsesFooterEchoedContextKey{}, true)
