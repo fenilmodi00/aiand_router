@@ -1209,17 +1209,31 @@ const routerNudgeCommand = "echo '[router] previous turn produced no tool_use; u
 // enough for any marker plus leading whitespace.
 const leadingContentCap = 64
 
-// toolishMarkupMarkers are opening tokens of a tool call leaked into the
-// content channel as XML instead of a structured tool_use block; Claude
-// Code's strict parser rejects these and dead-ends the turn, which the nudge
-// rescues. Matched only at the turn's start (see leadsWithToolishMarkup) so a
+// toolishMarkupMarkers are tokens of a tool call leaked into the content
+// channel as XML instead of a structured tool_use block; Claude Code's strict
+// parser rejects these and dead-ends the turn, which the nudge rescues.
+// Matched only at the turn's start (see leadsWithToolishMarkup) so a
 // legitimate answer that discusses these tags mid-prose isn't misflagged.
+//
+// Closing and child tags are included because a leak does not reliably start
+// at the call's opening tag: GLM-5.3 streams the tool name as reasoning and
+// the arguments as content, so the visible turn opens mid-call on a closing
+// child tag.
+//
+// Matching stays anchored: quoted completed markup (`</tool_call>`,
+// `<arg_value>…</arg_value>`) is indistinguishable from a real leak by containment.
 //
 // Reasoning markup (<think>) is deliberately excluded: models like Mimo-v2.5
 // stream visible chain-of-thought as <think>…</think> then a real answer with
 // finish_reason="stop" — a valid turn, not a parse failure. Nudging on it
 // looped the session (echo -> re-pin -> another <think>+answer -> repeat).
-var toolishMarkupMarkers = []string{"<tool_call", "<function", "<invoke"}
+var toolishMarkupMarkers = []string{
+	"<tool_call", "</tool_call",
+	"<function", "</function",
+	"<invoke", "</invoke",
+	"<arg_key", "</arg_key",
+	"<arg_value", "</arg_value",
+}
 
 // leadsWithToolishMarkup reports whether content opens (ignoring leading
 // whitespace) with tool-call markup — anchored to the start so a substring
