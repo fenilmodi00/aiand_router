@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -63,11 +64,27 @@ func ResponsesToChatCompletions(body []byte) ([]byte, bool, string, error) {
 	return result.Body, result.Stream, result.Model, nil
 }
 
+// ErrResponsesChatCompletionsBody is returned when a Chat Completions body
+// (top-level "messages") is posted to /v1/responses; such a body routes on
+// zero content and reaches the upstream Responses endpoint verbatim as a 400.
+var ErrResponsesChatCompletionsBody = errors.New("unsupported parameter: 'messages'. In the Responses API, this parameter has moved to 'input'")
+
+// validateResponsesRequest rejects bodies the Responses surface cannot project.
+func validateResponsesRequest(body []byte) error {
+	if err := validateJSONObject(body); err != nil {
+		return err
+	}
+	if gjson.GetBytes(body, "messages").Exists() {
+		return ErrResponsesChatCompletionsBody
+	}
+	return nil
+}
+
 // ConvertResponsesToChatCompletions projects a Responses request into Chat
 // Completions for routing. Extensions that cannot be faithfully represented
 // are marked native-only so proxy can dispatch the original bytes losslessly.
 func ConvertResponsesToChatCompletions(body []byte) (ResponsesConversion, error) {
-	if err := validateJSONObject(body); err != nil {
+	if err := validateResponsesRequest(body); err != nil {
 		return ResponsesConversion{}, err
 	}
 
