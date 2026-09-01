@@ -3080,6 +3080,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		PromptText:                   promptText,
 		ConversationMessages:         conversationMessagesForRouting(env),
 		AvailableTools:               availableToolsForRouting(env),
+		Tools:                        toolsForRouting(env),
 		HistoryTruncated:             compRes.Applied,
 		OrganizationID:               externalID,
 		// Keep this tied to client-visible history so a later feedback command
@@ -4679,9 +4680,8 @@ func (s *Service) reportPolicyOutcome(ctx context.Context, res turnLoopResult, d
 	}
 	if trainingAllowed && response != nil {
 		payload["response_body_truncated"] = response.Truncated
-		if len(response.Body) > 0 {
-			payload["response_body"] = string(response.Body)
-			payload["response_body_format"] = "client_anthropic"
+		if !response.Truncated {
+			payload["response_text"] = translate.AnthropicClientResponseText(response.Body)
 		}
 	}
 	if proxyErr != nil {
@@ -5691,6 +5691,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		PromptText:                   promptText,
 		ConversationMessages:         conversationMessagesForRouting(env),
 		AvailableTools:               availableToolsForRouting(env),
+		Tools:                        toolsForRouting(env),
 		HistoryTruncated:             compResOAI.Applied,
 		// Keep this tied to client-visible history so a later feedback command
 		// can correlate with the route even if local compaction rewrites env.

@@ -103,6 +103,7 @@ func (s *Service) ProxyGeminiGenerateContent(ctx context.Context, body []byte, w
 		PromptText:                   promptText,
 		ConversationMessages:         conversationMessagesForRouting(env),
 		AvailableTools:               availableToolsForRouting(env),
+		Tools:                        toolsForRouting(env),
 		ClientSessionID:              clientSessionIDForRequest(ctx, env),
 		EnabledProviders:             s.enabledProvidersForRequest(ctx, providers.ProviderGoogle, r.Header),
 		CustomBindings:               s.customBindingsForRequest(ctx),

@@ -99,6 +99,7 @@ func (s *Service) anthropicRoutingRequest(
 		PromptText:                   promptText,
 		ConversationMessages:         conversationMessagesForRouting(env),
 		AvailableTools:               availableToolsForRouting(env),
+		Tools:                        toolsForRouting(env),
 		OrganizationID:               organizationID,
 		InstallationID:               installationID,
 		ClientSessionID:              clientSessionIDForRequest(ctx, env),

@@ -75,6 +75,7 @@ type Query struct {
 	PromptText           string
 	ConversationMessages []router.ConversationMessage
 	AvailableTools       []string
+	Tools                []router.ToolDescriptor
 	FeedbackKey          string
 	FeedbackRole         string
 	ClientSessionID      string
