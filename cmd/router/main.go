@@ -660,6 +660,10 @@ func main() {
 	// Shadow mode is log-only, so it ships enabled; the switch just sheds the
 	// per-turn signal-scan cost if it misbehaves.
 	spiralShadowEnabled := config.GetOr("ROUTER_SPIRAL_SHADOW_ENABLED", "true") == "true"
+	// Per-turn signal snapshot on telemetry rows. Ships enabled; only source
+	// of negative examples. Skipped regardless for opted-out installations.
+	// Kill switch: ROUTER_TURN_SIGNAL_CAPTURE_ENABLED.
+	turnSignalCaptureEnabled := config.GetOr("ROUTER_TURN_SIGNAL_CAPTURE_ENABLED", "true") == "true"
 	// Session-level struggle detector, also log-only and shipped enabled.
 	// Switch sheds the per-turn check if it misbehaves; exists for symmetry with the spiral detector.
 	struggleShadowEnabled := config.GetOr("ROUTER_STRUGGLE_SHADOW_ENABLED", "true") == "true"
@@ -992,6 +996,7 @@ func main() {
 		flags.KeyStruggleEscalationHoldout: strconv.Itoa(struggleEscalationHoldoutPct),
 		flags.KeyStruggleEvidenceArming:    boolDefault(struggleEvidenceArming),
 		flags.KeySpiralShadowEnabled:       boolDefault(spiralShadowEnabled),
+		flags.KeyTurnSignalCapture:         boolDefault(turnSignalCaptureEnabled),
 		flags.KeyLoopEscalationEnabled:     boolDefault(loopEscalationEnabled),
 		flags.KeyLoopEscalationHoldoutPct:  strconv.Itoa(loopEscalationHoldoutPct),
 		flags.KeyTextRepetitionBreak:       boolDefault(textRepetitionBreakEnabled),
@@ -1060,6 +1065,7 @@ func main() {
 		WithLoopEscalationConfig(loopEscalationEnabled, loopEscalationHoldoutPct).
 		WithLoopEscalationStore(repo.Telemetry).
 		WithSpiralShadowConfig(spiralShadowEnabled).
+		WithTurnSignalCapture(turnSignalCaptureEnabled).
 		WithSpiralShadowStore(repo.Telemetry).
 		WithStruggleShadowConfig(struggleShadowEnabled).
 		WithStruggleShadowStore(repo.Telemetry).
@@ -1084,6 +1090,7 @@ func main() {
 	logger.Info("Cross-vendor Claude Code orchestration tools configured", "enabled", ccOrchToolsCrossVendor)
 	logger.Info("Loop escalation configured", "enabled", loopEscalationEnabled, "holdout_pct", loopEscalationHoldoutPct)
 	logger.Info("Spiral shadow detector configured", "enabled", spiralShadowEnabled)
+	logger.Info("Turn signal capture configured", "enabled", turnSignalCaptureEnabled)
 	logger.Info("Text-repetition break configured", "enabled", textRepetitionBreakEnabled)
 	logger.Info("Planner configured", "enabled", plannerEnabled, "threshold_usd", plannerCfg.ThresholdUSD, "expected_remaining_turns", plannerCfg.ExpectedRemainingTurns, "tier_upgrade_enabled", plannerCfg.TierUpgradeEnabled, "cold_pin_follow_fresh", plannerCfg.ColdPinFollowFresh, "corrected_economics", plannerCfg.CorrectedEconomics, "prefix_trim_free_switch", prefixTrimFreeSwitch, "routing_targets_count", len(routingTargets))
 	logger.Info("Tool-result scoring configured", "enabled", scoreToolResultTurns)
