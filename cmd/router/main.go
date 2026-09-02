@@ -1067,6 +1067,7 @@ func main() {
 		WithBandSwap(bandSwapEnabled).
 		WithLoopEscalationConfig(loopEscalationEnabled, loopEscalationHoldoutPct).
 		WithLoopEscalationStore(repo.Telemetry).
+		WithGlobalAutomaticExclusions(repo.GlobalAutomaticExclusions).
 		WithSpiralShadowConfig(spiralShadowEnabled).
 		WithTurnSignalCapture(turnSignalCaptureEnabled).
 		WithSpiralShadowStore(repo.Telemetry).
