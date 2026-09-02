@@ -205,6 +205,9 @@ type Service struct {
 	// openAIResponsesBroad is the deployment default for
 	// ROUTER_OPENAI_RESPONSES_BROAD; see ResolveOpenAIResponsesBroad.
 	openAIResponsesBroad bool
+	// allowedModelsHeader is the deployment default for
+	// ROUTER_ALLOWED_MODELS_HEADER; see ResolveAllowedModelsHeader.
+	allowedModelsHeader bool
 	// sseKeepalive is the client-silence budget before a ping is injected
 	// (ROUTER_SSE_KEEPALIVE_INTERVAL_SECONDS; 0 disables). See sse.KeepaliveWriter.
 	sseKeepalive time.Duration
@@ -781,10 +784,31 @@ func subscriptionConditionalModelsConfigured(ctx context.Context) bool {
 	return ctx.Value(InstallationSubscriptionConditionalModelsContextKey{}) != nil
 }
 
-// allowedModelsForRequest returns the effective positive model allowlist as a set,
+// allowedModelsForRequest returns the effective positive model allowlist as a
+// set: the installation policy allowlist further narrowed by a request-level
+// AllowedModelsHeader subset when one is present. Nil = no policy.
+func allowedModelsForRequest(ctx context.Context) map[string]struct{} {
+	policy := installationAllowedModelSet(ctx)
+	subset := requestAllowedModelSet(ctx)
+	if subset == nil {
+		return policy
+	}
+	if policy == nil {
+		return subset
+	}
+	out := make(map[string]struct{}, len(subset))
+	for m := range subset {
+		if _, ok := policy[m]; ok {
+			out[m] = struct{}{}
+		}
+	}
+	return out
+}
+
+// installationAllowedModelSet returns the installation's positive model allowlist as a set,
 // intersecting the installation list with the selected subscription-state list.
 // Nil = no policy; non-nil empty = fails closed (intentional empty intersection).
-func allowedModelsForRequest(ctx context.Context) map[string]struct{} {
+func installationAllowedModelSet(ctx context.Context) map[string]struct{} {
 	base := installationAllowedModelsFromContext(ctx)
 	conditional := subscriptionConditionalModelsForRequest(ctx)
 	conditionalConfigured := subscriptionConditionalModelsConfigured(ctx)
@@ -824,7 +848,7 @@ func allowedModelsForRequest(ctx context.Context) map[string]struct{} {
 // A nil allowlist means no restriction; an empty effective intersection fails
 // closed.
 func modelPermittedByAllowlist(ctx context.Context, model string) bool {
-	allowed := allowedModelsForRequest(ctx)
+	allowed := installationAllowedModelSet(ctx)
 	if allowed == nil {
 		return true
 	}
@@ -902,6 +926,17 @@ func (s *Service) safetyExcludedModels(env *translate.RequestEnvelope, outputRes
 // Otherwise desugars the positive allowlists into the exclusion set: every
 // routable model absent from the effective allowlist is excluded.
 func (s *Service) excludedModelsForRequest(ctx context.Context) map[string]struct{} {
+	return s.excludedModelsFor(ctx, allowedModelsForRequest(ctx))
+}
+
+// policyExcludedModels is excludedModelsForRequest without the request-level
+// AllowedModelsHeader subset: installation policy only. A user force is
+// validated against this set because the strict pin outranks the header.
+func (s *Service) policyExcludedModels(ctx context.Context) map[string]struct{} {
+	return s.excludedModelsFor(ctx, installationAllowedModelSet(ctx))
+}
+
+func (s *Service) excludedModelsFor(ctx context.Context, allowed map[string]struct{}) map[string]struct{} {
 	if s.excludedModelsOverride != nil {
 		return s.excludedModelsOverride
 	}
@@ -910,7 +945,7 @@ func (s *Service) excludedModelsForRequest(ctx context.Context) map[string]struc
 	for _, m := range excluded {
 		out[m] = struct{}{}
 	}
-	if allowed := allowedModelsForRequest(ctx); allowed != nil {
+	if allowed != nil {
 		for model := range s.routableUniverse() {
 			if _, ok := allowed[model]; !ok {
 				out[model] = struct{}{}
@@ -1462,6 +1497,13 @@ func (s *Service) WithSiblingFailover(enabled bool) *Service {
 // routing (ROUTER_OPENAI_RESPONSES_BROAD).
 func (s *Service) WithOpenAIResponsesBroad(enabled bool) *Service {
 	s.openAIResponsesBroad = enabled
+	return s
+}
+
+// WithAllowedModelsHeader sets the deployment default for honoring the
+// x-weave-allowed-models header (ROUTER_ALLOWED_MODELS_HEADER).
+func (s *Service) WithAllowedModelsHeader(enabled bool) *Service {
+	s.allowedModelsHeader = enabled
 	return s
 }
 
@@ -3284,7 +3326,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	// bypass the exhausted-sub 402 guard and the depleted-credits warning below.
 	// Subscription-state conditional model lists are likewise absent from the
 	// cache key, so never cache a request after one has been selected.
-	cacheEligible := s.semanticCacheAllowed(ctx) && s.semanticCache != nil && !env.Stream() && decision.Metadata != nil && externalID != "" && !bypassEval && !compactionHandoverRan && !billing.SubscriptionOnlyFromContext(ctx) && len(s.subsidyFactors(ctx, r.Header)) == 0 && !subscriptionConditionalModelsConfigured(ctx)
+	cacheEligible := s.semanticCacheAllowed(ctx) && s.semanticCache != nil && !env.Stream() && decision.Metadata != nil && externalID != "" && !bypassEval && !compactionHandoverRan && !billing.SubscriptionOnlyFromContext(ctx) && len(s.subsidyFactors(ctx, r.Header)) == 0 && !subscriptionConditionalModelsConfigured(ctx) && !requestAllowedModelsPresent(ctx)
 	if cacheEligible {
 		if resp, hit := s.semanticCache.Lookup(externalID, cache.FormatAnthropic, decision.Metadata.Embedding, decision.Metadata.ClusterIDs, decision.Metadata.ClusterRouterVersion, decision.Metadata.EffectiveKnobsHash); hit {
 			s.writeCachedResponse(w, resp, decision)
@@ -3737,7 +3779,8 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	baselineModel := s.baselineFor(feats.Model)
 	baselineCatalog, baselineKnown := catalog.ByID(baselineModel)
 	_, anthropicExcluded := s.excludedProvidersForRequest(ctx)[providers.ProviderAnthropic]
-	baselineAllowed := modelPermittedByAllowlist(ctx, baselineModel)
+	baselineAllowed := modelPermittedByAllowlist(ctx, baselineModel) &&
+		modelInRequestSubset(ctx, baselineModel)
 	// baselineViable omits authoritative-per-turn: that contract governs which
 	// model the policy picks, not whether a provably-unservable request can be rescued.
 	baselineViable := !agentShadowMode &&
@@ -4194,7 +4237,8 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 			RequestedModel:         feats.Model,
 			DecisionModel:          decision.Model,
 			DecisionProvider:       decision.Provider,
-			DecisionReason:         decision.Reason,
+			DecisionReason:         telemetryDecisionReason(ctx, decision.Reason),
+			RequestedAllowedModels: requestedAllowedModelsForTelemetry(ctx),
 			EstimatedInputTokens:   int32(feats.Tokens),
 			StickyHit:              stickyHit,
 			PinTier:                routeRes.PinTier,
@@ -5764,7 +5808,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 
 	// See the ProxyMessages cache-eligibility note: subsidized and subscription-state-conditional
 	// requests bypass the semantic cache (key doesn't capture headroom-dependent model choice).
-	cacheEligible := s.semanticCacheAllowed(ctx) && s.semanticCache != nil && !env.Stream() && decision.Metadata != nil && externalID != "" && !bypassEval && !responsesPassthrough && !billing.SubscriptionOnlyFromContext(ctx) && len(s.subsidyFactors(ctx, r.Header)) == 0 && !subscriptionConditionalModelsConfigured(ctx)
+	cacheEligible := s.semanticCacheAllowed(ctx) && s.semanticCache != nil && !env.Stream() && decision.Metadata != nil && externalID != "" && !bypassEval && !responsesPassthrough && !billing.SubscriptionOnlyFromContext(ctx) && len(s.subsidyFactors(ctx, r.Header)) == 0 && !subscriptionConditionalModelsConfigured(ctx) && !requestAllowedModelsPresent(ctx)
 	if cacheEligible {
 		if resp, hit := s.semanticCache.Lookup(externalID, cache.FormatOpenAI, decision.Metadata.Embedding, decision.Metadata.ClusterIDs, decision.Metadata.ClusterRouterVersion, decision.Metadata.EffectiveKnobsHash); hit {
 			s.writeCachedResponse(w, resp, decision)
@@ -6378,7 +6422,8 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 			RequestedModel:         feats.Model,
 			DecisionModel:          decision.Model,
 			DecisionProvider:       decision.Provider,
-			DecisionReason:         decision.Reason,
+			DecisionReason:         telemetryDecisionReason(ctx, decision.Reason),
+			RequestedAllowedModels: requestedAllowedModelsForTelemetry(ctx),
 			EstimatedInputTokens:   int32(feats.Tokens),
 			StickyHit:              stickyHit,
 			PinTier:                routeRes.PinTier,
