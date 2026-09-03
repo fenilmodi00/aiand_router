@@ -56,6 +56,7 @@ import (
 	"workweave/router/internal/router/sessionpin"
 	"workweave/router/internal/router/sessionstrategy"
 	"workweave/router/internal/server"
+	"workweave/router/internal/subscriptions"
 	"workweave/router/internal/websearch"
 	"workweave/router/internal/wif"
 
@@ -485,6 +486,28 @@ func main() {
 		WithWIFTokenSource(buildWIFTokenSource(logger)).
 		WithEntraTokenSource(buildEntraTokenSource(logger)).
 		WithFlagOverridesDisabled(flagOverridesDisabled)
+	subscriptionPoolsEnabled := config.GetOr("ROUTER_SUBSCRIPTION_POOLS_ENABLED", "false") == "true"
+	var subscriptionRuntime *subscriptions.Runtime
+	if subscriptionPoolsEnabled {
+		authSvc.WithSubscriptionAccounts(repo.SubscriptionAccounts)
+		codexTokenURL := ""
+		if codexIssuer := strings.TrimRight(config.GetOr("WEAVE_CODEX_OAUTH_ISSUER", ""), "/"); codexIssuer != "" {
+			codexTokenURL = codexIssuer + "/oauth/token"
+		}
+		subscriptionRuntime = subscriptions.NewRuntime(
+			authSvc,
+			subscriptions.NewOAuthClient(
+				&http.Client{Timeout: 15 * time.Second},
+				codexTokenURL,
+				config.GetOr("WEAVE_ANTHROPIC_OAUTH_TOKEN", ""),
+				time.Now,
+			),
+			time.Now,
+		)
+		logger.Info("Server-side subscription account pools enabled")
+	} else {
+		logger.Info("Server-side subscription account pools disabled")
+	}
 
 	// Fans out Pub/Sub invalidations to this replica's cache; the 5-min TTL
 	// is the safety net if the listener falls behind.
@@ -1120,6 +1143,9 @@ func main() {
 		WithAvailableModels(proxyRoutableModels(routingTargets, availableProviders, hmmRouter != nil)).
 		WithDefaultBaselineModel(resolveDefaultBaselineModel()).
 		WithBillingService(billingSvc)
+	if subscriptionRuntime != nil {
+		proxySvc.WithManagedSubscriptions(subscriptionRuntime)
+	}
 	for _, spec := range configuredPolicySpecs {
 		proxySvc = proxySvc.WithPolicyStrategy(spec)
 		logger.Info("Generic policy sidecar wired", "strategy", spec.Strategy, "candidate_models", len(routingTargets))
