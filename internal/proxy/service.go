@@ -360,6 +360,10 @@ type Service struct {
 	// factor near epsilon until the window nears its cap.
 	subsidyEpsilon float64
 	subsidyGamma   float64
+	// planAwareSubscriptionRouting removes models whose only linked
+	// subscription plan is exhausted. It is request-scoped and never mutates
+	// the deployment roster.
+	planAwareSubscriptionRouting bool
 	// managedSubscriptions leases encrypted, owner-scoped Claude/Codex
 	// subscription credentials. Nil leaves the legacy credential path unchanged.
 	managedSubscriptions subscriptions.Leaser
@@ -967,6 +971,9 @@ func (s *Service) excludedModelsFor(ctx context.Context, allowed map[string]stru
 	out := make(map[string]struct{}, len(excluded))
 	for _, m := range excluded {
 		out[m] = struct{}{}
+	}
+	for model := range subscriptionPlanAwareExcludedModelsFromContext(ctx) {
+		out[model] = struct{}{}
 	}
 	if allowed != nil {
 		for model := range s.routableUniverse() {
@@ -2130,6 +2137,13 @@ func (s *Service) WithBillingService(b *billing.Service) *Service {
 // WithManagedSubscriptions enables server-side owner/provider account pools.
 func (s *Service) WithManagedSubscriptions(pool subscriptions.Leaser) *Service {
 	s.managedSubscriptions = pool
+	return s
+}
+
+// WithPlanAwareSubscriptionRouting enables per-user model eligibility based on
+// the aggregate state of linked Claude and Codex subscription plans.
+func (s *Service) WithPlanAwareSubscriptionRouting(enabled bool) *Service {
+	s.planAwareSubscriptionRouting = enabled
 	return s
 }
 
@@ -3409,8 +3423,9 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	// unfoldable routing signal absent from the cache key, so a stored body would
 	// bypass the exhausted-sub 402 guard and the depleted-credits warning below.
 	// Subscription-state conditional model lists are likewise absent from the
-	// cache key, so never cache a request after one has been selected.
-	cacheEligible := s.semanticCacheAllowed(ctx) && s.semanticCache != nil && !env.Stream() && decision.Metadata != nil && externalID != "" && !bypassEval && !compactionHandoverRan && !billing.SubscriptionOnlyFromContext(ctx) && len(s.subsidyFactors(ctx, r.Header)) == 0 && !subscriptionConditionalModelsConfigured(ctx) && !requestAllowedModelsPresent(ctx)
+	// cache key, so never cache a request after one has been selected. Plan-aware
+	// exclusions are also absent from the key and must bypass the cache.
+	cacheEligible := s.semanticCacheAllowed(ctx) && s.semanticCache != nil && !env.Stream() && decision.Metadata != nil && externalID != "" && !bypassEval && !compactionHandoverRan && !billing.SubscriptionOnlyFromContext(ctx) && len(s.subsidyFactors(ctx, r.Header)) == 0 && !subscriptionConditionalModelsConfigured(ctx) && len(subscriptionPlanAwareExcludedModelsFromContext(ctx)) == 0 && !requestAllowedModelsPresent(ctx)
 	if cacheEligible {
 		if resp, hit := s.semanticCache.Lookup(externalID, cache.FormatAnthropic, decision.Metadata.Embedding, decision.Metadata.ClusterIDs, decision.Metadata.ClusterRouterVersion, decision.Metadata.EffectiveKnobsHash); hit {
 			s.writeCachedResponse(w, resp, decision)
@@ -5990,9 +6005,10 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	pinAgeSec := routeRes.PinAgeSec
 	s.logPlannerOutcome(ctx, routeRes)
 
-	// See the ProxyMessages cache-eligibility note: subsidized and subscription-state-conditional
-	// requests bypass the semantic cache (key doesn't capture headroom-dependent model choice).
-	cacheEligible := s.semanticCacheAllowed(ctx) && s.semanticCache != nil && !env.Stream() && decision.Metadata != nil && externalID != "" && !bypassEval && !responsesPassthrough && !billing.SubscriptionOnlyFromContext(ctx) && len(s.subsidyFactors(ctx, r.Header)) == 0 && !subscriptionConditionalModelsConfigured(ctx) && !requestAllowedModelsPresent(ctx)
+	// See the ProxyMessages cache-eligibility note: subsidized, subscription-state-
+	// conditional, and plan-aware requests bypass the semantic cache because the
+	// key does not capture headroom-dependent model eligibility.
+	cacheEligible := s.semanticCacheAllowed(ctx) && s.semanticCache != nil && !env.Stream() && decision.Metadata != nil && externalID != "" && !bypassEval && !responsesPassthrough && !billing.SubscriptionOnlyFromContext(ctx) && len(s.subsidyFactors(ctx, r.Header)) == 0 && !subscriptionConditionalModelsConfigured(ctx) && len(subscriptionPlanAwareExcludedModelsFromContext(ctx)) == 0 && !requestAllowedModelsPresent(ctx)
 	if cacheEligible {
 		if resp, hit := s.semanticCache.Lookup(externalID, cache.FormatOpenAI, decision.Metadata.Embedding, decision.Metadata.ClusterIDs, decision.Metadata.ClusterRouterVersion, decision.Metadata.EffectiveKnobsHash); hit {
 			s.writeCachedResponse(w, resp, decision)
