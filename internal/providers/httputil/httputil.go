@@ -263,11 +263,15 @@ func newTransport(dialTimeout, tlsTimeout, responseHeaderTimeout time.Duration, 
 // host the deployment never configured, so the call is failed rather than relayed.
 var ErrRefusedRedirect = errors.New("upstream returned a redirect, which is not followed")
 
-// NewClient returns an http.Client on transport that refuses redirects.
-// Failing the call keeps a 3xx off every relay path — returning it would let
-// each adapter treat the redirect status as success.
+// NewClient returns an http.Client that records OpenTelemetry client spans,
+// propagates W3C trace context, and refuses redirects. Failing the call keeps
+// a 3xx off every relay path — returning it would let each adapter treat the
+// redirect status as success.
 func NewClient(transport http.RoundTripper) *http.Client {
-	return &http.Client{Transport: transport, CheckRedirect: refuseRedirect}
+	if transport == nil {
+		transport = http.DefaultTransport
+	}
+	return &http.Client{Transport: observability.NewTracingTransport(transport), CheckRedirect: refuseRedirect}
 }
 
 func refuseRedirect(*http.Request, []*http.Request) error {

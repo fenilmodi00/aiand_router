@@ -70,6 +70,9 @@ import (
 
 func main() {
 	logger := observability.Get()
+	// Initialize propagation and APM before constructing HTTP clients so their
+	// OpenTelemetry transports capture the configured providers and propagator.
+	apm.Init()
 	if err := router.ValidateCatalogReasoningCapabilities(); err != nil {
 		logger.Error("Refusing to boot with invalid model reasoning capabilities", "err", err)
 		panic(err)
@@ -1246,17 +1249,13 @@ func main() {
 	logger.Info("Subscription plan-aware routing configured",
 		"enabled", config.GetOr("ROUTER_SUBSCRIPTION_PLAN_AWARE_ROUTING", "false") == "true")
 
-	// No-op when WV_APM_OTLP_ENDPOINT is unset. Flushed explicitly in the
-	// shutdown path below since a defer would run after SIGKILL.
-	apm.Init()
-
 	engine := gin.New()
 	engine.UnescapePathValues = true
 	engine.UseRawPath = true
 	engine.Use(
+		apm.Middleware(),
 		observability.Middleware(),
 		observability.AccessLog(),
-		apm.Middleware(),
 		gin.Recovery(),
 	)
 

@@ -10,6 +10,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"weave-os/router/internal/observability"
 )
 
 const (
@@ -54,6 +56,7 @@ func NewOAuthClient(httpClient *http.Client, codexTokenURL, claudeTokenURL strin
 	if httpClient == nil {
 		httpClient = http.DefaultClient
 	}
+	httpClient = observability.WrapHTTPClient(httpClient)
 	if codexTokenURL == "" {
 		codexTokenURL = DefaultCodexTokenURL
 	}

@@ -14,6 +14,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"weave-os/router/internal/observability"
 	"weave-os/router/internal/router"
 	"weave-os/router/internal/router/policy"
 )
@@ -104,6 +105,7 @@ func New(baseURL string, client *http.Client, timeout time.Duration, opts ...Opt
 			},
 		}
 	}
+	client = observability.WrapHTTPClient(client)
 	sidecar := &Client{
 		baseURL:        strings.TrimRight(baseURL, "/"),
 		client:         client,

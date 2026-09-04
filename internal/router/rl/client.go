@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"weave-os/router/internal/observability"
 )
 
 // DefaultTimeout bounds a single policy decision. The sidecar embeds the
@@ -45,6 +47,7 @@ func NewHTTPDeciderWithHeaders(baseURL string, client *http.Client, timeout time
 			},
 		}
 	}
+	client = observability.WrapHTTPClient(client)
 	copied := map[string]string{}
 	for k, v := range headers {
 		if strings.TrimSpace(k) == "" || v == "" {
