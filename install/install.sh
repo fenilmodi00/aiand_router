@@ -102,6 +102,9 @@ set -euo pipefail
 # The public hosted Weave Router URL. Override with --base-url for self-hosted.
 HOSTED_BASE_URL="https://router.workweave.ai"
 DEFAULT_BASE_URL="${WEAVE_ROUTER_URL:-$HOSTED_BASE_URL}"
+# npm package name is supplied by the Node wrapper; direct shell installs keep
+# the legacy name for compatibility.
+npm_package_name="${WEAVE_ROUTER_NPM_PACKAGE:-@workweave/router}"
 
 
 scope="user"
@@ -194,7 +197,7 @@ uninstall_cmd() {
   # --package + `--` is load-bearing: npm <= 6's bundled npx treats an
   # undeclared `-y` as consuming the NEXT token, so `npx -y @workweave/router`
   # loses the package name and resolves whatever follows as the command.
-  local cmd="npx --package @workweave/router -y -- weave-router --uninstall"
+  local cmd="npx --package $npm_package_name -y -- weave-router --uninstall"
   case "$target" in
     codex)    cmd="$cmd --codex" ;;
     opencode) cmd="$cmd --opencode" ;;
@@ -774,7 +777,7 @@ write_opencode_config() {
     chmod 644 "$plugin_spec"
     plugin_arg="$plugin_spec"
   else
-    warn "opencode subscription plugin source not found at $plugin_src — skipping the Claude login + subscription routing. (Use a packaged 'npx @workweave/router' install.)"
+    warn "opencode subscription plugin source not found at $plugin_src — skipping the Claude login + subscription routing. (Use a packaged 'npx $npm_package_name' install.)"
   fi
 
   # Merge into any existing opencode.json. We always overwrite provider.weave
@@ -921,24 +924,27 @@ write_pi_models_config() {
 }
 
 # write_pi_settings_config makes the `weave` provider pi's default and loads the
-# @workweave/router extension. defaultProvider is always set to "weave" — the
-# installer's job is to route via Weave; uninstall reverts it. defaultModel is set
-# only when unset (don't clobber a user's model pick). The npm package source is
-# appended to `packages` idempotently — pi auto-installs missing packages on
-# startup — and the legacy `npm:@workweave/pi-router` id (from before the
-# extension was folded into @workweave/router) is dropped so a config from the
-# old layout can't keep a dangling/duplicate entry. No secret lives here, so no
-# chmod 600.
+# npm package named by $npm_package_name. defaultProvider is always set to
+# "weave" — the installer's job is to route via Weave; uninstall reverts it.
+# defaultModel is set only when unset (don't clobber a user's model pick). The
+# npm package source is appended to `packages` idempotently — pi auto-installs
+# missing packages on startup — and every known prior Weave package id
+# (`@workweave/pi-router`, `@workweave/router`, `@weave-os/router`) except the
+# one being installed is dropped so a re-install or alias switch cannot leave
+# two Weave extensions loaded. No secret lives here, so no chmod 600.
 #
 # Usage: write_pi_settings_config <settings_file>
 write_pi_settings_config() {
   local settings_file="$1"
-  local pkg="npm:@workweave/router"
+  local pkg="npm:$npm_package_name"
   local merged
   if [ -f "$settings_file" ]; then
     merged="$(jq --arg pkg "$pkg" '
       (.packages //= [])
-      | (.packages -= ["npm:@workweave/pi-router"])
+      | (.packages -= (
+          ["npm:@workweave/pi-router", "npm:@workweave/router", "npm:@weave-os/router"]
+          - [$pkg]
+        ))
       | (if (.packages | index($pkg)) then . else .packages += [$pkg] end)
       | .defaultProvider = "weave"
       | (if (.defaultModel // "") == "" then .defaultModel = "claude-sonnet-4-6" else . end)
@@ -1004,7 +1010,7 @@ install_lsp_servers() {
       warn "--lsp $id: needs '$toolchain' on PATH (install command: $cmd). Skipping — re-run after installing the $toolchain toolchain."
       continue
     fi
-    # shellcheck disable=SC2086 — $cmd is a fixed argv from the case above, never user input.
+    # shellcheck disable=SC2086 # $cmd is a fixed argv from the case above, never user input.
     if spin "Installing $id language server" $cmd; then
       ok "$id language server installed ($cmd)"
       if [ -n "$fallback_dir" ] && ! command -v "$bin" >/dev/null 2>&1; then
@@ -1298,7 +1304,7 @@ fi
 # toggle: it rewrites that same structural config in place, exactly as install
 # does, so it belongs with install here.
 if [ "$mode" != "install" ] && [ "$mode" != "update" ] && [ "$target" = "pi" ]; then
-  err "Toggle verbs (off/on/status) aren't supported for --pi. Use 'npx @workweave/router --uninstall --pi' to remove, or re-run the installer to refresh."
+  err "Toggle verbs (off/on/status) aren't supported for --pi. Use 'npx $npm_package_name --uninstall --pi' to remove, or re-run the installer to refresh."
   exit 2
 fi
 
@@ -2401,7 +2407,7 @@ models_fail() {
       if [ -n "$detail" ]; then
         err "$detail"
       else
-        err "The router rejected this installation's key. Re-run 'npx @workweave/router --$target --rotate-key' to install a current one."
+        err "The router rejected this installation's key. Re-run 'npx $npm_package_name --$target --rotate-key' to install a current one."
       fi
       ;;
     404)
@@ -2513,8 +2519,8 @@ models_list() {
   fi
   models_render_list "$models_http_body"
   models_print_preferred
-  printf "\n%sEnable a model:%s  npx @workweave/router models enable <id> --%s\n" "$C_DIM" "$C_RESET" "$target"
-  printf "%sDisable a model:%s npx @workweave/router models disable <id> --%s\n" "$C_DIM" "$C_RESET" "$target"
+  printf "\n%sEnable a model:%s  npx $npm_package_name models enable <id> --%s\n" "$C_DIM" "$C_RESET" "$target"
+  printf "%sDisable a model:%s npx $npm_package_name models disable <id> --%s\n" "$C_DIM" "$C_RESET" "$target"
 }
 
 models_providers_list() {
@@ -2603,12 +2609,12 @@ models_usage() {
   local c="--${target}"
   err "$1"
   printf '%s\n' \
-    "  npx @workweave/router models $c                          # list models" \
-    "  npx @workweave/router models enable  <id> [<id>…] $c" \
-    "  npx @workweave/router models disable <id> [<id>…] $c" \
-    "  npx @workweave/router models providers $c                # list providers" \
-    "  npx @workweave/router models providers disable <name> $c" \
-    "  npx @workweave/router models prefer <id> [<id>…] $c      # ranking ('clear' to drop)" >&2
+    "  npx $npm_package_name models $c                          # list models" \
+    "  npx $npm_package_name models enable  <id> [<id>…] $c" \
+    "  npx $npm_package_name models disable <id> [<id>…] $c" \
+    "  npx $npm_package_name models providers $c                # list providers" \
+    "  npx $npm_package_name models providers disable <name> $c" \
+    "  npx $npm_package_name models prefer <id> [<id>…] $c      # ranking ('clear' to drop)" >&2
   exit 2
 }
 
@@ -2870,7 +2876,7 @@ if [ "$mode" = "models" ] || [ "$mode" = "accounts" ] || [ "$mode" = "login" ] |
       models_base="$(resolve_installed_endpoint)"
     fi
     if [ -z "$models_base" ]; then
-      err "No Weave Router install found for $target in this scope. Run 'npx @workweave/router --$target' first, or pass --base-url."
+      err "No Weave Router install found for $target in this scope. Run 'npx $npm_package_name --$target' first, or pass --base-url."
       exit 1
     fi
     base_url="$models_base"
@@ -2915,7 +2921,7 @@ if [ "$mode" = "models" ] || [ "$mode" = "accounts" ] || [ "$mode" = "login" ] |
     fi
   fi
   if [ -z "$api_key" ]; then
-    err "No router key found for $target in this scope. Re-run 'npx @workweave/router --$target', or export WEAVE_ROUTER_KEY."
+    err "No router key found for $target in this scope. Re-run 'npx $npm_package_name --$target', or export WEAVE_ROUTER_KEY."
     exit 1
   fi
   # Never send a key to an endpoint the checkout supplied. See
@@ -2929,7 +2935,7 @@ if [ "$mode" = "models" ] || [ "$mode" = "accounts" ] || [ "$mode" = "login" ] |
       "$C_DIM" "${models_base_source##*/}" "$C_RESET" >&2
     printf "  %swhile the key comes from %s. Pass --base-url <url> to confirm the endpoint,%s\n" \
       "$C_DIM" "${models_key_source##*/}" "$C_RESET" >&2
-    printf "  %sor re-run 'npx @workweave/router --claude' to install against the one you want.%s\n" \
+    printf "  %sor re-run 'npx $npm_package_name --claude' to install against the one you want.%s\n" \
       "$C_DIM" "$C_RESET" >&2
     exit 1
   fi
@@ -3928,7 +3934,7 @@ if [ "$target" = "pi" ]; then
   write_pi_models_config "$pi_models_file" "$base_url" "$api_key" "$user_email" "$user_name"
   ok "pi models config written to $pi_models_file"
   write_pi_settings_config "$pi_settings_file"
-  ok "pi settings written to $pi_settings_file (provider weave + @workweave/router)"
+  ok "pi settings written to $pi_settings_file (provider weave + $npm_package_name)"
 
   if [ -n "$api_key" ]; then
     printf '%s\n' "$api_key" >"$pi_key_file"
@@ -4216,9 +4222,9 @@ weave_sync_commands() {
   # be recovered those three are skipped rather than rewritten to point at the
   # user-scope install.
   local scope_args="" scope_known="false" off="$cmd_dir/router-off.md"
-  if [ -f "$off" ] && grep -q '^`npx @workweave/router off --claude.*`$' "$off" 2>/dev/null; then
+  if [ -f "$off" ] && grep -Eq '^`npx @(workweave/router|weave-os/router) off --claude.*`$' "$off" 2>/dev/null; then
     scope_known="true"
-    scope_args="$(sed -n 's|^`npx @workweave/router off --claude\(.*\)`$|\1|p' "$off" | head -n 1)"
+    scope_args="$(sed -En 's#^`npx @(workweave/router|weave-os/router) off --claude(.*)`$#\2#p' "$off" | head -n 1)"
   fi
 
   local url_base="${WEAVE_COMMANDS_URL_BASE:-https://raw.githubusercontent.com/weave-os/router/main/install/commands}"
