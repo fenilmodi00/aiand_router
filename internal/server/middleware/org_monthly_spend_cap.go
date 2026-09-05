@@ -36,12 +36,11 @@ func WithOrgMonthlySpendCap(svc *billing.Service) gin.HandlerFunc {
 			return
 		}
 
-		// The cap bounds PAID spend, not free subscription usage: a usage-bypass
-		// org presenting a Claude/Codex credential that covers this route serves at
+		// The cap bounds PAID spend, not free subscription usage: a request
+		// presenting a Claude/Codex credential that covers this route serves at
 		// $0 on the caller's own plan, so exempt it from the cap-reached 402 below
 		// (mirrors WithBalanceCheck).
-		subscriptionExempt := installation.UsageBypassEnabled &&
-			proxy.RequestPresentsCoveringSubscription(c.Request.Context(), c.Request.Header, c.FullPath())
+		subscriptionExempt := proxy.RequestPresentsCoveringSubscription(c.Request.Context(), c.Request.Header, c.FullPath())
 
 		result, err := svc.CheckOrgMonthlySpend(c.Request.Context(), orgID)
 		if err != nil {

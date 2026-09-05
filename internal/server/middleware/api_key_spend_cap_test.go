@@ -141,10 +141,13 @@ func TestAPIKeySpendCap_CapReachedNoSubscriptionStillRejected(t *testing.T) {
 	assert.Equal(t, http.StatusPaymentRequired, w.Code)
 }
 
-func TestAPIKeySpendCap_CapReachedSubscriptionWithoutBypassRejected(t *testing.T) {
+func TestAPIKeySpendCap_CapReachedSubscriptionWithoutBypassServesSubscriptionOnly(t *testing.T) {
+	// Exemption depends only on whether the request presents a covering subscription,
+	// not on UsageBypassEnabled (matching WithBalanceCheck).
 	repo := &stubBillingRepo{spendFound: true, capMicros: capPtr(1_000_000), spendMicros: 1_000_000}
 	setInstall := func(c *gin.Context) { withInstallation(c, "org_prepaid") }
-	w, reached, _ := runSpendCapSub(t, "/v1/messages", "k9", setInstall, "Bearer sk-ant-oat-abc123", repo)
-	assert.False(t, reached, "exemption must not apply without the usage-bypass gate")
-	assert.Equal(t, http.StatusPaymentRequired, w.Code)
+	w, reached, subOnly := runSpendCapSub(t, "/v1/messages", "k9", setInstall, "Bearer sk-ant-oat-abc123", repo)
+	assert.True(t, reached, "a covered turn must pass even when the org lacks the usage-bypass toggle")
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.True(t, subOnly, "the request must be flagged subscription-only")
 }
