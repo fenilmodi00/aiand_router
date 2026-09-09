@@ -185,8 +185,11 @@ type turnLoopResult struct {
 	// ProxyMessages must serve the requested model straight through with no
 	// billing debit, bypassing Decision's normal dispatch.
 	UsageBypass bool
-	PinTier     string
-	PinAgeSec   int64
+	// BlindExperimentPassthrough records direct dispatch under the internal
+	// experiment without changing usage-bypass billing semantics.
+	BlindExperimentPassthrough bool
+	PinTier                    string
+	PinAgeSec                  int64
 	// ForcedPinDropped records that a /force-model pin existed but could not be
 	// served (provider not enabled, excluded, or not image-capable); surfaced so
 	// the turn does not silently contradict the "force-model applied" ack.
@@ -804,6 +807,20 @@ func (s *Service) runTurnLoop(
 		res.Origin = origin
 		res.PinTier = string(res.TurnType) + "_hard_pin"
 		return res, nil
+	}
+
+	// Current force-model state wins over the experiment. Otherwise resolve the
+	// passthrough arm before reading automatic session pins or invoking a scorer.
+	if !forceModelFound {
+		decision, passthrough, err := s.blindExperimentPassthroughDecision(ctx, req)
+		if err != nil {
+			return res, err
+		}
+		if passthrough {
+			res.Decision = decision
+			res.BlindExperimentPassthrough = true
+			return res, nil
+		}
 	}
 
 	// Claude Code executes WebSearch in an isolated one-message request with a
