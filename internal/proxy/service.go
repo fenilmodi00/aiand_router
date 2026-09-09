@@ -6756,6 +6756,10 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	primaryProvider := decision.Provider
 	primaryModel := decision.Model
 	primaryDecision := decision
+	surfacePurpose := inference.PurposeOpenAIChatCompletions
+	if isResponsesWriter {
+		surfacePurpose = inference.PurposeOpenAIResponses
+	}
 	var winnerIdx int
 	winnerIdx, proxyErr = s.dispatchWithFallback(ctx, failoverInputs{
 		// contentSink is the raw w when capture is off.
@@ -6775,6 +6779,8 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 			flushBufferedIfPresent(w, err)
 		},
 		deferFlushOnExhaustion: cyberRetryViable,
+		purpose:                surfacePurpose,
+		origin:                 routedOrigin(decision, routeRes.HardPinned, stickyHit),
 	})
 	cyberRefusalSeen = cyberRefusalSeen || providers.IsUpstreamCyberPolicyRefusal(proxyErr)
 
@@ -6851,6 +6857,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 				bindings:        retryBindings,
 				attempt:         retryAttempt,
 				flushErr:        flushBufferedIfPresent,
+				purpose:         surfacePurpose,
 			})
 			decision = cyberRetryTarget
 			bindings = retryBindings
