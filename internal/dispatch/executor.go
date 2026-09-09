@@ -38,9 +38,14 @@ type Transport struct {
 	Prepare func(ctx context.Context, attempt Attempt) (context.Context, error)
 	// Terminal, when set, reports that a failed attempt must end the
 	// operation even though the error class would otherwise permit a
-	// same-target retry or failover (a caller-bound credential served it,
-	// or a credential lease could not be obtained, for example).
+	// same-target retry or failover (a credential lease could not be
+	// obtained, for example).
 	Terminal func(attempt Attempt, err error) bool
+	// Bound, when set, reports that the operation must stay on the attempted
+	// target: a transient error may still be retried against it, but never
+	// failed over to another target (a caller-bound credential served it, for
+	// example).
+	Bound func(attempt Attempt, err error) bool
 	// OperationID distinguishes this operation from others in the same
 	// request; empty means the purpose is used.
 	OperationID string
@@ -60,9 +65,9 @@ func (f AttemptSinkFunc) RecordAttempt(ctx context.Context, event inference.Atte
 }
 
 const (
-	// maxSameBindingRetries bounds same-binding retries after a transient
+	// MaxSameBindingRetries bounds same-binding retries after a transient
 	// error; the only failover a single-target plan gets.
-	maxSameBindingRetries  = 2
+	MaxSameBindingRetries  = 2
 	sameBindingBackoffBase = 250 * time.Millisecond
 	// sameBindingRetryBudget caps wall-clock across retries of one target so a
 	// hung upstream does not burn a full header timeout per attempt.
@@ -269,7 +274,7 @@ func (e *Executor) Run(ctx context.Context, req inference.InvocationRequest, pla
 			if transport.Terminal != nil && transport.Terminal(attempt, attemptErr) {
 				break
 			}
-			if !providers.IsRetryable(attemptErr) || sb >= maxSameBindingRetries || len(targets) > 1 {
+			if !providers.IsRetryable(attemptErr) || sb >= MaxSameBindingRetries || len(targets) > 1 {
 				break
 			}
 			if maxAttempts > 0 && result.Outcome.AttemptCount >= maxAttempts {
@@ -288,6 +293,9 @@ func (e *Executor) Run(ctx context.Context, req inference.InvocationRequest, pla
 			providers.IsUpstreamModelNotFound(attemptErr) ||
 			providers.IsUpstreamProviderBillingBlocked(attemptErr)
 		if transport.Terminal != nil && transport.Terminal(attempt, attemptErr) {
+			canFailover = false
+		}
+		if transport.Bound != nil && transport.Bound(attempt, attemptErr) {
 			canFailover = false
 		}
 		if !canFailover || i == len(targets)-1 {

@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"weave-os/router/internal/auth"
+	"weave-os/router/internal/inference"
 	"weave-os/router/internal/providers"
 	"weave-os/router/internal/router"
 	"weave-os/router/internal/router/catalog"
@@ -128,6 +129,7 @@ func TestDispatchWithFallback_PrimarySucceedsNoRetry(t *testing.T) {
 		w:               rec,
 		buf:             buf,
 		initialDecision: router.Decision{Model: "deepseek/deepseek-v4-pro"},
+		purpose:         inference.PurposeAnthropicMessages,
 		bindings: []catalog.ProviderBinding{
 			{Provider: "fireworks"},
 			{Provider: "openrouter"},
@@ -144,6 +146,26 @@ func TestDispatchWithFallback_PrimarySucceedsNoRetry(t *testing.T) {
 	assert.Equal(t, 1, primary.calls, "primary called exactly once")
 	assert.Equal(t, 0, fallback.calls, "fallback must not be called when primary succeeds")
 	assert.Equal(t, "ok", rec.Body.String())
+}
+
+func TestDispatchWithFallback_RejectsMissingPurposeBeforeAnyAttempt(t *testing.T) {
+	primary := &fakeClient{name: "fireworks", outcomes: []fakeOutcome{{writeBytes: []byte("ok")}}}
+	s := newServiceWithProviders(t, map[string]providers.Client{"fireworks": primary})
+
+	rec := httptest.NewRecorder()
+	winnerIdx, err := s.dispatchWithFallback(context.Background(), failoverInputs{
+		w:               rec,
+		initialDecision: router.Decision{Model: "deepseek/deepseek-v4-pro"},
+		bindings:        []catalog.ProviderBinding{{Provider: "fireworks"}},
+		attempt: func(ctx context.Context, d router.Decision, p providers.Client) error {
+			return p.Proxy(ctx, d, providers.PreparedRequest{}, rec, httptest.NewRequest(http.MethodPost, "/v1/messages", nil))
+		},
+	})
+
+	require.ErrorIs(t, err, errDispatchWithoutPurpose)
+	assert.Equal(t, -1, winnerIdx)
+	assert.Equal(t, 0, primary.calls, "an unauthorized walk must never reach a provider")
+	assert.Empty(t, rec.Body.String())
 }
 
 func TestDispatchWithFallback_RetriesOnRetryableBufferedError(t *testing.T) {
@@ -169,6 +191,7 @@ func TestDispatchWithFallback_RetriesOnRetryableBufferedError(t *testing.T) {
 		w:               rec,
 		buf:             buf,
 		initialDecision: router.Decision{Model: "deepseek/deepseek-v4-pro"},
+		purpose:         inference.PurposeAnthropicMessages,
 		bindings: []catalog.ProviderBinding{
 			{Provider: "fireworks"},
 			{Provider: "openrouter"},
@@ -219,6 +242,7 @@ func TestDispatchWithFallback_SchemaRejectionDoesNotFailoverCrossBinding(t *test
 		w:               rec,
 		buf:             buf,
 		initialDecision: router.Decision{Model: "moonshotai/kimi-k3"},
+		purpose:         inference.PurposeAnthropicMessages,
 		bindings: []catalog.ProviderBinding{
 			{Provider: "fireworks"},
 			{Provider: "openrouter"},
@@ -257,6 +281,7 @@ func TestDispatchWithFallback_RetriesOnTransportError(t *testing.T) {
 		w:               rec,
 		buf:             buf,
 		initialDecision: router.Decision{Model: "deepseek/deepseek-v4-pro"},
+		purpose:         inference.PurposeAnthropicMessages,
 		bindings: []catalog.ProviderBinding{
 			{Provider: "fireworks"},
 			{Provider: "openrouter"},
@@ -297,6 +322,7 @@ func TestDispatchWithFallback_RetriesOnResponseHeaderTimeout(t *testing.T) {
 		w:               rec,
 		buf:             buf,
 		initialDecision: router.Decision{Model: "deepseek/deepseek-v4-flash"},
+		purpose:         inference.PurposeAnthropicMessages,
 		bindings: []catalog.ProviderBinding{
 			{Provider: providers.ProviderMakora},
 			{Provider: providers.ProviderOpenRouter},
@@ -341,6 +367,7 @@ func TestDispatchWithFallback_RetriesOnUpstreamIdleTimeout(t *testing.T) {
 		w:               rec,
 		buf:             buf,
 		initialDecision: router.Decision{Model: "gpt-5.5"},
+		purpose:         inference.PurposeAnthropicMessages,
 		bindings: []catalog.ProviderBinding{
 			{Provider: providers.ProviderOpenAI},
 			{Provider: providers.ProviderOpenRouter},
@@ -379,6 +406,7 @@ func TestDispatchWithFallback_NoRetryOnNonRetryableStatus(t *testing.T) {
 		w:               rec,
 		buf:             buf,
 		initialDecision: router.Decision{Model: "deepseek/deepseek-v4-pro"},
+		purpose:         inference.PurposeAnthropicMessages,
 		bindings: []catalog.ProviderBinding{
 			{Provider: "fireworks"},
 			{Provider: "openrouter"},
@@ -424,6 +452,7 @@ func TestDispatchWithFallback_ModelNotFoundFailsOverToNextBinding(t *testing.T) 
 		w:               rec,
 		buf:             buf,
 		initialDecision: router.Decision{Model: "qwen/qwen3-next-80b-a3b-instruct"},
+		purpose:         inference.PurposeAnthropicMessages,
 		bindings: []catalog.ProviderBinding{
 			{Provider: "bedrock"},
 			{Provider: "openrouter"},
@@ -459,6 +488,7 @@ func TestDispatchWithFallback_ModelNotFoundSingleBindingFlushes(t *testing.T) {
 		w:               rec,
 		buf:             buf,
 		initialDecision: router.Decision{Model: "qwen/qwen3-next-80b-a3b-instruct"},
+		purpose:         inference.PurposeAnthropicMessages,
 		bindings:        []catalog.ProviderBinding{{Provider: "bedrock"}},
 		attempt: func(ctx context.Context, d router.Decision, p providers.Client) error {
 			buf.Seal()
@@ -500,6 +530,7 @@ func TestDispatchWithFallback_BillingBlockedFailsOverToNextBinding(t *testing.T)
 		w:               rec,
 		buf:             buf,
 		initialDecision: router.Decision{Model: "deepseek/deepseek-v4-pro"},
+		purpose:         inference.PurposeAnthropicMessages,
 		bindings: []catalog.ProviderBinding{
 			{Provider: "makora"},
 			{Provider: "together"},
@@ -536,6 +567,7 @@ func TestDispatchWithFallback_BillingBlockedSingleBindingFlushes(t *testing.T) {
 		w:               rec,
 		buf:             buf,
 		initialDecision: router.Decision{Model: "deepseek/deepseek-v4-pro"},
+		purpose:         inference.PurposeAnthropicMessages,
 		bindings:        []catalog.ProviderBinding{{Provider: "makora"}},
 		attempt: func(ctx context.Context, d router.Decision, p providers.Client) error {
 			buf.Seal()
@@ -575,6 +607,7 @@ func TestDispatchWithFallback_NoRetryAfterBytesFlushed(t *testing.T) {
 		w:               rec,
 		buf:             buf,
 		initialDecision: router.Decision{Model: "deepseek/deepseek-v4-pro"},
+		purpose:         inference.PurposeAnthropicMessages,
 		bindings: []catalog.ProviderBinding{
 			{Provider: "fireworks"},
 			{Provider: "openrouter"},
@@ -614,6 +647,7 @@ func TestDispatchWithFallback_BothFailFinalBodyFlushed(t *testing.T) {
 		w:               rec,
 		buf:             buf,
 		initialDecision: router.Decision{Model: "deepseek/deepseek-v4-pro"},
+		purpose:         inference.PurposeAnthropicMessages,
 		bindings: []catalog.ProviderBinding{
 			{Provider: "fireworks"},
 			{Provider: "openrouter"},
@@ -640,7 +674,7 @@ func noopSleep(context.Context, time.Duration) error { return nil }
 
 func TestDispatchWithFallback_SingleBindingExhaustsRetries(t *testing.T) {
 	// Single-binding models have nowhere to fail over, so a persistent
-	// retryable error retries in place up to maxSameBindingRetries before flushing.
+	// retryable error retries in place up to dispatch.MaxSameBindingRetries before flushing.
 	only := &fakeClient{
 		name: "anthropic",
 		outcomes: []fakeOutcome{
@@ -661,6 +695,7 @@ func TestDispatchWithFallback_SingleBindingExhaustsRetries(t *testing.T) {
 		w:               rec,
 		buf:             buf,
 		initialDecision: router.Decision{Model: "claude-opus-4-7"},
+		purpose:         inference.PurposeAnthropicMessages,
 		bindings:        []catalog.ProviderBinding{{Provider: "anthropic"}},
 		attempt: func(ctx context.Context, d router.Decision, p providers.Client) error {
 			buf.Seal()
@@ -671,7 +706,7 @@ func TestDispatchWithFallback_SingleBindingExhaustsRetries(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Equal(t, 0, winnerIdx)
-	assert.Equal(t, 1+maxSameBindingRetries, only.calls, "initial attempt + maxSameBindingRetries")
+	assert.Equal(t, 1+dispatch.MaxSameBindingRetries, only.calls, "initial attempt + dispatch.MaxSameBindingRetries")
 	assert.Equal(t, http.StatusServiceUnavailable, rec.Code, "final upstream envelope still flushes on exhaustion")
 }
 
@@ -720,6 +755,7 @@ func TestDispatchWithFallback_SlowAttemptsStopBeforeRetryCount(t *testing.T) {
 		w:               rec,
 		buf:             buf,
 		initialDecision: router.Decision{Model: "claude-opus-4-7"},
+		purpose:         inference.PurposeAnthropicMessages,
 		bindings:        []catalog.ProviderBinding{{Provider: "anthropic"}},
 		attempt: func(ctx context.Context, d router.Decision, p providers.Client) error {
 			buf.Seal()
@@ -730,7 +766,7 @@ func TestDispatchWithFallback_SlowAttemptsStopBeforeRetryCount(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Equal(t, 1, hung.calls, "budget stops the retry after one over-budget attempt")
-	assert.Less(t, hung.calls, 1+maxSameBindingRetries, "count bound alone would have allowed more")
+	assert.Less(t, hung.calls, 1+dispatch.MaxSameBindingRetries, "count bound alone would have allowed more")
 }
 
 func TestDispatchWithFallback_SingleBindingRetrySucceeds(t *testing.T) {
@@ -755,6 +791,7 @@ func TestDispatchWithFallback_SingleBindingRetrySucceeds(t *testing.T) {
 		w:               rec,
 		buf:             buf,
 		initialDecision: router.Decision{Model: "claude-opus-4-7"},
+		purpose:         inference.PurposeAnthropicMessages,
 		bindings:        []catalog.ProviderBinding{{Provider: "anthropic"}},
 		attempt: func(ctx context.Context, d router.Decision, p providers.Client) error {
 			buf.Seal()
@@ -788,6 +825,7 @@ func TestDispatchWithFallback_SingleBindingNonRetryableNoRetry(t *testing.T) {
 		w:               rec,
 		buf:             buf,
 		initialDecision: router.Decision{Model: "claude-opus-4-7"},
+		purpose:         inference.PurposeAnthropicMessages,
 		bindings:        []catalog.ProviderBinding{{Provider: "anthropic"}},
 		attempt: func(ctx context.Context, d router.Decision, p providers.Client) error {
 			buf.Seal()
@@ -823,6 +861,7 @@ func TestDispatchWithFallback_SingleBindingBackoffAbortsOnCancel(t *testing.T) {
 		w:               rec,
 		buf:             buf,
 		initialDecision: router.Decision{Model: "claude-opus-4-7"},
+		purpose:         inference.PurposeAnthropicMessages,
 		bindings:        []catalog.ProviderBinding{{Provider: "anthropic"}},
 		attempt: func(ctx context.Context, d router.Decision, p providers.Client) error {
 			buf.Seal()
@@ -833,19 +872,6 @@ func TestDispatchWithFallback_SingleBindingBackoffAbortsOnCancel(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Equal(t, 1, only.calls, "backoff abort stops before the second attempt")
-}
-
-func TestSameBindingBackoff(t *testing.T) {
-	assert.Equal(t, 250*time.Millisecond, sameBindingBackoff(0))
-	assert.Equal(t, 500*time.Millisecond, sameBindingBackoff(1))
-}
-
-func TestSleepWithContext(t *testing.T) {
-	assert.NoError(t, sleepWithContext(context.Background(), time.Millisecond))
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	assert.ErrorIs(t, sleepWithContext(ctx, time.Hour), context.Canceled)
 }
 
 func TestShouldFailover(t *testing.T) {
