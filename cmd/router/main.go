@@ -798,10 +798,11 @@ func main() {
 		{Purpose: policy.PurposeProbe, Target: policy.TargetOverride{Source: policy.OverrideSourceDeployment, CatalogID: hardPinModel, Provider: hardPinProvider}},
 		{Purpose: policy.PurposeSubAgentDispatch, Target: policy.TargetOverride{Source: policy.OverrideSourceDeployment, CatalogID: subAgentPolicyModel, Provider: subAgentPolicyProvider}},
 	}
-	if err := policy.DefaultRegistry().ValidateDeployment(policy.DeploymentPolicyConfig{
+	inferenceDeployment := policy.DeploymentPolicyConfig{
 		AvailableProviders: availableProviders,
 		TargetOverrides:    deploymentTargets,
-	}); err != nil {
+	}
+	if err := policy.DefaultRegistry().ValidateDeployment(inferenceDeployment); err != nil {
 		logger.Error("Invalid inference policy deployment; refusing to boot", "err", err)
 		panic(err)
 	}
@@ -1160,6 +1161,7 @@ func main() {
 	// closed via nil policy registration rather than silently falling to stable.
 	var sessionStrategyStore sessionstrategy.Store = postgres.NewSessionStrategyRepo(pool)
 
+	servedModels := proxyRoutableModels(routingTargets, availableProviders, hmmRouter != nil)
 	proxySvc := proxy.NewService(routeEntry, providerMap, telemetryEmitter, embedOnlyUser, semanticCache, pinStore, hardPinExplore, hardPinProvider, hardPinModel, repo.Telemetry).
 		WithSessionStrategyStore(sessionStrategyStore).
 		WithTranslationCompatibilityMode(proxy.TranslationCompatibilityMode(translationCompatibilityMode)).
@@ -1227,10 +1229,11 @@ func main() {
 		WithCompaction(compactionSz, compactionPct).
 		WithCompactionModel(compactionModel).
 		WithCompactionHardPin(config.GetOr("ROUTER_HARD_PIN_MODEL", "") == "").
-		WithAvailableModels(proxyRoutableModels(routingTargets, availableProviders, hmmRouter != nil)).
+		WithAvailableModels(servedModels).
 		WithDefaultBaselineModel(resolveDefaultBaselineModel()).
 		WithBillingService(billingSvc)
-	proxySvc = proxySvc.WithInferenceExecutor(inferenceExecutor).WithInferencePlans(inferencePlans)
+	inferenceDeployment.RoutableModels = servedModels
+	proxySvc = proxySvc.WithInferenceExecutor(inferenceExecutor).WithInferencePlans(inferencePlans).WithInferenceDeployment(inferenceDeployment)
 	if subscriptionRuntime != nil {
 		proxySvc.WithManagedSubscriptions(subscriptionRuntime)
 	}
