@@ -811,10 +811,16 @@ func main() {
 	logger.Info("Catalog routing targets resolved", "catalog_routing_targets", len(routingTargets))
 
 	// Auxiliary purposes (handover/compaction summaries) resolve through the
-	// same catalog candidates as routing, pinned by the validated deployment
-	// override; no provider is denied because the override already names one.
+	// routing candidates plus the fixed-catalog policy members (which may be
+	// untiered, e.g. the large-window compaction summarizer), pinned by the
+	// validated deployment override; no provider is denied because the
+	// override already names one.
+	auxiliaryTargets := policy.DefaultRegistry().FixedCatalogTargetSet(availableProviders)
+	for id := range routingTargets {
+		auxiliaryTargets[id] = struct{}{}
+	}
 	auxiliaryPlans, err := policy.NewPlanResolver(policy.DefaultRegistry(), policy.NewResolver(
-		routingTargets, availableProviders, func(model catalog.Model) string { return model.ID }, policy.ProviderPolicy{}))
+		auxiliaryTargets, availableProviders, func(model catalog.Model) string { return model.ID }, policy.ProviderPolicy{}))
 	if err != nil {
 		panic(fmt.Sprintf("inference plan resolver: %v", err))
 	}
@@ -825,11 +831,13 @@ func main() {
 	// registered, so the Service's nil-check disables Tier-3 correctly (a
 	// typed-nil concrete pointer would defeat it).
 	var compactionSz proxy.CompactionSummarizer
-	if client, ok := providerMap[handoverProviderName]; ok {
+	var compactionHandoverSz handover.Summarizer
+	if _, ok := providerMap[handoverProviderName]; ok {
 		ps := proxy.NewProviderSummarizer(auxiliaryPlans, inferenceExecutor, handoverProviderName, handoverModel, handoverTimeout).
-			WithCompactionClient(client).
+			WithCompactionModel(compactionModel).
 			WithCompactionTimeout(compactionTimeout)
 		summarizer = ps
+		compactionHandoverSz = ps.CompactionHandover()
 		compactionSz = ps
 		logger.Info("Handover summarizer wired", "provider", handoverProviderName, "model", handoverModel, "timeout_ms", handoverTimeout.Milliseconds(), "compaction_timeout_ms", compactionTimeout.Milliseconds())
 	} else {
@@ -1214,6 +1222,7 @@ func main() {
 		WithRouterFeedbackStore(repo.Telemetry).
 		WithPlanner(plannerCfg).
 		WithSummarizer(summarizer).
+		WithCompactionHandoverSummarizer(compactionHandoverSz).
 		WithWebSearchExecutor(cortexWebSearch(logger)).
 		WithCompaction(compactionSz, compactionPct).
 		WithCompactionModel(compactionModel).
