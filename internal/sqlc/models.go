@@ -419,6 +419,8 @@ type RouterModelRouterRequestTelemetry struct {
 	ClientGitHeadSha                *string
 	ClientGitBranch                 *string
 	ClientGitDirty                  *bool
+	PolicyPinRequested              *bool
+	PolicyPinHonoured               *bool
 }
 
 type RouterModelRouterSubscriptionAccount struct {
