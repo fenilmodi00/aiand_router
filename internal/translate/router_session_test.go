@@ -38,6 +38,21 @@ func TestExtractRouterSessionCommand_SkillBlobAfterAssistantIsNotADirective(t *t
 	assert.False(t, env.ExtractRouterSessionCommand())
 }
 
+// The short-circuit ends the turn, so a directive carrying anything else must
+// not fire -- the rest of the message would never reach a model.
+func TestExtractRouterSessionCommand_DoesNotSwallowTrailingPrompt(t *testing.T) {
+	for _, text := range []string{
+		"$router-session\nand what has this session cost?",
+		"$router-session\n\nalso summarize the diff",
+	} {
+		t.Run(text, func(t *testing.T) {
+			env := codexEnvelope(t, codexUserItem(text))
+			assert.False(t, env.ExtractRouterSessionCommand(),
+				"%q would lose the user's question", text)
+		})
+	}
+}
+
 func TestExtractRouterSessionCommand_IgnoresNonLeadingAndArgumentForms(t *testing.T) {
 	for name, text := range map[string]string{
 		"not on the leading line": "here is a transcript\n$router-session",
@@ -50,4 +65,24 @@ func TestExtractRouterSessionCommand_IgnoresNonLeadingAndArgumentForms(t *testin
 			assert.False(t, env.ExtractRouterSessionCommand(), "should not match %q", text)
 		})
 	}
+}
+
+// Same guard as router-models: a pasted <error>...</error> under the directive
+// is the user's text, and short-circuiting would lose it entirely.
+func TestExtractRouterSessionCommand_TaggedTrailingTextIsNotSynthetic(t *testing.T) {
+	for _, text := range []string{
+		"$router-session\n<error>stack trace here</error>",
+		"$router-session\n<log>what happened?</log>",
+	} {
+		t.Run(text, func(t *testing.T) {
+			env := codexEnvelope(t, codexUserItem(text))
+			assert.False(t, env.ExtractRouterSessionCommand(),
+				"%q would lose the user's text", text)
+		})
+	}
+}
+
+func TestExtractRouterSessionCommand_ClientWrappersStillCount(t *testing.T) {
+	env := codexEnvelope(t, codexUserItem("/router-session\n<system-reminder>be concise</system-reminder>"))
+	assert.True(t, env.ExtractRouterSessionCommand())
 }
