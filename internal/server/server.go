@@ -77,28 +77,27 @@ const (
 //
 // readinessChecker gates /readyz only; /health remains process liveness.
 //
-// hmmRosterSource, when non-nil, mounts GET /v1/router/hmm-roster for the
-// control plane's cluster allowlist UI.
+// hmmRosterSources, when non-nil, mounts GET /v1/router/hmm-roster for the
+// control plane's live stable/beta policy UI.
 //
 // analyticsSvc, when non-nil, mounts the /v1/analytics/* export surface;
 // nil leaves it unmounted (tests, deployments without telemetry storage).
+//
+// Register keeps the default route surface backwards-compatible. Optional
+// request features are enabled through RegisterWithFeatures.
+func Register(engine *gin.Engine, authSvc *auth.Service, proxySvc *proxy.Service, deployedModels admin.DeployedModelsSource, hmmModels admin.HMMRosterSource, mode DeploymentMode, billingSvc *billing.Service, readinessChecker admin.HealthChecker, hmmRosterSources map[router.Strategy]policy.RosterSource, analyticsSvc *analytics.Service, hmmDistributionRosters ...*rosterdata.Roster) {
+	RegisterWithFeatures(engine, authSvc, proxySvc, deployedModels, hmmModels, mode, billingSvc, readinessChecker, hmmRosterSources, analyticsSvc, Features{}, hmmDistributionRosters...)
+}
+
 // Features toggles optional request surfaces that are off by default.
 type Features struct {
-	// PolicyPinEnabled registers the x-weave-policy-pin middleware
-	// (ROUTER_POLICY_PIN_ENABLED). Off means the header is never read.
+	// PolicyPinEnabled registers the x-weave-policy-pin middleware. Off means
+	// the header is never read.
 	PolicyPinEnabled bool
 }
 
-func Register(engine *gin.Engine, authSvc *auth.Service, proxySvc *proxy.Service, deployedModels admin.DeployedModelsSource, hmmModels admin.HMMRosterSource, mode DeploymentMode, billingSvc *billing.Service, readinessChecker admin.HealthChecker, hmmRosterSource policy.RosterSource, analyticsSvc *analytics.Service, hmmDistributionRosters ...*rosterdata.Roster) {
-	RegisterWithFeatures(engine, authSvc, proxySvc, deployedModels, hmmModels, mode, billingSvc, readinessChecker, hmmRosterSource, analyticsSvc, Features{}, hmmDistributionRosters...)
-}
-
-// RegisterWithFeatures is Register with optional surfaces enabled.
-func RegisterWithFeatures(engine *gin.Engine, authSvc *auth.Service, proxySvc *proxy.Service, deployedModels admin.DeployedModelsSource, hmmModels admin.HMMRosterSource, mode DeploymentMode, billingSvc *billing.Service, readinessChecker admin.HealthChecker, hmmRosterSource policy.RosterSource, analyticsSvc *analytics.Service, features Features, hmmDistributionRosters ...*rosterdata.Roster) {
-	var policyPinMiddleware []gin.HandlerFunc
-	if features.PolicyPinEnabled {
-		policyPinMiddleware = []gin.HandlerFunc{middleware.WithPolicyPinOverride()}
-	}
+// RegisterWithFeatures is Register with optional request features enabled.
+func RegisterWithFeatures(engine *gin.Engine, authSvc *auth.Service, proxySvc *proxy.Service, deployedModels admin.DeployedModelsSource, hmmModels admin.HMMRosterSource, mode DeploymentMode, billingSvc *billing.Service, readinessChecker admin.HealthChecker, hmmRosterSources map[router.Strategy]policy.RosterSource, analyticsSvc *analytics.Service, features Features, hmmDistributionRosters ...*rosterdata.Roster) {
 	// Browser clients need an explicit expose list before fetch can read the
 	// router's routing and cost metadata from a cross-origin response.
 	engine.Use(func(c *gin.Context) {
@@ -120,6 +119,10 @@ func RegisterWithFeatures(engine *gin.Engine, authSvc *auth.Service, proxySvc *p
 	})
 	// Managed mode: BYOK is opt-in per installation (see WithAuth).
 	byokRequiresOptIn := mode == DeploymentModeManaged
+	var policyPinMiddleware []gin.HandlerFunc
+	if features.PolicyPinEnabled {
+		policyPinMiddleware = []gin.HandlerFunc{middleware.WithPolicyPinOverride()}
+	}
 
 	engine.GET("/health", middleware.WithTimeout(healthTimeout), admin.HealthHandler)
 	engine.GET("/readyz", middleware.WithTimeout(readinessTimeout), admin.ReadinessHandler(readinessChecker))
@@ -159,8 +162,8 @@ func RegisterWithFeatures(engine *gin.Engine, authSvc *auth.Service, proxySvc *p
 
 	// /v1/router/hmm-roster: frozen per-cluster arm roster mapped to catalog IDs.
 	// Unauthed — read-only and non-sensitive, same rationale as /v1/router/models.
-	if hmmRosterSource != nil {
-		engine.GET("/v1/router/hmm-roster", middleware.WithTimeout(readinessTimeout), admin.HMMRosterHandler(hmmRosterSource))
+	if len(hmmRosterSources) > 0 {
+		engine.GET("/v1/router/hmm-roster", middleware.WithTimeout(readinessTimeout), admin.HMMRosterHandler(hmmRosterSources))
 	}
 
 	// /internal/v1/*: control-plane-to-router calls, authed by a shared secret
@@ -287,14 +290,16 @@ func RegisterWithFeatures(engine *gin.Engine, authSvc *auth.Service, proxySvc *p
 		middleware.WithRoutingKnobsOverride(),
 		middleware.WithForceEffortOverride(),
 	)
+	chatCompletionWithoutPolicyPin := append([]gin.HandlerFunc(nil), chatCompletionMiddleware...)
 	chatCompletionMiddleware = append(chatCompletionMiddleware, policyPinMiddleware...)
 	chatCompletionGroup := engine.Group("", chatCompletionMiddleware...)
 	chatCompletionGroup.POST("/v1/chat/completions", openaiapi.ChatCompletionHandler(proxySvc, authSvc))
 	// Responses surface required by Codex CLI after wire_api="chat" was retired;
 	// translated internally to chat completions so the turn loop is reused.
-	chatCompletionGroup.POST("/v1/responses", openaiapi.ResponsesHandler(proxySvc, authSvc))
+	chatCompletionWithoutPolicyPinGroup := engine.Group("", chatCompletionWithoutPolicyPin...)
+	chatCompletionWithoutPolicyPinGroup.POST("/v1/responses", openaiapi.ResponsesHandler(proxySvc, authSvc))
 	// Action suffix (:generateContent or :streamGenerateContent) lives inside modelAction because Gin treats `:` outside the leading position as a literal.
-	chatCompletionGroup.POST("/v1beta/models/:modelAction", geminiapi.GenerateContentHandler(proxySvc, authSvc))
+	chatCompletionWithoutPolicyPinGroup.POST("/v1beta/models/:modelAction", geminiapi.GenerateContentHandler(proxySvc, authSvc))
 
 	// Passthrough endpoints cost no upstream tokens, so they stay open even
 	// with billing enabled — count_tokens is the SDK's pre-flight call before

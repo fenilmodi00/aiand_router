@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"slices"
+	"strings"
 	"sync"
 
 	"github.com/google/uuid"
@@ -22,9 +23,14 @@ type ReasonRenderer func(Result) string
 // SidecarRouterConfig is the small strategy-specific registration required to
 // plug a versioned policy sidecar into the shared routing harness.
 type SidecarRouterConfig struct {
-	Strategy    router.Strategy
-	Unavailable error
-	Reason      ReasonRenderer
+	Strategy                 router.Strategy
+	Unavailable              error
+	Reason                   ReasonRenderer
+	ClassifierArtifactID     string
+	ClassifierArtifactSHA256 string
+	SelectionPolicyReleaseID string
+	SelectionPolicySHA256    string
+	SelectionHeadGeneration  int64
 }
 
 // SidecarRouter is a shared adapter for out-of-process policy routers.
@@ -75,6 +81,22 @@ func (r *SidecarRouter) WithArmSelector(selector ArmSelector) *SidecarRouter {
 	return r
 }
 
+// WithClassifierIdentity binds every classification response to one immutable release.
+func (r *SidecarRouter) WithClassifierIdentity(artifactID, artifactSHA256 string) *SidecarRouter {
+	r.config.ClassifierArtifactID = artifactID
+	r.config.ClassifierArtifactSHA256 = artifactSHA256
+	return r
+}
+
+// WithSelectionPolicyIdentity binds telemetry to the same immutable release
+// snapshot that supplied this router's Go arm selector.
+func (r *SidecarRouter) WithSelectionPolicyIdentity(releaseID, policySHA256 string, headGeneration int64) *SidecarRouter {
+	r.config.SelectionPolicyReleaseID = releaseID
+	r.config.SelectionPolicySHA256 = policySHA256
+	r.config.SelectionHeadGeneration = headGeneration
+	return r
+}
+
 // CurrentCapabilities returns the currently applied capability set.
 func (r *SidecarRouter) CurrentCapabilities() Capabilities {
 	r.capabilitiesMu.RLock()
@@ -100,6 +122,15 @@ func (r *SidecarRouter) ReportFeedback(ctx context.Context, payload map[string]i
 		return nil
 	}
 	return r.feedbackReporter.ReportFeedback(ctx, payload)
+}
+
+// ObserveEscalation forwards classifier-state observations to the bound revision.
+func (r *SidecarRouter) ObserveEscalation(ctx context.Context, request escalation.ObserveRequest) (escalation.ObserveResponse, error) {
+	observer, ok := r.decider.(escalation.Observer)
+	if !ok {
+		return escalation.ObserveResponse{}, errors.New("policy sidecar does not support escalation observations")
+	}
+	return observer.ObserveEscalation(ctx, request)
 }
 
 // PreviewRoute resolves candidates and returns all arms chosen by the sidecar's
@@ -159,11 +190,43 @@ func (r *SidecarRouter) PreviewRoute(ctx context.Context, req router.Request) (P
 	if pinned && result.PolicyArtifactSHA256 != pin.ArtifactSHA256 {
 		return PreviewResult{}, fmt.Errorf("%s: sidecar served artifact %q, pin requires %q: %w", strategy, result.PolicyArtifactSHA256, pin.ArtifactSHA256, router.ErrPolicyPinUnavailable)
 	}
+	if pinned && result.SchemaVersion != SchemaVersionV4 && result.RosterSHA256 != pin.RosterSHA256 {
+		return PreviewResult{}, fmt.Errorf("%s: sidecar served roster %q, pin requires %q: %w", strategy, result.RosterSHA256, pin.RosterSHA256, router.ErrPolicyPinUnavailable)
+	}
 	if result.RouteID != "" && result.RouteID != requestRouteID {
 		return PreviewResult{}, fmt.Errorf("%s: preview route id mismatch: %w", strategy, r.config.Unavailable)
 	}
 	if err := validatePreviewResult(result, r.resolver.SchemaVersion()); err != nil {
 		return PreviewResult{}, fmt.Errorf("%s: invalid preview result: %v: %w", strategy, err, r.config.Unavailable)
+	}
+	if err := r.validateClassifierIdentity(result.PolicyArtifactID, result.PolicyArtifactSHA256); err != nil {
+		return PreviewResult{}, fmt.Errorf("%s: invalid preview classifier identity: %v: %w", strategy, err, r.config.Unavailable)
+	}
+	if result.SchemaVersion == SchemaVersionV4 {
+		if r.armSelector == nil {
+			return PreviewResult{}, fmt.Errorf("%s: Go arm selector is unavailable: %w", strategy, r.config.Unavailable)
+		}
+		classification := Result{
+			SchemaVersion: result.SchemaVersion, RouteID: result.RouteID, PredictedLabel: result.PredictedLabel,
+			ClassOrder: result.ClassOrder, ClassProbabilities: result.ClassProbabilities,
+		}
+		selectionInput := selectionInputFor(strategy, ExecutionModePreview, req, classification, resolved)
+		selectionInput.RosterSHA256 = pin.RosterSHA256
+		pick, selectErr := r.armSelector(ctx, selectionInput)
+		if selectErr != nil {
+			return PreviewResult{}, fmt.Errorf("%s: preview arm selection: %w: %w", strategy, selectErr, r.config.Unavailable)
+		}
+		if pinned && pick.RosterSHA256 != pin.RosterSHA256 {
+			return PreviewResult{}, fmt.Errorf("%s: selection used roster %q, pin requires %q: %w", strategy, pick.RosterSHA256, pin.RosterSHA256, router.ErrPolicyPinUnavailable)
+		}
+		result.RankedFallback = pick.RankedFallback
+		result.SelectedGroup = pick.Group
+		for _, group := range pick.RankedFallback {
+			if group.Group == pick.Group {
+				result.EligibleRosterIDs = append([]string(nil), group.EligibleArms...)
+				break
+			}
+		}
 	}
 
 	eligibleCandidates := resolved.ByRosterID
@@ -195,8 +258,11 @@ func validatePreviewResult(result PreviewResult, expectedSchemaVersion string) e
 	if result.SchemaVersion != expectedSchemaVersion {
 		return fmt.Errorf("unsupported schema %q", result.SchemaVersion)
 	}
-	if result.PolicyArtifactID == "" || result.PolicyArtifactSHA256 == "" || result.RosterSHA256 == "" {
+	if result.PolicyArtifactID == "" || result.PolicyArtifactSHA256 == "" {
 		return fmt.Errorf("missing frozen artifact identity")
+	}
+	if result.SchemaVersion != SchemaVersionV4 && result.RosterSHA256 == "" {
+		return fmt.Errorf("missing frozen roster identity")
 	}
 	if len(result.HMMStatePath) == 0 || len(result.HMMStateProbabilities) == 0 || len(result.ClassOrder) == 0 {
 		return fmt.Errorf("missing state or class order")
@@ -219,7 +285,7 @@ func validatePreviewResult(result PreviewResult, expectedSchemaVersion string) e
 			return fmt.Errorf("HMM state path value at index %d is outside the posterior vector", index)
 		}
 	}
-	if len(result.ClassProbabilities) != len(result.ClassOrder) || len(result.RankedFallback) != len(result.ClassOrder) {
+	if len(result.ClassProbabilities) != len(result.ClassOrder) {
 		return fmt.Errorf("class probability/fallback cardinality mismatch")
 	}
 	seenClasses := make(map[string]struct{}, len(result.ClassOrder))
@@ -240,6 +306,9 @@ func validatePreviewResult(result PreviewResult, expectedSchemaVersion string) e
 	}
 	if math.Abs(total-1) > 1e-6 {
 		return fmt.Errorf("class probabilities sum to %.9f", total)
+	}
+	if result.SchemaVersion == SchemaVersionV4 {
+		return nil
 	}
 	classRank := make(map[string]int, len(result.ClassOrder))
 	for index, className := range result.ClassOrder {
@@ -347,6 +416,9 @@ func (r *SidecarRouter) Route(ctx context.Context, req router.Request) (router.D
 		return router.Decision{}, fmt.Errorf("%s: sidecar served artifact %q, pin requires %q: %w", strategy, res.PolicyArtifactSHA256, pin.ArtifactSHA256, router.ErrPolicyPinUnavailable)
 	}
 	servedRosterSHA256 := res.RosterVersion
+	if err := r.validateClassifierIdentity(res.PolicyArtifactID, res.PolicyArtifactSHA256); err != nil {
+		return router.Decision{}, fmt.Errorf("%s: invalid classifier identity: %v: %w", strategy, err, r.config.Unavailable)
+	}
 
 	overrideArmID := res.ArmID
 	overrideRosterID := res.Model
@@ -356,10 +428,11 @@ func (r *SidecarRouter) Route(ctx context.Context, req router.Request) (router.D
 	// different provider than the resolved binding.
 	reselected := false
 	var routerArmScoresByGroup map[string]map[string]float32
+	var selectionTrace SelectionTrace
 	var escalationDecision *escalation.Decision
 	if r.armSelector != nil {
-		if res.SchemaVersion != SchemaVersionV3 {
-			return router.Decision{}, fmt.Errorf("%s: sidecar reported schema %q, expected %s: %w", strategy, res.SchemaVersion, SchemaVersionV3, r.config.Unavailable)
+		if res.SchemaVersion != SchemaVersionV4 {
+			return router.Decision{}, fmt.Errorf("%s: sidecar reported schema %q, expected %s: %w", strategy, res.SchemaVersion, SchemaVersionV4, r.config.Unavailable)
 		}
 		originalSelectionInput := selectionInputFor(strategy, executionMode, req, res, resolved)
 		originalSelectionInput.RosterSHA256 = pin.RosterSHA256
@@ -374,9 +447,7 @@ func (r *SidecarRouter) Route(ctx context.Context, req router.Request) (router.D
 			if errors.Is(selectErr, router.ErrPolicyPinUnavailable) {
 				return router.Decision{}, fmt.Errorf("%s: arm selection: %w", strategy, selectErr)
 			}
-			if errors.Is(selectErr, ErrNoEligibleArm) &&
-				req.ForceCluster != "" && len(selectionInput.RankedFallback) == 1 &&
-				selectionInput.RankedFallback[0].Group == req.ForceCluster {
+			if errors.Is(selectErr, ErrNoEligibleArm) && req.ForceCluster != "" && selectionInput.ForcedGroup == req.ForceCluster {
 				return router.Decision{}, &ForcedClusterUnservableError{
 					Cluster: req.ForceCluster,
 					Reason:  fmt.Sprintf("no model in cluster %q can serve this request", req.ForceCluster),
@@ -389,12 +460,11 @@ func (r *SidecarRouter) Route(ctx context.Context, req router.Request) (router.D
 		}
 		overrideArmID = indexCandidates(resolved).rosterToArm[pick.Arm]
 		overrideRosterID = pick.Arm
-		overrideReasonSuffix = ":go_selection"
 		reselected = true
 		res.PolicyGroup = pick.Group
+		res.RankedFallback = pick.RankedFallback
 		routerArmScoresByGroup = pick.ArmScoresByGroup
-		// roster_version keeps the sidecar's meaning on unpinned turns; only a
-		// pinned turn reports the roster file digest the selection was frozen to.
+		selectionTrace = pick.Trace
 		if pinned {
 			if pick.RosterSHA256 != pin.RosterSHA256 {
 				return router.Decision{}, fmt.Errorf("%s: selection used roster %q, pin requires %q: %w", strategy, pick.RosterSHA256, pin.RosterSHA256, router.ErrPolicyPinUnavailable)
@@ -467,6 +537,19 @@ func (r *SidecarRouter) Route(ctx context.Context, req router.Request) (router.D
 	if routerArmScoresByGroup != nil {
 		res.ArmScores = routerArmScoresByGroup[res.PolicyGroup]
 	}
+	if selectionTrace.SelectedArm != "" {
+		selectionTrace.SelectedGroup = res.PolicyGroup
+		selectionTrace.SelectedArm = overrideRosterID
+		selectionTrace.OverrideReason = strings.TrimPrefix(overrideReasonSuffix, ":")
+		selectionTrace.ResolverExclusions = make([]router.SelectionExclusion, 0, len(resolved.Diagnostics))
+		for _, diagnostic := range resolved.Diagnostics {
+			selectionTrace.ResolverExclusions = append(selectionTrace.ResolverExclusions, router.SelectionExclusion{
+				CatalogID: diagnostic.CatalogID,
+				RosterID:  diagnostic.RosterID,
+				Reason:    string(diagnostic.Reason),
+			})
+		}
+	}
 
 	binding, ok := resolved.BindingForSelection(overrideArmID, overrideRosterID)
 	if !ok {
@@ -494,6 +577,9 @@ func (r *SidecarRouter) Route(ctx context.Context, req router.Request) (router.D
 	} else if res.Reason != "" {
 		reason += "(" + res.Reason + ")"
 	}
+	if selectionTrace.SelectedArm != "" {
+		reason = fmt.Sprintf("%s(group=%s,arm=%s,fallback_depth=%d)", reason, selectionTrace.SelectedGroup, selectionTrace.SelectedArm, selectionTrace.FallbackDepth)
+	}
 	reason += overrideReasonSuffix
 
 	// The sidecar builds DisplayMarker from its own pre-override pick; once the
@@ -503,6 +589,27 @@ func (r *SidecarRouter) Route(ctx context.Context, req router.Request) (router.D
 	displayMarker := res.DisplayMarker
 	if reselected {
 		displayMarker = ""
+	}
+	selectionPolicyReleaseID := r.config.SelectionPolicyReleaseID
+	if selectionPolicyReleaseID == "" {
+		selectionPolicyReleaseID = res.PolicyArtifactID
+	}
+	selectionPolicySHA256 := r.config.SelectionPolicySHA256
+	if selectionPolicySHA256 == "" {
+		selectionPolicySHA256 = res.PolicyArtifactSHA256
+	}
+	rosterVersion := res.RosterVersion
+	if r.config.SelectionPolicySHA256 != "" {
+		rosterVersion = r.config.SelectionPolicySHA256
+	}
+	if pinned {
+		selectionPolicySHA256 = pin.ArtifactSHA256
+		rosterVersion = servedRosterSHA256
+	}
+	var replayTrace *router.SelectionTrace
+	if selectionTrace.SelectedArm != "" {
+		traceCopy := selectionTrace
+		replayTrace = &traceCopy
 	}
 
 	observability.FromContext(ctx).Info("Policy router decided",
@@ -534,10 +641,19 @@ func (r *SidecarRouter) Route(ctx context.Context, req router.Request) (router.D
 			Strategy:                      string(strategy),
 			PolicyRouteKey:                res.PolicyRouteKey,
 			PolicyGroup:                   res.PolicyGroup,
-			PolicyArtifactID:              res.PolicyArtifactID,
-			PolicyArtifactSHA256:          res.PolicyArtifactSHA256,
-			RosterVersion:                 servedRosterSHA256,
+			PolicyArtifactID:              selectionPolicyReleaseID,
+			PolicyArtifactSHA256:          selectionPolicySHA256,
+			RosterVersion:                 rosterVersion,
 			PolicyPinHonoured:             pinned,
+			ClassifierArtifactID:          res.PolicyArtifactID,
+			ClassifierArtifactSHA256:      res.PolicyArtifactSHA256,
+			ClassifierPredictedLabel:      res.PredictedLabel,
+			ClassifierClassOrder:          append([]string(nil), res.ClassOrder...),
+			ClassifierProbabilities:       cloneProbabilities(res.ClassProbabilities),
+			SelectionPolicyReleaseID:      selectionPolicyReleaseID,
+			SelectionPolicySHA256:         selectionPolicySHA256,
+			SelectionHeadGeneration:       r.config.SelectionHeadGeneration,
+			SelectionTrace:                replayTrace,
 			SidecarTimings:                res.Timings,
 			SidecarStats:                  res.ServingStats,
 			SelectedArmID:                 binding.ArmID,
@@ -553,8 +669,19 @@ func (r *SidecarRouter) Route(ctx context.Context, req router.Request) (router.D
 	}, nil
 }
 
+func (r *SidecarRouter) validateClassifierIdentity(artifactID, artifactSHA256 string) error {
+	if r.config.ClassifierArtifactID != "" && artifactID != r.config.ClassifierArtifactID {
+		return fmt.Errorf("classifier artifact %q does not match release %q", artifactID, r.config.ClassifierArtifactID)
+	}
+	if r.config.ClassifierArtifactSHA256 != "" && artifactSHA256 != r.config.ClassifierArtifactSHA256 {
+		return fmt.Errorf("classifier digest %q does not match release %q", artifactSHA256, r.config.ClassifierArtifactSHA256)
+	}
+	return nil
+}
+
 var _ RoutePreviewer = (*SidecarRouter)(nil)
 
 var _ router.Router = (*SidecarRouter)(nil)
 var _ OutcomeReporter = (*SidecarRouter)(nil)
 var _ FeedbackReporter = (*SidecarRouter)(nil)
+var _ escalation.Observer = (*SidecarRouter)(nil)

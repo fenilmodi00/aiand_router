@@ -421,6 +421,15 @@ type RouterModelRouterRequestTelemetry struct {
 	ClientGitDirty                  *bool
 	PolicyPinRequested              *bool
 	PolicyPinHonoured               *bool
+	ClassifierArtifactID            *string
+	ClassifierArtifactSha256        *string
+	ClassifierPredictedLabel        *string
+	ClassifierClassOrder            []string
+	ClassifierProbabilities         []byte
+	SelectionPolicyReleaseID        *string
+	SelectionPolicySha256           *string
+	SelectionHeadGeneration         *int64
+	SelectionTrace                  []byte
 }
 
 type RouterModelRouterSubscriptionAccount struct {

@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/router"
 	"weave-os/router/internal/router/hmm/rosterdata"
 	"weave-os/router/internal/router/hmm/selection"
 	"weave-os/router/internal/router/policy"
@@ -17,11 +16,9 @@ func TestSelectorReturnsDeterministicPick(t *testing.T) {
 	selector := selection.Selector(testRoster())
 
 	pick, err := selector(context.Background(), policy.SelectionInput{
-		Harness: "claude-code",
-		RankedFallback: []policy.PreviewGroup{
-			{Group: "low", Probability: 0.7},
-			{Group: "balanced", Probability: 0.3},
-		},
+		Harness:            "claude-code",
+		ClassOrder:         []string{"low", "balanced"},
+		ClassProbabilities: map[string]float64{"low": 0.7, "balanced": 0.3},
 		CandidateRosterIDs: []string{"vendor-a/cheap", "vendor-b/cheap"},
 	})
 
@@ -30,7 +27,7 @@ func TestSelectorReturnsDeterministicPick(t *testing.T) {
 	assert.Equal(t, "vendor-b/cheap", pick.Arm, "harness-specific order must decide the pick")
 }
 
-func TestSelectorFailsClosedWithoutRankedFallback(t *testing.T) {
+func TestSelectorFailsClosedWithoutClassification(t *testing.T) {
 	selector := selection.Selector(testRoster())
 
 	_, err := selector(context.Background(), policy.SelectionInput{Harness: "claude-code"})
@@ -42,53 +39,87 @@ func TestSelectorFailsClosedWhenNoRankedGroupHoldsAnEligibleArm(t *testing.T) {
 	selector := selection.Selector(testRoster())
 
 	_, err := selector(context.Background(), policy.SelectionInput{
-		Harness: "codex",
-		RankedFallback: []policy.PreviewGroup{
-			{Group: "high", Probability: 1.0},
-		},
+		Harness:            "codex",
+		ClassOrder:         []string{"high"},
+		ClassProbabilities: map[string]float64{"high": 1.0},
 		CandidateRosterIDs: []string{"vendor-a/cheap"},
 	})
 
 	assert.ErrorIs(t, err, selection.ErrNoEligibleArm)
 }
 
-func TestSetSelectorServesThePinnedRoster(t *testing.T) {
-	current := testRoster()
-	current.SHA256 = "current-roster-sha"
-	pinned := testRoster()
-	pinned.SHA256 = "pinned-roster-sha"
-	pinned.Clusters["low"] = rosterdata.Cluster{Arms: []string{"vendor-a/cheap", "vendor-b/cheap"}}
-	selector := selection.SetSelector(rosterdata.NewSet(current, pinned))
-
+func TestSelectorRejectsMismatchedClassOrder(t *testing.T) {
+	roster := testRoster()
+	roster.ClassOrder = []string{"low", "balanced", "high", "effort", "efforts"}
+	selector := selection.Selector(roster)
 	input := policy.SelectionInput{
-		Harness:            "claude-code",
-		RankedFallback:     []policy.PreviewGroup{{Group: "low", Probability: 1}},
-		CandidateRosterIDs: []string{"vendor-a/cheap", "vendor-b/cheap"},
+		ClassOrder:         []string{"high", "balanced", "low", "effort", "efforts"},
+		ClassProbabilities: map[string]float64{"low": 1, "balanced": 0, "high": 0, "effort": 0, "efforts": 0},
+		CandidateRosterIDs: []string{"vendor-a/cheap"},
 	}
 
-	unpinned, err := selector(context.Background(), input)
-	require.NoError(t, err)
-	assert.Equal(t, "current-roster-sha", unpinned.RosterSHA256, "no pin selects from the default roster")
-	assert.Equal(t, "vendor-b/cheap", unpinned.Arm)
+	_, err := selector(context.Background(), input)
+	assert.ErrorIs(t, err, selection.ErrClassifierTaxonomyMismatch)
+	assert.NotErrorIs(t, err, selection.ErrNoEligibleArm)
 
-	input.RosterSHA256 = "pinned-roster-sha"
-	got, err := selector(context.Background(), input)
+	input.ClassOrder = append([]string(nil), roster.ClassOrder...)
+	pick, err := selector(context.Background(), input)
 	require.NoError(t, err)
-	assert.Equal(t, "pinned-roster-sha", got.RosterSHA256, "the pick must report the roster that chose the arm")
-	assert.Equal(t, "vendor-a/cheap", got.Arm, "the pinned roster's order must decide the pick")
+	assert.Equal(t, "low", pick.Group)
 }
 
-func TestSetSelectorFailsClosedOnUnknownRosterSHA(t *testing.T) {
-	current := testRoster()
-	current.SHA256 = "current-roster-sha"
-	selector := selection.SetSelector(rosterdata.NewSet(current))
+func TestSelectorKeepsCrossProviderCandidatesAndAppliesBoundedSubscriptionPreferences(t *testing.T) {
+	roster := &rosterdata.Roster{
+		SchemaVersion: rosterdata.SchemaVersionPolicyV1,
+		Preferences: rosterdata.PreferencePolicy{
+			PreferredModelBonus: 0.5,
+			SubscriptionBonus:   0.35,
+		},
+		Clusters: map[string]rosterdata.Cluster{
+			"high": {
+				Arms: []string{
+					"openai/gpt-5.6-sol",
+					"x-ai/grok-4.6",
+					"anthropic/claude-fable-5.1",
+				},
+				ArmScores: map[string]float64{
+					"openai/gpt-5.6-sol":         30,
+					"x-ai/grok-4.6":              29.8,
+					"anthropic/claude-fable-5.1": 29.7,
+				},
+			},
+		},
+	}
+	selector := selection.Selector(roster)
+	input := policy.SelectionInput{
+		ClassOrder:         []string{"high"},
+		ClassProbabilities: map[string]float64{"high": 1},
+		CandidateRosterIDs: []string{
+			"openai/gpt-5.6-sol",
+			"x-ai/grok-4.6",
+			"anthropic/claude-fable-5.1",
+		},
+		SubscriptionStatePreferredModels: []string{"grok-4.6"},
+	}
 
-	_, err := selector(context.Background(), policy.SelectionInput{
-		Harness:            "claude-code",
-		RosterSHA256:       "not-loaded",
-		RankedFallback:     []policy.PreviewGroup{{Group: "low", Probability: 1}},
-		CandidateRosterIDs: []string{"vendor-a/cheap"},
-	})
+	pick, err := selector(context.Background(), input)
+	require.NoError(t, err)
+	assert.Equal(t, "x-ai/grok-4.6", pick.Arm)
+	assert.Equal(t, input.CandidateRosterIDs, pick.Trace.CandidateRosterIDs)
+	assert.Equal(t, []string{"grok-4.6"}, pick.Trace.SubscriptionStatePreferredModels)
+	assert.InDelta(t, 0.35, pick.Trace.ScoreComponentsByGroup["high"]["x-ai/grok-4.6"].SubscriptionStateBonus, 1e-6)
 
-	assert.ErrorIs(t, err, router.ErrPolicyPinUnavailable, "an unloaded roster must never fall through to the current one")
+	input.SubscriptionStatePreferredModels = nil
+	input.SubsidizedModelCostFactor = map[string]float64{"grok-4.6": 0.1}
+	pick, err = selector(context.Background(), input)
+	require.NoError(t, err)
+	assert.Equal(t, "x-ai/grok-4.6", pick.Arm)
+	assert.InDelta(t, 0.315, pick.Trace.ScoreComponentsByGroup["high"]["x-ai/grok-4.6"].SubscriptionCostBonus, 1e-6)
+
+	cluster := roster.Clusters["high"]
+	cluster.ArmScores["openai/gpt-5.6-sol"] = 31
+	roster.Clusters["high"] = cluster
+	pick, err = selector(context.Background(), input)
+	require.NoError(t, err)
+	assert.Equal(t, "openai/gpt-5.6-sol", pick.Arm, "bounded subscription preference must not erase a clear score gap")
 }
