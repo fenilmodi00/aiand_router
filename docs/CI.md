@@ -41,9 +41,9 @@ extraction repeatedly failed with `Cannot open: File exists`, and the restored
 cache was discarded. Keep the workflow pins synchronized when the toolchain
 directive changes.
 
-## Follow-up backlog
+## Follow-up status
 
-### P0: repair the nightly cassette refresh
+### P0: repair the nightly cassette refresh (implemented)
 
 The scheduled Smoke workflow is functionally broken. The smoke tests record
 fresh cassettes successfully, but the Docker container writes files that the
@@ -58,13 +58,14 @@ fatal: updating files failed
 All 20 scheduled runs inspected failed this way. Public example:
 [run 34574571427](https://github.com/weave-os/router/actions/runs/34574571427).
 
-Make the recording container write with the runner's UID and GID. An ownership
-normalization step before Git operations is a smaller fallback, but aligning
-the writer avoids producing inaccessible workspace files in the first place.
-The fix is complete when a scheduled record run can read and stage every
-cassette, then either report no drift or open the refresh PR.
+The recorder now changes its temporary cassette file from `0600` (the default
+from Go's `os.CreateTemp`) to `0644` before the atomic rename. That preserves
+the bind-mounted write path while allowing the host runner to read and hash
+the file after the container exits. The fix is complete when a scheduled
+record run can read and stage every cassette, then either report no drift or
+open the refresh PR.
 
-### 3. Make Smoke's Docker cache effective and remove the cold seed container
+### 3. Make Smoke's Docker cache effective and remove the cold seed container (implemented)
 
 The Smoke Compose overlay declares a GitHub Actions cache, but sampled BuildKit
 logs did not contain cache import or export activity. Expensive layers rebuilt
@@ -73,69 +74,75 @@ on every run: `npm ci` and the UI build took roughly 32s each, two
 41s. The separate `golang:1.25-bookworm` seed service added about 47s while it
 downloaded and compiled on a cold container.
 
-Use an explicit `docker buildx bake` or `docker/build-push-action` build step
-with stable per-image `type=gha` scopes, then start Compose with `--no-build`.
-Import the cache from `main` so a new PR branch can reuse it. Build the seed
-binary into an existing image, or a small dedicated image, and invoke that
-artifact instead of `go run` in a fresh SDK container.
+The CI workflow now uses `docker/bake-action` with explicit
+[`docker-bake.smoke.hcl`](../docker-bake.smoke.hcl) targets to build the
+server, MITM proxy, and seed images with `type=gha` cache scopes, loads those
+images, and starts Compose without `--build`. Keeping the Bake definition
+explicit avoids Compose-profile discovery differences between runner Docker
+versions. Local runs retain an explicit Compose build. The seed service builds
+a small `seed-runtime` target instead of launching a fresh
+`golang:1.25-bookworm` SDK container and running `go run`.
 
-Verify this by checking that warm-run logs show both cache import and export,
-and by comparing the build and seed phases across at least ten comparable PR
-runs.
+The first PR run after the change imported and exported all three cache scopes
+and took 274s in the image-build phase (5m47s job wall time). A same-PR rerun
+hit the imported layers (`CACHED` in the BuildKit log), reduced image-build
+time to 27s, and reduced the job to 1m48s. The smoke summary now exposes the
+build, boot/health, seed, and assertion phases so future regressions are easy
+to separate from cache-transfer time. Continue tracking at least ten
+comparable PR runs before treating those two samples as a stable new baseline.
 
 ### 4. Cancel superseded Test runs
 
-The Smoke workflow already cancels an older run when a PR is updated, but the
-Test workflow does not. Eleven overlapping stale Test runs in the inspected
-sample consumed 23.1 runner-minutes after a newer commit existed.
+The Test workflow now follows the same policy as Smoke. Before this change,
+eleven overlapping stale Test runs in the inspected sample consumed 23.1
+runner-minutes after a newer commit existed.
 
-Add workflow concurrency keyed by PR number, falling back to the ref for push
-runs, with `cancel-in-progress: true`. Keep scheduled or manually dispatched
-workflows in separate groups where cancellation would change their semantics.
+The concurrency group is keyed by PR number, falling back to the ref for push
+runs, with `cancel-in-progress: true`. If Test later gains scheduled or manual
+triggers, keep those in separate groups where cancellation would change their
+semantics.
 
-### 5. Remove real retry delays from proxy tests
+### 5. Remove real retry delays from proxy tests (implemented)
 
 Fourteen tests under [`internal/proxy`](../internal/proxy) spent 15.04s sleeping
 inside a package whose complete test time was 17.18s. They exercise the real
 250ms exponential retry delay, including overload-exhaustion cases. Other tests
 already inject the package's no-op sleep function.
 
-Inject the no-op sleep consistently in tests that validate retry decisions,
-and reserve real-clock coverage for a narrowly scoped timing test if it is
-needed. Assertions must continue to verify attempt counts, failover, and
-provider-disable behavior. The package should fall to low single-digit seconds
-without reducing behavioral coverage.
+The retry backoff is now injectable through `Service.WithRetrySleep`. The
+external integration tests that exercise overload, rescue, and retry paths use
+the same no-op function as the internal dispatch tests. Assertions still verify
+attempt counts, failover, and provider-disable behavior. A local package run
+fell from about 23s to about 4s.
 
-### 6. Collapse redundant Go compilation passes
+### 6. Collapse redundant Go compilation passes (implemented)
 
 With isolated cold build caches, the current sequence
 `go vet ./...`, `go build -o /dev/null ./...`, and
 `go test -count=1 ./...` took 45.89s locally. A single
 `go test -vet=all -count=1 ./...` took 40.36s, about 12% less.
 
-After confirming the repaired CI cache's warm behavior, remove the separate Vet
-and Typecheck steps and run tests with full vetting. Keep golangci-lint separate.
-Compare both cold and warm runs because eliminating the early steps changes
-which command populates the Go build cache.
+The separate Vet and Typecheck steps were removed. `go test -vet=all -count=1
+./...` now performs the compilation, vetting, and test pass in one command;
+golangci-lint remains separate.
 
-### 7. Path-gate component-specific jobs
+### 7. Path-gate component-specific jobs (implemented)
 
-The statusline, installer, and frozen HMM sidecar jobs run for every pull
-request, even when their inputs cannot have changed. Add a changed-files
-classifier and job-level conditions for their owning paths. The final `Test`
-fan-in must treat an intentionally skipped optional job as acceptable while
-still failing on cancellation or failure. Include the workflow and shared build
-inputs in every component's path set so CI changes cannot bypass coverage.
+The workflow now classifies changed paths before the component jobs run. The
+statusline, installer, and frozen HMM sidecar jobs are skipped when their inputs
+are untouched. The final `Test` fan-in accepts an intentional skip but still
+fails on a required job failure, cancellation, or classifier failure. Each
+filter includes the workflow and shared build inputs so CI changes cannot
+bypass coverage.
 
 This primarily saves runner capacity rather than wall time because these jobs
 already run in parallel.
 
-### 8. Bound jobs and expose phase timings
+### 8. Bound jobs and expose phase timings (implemented)
 
-Set `timeout-minutes: 10` on the Test and HMM jobs and
-`timeout-minutes: 15` on Smoke after confirming those limits leave headroom over
-the measured p90. Split Smoke reporting into build, boot, seed, and assertion
-phases, and publish their elapsed times in the job summary. This makes a cache
+Test jobs now have ten-minute timeouts and Smoke jobs have fifteen-minute
+timeouts. The smoke runner records build, boot/health, seed, and assertion
+durations; CI writes them to the GitHub job summary. This makes a cache
 regression or service-startup stall visible without downloading the complete
 log.
 
