@@ -1,6 +1,10 @@
 package translate
 
 import (
+	"bytes"
+	"strconv"
+	"strings"
+
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
@@ -73,13 +77,14 @@ func isClaudeCodeOnlyTool(name string) bool {
 // claudeCodeOrchestrationToolNames is the subset of claudeCodeOnlyToolNames
 // a capable non-Anthropic model can act on. Must stay a strict subset of
 // claudeCodeOnlyToolNames — see TestOrchestrationToolsAreSubsetOfCCOnly.
+//
+// Task-list bookkeeping (claudeCodeTaskBookkeepingToolNames) is excluded:
+// non-Anthropic models obey Claude Code's "task tools haven't been used"
+// reminder literally and burn whole turns on TaskCreate/TaskUpdate.
+// TaskOutput/TaskStop address background agents and stay.
 var claudeCodeOrchestrationToolNames = map[string]struct{}{
 	"Task":          {},
 	"Agent":         {},
-	"TaskCreate":    {},
-	"TaskUpdate":    {},
-	"TaskGet":       {},
-	"TaskList":      {},
 	"TaskOutput":    {},
 	"TaskStop":      {},
 	"Workflow":      {},
@@ -125,6 +130,39 @@ func shouldStripCCTool(name string, keepOrchestration bool) bool {
 	return true
 }
 
+// claudeCodeTaskBookkeepingToolNames are the task-list tools whose Claude Code
+// reminder is dropped alongside the schemas — see stripTaskToolReminders.
+var claudeCodeTaskBookkeepingToolNames = map[string]struct{}{
+	"TaskCreate": {},
+	"TaskUpdate": {},
+	"TaskGet":    {},
+	"TaskList":   {},
+}
+
+func isTaskBookkeepingTool(name string) bool {
+	_, ok := claudeCodeTaskBookkeepingToolNames[name]
+	return ok
+}
+
+// The apostrophe may arrive JSON-escaped, so the raw-body precheck stops
+// short of it.
+const (
+	taskToolReminderMarker    = "task tools haven't been used recently"
+	taskToolReminderRawPrefix = "task tools haven"
+	systemReminderOpenTag     = "<system-reminder>"
+	systemReminderCloseTag    = "</system-reminder>"
+)
+
+// ccToolFilterResult reports what filterClaudeCodeOnlyToolsFromAnthropicBody
+// removed from the body.
+type ccToolFilterResult struct {
+	// ToolsRemoved counts CC-only tool schemas dropped from "tools".
+	ToolsRemoved int
+	// TaskRemindersRemoved counts task-list reminder segments cut from user
+	// messages (standalone text blocks or appended to tool_result content).
+	TaskRemindersRemoved int
+}
+
 // filterClaudeCodeOnlyToolsFromAnthropicBody returns body with any
 // Claude-Code-only tools removed from the top-level "tools" array. Returns
 // body unchanged when none match, so callers can apply this unconditionally
@@ -132,30 +170,39 @@ func shouldStripCCTool(name string, keepOrchestration bool) bool {
 //
 // ToolSearch is always retained because it is Claude Code's client-side
 // loader for deferred MCP schemas. When keepOrchestration is set, the
-// orchestration subset (Task*, Workflow, Skill, plan-mode) is also retained;
-// other CC-only tools are still dropped.
+// orchestration subset (Task/Agent, TaskOutput/TaskStop, Workflow, Skill,
+// plan-mode) is also retained; other CC-only tools are still dropped.
 //
-// Only the tools array is rewritten; tool_choice and message content are
-// left alone. tool_choice is rare and Anthropic only honors "any"/"auto"/
-// name=X anyway, so a stale tool_choice referencing a stripped CC-only name
-// would be ignored upstream. Message content (existing tool_use/tool_result
-// blocks from past turns) is not rewritten because those represent history
-// the model has already acted on — rewriting it would invalidate prompt
-// caches and could leave dangling tool_use_id references.
-func filterClaudeCodeOnlyToolsFromAnthropicBody(body []byte, keepOrchestration bool) (out []byte, removed int, err error) {
+// When a task-list bookkeeping tool is dropped, Claude Code's matching
+// "task tools haven't been used recently" <system-reminder> segments are cut
+// from user messages too (see stripTaskToolReminders), so the model is not
+// nudged toward a tool it cannot see. The rewrite is deterministic, so the
+// upstream-visible prefix stays cache-stable across turns.
+//
+// Otherwise tool_choice and message content are left alone. tool_choice is
+// rare and Anthropic only honors "any"/"auto"/name=X anyway, so a stale
+// tool_choice referencing a stripped CC-only name would be ignored upstream.
+// Existing tool_use/tool_result blocks from past turns are not rewritten
+// because those represent history the model has already acted on —
+// rewriting them would invalidate prompt caches and could leave dangling
+// tool_use_id references.
+func filterClaudeCodeOnlyToolsFromAnthropicBody(body []byte, keepOrchestration bool) (out []byte, res ccToolFilterResult, err error) {
 	tools := gjson.GetBytes(body, "tools")
 	if !tools.Exists() || !tools.IsArray() {
-		return body, 0, nil
+		return body, res, nil
 	}
 
+	bookkeepingRemoved := false
 	tools.ForEach(func(_, t gjson.Result) bool {
-		if shouldStripCCTool(t.Get("name").String(), keepOrchestration) {
-			removed++
+		name := t.Get("name").String()
+		if shouldStripCCTool(name, keepOrchestration) {
+			res.ToolsRemoved++
+			bookkeepingRemoved = bookkeepingRemoved || isTaskBookkeepingTool(name)
 		}
 		return true
 	})
-	if removed == 0 {
-		return body, 0, nil
+	if res.ToolsRemoved == 0 {
+		return body, res, nil
 	}
 
 	jw := newJSONWriter()
@@ -168,5 +215,151 @@ func filterClaudeCodeOnlyToolsFromAnthropicBody(body []byte, keepOrchestration b
 	})
 	jw.EndArr()
 	out, err = sjson.SetRawBytes(body, "tools", jw.Bytes())
-	return out, removed, err
+	if err != nil || !bookkeepingRemoved {
+		return out, res, err
+	}
+	out, res.TaskRemindersRemoved, err = stripTaskToolReminders(out)
+	return out, res, err
+}
+
+// removeTaskToolReminders cuts every <system-reminder>…</system-reminder>
+// segment carrying the task-list nudge out of s, with the whitespace Claude
+// Code pads it with. Other reminders and prose mentioning the phrase stay.
+func removeTaskToolReminders(s string) (string, int) {
+	removed := 0
+	for from := 0; ; {
+		open := strings.Index(s[from:], systemReminderOpenTag)
+		if open < 0 {
+			return s, removed
+		}
+		open += from
+		closeRel := strings.Index(s[open:], systemReminderCloseTag)
+		if closeRel < 0 {
+			return s, removed
+		}
+		end := open + closeRel + len(systemReminderCloseTag)
+		if !strings.Contains(s[open:end], taskToolReminderMarker) {
+			from = end
+			continue
+		}
+		start := len(strings.TrimRight(s[:open], " \t\r\n"))
+		s = s[:start] + s[end:]
+		from = start
+		removed++
+	}
+}
+
+// reminderEdit is one pending rewrite: set the string at path to text, or
+// delete the element at path.
+type reminderEdit struct {
+	path string
+	text string
+	drop bool
+}
+
+// stripTaskToolReminders removes the task-list reminder from user messages.
+// Claude Code appends it either as its own text block or inside the trailing
+// tool_result's content (string or text parts). A text element left empty by
+// the cut is dropped, unless it is the sole element of its array. User prose
+// left empty is kept so no message ends up without content; a tool_result left
+// empty becomes empty tool output, which every emit target accepts.
+func stripTaskToolReminders(body []byte) (out []byte, removed int, err error) {
+	if !bytes.Contains(body, []byte(taskToolReminderRawPrefix)) {
+		return body, 0, nil
+	}
+	var edits []reminderEdit
+	// editString rewrites a scalar string in place; an empty remainder is
+	// written only when allowEmpty is set.
+	editString := func(path string, v gjson.Result, allowEmpty bool) {
+		s, n := removeTaskToolReminders(v.String())
+		if n == 0 {
+			return
+		}
+		if strings.TrimSpace(s) == "" {
+			if !allowEmpty {
+				return
+			}
+			s = ""
+		}
+		edits = append(edits, reminderEdit{path: path, text: s})
+		removed += n
+	}
+	// editTextElem rewrites a text element of an array; an empty remainder
+	// drops the element unless it is the array's only one, in which case it is
+	// emptied when allowEmpty is set and otherwise left intact.
+	editTextElem := func(path string, v gjson.Result, sole, allowEmpty bool) {
+		s, n := removeTaskToolReminders(v.String())
+		if n == 0 {
+			return
+		}
+		empty := strings.TrimSpace(s) == ""
+		if empty && sole {
+			if !allowEmpty {
+				return
+			}
+			edits = append(edits, reminderEdit{path: path, text: ""})
+			removed += n
+			return
+		}
+		edits = append(edits, reminderEdit{path: path, text: s, drop: empty})
+		removed += n
+	}
+	gjson.GetBytes(body, "messages").ForEach(func(mi, msg gjson.Result) bool {
+		if msg.Get("role").String() != "user" {
+			return true
+		}
+		msgPath := "messages." + mi.String() + ".content"
+		content := msg.Get("content")
+		if content.Type == gjson.String {
+			editString(msgPath, content, false)
+			return true
+		}
+		if !content.IsArray() {
+			return true
+		}
+		blocks := content.Array()
+		for bi, block := range blocks {
+			blockPath := msgPath + "." + strconv.Itoa(bi)
+			switch block.Get("type").String() {
+			case "text":
+				editTextElem(blockPath+".text", block.Get("text"), len(blocks) == 1, false)
+			case "tool_result":
+				rc := block.Get("content")
+				if rc.Type == gjson.String {
+					editString(blockPath+".content", rc, true)
+					continue
+				}
+				parts := rc.Array()
+				for pi, part := range parts {
+					if part.Get("type").String() == "text" {
+						editTextElem(blockPath+".content."+strconv.Itoa(pi)+".text", part.Get("text"), len(parts) == 1, true)
+					}
+				}
+			}
+		}
+		return true
+	})
+	if len(edits) == 0 {
+		return body, 0, nil
+	}
+	out = body
+	for _, e := range edits {
+		if e.drop {
+			continue
+		}
+		if out, err = sjson.SetBytes(out, e.path, e.text); err != nil {
+			return body, 0, err
+		}
+	}
+	// Drops run last and in reverse traversal order so indices stay valid.
+	for i := len(edits) - 1; i >= 0; i-- {
+		e := edits[i]
+		if !e.drop {
+			continue
+		}
+		if out, err = sjson.DeleteBytes(out, strings.TrimSuffix(e.path, ".text")); err != nil {
+			return body, 0, err
+		}
+	}
+	return out, removed, nil
 }
