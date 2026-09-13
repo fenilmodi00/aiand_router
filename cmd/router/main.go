@@ -713,6 +713,10 @@ func main() {
 	siblingFailover := config.GetOr("ROUTER_SIBLING_FAILOVER", "true") == "true"
 	openAIResponsesBroad := config.GetOr("ROUTER_OPENAI_RESPONSES_BROAD", "true") == "true"
 	allowedModelsHeader := config.GetOr("ROUTER_ALLOWED_MODELS_HEADER", "false") == "true"
+	// nativeAnthropicResponseSignals records the stop reason and tool_use block
+	// count an Anthropic-native turn already streams past the usage extractor;
+	// kill switch for that extraction and the telemetry columns it fills.
+	nativeAnthropicResponseSignals := config.GetOr("ROUTER_NATIVE_ANTHROPIC_RESPONSE_SIGNALS", "true") == "true"
 	sseKeepalive := sseKeepaliveInterval()
 	ccOrchToolsCrossVendor := config.GetOr("ROUTER_CC_ORCH_TOOLS_CROSSVENDOR", "true") == "true"
 	// Per-turn large-vs-small action-classifier swap. Off by default until the
@@ -1085,6 +1089,7 @@ func main() {
 		flags.KeySiblingFailover:                      boolDefault(siblingFailover),
 		flags.KeyOpenAIResponsesBroad:                 boolDefault(openAIResponsesBroad),
 		flags.KeyAllowedModelsHeader:                  boolDefault(allowedModelsHeader),
+		flags.KeyNativeAnthropicResponseSignals:       boolDefault(nativeAnthropicResponseSignals),
 		flags.KeyEffortEscalation:                     boolDefault(effortEscalation),
 		flags.KeyCyberRefusalRepin:                    boolDefault(cyberRefusalRepin),
 		flags.KeyCyberRefusalRetry:                    boolDefault(cyberRefusalRetry),
@@ -1136,6 +1141,7 @@ func main() {
 		WithSiblingFailover(siblingFailover).
 		WithOpenAIResponsesBroad(openAIResponsesBroad).
 		WithAllowedModelsHeader(allowedModelsHeader).
+		WithNativeAnthropicResponseSignals(nativeAnthropicResponseSignals).
 		WithSSEKeepalive(sseKeepalive).
 		WithPrefixTrimFreeSwitch(prefixTrimFreeSwitch).
 		WithHMMUpgradeConfidenceThreshold(hmmUpgradeConfidence).
