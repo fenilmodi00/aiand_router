@@ -2,12 +2,9 @@
 #
 # Endpoint smoke test for the `install.sh --opencode` target.
 #
-# opencode routes through a DIFFERENT SDK than pi: @ai-sdk/anthropic (Vercel),
-# which appends only /messages to baseURL — so opencode's config correctly keeps
-# the /v1 suffix (baseURL = <url>/v1 -> /v1/messages). This is the OPPOSITE of
-# pi's @anthropic-ai/sdk, which appends /v1/messages to a root baseURL. This
-# guard proves opencode keeps landing on /v1/messages so nobody "aligns" the two
-# baseURLs and breaks one. Reuses mock_router.py (404s any path != /v1/messages).
+# OpenCode sends Responses requests through @ai-sdk/openai, which appends
+# /responses to the configured /v1 base URL. This guard catches either a stale
+# Anthropic provider or a doubled/missing /v1 before release.
 #
 # Requires: opencode, jq, python3, curl. Run from anywhere:
 #   install/pi-router/test/opencode_smoke.sh
@@ -32,9 +29,15 @@ LOG="$WORK/requests.jsonl"
 MOCK_PID=""
 KEEP_WORK=0
 cleanup() {
-  [ -n "$MOCK_PID" ] && kill "$MOCK_PID" 2>/dev/null || true
-  [ -n "$MOCK_PID" ] && wait "$MOCK_PID" 2>/dev/null || true
-  [ "$KEEP_WORK" = "1" ] && echo "diagnostics preserved in $WORK" || rm -rf "$WORK"
+  if [ -n "$MOCK_PID" ]; then
+    kill "$MOCK_PID" 2>/dev/null || true
+    wait "$MOCK_PID" 2>/dev/null || true
+  fi
+  if [ "$KEEP_WORK" = "1" ]; then
+    echo "diagnostics preserved in $WORK"
+  else
+    rm -rf "$WORK"
+  fi
 }
 trap cleanup EXIT
 
@@ -54,11 +57,16 @@ curl -fsS "$BASE_URL/health" >/dev/null 2>&1 || { echo "FATAL: mock did not come
 
 printf '\033[1m== install (install.sh --opencode --dir) ==\033[0m\n'
 bash "$INSTALL_SH" --opencode --base-url "$BASE_URL" --dir "$WORK" >"$WORK/install.out" 2>&1 </dev/null || true
-jq -e --arg u "$BASE_URL/v1" '.provider.weave.options.baseURL == $u' "$WORK/opencode.json" >/dev/null 2>&1 \
-  && ok "opencode.json baseURL = $BASE_URL/v1 (Vercel SDK convention — keeps /v1)" \
-  || bad "opencode.json baseURL wrong (see $WORK/install.out)"
-jq -e '.provider.weave.npm == "@ai-sdk/anthropic"' "$WORK/opencode.json" >/dev/null 2>&1 \
-  && ok "opencode provider uses @ai-sdk/anthropic" || bad "opencode provider npm wrong"
+if jq -e --arg u "$BASE_URL/v1" '.provider.weave.options.baseURL == $u' "$WORK/opencode.json" >/dev/null 2>&1; then
+  ok "opencode.json baseURL = $BASE_URL/v1 (Vercel SDK convention — keeps /v1)"
+else
+  bad "opencode.json baseURL wrong (see $WORK/install.out)"
+fi
+if jq -e '.provider.weave.npm == "@ai-sdk/openai"' "$WORK/opencode.json" >/dev/null 2>&1; then
+  ok "opencode provider uses @ai-sdk/openai"
+else
+  bad "opencode provider npm wrong"
+fi
 
 printf '\033[1m== run (opencode run, headless, isolated XDG) ==\033[0m\n'
 mkdir -p "$WORK/xdg"
@@ -72,13 +80,17 @@ disown "$WD" 2>/dev/null || true
 wait "$RPID" 2>/dev/null || true
 kill "$WD" 2>/dev/null || true
 
-[ "$(jqcount '.method=="POST" and .app=="opencode" and .path=="/v1/messages" and .rejected==false')" -ge 1 ] \
-  && ok "opencode hit /v1/messages (served, app=opencode)" \
-  || bad "opencode did not reach /v1/messages (see $WORK/oc.out)"
+if [ "$(jqcount '.method=="POST" and .app=="opencode" and .path=="/v1/responses" and .rejected==false')" -ge 1 ]; then
+  ok "opencode hit /v1/responses (served, app=opencode)"
+else
+  bad "opencode did not reach /v1/responses (see $WORK/oc.out)"
+fi
 WRONG="$(jqcount '.method=="POST" and .rejected==true')"
-[ "$WRONG" -eq 0 ] \
-  && ok "no /v1 doubling — every opencode POST hit /v1/messages" \
-  || bad "$WRONG opencode POST(s) hit a wrong path -> would 404 on the real router"
+if [ "$WRONG" -eq 0 ]; then
+  ok "every opencode POST hit /v1/responses"
+else
+  bad "$WRONG opencode POST(s) hit a wrong path -> would 404 on the real router"
+fi
 
 printf '\033[1m== Result ==\033[0m\n'
 printf '\033[1m%s passed, %s failed\033[0m\n' "$PASS" "$FAIL"
