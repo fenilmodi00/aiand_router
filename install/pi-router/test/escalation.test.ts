@@ -6,7 +6,7 @@ import { handoffSummaryPayload, needsEscalationCompaction, parsePreparedRoute, r
 const lowRoute = { token: "low-ticket", model: "model-small", provider: "anthropic", complexity: "low" as const };
 const highRoute = { token: "high-ticket", summary_token: "summary-ticket", model: "model-large", provider: "anthropic", complexity: "high" as const };
 
-function harness() {
+function harness(version?: string) {
 	const listeners = new Map<string, Array<(event: any, ctx: ExtensionContext) => any>>();
 	const messages: string[] = [];
 	const errors: string[] = [];
@@ -35,7 +35,7 @@ function harness() {
 	const pending = registerEscalationCompaction(pi, (async () => {
 		preparations++;
 		return { ok: true, json: async () => selection } as Response;
-	}) as typeof fetch);
+	}) as typeof fetch, version);
 	return {
 		ctx, messages, errors, pending,
 		select: (route: unknown) => { selection = route; },
@@ -54,7 +54,7 @@ function harness() {
 function enable(t: TestContext) {
 	const oldEnabled = process.env.WEAVE_PI_ESCALATION_COMPACTION;
 	const oldKey = process.env.WEAVE_ROUTER_KEY;
-	process.env.WEAVE_PI_ESCALATION_COMPACTION = "1";
+	delete process.env.WEAVE_PI_ESCALATION_COMPACTION;
 	process.env.WEAVE_ROUTER_KEY = "offline-test-key";
 	t.after(() => {
 		if (oldEnabled === undefined) delete process.env.WEAVE_PI_ESCALATION_COMPACTION;
@@ -79,7 +79,28 @@ test("handoff response validation rejects incomplete tickets and tolerates unkno
 	assert.equal((parsePreparedRoute({ ...highRoute, complexity: "future-class" }) as typeof highRoute).complexity, undefined);
 });
 
-test("Pi aborts before handoff, commits compaction, and resumes the reserved model without preparing twice", async (t) => {
+test("older Pi warns at startup and preserves routing without handoff preparation", async (t) => {
+	enable(t);
+	const h = harness("0.82.0");
+	await h.emit("session_start");
+	assert.match(h.errors[0], /requires Pi 0.83 or newer/);
+	assert.equal(await h.emit("before_provider_request", { payload: { messages: [] } }), undefined);
+	assert.equal(h.preparations(), 0);
+	assert.equal(h.aborted(), 0);
+	assert.equal(h.pending(), false);
+});
+
+test("explicit opt-out preserves provider requests without preparing a handoff", async (t) => {
+	enable(t);
+	process.env.WEAVE_PI_ESCALATION_COMPACTION = "0";
+	const h = harness();
+	assert.equal(await h.emit("before_provider_request", { payload: { messages: [] } }), undefined);
+	assert.equal(h.preparations(), 0);
+	assert.equal(h.aborted(), 0);
+	assert.equal(h.pending(), false);
+});
+
+test("Pi defaults to handoff compaction and resumes the reserved model without preparing twice", async (t) => {
 	enable(t);
 	const h = harness();
 	const first = await h.emit("before_provider_request", { payload: { messages: [] } });
