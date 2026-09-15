@@ -693,8 +693,9 @@ func routingMarkerFor(res turnLoopResult) string {
 	}
 	// Hard pins (compaction / sub-agent) return before the pin is loaded, so
 	// PriorServedModel is always empty there — suppress explicitly rather than
-	// letting it read as a first turn.
-	if res.HardPinned {
+	// letting it read as a first turn. A classifier verdict is parsed by the
+	// harness, not read by the user, and a prefix would corrupt it.
+	if res.HardPinned || isUnpinnedScoredTurn(res.TurnType) {
 		return ""
 	}
 	// A shadow checkpoint is news even when ordinary routing keeps the same model.
@@ -3549,7 +3550,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	// On a retryable 429 the bypass falls through to re-routing; rate-limit
 	// headers prime the observer so the retry discounts Anthropic.
 	if routeRes.UsageBypass && routeRes.Decision.Provider == providers.ProviderAnthropic {
-		err := s.bypassToAnthropic(ctx, env, feats, routeRes.modelSwitched(), requestStart, requestID, externalID, routeRes.TurnType, r, w)
+		err := s.bypassToAnthropic(ctx, env, feats, routeRes.modelSwitched(), requestStart, requestID, externalID, routeRes.TurnType, routeRes.Decision.Reason, r, w)
 		if !errors.Is(err, errBypassRetryable) {
 			if !agentShadowMode {
 				s.firePolicyShadowForServingDecision(ctx, routeRes.Decision, req)
@@ -3573,8 +3574,9 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 
 		// bypassToAnthropic returns before session pin/HMM history are loaded,
 		// but modelSwitched() below needs them. Load the same switch history
-		// the turn loop would have produced.
-		if s.pinStore != nil {
+		// the turn loop would have produced. A classifier has no pin to load and
+		// must keep a zero session key so the reroute cannot anchor one.
+		if s.pinStore != nil && !isUnpinnedScoredTurn(routeRes.TurnType) {
 			sessionKey := deriveSessionKeyForRequest(ctx, env, apiKeyID)
 			role := roleForTier(catalog.TierFor(feats.Model))
 			pin, _ := s.loadPin(ctx, sessionKey, role)

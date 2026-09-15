@@ -157,13 +157,44 @@ gateway key aliasing it has refused, since a second endpoint may serve it. The
 alias itself is still the customer-side fix — this only caps the bill at one 404.
 
 **The hard-pin tier resolves against the same bindings.** Probe/title-gen/
-classifier/compaction turns bypass the scorer, so `hardPinResolver` gets its
+compaction turns bypass the scorer, so `hardPinResolver` gets its
 own `HardPinRequest` carrying `CustomBindings` + `GatewayProviders` and selects
 via `cluster.FastestModelForRequest`. Without them a gateway-only installation
 resolved nothing and every such turn 503'd `ErrClusterUnavailable` ("cluster
 scorer failed") while its scored turns routed fine — prod 2026-08-26. An empty
 result under a gateway now reports `ErrGatewayServesNoDeployedModel` for the
 same reason the resolver does: the alias list is the thing to fix.
+
+**Classifier turns are scored, not hard-pinned.** Claude Code's security
+monitor is a fresh window (own system prompt, ~50k-token transcript as
+payload, `max_tokens=64`, `thinking: disabled`), so `isUnpinnedScoredTurn`
+sends it through `routeWithoutPin`: the scorer picks for its shape, `/force-model`
+still wins, and no session pin is read or written — an anchored pin here would
+leak into the conversation that follows, and the conversation's pin was not
+scored for this prompt. Proactive compaction and routing markers skip it too:
+the transcript is the thing being graded, and the verdict is machine-parsed.
+Hard-pinning it to a Gemini 3.x model truncated 99.5% of verdicts on
+`maxOutputTokens=64` (always-on thinking eats the budget; the emitters now floor
+reasoning targets to 16k, see [translate/CLAUDE.md](../translate/CLAUDE.md)),
+and Claude Code retried each failure 5x before escalating — prod 2026-09.
+
+**A classifier on the caller's Claude subscription is not scored at all.**
+Anthropic bills the Auto-mode classifier to the plan (free on Pro/Max/Team),
+so for a subscription caller the requested Claude model costs $0 extra and any
+model the scorer substitutes is API spend the router adds.
+`classifierPassthroughEngaged` ([usage_bypass.go](usage_bypass.go)) runs in
+`routeWithoutPin` after the force check: Classifier turn + Anthropic-served
+requested model + a presented Claude subscription credential (the narrow
+`presentSubscriptionTokens` set, never a generic bearer) + not
+observed-exhausted → strict pass-through via `bypassToAnthropic` with
+`decision_reason=classifier_subscription_passthrough`. It needs neither the
+`usage_bypass_enabled` opt-in nor a utilization threshold — the classifier is a
+by-product of the conversation's own turns, so conserving quota by re-routing
+it buys nothing. Everything else is the usage-bypass lane's behaviour: an
+exhausted subscription falls to the scorer (deployment-key fallback /
+subscription-only 402 as usual), a retryable upstream error reroutes without
+loading the conversation's pin, and the row stays cost-neutral downstream
+(`subscription_served`), not a "saving".
 
 ## Translation
 
