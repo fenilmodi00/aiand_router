@@ -71,9 +71,6 @@ const (
 	KeyEscalationXGBoostShadowMarkerEnabled Key = "escalation_xgb_shadow_marker_enabled"
 	KeyEscalationXGBoostEpoch               Key = "escalation_xgb_epoch"
 	KeyStruggleShadowEnabled                Key = "struggle_shadow_enabled"
-	KeyStruggleEscalationEnabled            Key = "struggle_escalation_enabled"
-	KeyStruggleEscalationHoldout            Key = "struggle_escalation_holdout_pct"
-	KeyStruggleEvidenceArming               Key = "struggle_evidence_arming"
 	KeySpiralShadowEnabled                  Key = "spiral_shadow_enabled"
 	KeyTurnSignalCapture                    Key = "turn_signal_capture_enabled"
 	KeyLoopEscalationEnabled                Key = "loop_escalation_enabled"
@@ -108,6 +105,22 @@ const (
 	KeyNativeAnthropicResponseSignals       Key = "native_anthropic_response_signals"
 	KeyNativeOpenAIResponseSignals          Key = "native_openai_response_signals"
 )
+
+// These keys were valid organization overrides before struggle escalation was
+// removed. Keep them parse-only so an installation row written by an older
+// revision cannot invalidate unrelated active overrides during a rolling
+// deploy. They are never registered, published, or read by routing code.
+const (
+	retiredKeyStruggleEscalationEnabled Key = "struggle_escalation_enabled"
+	retiredKeyStruggleEscalationHoldout Key = "struggle_escalation_holdout_pct"
+	retiredKeyStruggleEvidenceArming    Key = "struggle_evidence_arming"
+)
+
+var retiredOverrideKeys = map[Key]struct{}{
+	retiredKeyStruggleEscalationEnabled: {},
+	retiredKeyStruggleEscalationHoldout: {},
+	retiredKeyStruggleEvidenceArming:    {},
+}
 
 // Definition describes one overridable flag. DeploymentDefault is not stored
 // here: it is resolved at boot, then published to
@@ -150,27 +163,6 @@ var Registry = []Definition{
 		EnvVar:         "ROUTER_STRUGGLE_SHADOW_ENABLED",
 		Kind:           KindBool,
 		Description:    "Session-level struggle detector (log-only; writes struggle_shadow_events).",
-		OrgOverridable: true,
-	},
-	{
-		Key:            KeyStruggleEscalationEnabled,
-		EnvVar:         "ROUTER_STRUGGLE_ESCALATION_ENABLED",
-		Kind:           KindBool,
-		Description:    "Early sideways escalation for sessions struggling in a repeated tool-call cycle.",
-		OrgOverridable: true,
-	},
-	{
-		Key:            KeyStruggleEscalationHoldout,
-		EnvVar:         "ROUTER_STRUGGLE_ESCALATION_HOLDOUT_PCT",
-		Kind:           KindInt,
-		Description:    "Percent of struggle detections recorded without escalating, as a self-recovery baseline. 0-100.",
-		OrgOverridable: true,
-	},
-	{
-		Key:            KeyStruggleEvidenceArming,
-		EnvVar:         "ROUTER_STRUGGLE_EVIDENCE_ARMING",
-		Kind:           KindBool,
-		Description:    "Let behavioral spiral evidence arm a struggle escalation before the 30-turn/10-minute thresholds.",
 		OrgOverridable: true,
 	},
 	{
@@ -494,7 +486,7 @@ func ValidateOverrides(o Overrides) error {
 		if err := check(key, KindInt); err != nil {
 			return err
 		}
-		if key == KeyLoopEscalationHoldoutPct || key == KeyStruggleEscalationHoldout || key == KeyAuthoritativeUpgradeHoldoutPct {
+		if key == KeyLoopEscalationHoldoutPct || key == KeyAuthoritativeUpgradeHoldoutPct {
 			if value < 0 || value > 100 {
 				return fmt.Errorf("%w: %q must be between 0 and 100, got %d", ErrInvalidValue, key, value)
 			}
@@ -546,9 +538,9 @@ func (o Overrides) Keys() (keys []Key) {
 }
 
 // ParseOverrides decodes a flag_overrides JSONB payload. Empty or JSON null
-// yields an empty Overrides and no error. Every key must be registered and
-// overridable, and every value must match its registered Kind; a violation
-// is returned as an error rather than silently dropped.
+// yields an empty Overrides and no error. Every non-retired key must be
+// registered and overridable, and every value must match its registered Kind;
+// a violation is returned as an error rather than silently dropped.
 func ParseOverrides(raw []byte) (o Overrides, err error) {
 	if len(raw) == 0 {
 		return Overrides{}, nil
@@ -562,6 +554,9 @@ func ParseOverrides(raw []byte) (o Overrides, err error) {
 		key := Key(name)
 		def, ok := definitions[key]
 		if !ok {
+			if _, retired := retiredOverrideKeys[key]; retired {
+				continue
+			}
 			return Overrides{}, fmt.Errorf("flags: unknown flag %q", name)
 		}
 		if !def.OrgOverridable {
