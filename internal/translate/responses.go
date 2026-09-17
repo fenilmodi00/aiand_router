@@ -675,14 +675,20 @@ type ResponsesWriter struct {
 	nativeBadgeHasContentIndex  bool
 	nativeSyntheticBadgeEmitted bool
 	nativePreludeCreated        bool
+	nativeStreamStarted         bool
+	nativeLastSequence          int64
+	nativeLastSequenceSet       bool
 	nativeOutputIndexShift      int64
 	nativeSequenceShift         int64
 	outputIndexOffset           int
 	footerText                  string
 	footerEmitted               bool
 	sawToolCall                 bool
+	hasUpstreamOutput           bool
 	nativeHeldEvents            [][]byte
 	nativeFooterCommit          bool
+	finalized                   bool
+	nativeEmptyRejected         bool
 	textItem                    *responsesTextItem
 	toolItems                   map[int]*responsesToolItem
 	finishReason                string
@@ -838,6 +844,21 @@ func (t *ResponsesWriter) resetSSEScanState() {
 	t.nativeSSEClassified = false
 }
 
+// ResetAttempt discards buffered provider bytes from a failed retryable attempt
+// so the next dispatch does not inherit a partial or empty terminal.
+func (t *ResponsesWriter) ResetAttempt() {
+	if t.finalized {
+		return
+	}
+	t.buf.Reset()
+	t.resetSSEScanState()
+	t.nativeStreamStarted = false
+	t.nativeHeldEvents = nil
+	t.sawToolCall = false
+	t.completedEmitted = false
+	t.nativeEmptyRejected = false
+}
+
 // SetPassthrough switches to native Responses mode. Upstream bytes remain in
 // Responses format, while Prelude may synthesize lifecycle and badge events.
 // Must be called before the first write.
@@ -895,8 +916,10 @@ func (t *ResponsesWriter) WriteHeader(code int) {
 		// Codex backend already sets text/event-stream; only drop length/encoding.
 		t.inner.Header().Del("Content-Length")
 		t.inner.Header().Del("Content-Encoding")
-		t.inner.WriteHeader(code)
-		t.httpHeadersSent = true
+		if t.streaming {
+			t.inner.WriteHeader(code)
+			t.httpHeadersSent = true
+		}
 		return
 	}
 	if t.httpHeadersSent {
@@ -920,10 +943,19 @@ func (t *ResponsesWriter) Write(data []byte) (int, error) {
 	n := len(data)
 	if t.passthrough {
 		if !t.httpHeadersSent {
-			t.streaming = strings.Contains(t.inner.Header().Get("Content-Type"), "text/event-stream")
-			t.statusCode = http.StatusOK
-			t.inner.WriteHeader(http.StatusOK)
-			t.httpHeadersSent = true
+			ct := t.inner.Header().Get("Content-Type")
+			if t.statusCode >= 400 {
+				t.streaming = false
+			} else {
+				t.streaming = strings.Contains(ct, "text/event-stream")
+				if t.statusCode == 0 {
+					t.statusCode = http.StatusOK
+				}
+			}
+			if t.streaming {
+				t.inner.WriteHeader(t.statusCode)
+				t.httpHeadersSent = true
+			}
 		}
 		// Generic native Responses callers remain byte-for-byte passthrough. Only
 		// the explicitly enabled Codex display path parses native SSE.
@@ -959,16 +991,20 @@ func (t *ResponsesWriter) Write(data []byte) (int, error) {
 			}
 			return n, nil
 		}
-		// Forward verbatim. The upstream emits Responses natively, so there is
-		// nothing to translate for clients that did not opt into the display badge.
-		written, err := t.bw.Write(data)
-		if err == nil {
-			err = t.bw.Flush()
-			if t.flusher != nil {
-				t.flusher.Flush()
-			}
+		if !t.streaming {
+			return t.buf.Write(data)
 		}
-		return written, err
+		t.buf.Write(data)
+		if err := t.forwardValidatedNativeSSE(); err != nil {
+			return n, err
+		}
+		if err := t.bw.Flush(); err != nil {
+			return n, err
+		}
+		if t.flusher != nil {
+			t.flusher.Flush()
+		}
+		return n, nil
 	}
 	t.buf.Write(data)
 	if !t.streaming {
@@ -1062,19 +1098,16 @@ func (t *ResponsesWriter) Finalize() error {
 				return err
 			}
 		}
-		if t.passthroughBadge && !t.streaming {
-			body := t.buf.Bytes()
-			t.resetSSEScanState()
-			if rewritten, changed := t.rewriteNativeNonStreamingBody(body); changed {
-				body = rewritten
+		if t.nativeEmptyRejected {
+			return emptyCompletionOpenAIError()
+		}
+		if !t.passthroughBadge && t.streaming {
+			if err := t.finalizeNativeResponsesSSE(); err != nil {
+				return err
 			}
-			if !t.httpHeadersSent {
-				t.inner.Header().Set("Content-Type", "application/json")
-				t.inner.WriteHeader(t.statusCode)
-				t.httpHeadersSent = true
-			}
-			_, err := t.inner.Write(body)
-			return err
+		}
+		if !t.streaming {
+			return t.flushBufferedNativeBody(nil)
 		}
 		// Nothing is synthesized; the upstream remains the event authority.
 		return t.bw.Flush()
@@ -1084,6 +1117,9 @@ func (t *ResponsesWriter) Finalize() error {
 			return err
 		}
 		if !t.completedEmitted && t.finishReason != "" {
+			if !t.hasUpstreamOutput {
+				return emptyCompletionOpenAIError()
+			}
 			if err := t.lifecycle.Terminal(); err != nil {
 				return err
 			}
@@ -1117,6 +1153,9 @@ func (t *ResponsesWriter) Finalize() error {
 		t.inner.WriteHeader(http.StatusBadGateway)
 		_, _ = t.inner.Write([]byte(`{"error":{"message":"translation failed","type":"api_error"}}`))
 		return err
+	}
+	if !chatCompletionHasUsableOutput(body) {
+		return emptyCompletionOpenAIError()
 	}
 	t.inner.Header().Set("Content-Type", "application/json")
 	t.inner.WriteHeader(t.statusCode)
@@ -1580,6 +1619,9 @@ func (t *ResponsesWriter) rewriteNativeEventWith(raw []byte, shiftFields bool) [
 func (t *ResponsesWriter) writeNativeEvent(eventType string, sequence int64, payload map[string]any) error {
 	payload["type"] = eventType
 	payload["sequence_number"] = sequence
+	t.nativeStreamStarted = true
+	t.nativeLastSequence = sequence
+	t.nativeLastSequenceSet = true
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return err
@@ -1668,6 +1710,10 @@ func (t *ResponsesWriter) writeNativeResponsesEvent(event, delimiter []byte) err
 	if gjson.ValidBytes(data) {
 		eventType = gjson.GetBytes(data, "type").Str
 		itemType = gjson.GetBytes(data, "item.type").Str
+		if sequence := gjson.GetBytes(data, "sequence_number"); sequence.Type == gjson.Number {
+			t.nativeLastSequence = sequence.Int() + t.nativeSequenceShift
+			t.nativeLastSequenceSet = true
+		}
 	}
 	if t.nativePreludeCreated && eventType == "response.created" {
 		return nil
@@ -1687,9 +1733,16 @@ func (t *ResponsesWriter) writeNativeResponsesEvent(event, delimiter []byte) err
 			}
 		}
 	}
-	if (eventType == "response.completed" || eventType == "response.incomplete") && !t.nativeBadgeTargetSelected && !t.nativeSyntheticBadgeEmitted {
-		if err := t.emitNativeBadgeBeforeOutput(event); err != nil {
-			return err
+	if eventType == "response.completed" || eventType == "response.incomplete" {
+		response := gjson.GetBytes(data, "response")
+		if nativeResponsesIsEmptyTerminal(response) {
+			t.nativeEmptyRejected = true
+			return emptyCompletionOpenAIError()
+		}
+		if !t.nativeBadgeTargetSelected && !t.nativeSyntheticBadgeEmitted {
+			if err := t.emitNativeBadgeBeforeOutput(event); err != nil {
+				return err
+			}
 		}
 	}
 	rewritten := t.rewriteNativeResponsesEvent(event)
@@ -1762,6 +1815,112 @@ func (t *ResponsesWriter) processPassthroughSSEBuffer() error {
 	}
 }
 
+func (t *ResponsesWriter) forwardValidatedNativeSSE() error {
+	return t.scanNativeResponsesSSE(true)
+}
+
+func (t *ResponsesWriter) finalizeNativeResponsesSSE() error {
+	if err := t.forwardValidatedNativeSSE(); err != nil {
+		return err
+	}
+	if t.buf.Len() == 0 {
+		t.nativeStreamScanner.Reset()
+		return nil
+	}
+
+	// An upstream may close its connection immediately after the final event,
+	// without sending the usual blank-line SSE delimiter. Treat the remaining
+	// bytes as one final event so native passthrough remains lossless at EOF.
+	event := append([]byte(nil), t.buf.Bytes()...)
+	t.buf.Reset()
+	t.nativeStreamScanner.Reset()
+	_, data := sse.ParseEvent(event)
+	if gjson.ValidBytes(data) {
+		eventType := gjson.GetBytes(data, "type").Str
+		if eventType == "response.completed" || eventType == "response.incomplete" {
+			response := gjson.GetBytes(data, "response")
+			if nativeResponsesIsEmptyTerminal(response) {
+				t.nativeEmptyRejected = true
+				return emptyCompletionOpenAIError()
+			}
+		}
+	}
+	if _, err := t.bw.Write(event); err != nil {
+		return err
+	}
+	t.nativeStreamStarted = true
+	return nil
+}
+
+func (t *ResponsesWriter) scanNativeResponsesSSE(forward bool) error {
+	for {
+		buffered := t.buf.Bytes()
+		event, n := t.nativeStreamScanner.Next(buffered)
+		if n == 0 {
+			return nil
+		}
+		_, data := sse.ParseEvent(event)
+		if gjson.ValidBytes(data) {
+			eventType := gjson.GetBytes(data, "type").Str
+			if eventType == "response.completed" || eventType == "response.incomplete" {
+				response := gjson.GetBytes(data, "response")
+				if nativeResponsesIsEmptyTerminal(response) {
+					t.buf.Next(n)
+					t.nativeEmptyRejected = true
+					return emptyCompletionOpenAIError()
+				}
+			}
+		}
+		frame := append([]byte(nil), buffered[:n]...)
+		t.buf.Next(n)
+		if !forward {
+			continue
+		}
+		if _, err := t.bw.Write(frame); err != nil {
+			return err
+		}
+		t.nativeStreamStarted = true
+	}
+}
+
+func (t *ResponsesWriter) flushBufferedNativeBody(upstreamErr error) error {
+	if t.finalized {
+		return nil
+	}
+	body := t.buf.Bytes()
+	if root := gjson.ParseBytes(body); nativeResponsesIsEmptyTerminal(root) {
+		return emptyCompletionOpenAIError()
+	}
+	if len(body) == 0 {
+		return nil
+	}
+	t.resetSSEScanState()
+	if rewritten, changed := t.rewriteNativeNonStreamingBody(body); changed {
+		body = rewritten
+	}
+	status := t.statusCode
+	if status == 0 {
+		status = http.StatusOK
+	}
+	if status < 400 {
+		if resp, ok := upstreamErrorHTTPStatus(upstreamErr); ok && resp >= 400 {
+			status = resp
+		}
+	}
+	if !t.httpHeadersSent {
+		if t.inner.Header().Get("Content-Type") == "" {
+			t.inner.Header().Set("Content-Type", "application/json")
+		}
+		t.inner.WriteHeader(status)
+		t.httpHeadersSent = true
+	}
+	_, err := t.inner.Write(body)
+	if err == nil {
+		t.finalized = true
+	}
+	return err
+}
+
 func (t *ResponsesWriter) processFinalPassthroughSSETail() error {
 	if t.buf.Len() > 0 {
 		event := append([]byte(nil), t.buf.Bytes()...)
@@ -1776,27 +1935,49 @@ func (t *ResponsesWriter) processFinalPassthroughSSETail() error {
 	return t.flushNativeHeldEvents(t.footerText != "" && !t.sawToolCall)
 }
 
+func (t *ResponsesWriter) sealInner() {
+	type sealer interface{ Seal() }
+	if s, ok := t.inner.(sealer); ok {
+		s.Seal()
+	}
+}
+
 // FinalizeError emits a response.failed terminal event when upstream fails
 // mid-stream (after response.created), so Codex sees a clean failure instead
 // of a truncated stream. No-op if nothing streamed yet (caller writes a JSON
 // error instead), in passthrough mode, or after a terminal event already fired.
-func (t *ResponsesWriter) FinalizeError(_ error) error {
+func (t *ResponsesWriter) FinalizeError(err error) error {
 	if t.passthrough {
-		if !t.streaming || !t.nativePreludeCreated || t.completedEmitted {
+		if !t.streaming {
+			return t.flushBufferedNativeBody(err)
+		}
+		if t.completedEmitted {
 			return nil
 		}
+		if !t.nativeStreamStarted && !t.nativePreludeCreated {
+			return nil
+		}
+		t.sealInner()
 		env := t.responseEnvelope("failed")
-		env["output"] = []any{map[string]any{
-			"id": t.nativeBadgeItemID, "type": "message", "status": "completed", "role": "assistant",
-			"content": []any{map[string]any{
-				"type": "output_text", "text": t.computeBadgeText(), "annotations": []any{},
-			}},
-		}}
+		if t.nativeBadgeItemID != "" {
+			env["output"] = []any{map[string]any{
+				"id": t.nativeBadgeItemID, "type": "message", "status": "completed", "role": "assistant",
+				"content": []any{map[string]any{
+					"type": "output_text", "text": t.computeBadgeText(), "annotations": []any{},
+				}},
+			}}
+		} else {
+			env["output"] = []any{}
+		}
 		env["error"] = map[string]any{
 			"code":    "upstream_error",
 			"message": "Upstream call failed.",
 		}
-		if err := t.writeNativeEvent("response.failed", 1+t.nativeSequenceShift, map[string]any{"response": env}); err != nil {
+		sequence := int64(1) + t.nativeSequenceShift
+		if t.nativeLastSequenceSet {
+			sequence = t.nativeLastSequence + 1
+		}
+		if err := t.writeNativeEvent("response.failed", sequence, map[string]any{"response": env}); err != nil {
 			return err
 		}
 		t.completedEmitted = true
@@ -1805,6 +1986,7 @@ func (t *ResponsesWriter) FinalizeError(_ error) error {
 	if !t.streaming || !t.headersEmitted || t.completedEmitted {
 		return nil
 	}
+	t.sealInner()
 	if t.lifecycle.State() == StreamStarted {
 		if err := t.lifecycle.Fail(); err != nil {
 			return err
@@ -1891,8 +2073,19 @@ func (t *ResponsesWriter) translateChunk(raw []byte) error {
 	delta := choice.Get("delta")
 
 	if content := delta.Get("content"); content.Type == gjson.String && content.Str != "" {
+		t.hasUpstreamOutput = true
 		if err := t.appendText(content.Str); err != nil {
 			return err
+		}
+	} else if content := delta.Get("content"); content.IsArray() {
+		for _, part := range content.Array() {
+			if part.Get("text").Type != gjson.String || part.Get("text").Str == "" {
+				continue
+			}
+			t.hasUpstreamOutput = true
+			if err := t.appendText(part.Get("text").Str); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -1912,6 +2105,14 @@ func (t *ResponsesWriter) translateChunk(raw []byte) error {
 		t.finishReason = fr.Str
 		// Reasoning-only turns emit no delta this writer translates, so the
 		// badge would never be reached through appendText/appendToolCall.
+		if !t.hasUpstreamOutput {
+			if len(t.toolMappings) > 0 && len(t.toolItems) > 0 {
+				if err := t.closeOpenItems(); err != nil {
+					return err
+				}
+			}
+			return emptyCompletionOpenAIError()
+		}
 		if err := t.ensureBadgeItem(); err != nil {
 			return err
 		}
@@ -2043,6 +2244,9 @@ func (t *ResponsesWriter) appendToolCall(idx int, tc gjson.Result) error {
 	}
 	if err := t.lifecycle.Output(item.outputIndex); err != nil {
 		return err
+	}
+	if item.opened && item.name != "" {
+		t.hasUpstreamOutput = true
 	}
 	args := tc.Get("function.arguments").Str
 	if args != "" {
@@ -2489,9 +2693,7 @@ func chatCompletionToResponse(body []byte, responseID, model string, createdAt i
 	choice := root.Get("choices.0.message")
 	output := make([]any, 0, 2)
 	text := badge
-	if content := choice.Get("content"); content.Type == gjson.String {
-		text += content.Str
-	}
+	text += chatContentText(choice.Get("content"))
 	if footer != "" && choice.Get("tool_calls.#").Int() == 0 && !feedbackFooterPattern.MatchString(text) {
 		text += footer
 	}

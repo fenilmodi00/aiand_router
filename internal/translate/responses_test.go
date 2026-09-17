@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"weave-os/router/internal/providers"
 	"weave-os/router/internal/translate"
 
 	"github.com/stretchr/testify/assert"
@@ -487,7 +488,7 @@ func TestResponsesWriter_NativePreludeRewritesFinalServingModel(t *testing.T) {
 	w.SetRoutedModel("gpt-5.6-luna")
 	require.NoError(t, w.EmitRoutingBadge("fallback decision"))
 	_, err := w.Write([]byte("event: response.completed\n" +
-		`data: {"type":"response.completed","sequence_number":1,"response":{"id":"resp_upstream","model":"gpt-5.6-sol","status":"completed","output":[]}}` +
+		`data: {"type":"response.completed","sequence_number":1,"response":{"id":"resp_upstream","model":"gpt-5.6-sol","status":"completed","output":[{"id":"msg_upstream","type":"message","role":"assistant","content":[{"type":"output_text","text":"ok"}]}]}}` +
 		"\n\n"))
 	require.NoError(t, err)
 
@@ -748,6 +749,36 @@ func TestResponsesWriter_PassthroughForwardsVerbatim(t *testing.T) {
 	// Output is exactly the upstream bytes: no chat->Responses translation, no
 	// synthesized or duplicated events.
 	assert.Equal(t, native, rec.Body.String())
+}
+
+func TestResponsesWriter_PassthroughForwardsUndelimitedFinalEvent(t *testing.T) {
+	rec := httptest.NewRecorder()
+	w := translate.NewResponsesWriter(rec, "gpt-5.5")
+	w.SetPassthrough()
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.WriteHeader(http.StatusOK)
+
+	native := "event: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"delta\":\"ok\"}\n\n" +
+		"event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"status\":\"completed\",\"output\":[{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"ok\"}]}]}}"
+	_, err := w.Write([]byte(native))
+	require.NoError(t, err)
+	require.NoError(t, w.Finalize())
+
+	assert.Equal(t, native, rec.Body.String())
+}
+
+func TestResponsesWriter_PassthroughRejectsUndelimitedEmptyTerminal(t *testing.T) {
+	rec := httptest.NewRecorder()
+	w := translate.NewResponsesWriter(rec, "gpt-5.5")
+	w.SetPassthrough()
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.WriteHeader(http.StatusOK)
+
+	native := "event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"status\":\"completed\",\"output\":[]}}"
+	_, err := w.Write([]byte(native))
+	require.NoError(t, err)
+	require.ErrorIs(t, w.Finalize(), providers.ErrUpstreamEmptyCompletion)
+	assert.Empty(t, rec.Body.String())
 }
 
 // passthroughTestMarker stands in for the routing marker the proxy supplies.
@@ -1027,8 +1058,8 @@ func TestResponsesWriter_EmitsBadgeOnToolCallOnlyTurn(t *testing.T) {
 }
 
 // Reasoning deltas are not translated into output items, so a reasoning-only
-// turn reaches finish with nothing that would otherwise pull in the badge.
-func TestResponsesWriter_EmitsBadgeOnReasoningOnlyTurn(t *testing.T) {
+// turn must not be reported as a badge-only successful answer.
+func TestResponsesWriter_RejectsReasoningOnlyTurn(t *testing.T) {
 	for _, field := range []string{"reasoning", "reasoning_content"} {
 		t.Run(field, func(t *testing.T) {
 			rec := httptest.NewRecorder()
@@ -1037,34 +1068,19 @@ func TestResponsesWriter_EmitsBadgeOnReasoningOnlyTurn(t *testing.T) {
 			w.Header().Set("Content-Type", "text/event-stream")
 			w.WriteHeader(200)
 
-			for _, c := range []string{
+			for i, c := range []string{
 				`data: {"choices":[{"index":0,"delta":{"` + field + `":"thinking"},"finish_reason":null}]}` + "\n\n",
 				`data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}` + "\n\n",
 				"data: [DONE]\n\n",
 			} {
 				_, err := w.Write([]byte(c))
+				if i == 1 {
+					require.ErrorIs(t, err, providers.ErrUpstreamEmptyCompletion)
+					continue
+				}
 				require.NoError(t, err)
 			}
-			require.NoError(t, w.Finalize())
-
-			events := parseSSEEvents(t, rec.Body.Bytes())
-
-			var deltas []string
-			var completed map[string]any
-			for _, e := range events {
-				switch e["type"] {
-				case "response.output_text.delta":
-					deltas = append(deltas, e["delta"].(string))
-				case "response.completed":
-					completed = e["response"].(map[string]any)
-				}
-			}
-			require.Equal(t, []string{passthroughTestMarker + "\n\n"}, deltas)
-			require.NotNil(t, completed)
-			output := completed["output"].([]any)
-			require.Len(t, output, 1)
-			assert.Equal(t, passthroughTestMarker+"\n\n",
-				output[0].(map[string]any)["content"].([]any)[0].(map[string]any)["text"])
+			assert.NotContains(t, rec.Body.String(), `"type":"response.completed"`)
 		})
 	}
 }
