@@ -34,6 +34,7 @@
  */
 
 import type { Hooks, Plugin, PluginInput } from "@opencode-ai/plugin"
+import type { AssistantMessage, Message } from "@opencode-ai/sdk"
 import { readFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { join } from "node:path"
@@ -65,6 +66,9 @@ const ANTHROPIC_SCOPE = "org:create_api_key user:profile user:inference"
 // opencode's bundled provider plugins, which rewrite the upstream off the router.
 const PROVIDER_ID = "weave"
 const ANTHROPIC_PROVIDER_ID = "weave-claude"
+const HEADER_ROUTER_MODEL = "x-router-model"
+const TOAST_TITLE = "Weave Router"
+const TOAST_DURATION_MS = 6000
 
 // Dedicated router subscription headers. Must match the constants in
 // internal/server/middleware/auth.go so the router stashes each sub and resolves
@@ -77,6 +81,7 @@ const HEADER_ANTHROPIC_SUB = "X-Weave-Anthropic-Subscription"
 // pin safety). Must match internal/requestcontext.OpenCodeAgentHeader; the
 // router ignores it for auth, billing, and provider eligibility.
 const HEADER_OPENCODE_AGENT = "X-Weave-OpenCode-Agent"
+const HEADER_OPENCODE_REQUEST_ID = "X-Weave-OpenCode-Request-ID"
 type OpenCodeAgent = "build" | "title" | "explore" | "compaction"
 const OPENCODE_AGENTS: ReadonlySet<string> = new Set<OpenCodeAgent>(["build", "title", "explore", "compaction"])
 
@@ -420,8 +425,67 @@ function waitForOAuthCallback(pkce: PkceCodes, state: string): Promise<TokenResp
 
 // ---- Request provider: `weave` (Responses, both subs) ----------------------
 
+function compactTokenCount(n: number): string {
+  if (n >= 1000) {
+    const k = n / 1000
+    return `${k >= 10 ? k.toFixed(0) : k.toFixed(1).replace(/\.0$/, "")}k`
+  }
+  return String(n)
+}
+
+function formatCost(cost: number): string {
+  if (!Number.isFinite(cost) || cost <= 0) return ""
+  if (cost < 0.001) return "<$0.001"
+  return `$${cost.toFixed(3).replace(/0+$/, "").replace(/\.$/, "")}`
+}
+
+function formatRoutedToast(routedModelID: string, cost: number, tokens: { input: number; output: number }): string {
+  const parts = [`→ ${routedModelID}`]
+  const costLabel = formatCost(cost)
+  if (costLabel) parts.push(costLabel)
+  const usage: string[] = []
+  if (tokens.input > 0) usage.push(`${compactTokenCount(tokens.input)} in`)
+  if (tokens.output > 0) usage.push(`${compactTokenCount(tokens.output)} out`)
+  if (usage.length > 0) parts.push(usage.join(" / "))
+  return parts.join(" · ")
+}
+
+function isCompletedWeaveAssistant(info: Message): info is AssistantMessage {
+  if (info.role !== "assistant") return false
+  if (info.providerID !== PROVIDER_ID) return false
+  if (!info.modelID) return false
+  return info.time.completed !== undefined
+}
+
 export const WeaveCodex: Plugin = async (input: PluginInput): Promise<Hooks> => {
+  const pendingRequestMessageIDs = new Map<string, string>()
+  const routedModelIDsByMessage = new Map<string, string>()
+  const toastedMessageIDs = new Set<string>()
   return {
+    event: async ({ event }) => {
+      if (event.type !== "message.updated") return
+      const info = event.properties.info
+      if (!isCompletedWeaveAssistant(info)) return
+      if (toastedMessageIDs.has(info.id)) return
+      toastedMessageIDs.add(info.id)
+      const routedModelID = routedModelIDsByMessage.get(info.parentID) ?? info.modelID
+      routedModelIDsByMessage.delete(info.parentID)
+      for (const [requestID, messageID] of pendingRequestMessageIDs) {
+        if (messageID === info.parentID) pendingRequestMessageIDs.delete(requestID)
+      }
+      try {
+        await input.client.tui.showToast({
+          body: {
+            title: TOAST_TITLE,
+            message: formatRoutedToast(routedModelID, info.cost, info.tokens),
+            variant: "info",
+            duration: TOAST_DURATION_MS,
+          },
+        })
+      } catch {
+        // Toast is best-effort; a TUI miss must not fail the turn.
+      }
+    },
     auth: {
       provider: PROVIDER_ID,
       async loader(getAuth) {
@@ -521,7 +585,20 @@ export const WeaveCodex: Plugin = async (input: PluginInput): Promise<Hooks> => 
             }
             if (anthropic) headers.set(HEADER_ANTHROPIC_SUB, anthropic)
 
-            return fetch(requestInput, { ...init, headers })
+            const requestID = headers.get(HEADER_OPENCODE_REQUEST_ID)
+            let routedModelCaptured = false
+            try {
+              const response = await fetch(requestInput, { ...init, headers })
+              const messageID = requestID ? pendingRequestMessageIDs.get(requestID) : undefined
+              const routedModelID = response.headers.get(HEADER_ROUTER_MODEL)
+              if (messageID && routedModelID) {
+                routedModelIDsByMessage.set(messageID, routedModelID)
+                routedModelCaptured = true
+              }
+              return response
+            } finally {
+              if (requestID && routedModelCaptured) pendingRequestMessageIDs.delete(requestID)
+            }
           },
         }
       },
@@ -627,6 +704,12 @@ export const WeaveCodex: Plugin = async (input: PluginInput): Promise<Hooks> => 
       if (hookInput.model.providerID !== PROVIDER_ID) return
       output.headers["originator"] = "codex_cli_ts"
       output.headers["session-id"] = hookInput.sessionID
+      const messageID = hookInput.message?.id
+      if (messageID) {
+        const requestID = crypto.randomUUID()
+        pendingRequestMessageIDs.set(requestID, messageID)
+        output.headers[HEADER_OPENCODE_REQUEST_ID] = requestID
+      }
       // Custom agents are user-named; only OpenCode's own lifecycle agents are forwarded.
       const agent = knownOpenCodeAgent(hookInput.agent)
       if (agent) output.headers[HEADER_OPENCODE_AGENT] = agent
