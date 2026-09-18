@@ -441,6 +441,10 @@ installer owns the config file.
 | router-off / on / status | `/router-off` … | `$router-off` … (plus `$disable-routing`) | — | — | — |
 | router-models (`models`) | `/router-models` | `$router-models` | — | — | — |
 
+- **opencode** rewrites `$rf` / `$fm` / `$ufm` / `$router-session` (and slash
+  forms) in the plugin `chat.message` hook into the leading-space `/…` prompts
+  the router already parses. Local toggles stay CLI-only (`npx @weave-os/router
+  off|on|status --opencode`).
 - **Codex** uses `$name` skills because Codex reserves `/…` for built-ins; each
   skill sends the leading-space prompt form.
 - **pi** implements `/fm` and `/ufm` in the `@weave-os/router` extension rather
