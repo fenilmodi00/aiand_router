@@ -33,6 +33,7 @@ import (
 	"weave-os/router/internal/policyclient"
 	"weave-os/router/internal/policyregistry"
 	"weave-os/router/internal/postgres"
+	servingpostgres "weave-os/router/internal/postgres/serving"
 	"weave-os/router/internal/providers"
 	"weave-os/router/internal/providers/anthropic"
 	"weave-os/router/internal/providers/cortexagents"
@@ -969,8 +970,31 @@ func main() {
 	var hmmRosterSources map[router.Strategy]policy.RosterSource
 	var hmmRosterModels admin.HMMRosterSource
 	var hmmBetaCapabilities policy.Capabilities
+	var servingAdmission *middleware.ServingAdmissionConfig
 	policyEnvironmentRaw := strings.TrimSpace(config.GetOr("ROUTER_POLICY_ENVIRONMENT", ""))
-	if policyEnvironmentRaw != "" {
+	if managedServingEnabled() {
+		prepareCtx, cancelPrepare := context.WithTimeout(context.Background(), 60*time.Second)
+		admission, baseline, closeRegistry, err := buildManagedServingRuntime(prepareCtx, availableProviders)
+		cancelPrepare()
+		if err != nil {
+			logger.Error("Managed worker preparation failed; refusing to boot", "target", config.GetOr("ROUTER_SERVING_TARGET", ""), "registry_uri", config.GetOr("ROUTER_SERVING_REGISTRY_URI", ""), "err", err)
+			panic(err)
+		}
+		defer closeRegistry()
+		servingAdmission = admission
+		servingAdmission.Attribution = servingpostgres.NewRequestAttributionRepo(pool)
+		admittedRouter := policyregistry.NewAdmittedRouter(router.StrategyHMM, baseline)
+		hmmRouter = admittedRouter
+		hmmEmbeddingRouter = policyregistry.NewAdmittedRouter(router.StrategyHMMEmbedding, baseline)
+		hmmCapabilities = admittedRouter.CurrentCapabilities()
+		escalationObserver = admittedRouter
+		rosterSource := policyregistry.AdmittedRosterSource{}
+		hmmRosterSources = map[router.Strategy]policy.RosterSource{
+			router.StrategyHMM: rosterSource, router.StrategyHMMEmbedding: rosterSource,
+		}
+		hmmRosterModels = admittedHMMRosterSource{}
+		logger.Info("Managed serving admission enabled", "target", admission.Identity.Target, "revision", admission.Identity.Revision)
+	} else if policyEnvironmentRaw != "" {
 		registryURI := strings.TrimSpace(config.GetOr("WEAVE_REGISTRY_URI", "gs://weave_ml/weave_registry"))
 		policyRegistry, registryErr := policyregistry.NewGCSRegistry(context.Background(), registryURI)
 		if registryErr != nil {
@@ -1384,7 +1408,7 @@ func main() {
 	if policyPinEnabled {
 		logger.Info("Policy pin header enabled", "header", middleware.PolicyPinOverrideHeader)
 	}
-	server.RegisterWithFeatures(engine, authSvc, proxySvc, deployedModels, hmmRosterModels, deploymentMode, billingSvc, readinessChecker, hmmRosterSources, analyticsSvc, server.Features{PolicyPinEnabled: policyPinEnabled})
+	server.RegisterWithFeatures(engine, authSvc, proxySvc, deployedModels, hmmRosterModels, deploymentMode, billingSvc, readinessChecker, hmmRosterSources, analyticsSvc, server.Features{PolicyPinEnabled: policyPinEnabled, ServingAdmission: servingAdmission})
 
 	srv := &http.Server{
 		Addr:    ":" + config.GetOr("PORT", "8080"),

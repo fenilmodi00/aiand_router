@@ -2,12 +2,12 @@ package proxy
 
 import (
 	"context"
-	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"log/slog"
 
 	"weave-os/router/internal/observability"
+	"weave-os/router/internal/requestcontext"
 	"weave-os/router/internal/router/sessionpin"
 	"weave-os/router/internal/translate"
 
@@ -123,16 +123,25 @@ func DeriveSessionKey(env *translate.RequestEnvelope, apiKeyID string) [sessionp
 	return deriveSessionKey(env, apiKeyID, clientSessionID)
 }
 
+func sessionCredentialIdentity(ctx context.Context, apiKeyID string) string {
+	if identity, managed := requestcontext.ServingIdentityFromContext(ctx); managed && identity.CredentialIdentity != "" {
+		return identity.CredentialIdentity
+	}
+	return apiKeyID
+}
+
 func deriveSessionKeyForRequest(ctx context.Context, env *translate.RequestEnvelope, apiKeyID string) [sessionpin.SessionKeyLen]byte {
 	if claims := piSessionFromContext(ctx); claims != nil && claims.APIKeyID == apiKeyID && claims.matches(ctx, env) {
 		return claims.SessionKey
 	}
-	return deriveSessionKey(env, apiKeyID, clientSessionIDForRequest(ctx, env))
+	key := deriveSessionKey(env, sessionCredentialIdentity(ctx, apiKeyID), clientSessionIDForRequest(ctx, env))
+	copy(key[:], requestcontext.ServingStateKey(ctx, key[:]))
+	return key
 }
 
 const (
-	forceModelSessionKeyDomain = "force_model_session:"
-	betaSessionKeyDomain       = "beta_session:"
+	forceModelSessionKeyDomain = requestcontext.ForceModelConversationKey
+	betaSessionKeyDomain       = requestcontext.LegacyBetaConversationKey
 )
 
 // deriveForceModelSessionKeyForRequest omits the first-message discriminator
@@ -163,25 +172,9 @@ func deriveConversationSessionKeyForRequest(
 	env *translate.RequestEnvelope,
 	apiKeyID string,
 	threadSessionKey [sessionpin.SessionKeyLen]byte,
-	domain string,
+	domain requestcontext.ConversationKeyDomain,
 ) [sessionpin.SessionKeyLen]byte {
-	h := hmac.New(sha256.New, []byte(apiKeyID))
-	h.Write([]byte(domain))
-	h.Write([]byte{0x00})
-
-	if clientSessionID := clientSessionIDForRequest(ctx, env); clientSessionID != "" {
-		h.Write([]byte("client_session_id:"))
-		h.Write([]byte(clientSessionID))
-	} else {
-		// Without a client session identifier there is no safe parent scope.
-		h.Write([]byte("thread_key:"))
-		h.Write(threadSessionKey[:])
-	}
-
-	sum := h.Sum(nil)
-	var key [sessionpin.SessionKeyLen]byte
-	copy(key[:], sum[:sessionpin.SessionKeyLen])
-	return key
+	return requestcontext.ConversationKey(sessionCredentialIdentity(ctx, apiKeyID), clientSessionIDForRequest(ctx, env), domain, threadSessionKey)
 }
 
 func clientSessionIDForRequest(ctx context.Context, env *translate.RequestEnvelope) string {

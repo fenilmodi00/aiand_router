@@ -8,6 +8,7 @@ import (
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 
+	"weave-os/router/internal/requestcontext"
 	"weave-os/router/internal/router/sessionpin"
 	"weave-os/router/internal/translate"
 )
@@ -22,11 +23,12 @@ type piSessionClaimsKey struct{}
 // installation. Rotating the signing secret invalidates it.
 type piSessionClaims struct {
 	jwt.RegisteredClaims
-	APIKeyID       string                         `json:"key"`
-	InstallationID uuid.UUID                      `json:"installation"`
-	SessionID      string                         `json:"session"`
-	MetadataUserID string                         `json:"user"`
-	SessionKey     [sessionpin.SessionKeyLen]byte `json:"thread"`
+	APIKeyID              string                         `json:"key"`
+	InstallationID        uuid.UUID                      `json:"installation"`
+	SessionID             string                         `json:"session"`
+	MetadataUserID        string                         `json:"user"`
+	SessionKey            [sessionpin.SessionKeyLen]byte `json:"thread"`
+	ServingStateNamespace string                         `json:"serving_state_namespace,omitempty"`
 }
 
 func piSessionFromContext(ctx context.Context) *piSessionClaims {
@@ -35,7 +37,9 @@ func piSessionFromContext(ctx context.Context) *piSessionClaims {
 }
 
 func (claims *piSessionClaims) matches(ctx context.Context, env *translate.RequestEnvelope) bool {
+	identity, _ := requestcontext.ServingIdentityFromContext(ctx)
 	return env != nil && claims.InstallationID == installationIDFromContext(ctx) &&
+		claims.ServingStateNamespace == identity.StateNamespace &&
 		claims.SessionID == clientSessionIDForRequest(ctx, env) && claims.MetadataUserID == env.MetadataUserID()
 }
 
@@ -63,10 +67,12 @@ func (s *Service) parsePiSession(ctx context.Context, body []byte) (context.Cont
 
 func (s *Service) mintPiSession(ctx context.Context, env *translate.RequestEnvelope, sessionKey [sessionpin.SessionKeyLen]byte) (string, error) {
 	apiKeyID, _ := ctx.Value(APIKeyIDContextKey{}).(string)
+	identity, _ := requestcontext.ServingIdentityFromContext(ctx)
 	claims := piSessionClaims{
 		RegisteredClaims: jwt.RegisteredClaims{Issuer: piSessionIssuer},
 		APIKeyID:         apiKeyID, InstallationID: installationIDFromContext(ctx),
 		SessionID: clientSessionIDForRequest(ctx, env), MetadataUserID: env.MetadataUserID(), SessionKey: sessionKey,
+		ServingStateNamespace: identity.StateNamespace,
 	}
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(s.piHandoffSecret)
 }

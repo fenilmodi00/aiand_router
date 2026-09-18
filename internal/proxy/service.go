@@ -2606,11 +2606,20 @@ func (s *Service) PolicyCapabilities(strategy router.Strategy) (policy.Capabilit
 	return registered.capabilities, ok
 }
 
+// PolicyCapabilitiesForRequest keeps discovery on the same admitted classifier
+// contract as dispatch, including customer and retained-release snapshots.
+func (s *Service) PolicyCapabilitiesForRequest(ctx context.Context, strategy router.Strategy) (policy.Capabilities, bool) {
+	if source, ok := s.strategies[strategy].router.(policy.RequestCapabilitySource); ok {
+		return source.CapabilitiesForRequest(ctx), true
+	}
+	return s.PolicyCapabilities(strategy)
+}
+
 func (s *Service) authoritativePerTurnSelection(ctx context.Context) bool {
 	if s == nil {
 		return false
 	}
-	capabilities, ok := s.PolicyCapabilities(router.StrategyFromContext(ctx))
+	capabilities, ok := s.PolicyCapabilitiesForRequest(ctx, router.StrategyFromContext(ctx))
 	return ok && capabilities.AuthoritativePerTurnSelection
 }
 
@@ -3796,6 +3805,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		Float64("catalog.actual_input_per_1m", actDecisionPricing.InputUSDPer1M).
 		Float64("catalog.actual_output_per_1m", actDecisionPricing.OutputUSDPer1M).
 		Int64("latency.route_ms", routeMs)
+	applyServingSpanAttrs(ctx, decisionBuilder)
 	applySidecarAttrs(decisionBuilder, routeRes)
 	applyPlannerAttrs(decisionBuilder, routeRes)
 	applyRoutingStateAttrs(decisionBuilder, routeRes, decision.ServedIdentity(), sessionKey)
@@ -5416,7 +5426,10 @@ func (s *Service) reportPolicyOutcome(ctx context.Context, res turnLoopResult, d
 		log.Debug("Skipping policy outcome report for canceled request", "err", err)
 		return
 	}
-	observability.SafeGo(log, policyOutcomeReportTimeout, "reportPolicyOutcome", func(reportCtx context.Context) {
+	if identity, managed := requestcontext.ServingIdentityFromContext(ctx); managed {
+		payload["serving_identity"] = identity
+	}
+	observability.SafeGoContext(ctx, log, policyOutcomeReportTimeout, "reportPolicyOutcome", func(reportCtx context.Context) {
 		if err := reporter.ReportOutcome(reportCtx, payload); err != nil {
 			log.Error("Policy outcome report failed", "strategy", routeMetadata.Strategy, "err", err)
 		}
@@ -5884,6 +5897,7 @@ func resolveAndInjectCredentials(ctx context.Context, provider, model string, he
 
 // addTimingAttrs appends derived latency attributes from the request Timing.
 func addTimingAttrs(ctx context.Context, b *otel.AttrBuilder) {
+	applyServingSpanAttrs(ctx, b)
 	t := timing.TimingFrom(ctx)
 	if t == nil {
 		return
@@ -6063,7 +6077,7 @@ func (s *Service) fireBilling(ctx context.Context, p billing.DebitInferenceParam
 		observability.FromContext(ctx).Debug("Billing debit skipped: no organization_id on request")
 		return
 	}
-	dbCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	dbCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
 	balance, err := s.billing.DebitForInference(dbCtx, p)
 	if err == nil {
@@ -6603,6 +6617,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		Float64("catalog.actual_input_per_1m", actDecisionPricing.InputUSDPer1M).
 		Float64("catalog.actual_output_per_1m", actDecisionPricing.OutputUSDPer1M).
 		Int64("latency.route_ms", routeMs)
+	applyServingSpanAttrs(ctx, openaiDecisionBuilder)
 	applySidecarAttrs(openaiDecisionBuilder, routeRes)
 	applyPlannerAttrs(openaiDecisionBuilder, routeRes)
 	applyRoutingStateAttrs(openaiDecisionBuilder, routeRes, decision.ServedIdentity(), sessionKey)

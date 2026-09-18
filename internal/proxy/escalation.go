@@ -15,6 +15,7 @@ import (
 	"weave-os/router/internal/flags"
 	"weave-os/router/internal/observability"
 	"weave-os/router/internal/providers"
+	"weave-os/router/internal/requestcontext"
 	"weave-os/router/internal/router"
 	"weave-os/router/internal/router/escalation"
 	"weave-os/router/internal/router/turntype"
@@ -73,7 +74,7 @@ func (s *Service) beginEscalation(ctx context.Context, env *translate.RequestEnv
 		mode = escalationModeActive
 	}
 	scope := sha256.Sum256([]byte(fmt.Sprintf("%s/%x/%s/%s/%d", res.InstallationID, res.SessionKey, res.Strategy, mode, selection.Epoch)))
-	activation := escalationActivationID(res.InstallationID, fmt.Sprintf("%s/%s/%s/%d", apiKeyID, res.Strategy, mode, selection.Epoch))
+	activation := escalationActivationID(ctx, res.InstallationID, fmt.Sprintf("%s/%s/%s/%d", sessionCredentialIdentity(ctx, apiKeyID), res.Strategy, mode, selection.Epoch))
 	log := observability.FromContext(ctx).With("escalation_scope", fmt.Sprintf("%x", scope))
 	observation, err := env.EscalationObservation()
 	if original, ok := ctx.Value(nativeResponsesBodyContextKey{}).([]byte); ok {
@@ -106,7 +107,7 @@ func (s *Service) beginEscalation(ctx context.Context, env *translate.RequestEnv
 				return true, nil
 			}, backoff.WithBackOff(retryBackoff), backoff.WithMaxTries(5), backoff.WithMaxElapsedTime(100*time.Millisecond))
 		}
-		if lookupErr == nil && !found {
+		if _, managed := requestcontext.ServingIdentityFromContext(ctx); lookupErr == nil && !found && !managed {
 			// Compatibility requires the exact pre-HMAC identifier for continuations
 			// written before the credential-pseudonym hardening deployment.
 			legacyActivation := sha256.Sum256([]byte(fmt.Sprintf("%s/%s/%s/%s/%d", res.InstallationID, apiKeyID, res.Strategy, mode, selection.Epoch))) // lgtm[go/weak-sensitive-data-hashing]
@@ -198,11 +199,11 @@ func (s *Service) beginEscalation(ctx context.Context, env *translate.RequestEnv
 
 // escalationActivationID derives a stable, installation-scoped pseudonym for
 // credential identity without persisting the credential identifier itself.
-func escalationActivationID(installationID uuid.UUID, material string) [32]byte {
+func escalationActivationID(ctx context.Context, installationID uuid.UUID, material string) [32]byte {
 	mac := hmac.New(sha256.New, installationID[:])
 	_, _ = mac.Write([]byte(material))
 	var activation [32]byte
-	copy(activation[:], mac.Sum(nil))
+	copy(activation[:], requestcontext.ServingStateKey(ctx, mac.Sum(nil)))
 	return activation
 }
 

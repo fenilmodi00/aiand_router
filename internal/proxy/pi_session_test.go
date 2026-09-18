@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/sjson"
 
+	"weave-os/router/internal/requestcontext"
 	"weave-os/router/internal/router/sessionpin"
 	"weave-os/router/internal/translate"
 )
@@ -63,6 +64,30 @@ func TestPiSessionRejectsInvalidProofBeforeRouting(t *testing.T) {
 	}
 	require.Equal(t, 1, classifier.calls, "invalid proof must fail before classification")
 	require.Empty(t, upstream.body)
+}
+
+func TestManagedPiSessionRemainsBoundToServingGeneration(t *testing.T) {
+	svc, _, _, ctx := handoffTestService()
+	ctx = requestcontext.WithServingIdentity(ctx, requestcontext.ServingIdentity{StateNamespace: "release-a-generation-1"})
+	original, err := translate.ParseAnthropic([]byte(handoffTestBody))
+	require.NoError(t, err)
+	originalKey := deriveSessionKeyForRequest(ctx, original, "handoff-test-key")
+	token, err := svc.mintPiSession(ctx, original, originalKey)
+	require.NoError(t, err)
+	body, err := sjson.Set(handoffTestBody, "messages.0.content", "Compacted review; continue the remaining checks.")
+	require.NoError(t, err)
+	body, err = sjson.Set(body, piSessionField, token)
+	require.NoError(t, err)
+	parsed, clean, err := svc.parsePiSession(ctx, []byte(body))
+	require.NoError(t, err)
+	compacted, err := translate.ParseAnthropic(clean)
+	require.NoError(t, err)
+	require.Equal(t, originalKey, deriveSessionKeyForRequest(parsed, compacted, "handoff-test-key"), "do not namespace an already scoped ticket twice")
+	rebound := requestcontext.WithServingIdentity(parsed, requestcontext.ServingIdentity{StateNamespace: "release-a-generation-2"})
+	require.False(t, piSessionFromContext(parsed).matches(rebound, compacted))
+	require.NotEqual(t, originalKey, deriveSessionKeyForRequest(rebound, compacted, "handoff-test-key"))
+	err = svc.ProxyMessages(rebound, []byte(body), httptest.NewRecorder(), httptest.NewRequest("POST", "/v1/messages", nil))
+	require.ErrorIs(t, err, ErrHandoffInvalid, "retired tickets cannot resurrect learned state")
 }
 
 func TestPiSessionPreservesOriginalDigestAcrossCompactionAndReplicas(t *testing.T) {
