@@ -18,7 +18,8 @@ import (
 
 type readinessStore struct {
 	bindingStore
-	failure error
+	failure         error
+	artifactFailure error
 }
 
 func (s readinessStore) ReadServingState(ctx context.Context, target policyregistry.ServingTarget) (policyregistry.ServingStateSnapshot, error) {
@@ -26,6 +27,13 @@ func (s readinessStore) ReadServingState(ctx context.Context, target policyregis
 		return policyregistry.ServingStateSnapshot{}, s.failure
 	}
 	return s.bindingStore.ReadServingState(ctx, target)
+}
+
+func (s readinessStore) ReadServingObject(ctx context.Context, kind policyregistry.ServingKind, ref policyregistry.ObjectRef) (policyregistry.ServingManifest, error) {
+	if s.artifactFailure != nil {
+		return nil, s.artifactFailure
+	}
+	return s.bindingStore.ReadServingObject(ctx, kind, ref)
 }
 
 type readinessAuthorizer struct{ failure error }
@@ -36,13 +44,19 @@ func (a readinessAuthorizer) IdentityToken(context.Context, string) (string, err
 
 func readinessFixture(t *testing.T, environment policyregistry.Environment, registryError, iamError error) *gateway.Handler {
 	t.Helper()
+	return readinessFixtureWithArtifacts(t, environment, registryError, nil, iamError)
+}
+
+func readinessFixtureWithArtifacts(t *testing.T, environment policyregistry.Environment, registryError, artifactError, iamError error) *gateway.Handler {
+	t.Helper()
 	binding := gatewayBinding("https://worker.example")
 	if environment == policyregistry.EnvironmentStaging {
 		binding.Target = policyregistry.TargetStaging
 	}
 	signer, err := policyregistry.NewAssertionSigner([]byte(strings.Repeat("s", 32)), time.Now)
 	require.NoError(t, err)
-	forwarder, err := gateway.NewHandler(credentialVerifier{}, &admissionStore{}, readinessStore{bindingStore{binding: binding}, registryError}, signer, readinessAuthorizer{iamError}, http.DefaultTransport, gateway.ProductSurfaces{Environment: environment, Analytics: &analyticsVerifier{}})
+	store := readinessStore{bindingStore: bindingStore{binding: binding}, failure: registryError, artifactFailure: artifactError}
+	forwarder, err := gateway.NewHandler(credentialVerifier{}, &admissionStore{}, store, signer, readinessAuthorizer{iamError}, http.DefaultTransport, gateway.ProductSurfaces{Environment: environment, Analytics: &analyticsVerifier{}})
 	require.NoError(t, err)
 	return forwarder
 }
@@ -71,6 +85,29 @@ func TestGatewayReadinessChecksAdmissionDependencies(t *testing.T) {
 			probe.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/readyz", nil))
 			require.Equal(t, test.expectedStatus, response.Code)
 			require.NotContains(t, response.Body.String(), unavailable.Error())
+		})
+	}
+}
+
+func TestGatewayStartupToleratesMissingActivation(t *testing.T) {
+	for _, test := range []struct {
+		name           string
+		databaseError  error
+		registryError  error
+		artifactError  error
+		expectedStatus int
+	}{
+		{name: "activation missing", registryError: policyregistry.ErrNotFound, expectedStatus: http.StatusOK},
+		{name: "activated artifacts missing", artifactError: policyregistry.ErrNotFound, expectedStatus: http.StatusServiceUnavailable},
+		{name: "registry unavailable", registryError: errors.New("private dependency diagnostic"), expectedStatus: http.StatusServiceUnavailable},
+		{name: "database unavailable", databaseError: errors.New("private dependency diagnostic"), expectedStatus: http.StatusServiceUnavailable},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			forwarder := readinessFixtureWithArtifacts(t, policyregistry.EnvironmentStaging, test.registryError, test.artifactError, nil)
+			probe := forwarder.StartupHandler(func(context.Context) error { return test.databaseError })
+			response := httptest.NewRecorder()
+			probe.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/startupz", nil))
+			require.Equal(t, test.expectedStatus, response.Code)
 		})
 	}
 }
