@@ -16,6 +16,10 @@ var (
 	ErrStaleProjection = errors.New("stale subscriber entitlement projection")
 	// ErrProjectionConflict means the same version was projected with different values.
 	ErrProjectionConflict = errors.New("conflicting subscriber entitlement projection")
+	// ErrAllowanceActionNotFound means no durable action exists for an action identifier.
+	ErrAllowanceActionNotFound = errors.New("subscriber allowance action not found")
+	// ErrAllowanceActionConflict means a settlement command contradicts the stored action.
+	ErrAllowanceActionConflict = errors.New("conflicting subscriber allowance action")
 )
 
 // SubscriberID is the opaque credential-subject identity authenticated by Router.
@@ -176,6 +180,25 @@ func (e Entitlement) Validate() error {
 	return e.BillingPeriod.Validate()
 }
 
+// WindowUsage is the consumed amount of one subscriber allowance window.
+type WindowUsage struct {
+	Period             Period
+	LimitUsdMicros     int64
+	ReservedUsdMicros  int64
+	FinalizedUsdMicros int64
+}
+
+// ConsumedUsdMicros counts held and settled retail cost against the window.
+func (u WindowUsage) ConsumedUsdMicros() int64 {
+	return u.ReservedUsdMicros + u.FinalizedUsdMicros
+}
+
+// Usage reports consumption of both enforcement windows covering one request.
+type Usage struct {
+	Billing WindowUsage
+	SixHour WindowUsage
+}
+
 // ActionState is the durable lifecycle of an allowance accounting action.
 type ActionState string
 
@@ -208,6 +231,10 @@ type Reservation struct {
 	ReservedUsdMicros  int64
 	CapacitySource     CapacitySource
 	ReservedAt         time.Time
+	// Window limits seed the accounting periods the hold accrues against, so a
+	// mid-period plan change lands with the reservation that observed it.
+	BillingLimitUsdMicros int64
+	SixHourLimitUsdMicros int64
 }
 
 // Validate rejects malformed reservation commands.
@@ -215,13 +242,23 @@ func (r Reservation) Validate() error {
 	if r.ActionID == "" || r.RouterRequestID == "" || !r.SubscriberID.Valid() || r.EntitlementVersion <= 0 ||
 		!r.Plan.Valid() || r.APIKeyID == "" || r.RequestedModel == "" || r.ReservedUsdMicros < 0 ||
 		!r.CapacitySource.Valid() || r.ReservedAt.IsZero() || !isUTC(r.ReservedAt) ||
+		r.BillingLimitUsdMicros < 0 || r.SixHourLimitUsdMicros < 0 ||
 		r.BillingPeriod.Kind != PeriodKindBilling || r.SixHourPeriod.Kind != PeriodKindSixHour {
 		return ErrInvalidContract
 	}
 	if err := r.BillingPeriod.Validate(); err != nil {
 		return err
 	}
-	return r.SixHourPeriod.Validate()
+	if err := r.SixHourPeriod.Validate(); err != nil {
+		return err
+	}
+	// The period starts are the aggregate keys the hold accrues against, so a
+	// reservation filed outside the windows containing it would draw down one
+	// window while admission reads another.
+	if !r.BillingPeriod.Covers(r.ReservedAt) || r.SixHourPeriod != SixHourWindowAt(r.ReservedAt) {
+		return ErrInvalidContract
+	}
+	return nil
 }
 
 // Finalization records the actual retail cost and serving source for a reserved action.
@@ -306,4 +343,5 @@ type AllowanceRepository interface {
 	Reserve(context.Context, Reservation) (Action, error)
 	Finalize(context.Context, Finalization) (Action, error)
 	Release(context.Context, Release) (Action, error)
+	Usage(ctx context.Context, subscriberID SubscriberID, billing, sixHour Period) (Usage, error)
 }
