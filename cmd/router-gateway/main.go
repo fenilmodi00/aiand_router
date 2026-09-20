@@ -19,6 +19,7 @@ import (
 	"weave-os/router/internal/gateway/iam"
 	"weave-os/router/internal/observability"
 	"weave-os/router/internal/policyregistry"
+	"weave-os/router/internal/postgres/pgtls"
 	"weave-os/router/internal/postgres/serving"
 	"weave-os/router/internal/sqlc"
 )
@@ -44,6 +45,13 @@ func run() error {
 	poolConfig, err := pgxpool.ParseConfig(config.PostgresDSN())
 	if err != nil {
 		return err
+	}
+	clientTLS, err := pgtls.Configure(poolConfig)
+	if err != nil {
+		return err
+	}
+	if clientTLS {
+		observability.FromContext(ctx).Info("Postgres connections authenticate with a client certificate", "component", "router_gateway", "operation", "boot")
 	}
 	poolConfig.ConnConfig.RuntimeParams["search_path"] = "router,public"
 	poolConfig.MaxConns = 6
