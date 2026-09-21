@@ -4139,6 +4139,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 				attemptOpts.TargetProvider = d.Provider
 				attemptOpts.StripPromptCacheKey = stripPromptCacheKey
 				attemptOpts.FastMode = fastModeForAttempt(actx, d.Model, d.Provider)
+				attemptOpts.ReasoningReplayScope = s.reasoningReplayScope(actx, d)
 				fastServed = attemptOpts.FastMode
 				setStreamCost(d, true)
 				respSummary = translate.ResponseSummary{}
@@ -4164,6 +4165,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 				attemptMarker := anthropicPrelude.markerForAttempt(targetMarker, preludeBuf)
 				if useResponses {
 					responsesTranslator := translate.NewResponsesToAnthropicWriter(sink, d.Model, usage).
+						WithReasoningScope(attemptOpts.ReasoningReplayScope).
 						WithRoutingMarker(attemptMarker).
 						WithEstimatedInputTokens(feats.Tokens).
 						WithRequestHadTools(feats.HasTools).
@@ -7056,6 +7058,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 					attemptOpts.TargetProvider = d.Provider
 					attemptOpts.StripPromptCacheKey = stripPromptCacheKey
 					attemptOpts.FastMode = fastModeForAttempt(actx, d.Model, d.Provider)
+					attemptOpts.ReasoningReplayScope = s.reasoningReplayScope(actx, d)
 					fastServed = attemptOpts.FastMode
 					var emitErr error
 					if surface == surfaceResponsesTranslated {
