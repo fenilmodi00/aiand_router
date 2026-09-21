@@ -134,9 +134,12 @@ func TestEscalationObservationExcludesOpaqueReasoningAndMedia(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, observation.Messages, 2)
 	assert.Equal(t, translate.EscalationRoleDeveloper, observation.Messages[0].Role)
+	assert.False(t, observation.Messages[0].HasOmittedMedia)
+	assert.True(t, observation.Messages[1].HasOmittedMedia)
 	encoded, err := json.Marshal(observation)
 	require.NoError(t, err)
 	assert.NotContains(t, string(encoded), "secret")
+	assert.NotContains(t, string(encoded), "HasOmittedMedia")
 	assert.Contains(t, string(encoded), "check")
 }
 
@@ -149,4 +152,33 @@ func TestEscalationObservationRejectsUnsupportedEvidence(t *testing.T) {
 	require.NoError(t, err)
 	_, err = envelope.EscalationObservation()
 	assert.Error(t, err)
+}
+
+func TestResponsesEscalationRejectsNonStringInstructions(t *testing.T) {
+	for _, instructions := range []string{
+		`[{"role":"system","content":"instruction A"}]`,
+		`[{"role":"developer","content":"instruction B"}]`,
+		`[{"type":"input_text","text":"instruction A"}]`,
+		`[]`, `{"text":"instruction B"}`, `42`, `true`,
+	} {
+		t.Run(instructions, func(t *testing.T) {
+			envelope, err := translate.ParseOpenAI([]byte(fmt.Sprintf(`{"instructions":%s,"input":"hello"}`, instructions)))
+			require.NoError(t, err)
+			_, err = envelope.EscalationObservation()
+			require.ErrorContains(t, err, "instructions must be a string or null")
+		})
+	}
+	for _, instructions := range []string{`null`, `""`, `"instruction A"`} {
+		t.Run(instructions, func(t *testing.T) {
+			observation, err := translate.ParseResponsesEscalationObservation([]byte(fmt.Sprintf(`{"instructions":%s,"input":"hello"}`, instructions)))
+			require.NoError(t, err)
+			require.True(t, observation.HistoryComplete)
+			if instructions == `null` {
+				require.Len(t, observation.Messages, 1)
+			} else {
+				require.Len(t, observation.Messages, 2)
+				require.Equal(t, translate.EscalationRoleSystem, observation.Messages[0].Role)
+			}
+		})
+	}
 }
