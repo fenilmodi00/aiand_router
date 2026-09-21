@@ -36,6 +36,15 @@ printf '%s\n' '{"model":"opus","statusLine":{"type":"command","command":"my-stat
 run
 test "$(model "$settings")" = opus
 test ! -e "$state"
+
+# A first-time context-window opt-in also works through update mode.
+run_update --context-window 1m
+test "$(model "$settings")" = 'opus[1m]'
+test "$(jq -r '.original' "$state")" = opus
+uninstall
+test "$(model "$settings")" = opus
+test ! -e "$state"
+
 run --context-window 1m
 test "$(model "$settings")" = 'opus[1m]'
 test "$(jq -r '.original' "$state")" = opus
@@ -54,6 +63,17 @@ test "$(model "$settings")" = 'opus[1m]'
 uninstall
 test "$(model "$settings")" = opus
 test ! -e "$state"
+
+# A routine update preserves a user's explicit model change instead of restoring
+# the previously managed 1M variant without an explicit context-window request.
+printf '%s\n' '{"model":"opus"}' >"$settings"
+run --context-window 1m
+jq '.model = "opus"' "$settings" >"$work/edited.json"
+mv "$work/edited.json" "$settings"
+run_update
+test "$(model "$settings")" = opus
+uninstall
+test "$(model "$settings")" = opus
 
 # An intentional later selection wins over our saved model on off/on/uninstall.
 run --context-window 1m

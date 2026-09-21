@@ -2494,7 +2494,7 @@ apply_claude_context_window() {
   local action="$1" active="$2" state="$settings_dir/.weave-context-window.json" merged tmp
   refuse_if_symlink "$state"
   [ -f "$active" ] || return 0
-  if [ "$action" = "install" ] && [ -n "$context_window" ]; then
+  if [ -n "$context_window" ]; then
     tmp="$(mktemp "$settings_dir/.weave-context.XXXXXX")"
     jq --arg managed "$context_managed_model" '{had_model: has("model"), original: .model, managed: $managed}' "$active" >"$tmp"
     chmod 600 "$tmp"
@@ -2502,13 +2502,13 @@ apply_claude_context_window() {
     merged="$(jq --arg model "$context_managed_model" '.model = $model' "$active")"
   else
     [ -f "$state" ] || return 0
-    merged="$(jq --slurpfile state "$state" --arg action "$action" '
+    merged="$(jq --slurpfile state "$state" --arg action "$action" --arg context_window "$context_window" '
       $state[0] as $s |
       if $action == "off" then
         if .model == $s.managed then
           if $s.had_model then .model = $s.original else del(.model) end
         else . end
-      elif has("model") == $s.had_model and .model == $s.original then .model = $s.managed
+      elif ($action == "install" or $action == "on" or $context_window != "") and has("model") == $s.had_model and .model == $s.original then .model = $s.managed
       else . end
     ' "$active")"
   fi
@@ -2516,7 +2516,7 @@ apply_claude_context_window() {
   printf '%s\n' "$merged" >"$tmp"
   chmod 600 "$tmp"
   mv "$tmp" "$active"
-  if [ "$action" = "install" ] && [ -n "$context_window" ]; then
+  if [ -n "$context_window" ]; then
     ok "Claude Code model set to $context_managed_model; automatic compaction stays enabled. Restart Claude Code."
     if [ "$scope" = "project" ] && [ -z "$install_dir" ]; then
       gitignore_add ".claude/.weave-context-window.json"
@@ -5964,7 +5964,11 @@ write_claude_settings() {
     chmod 600 "$local_settings_file"
     ok "Router key header written to $local_settings_file"
   fi
-  apply_claude_context_window install "$context_settings_file"
+  context_window_action="install"
+  if [ "$mode" = "update" ] && [ ! -f "$settings_dir/.weave-parked.json" ]; then
+    context_window_action="update"
+  fi
+  apply_claude_context_window "$context_window_action" "$context_settings_file"
 }
 
 # write_claude_settings rewrites the full router config live, so a parked
