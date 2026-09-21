@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"weave-os/router/internal/auth"
 	"weave-os/router/internal/subscriptions"
 )
 
@@ -104,6 +105,15 @@ func TestPoolCanceledRefreshWaiterDoesNotCooldownAccount(t *testing.T) {
 	release()
 }
 
+func TestPoolActivateDoesNotReenableDisabledAccount(t *testing.T) {
+	p := subscriptions.NewPool("user-a", subscriptions.ProviderClaude, nil)
+	require.NoError(t, p.Upsert(subscriptions.Account{
+		ID: "claude", OwnerID: "user-a", Provider: subscriptions.ProviderClaude, Enabled: true, AccessToken: "secret",
+	}))
+	require.True(t, p.Disable("claude"))
+	require.False(t, p.Activate("claude"))
+	require.ErrorIs(t, mustLeaseError(p, subscriptions.ProviderClaude), subscriptions.ErrNoAvailableAccount)
+}
 func TestPoolDisableAndRemove(t *testing.T) {
 	p := subscriptions.NewPool("user-a", subscriptions.ProviderClaude, nil)
 	require.NoError(t, p.Upsert(subscriptions.Account{ID: "claude", OwnerID: "user-a", Provider: subscriptions.ProviderClaude, Enabled: true, AccessToken: "secret"}))
@@ -111,6 +121,18 @@ func TestPoolDisableAndRemove(t *testing.T) {
 	require.ErrorIs(t, mustLeaseError(p, subscriptions.ProviderClaude), subscriptions.ErrNoAvailableAccount)
 	require.True(t, p.Remove("claude"))
 	require.False(t, p.Remove("claude"))
+}
+
+func TestPoolActivatePreservesActiveCooldown(t *testing.T) {
+	now := time.Date(2026, 9, 20, 12, 0, 0, 0, time.UTC)
+	resetAt := now.Add(time.Hour)
+	p := subscriptions.NewPool("user-a", subscriptions.ProviderClaude, func() time.Time { return now })
+	require.NoError(t, p.Upsert(subscriptions.Account{
+		ID: "claude", OwnerID: "user-a", Provider: subscriptions.ProviderClaude, Enabled: true, AccessToken: "secret",
+	}))
+	require.True(t, p.Exhaust("claude", resetAt))
+	require.True(t, p.Activate("claude"))
+	require.ErrorIs(t, mustLeaseError(p, subscriptions.ProviderClaude), subscriptions.ErrNoAvailableAccount)
 }
 
 func TestPoolCooldownRotatesStickyAccount(t *testing.T) {
@@ -129,6 +151,41 @@ func TestPoolCooldownRotatesStickyAccount(t *testing.T) {
 	require.NoError(t, err)
 	release()
 	require.Equal(t, "b", rotated.ID)
+}
+
+func TestPoolSkipsUnhealthyAccounts(t *testing.T) {
+	p := subscriptions.NewPool("user-a", subscriptions.ProviderClaude, nil)
+	for _, account := range []subscriptions.Account{
+		{ID: "active", OwnerID: "user-a", Provider: subscriptions.ProviderClaude, Enabled: true, State: auth.SubscriptionAccountStateActive},
+		{ID: "exhausted", OwnerID: "user-a", Provider: subscriptions.ProviderClaude, Enabled: true, State: auth.SubscriptionAccountStateExhausted},
+		{ID: "unknown", OwnerID: "user-a", Provider: subscriptions.ProviderClaude, Enabled: true, State: auth.SubscriptionAccountStateUnknown},
+		{ID: "reconnect", OwnerID: "user-a", Provider: subscriptions.ProviderClaude, Enabled: false, State: auth.SubscriptionAccountStateReconnectRequired},
+	} {
+		require.NoError(t, p.Upsert(account))
+	}
+
+	first, release, err := p.Lease(context.Background(), subscriptions.ProviderClaude, "", nil)
+	require.NoError(t, err)
+	defer release()
+	second, release, err := p.Lease(context.Background(), subscriptions.ProviderClaude, "", nil)
+	require.NoError(t, err)
+	defer release()
+
+	require.ElementsMatch(t, []string{"active", "unknown"}, []string{first.ID, second.ID})
+}
+
+func TestPoolRetriesExhaustedAccountAfterReset(t *testing.T) {
+	now := time.Date(2026, 9, 20, 12, 0, 0, 0, time.UTC)
+	p := subscriptions.NewPool("user-a", subscriptions.ProviderClaude, func() time.Time { return now })
+	require.NoError(t, p.Upsert(subscriptions.Account{
+		ID: "exhausted", OwnerID: "user-a", Provider: subscriptions.ProviderClaude, Enabled: true,
+		State: auth.SubscriptionAccountStateExhausted, CooldownTil: now.Add(-time.Second),
+	}))
+
+	account, release, err := p.Lease(context.Background(), subscriptions.ProviderClaude, "", nil)
+	require.NoError(t, err)
+	defer release()
+	require.Equal(t, "exhausted", account.ID)
 }
 
 func TestManagerDoesNotCrossOwnerOrProviderPools(t *testing.T) {

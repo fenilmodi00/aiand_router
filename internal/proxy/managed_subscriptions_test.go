@@ -16,6 +16,7 @@ import (
 	"weave-os/router/internal/flags"
 	"weave-os/router/internal/inference"
 	"weave-os/router/internal/providers"
+	"weave-os/router/internal/proxy/usage"
 	"weave-os/router/internal/router"
 	"weave-os/router/internal/router/catalog"
 	"weave-os/router/internal/subscriptions"
@@ -29,6 +30,16 @@ type scriptedSubscriptionLeaser struct {
 	owners      []auth.SubscriptionOwner
 	cooldownIDs []string
 	disabledIDs []string
+}
+
+type healthSubscriptionLeaser struct {
+	*scriptedSubscriptionLeaser
+	exhaustedIDs []string
+}
+
+func (h *healthSubscriptionLeaser) Exhaust(_ context.Context, _ auth.SubscriptionOwner, _ subscriptions.Provider, accountID string, _ time.Time) error {
+	h.exhaustedIDs = append(h.exhaustedIDs, accountID)
+	return nil
 }
 
 func (s *scriptedSubscriptionLeaser) Lease(_ context.Context, owner auth.SubscriptionOwner, provider subscriptions.Provider, _ string) (subscriptions.Lease, bool, error) {
@@ -94,6 +105,54 @@ func TestDispatchWithFallbackUsesOnlyMatchingManagedProviderFamily(t *testing.T)
 	assert.Equal(t, credSourceCodexSubscription, managedSubscriptionCredentialSource(ctx))
 }
 
+func TestLeaseManagedSubscriptionSkipsObservedExhaustedAccount(t *testing.T) {
+	leaser := &healthSubscriptionLeaser{scriptedSubscriptionLeaser: &scriptedSubscriptionLeaser{
+		leases: []subscriptions.Lease{
+			{AccountID: "opaque-a", AccessToken: exhaustedSubToken},
+			{AccountID: "opaque-b", AccessToken: "token-b"},
+		},
+	}}
+	svc := newServiceWithProviders(t, nil).
+		WithManagedSubscriptions(leaser).
+		WithUsageObserver(observerWithSnapshot(exhaustedSubToken, exhaustedSnapshot()))
+
+	_, lease, managed, err := svc.leaseManagedSubscription(
+		managedSubscriptionTestContext(), providers.ProviderAnthropic, "claude-opus-4-8",
+	)
+
+	require.NoError(t, err)
+	require.True(t, managed)
+	require.Equal(t, "opaque-b", lease.AccountID)
+	require.Equal(t, []string{"opaque-a"}, leaser.exhaustedIDs)
+	lease.Release()
+}
+
+func TestLeaseManagedSubscriptionHonorsResetQuotaWindows(t *testing.T) {
+	now := time.Now()
+	leaser := &healthSubscriptionLeaser{scriptedSubscriptionLeaser: &scriptedSubscriptionLeaser{
+		leases: []subscriptions.Lease{
+			{AccountID: "opaque-a", AccessToken: exhaustedSubToken},
+		},
+	}}
+	snap := usage.Snapshot{
+		Primary:    usage.Window{UsedPercent: 1.0, WindowMinutes: 300, ResetAt: now.Add(-time.Minute)},
+		Secondary:  usage.Window{UsedPercent: 0.20, WindowMinutes: 10080, ResetAt: now.Add(48 * time.Hour)},
+		ObservedAt: now.Add(-2 * time.Hour),
+	}
+	svc := newServiceWithProviders(t, nil).
+		WithManagedSubscriptions(leaser).
+		WithUsageObserver(observerWithSnapshot(exhaustedSubToken, snap))
+
+	_, lease, managed, err := svc.leaseManagedSubscription(
+		managedSubscriptionTestContext(), providers.ProviderAnthropic, "claude-opus-4-8",
+	)
+
+	require.NoError(t, err)
+	require.True(t, managed)
+	require.Equal(t, "opaque-a", lease.AccountID)
+	require.Empty(t, leaser.exhaustedIDs)
+	lease.Release()
+}
 func TestDispatchWithFallbackDoesNotCrossManagedProviderFamilies(t *testing.T) {
 	leaser := &scriptedSubscriptionLeaser{leases: []subscriptions.Lease{{AccountID: "opaque-claude", AccessToken: "token-claude"}}}
 	svc := newServiceWithProviders(t, nil).WithManagedSubscriptions(leaser)
@@ -108,6 +167,26 @@ func TestDispatchWithFallbackDoesNotCrossManagedProviderFamilies(t *testing.T) {
 	require.False(t, managed)
 	require.Nil(t, CredentialsFromContext(ctx))
 	require.Empty(t, leaser.providers)
+}
+
+func TestLeaseManagedCodexFallsBackAfterAllLinkedAccountsAreRejected(t *testing.T) {
+	leaser := &scriptedSubscriptionLeaser{leases: []subscriptions.Lease{
+		{AccountID: "opaque-codex", AccessToken: "token-codex"},
+	}}
+	svc := newServiceWithProviders(t, nil).WithManagedSubscriptions(leaser)
+	svc.deploymentKeyedProviders = map[string]struct{}{providers.ProviderOpenAI: {}}
+	ctx := managedSubscriptionContext(auth.SubscriptionProviderCodex)
+	owner := subscriptionOwnerFromContext(ctx)
+	svc.subscriptionModels.denyManaged(
+		owner.PoolKey(), "opaque-codex", providers.ProviderOpenAI, "gpt-5.6-sol", time.Now().Add(time.Minute),
+	)
+
+	_, lease, managed, err := svc.leaseManagedSubscription(ctx, providers.ProviderOpenAI, "gpt-5.6-sol")
+
+	require.NoError(t, err)
+	require.False(t, managed)
+	require.Empty(t, lease.AccountID)
+	require.Len(t, leaser.providers, 2)
 }
 
 func TestManagedSubscriptionOverridesBYOKButNotInboundOAuth(t *testing.T) {
