@@ -680,14 +680,44 @@ strip_weave_codex_hooks() {
   rm -f "$tmp" 2>/dev/null || true
 }
 
+# codex_existing_option finds a Codex setting before the managed block is
+# replaced. Codex can save a selection inside our old block or immediately
+# after it, where TOML incorrectly scopes it to the preceding table.
+codex_existing_option() {
+  local config_file="$1" option="$2"
+  [ -f "$config_file" ] || return 0
+  awk -v begin="$WEAVE_CODEX_BEGIN_MARKER" -v end="$WEAVE_CODEX_END_MARKER" -v key="$option" '
+    BEGIN { option_pattern = "^[[:space:]]*" key "[[:space:]]*=" }
+    $0 == begin { in_managed = 1; managed_top = 1; after_managed = 0; next }
+    $0 == end { in_managed = 0; after_managed = 1; next }
+    /^[[:space:]]*\[/ {
+      in_section = 1
+      if (in_managed) managed_top = 0
+      else after_managed = 0
+      in_weave_provider = ($0 ~ /^[[:space:]]*\[[[:space:]]*model_providers[[:space:]]*\.[[:space:]]*weave[[:space:]]*\][[:space:]]*(#.*)?$/)
+      next
+    }
+    $0 ~ option_pattern {
+      if (!in_managed && !in_section) outside = $0
+      else if (!in_managed && (after_managed || in_weave_provider)) misplaced = $0
+      else if (in_managed && managed_top) managed = $0
+    }
+    END {
+      if (outside != "") print "T" outside
+      else if (misplaced != "") print "S" misplaced
+      else if (managed != "") print "B" managed
+    }
+  ' "$config_file"
+}
+
 # write_codex_config writes a managed [model_providers.weave] block to the
 # Codex CLI's config.toml. Sets `model_provider = "weave"` at the top level so
 # Codex picks the routed provider by default. The provider requires OpenAI
 # authentication, preserving the user's ChatGPT plan credential while the
 # router key is sent independently. The router applies OAuth only to its
 # native gpt-5.6 Sol/Terra/Luna family; all other routed models use WorkWeave
-# deployment or BYOK credentials. Both settings live inside the managed-block
-# markers so uninstall removes them cleanly. We strip any
+# deployment or BYOK credentials. The model choice stays outside the managed
+# markers so Codex can update it without a reinstall resetting it. We strip any
 # top-level `model_provider = ...` declaration OUTSIDE the markers before
 # appending so the file doesn't end up with a duplicate key (TOML rejects
 # that). Inline `model_provider` keys inside `[profiles.*]` sections stay
@@ -734,11 +764,21 @@ write_codex_config() {
   # Tag the client so telemetry can attribute traffic to Codex vs other CLIs
   # that share the same router key. The router otherwise has to guess from
   # User-Agent.
-  headers_parts="${headers_parts}, \"X-App\" = \"codex\""
+  headers_parts="${headers_parts}, \"X-App\" = \"codex\", \"X-Weave-Codex-Native-Model-Pin\" = \"1\""
   # No strategy header: pinning one here freezes installed clients on whatever
   # policy was current at install time, so a deployment-default change never
   # reaches them. Every endpoint, hosted or self-hosted, uses its own default.
   local headers_line="http_headers = { ${headers_parts} }"
+  local codex_model_line='model = "weave-auto"' codex_effort_line="" saved_option
+  saved_option="$(codex_existing_option "$config_file" model)"
+  case "${saved_option:0:1}" in
+    T) codex_model_line="" ;;
+    S|B) codex_model_line="${saved_option:1}" ;;
+  esac
+  saved_option="$(codex_existing_option "$config_file" model_reasoning_effort)"
+  case "${saved_option:0:1}" in
+    S|B) codex_effort_line="${saved_option:1}" ;;
+  esac
 
   local hook_feature_line="features.hooks = true"
   local hook_block=""
@@ -809,7 +849,10 @@ ${headers_line}
 ${hook_block}
 ${WEAVE_CODEX_END_MARKER}
 TOML
-)"
+  )"
+  local codex_insertion="$block"
+  [ -z "$codex_effort_line" ] || codex_insertion="${codex_effort_line}"$'\n'"${codex_insertion}"
+  [ -z "$codex_model_line" ] || codex_insertion="${codex_model_line}"$'\n'"${codex_insertion}"
 
   if [ -f "$config_file" ]; then
     local tmp; tmp="$(mktemp -t weave-codex.XXXXXX)"
@@ -829,10 +872,11 @@ TOML
     # refused to start with "duplicate key" while the installer reported
     # success.
     awk -v begin="$WEAVE_CODEX_BEGIN_MARKER" -v end="$WEAVE_CODEX_END_MARKER" '
-      $0 == begin { skip = 1; next }
-      $0 == end   { skip = 0; next }
+      $0 == begin { skip = 1; after_managed = 0; next }
+      $0 == end   { skip = 0; after_managed = 1; next }
       skip        { next }
       /^[[:space:]]*\[/ {
+        after_managed = 0
         in_section = 1
         if ($0 ~ /^[[:space:]]*\[[[:space:]]*model_providers[[:space:]]*\.[[:space:]]*weave[[:space:]]*(\.[^]]*)?\][[:space:]]*(#.*)?$/) {
           in_weave_provider = 1
@@ -841,6 +885,9 @@ TOML
         in_weave_provider = 0
       }
       in_weave_provider { next }
+      after_managed && /^[[:space:]]*(model|model_reasoning_effort)[[:space:]]*=/ { next }
+      !in_section && /^[[:space:]]*#[[:space:]]*model_provider[[:space:]]*=[[:space:]]*"weave".*weave-router: off/ { next }
+      !in_section && /^[[:space:]]*#[[:space:]]*model[[:space:]]*=[[:space:]]*"weave-auto".*weave-router: off/ { next }
       !in_section && /^[[:space:]]*model_provider[[:space:]]*=/ { next }
       { print }
     ' "$config_file" >"$tmp"
@@ -876,7 +923,7 @@ EOF
         if [ "$first_section" -gt 1 ]; then
           head -n "$((first_section - 1))" "$tmp"
         fi
-        printf "%s\n" "$block"
+        printf "%s\n" "$codex_insertion"
         tail -n "+${first_section}" "$tmp"
       } >"$config_file"
     else
@@ -884,11 +931,11 @@ EOF
       # already at top-level. Our block ends with its own [section], so
       # appending is safe (no bare keys follow).
       cp "$tmp" "$config_file"
-      printf "\n%s\n" "$block" >>"$config_file"
+      printf "\n%s\n" "$codex_insertion" >>"$config_file"
     fi
     rm -f "$tmp"
   else
-    printf "%s\n" "$block" >"$config_file"
+    printf "%s\n" "$codex_insertion" >"$config_file"
   fi
 
   # If the user already has a [features] table, place our managed hook
@@ -2707,12 +2754,16 @@ toggle_claude() {
 toggle_codex() {
   local f="$codex_config_file" state="absent" tmp
   if [ -f "$f" ]; then
-    state="$(awk -v b="$WEAVE_CODEX_BEGIN_MARKER" -v e="$WEAVE_CODEX_END_MARKER" '
-      $0==b{inblk=1; next}
-      $0==e{inblk=0; next}
-      inblk && /^[[:space:]]*model_provider[[:space:]]*=[[:space:]]*"weave"/ {st="on"}
-      inblk && /^[[:space:]]*#[[:space:]]*model_provider[[:space:]]*=[[:space:]]*"weave"/ {if(st=="")st="off"}
-      END{print (st==""?"absent":st)}
+    state="$(awk '
+      /^[[:space:]]*\[[[:space:]]*model_providers[[:space:]]*\.[[:space:]]*weave[[:space:]]*\]/ { has_weave = 1 }
+      /^[[:space:]]*\[/ { in_section = 1 }
+      !in_section && /^[[:space:]]*model_provider[[:space:]]*=[[:space:]]*"weave"[[:space:]]*$/ { active_weave = 1 }
+      !in_section && /^[[:space:]]*model_provider[[:space:]]*=/ { has_active_provider = 1 }
+      END {
+        if (!has_weave) print "absent"
+        else if (active_weave) print "on"
+        else print (has_active_provider ? "absent" : "off")
+      }
     ' "$f")"
   fi
 
@@ -2728,10 +2779,12 @@ toggle_codex() {
       if [ "$state" = "absent" ]; then info "Codex isn't configured for the router. Run the installer first."; return 0; fi
       if [ "$state" = "off" ]; then ok "Codex is already off — nothing to do."; return 0; fi
       tmp="$(mktemp -t weave-codex-toggle.XXXXXX)"
-      awk -v b="$WEAVE_CODEX_BEGIN_MARKER" -v e="$WEAVE_CODEX_END_MARKER" '
-        $0==b{inblk=1; print; next}
-        $0==e{inblk=0; print; next}
-        inblk && /^[[:space:]]*model_provider[[:space:]]*=[[:space:]]*"weave"[[:space:]]*$/ {
+      awk '
+        /^[[:space:]]*\[/ { in_section = 1 }
+        !in_section && /^[[:space:]]*model_provider[[:space:]]*=[[:space:]]*"weave"[[:space:]]*$/ {
+          print "# " $0 "  # weave-router: off (run on to re-enable)"; next
+        }
+        !in_section && /^[[:space:]]*model[[:space:]]*=[[:space:]]*"weave-auto"[[:space:]]*$/ {
           print "# " $0 "  # weave-router: off (run on to re-enable)"; next
         }
         {print}
@@ -2746,13 +2799,39 @@ toggle_codex() {
       if [ "$state" = "absent" ]; then warn "No managed Weave block in $f. Run the installer to set up Codex."; return 0; fi
       if [ "$state" = "on" ]; then ok "Codex is already on — nothing to do."; return 0; fi
       tmp="$(mktemp -t weave-codex-toggle.XXXXXX)"
-      awk -v b="$WEAVE_CODEX_BEGIN_MARKER" -v e="$WEAVE_CODEX_END_MARKER" '
-        $0==b{inblk=1; print; next}
-        $0==e{inblk=0; print; next}
-        inblk && /^[[:space:]]*#[[:space:]]*model_provider[[:space:]]*=[[:space:]]*"weave"/ {
-          print "model_provider = \"weave\""; next
+      local has_top_model="false"
+      if awk '
+        /^[[:space:]]*\[/ { in_section = 1 }
+        !in_section && /^[[:space:]]*model[[:space:]]*=/ { found = 1 }
+        END { exit(found ? 0 : 1) }
+      ' "$f"; then
+        has_top_model="true"
+      fi
+      awk -v has_top_model="$has_top_model" '
+        function add_missing_settings() {
+          if (!restored_provider) print "model_provider = \"weave\""
+          if (has_top_model != "true" && !restored_model) print "model = \"weave-auto\""
+        }
+        /^[[:space:]]*\[/ {
+          if (!in_section) add_missing_settings()
+          in_section = 1
+        }
+        !in_section && /^[[:space:]]*#[[:space:]]*model_provider[[:space:]]*=[[:space:]]*"weave".*weave-router: off/ {
+          if (!restored_provider) {
+            print "model_provider = \"weave\""
+            restored_provider = 1
+          }
+          next
+        }
+        !in_section && /^[[:space:]]*#[[:space:]]*model[[:space:]]*=[[:space:]]*"weave-auto".*weave-router: off/ {
+          if (has_top_model != "true" && !restored_model) {
+            print "model = \"weave-auto\""
+            restored_model = 1
+          }
+          next
         }
         {print}
+        END { if (!in_section) add_missing_settings() }
       ' "$f" >"$tmp" && mv "$tmp" "$f"
       chmod 600 "$f"
       if [ -f "$codex_status_file" ] && grep -Fq '<!-- weave-router managed codex status -->' "$codex_status_file"; then
