@@ -67,8 +67,9 @@ func readServing[T ServingManifest](ctx context.Context, store ServingStore, kin
 	return typed, err
 }
 
-// readServingPayload additionally returns the exact stored payload so callers can bind later
-// checks to the immutable bytes instead of this binary's canonical re-encoding.
+// readServingPayload additionally returns the exact stored payload. Reads trust the
+// generation-pinned reference; only the proposal anchor re-verifies its digest, inside
+// NextServingActivation, because replay and status are keyed on the recorded proposal ref.
 func readServingPayload[T ServingManifest](ctx context.Context, store ServingStore, kind ServingKind, ref ObjectRef) (T, []byte, error) {
 	var zero T
 	if err := ValidateServingRef(ref, store.RootURI(), kind); err != nil {
@@ -77,9 +78,6 @@ func readServingPayload[T ServingManifest](ctx context.Context, store ServingSto
 	manifest, payload, err := store.ReadServingObject(ctx, kind, ref)
 	if err != nil {
 		return zero, nil, err
-	}
-	if Digest(payload) != ref.SHA256 {
-		return zero, nil, errors.New("registry serving manifest digest mismatch")
 	}
 	typed, ok := manifest.(T)
 	if !ok {
@@ -138,9 +136,9 @@ func (c *ServingController) Prepare(ctx context.Context, proposalRef ObjectRef) 
 }
 
 // Rollback uses the activation CAS path but only accepts a source previously serving this target.
-// Normal rollback retains pins; an approved proposal explicitly lists emergency withdrawals.
-func (c *ServingController) Rollback(ctx context.Context, proposalRef ObjectRef, workflowActor string, approved bool) (ActivationResult, error) {
-	return c.activate(ctx, proposalRef, workflowActor, approved, true)
+// Normal rollback retains pins; the proposal explicitly lists emergency withdrawals.
+func (c *ServingController) Rollback(ctx context.Context, proposalRef ObjectRef, workflowActor string) (ActivationResult, error) {
+	return c.activate(ctx, proposalRef, workflowActor, true)
 }
 
 func (c *ServingController) validateRollbackSource(ctx context.Context, snapshot ServingStateSnapshot, proposal DeploymentProposal) error {
@@ -163,12 +161,12 @@ func (c *ServingController) validateRollbackSource(ctx context.Context, snapshot
 	return errors.New("rollback requires a known-good source release previously serving the same target and profile")
 }
 
-// Activate requires approval of this exact proposal; retries never reactivate a superseded result.
-func (c *ServingController) Activate(ctx context.Context, proposalRef ObjectRef, workflowActor string, approved bool) (ActivationResult, error) {
-	return c.activate(ctx, proposalRef, workflowActor, approved, false)
+// Activate commits this exact proposal; retries never reactivate a superseded result.
+func (c *ServingController) Activate(ctx context.Context, proposalRef ObjectRef, workflowActor string) (ActivationResult, error) {
+	return c.activate(ctx, proposalRef, workflowActor, false)
 }
 
-func (c *ServingController) activate(ctx context.Context, proposalRef ObjectRef, workflowActor string, approved, rollback bool) (ActivationResult, error) {
+func (c *ServingController) activate(ctx context.Context, proposalRef ObjectRef, workflowActor string, rollback bool) (ActivationResult, error) {
 	logger := c.logger.With("proposal_sha256", proposalRef.SHA256, "workflow_actor", workflowActor)
 	proposal, proposalPayload, err := readServingPayload[*DeploymentProposal](ctx, c.store, ServingProposals, proposalRef)
 	if err != nil {
@@ -176,10 +174,6 @@ func (c *ServingController) activate(ctx context.Context, proposalRef ObjectRef,
 		return ActivationResult{}, err
 	}
 	logger = logger.With("target", proposal.Target, "operator", proposal.Actor)
-	if !approved {
-		logger.Warn("Serving activation rejected: proposal approval missing")
-		return ActivationResult{}, errors.New("activation requires approval bound to this immutable proposal")
-	}
 	snapshot, err := c.store.ReadServingState(ctx, proposal.Target)
 	if err != nil && !errors.Is(err, ErrNotFound) {
 		logger.Error("Failed to read authoritative serving state", "err", err)
@@ -205,12 +199,6 @@ func (c *ServingController) activate(ctx context.Context, proposalRef ObjectRef,
 	}
 	if err := c.ValidateProposal(ctx, *proposal); err != nil {
 		logger.Error("Serving proposal validation blocked activation", "err", err)
-		return ActivationResult{}, err
-	}
-	// Validation may be slow; supersession starts at activation, not at the beginning of smoke checks.
-	transition, err = NextServingActivation(snapshot, proposalPayload, proposalRef, c.store.RootURI(), workflowActor, c.clock().UTC())
-	if err != nil {
-		logger.Warn("Serving activation transition construction rejected", "err", err)
 		return ActivationResult{}, err
 	}
 	committed, err := c.store.CompareAndSwapServingState(ctx, transition.Snapshot.State, snapshot.Generation)
