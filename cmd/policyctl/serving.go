@@ -77,7 +77,7 @@ func runServing(ctx context.Context, args []string) (runErr error) {
 	})
 }
 
-func workflowActorFor(getenv func(string) string, proposal policyregistry.DeploymentProposal) string {
+func workflowActorFor(getenv func(string) string, proposal policyregistry.ProposalView) string {
 	if actor := getenv("WORKFLOW_ACTOR"); actor != "" {
 		return actor
 	}
@@ -102,7 +102,7 @@ func runServingWith(ctx context.Context, args []string, dependencies servingDepe
 	}
 	flags := flag.NewFlagSet("serving "+string(command), flag.ContinueOnError)
 	registryURI := flags.String("registry", defaultRegistryURI, "GCS registry root")
-	kindRaw := flags.String("kind", "", "releases, classifiers, bindings, profiles, selection_sets or proposals")
+	kindRaw := flags.String("kind", "", "candidate, selection_set or proposal")
 	manifestPath := flags.String("manifest", "", "immutable manifest JSON file")
 	targetRaw := flags.String("target", "", "staging, prod/stable or prod/weave-internal")
 	proposalPath := flags.String("proposal", "", "JSON file containing the exact published proposal ObjectRef")
@@ -142,11 +142,11 @@ func runServingWith(ctx context.Context, args []string, dependencies servingDepe
 			return err
 		}
 		defer registry.Close()
-		ref, err := registry.ServingRef(ctx, policyregistry.ServingProposals, *proposalDigest)
+		ref, err := registry.ServingRef(ctx, policyregistry.ServingProposal, *proposalDigest)
 		if err != nil {
 			return err
 		}
-		if _, _, err := registry.ReadServingObject(ctx, policyregistry.ServingProposals, ref); err != nil {
+		if _, _, err := registry.ReadServingObject(ctx, policyregistry.ServingProposal, ref); err != nil {
 			return err
 		}
 		return dependencies.writeOutput(ref)
@@ -174,7 +174,7 @@ func runServingWith(ctx context.Context, args []string, dependencies servingDepe
 	if err := readServingReference(*proposalPath, &proposalRef); err != nil {
 		return err
 	}
-	if err := policyregistry.ValidateServingRef(proposalRef, *registryURI, policyregistry.ServingProposals); err != nil {
+	if err := policyregistry.ValidateServingRef(proposalRef, *registryURI, policyregistry.ServingProposal); err != nil {
 		return err
 	}
 	var validator policyregistry.DestinationValidator
@@ -204,11 +204,11 @@ func runServingWith(ctx context.Context, args []string, dependencies servingDepe
 		}
 		return dependencies.writeOutput(preparation)
 	}
-	proposal, _, err := registry.ReadServingObject(ctx, policyregistry.ServingProposals, proposalRef)
+	proposal, _, err := registry.ReadServingObject(ctx, policyregistry.ServingProposal, proposalRef)
 	if err != nil {
 		return err
 	}
-	typed, ok := proposal.(*policyregistry.DeploymentProposal)
+	typed, ok := proposal.(policyregistry.ProposalManifest)
 	if !ok {
 		return errors.New("registry returned the wrong manifest kind for the proposal")
 	}
@@ -220,7 +220,7 @@ func runServingWith(ctx context.Context, args []string, dependencies servingDepe
 	if command == commandRollback {
 		activate = controller.Rollback
 	}
-	activation, err := activate(ctx, proposalRef, workflowActorFor(getenv, *typed))
+	activation, err := activate(ctx, proposalRef, workflowActorFor(getenv, typed.View()))
 	if err != nil {
 		return err
 	}
@@ -233,6 +233,9 @@ func runServingWith(ctx context.Context, args []string, dependencies servingDepe
 func servingManifestOperation(ctx context.Context, dependencies servingDependencies, command commandName, root string, kind policyregistry.ServingKind, path string, stored bool) error {
 	if path == "" || kind == "" {
 		return errors.New("serving manifest operation requires --kind and --manifest")
+	}
+	if err := policyregistry.ValidatePublishableServingKind(kind); err != nil {
+		return err
 	}
 	payload, err := os.ReadFile(path)
 	if err != nil {
@@ -287,18 +290,18 @@ func readServingReference(path string, reference *policyregistry.ObjectRef) erro
 }
 
 func servingProposalStatus(ctx context.Context, registry servingRegistry, ref policyregistry.ObjectRef, writeOutput func(any) error) error {
-	manifest, payload, err := registry.ReadServingObject(ctx, policyregistry.ServingProposals, ref)
+	manifest, payload, err := registry.ReadServingObject(ctx, policyregistry.ServingProposal, ref)
 	if err != nil {
 		return err
 	}
 	if policyregistry.Digest(payload) != ref.SHA256 {
 		return errors.New("proposal digest mismatch; status is keyed on the recorded proposal reference")
 	}
-	proposal, ok := manifest.(*policyregistry.DeploymentProposal)
+	proposal, ok := manifest.(policyregistry.ProposalManifest)
 	if !ok {
 		return errors.New("registry returned the wrong proposal manifest kind")
 	}
-	snapshot, err := registry.ReadServingState(ctx, proposal.Target)
+	snapshot, err := registry.ReadServingState(ctx, proposal.View().Target)
 	if err != nil && !errors.Is(err, policyregistry.ErrNotFound) {
 		return err
 	}

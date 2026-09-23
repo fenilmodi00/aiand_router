@@ -73,6 +73,17 @@ func fixtureSet(label string) policyregistry.SelectionSet {
 	return policyregistry.SelectionSet{SchemaVersion: policyregistry.ServingSelectionSetV1, Target: policyregistry.TargetStable, Default: policyregistry.ServingSelection{Release: namespaceRef(policyregistry.ServingReleases, label), Binding: namespaceRef(policyregistry.ServingBindings, label)}, Profiles: map[string]policyregistry.ServingSelection{}}
 }
 
+// fixtureSetV2 is a self-contained v2 selection set whose candidate is referenced but not stored;
+// it exercises publish/read plumbing, not lane resolution.
+func fixtureSetV2(label string) policyregistry.SelectionSetV2 {
+	image := "sha256:" + strings.Repeat("1", 64)
+	binding := policyregistry.LaneBinding{Project: "test-project", Region: "test-region",
+		Router:      policyregistry.RevisionBinding{Name: "worker-0001", URL: "https://worker-0001.example", Audience: "https://worker.example", ImageDigest: image, Configuration: artifactRef("worker-config")},
+		Classifier:  policyregistry.RevisionBinding{Name: "classifier-0001", URL: "https://classifier-0001.example", Audience: "https://classifier.example", ImageDigest: image, Configuration: artifactRef("classifier-config")},
+		Attestation: artifactRef("binding-attestation")}
+	return policyregistry.SelectionSetV2{SchemaVersion: policyregistry.ServingSelectionSetV2, Target: policyregistry.TargetStable, Default: policyregistry.ServingLane{Candidate: artifactStoredRef([]byte(label)), LaneBinding: binding}, Profiles: map[string]policyregistry.ServingLane{}}
+}
+
 func fixtureProposal(t *testing.T, snapshot policyregistry.ServingStateSnapshot, set policyregistry.SelectionSet, now time.Time) policyregistry.DeploymentProposal {
 	t.Helper()
 	proposal := policyregistry.DeploymentProposal{SchemaVersion: policyregistry.ServingProposalV1, Target: set.Target, ExpectedGeneration: snapshot.Generation, SelectionSet: servingRef(t, policyregistry.ServingSelectionSets, set), SourceRelease: set.Default.Release, Scope: policyregistry.ChangeFull, Actor: "test-operator", Reason: "release validation", RequestID: uuid.NewString(), CreatedAt: now, Evidence: []policyregistry.ObjectRef{artifactRef("evidence")}, WithdrawActivations: []string{}}
@@ -281,7 +292,7 @@ func TestSessionReleaseIdleAndSupersessionBoundaries(t *testing.T) {
 	firstSet, secondSet := fixtureSet("one"), fixtureSet("two")
 	first, _ := activateFixture(t, policyregistry.ServingStateSnapshot{}, firstSet, servingEpoch)
 	second, _ := activateFixture(t, first, secondSet, servingEpoch.Add(time.Hour))
-	sets := map[string]policyregistry.SelectionSet{servingRef(t, policyregistry.ServingSelectionSets, firstSet).SHA256: firstSet, servingRef(t, policyregistry.ServingSelectionSets, secondSet).SHA256: secondSet}
+	sets := map[string]policyregistry.SelectionSetView{servingRef(t, policyregistry.ServingSelectionSets, firstSet).SHA256: firstSet.View(), servingRef(t, policyregistry.ServingSelectionSets, secondSet).SHA256: secondSet.View()}
 	projection := policyregistry.AdmissionProjection{Target: policyregistry.TargetStable}
 	initial, err := policyregistry.SelectSessionRelease(nil, projection, first, sets, testRegistryRoot, servingEpoch)
 	require.NoError(t, err)
@@ -317,7 +328,7 @@ func TestSessionReleaseIdleAndSupersessionBoundaries(t *testing.T) {
 func TestEmergencyWithdrawalRebindsNextAdmissionButDoesNotMutateInFlight(t *testing.T) {
 	set := fixtureSet("one")
 	first, _ := activateFixture(t, policyregistry.ServingStateSnapshot{}, set, servingEpoch)
-	sets := map[string]policyregistry.SelectionSet{servingRef(t, policyregistry.ServingSelectionSets, set).SHA256: set}
+	sets := map[string]policyregistry.SelectionSetView{servingRef(t, policyregistry.ServingSelectionSets, set).SHA256: set.View()}
 	projection := policyregistry.AdmissionProjection{Target: policyregistry.TargetStable}
 	inFlight, err := policyregistry.SelectSessionRelease(nil, projection, first, sets, testRegistryRoot, servingEpoch)
 	require.NoError(t, err)
@@ -336,7 +347,7 @@ func TestProfileAssignmentsDoNotFallBackAndGenerationChangesRebind(t *testing.T)
 	profile := namespaceRef(policyregistry.ServingProfiles, "profile")
 	set.Profiles[profileKeyOne] = policyregistry.ServingSelection{Release: namespaceRef(policyregistry.ServingReleases, "custom"), Binding: namespaceRef(policyregistry.ServingBindings, "custom"), Profile: &profile}
 	first, _ := activateFixture(t, policyregistry.ServingStateSnapshot{}, set, servingEpoch)
-	sets := map[string]policyregistry.SelectionSet{servingRef(t, policyregistry.ServingSelectionSets, set).SHA256: set}
+	sets := map[string]policyregistry.SelectionSetView{servingRef(t, policyregistry.ServingSelectionSets, set).SHA256: set.View()}
 	projection := policyregistry.AdmissionProjection{Target: policyregistry.TargetStable, ProfileKey: profileKeyOne, AssignmentGeneration: 1}
 	initial, err := policyregistry.SelectSessionRelease(nil, projection, first, sets, testRegistryRoot, servingEpoch)
 	require.NoError(t, err)
@@ -361,7 +372,7 @@ func TestSubscriberPlanProfileMustMatchServerOwnedMapping(t *testing.T) {
 	profileRef := namespaceRef(policyregistry.ServingProfiles, "max-profile")
 	set.Profiles[profile.Key] = policyregistry.ServingSelection{Release: namespaceRef(policyregistry.ServingReleases, "max"), Binding: namespaceRef(policyregistry.ServingBindings, "max"), Profile: &profileRef}
 	snapshot, _ := activateFixture(t, policyregistry.ServingStateSnapshot{}, set, servingEpoch)
-	sets := map[string]policyregistry.SelectionSet{servingRef(t, policyregistry.ServingSelectionSets, set).SHA256: set}
+	sets := map[string]policyregistry.SelectionSetView{servingRef(t, policyregistry.ServingSelectionSets, set).SHA256: set.View()}
 	projection := policyregistry.AdmissionProjection{
 		Target:               policyregistry.TargetStable,
 		ProfileKey:           profile.Key,
@@ -387,14 +398,16 @@ func TestSubscriberPlanProfileMustMatchServerOwnedMapping(t *testing.T) {
 }
 
 type servingMemoryStore struct {
-	mu        sync.Mutex
-	objects   map[policyregistry.ObjectRef][]byte
-	policies  map[policyregistry.ObjectRef]*rosterdata.Roster
-	states    map[policyregistry.ServingTarget]policyregistry.ServingStateSnapshot
-	readErr   error
-	casErr    error
-	casCalls  int
-	artifacts map[policyregistry.ObjectRef][]byte
+	mu       sync.Mutex
+	objects  map[policyregistry.ObjectRef][]byte
+	policies map[policyregistry.ObjectRef]*rosterdata.Roster
+	states   map[policyregistry.ServingTarget]policyregistry.ServingStateSnapshot
+	// legacyStates models runtime_state/... objects: read only when no state/ object exists, never written.
+	legacyStates map[policyregistry.ServingTarget]policyregistry.ServingStateSnapshot
+	readErr      error
+	casErr       error
+	casCalls     int
+	artifacts    map[policyregistry.ObjectRef][]byte
 }
 
 func newServingMemoryStore() *servingMemoryStore {
@@ -402,7 +415,7 @@ func newServingMemoryStore() *servingMemoryStore {
 	for _, label := range []string{"build-attestation", "binding-attestation", "evidence"} {
 		artifacts[artifactRef(label)] = []byte(label)
 	}
-	return &servingMemoryStore{objects: make(map[policyregistry.ObjectRef][]byte), policies: make(map[policyregistry.ObjectRef]*rosterdata.Roster), states: make(map[policyregistry.ServingTarget]policyregistry.ServingStateSnapshot), artifacts: artifacts}
+	return &servingMemoryStore{objects: make(map[policyregistry.ObjectRef][]byte), policies: make(map[policyregistry.ObjectRef]*rosterdata.Roster), states: make(map[policyregistry.ServingTarget]policyregistry.ServingStateSnapshot), legacyStates: make(map[policyregistry.ServingTarget]policyregistry.ServingStateSnapshot), artifacts: artifacts}
 }
 
 func (s *servingMemoryStore) VerifyServingArtifact(_ context.Context, ref policyregistry.ObjectRef) error {
@@ -422,7 +435,7 @@ func (s *servingMemoryStore) ReadServingObject(_ context.Context, kind policyreg
 	if !exists {
 		return nil, nil, policyregistry.ErrNotFound
 	}
-	manifest, err := policyregistry.DecodeServingManifest(payload, testRegistryRoot, kind)
+	manifest, err := policyregistry.DecodeServingObject(payload, testRegistryRoot, kind, ref)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -441,11 +454,14 @@ func (s *servingMemoryStore) ReadServingState(_ context.Context, target policyre
 	if s.readErr != nil {
 		return policyregistry.ServingStateSnapshot{}, s.readErr
 	}
-	snapshot, exists := s.states[target]
-	if !exists {
-		return policyregistry.ServingStateSnapshot{}, policyregistry.ErrNotFound
+	if snapshot, exists := s.states[target]; exists {
+		return snapshot, nil
 	}
-	return snapshot, nil
+	if snapshot, exists := s.legacyStates[target]; exists {
+		snapshot.LegacyPath = true
+		return snapshot, nil
+	}
+	return policyregistry.ServingStateSnapshot{}, policyregistry.ErrNotFound
 }
 func (s *servingMemoryStore) CompareAndSwapServingState(_ context.Context, next policyregistry.ServingControlState, expected int64) (policyregistry.ServingStateSnapshot, error) {
 	s.mu.Lock()
@@ -513,7 +529,7 @@ func controllerFixture(t *testing.T) (*servingMemoryStore, *policyregistry.Servi
 		if selection.Binding.Router.ImageDigest != "sha256:"+strings.Repeat("1", 64) {
 			return errors.New("worker attestation mismatch")
 		}
-		if selection.Classifier.AuxiliaryModels["escalation"] != artifactRef("escalation") {
+		if selection.Candidate.Classifier.AuxiliaryModels["escalation"] != artifactRef("escalation") {
 			return errors.New("auxiliary model mismatch")
 		}
 		return nil
@@ -701,7 +717,7 @@ func TestProfileVersionAdvancePreservesOtherCustomerAndDefault(t *testing.T) {
 	assert.Equal(t, initialSet.Default, updatedSet.Default)
 	assert.Equal(t, initialSet.Profiles[profileKeyTwo], updatedSet.Profiles[profileKeyTwo])
 	assert.NotEqual(t, initialSet.Profiles[profileKeyOne].Release, updatedSet.Profiles[profileKeyOne].Release)
-	sets := map[string]policyregistry.SelectionSet{initialSetRef.SHA256: initialSet, updatedSetRef.SHA256: updatedSet}
+	sets := map[string]policyregistry.SelectionSetView{initialSetRef.SHA256: initialSet.View(), updatedSetRef.SHA256: updatedSet.View()}
 	projection := policyregistry.AdmissionProjection{Target: policyregistry.TargetStable, ProfileKey: profileKeyOne, AssignmentGeneration: 1}
 	previous, err := policyregistry.SelectSessionRelease(nil, projection, initial.Snapshot, sets, testRegistryRoot, servingEpoch)
 	require.NoError(t, err)

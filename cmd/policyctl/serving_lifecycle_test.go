@@ -72,11 +72,18 @@ func (r *cliServingRegistry) CompareAndSwapServingState(_ context.Context, state
 	r.state = policyregistry.ServingStateSnapshot{State: state, Generation: generation + 1}
 	return r.state, nil
 }
+
+// PublishServingManifest also accepts v1 kinds so fixtures can seed the legacy objects that a
+// real registry only reads.
 func (r *cliServingRegistry) PublishServingManifest(_ context.Context, kind policyregistry.ServingKind, payload []byte) (policyregistry.ObjectRef, error) {
 	if _, err := policyregistry.DecodeServingManifest(payload, r.RootURI(), kind); err != nil {
 		return policyregistry.ObjectRef{}, err
 	}
-	ref := policyregistry.ObjectRef{URI: r.RootURI() + "/router_serving/v1/" + string(kind) + "/sha256/" + policyregistry.Digest(payload) + ".json", SHA256: policyregistry.Digest(payload), Generation: 1}
+	digest := policyregistry.Digest(payload)
+	ref := policyregistry.ObjectRef{URI: r.RootURI() + "/router_serving/v1/" + string(kind) + "/sha256/" + digest + ".json", SHA256: digest, Generation: 1}
+	if policyregistry.ValidatePublishableServingKind(kind) == nil {
+		ref.URI = r.RootURI() + "/artifacts/" + digest + ".json"
+	}
 	r.objects[ref] = payload
 	return ref, nil
 }
@@ -103,7 +110,7 @@ func (e *cliDestinationEndpoints) ValidateWorker(ctx context.Context, _ policyre
 	if err != nil {
 		return policyregistry.WorkerAttestation{}, err
 	}
-	return policyregistry.WorkerAttestation{Ready: true, Selection: request.Selection, Requirements: prepared.Release.Requirements, CatalogArms: e.registry.policy.AllArms(), Identity: policyregistry.WorkerIdentity{Target: request.Target, Project: prepared.Binding.Project, Region: prepared.Binding.Region, Revision: prepared.Binding.Router.Name, ImageDigest: prepared.Binding.Router.ImageDigest, Configuration: prepared.Binding.Router.Configuration}}, e.err
+	return policyregistry.WorkerAttestation{Ready: true, Selection: request.Selection, Requirements: prepared.Candidate.Requirements, CatalogArms: e.registry.policy.AllArms(), Identity: policyregistry.WorkerIdentity{Target: request.Target, Project: prepared.Binding.Project, Region: prepared.Binding.Region, Revision: prepared.Binding.Router.Name, ImageDigest: prepared.Binding.Router.ImageDigest, Configuration: prepared.Binding.Router.Configuration}}, e.err
 }
 
 func cliPublish(t *testing.T, registry *cliServingRegistry, kind policyregistry.ServingKind, manifest policyregistry.ServingManifest) policyregistry.ObjectRef {
@@ -170,7 +177,7 @@ func TestServingCLIProposalPreparationActivationRollbackAndReconciliation(t *tes
 	}
 	require.Equal(t, 3, strings.Count(stderr.String(), "\n"), "one warning line per ignored flag")
 	delete(env, "WORKFLOW_ACTOR")
-	require.Equal(t, "ci-bot@run:4242", workflowActorFor(dependencies.getenv, proposal))
+	require.Equal(t, "ci-bot@run:4242", workflowActorFor(dependencies.getenv, proposal.View()))
 	delete(env, "GITHUB_RUN_ID")
 	rollback := proposal
 	rollback.ExpectedGeneration = first.Snapshot.Generation
@@ -250,7 +257,7 @@ func TestServingCLIValidateAcceptsAnyValidEncoding(t *testing.T) {
 		logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 	ctx := context.Background()
-	args := []string{string(commandValidate), "--kind", string(policyregistry.ServingProposals), "--manifest", path}
+	args := []string{string(commandValidate), "--kind", string(policyregistry.ServingProposal), "--manifest", path}
 	require.NoError(t, runServingWith(ctx, args, dependencies))
 	encoded, err := json.Marshal(output)
 	require.NoError(t, err)
@@ -259,5 +266,83 @@ func TestServingCLIValidateAcceptsAnyValidEncoding(t *testing.T) {
 	encoded, err = json.Marshal(output)
 	require.NoError(t, err)
 	require.Contains(t, string(encoded), policyregistry.Digest(drifted), "stored validation reports the digest of the exact bytes")
-	require.ErrorContains(t, runServingWith(ctx, []string{string(commandPublish), "--kind", string(policyregistry.ServingProposals), "--manifest", path, "--stored"}, dependencies), "--stored only applies to serving validate")
+	require.ErrorContains(t, runServingWith(ctx, []string{string(commandPublish), "--kind", string(policyregistry.ServingProposal), "--manifest", path, "--stored"}, dependencies), "--stored only applies to serving validate")
+}
+
+func TestServingCLIKindAcceptsOnlyV2KindsWithFoldingGuidance(t *testing.T) {
+	registry, _, proposal := cliServingFixture(t)
+	payload, err := policyregistry.CanonicalBytes(proposal)
+	require.NoError(t, err)
+	path := filepath.Join(t.TempDir(), "manifest.json")
+	require.NoError(t, os.WriteFile(path, payload, 0o600))
+	opened := 0
+	var output any
+	dependencies := servingDependencies{
+		openRegistry: func(context.Context, string) (servingRegistry, error) { opened++; return registry, nil },
+		writeOutput:  func(value any) error { output = value; return nil },
+		clock:        func() time.Time { return proposal.CreatedAt },
+		logger:       slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+	ctx := context.Background()
+	for kind, folded := range map[string]string{"releases": "candidate", "classifiers": "candidate", "bindings": "selection_set", "profiles": "selection_set", "selection_sets": "selection_set", "proposals": "proposal"} {
+		for _, command := range []commandName{commandValidate, commandPublish} {
+			err := runServingWith(ctx, []string{string(command), "--kind", kind, "--manifest", path}, dependencies)
+			require.ErrorContains(t, err, "folded into \""+folded+"\"", "%s --kind %s", command, kind)
+		}
+	}
+	require.ErrorContains(t, runServingWith(ctx, []string{string(commandPublish), "--kind", "lanes", "--manifest", path}, dependencies), "unsupported serving object kind")
+	require.Zero(t, opened, "kind guidance is offered before the registry is opened")
+
+	v2 := policyregistry.DeploymentProposalV2{SchemaVersion: policyregistry.ServingProposalV2, Target: proposal.Target, SelectionSet: proposal.SelectionSet, SourceCandidate: proposal.SourceRelease, Scope: proposal.Scope, Actor: proposal.Actor, Reason: proposal.Reason, RequestID: proposal.RequestID, CreatedAt: proposal.CreatedAt, Evidence: proposal.Evidence, WithdrawActivations: []string{}}
+	v2Payload, err := policyregistry.CanonicalBytes(v2)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(path, v2Payload, 0o600))
+	require.NoError(t, runServingWith(ctx, []string{string(commandPublish), "--kind", string(policyregistry.ServingProposal), "--manifest", path}, dependencies))
+	ref := output.(policyregistry.ObjectRef)
+	require.Equal(t, defaultRegistryURI+"/artifacts/"+policyregistry.Digest(v2Payload)+".json", ref.URI)
+	manifest, _, err := registry.ReadServingObject(ctx, policyregistry.ServingProposal, ref)
+	require.NoError(t, err)
+	require.Equal(t, &v2, manifest)
+}
+
+func TestServingCLILifecycleAcceptsV2ProposalsOverV1History(t *testing.T) {
+	registry, endpoints, proposal := cliServingFixture(t)
+	var output any
+	env := map[string]string{"GITHUB_ACTOR": "ci-bot", "GITHUB_RUN_ID": "4243"}
+	dependencies := servingDependencies{openRegistry: func(context.Context, string) (servingRegistry, error) { return registry, nil }, endpoints: func() (policyregistry.DestinationEndpoints, error) { return endpoints, nil }, writeOutput: func(value any) error { output = value; return nil }, clock: func() time.Time { return proposal.CreatedAt }, logger: slog.New(slog.NewTextHandler(io.Discard, nil)), getenv: func(key string) string { return env[key] }}
+	ctx := context.Background()
+	require.NoError(t, runServingWith(ctx, []string{string(commandActivate), "--proposal", cliProposalFile(t, cliPublish(t, registry, policyregistry.ServingProposals, proposal))}, dependencies))
+	require.EqualValues(t, 1, output.(policyregistry.ActivationResult).Snapshot.Generation)
+
+	v2 := policyregistry.DeploymentProposalV2{SchemaVersion: policyregistry.ServingProposalV2, Target: proposal.Target, PreviousSelectionSet: &proposal.SelectionSet, SelectionSet: proposal.SelectionSet, SourceCandidate: proposal.SourceRelease, Scope: policyregistry.ChangeFull, Actor: "v2-operator", Reason: "v2 proposal on v1 history", RequestID: "run-2:lane-0", CreatedAt: proposal.CreatedAt, Evidence: proposal.Evidence, WithdrawActivations: []string{}}
+	ref := cliPublish(t, registry, policyregistry.ServingProposal, v2)
+	require.Contains(t, ref.URI, "/artifacts/")
+	path := cliProposalFile(t, ref)
+	require.NoError(t, runServingWith(ctx, []string{string(commandResolve), "--proposal-sha256", ref.SHA256}, dependencies))
+	require.Equal(t, ref, output)
+	require.NoError(t, runServingWith(ctx, []string{string(commandPrepare), "--proposal", path}, dependencies))
+	require.True(t, output.(policyregistry.PreparationResult).Prepared)
+	require.NoError(t, runServingWith(ctx, []string{string(commandActivate), "--proposal", path}, dependencies))
+	activated := output.(policyregistry.ActivationResult)
+	require.Equal(t, "v2-operator", activated.Activation.Actor)
+	require.Equal(t, "ci-bot@run:4243", activated.Activation.WorkflowActor)
+	require.Equal(t, ref, activated.Activation.Proposal)
+	require.EqualValues(t, 2, activated.Snapshot.Generation)
+	require.NoError(t, runServingWith(ctx, []string{string(commandStatus), "--proposal", path}, dependencies))
+	require.Equal(t, activated.Activation.ID, output.(policyregistry.ActivationResult).Activation.ID)
+
+	rollback := v2
+	rollback.RequestID = "run-3:lane-0"
+	rollback.WithdrawActivations = []string{activated.Activation.ID}
+	rollbackPath := cliProposalFile(t, cliPublish(t, registry, policyregistry.ServingProposal, rollback))
+	require.NoError(t, runServingWith(ctx, []string{string(commandRollback), "--proposal", rollbackPath}, dependencies))
+	rolled := output.(policyregistry.ActivationResult)
+	require.NotEqual(t, activated.Activation.ID, rolled.Activation.ID)
+	require.Equal(t, rolled.Activation.ID, rolled.Snapshot.State.Activations[activated.Activation.ID].ReplacementID)
+	require.EqualValues(t, 3, rolled.Snapshot.Generation)
+
+	proposal.RequestID = "run-4:lane-0"
+	stale := cliProposalFile(t, cliPublish(t, registry, policyregistry.ServingProposals, proposal))
+	require.ErrorIs(t, runServingWith(ctx, []string{string(commandPrepare), "--proposal", stale}, dependencies), policyregistry.ErrConflict, "v1 proposals still carry expected_generation and freeze against it")
+	require.Equal(t, 3, registry.writes)
 }
