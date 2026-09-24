@@ -2884,7 +2884,25 @@ func (s *Service) routeWithStrategyUnchecked(ctx context.Context, strategy route
 		}
 		return router.Decision{}, fmt.Errorf("strategy %q requested but no router configured: %w", strategy, unavailable)
 	}
+	if router.IsHMMStrategy(strategy) && req.ConversationMessages != nil && !hasTextUserBoundary(req.ConversationMessages) {
+		unscorable, supported := registered.router.(interface {
+			RouteWithoutUserText(context.Context, router.Request) (router.Decision, error)
+		})
+		if !supported {
+			return router.Decision{}, fmt.Errorf("strategy %q has no unscorable-turn policy: %w", strategy, router.ErrStrategyUnavailable)
+		}
+		return unscorable.RouteWithoutUserText(ctx, req)
+	}
 	return registered.router.Route(ctx, req)
+}
+
+func hasTextUserBoundary(messages []router.ConversationMessage) bool {
+	for _, message := range messages {
+		if strings.EqualFold(message.Role, "user") && strings.TrimSpace(message.Text) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Service) withPolicyRequestContext(ctx context.Context, req router.Request) router.Request {
