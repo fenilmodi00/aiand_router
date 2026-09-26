@@ -886,6 +886,7 @@ func (s *Service) runTurnLoop(
 			"pin_model", forceModelPin.Model,
 			"pin_provider", forceModelPin.Provider,
 			"drop_reason", res.ForcedPinDropReason,
+			"enabled_providers", sortedEnabledKeys(req.EnabledProviders),
 			"role", res.PinRole,
 		)
 	}
@@ -1249,6 +1250,7 @@ func (s *Service) runTurnLoop(
 			"pin_model", forceModelPin.Model,
 			"pin_provider", forceModelPin.Provider,
 			"drop_reason", res.ForcedPinDropReason,
+			"enabled_providers", sortedEnabledKeys(req.EnabledProviders),
 			"role", res.PinRole,
 		)
 		if excluded || !imageCapable {
@@ -1296,6 +1298,7 @@ func (s *Service) runTurnLoop(
 			"pin_provider", pin.Provider,
 			"pin_reason", pin.Reason,
 			"drop_reason", dropReason,
+			"enabled_providers", sortedEnabledKeys(req.EnabledProviders),
 			"role", res.PinRole,
 		)
 		if isUserForcedReason(pin.Reason) {
