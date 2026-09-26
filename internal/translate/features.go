@@ -62,7 +62,8 @@ func (e *RequestEnvelope) FullTokenEstimate() int {
 	// falsely evict Opus for exceeding its context window. Base64 image payloads
 	// are repriced separately (÷6 still over-counts them).
 	imgBytes, imgCount := e.base64ImageStats()
-	return (len(e.body)-imgBytes)/fullBytesPerToken + imgCount*imageTokenEstimate
+	signatureBytes, idBytes := e.routerReasoningTransportBytes()
+	return (len(e.body)-imgBytes-signatureBytes-idBytes)/fullBytesPerToken + imgCount*imageTokenEstimate
 }
 
 // ContextOverflowTokenEstimate estimates tokens for context-window overflow
@@ -76,7 +77,8 @@ func (e *RequestEnvelope) ContextOverflowTokenEstimate() int {
 	// Base64 image bytes are transport, not tokens; subtract them and reprice
 	// per image to avoid phantom token inflation on multi-page PDF reads.
 	imgBytes, imgCount := e.base64ImageStats()
-	return (len(e.body)-imgBytes)/contentBytesPerToken + imgCount*imageTokenEstimate
+	signatureBytes, idBytes := e.routerReasoningTransportBytes()
+	return (len(e.body)-imgBytes-signatureBytes-idBytes)/contentBytesPerToken + imgCount*imageTokenEstimate
 }
 
 // SignatureTokenSavings returns the tokens a signature-STRIPPING target saves
@@ -87,7 +89,47 @@ func (e *RequestEnvelope) SignatureTokenSavings() int {
 	if e.format != FormatAnthropic {
 		return 0
 	}
-	return base64SignatureBytes(e.body) / contentBytesPerToken
+	// Router-minted signatures are already excluded from the base estimate. The
+	// byte scan only matches compact JSON, so it can undercount what the block
+	// walk found; savings never go negative.
+	routerSignatureBytes, _ := e.routerReasoningTransportBytes()
+	return max(0, base64SignatureBytes(e.body)-routerSignatureBytes) / contentBytesPerToken
+}
+
+// routerReasoningTransportBytes sums the router-minted OpenAI reasoning an
+// Anthropic-format client echoes back, in thinking signatures and in tool-id
+// carriers. Only payloads that decode as router envelopes count: Anthropic
+// targets strip exactly those and OpenAI targets consume them as reasoning, so
+// neither reaches an upstream as prompt text. Forged markers, marker text in
+// message content, and undecodable suffixes stay in the estimate.
+func (e *RequestEnvelope) routerReasoningTransportBytes() (signatureBytes, idBytes int) {
+	if e.format != FormatAnthropic {
+		return 0, 0
+	}
+	carrierBytes := func(id string) int {
+		if clean, stripped := stripOpenAIReasoningCarrier(id); stripped {
+			return len(id) - len(clean)
+		}
+		return 0
+	}
+	gjson.GetBytes(e.body, "messages").ForEach(func(_, message gjson.Result) bool {
+		message.Get("content").ForEach(func(_, block gjson.Result) bool {
+			switch block.Get("type").String() {
+			case "thinking":
+				signature := block.Get("signature").String()
+				if _, ok := decodeOpenAIReasoningSignature(signature); ok {
+					signatureBytes += len(signature)
+				}
+			case "tool_use":
+				idBytes += carrierBytes(block.Get("id").String())
+			case "tool_result":
+				idBytes += carrierBytes(block.Get("tool_use_id").String())
+			}
+			return true
+		})
+		return true
+	})
+	return signatureBytes, idBytes
 }
 
 // base64SignatureBytes sums the byte length of every base64 thought-signature
