@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"weave-os/router/internal/auth"
 	"weave-os/router/internal/flags"
 	"weave-os/router/internal/inference"
 	"weave-os/router/internal/observability"
@@ -215,11 +216,11 @@ type turnLoopResult struct {
 	// ProxyMessages must serve the requested model straight through with no
 	// billing debit, bypassing Decision's normal dispatch.
 	UsageBypass bool
-	// BlindExperimentPassthrough records direct dispatch under the internal
+	// CallerModelPassthrough records direct dispatch under the internal
 	// experiment without changing usage-bypass billing semantics.
-	BlindExperimentPassthrough bool
-	PinTier                    string
-	PinAgeSec                  int64
+	CallerModelPassthrough bool
+	PinTier                string
+	PinAgeSec              int64
 	// ForcedPinDropped records that a /force-model pin existed but could not be
 	// served (provider not enabled, excluded, or not image-capable); surfaced so
 	// the turn does not silently contradict the "force-model applied" ack.
@@ -765,38 +766,7 @@ func (s *Service) runTurnLoop(
 	res.AuthoritativePerTurn = authoritativePolicyTurn(res.TurnType) &&
 		s.authoritativePerTurnSelection(ctx)
 	res.PinRole = roleForTier(res.RequestedTier)
-	if res.Strategy == router.StrategyLLMClassifier {
-		return s.runClassifierTurn(ctx, req, res, threadSessionKey)
-	}
-	log.Info("turnloop classified",
-		"turn_type", string(res.TurnType),
-		"requested_tier", res.RequestedTier.String(),
-		"pin_role", res.PinRole,
-		"sub_agent_hint", subAgentHint,
-	)
-
-	// A pinned turn is a replay of one frozen policy, so session state that
-	// would otherwise short-circuit scoring (/force-model, sticky pins, usage
-	// bypass, blind-experiment passthrough, planner stays) is not consulted.
-	// Utility hard pins below are never policy-scored and keep their own path.
-	if _, pinned := router.HonouredPolicyPin(ctx); pinned && !s.isHardPinnedTurn(ctx, res.TurnType) {
-		if s.pinStore != nil && !isUnpinnedScoredTurn(res.TurnType) {
-			res.SessionKey = threadSessionKey
-			_, _, res.SessionFirstTurn = s.loadPinWithStoreState(ctx, res.SessionKey, res.PinRole)
-		}
-		req.PolicyTurnContext = buildPolicyTurnContext(req, res, sessionpin.Pin{}, sessionpin.Pin{})
-		decision, err := s.routeFor(ctx, req)
-		if err != nil {
-			return res, err
-		}
-		res.Decision = decision
-		res.Fresh = decision
-		res.PinTier = policyPinTier
-		log.Info("turnloop served by policy pin", "decision_model", decision.Model, "decision_provider", decision.Provider)
-		return res, nil
-	}
-
-	// Force state is session-scoped so sub-agents inherit the parent choice.
+	// Resolve user-forced state before the policy's no-automatic-routing shortcut.
 	forceModelSessionKey := deriveForceModelSessionKeyForRequest(ctx, env, apiKeyID, threadSessionKey)
 	forceModelPin := sessionpin.Pin{}
 	forceModelFound := false
@@ -829,6 +799,47 @@ func (s *Service) runTurnLoop(
 		forceModelPin.Provider = binding
 		req.ExcludedModels = s.readmitForcedModel(ctx, req, env, feats, forceModelPin)
 	}
+	if auth.RoutingPassthroughFrom(ctx) && !forceModelFound {
+		decision, err := s.callerModelPassthroughDecision(ctx, req)
+		if err != nil {
+			return res, err
+		}
+		res.Decision = decision
+		res.CallerModelPassthrough = true
+		return res, nil
+	}
+	if res.Strategy == router.StrategyLLMClassifier {
+		return s.runClassifierTurn(ctx, req, res, threadSessionKey)
+	}
+	log.Info("turnloop classified",
+		"turn_type", string(res.TurnType),
+		"requested_tier", res.RequestedTier.String(),
+		"pin_role", res.PinRole,
+		"sub_agent_hint", subAgentHint,
+	)
+
+	// A pinned turn is a replay of one frozen policy, so session state that
+	// would otherwise short-circuit scoring (/force-model, sticky pins, usage
+	// bypass, blind-experiment passthrough, planner stays) is not consulted.
+	// Utility hard pins below are never policy-scored and keep their own path.
+	if _, pinned := router.HonouredPolicyPin(ctx); pinned && !s.isHardPinnedTurn(ctx, res.TurnType) {
+		if s.pinStore != nil && !isUnpinnedScoredTurn(res.TurnType) {
+			res.SessionKey = threadSessionKey
+			_, _, res.SessionFirstTurn = s.loadPinWithStoreState(ctx, res.SessionKey, res.PinRole)
+		}
+		req.PolicyTurnContext = buildPolicyTurnContext(req, res, sessionpin.Pin{}, sessionpin.Pin{})
+		decision, err := s.routeFor(ctx, req)
+		if err != nil {
+			return res, err
+		}
+		res.Decision = decision
+		res.Fresh = decision
+		res.PinTier = policyPinTier
+		log.Info("turnloop served by policy pin", "decision_model", decision.Model, "decision_provider", decision.Provider)
+		return res, nil
+	}
+
+	// Force state is session-scoped so sub-agents inherit the parent choice.
 	sessionForceControlFound := forceModelFound
 
 	// Discounts covered models' cost term by the caller's observed subscription
@@ -1000,7 +1011,7 @@ func (s *Service) runTurnLoop(
 		}
 		if passthrough {
 			res.Decision = decision
-			res.BlindExperimentPassthrough = true
+			res.CallerModelPassthrough = true
 			return res, nil
 		}
 	}
