@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -9,12 +11,61 @@ import (
 	"weave-os/router/internal/policyclient"
 	"weave-os/router/internal/policyregistry"
 	"weave-os/router/internal/router"
+	"weave-os/router/internal/server"
 	"weave-os/router/internal/server/middleware"
 )
 
-func managedServingEnabled() bool {
-	return strings.TrimSpace(config.GetOr("ROUTER_SERVING_ASSERTION_KEY", "")) != ""
+const envServingAssertionKey = "ROUTER_SERVING_ASSERTION_KEY"
+
+// managedServingEnvVars enumerates every ROUTER_SERVING_* variable the worker
+// reads besides the assertion key. Presence of any of them means the revision
+// was stamped as a managed serving worker.
+var managedServingEnvVars = []string{
+	"ROUTER_SERVING_TARGET",
+	"ROUTER_SERVING_PROJECT",
+	"ROUTER_SERVING_REGION",
+	"ROUTER_SERVING_REVISION",
+	"ROUTER_SERVING_IMAGE_DIGEST",
+	"ROUTER_SERVING_REGISTRY_URI",
+	"ROUTER_SERVING_CONFIGURATION_URI",
+	"ROUTER_SERVING_CONFIGURATION_SHA256",
+	"ROUTER_SERVING_CONFIGURATION_GENERATION",
+	"ROUTER_SERVING_SELECTION_SET_URI",
+	"ROUTER_SERVING_SELECTION_SET_SHA256",
+	"ROUTER_SERVING_SELECTION_SET_GENERATION",
 }
+
+func managedServingEnabled() bool {
+	return strings.TrimSpace(config.GetOr(envServingAssertionKey, "")) != ""
+}
+
+// validateManagedServingBoot rejects a managed revision stamped as a serving
+// worker whose assertion key is missing: without it the worker would mount
+// inference routes with no admission. Managed workers with no ROUTER_SERVING_*
+// stamping (legacy) and self-hosted deployments are unaffected.
+func validateManagedServingBoot(mode server.DeploymentMode, lookup func(string) string) error {
+	if mode != server.DeploymentModeManaged {
+		return nil
+	}
+	if strings.TrimSpace(lookup(envServingAssertionKey)) != "" {
+		return nil
+	}
+	var stamped []string
+	for _, name := range managedServingEnvVars {
+		if strings.TrimSpace(lookup(name)) != "" {
+			stamped = append(stamped, name)
+		}
+	}
+	if len(stamped) > 0 {
+		return fmt.Errorf(
+			"%s is empty while managed serving configuration is present (%s)",
+			envServingAssertionKey, strings.Join(stamped, ", "),
+		)
+	}
+	return nil
+}
+
+func osEnvLookup(key string) string { return os.Getenv(key) }
 
 func buildManagedServingRuntime(ctx context.Context, availableProviders map[string]struct{}) (*middleware.ServingAdmissionConfig, *policyregistry.Snapshot, func(), error) {
 	signer, err := policyregistry.NewAssertionSigner([]byte(strings.TrimSpace(config.GetOr("ROUTER_SERVING_ASSERTION_KEY", ""))), time.Now)

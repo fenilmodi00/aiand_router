@@ -418,7 +418,7 @@ kept out of revision-specific stamping.
 
 | Variable | Read by | Source | Absent or invalid |
 | --- | --- | --- | --- |
-| `ROUTER_SERVING_ASSERTION_KEY` | Gateway and worker | Terraform (Secret Manager reference) | Gateway: boot fails. Worker: unset or whitespace-only keeps the worker on its existing managed/self-hosted path; a key shorter than 32 bytes fails boot rather than serving unsigned traffic. |
+| `ROUTER_SERVING_ASSERTION_KEY` | Gateway and worker | Terraform (Secret Manager reference) | Gateway: boot fails. Worker: unset or whitespace-only keeps the worker on its existing managed/self-hosted path, except in `managed` mode with any other `ROUTER_SERVING_*` variable set, where boot fails; a key shorter than 32 bytes fails boot rather than serving unsigned traffic. |
 | `ROUTER_SERVING_ENVIRONMENT` | Gateway | Terraform | Boot fails. Must be `prod` or `staging`. |
 | `ROUTER_SERVING_REGISTRY_URI` | Gateway and worker | Terraform (both services) and deploy script (worker) | Gateway: boot fails. Worker: falls back to `WEAVE_REGISTRY_URI`, then `gs://weave_ml/weave_registry`; set it explicitly. |
 | `ROUTER_SERVING_TARGET` | Worker | Deploy script and Terraform | Boot fails. Must name a known target (`staging`, `prod/stable`, `prod/weave-internal`). |
@@ -443,8 +443,10 @@ the worker validates its attested identity (target, project, region, revision,
 image digest, configuration reference) before mounting inference endpoints, and
 a failure stops boot rather than degrading to an unattested path. If the worker
 key is unset or whitespace-only, it skips managed-serving preparation and mounts
-inference endpoints without serving-admission checks, even when
-`ROUTER_DEPLOYMENT_MODE=managed`. The gateway validates its environment and signing
+inference endpoints without serving-admission checks; in
+`ROUTER_DEPLOYMENT_MODE=managed` that is allowed only on a revision with no other
+`ROUTER_SERVING_*` variable, so a serving-stamped worker whose key injection was
+dropped refuses to boot instead. The gateway validates its environment and signing
 key before it opens the registry, and `/readyz` stays fail-closed afterwards.
 Keep the signing key identical on gateway and workers of the same environment.
 

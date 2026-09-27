@@ -408,8 +408,12 @@ order `ReadServingState` → selection sets → release selection.
 
 ### Default-off and managed boot
 
-An unset or whitespace-only `ROUTER_SERVING_ASSERTION_KEY` keeps the worker on its
-existing managed/self-hosted path. It does not read serving control heads, subject
+In `ROUTER_DEPLOYMENT_MODE=managed` the worker refuses to boot when any other
+`ROUTER_SERVING_*` variable is set while `ROUTER_SERVING_ASSERTION_KEY` is empty,
+so a serving-stamped revision with dropped key injection can never mount
+inference routes without admission. An unset or whitespace-only
+`ROUTER_SERVING_ASSERTION_KEY` on a revision with no serving stamping keeps the
+worker on its existing managed/self-hosted path. It does not read serving control heads, subject
 projections, session bindings or request-attribution tables. A nonempty weak key
 fails boot; it does not silently fall back. Apply additive router migrations
 `0095` through the coordinated migration path before enabling a gateway.
