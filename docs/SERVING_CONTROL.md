@@ -16,11 +16,12 @@ registry writer. The kept list is at the end of this document.
 
 ## Command surface
 
-`policyctl serving` exposes exactly three verbs. Every verb accepts
+`policyctl serving` exposes exactly four verbs. Every verb accepts
 `--registry gs://<bucket>/<prefix>` (default `gs://weave_ml/weave_registry`).
 
 ```bash
 policyctl serving publish  --kind candidate|selection_set|proposal --manifest <file> [--dry-run]
+policyctl serving publish-release --candidate <file> --selection-set <file> --proposal <file> [--dry-run]
 policyctl serving apply    --proposal <ObjectRef.json> | --proposal-sha256 <sha256> [--dry-run]
 policyctl serving status   --target staging|prod/stable|prod/weave-internal | --proposal <ObjectRef.json>
 ```
@@ -29,6 +30,8 @@ policyctl serving status   --target staging|prod/stable|prod/weave-internal | --
 | --- | --- | --- | --- |
 | `serving publish` | `--kind`, `--manifest` | Strict-decodes the file (`DisallowUnknownFields`, no trailing JSON), runs the kind's `Validate`, and publishes the bytes immutably at `artifacts/<sha256>.json` with a `DoesNotExist` precondition plus read-back verification. Never activates anything. | `ObjectRef` — `{"uri","sha256","generation"}` |
 | `serving publish --dry-run` | `--kind`, `--manifest` | Every pre-write check a publish performs (v2 kind, strict decode, `Validate`, v2 schema) and reports the digest the bytes would publish under. Opens no registry connection and writes nothing. Any JSON encoding of the manifest is accepted — there is no canonical-byte requirement; surrounding whitespace is trimmed before digesting, exactly as `publish` stores it. | `{"kind","sha256"}` |
+| `serving publish-release` | `--candidate`, `--selection-set`, `--proposal` | The three `serving publish` calls of one release in one invocation: publishes candidate → selection set → proposal through the same create-only path, binding each manifest to the reference — including the registry-assigned generation — of the object published before it. Never activates anything. | `{"candidate","selection_set","proposal"}`, each an `ObjectRef` |
+| `serving publish-release --dry-run` | Same | Every pre-write check on all three manifests, with the references filled in at a placeholder generation, and reports the candidate's digest. Opens no registry connection and writes nothing. | `{"candidate":{"kind","sha256"},"selection_set":{"kind","validated"},"proposal":{"kind","validated"}}` |
 | `serving apply` | `--proposal <ObjectRef.json>` **or** `--proposal-sha256 <digest>` | Reads the proposal at its exact generation, checks `sha256(stored bytes) == ref.sha256`, computes the activation transition against the authoritative target state (replay detection first), validates the proposal (evidence, candidate attestation, every lane against its live worker and classifier revision, scope rules), then CASes the target's single state object, superseding the outgoing activation and applying explicit withdrawals in the same write. A proposal with `scope: rollback` — or any proposal listing `withdraw_activations` — additionally has its `source_candidate` checked against the target's retained activation history before the CAS, on the dry run as well as the commit. | `ActivationResult` — `{"snapshot":{"state","generation"},"activation","outcome":"activated"\|"superseded","replayed"}` |
 | `serving apply --dry-run` | Same | Everything above except the CAS: no registry write, no infrastructure change. A proposal that was already activated reconciles to its original outcome instead of re-validating destinations, so completed retries never require healthy old revisions. | `PreparationResult` — `{"proposal","prepared",` `"activation"?}`; `prepared:true` means ready to apply, `prepared:false` with `activation` means already applied |
 | `serving status --target` | `--target` | Authoritative target state read (`state/<env>/<target>.json`, falling back to the legacy path for targets that have not applied since the layout move). Never validates against reachable workers. | `ServingStateSnapshot` — `{"state","generation"}` |
@@ -192,6 +195,9 @@ objects are published by the deployment control plane as before.
    image is built. The `ObjectRef` output is the lane input for every target.
 2. Deploy the revisions, publish revision evidence, then
    `publish --kind selection_set` and `publish --kind proposal` for the target.
+   `publish-release --candidate <file> --selection-set <file> --proposal <file>` does
+   steps 1 and 2 in one invocation once all three manifests are composed, filling the
+   candidate and selection-set references in as it goes.
 3. `apply --dry-run --proposal <ref>` for a no-write preview, then `apply` from the
    protected environment. Retry `apply` with the same proposal if the outcome is
    ambiguous; it replays the original activation instead of creating a second one.
@@ -223,6 +229,38 @@ second proposal that reuses a `request_id` is simply a second activation — the
 an audit field, reconciliation keys on the proposal ref. A new promotion of identical
 candidate bytes intentionally creates a new activation incarnation without resetting
 older supersession deadlines.
+
+### `publish-release`
+
+An `ObjectRef` carries the generation the registry assigns when the object is created,
+which nobody can know for an object that does not exist yet. `publish-release`
+therefore **fills in** the references it creates rather than asking the caller to
+transcribe them: after the candidate is published, every selection-set lane that names
+the candidate — by digest, or by leaving the reference blank — is bound to its exact
+reference, and after the selection set is published the proposal's `selection_set` and
+`source_candidate` are bound the same way. A lane pinned to a different,
+already-published candidate keeps it; a selection set that names the candidate nowhere,
+or a proposal that names a different `sha256`, belongs to another release and is
+rejected before the manifest that names it is written. The candidate file itself is
+published byte-for-byte as written.
+
+The generation is the only field filled in silently. A reference the caller did write
+is strict-decoded like any manifest field — a misspelled or mistyped field is an error,
+not something the fill discards — and a `uri` or `sha256` naming an object other than
+the one being published fails closed instead of being overwritten.
+
+Filling is deterministic — the filled manifest is re-encoded from the same document
+with the same references — so re-running a release derives the same bytes, and the
+create-only path of `publish` reports the objects that already exist with their
+existing references and no new write, whether they were published by an earlier full
+run or by a run that failed part-way through. `publish-release` never reads or writes
+target state and never applies, activates or withdraws anything; `apply` remains a
+separate, approved step.
+
+`--dry-run` runs every check the release performs, filling the references with a
+placeholder generation, and reports only the candidate's digest: the selection set's
+and the proposal's digests depend on references that do not exist until the candidate
+and the selection set are published.
 
 ## Non-circular configuration and evidence
 
