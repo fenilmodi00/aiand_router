@@ -123,8 +123,12 @@ the designed object-level rollback is a `scope: rollback` proposal, not a code r
 
 `scripts/serving_admission_check` is not part of this gate and not part of the fleet.
 It is a loopback-only integration harness: it requires a loopback host in
-`ROUTER_TEST_DATABASE_URL`. Use a disposable local Postgres fixture: the harness
-writes persistent records and does not verify that the database is ephemeral. It exercises
+`ROUTER_TEST_DATABASE_URL` and enforces nothing else about the database, so use a
+disposable local Postgres fixture. It leaves no residue: on success and on failure it
+deletes the installation it created (whose cascades carry the keys, subject access,
+profile assignment, session bindings and request attribution) plus the credential
+subject those cascades leave behind, then re-counts those tables and fails if any
+fixture row survived. It exercises
 `internal/postgres/serving.NewServingAdmissionRepo(...).Admit` — credential-subject
 enrollment and rotation fences, concurrent first-admission collapse onto one binding,
 profile assignment, and the database admission clock — against a fixture decision
