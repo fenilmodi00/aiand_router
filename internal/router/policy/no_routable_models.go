@@ -17,19 +17,24 @@ var ErrNoRoutableModels = errors.New("policy: configuration leaves no routable m
 var ErrGatewayServesNoDeployedModel = fmt.Errorf(
 	"policy: no deployed model is aliased by a gateway key: %w", ErrNoRoutableModels)
 
+// ErrContextWindowExceeded signals that resolution came back empty because the
+// request is too large, so the client receives its native prompt-too-long
+// error and compacts rather than being told to change its configuration.
+var ErrContextWindowExceeded = errors.New("policy: request context exceeds every eligible model's window")
+
 // emptyCandidateError names why resolution produced no candidate, so the
 // caller reports the configuration that has to change rather than a generic
-// routing failure.
+// routing failure. Only a model diagnosed as excluded by size makes this a
+// context-window error; later request constraints can still empty an
+// overflow-admitted pool for an unrelated reason.
 func emptyCandidateError(diagnostics []Diagnostic) error {
-	for _, diagnostic := range diagnostics {
-		if diagnostic.Reason != ExclusionGatewayNotServed {
-			return ErrNoRoutableModels
-		}
+	if len(diagnostics) > 0 && !slices.ContainsFunc(diagnostics, func(d Diagnostic) bool { return d.Reason != ExclusionGatewayNotServed }) {
+		return ErrGatewayServesNoDeployedModel
 	}
-	if len(diagnostics) == 0 {
-		return ErrNoRoutableModels
+	if slices.ContainsFunc(diagnostics, func(d Diagnostic) bool { return d.Reason == ExclusionContextWindow }) {
+		return ErrContextWindowExceeded
 	}
-	return ErrGatewayServesNoDeployedModel
+	return ErrNoRoutableModels
 }
 
 // candidateLogFields flattens a resolution into slog fields so a failed

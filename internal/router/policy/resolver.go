@@ -61,6 +61,8 @@ const (
 	ExclusionAmbiguousRoster ExclusionReason = "ambiguous_roster_id"
 	// ExclusionContextWindow means the estimated input cannot fit the model.
 	ExclusionContextWindow ExclusionReason = "context_window"
+	// ExclusionUnsignedHistory means the model cannot accept this request's unsigned tool-call history.
+	ExclusionUnsignedHistory ExclusionReason = "unsigned_history"
 	// ExclusionGatewayNotServed means the installation routes exclusively through
 	// its own gateway and no gateway key aliases this model.
 	ExclusionGatewayNotServed ExclusionReason = "gateway_not_served"
@@ -324,7 +326,9 @@ func (r *Resolver) Resolve(req router.Request) ResolvedCandidates {
 			diagnostics = append(diagnostics, Diagnostic{CatalogID: id, Reason: ExclusionProductIneligible})
 			continue
 		}
-		if _, excluded := req.ExcludedModels[id]; excluded {
+		_, unsignedHistoryExcluded := req.UnsignedHistoryExcludedModels[id]
+		_, contextWindowExcluded := req.ContextWindowExcludedModels[id]
+		if _, excluded := req.ExcludedModels[id]; excluded && !unsignedHistoryExcluded && !contextWindowExcluded {
 			diagnostics = append(diagnostics, Diagnostic{CatalogID: id, Reason: ExclusionRequested})
 			continue
 		}
@@ -333,8 +337,16 @@ func (r *Resolver) Resolve(req router.Request) ResolvedCandidates {
 			diagnostics = append(diagnostics, Diagnostic{CatalogID: id, Reason: ExclusionUnmappedRoster})
 			continue
 		}
+		if unsignedHistoryExcluded {
+			diagnostics = append(diagnostics, Diagnostic{CatalogID: id, RosterID: rosterID, Reason: ExclusionUnsignedHistory})
+			continue
+		}
+		if contextWindowExcluded {
+			diagnostics = append(diagnostics, Diagnostic{CatalogID: id, RosterID: rosterID, Reason: ExclusionContextWindow})
+			continue
+		}
 		contextWindow := catalog.ContextWindowFor(id)
-		if requiredContextTokens(req) > contextWindow {
+		if exceedsContextWindow(req, id, contextWindow) {
 			diagnostics = append(diagnostics, Diagnostic{CatalogID: id, RosterID: rosterID, Reason: ExclusionContextWindow})
 			continue
 		}
@@ -472,6 +484,17 @@ func estimatedCostUSD(req router.Request, pricing catalog.Pricing) float64 {
 
 func requiredContextTokens(req router.Request) int {
 	return max(req.EstimatedInputTokens, 0) + expectedOutputTokens(req)
+}
+
+// exceedsContextWindow reports whether the request's estimate rules the model
+// out. A model the proxy admitted on total overflow is never ruled out here:
+// its provider's exact count decides, so a real overflow reaches the client as
+// the native prompt-too-long error it compacts on.
+func exceedsContextWindow(req router.Request, catalogID string, contextWindow int) bool {
+	if _, admitted := req.OverflowAdmittedModels[catalogID]; admitted {
+		return false
+	}
+	return requiredContextTokens(req) > contextWindow
 }
 
 func expectedOutputTokens(req router.Request) int {

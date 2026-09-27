@@ -219,6 +219,72 @@ func TestResolverIncludesExpectedOutputInContextBudget(t *testing.T) {
 	})
 }
 
+func TestResolverKeepsOverflowAdmittedModels(t *testing.T) {
+	resolver := policy.NewResolver(
+		set("claude-opus-4-8", "claude-sonnet-4-6"),
+		set(providers.ProviderAnthropic),
+		catalogRosterID,
+		policy.ManagedProviderPolicy(),
+	)
+
+	resolved := resolver.Resolve(router.Request{
+		EstimatedInputTokens:   catalog.ContextWindowFor("claude-opus-4-8") + 1,
+		OverflowAdmittedModels: set("claude-opus-4-8"),
+	})
+
+	assert.Equal(t, []string{"claude-opus-4-8"}, resolved.CandidateModels(),
+		"the provider's exact count decides for a model the proxy admitted on total overflow")
+	assert.Equal(t, []policy.Diagnostic{{
+		CatalogID: "claude-sonnet-4-6",
+		RosterID:  "claude-sonnet-4-6",
+		Reason:    policy.ExclusionContextWindow,
+	}}, resolved.Diagnostics)
+}
+
+func TestResolverPreservesUnsignedHistoryExclusionAfterOverflowAdmission(t *testing.T) {
+	const model = "gemini-3.1-pro-preview"
+	resolver := policy.NewResolver(
+		set(model),
+		set(providers.ProviderGoogle),
+		catalogRosterID,
+		policy.ManagedProviderPolicy(),
+	)
+
+	resolved := resolver.Resolve(router.Request{
+		ExcludedModels:                set(model),
+		OverflowAdmittedModels:        set(model),
+		UnsignedHistoryExcludedModels: set(model),
+	})
+
+	assert.Empty(t, resolved.Candidates)
+	assert.Equal(t, []policy.Diagnostic{{
+		CatalogID: model,
+		RosterID:  model,
+		Reason:    policy.ExclusionUnsignedHistory,
+	}}, resolved.Diagnostics)
+}
+
+func TestResolverDoesNotCallUnmappedOverflowCandidateAContextExclusion(t *testing.T) {
+	const model = "gemini-3.1-pro-preview"
+	resolver := policy.NewResolver(
+		set(model),
+		set(providers.ProviderGoogle),
+		func(catalog.Model) string { return "" },
+		policy.ManagedProviderPolicy(),
+	)
+
+	resolved := resolver.Resolve(router.Request{
+		ExcludedModels:              set(model),
+		ContextWindowExcludedModels: set(model),
+	})
+
+	assert.Empty(t, resolved.Candidates)
+	assert.Equal(t, []policy.Diagnostic{{
+		CatalogID: model,
+		Reason:    policy.ExclusionUnmappedRoster,
+	}}, resolved.Diagnostics)
+}
+
 func TestResolverIncludesLiveCandidateEconomics(t *testing.T) {
 	resolver := policy.NewResolver(
 		set("claude-opus-4-8"),
