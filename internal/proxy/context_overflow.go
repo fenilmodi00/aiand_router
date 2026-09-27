@@ -48,6 +48,14 @@ func isUpstreamContextOverflow(err error) bool {
 	return strings.Contains(body, "input token count") && strings.Contains(body, "exceeds the maximum")
 }
 
+// contextWindowOnlyExclusions returns the models the context-window pre-filter
+// excluded and nothing else did. overflowed already omits models excluded
+// before the pre-filter ran; admitted models were re-admitted for the upstream
+// to decide, and gemini-unsigned models stay out for a reason of their own.
+func contextWindowOnlyExclusions(overflowed, admitted, geminiUnsigned []string) map[string]struct{} {
+	return withoutModels(withoutModels(modelSet(overflowed), admitted), geminiUnsigned)
+}
+
 // isContextOverflow reports whether err means the request cannot fit any
 // model's window, whether the router or the upstream decided it.
 func isContextOverflow(err error) bool {
