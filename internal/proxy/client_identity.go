@@ -40,7 +40,7 @@ func ClientIdentityFromHeaders(h http.Header) ClientIdentity {
 		RolloutID:   NormalizeRolloutID(h.Get(RolloutIDHeader)),
 	}
 	if id.ClientApp == ClientAppOpencode {
-		id.OpenCodeAgent = requestcontext.ParseOpenCodeAgent(h.Get(requestcontext.OpenCodeAgentHeader))
+		id.OpenCodeSubagent = requestcontext.IsOpenCodeSubagent(h)
 		if id.SessionID == "" {
 			id.SessionID = requestcontext.OpenCodeSessionIDFromHeaders(h)
 		}
@@ -49,7 +49,8 @@ func ClientIdentityFromHeaders(h http.Header) ClientIdentity {
 }
 
 func openCodeCaller(id ClientIdentity) turntype.OpenCodeCaller {
-	return turntype.OpenCodeCaller{IsClient: id.ClientApp == ClientAppOpencode, Agent: id.OpenCodeAgent}
+	isClient := id.ClientApp == ClientAppOpencode
+	return turntype.OpenCodeCaller{IsClient: isClient, IsSubagent: isClient && id.OpenCodeSubagent}
 }
 
 // EvalClientAppPrefix is re-exported for callers building identities by hand.

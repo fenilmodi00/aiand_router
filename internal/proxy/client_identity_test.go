@@ -9,7 +9,6 @@ import (
 
 	"weave-os/router/internal/auth"
 	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/requestcontext"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -285,7 +284,25 @@ func TestClientIdentityFromHeaders_SessionIDSources(t *testing.T) {
 		h.Set("X-OpenCode-Session", "ses_child")
 		h.Set("X-Parent-Session-Id", opencode)
 		h.Set("X-App", "opencode")
-		assert.Equal(t, opencode, proxy.ClientIdentityFromHeaders(h).SessionID)
+		got := proxy.ClientIdentityFromHeaders(h)
+		assert.Equal(t, opencode, got.SessionID)
+		assert.True(t, got.OpenCodeSubagent)
+	})
+	t.Run("opencode parent session is not a subagent", func(t *testing.T) {
+		h := http.Header{}
+		h.Set("X-OpenCode-Session", opencode)
+		h.Set("X-App", "opencode")
+		assert.False(t, proxy.ClientIdentityFromHeaders(h).OpenCodeSubagent)
+		h.Del("X-OpenCode-Session")
+		h.Set("X-Parent-Session-Id", opencode)
+		assert.False(t, proxy.ClientIdentityFromHeaders(h).OpenCodeSubagent, "a parent id without a child session is not a subagent")
+	})
+	t.Run("opencode subagent headers ignored for other clients", func(t *testing.T) {
+		h := http.Header{}
+		h.Set("X-OpenCode-Session", "ses_child")
+		h.Set("X-Parent-Session-Id", opencode)
+		h.Set("X-App", "codex")
+		assert.False(t, proxy.ClientIdentityFromHeaders(h).OpenCodeSubagent)
 	})
 	t.Run("opencode detected from User-Agent", func(t *testing.T) {
 		h := http.Header{}
@@ -307,50 +324,5 @@ func TestClientIdentityFromHeaders_SessionIDSources(t *testing.T) {
 	})
 	t.Run("no session headers", func(t *testing.T) {
 		assert.Equal(t, "", proxy.ClientIdentityFromHeaders(http.Header{}).SessionID)
-	})
-}
-
-func TestClientIdentityFromHeaders_OpenCodeAgent(t *testing.T) {
-	for _, agent := range []requestcontext.OpenCodeAgent{
-		requestcontext.OpenCodeAgentBuild,
-		requestcontext.OpenCodeAgentTitle,
-		requestcontext.OpenCodeAgentExplore,
-		requestcontext.OpenCodeAgentCompaction,
-	} {
-		t.Run(string(agent), func(t *testing.T) {
-			h := http.Header{}
-			h.Set("X-App", "opencode")
-			h.Set(requestcontext.OpenCodeAgentHeader, string(agent))
-			assert.Equal(t, agent, proxy.ClientIdentityFromHeaders(h).OpenCodeAgent)
-		})
-	}
-	t.Run("unknown agent is dropped", func(t *testing.T) {
-		h := http.Header{}
-		h.Set("X-App", "opencode")
-		h.Set(requestcontext.OpenCodeAgentHeader, "reviewer")
-		assert.Equal(t, requestcontext.OpenCodeAgent(""), proxy.ClientIdentityFromHeaders(h).OpenCodeAgent)
-	})
-	t.Run("case is sensitive and whitespace is trimmed", func(t *testing.T) {
-		h := http.Header{}
-		h.Set("X-App", "opencode")
-		h.Set(requestcontext.OpenCodeAgentHeader, "Title")
-		assert.Equal(t, requestcontext.OpenCodeAgent(""), proxy.ClientIdentityFromHeaders(h).OpenCodeAgent)
-		h.Set(requestcontext.OpenCodeAgentHeader, " title ")
-		assert.Equal(t, requestcontext.OpenCodeAgentTitle, proxy.ClientIdentityFromHeaders(h).OpenCodeAgent)
-	})
-	t.Run("missing header leaves the field empty", func(t *testing.T) {
-		h := http.Header{}
-		h.Set("X-App", "opencode")
-		assert.Equal(t, requestcontext.OpenCodeAgent(""), proxy.ClientIdentityFromHeaders(h).OpenCodeAgent)
-	})
-	t.Run("ignored for every other client", func(t *testing.T) {
-		for _, app := range []string{proxy.ClientAppCodex, proxy.ClientAppClaudeCode, "pi", ""} {
-			h := http.Header{}
-			if app != "" {
-				h.Set("X-App", app)
-			}
-			h.Set(requestcontext.OpenCodeAgentHeader, "title")
-			assert.Equal(t, requestcontext.OpenCodeAgent(""), proxy.ClientIdentityFromHeaders(h).OpenCodeAgent, app)
-		}
 	})
 }

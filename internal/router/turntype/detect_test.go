@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"weave-os/router/internal/requestcontext"
 	"weave-os/router/internal/router/turntype"
 	"weave-os/router/internal/translate"
 
@@ -582,60 +581,7 @@ func TestDetectFromEnvelope_CodexTitleHintOverridesToolRegistry(t *testing.T) {
 		"the trusted native Codex shape must hard-pin even when the converted body carries tools")
 }
 
-// OpenCode's sub-agent and compaction turns carry no body fingerprint; the
-// plugin's typed lifecycle header is the only signal. The header also wins for
-// title turns whose body carries the tool registry.
-func TestDetect_OpenCodeAgent(t *testing.T) {
-	// Responses ingress converts to chat completions before classification.
-	const mainLoopBody = `{"model":"auto","stream":true,
-		"tools":[{"type":"function","function":{"name":"bash","parameters":{"type":"object"}}}],
-		"messages":[{"role":"user","content":"Summarize the auth module"}]}`
-	const toolResultBody = `{"model":"auto","stream":true,
-		"tools":[{"type":"function","function":{"name":"bash","parameters":{"type":"object"}}}],
-		"messages":[
-			{"role":"user","content":"run it"},
-			{"role":"assistant","content":null,"tool_calls":[{"id":"c1","type":"function","function":{"name":"bash","arguments":"{}"}}]},
-			{"role":"tool","tool_call_id":"c1","content":"done"}
-		]}`
-	tests := []struct {
-		name  string
-		body  string
-		agent requestcontext.OpenCodeAgent
-		want  turntype.TurnType
-	}{
-		{name: "build is main_loop", body: mainLoopBody, agent: requestcontext.OpenCodeAgentBuild, want: turntype.MainLoop},
-		{name: "build on a tool continuation stays tool_result", body: toolResultBody, agent: requestcontext.OpenCodeAgentBuild, want: turntype.ToolResult},
-		{name: "title is title_gen despite the tool registry", body: mainLoopBody, agent: requestcontext.OpenCodeAgentTitle, want: turntype.TitleGen},
-		{name: "explore is sub_agent_dispatch", body: mainLoopBody, agent: requestcontext.OpenCodeAgentExplore, want: turntype.SubAgentDispatch},
-		{name: "explore on a tool continuation is still sub_agent_dispatch", body: toolResultBody, agent: requestcontext.OpenCodeAgentExplore, want: turntype.SubAgentDispatch},
-		{name: "compaction is compaction without any prompt phrase", body: mainLoopBody, agent: requestcontext.OpenCodeAgentCompaction, want: turntype.Compaction},
-		{name: "compaction on a tool continuation is still compaction", body: toolResultBody, agent: requestcontext.OpenCodeAgentCompaction, want: turntype.Compaction},
-		{name: "missing agent keeps the body heuristics", body: mainLoopBody, want: turntype.MainLoop},
-		{name: "missing agent keeps tool_result", body: toolResultBody, want: turntype.ToolResult},
-		{name: "unparsed value never matches", body: mainLoopBody, agent: requestcontext.OpenCodeAgent("reviewer"), want: turntype.MainLoop},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			env, err := translate.ParseOpenAI([]byte(tc.body))
-			require.NoError(t, err)
-			feats := env.RoutingFeatures(false)
-			assert.Equal(t, tc.want, turntype.Detect(env, feats, "", turntype.OpenCodeCaller{IsClient: true, Agent: tc.agent}))
-			if tc.agent == "" {
-				assert.Equal(t, tc.want, turntype.DetectFromEnvelope(env, feats, ""))
-			}
-		})
-	}
-}
-
-func TestDetect_OpenCodeAgentDoesNotOverrideProbe(t *testing.T) {
-	env, err := translate.ParseOpenAI([]byte(`{"model":"auto","max_tokens":1,"messages":[{"role":"user","content":"hi"}]}`))
-	require.NoError(t, err)
-	feats := env.RoutingFeatures(false)
-	assert.Equal(t, turntype.Probe, turntype.Detect(env, feats, "", turntype.OpenCodeCaller{IsClient: true, Agent: requestcontext.OpenCodeAgentTitle}))
-}
-
-// OpenCode 2.x does not load the lifecycle plugin, so its title call arrives
-// with no X-Weave-OpenCode-Agent header and must be recognized from the body.
+// OpenCode v2 title requests are identified by their native request prompt.
 func TestDetect_OpenCodeTitlePromptWithoutHeader(t *testing.T) {
 	const titlePrompt = "You are a title generator. You output ONLY a thread title. Nothing else.\n\n<task>\nGenerate a brief title that would help the user find this conversation later."
 	prompt, err := json.Marshal(titlePrompt)
@@ -742,4 +688,27 @@ func TestDetect_OpenCodeTitlePromptWithoutHeader(t *testing.T) {
 		assert.Equal(t, turntype.MainLoop, turntype.Detect(env, feats, "", turntype.OpenCodeCaller{}))
 		assert.Equal(t, turntype.MainLoop, turntype.DetectFromEnvelope(env, feats, ""))
 	})
+}
+
+// OpenCode subagent turns look like main-loop turns in the body, so only the
+// caller's child-session signal selects SubAgentDispatch; probes still win.
+func TestDetect_OpenCodeSubagent(t *testing.T) {
+	parse := func(t *testing.T, body string) (*translate.RequestEnvelope, translate.RoutingFeatures) {
+		t.Helper()
+		chat, _, _, err := translate.ResponsesToChatCompletions([]byte(body))
+		require.NoError(t, err)
+		env, err := translate.ParseOpenAI(chat)
+		require.NoError(t, err)
+		return env, env.RoutingFeatures(false)
+	}
+	env, feats := parse(t, `{"model":"auto","stream":true,
+		"tools":[{"type":"function","name":"bash","parameters":{"type":"object"}}],
+		"input":[{"role":"user","content":"Explore the repository layout"}]}`)
+	subagent := turntype.OpenCodeCaller{IsClient: true, IsSubagent: true}
+
+	assert.Equal(t, turntype.SubAgentDispatch, turntype.Detect(env, feats, "", subagent))
+	assert.Equal(t, turntype.MainLoop, turntype.Detect(env, feats, "", turntype.OpenCodeCaller{IsClient: true}))
+
+	feats.MaxTokens = 1
+	assert.Equal(t, turntype.Probe, turntype.Detect(env, feats, "", subagent))
 }
