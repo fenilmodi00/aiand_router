@@ -266,6 +266,28 @@ func TestClassifyDispatchError_ForcedModelUnknownIs400(t *testing.T) {
 	assert.Equal(t, "warn", cls.LogLevel)
 }
 
+func TestClassifyDispatchError_PassthroughModelUnknownIs400(t *testing.T) {
+	err := fmt.Errorf("turn loop: %w", &proxy.PassthroughModelUnknownError{Model: "auto"})
+
+	cls, ok := proxy.ClassifyDispatchError(err)
+
+	require.True(t, ok)
+	assert.Equal(t, proxy.DispatchErrorPassthroughModelUnknown, cls.Kind)
+	assert.Equal(t, http.StatusBadRequest, cls.Status)
+	assert.True(t, cls.Kind.IsClientError())
+	assert.Contains(t, cls.Message, `"auto"`, "the caller must see the value that failed to resolve")
+	assert.NotContains(t, cls.Message, "provider keys", "an unknown passthrough model is not a credentials problem")
+	assert.NotContains(t, cls.Message, "admin", "blind-experiment passthrough must not blame an org setting it isn't caused by")
+}
+
+func TestClassifyDispatchError_PassthroughModelUnknownFromRoutingPolicyPointsAtAdmin(t *testing.T) {
+	cls, ok := proxy.ClassifyDispatchError(&proxy.PassthroughModelUnknownError{Model: "auto", RoutingPolicyPassthrough: true})
+
+	require.True(t, ok)
+	assert.Equal(t, proxy.DispatchErrorPassthroughModelUnknown, cls.Kind)
+	assert.Contains(t, cls.Message, "ask your org admin to enable automatic routing")
+}
+
 func TestClassifyDispatchError_ForcedClusterUnsupportedStrategyIs400(t *testing.T) {
 	cls, ok := proxy.ClassifyDispatchError(&proxy.ForcedClusterUnsupportedStrategyError{
 		Cluster:  "maximum",
