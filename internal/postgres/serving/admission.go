@@ -18,6 +18,7 @@ import (
 	"weave-os/router/internal/auth"
 	"weave-os/router/internal/observability"
 	"weave-os/router/internal/policyregistry"
+	"weave-os/router/internal/postgres/dbbudget"
 	"weave-os/router/internal/sqlc"
 	"weave-os/router/internal/subscriptions/entitlement"
 )
@@ -60,7 +61,7 @@ func (r *ServingAdmissionRepo) Admit(ctx context.Context, installationID, apiKey
 		return scope, admitted, errors.New("admission decision is required")
 	}
 	transactionStart := time.Now()
-	err = pgx.BeginTxFunc(ctx, r.pool, pgx.TxOptions{IsoLevel: pgx.ReadCommitted}, func(tx pgx.Tx) error {
+	err = pgx.BeginTxFunc(ctx, dbbudget.NewDBTX(r.pool), pgx.TxOptions{IsoLevel: pgx.ReadCommitted}, func(tx pgx.Tx) error {
 		projectionStart := time.Now()
 		// The projection span ends before the conversation lock so a slow lock or session-binding
 		// read cannot be mistaken for projection SQL.
@@ -70,7 +71,7 @@ func (r *ServingAdmissionRepo) Admit(ctx context.Context, installationID, apiKey
 			}
 		}
 		defer recordProjection()
-		queries := sqlc.New(tx)
+		queries := dbbudget.Queries(tx)
 		_, err := queries.GetServingInstallationForAdmission(ctx, installationUUID)
 		if err != nil {
 			return err

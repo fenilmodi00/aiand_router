@@ -10,6 +10,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"weave-os/router/internal/postgres/dbbudget"
 	"weave-os/router/internal/router/escalationdashboard"
 	"weave-os/router/internal/sqlc"
 )
@@ -24,13 +25,17 @@ func NewEscalationDashboardRepo(pool *pgxpool.Pool) *EscalationDashboardRepo {
 
 var _ escalationdashboard.Store = (*EscalationDashboardRepo)(nil)
 
+const escalationDashboardSnapshotTimeout = 8 * time.Second
+
 // CreateSnapshot freezes aggregates and newest-first sessions for stable paging.
 func (r *EscalationDashboardRepo) CreateSnapshot(ctx context.Context, filter escalationdashboard.Filter) (escalationdashboard.StoredSnapshot, error) {
-	queries := sqlc.New(r.pool)
-	if err := queries.DeleteExpiredEscalationDashboardSnapshots(ctx, pgtype.Timestamptz{Time: filter.CapturedAt, Valid: true}); err != nil {
+	snapshotCtx, cancel := context.WithTimeout(ctx, escalationDashboardSnapshotTimeout)
+	defer cancel()
+	queries := dbbudget.QueriesWithTimeout(r.pool, escalationDashboardSnapshotTimeout)
+	if err := queries.DeleteExpiredEscalationDashboardSnapshots(snapshotCtx, pgtype.Timestamptz{Time: filter.CapturedAt, Valid: true}); err != nil {
 		return escalationdashboard.StoredSnapshot{}, fmt.Errorf("delete expired escalation dashboard snapshots: %w", err)
 	}
-	encoded, err := queries.CreateEscalationDashboardSnapshot(ctx, sqlc.CreateEscalationDashboardSnapshotParams{
+	encoded, err := queries.CreateEscalationDashboardSnapshot(snapshotCtx, sqlc.CreateEscalationDashboardSnapshotParams{
 		CapturedAt:        pgtype.Timestamptz{Time: filter.CapturedAt, Valid: true},
 		Service:           string(filter.Service),
 		Mode:              string(filter.Mode),
@@ -52,7 +57,7 @@ func (r *EscalationDashboardRepo) SnapshotPage(ctx context.Context, snapshotID s
 	if err != nil {
 		return escalationdashboard.StoredSnapshot{}, escalationdashboard.ErrInvalidCursor
 	}
-	encoded, err := sqlc.New(r.pool).GetEscalationDashboardSnapshotPage(ctx, sqlc.GetEscalationDashboardSnapshotPageParams{
+	encoded, err := dbbudget.Queries(r.pool).GetEscalationDashboardSnapshotPage(ctx, sqlc.GetEscalationDashboardSnapshotPageParams{
 		PageStart:  pageStart,
 		PageLimit:  pageLimit,
 		SnapshotID: parsedSnapshotID,
