@@ -55,7 +55,7 @@ func (e *RequestEnvelope) PrepareAnthropic(in http.Header, opts EmitOptions) (pr
 	default:
 		return providers.PreparedRequest{}, fmt.Errorf("unsupported source format for Anthropic emit: %d", e.format)
 	}
-	body, err = sanitizeAnthropicToolNamesBytes(body)
+	body, toolAliases, err := sanitizeAnthropicToolNamesBytes(body)
 	if err != nil {
 		return providers.PreparedRequest{}, fmt.Errorf("sanitize anthropic tool names: %w", err)
 	}
@@ -93,7 +93,7 @@ func (e *RequestEnvelope) PrepareAnthropic(in http.Header, opts EmitOptions) (pr
 	if maxOutputTokens := modelMaxOutputTokens[router.StripDateSuffix(opts.TargetModel)]; maxOutputTokens > 0 {
 		body = clampFieldBytes(body, "max_tokens", int64(maxOutputTokens))
 	}
-	return providers.PreparedRequest{Body: body, Headers: deriveAnthropicHeaders(in, opts, body)}, nil
+	return providers.PreparedRequest{Body: body, Headers: deriveAnthropicHeaders(in, opts, body), ResponseToolNames: toolAliases}, nil
 }
 
 // applyAnthropicSessionAffinity sets metadata.user_id to the session-affinity
@@ -1024,7 +1024,7 @@ const maxAnthropicHistoricalToolNameChars = 200
 // Anthropic rejects declared tool names over 128 characters.
 var anthropicDeclaredToolNamePattern = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,128}$`)
 
-func sanitizeAnthropicToolNamesBytes(body []byte) ([]byte, error) {
+func sanitizeAnthropicToolNamesBytes(body []byte) ([]byte, map[string]string, error) {
 	tools := gjson.GetBytes(body, "tools").Array()
 	reservedNames := make(map[string]struct{}, len(tools))
 	for _, tool := range tools {
@@ -1089,7 +1089,7 @@ func sanitizeAnthropicToolNamesBytes(body []byte) ([]byte, error) {
 		},
 	)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	for index, tool := range gjson.GetBytes(out, "tools").Array() {
 		name := tool.Get("name").String()
@@ -1099,7 +1099,7 @@ func sanitizeAnthropicToolNamesBytes(body []byte) ([]byte, error) {
 		}
 		out, err = sjson.SetBytes(out, fmt.Sprintf("tools.%d.name", index), alias)
 		if err != nil {
-			return nil, fmt.Errorf("rewrite declared tool name: %w", err)
+			return nil, nil, fmt.Errorf("rewrite declared tool name: %w", err)
 		}
 	}
 	for index, block := range gjson.GetBytes(out, "system").Array() {
@@ -1119,11 +1119,19 @@ func sanitizeAnthropicToolNamesBytes(body []byte) ([]byte, error) {
 		if alias, ok := aliases[choiceName]; ok {
 			out, err = sjson.SetBytes(out, "tool_choice.name", alias)
 			if err != nil {
-				return nil, fmt.Errorf("rewrite tool_choice name: %w", err)
+				return nil, nil, fmt.Errorf("rewrite tool_choice name: %w", err)
 			}
 		}
 	}
-	return out, nil
+	out, err = rewriteAnthropicToolReferences(out, aliases)
+	if err != nil {
+		return nil, nil, err
+	}
+	clientNames := make(map[string]string, len(aliases))
+	for name, alias := range aliases {
+		clientNames[alias] = name
+	}
+	return out, clientNames, nil
 }
 
 // aliasedToolReferencePaths returns the tool_name paths of tool_reference
