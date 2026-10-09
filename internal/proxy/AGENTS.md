@@ -85,26 +85,35 @@ re-anchors, post-command continuations, band swap, sibling failover, the policy
  deadline default, and loop escalation — every path where the router
 picked the model. `forcedPinEligible` deliberately does not.
 
-**A rescued 429 is a cooldown, not a session-lifetime strike.** Under
-`transient_rate_limit` (default off), `maybeStrikeArmAfterRescuedFailure`
-records a rescued primary's buffered upstream 429 as
-`DemotionReasonRateLimited` with an expiry (`rate_limit_cooldown_seconds`,
-default 45) in `Pin.DemotionCooldowns`; committed-stream failures and non-429
-rescued failures stay permanent. `runTurnLoop` folds only *active* cooldowns
-into `AutomaticExcludedModels`, so an expired arm is scored and rescued again
-with no extra state change. Cooldowns are soft in one more way than the
-deployment exclusion: `rescueWalkOrReadmitCooling` appends cooling arms
-(soonest expiry first) *after* every healthy rescue candidate, so a session
-whose whole rescue pool is throttled readmits a cooling arm instead of
-surfacing the 429 — the arm that just 429'd is never re-served that turn.
-Readmission lifts *only* the cooldown: `readmittableCooldowns` drops a model
-that also carries a session-lifetime strike or cannot take the turn's images,
-and the deployment-wide automatic exclusion still holds in the second walk. The
-same flag makes the same-binding retry Retry-After-aware
-(`dispatch.ThrottlePolicy`: honour ≤10s, else go straight to rescue; 500ms then
-1.5s when the header is absent). Sessions under a gateway quota (prod 2026-09)
-died at 11 consecutive client-visible 429s because a burst-time rescue had
-permanently demoted the arm that recovered minutes later.
+**Rescued transient failures get a bounded cooldown, not a session-lifetime
+strike.** Under `transient_rate_limit` (default off),
+`maybeStrikeArmAfterRescuedFailure` records a rescued primary's buffered 429 as
+`DemotionReasonRateLimited`, and 502/503/504 as
+`DemotionReasonTransientFailure`, with an expiry
+(`rate_limit_cooldown_seconds`, default 45) in `Pin.DemotionCooldowns`;
+committed-stream failures and other rescued failures stay permanent.
+`runTurnLoop` folds only *active* cooldowns into `AutomaticExcludedModels`.
+At expiry, a Postgres lease grants the recovery probe to one in-flight request
+per session/model across router workers; concurrent requests use their other
+candidates, and the request's remaining expired arms stay excluded for that
+turn. A lease token prevents a delayed release from clearing a newer probe;
+abandoned leases expire after 15 minutes, or one minute after a known request
+deadline, measured on the database clock. A probe that completes without an
+upstream error clears its cooldown from both stored rows unless a newer
+cooldown has replaced it, so a recovered arm needs no further leases. Cooldowns
+are soft in one more way than the deployment exclusion:
+`rescueWalkOrReadmitCooling` appends cooling arms (soonest expiry first)
+*after* every healthy rescue candidate, so a session whose whole rescue pool is
+throttled readmits a cooling arm instead of surfacing the 429 — the arm that
+just 429'd is never re-served that turn. Readmission lifts *only* the cooldown:
+`readmittableCooldowns` drops a model that also carries a session-lifetime
+strike or cannot take the turn's images, and the deployment-wide automatic
+exclusion still holds in the second walk. The same flag makes the same-binding
+retry Retry-After-aware (`dispatch.ThrottlePolicy`: honour ≤10s, else go
+straight to rescue; 500ms then 1.5s when the header is absent). Sessions under
+a gateway quota (prod 2026-09) died at 11 consecutive client-visible 429s
+because a burst-time rescue had permanently demoted the arm that recovered
+minutes later.
 
 **A session-lifetime strike is soft for rescue too, as the very last resort.**
 Primary selection already treats a demotion as soft (an emptied pool reroutes
