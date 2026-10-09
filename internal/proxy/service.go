@@ -4957,15 +4957,16 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 
 	// Subscription-credit failover: suppress the OAuth token and retry the SAME
 	// model once on the Weave/BYOK key when a subscription-served Anthropic turn
-	// hit a transient fault (429/timeout), an OAuth rejection (401/403), or a
-	// model-access 404 (subscription token cannot use that Claude model),
+	// hit a transient fault (429/timeout), an OAuth rejection (401/403), a
+	// model-access 404 (subscription token cannot use that Claude model), or a
+	// third-party-client refusal (400: plan limits serve only Claude Code),
 	// pre-commit. Skipped when baseline failover already ran (non-Anthropic).
 	subscriptionFailoverUsed := false
 	subscriptionRetryRan := false
 	subscriptionFailoverAttempted := false
 	if subscriptionRetryEligible && !paidFallbackForbiddenForModel(ctx, decision.Model) && !baselineAttempted && proxyErr != nil &&
 		!preludeBuf.Committed() &&
-		(providers.IsRetryable(proxyErr) || anthropicOAuthCredentialRejected(proxyErr) || anthropicSubscriptionModelRejected(proxyErr)) {
+		(providers.IsRetryable(proxyErr) || anthropicOAuthCredentialRejected(proxyErr) || anthropicSubscriptionModelRejected(proxyErr) || anthropicSubscriptionThirdPartyRefused(proxyErr)) {
 		subscriptionRetryRan = true
 		subCtx := subscriptionStatePaidRescueContext(withSuppressedClaudeSubscription(ctx), decision.Model)
 		subCtx = resolveAndInjectCredentials(subCtx, providers.ProviderAnthropic, decision.Model, r.Header)
@@ -7839,7 +7840,8 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		!paidFallbackForbiddenForModel(ctx, decision.Model) &&
 		s.openaiFallbackKeyAvailable(ctx)
 	// OpenAI-compatible callers can route to Anthropic too; give their Claude
-	// subscription model-access rejection the same paid recovery as /v1/messages.
+	// subscription model-access and third-party refusals the same paid recovery
+	// as /v1/messages.
 	claudeRetryViable := decision.Provider == providers.ProviderAnthropic &&
 		servedOnSubscription(ctx) &&
 		!blindExperimentPassthroughActive(ctx) &&
@@ -8021,7 +8023,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 
 	claudeFailoverUsed := false
 	claudeRetryRan := false
-	if claudeRetryViable && !paidFallbackForbiddenForModel(ctx, decision.Model) && proxyErr != nil && !preludeBuf.Committed() && anthropicSubscriptionModelRejected(proxyErr) {
+	if claudeRetryViable && !paidFallbackForbiddenForModel(ctx, decision.Model) && proxyErr != nil && !preludeBuf.Committed() && (anthropicSubscriptionModelRejected(proxyErr) || anthropicSubscriptionThirdPartyRefused(proxyErr)) {
 		subCtx := subscriptionStatePaidRescueContext(withSuppressedClaudeSubscription(ctx), decision.Model)
 		subCtx = resolveAndInjectCredentials(subCtx, providers.ProviderAnthropic, decision.Model, r.Header)
 		subOpts := opts
@@ -8036,7 +8038,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 			log.Warn("Claude subscription failover: no fallback Anthropic binding available; surfacing the original error",
 				"model", decision.Model, "upstream_status", upstreamStatus(proxyErr))
 		default:
-			log.Warn("Claude subscription failover: subscription cannot access model, retrying on Weave credits",
+			log.Warn("Claude subscription failover: subscription rejected the turn, retrying on Weave credits",
 				"model", decision.Model,
 				"err", proxyErr,
 				"upstream_status", upstreamStatus(proxyErr),
