@@ -319,8 +319,12 @@ func TestResolveAndStashUserBlindExperimentWithoutCache(t *testing.T) {
 func TestResolveAndStashUserBlindExperimentFetchFailureFailsOpen(t *testing.T) {
 	users := &fakeUserRepo{user: &auth.User{ID: "user-42", InstallationID: "inst-1", Email: "alice@example.com"}}
 	experiments := &fakeBlindExperimentRepository{err: errors.New("database unavailable")}
-	service := makeServiceWithUsers(t, users).
-		WithBlindExperiments(experiments, auth.NewLRUBlindExperimentCache(10, 10*time.Millisecond, time.Now))
+	// The injected clock keeps the negative-cache window deterministic: a
+	// wall-clock 10ms TTL can elapse between the second read and the first
+	// Eventually poll under load, which would look like a cache miss.
+	current := time.Date(2026, 9, 8, 12, 0, 0, 0, time.UTC)
+	cache := auth.NewLRUBlindExperimentCache(10, time.Minute, func() time.Time { return current })
+	service := makeServiceWithUsers(t, users).WithBlindExperiments(experiments, cache)
 
 	requestContext := service.ResolveAndStashUser(context.Background(), "inst-1", "alice@example.com", "", "")
 
@@ -328,6 +332,7 @@ func TestResolveAndStashUserBlindExperimentFetchFailureFailsOpen(t *testing.T) {
 	assert.False(t, active)
 	service.ResolveAndStashUser(context.Background(), "inst-1", "alice@example.com", "", "")
 	assert.Equal(t, 1, experiments.calls, "failed reads should be negatively cached during an outage")
+	current = current.Add(11 * time.Second)
 	require.Eventually(t, func() bool {
 		service.ResolveAndStashUser(context.Background(), "inst-1", "alice@example.com", "", "")
 		return experiments.calls == 2
