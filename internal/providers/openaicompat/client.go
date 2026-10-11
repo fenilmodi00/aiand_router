@@ -22,75 +22,19 @@ import (
 )
 
 const (
-	DefaultBaseURL   = "https://openrouter.ai/api/v1"
-	FireworksBaseURL = "https://api.fireworks.ai/inference/v1"
-	// DeepInfraBaseURL serves OpenAI-compatible inference for the OSS catalog.
-	DeepInfraBaseURL = "https://api.deepinfra.com/v1/openai"
-	// MakoraBaseURL serves the OSS catalog at higher throughput than commodity
-	// providers; pair with NewClientWithModelIDMap to rewrite slugs to Makora's
-	// upstream IDs.
-	MakoraBaseURL = "https://inference.makora.com/v1"
-	// MiniMaxGlobalBaseURL is MiniMax's global OpenAI-compatible endpoint.
-	MiniMaxGlobalBaseURL = "https://api.minimax.io/v1"
-	// MiniMaxCNBaseURL is MiniMax's mainland-China OpenAI-compatible endpoint.
-	MiniMaxCNBaseURL = "https://api.minimaxi.com/v1"
-	// TogetherBaseURL serves the OSS pool (DeepSeek, GLM, MiniMax, Qwen, Kimi)
-	// and is fastest on artificialanalysis.ai for several routed models; pair
-	// with NewClientWithModelIDMap to rewrite slugs to Together's "Org/Model" IDs.
-	TogetherBaseURL = "https://api.together.xyz/v1"
-	// XAIBaseURL is SpaceXAI's OpenAI-compatible Chat Completions surface.
-	XAIBaseURL = "https://api.x.ai/v1"
-	// MetaBaseURL is Meta's Model API OpenAI-compatible Chat Completions surface.
-	MetaBaseURL = "https://api.meta.ai/v1"
 	// AIANDBaseURL is AIand's OpenAI-compatible Chat Completions surface, serving
 	// its open-weights catalog under slash-form model IDs.
 	AIANDBaseURL = "https://api.aiand.com/v1"
-	// WaferBaseURL is Wafer Serverless' OpenAI-compatible surface.
-	WaferBaseURL = "https://pass.wafer.ai/v1"
 )
-
-// MiniMaxBaseURL returns the regional MiniMax OpenAI-compatible endpoint.
-// The global endpoint is the safe default for unset or unrecognized regions.
-func MiniMaxBaseURL(region string) string {
-	switch strings.ToLower(strings.TrimSpace(region)) {
-	case "cn", "china":
-		return MiniMaxCNBaseURL
-	default:
-		return MiniMaxGlobalBaseURL
-	}
-}
-
-// grokResponseHeaderTimeout is the time-to-first-byte guard for Grok models;
-// Snowflake Cortex prefill can push first-byte past the default 30s. Streaming
-// inactivity stays bounded by StreamBody's idle watchdog. Tunable via
-// ROUTER_GROK_HEADER_TIMEOUT_SECONDS.
-var grokResponseHeaderTimeout = httputil.TimeoutFromEnv("ROUTER_GROK_HEADER_TIMEOUT_SECONDS", 90*time.Second)
-
-// BedrockMantleBaseURLTemplate is the OpenAI-compatible bedrock-mantle endpoint
-// template. Substitute the region via BedrockMantleBaseURL.
-const BedrockMantleBaseURLTemplate = "https://bedrock-mantle.%s.api.aws/v1"
-
-// BedrockMantleBaseURL returns the bedrock-mantle URL for the given region.
-// AWS recommends bedrock-mantle over the model-native bedrock-runtime surface
-// for OpenAI-compat traffic; auth is a long-term Bedrock API key, not SigV4.
-func BedrockMantleBaseURL(region string) string {
-	if region == "" {
-		region = "us-east-1"
-	}
-	return fmt.Sprintf(BedrockMantleBaseURLTemplate, region)
-}
 
 type Client struct {
 	apiKey    string
 	baseURL   string
 	http      *http.Client
 	modelHTTP *http.Client
-	// grokHTTP carries the wider time-to-first-byte guard used for Grok
-	// models; see grokResponseHeaderTimeout.
-	grokHTTP *http.Client
 	// modelIDMap rewrites the request body's "model" field before sending, when
-	// the router's public slug differs from the upstream's canonical ID
-	// (Bedrock dot-form, Makora/Together HuggingFace-form). Nil/empty = no rewrite.
+	// the router's public slug differs from the upstream's canonical ID.
+	// Nil/empty = no rewrite.
 	modelIDMap map[string]string
 	// sseIdleTimeout overrides httputil.DefaultSSEIdleTimeout when > 0; tests
 	// set it small so the output-stall watchdog fires before this one.
@@ -140,14 +84,14 @@ func NewClient(apiKey, baseURL string, opts ...Option) *Client {
 // Pass nil to disable rewriting.
 func NewClientWithModelIDMap(apiKey, baseURL string, modelIDMap map[string]string, opts ...Option) *Client {
 	if baseURL == "" {
-		baseURL = DefaultBaseURL
+		baseURL = AIANDBaseURL
 	}
 	return newClient(apiKey, baseURL, modelIDMap, opts...)
 }
 
 // NewGatewayClient builds a client for a customer-supplied OpenAI-spec endpoint.
 // Unlike NewClient, no default base URL is applied: an unconfigured gateway must
-// fail rather than silently dispatch the tenant's token to OpenRouter.
+// fail rather than silently dispatch the tenant's token to a default endpoint.
 func NewGatewayClient(apiKey, baseURL string, opts ...Option) *Client {
 	return newClient(apiKey, baseURL, nil, opts...)
 }
@@ -157,7 +101,6 @@ func newClient(apiKey, baseURL string, modelIDMap map[string]string, opts ...Opt
 		apiKey:     apiKey,
 		baseURL:    strings.TrimRight(baseURL, "/"),
 		http:       httputil.NewClient(httputil.NewTransport(5*time.Second, 5*time.Second)),
-		grokHTTP:   httputil.NewClient(httputil.NewTransportWithResponseHeaderTimeout(5*time.Second, 5*time.Second, grokResponseHeaderTimeout)),
 		modelHTTP:  httputil.NewDefaultModelDiscoveryClient(),
 		modelIDMap: modelIDMap,
 	}
@@ -171,15 +114,6 @@ func newClient(apiKey, baseURL string, modelIDMap map[string]string, opts ...Opt
 // authenticates as; see providers.DeploymentPrincipal.
 func (c *Client) DeploymentPrincipal() string {
 	return providers.CredentialPrincipal(c.baseURL, c.apiKey)
-}
-
-// httpFor picks the HTTP client for a routed model: Grok models get the
-// wider time-to-first-byte guard, everything else the default transport.
-func (c *Client) httpFor(model string) *http.Client {
-	if strings.HasPrefix(model, "grok") && c.grokHTTP != nil {
-		return c.grokHTTP
-	}
-	return c.http
 }
 
 // WithDefaultHeaders returns c with headers set on every upstream request.
@@ -210,15 +144,6 @@ func (c *Client) applyProtectedHeaders(req *http.Request) {
 	for k, vs := range c.protectedHeaders {
 		req.Header[http.CanonicalHeaderKey(k)] = append([]string(nil), vs...)
 	}
-}
-
-// NewClientWithHeaderTimeouts is NewClient with injected header-timeout
-// values so tests can exercise transport selection without real-latency waits.
-func NewClientWithHeaderTimeouts(apiKey, baseURL string, defaultTimeout, grokTimeout time.Duration) *Client {
-	c := NewClient(apiKey, baseURL)
-	c.http = httputil.NewClient(httputil.NewTransportWithResponseHeaderTimeout(5*time.Second, 5*time.Second, defaultTimeout))
-	c.grokHTTP = httputil.NewClient(httputil.NewTransportWithResponseHeaderTimeout(5*time.Second, 5*time.Second, grokTimeout))
-	return c
 }
 
 // NewClientWithStallTimeouts is NewClient with injected byte-idle and
@@ -377,7 +302,7 @@ func (c *Client) proxyTo(ctx context.Context, cancel context.CancelCauseFunc, ur
 
 	t := timing.TimingFrom(ctx)
 	t.StampUpstreamRequest()
-	resp, err := c.httpFor(decision.Model).Do(upstream)
+	resp, err := c.http.Do(upstream)
 	if err != nil {
 		return fmt.Errorf("upstream call: %w", err)
 	}

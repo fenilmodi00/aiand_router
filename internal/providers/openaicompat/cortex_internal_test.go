@@ -55,8 +55,8 @@ func TestProxy_SnowflakeCortexResponsesOmitsReasoningSummary(t *testing.T) {
 			model:   "grok-4.6",
 		},
 		{
-			name:        "native xai grok",
-			baseURL:     XAIBaseURL,
+			name:        "non-cortex grok",
+			baseURL:     AIANDBaseURL,
 			model:       "grok-4.6",
 			wantSummary: true,
 		},
@@ -93,7 +93,6 @@ func TestProxy_SnowflakeCortexResponsesOmitsReasoningSummary(t *testing.T) {
 			httpClient := &http.Client{Transport: rt}
 			c := NewGatewayClient("tok", tt.baseURL)
 			c.http = httpClient
-			c.grokHTTP = httpClient
 
 			prep := providers.PreparedRequest{
 				Body:     []byte(`{"model":"` + tt.model + `","input":"hi","reasoning":{"effort":"high","summary":"detailed"}}`),

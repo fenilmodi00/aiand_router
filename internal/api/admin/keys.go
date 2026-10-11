@@ -195,8 +195,8 @@ type upsertExternalKeyRequest struct {
 	// the binding can't express that, so the emptiness check lives below.
 	Key  string  `json:"key"`
 	Name *string `json:"name"`
-	// BaseURL points this key at a non-default endpoint. Required for gateway
-	// providers, which have no deployment default to fall back to.
+	// BaseURL points this key at a non-default endpoint. Optional for every
+	// provider: the AIand-only build has a deployment default for all of them.
 	BaseURL *string `json:"base_url"`
 	// ModelAliases maps catalog model IDs to the IDs this endpoint publishes
 	// them under, for endpoints with their own naming scheme.
@@ -311,10 +311,6 @@ func UpsertExternalKeyHandler(authSvc *auth.Service, models DeployedModelsSource
 			}
 			if errors.Is(err, auth.ErrInvalidBaseURL) {
 				c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Base URL must be an absolute http(s) URL."})
-				return
-			}
-			if errors.Is(err, auth.ErrBaseURLRequired) {
-				c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "This provider requires a base URL — it has no default endpoint."})
 				return
 			}
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Failed to save provider key."})

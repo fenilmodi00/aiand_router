@@ -154,13 +154,6 @@ func APIKeyEnvVar(provider string) string {
 	return APIKeyEnvVars[provider]
 }
 
-// RequiresBaseURL reports whether a BYOK credential for this provider must
-// carry its own endpoint. The only entries were the self-hosted gateways, which
-// went away with the AIand-only split, so no provider requires one any more.
-func RequiresBaseURL(provider string) bool {
-	return false
-}
-
 // CacheTTL is the best-effort upstream prompt-cache lifetime per provider.
 // Anthropic's 1h extended cache is what pinSessionTTL is sized to; OSS
 // OpenAI-compatible providers cache on an undocumented minutes-scale window,
@@ -452,6 +445,7 @@ var schemaRejectionPhrases = []string{
 	"could not compile grammar",
 	"invalid tool schema",
 	"invalid function schema",
+	"invalid schema for function",
 	"schema is not representable",
 	"invalid input schema",
 }
@@ -649,6 +643,11 @@ type PreparedRequest struct {
 	// by translate.Prepare*), folded into the ProxyMessages-complete log so
 	// per-PR mitigation impact can be measured in production traffic.
 	Stats RequestMutationStats
+	// ResponseToolNames maps a sanitized wire tool name back to the
+	// client's original name, so a cross-format attempt can restore
+	// the original names in the upstream response before translation
+	// or client delivery. Nil when no name was rewritten.
+	ResponseToolNames map[string]string
 }
 
 // RequestMutationStats reports translation-time mitigations the router

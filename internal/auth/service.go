@@ -5,12 +5,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
 	"weave-os/router/internal/flags"
 	"weave-os/router/internal/observability"
-	"weave-os/router/internal/providers"
 
 	"github.com/hashicorp/golang-lru/v2/expirable"
 	"golang.org/x/sync/singleflight"
@@ -27,9 +27,6 @@ var ErrUnknownProvider = errors.New("auth: unknown provider")
 
 // ErrInvalidBaseURL is returned for a BYOK endpoint override that is not an absolute http(s) URL.
 var ErrInvalidBaseURL = errors.New("auth: invalid base url")
-
-// ErrBaseURLRequired is returned when a provider with no deployment endpoint is given no base URL.
-var ErrBaseURLRequired = errors.New("auth: base url required for provider")
 
 // ErrInvalidModelAlias is returned for a model alias map that is oversized or malformed.
 var ErrInvalidModelAlias = errors.New("auth: invalid model alias")
@@ -52,7 +49,10 @@ var ErrInvalidEntraAuth = errors.New("auth: invalid Microsoft Entra auth")
 
 type Clock func() time.Time
 
-const blindExperimentFetchTimeout = 5 * time.Second
+const (
+	blindExperimentFetchTimeout  = 5 * time.Second
+	blindExperimentFetchAttempts = 3
+)
 
 // InstallationChangeNotifier fans out installation-change events to peer replicas.
 // Fire-and-forget: implementations must not block the caller.
@@ -482,37 +482,18 @@ func (s *Service) UpsertExternalAPIKey(ctx context.Context, installationID strin
 	if err != nil {
 		return nil, err
 	}
+	// The gateway surface that carried derived credentials (key-pair JWT,
+	// workload identity federation, Microsoft Entra) was cut in the
+	// AIand-only split, so no provider accepts these auth types any more;
+	// the minting machinery survives for keys stored before the split.
 	if authType == AuthTypeWIF {
-		if !providers.RequiresBaseURL(provider) {
-			return nil, fmt.Errorf("%w: no registered provider accepts workload identity credentials", ErrInvalidKeypairAuth)
-		}
-		// The attestation is minted per request from the router's own identity, so a
-		// pasted secret here would be stored and never used.
-		if rawKey != "" {
-			return nil, fmt.Errorf("%w: %s takes no key material", ErrInvalidKeypairAuth, AuthTypeWIF)
-		}
+		return nil, fmt.Errorf("%w: no registered provider accepts workload identity credentials", ErrInvalidKeypairAuth)
 	}
 	if authType == AuthTypeAzureEntra {
-		if !providers.RequiresBaseURL(provider) {
-			return nil, fmt.Errorf("%w: no registered provider accepts Microsoft Entra credentials", ErrInvalidEntraAuth)
-		}
-		if rawKey == "" {
-			return nil, fmt.Errorf("%w: %s needs a client secret", ErrInvalidEntraAuth, AuthTypeAzureEntra)
-		}
+		return nil, fmt.Errorf("%w: no registered provider accepts Microsoft Entra credentials", ErrInvalidEntraAuth)
 	}
 	if authType == AuthTypeKeypairJWT {
-		if !providers.RequiresBaseURL(provider) {
-			return nil, fmt.Errorf("%w: no registered provider accepts key-pair credentials", ErrInvalidKeypairAuth)
-		}
-		// Reject an unusable private key here rather than at the first upstream
-		// call, where the only symptom is a 401 nobody can trace to the paste.
-		if _, err := ParseKeypairPrivateKey([]byte(rawKey)); err != nil {
-			return nil, err
-		}
-	}
-	// Checked after normalization: a slash-only value normalizes away to nil.
-	if normalizedBaseURL == nil && providers.RequiresBaseURL(provider) {
-		return nil, fmt.Errorf("%w: %s", ErrBaseURLRequired, provider)
+		return nil, fmt.Errorf("%w: no registered provider accepts key-pair credentials", ErrInvalidKeypairAuth)
 	}
 	// Generate external ID first so it binds into the ciphertext as AAD.
 	externalID := GenerateID("ekid")
@@ -984,67 +965,84 @@ func (s *Service) withBlindExperiment(ctx context.Context, installationID, route
 	if s.blindExperiments == nil || routerUserID == "" {
 		return ctx
 	}
-	fetchGeneration := s.blindExperimentCache.InstallationGeneration(installationID)
-	state, ok := s.blindExperimentCache.GetAtGeneration(installationID, routerUserID, fetchGeneration)
-	if !ok {
-		fetchKey := installationID + "\x00" + routerUserID
-		resultCh := s.blindExperimentFetches.DoChan(fetchKey, func() (any, error) {
-			fetchCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), blindExperimentFetchTimeout)
-			defer cancel()
-			// A concurrent request may have filled the cache while this request
-			// waited for the per-user refresh. Re-check before querying Postgres.
-			if cached, found := s.blindExperimentCache.GetAtGeneration(installationID, routerUserID, fetchGeneration); found {
-				return cached, nil
-			}
-			record, fetchErr := s.blindExperiments.GetForUser(fetchCtx, installationID, routerUserID)
-			if fetchErr != nil {
-				// Fail open for the request, but cache the failure only for the
-				// cache's short retry window so an outage does not hammer the DB or
-				// permanently bias the experiment cohort after recovery.
-				s.blindExperimentCache.SetErrorAtGeneration(installationID, routerUserID, fetchGeneration)
-				return nil, fetchErr
-			}
-			resolved := resolveBlindExperiment(record, routerUserID)
-			s.blindExperimentCache.SetAtGeneration(installationID, routerUserID, resolved, fetchGeneration)
-			return resolved, nil
-		})
-		var result singleflight.Result
-		select {
-		case result = <-resultCh:
-		case <-ctx.Done():
-			return ctx
+	var (
+		state                BlindExperimentState
+		hasFetched, resolved bool
+		generation           uint64
+	)
+	for attempt := 0; attempt < blindExperimentFetchAttempts && !resolved; attempt++ {
+		generation = s.blindExperimentCache.InstallationGeneration(installationID)
+		if cached, found := s.blindExperimentCache.GetAtGeneration(installationID, routerUserID, generation); found {
+			state, resolved = cached, true
+			break
 		}
-		value, err := result.Val, result.Err
-		if err != nil {
-			observability.FromContext(ctx).Warn("Failed to fetch blind router experiment assignment", "router_user_id", routerUserID, "err", err)
-			return ctx
+		fetched, ok := s.fetchBlindExperiment(ctx, installationID, routerUserID, generation)
+		if !ok {
+			break
 		}
-		var found bool
-		state, found = value.(BlindExperimentState)
-		if !found {
-			return ctx
+		state, hasFetched = fetched, true
+		// A no-op cache deliberately has no entry, so its fetched state is
+		// authoritative for this request.
+		if !s.blindExperimentCache.Enabled() {
+			resolved = true
+			break
 		}
-		if s.blindExperimentCache.Enabled() {
-			// An installation invalidation may have evicted the value after the
-			// shared fetch completed. Never stash a result that is no longer in the
-			// cache; the next request will fetch the current assignment. A no-op
-			// cache deliberately has no entry, so its fetched state remains valid
-			// for this request.
-			if current, currentFound := s.blindExperimentCache.GetAtGeneration(installationID, routerUserID, fetchGeneration); !currentFound {
-				return ctx
-			} else {
-				state = current
-			}
+		if current, found := s.blindExperimentCache.GetAtGeneration(installationID, routerUserID, generation); found {
+			state, resolved = current, true
 		}
 	}
-	state = state.AtTime(s.now())
-	if !state.Active {
-		if state.CohortExperimentID != "" {
-			return context.WithValue(ctx, BlindExperimentContextKey{}, state)
+	if !resolved {
+		if !hasFetched || ctx.Err() != nil {
+			return ctx
 		}
+		// Invalidations here are usually unchanged-config fanout. Dropping the
+		// arm would route a passthrough experiment, so serve the last read
+		// without caching it.
+		observability.FromContext(ctx).Warn("Blind router experiment assignment could not be confirmed after invalidation; using the last read uncached", "installation_id", installationID, "router_user_id", routerUserID, "fetch_generation", generation, "current_generation", s.blindExperimentCache.InstallationGeneration(installationID))
+	}
+	state = state.AtTime(s.now())
+	if !state.Active && state.CohortExperimentID == "" {
 		return ctx
 	}
 	return context.WithValue(ctx, BlindExperimentContextKey{}, state)
+}
+
+// fetchBlindExperiment reads one assignment at a cache generation. The
+// generation is part of the singleflight key so a retry after invalidation
+// never joins a read that started before it.
+func (s *Service) fetchBlindExperiment(ctx context.Context, installationID, routerUserID string, generation uint64) (BlindExperimentState, bool) {
+	fetchKey := installationID + "\x00" + routerUserID + "\x00" + strconv.FormatUint(generation, 10)
+	resultCh := s.blindExperimentFetches.DoChan(fetchKey, func() (any, error) {
+		fetchCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), blindExperimentFetchTimeout)
+		defer cancel()
+		// A concurrent request may have filled the cache while this request
+		// waited for the per-user refresh. Re-check before querying Postgres.
+		if cached, found := s.blindExperimentCache.GetAtGeneration(installationID, routerUserID, generation); found {
+			return cached, nil
+		}
+		record, fetchErr := s.blindExperiments.GetForUser(fetchCtx, installationID, routerUserID)
+		if fetchErr != nil {
+			// Fail open for the request, but cache the failure only for the
+			// cache's short retry window so an outage does not hammer the DB or
+			// permanently bias the experiment cohort after recovery.
+			s.blindExperimentCache.SetErrorAtGeneration(installationID, routerUserID, generation)
+			return nil, fetchErr
+		}
+		resolved := resolveBlindExperiment(record, routerUserID)
+		s.blindExperimentCache.SetAtGeneration(installationID, routerUserID, resolved, generation)
+		return resolved, nil
+	})
+	var result singleflight.Result
+	select {
+	case result = <-resultCh:
+	case <-ctx.Done():
+		return BlindExperimentState{}, false
+	}
+	if result.Err != nil {
+		observability.FromContext(ctx).Warn("Failed to fetch blind router experiment assignment", "router_user_id", routerUserID, "err", result.Err)
+		return BlindExperimentState{}, false
+	}
+	return result.Val.(BlindExperimentState), true
 }
 
 func userIdentityKey(email, claudeAccountUUID string) string {
