@@ -22,6 +22,13 @@ var (
 	prunedAnthropicAdaptiveFallbackAutoTools = router.NewSpecWithReasoning(
 		router.ReasoningCapabilities{Levels: []string{"low", "medium", "high", "max", "xhigh"}, AlwaysOn: true},
 		router.CapAdaptiveThinking, router.CapExtendedContext, router.CapXhighEffort, router.CapServerSideFallback, router.CapAutoToolChoiceOnly)
+	// prunedFable51 mirrors the upstream registry row for claude-fable-5-1
+	// after it gained CapTemperatureUnsupported (it 400s on temperature
+	// while still accepting the other sampling controls).
+	prunedFable51 = router.NewSpecWithReasoning(
+		router.ReasoningCapabilities{Levels: []string{"low", "medium", "high", "max", "xhigh"}, AlwaysOn: true},
+		router.CapAdaptiveThinking, router.CapExtendedContext, router.CapXhighEffort, router.CapServerSideFallback,
+		router.CapAutoToolChoiceOnly, router.CapTemperatureUnsupported)
 	prunedAnthropicExtended = router.NewSpecWithReasoning(
 		router.ReasoningCapabilities{Levels: []string{"low", "medium", "high"}, SupportsBudget: true},
 		router.CapExtendedThinking)
@@ -68,7 +75,7 @@ var prunedCaps = map[string]router.ModelSpec{
 	"claude-fable-5": prunedAnthropicAdaptiveFallback,
 	"claude-opus-5":  prunedAnthropicAdaptiveFallback,
 
-	"claude-fable-5-1":  prunedAnthropicAdaptiveFallbackAutoTools,
+	"claude-fable-5-1":  prunedFable51,
 	"claude-opus-5-5":   prunedAnthropicAdaptiveFallbackAutoTools,
 	"claude-sonnet-5-5": prunedAnthropicAdaptiveFallbackAutoTools,
 

@@ -2,15 +2,6 @@ package translate
 
 import "strings"
 
-// isGLM51 reports whether the model id is z-ai/glm-5.1. GLM-5.1's streaming
-// tool-call fix is opt-in (tool_stream=true, docs.z.ai/guides/capabilities/stream-tool);
-// without it tool_call envelopes arrive with empty arguments like GLM-5. We
-// also disable thinking-mode on the vLLM path (Fireworks/Together) so
-// reasoning doesn't leak into the stream.
-func isGLM51(model string) bool {
-	return model == "z-ai/glm-5.1"
-}
-
 // isGLM53Flash reports whether the model id is GLM-5.3-Flash under either
 // known namespace: z-ai/ (the OpenRouter-era form) or zai-org/ (AIand's
 // catalog form). It needs tool_stream=true opted in

@@ -49,7 +49,6 @@ These are the complete production `providers.Client.Proxy`/`Passthrough` call si
 
 Real upstream HTTP is implemented only in these adapter areas:
 
-- `internal/providers/anthropic/client.go` and `list_models.go`
 - `internal/providers/openaicompat/client.go` and `list_models.go`
 
 The composition root `cmd/router/main.go` is the only non-adapter package allowed to import concrete provider packages. The architecture fixtures prove that aliases and blank imports do not bypass this rule.

@@ -1312,6 +1312,9 @@ func resolveAnthropicOverrides(body []byte, opts EmitOptions) EmitOverrides {
 		StripThoughtSignature:        true,
 		SanitizeAnthropicToolSchemas: true,
 	}
+	if opts.Capabilities.Supports(router.CapTemperatureUnsupported) && gjson.GetBytes(body, "temperature").Exists() {
+		ov.DeleteKeys = append(ov.DeleteKeys, "temperature")
+	}
 
 	// User-forced effort wins over inbound heuristic; no-op on non-adaptive targets.
 	if forced := resolveForceEffort(opts); forced != "" && opts.Capabilities.Supports(router.CapAdaptiveThinking) {
@@ -1459,8 +1462,6 @@ var modelMaxOutputTokens = map[string]int{
 	"deepseek/deepseek-v4-pro-0813":    131072,
 	"minimax/minimax-m3":               131072, // 512K context, output up to the window
 	"minimax/minimax-m2.7":             65536,
-	"z-ai/glm-5":                       65536,
-	"z-ai/glm-5.1":                     65536,
 	"z-ai/glm-5.3":                     131072, // Both 5.3 arms document a 128K max output (docs.z.ai/guides/llm/glm-5.3)
 	"z-ai/glm-5.3-flash":               131072,
 	"google/gemini-3.7-flash":          65536,

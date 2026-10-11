@@ -59,6 +59,15 @@ func (e *RequestEnvelope) PrepareAnthropic(in http.Header, opts EmitOptions) (pr
 	if err != nil {
 		return providers.PreparedRequest{}, fmt.Errorf("sanitize anthropic tool names: %w", err)
 	}
+	// Validate explicit breakpoints before normalization can remove empty blocks.
+	body, err = applyAnthropicCachePolicy(body, false)
+	if err != nil {
+		return providers.PreparedRequest{}, err
+	}
+	body, err = normalizeAnthropicFinalAssistant(body)
+	if err != nil {
+		return providers.PreparedRequest{}, fmt.Errorf("normalize anthropic final assistant: %w", err)
+	}
 	body, err = applyAnthropicCachePolicy(body, true)
 	if err != nil {
 		return providers.PreparedRequest{}, err
@@ -237,6 +246,7 @@ func (e *RequestEnvelope) buildAnthropicFromOpenAI(opts EmitOptions) ([]byte, er
 	writeAnthropicSystemAndMessages(jw, e.body)
 	writeAnthropicMaxTokens(jw, e.body, opts.TargetModel, opts.Capabilities)
 	writeAnthropicStopSequences(jw, e.body)
+	writeAnthropicSamplingParams(jw, e.body, opts.Capabilities)
 
 	// tool_choice "none" suppresses tools entirely — Anthropic has no direct
 	// equivalent, so omitting tools is the only way to prevent tool calls.
@@ -246,8 +256,6 @@ func (e *RequestEnvelope) buildAnthropicFromOpenAI(opts EmitOptions) ([]byte, er
 		writeAnthropicTools(jw, e.body)
 		writeAnthropicToolChoice(jw, e.body, opts.Capabilities.Supports(router.CapAutoToolChoiceOnly))
 	}
-	writeAnthropicSharedParams(jw, e.body)
-
 	jw.EndObj()
 	return jw.Bytes(), nil
 }
@@ -751,12 +759,20 @@ func writeAnthropicToolChoice(jw *jsonWriter, body []byte, autoOnly bool) {
 	}
 }
 
-func writeAnthropicSharedParams(jw *jsonWriter, body []byte) {
-	for _, key := range []string{"temperature", "top_p", "top_k"} {
-		if r := gjson.GetBytes(body, key); r.Exists() {
-			jw.Key(key)
-			jw.Raw(r.Raw)
+func writeAnthropicSamplingParams(jw *jsonWriter, body []byte, capabilities router.ModelSpec) {
+	if !capabilities.Supports(router.CapTemperatureUnsupported) {
+		if value := gjson.GetBytes(body, "temperature"); value.Exists() {
+			jw.Key("temperature")
+			jw.Raw(value.Raw)
 		}
+	}
+	if value := gjson.GetBytes(body, "top_p"); value.Exists() {
+		jw.Key("top_p")
+		jw.Raw(value.Raw)
+	}
+	if value := gjson.GetBytes(body, "top_k"); value.Exists() {
+		jw.Key("top_k")
+		jw.Raw(value.Raw)
 	}
 }
 

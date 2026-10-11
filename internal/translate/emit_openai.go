@@ -31,14 +31,9 @@ func resolveReasoningEffortFor(opts EmitOptions) string {
 
 // reasoningEffortAcceptedOnChatCompletions reports whether the target accepts
 // reasoning_effort on /v1/chat/completions. gpt-5.x rejects it (routed through
-// Responses API); other CapReasoning models (OpenRouter OSS) accept it freely.
-// Gateways reject it alongside tools for any model and have no Responses
-// surface to fall back to, so the effort is dropped rather than 400ing.
+// Responses API); other CapReasoning models accept it freely.
 func reasoningEffortAcceptedOnChatCompletions(opts EmitOptions, hasTools bool) bool {
 	if strings.HasPrefix(opts.TargetModel, "gpt-5") {
-		return false
-	}
-	if hasTools && providers.IsGateway(opts.TargetProvider) {
 		return false
 	}
 	return true
@@ -93,11 +88,13 @@ func (e *RequestEnvelope) PrepareOpenAI(in http.Header, opts EmitOptions) (provi
 	}
 	var body []byte
 	var stats providers.RequestMutationStats
+	var toolNames map[string]string
 	switch e.format {
 	case FormatOpenAI:
 		body, err = e.buildOpenAIFromOpenAI(opts)
 	case FormatAnthropic:
 		body, stats, err = e.buildOpenAIFromAnthropic(opts)
+		toolNames = openAIToolNameAliases(e.body, anthropicRequestToolNamePaths)
 	default:
 		return providers.PreparedRequest{}, fmt.Errorf("unsupported source format for OpenAI emit: %d", e.format)
 	}
@@ -123,7 +120,7 @@ func (e *RequestEnvelope) PrepareOpenAI(in http.Header, opts EmitOptions) (provi
 	if err != nil {
 		return providers.PreparedRequest{}, err
 	}
-	return providers.PreparedRequest{Body: body, Headers: headers, Stats: stats}, nil
+	return providers.PreparedRequest{Body: body, Headers: headers, Stats: stats, ResponseToolNames: toolNames}, nil
 }
 
 // applySessionAffinity attaches an upstream-specific prompt-cache routing hint
@@ -230,10 +227,6 @@ func (e *RequestEnvelope) buildOpenAIFromOpenAI(opts EmitOptions) ([]byte, error
 	if err != nil {
 		return nil, err
 	}
-	body, err = applyGLM51FlagsIfNeeded(body, opts)
-	if err != nil {
-		return nil, err
-	}
 	body, err = applyGLM53FlashFlagsIfNeeded(body, opts)
 	if err != nil {
 		return nil, err
@@ -315,43 +308,11 @@ func (e *RequestEnvelope) buildOpenAIFromAnthropic(opts EmitOptions) ([]byte, pr
 	if err != nil {
 		return nil, stats, err
 	}
-	body, err = applyGLM51FlagsIfNeeded(body, opts)
-	if err != nil {
-		return nil, stats, err
-	}
 	body, err = applyGLM53FlashFlagsIfNeeded(body, opts)
 	if err != nil {
 		return nil, stats, err
 	}
 	return body, stats, nil
-}
-
-// applyGLM51FlagsIfNeeded sets two GLM-5.1 knobs, both gated on isGLM51 and
-// both leaving client-set values alone:
-//   - tool_stream=true — without it GLM-5.1 reproduces the GLM-5 empty-input
-//     loop (docs/investigations/2026-05-26-glm5-empty-tool-loop.md).
-//   - chat_template_kwargs.enable_thinking=false — disables the vLLM chat
-//     template's default-on thinking mode (Fireworks/Together) so reasoning
-//     doesn't leak into the response stream.
-func applyGLM51FlagsIfNeeded(body []byte, opts EmitOptions) ([]byte, error) {
-	if !isGLM51(opts.TargetModel) {
-		return body, nil
-	}
-	if !gjson.GetBytes(body, "tool_stream").Exists() {
-		out, err := sjson.SetBytes(body, "tool_stream", true)
-		if err != nil {
-			return nil, fmt.Errorf("set glm-5.1 tool_stream: %w", err)
-		}
-		body = out
-	}
-	if !gjson.GetBytes(body, "chat_template_kwargs.enable_thinking").Exists() {
-		out, err := sjson.SetBytes(body, "chat_template_kwargs.enable_thinking", false)
-		if err != nil {
-			return nil, fmt.Errorf("set glm-5.1 chat_template_kwargs.enable_thinking: %w", err)
-		}
-		body = out
-	}
-	return body, nil
 }
 
 // applyGLM53FlashFlagsIfNeeded sets tool_stream=true for GLM-5.3-Flash
