@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"weave-os/router/internal/providers"
-	"weave-os/router/internal/providers/anthropic"
 	"weave-os/router/internal/providers/openaicompat"
 	"weave-os/router/internal/proxy"
 	"weave-os/router/internal/router"
@@ -100,7 +99,7 @@ func TestProxyMessages_OSSOutageFailsOverToBaselineAIand(t *testing.T) {
 		map[string]providers.Client{
 			providers.ProviderOpenAI:    openaicompat.NewClient("test-openai-key", openAIUpstream.URL),
 			providers.ProviderAIAND:     openaicompat.NewClient("test-aiand-key", aiandUpstream.URL),
-			providers.ProviderAnthropic: anthropic.NewClient("test-anthropic-key", anthropicUpstream.URL),
+			providers.ProviderAnthropic: openaicompat.NewClient("test-anthropic-key", anthropicUpstream.URL),
 		},
 		nil, false, nil, store, false, providers.ProviderAIAND, "zai-org/glm-5.3-flash", tel,
 	).WithDeploymentKeyedProviders(map[string]struct{}{

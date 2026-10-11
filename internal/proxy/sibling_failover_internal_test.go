@@ -3,6 +3,7 @@ package proxy
 import (
 	"context"
 	"testing"
+	"time"
 
 	"weave-os/router/internal/providers"
 	"weave-os/router/internal/router"
@@ -303,4 +304,147 @@ func TestSiblingFailover_RosterOrderBeatsProviderPreferenceAndExcludesUnlistedMo
 
 	got := s.siblingFailoverDecisions(context.Background(), failed, 1_000, 0, 0)
 	assert.Equal(t, []string{"deepseek-ai/deepseek-v4.1-flash", "deepseek-ai/deepseek-v4-pro"}, siblingModels(got))
+}
+
+// A session that has struck out every arm still rescues onto a previously
+// demoted arm instead of surfacing this turn's failure: with no eligible or
+// cooling candidate left, the session-lifetime demotion is lifted for the
+// walk, and the arm that just failed is never re-served.
+func TestRescueDecisions_AllArmsStruckOutReadmitsDemotedSibling(t *testing.T) {
+	s := siblingService(providers.ProviderAIAND)
+	struck := []string{"zai-org/glm-5.3-flash", "motif-technologies/motif-3"}
+	ctx := context.WithValue(context.Background(), SessionDemotedModelsContextKey{}, struck)
+	ctx = context.WithValue(ctx, SessionStrikeReadmitModelsContextKey{}, struck)
+	failed := overloadedDecision(&router.RoutingMetadata{
+		RosterFailover:  true,
+		RescueModels:    []string{"zai-org/glm-5.3-flash"},
+		CandidateModels: []string{"zai-org/glm-5.3-flash", "motif-technologies/motif-3"},
+		CandidateProviders: map[string]string{
+			"zai-org/glm-5.3-flash":      providers.ProviderAIAND,
+			"motif-technologies/motif-3": providers.ProviderAIAND,
+		},
+	})
+
+	got := s.siblingFailoverDecisions(ctx, failed, 1_000, 0, 0)
+
+	assert.Equal(t, []string{"zai-org/glm-5.3-flash"}, siblingModels(got))
+}
+
+// Without the readmission list the struck-out pool stays empty, as before.
+func TestRescueDecisions_StruckOutPoolWithoutReadmitListStaysEmpty(t *testing.T) {
+	s := siblingService(providers.ProviderAIAND)
+	md := &router.RoutingMetadata{
+		CandidateModels:    []string{"zai-org/glm-5.3", "deepseek-ai/deepseek-v4-pro"},
+		CandidateProviders: map[string]string{"deepseek-ai/deepseek-v4-pro": providers.ProviderAIAND},
+	}
+	ctx := context.WithValue(context.Background(), SessionDemotedModelsContextKey{}, []string{"deepseek-ai/deepseek-v4-pro"})
+
+	assert.Empty(t, s.siblingFailoverDecisions(ctx, overloadedDecision(md), 1_000, 0, 0))
+}
+
+// Struck-out arms are a last resort behind everything else: an eligible
+// candidate keeps them out of the walk entirely, and so does a cooling arm.
+func TestRescueDecisions_StruckOutArmsOnlyWhenNothingElseIsLeft(t *testing.T) {
+	s := siblingService(providers.ProviderAIAND)
+	md := &router.RoutingMetadata{
+		CandidateModels: []string{"zai-org/glm-5.3", "deepseek-ai/deepseek-v4-pro", "qwen/qwen3.8-27b"},
+		CandidateProviders: map[string]string{
+			"deepseek-ai/deepseek-v4-pro": providers.ProviderAIAND,
+			"qwen/qwen3.8-27b":            providers.ProviderAIAND,
+		},
+	}
+	ctx := context.WithValue(context.Background(), SessionDemotedModelsContextKey{}, []string{"deepseek-ai/deepseek-v4-pro"})
+	ctx = context.WithValue(ctx, SessionStrikeReadmitModelsContextKey{}, []string{"deepseek-ai/deepseek-v4-pro"})
+
+	assert.Equal(t, []string{"qwen/qwen3.8-27b"}, siblingModels(s.siblingFailoverDecisions(ctx, overloadedDecision(md), 1_000, 0, 0)))
+
+	ctx = context.WithValue(context.Background(), SessionDemotedModelsContextKey{}, []string{"deepseek-ai/deepseek-v4-pro", "qwen/qwen3.8-27b"})
+	ctx = context.WithValue(ctx, SessionStrikeReadmitModelsContextKey{}, []string{"deepseek-ai/deepseek-v4-pro"})
+	ctx = context.WithValue(ctx, SessionCooldownModelsContextKey{}, map[string]time.Time{"qwen/qwen3.8-27b": time.Now().Add(time.Minute)})
+
+	assert.Equal(t, []string{"qwen/qwen3.8-27b"}, siblingModels(s.siblingFailoverDecisions(ctx, overloadedDecision(md), 1_000, 0, 0)))
+}
+
+// Lifting a session strike never lifts the deployment-wide exclusion or a
+// hard (org) exclusion on the same model.
+func TestRescueDecisions_StruckOutReadmissionKeepsGlobalExclusion(t *testing.T) {
+	s := siblingService(providers.ProviderAIAND).
+		WithGlobalAutomaticExclusions(&stubGlobalExclusionStore{byModel: map[string]string{"deepseek-ai/deepseek-v4-pro": "disabled"}})
+	md := &router.RoutingMetadata{
+		CandidateModels: []string{"zai-org/glm-5.3", "deepseek-ai/deepseek-v4-pro", "qwen/qwen3.8-27b"},
+		CandidateProviders: map[string]string{
+			"deepseek-ai/deepseek-v4-pro": providers.ProviderAIAND,
+			"qwen/qwen3.8-27b":            providers.ProviderAIAND,
+		},
+	}
+	struck := []string{"deepseek-ai/deepseek-v4-pro", "qwen/qwen3.8-27b"}
+	ctx := context.WithValue(context.Background(), SessionDemotedModelsContextKey{}, struck)
+	ctx = context.WithValue(ctx, SessionStrikeReadmitModelsContextKey{}, struck)
+
+	assert.Equal(t, []string{"qwen/qwen3.8-27b"}, siblingModels(s.siblingFailoverDecisions(ctx, overloadedDecision(md), 1_000, 0, 0)))
+}
+
+// Dispatching a readmitted struck-out arm is recorded as rescue-pool
+// exhaustion on the completion line.
+func TestNoteRescueReadmission_RecordsStruckOutArm(t *testing.T) {
+	s := siblingService(providers.ProviderAIAND)
+	ctx := context.WithValue(context.Background(), SessionStrikeReadmitModelsContextKey{}, []string{"deepseek-ai/deepseek-v4-pro"})
+	ctx, turn := withRateLimitTurn(ctx)
+	failed := overloadedDecision(&router.RoutingMetadata{})
+
+	s.noteRescueReadmission(ctx, failed, router.Decision{Model: "qwen/qwen3.8-27b"})
+	assert.NotContains(t, turn.completionLogFields(), true)
+
+	s.noteRescueReadmission(ctx, failed, router.Decision{Model: "deepseek-ai/deepseek-v4-pro"})
+	fields := turn.completionLogFields()
+	assert.Contains(t, fields, "rescue_pool_exhausted")
+	assert.Contains(t, fields, true)
+	assert.Contains(t, fields, []string{"deepseek-ai/deepseek-v4-pro"})
+}
+
+func TestImageSafeModels_DropsTextOnlyArmsOnImageTurns(t *testing.T) {
+	models := []string{"moonshotai/kimi-k3", "zai-org/glm-5.3"}
+	assert.Equal(t, models, imageSafeModels(models, false))
+	assert.Equal(t, []string{"moonshotai/kimi-k3"}, imageSafeModels(models, true))
+}
+
+// Strike readmission belongs to sibling failover only: the cyber-refusal
+// retry walks its own runner-up then configured fallback, and a struck arm
+// must not jump ahead of that fallback.
+func TestRescueDecision_CyberRefusalRetryNeverReadmitsStruckArm(t *testing.T) {
+	s := siblingService(providers.ProviderAIAND)
+	failed := overloadedDecision(&router.RoutingMetadata{})
+	ctx := context.WithValue(context.Background(), SessionDemotedModelsContextKey{}, []string{"deepseek-ai/deepseek-v4-pro"})
+	ctx = context.WithValue(ctx, SessionStrikeReadmitModelsContextKey{}, []string{"deepseek-ai/deepseek-v4-pro"})
+
+	_, found := s.rescueDecision(ctx, failed, []string{"deepseek-ai/deepseek-v4-pro"}, ReasonCyberRefusalRetry, 1_000, 0, 0)
+	assert.False(t, found)
+
+	got := s.rescueDecisions(ctx, failed, []string{"deepseek-ai/deepseek-v4-pro"}, ReasonSiblingFailover, 1_000, 0, 0)
+	assert.Equal(t, []string{"deepseek-ai/deepseek-v4-pro"}, siblingModels(got))
+}
+
+// A struck model outside this turn's scored pool is never readmitted: the last
+// resort stays within the quality band the turn was scored for.
+func TestRescueDecisions_StruckOutReadmissionStaysInScoredPool(t *testing.T) {
+	s := siblingService(providers.ProviderAIAND)
+	md := &router.RoutingMetadata{
+		CandidateModels:    []string{"zai-org/glm-5.3"},
+		CandidateProviders: map[string]string{"qwen/qwen3.8-27b": providers.ProviderAIAND},
+	}
+	struck := []string{"qwen/qwen3.8-27b"}
+	ctx := context.WithValue(context.Background(), SessionDemotedModelsContextKey{}, struck)
+	ctx = context.WithValue(ctx, SessionStrikeReadmitModelsContextKey{}, struck)
+
+	assert.Empty(t, s.siblingFailoverDecisions(ctx, overloadedDecision(md), 1_000, 0, 0))
+
+	md.ScorerRescuePool = struck
+	assert.Equal(t, struck, siblingModels(s.siblingFailoverDecisions(ctx, overloadedDecision(md), 1_000, 0, 0)))
+}
+
+func TestHarnessSafeModels_DropsWeakAgenticArmsOnToolTurns(t *testing.T) {
+	models := []string{"moonshotai/kimi-k3", "zai-org/glm-5.3"}
+	assert.Equal(t, models, harnessSafeModels(models, false))
+	// No roster row is ToolUseLow/AgenticLow, so a tool turn keeps every arm.
+	assert.Equal(t, models, harnessSafeModels(models, true))
 }

@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"weave-os/router/internal/providers"
-	"weave-os/router/internal/providers/anthropic"
 	"weave-os/router/internal/providers/openaicompat"
 	"weave-os/router/internal/proxy"
 	"weave-os/router/internal/router"
@@ -247,7 +246,12 @@ func TestProxyMessages_SingleBindingStreamingPreCommitError(t *testing.T) {
 	assert.Contains(t, respBody, "upstream unavailable", "translated upstream message reaches the client")
 }
 
-func TestProxyMessages_AnthropicSSEOverloadRetriesSameBinding(t *testing.T) {
+// TestProxyMessages_OverloadRetriesSameBinding asserts a pre-commit
+// upstream overload is retried on the sole binding. The overload is
+// an HTTP 529: the openaicompat client has no SSE error-event
+// scanner, so the old 200-plus-event:error construct (an
+// Anthropic-adapter behavior) cannot be built any more.
+func TestProxyMessages_OverloadRetriesSameBinding(t *testing.T) {
 	var (
 		mu    sync.Mutex
 		calls int
@@ -257,12 +261,14 @@ func TestProxyMessages_AnthropicSSEOverloadRetriesSameBinding(t *testing.T) {
 		calls++
 		attempt := calls
 		mu.Unlock()
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.WriteHeader(http.StatusOK)
 		if attempt == 1 {
-			_, _ = io.WriteString(w, "event: error\ndata: {\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\",\"message\":\"Overloaded\"}}\n\n")
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(statusOverloaded)
+			_, _ = w.Write([]byte(`{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}`))
 			return
 		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
 		_, _ = io.WriteString(w, "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_recovered\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"model\":\"claude-haiku-4-5\",\"usage\":{\"input_tokens\":5,\"output_tokens\":0}}}\n\n")
 		_, _ = io.WriteString(w, "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n")
 		_, _ = io.WriteString(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"recovered\"}}\n\n")
@@ -274,7 +280,7 @@ func TestProxyMessages_AnthropicSSEOverloadRetriesSameBinding(t *testing.T) {
 
 	svc := proxy.NewService(
 		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "zai-org/glm-5.3-flash"}},
-		map[string]providers.Client{providers.ProviderAnthropic: anthropic.NewClient("test-key", upstream.URL)},
+		map[string]providers.Client{providers.ProviderAnthropic: openaicompat.NewClient("test-key", upstream.URL)},
 		nil, false, nil, nil, false, providers.ProviderAnthropic, "zai-org/glm-5.3-flash", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAnthropic: {}}).
 		WithRetrySleep(noRetrySleep)
@@ -284,14 +290,20 @@ func TestProxyMessages_AnthropicSSEOverloadRetriesSameBinding(t *testing.T) {
 
 	require.NoError(t, svc.ProxyMessages(context.Background(), body, rec, req))
 	mu.Lock()
-	assert.Equal(t, 2, calls, "the first HTTP 200 overload is retried on the sole Anthropic binding")
+	assert.Equal(t, 2, calls, "the first overload is retried on the sole binding")
 	mu.Unlock()
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.Contains(t, rec.Body.String(), "recovered")
 	assert.NotContains(t, rec.Body.String(), "overloaded_error", "the failed attempt must never commit bytes")
 }
 
-func TestProxyMessages_AnthropicSSEOverloadExhaustionRecords529(t *testing.T) {
+// TestProxyMessages_OverloadExhaustionRecords529 asserts that
+// exhausting the sole binding on upstream overloads leaves a 529 the
+// router records as is_error. The overload is an HTTP 529: the
+// openaicompat client has no SSE error-event scanner, so the old
+// 200-plus-event:error construct (an Anthropic-adapter behavior)
+// cannot be built any more.
+func TestProxyMessages_OverloadExhaustionRecords529(t *testing.T) {
 	var (
 		mu    sync.Mutex
 		calls int
@@ -300,16 +312,16 @@ func TestProxyMessages_AnthropicSSEOverloadExhaustionRecords529(t *testing.T) {
 		mu.Lock()
 		calls++
 		mu.Unlock()
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.WriteHeader(http.StatusOK)
-		_, _ = io.WriteString(w, "event: error\ndata: {\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\",\"message\":\"Overloaded\"}}\n\n")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(statusOverloaded)
+		_, _ = w.Write([]byte(`{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}`))
 	}))
 	defer upstream.Close()
 
 	telemetry := newCaptureTelemetry()
 	svc := proxy.NewService(
 		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "zai-org/glm-5.3-flash"}},
-		map[string]providers.Client{providers.ProviderAnthropic: anthropic.NewClient("test-key", upstream.URL)},
+		map[string]providers.Client{providers.ProviderAnthropic: openaicompat.NewClient("test-key", upstream.URL)},
 		nil, false, nil, nil, false, providers.ProviderAnthropic, "zai-org/glm-5.3-flash", telemetry,
 	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAnthropic: {}}).
 		WithRetrySleep(noRetrySleep)
@@ -341,10 +353,13 @@ func TestProxyMessages_AnthropicSSEOverloadExhaustionRecords529(t *testing.T) {
 // "anthropic" after the second, and the third turn excludes it from
 // EnabledProviders.
 func TestProxyMessages_TwoConsecutiveOverloadExhaustionsDisableProvider(t *testing.T) {
+	// AIand speaks through openaicompat, which has no SSE error-event scanner:
+	// overload can only arrive as an HTTP 529, the same construct
+	// TestProxyMessages_OverloadExhaustionRecords529 drives.
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.WriteHeader(http.StatusOK)
-		_, _ = io.WriteString(w, "event: error\ndata: {\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\",\"message\":\"Overloaded\"}}\n\n")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(statusOverloaded)
+		_, _ = w.Write([]byte(`{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}`))
 	}))
 	defer upstream.Close()
 
@@ -360,7 +375,7 @@ func TestProxyMessages_TwoConsecutiveOverloadExhaustionsDisableProvider(t *testi
 	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "zai-org/glm-5.3-flash", Reason: "fresh"}}
 	svc := proxy.NewService(
 		fr,
-		map[string]providers.Client{providers.ProviderAnthropic: anthropic.NewClient("test-key", upstream.URL)},
+		map[string]providers.Client{providers.ProviderAnthropic: openaicompat.NewClient("test-key", upstream.URL)},
 		nil, false, nil, store, false, providers.ProviderAnthropic, "zai-org/glm-5.3-flash", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAnthropic: {}}).
 		WithPlannerEnabled(false).
@@ -430,7 +445,7 @@ func TestProxyMessages_BaselineOverloadExhaustionDoesNotDisableAnthropic(t *test
 		fr,
 		map[string]providers.Client{
 			providers.ProviderOpenAI:    openaicompat.NewClient("test-fw-key", ossUpstream.URL),
-			providers.ProviderAnthropic: anthropic.NewClient("test-key", anthropicUpstream.URL),
+			providers.ProviderAnthropic: openaicompat.NewClient("test-key", anthropicUpstream.URL),
 		},
 		nil, false, nil, store, false, providers.ProviderAnthropic, "zai-org/glm-5.3-flash", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{

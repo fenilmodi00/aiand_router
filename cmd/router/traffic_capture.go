@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"syscall"
 
 	"weave-os/router/internal/trafficcapture"
 )
@@ -42,13 +41,21 @@ func newTrafficCaptureFromEnvironment() (*jsonlTrafficCapture, error) {
 	if err := os.MkdirAll(directory, trafficCaptureDirectoryPermissions); err != nil {
 		return nil, fmt.Errorf("create HTTP capture directory: %w", err)
 	}
+	// No O_APPEND: Record appends by seeking to the end, and a partially
+	// encoded line must be truncatable on Windows too (an append-only handle
+	// refuses Truncate there, which would kill the capture on the first
+	// failed record).
 	file, err := os.OpenFile(
 		path,
-		os.O_CREATE|os.O_WRONLY|os.O_APPEND|syscall.O_NOFOLLOW|syscall.O_NONBLOCK,
+		os.O_CREATE|os.O_RDWR|openCaptureFileFlags,
 		trafficCaptureFilePermissions,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("open HTTP capture file: %w", err)
+	}
+	if _, err := file.Seek(0, io.SeekEnd); err != nil {
+		_ = file.Close()
+		return nil, fmt.Errorf("seek HTTP capture file end: %w", err)
 	}
 	fileInfo, err := file.Stat()
 	if err != nil {

@@ -687,6 +687,7 @@ type RouterModelRouterRequestTelemetry struct {
 	ErrorClass              *string
 	LatestToolCallCounts    []byte
 	ServingTarget           *string
+	FailoverAttempted       *bool
 }
 
 type RouterModelRouterSubscriptionAccount struct {
@@ -987,6 +988,13 @@ type RouterSessionPin struct {
 	LastOutputLimitAt         pgtype.Timestamptz
 	ConsecutiveUpgradeVotes   int32
 	DemotionCooldowns         []byte
+}
+
+type RouterSessionPinRecoveryProbeLease struct {
+	SessionKey []byte
+	Model      string
+	LeaseToken uuid.UUID
+	LeaseUntil pgtype.Timestamptz
 }
 
 // Conversation release pins; admission transactions lock installation, key, subject, then conversation

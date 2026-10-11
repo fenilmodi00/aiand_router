@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"weave-os/router/internal/providers"
 	"weave-os/router/internal/router/catalog"
 
 	"github.com/stretchr/testify/assert"
@@ -77,6 +78,52 @@ func TestEffectiveInputCost_UsesBindingCacheWritePrice(t *testing.T) {
 	price.CacheWriteMultiplier = 0
 	legacy := catalog.EffectiveInputCost(100, 10, 20, price, "openai")
 	assert.InDelta(t, 0.000185, legacy, 1e-12, "unspecified values preserve legacy 1.25x behavior")
+}
+
+func TestCounterfactualInputCost_RepricesWarmPrefillAsCacheRead(t *testing.T) {
+	opus := catalog.Pricing{InputUSDPer1M: 5, CacheWriteMultiplier: 1.25, CacheReadMultiplier: 0.10}
+
+	// 2k fresh + 100k cold prefill: $0.01 + $0.625 actual; the warm baseline reads the prefill for $0.05.
+	assert.InDelta(t, 0.635, catalog.CounterfactualInputCost(2_000, 100_000, 0, 0, opus, providers.ProviderAnthropic), 1e-12)
+	assert.InDelta(t, 0.060, catalog.CounterfactualInputCost(2_000, 100_000, 0, 100_000, opus, providers.ProviderAnthropic), 1e-12)
+}
+
+func TestCounterfactualInputCost_SameResultForEitherUsageShape(t *testing.T) {
+	opus := catalog.Pricing{InputUSDPer1M: 5, CacheWriteMultiplier: 1.25, CacheReadMultiplier: 0.10}
+
+	// OpenAI-shaped input_tokens include cached tokens; the fresh split must survive the repricing.
+	anthropic := catalog.CounterfactualInputCost(2_000, 100_000, 5_000, 100_000, opus, providers.ProviderAnthropic)
+	openai := catalog.CounterfactualInputCost(107_000, 100_000, 5_000, 100_000, opus, providers.ProviderOpenAI)
+	assert.InDelta(t, anthropic, openai, 1e-12)
+}
+
+func TestEffectiveInputCost_AnthropicFamilyInputIsFreshOnly(t *testing.T) {
+	sonnet := catalog.Pricing{InputUSDPer1M: 3, CacheWriteMultiplier: 1.25, CacheReadMultiplier: 0.10}
+
+	// 2k fresh + 10k write + 100k read: $0.006 + $0.0375 + $0.03.
+	// The fork's Anthropic family is first-party Anthropic alone (the
+	// gateway bindings upstream also covered are gone with the AIand-only
+	// cut); iterating the family map keeps the regression coverage —
+	// any provider the family gains must stay fresh-only.
+	for provider, family := range providers.ProviderFamilies {
+		if family != providers.FamilyAnthropic {
+			continue
+		}
+		got := catalog.EffectiveInputCost(2_000, 10_000, 100_000, sonnet, provider)
+		assert.InDelta(t, 0.0735, got, 1e-12, provider)
+	}
+	assert.InDelta(t, 0.0735, catalog.EffectiveInputCost(112_000, 10_000, 100_000, sonnet, providers.ProviderOpenAI), 1e-12)
+}
+
+func TestCounterfactualInputCost_AnthropicFamilyInputIsFreshOnly(t *testing.T) {
+	opus := catalog.Pricing{InputUSDPer1M: 5, CacheWriteMultiplier: 1.25, CacheReadMultiplier: 0.10}
+
+	for provider, family := range providers.ProviderFamilies {
+		if family != providers.FamilyAnthropic {
+			continue
+		}
+		assert.InDelta(t, 0.060, catalog.CounterfactualInputCost(2_000, 100_000, 0, 100_000, opus, provider), 1e-12, provider)
+	}
 }
 
 func TestEffectiveCost_SelectsLongContextTier(t *testing.T) {

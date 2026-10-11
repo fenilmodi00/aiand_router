@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -299,6 +300,21 @@ type turnLoopResult struct {
 	// the in-turn rescue can readmit them when honouring them would leave no
 	// candidate. Empty unless transient_rate_limit is on.
 	SessionCooldownModels map[string]time.Time
+	// CooldownProbeReleases hold one half-open probe slot per expired model
+	// until provider dispatch completes.
+	CooldownProbeReleases []func()
+	// CooldownProbes maps each model this request holds a recovery probe for
+	// to the cooldown expiry it observed, so a successful turn clears exactly
+	// that cooldown and leaves a newer one alone.
+	CooldownProbes map[string]time.Time
+	// CooldownProbeDeniedModels are expired models held by another request.
+	// They stay hard-excluded for this turn, including the rescue walk.
+	CooldownProbeDeniedModels []string
+	// SessionStrikeReadmitModels are the session-lifetime demotions the
+	// in-turn rescue may readmit as a last resort when no other candidate is
+	// left: a session that has struck out every arm must not 502 a turn that
+	// a previously failed arm could still serve.
+	SessionStrikeReadmitModels []string
 	// AuthorityShadow is the counterfactual HMM cache-gate verdict on an
 	// authoritative-per-turn turn. Observation only: it never touches Decision.
 	AuthorityShadow authorityCacheShadow
@@ -308,6 +324,14 @@ type turnLoopResult struct {
 	// whether the off-by-default downgrade guards would have held the pin.
 	// Observation only: it never touches Decision.
 	DowngradeShadow downgradeGuardShadow
+}
+
+// releaseCooldownProbes frees every recovery-probe lease this request holds so
+// the arms are immediately probeable again, whether or not the turn served.
+func (res turnLoopResult) releaseCooldownProbes() {
+	for _, release := range res.CooldownProbeReleases {
+		release()
+	}
 }
 
 // downgradeGuardShadow is the counterfactual verdict of the downgrade guards on
@@ -1164,13 +1188,39 @@ func (s *Service) runTurnLoop(
 	// failover and every automatic pin reuse at once, and is the only one an
 	// explicit /force-model of the same model still routes through.
 	demoted := mergeSessionStrikes(pin.DemotedModels, hmmHistory.DemotedModels)
-	if s.ResolveTransientRateLimit(ctx) {
-		// A rate-limit strike expires: the arm is only out while its
-		// cooldown is in force.
-		cooling := activeDemotionCooldowns(mergeDemotionCooldowns(pin.DemotionCooldowns, hmmHistory.DemotionCooldowns), s.clockNow())
+	res.SessionStrikeReadmitModels = harnessSafeModels(imageSafeModels(demoted, req.HasImages), req.HasTools)
+	if s.ResolveTransientRateLimit(ctx) && (!forceModelFound || !forcedPinEligible(forceModelPin, req)) {
+		// A transient strike expires: only one request per session/model may
+		// probe the recovered arm at a time.
+		cooldowns := mergeDemotionCooldowns(pin.DemotionCooldowns, hmmHistory.DemotionCooldowns)
+		now := s.clockNow()
+		cooling := activeDemotionCooldowns(cooldowns, now)
 		if len(cooling) > 0 {
 			res.SessionCooldownModels = readmittableCooldowns(cooling, demoted, req.HasImages)
 			demoted = mergeSessionStrikes(demoted, cooldownsByExpiry(cooling))
+		}
+		// One probe per request: the first expired arm (longest cooled first)
+		// whose lease this request wins is readmitted; every other expired arm
+		// stays out this turn so it is never served without a lease.
+		expired := expiredDemotionCooldowns(cooldowns, now)
+		probed := false
+		for _, model := range cooldownsByExpiry(expired) {
+			if slices.Contains(demoted, model) ||
+				modelExcludedForRecoveryProbe(req, model) {
+				continue
+			}
+			if !probed {
+				if release, acquired := s.acquireRecoveryProbe(ctx, res.SessionKey, model); acquired {
+					res.CooldownProbeReleases = append(res.CooldownProbeReleases, release)
+					res.CooldownProbes = map[string]time.Time{model: expired[model]}
+					probed = true
+					continue
+				}
+			}
+			demoted = mergeSessionStrikes(demoted, []string{model})
+			res.CooldownProbeDeniedModels = append(res.CooldownProbeDeniedModels, model)
+			req.ExcludedModels = excludingModel(req.ExcludedModels, model)
+			ctx = context.WithValue(ctx, SessionCooldownProbeDeniedModelsContextKey{}, res.CooldownProbeDeniedModels)
 		}
 	}
 	if len(demoted) > 0 {
@@ -2122,6 +2172,24 @@ func (s *Service) runTurnLoop(
 		}
 	}
 	return res, routeErr
+}
+
+// modelExcludedForRecoveryProbe reports whether a model whose cooldown has
+// lapsed must not consume a recovery-probe lease: it is already excluded, has
+// no eligible provider binding for this request, or cannot take this turn's
+// images.
+func modelExcludedForRecoveryProbe(req router.Request, model string) bool {
+	if _, excluded := req.ExcludedModels[model]; excluded || automaticallyDisabled(req, model) {
+		return true
+	}
+	if len(req.GatewayProviders) > 0 {
+		if _, available := gatewayProviderFor(model, req.CustomBindings, req.GatewayProviders); !available {
+			return true
+		}
+	} else if req.EnabledProviders != nil && len(catalog.EnumerateBindingsWithCustom(model, req.EnabledProviders, req.CustomBindings)) == 0 {
+		return true
+	}
+	return req.HasImages && !catalog.AcceptsImages(model)
 }
 
 func (s *Service) hmmCostGatedDecision(

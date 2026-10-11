@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -200,7 +201,10 @@ func TestTrafficCaptureWriterRedactsHeadersAndPreservesBodies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fileInfo.Mode().Perm() != trafficCaptureFilePermissions {
+	// Windows Go only toggles the read-only bit through Chmod, so the exact
+	// POSIX mode (0600) is not representable there; the constructor's Chmod
+	// call still runs and the file stays owner-only on POSIX.
+	if runtime.GOOS != "windows" && fileInfo.Mode().Perm() != trafficCaptureFilePermissions {
 		t.Fatalf("capture mode = %o, want %o", fileInfo.Mode().Perm(), trafficCaptureFilePermissions)
 	}
 }
@@ -333,7 +337,12 @@ func TestTrafficCaptureRejectsSymlinkCapturePathWithoutChangingTarget(t *testing
 		t.Fatal(err)
 	}
 	if err := os.Symlink(targetPath, capturePath); err != nil {
-		t.Fatal(err)
+		// Creating a symlink on Windows needs an unheld privilege
+		// (SeCreateSymbolicLinkPrivilege); the O_NOFOLLOW guard is a POSIX
+		// mechanism and Windows reaches the same refusal through the
+		// Stat + IsRegular check in newTrafficCaptureFromEnvironment, which
+		// TestTrafficCaptureRejectsNonRegularCapturePath covers.
+		t.Skipf("symlink creation unavailable on this platform: %v", err)
 	}
 	t.Setenv(trafficCaptureFileEnv, capturePath)
 

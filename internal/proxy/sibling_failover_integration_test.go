@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"weave-os/router/internal/providers"
-	"weave-os/router/internal/providers/anthropic"
 	"weave-os/router/internal/providers/openaicompat"
 	"weave-os/router/internal/proxy"
 	"weave-os/router/internal/router"
@@ -91,7 +90,7 @@ func TestProxyMessages_OverloadedModelDegradesToSameClusterCandidate(t *testing.
 	svc := proxy.NewService(
 		&fakeRouter{decision: siblingClusterDecision("")},
 		map[string]providers.Client{
-			providers.ProviderAnthropic: anthropic.NewClient("test-anthropic-key", anthropicUpstream.URL),
+			providers.ProviderAnthropic: openaicompat.NewClient("test-anthropic-key", anthropicUpstream.URL),
 			providers.ProviderAIAND:     openaicompat.NewClient("test-aiand-key", fireworks.URL),
 		},
 		nil, false, nil, store, false, providers.ProviderAnthropic, "zai-org/glm-5.3-flash", newCaptureTelemetry(),
@@ -184,7 +183,7 @@ func newRankedRescueFixture(t *testing.T) *rankedRescueFixture {
 	f.svc = proxy.NewService(
 		&fakeRouter{decision: decision},
 		map[string]providers.Client{
-			providers.ProviderAnthropic: anthropic.NewClient("test-anthropic-key", anthropicUpstream.URL),
+			providers.ProviderAnthropic: openaicompat.NewClient("test-anthropic-key", anthropicUpstream.URL),
 			providers.ProviderAIAND:     openaicompat.NewClient("test-aiand-key", fireworks.URL),
 		},
 		nil, false, nil, nil, false, providers.ProviderAnthropic, "zai-org/glm-5.3-flash", nil,
@@ -265,7 +264,7 @@ func TestProxyMessages_OverloadAfterCommitKeepsServingModel(t *testing.T) {
 	svc := proxy.NewService(
 		&fakeRouter{decision: siblingClusterDecision("")},
 		map[string]providers.Client{
-			providers.ProviderAnthropic: anthropic.NewClient("test-anthropic-key", anthropicUpstream.URL),
+			providers.ProviderAnthropic: openaicompat.NewClient("test-anthropic-key", anthropicUpstream.URL),
 			providers.ProviderOpenAI:    openaicompat.NewClient("test-fw-key", fireworks.URL),
 		},
 		nil, false, nil, nil, false, providers.ProviderAnthropic, "zai-org/glm-5.3-flash", nil,
@@ -360,7 +359,7 @@ func TestProxyMessages_OverloadWithoutCandidatesSurfacesUpstreamError(t *testing
 			Metadata: &router.RoutingMetadata{CandidateModels: []string{"zai-org/glm-5.3"}},
 		}},
 		map[string]providers.Client{
-			providers.ProviderAnthropic: anthropic.NewClient("test-anthropic-key", anthropicUpstream.URL),
+			providers.ProviderAnthropic: openaicompat.NewClient("test-anthropic-key", anthropicUpstream.URL),
 		},
 		nil, false, nil, nil, false, providers.ProviderAnthropic, "zai-org/glm-5.3-flash", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAnthropic: {}}).

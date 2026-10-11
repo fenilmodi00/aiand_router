@@ -10,14 +10,17 @@ import (
 	"testing"
 
 	"weave-os/router/internal/providers"
-	"weave-os/router/internal/providers/anthropic"
+	"weave-os/router/internal/providers/openaicompat"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/tidwall/gjson"
 )
 
+// anthropicClient is the AIAND-only stand-in for the deleted Anthropic adapter:
+// AIand speaks OpenAI-compatible, so the same-format emit assertions run
+// through openaicompat with ProviderAnthropic as the family-selecting label.
 func anthropicClient(baseURL string) providers.Client {
-	return anthropic.NewClient("test-key", baseURL)
+	return openaicompat.NewClient("test-key", baseURL)
 }
 
 func TestConformance_Anthropic(t *testing.T) {
@@ -31,7 +34,12 @@ func TestConformance_Anthropic(t *testing.T) {
 			stream:          true,
 			upstreamFixture: "anthropic/basic_text.upstream.sse",
 			wantUpstream: func(t *testing.T, path string, _ []byte, _ http.Header) {
-				assert.Equal(t, "/v1/messages", path)
+				// AIand is the sole upstream and speaks OpenAI-compatible, so an
+				// Anthropic-format inbound is TRANSLATED, never passed through:
+				// the router must emit at the chat-completions surface. The same
+				// bounce is what makes anthropic/system_role_hoisted and
+				// xhigh_effort_pruned_on_reroute meaningful.
+				assert.Equal(t, "/chat/completions", path)
 			},
 		},
 		{

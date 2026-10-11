@@ -177,13 +177,15 @@ func TestNewGoogleIDTokenCredentialsBuildsImpersonatedProviderFromFederationFile
 	subjectTokenPath := filepath.Join(dir, "oidc-token")
 	require.NoError(t, os.WriteFile(subjectTokenPath, []byte("subject-token"), 0o600))
 	credentialsPath := filepath.Join(dir, "wif.json")
+	// filepath.ToSlash keeps a Windows temp path's backslashes out of the JSON
+	// string, where \U would parse as an invalid escape code.
 	require.NoError(t, os.WriteFile(credentialsPath, []byte(`{
 		"type": "external_account",
 		"audience": "//iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/pool/providers/github",
 		"subject_token_type": "urn:ietf:params:oauth:token-type:jwt",
 		"token_url": "https://sts.googleapis.com/v1/token",
 		"service_account_impersonation_url": "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/ci-sa-01@workweave-root.iam.gserviceaccount.com:generateAccessToken",
-		"credential_source": {"file": "`+subjectTokenPath+`"}
+		"credential_source": {"file": "`+filepath.ToSlash(subjectTokenPath)+`"}
 	}`), 0o600))
 	t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", credentialsPath)
 

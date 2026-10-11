@@ -37,7 +37,7 @@ func TestBuildConfiguredPolicySidecarsOnboardsFutureStrategy(t *testing.T) {
 			require.NoError(t, json.NewDecoder(request.Body).Decode(&payload))
 			require.NotEmpty(t, payload.Candidates)
 			assert.Equal(t, policy.ExecutionModeServing, payload.ExecutionMode)
-			assert.NotEqual(t, providers.ProviderAIAND, payload.Candidates[0].Provider)
+			assert.Equal(t, providers.ProviderAIAND, payload.Candidates[0].Provider)
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"schema_version":     policy.SchemaVersionV1,
 				"selected_roster_id": payload.Candidates[0].RosterID,
@@ -53,8 +53,8 @@ func TestBuildConfiguredPolicySidecarsOnboardsFutureStrategy(t *testing.T) {
 		`{"future-policy":"`+server.URL+`"}`,
 		"",
 		time.Second,
-		map[string]struct{}{"gpt-5.5": {}},
-		map[string]struct{}{providers.ProviderOpenAI: {}},
+		map[string]struct{}{"zai-org/glm-5.3": {}},
+		map[string]struct{}{providers.ProviderAIAND: {}},
 		server.Client(),
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 	)
@@ -65,8 +65,8 @@ func TestBuildConfiguredPolicySidecarsOnboardsFutureStrategy(t *testing.T) {
 	assert.True(t, registrations[0].Capabilities.SupportsShadow)
 	decision, err := registrations[0].Router.Route(context.Background(), router.Request{})
 	require.NoError(t, err)
-	assert.Equal(t, "gpt-5.5", decision.Model)
-	assert.Equal(t, providers.ProviderOpenAI, decision.Provider)
+	assert.Equal(t, "zai-org/glm-5.3", decision.Model)
+	assert.Equal(t, providers.ProviderAIAND, decision.Provider)
 }
 
 func TestBuildConfiguredPolicySidecarsRejectsReservedAndInvalidConfiguration(t *testing.T) {

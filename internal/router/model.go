@@ -23,6 +23,9 @@ const (
 	// CapAutoToolChoiceOnly marks models that 400 on a forced tool_choice
 	// ({"type":"any"} / {"type":"tool"}); emit downgrades those to auto.
 	CapAutoToolChoiceOnly ModelCapability = "auto_tool_choice_only"
+	// CapTemperatureUnsupported marks Anthropic models that reject the
+	// temperature parameter even though they accept other sampling controls.
+	CapTemperatureUnsupported ModelCapability = "temperature_unsupported"
 )
 
 // ModelSpec describes what a model supports. Zero value is safe: provider

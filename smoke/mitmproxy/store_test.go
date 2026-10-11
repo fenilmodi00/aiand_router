@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"runtime"
 	"testing"
 )
 
@@ -26,8 +27,13 @@ func TestStoreSaveMakesCassetteReadableAfterContainerExit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := info.Mode().Perm(); got != 0o644 {
-		t.Fatalf("cassette mode = %o, want 644", got)
+	// Windows Chmod only toggles the read-only bit, so the exact POSIX mode
+	// is not representable there; the runtime check is that the host can
+	// read the cassette back after the container exits.
+	if runtime.GOOS != "windows" {
+		if got := info.Mode().Perm(); got != 0o644 {
+			t.Fatalf("cassette mode = %o, want 644", got)
+		}
 	}
 	if _, err := os.ReadFile(s.path(key)); err != nil {
 		t.Fatalf("saved cassette is not readable: %v", err)

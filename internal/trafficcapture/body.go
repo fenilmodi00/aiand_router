@@ -11,8 +11,11 @@ import (
 // BodySpool stores captured body bytes in a private temporary file so capture
 // memory use stays bounded for large prompts and streamed responses.
 type BodySpool struct {
-	mu     sync.Mutex
-	file   *os.File
+	mu   sync.Mutex
+	file *os.File
+	// name holds the temp path when the eager unlink was refused (Windows
+	// refuses to unlink an open file), so the file is removed at Close instead.
+	name   string
 	err    error
 	closed bool
 }
@@ -35,10 +38,10 @@ func (spool *BodySpool) Write(body []byte) {
 			return
 		}
 		if err := os.Remove(bodyFile.Name()); err != nil {
-			_ = bodyFile.Close()
-			_ = os.Remove(bodyFile.Name())
-			spool.err = fmt.Errorf("unlink temporary HTTP body capture: %w", err)
-			return
+			// Windows refuses to unlink an open file; keep the path and remove
+			// it at Close. POSIX succeeds here, so the file is never visible
+			// under a name there.
+			spool.name = bodyFile.Name()
 		}
 		spool.file = bodyFile
 	}
@@ -83,8 +86,18 @@ func (spool *BodySpool) Close() error {
 	if spool.file == nil {
 		return nil
 	}
-	if err := spool.file.Close(); err != nil {
-		return fmt.Errorf("close temporary HTTP body capture: %w", err)
+	closeErr := spool.file.Close()
+	if spool.name != "" {
+		if err := os.Remove(spool.name); err != nil {
+			if closeErr == nil {
+				closeErr = err
+			}
+			return fmt.Errorf("remove temporary HTTP body capture: %w", closeErr)
+		}
+		spool.name = ""
+	}
+	if closeErr != nil {
+		return fmt.Errorf("close temporary HTTP body capture: %w", closeErr)
 	}
 	return nil
 }
