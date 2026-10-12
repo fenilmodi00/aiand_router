@@ -196,6 +196,10 @@ func (s *Service) dispatchPlanned(ctx context.Context, in failoverInputs, plan i
 				}
 				usage.AttemptedAccounts[lease.AccountID+"\x00"+decision.Model] = struct{}{}
 			}
+			if forcedClaudeClientAppRefused(ctx, decision, CredentialsFromContext(credentialCtx)) {
+				lease.Release()
+				return dispatchAbort{err: ErrSubscriptionClientAppRefused}
+			}
 			if creds := CredentialsFromContext(credentialCtx); paidFallbackForbidden(ctx) && (creds == nil || !creds.OAuth) {
 				lease.Release()
 				return dispatchAbort{err: subscriptionOnlyUnavailable(ctx)}
@@ -348,6 +352,9 @@ func (s *Service) afterSubscriptionRotationBudget(ctx context.Context, in failov
 		"budget_ms", subscriptionRotationBudget.Milliseconds(),
 		"subscription_account_attempt", subscriptionAttempts,
 		"err", rotationErr)
+	if forcedClaudeClientAppRefused(ctx, decision, nil) {
+		return ErrSubscriptionClientAppRefused
+	}
 	poolProvider, subscriptionProvider := managedSubscriptionProviderFromUpstream(decision.Provider, decision.Model)
 	if !subscriptionProvider || subscriptionAttemptOnly(ctx) || paidFallbackForbidden(ctx) || !s.managedProviderFallbackAvailable(ctx, poolProvider) {
 		return rotationErr
