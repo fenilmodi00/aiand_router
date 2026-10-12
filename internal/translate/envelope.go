@@ -1,6 +1,8 @@
 package translate
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,12 +23,29 @@ import (
 // ErrNotJSONObject is returned when the request body is not a valid JSON object.
 var ErrNotJSONObject = errors.New("request body must be a JSON object")
 
+func generateChatCmplID() string {
+	return "chatcmpl-" + randomHex(8)
+}
+
+func generateAnthropicMsgID() string {
+	return "msg_" + randomHex(8)
+}
+
+// randomHex returns n random bytes as lowercase hex, or zeros when the system
+// entropy source fails (never observable in practice; ids stay unique in shape).
+func randomHex(n int) string {
+	buf := make([]byte, n)
+	if _, err := rand.Read(buf); err != nil {
+		return strings.Repeat("0", n*2)
+	}
+	return hex.EncodeToString(buf)
+}
+
 type Format int
 
 const (
 	FormatOpenAI Format = iota
 	FormatAnthropic
-	FormatGemini
 )
 
 // EmitOptions parameterizes output-body construction.
@@ -143,15 +162,6 @@ func ParseAnthropic(body []byte) (*RequestEnvelope, error) {
 	return &RequestEnvelope{body: body, format: FormatAnthropic}, nil
 }
 
-// ParseGemini validates body as a JSON object and wraps it in a RequestEnvelope
-// sourced from Gemini's native generateContent shape.
-func ParseGemini(body []byte) (*RequestEnvelope, error) {
-	if err := validateJSONObject(body); err != nil {
-		return nil, err
-	}
-	return &RequestEnvelope{body: body, format: FormatGemini}, nil
-}
-
 // validateJSONObject rejects arrays, scalars, and null.
 func validateJSONObject(body []byte) error {
 	if !gjson.ValidBytes(body) {
@@ -195,8 +205,6 @@ func (e *RequestEnvelope) ClientSessionID() string {
 	switch e.format {
 	case FormatAnthropic:
 		return requestcontext.BodySessionID(e.body, requestcontext.ConversationAnthropic)
-	case FormatGemini:
-		return requestcontext.BodySessionID(e.body, requestcontext.ConversationGemini)
 	case FormatOpenAI:
 		return requestcontext.BodySessionID(e.body, requestcontext.ConversationChat)
 	}
@@ -210,8 +218,6 @@ func (e *RequestEnvelope) SystemText() string {
 		return systemTextGJSON(gjson.GetBytes(e.body, "system"))
 	case FormatOpenAI:
 		return openAISystemText(e.body)
-	case FormatGemini:
-		return geminiSystemText(e.body)
 	default:
 		return ""
 	}
@@ -250,8 +256,6 @@ func (e *RequestEnvelope) LastUserMessage() LastUserMessageInfo {
 		return anthropicLastUserMessage(e.body)
 	case FormatOpenAI:
 		return openAILastUserMessage(e.body)
-	case FormatGemini:
-		return geminiLastUserMessage(e.body)
 	default:
 		return LastUserMessageInfo{}
 	}
@@ -260,9 +264,6 @@ func (e *RequestEnvelope) LastUserMessage() LastUserMessageInfo {
 // FirstUserMessageText returns the text of the first user-authored message.
 // Returns "" if there is no first user message.
 func (e *RequestEnvelope) FirstUserMessageText() string {
-	if e.format == FormatGemini {
-		return geminiFirstUserMessageText(e.body)
-	}
 	first := gjson.GetBytes(e.body, "messages.0")
 	if !first.Exists() {
 		return ""
@@ -342,8 +343,6 @@ func (e *RequestEnvelope) HasImages() bool {
 		return anthropicHasImages(e.body)
 	case FormatOpenAI:
 		return openAIHasImages(e.body)
-	case FormatGemini:
-		return geminiHasImages(e.body)
 	default:
 		return false
 	}

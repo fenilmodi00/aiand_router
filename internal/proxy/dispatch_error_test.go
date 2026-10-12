@@ -289,7 +289,7 @@ func TestClassifyDispatchError_ForcedClusterUnservableIs400(t *testing.T) {
 
 // Build-time intrinsic-incompatibility must classify as a clear 502.
 func TestClassifyDispatchError_RoutedModelIncompatibleIs502(t *testing.T) {
-	err := fmt.Errorf("translate anthropic request to gemini: %w", translate.ErrGeminiUnsignedToolHistory)
+	err := fmt.Errorf("emit body: %w", translate.ErrReasoningIncompatible)
 
 	cls, ok := proxy.ClassifyDispatchError(err)
 

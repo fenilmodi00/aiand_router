@@ -87,8 +87,8 @@ func TestProxyMessages_CCTaskToolsCrossVendor_OrgOverrideReachesUpstream(t *test
 
 			provider := ccTaskToolProvider()
 			svc := proxy.NewService(
-				&fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "zai-org/glm-5.3-flash", Reason: "test"}},
-				map[string]providers.Client{providers.ProviderOpenAI: provider},
+				&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "zai-org/glm-5.3-flash", Reason: "test"}},
+				map[string]providers.Client{providers.ProviderAIAND: provider},
 				nil, false, nil, nil, false, providers.ProviderAnthropic, "zai-org/glm-5.3-flash", nil,
 			)
 

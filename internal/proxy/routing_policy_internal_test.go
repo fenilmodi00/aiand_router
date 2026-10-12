@@ -135,7 +135,7 @@ func TestRoutingPolicyPassthroughUnknownModelIsAttributedToPolicy(t *testing.T) 
 
 	_, err = service.callerModelPassthroughDecision(ctx, router.Request{
 		RequestedModel:   "auto",
-		EnabledProviders: map[string]struct{}{providers.ProviderOpenAI: {}},
+		EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}},
 	})
 
 	var unknown *PassthroughModelUnknownError

@@ -58,32 +58,6 @@ func TestContextOverflowTokenEstimate_TicketRegression(t *testing.T) {
 	assert.Less(t, e.FullTokenEstimate(), kimiWindow, "the old ÷6 estimate undercounted below the window — the bug this fixes")
 }
 
-// TestBase64ImageStats sums inline base64 image payloads per inbound format,
-// covering top-level and tool_result-nested Anthropic images, OpenAI data URLs
-// (http URLs skipped), and Gemini inlineData (camelCase + snake_case).
-func TestBase64ImageStats(t *testing.T) {
-	anthropic := []byte(`{"messages":[{"role":"user","content":[` +
-		`{"type":"image","source":{"type":"base64","data":"AAAA"}},` +
-		`{"type":"tool_result","content":[{"type":"image","source":{"data":"BBBBBB"}}]}]}]}`)
-	b, c := (&RequestEnvelope{body: anthropic, format: FormatAnthropic}).base64ImageStats()
-	assert.Equal(t, 10, b, "top-level (4) + tool_result-nested (6) image bytes")
-	assert.Equal(t, 2, c, "counts both images")
-
-	openai := []byte(`{"messages":[{"role":"user","content":[` +
-		`{"type":"image_url","image_url":{"url":"data:image/png;base64,ABCDEFGH"}},` +
-		`{"type":"image_url","image_url":{"url":"https://example.com/y.png"}}]}]}`)
-	b, c = (&RequestEnvelope{body: openai, format: FormatOpenAI}).base64ImageStats()
-	assert.Equal(t, 8, b, "only the data-URL base64 payload counts")
-	assert.Equal(t, 1, c, "http image URL is not an in-body payload")
-
-	gemini := []byte(`{"contents":[{"parts":[` +
-		`{"inlineData":{"mimeType":"image/png","data":"AAAA"}},` +
-		`{"inline_data":{"data":"BB"}}]}]}`)
-	b, c = (&RequestEnvelope{body: gemini, format: FormatGemini}).base64ImageStats()
-	assert.Equal(t, 6, b, "camelCase (4) + snake_case (2) inlineData bytes")
-	assert.Equal(t, 2, c, "counts both inline parts")
-}
-
 // TestContextOverflowTokenEstimate_ImagesRepriced is the regression for
 // phantom token inflation on multi-page PDF reads: base64 transport size
 // must not be counted at the content byte ratio.

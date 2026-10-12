@@ -1,7 +1,7 @@
 //go:build smoke
 
 // Package smoke holds the router's pre-merge smoke suite: boots a live docker
-// compose stack and drives real Anthropic/OpenAI APIs, asserting HTTP status,
+// compose stack and drives real upstream APIs, asserting HTTP status,
 // response/usage shape, cache-token accounting, and x-router-* decision headers.
 //
 // Guarded by the `smoke` build tag; run via `make smoke`. Pins claude-haiku-4-5
@@ -32,12 +32,6 @@ type Config struct {
 	// PinModel is forced via x-weave-force-model so decisions land on Anthropic
 	// deterministically and cheaply (default claude-haiku-4-5).
 	PinModel string
-	// OpenAIPinModel is the gpt-5.x model forced for OpenAI-path scenarios
-	// (default gpt-5.4-nano — bound solely to direct OpenAI, can't drift onto OpenRouter).
-	OpenAIPinModel string
-	// OpenAIEnabled gates smoke/openai_test.go scenarios. Set SMOKE_OPENAI_ENABLED=0
-	// to skip when recording without an OPENAI_API_KEY. Defaults to true.
-	OpenAIEnabled bool
 }
 
 // cfg is populated by TestMain and read by every scenario.
@@ -67,8 +61,6 @@ func TestMain(m *testing.M) {
 		BaseURL:        envOr("SMOKE_BASE_URL", "http://localhost:8080"),
 		RouterKey:      os.Getenv("SMOKE_ROUTER_KEY"),
 		PinModel:       envOr("SMOKE_PIN_MODEL", "claude-haiku-4-5"),
-		OpenAIPinModel: envOr("SMOKE_OPENAI_PIN_MODEL", "gpt-5.4-nano"),
-		OpenAIEnabled:  envOr("SMOKE_OPENAI_ENABLED", "1") != "0",
 	}
 	if cfg.RouterKey == "" {
 		fmt.Fprintln(os.Stderr, "SMOKE_ROUTER_KEY is required (seed one with `docker compose run --rm seed`)")
@@ -163,8 +155,7 @@ type anthropicError struct {
 }
 
 // call POSTs a request body to /v1/messages, pinning cfg.PinModel (Anthropic),
-// and returns the parsed response. See callModel to pin a different model
-// (e.g. a gpt-5.x model for the OpenAI Responses-API path).
+// and returns the parsed response. See callModel to pin a different model.
 func call(t *testing.T, body []byte) response {
 	t.Helper()
 	return callModel(t, body, cfg.PinModel)

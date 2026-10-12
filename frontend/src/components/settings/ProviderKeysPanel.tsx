@@ -17,30 +17,22 @@ import {
 import { ChevronDown, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-const PROVIDERS = ["anthropic", "openai", "google", "openrouter", "anthropic_gateway", "openai_gateway"] as const;
+const PROVIDERS = ["aiand", "openai_gateway"] as const;
 type Provider = (typeof PROVIDERS)[number];
 
 const PROVIDER_LABEL: Record<Provider, string> = {
-  anthropic: "Anthropic",
-  openai: "OpenAI",
-  google: "Google",
-  openrouter: "OpenRouter",
-  anthropic_gateway: "Anthropic-compatible gateway",
+  aiand: "AIand",
   openai_gateway: "OpenAI-compatible gateway",
 };
 
 const PROVIDER_ENV_VAR: Record<Provider, string> = {
-  anthropic: "ANTHROPIC_API_KEY",
-  openai: "OPENAI_API_KEY",
-  google: "GOOGLE_API_KEY",
-  openrouter: "OPENROUTER_API_KEY",
-  anthropic_gateway: "ANTHROPIC_GATEWAY_TOKEN",
+  aiand: "AIAND_API_KEY",
   openai_gateway: "OPENAI_GATEWAY_TOKEN",
 };
 
 // Providers with no vendor endpoint to fall back to: a key without a URL here
 // is stored but can never be dispatched, so the form blocks it up front.
-const PROVIDERS_REQUIRING_BASE_URL: readonly Provider[] = ["anthropic_gateway", "openai_gateway"];
+const PROVIDERS_REQUIRING_BASE_URL: readonly Provider[] = ["openai_gateway"];
 
 function providerLabel(p: Provider): string {
   return PROVIDER_LABEL[p];
@@ -68,8 +60,8 @@ function aliasMapFrom(rows: AliasRow[]): Record<string, string> {
 }
 
 // matchesCatalogID reports whether an endpoint-published ID is unambiguously
-// the given catalog model under a vendor prefix (e.g. "openai-gpt-5" or
-// "openai/gpt-5" for catalog "gpt-5").
+// the given catalog model under a vendor prefix (e.g. "acme-glm-5.3" or
+// "acme/glm-5.3" for catalog "zai-org/glm-5.3").
 function matchesCatalogID(endpointID: string, model: string): boolean {
   const id = endpointID.toLowerCase();
   const m = model.toLowerCase();
@@ -183,7 +175,7 @@ function ModelAliasEditor({
                 id={`${idPrefix}-alias-${i}`}
                 list={endpointModels != null && endpointModels.length > 0 ? endpointListID : undefined}
                 autoComplete="off"
-                placeholder="openai-gpt-5"
+                placeholder="acme-glm-5.3"
                 value={row.alias}
                 onChange={e =>
                   onChange(rows.map((r, j) => (i === j ? { ...r, alias: e.target.value } : r)))

@@ -56,7 +56,7 @@ test("Pi 0.74 TUI starts without Wooly and toggles it for the session", async ()
 	const { ctx, values, toggleWooly, shutdown } = uiHarness(undefined, true);
 	installLoomUi(ctx);
 	updateRouterStatus(ctx, {
-		requestedModel: "claude-sonnet-4-6",
+		requestedModel: "zai-org/glm-5.3",
 		savings: aggregateSavings([]),
 	});
 
@@ -85,12 +85,12 @@ test("modern non-TUI modes do not receive terminal components", async () => {
 	installLoomUi(ctx);
 	await toggleWooly();
 	updateRouterStatus(ctx, {
-		requestedModel: "claude-sonnet-4-6",
+		requestedModel: "zai-org/glm-5.3",
 		savings: aggregateSavings([]),
 	});
 
 	assert.equal(values().title, undefined);
 	assert.equal(values().header, undefined);
 	assert.equal(values().widget, undefined);
-	assert.equal(values().status, "WEAVE ROUTER — claude-sonnet-4-6 · awaiting route · saved —");
+	assert.equal(values().status, "WEAVE ROUTER — zai-org/glm-5.3 · awaiting route · saved —");
 });

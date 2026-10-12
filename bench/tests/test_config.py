@@ -12,7 +12,7 @@ def test_defaults_without_a_file() -> None:
     assert config.router.base_url == "http://localhost:8080"
     assert config.router.analytics_url == config.router.base_url
     assert config.harbor.environment is HarborEnvironment.DOCKER
-    assert config.openrouter_tap.listen_port == 8787
+    assert config.providers.judge_api_key_env == "AIAND_API_KEY"
 
 
 def test_toml_values_are_typed(tmp_path: Path) -> None:
@@ -26,16 +26,15 @@ analytics_base_url = "https://analytics.example.test"
 [harbor]
 environment = "modal"
 
-[openrouter_tap]
-listen_port = 9000
+[providers]
+judge_api_key_env = "JUDGE_KEY"
 """
     )
     config = load_config(toml, env={})
     assert config.router.base_url == "https://router.example.test"
     assert config.router.analytics_url == "https://analytics.example.test"
     assert config.harbor.environment is HarborEnvironment.MODAL
-    assert config.openrouter_tap.listen_port == 9000
-    assert config.openrouter_tap.listen_host == "172.17.0.1"
+    assert config.providers.judge_api_key_env == "JUDGE_KEY"
 
 
 def test_env_overrides_beat_the_file(tmp_path: Path) -> None:
@@ -46,12 +45,12 @@ def test_env_overrides_beat_the_file(tmp_path: Path) -> None:
         env={
             "WEAVE_BENCH_ROUTER_BASE_URL": "http://from-env",
             "WEAVE_BENCH_HARBOR_ENVIRONMENT": "modal",
-            "WEAVE_BENCH_OPENROUTER_TAP_LISTEN_PORT": "9001",
+            "WEAVE_BENCH_PROVIDERS_JUDGE_API_KEY_ENV": "JUDGE_KEY",
         },
     )
     assert config.router.base_url == "http://from-env"
     assert config.harbor.environment is HarborEnvironment.MODAL
-    assert config.openrouter_tap.listen_port == 9001
+    assert config.providers.judge_api_key_env == "JUDGE_KEY"
 
 
 def test_unknown_section_and_key_are_rejected(tmp_path: Path) -> None:

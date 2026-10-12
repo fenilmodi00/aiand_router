@@ -95,6 +95,11 @@ func (b *preludeBuffer) Flush() {
 // will trigger commit().
 func (b *preludeBuffer) Seal() { b.sealed = true }
 
+// Root returns the writer this buffer was built around, skipping its own
+// buffering. A terminal error envelope cannot be buffered: it must reach the
+// client whether or not a retry attempt had committed bytes.
+func (b *preludeBuffer) Root() http.ResponseWriter { return b.inner }
+
 // PreludeSent reports whether the buffered prelude is already client-visible.
 func (b *preludeBuffer) PreludeSent() bool { return b.preludeSent }
 

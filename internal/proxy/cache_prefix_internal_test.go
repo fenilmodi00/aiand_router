@@ -40,7 +40,7 @@ func TestCacheablePrefixHonoursProviderTokenBasis(t *testing.T) {
 	assert.Equal(t, 44_444, got)
 
 	compat := counters
-	compat.Provider = providers.ProviderOpenAI
+	compat.Provider = providers.ProviderAIAND
 	got, _ = cacheablePrefixTokens(compat, 100_000, false)
 	// Inclusive: 80k / 100k = 0.8
 	assert.Equal(t, 80_000, got)

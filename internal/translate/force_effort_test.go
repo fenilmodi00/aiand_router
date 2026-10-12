@@ -55,45 +55,6 @@ func TestForceReasoningEffort_ResponsesOverride(t *testing.T) {
 	}
 }
 
-// The same override pins gemini-3.x thinkingLevel — the policy forces gemini to
-// "low" (effort-immune on hard tasks) regardless of the inbound budget.
-func TestForceReasoningEffort_GeminiOverride(t *testing.T) {
-	// Inbound high budget would map to thinkingLevel "high"; override forces low.
-	body := []byte(`{"model":"claude-opus-4-8","max_tokens":1024,"messages":[{"role":"user","content":"hi"}],"thinking":{"type":"enabled","budget_tokens":31999}}`)
-	env, err := translate.ParseAnthropic(body)
-	require.NoError(t, err)
-	prep, err := env.PrepareGemini(http.Header{}, translate.EmitOptions{
-		TargetModel:          "gemini-3.1-pro-preview",
-		Capabilities:         capsFor("gemini-3.1-pro-preview"),
-		ForceReasoningEffort: "low",
-	})
-	require.NoError(t, err)
-	var out map[string]any
-	require.NoError(t, json.Unmarshal(prep.Body, &out))
-	gc := out["generationConfig"].(map[string]any)
-	tc := gc["thinkingConfig"].(map[string]any)
-	assert.Equal(t, "low", tc["thinkingLevel"])
-}
-
-// The override also applies on the OpenAI→Gemini cross-format path (the
-// request arrives as OpenAI chat/completions and is translated to native Gemini).
-func TestForceReasoningEffort_GeminiFromOpenAI(t *testing.T) {
-	body := []byte(`{"model":"gpt-4","messages":[{"role":"user","content":"hi"}],"reasoning_effort":"high"}`)
-	env, err := translate.ParseOpenAI(body)
-	require.NoError(t, err)
-	prep, err := env.PrepareGemini(http.Header{}, translate.EmitOptions{
-		TargetModel:          "gemini-3.1-pro-preview",
-		Capabilities:         capsFor("gemini-3.1-pro-preview"),
-		ForceReasoningEffort: "low",
-	})
-	require.NoError(t, err)
-	var out map[string]any
-	require.NoError(t, json.Unmarshal(prep.Body, &out))
-	gc := out["generationConfig"].(map[string]any)
-	tc := gc["thinkingConfig"].(map[string]any)
-	assert.Equal(t, "low", tc["thinkingLevel"])
-}
-
 func TestForceEffort_CrossFormatOpenAI(t *testing.T) {
 	body := []byte(`{"model":"claude-opus-4-8","max_tokens":1024,"messages":[{"role":"user","content":"hi"}]}`)
 	env, err := translate.ParseAnthropic(body)
@@ -107,27 +68,6 @@ func TestForceEffort_CrossFormatOpenAI(t *testing.T) {
 	var out map[string]any
 	require.NoError(t, json.Unmarshal(prep.Body, &out))
 	assert.Equal(t, "high", out["reasoning_effort"])
-}
-
-func TestForceEffort_GeminiMaxLevel(t *testing.T) {
-	body := []byte(`{"model":"claude-opus-4-8","max_tokens":1024,"messages":[{"role":"user","content":"hi"}]}`)
-	env, err := translate.ParseAnthropic(body)
-	require.NoError(t, err)
-	for _, level := range []string{"max", "xhigh"} {
-		t.Run(level, func(t *testing.T) {
-			prep, err := env.PrepareGemini(http.Header{}, translate.EmitOptions{
-				TargetModel:          "gemini-3.1-pro-preview",
-				Capabilities:         capsFor("gemini-3.1-pro-preview"),
-				ForceReasoningEffort: level,
-			})
-			require.NoError(t, err)
-			var out map[string]any
-			require.NoError(t, json.Unmarshal(prep.Body, &out))
-			gc := out["generationConfig"].(map[string]any)
-			tc := gc["thinkingConfig"].(map[string]any)
-			assert.Equal(t, "high", tc["thinkingLevel"])
-		})
-	}
 }
 
 func itoaLocal(n int) string {
@@ -190,7 +130,7 @@ func TestForceReasoningEffort_DirectOpenAIToolTurn(t *testing.T) {
 	require.NoError(t, err)
 	prep, err := env.PrepareOpenAI(http.Header{}, translate.EmitOptions{
 		TargetModel:          "gpt-5.5",
-		TargetProvider:       providers.ProviderOpenAI,
+		TargetProvider:       providers.ProviderAIAND,
 		Capabilities:         capsFor("gpt-5.5"),
 		ForceReasoningEffort: "high",
 	})

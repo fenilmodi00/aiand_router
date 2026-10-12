@@ -22,7 +22,7 @@ import (
 type overflowRouter struct{}
 
 func (overflowRouter) Route(context.Context, router.Request) (router.Decision, error) {
-	return router.Decision{Provider: providers.ProviderOpenAI, Model: "gpt-5-mini", Reason: "test"}, nil
+	return router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-5-mini", Reason: "test"}, nil
 }
 
 type overflowProvider struct{}
@@ -55,8 +55,8 @@ func TestChatCompletionHandler_CrossFormatOverflowReturnsNativeError(t *testing.
 	for _, stream := range []bool{false, true} {
 		t.Run(fmt.Sprintf("stream=%t", stream), func(t *testing.T) {
 			svc := proxy.NewService(
-				overflowRouter{}, map[string]providers.Client{providers.ProviderOpenAI: overflowProvider{}},
-				nil, false, nil, nil, false, providers.ProviderOpenAI, "gpt-5-mini", nil,
+				overflowRouter{}, map[string]providers.Client{providers.ProviderAIAND: overflowProvider{}},
+				nil, false, nil, nil, false, providers.ProviderAIAND, "gpt-5-mini", nil,
 			)
 			engine := gin.New()
 			engine.POST("/v1/chat/completions", openai.ChatCompletionHandler(svc, nil))

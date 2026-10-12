@@ -21,7 +21,6 @@ func TestClassifierInstructionIdentityAcrossProtocols(t *testing.T) {
 		{"chat developer", translate.ParseOpenAI, `{"messages":[{"role":"developer","content":%q},{"role":"user","content":"first"},{"role":"assistant","content":"answer"},{"role":"user","content":"next"}]}`},
 		{"responses instructions", translate.ParseOpenAI, `{"instructions":%q,"input":[{"role":"user","content":"first"},{"role":"assistant","content":"answer"},{"role":"user","content":"next"}]}`},
 		{"responses developer", translate.ParseOpenAI, `{"input":[{"role":"developer","content":%q},{"role":"user","content":"first"},{"role":"assistant","content":"answer"},{"role":"user","content":"next"}]}`},
-		{"gemini", translate.ParseGemini, `{"systemInstruction":{"parts":[{"text":%q}]},"contents":[{"role":"user","parts":[{"text":"first"}]},{"role":"model","parts":[{"text":"answer"}]},{"role":"user","parts":[{"text":"next"}]}]}`},
 	}
 	for _, fixture := range fixtures {
 		t.Run(fixture.name, func(t *testing.T) {
@@ -90,8 +89,6 @@ func TestClassifierRejectsOmittedMediaAcrossProtocols(t *testing.T) {
 		{"chat file", translate.ParseOpenAI, `{"messages":[{"role":"user","content":[{"type":"file","file":{"file_id":%q}}]}]}`},
 		{"responses image", translate.ParseOpenAI, `{"input":[{"role":"user","content":[{"type":"input_image","image_url":%q}]}]}`},
 		{"responses file", translate.ParseOpenAI, `{"input":[{"role":"user","content":[{"type":"input_file","file_id":%q}]}]}`},
-		{"gemini inline", translate.ParseGemini, `{"contents":[{"role":"user","parts":[{"inlineData":{"mimeType":"image/png","data":%q}}]}]}`},
-		{"gemini file", translate.ParseGemini, `{"contents":[{"role":"user","parts":[{"fileData":{"mimeType":"image/png","fileUri":%q}}]}]}`},
 	}
 	for _, fixture := range fixtures {
 		t.Run(fixture.name, func(t *testing.T) {

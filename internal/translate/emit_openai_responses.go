@@ -64,7 +64,7 @@ func (e *RequestEnvelope) PrepareOpenAIResponses(in http.Header, opts EmitOption
 // so reasoning-tool turns promoted to /v1/responses stay pinned to a warm replica.
 func applyResponsesSessionAffinity(body []byte, opts EmitOptions) ([]byte, error) {
 	switch opts.TargetProvider {
-	case providers.ProviderOpenAI:
+	case providers.ProviderAIAND:
 	default:
 		return body, nil
 	}
@@ -160,7 +160,7 @@ type ResponsesRoute struct {
 func UseOpenAIResponsesAPI(rt ResponsesRoute) bool {
 	narrow := rt.Capabilities.Supports(router.CapReasoning) && rt.HasTools
 	switch rt.Provider {
-	case providers.ProviderOpenAI:
+	case providers.ProviderAIAND:
 		if rt.ChatOnlyParams {
 			return false
 		}

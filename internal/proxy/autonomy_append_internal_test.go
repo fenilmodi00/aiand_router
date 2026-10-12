@@ -102,8 +102,7 @@ func TestAutonomySystemAppendApplies_IdempotentAndSkipsSearchSubTurn(t *testing.
 
 func TestAutonomyAppendFired_TracksAppendOption(t *testing.T) {
 	on := translate.EmitOptions{AppendAutonomySystem: true}
-	assert.True(t, autonomyAppendFired(on, providers.ProviderAnthropic))
-	assert.True(t, autonomyAppendFired(on, providers.ProviderOpenAI))
-	assert.True(t, autonomyAppendFired(on, providers.ProviderAIAND))
-	assert.False(t, autonomyAppendFired(translate.EmitOptions{}, providers.ProviderAnthropic))
+	assert.True(t, autonomyAppendFired(on))
+	assert.True(t, autonomyAppendFired(on))
+	assert.False(t, autonomyAppendFired(translate.EmitOptions{}))
 }

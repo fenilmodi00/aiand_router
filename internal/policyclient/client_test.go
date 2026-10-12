@@ -220,7 +220,7 @@ func TestClientPostsClassifierOnlyV4RequestAndParsesFacts(t *testing.T) {
 		Candidates: []policy.Candidate{{
 			RosterID:  "openai/gpt-5.6-sol",
 			CatalogID: "openai/gpt-5.6-sol",
-			Provider:  providers.ProviderOpenAI,
+			Provider:  providers.ProviderAIAND,
 		}},
 	})
 
@@ -497,7 +497,7 @@ func TestClientPostsArmProviderMapForV2(t *testing.T) {
 				ArmID:        "arm-makora",
 				RosterID:     "deepseek/deepseek-v4-pro",
 				CatalogID:    "deepseek/deepseek-v4-pro",
-				Provider:     providers.ProviderOpenAI,
+				Provider:     providers.ProviderAnthropic,
 				BindingIndex: 1,
 			},
 		},
@@ -506,7 +506,7 @@ func TestClientPostsArmProviderMapForV2(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, map[string]string{
 		"arm-fireworks": providers.ProviderAIAND,
-		"arm-makora":    providers.ProviderOpenAI,
+		"arm-makora":    providers.ProviderAnthropic,
 	}, got.CandidateProviders)
 	assert.Equal(t, []string{"arm-fireworks", "arm-makora"}, got.CandidateModels)
 	require.NotNil(t, got.Candidates[0].BindingIndex)
@@ -584,7 +584,7 @@ func TestClientPreviewPostsNonLearningRequestAndReturnsEveryArm(t *testing.T) {
 		TrainingAllowed: false,
 		Candidates: []policy.Candidate{
 			{RosterID: "arm-a", CatalogID: "model-a", Provider: providers.ProviderAnthropic},
-			{RosterID: "arm-b", CatalogID: "model-b", Provider: providers.ProviderOpenAI},
+			{RosterID: "arm-b", CatalogID: "model-b", Provider: providers.ProviderAnthropic},
 		},
 	})
 

@@ -19,7 +19,6 @@ const (
 	EscalationResponseAnthropic EscalationResponseFormat = "anthropic_messages"
 	EscalationResponseChat      EscalationResponseFormat = "chat"
 	EscalationResponseResponses EscalationResponseFormat = "responses"
-	EscalationResponseGemini    EscalationResponseFormat = "gemini"
 )
 
 // EscalationResponse supplies the completed assistant events for a continuation.
@@ -57,7 +56,6 @@ const (
 	escalationChatStop              escalationFinishReason = "stop"
 	escalationChatToolCalls         escalationFinishReason = "tool_calls"
 	escalationChatFunctionCall      escalationFinishReason = "function_call"
-	escalationGeminiStop            escalationFinishReason = "STOP"
 )
 
 func escalationAnthropicCompleted(reason escalationFinishReason) bool {
@@ -83,8 +81,6 @@ func ParseEscalationResponse(body []byte, format EscalationResponseFormat) (Esca
 		return escalationAnthropicOutput(frames, streaming)
 	case EscalationResponseChat:
 		return escalationChatOutput(frames, streaming, done)
-	case EscalationResponseGemini:
-		return escalationGeminiOutput(frames)
 	default:
 		return EscalationResponse{}, fmt.Errorf("unsupported escalation response format %q", format)
 	}
@@ -345,64 +341,6 @@ func escalationChatOutput(frames []gjson.Result, streaming, done bool) (Escalati
 	}
 	blocks = append(blocks, ordered...)
 	return EscalationResponse{ResponseID: responseID, Messages: []EscalationMessage{{Role: EscalationRoleAssistant, Blocks: blocks}}}, nil
-}
-
-func escalationGeminiOutput(frames []gjson.Result) (EscalationResponse, error) {
-	responseID := ""
-	complete := false
-	hasOmittedMedia := false
-	blocks := make([]EscalationBlock, 0)
-	var adjacentText *strings.Builder
-	flushText := func() {
-		if adjacentText == nil {
-			return
-		}
-		blocks = append(blocks, EscalationBlock{Type: EscalationBlockText, Text: adjacentText.String()})
-		adjacentText = nil
-	}
-	for _, frame := range frames {
-		if frame.Get("error").Exists() {
-			return EscalationResponse{}, fmt.Errorf("Gemini response failed")
-		}
-		if frame.Get("responseId").Exists() {
-			responseID = frame.Get("responseId").String()
-		}
-		candidates := frame.Get("candidates").Array()
-		if len(candidates) > 1 {
-			return EscalationResponse{}, fmt.Errorf("multiple Gemini candidates cannot form one continuation")
-		}
-		if len(candidates) == 0 {
-			continue
-		}
-		candidate := candidates[0]
-		if reason := candidate.Get("finishReason"); reason.Exists() && reason.Type != gjson.Null {
-			if escalationFinishReason(reason.String()) != escalationGeminiStop {
-				return EscalationResponse{}, fmt.Errorf("Gemini response did not complete")
-			}
-			complete = true
-		}
-		parsed, omittedMedia, err := escalationGeminiBlocks(candidate.Get("content.parts"))
-		if err != nil {
-			return EscalationResponse{}, err
-		}
-		hasOmittedMedia = hasOmittedMedia || omittedMedia
-		for _, block := range parsed {
-			if block.Type == EscalationBlockText {
-				if adjacentText == nil {
-					adjacentText = &strings.Builder{}
-				}
-				adjacentText.WriteString(block.Text)
-				continue
-			}
-			flushText()
-			blocks = append(blocks, block)
-		}
-	}
-	if !complete {
-		return EscalationResponse{}, fmt.Errorf("Gemini response has no terminal candidate")
-	}
-	flushText()
-	return EscalationResponse{ResponseID: responseID, Messages: []EscalationMessage{{Role: EscalationRoleAssistant, Blocks: blocks, HasOmittedMedia: hasOmittedMedia}}}, nil
 }
 
 func escalationFragmentBuilder(builders map[int]*strings.Builder, index int) *strings.Builder {

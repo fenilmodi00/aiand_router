@@ -14,6 +14,7 @@ import (
 	"weave-os/router/internal/providers/openaicompat"
 	"weave-os/router/internal/proxy"
 	"weave-os/router/internal/router"
+	"weave-os/router/internal/router/sessionpin"
 	"weave-os/router/internal/translate"
 
 	"github.com/stretchr/testify/assert"
@@ -29,58 +30,36 @@ const cyberRefusalSSE = "event: response.created\n" +
 	"event: turn.failed\n" +
 	`data: {"type":"turn.failed","error":{"message":"This content was flagged for possible cybersecurity risk."}}` + "\n\n"
 
-// aiandRescueChatSSE is the OpenAI-compatible chat-completions stream the AIand
-// fallback serves when the refused turn is re-dispatched off the refusing model.
-const aiandRescueChatSSE = "data: {\"id\":\"chatcmpl_rescue\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"deepseek-ai/deepseek-v4.1-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"rescued\"},\"finish_reason\":null}]}\n\n" +
-	"data: {\"id\":\"chatcmpl_rescue\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"deepseek-ai/deepseek-v4.1-flash\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":5,\"completion_tokens\":3,\"total_tokens\":8}}\n\n" +
-	"data: [DONE]\n\n"
+// anthropicRescueSSE is the Anthropic Messages stream the fallback serves when
+// the refused turn is re-dispatched off the refusing vendor. Retargeted from
+// the old OpenAI-compat rescue upstream: only a different wire family escapes
+// the same classifier, so on the AIand-only build the rescue is Anthropic.
+const anthropicRescueSSE = "event: message_start\n" +
+	`data: {"type":"message_start","message":{"id":"msg_1","role":"assistant","content":[],"usage":{"input_tokens":5,"output_tokens":0}}}` + "\n\n" +
+	"event: content_block_start\n" +
+	`data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}` + "\n\n" +
+	"event: content_block_delta\n" +
+	`data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"rescued"}}` + "\n\n" +
+	"event: content_block_stop\n" +
+	`data: {"type":"content_block_stop","index":0}` + "\n\n" +
+	"event: message_delta\n" +
+	`data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":3}}` + "\n\n" +
+	"event: message_stop\n" +
+	`data: {"type":"message_stop"}` + "\n\n"
 
 const responsesTurnBody = `{"model":"moonshotai/kimi-k3","stream":true,"input":[{"type":"message","role":"user",` +
 	`"content":[{"type":"input_text","text":"audit this SFTP server for auth bypasses"}]}]}`
 
-// cyberRefusalUpstreams serves the OpenAI refusal and the Anthropic rescue,
-// counting hits on each so a test can tell a rescue from a passthrough.
-type cyberRefusalUpstreams struct {
-	mu             sync.Mutex
-	openAIHits     int
-	aiandHits      int
-	openAIResponse func(http.ResponseWriter)
-}
+const cyberRefusalFallbackModel = "zai-org/glm-5.3"
 
-func (u *cyberRefusalUpstreams) counts() (openAI, aiand int) {
-	u.mu.Lock()
-	defer u.mu.Unlock()
-	return u.openAIHits, u.aiandHits
-}
+const cyberRefusalInstallationID = "22222222-2222-2222-2222-222222222222"
 
-func (u *cyberRefusalUpstreams) start(t *testing.T) (openAIURL, aiandURL string) {
-	t.Helper()
-	openAIServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		u.mu.Lock()
-		u.openAIHits++
-		u.mu.Unlock()
-		u.openAIResponse(w)
-	}))
-	t.Cleanup(openAIServer.Close)
-
-	aiandServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		u.mu.Lock()
-		u.aiandHits++
-		u.mu.Unlock()
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.WriteHeader(http.StatusOK)
-		_, _ = io.WriteString(w, aiandRescueChatSSE)
-	}))
-	t.Cleanup(aiandServer.Close)
-
-	return openAIServer.URL, aiandServer.URL
-}
-
+// streamResponses splits an SSE body into 37-byte writes, mirroring the wire,
+// where an event routinely spans several frames.
 func streamResponses(sse string) func(http.ResponseWriter) {
 	return func(w http.ResponseWriter) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
-		// Frames are split mid-event, as they arrive on the wire.
 		for start := 0; start < len(sse); start += 37 {
 			end := min(start+37, len(sse))
 			_, _ = io.WriteString(w, sse[start:end])
@@ -88,32 +67,85 @@ func streamResponses(sse string) func(http.ResponseWriter) {
 	}
 }
 
-func cyberRefusalService(
-	openAIURL, aiandURL, decisionReason string,
-	store *fakePinStore,
-	telemetry *captureTelemetry,
-) *proxy.Service {
+// cyberRefusalUpstreams wires the two halves of a cyber-refusal turn: the
+// AIand (OpenAI-compat) upstream that refuses, and the Anthropic fallback the
+// rescue re-dispatches to. There is no Anthropic adapter on the AIand-only
+// build, so the rescue is a *fakeProvider — the Anthropic attempt branch
+// translates the request and the response itself, which is exactly the wire
+// conversion the test needs to cover.
+type cyberRefusalUpstreams struct {
+	mu             sync.Mutex
+	aiandHits      int
+	rescue         *fakeProvider
+	openAIResponse func(http.ResponseWriter)
+	aiandURL       string
+	rescueResp     func(http.ResponseWriter)
+}
+
+func (u *cyberRefusalUpstreams) counts() (aiand, rescueHits int) {
+	u.mu.Lock()
+	aiand = u.aiandHits
+	u.mu.Unlock()
+	return aiand, len(u.rescue.proxyBodies)
+}
+
+func (u *cyberRefusalUpstreams) start(t *testing.T) {
+	t.Helper()
+	u.rescue = &fakeProvider{proxyResponse: u.rescueResp}
+	aiandServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		u.mu.Lock()
+		u.aiandHits++
+		u.mu.Unlock()
+		u.openAIResponse(w)
+	}))
+	t.Cleanup(aiandServer.Close)
+	u.aiandURL = aiandServer.URL
+}
+
+// cyberRefusalService builds the AIand-only service for a cyber-refusal turn.
+// The rescue target is pinned to Anthropic through the routing metadata's
+// candidate map, which is what an off-vendor retry requires.
+func (u *cyberRefusalUpstreams) service(decisionReason string, store *fakePinStore, telemetry *captureTelemetry) *proxy.Service {
 	return proxy.NewService(
 		&fakeRouter{decision: router.Decision{
-			Provider: providers.ProviderOpenAI,
+			Provider: providers.ProviderAIAND,
 			Model:    "moonshotai/kimi-k3",
 			Reason:   decisionReason,
-			Metadata: &router.RoutingMetadata{CandidateModels: []string{"moonshotai/kimi-k3"}},
+			Metadata: &router.RoutingMetadata{
+				CandidateModels:    []string{"moonshotai/kimi-k3"},
+				CandidateProviders: map[string]string{cyberRefusalFallbackModel: providers.ProviderAnthropic},
+			},
 		}},
 		map[string]providers.Client{
-			providers.ProviderOpenAI: openaicompat.NewClient("test-openai-key", openAIURL),
-			providers.ProviderAIAND:  openaicompat.NewClient("test-aiand-key", aiandURL),
+			providers.ProviderAIAND:     openaicompat.NewClient("test-aiand-key", u.aiandURL),
+			providers.ProviderAnthropic: u.rescue,
 		},
 		nil, false, nil, store, false, providers.ProviderAIAND, "zai-org/glm-5.3-flash", telemetry,
 	).
-		WithCyberRefusalFallbackModel("deepseek-ai/deepseek-v4.1-flash").
+		WithCyberRefusalFallbackModel(cyberRefusalFallbackModel).
 		WithDeploymentKeyedProviders(map[string]struct{}{
-			providers.ProviderOpenAI: {},
-			providers.ProviderAIAND:  {},
+			providers.ProviderAIAND:     {},
+			providers.ProviderAnthropic: {},
 		})
 }
 
-const cyberRefusalInstallationID = "22222222-2222-2222-2222-222222222222"
+// seedPairedPin records the pin that names the Anthropic fallback as the refusing
+// model's runner-up. cyberRefusalFallback prefers the pin's own provider over the
+// catalog binding, which is what lets an off-vendor retry leave the OpenAI-compat
+// surface (the AIand-only roster binds every catalog model to aiand, so the
+// configured fallback alone always resolves back to the refusing vendor).
+func seedPairedPin(store *fakePinStore, reason string) {
+	store.pin = sessionpin.Pin{
+		Model:          "moonshotai/kimi-k3",
+		Provider:       providers.ProviderAIAND,
+		Reason:         reason,
+		PairedModel:    cyberRefusalFallbackModel,
+		PairedProvider: providers.ProviderAnthropic,
+		PinnedUntil:    time.Now().Add(time.Hour),
+		Role:           "default",
+	}
+	store.hasPin = true
+}
 
 func proxyResponsesTurn(t *testing.T, svc *proxy.Service) *httptest.ResponseRecorder {
 	t.Helper()
@@ -133,32 +165,36 @@ func proxyResponsesTurn(t *testing.T, svc *proxy.Service) *httptest.ResponseReco
 // that declined. Codex aborts on the refusal envelope, which is what makes
 // swallowing it the whole point.
 func TestProxyOpenAIResponses_CyberRefusalRescuesOffVendorAndRepins(t *testing.T) {
-	upstreams := &cyberRefusalUpstreams{openAIResponse: streamResponses(cyberRefusalSSE)}
-	openAIURL, aiandURL := upstreams.start(t)
+	upstreams := &cyberRefusalUpstreams{
+		openAIResponse: streamResponses(cyberRefusalSSE),
+		rescueResp:     streamResponses(anthropicRescueSSE),
+	}
+	upstreams.start(t)
 	store := newFakePinStore()
+	seedPairedPin(store, "scorer-decision")
 	telemetry := newCaptureTelemetry()
 
-	rec := proxyResponsesTurn(t, cyberRefusalService(openAIURL, aiandURL, "test", store, telemetry))
+	rec := proxyResponsesTurn(t, upstreams.service("test", store, telemetry))
 
-	openAIHits, aiandHits := upstreams.counts()
-	assert.Equal(t, 1, openAIHits, "the refusing vendor is not retried")
-	assert.Equal(t, 1, aiandHits, "the turn is re-served on the fallback")
+	aiandHits, rescueHits := upstreams.counts()
+	assert.Equal(t, 1, aiandHits, "the refusing vendor is not retried")
+	assert.Equal(t, 1, rescueHits, "the turn is re-served on the fallback")
 
 	body := rec.Body.String()
 	assert.NotContains(t, body, "cybersecurity risk", "the refusal must never reach the client")
 	assert.Contains(t, body, "rescued", "the client sees the fallback's answer")
 	assert.Contains(t, body, "response.completed")
-	assert.Equal(t, "deepseek-ai/deepseek-v4.1-flash", rec.Header().Get(proxy.HeaderRouterModel))
+	assert.Equal(t, cyberRefusalFallbackModel, rec.Header().Get(proxy.HeaderRouterModel))
 
 	row := telemetry.firstRow(t)
-	assert.Equal(t, "deepseek-ai/deepseek-v4.1-flash", row.DecisionModel)
-	assert.Equal(t, providers.ProviderAIAND, row.DecisionProvider)
+	assert.Equal(t, cyberRefusalFallbackModel, row.DecisionModel)
+	assert.Equal(t, providers.ProviderAnthropic, row.DecisionProvider)
 	assert.Equal(t, proxy.ReasonCyberRefusalRetry, row.DecisionReason)
 
 	require.NotEmpty(t, store.upserts, "the session must be re-pinned off the refusing model")
 	pin := store.upserts[len(store.upserts)-1]
-	assert.Equal(t, "deepseek-ai/deepseek-v4.1-flash", pin.Model)
-	assert.Equal(t, providers.ProviderAIAND, pin.Provider)
+	assert.Equal(t, cyberRefusalFallbackModel, pin.Model)
+	assert.Equal(t, providers.ProviderAnthropic, pin.Provider)
 }
 
 // Once output is committed a second model's stream would interleave with the
@@ -170,18 +206,22 @@ func TestProxyOpenAIResponses_CyberRefusalAfterCommittedOutputPassesThrough(t *t
 		`data: {"type":"response.output_text.delta","sequence_number":1,"item_id":"msg_1","output_index":0,"content_index":0,"delta":"partial"}` + "\n\n" +
 		"event: error\n" +
 		`data: {"type":"error","message":"This content was flagged for possible cybersecurity risk."}` + "\n\n"
-	upstreams := &cyberRefusalUpstreams{openAIResponse: streamResponses(committed)}
-	openAIURL, aiandURL := upstreams.start(t)
+	upstreams := &cyberRefusalUpstreams{
+		openAIResponse: streamResponses(committed),
+		rescueResp:     streamResponses(anthropicRescueSSE),
+	}
+	upstreams.start(t)
 	store := newFakePinStore()
+	seedPairedPin(store, "scorer-decision")
 
-	rec := proxyResponsesTurn(t, cyberRefusalService(openAIURL, aiandURL, "test", store, newCaptureTelemetry()))
+	rec := proxyResponsesTurn(t, upstreams.service("test", store, newCaptureTelemetry()))
 
-	_, aiandHits := upstreams.counts()
-	assert.Zero(t, aiandHits, "a committed turn cannot be re-served")
+	_, rescueHits := upstreams.counts()
+	assert.Zero(t, rescueHits, "a committed turn cannot be re-served")
 	assert.Contains(t, rec.Body.String(), "cybersecurity risk", "the client keeps the upstream's own error")
 
 	require.NotEmpty(t, store.upserts, "the re-pin runs even when the turn cannot be rescued")
-	assert.Equal(t, "deepseek-ai/deepseek-v4.1-flash", store.upserts[len(store.upserts)-1].Model)
+	assert.Equal(t, cyberRefusalFallbackModel, store.upserts[len(store.upserts)-1].Model)
 }
 
 // A caller who pinned the model with /force-model asked for that model, and the
@@ -194,19 +234,22 @@ func TestProxyOpenAIResponses_CyberRefusalRetrySkipped(t *testing.T) {
 		wantFinalPin string
 	}{
 		{name: "force-model pin", reason: translate.ReasonUserForceModel, retryFlag: true, wantFinalPin: "moonshotai/kimi-k3"},
-		{name: "retry kill switch off", reason: "test", retryFlag: false, wantFinalPin: "deepseek-ai/deepseek-v4.1-flash"},
+		{name: "retry kill switch off", reason: "test", retryFlag: false, wantFinalPin: cyberRefusalFallbackModel},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			upstreams := &cyberRefusalUpstreams{openAIResponse: streamResponses(cyberRefusalSSE)}
-			openAIURL, aiandURL := upstreams.start(t)
+			upstreams := &cyberRefusalUpstreams{
+				openAIResponse: streamResponses(cyberRefusalSSE),
+				rescueResp:     streamResponses(anthropicRescueSSE),
+			}
+			upstreams.start(t)
 			store := newFakePinStore()
-			svc := cyberRefusalService(openAIURL, aiandURL, tc.reason, store, newCaptureTelemetry()).
-				WithCyberRefusalRetry(tc.retryFlag)
+			seedPairedPin(store, tc.reason)
+			svc := upstreams.service(tc.reason, store, newCaptureTelemetry()).WithCyberRefusalRetry(tc.retryFlag)
 
 			rec := proxyResponsesTurn(t, svc)
 
-			_, aiandHits := upstreams.counts()
-			assert.Zero(t, aiandHits, "no off-vendor re-dispatch")
+			_, rescueHits := upstreams.counts()
+			assert.Zero(t, rescueHits, "no off-vendor re-dispatch")
 			assert.Contains(t, rec.Body.String(), "cybersecurity risk",
 				"without the rescue the refusal is the turn's answer")
 			require.NotEmpty(t, store.upserts)
@@ -219,18 +262,21 @@ func TestProxyOpenAIResponses_CyberRefusalRetrySkipped(t *testing.T) {
 // An ordinary upstream failure is not a refusal: it keeps today's failover
 // behavior and leaves the session pin alone.
 func TestProxyOpenAIResponses_OrdinaryOpenAIErrorIsUnchanged(t *testing.T) {
-	upstreams := &cyberRefusalUpstreams{openAIResponse: func(w http.ResponseWriter) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = io.WriteString(w, `{"error":{"message":"Unsupported parameter: 'temperature'","type":"invalid_request_error","code":"unsupported_parameter"}}`)
-	}}
-	openAIURL, aiandURL := upstreams.start(t)
+	upstreams := &cyberRefusalUpstreams{
+		openAIResponse: func(w http.ResponseWriter) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = io.WriteString(w, `{"error":{"message":"Unsupported parameter: 'temperature'","type":"invalid_request_error","code":"unsupported_parameter"}}`)
+		},
+		rescueResp: streamResponses(anthropicRescueSSE),
+	}
+	upstreams.start(t)
 	store := newFakePinStore()
 
-	rec := proxyResponsesTurn(t, cyberRefusalService(openAIURL, aiandURL, "test", store, newCaptureTelemetry()))
+	rec := proxyResponsesTurn(t, upstreams.service("test", store, newCaptureTelemetry()))
 
-	_, aiandHits := upstreams.counts()
-	assert.Zero(t, aiandHits)
+	_, rescueHits := upstreams.counts()
+	assert.Zero(t, rescueHits)
 	assert.Contains(t, rec.Body.String(), "response.failed")
 	assert.Contains(t, rec.Body.String(), "Upstream call failed.")
 	require.NotEmpty(t, store.upserts)
@@ -248,14 +294,17 @@ func TestProxyOpenAIResponses_RoutingBadgeFlushesBeforeDelayedProvider(t *testin
 			close(releaseProvider)
 		}
 	}()
-	upstreams := &cyberRefusalUpstreams{openAIResponse: func(w http.ResponseWriter) {
-		close(providerStarted)
-		<-releaseProvider
-		streamResponses("event: response.completed\n" +
-			`data: {"type":"response.completed","sequence_number":0,"response":{"id":"resp_native","status":"completed","output":[{"type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"ok"}]}]}}` + "\n\n")(w)
-	}}
-	openAIURL, aiandURL := upstreams.start(t)
-	svc := cyberRefusalService(openAIURL, aiandURL, "test", newFakePinStore(), newCaptureTelemetry())
+	upstreams := &cyberRefusalUpstreams{
+		openAIResponse: func(w http.ResponseWriter) {
+			close(providerStarted)
+			<-releaseProvider
+			streamResponses("event: response.completed\n" +
+				`data: {"type":"response.completed","sequence_number":0,"response":{"id":"resp_native","status":"completed","output":[{"type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"ok"}]}]}}` + "\n\n")(w)
+		},
+		rescueResp: streamResponses(anthropicRescueSSE),
+	}
+	upstreams.start(t)
+	svc := upstreams.service("test", newFakePinStore(), newCaptureTelemetry())
 	writer := newObservedResponseWriter()
 	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(""))
 	ctx := context.WithValue(
@@ -287,29 +336,21 @@ func TestProxyOpenAIResponses_RoutingBadgeFlushesBeforeDelayedProvider(t *testin
 // The rescue runs once: a fallback that refuses too ends the turn rather than
 // walking the catalog.
 func TestProxyOpenAIResponses_CyberRefusalRetriesOnlyOnce(t *testing.T) {
-	upstreams := &cyberRefusalUpstreams{openAIResponse: streamResponses(cyberRefusalSSE)}
-	openAIServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		upstreams.mu.Lock()
-		upstreams.openAIHits++
-		upstreams.mu.Unlock()
-		streamResponses(cyberRefusalSSE)(w)
-	}))
-	defer openAIServer.Close()
-	aiandServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		upstreams.mu.Lock()
-		upstreams.aiandHits++
-		upstreams.mu.Unlock()
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.WriteHeader(http.StatusOK)
-		_, _ = io.WriteString(w, "event: error\n"+
-			`data: {"type":"error","error":{"type":"invalid_request_error","message":"This content was flagged for possible cybersecurity risk."}}`+"\n\n")
-	}))
-	defer aiandServer.Close()
+	upstreams := &cyberRefusalUpstreams{
+		openAIResponse: streamResponses(cyberRefusalSSE),
+		rescueResp: func(w http.ResponseWriter) {
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.WriteHeader(http.StatusOK)
+			_, _ = io.WriteString(w, "event: error\n"+
+				`data: {"type":"error","error":{"type":"invalid_request_error","message":"This content was flagged for possible cybersecurity risk."}}`+"\n\n")
+		},
+	}
+	upstreams.start(t)
+	store := newFakePinStore()
+	seedPairedPin(store, "scorer-decision")
+	proxyResponsesTurn(t, upstreams.service("test", store, newCaptureTelemetry()))
 
-	svc := cyberRefusalService(openAIServer.URL, aiandServer.URL, "test", newFakePinStore(), newCaptureTelemetry())
-	proxyResponsesTurn(t, svc)
-
-	openAIHits, aiandHits := upstreams.counts()
-	assert.Equal(t, 1, openAIHits)
-	assert.Equal(t, 1, aiandHits, "the fallback's own refusal is not rescued again")
+	aiandHits, rescueHits := upstreams.counts()
+	assert.Equal(t, 1, aiandHits)
+	assert.Equal(t, 1, rescueHits, "the fallback's own refusal is not rescued again")
 }

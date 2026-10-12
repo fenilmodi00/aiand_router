@@ -141,10 +141,10 @@ test("returns to the conservative virtual context window after model selection",
 			},
 			ctx,
 		);
-		extension.emit("model_select", { type: "model_select", model: { id: "claude-haiku-4-5" } }, ctx);
+		extension.emit("model_select", { type: "model_select", model: { id: "moonshotai/kimi-k3" } }, ctx);
 
 		assert.equal(contextWindow(extension.registrations[0]!, "zai-org/glm-5.3"), 1_048_576);
-		assert.equal(contextWindow(extension.registrations[1]!, "claude-haiku-4-5"), 200_000);
+		assert.equal(contextWindow(extension.registrations[1]!, "moonshotai/kimi-k3"), 200_000);
 	});
 });
 
@@ -164,6 +164,6 @@ test("does not carry a served context window across a session-tree change", () =
 		extension.emit("session_tree", { type: "session_tree" }, ctx);
 
 		assert.equal(contextWindow(extension.registrations[0]!, "zai-org/glm-5.3"), 1_048_576);
-		assert.equal(contextWindow(extension.registrations[1]!, "claude-haiku-4-5"), 200_000);
+		assert.equal(contextWindow(extension.registrations[1]!, "moonshotai/kimi-k3"), 200_000);
 	});
 });

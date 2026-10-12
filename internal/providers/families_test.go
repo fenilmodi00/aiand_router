@@ -35,7 +35,7 @@ func TestValidateDispatchableRejectsUnknown(t *testing.T) {
 
 	// A registered-but-unmapped provider is rejected, and its name surfaces in
 	// the error so the dev knows which one to add.
-	err := providers.ValidateDispatchable([]string{providers.ProviderOpenAI, "brand-new-provider"})
+	err := providers.ValidateDispatchable([]string{providers.ProviderAIAND, "brand-new-provider"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "brand-new-provider")
 }
@@ -45,7 +45,6 @@ func TestValidateDispatchableRejectsUnknown(t *testing.T) {
 func TestFamilyForKnownProviders(t *testing.T) {
 	cases := map[string]providers.TranslationFamily{
 		providers.ProviderAnthropic: providers.FamilyAnthropic,
-		providers.ProviderOpenAI:    providers.FamilyOpenAICompat,
 		providers.ProviderAIAND:     providers.FamilyOpenAICompat,
 	}
 	for p, want := range cases {
@@ -60,8 +59,8 @@ func TestFamilyForKnownProviders(t *testing.T) {
 // AIand-only roster.
 func TestAllProvidersSorted(t *testing.T) {
 	all := providers.AllProviders()
-	assert.Equal(t, []string{providers.ProviderAIAND, providers.ProviderAnthropic, providers.ProviderOpenAI}, all,
-		"AIand-only build registers exactly aiand, anthropic, openai")
+	assert.Equal(t, []string{providers.ProviderAIAND, providers.ProviderAnthropic}, all,
+		"AIand-only build registers exactly aiand, anthropic")
 	for i := 1; i < len(all); i++ {
 		assert.LessOrEqualf(t, all[i-1], all[i], "AllProviders not sorted at index %d", i)
 	}

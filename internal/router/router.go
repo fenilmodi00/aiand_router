@@ -16,7 +16,6 @@ type WireFormat string
 const (
 	WireFormatAnthropic WireFormat = "anthropic_messages"
 	WireFormatOpenAI    WireFormat = "openai"
-	WireFormatGemini    WireFormat = "gemini"
 )
 
 // TranslationEndpoint identifies the source endpoint contract within a wire
@@ -27,7 +26,6 @@ const (
 	EndpointAnthropicMessages TranslationEndpoint = "messages"
 	EndpointOpenAIChat        TranslationEndpoint = "chat_completions"
 	EndpointOpenAIResponses   TranslationEndpoint = "responses"
-	EndpointGeminiGenerate    TranslationEndpoint = "generate_content"
 )
 
 // TranslationRequirements records semantics which must survive a route. It is

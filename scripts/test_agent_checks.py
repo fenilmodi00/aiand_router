@@ -316,7 +316,6 @@ class AgentChecksTest(unittest.TestCase):
         poisoned = {
             "ANTHROPIC_API_KEY": "synthetic-provider-secret",
             "GOOGLE_API_KEY": "synthetic-provider-secret",
-            "OPENAI_API_KEY": "synthetic-provider-secret",
             "OPENCODE_BIN": "/synthetic/private/opencode",
             "OPENCODE_EXPECTED_VERSION": "0.0.0",
             "GH_TOKEN": "synthetic-source-control-secret",

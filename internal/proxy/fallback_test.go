@@ -310,8 +310,8 @@ func TestDispatchWithFallback_RetriesOnResponseHeaderTimeout(t *testing.T) {
 	}
 
 	s := newServiceWithProviders(t, map[string]providers.Client{
-		providers.ProviderAIAND:  primary,
-		providers.ProviderOpenAI: fallback,
+		providers.ProviderAIAND:     primary,
+		providers.ProviderAnthropic: fallback,
 	})
 
 	rec := httptest.NewRecorder()
@@ -325,7 +325,7 @@ func TestDispatchWithFallback_RetriesOnResponseHeaderTimeout(t *testing.T) {
 		purpose:         inference.PurposeAnthropicMessages,
 		bindings: []catalog.ProviderBinding{
 			{Provider: providers.ProviderAIAND},
-			{Provider: providers.ProviderOpenAI},
+			{Provider: providers.ProviderAnthropic},
 		},
 		attempt: func(ctx context.Context, d router.Decision, p providers.Client) error {
 			buf.Seal()
@@ -355,8 +355,8 @@ func TestDispatchWithFallback_RetriesOnUpstreamIdleTimeout(t *testing.T) {
 	}
 
 	s := newServiceWithProviders(t, map[string]providers.Client{
-		providers.ProviderOpenAI: primary,
-		providers.ProviderAIAND:  fallback,
+		providers.ProviderAIAND:     primary,
+		providers.ProviderAnthropic: fallback,
 	})
 
 	rec := httptest.NewRecorder()
@@ -369,8 +369,8 @@ func TestDispatchWithFallback_RetriesOnUpstreamIdleTimeout(t *testing.T) {
 		initialDecision: router.Decision{Model: "deepseek-ai/deepseek-v4-flash"},
 		purpose:         inference.PurposeAnthropicMessages,
 		bindings: []catalog.ProviderBinding{
-			{Provider: providers.ProviderOpenAI},
 			{Provider: providers.ProviderAIAND},
+			{Provider: providers.ProviderAnthropic},
 		},
 		attempt: func(ctx context.Context, d router.Decision, p providers.Client) error {
 			buf.Seal()
@@ -383,7 +383,7 @@ func TestDispatchWithFallback_RetriesOnUpstreamIdleTimeout(t *testing.T) {
 	assert.Equal(t, 1, primary.calls)
 	assert.Equal(t, 1, fallback.calls)
 	assert.Equal(t, "rescued", rec.Body.String())
-	assert.Equal(t, providers.ProviderOpenAI, rec.Header().Get(HeaderRouterFallbackFrom))
+	assert.Equal(t, providers.ProviderAIAND, rec.Header().Get(HeaderRouterFallbackFrom))
 }
 
 func TestDispatchWithFallback_NoRetryOnNonRetryableStatus(t *testing.T) {

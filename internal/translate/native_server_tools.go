@@ -69,12 +69,6 @@ func nativeServerTool(tool gjson.Result, format Format) (name, typ string, ok bo
 			name = typ
 		}
 		return name, typ, true
-	case FormatGemini:
-		for _, key := range [...]string{"googleSearch", "google_search"} {
-			if jsonFieldExists(tool, key) {
-				return key, key, true
-			}
-		}
 	}
 	return "", "", false
 }

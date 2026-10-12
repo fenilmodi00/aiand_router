@@ -15,7 +15,6 @@ const (
 	ConversationAnthropic ConversationSurface = "anthropic_messages"
 	ConversationChat      ConversationSurface = "openai_chat"
 	ConversationResponses ConversationSurface = "openai_responses"
-	ConversationGemini    ConversationSurface = "gemini"
 )
 
 // MaxRequestBodyBytes matches Anthropic's 32 MiB limit across gateway and worker ingress.

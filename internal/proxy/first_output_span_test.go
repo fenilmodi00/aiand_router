@@ -48,11 +48,13 @@ func TestUpstreamSpan_FirstOutputMs_ExceedsTTFTOnReasoningStall(t *testing.T) {
 				flusher.Flush()
 			}
 		}
+		// AIand promotes this turn to POST /v1/responses, so the stall and the
+		// eventual output arrive as Responses frames.
 		// Byte-alive immediately, but role-only: nothing the client can render.
-		write(`data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"deepseek-ai/deepseek-v4-pro","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}` + "\n\n")
+		write(`data: {"type":"response.created","response":{"id":"resp_1","status":"in_progress"}}` + "\n\n")
 		time.Sleep(preOutputStall)
-		write(`data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"deepseek-ai/deepseek-v4-pro","choices":[{"index":0,"delta":{"content":"finally"},"finish_reason":"stop"}],"usage":{"prompt_tokens":5,"completion_tokens":1}}` + "\n\n")
-		write("data: [DONE]\n\n")
+		write(`data: {"type":"response.output_text.delta","output_index":0,"content_index":0,"delta":"finally"}` + "\n\n")
+		write(`data: {"type":"response.completed","response":{"id":"resp_1","status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"finally"}]}],"usage":{"input_tokens":5,"output_tokens":1}}}` + "\n\n")
 	}))
 	defer upstream.Close()
 

@@ -32,17 +32,11 @@ func TestResolveCompactionModelFailsClosed(t *testing.T) {
 		_, err := resolveCompactionModel(providers.ProviderAIAND)
 		assert.ErrorContains(t, err, "has no aiand catalog binding")
 	})
-
-	t.Run("binding on the configured summarizer provider", func(t *testing.T) {
-		t.Setenv("ROUTER_COMPACTION_MODEL", "zai-org/glm-5.3")
-		_, err := resolveCompactionModel(providers.ProviderOpenAI)
-		assert.ErrorContains(t, err, "has no openai catalog binding")
-	})
 }
 
 func TestResolveHardPinModelRejectsProviderWithoutModel(t *testing.T) {
 	t.Setenv("ROUTER_HARD_PIN_MODEL", "")
-	t.Setenv("ROUTER_HARD_PIN_PROVIDER", providers.ProviderOpenAI)
+	t.Setenv("ROUTER_HARD_PIN_PROVIDER", providers.ProviderAIAND)
 
 	_, _, err := resolveHardPinModel(nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	assert.ErrorContains(t, err, "requires ROUTER_HARD_PIN_MODEL")

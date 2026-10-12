@@ -590,7 +590,7 @@ func TestService_RouterFeedbackCommand_OpenAIIngress(t *testing.T) {
 	}`
 	store := newFakePinStore()
 	feedback := &fakeFeedbackStore{}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "qwen/qwen3.8-27b", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "qwen/qwen3.8-27b", Reason: "cluster"}}
 	svc := newOpenAIPinSvc(fr, store).WithRouterFeedbackStore(feedback)
 
 	ctx := authedCtx(uuid.New().String())
@@ -713,7 +713,7 @@ func TestService_RouterFeedbackCommand_ThumbsDownShortcutWithNote(t *testing.T) 
 	}`
 	store := newFakePinStore()
 	feedback := &fakeFeedbackStore{}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "qwen/qwen3.8-27b", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "qwen/qwen3.8-27b", Reason: "cluster"}}
 	svc := newOpenAIPinSvc(fr, store).WithRouterFeedbackStore(feedback)
 
 	ctx := authedCtx(uuid.New().String())

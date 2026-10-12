@@ -31,10 +31,12 @@ INGEST_LAG_PAD = timedelta(minutes=30)
 EXPORT_HOLDBACK = timedelta(seconds=90)
 NEXT_CURSOR_HEADER = "X-Weave-Next-Cursor"
 HAS_MORE_HEADER = "X-Weave-Has-More"
-# ``decision_provider`` value whose ``input_tokens`` already excludes cached
-# tokens; every other upstream reports a cache-inclusive prompt count
-# (mirrors ``catalog.EffectiveInputCost``).
-FRESH_INPUT_PROVIDER = "anthropic"
+# ``decision_provider`` value whose ``input_tokens`` folds cached tokens into
+# the prompt count (an OpenAI-compat/fresh-only wire family); every other
+# upstream reports an already-fresh-only prompt count
+# (mirrors ``catalog.EffectiveInputCost``). The router's only upstream is
+# ``aiand``, an OpenAI-compat provider, so every row it serves is cache-inclusive.
+FRESH_INPUT_PROVIDER = "aiand"
 
 
 class AnalyticsColumn(StrEnum):
@@ -83,7 +85,7 @@ def row_int(row: DecisionRow, column: AnalyticsColumn) -> int:
 def row_fresh_input_tokens(row: DecisionRow) -> int:
     """Input tokens billed at the base rate, i.e. net of cache writes and reads."""
     input_tokens = row_int(row, AnalyticsColumn.INPUT_TOKENS)
-    if row.get(AnalyticsColumn.DECISION_PROVIDER) == FRESH_INPUT_PROVIDER:
+    if row.get(AnalyticsColumn.DECISION_PROVIDER) != FRESH_INPUT_PROVIDER:
         return input_tokens
     cached = row_int(row, AnalyticsColumn.CACHE_CREATION_TOKENS) + row_int(row, AnalyticsColumn.CACHE_READ_TOKENS)
     return max(input_tokens - cached, 0)

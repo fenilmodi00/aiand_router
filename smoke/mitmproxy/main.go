@@ -98,7 +98,7 @@ func envOr(key, def string) string {
 
 // liveClient is the client used to reach the real upstream when recording. It
 // uses the host's real root store (this process runs on the host/runner, not in
-// the distroless container), so it verifies api.anthropic.com normally.
+// the distroless container), so it verifies the upstream's TLS normally.
 func liveClient() *http.Client {
 	return &http.Client{Timeout: 120 * time.Second}
 }

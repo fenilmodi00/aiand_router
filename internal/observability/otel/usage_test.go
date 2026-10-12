@@ -15,7 +15,7 @@ import (
 
 func TestUsageExtractor_AnthropicNonStreaming(t *testing.T) {
 	rec := httptest.NewRecorder()
-	ext := otel.NewUsageExtractor(rec, "anthropic")
+	ext := otel.NewUsageExtractor(rec, providers.ProviderAnthropic)
 
 	body := `{"id":"msg_123","type":"message","role":"assistant","content":[{"type":"text","text":"Hello!"}],"model":"claude-sonnet-4-5","stop_reason":"end_turn","usage":{"input_tokens":42,"output_tokens":17}}`
 	_, err := ext.Write([]byte(body))
@@ -28,7 +28,7 @@ func TestUsageExtractor_AnthropicNonStreaming(t *testing.T) {
 
 func TestUsageExtractor_AnthropicStreaming(t *testing.T) {
 	rec := httptest.NewRecorder()
-	ext := otel.NewUsageExtractor(rec, "anthropic")
+	ext := otel.NewUsageExtractor(rec, providers.ProviderAnthropic)
 
 	events := []string{
 		"event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"claude-sonnet-4-5\",\"usage\":{\"input_tokens\":100,\"output_tokens\":0}}}\n\n",
@@ -48,7 +48,7 @@ func TestUsageExtractor_AnthropicStreaming(t *testing.T) {
 
 func TestUsageExtractor_OpenAINonStreaming(t *testing.T) {
 	rec := httptest.NewRecorder()
-	ext := otel.NewUsageExtractor(rec, "openai")
+	ext := otel.NewUsageExtractor(rec, providers.ProviderAIAND)
 
 	body := `{"id":"chatcmpl-1","object":"chat.completion","choices":[{"message":{"role":"assistant","content":"Hi"},"finish_reason":"stop"}],"usage":{"prompt_tokens":15,"completion_tokens":8,"total_tokens":23}}`
 	_, err := ext.Write([]byte(body))
@@ -61,7 +61,7 @@ func TestUsageExtractor_OpenAINonStreaming(t *testing.T) {
 
 func TestUsageExtractor_OpenAIStreaming(t *testing.T) {
 	rec := httptest.NewRecorder()
-	ext := otel.NewUsageExtractor(rec, "openai")
+	ext := otel.NewUsageExtractor(rec, providers.ProviderAIAND)
 
 	events := []string{
 		"data: {\"id\":\"chatcmpl-1\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"delta\":{\"content\":\"Hi\"}}]}\n\n",
@@ -86,7 +86,7 @@ func TestUsageExtractor_OpenAIResponsesStreaming(t *testing.T) {
 	// not the chat-completions prompt_tokens shape. Billing the 5% subscription
 	// fee depends on this parse.
 	rec := httptest.NewRecorder()
-	ext := otel.NewUsageExtractor(rec, "openai")
+	ext := otel.NewUsageExtractor(rec, providers.ProviderAIAND)
 
 	events := []string{
 		"event: response.created\ndata: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_1\"}}\n\n",
@@ -107,7 +107,7 @@ func TestUsageExtractor_OpenAIResponsesStreaming(t *testing.T) {
 
 func TestUsageExtractor_OpenAIResponsesCacheWriteTokens(t *testing.T) {
 	rec := httptest.NewRecorder()
-	ext := otel.NewUsageExtractor(rec, "openai")
+	ext := otel.NewUsageExtractor(rec, providers.ProviderAIAND)
 
 	events := []string{
 		"event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"usage\":{\"input_tokens\":1200,\"output_tokens\":34,\"input_tokens_details\":{\"cached_tokens\":800,\"cache_write_tokens\":256}}}}\n\n",
@@ -124,7 +124,7 @@ func TestUsageExtractor_OpenAIResponsesCacheWriteTokens(t *testing.T) {
 
 func TestUsageExtractor_OpenAIResponsesNonStreaming(t *testing.T) {
 	rec := httptest.NewRecorder()
-	ext := otel.NewUsageExtractor(rec, "openai")
+	ext := otel.NewUsageExtractor(rec, providers.ProviderAIAND)
 
 	body := `{"id":"resp_2","object":"response","usage":{"input_tokens":50,"output_tokens":9,"input_tokens_details":{"cached_tokens":0}}}`
 	_, err := ext.Write([]byte(body))
@@ -137,7 +137,7 @@ func TestUsageExtractor_OpenAIResponsesNonStreaming(t *testing.T) {
 
 func TestUsageExtractor_NoUsageReturnsZero(t *testing.T) {
 	rec := httptest.NewRecorder()
-	ext := otel.NewUsageExtractor(rec, "anthropic")
+	ext := otel.NewUsageExtractor(rec, providers.ProviderAnthropic)
 
 	body := `{"id":"msg_1","type":"message","content":[]}`
 	_, err := ext.Write([]byte(body))
@@ -154,7 +154,7 @@ func TestUsageExtractor_NoUsageReturnsZero(t *testing.T) {
 
 func TestUsageExtractor_AnthropicCacheTokens_NonStreaming(t *testing.T) {
 	rec := httptest.NewRecorder()
-	ext := otel.NewUsageExtractor(rec, "anthropic")
+	ext := otel.NewUsageExtractor(rec, providers.ProviderAnthropic)
 
 	body := `{"id":"msg_456","type":"message","role":"assistant","content":[{"type":"text","text":"OK"}],"model":"claude-sonnet-4-5","stop_reason":"end_turn","usage":{"input_tokens":42,"output_tokens":17,"cache_creation_input_tokens":256,"cache_read_input_tokens":1024}}`
 	_, err := ext.Write([]byte(body))
@@ -171,7 +171,7 @@ func TestUsageExtractor_AnthropicCacheTokens_NonStreaming(t *testing.T) {
 
 func TestUsageExtractor_AnthropicCacheTokens_Streaming(t *testing.T) {
 	rec := httptest.NewRecorder()
-	ext := otel.NewUsageExtractor(rec, "anthropic")
+	ext := otel.NewUsageExtractor(rec, providers.ProviderAnthropic)
 
 	// cache tokens arrive in message_start; subsequent message_delta carries
 	// only output_tokens and must not clobber the cache values.
@@ -197,7 +197,7 @@ func TestUsageExtractor_AnthropicCacheTokens_Streaming(t *testing.T) {
 
 func TestUsageExtractor_OpenAICacheTokens_NonStreaming(t *testing.T) {
 	rec := httptest.NewRecorder()
-	ext := otel.NewUsageExtractor(rec, "openai")
+	ext := otel.NewUsageExtractor(rec, providers.ProviderAIAND)
 
 	// OpenAI exposes cached prompt tokens via prompt_tokens_details.cached_tokens.
 	// GPT-5.4 and earlier have no write field, so cache_creation stays at 0.
@@ -216,7 +216,7 @@ func TestUsageExtractor_OpenAICacheTokens_NonStreaming(t *testing.T) {
 
 func TestUsageExtractor_OpenAIChatCompletionsCacheWriteTokens(t *testing.T) {
 	rec := httptest.NewRecorder()
-	ext := otel.NewUsageExtractor(rec, "openai")
+	ext := otel.NewUsageExtractor(rec, providers.ProviderAIAND)
 
 	body := `{"id":"chatcmpl-2","object":"chat.completion","choices":[{"message":{"role":"assistant","content":"Hi"},"finish_reason":"stop"}],"usage":{"prompt_tokens":80,"completion_tokens":8,"prompt_tokens_details":{"cached_tokens":42,"cache_write_tokens":16}}}`
 	_, err := ext.Write([]byte(body))
@@ -229,7 +229,7 @@ func TestUsageExtractor_OpenAIChatCompletionsCacheWriteTokens(t *testing.T) {
 
 func TestUsageExtractor_OpenAICacheTokens_Streaming(t *testing.T) {
 	rec := httptest.NewRecorder()
-	ext := otel.NewUsageExtractor(rec, "openai")
+	ext := otel.NewUsageExtractor(rec, providers.ProviderAIAND)
 
 	events := []string{
 		"data: {\"id\":\"chatcmpl-2\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"delta\":{\"content\":\"Hi\"}}]}\n\n",
@@ -255,7 +255,7 @@ func TestUsageExtractor_RecordedUsageSurvivesUsagelessChunk(t *testing.T) {
 	// Some OpenAI-compat upstreams keep emitting a null/empty usage object
 	// after the terminal chunk; that must not wipe the counts already seen.
 	rec := httptest.NewRecorder()
-	ext := otel.NewUsageExtractor(rec, providers.ProviderOpenAI)
+	ext := otel.NewUsageExtractor(rec, providers.ProviderAIAND)
 
 	events := []string{
 		"data: {\"id\":\"chatcmpl-1\",\"object\":\"chat.completion.chunk\",\"choices\":[],\"usage\":{\"prompt_tokens\":20,\"completion_tokens\":12}}\n\n",
@@ -336,7 +336,7 @@ func TestUsageExtractor_AnthropicResponse(t *testing.T) {
 		},
 		{
 			name:     "openai family leaves the accessor unobserved",
-			provider: "openai",
+			provider: providers.ProviderAIAND,
 			writes: []string{
 				"data: {\"id\":\"chatcmpl-1\",\"choices\":[{\"delta\":{\"content\":\"Hi\"},\"finish_reason\":\"tool_calls\"}]}\n\n",
 				"data: {\"id\":\"chatcmpl-1\",\"choices\":[],\"usage\":{\"prompt_tokens\":20,\"completion_tokens\":12}}\n\n",
@@ -387,7 +387,7 @@ func TestUsageExtractor_OpenAIChatResponse(t *testing.T) {
 	}{
 		{
 			name:             "streaming tool turn counts each call once",
-			provider:         "openai",
+			provider:         providers.ProviderAIAND,
 			writes:           chatToolTurn,
 			wantFinishReason: "tool_calls",
 			wantToolCalls:    2,
@@ -395,7 +395,7 @@ func TestUsageExtractor_OpenAIChatResponse(t *testing.T) {
 		},
 		{
 			name:     "streaming text turn is a measured zero",
-			provider: "openai",
+			provider: providers.ProviderAIAND,
 			writes: []string{
 				"data: {\"id\":\"chatcmpl-1\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"hi\"}}]}\n\n",
 				"data: {\"id\":\"chatcmpl-1\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n",
@@ -407,7 +407,7 @@ func TestUsageExtractor_OpenAIChatResponse(t *testing.T) {
 		},
 		{
 			name:             "stream cut before finish_reason is unobserved",
-			provider:         "openai",
+			provider:         providers.ProviderAIAND,
 			writes:           chatToolTurn[:4],
 			wantFinishReason: "",
 			wantToolCalls:    0,
@@ -423,7 +423,7 @@ func TestUsageExtractor_OpenAIChatResponse(t *testing.T) {
 		},
 		{
 			name:     "non-streaming body",
-			provider: "openai",
+			provider: providers.ProviderAIAND,
 			writes: []string{
 				"{\"id\":\"chatcmpl-1\",\"object\":\"chat.completion\",\"choices\":[{\"index\":0,\"finish_reason\":\"tool_calls\"," +
 					"\"message\":{\"role\":\"assistant\",\"tool_calls\":[{\"id\":\"call_1\",\"function\":{\"name\":\"read\",\"arguments\":\"{}\"}}]}}]," +
@@ -435,7 +435,7 @@ func TestUsageExtractor_OpenAIChatResponse(t *testing.T) {
 		},
 		{
 			name:     "responses frames carry no choices and stay unobserved",
-			provider: "openai",
+			provider: providers.ProviderAIAND,
 			writes: []string{
 				"event: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"delta\":\"hi\"}\n\n",
 				"event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"status\":\"completed\",\"output\":[],\"usage\":{\"input_tokens\":9,\"output_tokens\":3}}}\n\n",
@@ -502,10 +502,10 @@ func TestUsageExtractor_OutputLimitEvidence(t *testing.T) {
 		{"anthropic long tool handoff", providers.ProviderAnthropic, "tool_use", 32000, false},
 		{"anthropic long answer", providers.ProviderAnthropic, "end_turn", 32000, false},
 		{"anthropic missing terminal", providers.ProviderAnthropic, "", 16000, false},
-		{"chat cap", providers.ProviderOpenAI, "length", 8192, true},
-		{"chat long tool handoff", providers.ProviderOpenAI, "tool_calls", 32000, false},
-		{"chat long answer", providers.ProviderOpenAI, "stop", 32000, false},
-		{"chat missing terminal", providers.ProviderOpenAI, "", 16000, false},
+		{"chat cap", providers.ProviderAIAND, "length", 8192, true},
+		{"chat long tool handoff", providers.ProviderAIAND, "tool_calls", 32000, false},
+		{"chat long answer", providers.ProviderAIAND, "stop", 32000, false},
+		{"chat missing terminal", providers.ProviderAIAND, "", 16000, false},
 	}
 	for _, tc := range tests {
 		for _, stream := range []bool{false, true} {
@@ -522,11 +522,6 @@ func TestUsageExtractor_OutputLimitEvidence(t *testing.T) {
 					body = fmt.Sprintf(`{"choices":[{"index":0,"message":{"content":"answer"},"delta":{"content":"answer"},"finish_reason":%q}],"usage":{"prompt_tokens":100,"completion_tokens":%d}}`, tc.reason, tc.output)
 					if stream {
 						body = "data: " + body + "\n\ndata: [DONE]\n\n"
-					}
-				case providers.FamilyGemini:
-					body = fmt.Sprintf(`{"candidates":[{"content":{"parts":[{"text":"answer"}]},"finishReason":%q}],"usageMetadata":{"promptTokenCount":100,"candidatesTokenCount":%d}}`, tc.reason, tc.output)
-					if stream {
-						body = "data: " + body + "\n\n"
 					}
 				}
 				rec := httptest.NewRecorder()
@@ -545,14 +540,14 @@ func TestUsageExtractor_OutputLimitEvidence(t *testing.T) {
 }
 
 func TestUsageExtractor_OutputLimitIsAttemptScoped(t *testing.T) {
-	capped := otel.NewUsageExtractor(httptest.NewRecorder(), providers.ProviderOpenAI)
+	capped := otel.NewUsageExtractor(httptest.NewRecorder(), providers.ProviderAIAND)
 	_, err := capped.Write([]byte("data: {\"choices\":[{\"finish_reason\":\"length\"}]}\n\n"))
 	require.NoError(t, err)
 	_, err = capped.Write([]byte("data: {\"choices\":[],\"usage\":{\"completion_tokens\":128}}\n\n"))
 	require.NoError(t, err)
 	assert.True(t, capped.OutputLimitReached(), "usage-only tails cannot erase the terminal cap")
 
-	winner := otel.NewUsageExtractor(httptest.NewRecorder(), providers.ProviderOpenAI)
+	winner := otel.NewUsageExtractor(httptest.NewRecorder(), providers.ProviderAIAND)
 	_, err = winner.Write([]byte("data: {\"choices\":[{\"finish_reason\":\"tool_calls\"}],\"usage\":{\"completion_tokens\":32000}}\n\n"))
 	require.NoError(t, err)
 	assert.False(t, winner.OutputLimitReached(), "another attempt has independent terminal evidence")
@@ -708,7 +703,7 @@ func TestUsageExtractor_FragmentationMatchesSingleWrite(t *testing.T) {
 		},
 		{
 			name:     "openai chat tool stream",
-			provider: providers.ProviderOpenAI,
+			provider: providers.ProviderAIAND,
 			body:     openAIChatToolStream,
 			want: usageTotals{
 				signals: usageSignals{finishReason: "tool_calls", toolCalls: 2, chatObserved: true},
@@ -717,7 +712,7 @@ func TestUsageExtractor_FragmentationMatchesSingleWrite(t *testing.T) {
 		},
 		{
 			name:     "openai chat stream capped at length",
-			provider: providers.ProviderOpenAI,
+			provider: providers.ProviderAIAND,
 			body:     strings.Replace(openAIChatToolStream, `"finish_reason":"tool_calls"`, `"finish_reason":"length"`, 1),
 			want: usageTotals{
 				signals: usageSignals{outputLimitReached: true, finishReason: "length", toolCalls: 2, chatObserved: true},
@@ -726,7 +721,7 @@ func TestUsageExtractor_FragmentationMatchesSingleWrite(t *testing.T) {
 		},
 		{
 			name:     "openai chat non-streaming body",
-			provider: providers.ProviderOpenAI,
+			provider: providers.ProviderAIAND,
 			body: `{"id":"chatcmpl-1","object":"chat.completion","choices":[{"index":0,"finish_reason":"tool_calls",` +
 				`"message":{"role":"assistant","tool_calls":[{"id":"call_1","function":{"name":"read","arguments":"{}"}}]}}],` +
 				`"usage":{"prompt_tokens":15,"completion_tokens":8,"prompt_tokens_details":{"cached_tokens":4,"cache_write_tokens":2}}}`,
@@ -737,7 +732,7 @@ func TestUsageExtractor_FragmentationMatchesSingleWrite(t *testing.T) {
 		},
 		{
 			name:     "openai responses stream",
-			provider: providers.ProviderOpenAI,
+			provider: providers.ProviderAIAND,
 			body: "event: response.created\ndata: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_1\"}}\n\n" +
 				"event: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"delta\":\"hi\"}\n\n" +
 				"event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"usage\":{\"input_tokens\":120,\"output_tokens\":34,\"input_tokens_details\":{\"cached_tokens\":40}}}}\n\n",

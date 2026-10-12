@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -42,6 +43,11 @@ type SSETranslator struct {
 	usageSink   UsageSink
 	inputTokens int // persists input token count from message_start for use in handleMessageDelta
 	lifecycle   *StreamLifecycle
+
+	// latchedErr keeps a stream-level upstream failure seen during Write: the
+	// upstream may then return without error, and replaying the event at
+	// Finalize would read the missing terminal as an empty, retryable stream.
+	latchedErr error
 }
 
 // NewSSETranslator wraps w. Call Finalize after upstream returns.
@@ -102,6 +108,9 @@ func (t *SSETranslator) Finalize() error {
 	if t.streaming {
 		if err := t.processFinalSSETail(); err != nil {
 			return err
+		}
+		if t.latchedErr != nil {
+			return t.latchedErr
 		}
 		if err := t.lifecycle.EOF(); err != nil {
 			if t.lifecycle.OutputStarted() {
@@ -191,6 +200,11 @@ func (t *SSETranslator) translateEvent(raw []byte) error {
 		return t.handleContentBlockStop()
 	case "message_delta":
 		return t.handleMessageDelta(data)
+	case "error":
+		// A stream-level failure: surface it as the upstream rejection it is so
+		// dispatch classifies it instead of reading the missing terminal as an
+		// empty, retryable stream.
+		return t.handleStreamErrorEvent(data)
 	case "message_stop":
 		if t.lifecycle.State() == StreamIdle {
 			if err := t.lifecycle.Start(); err != nil {
@@ -377,6 +391,58 @@ func (t *SSETranslator) emitStreamFailure() error {
 	}
 	t.bw.WriteString("data: {\"error\":{\"message\":\"upstream stream ended before a terminal event\",\"type\":\"api_error\"}}\n\n")
 	return t.flushEvent()
+}
+
+// handleStreamErrorEvent surfaces an upstream `event: error` frame. Pre-output
+// the failure is latched and returned as an *UpstreamErrorResponse carrying the
+// upstream's own type and message, so dispatch classifies the provider's
+// verdict instead of reading the missing terminal as an empty, retryable
+// stream. After output the frame is written out, since the stream is already
+// committed to the client.
+func (t *SSETranslator) handleStreamErrorEvent(data []byte) error {
+	if t.latchedErr != nil {
+		if err := t.lifecycle.Fail(); err != nil && !errors.Is(err, ErrStreamOrder) {
+			return err
+		}
+		return t.latchedErr
+	}
+	errType := gjson.GetBytes(data, "error.type").String()
+	message := gjson.GetBytes(data, "error.message").String()
+	if !t.lifecycle.OutputStarted() {
+		body, err := json.Marshal(map[string]any{"error": map[string]any{"message": message, "type": errType}})
+		if err != nil {
+			return err
+		}
+		t.latchedErr = &providers.UpstreamErrorResponse{Status: http.StatusBadRequest, Body: body}
+	} else {
+		t.bw.WriteString("data: ")
+		t.bw.Write(anthropicStreamErrorBody(errType, message))
+		t.bw.WriteString("\n\n")
+		if err := t.flushEvent(); err != nil {
+			return err
+		}
+		t.latchedErr = nil
+	}
+	if err := t.lifecycle.Fail(); err != nil && !errors.Is(err, ErrStreamOrder) {
+		return err
+	}
+	return t.latchedErr
+}
+
+// anthropicStreamErrorBody renders an Anthropic `event: error` frame's payload
+// as the OpenAI-shaped error body a client reads.
+func anthropicStreamErrorBody(errType, message string) []byte {
+	if errType == "" {
+		errType = "api_error"
+	}
+	if message == "" {
+		message = "upstream stream failed"
+	}
+	body, err := json.Marshal(map[string]any{"error": map[string]any{"message": message, "type": errType}})
+	if err != nil {
+		return []byte(`{"error":{"message":"upstream stream failed","type":"api_error"}}`)
+	}
+	return body
 }
 
 func (t *SSETranslator) flushEvent() error {
@@ -1308,14 +1374,6 @@ func leadsWithToolishMarkup(content string) bool {
 // is clean prose (no tool-call markup) — that's a legitimate finished answer,
 // and nudging it would revive an already-done turn. finish_reason="length"
 // never nudges (truncation, not a parse failure).
-//
-// Gemini-3.x is excluded entirely: the synthesized tool_use has no
-// thoughtSignature, and Gemini-3.x requires one on every functionCall across
-// turns. A sig-less nudge makes writeGeminiFromAnthropic drop the whole
-// tool_use/tool_result history (emit_gemini.go dropToolBlocks), wiping prior
-// context and looping the model to the turn ceiling — empirically far worse
-// (≥90-turn loops 4→46 in the v0.59 bake-off). OpenAI-compat models this was
-// built for have no such guard and still benefit.
 func (t *AnthropicSSETranslator) synthesizeTextOnlyTurnNudge() error {
 	if t.toolUseEmitted || !t.requestHadTools || !t.started {
 		return nil
@@ -1336,14 +1394,6 @@ func (t *AnthropicSSETranslator) synthesizeTextOnlyTurnNudge() error {
 		if t.sawText && !leadsWithToolishMarkup(t.leadingContent.String()) {
 			return nil
 		}
-	}
-	if isGemini3xModel(t.requestModel) || isGemini3xModel(t.modelFromUpstream) {
-		t.log().Debug(
-			"AnthropicSSE suppressed text-only-turn nudge on Gemini-3.x (sig-less tool_use would poison next-turn history)",
-			"upstream_model", t.modelFromUpstream,
-			"request_model", t.requestModel,
-		)
-		return nil
 	}
 	blockIdx := t.blockIdx
 	id := "toolu_router_nudge_" + t.messageID

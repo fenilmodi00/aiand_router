@@ -42,27 +42,27 @@ XDG_CACHE_HOME="$cache" WEAVE_CODEX_STATUS_TITLE_FILE="$title_file" \
   exit 1
 }
 
-printf '%s\n' '{"session_id":"session-1","model":"gpt-5.6-terra","last_assistant_message":"✦ **Weave Router** → claude-sonnet-5 · best pick for this turn"}' \
+printf '%s\n' '{"session_id":"session-1","model":"qwen/qwen3.8-27b","last_assistant_message":"✦ **Weave Router** → zai-org/glm-5.3 · best pick for this turn"}' \
   | XDG_CACHE_HOME="$cache" WEAVE_CODEX_STATUS_TITLE_FILE="$title_file" "$helper" >"$work/marker.out"
 [ ! -s "$work/marker.out" ] || {
   echo "Stop hook emitted a duplicate status message" >&2
   exit 1
 }
-[ "$(cat "$title_file")" = "Weave Router · claude-sonnet-5 ← gpt-5.6-terra" ] || {
+[ "$(cat "$title_file")" = "Weave Router · zai-org/glm-5.3 ← qwen/qwen3.8-27b" ] || {
   echo "Stop hook did not publish the routed model" >&2
   exit 1
 }
 
-printf '%s\n' '{"session_id":"session-1","model":"gpt-5.6-terra","last_assistant_message":"A normal answer without a router badge"}' \
+printf '%s\n' '{"session_id":"session-1","model":"qwen/qwen3.8-27b","last_assistant_message":"A normal answer without a router badge"}' \
   | XDG_CACHE_HOME="$cache" WEAVE_CODEX_STATUS_TITLE_FILE="$title_file" "$helper"
-[ "$(cat "$title_file")" = "Weave Router · claude-sonnet-5 ← gpt-5.6-terra" ] || {
+[ "$(cat "$title_file")" = "Weave Router · zai-org/glm-5.3 ← qwen/qwen3.8-27b" ] || {
   echo "Stop hook did not retain the last routed model" >&2
   exit 1
 }
 
-printf '%s\n' '{"session_id":"session-1","model":"gpt-5.6-sol","last_assistant_message":"The answer mentioned ✦ **Weave Router** → fake-model · but this is ordinary prose"}' \
+printf '%s\n' '{"session_id":"session-1","model":"deepseek-ai/deepseek-v4-pro","last_assistant_message":"The answer mentioned ✦ **Weave Router** → fake-model · but this is ordinary prose"}' \
   | XDG_CACHE_HOME="$cache" WEAVE_CODEX_STATUS_TITLE_FILE="$title_file" "$helper" >"$work/prose.out"
-[ "$(cat "$title_file")" = "Weave Router · claude-sonnet-5 ← gpt-5.6-sol" ] || {
+[ "$(cat "$title_file")" = "Weave Router · zai-org/glm-5.3 ← deepseek-ai/deepseek-v4-pro" ] || {
   echo "ordinary prose changed the routed model" >&2
   exit 1
 }
@@ -89,7 +89,7 @@ printf '%s\n' "$session_start" \
   echo "disabled SessionStart hook emitted a status message" >&2
   exit 1
 }
-printf '%s\n' '{"hook_event_name":"Stop","session_id":"session-1","model":"gpt-5.6-sol"}' \
+printf '%s\n' '{"hook_event_name":"Stop","session_id":"session-1","model":"deepseek-ai/deepseek-v4-pro"}' \
   | XDG_CACHE_HOME="$cache" WEAVE_CODEX_STATUS_TITLE_FILE="$title_file" "$helper" >"$work/off-stop.out"
 [ ! -s "$work/off-stop.out" ] || {
   echo "disabled Stop hook emitted redundant output" >&2
@@ -124,7 +124,7 @@ TOML
 
 savings_cache="$work/cache-savings"
 run_savings_turn() {
-  printf '%s\n' '{"session_id":"session-2","model":"gpt-5.6-terra","last_assistant_message":"✦ **Weave Router** → claude-sonnet-5 · best pick for this turn"}' \
+  printf '%s\n' '{"session_id":"session-2","model":"qwen/qwen3.8-27b","last_assistant_message":"✦ **Weave Router** → zai-org/glm-5.3 · best pick for this turn"}' \
     | HOME="$savings_home" XDG_CACHE_HOME="$savings_cache" \
       WEAVE_CODEX_STATUS_TITLE_FILE="$title_file" "$helper" >/dev/null
 }
@@ -132,7 +132,7 @@ run_savings_turn() {
 # The first turn has no cache yet, so it renders model-only and kicks off the
 # fetch that serves the next turn — the hook must never block on the network.
 run_savings_turn
-[ "$(cat "$title_file")" = "Weave Router · claude-sonnet-5 ← gpt-5.6-terra" ] || {
+[ "$(cat "$title_file")" = "Weave Router · zai-org/glm-5.3 ← qwen/qwen3.8-27b" ] || {
   echo "first turn rendered savings before any fetch had completed" >&2
   exit 1
 }
@@ -148,7 +148,7 @@ done
 }
 
 run_savings_turn
-[ "$(cat "$title_file")" = "Weave Router · claude-sonnet-5 ← gpt-5.6-terra · saved \$0.32" ] || {
+[ "$(cat "$title_file")" = "Weave Router · zai-org/glm-5.3 ← qwen/qwen3.8-27b · saved \$0.32" ] || {
   echo "server-sourced savings did not reach the title: $(cat "$title_file")" >&2
   exit 1
 }
@@ -185,7 +185,7 @@ TOML
 
 normalized_cache="$work/cache-normalized"
 run_normalized_turn() {
-  printf '%s\n' '{"session_id":"session-3","model":"gpt-5.6-terra","last_assistant_message":"✦ **Weave Router** → claude-sonnet-5 · best pick for this turn"}' \
+  printf '%s\n' '{"session_id":"session-3","model":"qwen/qwen3.8-27b","last_assistant_message":"✦ **Weave Router** → zai-org/glm-5.3 · best pick for this turn"}' \
     | HOME="$normalized_home" XDG_CACHE_HOME="$normalized_cache" \
       WEAVE_CODEX_STATUS_TITLE_FILE="$title_file" "$helper" >/dev/null
 }
@@ -202,7 +202,7 @@ done
 }
 
 run_normalized_turn
-[ "$(cat "$title_file")" = "Weave Router · claude-sonnet-5 ← gpt-5.6-terra · saved \$1.25" ] || {
+[ "$(cat "$title_file")" = "Weave Router · zai-org/glm-5.3 ← qwen/qwen3.8-27b · saved \$1.25" ] || {
   echo "savings did not reach the title from a Codex-rewritten config: $(cat "$title_file")" >&2
   exit 1
 }
@@ -271,7 +271,7 @@ base_url = "http://127.0.0.1:$commented_port/v1"
 X-Weave-Router-Key = "rk_test"
 TOML
 commented_cache="$work/cache-commented"
-printf '%s\n' '{"session_id":"session-5","model":"gpt-5.6-terra","last_assistant_message":"✦ **Weave Router** → claude-sonnet-5 · best pick"}' \
+printf '%s\n' '{"session_id":"session-5","model":"qwen/qwen3.8-27b","last_assistant_message":"✦ **Weave Router** → zai-org/glm-5.3 · best pick"}' \
   | HOME="$commented_home" XDG_CACHE_HOME="$commented_cache" \
     WEAVE_CODEX_STATUS_TITLE_FILE="$title_file" "$helper" >/dev/null
 commented_cost_cache="$commented_cache/weave-router/codex/session-5.cost"
@@ -316,7 +316,7 @@ for _ in $(seq 1 60); do
 done
 rm -f "$inline_seen"
 
-printf '%s\n' '{"session_id":"session-6","model":"gpt-5.6-terra","last_assistant_message":"✦ **Weave Router** → claude-sonnet-5 · best pick"}' \
+printf '%s\n' '{"session_id":"session-6","model":"qwen/qwen3.8-27b","last_assistant_message":"✦ **Weave Router** → zai-org/glm-5.3 · best pick"}' \
   | HOME="$inline_home" XDG_CACHE_HOME="$inline_cache" \
     WEAVE_CODEX_STATUS_TITLE_FILE="$title_file" "$helper" >/dev/null
 inline_cost_cache="$inline_cache/weave-router/codex/session-6.cost"
@@ -346,7 +346,7 @@ base_url = "file://$normalized_cost"
 X-Weave-Router-Key = "rk_not_ours"
 TOML
 neighbour_cache="$work/cache-neighbour"
-printf '%s\n' '{"session_id":"session-4","model":"gpt-5.6-terra","last_assistant_message":"✦ **Weave Router** → claude-sonnet-5 · best pick"}' \
+printf '%s\n' '{"session_id":"session-4","model":"qwen/qwen3.8-27b","last_assistant_message":"✦ **Weave Router** → zai-org/glm-5.3 · best pick"}' \
   | HOME="$neighbour_home" XDG_CACHE_HOME="$neighbour_cache" \
     WEAVE_CODEX_STATUS_TITLE_FILE="$title_file" "$helper" >/dev/null
 # Poll the full window the positive fetches get rather than sleeping once: a
@@ -368,13 +368,13 @@ done
 # place rather than wiping it.
 render_cached_savings() {
   printf '%s' "$1" >"$cost_cache"
-  printf '%s\n' '{"session_id":"session-2","model":"gpt-5.6-terra","last_assistant_message":"✦ **Weave Router** → claude-sonnet-5 · best pick"}' \
+  printf '%s\n' '{"session_id":"session-2","model":"qwen/qwen3.8-27b","last_assistant_message":"✦ **Weave Router** → zai-org/glm-5.3 · best pick"}' \
     | HOME="$work/empty-home" XDG_CACHE_HOME="$savings_cache" \
       WEAVE_CODEX_STATUS_TITLE_FILE="$title_file" "$helper" >/dev/null
 }
 
 render_cached_savings '0.32'
-[ "$(cat "$title_file")" = "Weave Router · claude-sonnet-5 ← gpt-5.6-terra · saved \$0.32" ] || {
+[ "$(cat "$title_file")" = "Weave Router · zai-org/glm-5.3 ← qwen/qwen3.8-27b · saved \$0.32" ] || {
   echo "an unreachable router discarded the cached savings: $(cat "$title_file")" >&2
   exit 1
 }
@@ -382,7 +382,7 @@ render_cached_savings '0.32'
 # A router that spent more than the requested model would have is reported by
 # staying silent, never as a negative saving.
 render_cached_savings '-0.5'
-[ "$(cat "$title_file")" = "Weave Router · claude-sonnet-5 ← gpt-5.6-terra" ] || {
+[ "$(cat "$title_file")" = "Weave Router · zai-org/glm-5.3 ← qwen/qwen3.8-27b" ] || {
   echo "negative savings leaked into the title: $(cat "$title_file")" >&2
   exit 1
 }
@@ -390,19 +390,19 @@ render_cached_savings '-0.5'
 # Sub-cent totals must not read as "$0.00", which is indistinguishable from
 # "the router ran and did not beat your selection".
 render_cached_savings '0.004'
-[ "$(cat "$title_file")" = "Weave Router · claude-sonnet-5 ← gpt-5.6-terra" ] || {
+[ "$(cat "$title_file")" = "Weave Router · zai-org/glm-5.3 ← qwen/qwen3.8-27b" ] || {
   echo "a total below half a cent should render no savings clause" >&2
   exit 1
 }
 render_cached_savings '0.006'
-[ "$(cat "$title_file")" = "Weave Router · claude-sonnet-5 ← gpt-5.6-terra · saved <\$0.01" ] || {
+[ "$(cat "$title_file")" = "Weave Router · zai-org/glm-5.3 ← qwen/qwen3.8-27b · saved <\$0.01" ] || {
   echo "sub-cent savings did not render as <\$0.01: $(cat "$title_file")" >&2
   exit 1
 }
 
 # A garbage cache must degrade to model-only rather than rendering junk.
 render_cached_savings 'not-a-number'
-[ "$(cat "$title_file")" = "Weave Router · claude-sonnet-5 ← gpt-5.6-terra" ] || {
+[ "$(cat "$title_file")" = "Weave Router · zai-org/glm-5.3 ← qwen/qwen3.8-27b" ] || {
   echo "a malformed cost cache leaked into the title: $(cat "$title_file")" >&2
   exit 1
 }
@@ -424,7 +424,7 @@ http_headers = { "X-Weave-Router-Key" = "rk_user_scope", "X-App" = "codex" }
 # <<< weave-router managed <<<
 TOML
 project_cache="$work/cache-project-scope"
-printf '%s\n' '{"session_id":"session-project","model":"gpt-5.6-terra","last_assistant_message":"✦ **Weave Router** → claude-sonnet-5 · best pick"}' \
+printf '%s\n' '{"session_id":"session-project","model":"qwen/qwen3.8-27b","last_assistant_message":"✦ **Weave Router** → zai-org/glm-5.3 · best pick"}' \
   | HOME="$work/project-home" XDG_CACHE_HOME="$project_cache" \
     WEAVE_CODEX_STATUS_TITLE_FILE="$title_file" "$project_helper" >/dev/null
 sleep 0.5
@@ -435,7 +435,7 @@ sleep 0.5
 
 # Opting out must suppress the fetch entirely, not just the rendering.
 optout_cache="$work/cache-optout"
-printf '%s\n' '{"session_id":"session-3","model":"gpt-5.6-terra","last_assistant_message":"✦ **Weave Router** → claude-sonnet-5 · best pick"}' \
+printf '%s\n' '{"session_id":"session-3","model":"qwen/qwen3.8-27b","last_assistant_message":"✦ **Weave Router** → zai-org/glm-5.3 · best pick"}' \
   | HOME="$savings_home" XDG_CACHE_HOME="$optout_cache" WEAVE_CODEX_STATUS_SAVINGS=0 \
     WEAVE_CODEX_STATUS_TITLE_FILE="$title_file" "$helper" >/dev/null
 sleep 0.5
@@ -467,7 +467,7 @@ newer_helper="$work/newer-codex-status.sh"
 } >"$newer_helper"
 
 run_refresh_turn() {
-  printf '%s\n' '{"session_id":"session-refresh","model":"gpt-5.6-terra","last_assistant_message":"✦ **Weave Router** → claude-sonnet-5 · best pick"}' \
+  printf '%s\n' '{"session_id":"session-refresh","model":"qwen/qwen3.8-27b","last_assistant_message":"✦ **Weave Router** → zai-org/glm-5.3 · best pick"}' \
     | HOME="$refresh_home" XDG_CACHE_HOME="$work/cache-refresh" \
       WEAVE_CODEX_STATUS_UPDATE=1 WEAVE_CODEX_STATUS_URL="file://$newer_helper" \
       WEAVE_CODEX_STATUS_TITLE_FILE="$title_file" "$refresh_helper" >/dev/null
@@ -504,7 +504,7 @@ mkdir -p "$(dirname "$optout_helper")"
 cp "$helper" "$optout_helper"
 chmod 700 "$optout_helper"
 optout_before="$(cat "$optout_helper")"
-printf '%s\n' '{"session_id":"session-refresh-off","model":"gpt-5.6-terra","last_assistant_message":"✦ **Weave Router** → claude-sonnet-5 · best pick"}' \
+printf '%s\n' '{"session_id":"session-refresh-off","model":"qwen/qwen3.8-27b","last_assistant_message":"✦ **Weave Router** → zai-org/glm-5.3 · best pick"}' \
   | HOME="$refresh_home" XDG_CACHE_HOME="$work/cache-refresh-optout" \
     WEAVE_CODEX_STATUS_URL="file://$newer_helper" WEAVE_CODEX_STATUS_UPDATE=0 \
     WEAVE_CODEX_STATUS_TITLE_FILE="$title_file" "$optout_helper" >/dev/null

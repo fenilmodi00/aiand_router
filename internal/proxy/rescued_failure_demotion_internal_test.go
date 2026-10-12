@@ -40,24 +40,35 @@ func (c *failingClient) Passthrough(context.Context, providers.PreparedRequest, 
 	return providers.ErrNotImplemented
 }
 
-// servingClient streams one completed OpenAI chat-completions turn on every
-// dispatch (the AIAND target's wire shape).
+// servingClient streams one completed turn on every dispatch, in the wire
+// shape the AIAND target's endpoint expects: a reasoning tool turn promotes to
+// POST /v1/responses (the Messages surface's shape), while the chat/completions
+// surface dispatches the sibling on chat/completions. The request's endpoint
+// picks the dialect, so the same client serves both surfaces.
 type servingClient struct {
 	err   error
 	calls int
 }
 
-func (c *servingClient) Proxy(_ context.Context, _ router.Decision, _ providers.PreparedRequest, w http.ResponseWriter, _ *http.Request) error {
+func (c *servingClient) Proxy(_ context.Context, _ router.Decision, prep providers.PreparedRequest, w http.ResponseWriter, _ *http.Request) error {
 	c.calls++
 	if c.err != nil {
 		return c.err
 	}
 	w.Header().Set("Content-Type", "text/event-stream")
-	for _, frame := range []string{
-		`data: {"id":"chatcmpl_1","object":"chat.completion.chunk","created":1,"model":"zai-org/glm-5.3-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"served by sibling"},"finish_reason":null}]}`,
-		`data: {"id":"chatcmpl_1","object":"chat.completion.chunk","created":1,"model":"zai-org/glm-5.3-flash","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":3}}`,
-		`data: [DONE]`,
-	} {
+	frames := []string{
+		`data: {"type":"response.created","response":{"id":"resp_1","status":"in_progress"}}`,
+		`data: {"type":"response.output_text.delta","output_index":0,"content_index":0,"delta":"served by sibling"}`,
+		`data: {"type":"response.completed","response":{"id":"resp_1","status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"served by sibling"}]}],"usage":{"input_tokens":5,"output_tokens":3,"total_tokens":8}}}`,
+	}
+	if prep.Endpoint != providers.EndpointResponses {
+		frames = []string{
+			`data: {"id":"chatcmpl_1","object":"chat.completion.chunk","created":1,"model":"zai-org/glm-5.3-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"served by sibling"},"finish_reason":null}]}`,
+			`data: {"id":"chatcmpl_1","object":"chat.completion.chunk","created":1,"model":"zai-org/glm-5.3-flash","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":3}}`,
+			`data: [DONE]`,
+		}
+	}
+	for _, frame := range frames {
 		_, _ = io.WriteString(w, frame+"\n\n")
 	}
 	return nil
@@ -219,17 +230,14 @@ func TestProxyMessages_BaselineRetryKeepsStallDemotionOnPrimary(t *testing.T) {
 	const primaryModel = "deepseek-ai/deepseek-v4-pro"
 	store := &demotionStubPinStore{}
 	primary := &failingClient{err: providers.ErrUpstreamIdleTimeout}
-	baseline := &failingClient{err: providers.ErrUpstreamIdleTimeout}
 	svc := NewService(
-		staticRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: primaryModel, Reason: "test"}},
+		staticRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: primaryModel, Reason: "test"}},
 		map[string]providers.Client{
-			providers.ProviderAIAND:  baseline,
-			providers.ProviderOpenAI: primary,
+			providers.ProviderAIAND: primary,
 		},
 		nil, false, nil, store, false, providers.ProviderAIAND, "zai-org/glm-5.3-flash", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
-		providers.ProviderAIAND:  {},
-		providers.ProviderOpenAI: {},
+		providers.ProviderAIAND: {},
 	}).WithRescuedFailureArmDemotion(true)
 
 	body := anthropicMessagesBody()
@@ -239,8 +247,10 @@ func TestProxyMessages_BaselineRetryKeepsStallDemotionOnPrimary(t *testing.T) {
 
 	require.ErrorIs(t, err, providers.ErrUpstreamIdleTimeout)
 	assert.Positive(t, primary.calls)
-	assert.Positive(t, baseline.calls, "the baseline retry must run before validating its demotion target")
-	require.Len(t, store.demotions, 2)
+	// AIand is the only registered upstream, so the baseline retry re-enters the
+	// same adapter rather than a second one; both binding walks are visible in
+	// the two demotions recorded below.
+	require.Len(t, store.demotions, 2, "the primary walk and the baseline retry both demote")
 	for _, demotion := range store.demotions {
 		assert.Equal(t, primaryModel, demotion.model, "a baseline retry must not replace the model that stalled")
 		assert.Equal(t, sessionpin.DemotionReasonUnrescuedStall, demotion.reason)

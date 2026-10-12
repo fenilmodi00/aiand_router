@@ -57,9 +57,9 @@ func (c *responsesRetryClient) Passthrough(context.Context, providers.PreparedRe
 func TestProxyOpenAIChatCompletion_SameBindingRetryStaysOnResponses(t *testing.T) {
 	client := &responsesRetryClient{}
 	svc := NewService(
-		staticRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "zai-org/glm-5.3-flash", Reason: "test"}},
-		map[string]providers.Client{providers.ProviderOpenAI: client},
-		nil, false, nil, nil, false, providers.ProviderOpenAI, "moonshotai/kimi-k3", nil,
+		staticRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "zai-org/glm-5.3-flash", Reason: "test"}},
+		map[string]providers.Client{providers.ProviderAIAND: client},
+		nil, false, nil, nil, false, providers.ProviderAIAND, "moonshotai/kimi-k3", nil,
 	)
 	svc.retrySleep = noopSleep
 
@@ -97,19 +97,19 @@ func TestProxyMessages_SiblingFailoverOntoOpenAIUsesResponses(t *testing.T) {
 		Reason:   "test",
 		Metadata: &router.RoutingMetadata{
 			CandidateModels:    []string{"zai-org/glm-5.3", "zai-org/glm-5.3-flash"},
-			CandidateProviders: map[string]string{"zai-org/glm-5.3-flash": providers.ProviderOpenAI},
+			CandidateProviders: map[string]string{"zai-org/glm-5.3-flash": providers.ProviderAIAND},
 		},
 	}
 	svc := NewService(
 		staticRouter{decision: decision},
 		map[string]providers.Client{
 			providers.ProviderAnthropic: failing,
-			providers.ProviderOpenAI:    rescue,
+			providers.ProviderAIAND:     rescue,
 		},
 		nil, false, nil, nil, false, providers.ProviderAnthropic, "zai-org/glm-5.3-flash", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
 		providers.ProviderAnthropic: {},
-		providers.ProviderOpenAI:    {},
+		providers.ProviderAIAND:     {},
 	})
 	svc.retrySleep = noopSleep
 
@@ -168,9 +168,9 @@ func (c *emptyThenOKResponsesClient) Passthrough(context.Context, providers.Prep
 func TestProxyOpenAIResponses_RetriesNativeEmptyCompletion(t *testing.T) {
 	client := &emptyThenOKResponsesClient{}
 	svc := NewService(
-		staticRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "zai-org/glm-5.3-flash", Reason: "test"}},
-		map[string]providers.Client{providers.ProviderOpenAI: client},
-		nil, false, nil, nil, false, providers.ProviderOpenAI, "moonshotai/kimi-k3", nil,
+		staticRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "zai-org/glm-5.3-flash", Reason: "test"}},
+		map[string]providers.Client{providers.ProviderAIAND: client},
+		nil, false, nil, nil, false, providers.ProviderAIAND, "moonshotai/kimi-k3", nil,
 	)
 	svc.retrySleep = noopSleep
 	body := "{\"model\":\"gpt-5.6-luna\",\"input\":\"hi\"}"
@@ -184,9 +184,9 @@ func TestProxyOpenAIResponses_RetriesNativeEmptyCompletion(t *testing.T) {
 func TestProxyOpenAIResponses_RetriesNativeStreamingEmptyCompletion(t *testing.T) {
 	client := &emptyThenOKResponsesClient{streaming: true}
 	svc := NewService(
-		staticRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "zai-org/glm-5.3-flash", Reason: "test"}},
-		map[string]providers.Client{providers.ProviderOpenAI: client},
-		nil, false, nil, nil, false, providers.ProviderOpenAI, "moonshotai/kimi-k3", nil,
+		staticRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "zai-org/glm-5.3-flash", Reason: "test"}},
+		map[string]providers.Client{providers.ProviderAIAND: client},
+		nil, false, nil, nil, false, providers.ProviderAIAND, "moonshotai/kimi-k3", nil,
 	)
 	svc.retrySleep = noopSleep
 	body := "{\"model\":\"gpt-5.6-luna\",\"stream\":true,\"input\":\"hi\"}"
@@ -200,9 +200,9 @@ func TestProxyOpenAIResponses_RetriesNativeStreamingEmptyCompletion(t *testing.T
 func TestProxyOpenAIChatCompletion_RetriesNonStreamingEmptyCompletion(t *testing.T) {
 	client := &emptyThenOKResponsesClient{streaming: true}
 	svc := NewService(
-		staticRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "zai-org/glm-5.3-flash", Reason: "test"}},
-		map[string]providers.Client{providers.ProviderOpenAI: client},
-		nil, false, nil, nil, false, providers.ProviderOpenAI, "moonshotai/kimi-k3", nil,
+		staticRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "zai-org/glm-5.3-flash", Reason: "test"}},
+		map[string]providers.Client{providers.ProviderAIAND: client},
+		nil, false, nil, nil, false, providers.ProviderAIAND, "moonshotai/kimi-k3", nil,
 	)
 	svc.retrySleep = noopSleep
 	body := "{\"model\":\"auto\",\"stream\":false,\"max_tokens\":256,\"messages\":[{\"role\":\"user\",\"content\":\"read main.go\"}],\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"read_file\",\"parameters\":{\"type\":\"object\"}}}],\"reasoning_effort\":\"medium\"}"
@@ -215,10 +215,21 @@ func TestProxyOpenAIChatCompletion_RetriesNonStreamingEmptyCompletion(t *testing
 
 type emptyThenOKChatCompletionsClient struct{ calls int }
 
-func (c *emptyThenOKChatCompletionsClient) Proxy(_ context.Context, _ router.Decision, _ providers.PreparedRequest, w http.ResponseWriter, _ *http.Request) error {
+func (c *emptyThenOKChatCompletionsClient) Proxy(_ context.Context, _ router.Decision, prep providers.PreparedRequest, w http.ResponseWriter, _ *http.Request) error {
 	c.calls++
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.WriteHeader(http.StatusOK)
+	// The AIand turn is promoted to /v1/responses, so the first attempt must be
+	// an empty (but well-formed) Responses stream, and the retry a good one.
+	if prep.Endpoint == providers.EndpointResponses {
+		if c.calls == 1 {
+			_, err := io.WriteString(w, "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_empty\",\"status\":\"completed\",\"output\":[]}}\n\n")
+			return err
+		}
+		_, err := io.WriteString(w, "data: {\"type\":\"response.output_text.delta\",\"output_index\":0,\"content_index\":0,\"delta\":\"retry succeeded\"}\n\n"+
+			"data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_ok\",\"status\":\"completed\",\"output\":[{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"retry succeeded\"}]}],\"usage\":{\"input_tokens\":0,\"output_tokens\":3}}}\n\n")
+		return err
+	}
 	if c.calls == 1 {
 		_, err := io.WriteString(w, "data: {\"choices\":[],\"usage\":{\"prompt_tokens\":99,\"completion_tokens\":7,\"total_tokens\":106}}\n\ndata: {\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"tool_calls\"}]}\n\n")
 		return err

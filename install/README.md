@@ -153,10 +153,10 @@ routing. An existing `$fm` session pin still takes precedence in automatic
 mode; clear it with `$ufm` to resume automatic routing. The native selection
 itself does not write a persistent `$fm` pin.
 
-`gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, and `gpt-6-sol` can use the
-active ChatGPT OAuth plan. Other OpenAI, Anthropic, Gemini, and
-OpenAI-compatible models use their matching WorkWeave deployment or BYOK
-credentials, just as they do when routed from Claude Code.
+Every AIand roster model uses the router's AIand deployment key by default.
+Route-independent model selection on Codex is only a baseline: the router
+re-routes per request regardless, and applies BYOK credentials when they
+widen the roster.
 
 Codex does not load third-party Markdown slash commands, and reserves `/…` for
 its own built-ins. The installer therefore ships the router actions as native
@@ -509,11 +509,11 @@ as a command-line argument.
 ```bash
 npx @weave-os/router models --claude                          # every model, with its on/off state
 npx @weave-os/router models --codex                           # same, for a Codex install
-npx @weave-os/router models disable gpt-5.6 --claude          # take a model out of rotation
-npx @weave-os/router models enable gpt-5.6 --claude           # put it back
+npx @weave-os/router models disable deepseek-ai/deepseek-v4-pro --claude          # take a model out of rotation
+npx @weave-os/router models enable deepseek-ai/deepseek-v4-pro --claude           # put it back
 npx @weave-os/router models providers --claude                # same, one row per provider
-npx @weave-os/router models providers disable openai --claude # drop a whole provider
-npx @weave-os/router models prefer claude-opus-5 --claude     # priority ranking ('clear' to drop it)
+npx @weave-os/router models providers disable aiand --claude # drop a whole provider
+npx @weave-os/router models prefer zai-org/glm-5.3 --claude     # priority ranking ('clear' to drop it)
 npx @weave-os/router models list --json --claude              # machine-readable, for scripts
 ```
 
@@ -524,11 +524,10 @@ or `[ ]` (it may not):
 Weave Router models · http://localhost:8080
 2 of 3 enabled
 
-anthropic
-  [x] claude-opus-5
-  [ ] claude-haiku-4-5
-openai
-  [x] gpt-5.6
+aiand
+  [x] zai-org/glm-5.3
+  [ ] moonshotai/kimi-k3
+  [x] deepseek-ai/deepseek-v4-pro
 ```
 
 Inside Claude Code, `/router-models` (alias `/models`) runs the same thing and

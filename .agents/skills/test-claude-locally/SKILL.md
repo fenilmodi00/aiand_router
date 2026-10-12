@@ -128,14 +128,14 @@ rm -f docker-compose.override.yml /tmp/local-settings.json
 For fixes to `internal/billing` + `internal/server/middleware/balance_check.go`, the setup differs from the model-behavior workflow above:
 
 - **The balance gate only attaches in managed mode with billing enabled.** Set `ROUTER_DEPLOYMENT_MODE=managed` on the `server` service. Billing auto-enables when the `router` schema's billing tables exist (they do after `migrate`), logged as `Router billing enabled`. In default selfhosted mode `WithBalanceCheck` is never wired and none of this triggers.
-- **The Anthropic provider has no `ANTHROPIC_BASE_URL` override** — `cmd/router/main.go` hardcodes `anthropic.DefaultBaseURL`. To point Anthropic at a mock, temporarily edit that line to `config.GetOr("ANTHROPIC_BASE_URL", anthropic.DefaultBaseURL)`, rebuild, and **revert it after testing** (don't ship it in the fix PR). The boot log line still prints `DefaultBaseURL` cosmetically — verify the mock is actually hit via the mock's own logs, not the boot log.
+- **The Anthropic provider has no `ANTHROPIC_BASE_URL` override** — `cmd/router/main.go` hardcodes the ingress-facing Anthropic base URL. To point it at a mock, temporarily edit that line to `config.GetOr("ANTHROPIC_BASE_URL", ...)`, rebuild, and **revert it after testing** (don't ship it in the fix PR). Verify the mock is actually hit via the mock's own logs, not the boot log.
 - **Set DB state directly** (host `psql -h localhost -p 5433 -U router -d router`, password `router`, `SET search_path TO router`): upsert `organization_credit_balance` with `balance_usd_micros` at or below the floor. Assert no debit via `SELECT count(*) FROM organization_credit_ledger WHERE organization_id='__router_admin__';` before/after.
 - **What good looks like:** a request whose balance is at or below `minBalanceMicros` is refused with HTTP 402 `insufficient_credits` and never logs `ProxyMessages start`.
 
 ## Notes
 
 - Local cluster version comes from `ROUTER_CLUSTER_VERSION` in `.env.local`; it may differ from prod, which is why `/force-model` (not the scorer) is the reliable way to hit one model.
-- GLM-5.1's primary binding is Together (then Fireworks, then OpenRouter) — see `internal/router/catalog/catalog.go`.
+- Every roster model's primary binding is the AIand deployment — see `internal/router/catalog/catalog.go`.
 - To confirm a deploy contains a given router commit: the prod Cloud Run revision name maps to a monorepo commit; `git ls-tree <monorepo-commit> router-internal/router` shows the pinned router submodule SHA.
 
 ## Content-capture and stdout privacy checks

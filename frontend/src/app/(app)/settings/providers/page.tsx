@@ -10,7 +10,7 @@ export default function ProviderKeysSettingsPage() {
       <SettingsSection
         icon={<Plug className="size-4" />}
         title="Provider API keys"
-        description="Bring your own keys for Anthropic, OpenAI, Google, OpenRouter, or an Anthropic-compatible gateway."
+        description="Bring your own key for AIand, or point a key at an OpenAI-compatible gateway endpoint."
       >
         <ProviderKeysPanel />
       </SettingsSection>

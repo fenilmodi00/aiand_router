@@ -116,10 +116,13 @@ func TestScopeSearchRequirement_RecentUseDecays(t *testing.T) {
 	assert.False(t, got.CitationsOrSearch, "requirement decays after N turns without use")
 }
 
-func TestScopeSearchRequirement_GeminiUnscoped(t *testing.T) {
-	env, err := translate.ParseGemini([]byte(`{"contents":[{"role":"user","parts":[{"text":"hi"}]}]}`))
+// TestScopeSearchRequirement_OtherWireFormatUnscoped pins that scoping is a
+// request-envelope property, not an Anthropic-dialect one: a non-Anthropic
+// source format carrying no search tool use is scoped the same way.
+func TestScopeSearchRequirement_OtherWireFormatUnscoped(t *testing.T) {
+	env, err := translate.ParseOpenAI([]byte(`{"messages":[{"role":"user","content":"hi"}]}`))
 	require.NoError(t, err)
-	reqs := router.TranslationRequirements{SourceFormat: router.WireFormatGemini, CitationsOrSearch: true}
+	reqs := router.TranslationRequirements{SourceFormat: router.WireFormatOpenAI, CitationsOrSearch: true}
 	got := scopeService(true).scopeSearchRequirement([sessionpin.SessionKeyLen]byte{3}, env, reqs)
-	assert.True(t, got.CitationsOrSearch)
+	assert.False(t, got.CitationsOrSearch)
 }

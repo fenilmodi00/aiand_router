@@ -183,7 +183,7 @@ func TestReportPolicyOutcome_EffortMismatchExcludedFromTraining(t *testing.T) {
 	})
 	decision := router.Decision{
 		Model:    "deepseek-ai/deepseek-v4-flash",
-		Provider: providers.ProviderOpenAI,
+		Provider: providers.ProviderAIAND,
 		Effort:   "xhigh",
 		Metadata: &router.RoutingMetadata{
 			RouteID:  "route-effort",
@@ -198,7 +198,7 @@ func TestReportPolicyOutcome_EffortMismatchExcludedFromTraining(t *testing.T) {
 		turnLoopResult{Fresh: decision},
 		decision,
 		effort,
-		providers.ProviderOpenAI,
+		providers.ProviderAIAND,
 		false, 100, 90, 10, 0, 0, 12, 34, nil,
 		&policyOutcomeResponse{Body: []byte("must not train")},
 	)

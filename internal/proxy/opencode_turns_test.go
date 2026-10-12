@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"weave-os/router/internal/flags"
 	"weave-os/router/internal/providers"
 	"weave-os/router/internal/proxy"
 	"weave-os/router/internal/requestcontext"
@@ -30,29 +31,32 @@ const openCodeResponsesBody = `{
 const openCodeHardPinModel = "deepseek-ai/deepseek-v4-flash"
 
 func newOpenCodeTurnSvc(fr *fakeRouter, store *fakePinStore) *proxy.Service {
-	responsesResp := func(w http.ResponseWriter) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = io.WriteString(w, `{"id":"resp_1","object":"response","output":[{"type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"ok"}]}]}`)
-	}
 	anthropicResp := func(w http.ResponseWriter) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = io.WriteString(w, `{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"text","text":"ok"}],"stop_reason":"end_turn"}`)
 	}
+	// Every roster row is AIand-only, and a promoted turn dispatches on
+	// /v1/responses, so the fake answers each endpoint in its own shape
+	// (fakeProvider appends its endpoints before invoking proxyResponse).
+	aiand := &fakeProvider{}
+	aiand.proxyResponse = func(w http.ResponseWriter) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		if n := len(aiand.proxyEndpoints); n > 0 && aiand.proxyEndpoints[n-1] == providers.EndpointResponses {
+			_, _ = io.WriteString(w, `{"id":"resp_1","object":"response","status":"completed","output":[{"type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"ok"}]}]}`)
+			return
+		}
+		_, _ = io.WriteString(w, `{"id":"chatcmpl_1","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}]}`)
+	}
 	return proxy.NewService(
 		fr,
 		map[string]providers.Client{
 			providers.ProviderAnthropic: &fakeProvider{proxyResponse: anthropicResp},
-			providers.ProviderOpenAI:    &fakeProvider{proxyResponse: responsesResp},
-			providers.ProviderAIAND: &fakeProvider{proxyResponse: func(w http.ResponseWriter) {
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusOK)
-				_, _ = io.WriteString(w, `{"id":"chatcmpl_1","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}]}`)
-			}},
+			providers.ProviderAIAND:     aiand,
 		},
 		nil, false, nil, store, false,
-		providers.ProviderOpenAI, openCodeHardPinModel, nil,
+		providers.ProviderAIAND, openCodeHardPinModel, nil,
 	)
 }
 
@@ -68,7 +72,7 @@ func TestService_OpenCodeNativeSubagentSharesSessionIDButNotPin(t *testing.T) {
 	"input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"Reply with the single word pong"}]}]
 }`
 	store := newFakePinStore()
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "qwen/qwen3.8-27b", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "qwen/qwen3.8-27b", Reason: "cluster"}}
 	svc := newOpenCodeTurnSvc(fr, store)
 	apiKeyID := uuid.New().String()
 
@@ -142,11 +146,16 @@ const (
 
 func headerlessSender(t *testing.T, svc *proxy.Service, clientApp string) func(body string) *httptest.ResponseRecorder {
 	t.Helper()
-	apiKeyID := uuid.New().String()
+	apiKeyID := uuid.NewString()
 	return func(body string) *httptest.ResponseRecorder {
 		httpReq := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(""))
 		httpReq.Header.Set("X-App", clientApp)
-		ctx := context.WithValue(authedCtx(apiKeyID), proxy.ClientIdentityContextKey{}, proxy.ClientIdentityFromHeaders(httpReq.Header))
+		baseCtx := context.WithValue(authedCtx(apiKeyID), proxy.ClientIdentityContextKey{}, proxy.ClientIdentityFromHeaders(httpReq.Header))
+		// Headerless bodies are Responses-shaped but assert pin bookkeeping, not
+		// the AIand Responses promotion (which serves them verbatim and skips the
+		// chat/completions routing marker). Turn the promotion off so the marker
+		// surface stays observable.
+		ctx := flags.WithOverrides(baseCtx, flags.Overrides{Bools: map[flags.Key]bool{flags.KeyOpenAIResponsesBroad: false}})
 		rec := httptest.NewRecorder()
 		require.NoError(t, svc.ProxyOpenAIResponses(ctx, []byte(body), rec, httpReq))
 		return rec
@@ -160,7 +169,7 @@ func headerlessSender(t *testing.T, svc *proxy.Service, clientApp string) func(b
 func TestService_OpenCodeHeaderlessTitleHardPinsWithoutTouchingThePin(t *testing.T) {
 	store := newFakePinStore()
 	store.persistUpserts = true
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "qwen/qwen3.8-27b", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "qwen/qwen3.8-27b", Reason: "cluster"}}
 	send := headerlessSender(t, newOpenCodeTurnSvc(fr, store), proxy.ClientAppOpencode)
 
 	rec := send(openCodeHeaderlessMainBody)
@@ -183,7 +192,7 @@ func TestService_OpenCodeHeaderlessTitleHardPinsWithoutTouchingThePin(t *testing
 // the same body keeps ordinary scoring and its session pin.
 func TestService_OpenCodeTitlePromptIgnoredForOtherClients(t *testing.T) {
 	store := newFakePinStore()
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "qwen/qwen3.8-27b", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "qwen/qwen3.8-27b", Reason: "cluster"}}
 	send := headerlessSender(t, newOpenCodeTurnSvc(fr, store), proxy.ClientAppCodex)
 
 	rec := send(openCodeHeaderlessTitleBody)
@@ -199,8 +208,8 @@ func TestService_OpenCodeTitlePromptIgnoredForOtherClients(t *testing.T) {
 // headers from another client select nothing.
 func TestService_OpenCodeChildSessionUsesSubAgentOverride(t *testing.T) {
 	const overrideModel = "moonshotai/kimi-k3"
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "qwen/qwen3.8-27b", Reason: "cluster"}}
-	svc := newOpenCodeTurnSvc(fr, newFakePinStore()).WithSubAgentOverride(providers.ProviderOpenAI, overrideModel)
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "qwen/qwen3.8-27b", Reason: "cluster"}}
+	svc := newOpenCodeTurnSvc(fr, newFakePinStore()).WithSubAgentOverride(providers.ProviderAIAND, overrideModel)
 	apiKeyID := uuid.New().String()
 	send := func(clientApp string, headers map[string]string) *httptest.ResponseRecorder {
 		httpReq := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(""))

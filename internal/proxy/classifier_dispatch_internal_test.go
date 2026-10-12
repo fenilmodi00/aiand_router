@@ -28,7 +28,7 @@ type classifierResponseProvider struct{ betaCaptureProvider }
 
 func (p *classifierResponseProvider) Proxy(_ context.Context, decision router.Decision, request providers.PreparedRequest, w http.ResponseWriter, _ *http.Request) error {
 	p.body = append([]byte(nil), request.Body...)
-	if decision.Provider == providers.ProviderOpenAI {
+	if decision.Provider == providers.ProviderAIAND {
 		w.Header().Set("Content-Type", "text/event-stream")
 		_, err := io.WriteString(w, "data: {\"type\":\"response.output_text.delta\",\"output_index\":0,\"delta\":\"answer\"}\n\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"status\":\"completed\",\"output\":[{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"answer\"}]}],\"usage\":{\"input_tokens\":12,\"output_tokens\":3}}}\n\n")
 		return err

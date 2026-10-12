@@ -14,7 +14,7 @@ func TestEscalationJudgePolicyOnlyResolvesAIAND(t *testing.T) {
 	// The judge slug is served on AIand through an installation-declared
 	// binding; the fixed policy must resolve it there and nowhere else.
 	bindings := map[string][]string{policy.EscalationJudgeModel: {providers.ProviderAIAND}}
-	resolver := newPlanResolver(t, modelSet(policy.EscalationJudgeModel), providerSet(providers.ProviderOpenAI, providers.ProviderAIAND))
+	resolver := newPlanResolver(t, modelSet(policy.EscalationJudgeModel), providerSet(providers.ProviderAIAND, providers.ProviderAIAND))
 	plan, err := resolver.Resolve(policy.ResolutionRequest{
 		Purpose:       policy.PurposeEscalationJudge,
 		RouterRequest: router.Request{CustomBindings: bindings},
@@ -25,8 +25,8 @@ func TestEscalationJudgePolicyOnlyResolvesAIAND(t *testing.T) {
 	assert.Empty(t, plan.AlternativeTargets())
 	assert.Equal(t, 1, plan.Budget().MaxAttempts)
 	assert.EqualValues(t, 20_000, plan.Budget().TimeoutMillis)
-	resolver = newPlanResolver(t, modelSet(policy.EscalationJudgeModel), providerSet(providers.ProviderOpenAI))
-	_, err = resolver.Resolve(policy.ResolutionRequest{Purpose: policy.PurposeEscalationJudge, RouterRequest: router.Request{EnabledProviders: providerSet(providers.ProviderOpenAI)}})
+	resolver = newPlanResolver(t, modelSet(policy.EscalationJudgeModel), providerSet(providers.ProviderAnthropic, providers.ProviderAIAND))
+	_, err = resolver.Resolve(policy.ResolutionRequest{Purpose: policy.PurposeEscalationJudge, RouterRequest: router.Request{EnabledProviders: providerSet(providers.ProviderAnthropic)}})
 	require.Error(t, err)
 }
 
@@ -34,7 +34,7 @@ func TestEscalationJudgeDeploymentIsOptional(t *testing.T) {
 	// The judge target is optional: a deployment that serves every required
 	// utility hard pin but cannot serve the judge still validates until the
 	// purpose is enabled, and enabling it needs the reviewed slug's AIand row.
-	config := policy.DeploymentPolicyConfig{AvailableProviders: providerSet(providers.ProviderOpenAI, providers.ProviderAIAND), TargetOverrides: []policy.PurposeTargetOverride{}}
+	config := policy.DeploymentPolicyConfig{AvailableProviders: providerSet(providers.ProviderAIAND, providers.ProviderAIAND), TargetOverrides: []policy.PurposeTargetOverride{}}
 	for _, purpose := range []policy.Purpose{policy.PurposeTitleGeneration, policy.PurposeClassifier, policy.PurposeProbe, policy.PurposeSubAgentDispatch, policy.PurposeClientCompaction} {
 		config.TargetOverrides = append(config.TargetOverrides, policy.PurposeTargetOverride{Purpose: purpose, Target: policy.TargetOverride{Source: policy.OverrideSourceDeployment, CatalogID: "zai-org/glm-5.3", Provider: providers.ProviderAIAND}})
 	}

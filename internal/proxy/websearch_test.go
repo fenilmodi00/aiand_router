@@ -2,27 +2,10 @@ package proxy
 
 import (
 	"context"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
-	"weave-os/router/internal/auth"
 	"weave-os/router/internal/providers"
-	"weave-os/router/internal/websearch"
 )
-
-type fakeSearch struct {
-	got  websearch.Query
-	resp websearch.Response
-	err  error
-	runs int
-}
-
-func (f *fakeSearch) Search(_ context.Context, q websearch.Query) (websearch.Response, error) {
-	f.runs++
-	f.got = q
-	return f.resp, f.err
-}
 
 const searchTurnBody = `{
 	"model":"deepseek-ai/deepseek-v4.1-flash",
@@ -31,14 +14,6 @@ const searchTurnBody = `{
 	"messages":[{"role":"user","content":"Perform a web search for the query: cortex agents"}]
 }`
 
-func gatewayCtx() context.Context {
-	return context.WithValue(context.Background(), CredentialsContextKey{}, &Credentials{
-		APIKey:   []byte("WIF.GCP.token"),
-		BaseURL:  "https://acct.snowflakecomputing.com/api/v2/cortex",
-		AuthType: auth.AuthTypeWIF,
-	})
-}
-
 // noNativeServerToolProviders is an enabled-provider set with no provider that
 // runs Anthropic server tools natively, so the native web-search detector
 // cannot defer to routing on that ground.
@@ -46,35 +21,22 @@ func noNativeServerToolProviders() map[string]struct{} {
 	return map[string]struct{}{providers.ProviderAIAND: {}}
 }
 
-func TestServeNativeWebSearchDefersToNativelyCapableProvider(t *testing.T) {
-	ex := &fakeSearch{}
-	s := &Service{webSearch: ex}
-	enabled := map[string]struct{}{providers.ProviderAnthropic: {}}
-
-	if s.serveNativeWebSearch(gatewayCtx(), []byte(searchTurnBody), "deepseek-ai/deepseek-v4.1-flash", false, 0, enabled, http.Header{}, httptest.NewRecorder()) {
-		t.Fatal("vendor Anthropic runs the tool itself; the turn must stay on normal routing")
-	}
-	if ex.runs != 0 {
-		t.Fatal("executor must not run when a capable provider is available")
-	}
-}
-
-func TestServeNativeWebSearchIgnoresTurnsWithoutTheTool(t *testing.T) {
-	ex := &fakeSearch{}
-	s := &Service{webSearch: ex}
-	body := []byte(`{"model":"deepseek-ai/deepseek-v4.1-flash","messages":[{"role":"user","content":"Perform a web search for the query: x"}]}`)
-
-	if s.serveNativeWebSearch(gatewayCtx(), body, "deepseek-ai/deepseek-v4.1-flash", false, 0, noNativeServerToolProviders(), http.Header{}, httptest.NewRecorder()) {
-		t.Fatal("no native tool declared; nothing to serve")
-	}
-	if ex.runs != 0 {
-		t.Fatal("executor ran without a declared server tool")
-	}
-}
-
-func TestServeNativeWebSearchDisabled(t *testing.T) {
+// The web-search executor was cut with the AIand-only split: no turn is served
+// by the router, and every native web-search turn stays on normal routing.
+func TestServeNativeWebSearchAlwaysRoutes(t *testing.T) {
 	s := &Service{}
-	if s.serveNativeWebSearch(gatewayCtx(), []byte(searchTurnBody), "deepseek-ai/deepseek-v4.1-flash", false, 0, noNativeServerToolProviders(), http.Header{}, httptest.NewRecorder()) {
-		t.Fatal("no executor wired; the turn must stay on normal routing")
+	ctx := context.Background()
+
+	if s.serveNativeWebSearch(ctx, []byte(searchTurnBody), false, noNativeServerToolProviders()) {
+		t.Fatal("no executor exists; the turn must stay on normal routing")
+	}
+
+	enabled := map[string]struct{}{providers.ProviderAnthropic: {}}
+	if s.serveNativeWebSearch(ctx, []byte(searchTurnBody), false, enabled) {
+		t.Fatal("a natively capable provider also stays on normal routing")
+	}
+
+	if s.serveNativeWebSearch(ctx, []byte(`{"model":"deepseek-ai/deepseek-v4.1-flash"}`), false, noNativeServerToolProviders()) {
+		t.Fatal("no native tool declared; nothing to serve")
 	}
 }

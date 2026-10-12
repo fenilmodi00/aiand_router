@@ -15,9 +15,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
 SOURCE = Path(__file__).resolve().parents[1] / "src" / "index.ts"
-MODEL = "claude-sonnet-4-6"
+MODEL = "zai-org/glm-5.3"
 PREVIOUS_MODEL = "qwen/qwen3.8-max"
-UPGRADED_MODEL = "claude-fable-5-1"
+UPGRADED_MODEL = "deepseek-ai/deepseek-v4-pro"
 SESSION_ID = "9e09b90c-04b9-44f3-ae13-8cfe2073bfb2"
 TIMESTAMP = "2026-09-15T00:00:00.000Z"
 FINAL_REQUEST = "Finish parser validation and report the remaining checks."
@@ -59,7 +59,7 @@ def main():
                 preparations.append(payload)
                 elevated = len(preparations) > 1
                 response = {"token": "high-ticket" if elevated else "low-ticket", "session_token": "session-ticket", "model": UPGRADED_MODEL if elevated else PREVIOUS_MODEL,
-                            "provider": "anthropic" if elevated else "fireworks", "complexity": "maximum" if elevated else "high"}
+                            "provider": "aiand", "complexity": "maximum" if elevated else "high"}
                 if elevated:
                     response["summary_token"] = "summary-ticket"
                 self.send_response(200)

@@ -74,7 +74,7 @@ func prepareOpenAIFast(t *testing.T, opts translate.EmitOptions) (chat, response
 func TestFastMode_OpenAISetsPriorityServiceTierOnBothSurfaces(t *testing.T) {
 	chat, responses := prepareOpenAIFast(t, translate.EmitOptions{
 		TargetModel:    "gpt-5.6-luna",
-		TargetProvider: providers.ProviderOpenAI,
+		TargetProvider: providers.ProviderAIAND,
 		FastMode:       true,
 	})
 
@@ -85,19 +85,19 @@ func TestFastMode_OpenAISetsPriorityServiceTierOnBothSurfaces(t *testing.T) {
 func TestFastMode_OpenAIOffLeavesServiceTierUnset(t *testing.T) {
 	chat, responses := prepareOpenAIFast(t, translate.EmitOptions{
 		TargetModel:    "gpt-5.6-luna",
-		TargetProvider: providers.ProviderOpenAI,
+		TargetProvider: providers.ProviderAIAND,
 	})
 
 	assert.False(t, gjson.GetBytes(chat, "service_tier").Exists())
 	assert.False(t, gjson.GetBytes(responses, "service_tier").Exists())
 }
 
-func TestFastMode_AIANDNeverGetsServiceTier(t *testing.T) {
+func TestFastMode_AIANDGetsPriorityServiceTier(t *testing.T) {
 	chat, responses := prepareOpenAIFast(t, translate.EmitOptions{
 		TargetModel:    "gpt-5.6-luna",
 		TargetProvider: providers.ProviderAIAND,
 		FastMode:       true,
 	})
-	assert.False(t, gjson.GetBytes(chat, "service_tier").Exists())
-	assert.False(t, gjson.GetBytes(responses, "service_tier").Exists())
+	assert.Equal(t, "priority", gjson.GetBytes(chat, "service_tier").String())
+	assert.Equal(t, "priority", gjson.GetBytes(responses, "service_tier").String())
 }

@@ -96,7 +96,7 @@ func TestResponsesReasoningProgress_LongReasoningCompletes(t *testing.T) {
 			defer upstream.Close()
 			defer cancel()
 
-			provider := providers.ProviderOpenAI
+			provider := providers.ProviderAIAND
 			client := openaicompat.NewClientWithStallTimeouts("test-key", upstream.URL+"/v1", 2*time.Second, 300*time.Millisecond)
 			if tc.throughput {
 				// If reasoning enters the throughput counter, two sparse
@@ -245,7 +245,7 @@ func TestResponsesReasoningProgress_StallAndCancellation(t *testing.T) {
 				idle, stall = 250*time.Millisecond, 2*time.Second
 			}
 			client := openaicompat.NewClientWithStallTimeouts("test-key", upstream.URL+"/v1", idle, stall)
-			svc := makeProxyService(router.Decision{Provider: providers.ProviderOpenAI, Model: reasoningProgressModel}, map[string]providers.Client{providers.ProviderOpenAI: client})
+			svc := makeProxyService(router.Decision{Provider: providers.ProviderAIAND, Model: reasoningProgressModel}, map[string]providers.Client{providers.ProviderAIAND: client})
 			rec := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(responsesToolTurnBody))
 			started := time.Now()

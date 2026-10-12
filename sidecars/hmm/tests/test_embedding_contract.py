@@ -11,7 +11,6 @@ import hmm_sidecar.embeddings as embedding_module
 from hmm_sidecar.embeddings import (
     CachedEmbedder,
     EmbeddingError,
-    GoogleEmbedder,
     OpenAICompatibleEmbedder,
     verify_embedding_contract,
 )
@@ -72,26 +71,6 @@ async def test_rejects_wrong_embedding_dimensions() -> None:
         await verify_embedding_contract(
             FakeEmbedder([1.0, 2.0]), contract(), np.asarray([1.0, 2.0, 3.0])
         )
-
-
-@respx.mock
-async def test_google_provider_uses_the_artifact_model_and_dimensions(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
-    monkeypatch.setenv("HMM_EMBEDDING_MODEL", "google/gemini-embedding-2")
-    request = respx.post(
-        "https://generativelanguage.googleapis.com/v1beta/models/"
-        "gemini-embedding-2:batchEmbedContents?key=test-key"
-    ).mock(return_value=Response(200, json={"embeddings": [{"values": [1, 2, 3]}]}))
-
-    vectors = await GoogleEmbedder(contract()).embed(["hello"])
-
-    assert vectors == [[1, 2, 3]]
-    assert request.called
-    body = request.calls.last.request.content.decode()
-    assert '"model":"models/gemini-embedding-2"' in body
-    assert '"outputDimensionality":3' in body
 
 
 @respx.mock

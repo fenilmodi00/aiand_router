@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"weave-os/router/internal/flags"
 	"weave-os/router/internal/providers"
 	"weave-os/router/internal/providers/openaicompat"
 	"weave-os/router/internal/proxy"
@@ -52,7 +53,13 @@ func TestProxyMessages_KeepaliveDuringUpstreamSilence(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
 	body := []byte(`{"model":"deepseek-ai/deepseek-v4-pro","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
 
-	require.NoError(t, svc.ProxyMessages(context.Background(), body, rec, req))
+	// This test is about SSE padding, not endpoint choice: the AIand-only build
+	// promotes AIand turns to /v1/responses, whose wire shape this fake does not
+	// speak, so keep the turn on chat/completions with the documented override.
+	ctx := flags.WithOverrides(context.Background(), flags.Overrides{
+		Bools: map[flags.Key]bool{flags.KeyOpenAIResponsesBroad: false},
+	})
+	require.NoError(t, svc.ProxyMessages(ctx, body, rec, req))
 
 	got := rec.Body.String()
 	assert.GreaterOrEqual(t, strings.Count(got, "event: ping"), 2,
@@ -99,7 +106,10 @@ func TestProxyMessages_KeepaliveDisabledLeavesStreamUnpadded(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
 	body := []byte(`{"model":"deepseek-ai/deepseek-v4-pro","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
 
-	require.NoError(t, svc.ProxyMessages(context.Background(), body, rec, req))
+	ctx := flags.WithOverrides(context.Background(), flags.Overrides{
+		Bools: map[flags.Key]bool{flags.KeyOpenAIResponsesBroad: false},
+	})
+	require.NoError(t, svc.ProxyMessages(ctx, body, rec, req))
 
 	assert.NotContains(t, rec.Body.String(), "event: ping", "keepalives must be off when the interval is 0")
 	assert.Contains(t, rec.Body.String(), "event: message_stop")

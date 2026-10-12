@@ -85,7 +85,7 @@ func TestRescueBasisForHeldPinPreservesTierAndPolicyOrder(t *testing.T) {
 	}
 
 	basis := rescueBasisForTurn(primary, turn)
-	service := siblingService(providers.ProviderAnthropic, providers.ProviderOpenAI, providers.ProviderAIAND)
+	service := siblingService(providers.ProviderAnthropic, providers.ProviderAIAND, providers.ProviderAIAND)
 	decisions := service.siblingFailoverDecisions(context.Background(), basis, 1_000, 0, 0)
 
 	require.Equal(t, []string{"deepseek-ai/deepseek-v4-pro", "moonshotai/kimi-k3"}, siblingModels(decisions))
@@ -100,7 +100,7 @@ func TestSiblingFailoverDecision(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("prefers a candidate off the failed provider", func(t *testing.T) {
-		s := siblingService(providers.ProviderAnthropic, providers.ProviderOpenAI, providers.ProviderAIAND)
+		s := siblingService(providers.ProviderAnthropic, providers.ProviderAIAND, providers.ProviderAIAND)
 		failed := router.Decision{
 			Provider: providers.ProviderAnthropic,
 			Model:    "zai-org/glm-5.3",
@@ -108,21 +108,21 @@ func TestSiblingFailoverDecision(t *testing.T) {
 				CandidateModels: []string{"zai-org/glm-5.3", "deepseek-ai/deepseek-v4.1-flash", "deepseek-ai/deepseek-v4-pro"},
 				CandidateProviders: map[string]string{
 					"deepseek-ai/deepseek-v4.1-flash": providers.ProviderAnthropic,
-					"deepseek-ai/deepseek-v4-pro":     providers.ProviderOpenAI,
+					"deepseek-ai/deepseek-v4-pro":     providers.ProviderAIAND,
 				},
 			},
 		}
 		got, ok := firstSibling(s, ctx, failed, 1_000, 0, 0)
 		require.True(t, ok)
 		assert.Equal(t, "deepseek-ai/deepseek-v4-pro", got.Model)
-		assert.Equal(t, providers.ProviderOpenAI, got.Provider)
+		assert.Equal(t, providers.ProviderAIAND, got.Provider)
 		assert.Equal(t, ReasonSiblingFailover, got.Reason)
 	})
 
 	t.Run("walks the ranked group fallback before the rest of the scored pool", func(t *testing.T) {
-		s := siblingService(providers.ProviderAnthropic, providers.ProviderOpenAI, providers.ProviderAIAND)
+		s := siblingService(providers.ProviderAnthropic, providers.ProviderAIAND, providers.ProviderAIAND)
 		failed := router.Decision{
-			Provider: providers.ProviderOpenAI,
+			Provider: providers.ProviderAIAND,
 			Model:    "moonshotai/kimi-k3",
 			Metadata: &router.RoutingMetadata{
 				// Catalog order puts haiku first; the roster's fallback is opus.
@@ -131,7 +131,7 @@ func TestSiblingFailoverDecision(t *testing.T) {
 				CandidateProviders: map[string]string{
 					"zai-org/glm-5.3-flash": providers.ProviderAnthropic,
 					"zai-org/glm-5.3":       providers.ProviderAnthropic,
-					"qwen/qwen3.8-27b":      providers.ProviderOpenAI,
+					"qwen/qwen3.8-27b":      providers.ProviderAIAND,
 				},
 			},
 		}
@@ -144,12 +144,12 @@ func TestSiblingFailoverDecision(t *testing.T) {
 	})
 
 	t.Run("returns every eligible candidate so a failed rescuer hands off to the next", func(t *testing.T) {
-		s := siblingService(providers.ProviderAnthropic, providers.ProviderOpenAI, providers.ProviderAIAND)
+		s := siblingService(providers.ProviderAnthropic, providers.ProviderAIAND, providers.ProviderAIAND)
 		got := s.siblingFailoverDecisions(ctx, overloadedDecision(&router.RoutingMetadata{
 			CandidateModels: []string{"zai-org/glm-5.3", "deepseek-ai/deepseek-v4.1-flash", "deepseek-ai/deepseek-v4-pro"},
 			CandidateProviders: map[string]string{
 				"deepseek-ai/deepseek-v4.1-flash": providers.ProviderAnthropic,
-				"deepseek-ai/deepseek-v4-pro":     providers.ProviderOpenAI,
+				"deepseek-ai/deepseek-v4-pro":     providers.ProviderAIAND,
 			},
 			PairedModel: "deepseek-ai/deepseek-v4.1-flash",
 		}), 1_000, 0, 0)
@@ -163,7 +163,7 @@ func TestSiblingFailoverDecision(t *testing.T) {
 			CandidateModels: []string{"deepseek-ai/deepseek-v4.1-flash", "deepseek-ai/deepseek-v4-pro"},
 			CandidateProviders: map[string]string{
 				"deepseek-ai/deepseek-v4.1-flash": providers.ProviderAnthropic,
-				"deepseek-ai/deepseek-v4-pro":     providers.ProviderOpenAI,
+				"deepseek-ai/deepseek-v4-pro":     providers.ProviderAIAND,
 			},
 		}), 1_000, 0, 0)
 		require.True(t, ok)
@@ -226,12 +226,12 @@ func TestSiblingFailoverDecision(t *testing.T) {
 	})
 
 	t.Run("skips a model this session demoted after a committed stream failure", func(t *testing.T) {
-		s := siblingService(providers.ProviderAnthropic, providers.ProviderOpenAI, providers.ProviderAIAND)
+		s := siblingService(providers.ProviderAnthropic, providers.ProviderAIAND, providers.ProviderAIAND)
 		md := &router.RoutingMetadata{
 			CandidateModels: []string{"zai-org/glm-5.3", "deepseek-ai/deepseek-v4.1-flash", "deepseek-ai/deepseek-v4-pro"},
 			CandidateProviders: map[string]string{
 				"deepseek-ai/deepseek-v4.1-flash": providers.ProviderAnthropic,
-				"deepseek-ai/deepseek-v4-pro":     providers.ProviderOpenAI,
+				"deepseek-ai/deepseek-v4-pro":     providers.ProviderAIAND,
 			},
 		}
 		demoted := context.WithValue(ctx, SessionDemotedModelsContextKey{}, []string{"deepseek-ai/deepseek-v4-pro"})
@@ -254,7 +254,7 @@ func TestSiblingFailoverDecision(t *testing.T) {
 }
 
 func TestSiblingFailover_ClusterScorerExhaustsModelTierBeforeAscending(t *testing.T) {
-	s := siblingService(providers.ProviderAnthropic, providers.ProviderAIAND, providers.ProviderOpenAI)
+	s := siblingService(providers.ProviderAnthropic, providers.ProviderAIAND, providers.ProviderAIAND)
 	failed := router.Decision{
 		Provider: providers.ProviderAnthropic,
 		Model:    "zai-org/glm-5.3-flash",
@@ -269,10 +269,10 @@ func TestSiblingFailover_ClusterScorerExhaustsModelTierBeforeAscending(t *testin
 				"deepseek-ai/deepseek-v4-flash": 0.9, "deepseek-ai/deepseek-v4.1-flash": 0.99, "qwen/qwen3.8-27b": 0.98,
 			},
 			CandidateProviders: map[string]string{
-				"motif-technologies/motif-3":      providers.ProviderOpenAI,
-				"deepseek-ai/deepseek-v4-flash":   providers.ProviderOpenAI,
+				"motif-technologies/motif-3":      providers.ProviderAIAND,
+				"deepseek-ai/deepseek-v4-flash":   providers.ProviderAIAND,
 				"deepseek-ai/deepseek-v4.1-flash": providers.ProviderAnthropic,
-				"qwen/qwen3.8-27b":                providers.ProviderOpenAI,
+				"qwen/qwen3.8-27b":                providers.ProviderAIAND,
 			},
 		},
 	}
@@ -287,7 +287,7 @@ func TestSiblingFailover_ClusterScorerExhaustsModelTierBeforeAscending(t *testin
 }
 
 func TestSiblingFailover_RosterOrderBeatsProviderPreferenceAndExcludesUnlistedModels(t *testing.T) {
-	s := siblingService(providers.ProviderAnthropic, providers.ProviderOpenAI, providers.ProviderAIAND)
+	s := siblingService(providers.ProviderAnthropic, providers.ProviderAIAND, providers.ProviderAIAND)
 	failed := overloadedDecision(&router.RoutingMetadata{
 		PolicyGroup:    "low",
 		RosterFailover: true,
@@ -297,7 +297,7 @@ func TestSiblingFailover_RosterOrderBeatsProviderPreferenceAndExcludesUnlistedMo
 		},
 		CandidateProviders: map[string]string{
 			"deepseek-ai/deepseek-v4.1-flash": providers.ProviderAnthropic,
-			"deepseek-ai/deepseek-v4-pro":     providers.ProviderOpenAI,
+			"deepseek-ai/deepseek-v4-pro":     providers.ProviderAIAND,
 			"zai-org/glm-5.3-flash":           providers.ProviderAnthropic,
 		},
 	})

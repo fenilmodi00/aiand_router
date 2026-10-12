@@ -43,18 +43,18 @@ func TestStoreSaveMakesCassetteReadableAfterContainerExit(t *testing.T) {
 // TestRequestKeyIgnoresPromptCacheKey pins that per-run session-affinity hints
 // don't change the cassette key, so replay-only CI stays green.
 func TestRequestKeyIgnoresPromptCacheKey(t *testing.T) {
-	base := `{"model":"gpt-5.1","input":"hi"}`
-	runA := `{"model":"gpt-5.1","input":"hi","prompt_cache_key":"aaaa"}`
-	runB := `{"model":"gpt-5.1","input":"hi","prompt_cache_key":"bbbb"}`
+	base := `{"model":"deepseek-ai/deepseek-v4-flash","messages":[{"role":"user","content":"hi"}]}`
+	runA := `{"model":"deepseek-ai/deepseek-v4-flash","messages":[{"role":"user","content":"hi"}],"prompt_cache_key":"aaaa"}`
+	runB := `{"model":"deepseek-ai/deepseek-v4-flash","messages":[{"role":"user","content":"hi"}],"prompt_cache_key":"bbbb"}`
 
-	keyA := requestKey("POST", "/v1/responses", []byte(runA))
-	keyB := requestKey("POST", "/v1/responses", []byte(runB))
+	keyA := requestKey("POST", "/v1/messages", []byte(runA))
+	keyB := requestKey("POST", "/v1/messages", []byte(runB))
 	if keyA != keyB {
 		t.Errorf("prompt_cache_key changed the cassette key: %s != %s", keyA, keyB)
 	}
 	// Cassettes recorded before the router started sending the hint must keep
 	// replaying, so the hinted body has to hash like the unhinted one.
-	if want := requestKey("POST", "/v1/responses", []byte(base)); keyA != want {
+	if want := requestKey("POST", "/v1/messages", []byte(base)); keyA != want {
 		t.Errorf("hinted body key %s, want unhinted key %s", keyA, want)
 	}
 }
@@ -62,12 +62,12 @@ func TestRequestKeyIgnoresPromptCacheKey(t *testing.T) {
 // TestRequestKeyDistinguishesScenarios guards against normalization collapsing
 // genuinely different requests onto one cassette.
 func TestRequestKeyDistinguishesScenarios(t *testing.T) {
-	one := requestKey("POST", "/v1/responses", []byte(`{"input":"hi"}`))
-	two := requestKey("POST", "/v1/responses", []byte(`{"input":"bye"}`))
+	one := requestKey("POST", "/v1/messages", []byte(`{"input":"hi"}`))
+	two := requestKey("POST", "/v1/messages", []byte(`{"input":"bye"}`))
 	if one == two {
 		t.Error("different request bodies hashed to the same cassette key")
 	}
-	if p := requestKey("POST", "/v1/messages", []byte(`{"input":"hi"}`)); p == one {
+	if p := requestKey("POST", "/v1/responses", []byte(`{"input":"hi"}`)); p == one {
 		t.Error("different paths hashed to the same cassette key")
 	}
 }
@@ -75,7 +75,7 @@ func TestRequestKeyDistinguishesScenarios(t *testing.T) {
 // TestNormalizeRequestBodyLeavesOtherBodiesUntouched keeps the Anthropic
 // cassettes valid: a body with no volatile field must hash its exact bytes.
 func TestNormalizeRequestBodyLeavesOtherBodiesUntouched(t *testing.T) {
-	body := []byte(`{"model":"claude-sonnet-4-5","metadata":{"user_id":"smoke-basic"}}`)
+	body := []byte(`{"model":"zai-org/glm-5.3","metadata":{"user_id":"smoke-basic"}}`)
 	if got := string(normalizeRequestBody(body)); got != string(body) {
 		t.Errorf("body rewritten: %s", got)
 	}

@@ -170,10 +170,6 @@ func sanitizeHeaders(h http.Header) map[string]string {
 		"anthropic-ratelimit-tokens-limit":            {},
 		"anthropic-ratelimit-tokens-remaining":        {},
 		"anthropic-ratelimit-tokens-reset":            {},
-		// OpenAI's own org/project identifiers + request-id + rate-limit headers.
-		"openai-organization":                  {},
-		"openai-project":                       {},
-		"openai-processing-ms":                 {},
 		"x-request-id":                         {},
 		"x-ratelimit-limit-requests":           {},
 		"x-ratelimit-remaining-requests":       {},

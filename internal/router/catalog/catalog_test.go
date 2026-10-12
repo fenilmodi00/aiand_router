@@ -76,7 +76,7 @@ func TestByID_UnknownReturnsFalse(t *testing.T) {
 
 func TestPriceFor_UnknownProviderForKnownModel(t *testing.T) {
 	// The roster is AIand-only — asking for any other provider must miss.
-	for _, provider := range []string{providers.ProviderAnthropic, providers.ProviderOpenAI} {
+	for _, provider := range []string{providers.ProviderAnthropic} {
 		_, ok := PriceFor(provider, "zai-org/glm-5.3")
 		assert.Falsef(t, ok, "roster row must not price under %s", provider)
 	}
@@ -104,7 +104,7 @@ func TestResolveBinding_PicksFirstAvailable(t *testing.T) {
 	assert.Equal(t, providers.ProviderAIAND, b.Provider)
 
 	_, ok = ResolveBinding("deepseek-ai/deepseek-v4-pro", map[string]struct{}{
-		providers.ProviderAnthropic: {}, providers.ProviderOpenAI: {},
+		providers.ProviderAnthropic: {},
 	})
 	assert.False(t, ok)
 }
@@ -123,7 +123,7 @@ func TestRoutingTargetSet_FiltersByRegisteredProviders(t *testing.T) {
 		assert.Containsf(t, withAIand, id, "%s must be a routing target when AIand is wired", id)
 	}
 
-	withoutAIand := RoutingTargetSet(map[string]struct{}{providers.ProviderOpenAI: {}, providers.ProviderAnthropic: {}})
+	withoutAIand := RoutingTargetSet(map[string]struct{}{providers.ProviderAnthropic: {}})
 	assert.Empty(t, withoutAIand, "no roster row is reachable without AIand")
 }
 
@@ -225,7 +225,7 @@ func TestResolveBinding_KimiK3AIandOnly(t *testing.T) {
 	assert.Empty(t, b.UpstreamID)
 
 	_, ok = ResolveBinding("moonshotai/kimi-k3", map[string]struct{}{
-		providers.ProviderAnthropic: {}, providers.ProviderOpenAI: {},
+		providers.ProviderAnthropic: {},
 	})
 	assert.False(t, ok)
 }

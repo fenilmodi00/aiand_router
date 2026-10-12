@@ -11,11 +11,8 @@ import (
 // Out-of-band role:"system" notices are skipped, and the wrapper blocks Claude
 // Code injects (<system-reminder>, <command-name>, ...) are not visible text,
 // so harness follow-ups that only carry those do not count. Any other tagged
-// text is the person's own. Anthropic, OpenAI, and Gemini shapes.
+// text is the person's own. Anthropic and OpenAI shapes.
 func (e *RequestEnvelope) EndsWithUserPrompt() bool {
-	if e.format == FormatGemini {
-		return geminiEndsWithUserPrompt(e.body)
-	}
 	switch e.format {
 	case FormatAnthropic, FormatOpenAI:
 	default:
@@ -41,25 +38,6 @@ func (e *RequestEnvelope) EndsWithUserPrompt() bool {
 			return false
 		case "assistant":
 			return sawTypedText && !assistantCallsTools(all[i])
-		}
-	}
-	return sawTypedText
-}
-
-func geminiEndsWithUserPrompt(body []byte) bool {
-	contents := gjson.GetBytes(body, "contents").Array()
-	sawTypedText := false
-	for i := len(contents) - 1; i >= 0; i-- {
-		if contents[i].Get("role").String() == "model" {
-			return sawTypedText
-		}
-		for _, part := range contents[i].Get("parts").Array() {
-			if part.Get("functionResponse").Exists() {
-				return false
-			}
-			if !isOnlyKnownInjectedText(part.Get("text").String()) {
-				sawTypedText = true
-			}
 		}
 	}
 	return sawTypedText

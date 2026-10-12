@@ -564,7 +564,7 @@ func TestTurnLoop_ToolResultPinOnExcludedProviderFallsThroughToScorer(t *testing
 	store := newFakePinStore()
 	store.hasPin = true
 	store.pin = sessionpin.Pin{
-		Provider:    providers.ProviderOpenAI,
+		Provider:    providers.ProviderAIAND,
 		Model:       "deepseek-ai/deepseek-v4-flash",
 		Reason:      "cluster:v0.2",
 		PinnedUntil: time.Now().Add(time.Hour),
@@ -578,7 +578,7 @@ func TestTurnLoop_ToolResultPinOnExcludedProviderFallsThroughToScorer(t *testing
 		fr,
 		map[string]providers.Client{
 			providers.ProviderAnthropic: &fakeProvider{},
-			providers.ProviderOpenAI:    &fakeProvider{},
+			providers.ProviderAIAND:     &fakeProvider{},
 		},
 		nil,
 		false,
@@ -591,7 +591,7 @@ func TestTurnLoop_ToolResultPinOnExcludedProviderFallsThroughToScorer(t *testing
 	)
 
 	ctx := context.WithValue(authedCtx(uuid.New().String()),
-		proxy.InstallationExcludedProvidersContextKey{}, []string{providers.ProviderOpenAI})
+		proxy.InstallationExcludedProvidersContextKey{}, []string{providers.ProviderAIAND})
 	rec := httptest.NewRecorder()
 	httpReq := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
 	require.NoError(t, svc.ProxyMessages(ctx, []byte(toolResultBody), rec, httpReq))
@@ -748,7 +748,7 @@ func TestTurnLoop_HandoverSkippedWhenClientCredsCrossProvider(t *testing.T) {
 	store := newFakePinStore()
 	store.hasPin = true
 	store.pin = sessionpin.Pin{
-		Provider:        providers.ProviderOpenAI,
+		Provider:        providers.ProviderAIAND,
 		Model:           "moonshotai/kimi-k3",
 		Reason:          "cluster:v0.2",
 		PinnedUntil:     time.Now().Add(time.Hour),

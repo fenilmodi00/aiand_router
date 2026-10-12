@@ -40,9 +40,9 @@ func responsesStreamUpstream(w http.ResponseWriter) {
 
 func openAIChatService(provider providers.Client, model string) *proxy.Service {
 	return proxy.NewService(
-		&fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: model, Reason: "test"}},
-		map[string]providers.Client{providers.ProviderOpenAI: provider},
-		nil, false, nil, nil, false, providers.ProviderOpenAI, "moonshotai/kimi-k3", nil,
+		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: model, Reason: "test"}},
+		map[string]providers.Client{providers.ProviderAIAND: provider},
+		nil, false, nil, nil, false, providers.ProviderAIAND, "moonshotai/kimi-k3", nil,
 	)
 }
 
@@ -222,7 +222,7 @@ func TestService_ProxyOpenAIChatCompletion_UsesBYOKBaseForResponsesCapability(t 
 	}
 	svc := openAIChatService(provider, "zai-org/glm-5.3-flash")
 	ctx := context.WithValue(context.Background(), proxy.ExternalAPIKeysContextKey{}, []*auth.ExternalAPIKey{{
-		Provider:  providers.ProviderOpenAI,
+		Provider:  providers.ProviderAIAND,
 		Plaintext: []byte("synthetic-key"),
 		BaseURL:   "https://tenant.example.invalid/v1",
 	}})
@@ -326,6 +326,9 @@ func TestService_ProxyOpenAIChatCompletion_LogsToolCallIssues(t *testing.T) {
 
 // A non-OpenAI provider keeps its own narrow rule: a plain chat turn must not
 // be promoted onto the Responses surface only direct OpenAI mounts.
+// The broad rollout is a direct-OpenAI rule: with it off, a plain chat turn
+// stays on chat/completions, and AIand (the only OpenAI-compat provider left)
+// follows the narrow rule.
 func TestService_ProxyOpenAIChatCompletion_NonOpenAIProviderKeepsChatCompletions(t *testing.T) {
 	provider := &fakeProvider{proxyResponse: func(w http.ResponseWriter) {
 		w.Header().Set("Content-Type", "application/json")
@@ -335,13 +338,16 @@ func TestService_ProxyOpenAIChatCompletion_NonOpenAIProviderKeepsChatCompletions
 	svc := proxy.NewService(
 		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "zai-org/glm-5.3-flash", Reason: "test"}},
 		map[string]providers.Client{providers.ProviderAIAND: provider},
-		nil, false, nil, nil, false, providers.ProviderOpenAI, "moonshotai/kimi-k3", nil,
+		nil, false, nil, nil, false, providers.ProviderAIAND, "moonshotai/kimi-k3", nil,
 	)
 
 	body := `{"model":"auto","messages":[{"role":"user","content":"hi"}]}`
+	ctx := flags.WithOverrides(context.Background(), flags.Overrides{
+		Bools: map[flags.Key]bool{flags.KeyOpenAIResponsesBroad: false},
+	})
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
-	require.NoError(t, svc.ProxyOpenAIChatCompletion(context.Background(), []byte(body), rec, req))
+	require.NoError(t, svc.ProxyOpenAIChatCompletion(ctx, []byte(body), rec, req))
 
 	require.Len(t, provider.proxyEndpoints, 1)
 	assert.Equal(t, providers.EndpointChatCompletions, provider.proxyEndpoints[0])

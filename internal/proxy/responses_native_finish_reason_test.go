@@ -90,10 +90,10 @@ func TestService_ProxyOpenAIResponses_NativeTurnRecordsTerminalFinishReason(t *t
 			telemetry := newCaptureTelemetry()
 			svc := proxy.NewService(
 				&fakeRouter{decision: router.Decision{
-					Provider: providers.ProviderOpenAI, Model: "moonshotai/kimi-k3", Reason: "test",
+					Provider: providers.ProviderAIAND, Model: "moonshotai/kimi-k3", Reason: "test",
 				}},
-				map[string]providers.Client{providers.ProviderOpenAI: provider},
-				nil, false, nil, nil, false, providers.ProviderOpenAI, "moonshotai/kimi-k3", telemetry,
+				map[string]providers.Client{providers.ProviderAIAND: provider},
+				nil, false, nil, nil, false, providers.ProviderAIAND, "moonshotai/kimi-k3", telemetry,
 			)
 
 			body := []byte(`{"model":"moonshotai/kimi-k3","stream":true,"input":[{"type":"reasoning","id":"rs_0","encrypted_content":"opaque"},{"type":"message","role":"user","content":[{"type":"input_text","text":"continue"}]}]}`)
@@ -122,10 +122,10 @@ func TestService_ProxyOpenAIResponses_NativeFailedTerminalRecordsNoFinishReason(
 	telemetry := newCaptureTelemetry()
 	svc := proxy.NewService(
 		&fakeRouter{decision: router.Decision{
-			Provider: providers.ProviderOpenAI, Model: "moonshotai/kimi-k3", Reason: "test",
+			Provider: providers.ProviderAIAND, Model: "moonshotai/kimi-k3", Reason: "test",
 		}},
-		map[string]providers.Client{providers.ProviderOpenAI: provider},
-		nil, false, nil, nil, false, providers.ProviderOpenAI, "moonshotai/kimi-k3", telemetry,
+		map[string]providers.Client{providers.ProviderAIAND: provider},
+		nil, false, nil, nil, false, providers.ProviderAIAND, "moonshotai/kimi-k3", telemetry,
 	)
 
 	body := []byte(`{"model":"moonshotai/kimi-k3","stream":true,"input":[{"type":"reasoning","id":"rs_0","encrypted_content":"opaque"},{"type":"message","role":"user","content":[{"type":"input_text","text":"continue"}]}]}`)

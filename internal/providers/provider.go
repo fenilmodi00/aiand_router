@@ -50,7 +50,6 @@ func ObserveUpstreamHeaders(ctx context.Context, h http.Header) {
 // the table test catch this at boot instead of in production.
 const (
 	ProviderAnthropic = "anthropic"
-	ProviderOpenAI    = "openai"
 	// ProviderAIAND is AIand (api.aiand.com), an OpenAI-compatible surface serving
 	// an open-weights model catalog under slash-form model IDs.
 	ProviderAIAND = "aiand"
@@ -70,19 +69,14 @@ const (
 	// itself; translated Claude-Code ingress dispatches off this).
 	FamilyAnthropic
 	// FamilyOpenAICompat speaks the OpenAI Chat Completions wire format
-	// (OpenAI itself plus AIand's OpenAI-compatible surface).
+	// (AIand's OpenAI-compatible surface).
 	FamilyOpenAICompat
-	// FamilyGemini speaks the Google Generative Language (Gemini) wire format.
-	// No provider is registered on it in the AIand-only build; the otel usage
-	// extractor and translation plan still branch on it for historical traffic.
-	FamilyGemini
 )
 
 // ProviderFamilies is the single source of truth for cross-format dispatch;
 // keep it covering EVERY Provider* constant (see the three-map note above).
 var ProviderFamilies = map[string]TranslationFamily{
 	ProviderAnthropic: FamilyAnthropic,
-	ProviderOpenAI:    FamilyOpenAICompat,
 	ProviderAIAND:     FamilyOpenAICompat,
 }
 
@@ -144,7 +138,6 @@ func ValidateDispatchable(registered []string) error {
 // APIKeyEnvVars maps provider name to the env var providing its deployment-level upstream API key.
 var APIKeyEnvVars = map[string]string{
 	ProviderAnthropic: "ANTHROPIC_API_KEY",
-	ProviderOpenAI:    "OPENAI_API_KEY",
 	ProviderAIAND:     "AIAND_API_KEY",
 }
 
@@ -161,7 +154,6 @@ func APIKeyEnvVar(provider string) string {
 // stale pin a cache-read discount it no longer earns.
 var CacheTTL = map[string]time.Duration{
 	ProviderAnthropic: time.Hour,
-	ProviderOpenAI:    5 * time.Minute,
 	ProviderAIAND:     5 * time.Minute,
 }
 
@@ -566,8 +558,8 @@ func IsUpstreamPromptCacheKeyRejection(err error) bool {
 
 // responsesUnsupportedPhrases are prose bodies meaning the gateway does not
 // serve /v1/responses at all (as opposed to rejecting this particular body).
-// Snowflake Cortex gates the surface per account and answers 400/403 rather
-// than 404, so status alone can't classify it.
+// Some upstreams gate the surface per account and answer 400/403 rather than
+// 404, so status alone can't classify it.
 var responsesUnsupportedPhrases = []string{
 	"responses rest api not enabled",
 	"responses api not enabled",

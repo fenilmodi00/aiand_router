@@ -295,7 +295,7 @@ func TestIsUpstreamOutputConfigFormatRejection(t *testing.T) {
 			want:   false,
 		},
 		{
-			name:   "cortex rejects a missing schema member, not the knob",
+			name:   "a prose rejection names the member, not the knob",
 			status: http.StatusBadRequest,
 			body:   `{"message":"missing field ` + "`schema`" + ` at line 1 column 89"}`,
 			want:   false,
@@ -467,9 +467,9 @@ func TestIsUpstreamResponsesUnsupported(t *testing.T) {
 			want:   true,
 		},
 		{
-			name:   "cortex reports the api is off for the account",
+			name:   "prose reports the responses api is off for the account",
 			status: http.StatusBadRequest,
-			body:   `{"message":"Cortex OpenAI Responses REST API not enabled","request_id":"x"}`,
+			body:   `{"message":"OpenAI Responses REST API not enabled","request_id":"x"}`,
 			want:   true,
 		},
 		{

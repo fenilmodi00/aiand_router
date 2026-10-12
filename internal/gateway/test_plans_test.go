@@ -8,19 +8,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestTestPlanSurfaceAllowsGeminiInferenceRoutesOnly(t *testing.T) {
+func TestTestPlanSurfaceAllowsInferenceRoutesOnly(t *testing.T) {
 	for _, testCase := range []struct {
 		name   string
 		method string
 		path   string
 		want   bool
 	}{
-		{name: "generate content", method: http.MethodPost, path: "/v1beta/models/gemini-pro:generateContent", want: true},
-		{name: "stream generate content", method: http.MethodPost, path: "/v1beta/models/gemini-pro:streamGenerateContent", want: true},
-		{name: "query parameters", method: http.MethodPost, path: "/v1beta/models/gemini-pro:generateContent?alt=sse", want: true},
-		{name: "other Gemini method", method: http.MethodPost, path: "/v1beta/models/gemini-pro:countTokens"},
-		{name: "other Gemini version", method: http.MethodPost, path: "/v1/models/gemini-pro:generateContent"},
-		{name: "GET inference route", method: http.MethodGet, path: "/v1beta/models/gemini-pro:generateContent"},
+		{name: "anthropic messages", method: http.MethodPost, path: "/v1/messages", want: true},
+		{name: "anthropic count tokens", method: http.MethodPost, path: "/v1/messages/count_tokens", want: true},
+		{name: "chat completions", method: http.MethodPost, path: "/v1/chat/completions", want: true},
+		{name: "responses", method: http.MethodPost, path: "/v1/responses", want: true},
+		{name: "other method", method: http.MethodPut, path: "/v1/responses"},
+		{name: "unknown path", method: http.MethodPost, path: "/v1/embeddings"},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			parsedURL, err := url.Parse(testCase.path)

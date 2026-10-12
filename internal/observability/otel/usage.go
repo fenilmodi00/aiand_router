@@ -42,7 +42,6 @@ const anthropicBlockToolUse anthropicBlockType = "tool_use"
 const (
 	anthropicStopMaxTokens = "max_tokens"
 	openAIFinishLength     = "length"
-	geminiFinishMaxTokens  = "MAX_TOKENS"
 )
 
 // UsageExtractor wraps an http.ResponseWriter and sniffs token usage (SSE or
@@ -236,7 +235,7 @@ func (u *UsageExtractor) extractFromSSEEvent(eventType []byte, data []byte) {
 	switch providers.FamilyFor(u.provider) {
 	case providers.FamilyAnthropic:
 		u.extractAnthropicSSE(eventType, data)
-	case providers.FamilyOpenAICompat, providers.FamilyGemini:
+	case providers.FamilyOpenAICompat:
 		u.extractOpenAISSE(data)
 	}
 }
@@ -293,10 +292,6 @@ func (u *UsageExtractor) extractOpenAISSE(data []byte) {
 	}
 
 	u.extractOpenAIChatSSEResponse(trimmed)
-	if providers.FamilyFor(u.provider) == providers.FamilyGemini && gjson.GetBytes(trimmed, "candidates.0.finishReason").String() == geminiFinishMaxTokens {
-		u.RecordOutputLimitReached()
-	}
-
 	input, output, cacheCreation, cacheRead, found := extractUsageGJSON(trimmed, u.provider)
 	if !found {
 		return
@@ -334,10 +329,6 @@ func (u *UsageExtractor) tryExtractFromJSON() {
 		u.extractAnthropicJSONResponse(u.leftover)
 	case providers.FamilyOpenAICompat:
 		u.extractOpenAIChatJSONResponse(u.leftover)
-	case providers.FamilyGemini:
-		if gjson.GetBytes(u.leftover, "candidates.0.finishReason").String() == geminiFinishMaxTokens {
-			u.RecordOutputLimitReached()
-		}
 	}
 
 	if input > 0 {
@@ -422,20 +413,8 @@ func (u *UsageExtractor) observeOpenAIToolCall(index int) {
 
 // extractUsageGJSON probes usage fields via gjson (no json.Unmarshal/map allocs).
 // OpenAI cache-read maps from cached_tokens; GPT-5.6+ cache-write maps from cache_write_tokens.
-// Google's native :generateContent uses usageMetadata; its OpenAI-compat surface
-// uses the OpenAI shape instead.
 func extractUsageGJSON(data []byte, provider string) (input, output, cacheCreation, cacheRead int, found bool) {
 	family := providers.FamilyFor(provider)
-
-	if family == providers.FamilyGemini {
-		if meta := gjson.GetBytes(data, "usageMetadata"); meta.Exists() {
-			input = int(meta.Get("promptTokenCount").Int())
-			// candidatesTokenCount excludes thinking; thoughtsTokenCount is billed as output.
-			output = int(meta.Get("candidatesTokenCount").Int() + meta.Get("thoughtsTokenCount").Int())
-			cacheRead = int(meta.Get("cachedContentTokenCount").Int())
-			return input, output, 0, cacheRead, true
-		}
-	}
 
 	usage := gjson.GetBytes(data, "usage")
 	if !usage.Exists() && family == providers.FamilyAnthropic {
@@ -456,7 +435,7 @@ func extractUsageGJSON(data []byte, provider string) (input, output, cacheCreati
 		output = int(usage.Get("output_tokens").Int())
 		cacheCreation = int(usage.Get("cache_creation_input_tokens").Int())
 		cacheRead = int(usage.Get("cache_read_input_tokens").Int())
-	case providers.FamilyOpenAICompat, providers.FamilyGemini:
+	case providers.FamilyOpenAICompat:
 		// Chat Completions uses prompt_tokens/completion_tokens; Responses API
 		// (Codex passthrough) uses input_tokens/output_tokens. Probe both.
 		if pt := usage.Get("prompt_tokens"); pt.Exists() {

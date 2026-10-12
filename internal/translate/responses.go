@@ -1956,12 +1956,23 @@ func (t *ResponsesWriter) FailContextOverflow(streaming bool, code, message stri
 		if err != nil {
 			return err
 		}
-		t.inner.Header().Set("Content-Type", "application/json")
-		t.inner.Header().Del("Content-Length")
-		t.inner.Header().Del("Content-Encoding")
-		t.inner.WriteHeader(http.StatusBadRequest)
+		// A terminal error envelope must reach the client even though the
+		// attempt never committed: an inner retry buffer would otherwise hold
+		// it back and the client would see the 200 status of the prelude.
+		root := t.inner
+		for {
+			unwrapper, ok := root.(interface{ Root() http.ResponseWriter })
+			if !ok {
+				break
+			}
+			root = unwrapper.Root()
+		}
+		root.Header().Set("Content-Type", "application/json")
+		root.Header().Del("Content-Length")
+		root.Header().Del("Content-Encoding")
+		root.WriteHeader(http.StatusBadRequest)
 		t.httpHeadersSent = true
-		_, err = t.inner.Write(body)
+		_, err = root.Write(body)
 		return err
 	}
 	if t.passthrough {

@@ -54,7 +54,7 @@ func TestPublicSurfaces_DispatchThroughResolvedPlan(t *testing.T) {
 			},
 		},
 		"openai chat completions": {
-			provider: providers.ProviderOpenAI, model: "zai-org/glm-5.3-flash",
+			provider: providers.ProviderAIAND, model: "zai-org/glm-5.3-flash",
 			purpose: inference.PurposeOpenAIChatCompletions, policyID: "main-openai-chat-completions",
 			upstream: jsonUpstream(`{"id":"chatcmpl_1","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"hi"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1}}`),
 			run: func(svc *proxy.Service, w http.ResponseWriter) error {
@@ -64,7 +64,7 @@ func TestPublicSurfaces_DispatchThroughResolvedPlan(t *testing.T) {
 			},
 		},
 		"openai responses": {
-			provider: providers.ProviderOpenAI, model: "deepseek-ai/deepseek-v4-flash",
+			provider: providers.ProviderAIAND, model: "deepseek-ai/deepseek-v4-flash",
 			purpose: inference.PurposeOpenAIResponses, policyID: "main-openai-responses",
 			upstream: jsonUpstream(`{"id":"resp_1","object":"response","output":[{"type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"ok"}]}]}`),
 			run: func(svc *proxy.Service, w http.ResponseWriter) error {

@@ -33,11 +33,11 @@ func TestProxyOutputLimitAcrossResponsePaths(t *testing.T) {
 	}{
 		{"messages", "anthropic", providers.ProviderAnthropic, capAnthropicModel},
 		{"messages", "chat", providers.ProviderAIAND, capChatModel},
-		{"messages", "responses", providers.ProviderOpenAI, capResponsesModel},
+		{"messages", "responses", providers.ProviderAIAND, capResponsesModel},
 		{"chat", "anthropic", providers.ProviderAnthropic, capAnthropicModel},
 		{"chat", "chat", providers.ProviderAIAND, capChatModel},
-		{"chat", "responses", providers.ProviderOpenAI, capResponsesModel},
-		{"responses", "responses", providers.ProviderOpenAI, capResponsesModel},
+		{"chat", "responses", providers.ProviderAIAND, capResponsesModel},
+		{"responses", "responses", providers.ProviderAIAND, capResponsesModel},
 	}
 	for _, path := range paths {
 		for _, stream := range []bool{false, true} {

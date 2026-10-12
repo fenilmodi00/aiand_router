@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strings"
 
 	"weave-os/router/internal/auth"
 	"weave-os/router/internal/providers"
@@ -18,8 +17,7 @@ import (
 const maxModelListBytes = 1 << 20
 
 // ListModels returns the model IDs the endpoint publishes, sorted and
-// deduplicated, walking modelListURLs until one answers something other than a
-// 404.
+// deduplicated.
 func (c *Client) ListModels(ctx context.Context) ([]string, error) {
 	baseURL := c.effectiveBaseURL(ctx)
 	if baseURL == "" {
@@ -30,53 +28,25 @@ func (c *Client) ListModels(ctx context.Context) ([]string, error) {
 		return nil, providers.ErrModelDiscoveryDestination
 	}
 	baseURL = *normalizedBaseURL
-	listURLs, err := modelListURLs(baseURL)
+	listURL, err := modelListURLs(baseURL)
 	if err != nil {
 		return nil, providers.ErrModelDiscoveryDestination
 	}
-	var (
-		ids     []string
-		listErr error
-	)
-	for _, listURL := range listURLs {
-		var status int
-		ids, status, listErr = c.listModelsAt(ctx, listURL)
-		if status != http.StatusNotFound {
-			return ids, listErr
-		}
-	}
-	return ids, listErr
+	ids, _, err := c.listModelsAt(ctx, listURL[0])
+	return ids, err
 }
 
-// modelListURLs returns catalog URLs to try for baseURL, likeliest first.
-// For gateways that mount their catalog above /v1 (e.g. Snowflake Cortex:
-// /api/v2/cortex/models vs /api/v2/cortex/v1/chat/completions), also
-// includes one segment up.
+// modelListURLs returns the catalog URL for baseURL.
 func modelListURLs(baseURL string) ([]string, error) {
 	primary, err := url.JoinPath(baseURL, "models")
 	if err != nil {
 		return nil, err
 	}
-	urls := []string{primary}
-	parsedBaseURL, err := url.Parse(baseURL)
-	if err != nil {
-		return nil, err
-	}
-	if strings.HasSuffix(parsedBaseURL.Path, "/v1") {
-		parsedBaseURL.Path = strings.TrimSuffix(parsedBaseURL.Path, "/v1")
-		parsedBaseURL.RawPath = ""
-		fallback, joinErr := url.JoinPath(parsedBaseURL.String(), "models")
-		if joinErr != nil {
-			return nil, joinErr
-		}
-		urls = append(urls, fallback)
-	}
-	return urls, nil
+	return []string{primary}, nil
 }
 
-// listModelsAt reads one model-list URL, also reporting the upstream status so
-// the caller can decide whether another path is worth trying. A gateway that
-// demands an entity on the catalog GET is retried once with an empty JSON body.
+// listModelsAt reads the model-list URL. A gateway that demands an entity on
+// the catalog GET is retried once with an empty JSON body.
 func (c *Client) listModelsAt(ctx context.Context, listURL string) ([]string, int, error) {
 	ids, status, err := c.getModelList(ctx, listURL, false)
 	if !providers.ModelListNeedsEntity(status) {

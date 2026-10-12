@@ -2482,24 +2482,16 @@ harbor-atlas = [
 modal = [
     { name = "modal" },
 ]
-tap = [
-    { name = "httpx" },
-    { name = "starlette" },
-    { name = "uvicorn" },
-]
 
 [package.metadata]
 requires-dist = [
     { name = "harbor", marker = "extra == 'harbor'", specifier = "==0.22.0" },
     { name = "harbor", marker = "extra == 'harbor-atlas'", specifier = "==0.18.0" },
-    { name = "httpx", marker = "extra == 'tap'", specifier = ">=0.27" },
     { name = "modal", marker = "extra == 'modal'", specifier = ">=1.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3" },
     { name = "ruff", marker = "extra == 'dev'", specifier = "==0.16.6" },
-    { name = "starlette", marker = "extra == 'tap'", specifier = ">=0.40" },
-    { name = "uvicorn", marker = "extra == 'tap'", specifier = ">=0.30" },
 ]
-provides-extras = ["harbor", "harbor-atlas", "tap", "modal", "dev"]
+provides-extras = ["harbor", "harbor-atlas", "modal", "dev"]
 
 [[package]]
 name = "websockets"

@@ -93,7 +93,7 @@ func TestCounterfactualInputCost_SameResultForEitherUsageShape(t *testing.T) {
 
 	// OpenAI-shaped input_tokens include cached tokens; the fresh split must survive the repricing.
 	anthropic := catalog.CounterfactualInputCost(2_000, 100_000, 5_000, 100_000, opus, providers.ProviderAnthropic)
-	openai := catalog.CounterfactualInputCost(107_000, 100_000, 5_000, 100_000, opus, providers.ProviderOpenAI)
+	openai := catalog.CounterfactualInputCost(107_000, 100_000, 5_000, 100_000, opus, providers.ProviderAIAND)
 	assert.InDelta(t, anthropic, openai, 1e-12)
 }
 
@@ -112,7 +112,7 @@ func TestEffectiveInputCost_AnthropicFamilyInputIsFreshOnly(t *testing.T) {
 		got := catalog.EffectiveInputCost(2_000, 10_000, 100_000, sonnet, provider)
 		assert.InDelta(t, 0.0735, got, 1e-12, provider)
 	}
-	assert.InDelta(t, 0.0735, catalog.EffectiveInputCost(112_000, 10_000, 100_000, sonnet, providers.ProviderOpenAI), 1e-12)
+	assert.InDelta(t, 0.0735, catalog.EffectiveInputCost(112_000, 10_000, 100_000, sonnet, providers.ProviderAIAND), 1e-12)
 }
 
 func TestCounterfactualInputCost_AnthropicFamilyInputIsFreshOnly(t *testing.T) {

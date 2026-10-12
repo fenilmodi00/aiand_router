@@ -22,8 +22,8 @@ concrete examples that motivated it:
   wrapped the bare node in an invalid `anyOf` without checking it carried a
   strict-expressible type first. Caught unit-level in
   `internal/translate/strictify_openai_test.go`, and end-to-end in
-  `smoke/openai_test.go` — the unit test proves the translator produces the
-  right JSON; recording confirms live acceptance, and replay guards that shape.
+  `internal/translate/responses_outbound_test.go` — the unit test proves the
+  translator produces the right JSON for the OpenAI Responses dialect.
 
 ## Architecture: a record/replay proxy sits between the router and its providers
 
@@ -75,16 +75,15 @@ path-gated run — it replays what's already checked in. Keys are only needed to
 - **On demand** via the workflow's `workflow_dispatch` button.
 - **Locally** before merging a risky router change, or to refresh cassettes:
   `make smoke` (replay-only by default) or
-  `ANTHROPIC_API_KEY=… SMOKE_PROXY_MODE=record make smoke` (real API, updates
+  `AIAND_API_KEY=… SMOKE_PROXY_MODE=record make smoke` (real upstream, updates
   cassettes).
 
 ## Running locally
 
 ```bash
 make smoke                                          # replay-only, no key needed
-ANTHROPIC_API_KEY=sk-ant-… SMOKE_PROXY_MODE=record make smoke   # refresh Anthropic cassettes
-ANTHROPIC_API_KEY=sk-ant-… OPENAI_API_KEY=sk-… SMOKE_PROXY_MODE=record make smoke   # refresh both providers' cassettes
-AIAND_API_KEY=… SMOKE_PROXY_MODE=record make smoke   # refresh AIand cassettes (auto-model turn)
+ANTHROPIC_API_KEY=sk-ant-… SMOKE_PROXY_MODE=record make smoke   # refresh the Claude-Code-ingress cassettes (fixture recorder)
+AIAND_API_KEY=… SMOKE_PROXY_MODE=record make smoke   # refresh the AIand cassettes (auto-model turn)
 ```
 
 That runs `scripts/smoke/run.sh`, which:
@@ -163,15 +162,14 @@ when Compose is installed, verify the actual merged config without a daemon.
 ## Cost
 
 `replay-only` runs make zero upstream calls. `record`/`replay-or-record` pin
-most Anthropic scenarios to the cheapest model (`claude-haiku-4-5`); the
-mid-conversation tool-change scenario uses `claude-opus-5`, the minimum model
-(`gpt-5.4-nano`). The AIand scenario is an auto-model turn (no pin):
-the registry scorer's pick is served and recorded, so a refresh is one
-AIand call. All pins use `x-weave-force-model` and cap `max_tokens` — a
-full refresh is ~15 real calls across both providers, a few cents. Skip
-recording OpenAI by omitting
-`OPENAI_API_KEY`; `smoke/openai_test.go` skips itself
-(`SMOKE_OPENAI_ENABLED=0`, set automatically by `run.sh` in that case).
+the Claude-Code-ingress scenarios to the cheapest vendor model
+(`claude-haiku-4-5`); the mid-conversation tool-change scenario uses
+`claude-opus-5`. The AIand scenario is an auto-model turn (no pin): the
+registry scorer's pick is served and recorded, so a refresh is one AIand
+call. All pins use `x-weave-force-model` and cap `max_tokens` — a
+full refresh is ~10 real calls, a few cents. The AIand turn is recorded
+only when `AIAND_API_KEY` is exported; the vendor-ingress scenarios need
+`ANTHROPIC_API_KEY`.
 
 ## What it covers
 
@@ -182,7 +180,7 @@ recording OpenAI by omitting
 | `smoke/cache_test.go` | router-injected caching warms then reads; client-at-capacity doesn't over-inject; `ttl=1h` breakpoint not poisoned; overflow rejected cleanly by the router |
 | `smoke/streaming_test.go` | tool-use stream lifecycle: balanced `content_block_start/stop`, exactly one `message_stop`, `stop_reason` present |
 | `smoke/tool_delta_test.go` | non-system `tool_addition` and `tool_removal` blocks are normalized and accepted by Anthropic |
-| `smoke/openai_test.go` | OpenAI Responses-API translation path (gpt-5.x + tools): a genuinely typeless optional tool param round-trips without a 400; basic turn served correctly |
+
 | `smoke/aiand_test.go` | AIand-only deployment invariants: an auto-model request is served by a v0.78 registry model via the `aiand` decision provider, and a vendor BYOK key cannot widen the roster |
 
 ## Regression proof
@@ -209,14 +207,14 @@ old fixture mismatch, or build failure is not a successful fail-before proof.
    (`smoke/fixtures/system_prompt.txt`) is prepended automatically so caching
    engages.
 2. Add a `t.Run(...)` subtest to the relevant `*_test.go`, using `call(t, body)`
-   (Anthropic, the suite-wide pin) or `callModel(t, body, model)` (any other
-   model/provider — see `smoke/openai_test.go`) and the shared assertions
+   (Claude Code ingress, the suite-wide pin) or `callModel(t, body, model)`
+   (any other model) and the shared assertions
    (`requireOKMessage`, `assertServedByPin`/`assertServedByModel`,
    `assertStreamWellFormed`).
 3. Keep it cheap: pin the cheap tier for whichever provider you're targeting,
    cap `max_tokens`, avoid multi-turn loops.
-4. Record the new cassette: `ANTHROPIC_API_KEY=… [OPENAI_API_KEY=…]
-   [AIAND_API_KEY=…] SMOKE_PROXY_MODE=record make smoke`, then review and commit the new
+4. Record the new cassette: `ANTHROPIC_API_KEY=… [AIAND_API_KEY=…]
+   SMOKE_PROXY_MODE=record make smoke`, then review and commit the new
    file(s) under `smoke/mitmproxy/cassettes/`.
 
 ## Refreshing cassettes
@@ -225,7 +223,7 @@ Cassettes go stale when a fixture, scenario, or a provider's own response shape
 changes. See `smoke/mitmproxy/cassettes/README.md`. Refresh with:
 
 ```bash
-ANTHROPIC_API_KEY=sk-ant-… OPENAI_API_KEY=sk-… SMOKE_PROXY_MODE=record make smoke
+ANTHROPIC_API_KEY=sk-ant-… AIAND_API_KEY=… SMOKE_PROXY_MODE=record make smoke
 git status smoke/mitmproxy/cassettes/   # review the diff, then commit
 ```
 
@@ -235,9 +233,8 @@ git status smoke/mitmproxy/cassettes/   # review the diff, then commit
 |---|---|---|
 | `SMOKE_PROXY_MODE` | `replay-only` | `replay-only` \| `record` \| `replay-or-record` |
 | `ANTHROPIC_API_KEY` | — | required only when `SMOKE_PROXY_MODE` isn't `replay-only` |
-| `OPENAI_API_KEY` | — | optional even in `record` mode — omit to skip recording/refreshing the OpenAI-path scenarios |
-| `SMOKE_PIN_MODEL` | `claude-haiku-4-5` | Anthropic model the default scenarios force |
-| `SMOKE_OPENAI_PIN_MODEL` | `gpt-5.4-nano` | OpenAI model `smoke/openai_test.go` forces |
+| `AIAND_API_KEY` | — | required only when `SMOKE_PROXY_MODE` isn't `replay-only` |
+| `SMOKE_PIN_MODEL` | `claude-haiku-4-5` | Claude-Code-ingress model the default scenarios force |
 | `SMOKE_BASE_URL` | Docker-allocated loopback port | set by the runner for tests; rejected as an orchestrator input |
 | `SMOKE_KEEP_STACK` | `0` | leave the stack up after the run |
 | `SMOKE_CI_CACHE` | `0` | layer-cache the server/mitmproxy builds via the GitHub Actions cache backend. **CI-only** — set only by `.github/workflows/smoke.yml`; hard-errors outside a real GitHub Actions runner, never set locally |
@@ -268,8 +265,8 @@ not just the final layer.
 ## CI secret
 
 The normal path-gated PR run needs **no secrets** — it replays committed
-cassettes. `ANTHROPIC_API_KEY`/`OPENAI_API_KEY` are only supplied for an explicitly
-selected manual recording mode or the scheduled nightly refresh. The replay PR
+cassettes. `ANTHROPIC_API_KEY`/`AIAND_API_KEY` are only supplied for an
+explicitly selected manual recording mode or the scheduled nightly refresh. The replay PR
 step does not receive them, including on same-repository PRs. Only maintainers
 can configure recording secrets; fork PRs cannot record.
 

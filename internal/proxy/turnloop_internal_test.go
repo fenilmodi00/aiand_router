@@ -450,7 +450,7 @@ func TestRecordHMMTurnHistory_ZeroUsagePreservesPriorProvider(t *testing.T) {
 	store.getPin = sessionpin.Pin{Provider: providers.ProviderAIAND}
 	svc := NewService(
 		nil,
-		map[string]providers.Client{providers.ProviderAIAND: nil, providers.ProviderOpenAI: nil},
+		map[string]providers.Client{providers.ProviderAIAND: nil, providers.ProviderAnthropic: nil},
 		nil,
 		false,
 		nil,
@@ -468,7 +468,7 @@ func TestRecordHMMTurnHistory_ZeroUsagePreservesPriorProvider(t *testing.T) {
 	res := turnLoopResult{
 		InstallationID: uuid.New(),
 		Decision: router.Decision{
-			Provider: providers.ProviderOpenAI,
+			Provider: providers.ProviderAIAND,
 			Model:    "deepseek-ai/deepseek-v4-flash",
 			Reason:   "hmm_policy(label=high)",
 			Metadata: &router.RoutingMetadata{Strategy: string(router.StrategyHMM), RouteID: "route-1"},
@@ -489,7 +489,7 @@ func TestRecordHMMTurnHistory_ZeroUsagePreservesPriorProvider(t *testing.T) {
 func TestNormalizeHMMStayPin_RepairsMismatchedProvider(t *testing.T) {
 	svc := NewService(
 		nil,
-		map[string]providers.Client{providers.ProviderAIAND: nil, providers.ProviderOpenAI: nil},
+		map[string]providers.Client{providers.ProviderAIAND: nil, providers.ProviderAnthropic: nil},
 		nil,
 		false,
 		nil,
@@ -499,7 +499,7 @@ func TestNormalizeHMMStayPin_RepairsMismatchedProvider(t *testing.T) {
 		nil,
 	)
 	pin := sessionpin.Pin{
-		Provider:        providers.ProviderOpenAI,
+		Provider:        providers.ProviderAIAND,
 		LastServedModel: "deepseek-ai/deepseek-v4.1-flash",
 		LastTurnEndedAt: time.Now(),
 		PinnedUntil:     time.Now().Add(time.Hour),
@@ -515,7 +515,7 @@ func TestNormalizeHMMStayPin_RepairsMismatchedProvider(t *testing.T) {
 func TestNormalizeHMMStayPin_ReResolvesDisabledProvider(t *testing.T) {
 	svc := NewService(
 		nil,
-		map[string]providers.Client{providers.ProviderAIAND: nil, providers.ProviderOpenAI: nil},
+		map[string]providers.Client{providers.ProviderAIAND: nil, providers.ProviderAnthropic: nil},
 		nil,
 		false,
 		nil,
@@ -525,7 +525,7 @@ func TestNormalizeHMMStayPin_ReResolvesDisabledProvider(t *testing.T) {
 		nil,
 	)
 	pin := sessionpin.Pin{
-		Provider:        providers.ProviderOpenAI,
+		Provider:        providers.ProviderAIAND,
 		LastServedModel: "deepseek-ai/deepseek-v4.1-flash",
 		LastTurnEndedAt: time.Now(),
 		PinnedUntil:     time.Now().Add(time.Hour),
@@ -545,7 +545,7 @@ func TestNormalizeHMMStayPin_PreservesCatalogRoutableTerra(t *testing.T) {
 	// branch would silently re-resolve the pin onto the catalog binding.
 	svc := NewService(
 		nil,
-		map[string]providers.Client{providers.ProviderOpenAI: nil, providers.ProviderAIAND: nil},
+		map[string]providers.Client{providers.ProviderAIAND: nil, providers.ProviderAnthropic: nil},
 		nil,
 		false,
 		nil,
@@ -555,7 +555,7 @@ func TestNormalizeHMMStayPin_PreservesCatalogRoutableTerra(t *testing.T) {
 		nil,
 	).WithAvailableModels(catalog.RoutingTargetSet(map[string]struct{}{providers.ProviderAIAND: {}}))
 	pin := sessionpin.Pin{
-		Provider:        providers.ProviderOpenAI,
+		Provider:        providers.ProviderAIAND,
 		Model:           "qwen/qwen3.8-27b",
 		LastServedModel: "qwen/qwen3.8-27b",
 		LastTurnEndedAt: time.Now(),
@@ -563,12 +563,12 @@ func TestNormalizeHMMStayPin_PreservesCatalogRoutableTerra(t *testing.T) {
 	}
 
 	normalized, ok := svc.normalizeHMMStayPin(router.Request{
-		CustomBindings: map[string][]string{"qwen/qwen3.8-27b": {providers.ProviderOpenAI}},
+		CustomBindings: map[string][]string{"qwen/qwen3.8-27b": {providers.ProviderAIAND}},
 	}, pin)
 
 	require.True(t, ok)
 	assert.Equal(t, "qwen/qwen3.8-27b", normalized.Model)
-	assert.Equal(t, providers.ProviderOpenAI, normalized.Provider)
+	assert.Equal(t, providers.ProviderAIAND, normalized.Provider)
 }
 
 func TestRecordTurnUsage_HMMEVStayWritesHistoryOnly(t *testing.T) {

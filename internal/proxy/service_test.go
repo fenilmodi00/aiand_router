@@ -100,12 +100,12 @@ func TestService_PreviewAnthropicRouteBuildsServingCandidateContextWithoutDispat
 	}}
 	svc := proxy.NewService(&fakeRouter{}, map[string]providers.Client{
 		providers.ProviderAnthropic: anthropicProvider,
-		providers.ProviderOpenAI:    openAIProvider,
+		providers.ProviderAIAND:     openAIProvider,
 	}, nil, false, nil, nil, false, providers.ProviderAnthropic, "zai-org/glm-5.3-flash", nil).
 		WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyHMM, Router: previewer}).
 		WithDeploymentKeyedProviders(map[string]struct{}{
 			providers.ProviderAnthropic: {},
-			providers.ProviderOpenAI:    {},
+			providers.ProviderAIAND:     {},
 		})
 
 	ctx := router.WithStrategy(context.Background(), router.StrategyHMM)
@@ -128,7 +128,7 @@ func TestService_PreviewAnthropicRouteBuildsServingCandidateContextWithoutDispat
 	assert.True(t, previewer.previewReq.HasTools)
 	assert.Equal(t, []string{"Read"}, previewer.previewReq.AvailableTools)
 	assert.Contains(t, previewer.previewReq.EnabledProviders, providers.ProviderAnthropic)
-	assert.Contains(t, previewer.previewReq.EnabledProviders, providers.ProviderOpenAI)
+	assert.Contains(t, previewer.previewReq.EnabledProviders, providers.ProviderAIAND)
 	assert.Contains(t, previewer.previewReq.ExcludedModels, "deepseek-ai/deepseek-v4-flash")
 	assert.NotContains(t, previewer.previewReq.ExcludedModels, "motif-technologies/motif-3",
 		"a normal non-Codex preview must retain infrastructure OpenAI candidates")
@@ -244,10 +244,10 @@ func TestService_ProxyOpenAIResponses_CustomToolUsesNativeOpenAIFamily(t *testin
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = io.WriteString(w, `{"id":"resp_1","object":"response","output":[{"type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"ok"}]}]}`)
 	}}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "deepseek-ai/deepseek-v4-flash", Reason: "test"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek-ai/deepseek-v4-flash", Reason: "test"}}
 	svc := proxy.NewService(fr, map[string]providers.Client{
 		providers.ProviderAnthropic: &fakeProvider{},
-		providers.ProviderOpenAI:    provider,
+		providers.ProviderAIAND:     provider,
 	}, nil, false, nil, nil, false, providers.ProviderAnthropic, "zai-org/glm-5.3-flash", nil)
 
 	body := []byte(`{"model":"deepseek-ai/deepseek-v4-flash","input":"apply a patch","reasoning":{"effort":"high"},"tools":[{"type":"custom","name":"apply_patch"}]}`)
@@ -260,7 +260,7 @@ func TestService_ProxyOpenAIResponses_CustomToolUsesNativeOpenAIFamily(t *testin
 	require.NoError(t, err)
 	assert.Equal(t, originalEnvelope.ReasoningConfigurationSHA256(), fr.capturedReq.ReasoningConfigurationSHA256)
 	assert.Equal(t, originalEnvelope.ToolConfigurationSHA256(), fr.capturedReq.ToolConfigurationSHA256)
-	assert.Equal(t, map[string]struct{}{providers.ProviderOpenAI: {}}, fr.capturedReq.EnabledProviders)
+	assert.Equal(t, map[string]struct{}{providers.ProviderAIAND: {}}, fr.capturedReq.EnabledProviders)
 	require.Len(t, provider.proxyBodies, 1)
 	assert.JSONEq(t, `{"model":"deepseek-ai/deepseek-v4-flash","input":"apply a patch","reasoning":{"effort":"high"},"tools":[{"type":"custom","name":"apply_patch"}]}`, string(provider.proxyBodies[0]))
 	assert.Equal(t, providers.EndpointResponses, provider.proxyEndpoints[0])
@@ -271,8 +271,8 @@ func TestService_ProxyOpenAIResponses_CodexFeedbackSkillIsSynthetic(t *testing.T
 	provider := &fakeProvider{}
 	fr := &fakeRouter{}
 	svc := proxy.NewService(fr, map[string]providers.Client{
-		providers.ProviderOpenAI: provider,
-	}, nil, false, nil, nil, false, providers.ProviderOpenAI, "qwen/qwen3.8-27b", nil)
+		providers.ProviderAIAND: provider,
+	}, nil, false, nil, nil, false, providers.ProviderAIAND, "qwen/qwen3.8-27b", nil)
 	ctx := context.WithValue(context.Background(), proxy.ClientIdentityContextKey{}, proxy.ClientIdentity{ClientApp: proxy.ClientAppCodex})
 	body := []byte(`{"model":"qwen/qwen3.8-27b","input":[{"type":"message","role":"user","content":"$rf +"},{"type":"message","role":"user","content":"<skill>\n<name>rf</name>\nrun the feedback skill\n</skill>"},{"type":"custom_tool_call","call_id":"call_skill","name":"exec","input":"..."},{"type":"custom_tool_call_output","call_id":"call_skill","output":[{"type":"input_text","text":"Script completed\nOutput:\n /router-feedback +\n"}]}]}`)
 	rec := httptest.NewRecorder()
@@ -317,10 +317,10 @@ func TestService_ProxyOpenAIResponses_StaysNativeForDirectOpenAI(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 				_, _ = io.WriteString(w, `{"id":"chatcmpl_1","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}]}`)
 			}}
-			fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: tc.model, Reason: "test"}}
+			fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: tc.model, Reason: "test"}}
 			svc := proxy.NewService(fr, map[string]providers.Client{
-				providers.ProviderOpenAI: provider,
-			}, nil, false, nil, nil, false, providers.ProviderOpenAI, "moonshotai/kimi-k3", nil)
+				providers.ProviderAIAND: provider,
+			}, nil, false, nil, nil, false, providers.ProviderAIAND, "moonshotai/kimi-k3", nil)
 
 			ctx := context.WithValue(context.Background(), proxy.ClientIdentityContextKey{}, proxy.ClientIdentity{ClientApp: proxy.ClientAppOpencode})
 			body := []byte(`{"model":"auto","input":"remove the router","reasoning":{"effort":"medium"}` + tc.tools + `}`)
@@ -359,10 +359,10 @@ func TestService_ProxyOpenAIResponses_BroadRolloutOffKeepsNarrowPromotion(t *tes
 				w.WriteHeader(http.StatusOK)
 				_, _ = io.WriteString(w, `{"id":"chatcmpl_1","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}]}`)
 			}}
-			fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "zai-org/glm-5.3-flash", Reason: "test"}}
+			fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "zai-org/glm-5.3-flash", Reason: "test"}}
 			svc := proxy.NewService(fr, map[string]providers.Client{
-				providers.ProviderOpenAI: provider,
-			}, nil, false, nil, nil, false, providers.ProviderOpenAI, "moonshotai/kimi-k3", nil)
+				providers.ProviderAIAND: provider,
+			}, nil, false, nil, nil, false, providers.ProviderAIAND, "moonshotai/kimi-k3", nil)
 
 			ctx := context.WithValue(context.Background(), proxy.ClientIdentityContextKey{}, proxy.ClientIdentity{ClientApp: proxy.ClientAppOpencode})
 			ctx = flags.WithOverrides(ctx, flags.Overrides{
@@ -396,13 +396,13 @@ func TestService_ProxyOpenAIResponses_ToolTurnFallsBackWhenEndpointLacksResponse
 		},
 	}
 	fr := &fakeRouter{decision: router.Decision{
-		Provider: providers.ProviderOpenAI,
+		Provider: providers.ProviderAIAND,
 		Model:    "zai-org/glm-5.3-flash",
 		Reason:   "test",
 	}}
 	svc := proxy.NewService(fr, map[string]providers.Client{
-		providers.ProviderOpenAI: provider,
-	}, nil, false, nil, nil, false, providers.ProviderOpenAI, "moonshotai/kimi-k3", nil)
+		providers.ProviderAIAND: provider,
+	}, nil, false, nil, nil, false, providers.ProviderAIAND, "moonshotai/kimi-k3", nil)
 
 	ctx := context.WithValue(
 		context.Background(),
@@ -442,11 +442,15 @@ func TestService_ProxyOpenAIResponses_OpenCodeStripsTerminalArtifactsBeforeTrans
 	}}
 	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.1", Reason: "test"}}
 	svc := proxy.NewService(fr, map[string]providers.Client{
-		providers.ProviderAIAND:  provider,
-		providers.ProviderOpenAI: provider,
-	}, nil, false, nil, nil, false, providers.ProviderOpenAI, "moonshotai/kimi-k3", nil)
+		providers.ProviderAIAND: provider,
+	}, nil, false, nil, nil, false, providers.ProviderAIAND, "moonshotai/kimi-k3", nil)
 
 	ctx := context.WithValue(context.Background(), proxy.ClientIdentityContextKey{}, proxy.ClientIdentity{ClientApp: proxy.ClientAppOpencode})
+	// Rollout off: this test pins the chat/completions body the translation
+	// emits, not the promoted native-Responses dispatch.
+	ctx = flags.WithOverrides(ctx, flags.Overrides{
+		Bools: map[flags.Key]bool{flags.KeyOpenAIResponsesBroad: false},
+	})
 	body := []byte(`{"model":"auto","input":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"⁣⁠⁣⁠**Weave Router** — gpt-5.6-sol\n\nold answer\n\n_Weave Router feedback:_ /rf + good experience"}]},{"type":"message","role":"user","content":"continue"}]}`)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(""))
@@ -472,12 +476,15 @@ func TestService_ProxyOpenAIResponses_TranslatedMarkerOptOutPreservesStream(t *t
 	}}
 	svc := proxy.NewService(fr, map[string]providers.Client{
 		providers.ProviderAIAND: together,
-		providers.ProviderOpenAI: &fakeProvider{
-			proxyResponse: together.proxyResponse,
-		},
-	}, nil, false, nil, nil, false, providers.ProviderOpenAI, "moonshotai/kimi-k3", nil)
+	}, nil, false, nil, nil, false, providers.ProviderAIAND, "moonshotai/kimi-k3", nil)
 
 	ctx := context.WithValue(context.Background(), proxy.ClientIdentityContextKey{}, proxy.ClientIdentity{ClientApp: proxy.ClientAppCodex})
+	// Rollout off keeps this turn on the chat/completions surface it speaks; the
+	// broad promotion would stream it as native Responses and the prelude
+	// lifecycle is decided by the marker, which this test suppresses.
+	ctx = flags.WithOverrides(ctx, flags.Overrides{
+		Bools: map[flags.Key]bool{flags.KeyOpenAIResponsesBroad: false},
+	})
 	body := []byte(`{"model":"zai-org/glm-5.3-flash","stream":true,"input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"say hello"}]}]}`)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(""))
@@ -494,13 +501,13 @@ func TestService_ProxyOpenAIResponses_NativeMarkerOptOutPreservesContentType(t *
 		`data: {"type":"response.completed","sequence_number":2,"response":{"id":"resp_1","status":"completed","model":"moonshotai/kimi-k3","output":[{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"output_text","text":"done"}]}],"usage":{"input_tokens":120,"output_tokens":8}}}` + "\n\n"
 	openAI := &fakeProvider{proxyResponse: nativeResponsesStream(terminal)}
 	fr := &fakeRouter{decision: router.Decision{
-		Provider: providers.ProviderOpenAI,
+		Provider: providers.ProviderAIAND,
 		Model:    "moonshotai/kimi-k3",
 		Reason:   "test",
 	}}
 	svc := proxy.NewService(fr, map[string]providers.Client{
-		providers.ProviderOpenAI: openAI,
-	}, nil, false, nil, nil, false, providers.ProviderOpenAI, "moonshotai/kimi-k3", nil)
+		providers.ProviderAIAND: openAI,
+	}, nil, false, nil, nil, false, providers.ProviderAIAND, "moonshotai/kimi-k3", nil)
 
 	body := []byte(`{"model":"moonshotai/kimi-k3","stream":true,"input":[{"type":"reasoning","id":"rs_0","encrypted_content":"opaque"},{"type":"message","role":"user","content":[{"type":"input_text","text":"continue"}]}]}`)
 	rec := httptest.NewRecorder()
@@ -537,11 +544,32 @@ func TestService_ProxyOpenAIResponses_EmitsRoutingMarkerForCodex(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			provider := &fakeProvider{proxyResponse: func(w http.ResponseWriter) {
+			provider := &fakeProvider{}
+			provider.proxyResponse = func(w http.ResponseWriter) {
 				w.Header().Set("Content-Type", "text/event-stream")
 				w.WriteHeader(http.StatusOK)
+				// AIand promotes the turn to POST /v1/responses, so the fixture
+				// must answer the promoted endpoint in Responses frames.
+				if n := len(provider.proxyEndpoints); n > 0 && provider.proxyEndpoints[n-1] == providers.EndpointResponses {
+					// The proxy emits the badge itself (passthrough badge); the
+					// fixture contributes only the model's own output.
+					if tc.wantText == "" {
+						_, _ = io.WriteString(w, "data: {\"type\":\"response.output_item.added\",\"output_index\":0,\"item\":{\"id\":\"fc_1\",\"type\":\"function_call\",\"call_id\":\"call_1\",\"name\":\"shell\",\"arguments\":\"\"}}\n\n"+
+							"data: {\"type\":\"response.function_call_arguments.delta\",\"output_index\":0,\"item_id\":\"fc_1\",\"delta\":\"{}\"}\n\n"+
+							"data: {\"type\":\"response.function_call_arguments.done\",\"output_index\":0,\"item_id\":\"fc_1\",\"arguments\":\"{}\"}\n\n"+
+							"data: {\"type\":\"response.output_item.done\",\"output_index\":0,\"item\":{\"id\":\"fc_1\",\"type\":\"function_call\",\"call_id\":\"call_1\",\"name\":\"shell\",\"arguments\":\"{}\"}}\n\n"+
+							"data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"status\":\"completed\",\"output\":[{\"type\":\"function_call\",\"call_id\":\"call_1\",\"name\":\"shell\",\"arguments\":\"{}\"}]}}\n\n")
+						return
+					}
+					_, _ = io.WriteString(w, "data: {\"type\":\"response.output_item.added\",\"output_index\":0,\"item\":{\"id\":\"msg_1\",\"type\":\"message\",\"role\":\"assistant\",\"status\":\"in_progress\",\"content\":[]}}\n\n"+
+						"data: {\"type\":\"response.content_part.added\",\"output_index\":0,\"content_index\":0,\"item_id\":\"msg_1\",\"part\":{\"type\":\"output_text\",\"text\":\"\",\"annotations\":[]}}\n\n"+
+						"data: {\"type\":\"response.output_text.delta\",\"output_index\":0,\"content_index\":0,\"item_id\":\"msg_1\",\"delta\":\""+tc.wantText+"\"}\n\n"+
+						"data: {\"type\":\"response.output_item.done\",\"output_index\":0,\"item\":{\"id\":\"msg_1\",\"type\":\"message\",\"role\":\"assistant\",\"status\":\"completed\",\"content\":[{\"type\":\"output_text\",\"text\":\""+tc.wantText+"\"}]}}\n\n"+
+						"data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"status\":\"completed\",\"output\":[{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\""+tc.wantText+"\"}]}]}}\n\n")
+					return
+				}
 				_, _ = io.WriteString(w, tc.upstream)
-			}}
+			}
 			fr := &fakeRouter{decision: router.Decision{
 				Provider: providers.ProviderAIAND,
 				Model:    "deepseek-ai/deepseek-v4-pro",
@@ -633,8 +661,8 @@ func TestService_PassthroughToProvider_CountTokensLocalFallback(t *testing.T) {
 	openAIProvider := &fakeProvider{}
 	svc := makeProxyService(router.Decision{}, map[string]providers.Client{
 		providers.ProviderAnthropic: anthropicProvider,
-		providers.ProviderOpenAI:    openAIProvider,
-	}).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderOpenAI: {}})
+		providers.ProviderAIAND:     openAIProvider,
+	}).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 
 	body := []byte(`{"model":"deepseek-ai/deepseek-v4.1-flash","messages":[{"role":"user","content":"hello world"}]}`)
 	httpReq := httptest.NewRequest(http.MethodPost, "/v1/messages/count_tokens", strings.NewReader(""))
@@ -1011,8 +1039,8 @@ func TestService_ProxyOpenAIChatCompletion_NativeOpenAI(t *testing.T) {
 		},
 	}
 	svc := makeProxyService(
-		router.Decision{Provider: "openai", Model: "qwen/qwen3.8-27b", Reason: "test"},
-		map[string]providers.Client{"openai": provider},
+		router.Decision{Provider: providers.ProviderAIAND, Model: "qwen/qwen3.8-27b", Reason: "test"},
+		map[string]providers.Client{providers.ProviderAIAND: provider},
 	)
 
 	body := `{"model":"qwen/qwen3.8-27b","messages":[{"role":"user","content":"hi"}]}`
@@ -1058,7 +1086,12 @@ func TestService_ProxyOpenAIChatCompletion_NativeOpenAICompatProvider(t *testing
 	rec := httptest.NewRecorder()
 	httpReq := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
 
-	err := svc.ProxyOpenAIChatCompletion(context.Background(), []byte(body), rec, httpReq)
+	// Rollout off: this test pins the no-translation chat/completions path, not
+	// the Responses promotion an AIand turn takes by default.
+	ctx := flags.WithOverrides(context.Background(), flags.Overrides{
+		Bools: map[flags.Key]bool{flags.KeyOpenAIResponsesBroad: false},
+	})
+	err := svc.ProxyOpenAIChatCompletion(ctx, []byte(body), rec, httpReq)
 	require.NoError(t, err)
 
 	require.Len(t, provider.proxyBodies, 1)
@@ -1080,7 +1113,7 @@ func TestService_ProxyMessages_DispatchesOpenAICompatProviders(t *testing.T) {
 		model    string
 	}{
 		{"aiand", providers.ProviderAIAND, "deepseek/deepseek-v4-flash"},
-		{"openai", providers.ProviderOpenAI, "moonshotai/kimi-k3"},
+		{"openai", providers.ProviderAIAND, "moonshotai/kimi-k3"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1113,7 +1146,7 @@ func TestService_ProxyOpenAIChatCompletion_DispatchesOpenAICompatProviders(t *te
 		model    string
 	}{
 		{"aiand", providers.ProviderAIAND, "deepseek/deepseek-v4-flash"},
-		{"openai", providers.ProviderOpenAI, "moonshotai/kimi-k3"},
+		{"openai", providers.ProviderAIAND, "moonshotai/kimi-k3"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1290,14 +1323,14 @@ func TestService_ProxyOpenAIResponses_NativeDispatchAppliesArmEffort(t *testing.
 				_, _ = io.WriteString(w, `{"id":"chatcmpl_1","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}]}`)
 			}}
 			fr := &fakeRouter{decision: router.Decision{
-				Provider: providers.ProviderOpenAI,
+				Provider: providers.ProviderAIAND,
 				Model:    "zai-org/glm-5.3-flash",
 				Effort:   tc.armEffort,
 				Reason:   "test",
 			}}
 			svc := proxy.NewService(fr, map[string]providers.Client{
-				providers.ProviderOpenAI: provider,
-			}, nil, false, nil, nil, false, providers.ProviderOpenAI, "moonshotai/kimi-k3", nil)
+				providers.ProviderAIAND: provider,
+			}, nil, false, nil, nil, false, providers.ProviderAIAND, "moonshotai/kimi-k3", nil)
 
 			ctx := context.WithValue(context.Background(), proxy.ClientIdentityContextKey{}, proxy.ClientIdentity{ClientApp: proxy.ClientAppOpencode})
 			body := []byte(`{"model":"auto","input":"remove the router","reasoning":{"effort":"medium","summary":"auto"}}`)

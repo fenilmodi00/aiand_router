@@ -19,6 +19,15 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+// aiandRescueChatSSE is the OpenAI Responses stream the single OpenAI-compat
+// upstream serves for a turn the linked Codex subscription cannot fund. The
+// funding preference must not replace the forced model with a
+// subscription-covered one. Responses-shaped because every roster model is an
+// always-on reasoning model, so an AIand turn promotes to POST /v1/responses.
+const aiandRescueChatSSE = `data: {"type":"response.created","response":{"id":"resp_rescue","status":"in_progress"}}` + "\n\n" +
+	`data: {"type":"response.output_text.delta","output_index":0,"content_index":0,"delta":"ok"}` + "\n\n" +
+	`data: {"type":"response.completed","response":{"id":"resp_rescue","status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"ok"}]}],"usage":{"input_tokens":5,"output_tokens":1}}}` + "\n\n"
+
 func TestBoostLinkedFirstHonorsForcedModel(t *testing.T) {
 	const astraModel = "deepseek-ai/deepseek-v4-pro"
 	const opusModel = "zai-org/glm-5.3"

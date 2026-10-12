@@ -189,8 +189,8 @@ func TestProxyMessages_TranslatedPathStreamCutLogsDiagnostics(t *testing.T) {
 		},
 	}
 	svc := makeProxyService(
-		router.Decision{Provider: providers.ProviderOpenAI, Model: "zai-org/glm-5.3-flash", Reason: "test"},
-		map[string]providers.Client{providers.ProviderOpenAI: provider},
+		router.Decision{Provider: providers.ProviderAIAND, Model: "zai-org/glm-5.3-flash", Reason: "test"},
+		map[string]providers.Client{providers.ProviderAIAND: provider},
 	)
 
 	rec := httptest.NewRecorder()

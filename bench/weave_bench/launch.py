@@ -9,7 +9,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-from weave_bench.arms import ArmSpec, Upstream
+from weave_bench.arms import ArmSpec
 from weave_bench.benchmarks import HARBOR_VERSION, PINS, Benchmark
 from weave_bench.config import BenchConfig, require_secret
 from weave_bench.harbor_command import INHERITED_ENV_TO_CLEAR, HarborJob, build_job
@@ -80,8 +80,6 @@ def render_dry_run(launch: LaunchPlan) -> str:
             lines += [f"# writes {job.codex_config_path}:"] + [
                 f"#   {config_line}" for config_line in (job.codex_config or "").splitlines()
             ]
-        if job.arm.upstream is Upstream.OPENROUTER:
-            lines.append("# requires `weave-bench tap serve` running at openrouter_tap.public_url")
         lines.append(shlex.join(job.argv))
     return "\n".join(lines) + "\n"
 

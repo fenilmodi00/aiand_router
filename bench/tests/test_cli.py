@@ -16,15 +16,13 @@ def test_run_dry_run_prints_the_harbor_commands_without_launching(
 ) -> None:
     monkeypatch.chdir(tmp_path)
     exit_code = main(
-        ["run", "atlas-qna", "--arms", "router,luna,openrouter-beta", "--smoke", "--run-id", "dry", "--dry-run"]
+        ["run", "atlas-qna", "--arms", "router,router-glm", "--smoke", "--run-id", "dry", "--dry-run"]
     )
     out = capsys.readouterr().out
     assert exit_code == 0
     assert "# atlas-qna run_id=dry" in out
     assert "tasks=1 (manifest has 124)" in out
-    assert "## arm router (router)" in out and "## arm luna (direct)" in out
-    assert "## arm openrouter-beta (openrouter)" in out
-    assert "requires `weave-bench tap serve`" in out
+    assert "## arm router (router)" in out and "## arm router-glm (router-force)" in out
     assert "--include-task-name task-6905333b74f22949d97ba998" in out
     assert "--job-name dry--router" in out
     assert not (tmp_path / "jobs").exists()
@@ -63,8 +61,8 @@ def test_run_report_hint_names_the_arms_that_ran(
 ) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("weave_bench.cli.run_job", lambda job, config: 0)
-    assert main(["run", "terminal-bench-4", "--arms", "router,luna", "--smoke", "--run-id", "r1"]) == 0
-    assert "weave-bench report terminal-bench-4 r1 --arms router,luna" in capsys.readouterr().out
+    assert main(["run", "terminal-bench-4", "--arms", "router,router-glm", "--smoke", "--run-id", "r1"]) == 0
+    assert "weave-bench report terminal-bench-4 r1 --arms router,router-glm" in capsys.readouterr().out
 
 
 def test_report_without_analytics_writes_markdown_and_json(
@@ -73,13 +71,13 @@ def test_report_without_analytics_writes_markdown_and_json(
     monkeypatch.chdir(tmp_path)
     jobs = tmp_path / "jobs"
     write_trial(jobs / "r1--router", task="terminal-bench/cad-model", trial_name="cad__a", reward=1.0)
-    write_trial(jobs / "r1--sol", task="terminal-bench/cad-model", trial_name="cad__b", reward=0.0)
+    write_trial(jobs / "r1--router-glm", task="terminal-bench/cad-model", trial_name="cad__b", reward=0.0)
     assert main(["report", "terminal-bench-4", "r1", "--no-analytics"]) == 0
     out = capsys.readouterr().out
     assert "| `router` |" in out
     report = json.loads((jobs / "reports" / "r1" / "report.json").read_text())
     assert report["run_id"] == "r1"
-    assert [arm["arm"] for arm in report["arms"]] == ["router", "sol"]
+    assert [arm["arm"] for arm in report["arms"]] == ["router", "router-glm"]
     assert report["arms"][0]["router_billed_usd"] is None
     assert (jobs / "reports" / "r1" / "report.md").exists()
 
@@ -90,19 +88,20 @@ def test_report_replays_a_saved_analytics_export(
     monkeypatch.chdir(tmp_path)
     jobs = tmp_path / "jobs"
     write_trial(jobs / "r1--router", task="t", trial_name="t__a", reward=1.0, session_id="sess")
-    write_trial(jobs / "r1--sol", task="t", trial_name="t__b", reward=1.0)
+    write_trial(jobs / "r1--router-glm", task="t", trial_name="t__b", reward=1.0)
     export = tmp_path / "saved.ndjson"
     export.write_text(
         json.dumps(
             {
                 "id": 1,
                 "session_id": "sess",
-                "decision_model": "gpt-5.6-sol",
+                "decision_model": "zai-org/glm-5.3",
+                "decision_provider": "aiand",
                 "actual_input_cost_usd": 0.4,
                 "actual_output_cost_usd": 0.1,
                 "input_tokens": 10,
-                "cache_read_input_tokens": 0,
-                "cache_creation_input_tokens": 0,
+                "cache_read_tokens": 0,
+                "cache_creation_tokens": 0,
                 "output_tokens": 5,
             }
         )
@@ -112,7 +111,7 @@ def test_report_replays_a_saved_analytics_export(
     capsys.readouterr()
     report = json.loads((jobs / "reports" / "r1" / "report.json").read_text())
     assert report["arms"][0]["router_billed_usd"] == pytest.approx(0.5)
-    assert report["arms"][0]["router_served_models"] == {"gpt-5.6-sol": 1}
+    assert report["arms"][0]["router_served_models"] == {"zai-org/glm-5.3": 1}
 
 
 def test_report_refetches_analytics_when_the_run_grows(
@@ -122,7 +121,7 @@ def test_report_refetches_analytics_when_the_run_grows(
     monkeypatch.setenv("WEAVE_ANALYTICS_KEY", "ra_test")
     jobs = tmp_path / "jobs"
     write_trial(jobs / "r1--router", task="t1", trial_name="t1__a", reward=1.0, session_id="s1")
-    write_trial(jobs / "r1--sol", task="t1", trial_name="t1__b", reward=1.0)
+    write_trial(jobs / "r1--router-glm", task="t1", trial_name="t1__b", reward=1.0)
     windows: list[tuple[datetime, datetime]] = []
 
     def fake_fetch(
@@ -133,8 +132,8 @@ def test_report_refetches_analytics_when_the_run_grows(
             {
                 "id": len(windows),
                 "session_id": f"s{len(windows)}",
-                "decision_model": "gpt-5.6-sol",
-                "decision_provider": "openai",
+                "decision_model": "zai-org/glm-5.3",
+                "decision_provider": "aiand",
                 "actual_input_cost_usd": 1.0,
                 "actual_output_cost_usd": 0.0,
             }

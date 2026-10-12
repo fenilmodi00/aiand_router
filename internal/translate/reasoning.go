@@ -68,18 +68,6 @@ func ParseReasoningIntent(format Format, body []byte) ReasoningIntent {
 		return intent
 	}
 
-	if format == FormatGemini {
-		config := gjson.GetBytes(body, "generationConfig.thinkingConfig")
-		if level := config.Get("thinkingLevel"); level.Exists() {
-			return parseReasoningEffort(level, "gemini.thinkingConfig.thinkingLevel")
-		}
-		if budget := config.Get("thinkingBudget"); budget.Exists() && budget.Type == gjson.Number {
-			if budget.Int() == 0 {
-				return ReasoningIntent{Kind: ReasoningDisabled, Source: "gemini.thinkingConfig.thinkingBudget", Explicit: true}
-			}
-			return ReasoningIntent{Kind: ReasoningBudget, BudgetTokens: budget.Int(), Source: "gemini.thinkingConfig.thinkingBudget", Explicit: true}
-		}
-	}
 	return ReasoningIntent{}
 }
 

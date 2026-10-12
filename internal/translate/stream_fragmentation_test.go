@@ -266,19 +266,6 @@ func openAIChunk(choicesAndUsage string) string {
 
 const openAIChatCompletionJSON = `{"id":"chatcmpl-json","object":"chat.completion","created":1,"model":"gpt-x","choices":[{"index":0,"message":{"role":"assistant","content":"Hi"},"finish_reason":"stop"}],"usage":{"prompt_tokens":3,"completion_tokens":2}}`
 
-// geminiToolTurnFrames streams text, then a functionCall carrying a
-// thoughtSignature, then STOP with usage.
-func geminiToolTurnFrames() sseFrames {
-	return sseFrames{
-		string(geminiSSE(`{"candidates":[{"content":{"parts":[{"text":"Hello"}],"role":"model"},"index":0}]}`)),
-		string(geminiSSE(`{"candidates":[{"content":{"parts":[{"text":", world"}],"role":"model"},"index":0}]}`)),
-		string(geminiSSE(`{"candidates":[{"content":{"parts":[{"functionCall":{"name":"get_weather","args":{"location":"NYC"}},"thoughtSignature":"SIG_FRAG"}],"role":"model"},"index":0}]}`)),
-		string(geminiSSE(`{"candidates":[{"content":{"parts":[],"role":"model"},"finishReason":"STOP","index":0}],"usageMetadata":{"promptTokenCount":30,"candidatesTokenCount":11,"totalTokenCount":41}}`)),
-	}
-}
-
-const geminiResponseJSON = `{"candidates":[{"content":{"parts":[{"text":"Hi"}],"role":"model"},"finishReason":"STOP","index":0}],"usageMetadata":{"promptTokenCount":3,"candidatesTokenCount":2,"totalTokenCount":5}}`
-
 // sseFrames is an ordered list of complete SSE events; truncating it models
 // an upstream that closes before its terminal event.
 type sseFrames []string
@@ -333,17 +320,6 @@ func largeOpenAIChunkStreamOf(frameBytes, smallFrames int) string {
 
 func largeOpenAIChunkStream() string {
 	return largeOpenAIChunkStreamOf(largeFrameBytes, largeFixtureSmallFrames)
-}
-
-// largeGeminiStream is a text-only Gemini turn ending in STOP with usage.
-func largeGeminiStream() string {
-	var body strings.Builder
-	body.Write(geminiSSE(`{"candidates":[{"content":{"parts":[{"text":"` + largeText(largeFrameBytes) + `"}],"role":"model"},"index":0}]}`))
-	for i := 0; i < largeFixtureSmallFrames; i++ {
-		body.Write(geminiSSE(`{"candidates":[{"content":{"parts":[{"text":"chunk ` + strconv.Itoa(i) + ` ` + largeText(90) + `"}],"role":"model"},"index":0}]}`))
-	}
-	body.Write(geminiSSE(`{"candidates":[{"content":{"parts":[],"role":"model"},"finishReason":"STOP","index":0}],"usageMetadata":{"promptTokenCount":30,"candidatesTokenCount":4321,"totalTokenCount":4351}}`))
-	return body.String()
 }
 
 func responsesEvent(eventType, data string) string {
@@ -444,36 +420,6 @@ func streamFamilies() []streamFamily {
 			},
 		},
 		{
-			name: "GeminiToOpenAISSETranslator",
-			fixtures: []streamFixture{
-				{
-					name: "text and functionCall turn", body: geminiToolTurnFrames().join(), streaming: true,
-					mustContain:  []string{`"content":"Hello"`, "__thought__U0lHX0ZSQUc", `"name":"get_weather"`, `{\"location\":\"NYC\"}`, `"finish_reason":"tool_calls"`, "data: [DONE]"},
-					wantProgress: true,
-				},
-				{
-					name: "truncated before finish", body: geminiToolTurnFrames().withoutLast(1).join(), streaming: true,
-					mustContain: []string{`"type":"api_error"`}, mustNotContain: []string{"data: [DONE]"}, wantFinalizeErr: translate.ErrStreamIncomplete, wantProgress: true,
-				},
-				{
-					name: "plain JSON body", body: geminiResponseJSON,
-					mustContain: []string{`"object":"chat.completion"`, `"content":"Hi"`, `"finish_reason":"stop"`},
-				},
-				{name: "large text turn", body: largeGeminiStream(), streaming: true, mustContain: []string{`"finish_reason":"stop"`, "data: [DONE]"}, wantProgress: true},
-			},
-			run: func(t *testing.T, fixture streamFixture, chunks [][]byte) streamObservation {
-				rec := httptest.NewRecorder()
-				sink := &fakeUsageSink{}
-				w := translate.NewGeminiToOpenAISSETranslator(rec, "gemini-2.5-pro", sink)
-				commitUpstreamResponse(w, fixture.streaming)
-				marks := armProgress(t, w, fixture.streaming)
-				observation := runFinalizing(w, rec, chunks)
-				observation.progressMarks = *marks
-				observation.usage = *sink
-				return observation
-			},
-		},
-		{
 			name: "ResponsesToAnthropicWriter",
 			fixtures: []streamFixture{
 				{
@@ -560,20 +506,6 @@ func streamFamilies() []streamFamily {
 			run: func(t *testing.T, fixture streamFixture, chunks [][]byte) streamObservation {
 				rec := httptest.NewRecorder()
 				w := translate.NewOpenAIRoutingFooterWriter(rec, testFooter)
-				commitUpstreamResponse(w, fixture.streaming)
-				return runPassthrough(w, rec, chunks)
-			},
-		},
-		{
-			name: "GeminiRoutingFooterWriter",
-			fixtures: []streamFixture{
-				{name: "natural answer", body: geminiAnswerStream(), streaming: true, mustContain: []string{"Weave Router feedback", `"finishReason":"STOP"`}},
-				{name: "functionCall turn keeps footer off", body: geminiToolTurnFrames().join(), streaming: true, mustContain: []string{`"name":"get_weather"`}, mustNotContain: []string{"Weave Router feedback"}},
-				{name: "large text turn", body: largeGeminiStream(), streaming: true, mustContain: []string{"Weave Router feedback", `"finishReason":"STOP"`}},
-			},
-			run: func(t *testing.T, fixture streamFixture, chunks [][]byte) streamObservation {
-				rec := httptest.NewRecorder()
-				w := translate.NewGeminiRoutingFooterWriter(rec, testFooter)
 				commitUpstreamResponse(w, fixture.streaming)
 				return runPassthrough(w, rec, chunks)
 			},
@@ -678,9 +610,6 @@ var (
 	// toolUseIDNonce is the per-response suffix AnthropicSSETranslator adds to
 	// every tool_use id, optionally followed by an embedded thought signature.
 	toolUseIDNonce = regexp.MustCompile(`_[0-9a-f]{12}(__thought__.*)?$`)
-	// generatedCallID is the random id the Gemini translator mints for a
-	// functionCall, which may carry an embedded thought signature after it.
-	generatedCallID = regexp.MustCompile(`^call_[0-9a-f]{8}`)
 )
 
 // projectGeneratedValues replaces only the values a writer generates per
@@ -720,11 +649,6 @@ func projectGeneratedJSON(t *testing.T, doc string) string {
 	if block := gjson.Get(doc, "content_block"); block.Get("type").Str == "tool_use" {
 		id := block.Get("id").Str
 		doc = replaceIfProjected(t, doc, "content_block.id", id, toolUseIDNonce.ReplaceAllString(id, "_NONCE$1"))
-	}
-	for i, call := range gjson.Get(doc, "choices.0.delta.tool_calls").Array() {
-		if id := call.Get("id"); id.Type == gjson.String {
-			doc = replaceIfProjected(t, doc, "choices.0.delta.tool_calls."+strconv.Itoa(i)+".id", id.Str, generatedCallID.ReplaceAllString(id.Str, "call_GENERATED"))
-		}
 	}
 	return doc
 }
@@ -790,11 +714,6 @@ func TestStreamFragmentation_ProjectionOnlyTouchesGeneratedValues(t *testing.T) 
 			name: "upstream ids and arguments are kept",
 			in:   `data: {"id":"chatcmpl-frag","created":1,"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_xyz__thought__U0lH","function":{"arguments":"{\"a\":1}"}}]}}]}`,
 			want: `data: {"id":"chatcmpl-frag","created":0,"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_xyz__thought__U0lH","function":{"arguments":"{\"a\":1}"}}]}}]}`,
-		},
-		{
-			name: "generated chat id and minted call id are replaced, signature kept",
-			in:   `data: {"id":"chatcmpl-0123456789abcdef","created":1700000000,"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_0badf00d__thought__U0lH"}]}}]}`,
-			want: `data: {"id":"chatcmpl-GENERATED","created":0,"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_GENERATED__thought__U0lH"}]}}]}`,
 		},
 		{
 			name: "generated message id is replaced, upstream one kept",

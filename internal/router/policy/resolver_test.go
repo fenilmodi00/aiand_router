@@ -117,23 +117,21 @@ func TestArmResolverEnumeratesEachAllowedProviderBinding(t *testing.T) {
 	}
 }
 
-func TestArmResolverRejectsRosterOnlySelectionForThreeBindings(t *testing.T) {
+func TestArmResolverRejectsRosterOnlySelectionForMultipleBindings(t *testing.T) {
+	// The AIand-only catalog binds every row once, so a second arm for the same
+	// model can only come from an installation-declared Anthropic binding.
 	resolver := policy.NewArmResolver(
 		set("deepseek-ai/deepseek-v4-pro"),
-		set(
-			providers.ProviderAIAND,
-			providers.ProviderAnthropic,
-			providers.ProviderOpenAI,
-		),
+		set(providers.ProviderAIAND, providers.ProviderAnthropic),
 		func(catalog.Model) string { return "shared/arm" },
 		policy.ProviderPolicy{},
 	)
 
 	resolved := resolver.Resolve(router.Request{CustomBindings: map[string][]string{
-		"deepseek-ai/deepseek-v4-pro": {providers.ProviderAnthropic, providers.ProviderOpenAI},
+		"deepseek-ai/deepseek-v4-pro": {providers.ProviderAnthropic},
 	}})
 
-	require.Len(t, resolved.Candidates, 3)
+	require.Len(t, resolved.Candidates, 2)
 	assert.Empty(t, resolved.ByRosterID)
 	_, ok := resolved.BindingForSelection("", "shared/arm")
 	assert.False(t, ok)
@@ -545,7 +543,7 @@ func TestResolverRoutesOnlyGatewayAliasedModelsWhenGatewayConfigured(t *testing.
 	// name stands in.
 	resolver := policy.NewResolver(
 		set("deepseek-ai/deepseek-v4-pro", "qwen/qwen3.8-27b", "zai-org/glm-5.3"),
-		set(providers.ProviderAnthropic, providers.ProviderOpenAI, providers.ProviderAIAND),
+		set(providers.ProviderAnthropic, providers.ProviderAIAND, providers.ProviderAIAND),
 		catalogRosterID,
 		policy.ManagedProviderPolicy(),
 	)
@@ -611,24 +609,26 @@ func TestResolverYieldsNoCandidatesWhenGatewayKeysHaveNoAliases(t *testing.T) {
 }
 
 func TestResolverEnumeratesEveryAliasingGatewayForAModel(t *testing.T) {
+	// Every catalog row binds only AIand, so the second per-model arm needs an
+	// installation-declared Anthropic binding alongside it.
 	resolver := policy.NewArmResolver(
 		set("deepseek-ai/deepseek-v4-pro"),
-		set(providers.ProviderAIAND, providers.ProviderOpenAI),
+		set(providers.ProviderAIAND, providers.ProviderAnthropic),
 		catalogRosterID,
 		policy.ManagedProviderPolicy(),
 	)
 
 	resolved := resolver.Resolve(router.Request{
-		EnabledProviders: set(providers.ProviderAIAND, providers.ProviderOpenAI),
-		GatewayProviders: set(providers.ProviderAIAND, providers.ProviderOpenAI),
+		EnabledProviders: set(providers.ProviderAIAND, providers.ProviderAnthropic),
+		GatewayProviders: set(providers.ProviderAIAND, providers.ProviderAnthropic),
 		CustomBindings: map[string][]string{
-			"deepseek-ai/deepseek-v4-pro": {providers.ProviderAIAND, providers.ProviderOpenAI},
+			"deepseek-ai/deepseek-v4-pro": {providers.ProviderAIAND, providers.ProviderAnthropic},
 		},
 	})
 
 	require.Len(t, resolved.Candidates, 2)
 	assert.Equal(t, providers.ProviderAIAND, resolved.Candidates[0].Provider)
-	assert.Equal(t, providers.ProviderOpenAI, resolved.Candidates[1].Provider)
+	assert.Equal(t, providers.ProviderAnthropic, resolved.Candidates[1].Provider)
 }
 
 func TestResolverKeepsVendorRoutingWhenNoGatewayConfigured(t *testing.T) {

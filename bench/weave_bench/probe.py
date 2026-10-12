@@ -24,7 +24,7 @@ HMM_ROSTER_PATH = "/v1/router/hmm-roster"
 RESPONSES_PATH = "/v1/responses"
 # Codex identifies its session to the router with this header (session_key.go).
 CODEX_SESSION_HEADER = "Session-Id"
-PROBE_MODEL = "gpt-5.6-sol"
+PROBE_MODEL = "zai-org/glm-5.3"
 PROBE_TIMEOUT_SECONDS = 30
 
 

@@ -83,27 +83,3 @@ func TestPrepareOpenAIStripsBillingHeaderFromSystemArray(t *testing.T) {
 	require.NotContains(t, body, "x-anthropic-billing-header", "billing header must be stripped; body=%s", body)
 	require.True(t, strings.Contains(body, "You are Claude Code."), "real system prompt must survive")
 }
-
-// TestPrepareGeminiStripsBillingHeaderFromSystemArray is the Gemini-emit
-// twin of the OpenAI test above — same inbound shape, same expectation.
-func TestPrepareGeminiStripsBillingHeaderFromSystemArray(t *testing.T) {
-	inbound := []byte(`{
-		"model": "claude-opus-4-7",
-		"max_tokens": 64,
-		"system": [
-			{"type": "text", "text": "x-anthropic-billing-header: cc_version=2.1.141.bb8; cc_entrypoint=cli; cch=6c6ec;"},
-			{"type": "text", "text": "You are Claude Code."}
-		],
-		"messages": [{"role": "user", "content": "hi"}]
-	}`)
-	env, err := ParseAnthropic(inbound)
-	require.NoError(t, err)
-	prep, err := env.PrepareGemini(nil, EmitOptions{
-		TargetModel:  "gemini-2.5-flash",
-		Capabilities: router.Lookup("gemini-2.5-flash"),
-	})
-	require.NoError(t, err)
-	body := string(prep.Body)
-	require.NotContains(t, body, "x-anthropic-billing-header", "billing header must be stripped; body=%s", body)
-	require.True(t, strings.Contains(body, "You are Claude Code."), "real system prompt must survive")
-}

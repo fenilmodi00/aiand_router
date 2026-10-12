@@ -279,8 +279,6 @@ func TestGatewayRetiresBetaWithoutSessionOrWorkerAdmission(t *testing.T) {
 		{"chat stream", "/v1/chat/completions", `{"stream":true,"messages":[{"role":"user","content":"/beta"}]}`, "data: [DONE]"},
 		{"responses json", "/v1/responses", `{"input":"/beta"}`, `"object":"response"`},
 		{"responses stream", "/v1/responses", `{"stream":true,"input":"/beta"}`, "response.completed"},
-		{"gemini json", "/v1beta/models/auto:generateContent", `{"contents":[{"role":"user","parts":[{"text":"/beta"}]}]}`, `"finishReason":"STOP"`},
-		{"gemini stream", "/v1beta/models/auto:streamGenerateContent", `{"contents":[{"role":"user","parts":[{"text":"/beta"}]}]}`, "data: "},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			forwarder, _, _ := gatewayFixture(t, worker, nil, errors.New("admission must not run for retired beta"))

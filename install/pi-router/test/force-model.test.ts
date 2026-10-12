@@ -68,10 +68,10 @@ test("forwards one canonical force-model turn with the argument verbatim", async
 	// model name. It now reads the whole argument as the name, so "haiku fix
 	// the tests" is rejected there rather than split into a pin plus a prompt.
 	await commands.get("fm")?.handler("  haiku fix the tests  ", ctx);
-	await commands.get("force-model")?.handler("gpt-5", ctx);
+	await commands.get("force-model")?.handler("zai-org/glm-5.3", ctx);
 	assert.deepEqual(sent, [
 		{ content: "/force-model haiku fix the tests", options: undefined },
-		{ content: "/force-model gpt-5", options: undefined },
+		{ content: "/force-model zai-org/glm-5.3", options: undefined },
 	]);
 });
 
@@ -161,8 +161,8 @@ test("forced status replaces automatic routing and savings detail", () => {
 		},
 	} as unknown as ExtensionCommandContext;
 	updateRouterStatus(ctx, {
-		requestedModel: "claude-sonnet-4-6",
-		routedModel: "moonshotai/kimi-k2.7",
+		requestedModel: "zai-org/glm-5.3",
+		routedModel: "moonshotai/kimi-k3",
 		forcedModel: "zai-org/glm-5.3-flash",
 		savings: aggregateSavings([]),
 	});

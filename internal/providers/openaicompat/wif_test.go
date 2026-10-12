@@ -31,7 +31,7 @@ func TestProxy_WIFCredentialsCarryTokenTypeHeader(t *testing.T) {
 	}))
 	defer upstream.Close()
 
-	c := openaicompat.NewGatewayClient("", upstream.URL+"/api/v2/cortex/v1")
+	c := openaicompat.NewClient("", upstream.URL+"/v1")
 	creds := &requestcontext.Credentials{
 		APIKey:   []byte("WIF.GCP.header.payload.sig"),
 		Source:   "byok",

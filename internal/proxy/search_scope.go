@@ -49,11 +49,9 @@ func (t *searchUseTracker) observe(key string, recency, decayTurns int) bool {
 }
 
 // scopeSearchRequirement narrows CitationsOrSearch from tool-advertisement to actual recent use,
-// returning advertised-only turns to policy routing. Gemini is excluded: a declared googleSearch
-// tool grounds every response, so advertisement is use.
+// returning advertised-only turns to policy routing.
 func (s *Service) scopeSearchRequirement(sessionKey [sessionpin.SessionKeyLen]byte, env *translate.RequestEnvelope, reqs router.TranslationRequirements) router.TranslationRequirements {
-	if !s.scopedSearchRequirement || env == nil || !reqs.CitationsOrSearch ||
-		reqs.SourceFormat == router.WireFormatGemini {
+	if !s.scopedSearchRequirement || env == nil || !reqs.CitationsOrSearch {
 		return reqs
 	}
 	reqs.CitationsOrSearch = s.searchUse.observe(

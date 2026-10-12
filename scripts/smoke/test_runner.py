@@ -54,8 +54,7 @@ root = Path(os.environ["FAKE_STATE"])
 entry = {"tool": tool, "args": args, "credentials": {
     key: value for key, value in os.environ.items()
     if key.endswith(("_API_KEY", "_TOKEN")) or key.startswith("SMOKE_RECORD_")
-}, "test_url": os.environ.get("SMOKE_BASE_URL"),
-    "openai_enabled": os.environ.get("SMOKE_OPENAI_ENABLED"),
+    "test_url": os.environ.get("SMOKE_BASE_URL"),
     "go_flags": os.environ.get("GOFLAGS"),
     "go_cache": os.environ.get("GOCACHE"),
     "pin_model": os.environ.get("SMOKE_PIN_MODEL"),
@@ -159,7 +158,6 @@ class SmokeRunnerTest(unittest.TestCase):
             "FAKE_STATE": str(self.state),
             "TMPDIR": str(self.root),
             "ANTHROPIC_API_KEY": "synthetic-host-anthropic-secret",
-            "OPENAI_API_KEY": "synthetic-host-openai-secret",
             "GOOGLE_API_KEY": "synthetic-host-google-secret",
             "COMPOSE_PROJECT_NAME": "developer-stack",
             "COMPOSE_PROFILES": "hmm",
@@ -211,7 +209,6 @@ class SmokeRunnerTest(unittest.TestCase):
         )
         go_call = next(call for call in calls if call["tool"] == "go")
         self.assertEqual(go_call["test_url"], "http://127.0.0.1:49170")
-        self.assertEqual(go_call["openai_enabled"], "1")
         self.assertFalse(Path(compose_calls[0]["override_path"]).parent.exists())
         self.assertEqual(
             (self.state / "developer-stack").read_text(),
@@ -422,7 +419,7 @@ class SmokeRunnerTest(unittest.TestCase):
         self.assertNotEqual(missing.returncode, 0)
         self.assertEqual(self.calls(), [])
         completed = self.run_smoke(
-            SMOKE_PROXY_MODE=ProxyMode.RECORD.value, OPENAI_API_KEY=""
+            SMOKE_PROXY_MODE=ProxyMode.RECORD.value, GOOGLE_API_KEY=""
         )
         self.assertEqual(completed.returncode, 0, completed.stdout)
         up = next(call for call in self.calls() if "up" in call["args"])
@@ -434,7 +431,6 @@ class SmokeRunnerTest(unittest.TestCase):
         self.assertIn("internal: false", up["override"])
         self.assertIn("/cassettes:rw", up["override"])
         go_call = next(call for call in self.calls() if call["tool"] == "go")
-        self.assertEqual(go_call["openai_enabled"], "0")
         self.assertEqual(go_call["credentials"], {})
 
 

@@ -629,7 +629,7 @@ func TestProxyEntrypointsStripHistoricalBetaArtifactsBeforeRouting(t *testing.T)
 			decisionProvider := providers.ProviderAnthropic
 			decisionModel := "zai-org/glm-5.3-flash"
 			if tt.openAI {
-				decisionProvider = providers.ProviderOpenAI
+				decisionProvider = providers.ProviderAIAND
 				decisionModel = "deepseek-ai/deepseek-v4-flash"
 			}
 			routing := &betaTestRouter{decision: router.Decision{
@@ -641,7 +641,7 @@ func TestProxyEntrypointsStripHistoricalBetaArtifactsBeforeRouting(t *testing.T)
 				routing,
 				map[string]providers.Client{
 					providers.ProviderAnthropic: embedTestProvider{},
-					providers.ProviderOpenAI:    embedTestProvider{},
+					providers.ProviderAIAND:     embedTestProvider{},
 				},
 				nil, false, nil, nil, false,
 				providers.ProviderAnthropic, "zai-org/glm-5.3-flash", nil,
@@ -739,7 +739,7 @@ func TestBetaPreferenceSurvivesFirstMessageRewriteWithinClientSession(t *testing
 			decisionProvider := providers.ProviderAnthropic
 			decisionModel := "zai-org/glm-5.3-flash"
 			if tt.openAI {
-				decisionProvider = providers.ProviderOpenAI
+				decisionProvider = providers.ProviderAIAND
 				decisionModel = "deepseek-ai/deepseek-v4-flash"
 			}
 			decision := router.Decision{Provider: decisionProvider, Model: decisionModel, Reason: "test"}
@@ -749,7 +749,7 @@ func TestBetaPreferenceSurvivesFirstMessageRewriteWithinClientSession(t *testing
 				stableRouter,
 				map[string]providers.Client{
 					providers.ProviderAnthropic: embedTestProvider{},
-					providers.ProviderOpenAI:    embedTestProvider{},
+					providers.ProviderAIAND:     embedTestProvider{},
 				},
 				nil, false, nil, nil, false,
 				providers.ProviderAnthropic, "zai-org/glm-5.3-flash", nil,

@@ -31,7 +31,7 @@ func TestCustomBindingsFromKeys_SkipsUnusableDeclarations(t *testing.T) {
 			ModelAliases: map[string]string{"moonshotai/kimi-k3": "openai-gpt-5"},
 		},
 		{
-			Provider:  providers.ProviderOpenAI,
+			Provider:  providers.ProviderAIAND,
 			Plaintext: []byte("pat"),
 			ModelAliases: map[string]string{
 				"not-a-catalog-model": "whatever",
@@ -44,10 +44,12 @@ func TestCustomBindingsFromKeys_SkipsUnusableDeclarations(t *testing.T) {
 
 // TestCustomBindingsFromKeys_ProvidersAreOrdered: alias maps iterate randomly,
 // so without sorting two identical installations could pick different endpoints.
+// The roster is AIand-only, so both keys enroll the same endpoint and the
+// projection keeps one entry per distinct provider name.
 func TestCustomBindingsFromKeys_ProvidersAreOrdered(t *testing.T) {
 	keys := []*auth.ExternalAPIKey{
 		{
-			Provider:     providers.ProviderOpenAI,
+			Provider:     providers.ProviderAIAND,
 			Plaintext:    []byte("pat"),
 			ModelAliases: map[string]string{"qwen/qwen3.8-27b": "qwen/qwen3.8-27b"},
 		},
@@ -59,6 +61,6 @@ func TestCustomBindingsFromKeys_ProvidersAreOrdered(t *testing.T) {
 	}
 
 	assert.Equal(t,
-		[]string{providers.ProviderAIAND, providers.ProviderOpenAI},
+		[]string{providers.ProviderAIAND},
 		customBindingsFromKeys(keys)["qwen/qwen3.8-27b"])
 }

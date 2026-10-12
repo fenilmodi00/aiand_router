@@ -40,7 +40,7 @@ func TestProxyOpenAIResponses_BlindPassthroughDoesNotRescueOrMutatePins(t *testi
 	// model's own first response, and passthrough must return it verbatim
 	// without re-dispatching.
 	upstreams := &cyberRefusalUpstreams{openAIResponse: streamResponses(aiandRefusalChatSSE)}
-	refusalURL, fallbackURL := upstreams.start(t)
+	upstreams.start(t)
 	store := newFakePinStore()
 	svc := proxy.NewService(
 		&fakeRouter{decision: router.Decision{
@@ -50,15 +50,13 @@ func TestProxyOpenAIResponses_BlindPassthroughDoesNotRescueOrMutatePins(t *testi
 			Metadata: &router.RoutingMetadata{CandidateModels: []string{"moonshotai/kimi-k3"}},
 		}},
 		map[string]providers.Client{
-			providers.ProviderAIAND:  openaicompat.NewClient("test-aiand-key", refusalURL),
-			providers.ProviderOpenAI: openaicompat.NewClient("test-openai-key", fallbackURL),
+			providers.ProviderAIAND: openaicompat.NewClient("test-aiand-key", upstreams.aiandURL),
 		},
 		nil, false, nil, store, false, providers.ProviderAIAND, "zai-org/glm-5.3-flash", newCaptureTelemetry(),
 	).
 		WithCyberRefusalFallbackModel("deepseek-ai/deepseek-v4.1-flash").
 		WithDeploymentKeyedProviders(map[string]struct{}{
-			providers.ProviderAIAND:  {},
-			providers.ProviderOpenAI: {},
+			providers.ProviderAIAND: {},
 		})
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(""))

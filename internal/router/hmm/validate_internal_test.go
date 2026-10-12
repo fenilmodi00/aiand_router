@@ -14,7 +14,7 @@ import (
 func TestValidateRosterIDs_AmbiguousMappingReported(t *testing.T) {
 	// Two catalog models with the same slash-form ID map to one roster ID.
 	models := []catalog.Model{
-		{ID: "acme/model-a", Providers: []catalog.ProviderBinding{{Provider: providers.ProviderOpenAI}}},
+		{ID: "acme/model-a", Providers: []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}}},
 		{ID: "acme/model-a", Providers: []catalog.ProviderBinding{{Provider: providers.ProviderAnthropic}}},
 	}
 
@@ -30,9 +30,9 @@ func TestValidateRosterIDs_DeniedBindingReported(t *testing.T) {
 	// fixture supplies an explicit denial: a roster arm whose only binding is
 	// policy-denied must be reported as undispatchable.
 	models := []catalog.Model{
-		{ID: "acme/model-b", Providers: []catalog.ProviderBinding{{Provider: providers.ProviderOpenAI}}},
+		{ID: "acme/model-b", Providers: []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}}},
 	}
-	denyOpenAI := policy.ProviderPolicy{Denied: map[string]struct{}{providers.ProviderOpenAI: {}}}
+	denyOpenAI := policy.ProviderPolicy{Denied: map[string]struct{}{providers.ProviderAIAND: {}}}
 
 	diags := validateRosterIDs([]string{"acme/model-b"}, models, denyOpenAI)
 

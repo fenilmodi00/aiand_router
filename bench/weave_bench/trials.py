@@ -23,7 +23,7 @@ class CodexEvent(StrEnum):
 
 class ErrorCategory(StrEnum):
     NONE = "none"
-    CYBER_REFUSAL = "openai-cyber-filter-refusal"
+    CYBER_REFUSAL = "cyber-filter-refusal"
     ENVIRONMENT_SETUP = "harbor-environment-setup-failure"
     AGENT_KILLED = "agent-killed-exit-137"
     UPSTREAM_AUTH = "upstream-auth-error"

@@ -33,11 +33,6 @@ func TestClassifierContextProtocolParity(t *testing.T) {
 			{"type":"function_call","call_id":"c1","name":"test","arguments":"{\"secret\":\"arguments\"}"},
 			{"type":"function_call_output","call_id":"c1","status":"failed","output":"private output"},
 			{"role":"user","content":"second"}]}`},
-		{"gemini", translate.ParseGemini, `{"contents":[
-			{"role":"user","parts":[{"text":"first"}]},
-			{"role":"model","parts":[{"thought":true,"text":"private reasoning"},{"text":"  answer  "},{"text":""},{"functionCall":{"id":"c1","name":"test","args":{"secret":"arguments"}}}]},
-			{"role":"user","parts":[{"functionResponse":{"id":"c1","name":"test","response":{"error":"private output"}}}]},
-			{"role":"user","parts":[{"text":"second"}]}]}`},
 	}
 	for _, fixture := range fixtures {
 		t.Run(fixture.name, func(t *testing.T) {

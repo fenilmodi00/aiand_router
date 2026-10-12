@@ -10,15 +10,14 @@ import (
 )
 
 // expectedRosterPrefix pins the vendor prefix rosterIDFor applies for a given
-// provider's primary binding, keyed off the roster's OpenRouter-style slug
-// convention (see rosterAliases doc comment). This map is deliberately
+// provider's primary binding, keyed off the roster's vendor-prefix slug
+// convention. This map is deliberately
 // explicit rather than derived from providers.ProviderFamilies so a new
 // Provider* constant forces a decision here (finding [113]: provider
 // dispatch drift guard) instead of silently falling through to the bare
 // model-ID default.
 var expectedRosterPrefix = map[string]string{
 	providers.ProviderAnthropic: "anthropic/",
-	providers.ProviderOpenAI:    "openai/",
 }
 
 // defaultRosterPrefixProviders are providers intentionally left off

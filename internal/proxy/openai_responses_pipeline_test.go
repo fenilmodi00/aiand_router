@@ -43,8 +43,8 @@ const chatCacheableTurnBody = `{"model":"auto","stream":false,"max_tokens":256,
 func openAIChatServiceWithDecision(provider providers.Client, decision router.Decision, c *cache.Cache) *proxy.Service {
 	return proxy.NewService(
 		&fakeRouter{decision: decision},
-		map[string]providers.Client{providers.ProviderOpenAI: provider},
-		nil, false, c, nil, false, providers.ProviderOpenAI, "moonshotai/kimi-k3", nil,
+		map[string]providers.Client{providers.ProviderAIAND: provider},
+		nil, false, c, nil, false, providers.ProviderAIAND, "moonshotai/kimi-k3", nil,
 	)
 }
 
@@ -54,7 +54,7 @@ func openAIChatServiceWithDecision(provider providers.Client, decision router.De
 func TestService_ProxyOpenAIChatCompletion_ResponsesTurnCachesTranslatedBody(t *testing.T) {
 	provider := &fakeProvider{proxyResponse: responsesTextUpstream}
 	decision := router.Decision{
-		Provider: providers.ProviderOpenAI,
+		Provider: providers.ProviderAIAND,
 		Model:    "zai-org/glm-5.3-flash",
 		Reason:   "test",
 		Metadata: &router.RoutingMetadata{Embedding: embeddingFixture(11), ClusterIDs: []int{0, 1}},
@@ -87,7 +87,7 @@ func TestService_ProxyOpenAIChatCompletion_ResponsesStreamBypassesCache(t *testi
 	streamingBody := strings.Replace(chatCacheableTurnBody, `"stream":false`, `"stream":true`, 1)
 	provider := &fakeProvider{proxyResponse: responsesTextUpstream}
 	decision := router.Decision{
-		Provider: providers.ProviderOpenAI,
+		Provider: providers.ProviderAIAND,
 		Model:    "zai-org/glm-5.3-flash",
 		Reason:   "test",
 		Metadata: &router.RoutingMetadata{Embedding: embeddingFixture(11), ClusterIDs: []int{0, 1}},
@@ -153,14 +153,14 @@ func TestService_ProxyMessages_HandoverSwitchToOpenAIEmitsResponses(t *testing.T
 	}
 	openAI := &fakeProvider{proxyResponse: responsesTextUpstream}
 	fr := &fakeRouter{decision: router.Decision{
-		Provider: providers.ProviderOpenAI, Model: "zai-org/glm-5.3-flash", Reason: "cluster:v0.2",
+		Provider: providers.ProviderAIAND, Model: "zai-org/glm-5.3-flash", Reason: "cluster:v0.2",
 	}}
 	summarizer := &fakeSummarizer{summary: "HANDOVER SUMMARY MARKER"}
 	svc := proxy.NewService(
 		fr,
 		map[string]providers.Client{
 			providers.ProviderAnthropic: &fakeProvider{},
-			providers.ProviderOpenAI:    openAI,
+			providers.ProviderAIAND:     openAI,
 		},
 		nil, false, nil, store, false, providers.ProviderAnthropic, "zai-org/glm-5.3-flash", nil,
 	).WithSummarizer(summarizer)
@@ -192,16 +192,16 @@ func TestService_ProxyOpenAIChatCompletion_HandoverUsesResponsesEndpoint(t *test
 	}
 	openAI := &fakeProvider{proxyResponse: responsesTextUpstream}
 	fr := &fakeRouter{decision: router.Decision{
-		Provider: providers.ProviderOpenAI, Model: "zai-org/glm-5.3-flash", Reason: "cluster:v0.2",
+		Provider: providers.ProviderAIAND, Model: "zai-org/glm-5.3-flash", Reason: "cluster:v0.2",
 	}}
 	summarizer := &fakeSummarizer{summary: "HANDOVER SUMMARY MARKER"}
 	svc := proxy.NewService(
 		fr,
 		map[string]providers.Client{
 			providers.ProviderAnthropic: &fakeProvider{},
-			providers.ProviderOpenAI:    openAI,
+			providers.ProviderAIAND:     openAI,
 		},
-		nil, false, nil, store, false, providers.ProviderOpenAI, "moonshotai/kimi-k3", nil,
+		nil, false, nil, store, false, providers.ProviderAIAND, "moonshotai/kimi-k3", nil,
 	).WithSummarizer(summarizer)
 	body := `{"model":"auto","stream":true,"max_tokens":256,"messages":[{"role":"user","content":"` + strings.Repeat("aaaa ", 8000) + `"}],"tools":[{"type":"function","function":{"name":"noop","parameters":{"type":"object"}}}],"reasoning_effort":"medium"}`
 	rec := httptest.NewRecorder()

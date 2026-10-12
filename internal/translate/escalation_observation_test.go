@@ -19,8 +19,6 @@ func TestEscalationObservationRejectsMalformedNamedTools(t *testing.T) {
 		}{
 			{"chat", fmt.Sprintf(`{"messages":[{"role":"assistant","tool_calls":[{"function":%s}]}]}`, tool), translate.ParseOpenAI},
 			{"chat legacy", fmt.Sprintf(`{"messages":[{"role":"assistant","function_call":%s}]}`, tool), translate.ParseOpenAI},
-			{"gemini call", fmt.Sprintf(`{"contents":[{"role":"model","parts":[{"functionCall":%s}]}]}`, tool), translate.ParseGemini},
-			{"gemini result", fmt.Sprintf(`{"contents":[{"role":"user","parts":[{"functionResponse":%s}]}]}`, tool), translate.ParseGemini},
 		}
 		for _, fixture := range fixtures {
 			t.Run(fixture.name+tool, func(t *testing.T) {
@@ -108,7 +106,6 @@ func TestEscalationObservationPreservesToolIdentityAcrossProtocols(t *testing.T)
 	}{
 		{"anthropic", `{"messages":[{"role":"assistant","content":[{"type":"text","text":"checking"},{"type":"tool_use","id":"call-1","name":"run","input":{"command":"go test"}},{"type":"text","text":"waiting"}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"call-1","is_error":true,"content":"failed"}]}]}`, translate.ParseAnthropic},
 		{"chat", `{"messages":[{"role":"assistant","content":"checking","tool_calls":[{"id":"call-1","type":"function","function":{"name":"run","arguments":"{\"command\":\"go test\"}"}}]},{"role":"tool","tool_call_id":"call-1","is_error":true,"content":"failed"}]}`, translate.ParseOpenAI},
-		{"gemini", `{"contents":[{"role":"model","parts":[{"text":"checking"},{"functionCall":{"id":"call-1","name":"run","args":{"command":"go test"}}},{"text":"waiting"}]},{"role":"user","parts":[{"functionResponse":{"id":"call-1","name":"run","response":{"error":"failed"}}}]}]}`, translate.ParseGemini},
 		{"responses", `{"input":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"checking"}]},{"type":"function_call","call_id":"call-1","name":"run","arguments":"{\"command\":\"go test\"}"},{"type":"function_call_output","call_id":"call-1","is_error":true,"output":"failed"}]}`, translate.ParseOpenAI},
 	}
 	for _, fixture := range fixtures {
@@ -168,18 +165,6 @@ func TestResponsesEscalationRetainsCustomToolsAndContinuation(t *testing.T) {
 	assert.Equal(t, "tools", call.Namespace)
 	assert.Equal(t, `"*** patch\n"`, call.ArgumentsJSON)
 	assert.JSONEq(t, `[{"type":"input_text","text":"done"}]`, observation.Messages[1].Blocks[0].ContentJSON)
-}
-
-func TestGeminiEscalationDoesNotInventCallIDs(t *testing.T) {
-	envelope, err := translate.ParseGemini([]byte(`{"contents":[{"role":"model","parts":[{"functionCall":{"name":"run","args":{}}},{"functionCall":{"name":"run","args":{}}}]},{"role":"user","parts":[{"functionResponse":{"name":"run","response":{"result":"done"}}}]}]}`))
-	require.NoError(t, err)
-	observation, err := envelope.EscalationObservation()
-	require.NoError(t, err)
-	assert.Empty(t, observation.Messages[0].Blocks[0].ID)
-	assert.Empty(t, observation.Messages[0].Blocks[1].ID)
-	assert.Empty(t, observation.Messages[1].Blocks[0].CallID)
-	assert.Equal(t, "run", observation.Messages[1].Blocks[0].Name)
-	assert.Nil(t, observation.Messages[1].Blocks[0].IsError)
 }
 
 func TestEscalationObservationExcludesOpaqueReasoningAndMedia(t *testing.T) {

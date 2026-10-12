@@ -1,8 +1,6 @@
 package websearch_test
 
 import (
-	"encoding/json"
-	"strings"
 	"testing"
 
 	"github.com/tidwall/gjson"
@@ -129,83 +127,5 @@ func TestDetectSearchTurnIgnoresChoiceForcingAnotherTool(t *testing.T) {
 	}`)
 	if _, ok := websearch.DetectSearchTurn(body); ok {
 		t.Fatal("a turn forcing a different tool must route normally")
-	}
-}
-
-func TestSynthesizeMessagePreservesClientToolName(t *testing.T) {
-	resp := websearch.Response{
-		Summary: "Cortex Agents expose a native web_search tool.",
-		Results: []websearch.Result{
-			{Title: "Cortex Agents Run API", URL: "https://docs.snowflake.com/agents-run", Snippet: "agent:run accepts a web_search tool_spec."},
-			{URL: "https://docs.snowflake.com/agents-manage"},
-		},
-	}
-	msg := websearch.SynthesizeMessage("msg_1", "claude-sonnet-5", "web_search_custom",
-		websearch.Query{Text: "cortex agents"}, resp, 120)
-
-	raw, err := json.Marshal(msg)
-	if err != nil {
-		t.Fatalf("marshal: %v", err)
-	}
-	parsed := gjson.ParseBytes(raw)
-	if got := parsed.Get("content.0.type").String(); got != "server_tool_use" {
-		t.Fatalf("first block = %q", got)
-	}
-	if got := parsed.Get("content.0.name").String(); got != "web_search_custom" {
-		t.Fatalf("tool name = %q; a renamed tool must survive so the client renders the result", got)
-	}
-	if got := parsed.Get("content.0.input.query").String(); got != "cortex agents" {
-		t.Fatalf("query = %q", got)
-	}
-	if got := parsed.Get("content.1.tool_use_id").String(); got != parsed.Get("content.0.id").String() {
-		t.Fatalf("result block references %q, tool use is %q", got, parsed.Get("content.0.id").String())
-	}
-	if got := parsed.Get("content.1.content.#").Int(); got != 2 {
-		t.Fatalf("result count = %d", got)
-	}
-	if got := parsed.Get("content.1.content.0.type").String(); got != "web_search_result" {
-		t.Fatalf("result block type = %q", got)
-	}
-	if got := parsed.Get("content.1.content.1.title").String(); got != "https://docs.snowflake.com/agents-manage" {
-		t.Fatalf("untitled hit should fall back to its URL, got %q", got)
-	}
-	text := parsed.Get("content.2.text").String()
-	if !strings.Contains(text, "native web_search tool") || !strings.Contains(text, "https://docs.snowflake.com/agents-run") {
-		t.Fatalf("answer text lost the summary or its sources: %q", text)
-	}
-	if got := parsed.Get("usage.server_tool_use.web_search_requests").Int(); got != 1 {
-		t.Fatalf("server tool usage = %d", got)
-	}
-	if got := parsed.Get("usage.input_tokens").Int(); got != 120 {
-		t.Fatalf("input tokens = %d", got)
-	}
-}
-
-func TestSynthesizeMessageWithoutResults(t *testing.T) {
-	msg := websearch.SynthesizeMessage("msg_2", "claude-sonnet-5", "",
-		websearch.Query{Text: "nothing"}, websearch.Response{}, 0)
-	if got := msg.Content[0].Name; got != "web_search" {
-		t.Fatalf("default tool name = %q", got)
-	}
-	if !strings.Contains(msg.TextOf(), "No web search results") {
-		t.Fatalf("empty search must say so, got %q", msg.TextOf())
-	}
-
-	raw, err := json.Marshal(msg)
-	if err != nil {
-		t.Fatalf("marshal: %v", err)
-	}
-	parsed := gjson.ParseBytes(raw)
-	result := parsed.Get("content.1")
-	if got := result.Get("type").String(); got != "web_search_tool_result" {
-		t.Fatalf("content.1.type = %q", got)
-	}
-	if c := result.Get("content"); !c.Exists() || !c.IsArray() || len(c.Array()) != 0 {
-		t.Fatalf("zero-hit web_search_tool_result must serialize content as [], got %s", result.Raw)
-	}
-	for _, i := range []string{"0", "2"} {
-		if parsed.Get("content." + i + ".content").Exists() {
-			t.Fatalf("block %s must not carry a content key: %s", i, parsed.Get("content."+i).Raw)
-		}
 	}
 }

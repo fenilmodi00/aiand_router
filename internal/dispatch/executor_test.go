@@ -69,7 +69,7 @@ func (f *fakeUpstream) Passthrough(context.Context, providers.PreparedRequest, h
 
 var (
 	primary = inference.Target{CatalogID: "kimi-k2.5", Provider: providers.ProviderAIAND, UpstreamID: "accounts/fireworks/models/kimi-k2p5", BindingIndex: 0}
-	backup  = inference.Target{CatalogID: "kimi-k2.5", Provider: providers.ProviderOpenAI, UpstreamID: "moonshotai/kimi-k2.5", BindingIndex: 1}
+	backup  = inference.Target{CatalogID: "kimi-k2.5", Provider: providers.ProviderAnthropic, UpstreamID: "moonshotai/kimi-k2.5", BindingIndex: 1}
 )
 
 type recorder struct{ events []inference.AttemptEvent }
@@ -102,9 +102,9 @@ func attemptWith(body []byte) dispatch.AttemptFunc {
 
 func TestRunFailsOverToAlternativeAndRecordsOrderedAttempts(t *testing.T) {
 	fw := &fakeUpstream{name: providers.ProviderAIAND, errs: []error{&providers.UpstreamErrorResponse{Status: http.StatusServiceUnavailable}}}
-	or := &fakeUpstream{name: providers.ProviderOpenAI}
+	or := &fakeUpstream{name: providers.ProviderAnthropic}
 	rec := &recorder{}
-	exec := newExecutor(t, map[string]providers.Client{providers.ProviderAIAND: fw, providers.ProviderOpenAI: or}, rec)
+	exec := newExecutor(t, map[string]providers.Client{providers.ProviderAIAND: fw, providers.ProviderAnthropic: or}, rec)
 
 	resets := 0
 	result, err := exec.Run(context.Background(),
@@ -157,7 +157,7 @@ func TestRunRejectsWireTargetMismatchBeforeIO(t *testing.T) {
 func TestRunDoesNotFailOverAfterCommit(t *testing.T) {
 	fw := &fakeUpstream{errs: []error{&providers.UpstreamStatusError{Status: http.StatusBadGateway}}}
 	or := &fakeUpstream{}
-	exec := newExecutor(t, map[string]providers.Client{providers.ProviderAIAND: fw, providers.ProviderOpenAI: or}, &recorder{})
+	exec := newExecutor(t, map[string]providers.Client{providers.ProviderAIAND: fw, providers.ProviderAnthropic: or}, &recorder{})
 
 	result, err := exec.Run(context.Background(), inference.InvocationRequest{},
 		fakePlan{selected: primary, alternatives: []inference.Target{backup}},
@@ -196,7 +196,7 @@ func TestRunFailsOverOnModelNotFoundButNotOnBadRequest(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			fw := &fakeUpstream{errs: []error{&providers.UpstreamErrorResponse{Status: tc.status}}}
 			or := &fakeUpstream{}
-			exec := newExecutor(t, map[string]providers.Client{providers.ProviderAIAND: fw, providers.ProviderOpenAI: or}, &recorder{})
+			exec := newExecutor(t, map[string]providers.Client{providers.ProviderAIAND: fw, providers.ProviderAnthropic: or}, &recorder{})
 			_, err := exec.Run(context.Background(), inference.InvocationRequest{},
 				fakePlan{selected: primary, alternatives: []inference.Target{backup}},
 				dispatch.Transport{Attempt: attemptWith([]byte(`{"model":"kimi-k2.5"}`))},
@@ -292,7 +292,7 @@ func TestRunStopsSameTargetRetryWhenWallClockBudgetSpent(t *testing.T) {
 func TestRunSkipsUnconfiguredProviderAndHonoursMaxAttempts(t *testing.T) {
 	or := &fakeUpstream{}
 	rec := &recorder{}
-	exec := newExecutor(t, map[string]providers.Client{providers.ProviderOpenAI: or}, rec)
+	exec := newExecutor(t, map[string]providers.Client{providers.ProviderAnthropic: or}, rec)
 
 	result, err := exec.Run(context.Background(), inference.InvocationRequest{},
 		fakePlan{selected: primary, alternatives: []inference.Target{backup}},
@@ -346,15 +346,15 @@ func TestValidateWireModelAcceptsCatalogOrUpstreamID(t *testing.T) {
 }
 
 func TestClientsRegistryIsDetachedFromSource(t *testing.T) {
-	src := map[string]providers.Client{providers.ProviderAIAND: &fakeUpstream{}, providers.ProviderOpenAI: nil}
+	src := map[string]providers.Client{providers.ProviderAIAND: &fakeUpstream{}, providers.ProviderAnthropic: nil}
 	clients := dispatch.NewClients(src)
 	delete(src, providers.ProviderAIAND)
 	assert.True(t, clients.Has(providers.ProviderAIAND))
-	assert.True(t, clients.Has(providers.ProviderOpenAI), "nil clients count as registered")
-	_, err := clients.Client(providers.ProviderOpenAI)
+	assert.True(t, clients.Has(providers.ProviderAnthropic), "nil clients count as registered")
+	_, err := clients.Client(providers.ProviderAnthropic)
 	require.ErrorIs(t, err, dispatch.ErrProviderNotConfigured, "but can never be dispatched to")
-	assert.Equal(t, []string{providers.ProviderAIAND, providers.ProviderOpenAI}, clients.Names())
-	_, err = clients.Client(providers.ProviderAnthropic)
+	assert.Equal(t, []string{providers.ProviderAIAND, providers.ProviderAnthropic}, clients.Names())
+	_, err = clients.Client("nonexistent-provider")
 	require.ErrorIs(t, err, dispatch.ErrProviderNotConfigured)
 }
 
@@ -405,7 +405,7 @@ func TestRunTerminalStopsSameTargetRetryAndFailover(t *testing.T) {
 			or := &fakeUpstream{}
 			slept := 0
 			exec, err := dispatch.NewExecutor(dispatch.NewClients(map[string]providers.Client{
-				providers.ProviderAIAND: fw, providers.ProviderOpenAI: or,
+				providers.ProviderAIAND: fw, providers.ProviderAnthropic: or,
 			}), dispatch.WithSleep(func(context.Context, time.Duration) error { slept++; return nil }))
 			require.NoError(t, err)
 
@@ -448,7 +448,7 @@ func TestRunBoundRetriesSameTargetButNeverFailsOver(t *testing.T) {
 		fw := &fakeUpstream{errs: []error{transient, transient, transient}}
 		or := &fakeUpstream{}
 		exec, err := dispatch.NewExecutor(dispatch.NewClients(map[string]providers.Client{
-			providers.ProviderAIAND: fw, providers.ProviderOpenAI: or,
+			providers.ProviderAIAND: fw, providers.ProviderAnthropic: or,
 		}), dispatch.WithSleep(sleep))
 		require.NoError(t, err)
 

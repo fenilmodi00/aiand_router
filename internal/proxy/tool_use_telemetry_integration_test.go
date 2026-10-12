@@ -130,8 +130,8 @@ func TestProxyMessages_TranslatedToolUseStopPersistsLastToolDetail(t *testing.T)
 	}}
 	telem := newCaptureTelemetry()
 	svc := proxy.NewService(
-		&fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "zai-org/glm-5.3-flash"}},
-		map[string]providers.Client{providers.ProviderOpenAI: provider},
+		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "zai-org/glm-5.3-flash"}},
+		map[string]providers.Client{providers.ProviderAIAND: provider},
 		nil, false, nil, nil, false,
 		providers.ProviderAnthropic, "deepseek-ai/deepseek-v4-pro", telem,
 	)

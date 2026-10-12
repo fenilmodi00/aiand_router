@@ -249,9 +249,6 @@ func inferenceSurface(r *http.Request) (requestcontext.ConversationSurface, bool
 	case "/v1/responses":
 		return requestcontext.ConversationResponses, true
 	default:
-		if singlePathParameter(r.URL.Path, "/v1beta/models/", ":generateContent") || singlePathParameter(r.URL.Path, "/v1beta/models/", ":streamGenerateContent") {
-			return requestcontext.ConversationGemini, true
-		}
 		return "", false
 	}
 }
@@ -264,7 +261,7 @@ func acceptsControlCommands(r *http.Request) bool {
 	case "/v1/messages", "/v1/chat/completions", "/v1/responses":
 		return true
 	default:
-		return strings.HasPrefix(r.URL.Path, "/v1beta/models/")
+		return false
 	}
 }
 
@@ -305,9 +302,6 @@ func writeError(w http.ResponseWriter, surface requestcontext.ConversationSurfac
 	envelope := map[string]any{"error": map[string]any{"type": errorType, "message": message}}
 	if surface == requestcontext.ConversationAnthropic {
 		envelope["type"] = "error"
-	}
-	if surface == requestcontext.ConversationGemini {
-		envelope["error"] = map[string]any{"code": status, "message": message, "status": http.StatusText(status)}
 	}
 	// The envelope contains only fixed primitives; a write failure means the client disconnected.
 	_ = json.NewEncoder(w).Encode(envelope)

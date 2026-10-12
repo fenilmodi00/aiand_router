@@ -49,7 +49,7 @@ func TestCompactionHardPin(t *testing.T) {
 	assert.Equal(t, policy.PrecompactionDefaultModel, m, "no pin → the deployment's mid/high-tier summarizer")
 	assert.Equal(t, policy.OverrideSourceDeployment, source, "the deployment's compaction model fixed the turn")
 
-	_, _, _, ok = s.compactionHardPin(ctx, key, "", router.Request{EnabledProviders: map[string]struct{}{providers.ProviderOpenAI: {}}})
+	_, _, _, ok = s.compactionHardPin(ctx, key, "", router.Request{EnabledProviders: map[string]struct{}{providers.ProviderAnthropic: {}}})
 	assert.False(t, ok, "AIand disabled for the tenant → fall back to generic hard-pin")
 
 	_, _, _, ok = s.compactionHardPin(ctx, key, "", router.Request{GatewayProviders: map[string]struct{}{providers.ProviderAIAND: {}}})
@@ -99,7 +99,7 @@ func TestCompactionHardPin_FamilyUpgradeHonorsRestrictions(t *testing.T) {
 		// blocked upgrade leaves no session summarizer at all.
 		{"org exclusion", router.Request{ExcludedModels: map[string]struct{}{newerModel: {}}}, ""},
 		{"automatic exclusion", router.Request{AutomaticExcludedModels: map[string]struct{}{newerModel: {}}}, ""},
-		{"provider disabled", router.Request{EnabledProviders: map[string]struct{}{providers.ProviderOpenAI: {}}}, ""},
+		{"provider disabled", router.Request{EnabledProviders: map[string]struct{}{providers.ProviderAnthropic: {}}}, ""},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			_, model, ok := s.compactionSessionModel(ctx, [sessionpin.SessionKeyLen]byte{}, sessionpin.DefaultRole, test.req)

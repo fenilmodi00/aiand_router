@@ -94,7 +94,7 @@ func TestRouteNoEligibleCandidatesIsUnavailable(t *testing.T) {
 
 	_, err := r.Route(context.Background(), router.Request{
 		PromptText:       "hi",
-		EnabledProviders: enabled(providers.ProviderOpenAI), // no binding for the AIand model
+		EnabledProviders: enabled(providers.ProviderAnthropic), // no binding for the AIand model
 	})
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, rl.ErrPolicyUnavailable))

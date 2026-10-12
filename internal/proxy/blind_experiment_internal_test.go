@@ -116,8 +116,7 @@ func TestCallerModelPassthroughUsesGatewayAlias(t *testing.T) {
 		router.Request{
 			RequestedModel: "qwen/qwen3.8-27b",
 			EnabledProviders: map[string]struct{}{
-				providers.ProviderAIAND:  {},
-				providers.ProviderOpenAI: {},
+				providers.ProviderAIAND: {},
 			},
 			GatewayProviders: map[string]struct{}{
 				providers.ProviderAIAND: {},
@@ -144,7 +143,7 @@ func TestCallerModelPassthroughRejectsUnknownModelWithoutBlamingProviderKeys(t *
 		blindExperimentContext(auth.BlindExperimentArmPassthrough),
 		router.Request{
 			RequestedModel:   "auto",
-			EnabledProviders: map[string]struct{}{providers.ProviderOpenAI: {}},
+			EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}},
 		},
 	)
 

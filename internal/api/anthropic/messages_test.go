@@ -312,9 +312,9 @@ data: {"type":"response.failed","response":{"id":"resp_1","status":"failed","err
 		t.Run(fmt.Sprintf("stream=%t", stream), func(t *testing.T) {
 			client := &fakeProviderClient{proxyStatus: http.StatusOK, proxyBody: responsesOverflow, flushProxyBody: true, propagateProxyWriteErr: true}
 			svc := proxy.NewService(
-				&fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "gpt-5-mini", Reason: "test"}},
-				map[string]providers.Client{providers.ProviderOpenAI: client},
-				nil, false, nil, nil, false, providers.ProviderOpenAI, "gpt-5-mini", nil,
+				&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-5-mini", Reason: "test"}},
+				map[string]providers.Client{providers.ProviderAIAND: client},
+				nil, false, nil, nil, false, providers.ProviderAIAND, "gpt-5-mini", nil,
 			)
 			reqBody := fmt.Sprintf(`{"model":"gpt-5-mini","max_tokens":1024,"stream":%t,"messages":[{"role":"user","content":"hi"}]}`, stream)
 			rec := postMessages(messagesEngine(svc), []byte(reqBody))
@@ -363,8 +363,8 @@ func TestMessagesHandler_HappyPathServesUpstreamResponse(t *testing.T) {
 func TestMessagesHandler_AgentShadowDoesNotUpsertRouterUser(t *testing.T) {
 	users := &countingUserRepository{}
 	authSvc := auth.NewService(nil, nil, nil, users, nil, nil, nil)
-	provider := &fakeProviderClient{proxyBody: `{"id":"msg_eval","type":"message","role":"assistant","model":"moonshotai/kimi-k3","content":[{"type":"text","text":"done"}],"stop_reason":"end_turn","usage":{"input_tokens":12,"output_tokens":3}}`}
-	svc := newTestService(&fakeRouter{}, providers.ProviderAIAND, provider)
+	provider := &fakeProviderClient{proxyBody: "event: response.completed\ndata: " + `{"type":"response.completed","response":{"id":"resp_eval","object":"response","status":"completed","model":"moonshotai/kimi-k3","output":[{"type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"done"}]}],"usage":{"input_tokens":12,"output_tokens":3}}}` + "\n\n"}
+	svc := newTestService(&fakeRouter{decision: router.Decision{Model: "moonshotai/kimi-k3", Reason: "agent_shadow"}}, providers.ProviderAIAND, provider)
 
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()

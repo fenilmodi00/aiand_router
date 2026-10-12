@@ -306,8 +306,11 @@ func TestProviderSummarizer_RequestScopeExcludesSummaryModelBeforeIO(t *testing.
 	s := newTestSummarizer(t, fake, "", 200*time.Millisecond)
 
 	scopes := map[string]router.Request{
-		"excluded_model":    {ExcludedModels: map[string]struct{}{policy.HandoverSummaryDefaultModel: {}}},
-		"provider_disabled": {EnabledProviders: map[string]struct{}{providers.ProviderOpenAI: {}}},
+		"excluded_model": {ExcludedModels: map[string]struct{}{policy.HandoverSummaryDefaultModel: {}}},
+		// The AIand-only roster has one OpenAI-compat upstream, so the only
+		// way a tenant can have the summarizer's provider disabled is by
+		// enabling a provider set that excludes it.
+		"provider_disabled": {EnabledProviders: map[string]struct{}{providers.ProviderAnthropic: {}}},
 	}
 	for name, scope := range scopes {
 		t.Run(name, func(t *testing.T) {

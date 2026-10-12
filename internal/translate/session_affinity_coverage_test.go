@@ -30,15 +30,13 @@ const (
 // onboarding recipe) or add it to defaultMechanismProviders below to affirm
 // the generic header is correct.
 var expectedSessionAffinityMechanism = map[string]sessionAffinityMechanism{
-	providers.ProviderOpenAI: mechanismPromptCacheKeyBody,
+	providers.ProviderAIAND: mechanismPromptCacheKeyBody,
 }
 
 // defaultMechanismProviders are OpenAI-compat providers intentionally left
 // off expectedSessionAffinityMechanism because the generic
 // x-session-affinity header default is correct for them.
-var defaultMechanismProviders = map[string]struct{}{
-	providers.ProviderAIAND: {},
-}
+var defaultMechanismProviders = map[string]struct{}{}
 
 // TestSessionAffinityCoversEveryOpenAICompatProvider guards against a new
 // OpenAI-compat provider (or a re-family'd existing one) going unreviewed by

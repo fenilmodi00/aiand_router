@@ -4,16 +4,16 @@ name: Smoke
 # Pre-merge smoke suite: boots the real router docker compose stack behind a
 # record/replay MITM proxy (smoke/mitmproxy/) and drives it with
 # Claude-Code-shaped fixtures, asserting end-to-end behavior (status,
-# response/usage shape, prompt-cache accounting, decision headers, and OpenAI
-# tool-schema translation) that in-process unit and conformance tests cannot see.
+# response/usage shape, prompt-cache accounting, decision headers, and tool-schema
+# translation) that in-process unit and conformance tests cannot see.
 #
 # The PR job runs in replay-only mode against the cassettes committed under
 # smoke/mitmproxy/cassettes/ — no upstream API keys, safe on fork PRs, fully
 # deterministic. The shared agent_checks selector chooses request-path changes;
 # the workflow itself is unfiltered so new components cannot bypass selection.
 #
-# A separate nightly job (needs ANTHROPIC_API_KEY; OPENAI_API_KEY optional) re-
-# records the cassettes against the real APIs to catch upstream drift (a
+# A separate nightly job (needs ANTHROPIC_API_KEY) re-records the cassettes
+# against the real APIs to catch upstream drift (a
 # provider changing a response shape) independent of any code change here. It
 # never runs on a fork.
 on:
@@ -125,7 +125,6 @@ jobs:
           # Only present for a manual record/replay-or-record dispatch; unused
           # (and unnecessary) for the default replay-only path.
           ANTHROPIC_API_KEY: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.proxy_mode != 'replay-only' && secrets.ANTHROPIC_API_KEY || '' }}
-          OPENAI_API_KEY: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.proxy_mode != 'replay-only' && secrets.OPENAI_API_KEY || '' }}
           # Layers the server/mitmproxy Docker builds against the GitHub
           # Actions cache (type=gha) via smoke/mitmproxy/docker-compose.ci-cache.yml
           # — the ONNX/tokenizer downloads, npm build, and Go compile are what
@@ -203,7 +202,6 @@ jobs:
       - name: Record fresh cassettes against the real API
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           SMOKE_PROXY_MODE: record
           SMOKE_CI_CACHE: "1"
           SMOKE_PREBUILT: "1"

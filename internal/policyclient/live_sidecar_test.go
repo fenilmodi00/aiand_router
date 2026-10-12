@@ -78,7 +78,7 @@ func TestLiveGenericPolicySidecarContract(t *testing.T) {
 			{
 				RosterID:                  "gpt-5.5",
 				CatalogID:                 "gpt-5.5",
-				Provider:                  providers.ProviderOpenAI,
+				Provider:                  providers.ProviderAIAND,
 				UpstreamID:                "gpt-5.5",
 				InputUSDPer1M:             2.5,
 				OutputUSDPer1M:            10,

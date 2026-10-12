@@ -217,12 +217,3 @@ func TestCoalesceDuplicateToolResults_Anthropic_CacheMarkerDoesNotJumpAnInterven
 	_, err = e.PrepareAnthropic(nil, EmitOptions{TargetModel: "claude-opus-5"})
 	require.NoError(t, err, "coalescing must not reverse breakpoint TTL order")
 }
-
-func TestCoalesceDuplicateToolResults_Gemini_NoOp(t *testing.T) {
-	body := `{"contents":[{"role":"user","parts":[{"functionResponse":{"name":"f","response":{}}},{"functionResponse":{"name":"f","response":{}}}]}]}`
-	e, err := ParseGemini([]byte(body))
-	require.NoError(t, err)
-
-	assert.Zero(t, e.CoalesceDuplicateToolResults())
-	assert.Equal(t, body, string(e.body))
-}

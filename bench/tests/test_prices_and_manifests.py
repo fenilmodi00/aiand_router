@@ -10,10 +10,10 @@ from weave_bench.prices import ModelPrice, load_price_table
 def test_price_table_is_generated_from_the_router_catalog() -> None:
     table = load_price_table()
     assert table.pricing_version.startswith("catalog-sha256:")
-    sol = table.lookup("gpt-5.6-sol")
-    assert sol is not None
-    assert table.lookup("gpt-5.6-sol-20260901") is sol
-    assert table.lookup("gpt-5.6-sol-2026") is None
+    glm = table.lookup("zai-org/glm-5.3")
+    assert glm is not None
+    assert table.lookup("zai-org/glm-5.3-20260901") is glm
+    assert table.lookup("zai-org/glm-5.3-2026") is None
     assert table.lookup("not-a-model") is None
 
 

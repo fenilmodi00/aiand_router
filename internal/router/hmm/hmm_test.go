@@ -150,7 +150,7 @@ func TestRouterFailsClosedOnUnknownReturnedModel(t *testing.T) {
 }
 
 func TestRouterFailsClosedOnReturnedProviderMismatch(t *testing.T) {
-	decider := &fakeDecider{res: Result{Model: "deepseek-ai/deepseek-v4.1-flash", Provider: providers.ProviderOpenAI}}
+	decider := &fakeDecider{res: Result{Model: "deepseek-ai/deepseek-v4.1-flash", Provider: providers.ProviderAnthropic}}
 	r := newWithRoutingTargets(router.StrategyHMM, decider, map[string]struct{}{"deepseek-ai/deepseek-v4.1-flash": {}}, map[string]struct{}{providers.ProviderAIAND: {}})
 
 	_, err := r.Route(context.Background(), router.Request{PromptText: "hello"})
@@ -183,7 +183,6 @@ func TestRouterDoesNotOfferCandidatesForUnservedProvider(t *testing.T) {
 func TestCatalogRoutingTargetsResolveCurrentHMMRosterArmsToProviders(t *testing.T) {
 	available := map[string]struct{}{
 		providers.ProviderAnthropic: {},
-		providers.ProviderOpenAI:    {},
 		providers.ProviderAIAND:     {},
 	}
 	r := New(&fakeDecider{}, available)

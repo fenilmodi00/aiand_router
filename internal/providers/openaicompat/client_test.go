@@ -51,69 +51,6 @@ func TestProxy_ForwardsToChatCompletionsUnderVersionedBaseURL(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rec.Code)
 }
 
-func TestProxy_RewritesMappedCatalogModelIDs(t *testing.T) {
-	cases := []struct {
-		catalog  string
-		upstream string
-	}{
-		{"deepseek/deepseek-v4-flash", "deepseek-v4-flash"},
-		{"deepseek/deepseek-v4-pro", "deepseek-v4-pro"},
-		{"moonshotai/kimi-k2.6", "kimi-k2.6"},
-		{"xiaomi/mimo-v2.5-pro", "mimo-v2.5-pro"},
-		{"z-ai/glm-5.2", "glm-5.2"},
-	}
-	idMap := make(map[string]string, len(cases))
-	for _, tc := range cases {
-		idMap[tc.catalog] = tc.upstream
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.catalog, func(t *testing.T) {
-			var gotModel string
-			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				body, _ := io.ReadAll(r.Body)
-				var parsed map[string]any
-				require.NoError(t, json.Unmarshal(body, &parsed))
-				gotModel, _ = parsed["model"].(string)
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusOK)
-				_, _ = w.Write([]byte(`{"id":"chatcmpl-1","object":"chat.completion"}`))
-			}))
-			defer upstream.Close()
-
-			c := openaicompat.NewClientWithModelIDMap("test-key", upstream.URL, idMap)
-			rec := httptest.NewRecorder()
-			clientReq := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(""))
-			body := []byte(`{"model":"` + tc.catalog + `","messages":[{"role":"user","content":"hi"}]}`)
-			err := c.Proxy(context.Background(), router.Decision{Model: tc.catalog}, providers.PreparedRequest{Body: body, Headers: make(http.Header)}, rec, clientReq)
-			require.NoError(t, err)
-			assert.Equal(t, tc.upstream, gotModel)
-		})
-	}
-
-	t.Run("unmapped catalog id is unchanged", func(t *testing.T) {
-		var gotModel string
-		upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			body, _ := io.ReadAll(r.Body)
-			var parsed map[string]any
-			require.NoError(t, json.Unmarshal(body, &parsed))
-			gotModel, _ = parsed["model"].(string)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"id":"chatcmpl-1","object":"chat.completion"}`))
-		}))
-		defer upstream.Close()
-
-		c := openaicompat.NewClientWithModelIDMap("test-key", upstream.URL, idMap)
-		rec := httptest.NewRecorder()
-		clientReq := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(""))
-		body := []byte(`{"model":"qwen/qwen3-coder","messages":[{"role":"user","content":"hi"}]}`)
-		err := c.Proxy(context.Background(), router.Decision{Model: "qwen/qwen3-coder"}, providers.PreparedRequest{Body: body, Headers: make(http.Header)}, rec, clientReq)
-		require.NoError(t, err)
-		assert.Equal(t, "qwen/qwen3-coder", gotModel)
-	})
-}
-
 // TestProxy_BYOKCredentialsOverrideEnvKey: a BYOK key on context (e.g. a
 // managed installation's own OpenRouter key) must win over the deployment env key.
 func TestProxy_BYOKCredentialsOverrideEnvKey(t *testing.T) {
@@ -344,23 +281,23 @@ func TestProxy_4xxStillBuffered(t *testing.T) {
 		"sanity: 400 must classify as non-retryable")
 }
 
-// TestGatewayClient_UnconfiguredBaseURLDoesNotFallBackToOpenRouter: an
-// unconfigured gateway must fail, not silently spend the tenant's token.
-func TestGatewayClient_UnconfiguredBaseURLDoesNotFallBackToOpenRouter(t *testing.T) {
-	c := openaicompat.NewGatewayClient("gateway-token", "")
+// TestNewClient_EmptyBaseURLFallsBackToAIand: an unconfigured base URL must
+// resolve to AIand's surface rather than dispatching to the literal empty
+// origin.
+func TestNewClient_EmptyBaseURLFallsBackToAIand(t *testing.T) {
+	c := openaicompat.NewClient("deploy-token", "")
 	rec := httptest.NewRecorder()
 	clientReq := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(""))
-	prep := providers.PreparedRequest{Body: []byte(`{"model":"gpt-5","messages":[]}`), Headers: make(http.Header)}
+	prep := providers.PreparedRequest{Body: []byte(`{"model":"m","messages":[]}`), Headers: make(http.Header)}
 
-	err := c.Proxy(context.Background(), router.Decision{Model: "gpt-5"}, prep, rec, clientReq)
-
+	err := c.Proxy(context.Background(), router.Decision{Model: "m"}, prep, rec, clientReq)
 	require.Error(t, err)
-	assert.NotContains(t, err.Error(), "openrouter.ai")
+	assert.NotContains(t, err.Error(), "/chat/completions: ")
 }
 
-// TestGatewayClient_DispatchesToConfiguredEndpoint: the gateway path is
-// otherwise the plain Chat Completions one, bearer-authenticated.
-func TestGatewayClient_DispatchesToConfiguredEndpoint(t *testing.T) {
+// TestNewClient_DispatchesToConfiguredEndpoint: the Chat Completions path is
+// bearer-authenticated against whatever base URL was configured.
+func TestNewClient_DispatchesToConfiguredEndpoint(t *testing.T) {
 	var gotPath, gotAuth string
 
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -370,14 +307,14 @@ func TestGatewayClient_DispatchesToConfiguredEndpoint(t *testing.T) {
 	}))
 	defer upstream.Close()
 
-	c := openaicompat.NewGatewayClient("gateway-token", upstream.URL+"/api/v2/cortex/v1")
+	c := openaicompat.NewClient("deploy-token", upstream.URL+"/v1")
 	rec := httptest.NewRecorder()
 	clientReq := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(""))
-	prep := providers.PreparedRequest{Body: []byte(`{"model":"gpt-5","messages":[]}`), Headers: make(http.Header)}
+	prep := providers.PreparedRequest{Body: []byte(`{"model":"qwen/qwen3-coder","messages":[]}`), Headers: make(http.Header)}
 
-	require.NoError(t, c.Proxy(context.Background(), router.Decision{Model: "gpt-5"}, prep, rec, clientReq))
-	assert.Equal(t, "/api/v2/cortex/v1/chat/completions", gotPath)
-	assert.Equal(t, "Bearer gateway-token", gotAuth)
+	require.NoError(t, c.Proxy(context.Background(), router.Decision{Model: "qwen/qwen3-coder"}, prep, rec, clientReq))
+	assert.Equal(t, "/v1/chat/completions", gotPath)
+	assert.Equal(t, "Bearer deploy-token", gotAuth)
 }
 
 // TestProxy_DefaultHeadersSentOnEveryRequest: provider-mandated headers

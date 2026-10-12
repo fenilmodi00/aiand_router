@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"context"
-	"net/http"
 	"testing"
 
 	"weave-os/router/internal/dispatch"
@@ -154,22 +153,4 @@ func TestReasoningReplayScope_DoesNotLeakCredential(t *testing.T) {
 	assert.NotContains(t, scope, "sk-secret-value")
 	assert.NotContains(t, scope, "acct-secret")
 	assert.NotContains(t, openaicompat.NewClient("sk-secret-value", cortexBaseURL).DeploymentPrincipal(), "sk-secret-value")
-}
-
-// A Codex subscription refreshes its bearer mid-session; the ChatGPT account
-// it authenticates is what the upstream decrypts under.
-func TestCodexSubscriptionPrincipalIsTheAccount(t *testing.T) {
-	headers := http.Header{}
-	headers.Set(requestcontext.ChatGPTAccountIDHeader, "acct-123")
-	first := requestcontext.CodexSubscriptionCreds("jwt-a", "acct-123")
-	second := requestcontext.CodexSubscriptionCreds("jwt-b", "acct-123")
-	require.NotNil(t, first)
-	require.NotNil(t, second)
-
-	firstPrincipal, secret := first.UpstreamPrincipal()
-	secondPrincipal, _ := second.UpstreamPrincipal()
-	assert.False(t, secret)
-	assert.Equal(t, firstPrincipal, secondPrincipal)
-	other, _ := requestcontext.CodexSubscriptionCreds("jwt-a", "acct-456").UpstreamPrincipal()
-	assert.NotEqual(t, firstPrincipal, other)
 }

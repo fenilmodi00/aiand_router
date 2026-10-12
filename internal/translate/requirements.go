@@ -2,7 +2,6 @@ package translate
 
 import (
 	"bytes"
-	"strings"
 
 	"weave-os/router/internal/router"
 
@@ -34,12 +33,6 @@ func (e *RequestEnvelope) TranslationRequirements(endpoint router.TranslationEnd
 		req.UsageDetail = gjson.GetBytes(e.body, "stream_options.include_usage").Bool()
 		req.Audio, req.Files = openAIMediaRequirements(e.body)
 		req.CitationsOrSearch = len(e.NativeServerTools()) > 0
-	case FormatGemini:
-		req.SourceFormat = router.WireFormatGemini
-		req.ReasoningSignature = containsKey(e.body, "thoughtSignature") || containsKey(e.body, "thought_signature")
-		req.StructuredOutput = gjson.GetBytes(e.body, "generationConfig.responseSchema").Exists()
-		req.CitationsOrSearch = len(e.NativeServerTools()) > 0
-		req.Audio, req.Files = geminiMediaRequirements(e.body)
 	}
 	return req
 }
@@ -109,40 +102,4 @@ func visitOpenAIMedia(value gjson.Result, audio, files *bool) {
 			return !*audio || !*files
 		})
 	}
-}
-
-// geminiMediaRequirements categorizes native Gemini media by MIME type. An
-// unknown media type is treated as a file, which is conservative: unlike an
-// image, it has no portable translation path today.
-func geminiMediaRequirements(body []byte) (audio, files bool) {
-	gjson.GetBytes(body, "contents").ForEach(func(_, content gjson.Result) bool {
-		content.Get("parts").ForEach(func(_, part gjson.Result) bool {
-			media := part.Get("inlineData")
-			if !media.Exists() {
-				media = part.Get("inline_data")
-			}
-			if !media.Exists() {
-				media = part.Get("fileData")
-			}
-			if !media.Exists() {
-				media = part.Get("file_data")
-			}
-			if !media.Exists() {
-				return true
-			}
-			mimeType := strings.ToLower(media.Get("mimeType").String())
-			if mimeType == "" {
-				mimeType = strings.ToLower(media.Get("mime_type").String())
-			}
-			switch {
-			case strings.HasPrefix(mimeType, "audio/"):
-				audio = true
-			case !strings.HasPrefix(mimeType, "image/"):
-				files = true
-			}
-			return !audio || !files
-		})
-		return !audio || !files
-	})
-	return audio, files
 }

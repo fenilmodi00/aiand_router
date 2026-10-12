@@ -202,20 +202,32 @@ func (s *Service) cyberRefusalRetryTarget(
 	role string,
 	est, sigSavings, outputReserve int,
 ) (router.Decision, bool) {
-	repinTarget, _, ok := s.cyberRefusalFallback(ctx, sessionKey, role, failed, failed.Provider)
+	repinTarget, repinProvider, ok := s.cyberRefusalFallback(ctx, sessionKey, role, failed, failed.Provider)
 	if !ok {
 		return router.Decision{}, false
 	}
 	// The pin's runner-up can itself be an OpenAI model, which this rescue cannot
 	// use; the configured fallback backs it up.
-	for _, model := range []string{repinTarget, s.ResolveCyberRefusalFallbackModel(ctx)} {
-		if model == "" || model == failed.Model ||
-			!modelPermittedByAllowlist(ctx, model) || !modelInRequestSubset(ctx, model) {
+	for _, candidate := range []struct{ model, provider string }{
+		{repinTarget, repinProvider},
+		{s.ResolveCyberRefusalFallbackModel(ctx), ""},
+	} {
+		if candidate.model == "" || candidate.model == failed.Model ||
+			!modelPermittedByAllowlist(ctx, candidate.model) || !modelInRequestSubset(ctx, candidate.model) {
 			continue
 		}
-		target, found := s.rescueDecision(ctx, failed, []string{model}, ReasonCyberRefusalRetry, est, sigSavings, outputReserve)
+		target, found := s.rescueDecision(ctx, failed, []string{candidate.model}, ReasonCyberRefusalRetry, est, sigSavings, outputReserve)
+		if !found {
+			continue
+		}
+		// The pin named the vendor that serves the runner-up; a roster that
+		// binds every model to the refusing vendor cannot re-resolve it, so
+		// trust the pin instead of the catalog binding.
+		if candidate.provider != "" && target.Provider == failed.Provider {
+			target.Provider = candidate.provider
+		}
 		// A rescue on the refusing vendor would meet the same classifier.
-		if found && target.Provider != providers.ProviderOpenAI {
+		if target.Provider != providers.ProviderAIAND {
 			return target, true
 		}
 	}

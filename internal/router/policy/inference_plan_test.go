@@ -127,7 +127,7 @@ func TestPlanResolverRequiresTypedForceModelOverride(t *testing.T) {
 func TestPlanResolverRestrictsFixedPolicyToReviewedModels(t *testing.T) {
 	planResolver := newPlanResolver(t,
 		modelSet(policy.HandoverSummaryDefaultModel, "zai-org/glm-5.3"),
-		providerSet(providers.ProviderAIAND, providers.ProviderOpenAI),
+		providerSet(providers.ProviderAIAND, providers.ProviderAIAND),
 	)
 	plan, err := planResolver.Resolve(policy.ResolutionRequest{Purpose: policy.PurposeHandoverSummary})
 	require.NoError(t, err)
@@ -175,7 +175,7 @@ func TestPlanResolverResolvesDeclaredModelFallbacks(t *testing.T) {
 	require.NoError(t, err)
 	candidateResolver := policy.NewResolver(
 		modelSet(policy.HandoverSummaryDefaultModel, "zai-org/glm-5.3"),
-		providerSet(providers.ProviderAIAND, providers.ProviderOpenAI),
+		providerSet(providers.ProviderAIAND, providers.ProviderAIAND),
 		func(model catalog.Model) string { return model.ID },
 		policy.ProviderPolicy{},
 	)
@@ -199,7 +199,7 @@ func TestPlanResolverReportsMissingFixedTargetAsIneligible(t *testing.T) {
 	require.NoError(t, err)
 	candidateResolver := policy.NewResolver(
 		modelSet("zai-org/glm-5.3"),
-		providerSet(providers.ProviderOpenAI),
+		providerSet(providers.ProviderAIAND),
 		func(model catalog.Model) string { return model.ID },
 		policy.ProviderPolicy{},
 	)
@@ -285,7 +285,7 @@ func TestRegistryValidatesDeploymentTargets(t *testing.T) {
 	assert.ErrorContains(t, err, "requires a typed deployment target")
 
 	config = validDeploymentPolicyConfig()
-	config.TargetOverrides[0].Target.Provider = providers.ProviderOpenAI
+	config.TargetOverrides[0].Target.Provider = providers.ProviderAnthropic
 	err = policy.DefaultRegistry().ValidateDeployment(config)
 	assert.ErrorContains(t, err, "has no available catalog binding")
 
@@ -375,7 +375,7 @@ func validDeploymentPolicyConfig() policy.DeploymentPolicyConfig {
 		})
 	}
 	return policy.DeploymentPolicyConfig{
-		AvailableProviders: providerSet(providers.ProviderAnthropic, providers.ProviderOpenAI, providers.ProviderAIAND),
+		AvailableProviders: providerSet(providers.ProviderAnthropic, providers.ProviderAIAND, providers.ProviderAIAND),
 		TargetOverrides:    targetOverrides,
 	}
 }

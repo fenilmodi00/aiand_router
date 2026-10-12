@@ -1,7 +1,6 @@
 package translate_test
 
 import (
-	"net/http"
 	"strings"
 	"testing"
 
@@ -78,19 +77,6 @@ func TestTaskReminderStripped_OpenAIResponses(t *testing.T) {
 	assert.Equal(t, 2, out.Stats.CCTaskRemindersStripped)
 }
 
-func TestTaskReminderStripped_Gemini(t *testing.T) {
-	env, err := translate.ParseAnthropic([]byte(taskReminderBody))
-	require.NoError(t, err)
-
-	// A 2.x target: 3.x rejects history whose tool calls lack thoughtSignatures.
-	out, err := env.PrepareGemini(http.Header{}, translate.EmitOptions{TargetModel: "gemini-2.5-pro", KeepCrossVendorOrchestrationTools: true})
-	require.NoError(t, err)
-
-	assertTaskReminderStripped(t, out.Body)
-	assert.ElementsMatch(t, []string{"Bash"}, emittedGeminiToolNames(t, out.Body))
-	assert.Equal(t, 2, out.Stats.CCTaskRemindersStripped)
-}
-
 func TestTaskReminderKept_AnthropicPassthrough(t *testing.T) {
 	env, err := translate.ParseAnthropic([]byte(taskReminderBody))
 	require.NoError(t, err)
@@ -162,9 +148,6 @@ func TestTaskReminderStripped_InsideToolResultContent(t *testing.T) {
 		"OpenAI Responses": func() (providers.PreparedRequest, error) {
 			return env.PrepareOpenAIResponses(nil, translate.EmitOptions{TargetModel: "gpt-5.6-sol"})
 		},
-		"Gemini": func() (providers.PreparedRequest, error) {
-			return env.PrepareGemini(http.Header{}, translate.EmitOptions{TargetModel: "gemini-2.5-pro"})
-		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			out, err := prepare()
@@ -216,9 +199,6 @@ func TestTaskReminderStripped_WhenItIsTheWholeToolResult(t *testing.T) {
 		},
 		"OpenAI Responses": func() (providers.PreparedRequest, error) {
 			return env.PrepareOpenAIResponses(nil, translate.EmitOptions{TargetModel: "gpt-5.6-sol"})
-		},
-		"Gemini": func() (providers.PreparedRequest, error) {
-			return env.PrepareGemini(http.Header{}, translate.EmitOptions{TargetModel: "gemini-2.5-pro"})
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -274,9 +254,6 @@ func TestTaskReminderStripped_AsSystemMessage(t *testing.T) {
 		},
 		"OpenAI Responses": func() (providers.PreparedRequest, error) {
 			return env.PrepareOpenAIResponses(nil, translate.EmitOptions{TargetModel: "gpt-5.6-sol"})
-		},
-		"Gemini": func() (providers.PreparedRequest, error) {
-			return env.PrepareGemini(http.Header{}, translate.EmitOptions{TargetModel: "gemini-2.5-pro"})
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

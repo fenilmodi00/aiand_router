@@ -29,7 +29,7 @@ func gjsonStopReason(b []byte) string {
 
 func openAIReasoningTestSignature(t *testing.T, id, enc, scope string) string {
 	t.Helper()
-	b, err := json.Marshal(map[string]any{"v": 1, "provider": "openai", "id": id, "enc": enc, "scope": scope})
+	b, err := json.Marshal(map[string]any{"v": 1, "provider": providers.ProviderAIAND, "id": id, "enc": enc, "scope": scope})
 	require.NoError(t, err)
 	return base64.StdEncoding.EncodeToString(b)
 }
@@ -596,7 +596,7 @@ func TestResponsesToAnthropicResponse(t *testing.T) {
 	assert.Equal(t, "thinking about it", b0["thinking"])
 	sigEnv := decodeOpenAIReasoningTestSignature(t, b0["signature"].(string))
 	assert.Equal(t, float64(1), sigEnv["v"])
-	assert.Equal(t, "openai", sigEnv["provider"])
+	assert.Equal(t, providers.ProviderAIAND, sigEnv["provider"])
 	assert.Equal(t, "rs_1", sigEnv["id"])
 	assert.Equal(t, "enc_1", sigEnv["enc"])
 	b1, _ := content[1].(map[string]any)
@@ -635,57 +635,6 @@ func TestResponsesToAnthropicResponse_StopReasons(t *testing.T) {
 	require.Error(t, err)
 }
 
-// Anthropic's numeric thinking budget must be normalized to Gemini 3.x's named
-// thinkingLevel before generic capability validation, otherwise a valid HMM
-// route to Gemini fails locally before any upstream call.
-func TestPrepareGemini_ThinkingBudgetToThinkingConfig(t *testing.T) {
-	for _, tc := range []struct {
-		budget int
-		level  string
-	}{
-		{budget: 2048, level: "low"},
-		{budget: 8192, level: "medium"},
-		{budget: 31999, level: "high"},
-	} {
-		t.Run(tc.level, func(t *testing.T) {
-			body := []byte(`{"model":"claude-opus-4-8","max_tokens":1024,"messages":[{"role":"user","content":"hi"}],"thinking":{"type":"enabled","budget_tokens":` + itoa(tc.budget) + `}}`)
-			env, err := translate.ParseAnthropic(body)
-			require.NoError(t, err)
-			prep, err := env.PrepareGemini(nil, translate.EmitOptions{
-				TargetModel:  "gemini-3.7-flash",
-				Capabilities: capsFor("gemini-3.7-flash"),
-			})
-			require.NoError(t, err)
-
-			var out map[string]any
-			require.NoError(t, json.Unmarshal(prep.Body, &out))
-			gen, ok := out["generationConfig"].(map[string]any)
-			require.True(t, ok, "generationConfig present")
-			thinking, ok := gen["thinkingConfig"].(map[string]any)
-			require.True(t, ok, "thinkingConfig set from thinking budget")
-			assert.Equal(t, tc.level, thinking["thinkingLevel"])
-			assert.NotContains(t, thinking, "thinkingBudget")
-		})
-	}
-}
-
-// gemini-2.5 (legacy) keeps the numeric thinkingBudget — thinkingLevel is 3.x only.
-func TestPrepareGemini_ThinkingBudget_Legacy25(t *testing.T) {
-	body := []byte(`{"model":"claude-opus-4-8","max_tokens":1024,"messages":[{"role":"user","content":"hi"}],"thinking":{"type":"enabled","budget_tokens":31999}}`)
-	env, err := translate.ParseAnthropic(body)
-	require.NoError(t, err)
-	prep, err := env.PrepareGemini(nil, translate.EmitOptions{TargetModel: "gemini-2.5-pro", Capabilities: capsFor("gemini-2.5-pro")})
-	require.NoError(t, err)
-	var out map[string]any
-	require.NoError(t, json.Unmarshal(prep.Body, &out))
-	gen, _ := out["generationConfig"].(map[string]any)
-	tc, ok := gen["thinkingConfig"].(map[string]any)
-	require.True(t, ok, "thinkingConfig set from thinking budget")
-	assert.EqualValues(t, 31999, tc["thinkingBudget"], "budget must be preserved exactly")
-	_, hasLevel := tc["thinkingLevel"]
-	assert.False(t, hasLevel, "gemini-2.5 must NOT send thinkingLevel")
-}
-
 func TestUseOpenAIResponsesAPI(t *testing.T) {
 	caps := capsFor("gpt-5.4-mini")
 	route := func(provider string, caps router.ModelSpec, hasTools, chatOnly, broad bool) translate.ResponsesRoute {
@@ -697,19 +646,19 @@ func TestUseOpenAIResponsesAPI(t *testing.T) {
 			Broad:          broad,
 		}
 	}
-	assert.True(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderOpenAI, caps, true, false, true)))
-	assert.True(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderOpenAI, caps, false, false, true)),
+	assert.True(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderAIAND, caps, true, false, true)))
+	assert.True(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderAIAND, caps, false, false, true)),
 		"broad rollout serves every expressible direct-OpenAI turn, tools or not")
-	assert.True(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderOpenAI, capsFor("gpt-4o"), true, false, true)),
+	assert.True(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderAIAND, capsFor("gpt-4o"), true, false, true)),
 		"non-reasoning direct-OpenAI models go to Responses too")
-	assert.False(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderOpenAI, caps, true, true, true)),
+	assert.False(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderAIAND, caps, true, true, true)),
 		"a turn using a chat-only parameter stays on chat/completions")
-	assert.True(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderOpenAI, caps, true, false, false)),
+	assert.True(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderAIAND, caps, true, false, false)),
 		"with the rollout off, the reasoning tool turn chat/completions rejects is still promoted")
-	assert.False(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderOpenAI, caps, false, false, false)),
+	assert.False(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderAIAND, caps, false, false, false)),
 		"with the rollout off, a toolless turn keeps the chat projection")
-	assert.False(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderAIAND, caps, true, false, true)),
-		"AIand is not a direct-OpenAI target; it stays on chat/completions")
+	assert.True(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderAIAND, caps, true, false, true)),
+		"AIand is the served OpenAI target; a reasoning tool turn goes to Responses")
 }
 
 // An Anthropic image block must survive the Responses emit as a typed

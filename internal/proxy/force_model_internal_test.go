@@ -60,7 +60,7 @@ func TestResolveForceModel(t *testing.T) {
 			name:         "retired alias gpt hyphen minor version is not known",
 			input:        "gpt-5-5",
 			wantID:       "gpt-5-5",
-			wantProvider: providers.ProviderOpenAI,
+			wantProvider: providers.ProviderAIAND,
 			wantKnown:    false,
 		},
 		{
@@ -81,28 +81,28 @@ func TestResolveForceModel(t *testing.T) {
 			name:         "native openai prefix on a retired model is not known",
 			input:        "openai/gpt-5.6-luna",
 			wantID:       "gpt-5.6-luna",
-			wantProvider: providers.ProviderOpenAI,
+			wantProvider: providers.ProviderAIAND,
 			wantKnown:    false,
 		},
 		{
 			name:         "native openai prefix with retired version alias is not known",
 			input:        "openai/gpt-5.6",
 			wantID:       "gpt-5.6",
-			wantProvider: providers.ProviderOpenAI,
+			wantProvider: providers.ProviderAIAND,
 			wantKnown:    false,
 		},
 		{
 			name:         "native openai prefix with retired model alias is not known",
 			input:        "openai/luna",
 			wantID:       "luna",
-			wantProvider: providers.ProviderOpenAI,
+			wantProvider: providers.ProviderAIAND,
 			wantKnown:    false,
 		},
 		{
 			name:         "native openai prefix rejects cross-provider alias",
 			input:        "openai/claude",
 			wantID:       "claude",
-			wantProvider: providers.ProviderOpenAI,
+			wantProvider: providers.ProviderAIAND,
 			wantKnown:    false,
 		},
 		// The claude/opus aliases were deleted with their rows, so the names
@@ -171,7 +171,7 @@ func TestResolveForceModel(t *testing.T) {
 			name:         "gpt-6 alias is no longer known",
 			input:        "gpt-6",
 			wantID:       "gpt-6",
-			wantProvider: providers.ProviderOpenAI,
+			wantProvider: providers.ProviderAIAND,
 			wantKnown:    false,
 		},
 		// Heuristic fallback: not in the catalog, so known is false. The
@@ -181,7 +181,7 @@ func TestResolveForceModel(t *testing.T) {
 			name:         "heuristic openai — o3",
 			input:        "o3",
 			wantID:       "o3",
-			wantProvider: providers.ProviderOpenAI,
+			wantProvider: providers.ProviderAIAND,
 			wantKnown:    false,
 		},
 		{
@@ -195,7 +195,7 @@ func TestResolveForceModel(t *testing.T) {
 			name:         "native openai gpt-6 alias is no longer known",
 			input:        "openai/gpt-6",
 			wantID:       "gpt-6",
-			wantProvider: providers.ProviderOpenAI,
+			wantProvider: providers.ProviderAIAND,
 			wantKnown:    false,
 		},
 		{
@@ -211,7 +211,7 @@ func TestResolveForceModel(t *testing.T) {
 			name:         "truncated gpt- is not known",
 			input:        "gpt-",
 			wantID:       "gpt-",
-			wantProvider: providers.ProviderOpenAI,
+			wantProvider: providers.ProviderAIAND,
 			wantKnown:    false,
 		},
 		// Matching is exact: a name that merely contains, or is contained by, a
@@ -235,7 +235,7 @@ func TestResolveForceModel(t *testing.T) {
 			name:         "model name with a trailing prompt is not known",
 			input:        "gpt-5 help me debug this",
 			wantID:       "gpt-5 help me debug this",
-			wantProvider: providers.ProviderOpenAI,
+			wantProvider: providers.ProviderAIAND,
 			wantKnown:    false,
 		},
 		{

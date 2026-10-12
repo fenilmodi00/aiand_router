@@ -6,7 +6,6 @@ import json
 from collections import Counter, defaultdict
 from collections.abc import Iterable, Sequence
 from dataclasses import asdict, dataclass
-from pathlib import Path
 
 from weave_bench.analytics import (
     AnalyticsColumn,
@@ -16,7 +15,7 @@ from weave_bench.analytics import (
     row_fresh_input_tokens,
     row_int,
 )
-from weave_bench.arms import ArmSpec, Upstream
+from weave_bench.arms import ArmSpec
 from weave_bench.prices import PriceTable, load_price_table
 from weave_bench.stats import (
     Interval,
@@ -32,8 +31,6 @@ from weave_bench.stats import (
     wins_ties_losses,
 )
 from weave_bench.trials import ErrorCategory, TrialRecord
-
-TapRow = dict[str, object]
 
 
 @dataclass(frozen=True)
@@ -73,9 +70,6 @@ class ArmSummary:
     router_served_models: dict[str, int]
     sessions_without_router_rows: list[str]
     n_beta_acknowledged: int | None
-    tap_cost_usd: float | None
-    tap_served_models: dict[str, int]
-    tap_requests: int
 
 
 @dataclass(frozen=True)
@@ -155,23 +149,6 @@ def _router_list_price_usd(rows: Sequence[DecisionRow], prices: PriceTable) -> f
     return total
 
 
-def _direct_list_price_usd(arm: ArmSpec, trials: Sequence[TrialRecord], prices: PriceTable) -> float | None:
-    """A direct arm's spend repriced from its own Codex transcript at the pinned
-    catalog list price, so it doesn't depend on Harbor's optional LiteLLM cost."""
-    price = prices.lookup(arm.codex_model)
-    if price is None:
-        return None
-    tokens = _codex_client_tokens(trials)
-    if tokens.requests == 0:
-        return None
-    return price.cost_usd(
-        input_tokens=tokens.input_tokens,
-        cache_read_tokens=tokens.cache_read_tokens,
-        cache_write_tokens=tokens.cache_write_tokens,
-        output_tokens=tokens.output_tokens,
-    )
-
-
 def _optional_sum(values: Iterable[float | None]) -> float | None:
     present = [v for v in values if v is not None]
     return sum(present) if present else None
@@ -183,7 +160,6 @@ def summarize_arm(
     *,
     k: int,
     analytics_rows: Sequence[DecisionRow] | None,
-    tap_rows: Sequence[TapRow],
 ) -> ArmSummary:
     per_task = per_task_pass_rate(trials)
     attempts = _attempts_by_task(trials)
@@ -204,15 +180,8 @@ def summarize_arm(
             router_rows.extend(session_rows)
         served_models.update(str(r.get(AnalyticsColumn.DECISION_MODEL, "")) for r in router_rows)
 
-    arm_tap_rows = [r for r in tap_rows if str(r.get("session_id", "")) in session_ids]
-    tap_served: Counter[str] = Counter(str(r.get("served_model") or "") for r in arm_tap_rows)
-
     prices = load_price_table()
     agent_cost_usd = _optional_sum(t.agent_cost_usd for t in trials)
-    if arm.upstream is Upstream.DIRECT:
-        list_price_usd = _direct_list_price_usd(arm, trials, prices)
-        if list_price_usd is not None:
-            agent_cost_usd = list_price_usd
 
     return ArmSummary(
         arm=arm.name,
@@ -245,21 +214,14 @@ def summarize_arm(
         router_served_models=dict(served_models.most_common()),
         sessions_without_router_rows=sessions_without_rows,
         n_beta_acknowledged=sum(bool(t.beta_acknowledged) for t in trials) if arm.beta_preflight else None,
-        tap_cost_usd=_optional_sum(
-            float(r["cost_usd"]) if isinstance(r.get("cost_usd"), (int, float)) else None for r in arm_tap_rows
-        ),
-        tap_served_models=dict(tap_served.most_common()),
-        tap_requests=len(arm_tap_rows),
     )
 
 
 def arm_spend_usd(summary: ArmSummary) -> float | None:
-    """What the arm actually cost: router-billed for routed arms, the tap's
-    OpenRouter ``usage.cost`` for tap arms, Codex's own list-price total otherwise."""
+    """What the arm actually cost: router-billed for routed arms, Codex's own
+    (optional LiteLLM) total otherwise."""
     if summary.router_billed_usd is not None:
         return summary.router_billed_usd
-    if summary.tap_cost_usd is not None:
-        return summary.tap_cost_usd
     return summary.agent_cost_usd
 
 
@@ -298,14 +260,10 @@ def build_report(
     trials_by_arm: dict[ArmSpec, list[TrialRecord]],
     k: int,
     analytics_rows: Sequence[DecisionRow] | None,
-    tap_rows: Sequence[TapRow],
 ) -> BenchReport:
-    summaries = {
-        arm: summarize_arm(arm, trials, k=k, analytics_rows=analytics_rows, tap_rows=tap_rows)
-        for arm, trials in trials_by_arm.items()
-    }
-    # Every /beta arm is compared against every other arm; without one (e.g. a
-    # force-model-vs-direct check) the first listed arm is the treatment.
+    summaries = {arm: summarize_arm(arm, trials, k=k, analytics_rows=analytics_rows) for arm, trials in trials_by_arm.items()}
+    # Every /beta arm is compared against every other arm; without one the first
+    # listed arm is the treatment.
     treatment_arms = [arm for arm in summaries if arm.beta_preflight] or list(summaries)[:1]
     pairs = [
         compare(summaries[treatment], summaries[control], trials_by_arm[treatment], trials_by_arm[control])
@@ -314,9 +272,3 @@ def build_report(
         if control not in treatment_arms
     ]
     return BenchReport(benchmark=benchmark, run_id=run_id, arms=list(summaries.values()), pairs=pairs)
-
-
-def load_tap_rows(path: Path | None) -> list[TapRow]:
-    if path is None or not path.exists():
-        return []
-    return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]

@@ -1,11 +1,7 @@
 package translate
 
 import (
-	"encoding/json"
 	"net/http"
-	"strings"
-
-	"github.com/tidwall/gjson"
 
 	"weave-os/router/internal/requestcontext"
 )
@@ -29,20 +25,6 @@ func WriteRetiredBetaRequest(w http.ResponseWriter, r *http.Request, body []byte
 		if err == nil {
 			envelope, err = ParseOpenAI(converted.Body)
 		}
-	case requestcontext.ConversationGemini:
-		contents := gjson.GetBytes(body, "contents").Array()
-		if len(contents) == 0 || contents[len(contents)-1].Get("role").String() != "user" {
-			return false, nil
-		}
-		last := geminiLastUserMessage(body)
-		if last.HasToolResult {
-			return false, nil
-		}
-		_, found, _ := parseBetaCommand(last.Text)
-		if !found {
-			return false, nil
-		}
-		return true, writeGeminiRetirement(w, strings.HasSuffix(r.URL.Path, ":streamGenerateContent"))
 	default:
 		return false, nil
 	}
@@ -65,23 +47,4 @@ func WriteRetiredBetaRequest(w http.ResponseWriter, r *http.Request, body []byte
 	default:
 		return true, WriteSyntheticOpenAIResponse(w, envelope, text, 0)
 	}
-}
-
-func writeGeminiRetirement(w http.ResponseWriter, stream bool) error {
-	reply := map[string]any{"candidates": []any{map[string]any{"index": 0, "content": map[string]any{"role": "model", "parts": []any{map[string]any{"text": BetaRetiredMessage}}}, "finishReason": "STOP"}}}
-	payload, err := json.Marshal(reply)
-	if err != nil {
-		return err
-	}
-	if stream {
-		w.Header().Set("Content-Type", "text/event-stream")
-		_, err = w.Write([]byte(commandOpenAISSEData(string(payload))))
-		if flusher, ok := w.(http.Flusher); ok {
-			flusher.Flush()
-		}
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_, err = w.Write(payload)
-	return err
 }

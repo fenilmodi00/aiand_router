@@ -16,7 +16,6 @@ func compatibilityService(mode TranslationCompatibilityMode) *Service {
 	return &Service{
 		clients: dispatch.NewClients(map[string]providers.Client{
 			providers.ProviderAnthropic: nil,
-			providers.ProviderOpenAI:    nil,
 			providers.ProviderAIAND:     nil,
 		}),
 		translationCompatibilityMode: mode,
@@ -28,7 +27,7 @@ func TestTranslationPlan_NativeResponsesFiltersToOpenAIFamilyInShadow(t *testing
 	plan := svc.planTranslation(router.Request{
 		EnabledProviders: map[string]struct{}{
 			providers.ProviderAnthropic: {},
-			providers.ProviderOpenAI:    {},
+			providers.ProviderAIAND:     {},
 		},
 		TranslationRequirements: router.TranslationRequirements{
 			SourceFormat: router.WireFormatOpenAI,
@@ -38,27 +37,9 @@ func TestTranslationPlan_NativeResponsesFiltersToOpenAIFamilyInShadow(t *testing
 		},
 	})
 
-	assert.Equal(t, map[string]struct{}{providers.ProviderOpenAI: {}}, plan.EnabledProviders)
+	assert.Equal(t, map[string]struct{}{providers.ProviderAIAND: {}}, plan.EnabledProviders)
 	assert.Equal(t, providers.FamilyOpenAICompat, plan.TargetFamily)
 	requireExclusion(t, plan, "native_wire_family_required", providers.ProviderAnthropic, true)
-}
-
-func TestTranslationPlan_GeminiIngressNeverOffersForeignFamily(t *testing.T) {
-	svc := compatibilityService(TranslationCompatibilityShadow)
-	plan := svc.planTranslation(router.Request{
-		EnabledProviders: map[string]struct{}{
-			providers.ProviderAnthropic: {},
-			providers.ProviderAIAND:     {},
-		},
-		TranslationRequirements: router.TranslationRequirements{
-			SourceFormat: router.WireFormatGemini,
-			Endpoint:     router.EndpointGeminiGenerate,
-		},
-	})
-
-	assert.Empty(t, plan.EnabledProviders, "no surviving provider speaks the Gemini family")
-	requireExclusion(t, plan, "native_wire_family_required", providers.ProviderAnthropic, true)
-	requireExclusion(t, plan, "native_wire_family_required", providers.ProviderAIAND, true)
 }
 
 func TestTranslationPlan_ImageConstraintShadowsBeforeEnforcement(t *testing.T) {
@@ -77,7 +58,7 @@ func TestTranslationPlan_OffRestoresNativeFamilyEligibility(t *testing.T) {
 	plan := compatibilityService(TranslationCompatibilityOff).planTranslation(router.Request{
 		EnabledProviders: map[string]struct{}{
 			providers.ProviderAnthropic: {},
-			providers.ProviderOpenAI:    {},
+			providers.ProviderAIAND:     {},
 		},
 		TranslationRequirements: router.TranslationRequirements{
 			SourceFormat: router.WireFormatOpenAI,
@@ -88,17 +69,22 @@ func TestTranslationPlan_OffRestoresNativeFamilyEligibility(t *testing.T) {
 
 	assert.Equal(t, map[string]struct{}{
 		providers.ProviderAnthropic: {},
-		providers.ProviderOpenAI:    {},
+		providers.ProviderAIAND:     {},
 	}, plan.EnabledProviders)
 	requireExclusion(t, plan, "native_wire_family_required", providers.ProviderAnthropic, false)
 }
 
+// The AIand-only roster serves Responses through the one OpenAI-compat
+// provider, so a native-Responses candidate can only be excluded by a
+// provider set the roster does not offer (anthropic). The two-provider form
+// of this test (aiand excluded, anthropic kept) is dead: with the roster cut
+// there is no second OpenAI-compat provider to fall back to.
 func TestTranslationPlan_NativeResponsesRequireOpenAIResponsesAdapter(t *testing.T) {
 	svc := compatibilityService(TranslationCompatibilityShadow)
 	plan := svc.planTranslation(router.Request{
 		EnabledProviders: map[string]struct{}{
-			providers.ProviderOpenAI: {},
-			providers.ProviderAIAND:  {},
+			providers.ProviderAnthropic: {},
+			providers.ProviderAIAND:     {},
 		},
 		TranslationRequirements: router.TranslationRequirements{
 			SourceFormat: router.WireFormatOpenAI,
@@ -107,15 +93,15 @@ func TestTranslationPlan_NativeResponsesRequireOpenAIResponsesAdapter(t *testing
 		},
 	})
 
-	assert.Equal(t, map[string]struct{}{providers.ProviderOpenAI: {}}, plan.EnabledProviders)
-	requireExclusion(t, plan, "native_wire_family_required", providers.ProviderAIAND, true)
+	assert.Equal(t, map[string]struct{}{providers.ProviderAIAND: {}}, plan.EnabledProviders)
+	requireExclusion(t, plan, "native_wire_family_required", providers.ProviderAnthropic, true)
 }
 
 func TestTranslationPlan_BroadSemanticRequirementOnlyFiltersInEnforce(t *testing.T) {
 	req := router.Request{
 		EnabledProviders: map[string]struct{}{
 			providers.ProviderAnthropic: {},
-			providers.ProviderOpenAI:    {},
+			providers.ProviderAIAND:     {},
 		},
 		TranslationRequirements: router.TranslationRequirements{
 			SourceFormat:       router.WireFormatAnthropic,
@@ -127,9 +113,9 @@ func TestTranslationPlan_BroadSemanticRequirementOnlyFiltersInEnforce(t *testing
 	enforce := compatibilityService(TranslationCompatibilityEnforce).planTranslation(req)
 
 	assert.Equal(t, req.EnabledProviders, shadow.EnabledProviders)
-	requireExclusion(t, shadow, "prompt_cache_control_native_required", providers.ProviderOpenAI, false)
+	requireExclusion(t, shadow, "prompt_cache_control_native_required", providers.ProviderAIAND, false)
 	assert.Equal(t, map[string]struct{}{providers.ProviderAnthropic: {}}, enforce.EnabledProviders)
-	requireExclusion(t, enforce, "prompt_cache_control_native_required", providers.ProviderOpenAI, true)
+	requireExclusion(t, enforce, "prompt_cache_control_native_required", providers.ProviderAIAND, true)
 }
 
 func TestTranslationPlan_NativeSearchAlwaysFiltersToSourceProvider(t *testing.T) {
@@ -142,7 +128,7 @@ func TestTranslationPlan_NativeSearchAlwaysFiltersToSourceProvider(t *testing.T)
 			plan := compatibilityService(mode).planTranslation(router.Request{
 				EnabledProviders: map[string]struct{}{
 					providers.ProviderAnthropic: {},
-					providers.ProviderOpenAI:    {},
+					providers.ProviderAIAND:     {},
 				},
 				TranslationRequirements: router.TranslationRequirements{
 					SourceFormat:      router.WireFormatAnthropic,
@@ -153,7 +139,7 @@ func TestTranslationPlan_NativeSearchAlwaysFiltersToSourceProvider(t *testing.T)
 
 			assert.True(t, plan.Enforced)
 			assert.Equal(t, map[string]struct{}{providers.ProviderAnthropic: {}}, plan.EnabledProviders)
-			requireExclusion(t, plan, "citations_or_search_native_required", providers.ProviderOpenAI, true)
+			requireExclusion(t, plan, "citations_or_search_native_required", providers.ProviderAIAND, true)
 		})
 	}
 }

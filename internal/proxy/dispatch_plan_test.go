@@ -22,6 +22,12 @@ import (
 
 const plannedTestModel = "deepseek-ai/deepseek-v4-pro"
 
+// otherCompatProvider names the second binding in the failover fixtures: the
+// AIand-only roster registers exactly one OpenAI-compatible upstream, so a
+// two-binding walk needs a distinct name to stay a real failover rather than
+// a duplicate map key.
+const otherCompatProvider = "other-compat-provider"
+
 func plannedInputs(rec *httptest.ResponseRecorder, buf *preludeBuffer, bindings []catalog.ProviderBinding, body []byte) failoverInputs {
 	r := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 	return failoverInputs{
@@ -40,13 +46,13 @@ func plannedInputs(rec *httptest.ResponseRecorder, buf *preludeBuffer, bindings 
 
 func TestDispatchPlanned_PrimarySucceeds(t *testing.T) {
 	primary := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{writeBytes: []byte("ok")}}}
-	fallback := &fakeClient{name: providers.ProviderOpenAI}
-	s := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: primary, providers.ProviderOpenAI: fallback})
+	fallback := &fakeClient{name: otherCompatProvider}
+	s := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: primary, otherCompatProvider: fallback})
 
 	rec := httptest.NewRecorder()
 	buf := newPreludeBuffer(rec)
 	winnerIdx, err := s.dispatchWithFallback(context.Background(), plannedInputs(rec, buf,
-		[]catalog.ProviderBinding{{Provider: providers.ProviderAIAND}, {Provider: providers.ProviderOpenAI}}, nil))
+		[]catalog.ProviderBinding{{Provider: providers.ProviderAIAND}, {Provider: otherCompatProvider}}, nil))
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, winnerIdx)
@@ -59,13 +65,13 @@ func TestDispatchPlanned_PrimarySucceeds(t *testing.T) {
 
 func TestDispatchPlanned_FailsOverBeforeCommit(t *testing.T) {
 	primary := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{err: &providers.UpstreamErrorResponse{Status: 503, Body: []byte(`down`)}}}}
-	fallback := &fakeClient{name: providers.ProviderOpenAI, outcomes: []fakeOutcome{{writeBytes: []byte("rescued")}}}
-	s := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: primary, providers.ProviderOpenAI: fallback})
+	fallback := &fakeClient{name: otherCompatProvider, outcomes: []fakeOutcome{{writeBytes: []byte("rescued")}}}
+	s := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: primary, otherCompatProvider: fallback})
 
 	rec := httptest.NewRecorder()
 	buf := newPreludeBuffer(rec)
 	winnerIdx, err := s.dispatchWithFallback(context.Background(), plannedInputs(rec, buf,
-		[]catalog.ProviderBinding{{Provider: providers.ProviderAIAND}, {Provider: providers.ProviderOpenAI}}, nil))
+		[]catalog.ProviderBinding{{Provider: providers.ProviderAIAND}, {Provider: otherCompatProvider}}, nil))
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, winnerIdx)
@@ -73,7 +79,7 @@ func TestDispatchPlanned_FailsOverBeforeCommit(t *testing.T) {
 	assert.Equal(t, 1, fallback.calls)
 	assert.Equal(t, "rescued", rec.Body.String())
 	assert.Equal(t, providers.ProviderAIAND, rec.Header().Get(HeaderRouterFallbackFrom))
-	assert.Equal(t, providers.ProviderOpenAI, rec.Header().Get(HeaderRouterProvider))
+	assert.Equal(t, otherCompatProvider, rec.Header().Get(HeaderRouterProvider))
 }
 
 func TestDispatchPlanned_NoFailoverAfterCommit(t *testing.T) {
@@ -81,13 +87,13 @@ func TestDispatchPlanned_NoFailoverAfterCommit(t *testing.T) {
 		writeBytes: []byte("event: message_start\n\npartial"),
 		err:        &providers.UpstreamErrorResponse{Status: 503, Body: []byte(`mid-stream`)},
 	}}}
-	fallback := &fakeClient{name: providers.ProviderOpenAI}
-	s := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: primary, providers.ProviderOpenAI: fallback})
+	fallback := &fakeClient{name: otherCompatProvider}
+	s := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: primary, otherCompatProvider: fallback})
 
 	rec := httptest.NewRecorder()
 	buf := newPreludeBuffer(rec)
 	_, err := s.dispatchWithFallback(context.Background(), plannedInputs(rec, buf,
-		[]catalog.ProviderBinding{{Provider: providers.ProviderAIAND}, {Provider: providers.ProviderOpenAI}}, nil))
+		[]catalog.ProviderBinding{{Provider: providers.ProviderAIAND}, {Provider: otherCompatProvider}}, nil))
 
 	require.Error(t, err)
 	assert.Equal(t, 0, fallback.calls, "bytes reached the client; no retry")
@@ -96,13 +102,13 @@ func TestDispatchPlanned_NoFailoverAfterCommit(t *testing.T) {
 
 func TestDispatchPlanned_WireModelMismatchNeverReachesProvider(t *testing.T) {
 	primary := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{writeBytes: []byte("ok")}}}
-	fallback := &fakeClient{name: providers.ProviderOpenAI, outcomes: []fakeOutcome{{writeBytes: []byte("ok")}}}
-	s := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: primary, providers.ProviderOpenAI: fallback})
+	fallback := &fakeClient{name: otherCompatProvider, outcomes: []fakeOutcome{{writeBytes: []byte("ok")}}}
+	s := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: primary, otherCompatProvider: fallback})
 
 	rec := httptest.NewRecorder()
 	buf := newPreludeBuffer(rec)
 	_, err := s.dispatchWithFallback(context.Background(), plannedInputs(rec, buf,
-		[]catalog.ProviderBinding{{Provider: providers.ProviderAIAND}, {Provider: providers.ProviderOpenAI}},
+		[]catalog.ProviderBinding{{Provider: providers.ProviderAIAND}, {Provider: otherCompatProvider}},
 		[]byte(`{"model":"some-other-model"}`)))
 
 	require.ErrorIs(t, err, dispatch.ErrTargetMismatch)
@@ -166,13 +172,13 @@ func TestDispatchPlanned_DeferredFlushLeavesWriterUntouched(t *testing.T) {
 }
 
 func TestDispatchPlanned_ProviderMissingAtRuntimeSkipsToNext(t *testing.T) {
-	fallback := &fakeClient{name: providers.ProviderOpenAI, outcomes: []fakeOutcome{{writeBytes: []byte("ok")}}}
-	s := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderOpenAI: fallback})
+	fallback := &fakeClient{name: otherCompatProvider, outcomes: []fakeOutcome{{writeBytes: []byte("ok")}}}
+	s := newServiceWithProviders(t, map[string]providers.Client{otherCompatProvider: fallback})
 
 	rec := httptest.NewRecorder()
 	buf := newPreludeBuffer(rec)
 	winnerIdx, err := s.dispatchWithFallback(context.Background(), plannedInputs(rec, buf,
-		[]catalog.ProviderBinding{{Provider: providers.ProviderAIAND}, {Provider: providers.ProviderOpenAI}}, nil))
+		[]catalog.ProviderBinding{{Provider: providers.ProviderAIAND}, {Provider: otherCompatProvider}}, nil))
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, winnerIdx)
@@ -181,17 +187,17 @@ func TestDispatchPlanned_ProviderMissingAtRuntimeSkipsToNext(t *testing.T) {
 
 func TestDispatchPlanned_RecordsAttemptProvenance(t *testing.T) {
 	primary := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{err: &providers.UpstreamErrorResponse{Status: 503, Body: []byte(`down`)}}}}
-	fallback := &fakeClient{name: providers.ProviderOpenAI, outcomes: []fakeOutcome{{writeBytes: []byte("ok")}}}
+	fallback := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{writeBytes: []byte("ok")}}}
 	sink := &recordingAttemptSink{}
 	executor, err := dispatch.NewExecutor(dispatch.NewClients(map[string]providers.Client{
-		providers.ProviderAIAND: primary, providers.ProviderOpenAI: fallback,
+		providers.ProviderAIAND: primary, otherCompatProvider: fallback,
 	}), dispatch.WithAttemptSink(sink))
 	require.NoError(t, err)
 	s := (&Service{}).WithInferenceExecutor(executor)
 
 	rec := httptest.NewRecorder()
 	buf := newPreludeBuffer(rec)
-	in := plannedInputs(rec, buf, []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}, {Provider: providers.ProviderOpenAI}}, nil)
+	in := plannedInputs(rec, buf, []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}, {Provider: otherCompatProvider}}, nil)
 	in.initialDecision.Reason = translate.ReasonUserForceModel
 	in.origin = policy.OverrideSourceRequest
 	_, err = s.dispatchWithFallback(context.Background(), in)
@@ -205,7 +211,7 @@ func TestDispatchPlanned_RecordsAttemptProvenance(t *testing.T) {
 	}
 	assert.Equal(t, providers.ProviderAIAND, sink.events[0].Target.Provider)
 	assert.Equal(t, inference.AttemptOutcomeFailed, sink.events[0].Outcome)
-	assert.Equal(t, providers.ProviderOpenAI, sink.events[1].Target.Provider)
+	assert.Equal(t, otherCompatProvider, sink.events[1].Target.Provider)
 	assert.Equal(t, inference.AttemptOutcomeServed, sink.events[1].Outcome)
 }
 

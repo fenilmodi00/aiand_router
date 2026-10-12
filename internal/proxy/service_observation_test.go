@@ -157,7 +157,7 @@ func TestPolicyShadowComparisonSkipsDryRunAndCollectsServingRoute(t *testing.T) 
 	}
 	shadowRouter := &shadowRequestRouter{
 		decision: router.Decision{
-			Provider: providers.ProviderOpenAI,
+			Provider: providers.ProviderAIAND,
 			Model:    "deepseek-ai/deepseek-v4-flash",
 			Metadata: &router.RoutingMetadata{
 				RouteID:              "shadow-route-1",
@@ -738,10 +738,10 @@ func TestProxyOpenAIChatCompletion_ResponseSignalTelemetry(t *testing.T) {
 			}}
 			telem := newCaptureTelemetry()
 			svc := proxy.NewService(
-				&fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "zai-org/glm-5.3-flash"}},
-				map[string]providers.Client{providers.ProviderOpenAI: provider},
+				&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "zai-org/glm-5.3-flash"}},
+				map[string]providers.Client{providers.ProviderAIAND: provider},
 				nil, false, nil, nil, false,
-				providers.ProviderOpenAI, "moonshotai/kimi-k3", telem,
+				providers.ProviderAIAND, "moonshotai/kimi-k3", telem,
 			)
 
 			ctx := context.WithValue(context.Background(), proxy.InstallationIDContextKey{}, installID)
@@ -815,10 +815,10 @@ func TestProxyOpenAIChatCompletion_NativeChatResponseSignals(t *testing.T) {
 			}}
 			telem := newCaptureTelemetry()
 			svc := proxy.NewService(
-				&fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "qwen/qwen3.8-27b"}},
-				map[string]providers.Client{providers.ProviderOpenAI: provider},
+				&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "qwen/qwen3.8-27b"}},
+				map[string]providers.Client{providers.ProviderAIAND: provider},
 				nil, false, nil, nil, false,
-				providers.ProviderOpenAI, "qwen/qwen3.8-27b", telem,
+				providers.ProviderAIAND, "qwen/qwen3.8-27b", telem,
 			).WithNativeOpenAIResponseSignals(tt.enabled)
 
 			ctx := context.WithValue(context.Background(), proxy.InstallationIDContextKey{}, installID)
@@ -900,10 +900,10 @@ func TestProxyOpenAIResponses_NativeResponseSignals(t *testing.T) {
 			}}
 			telem := newCaptureTelemetry()
 			svc := proxy.NewService(
-				&fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "zai-org/glm-5.3-flash"}},
-				map[string]providers.Client{providers.ProviderOpenAI: provider},
+				&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "zai-org/glm-5.3-flash"}},
+				map[string]providers.Client{providers.ProviderAIAND: provider},
 				nil, false, nil, nil, false,
-				providers.ProviderOpenAI, "moonshotai/kimi-k3", telem,
+				providers.ProviderAIAND, "moonshotai/kimi-k3", telem,
 			).WithNativeOpenAIResponseSignals(tt.enabled)
 
 			ctx := context.WithValue(context.Background(), proxy.InstallationIDContextKey{}, installID)

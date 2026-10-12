@@ -161,8 +161,6 @@ func (e *RequestEnvelope) RoutingFeatures(extractOnlyUser bool) RoutingFeatures 
 		return e.anthropicRoutingFeatures(extractOnlyUser)
 	case FormatOpenAI:
 		return e.openAIRoutingFeatures(extractOnlyUser)
-	case FormatGemini:
-		return e.geminiRoutingFeatures(extractOnlyUser)
 	default:
 		return RoutingFeatures{}
 	}

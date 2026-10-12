@@ -37,7 +37,7 @@ func TestReasoningSamplers_AnthropicSource_DropsTemperatureForGPT5(t *testing.T)
 
 	out, err := env.PrepareOpenAI(nil, translate.EmitOptions{
 		TargetModel:    "gpt-5.6-luna",
-		TargetProvider: providers.ProviderOpenAI,
+		TargetProvider: providers.ProviderAIAND,
 		Capabilities:   capsFor("gpt-5.6-luna"),
 	})
 	require.NoError(t, err)
@@ -60,7 +60,7 @@ func TestReasoningSamplers_AnthropicSource_KeepsTemperatureForNonGPT5(t *testing
 
 	out, err := env.PrepareOpenAI(nil, translate.EmitOptions{
 		TargetModel:    "gpt-4.1",
-		TargetProvider: providers.ProviderOpenAI,
+		TargetProvider: providers.ProviderAIAND,
 		Capabilities:   capsFor("gpt-4.1"),
 	})
 	require.NoError(t, err)
@@ -81,7 +81,7 @@ func TestReasoningSamplers_OpenAISource_DropsTemperatureForGPT5(t *testing.T) {
 
 	out, err := env.PrepareOpenAI(nil, translate.EmitOptions{
 		TargetModel:    "gpt-5.6-luna",
-		TargetProvider: providers.ProviderOpenAI,
+		TargetProvider: providers.ProviderAIAND,
 		Capabilities:   capsFor("gpt-5.6-luna"),
 	})
 	require.NoError(t, err)

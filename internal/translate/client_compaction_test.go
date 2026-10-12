@@ -89,8 +89,8 @@ func TestRecoveryParallelLimitSurvivesTargetPreparation(t *testing.T) {
 		want                         bool
 	}{
 		{"native", clientCompactionTestOpus, providers.ProviderAnthropic, "tool_choice.disable_parallel_tool_use", env.PrepareAnthropic, true},
-		{"chat", clientCompactionTestSol, providers.ProviderOpenAI, "parallel_tool_calls", env.PrepareOpenAI, false},
-		{"responses", clientCompactionTestSol, providers.ProviderOpenAI, "parallel_tool_calls", env.PrepareOpenAIResponses, false},
+		{"chat", clientCompactionTestSol, providers.ProviderAIAND, "parallel_tool_calls", env.PrepareOpenAI, false},
+		{"responses", clientCompactionTestSol, providers.ProviderAIAND, "parallel_tool_calls", env.PrepareOpenAIResponses, false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			prepared, err := tt.prepare(nil, EmitOptions{TargetModel: tt.model, TargetProvider: tt.provider, Capabilities: router.Lookup(tt.model)})

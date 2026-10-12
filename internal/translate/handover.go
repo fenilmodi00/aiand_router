@@ -24,8 +24,6 @@ func (e *RequestEnvelope) RewriteForHandover(summary string) int {
 		return e.rewriteAnthropicForHandover(summary)
 	case FormatOpenAI:
 		return e.rewriteOpenAIForHandover(summary)
-	case FormatGemini:
-		return e.rewriteGeminiForHandover(summary)
 	default:
 		return 0
 	}
@@ -47,8 +45,6 @@ func (e *RequestEnvelope) TrimLastNMessages(n int) int {
 		return e.trimAnthropicLastN(n)
 	case FormatOpenAI:
 		return e.trimOpenAILastN(n)
-	case FormatGemini:
-		return e.trimGeminiLastN(n)
 	default:
 		return 0
 	}
@@ -253,77 +249,6 @@ func (e *RequestEnvelope) trimOpenAILastN(n int) int {
 	return len(others) - n
 }
 
-// rewriteGeminiForHandover mirrors the Anthropic path against Gemini's
-// `contents` array. systemInstruction is untouched.
-func (e *RequestEnvelope) rewriteGeminiForHandover(summary string) int {
-	contents := gjson.GetBytes(e.body, "contents")
-	if !contents.IsArray() {
-		return 0
-	}
-	all := contents.Array()
-	if len(all) == 0 {
-		return 0
-	}
-
-	var latestUser gjson.Result
-	for i := len(all) - 1; i >= 0; i-- {
-		if all[i].Get("role").String() == "user" {
-			latestUser = all[i]
-			break
-		}
-	}
-
-	tagged := HandoverSummaryTag + summary
-	summaryEntry := map[string]any{
-		"role":  "model",
-		"parts": []any{map[string]any{"text": tagged}},
-	}
-	summaryRaw, _ := json.Marshal(summaryEntry)
-
-	rebuilt := make([]string, 0, 2)
-	rebuilt = append(rebuilt, string(summaryRaw))
-	preserved := 0
-	if latestUser.Exists() {
-		rebuilt = append(rebuilt, latestUser.Raw)
-		preserved = 1
-	}
-
-	elided := max(len(all)-preserved, 0)
-
-	newContents := "[" + strings.Join(rebuilt, ",") + "]"
-	out, err := sjson.SetRawBytes(e.body, "contents", []byte(newContents))
-	if err != nil {
-		return 0
-	}
-	e.body = out
-	return elided
-}
-
-func (e *RequestEnvelope) trimGeminiLastN(n int) int {
-	contents := gjson.GetBytes(e.body, "contents")
-	if !contents.IsArray() {
-		return 0
-	}
-	all := contents.Array()
-	if len(all) <= n {
-		return 0
-	}
-	keep, boundaryPulledBack := recentMessagesWithUserTextBoundary(all, n, FormatGemini)
-	var rebuilt []string
-	if boundaryPulledBack {
-		rebuilt = append([]string{keep[0].Raw}, stripLeadingGeminiOrphanFunctionResponses(keep[1:])...)
-	} else {
-		rebuilt = stripLeadingGeminiOrphanFunctionResponses(keep)
-	}
-	newContents := "[" + strings.Join(rebuilt, ",") + "]"
-	out, err := sjson.SetRawBytes(e.body, "contents", []byte(newContents))
-	if err != nil {
-		return 0
-	}
-	e.body = out
-	return len(all) - len(rebuilt)
-}
-
 // recentMessagesWithUserTextBoundary keeps the newest messages while ensuring
 // the window still describes the user's request. Tool-result-only user entries
 // do not qualify, and a pulled-back user boundary resumes on an assistant turn
@@ -354,11 +279,7 @@ func recentMessagesWithUserTextBoundary(messages []gjson.Result, limit int, form
 }
 
 func isAssistantMessage(message gjson.Result, format Format) bool {
-	role := message.Get("role").String()
-	if format == FormatGemini {
-		return role == "model"
-	}
-	return role == "assistant"
+	return message.Get("role").String() == "assistant"
 }
 
 func isTextBearingUserMessage(message gjson.Result, format Format) bool {
@@ -369,9 +290,6 @@ func isTextBearingUserMessage(message gjson.Result, format Format) bool {
 	case FormatOpenAI:
 		return message.Get("role").String() == "user" &&
 			strings.TrimSpace(openAIContentTextGJSON(message.Get("content"))) != ""
-	case FormatGemini:
-		role := message.Get("role").String()
-		return (role == "user" || role == "") && strings.TrimSpace(geminiPartsText(message.Get("parts"))) != ""
 	default:
 		return false
 	}
@@ -574,8 +492,7 @@ func stripOrphanedOpenAIToolCalls(msgs []string) ([]string, int) {
 // on orphaned IDs that other providers silently accept. This pass runs once
 // per turn so a session is never bricked by a single mid-stream failure that
 // left a dangling tool_use block on the wire. Returns the total count of
-// blocks/messages stripped; zero when clean or when the format is Gemini
-// (Gemini doesn't validate pairing).
+// blocks/messages stripped; zero when clean.
 func (e *RequestEnvelope) SanitizeOrphanedToolCalls() int {
 	if e == nil {
 		return 0
@@ -718,44 +635,4 @@ func (e *RequestEnvelope) sanitizeOrphanedAnthropicToolCalls() int {
 	}
 	e.body = out
 	return totalStripped
-}
-
-// stripLeadingGeminiOrphanFunctionResponses drops functionResponse parts from
-// the first kept content: Gemini requires a function response turn to
-// immediately follow the model's functionCall turn, and the head of a kept
-// tail has had that turn elided. Only the head can be orphaned — every later
-// functionResponse still has its functionCall in the window. A head left
-// with no parts is dropped.
-func stripLeadingGeminiOrphanFunctionResponses(kept []gjson.Result) []string {
-	out := make([]string, 0, len(kept))
-	for i, c := range kept {
-		parts := c.Get("parts")
-		if i > 0 || !parts.IsArray() {
-			out = append(out, c.Raw)
-			continue
-		}
-		keptParts := make([]string, 0, len(parts.Array()))
-		dropped := false
-		parts.ForEach(func(_, p gjson.Result) bool {
-			if p.Get("functionResponse").Exists() {
-				dropped = true
-				return true
-			}
-			keptParts = append(keptParts, p.Raw)
-			return true
-		})
-		switch {
-		case !dropped:
-			out = append(out, c.Raw)
-		case len(keptParts) == 0:
-		default:
-			nc, err := sjson.SetRawBytes([]byte(c.Raw), "parts", []byte("["+strings.Join(keptParts, ",")+"]"))
-			if err != nil {
-				out = append(out, c.Raw)
-				continue
-			}
-			out = append(out, string(nc))
-		}
-	}
-	return out
 }

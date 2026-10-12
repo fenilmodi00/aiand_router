@@ -152,7 +152,7 @@ func TestSidecarRouterOnboardsFutureStrategyWithoutProxyChanges(t *testing.T) {
 			SessionTurnCount:    4,
 			TurnType:            "main_loop",
 			PreviousServedModel: "gpt-5.4",
-			PreviousProvider:    providers.ProviderOpenAI,
+			PreviousProvider:    providers.ProviderAIAND,
 			CacheState:          router.PolicyCacheStateWarm,
 			PriorOutputTokens:   &priorOutputTokens,
 		},
@@ -715,7 +715,7 @@ func TestSidecarRouterForcedClusterKeepsProviderAgreementCheck(t *testing.T) {
 	decider := &recordingPolicy{result: policy.Result{
 		SchemaVersion: policy.SchemaVersionV1,
 		Model:         "deepseek-ai/deepseek-v4-pro",
-		Provider:      providers.ProviderOpenAI, // disagrees with the resolved binding
+		Provider:      providers.ProviderAnthropic, // disagrees with the resolved binding
 		RankedFallback: []policy.PreviewGroup{{
 			Group:        "maximum",
 			EligibleArms: []string{"deepseek-ai/deepseek-v4-pro"},

@@ -33,7 +33,6 @@ func TestEscalationResponseStreamAssembly(t *testing.T) {
 	}{
 		{"anthropic", translate.EscalationResponseAnthropic, "data: {\"type\":\"message_start\",\"message\":{\"id\":\"resp-1\"}}\n\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"checking\"}}\n\ndata: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"tool_use\",\"id\":\"call-1\",\"name\":\"run\",\"input\":{}}}\n\ndata: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"{\\\"x\\\":\"}}\n\ndata: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"1}\"}}\n\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"tool_use\"}}\n\ndata: {\"type\":\"message_stop\"}\n\n"},
 		{"chat", translate.EscalationResponseChat, "data: {\"id\":\"resp-1\",\"choices\":[{\"delta\":{\"content\":\"checking\"},\"finish_reason\":null}]}\n\ndata: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call-1\",\"function\":{\"name\":\"run\",\"arguments\":\"{\\\"x\\\":\"}}]},\"finish_reason\":null}]}\n\ndata: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"1}\"}}]},\"finish_reason\":\"tool_calls\"}]}\n\ndata: [DONE]\n\n"},
-		{"gemini", translate.EscalationResponseGemini, "data: {\"responseId\":\"resp-1\",\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"checking\"}]}}]}\n\ndata: {\"candidates\":[{\"content\":{\"parts\":[{\"functionCall\":{\"id\":\"call-1\",\"name\":\"run\",\"args\":{\"x\":1}}}]},\"finishReason\":\"STOP\"}]}\n\n"},
 	}
 	for _, fixture := range fixtures {
 		t.Run(fixture.name, func(t *testing.T) {
@@ -58,7 +57,6 @@ func TestEscalationResponseJSONAcrossProtocols(t *testing.T) {
 	}{
 		{translate.EscalationResponseAnthropic, `{"id":"response","content":[{"type":"text","text":"done"}],"stop_reason":"end_turn"}`},
 		{translate.EscalationResponseChat, `{"id":"response","choices":[{"message":{"role":"assistant","content":"done"},"finish_reason":"stop"}]}`},
-		{translate.EscalationResponseGemini, `{"responseId":"response","candidates":[{"content":{"parts":[{"text":"done"}]},"finishReason":"STOP"}]}`},
 	}
 	for _, fixture := range fixtures {
 		response, err := translate.ParseEscalationResponse([]byte(fixture.body), fixture.format)
@@ -77,7 +75,6 @@ func TestEscalationResponseRejectsIncompleteOrFailedStreams(t *testing.T) {
 		{translate.EscalationResponseResponses, "data: {\"type\":\"response.failed\"}\n\n"},
 		{translate.EscalationResponseAnthropic, "data: {\"type\":\"message_start\"}\n\n"},
 		{translate.EscalationResponseChat, "data: {\"choices\":[{\"delta\":{\"content\":\"partial\"}}]}\n\n"},
-		{translate.EscalationResponseGemini, `{"candidates":[{"content":{"parts":[{"text":"partial"}]}}]}`},
 		{translate.EscalationResponseChat, `{"choices":[{"message":{"tool_calls":[{"function":{"name":"run","arguments":"{"}}]},"finish_reason":"length"}]}`},
 	}
 	for _, fixture := range fixtures {
@@ -111,7 +108,6 @@ func TestEscalationResponseRequiresSuccessfulTerminalReason(t *testing.T) {
 	}{
 		{translate.EscalationResponseAnthropic, []string{"end_turn", "tool_use", "stop_sequence"}, []string{"max_tokens", "pause_turn", "refusal", "unknown", ""}},
 		{translate.EscalationResponseChat, []string{"stop", "tool_calls", "function_call"}, []string{"length", "content_filter", "unknown", ""}},
-		{translate.EscalationResponseGemini, []string{"STOP"}, []string{"MAX_TOKENS", "SAFETY", "RECITATION", "MALFORMED_FUNCTION_CALL", "OTHER", "unknown", ""}},
 	}
 	for _, protocol := range protocols {
 		for _, streaming := range []bool{false, true} {
@@ -174,12 +170,6 @@ func escalationTerminalFixture(format translate.EscalationResponseFormat, stream
 		body := fmt.Sprintf(`{"choices":[{%q:{"content":"evidence"%s}%s}]}`, messageKey, legacyFunction, reasonField("finish_reason"))
 		if streaming {
 			return sseEvent(body) + sseEvent("[DONE]")
-		}
-		return body
-	case translate.EscalationResponseGemini:
-		body := `{"candidates":[{"content":{"parts":[{"text":"evidence"}]}` + reasonField("finishReason") + `}]}`
-		if streaming {
-			return sseEvent(body)
 		}
 		return body
 	default:
@@ -283,17 +273,4 @@ func TestEscalationChatAbsentArgumentsRemainInvalid(t *testing.T) {
 
 	_, err := translate.ParseEscalationResponse([]byte(body), translate.EscalationResponseChat)
 	assert.Error(t, err)
-}
-
-func TestEscalationGeminiFlushesTextAcrossToolBlocks(t *testing.T) {
-	body := "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"before\"}]}}]}\n\n" +
-		"data: {\"candidates\":[{\"content\":{\"parts\":[{\"functionCall\":{\"id\":\"call-1\",\"name\":\"run\",\"args\":{}}}]}}]}\n\n" +
-		"data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"after\"}]},\"finishReason\":\"STOP\"}]}\n\n"
-
-	response, err := translate.ParseEscalationResponse([]byte(body), translate.EscalationResponseGemini)
-	require.NoError(t, err)
-	require.Len(t, response.Messages[0].Blocks, 3)
-	assert.Equal(t, "before", response.Messages[0].Blocks[0].Text)
-	assert.Equal(t, translate.EscalationBlockToolCall, response.Messages[0].Blocks[1].Type)
-	assert.Equal(t, "after", response.Messages[0].Blocks[2].Text)
 }

@@ -435,7 +435,7 @@ WEAVE_CODEX_END_MARKER="# <<< weave-router managed <<<"
 # ---------- identity helpers ----------
 #
 # The router parses X-Weave-User-Email and X-Weave-User-Name on every protocol
-# (Anthropic, OpenAI, Gemini) and persists them onto router.model_router_users
+# (anthropic, openai) and persists them onto router.model_router_users
 # so customers can attribute traffic to a person even when many people share
 # one API key. Claude Code's metadata.user_id carries only account_uuid (no
 # email), so without these headers the router only ever sees anonymous UUIDs.
@@ -736,8 +736,8 @@ codex_existing_option() {
 # Codex picks the routed provider by default. The provider requires OpenAI
 # authentication, preserving the user's ChatGPT plan credential while the
 # router key is sent independently. The router applies OAuth only to its
-# native gpt-5.6 Sol/Terra/Luna family; all other routed models use WorkWeave
-# deployment or BYOK credentials. The model choice stays outside the managed
+# native AIand routing deployment; all other routed models use deployment
+# or BYOK credentials. The model choice stays outside the managed
 # markers so Codex can update it without a reinstall resetting it. We strip any
 # top-level `model_provider = ...` declaration OUTSIDE the markers before
 # appending so the file doesn't end up with a duplicate key (TOML rejects
@@ -1206,8 +1206,8 @@ write_pi_models_config() {
   ')"
 
   # Headline models surfaced in pi's /model picker. The router re-routes every
-  # request regardless, so this list is UX; keep it Anthropic-shaped and in
-  # sync with @weave-os/router's WEAVE_MODELS constant.
+  # request regardless, so this list is UX; keep it in sync with
+  # @weave-os/router's WEAVE_MODELS constant (the full AIand roster).
   #
   # baseUrl is the router ROOT (no /v1): pi's anthropic-messages provider uses
   # @anthropic-ai/sdk, which appends /v1/messages itself. Unlike the codex block
@@ -1225,22 +1225,14 @@ write_pi_models_config() {
       authHeader: false,
       headers: $headers,
       models: [
-        { id: "claude-fable-5-1",  name: "Claude Fable 5.1 (via Weave Router)",  reasoning: true, input: ["text","image"], contextWindow: 1000000, maxTokens: 128000 },
-        { id: "claude-fable-5",    name: "Claude Fable 5 (via Weave Router)",    reasoning: true, input: ["text","image"], contextWindow: 1000000, maxTokens: 128000 },
-        { id: "claude-opus-5-5",   name: "Claude Opus 5.5 (via Weave Router)",   reasoning: true, input: ["text","image"], contextWindow: 1000000, maxTokens: 128000 },
-        { id: "claude-opus-5",     name: "Claude Opus 5 (via Weave Router)",     reasoning: true, input: ["text","image"], contextWindow: 1000000, maxTokens: 128000 },
-        { id: "claude-sonnet-5-5", name: "Claude Sonnet 5.5 (via Weave Router)", reasoning: true, input: ["text","image"], contextWindow: 1000000, maxTokens: 128000 },
-        { id: "claude-opus-4-7",   name: "Claude Opus 4.7 (via Weave Router)",   reasoning: true, input: ["text","image"], contextWindow: 1000000, maxTokens: 64000 },
-        { id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6 (via Weave Router)", reasoning: true, input: ["text","image"], contextWindow: 1000000, maxTokens: 64000 },
-        { id: "claude-haiku-4-5",  name: "Claude Haiku 4.5 (via Weave Router)",  reasoning: true, input: ["text","image"], contextWindow: 200000, maxTokens: 32000 },
-        { id: "gpt-6-astra",       name: "GPT-6 Astra (via Weave Router)",       reasoning: true, input: ["text","image"], contextWindow: 1050000, maxTokens: 128000 },
-        { id: "gpt-6-sol",         name: "GPT-6 Sol (via Weave Router)",         reasoning: true, input: ["text","image"], contextWindow: 1050000, maxTokens: 128000 },
-        { id: "gpt-6.1-sol",       name: "GPT-6.1 Sol (via Weave Router)",       reasoning: true, input: ["text","image"], contextWindow: 1050000, maxTokens: 128000 },
-        { id: "gpt-6-luna",        name: "GPT-6 Luna (via Weave Router)",        reasoning: true, input: ["text","image"], contextWindow: 1050000, maxTokens: 128000 },
-        { id: "gpt-5.6-sol",       name: "GPT-5.6 Sol (via Weave Router)",       reasoning: true, input: ["text","image"], contextWindow: 1050000, maxTokens: 128000 },
-        { id: "grok-4.5",          name: "Grok 4.5 (via Weave Router)",          reasoning: true, input: ["text","image"], contextWindow: 500000, maxTokens: 131072 },
-        { id: "grok-4.6",          name: "Grok 4.6 (via Weave Router)",          reasoning: true, input: ["text","image"], contextWindow: 500000, maxTokens: 131072 },
-        { id: "grok-4.7",          name: "Grok 4.7 (via Weave Router)",          reasoning: true, input: ["text","image"], contextWindow: 500000, maxTokens: 131072 }
+        { id: "zai-org/glm-5.3",           name: "GLM 5.3 (via Weave Router)",           reasoning: true, input: ["text","image"], contextWindow: 1048576, maxTokens: 131072 },
+        { id: "zai-org/glm-5.3-flash",     name: "GLM 5.3 Flash (via Weave Router)",     reasoning: true, input: ["text","image"], contextWindow: 1048576, maxTokens: 131072 },
+        { id: "moonshotai/kimi-k3",        name: "Kimi K3 (via Weave Router)",           reasoning: true, input: ["text","image"], contextWindow: 1048576, maxTokens: 131072 },
+        { id: "deepseek-ai/deepseek-v4-pro", name: "DeepSeek V4 Pro (via Weave Router)", reasoning: true, input: ["text","image"], contextWindow: 1048576, maxTokens: 131072 },
+        { id: "deepseek-ai/deepseek-v4.1-flash", name: "DeepSeek V4.1 Flash (via Weave Router)", reasoning: true, input: ["text","image"], contextWindow: 1048576, maxTokens: 131072 },
+        { id: "deepseek-ai/deepseek-v4-flash",   name: "DeepSeek V4 Flash (via Weave Router)",   reasoning: true, input: ["text","image"], contextWindow: 1048576, maxTokens: 131072 },
+        { id: "qwen/qwen3.8-27b",          name: "Qwen 3.8 27B (via Weave Router)",       reasoning: true, input: ["text","image"], contextWindow: 262144,  maxTokens: 65536 },
+        { id: "motif-technologies/motif-3", name: "Motif 3 (via Weave Router)",          reasoning: true, input: ["text","image"], contextWindow: 262144,  maxTokens: 65536 }
       ]
     }
   ')"
@@ -1282,12 +1274,12 @@ write_pi_settings_config() {
         ))
       | (if (.packages | index($pkg)) then . else .packages += [$pkg] end)
       | .defaultProvider = "weave"
-      | (if (.defaultModel // "") == "" then .defaultModel = "claude-sonnet-4-6" else . end)
+      | (if (.defaultModel // "") == "" then .defaultModel = "zai-org/glm-5.3" else . end)
     ' "$settings_file")"
   else
     merged="$(jq -n --arg pkg "$pkg" '{
       defaultProvider: "weave",
-      defaultModel: "claude-sonnet-4-6",
+      defaultModel: "zai-org/glm-5.3",
       packages: [$pkg]
     }')"
   fi
@@ -3863,7 +3855,7 @@ fi
 # ---------- identity (user email + name) ----------
 #
 # The router parses X-Weave-User-Email and X-Weave-User-Name on every protocol
-# (Anthropic, OpenAI/Codex, Gemini) and persists them onto
+# (Anthropic, OpenAI/Codex) and persists them onto
 # router.model_router_users so customers can attribute traffic to a person even
 # when many people share one API key. We plant the headers at install time
 # because Claude Code's metadata.user_id payload carries only account_uuid (no
@@ -3902,7 +3894,7 @@ fi
 # Codex is intentionally not listed here: its slash menu only exposes built-in
 # commands and does not load these Markdown wrappers. Codex instead gets native
 # `$name` skills (see install_codex_prompt_skills), each of which sends the
-# leading-space prompt form (for example, ` /force-model gpt-5.6-terra`) that
+# leading-space prompt form (for example, ` /force-model zai-org/glm-5.3`) that
 # the router parses. Which client gets which directive comes from the embedded
 # registry, not from a list here.
 #

@@ -109,7 +109,7 @@ func resolveForceModelWithEffort(model string) (canonicalID, provider string, kn
 	if nativeID, ok := strings.CutPrefix(model, "openai/"); ok {
 		model = nativeID
 		unknownID = nativeID
-		requiredProvider = providers.ProviderOpenAI
+		requiredProvider = providers.ProviderAIAND
 	}
 	if alias, ok := forceModelAliases[model]; ok {
 		model = alias
@@ -132,7 +132,7 @@ func resolveForceModelWithEffort(model string) (canonicalID, provider string, kn
 	case strings.HasPrefix(model, "gpt-"),
 		model == "o1", model == "o3", model == "o1-pro", model == "o3-pro",
 		strings.HasPrefix(model, "o1-"), strings.HasPrefix(model, "o3-"), strings.HasPrefix(model, "o4-"):
-		return model, providers.ProviderOpenAI, false, effort
+		return model, providers.ProviderAIAND, false, effort
 	default:
 		return model, providers.ProviderAIAND, false, effort
 	}
@@ -520,9 +520,9 @@ func (s *Service) applyForceModelCommand(
 			"force_model_session_key_hex", fmt.Sprintf("%x", forceModelSessionKey),
 			"role", forceModelSessionRole,
 		)
-		msg = fmt.Sprintf("✦ **Weave Router** → force-model: %q isn't a recognized model · keeping automatic routing. Use a full model ID, e.g. claude-opus-5, gpt-5.5, or gemini-3-pro-preview.\n\n", cmd.Model)
+		msg = fmt.Sprintf("✦ **Weave Router** → force-model: %q isn't a recognized model · keeping automatic routing. Use a full model ID from the router catalog.\n\n", cmd.Model)
 		if env.SourceFormat() == translate.FormatOpenAI {
-			msg = fmt.Sprintf("Weave Router: force-model: %q isn't a recognized model; keeping automatic routing. Use a full model ID, e.g. claude-opus-5, gpt-5.5, or gemini-3-pro-preview.", cmd.Model)
+			msg = fmt.Sprintf("Weave Router: force-model: %q isn't a recognized model; keeping automatic routing. Use a full model ID from the router catalog.", cmd.Model)
 		}
 		return "", msg, nil
 	}

@@ -142,7 +142,6 @@ func TestAnthropicSSETranslator_TextOnlyTurnNudge_SynthesizesBash(t *testing.T) 
 	// Upstream (e.g. Mimo-v2.5) leaks a tool call as XML text instead of a
 	// structured tool_calls entry. finishStream must synthesize a Bash
 	// tool_use so CC's loop doesn't die on "tool call could not be parsed"
-	// (Gemini-3.x excluded, see _SuppressedOnGemini3x below).
 	body, summary := driveAnthropicSSEWithTools(t, "mimo-v2.5-pro", true, []string{
 		`data: {"id":"c1","choices":[{"index":0,"delta":{"content":"<tool_call>{\"name\":\"Read\",\"path\":\"a.go\"}</tool_call>"},"finish_reason":null}]}` + "\n\n",
 		`data: {"id":"c1","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":40,"completion_tokens":15}}` + "\n\n",
@@ -181,25 +180,6 @@ func TestAnthropicSSETranslator_TextOnlyTurnNudge_SkippedOnVisibleThinkingThenAn
 	assert.Equal(t, "end_turn", summary.StopReason, "turn ends naturally, not promoted to tool_use")
 	assert.NotContains(t, body, "toolu_router_nudge_")
 	assert.Contains(t, body, "Good catch", "the model's real answer survives")
-}
-
-func TestAnthropicSSETranslator_TextOnlyTurnNudge_SuppressedOnGemini3x(t *testing.T) {
-	// The synthetic Bash block has no thoughtSignature. On Gemini-3.x the next
-	// turn drops the entire tool_use/tool_result history (dropToolBlocks in
-	// emit_gemini.go), wiping context and looping to the turn ceiling — so the
-	// nudge must be suppressed on Gemini-3.x even though the upstream leaked a tool call as text.
-	body, summary := driveAnthropicSSEWithTools(t, "gemini-3.1-pro-preview", true, []string{
-		`data: {"id":"c1","choices":[{"index":0,"delta":{"content":"<tool_call>{\"name\":\"Read\",\"path\":\"a.go\"}</tool_call>"},"finish_reason":null}]}` + "\n\n",
-		`data: {"id":"c1","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":40,"completion_tokens":15}}` + "\n\n",
-		"data: [DONE]\n\n",
-	})
-
-	assert.False(t, summary.TextOnlyTurnNudged,
-		"nudge must be suppressed on Gemini-3.x — a sig-less tool_use poisons the next turn's history")
-	assert.Equal(t, 0, summary.ToolUseBlocks,
-		"no synthetic tool_use is emitted on the Gemini-3.x path")
-	assert.NotContains(t, body, "toolu_router_nudge_",
-		"no synthetic nudge block reaches a Gemini-3.x client")
 }
 
 func TestAnthropicSSETranslator_TextOnlyTurnNudge_NoToolsInRequest(t *testing.T) {

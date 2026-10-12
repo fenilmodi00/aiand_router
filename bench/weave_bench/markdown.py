@@ -33,8 +33,6 @@ def _spend_cell(summary: ArmSummary) -> str:
             f" ({_usd(summary.router_list_price_usd)} list)" if summary.router_list_price_usd is not None else ""
         )
         return f"{_usd(spend)} router-billed{list_price}"
-    if summary.tap_cost_usd is not None:
-        return f"{_usd(spend)} OpenRouter-billed"
     return f"{_usd(spend)} list"
 
 
@@ -119,8 +117,6 @@ def render_markdown(report: BenchReport) -> str:
             lines.append(
                 f"| `{summary.arm}` | router analytics | {_served_mix(summary.router_served_models)} | {acks} |"
             )
-        elif summary.tap_served_models:
-            lines.append(f"| `{summary.arm}` | OpenRouter tap | {_served_mix(summary.tap_served_models)} | — |")
         else:
             lines.append(f"| `{summary.arm}` | Codex client | pinned model (100%) | — |")
     lines += [

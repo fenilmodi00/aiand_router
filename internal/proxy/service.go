@@ -45,7 +45,6 @@ import (
 	"weave-os/router/internal/subscriptions/entitlement"
 	"weave-os/router/internal/timing"
 	"weave-os/router/internal/translate"
-	"weave-os/router/internal/websearch"
 
 	"github.com/google/uuid"
 	"github.com/tidwall/gjson"
@@ -372,9 +371,6 @@ type Service struct {
 	// summarizer produces a bounded-cost handover summary on switch turns.
 	// nil passes the full prior history through unchanged.
 	summarizer handover.Summarizer
-	// webSearch executes Anthropic's native web-search server tool for
-	// upstreams that reject it. nil leaves such turns on normal routing.
-	webSearch websearch.Executor
 	// compactionHandoverSummarizer serves runCompactionHandover under its own
 	// policy purpose; nil reuses summarizer.
 	compactionHandoverSummarizer handover.Summarizer
@@ -957,22 +953,18 @@ func routingKnobsForRequest(ctx context.Context) *router.Overrides {
 }
 
 // safetyExcludedModels returns the hard request-time safety exclusion set
-// (context-overflow + gemini-unsigned-history). It re-runs both filters
-// against an EMPTY base — the routing-path filters skip models already in
-// excluded_models, so a policy-excluded overflow model would be absent from
-// those lists yet must still block bypass (it would 400 on the subscription).
-// Returns nil when neither filter fires.
+// (context-overflow). It re-runs the filter against an EMPTY base — the
+// routing-path filter skips models already in excluded_models, so a
+// policy-excluded overflow model would be absent from that list yet must still
+// block bypass (it would 400 on the subscription). Returns nil when the filter
+// does not fire.
 func (s *Service) safetyExcludedModels(env *translate.RequestEnvelope, outputReserve int, enabledProviders map[string]struct{}) map[string]struct{} {
 	_, overflowed := excludeContextOverflowModels(env.ContextOverflowTokenEstimate(), env.SignatureTokenSavings(), outputReserve, enabledProviders, nil, s.availableModels)
-	_, geminiUnsigned := excludeGemini3xOnUnsignedHistory(env, nil, s.availableModels)
-	if len(overflowed) == 0 && len(geminiUnsigned) == 0 {
+	if len(overflowed) == 0 {
 		return nil
 	}
-	out := make(map[string]struct{}, len(overflowed)+len(geminiUnsigned))
+	out := make(map[string]struct{}, len(overflowed))
 	for _, m := range overflowed {
-		out[m] = struct{}{}
-	}
-	for _, m := range geminiUnsigned {
 		out[m] = struct{}{}
 	}
 	return out
@@ -1344,48 +1336,6 @@ func withoutModelsKeep(set map[string]struct{}, models, keep []string) map[strin
 	return withoutModels(set, filtered)
 }
 
-// gemini3xRequiresSignedHistory reports whether model is a Gemini 3.x model,
-// which 400s (INVALID_ARGUMENT) when the request history carries function-call
-// parts lacking the thoughtSignature Gemini issued. Scoped by family name; if
-// the catalog later grows a per-model capability flag this should move there.
-func gemini3xRequiresSignedHistory(model string) bool {
-	return strings.HasPrefix(model, "gemini-3")
-}
-
-// excludeGemini3xOnUnsignedHistory augments excluded with every Gemini 3.x
-// model when the request history carries an assistant tool call lacking a
-// Gemini thoughtSignature (guaranteed 400 on foreign/cross-model history).
-// Native Gemini continuations round-trip their own signature and are
-// unaffected. Returns excluded unchanged (and nil) when nothing is added.
-func excludeGemini3xOnUnsignedHistory(env *translate.RequestEnvelope, excluded, available map[string]struct{}) (map[string]struct{}, []string) {
-	if env == nil || !env.HasUnsignedToolCallHistory() {
-		return excluded, nil
-	}
-	var out map[string]struct{}
-	var added []string
-	for model := range available {
-		if !gemini3xRequiresSignedHistory(model) {
-			continue
-		}
-		if _, already := excluded[model]; already {
-			continue
-		}
-		if out == nil {
-			out = make(map[string]struct{}, len(excluded)+1)
-			for k := range excluded {
-				out[k] = struct{}{}
-			}
-		}
-		out[model] = struct{}{}
-		added = append(added, model)
-	}
-	if len(added) == 0 {
-		return excluded, nil
-	}
-	sort.Strings(added)
-	return out, added
-}
-
 // restrictToTier returns a copy of excluded augmented with every routable
 // model whose tier differs from target. Counterpart to a dropped user-forced
 // pin: when the forced model can no longer serve (e.g. the pre-filter evicted
@@ -1460,16 +1410,6 @@ func byokServedForProvider(ctx context.Context, provider string) bool {
 		}
 	}
 	return false
-}
-
-// codexResponsesRequest reports whether this /v1/responses request carries a
-// Codex (ChatGPT) OAuth bearer in Authorization. When true, ProxyOpenAIResponses
-// routes to the Codex backend instead of the chat-completions path. Honored
-// even on router-keyed requests (Codex CLI keeps its auth in Authorization
-// while the router key rides in X-Weave-Router-Key).
-func codexResponsesRequest(ctx context.Context, headers http.Header) bool {
-	c := ExtractClientCredentials(providers.ProviderOpenAI, headers)
-	return c != nil && c.OAuth
 }
 
 // DefaultPlannerThresholdUSD is the minimum positive EV over remaining-turn
@@ -2117,14 +2057,6 @@ func (s *Service) WithSummarizer(sz handover.Summarizer) *Service {
 // nil falls back to the switch-handover summarizer.
 func (s *Service) WithCompactionHandoverSummarizer(sz handover.Summarizer) *Service {
 	s.compactionHandoverSummarizer = sz
-	return s
-}
-
-// WithWebSearchExecutor installs the backend that runs Anthropic's native
-// web-search server tool when the routed upstream rejects it. nil leaves
-// those turns on normal routing.
-func (s *Service) WithWebSearchExecutor(ex websearch.Executor) *Service {
-	s.webSearch = ex
 	return s
 }
 
@@ -3569,7 +3501,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	// Anthropic's native web-search server tool, when no enabled provider runs
 	// it. Served before routing: the scorer's only lever is picking a model,
 	// and for a gateway-exclusive tenant every candidate rejects the tool.
-	if !preparingHandoff(ctx) && s.serveNativeWebSearch(ctx, body, feats.Model, env.Stream(), feats.Tokens, enabledProviders, r.Header, w) {
+	if !preparingHandoff(ctx) && s.serveNativeWebSearch(ctx, body, env.Stream(), enabledProviders) {
 		return nil
 	}
 
@@ -3604,12 +3536,6 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 			"admitted_for_upstream", strings.Join(overflowAdmitted, ","),
 		)
 	}
-	excluded, geminiUnsigned := excludeGemini3xOnUnsignedHistory(env, excluded, s.availableModels)
-	if len(geminiUnsigned) > 0 {
-		log.Info("gemini pre-filter: excluded gemini-3.x for unsigned tool-call history",
-			"excluded_models", strings.Join(geminiUnsigned, ","),
-		)
-	}
 
 	routeStart := time.Now()
 	req := router.Request{
@@ -3630,22 +3556,21 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		OrganizationID:               externalID,
 		// Keep this tied to client-visible history so a later feedback command
 		// can correlate with the route even if local compaction rewrites env.
-		FeedbackKey:                   hex.EncodeToString(sessionKey[:]),
-		FeedbackRole:                  roleForTier(catalog.TierFor(feats.Model)),
-		ClientSessionID:               clientSessionIDForRequest(ctx, env),
-		EnabledProviders:              enabledProviders,
-		CustomBindings:                s.customBindingsForRequest(ctx),
-		GatewayProviders:              s.gatewayProvidersForRequest(ctx),
-		ExcludedModels:                excluded,
-		AllowedModels:                 allowedModelsForRequest(ctx),
-		SafetyExcludedModels:          withoutModelsKeep(s.safetyExcludedModels(env, outputReserve, enabledProviders), overflowAdmitted, geminiUnsigned),
-		ContextWindowExcludedModels:   contextWindowOnlyExclusions(ctxOverflowed, overflowAdmitted, geminiUnsigned),
-		UnsignedHistoryExcludedModels: modelSet(geminiUnsigned),
-		OverflowAdmittedModels:        modelSet(overflowAdmitted),
-		PreferredModels:               s.preferredModelsForRequest(ctx),
-		RoutingKnobs:                  routingKnobsForRequest(ctx),
-		ClusterArmOverrides:           clusterArmOverridesForRequest(ctx),
-		ProductEligibility:            entitlement.ModelBoundaryFromContext(ctx),
+		FeedbackKey:                 hex.EncodeToString(sessionKey[:]),
+		FeedbackRole:                roleForTier(catalog.TierFor(feats.Model)),
+		ClientSessionID:             clientSessionIDForRequest(ctx, env),
+		EnabledProviders:            enabledProviders,
+		CustomBindings:              s.customBindingsForRequest(ctx),
+		GatewayProviders:            s.gatewayProvidersForRequest(ctx),
+		ExcludedModels:              excluded,
+		AllowedModels:               allowedModelsForRequest(ctx),
+		SafetyExcludedModels:        withoutModelsKeep(s.safetyExcludedModels(env, outputReserve, enabledProviders), overflowAdmitted, nil),
+		ContextWindowExcludedModels: contextWindowOnlyExclusions(ctxOverflowed, overflowAdmitted, nil),
+		OverflowAdmittedModels:      modelSet(overflowAdmitted),
+		PreferredModels:             s.preferredModelsForRequest(ctx),
+		RoutingKnobs:                routingKnobsForRequest(ctx),
+		ClusterArmOverrides:         clusterArmOverridesForRequest(ctx),
+		ProductEligibility:          entitlement.ModelBoundaryFromContext(ctx),
 	}
 	if installationID != uuid.Nil {
 		req.InstallationID = installationID.String()
@@ -4181,90 +4106,6 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 						preludeBuf.Discard()
 					}
 					rawErr, finalize = dispatchOpenAICompat(actx, d, p, useResponses, true)
-				}
-				return finalize(rawErr)
-			}, nil
-		case providers.FamilyGemini:
-			prep, emitErr := env.PrepareGemini(r.Header, targetOpts)
-			reqStats = prep.Stats
-			if emitErr != nil {
-				log.Error("Failed to translate Anthropic request to Gemini format", "err", emitErr)
-				return nil, fmt.Errorf("translate anthropic request to gemini: %w", emitErr)
-			}
-			crossFormat = true
-			logUpstreamBody(log, routeRes.SessionKey, target, feats, prep.Body)
-			// geminiUsedValidated marks a request sent with
-			// functionCallingConfig.mode=VALIDATED (Gemini 3.x, tools, unforced
-			// choice): Gemini compiles each tool schema into a decode-time grammar,
-			// and one it can't compile 400s the whole request. Retried once below
-			// with mode=AUTO if nothing has reached the client yet.
-			geminiUsedValidated := prep.Stats.GeminiValidatedToolMode
-			// dispatchGemini does one call and returns the raw upstream error plus a
-			// finalize thunk, split so the attempt can inspect a pre-commit 400
-			// before finalize commits the prelude buffer and forecloses the retry.
-			// Translators are stateful, so a retry rebuilds the chain via a fresh call.
-			dispatchGemini := func(actx context.Context, d router.Decision, p providers.Client, pr providers.PreparedRequest) (error, func(error) error) {
-				fastServed = false
-				setStreamCost(d, true)
-				respSummary = translate.ResponseSummary{}
-				var usage otel.UsageSink
-				if s.usageRequired() {
-					extractor = otel.NewUsageExtractor(nil, d.Provider)
-					usage = extractor
-				}
-				// SSE chain: Gemini → OpenAI → Anthropic.
-				attemptMarker := anthropicPrelude.markerForAttempt(targetMarker, preludeBuf)
-				anthropicTr := translate.NewAnthropicSSETranslator(sink, d.Model, usage).
-					WithLogger(log).
-					WithRoutingMarker(attemptMarker).
-					WithEstimatedInputTokens(feats.Tokens).
-					WithRequestHadTools(feats.HasTools).
-					WithEscapeNormalize(s.escapeNormalize).
-					WithToolValidator(toolValidator)
-				if err := anthropicPrelude.emit(env.Stream(), targetMarker, anthropicTr, preludeBuf); err != nil {
-					return fmt.Errorf("emit Anthropic routing marker: %w", err), func(err error) error { return err }
-				}
-				if preludeBuf != nil {
-					preludeBuf.Seal()
-				}
-				geminiTr := translate.NewGeminiToOpenAISSETranslator(anthropicTr, d.Model, nil)
-				rawErr := p.Proxy(actx, d, pr, streamCut.attach(geminiTr), r)
-				finalize := func(err error) error {
-					// Post-commit: see the OpenAI-compat case above.
-					if err != nil && env.Stream() && preludeBuf.Committed() {
-						streamCut.noteCut(err)
-						err = emitAnthropicSSEErrorEvent(sink, err)
-					}
-					err = finalizeAfterProxy(err, geminiTr.Finalize)
-					finErr := finalizeAfterProxy(err, anthropicTr.Finalize)
-					respSummary = anthropicTr.Summary()
-					return finErr
-				}
-				return rawErr, finalize
-			}
-			return func(actx context.Context, d router.Decision, p providers.Client) error {
-				rawErr, finalize := dispatchGemini(actx, d, p, prep)
-				// VALIDATED-mode schema-grammar 400: retry once with mode=AUTO while
-				// pre-commit. AUTO only drops the grammar constraint, so it can't make
-				// things worse — a non-schema 400 just 400s again normally. The first
-				// attempt's translators are abandoned (Discard).
-				if rawErr != nil && geminiUsedValidated && !committed(preludeBuf) && upstreamStatus(rawErr) == http.StatusBadRequest {
-					autoOpts := targetOpts
-					autoOpts.DowngradeGeminiValidatedToAuto = true
-					autoPrep, autoErr := env.PrepareGemini(r.Header, autoOpts)
-					if autoErr != nil {
-						log.Error("Failed to re-translate Gemini request with tool mode AUTO", "err", autoErr)
-						return finalize(rawErr)
-					}
-					log.Warn("Retrying Gemini request with functionCallingConfig.mode=AUTO after VALIDATED-mode 400",
-						"model", d.Model,
-						"request_id", requestID)
-					if preludeBuf != nil {
-						preludeBuf.Discard()
-					}
-					reqStats = autoPrep.Stats
-					logUpstreamBody(log, routeRes.SessionKey, d, feats, autoPrep.Body)
-					rawErr, finalize = dispatchGemini(actx, d, p, autoPrep)
 				}
 				return finalize(rawErr)
 			}, nil
@@ -4807,7 +4648,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 			LastToolUseName:       terminalToolUse.Name,
 			LastToolUseInputBytes: int32PtrIfKnown(int32(terminalToolUse.InputBytes), endedOnToolUse),
 			ToolErrorCounts:       toolErrorCountsJSON(toolErrorTally),
-			AutonomyAppendFired:   boolPtrOrNil(autonomyAppendFired(opts, finalProvider)),
+			AutonomyAppendFired:   boolPtrOrNil(autonomyAppendFired(opts)),
 			WorkspaceAppendFired:  boolPtrOrNil(workspaceAppendFired(opts, finalProvider)),
 			FailoverUsed:          boolPtrTrue(failoverUsed),
 			FailoverAttempted:     boolPtrTrue(failoverAttempted),
@@ -5661,13 +5502,6 @@ func (s *Service) enabledProvidersForRequest(ctx context.Context, surfaceProvide
 	if c := ExtractClientCredentials(providers.ProviderAnthropic, headers); c != nil && c.OAuth {
 		out[providers.ProviderAnthropic] = struct{}{}
 	}
-	// A Codex subscription bearer
-	// in Authorization (paired with ChatGPT-Account-ID) enrolls OpenAI even on
-	// router-keyed requests. OAuth-subset only: a plain API key still can't
-	// enroll OpenAI on the router-key path.
-	if c := ExtractClientCredentials(providers.ProviderOpenAI, headers); c != nil && c.OAuth {
-		out[providers.ProviderOpenAI] = struct{}{}
-	}
 	// Passthrough-eligible providers are surface-scoped: a provider without a
 	// deployment key joins the eligible set only when the inbound surface
 	// matches, else an Anthropic-surface `x-api-key` could leak to
@@ -5711,30 +5545,6 @@ func (s *Service) enabledProvidersForRequest(ctx context.Context, surfaceProvide
 		return gateways
 	}
 	return out
-}
-
-// hasOpenAIInfrastructureCredential reports whether an OpenAI model can be
-// served without the caller's ChatGPT OAuth: deployment key, installation
-// BYOK, or a non-OAuth client credential on an unkeyed passthrough request.
-func (s *Service) hasOpenAIInfrastructureCredential(ctx context.Context, headers http.Header) bool {
-	if byokServedForProvider(ctx, providers.ProviderOpenAI) {
-		return true
-	}
-	if !s.byokOnly {
-		if s.deploymentKeyedProviders == nil {
-			if s.clients.Has(providers.ProviderOpenAI) {
-				return true
-			}
-		} else if _, keyed := s.deploymentKeyedProviders[providers.ProviderOpenAI]; keyed {
-			return true
-		}
-	}
-	if installationIDFromContext(ctx) == uuid.Nil {
-		if client := ExtractClientCredentials(providers.ProviderOpenAI, headers); client != nil && !client.OAuth {
-			return true
-		}
-	}
-	return false
 }
 
 // resolveAndInjectCredentials resolves credentials for the selected provider
@@ -6257,7 +6067,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	// OpenAI signals sub-agent identity via x-weave-subagent-type (no metadata.user_id).
 	subAgentHint := r.Header.Get("x-weave-subagent-type")
 
-	enabledProviders := s.enabledProvidersForRequest(ctx, providers.ProviderOpenAI, r.Header)
+	enabledProviders := s.enabledProvidersForRequest(ctx, providers.ProviderAIAND, r.Header)
 
 	// Codex (ChatGPT) subscription passthrough: ProxyOpenAIResponses stashed the
 	// caller's original Responses body. Such turns skip the routing marker +
@@ -6305,13 +6115,6 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 			"admitted_for_upstream", strings.Join(overflowAdmittedOAI, ","),
 		)
 	}
-	excludedOAI, geminiUnsignedOAI := excludeGemini3xOnUnsignedHistory(env, excludedOAI, s.availableModels)
-	if len(geminiUnsignedOAI) > 0 {
-		log.Info("gemini pre-filter: excluded gemini-3.x for unsigned tool-call history",
-			"excluded_models", strings.Join(geminiUnsignedOAI, ","),
-		)
-	}
-
 	routeRequest := router.Request{
 		RequestedModel:               feats.Model,
 		ForceModel:                   forceModel,
@@ -6328,22 +6131,21 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		Tools:                        toolsForRouting(env),
 		// Keep this tied to client-visible history so a later feedback command
 		// can correlate with the route even if local compaction rewrites env.
-		FeedbackKey:                   hex.EncodeToString(sessionKey[:]),
-		FeedbackRole:                  roleForTier(catalog.TierFor(feats.Model)),
-		ClientSessionID:               clientSessionIDForRequest(ctx, env),
-		EnabledProviders:              enabledProviders,
-		CustomBindings:                s.customBindingsForRequest(ctx),
-		GatewayProviders:              s.gatewayProvidersForRequest(ctx),
-		ExcludedModels:                excludedOAI,
-		AllowedModels:                 allowedModelsForRequest(ctx),
-		SafetyExcludedModels:          withoutModelsKeep(s.safetyExcludedModels(env, outputReserveOAI, enabledProviders), overflowAdmittedOAI, geminiUnsignedOAI),
-		ContextWindowExcludedModels:   contextWindowOnlyExclusions(ctxOverflowedOAI, overflowAdmittedOAI, geminiUnsignedOAI),
-		UnsignedHistoryExcludedModels: modelSet(geminiUnsignedOAI),
-		OverflowAdmittedModels:        modelSet(overflowAdmittedOAI),
-		PreferredModels:               s.preferredModelsForRequest(ctx),
-		RoutingKnobs:                  routingKnobsForRequest(ctx),
-		ClusterArmOverrides:           clusterArmOverridesForRequest(ctx),
-		ProductEligibility:            entitlement.ModelBoundaryFromContext(ctx),
+		FeedbackKey:                 hex.EncodeToString(sessionKey[:]),
+		FeedbackRole:                roleForTier(catalog.TierFor(feats.Model)),
+		ClientSessionID:             clientSessionIDForRequest(ctx, env),
+		EnabledProviders:            enabledProviders,
+		CustomBindings:              s.customBindingsForRequest(ctx),
+		GatewayProviders:            s.gatewayProvidersForRequest(ctx),
+		ExcludedModels:              excludedOAI,
+		AllowedModels:               allowedModelsForRequest(ctx),
+		SafetyExcludedModels:        withoutModelsKeep(s.safetyExcludedModels(env, outputReserveOAI, enabledProviders), overflowAdmittedOAI, nil),
+		ContextWindowExcludedModels: contextWindowOnlyExclusions(ctxOverflowedOAI, overflowAdmittedOAI, nil),
+		OverflowAdmittedModels:      modelSet(overflowAdmittedOAI),
+		PreferredModels:             s.preferredModelsForRequest(ctx),
+		RoutingKnobs:                routingKnobsForRequest(ctx),
+		ClusterArmOverrides:         clusterArmOverridesForRequest(ctx),
+		ProductEligibility:          entitlement.ModelBoundaryFromContext(ctx),
 	}
 	routeStart := time.Now()
 	routeCtx, routeSpan := startRoutingSpan(ctx, routeRequest)
@@ -6489,7 +6291,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	resolvedCtx := resolveAndInjectCredentials(ctx, decision.Provider, decision.Model, r.Header)
 	responsesEndpointKey := EffectiveBaseURL(resolvedCtx, decision.Provider)
 	openAIResponsesEndpoint := responsesPassthrough
-	if !openAIResponsesEndpoint && decision.Provider == providers.ProviderOpenAI {
+	if !openAIResponsesEndpoint && decision.Provider == providers.ProviderAIAND {
 		openAIResponsesEndpoint = translate.UseOpenAIResponsesAPI(translate.ResponsesRoute{
 			Provider:       decision.Provider,
 			Capabilities:   opts.Capabilities,
@@ -6539,7 +6341,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 
 	// Previously gated on policy debug; ordinary Codex turns fell through to
 	// ResponsesWriter's legacy badge that ignored suppression and never showed the routing reason.
-	verbatimPassthrough := responsesPassthrough && decision.Provider == providers.ProviderOpenAI
+	verbatimPassthrough := responsesPassthrough && decision.Provider == providers.ProviderAIAND
 	if rw, ok := w.(*translate.ResponsesWriter); ok {
 		if marker != "" && !verbatimPassthrough {
 			rw.SetBadgeText(marker)
@@ -6758,7 +6560,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 				// pre-output frames so a refusal can be swallowed and the turn
 				// re-dispatched off-vendor while the client has seen nothing.
 				refusalGate := newCyberRefusalGate(makeMarkerSink(target.Model, targetMarker),
-					cyberRetryArmed && d.Provider == providers.ProviderOpenAI)
+					cyberRetryArmed && d.Provider == providers.ProviderAIAND)
 				var attemptSink http.ResponseWriter = refusalGate
 				proxyWriter := attemptSink
 				// A translated attempt reads Responses SSE, which the chat-shaped
@@ -6862,7 +6664,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 			}
 			return func(actx context.Context, d router.Decision, p providers.Client) error {
 				surface := surfaceChat
-				if d.Provider == providers.ProviderOpenAI {
+				if d.Provider == providers.ProviderAIAND {
 					switch {
 					case responsesPassthrough:
 						surface = surfaceResponsesNative
@@ -6914,58 +6716,6 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 					preludeBuf.Discard()
 				}
 				return dispatchOpenAI(actx, d, p, surfaceChat, stripPCK)
-			}, nil
-		case providers.FamilyGemini:
-			crossFormat = true
-			prep, emitErr := env.PrepareGemini(r.Header, targetOpts)
-			if emitErr != nil {
-				log.Error("Failed to translate OpenAI request to Gemini format", "err", emitErr)
-				return nil, fmt.Errorf("translate openai request to gemini: %w", emitErr)
-			}
-			// See ProxyMessages' Gemini case: a VALIDATED-mode request can 400 with a
-			// generic INVALID_ARGUMENT when Gemini can't compile a tool schema into
-			// its decode-time grammar. Retry once with mode=AUTO when pre-commit.
-			geminiUsedValidated := prep.Stats.GeminiValidatedToolMode
-			dispatchGemini := func(actx context.Context, d router.Decision, p providers.Client, pr providers.PreparedRequest) (error, func(error) error) {
-				var usage otel.UsageSink
-				if s.usageRequired() {
-					extractor = otel.NewUsageExtractor(nil, d.Provider)
-					usage = extractor
-				}
-				attemptSink := makeMarkerSink(target.Model, targetMarker)
-				translator := translate.NewGeminiToOpenAISSETranslator(attemptSink, d.Model, usage)
-				if preludeBuf != nil {
-					preludeBuf.Seal()
-				}
-				rawErr := p.Proxy(actx, d, pr, translator, r)
-				finalize := func(err error) error {
-					// Post-commit streaming error: see same-format OpenAI case above.
-					if err != nil && env.Stream() && preludeBuf.Committed() {
-						err = emitOpenAISSEErrorEvent(sink, err)
-					}
-					return finalizeAfterProxy(err, translator.Finalize)
-				}
-				return rawErr, finalize
-			}
-			return func(actx context.Context, d router.Decision, p providers.Client) error {
-				rawErr, finalize := dispatchGemini(actx, d, p, prep)
-				if rawErr != nil && geminiUsedValidated && !committed(preludeBuf) && upstreamStatus(rawErr) == http.StatusBadRequest {
-					autoOpts := targetOpts
-					autoOpts.DowngradeGeminiValidatedToAuto = true
-					autoPrep, autoErr := env.PrepareGemini(r.Header, autoOpts)
-					if autoErr != nil {
-						log.Error("Failed to re-translate Gemini request with tool mode AUTO", "err", autoErr)
-						return finalize(rawErr)
-					}
-					log.Warn("Retrying Gemini request with functionCallingConfig.mode=AUTO after VALIDATED-mode 400",
-						"model", d.Model,
-						"request_id", requestID)
-					if preludeBuf != nil {
-						preludeBuf.Discard()
-					}
-					rawErr, finalize = dispatchGemini(actx, d, p, autoPrep)
-				}
-				return finalize(rawErr)
 			}, nil
 		case providers.FamilyAnthropic:
 			crossFormat = true
@@ -7043,7 +6793,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	// exhaustion flush so the refusal envelope can still be swallowed.
 	cyberRetryEligible := s.ResolveCyberRefusalRetry(ctx) &&
 		!routeRes.CallerModelPassthrough &&
-		decision.Provider == providers.ProviderOpenAI &&
+		decision.Provider == providers.ProviderAIAND &&
 		!strings.HasPrefix(decision.Reason, translate.ReasonUserForceModel) &&
 		!s.isHardPinnedTurn(ctx, routeRes.TurnType) &&
 		!billing.SubscriptionOnlyFromContext(ctx) &&
@@ -7651,17 +7401,16 @@ func (s *Service) ProxyOpenAIResponses(ctx context.Context, body []byte, w http.
 	if conversion.CodexFeedbackSkill {
 		ctx = context.WithValue(ctx, codexFeedbackSkillContextKey{}, true)
 	}
-	codexNativeRequest := codexResponsesRequest(ctx, r.Header)
 	// Every Responses turn stashes its original bytes for post-routing native
-	// dispatch; NativeOnly and Codex-subscription turns also dispatch verbatim now.
-	if conversion.Requirements.NativeOnly || codexNativeRequest {
+	// dispatch; NativeOnly turns also dispatch verbatim now.
+	if conversion.Requirements.NativeOnly {
 		ctx = context.WithValue(ctx, codexResponsesBodyContextKey{}, nativeBody)
 	}
 	ctx = context.WithValue(ctx, nativeResponsesBodyContextKey{}, nativeBody)
 	// Routing and sticky-state hashes must describe the exact native payload
-	// that an OpenAI/Codex decision will receive, even when the portable Codex
+	// that an OpenAI decision will receive, even when the portable Codex
 	// projection lets HMM consider other deployed providers.
-	if conversion.Requirements.NativeOnly || (portableCodex && codexNativeRequest) {
+	if conversion.Requirements.NativeOnly {
 		originalEnvelope, parseErr := translate.ParseOpenAI(nativeBody)
 		if parseErr != nil {
 			return fmt.Errorf("parse native Responses request: %w", parseErr)

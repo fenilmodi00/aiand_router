@@ -25,10 +25,9 @@ func promptCacheKey(t *testing.T, body []byte) (string, bool) {
 	return v, ok
 }
 
-// AIand is a serverless OpenAI-compat upstream (and the only one left in the
-// AIand-only build), so its turns get replica stickiness from the generic
-// x-session-affinity header with no per-provider switch arm.
-func TestSessionAffinity_AIANDUsesGenericHeader(t *testing.T) {
+// AIand is a serverless OpenAI-compat upstream, so its turns get replica
+// stickiness from the OpenAI prompt_cache_key body field.
+func TestSessionAffinity_AIANDUsesPromptCacheKeyBody(t *testing.T) {
 	env, err := translate.ParseAnthropic(anthropicSrc())
 	require.NoError(t, err)
 
@@ -39,10 +38,9 @@ func TestSessionAffinity_AIANDUsesGenericHeader(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	assert.Equal(t, affinityKey, out.Headers.Get("x-session-affinity"))
-	assert.Empty(t, out.Headers.Get("x-session-id"))
+	assert.Empty(t, out.Headers.Get("x-session-affinity"))
 	_, hasBody := promptCacheKey(t, out.Body)
-	assert.False(t, hasBody, "AIand must not carry the OpenAI prompt_cache_key body field")
+	assert.True(t, hasBody, "AIand carries the OpenAI prompt_cache_key body field")
 }
 
 func TestSessionAffinity_OpenAIUsesPromptCacheKeyBody(t *testing.T) {
@@ -51,7 +49,7 @@ func TestSessionAffinity_OpenAIUsesPromptCacheKeyBody(t *testing.T) {
 
 	out, err := env.PrepareOpenAI(nil, translate.EmitOptions{
 		TargetModel:     "gpt-5.5",
-		TargetProvider:  providers.ProviderOpenAI,
+		TargetProvider:  providers.ProviderAIAND,
 		SessionAffinity: affinityKey,
 	})
 	require.NoError(t, err)
@@ -118,7 +116,7 @@ func TestSessionAffinity_OpenAIFallsBackToStablePrefixKey(t *testing.T) {
 		require.NoError(t, err)
 		out, err := env.PrepareOpenAI(nil, translate.EmitOptions{
 			TargetModel:    "gpt-5.5",
-			TargetProvider: providers.ProviderOpenAI,
+			TargetProvider: providers.ProviderAIAND,
 		})
 		require.NoError(t, err)
 		v, ok := promptCacheKey(t, out.Body)
@@ -141,7 +139,7 @@ func TestSessionAffinity_OpenAIFallbackKeyVariesByPrefix(t *testing.T) {
 		require.NoError(t, err)
 		out, err := env.PrepareOpenAI(nil, translate.EmitOptions{
 			TargetModel:    "gpt-5.5",
-			TargetProvider: providers.ProviderOpenAI,
+			TargetProvider: providers.ProviderAIAND,
 		})
 		require.NoError(t, err)
 		v, ok := promptCacheKey(t, out.Body)
@@ -165,7 +163,7 @@ func TestSessionAffinity_OpenAIPreservesCallerPromptCacheKey(t *testing.T) {
 
 	out, err := env.PrepareOpenAI(nil, translate.EmitOptions{
 		TargetModel:    "gpt-5.5",
-		TargetProvider: providers.ProviderOpenAI,
+		TargetProvider: providers.ProviderAIAND,
 	})
 	require.NoError(t, err)
 
@@ -184,7 +182,7 @@ func TestSessionAffinity_OpenAIEmptyPrefixStaysUnhinted(t *testing.T) {
 
 	out, err := env.PrepareOpenAI(nil, translate.EmitOptions{
 		TargetModel:    "gpt-5.5",
-		TargetProvider: providers.ProviderOpenAI,
+		TargetProvider: providers.ProviderAIAND,
 	})
 	require.NoError(t, err)
 
@@ -203,7 +201,7 @@ func TestSessionAffinity_OpenAIEmptyToolsArrayStaysUnhinted(t *testing.T) {
 
 	out, err := env.PrepareOpenAI(nil, translate.EmitOptions{
 		TargetModel:    "gpt-5.5",
-		TargetProvider: providers.ProviderOpenAI,
+		TargetProvider: providers.ProviderAIAND,
 	})
 	require.NoError(t, err)
 
@@ -218,7 +216,7 @@ func TestSessionAffinity_StripPromptCacheKeySkipsInjection(t *testing.T) {
 
 	out, err := env.PrepareOpenAI(nil, translate.EmitOptions{
 		TargetModel:         "gpt-5.5",
-		TargetProvider:      providers.ProviderOpenAI,
+		TargetProvider:      providers.ProviderAIAND,
 		SessionAffinity:     affinityKey,
 		StripPromptCacheKey: true,
 	})
@@ -237,7 +235,7 @@ func TestSessionAffinity_StripPromptCacheKeyDropsCallerKey(t *testing.T) {
 
 	out, err := env.PrepareOpenAI(nil, translate.EmitOptions{
 		TargetModel:         "gpt-5.5",
-		TargetProvider:      providers.ProviderOpenAI,
+		TargetProvider:      providers.ProviderAIAND,
 		StripPromptCacheKey: true,
 	})
 	require.NoError(t, err)
@@ -253,7 +251,7 @@ func TestSessionAffinity_ResponsesCarriesPromptCacheKey(t *testing.T) {
 
 	out, err := env.PrepareOpenAIResponses(nil, translate.EmitOptions{
 		TargetModel:     "gpt-5.5",
-		TargetProvider:  providers.ProviderOpenAI,
+		TargetProvider:  providers.ProviderAIAND,
 		SessionAffinity: affinityKey,
 	})
 	require.NoError(t, err)
@@ -270,7 +268,7 @@ func TestSessionAffinity_ResponsesStripPromptCacheKey(t *testing.T) {
 
 	out, err := env.PrepareOpenAIResponses(nil, translate.EmitOptions{
 		TargetModel:         "gpt-5.5",
-		TargetProvider:      providers.ProviderOpenAI,
+		TargetProvider:      providers.ProviderAIAND,
 		SessionAffinity:     affinityKey,
 		StripPromptCacheKey: true,
 	})
@@ -290,7 +288,7 @@ func TestSessionAffinity_ResponsesFallbackPrefixHashStable(t *testing.T) {
 		require.NoError(t, err)
 		out, err := env.PrepareOpenAIResponses(nil, translate.EmitOptions{
 			TargetModel:    "gpt-5.5",
-			TargetProvider: providers.ProviderOpenAI,
+			TargetProvider: providers.ProviderAIAND,
 		})
 		require.NoError(t, err)
 		v, ok := promptCacheKey(t, out.Body)

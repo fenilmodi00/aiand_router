@@ -65,8 +65,8 @@ Pick which models the router is allowed to route to:
 ```bash
 npx @weave-os/router models --claude                  # list every model, with its on/off state
 npx @weave-os/router models --codex                   # same, for a Codex install
-npx @weave-os/router models disable gpt-5.6 --claude  # take one out of rotation
-npx @weave-os/router models enable gpt-5.6 --claude   # put it back
+npx @weave-os/router models disable deepseek-ai/deepseek-v4-pro --claude  # take one out of rotation
+npx @weave-os/router models enable deepseek-ai/deepseek-v4-pro --claude   # put it back
 ```
 
 Inside Claude Code that's `/router-models` (alias `/models`). Editing needs a
@@ -97,8 +97,8 @@ Four install targets:
 
 - **Claude Code** (default) — patches `~/.claude/settings.json` (or
   `<repo>/.claude/settings.json` with `--scope project`) so `claude` routes
-  through Weave automatically. Anthropic plan credentials flow through to
-  api.anthropic.com.
+  through Weave automatically. Anthropic plan credentials only apply to a
+  Claude-Code ingress session; upstream serving is AIand.
 - **Codex** (`--codex`) — patches `~/.codex/config.toml` (or
   `<repo>/.codex/config.toml`) with a managed `[model_providers.weave]`
   block plus `model_provider = "weave"`. Fresh installs select `weave-auto`,
@@ -111,9 +111,9 @@ Four install targets:
   per-request routing. An existing `$fm`
   session pin still applies in automatic mode until `$ufm` clears it. Re-run
   `npx @weave-os/router --codex` and restart Codex to enable this on an older
-  install. `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, and `gpt-6-sol`
-  can use the active ChatGPT plan; other selected models use their WorkWeave
-  deployment or BYOK credential.
+  install. Selected models are only a baseline: the router re-routes per
+  request against the AIand roster and uses its AIand deployment credential
+  unless a BYOK key widens the pool.
   The block lives between begin/end markers
   so re-running the installer rewrites it cleanly and `--uninstall --codex`
    removes it without touching the rest of your config. Codex does not load

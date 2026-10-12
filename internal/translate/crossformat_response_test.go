@@ -1,11 +1,9 @@
 package translate_test
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"weave-os/router/internal/translate"
@@ -512,147 +510,6 @@ func TestAnthropicToOpenAIResponse_ReportsRoutedModelNotUpstreamAlias(t *testing
 	assert.Equal(t, "claude-sonnet-4-5", unmarshal(t, out)["model"])
 }
 
-func TestGeminiToOpenAIResponse_SimpleText(t *testing.T) {
-	out, err := translate.GeminiToOpenAIResponse(geminiTextResponse, "gemini-2.5-flash")
-	require.NoError(t, err)
-	doc := unmarshal(t, out)
-
-	assert.Equal(t, "chat.completion", doc["object"])
-	assert.Equal(t, "gemini-2.5-flash", doc["model"])
-	id, _ := doc["id"].(string)
-	assert.True(t, strings.HasPrefix(id, "chatcmpl-"), "id must start with chatcmpl-")
-
-	msg := message(t, doc)
-	assert.Equal(t, "assistant", msg["role"])
-	assert.Equal(t, "Hello, world!", msg["content"])
-
-	assert.Equal(t, "stop", firstChoice(t, doc)["finish_reason"])
-
-	u := usage(t, doc)
-	assert.Equal(t, float64(25), u["prompt_tokens"])
-	assert.Equal(t, float64(10), u["completion_tokens"])
-	assert.Equal(t, float64(35), u["total_tokens"])
-}
-
-func TestGeminiToOpenAIResponse_ToolUse(t *testing.T) {
-	out, err := translate.GeminiToOpenAIResponse(geminiToolResponse, "gemini-2.5-flash")
-	require.NoError(t, err)
-	doc := unmarshal(t, out)
-
-	assert.Equal(t, "tool_calls", firstChoice(t, doc)["finish_reason"])
-
-	msg := message(t, doc)
-	assert.Nil(t, msg["content"])
-
-	tcs := toolCalls(t, doc)
-	require.Len(t, tcs, 1)
-	tc, _ := tcs[0].(map[string]any)
-	assert.Equal(t, "function", tc["type"])
-	id, _ := tc["id"].(string)
-	assert.NotEmpty(t, id)
-
-	fn, _ := tc["function"].(map[string]any)
-	assert.Equal(t, "Read", fn["name"])
-	args, _ := fn["arguments"].(string)
-	assert.True(t, json.Valid([]byte(args)), "arguments must be valid JSON string")
-	assert.Contains(t, args, "main.go")
-}
-
-func TestGeminiToOpenAIResponse_MultipleToolCalls(t *testing.T) {
-	out, err := translate.GeminiToOpenAIResponse(geminiMultiToolResponse, "gemini-2.5-flash")
-	require.NoError(t, err)
-	doc := unmarshal(t, out)
-
-	tcs := toolCalls(t, doc)
-	require.Len(t, tcs, 2)
-
-	ids := make(map[string]bool)
-	for _, raw := range tcs {
-		tc, _ := raw.(map[string]any)
-		id, _ := tc["id"].(string)
-		assert.NotEmpty(t, id)
-		ids[id] = true
-		fn, _ := tc["function"].(map[string]any)
-		args, _ := fn["arguments"].(string)
-		assert.True(t, json.Valid([]byte(args)))
-	}
-	assert.Len(t, ids, 2, "tool call IDs must be unique")
-}
-
-func TestGeminiToOpenAIResponse_MixedTextAndToolCalls(t *testing.T) {
-	out, err := translate.GeminiToOpenAIResponse(geminiMixedResponse, "gemini-2.5-flash")
-	require.NoError(t, err)
-	doc := unmarshal(t, out)
-
-	msg := message(t, doc)
-	assert.Equal(t, "Let me read that.", msg["content"])
-
-	tcs := toolCalls(t, doc)
-	require.Len(t, tcs, 1)
-}
-
-func TestGeminiToOpenAIResponse_FinishReasonMappingWithToolCalls(t *testing.T) {
-	cases := []struct {
-		reason       string
-		hasToolCalls bool
-		expected     string
-	}{
-		{"STOP", true, "tool_calls"},
-		{"MAX_TOKENS", false, "length"},
-		{"SAFETY", false, "content_filter"},
-	}
-	for _, c := range cases {
-		var body []byte
-		if c.hasToolCalls {
-			body = geminiToolResponse
-		} else {
-			body = []byte(`{"candidates":[{"content":{"parts":[{"text":"hi"}],"role":"model"},"finishReason":"` + c.reason + `"}],"usageMetadata":{}}`)
-		}
-		out, err := translate.GeminiToOpenAIResponse(body, "m")
-		require.NoError(t, err)
-		doc := unmarshal(t, out)
-		assert.Equal(t, c.expected, firstChoice(t, doc)["finish_reason"],
-			"gemini %q hasToolCalls=%v → openai %q", c.reason, c.hasToolCalls, c.expected)
-	}
-}
-
-func TestGeminiToOpenAIResponse_UsageTranslation(t *testing.T) {
-	out, err := translate.GeminiToOpenAIResponse(geminiTextResponse, "m")
-	require.NoError(t, err)
-	u := usage(t, unmarshal(t, out))
-	assert.Equal(t, float64(25), u["prompt_tokens"])
-	assert.Equal(t, float64(10), u["completion_tokens"])
-	assert.Equal(t, float64(35), u["total_tokens"])
-}
-
-func TestGeminiToOpenAIResponse_MissingUsageReturnsZero(t *testing.T) {
-	body := []byte(`{"candidates":[{"content":{"parts":[{"text":"hi"}],"role":"model"},"finishReason":"STOP"}]}`)
-	out, err := translate.GeminiToOpenAIResponse(body, "m")
-	require.NoError(t, err)
-	u := usage(t, unmarshal(t, out))
-	assert.Equal(t, float64(0), u["prompt_tokens"])
-	assert.Equal(t, float64(0), u["completion_tokens"])
-}
-
-func TestGeminiToOpenAIResponse_ThoughtSignaturePreserved(t *testing.T) {
-	out, err := translate.GeminiToOpenAIResponse(geminiThoughtSigResponse, "m")
-	require.NoError(t, err)
-	doc := unmarshal(t, out)
-
-	tcs := toolCalls(t, doc)
-	require.Len(t, tcs, 1)
-	tc, _ := tcs[0].(map[string]any)
-
-	// The signature rides solely in the tool-call id — the one carrier every
-	// client SDK round-trips. No off-spec thought_signature field is emitted.
-	assert.NotContains(t, tc, "thought_signature", "off-spec field must not be emitted")
-	fn, _ := tc["function"].(map[string]any)
-	assert.NotContains(t, fn, "thought_signature", "off-spec field must not be emitted")
-
-	id, _ := tc["id"].(string)
-	encoded := base64.RawURLEncoding.EncodeToString([]byte("OPAQUE_SIG_ABC"))
-	assert.Contains(t, id, encoded, "signature must be embedded in tool call ID for round-trip")
-}
 func TestAnthropicToOpenAIError_WrapsError(t *testing.T) {
 	body := []byte(`{"type":"error","error":{"type":"invalid_request_error","message":"max_tokens must be positive"}}`)
 	out := translate.AnthropicToOpenAIError(body)
@@ -703,40 +560,6 @@ func TestOpenAIToAnthropicError_PassthroughOnEmptyFields(t *testing.T) {
 	assert.Equal(t, body, out, "empty type and message must pass through unchanged")
 }
 
-func TestGeminiToOpenAIError_WrapsError(t *testing.T) {
-	body := []byte(`{"error":{"code":429,"message":"Resource has been exhausted","status":"RESOURCE_EXHAUSTED"}}`)
-	out := translate.GeminiToOpenAIError(body)
-	doc := unmarshal(t, out)
-
-	errObj, _ := doc["error"].(map[string]any)
-	require.NotNil(t, errObj)
-	assert.Equal(t, "resource_exhausted", errObj["type"])
-	assert.Equal(t, "Resource has been exhausted", errObj["message"])
-	assert.Equal(t, float64(429), errObj["code"])
-	assert.Contains(t, errObj, "param")
-}
-
-func TestGeminiToOpenAIError_PassthroughOnEmpty(t *testing.T) {
-	body := []byte(`<html>503</html>`)
-	out := translate.GeminiToOpenAIError(body)
-	assert.Equal(t, body, out, "malformed input must pass through unchanged")
-}
-
-func TestGeminiToOpenAIError_PassthroughOnEmptyMessageAndStatus(t *testing.T) {
-	body := []byte(`{"error":{"code":0,"message":"","status":""}}`)
-	out := translate.GeminiToOpenAIError(body)
-	assert.Equal(t, body, out, "empty message and status must pass through unchanged")
-}
-
-func TestGeminiToOpenAIError_MissingCodeIsZero(t *testing.T) {
-	body := []byte(`{"error":{"message":"something broke","status":"INTERNAL"}}`)
-	out := translate.GeminiToOpenAIError(body)
-	doc := unmarshal(t, out)
-	errObj, _ := doc["error"].(map[string]any)
-	require.NotNil(t, errObj)
-	// gjson.Int() returns 0 for absent fields, matching the struct-based behavior.
-	assert.Equal(t, float64(0), errObj["code"])
-}
 func TestAnthropicToOpenAIResponse_InvalidJSON_ReturnsError(t *testing.T) {
 	_, err := translate.AnthropicToOpenAIResponse([]byte(`not json`), "m")
 	assert.Error(t, err)
@@ -744,35 +567,5 @@ func TestAnthropicToOpenAIResponse_InvalidJSON_ReturnsError(t *testing.T) {
 
 func TestOpenAIToAnthropicResponse_InvalidJSON_ReturnsError(t *testing.T) {
 	_, err := translate.OpenAIToAnthropicResponse([]byte(`not json`), "m")
-	assert.Error(t, err)
-}
-
-func TestGeminiToOpenAIResponse_NullArgsNormalizedToEmptyObject(t *testing.T) {
-	body := []byte(`{
-		"candidates": [{
-			"content": {"parts": [
-				{"functionCall": {"name": "Bash", "args": null}}
-			]},
-			"finishReason": "STOP"
-		}],
-		"usageMetadata": {"promptTokenCount": 10, "candidatesTokenCount": 5}
-	}`)
-	out, err := translate.GeminiToOpenAIResponse(body, "gemini-2.5-flash")
-	require.NoError(t, err)
-
-	var doc map[string]any
-	require.NoError(t, json.Unmarshal(out, &doc))
-
-	choices, _ := doc["choices"].([]any)
-	require.Len(t, choices, 1)
-	msg := choices[0].(map[string]any)["message"].(map[string]any)
-	tcs, _ := msg["tool_calls"].([]any)
-	require.Len(t, tcs, 1)
-	fn := tcs[0].(map[string]any)["function"].(map[string]any)
-	assert.Equal(t, "{}", fn["arguments"], "null args must be normalized to empty object string, not \"null\"")
-}
-
-func TestGeminiToOpenAIResponse_InvalidJSON_ReturnsError(t *testing.T) {
-	_, err := translate.GeminiToOpenAIResponse([]byte(`not json`), "m")
 	assert.Error(t, err)
 }

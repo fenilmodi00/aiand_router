@@ -38,7 +38,4 @@ func TestNativeServerToolsRecognizeHostedToolsBySourceShape(t *testing.T) {
 		{Name: "computer_use_preview", Type: "computer_use_preview"},
 	}, openAI.NativeServerTools())
 
-	gemini, err := ParseGemini([]byte(`{"tools":[{"googleSearch":{}}]}`))
-	require.NoError(t, err)
-	assert.Equal(t, []NativeServerTool{{Name: "googleSearch", Type: "googleSearch"}}, gemini.NativeServerTools())
 }

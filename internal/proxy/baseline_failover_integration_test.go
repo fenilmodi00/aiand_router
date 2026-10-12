@@ -30,9 +30,18 @@ const anthropicMessageSSE = "event: message_start\ndata: {\"type\":\"message_sta
 	"event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":1}}\n\n" +
 	"event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"
 
-// aiandChatSSE is a minimal but well-formed OpenAI Chat Completions stream for
-// stubbing the AIand (OpenAI-compatible) upstream. It reports 32000 output
-// tokens so a rescue can prove the served turn was recorded on the pin.
+// aiandResponsesSSE is a minimal but well-formed OpenAI Responses stream for
+// stubbing the AIand (OpenAI-compatible) upstream. AIand chat/completions turns
+// are promoted to POST /v1/responses (see translate.UseOpenAIResponsesAPI), so
+// the responder must speak Responses, not Chat Completions. It reports 32000
+// output tokens so a rescue can prove the served turn was recorded on the pin.
+const aiandResponsesSSE = "data: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_1\",\"status\":\"in_progress\"}}\n\n" +
+	"data: {\"type\":\"response.output_text.delta\",\"output_index\":0,\"content_index\":0,\"delta\":\"hi\"}\n\n" +
+	"data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"status\":\"completed\",\"output\":[{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"hi\"}]}],\"usage\":{\"input_tokens\":5,\"output_tokens\":32000,\"total_tokens\":32005}}}\n\n"
+
+// aiandChatSSE is the Chat Completions sibling of aiandResponsesSSE, used by
+// fixtures whose promotion to /v1/responses is disabled by the
+// openAIResponsesBroad flag override.
 const aiandChatSSE = "data: {\"id\":\"chatcmpl_1\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"zai-org/glm-5.3\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"hi\"},\"finish_reason\":null}]}\n\n" +
 	"data: {\"id\":\"chatcmpl_1\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"zai-org/glm-5.3\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":5,\"completion_tokens\":32000,\"total_tokens\":32005}}\n\n" +
 	"data: [DONE]\n\n"
@@ -44,7 +53,7 @@ const aiandChatSSE = "data: {\"id\":\"chatcmpl_1\",\"object\":\"chat.completion.
 func TestProxyMessages_OSSOutageFailsOverToBaselineAIand(t *testing.T) {
 	var (
 		mu                   sync.Mutex
-		openAICount          int
+		anthropicCount       int
 		aiandCount           int
 		aiandReceivedModel   string
 		anthropicRescueCount int
@@ -60,8 +69,8 @@ func TestProxyMessages_OSSOutageFailsOverToBaselineAIand(t *testing.T) {
 			_, _ = w.Write([]byte(`{"error":{"message":"provider unavailable"}}`))
 		}
 	}
-	openAIUpstream := httptest.NewServer(fail503(&openAICount))
-	defer openAIUpstream.Close()
+	anthropicUpstream := httptest.NewServer(fail503(&anthropicCount))
+	defer anthropicUpstream.Close()
 
 	aiandUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
@@ -71,7 +80,7 @@ func TestProxyMessages_OSSOutageFailsOverToBaselineAIand(t *testing.T) {
 		mu.Unlock()
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(aiandChatSSE))
+		_, _ = w.Write([]byte(aiandResponsesSSE))
 		if f, ok := w.(http.Flusher); ok {
 			f.Flush()
 		}
@@ -79,7 +88,7 @@ func TestProxyMessages_OSSOutageFailsOverToBaselineAIand(t *testing.T) {
 	defer aiandUpstream.Close()
 
 	// Registered but never a rescue target: the baseline family is AIand.
-	anthropicUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	standbyUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		mu.Lock()
 		anthropicRescueCount++
 		mu.Unlock()
@@ -87,23 +96,22 @@ func TestProxyMessages_OSSOutageFailsOverToBaselineAIand(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(strings.ReplaceAll(anthropicMessageSSE, `"output_tokens":1}`, `"output_tokens":32000}`)))
 	}))
-	defer anthropicUpstream.Close()
+	defer standbyUpstream.Close()
 
 	store := newFakePinStore()
 	// A telemetry sink makes usageRequired() true so the usage extractor runs
 	// and recordTurnUsage fires with the served-turn token counts.
 	tel := newCaptureTelemetry()
 	svc := proxy.NewService(
-		// Router cost-routes the AIand-bound request to an OpenAI model.
-		&fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "moonshotai/kimi-k3"}},
+		// Router cost-routes the AIand-bound request to an Anthropic model.
+		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "moonshotai/kimi-k3"}},
 		map[string]providers.Client{
-			providers.ProviderOpenAI:    openaicompat.NewClient("test-openai-key", openAIUpstream.URL),
 			providers.ProviderAIAND:     openaicompat.NewClient("test-aiand-key", aiandUpstream.URL),
 			providers.ProviderAnthropic: openaicompat.NewClient("test-anthropic-key", anthropicUpstream.URL),
+			"standby":                   openaicompat.NewClient("test-standby-key", standbyUpstream.URL),
 		},
 		nil, false, nil, store, false, providers.ProviderAIAND, "zai-org/glm-5.3-flash", tel,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
-		providers.ProviderOpenAI:    {},
 		providers.ProviderAIAND:     {},
 		providers.ProviderAnthropic: {},
 	})
@@ -111,7 +119,7 @@ func TestProxyMessages_OSSOutageFailsOverToBaselineAIand(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
 	// The caller asked for the AIand model; the router's cost decision sent it
-	// to OpenAI. The baseline-failover target is the requested model.
+	// to Anthropic. The baseline-failover target is the requested model.
 	body := []byte(`{"model":"zai-org/glm-5.3","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
 
 	err := svc.ProxyMessages(authedCtx("11111111-1111-1111-1111-111111111111"), body, rec, req)
@@ -119,9 +127,9 @@ func TestProxyMessages_OSSOutageFailsOverToBaselineAIand(t *testing.T) {
 
 	mu.Lock()
 	defer mu.Unlock()
-	assert.Positive(t, openAICount, "the OpenAI routed binding was attempted before failover")
+	assert.Positive(t, anthropicCount, "the Anthropic routed binding was attempted before failover")
 	assert.Equal(t, 1, aiandCount, "AIand baseline failover dispatched once")
-	assert.Equal(t, 0, anthropicRescueCount, "the Anthropic baseline family was retargeted to AIand")
+	assert.Equal(t, 0, anthropicRescueCount, "the standby Anthropic upstream is never a baseline target")
 	assert.Equal(t, "zai-org/glm-5.3", aiandReceivedModel, "baseline failover must request the caller's model on AIand")
 
 	respBody := rec.Body.String()
@@ -146,9 +154,9 @@ func TestProxyMessages_OSSOutageFailsOverToBaselineAIand(t *testing.T) {
 
 func TestProxyMessages_AuthoritativePolicyNeverChangesModelOnFailover(t *testing.T) {
 	var (
-		mu          sync.Mutex
-		openAICount int
-		aiandCount  int
+		mu             sync.Mutex
+		anthropicCount int
+		aiandCount     int
 	)
 	fail503 := func(counter *int) http.HandlerFunc {
 		return func(w http.ResponseWriter, _ *http.Request) {
@@ -160,8 +168,8 @@ func TestProxyMessages_AuthoritativePolicyNeverChangesModelOnFailover(t *testing
 			_, _ = w.Write([]byte(`{"error":{"message":"provider unavailable"}}`))
 		}
 	}
-	openAIUpstream := httptest.NewServer(fail503(&openAICount))
-	defer openAIUpstream.Close()
+	anthropicUpstream := httptest.NewServer(fail503(&anthropicCount))
+	defer anthropicUpstream.Close()
 	// The baseline rescue would land here; an authoritative-per-turn policy must
 	// surface the primary failure instead of taking it.
 	aiandUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -174,7 +182,7 @@ func TestProxyMessages_AuthoritativePolicyNeverChangesModelOnFailover(t *testing
 
 	strategy := router.Strategy("authoritative-failover-test")
 	policyRouter := &fakeRouter{decision: router.Decision{
-		Provider: providers.ProviderOpenAI,
+		Provider: providers.ProviderAnthropic,
 		Model:    "moonshotai/kimi-k3",
 		Reason:   "authoritative-test_policy",
 		Metadata: &router.RoutingMetadata{
@@ -186,20 +194,20 @@ func TestProxyMessages_AuthoritativePolicyNeverChangesModelOnFailover(t *testing
 	svc := proxy.NewService(
 		nil,
 		map[string]providers.Client{
-			providers.ProviderOpenAI: openaicompat.NewClient("test-openai-key", openAIUpstream.URL),
-			providers.ProviderAIAND:  openaicompat.NewClient("test-aiand-key", aiandUpstream.URL),
+			providers.ProviderAnthropic: openaicompat.NewClient("test-anthropic-key", anthropicUpstream.URL),
+			providers.ProviderAIAND:     openaicompat.NewClient("test-aiand-key", aiandUpstream.URL),
 		},
 		nil,
 		false,
 		nil,
 		newFakePinStore(),
 		false,
-		providers.ProviderAIAND,
+		providers.ProviderAnthropic,
 		"zai-org/glm-5.3-flash",
 		newCaptureTelemetry(),
 	).WithDeploymentKeyedProviders(map[string]struct{}{
-		providers.ProviderOpenAI: {},
-		providers.ProviderAIAND:  {},
+		providers.ProviderAnthropic: {},
+		providers.ProviderAIAND:     {},
 	}).WithPolicyStrategy(policy.StrategySpec{
 		Strategy: strategy,
 		Router:   policyRouter,
@@ -220,7 +228,7 @@ func TestProxyMessages_AuthoritativePolicyNeverChangesModelOnFailover(t *testing
 
 	mu.Lock()
 	defer mu.Unlock()
-	assert.Positive(t, openAICount)
+	assert.Positive(t, anthropicCount)
 	assert.Equal(t, 0, aiandCount, "authoritative policy must surface failure instead of substituting another model")
 }
 
@@ -304,23 +312,23 @@ func TestProxyMessages_NoBaselineWhenAIandExcluded(t *testing.T) {
 	}))
 	defer aiandUpstream.Close()
 
-	openAIUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	anthropicUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusServiceUnavailable)
 		_, _ = w.Write([]byte(`{"error":{"message":"provider unavailable"}}`))
 	}))
-	defer openAIUpstream.Close()
+	defer anthropicUpstream.Close()
 
 	svc := proxy.NewService(
-		&fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "moonshotai/kimi-k3"}},
+		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "moonshotai/kimi-k3"}},
 		map[string]providers.Client{
-			providers.ProviderOpenAI: openaicompat.NewClient("k", openAIUpstream.URL),
-			providers.ProviderAIAND:  openaicompat.NewClient("k", aiandUpstream.URL),
+			providers.ProviderAnthropic: openaicompat.NewClient("k", anthropicUpstream.URL),
+			providers.ProviderAIAND:     openaicompat.NewClient("k", aiandUpstream.URL),
 		},
 		nil, false, nil, nil, false, providers.ProviderAIAND, "zai-org/glm-5.3-flash", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
-		providers.ProviderOpenAI: {},
-		providers.ProviderAIAND:  {},
+		providers.ProviderAIAND:     {},
+		providers.ProviderAnthropic: {},
 	}).WithExcludedProvidersOverride([]string{providers.ProviderAIAND})
 
 	rec := httptest.NewRecorder()
@@ -342,23 +350,23 @@ func TestProxyMessages_FailedBaselineReportsBaselineProvider(t *testing.T) {
 		w.WriteHeader(http.StatusServiceUnavailable)
 		_, _ = w.Write([]byte(`{"error":{"message":"down"}}`))
 	}
-	openAIUpstream := httptest.NewServer(http.HandlerFunc(fail))
-	defer openAIUpstream.Close()
+	anthropicUpstream := httptest.NewServer(http.HandlerFunc(fail))
+	defer anthropicUpstream.Close()
 	// The AIand baseline retry also fails (503), so winnerIdx stays -1.
 	aiandUpstream := httptest.NewServer(http.HandlerFunc(fail))
 	defer aiandUpstream.Close()
 
 	tel := newCaptureTelemetry()
 	svc := proxy.NewService(
-		&fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "moonshotai/kimi-k3"}},
+		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "moonshotai/kimi-k3"}},
 		map[string]providers.Client{
-			providers.ProviderOpenAI: openaicompat.NewClient("k", openAIUpstream.URL),
-			providers.ProviderAIAND:  openaicompat.NewClient("k", aiandUpstream.URL),
+			providers.ProviderAnthropic: openaicompat.NewClient("k", anthropicUpstream.URL),
+			providers.ProviderAIAND:     openaicompat.NewClient("k", aiandUpstream.URL),
 		},
 		nil, false, nil, nil, false, providers.ProviderAIAND, "zai-org/glm-5.3-flash", tel,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
-		providers.ProviderOpenAI: {},
-		providers.ProviderAIAND:  {},
+		providers.ProviderAIAND:     {},
+		providers.ProviderAnthropic: {},
 	}).WithRetrySleep(noRetrySleep)
 
 	rec := httptest.NewRecorder()
@@ -379,7 +387,7 @@ func TestProxyMessages_FailedBaselineReportsBaselineProvider(t *testing.T) {
 func TestProxyMessages_AuthoritativePolicyFailsOverOnCapabilityRejection(t *testing.T) {
 	var (
 		mu                 sync.Mutex
-		openAICount        int
+		anthropicCount     int
 		aiandCount         int
 		aiandReceivedModel string
 	)
@@ -393,8 +401,8 @@ func TestProxyMessages_AuthoritativePolicyFailsOverOnCapabilityRejection(t *test
 			_, _ = w.Write([]byte(`{"error":{"message":"deepseek-ai/DeepSeek-V4-Pro is not a multimodal model"}}`))
 		}
 	}
-	openAIUpstream := httptest.NewServer(rejectCapability(&openAICount))
-	defer openAIUpstream.Close()
+	anthropicUpstream := httptest.NewServer(rejectCapability(&anthropicCount))
+	defer anthropicUpstream.Close()
 	aiandUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		mu.Lock()
@@ -403,7 +411,7 @@ func TestProxyMessages_AuthoritativePolicyFailsOverOnCapabilityRejection(t *test
 		mu.Unlock()
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(aiandChatSSE))
+		_, _ = w.Write([]byte(aiandResponsesSSE))
 		if f, ok := w.(http.Flusher); ok {
 			f.Flush()
 		}
@@ -412,10 +420,10 @@ func TestProxyMessages_AuthoritativePolicyFailsOverOnCapabilityRejection(t *test
 
 	strategy := router.Strategy("authoritative-capability-test")
 	policyRouter := &fakeRouter{decision: router.Decision{
-		Provider: providers.ProviderOpenAI,
-		// A non-catalog OpenAI-bound variant: the routed model must differ from
-		// the caller's requested model, or baseline rescue has nothing to fall
-		// back to (baseline == routed short-circuits).
+		Provider: providers.ProviderAnthropic,
+		// A non-catalog route: the routed model must differ from the caller's
+		// requested model, or baseline rescue has nothing to fall back to
+		// (baseline == routed short-circuits).
 		Model:  "moonshotai/kimi-k3-preview",
 		Reason: "authoritative-capability_policy",
 		Metadata: &router.RoutingMetadata{
@@ -427,14 +435,14 @@ func TestProxyMessages_AuthoritativePolicyFailsOverOnCapabilityRejection(t *test
 	svc := proxy.NewService(
 		nil,
 		map[string]providers.Client{
-			providers.ProviderOpenAI: openaicompat.NewClient("test-openai-key", openAIUpstream.URL),
-			providers.ProviderAIAND:  openaicompat.NewClient("test-aiand-key", aiandUpstream.URL),
+			providers.ProviderAnthropic: openaicompat.NewClient("test-anthropic-key", anthropicUpstream.URL),
+			providers.ProviderAIAND:     openaicompat.NewClient("test-aiand-key", aiandUpstream.URL),
 		},
 		nil, false, nil, newFakePinStore(), false,
 		providers.ProviderAIAND, "zai-org/glm-5.3-flash", newCaptureTelemetry(),
 	).WithDeploymentKeyedProviders(map[string]struct{}{
-		providers.ProviderOpenAI: {},
-		providers.ProviderAIAND:  {},
+		providers.ProviderAIAND:     {},
+		providers.ProviderAnthropic: {},
 	}).WithPolicyStrategy(policy.StrategySpec{
 		Strategy: strategy,
 		Router:   policyRouter,
@@ -454,7 +462,7 @@ func TestProxyMessages_AuthoritativePolicyFailsOverOnCapabilityRejection(t *test
 
 	mu.Lock()
 	defer mu.Unlock()
-	assert.Equal(t, 1, openAICount, "routed model tried once")
+	assert.Equal(t, 1, anthropicCount, "routed model tried once")
 	assert.Equal(t, 1, aiandCount, "rescued on AIand despite authoritative-per-turn selection")
 	assert.Equal(t, "moonshotai/kimi-k3", aiandReceivedModel, "rescue targets the model the caller asked for")
 

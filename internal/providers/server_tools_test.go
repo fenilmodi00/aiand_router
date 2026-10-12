@@ -9,7 +9,6 @@ import (
 func TestSupportsAnthropicServerTools(t *testing.T) {
 	cases := map[string]bool{
 		providers.ProviderAnthropic: true,
-		providers.ProviderOpenAI:    false,
 		providers.ProviderAIAND:     false,
 		// A provider absent from ProviderFamilies (the cut gateway) gets no family,
 		// so it cannot be credited with native server-tool support.

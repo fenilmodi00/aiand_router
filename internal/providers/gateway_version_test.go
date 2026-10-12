@@ -23,26 +23,26 @@ func TestGatewayVersionMemoURLs(t *testing.T) {
 		},
 		{
 			name:    "unversioned base is probed one segment down",
-			baseURL: "https://acct.snowflakecomputing.com/api/v2/cortex",
+			baseURL: "https://upstream.example.com/api/v2/base",
 			suffix:  "/chat/completions",
 			want: []string{
-				"https://acct.snowflakecomputing.com/api/v2/cortex/chat/completions",
-				"https://acct.snowflakecomputing.com/api/v2/cortex/v1/chat/completions",
+				"https://upstream.example.com/api/v2/base/chat/completions",
+				"https://upstream.example.com/api/v2/base/v1/chat/completions",
 			},
 		},
 		{
 			name:    "versioned suffix needs no alternative on an unversioned base",
-			baseURL: "https://acct.snowflakecomputing.com/api/v2/cortex",
+			baseURL: "https://upstream.example.com/api/v2/base",
 			suffix:  "/v1/messages",
-			want:    []string{"https://acct.snowflakecomputing.com/api/v2/cortex/v1/messages"},
+			want:    []string{"https://upstream.example.com/api/v2/base/v1/messages"},
 		},
 		{
 			name:    "versioned suffix on a versioned base is probed without the duplicate",
-			baseURL: "https://acct.snowflakecomputing.com/api/v2/cortex/v1",
+			baseURL: "https://upstream.example.com/api/v2/base/v1",
 			suffix:  "/v1/messages",
 			want: []string{
-				"https://acct.snowflakecomputing.com/api/v2/cortex/v1/v1/messages",
-				"https://acct.snowflakecomputing.com/api/v2/cortex/v1/messages",
+				"https://upstream.example.com/api/v2/base/v1/v1/messages",
+				"https://upstream.example.com/api/v2/base/v1/messages",
 			},
 		},
 	}
@@ -58,12 +58,12 @@ func TestGatewayVersionMemoURLs(t *testing.T) {
 // for the 404 probe, and must not leak that ordering to other base URLs.
 func TestGatewayVersionMemoLearn(t *testing.T) {
 	var memo providers.GatewayVersionMemo
-	memo.Learn("https://acct.snowflakecomputing.com/api/v2/cortex")
+	memo.Learn("https://upstream.example.com/api/v2/base")
 
 	assert.Equal(t, []string{
-		"https://acct.snowflakecomputing.com/api/v2/cortex/v1/chat/completions",
-		"https://acct.snowflakecomputing.com/api/v2/cortex/chat/completions",
-	}, memo.URLs("https://acct.snowflakecomputing.com/api/v2/cortex", "/chat/completions"))
+		"https://upstream.example.com/api/v2/base/v1/chat/completions",
+		"https://upstream.example.com/api/v2/base/chat/completions",
+	}, memo.URLs("https://upstream.example.com/api/v2/base", "/chat/completions"))
 
 	assert.Equal(t, []string{
 		"https://other.example.com/gateway/chat/completions",

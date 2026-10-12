@@ -3,6 +3,7 @@ package proxy_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -223,12 +224,12 @@ func TestProxyMessages_SingleBindingStreamingPreCommitError(t *testing.T) {
 	// inbound Anthropic Messages request so the cross-format
 	// AnthropicSSETranslator + Prelude path runs.
 	svc := proxy.NewService(
-		&fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "moonshotai/kimi-k3"}},
+		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "moonshotai/kimi-k3"}},
 		map[string]providers.Client{
-			providers.ProviderOpenAI: openaicompat.NewClient("test-key", stub.URL),
+			providers.ProviderAIAND: openaicompat.NewClient("test-key", stub.URL),
 		},
 		nil, false, nil, nil, false, providers.ProviderAnthropic, "zai-org/glm-5.3-flash", nil,
-	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderOpenAI: {}}).
+	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}}).
 		WithRetrySleep(noRetrySleep)
 
 	rec := httptest.NewRecorder()
@@ -434,22 +435,22 @@ func TestProxyMessages_BaselineOverloadExhaustionDoesNotDisableAnthropic(t *test
 	store := newFakePinStore()
 	store.hasPin = true
 	store.pin = sessionpin.Pin{
-		Provider:      providers.ProviderOpenAI,
+		Provider:      providers.ProviderAIAND,
 		Model:         "deepseek-ai/deepseek-v4-pro",
 		Reason:        "fresh",
 		PinnedUntil:   time.Now().Add(30 * time.Minute),
 		FirstPinnedAt: time.Now().Add(-5 * time.Minute),
 	}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "deepseek-ai/deepseek-v4-pro", Reason: "fresh"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek-ai/deepseek-v4-pro", Reason: "fresh"}}
 	svc := proxy.NewService(
 		fr,
 		map[string]providers.Client{
-			providers.ProviderOpenAI:    openaicompat.NewClient("test-fw-key", ossUpstream.URL),
+			providers.ProviderAIAND:     openaicompat.NewClient("test-fw-key", ossUpstream.URL),
 			providers.ProviderAnthropic: openaicompat.NewClient("test-key", anthropicUpstream.URL),
 		},
 		nil, false, nil, store, false, providers.ProviderAnthropic, "zai-org/glm-5.3-flash", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
-		providers.ProviderOpenAI:    {},
+		providers.ProviderAIAND:     {},
 		providers.ProviderAnthropic: {},
 	}).WithPlannerEnabled(false).
 		WithRetrySleep(noRetrySleep)
@@ -479,42 +480,83 @@ func TestProxyMessages_BaselineOverloadExhaustionDoesNotDisableAnthropic(t *test
 	assert.Equal(t, "deepseek-ai/deepseek-v4-pro", store.pin.Model, "the OSS pin's identity must be untouched")
 }
 
-func TestProxyMessages_ResponsesFailureBeforeOutputFallsBackToBaseline(t *testing.T) {
-	var (
-		mu          sync.Mutex
-		openAICalls int
-	)
-	openAIUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		mu.Lock()
-		openAICalls++
-		mu.Unlock()
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.WriteHeader(http.StatusOK)
-		_, _ = io.WriteString(w, "event: response.failed\n"+
-			`data: {"type":"response.failed","response":{"id":"r","status":"failed","error":{"code":"server_error","message":"request rejected before output"},"output":[]}}`+"\n\n")
-	}))
-	defer openAIUpstream.Close()
+// TestProxyMessages_ResponsesFailureBeforeOutputFallsBackToBaseline: a
+// pre-output Responses failure on the routed model must retry on the requested
+// baseline model. The AIand-only roster has a single OpenAI-compatible
+// upstream, so the routed attempt fails on that endpoint and the baseline
+// rescue lands on the same one — the test wires the endpoint to fail only for
+// the routed model so the rescue is observable.
+// modelRoutedProvider dispatches by decision model so a single AIAND
+// registration can play both the failing primary binding and the baseline that
+// rescues the turn: the AIand-only roster has one OpenAI-compatible endpoint,
+// and baseline failover changes the MODEL, not the provider.
+type modelRoutedProvider struct {
+	byModel map[string]func(w http.ResponseWriter)
+	models  []string
+}
 
-	// The AIand baseline is OpenAI-compatible: it answers with a
-	// chat-completions stream, which the proxy translates back for the client.
-	baseline := &fakeProvider{proxyResponse: func(w http.ResponseWriter) {
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.WriteHeader(http.StatusOK)
-		_, _ = io.WriteString(w, `data: {"id":"chatcmpl_baseline","object":"chat.completion.chunk","created":1,"model":"zai-org/glm-5.3","choices":[{"index":0,"delta":{"role":"assistant","content":"recovered"},"finish_reason":null}]}`+"\n\n")
-		_, _ = io.WriteString(w, `data: {"id":"chatcmpl_baseline","object":"chat.completion.chunk","created":1,"model":"zai-org/glm-5.3","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":5,"completion_tokens":1}}`+"\n\n")
-		_, _ = io.WriteString(w, "data: [DONE]\n\n")
+func (m *modelRoutedProvider) Proxy(ctx context.Context, d router.Decision, _ providers.PreparedRequest, w http.ResponseWriter, _ *http.Request) error {
+	m.models = append(m.models, d.Model)
+	respond := m.byModel[d.Model]
+	if respond == nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return fmt.Errorf("modelRoutedProvider: no upstream for model %q", d.Model)
+	}
+	// Mirror the openaicompat adapter: a non-2xx status is buffered as a typed
+	// error and never written to the client, so the failover loop can classify
+	// it (a 400 reads as a capability rejection) and retry on another model.
+	buf := httptest.NewRecorder()
+	respond(buf)
+	if buf.Code >= 400 {
+		return &providers.UpstreamErrorResponse{
+			Status: buf.Code,
+			Body:   append([]byte(nil), buf.Body.Bytes()...),
+		}
+	}
+	w.WriteHeader(buf.Code)
+	_, _ = w.Write(buf.Body.Bytes())
+	return nil
+}
+
+func (m *modelRoutedProvider) Passthrough(_ context.Context, _ providers.PreparedRequest, _ http.ResponseWriter, _ *http.Request) error {
+	return providers.ErrNotImplemented
+}
+
+// TestProxyMessages_ResponsesFailureBeforeOutputFallsBackToBaseline: a
+// pre-output failure on the routed model must retry on the requested baseline
+// model. Both live on the one AIand-compatible endpoint, so the endpoint fails
+// only for the routed model.
+func TestProxyMessages_ResponsesFailureBeforeOutputFallsBackToBaseline(t *testing.T) {
+	upstream := &modelRoutedProvider{byModel: map[string]func(w http.ResponseWriter){
+		"deepseek-ai/deepseek-v4-flash": func(w http.ResponseWriter) {
+			// The routed model is Anthropic: it rejects the multimodal turn with
+			// a plain HTTP 400 the openaicompat adapter buffers, so the baseline
+			// gate classifies it as a capability rejection.
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = io.WriteString(w, `{"error":{"code":"capability_rejection","message":"deepseek-ai/DeepSeek-V4-Pro is not a multimodal model"}}`+"\n")
+		},
+		// The AIand baseline is OpenAI-compatible: it answers with a Responses
+		// stream (chat/completions turns are promoted to /v1/responses), which
+		// the proxy translates back for the client.
+		"zai-org/glm-5.3": func(w http.ResponseWriter) {
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.WriteHeader(http.StatusOK)
+			_, _ = io.WriteString(w, `data: {"type":"response.output_text.delta","output_index":0,"content_index":0,"delta":"recovered"}`+"\n\n")
+			_, _ = io.WriteString(w, `data: {"type":"response.completed","response":{"id":"resp_baseline","status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"recovered"}]}],"usage":{"input_tokens":5,"output_tokens":1}}}`+"\n\n")
+		},
 	}}
 
 	svc := proxy.NewService(
-		&fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "deepseek-ai/deepseek-v4-flash", Reason: "test"}},
+		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "deepseek-ai/deepseek-v4-flash", Reason: "test"}},
 		map[string]providers.Client{
-			providers.ProviderOpenAI: openaicompat.NewClient("test-key", openAIUpstream.URL),
-			providers.ProviderAIAND:  baseline,
+			providers.ProviderAIAND:     upstream,
+			providers.ProviderAnthropic: upstream,
 		},
-		nil, false, nil, nil, false, providers.ProviderAIAND, "zai-org/glm-5.3-flash", nil,
+		nil, false, nil, newFakePinStore(), false, providers.ProviderAIAND, "zai-org/glm-5.3-flash", newCaptureTelemetry(),
 	).WithDeploymentKeyedProviders(map[string]struct{}{
-		providers.ProviderOpenAI: {},
-		providers.ProviderAIAND:  {},
+		providers.ProviderAIAND:     {},
+		providers.ProviderAnthropic: {},
 	}).WithRetrySleep(noRetrySleep)
 
 	rec := httptest.NewRecorder()
@@ -522,10 +564,8 @@ func TestProxyMessages_ResponsesFailureBeforeOutputFallsBackToBaseline(t *testin
 	body := []byte(`{"model":"zai-org/glm-5.3","stream":true,"tools":[{"name":"Read","input_schema":{"type":"object","properties":{"file_path":{"type":"string"}},"required":["file_path"]}}],"messages":[{"role":"user","content":"inspect this"}]}`)
 
 	require.NoError(t, svc.ProxyMessages(context.Background(), body, rec, req))
-	mu.Lock()
-	assert.GreaterOrEqual(t, openAICalls, 1)
-	mu.Unlock()
-	require.Len(t, baseline.proxyBodies, 1, "pre-output Responses failure must retry on the requested AIand model")
+	assert.Contains(t, upstream.models, "deepseek-ai/deepseek-v4-flash", "the routed model is attempted first")
+	assert.Equal(t, "zai-org/glm-5.3", upstream.models[len(upstream.models)-1], "pre-output Responses failure must retry on the requested AIand model")
 	assert.Contains(t, rec.Body.String(), "recovered")
 	assert.Contains(t, rec.Body.String(), "event: message_stop")
 	assert.NotContains(t, rec.Body.String(), "event: error")
@@ -535,24 +575,24 @@ func TestProxyMessages_ResponsesFailureBeforeOutputFallsBackToBaseline(t *testin
 // prompt the baseline cannot; a pre-commit exhaustion on the routed model must
 // not rescue onto a baseline AIand would 400 as "prompt is too long".
 func TestProxyMessages_BaselineFailoverSkipsBaselineOverContextWindow(t *testing.T) {
-	openAIUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	anthropicUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadGateway)
 		_, _ = w.Write([]byte(`{"error":{"message":"bad gateway"}}`))
 	}))
-	defer openAIUpstream.Close()
+	defer anthropicUpstream.Close()
 
 	baseline := &fakeProvider{}
 	svc := proxy.NewService(
-		&fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "deepseek-ai/deepseek-v4-flash", Reason: "test"}},
+		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "deepseek-ai/deepseek-v4-flash", Reason: "test"}},
 		map[string]providers.Client{
-			providers.ProviderOpenAI: openaicompat.NewClient("test-key", openAIUpstream.URL),
-			providers.ProviderAIAND:  baseline,
+			providers.ProviderAnthropic: openaicompat.NewClient("k", anthropicUpstream.URL),
+			providers.ProviderAIAND:     baseline,
 		},
 		nil, false, nil, nil, false, providers.ProviderAIAND, "zai-org/glm-5.3-flash", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
-		providers.ProviderOpenAI: {},
-		providers.ProviderAIAND:  {},
+		providers.ProviderAIAND:     {},
+		providers.ProviderAnthropic: {},
 	}).WithRetrySleep(noRetrySleep)
 
 	// ~300K estimated tokens: fits gpt-5.5 (1.05M) but not qwen3.8-27b (262K).

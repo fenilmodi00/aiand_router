@@ -14,13 +14,13 @@ import {
 const usage = { input: 1_000_000, output: 0, cacheRead: 0, cacheWrite: 0 };
 
 test("normalizes Pi, dated, and context-tier model ids", () => {
-	assert.equal(normalizeModelId("weave/claude-opus-4-8[1m]"), "claude-opus-4-8");
-	assert.equal(normalizeModelId("claude-sonnet-4-6-20260101"), "claude-sonnet-4-6");
+	assert.equal(normalizeModelId("weave/zai-org/glm-5.3[1m]"), "zai-org/glm-5.3");
+	assert.equal(normalizeModelId("zai-org/glm-5.3-20260101"), "zai-org/glm-5.3");
 });
 
 test("calculates savings against identical usage", () => {
 	const entry = createSavingsEntry(
-		{ requestedModel: "claude-sonnet-4-6", routedModel: "moonshotai/kimi-k2.7" },
+		{ requestedModel: "zai-org/glm-5.3", routedModel: "moonshotai/kimi-k3" },
 		usage,
 	);
 	assert.equal(entry.priced, true);
@@ -31,7 +31,7 @@ test("calculates savings against identical usage", () => {
 
 test("applies cache write and cache read multipliers", () => {
 	const entry = createSavingsEntry(
-		{ requestedModel: "grok-4.5", routedModel: "claude-haiku-4-5" },
+		{ requestedModel: "deepseek-ai/deepseek-v4-flash", routedModel: "moonshotai/kimi-k3" },
 		{ input: 100, output: 50, cacheRead: 100, cacheWrite: 100 },
 	);
 	const requestedInput = 100 + 1.25 * 100 + 0.25 * 100;
@@ -51,7 +51,7 @@ test("same-model routes have an exact zero delta without requiring a catalog pri
 
 test("unknown swapped models are explicit instead of fabricated zero savings", () => {
 	const entry = createSavingsEntry(
-		{ requestedModel: "claude-sonnet-4-6", routedModel: "private-model" },
+		{ requestedModel: "zai-org/glm-5.3", routedModel: "private-model" },
 		usage,
 	);
 	assert.equal(entry.priced, false);
@@ -62,7 +62,7 @@ test("unknown swapped models are explicit instead of fabricated zero savings", (
 
 test("negative deltas render as added cost", () => {
 	const entry = createSavingsEntry(
-		{ requestedModel: "claude-haiku-4-5", routedModel: "claude-opus-4-8" },
+		{ requestedModel: "moonshotai/kimi-k3", routedModel: "zai-org/glm-5.3" },
 		usage,
 	);
 	assert.equal(formatSavings(aggregateSavings([entry])), "extra $4.00");
@@ -70,11 +70,11 @@ test("negative deltas render as added cost", () => {
 
 test("aggregates restored entry data and rejects malformed entries", () => {
 	const first = createSavingsEntry(
-		{ requestedModel: "claude-sonnet-4-6", routedModel: "moonshotai/kimi-k2.7" },
+		{ requestedModel: "zai-org/glm-5.3", routedModel: "moonshotai/kimi-k3" },
 		usage,
 	);
 	const second = createSavingsEntry(
-		{ requestedModel: "claude-sonnet-4-6", routedModel: "private-model" },
+		{ requestedModel: "zai-org/glm-5.3", routedModel: "private-model" },
 		usage,
 	);
 	const aggregate = aggregateSavings([first, second]);
@@ -103,7 +103,7 @@ test("persists routed-response savings in RPC mode", async () => {
 	const ctx = {
 		mode: "rpc",
 		hasUI: true,
-		model: { id: "claude-sonnet-4-6" },
+		model: { id: "zai-org/glm-5.3" },
 		sessionManager: { getBranch: () => [] },
 		ui: {
 			notify() {},
@@ -119,20 +119,20 @@ test("persists routed-response savings in RPC mode", async () => {
 			type: "after_provider_response",
 			status: 200,
 			headers: {
-				"x-router-model": "moonshotai/kimi-k2.7",
-				"x-router-provider": "openrouter",
+				"x-router-model": "moonshotai/kimi-k3",
+				"x-router-provider": "aiand",
 				"x-router-decision": "automatic",
 			},
 		},
 		ctx,
 	);
-	assert.equal(statuses.at(-1), "WEAVE ROUTER — moonshotai/kimi-k2.7 ← claude-sonnet-4-6 · saved —");
+	assert.equal(statuses.at(-1), "WEAVE ROUTER — moonshotai/kimi-k3 ← zai-org/glm-5.3 · saved —");
 	await handlers.get("turn_end")?.(
 		{
 			type: "turn_end",
 			message: {
 				role: "assistant",
-				model: "claude-sonnet-4-6",
+				model: "zai-org/glm-5.3",
 				usage,
 			},
 		},
@@ -144,8 +144,8 @@ test("persists routed-response savings in RPC mode", async () => {
 	assert.ok(saved);
 	assert.equal(saved.customType, SAVINGS_ENTRY_TYPE);
 	assert.ok(isSavingsEntryData(saved.data));
-	assert.equal(saved.data.routedModel, "moonshotai/kimi-k2.7");
-	assert.equal(saved.data.provider, "openrouter");
+	assert.equal(saved.data.routedModel, "moonshotai/kimi-k3");
+	assert.equal(saved.data.provider, "aiand");
 	assert.equal(saved.data.decision, "automatic");
-	assert.equal(statuses.at(-1), "WEAVE ROUTER — moonshotai/kimi-k2.7 ← claude-sonnet-4-6 · saved $2.05");
+	assert.equal(statuses.at(-1), "WEAVE ROUTER — moonshotai/kimi-k3 ← zai-org/glm-5.3 · saved $2.05");
 });

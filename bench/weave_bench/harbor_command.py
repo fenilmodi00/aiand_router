@@ -1,9 +1,11 @@
 """``harbor run`` argv for one (benchmark, arm) job.
 
 One Harbor job per arm; arms differ only in where Codex's API traffic goes
-(``ArmSpec``) and, for router arms, the leading ``/beta`` turn. Everything
-else — dataset, task list, attempts, concurrency, Codex version, effort — is
-identical across arms so a paired comparison is valid.
+(``ArmSpec``) and, for router arms, the leading ``/beta`` turn. Every arm is a
+router arm: the same Codex CLI, the same router, differing only by whether the
+router's beta policy or the ``x-weave-force-model`` header pins the model.
+Everything else — dataset, task list, attempts, concurrency, Codex version,
+effort — is identical across arms so a paired comparison is valid.
 """
 
 from __future__ import annotations
@@ -12,7 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from weave_bench.arms import ArmSpec, Upstream
+from weave_bench.arms import ArmSpec
 from weave_bench.benchmarks import ATLAS_JUDGE_BASE_URL, ATLAS_JUDGE_MODEL, ATLAS_QA_SUBDIR, PINS, Benchmark
 from weave_bench.codex_config import codex_config_for_arm
 from weave_bench.config import BenchConfig
@@ -26,8 +28,8 @@ AGENT_API_KEY_ENV = "WEAVE_BENCH_AGENT_API_KEY"
 # point the judge at its own variable. Harbor expands ``${VAR}`` from the
 # coordinator environment at trial time, so no secret lands in argv/config.
 JUDGE_API_KEY_ENV = "WEAVE_BENCH_JUDGE_API_KEY"
-# Codex's own base-URL overrides must not leak into the sandbox: every
-# non-direct arm sets its endpoint via ``config.toml``, direct arms use OpenAI's default.
+# Codex's own base-URL overrides must not leak into the sandbox: the router
+# base URL is pinned in the rendered ``config.toml`` instead.
 INHERITED_ENV_TO_CLEAR = ("OPENAI_BASE_URL", "OPENAI_API_BASE")
 
 
@@ -51,17 +53,13 @@ class HarborJob:
 def arm_api_key_env(arm: ArmSpec, config: BenchConfig) -> str:
     if arm.via_router:
         return config.router.api_key_env
-    if arm.upstream is Upstream.OPENROUTER:
-        return config.providers.openrouter_api_key_env
-    return config.providers.openai_api_key_env
+    raise ValueError(f"arm {arm.name!r} has no upstream key: only router arms exist")
 
 
 def agent_host(arm: ArmSpec, config: BenchConfig) -> str | None:
-    """Endpoint host merged into the sandbox egress allowlist for non-direct arms."""
-    if arm.upstream is Upstream.OPENROUTER:
-        return urlsplit(config.openrouter_tap.public_url).hostname
-    if arm.upstream is Upstream.DIRECT:
-        return None
+    """Endpoint host merged into the sandbox egress allowlist for router arms."""
+    if not arm.via_router:
+        raise ValueError(f"arm {arm.name!r} has no upstream host: only router arms exist")
     return urlsplit(config.router.base_url).hostname
 
 
@@ -81,7 +79,7 @@ def build_job(
     name = job_name(run_id, arm)
     argv: list[str] = ["harbor", "run"]
     if pins.harbor_dataset is None:
-        argv += ["--path", str(Path(config.harbor.atlas_checkout_dir) / ATLAS_QA_SUBDIR)]
+        argv += ["--path", (Path(config.harbor.atlas_checkout_dir) / ATLAS_QA_SUBDIR).as_posix()]
     else:
         argv += ["--dataset", pins.harbor_dataset]
     argv += [
@@ -111,12 +109,9 @@ def build_job(
         arm,
         run_id=run_id,
         router_base_url=config.router.base_url,
-        tap_public_url=config.openrouter_tap.public_url,
     )
-    codex_config_path = None
-    if codex_config is not None:
-        codex_config_path = jobs_dir / f"{name}.codex-config.toml"
-        argv += ["--agent-kwarg", f"config={codex_config_path}"]
+    codex_config_path = jobs_dir / f"{name}.codex-config.toml"
+    argv += ["--agent-kwarg", f"config={codex_config_path}"]
     if arm.beta_preflight:
         argv += ["--agent-kwarg", "beta_toggle=true"]
     host = agent_host(arm, config)

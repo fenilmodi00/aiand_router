@@ -24,7 +24,6 @@ import (
 const (
 	outputLimitAnthropicModel = "claude-output-limit-fixture"
 	outputLimitChatModel      = "chat-output-limit-fixture"
-	outputLimitGeminiModel    = "gemini-output-limit-fixture"
 	outputLimitResponsesModel = "responses-output-limit-fixture"
 
 	// healthyLongOutputTokens sits above the retired 8k count heuristic so
@@ -33,9 +32,9 @@ const (
 	cappedOutputTokens      = 64000
 )
 
-// headerDrivenTranslator is the setup shape shared by SSETranslator,
-// AnthropicSSETranslator, and GeminiToOpenAISSETranslator: streaming mode is
-// committed by the upstream Content-Type at WriteHeader.
+// headerDrivenTranslator is the setup shape shared by SSETranslator and
+// AnthropicSSETranslator: streaming mode is committed by the upstream
+// Content-Type at WriteHeader.
 type headerDrivenTranslator interface {
 	http.ResponseWriter
 	Finalize() error
@@ -311,117 +310,6 @@ func TestAnthropicSSETranslator_OutputLimit_Buffered(t *testing.T) {
 			if tc.toolCall {
 				assert.Equal(t, "tool_use", root.Get("content.0.type").String())
 			}
-		})
-	}
-}
-
-// --- Gemini -> OpenAI chat (GeminiToOpenAISSETranslator) ---
-
-func geminiStream(finishReason string, outputTokens int, functionCall bool) []string {
-	part := `{"text":"partial"}`
-	if functionCall {
-		part = `{"functionCall":{"name":"get_weather","args":{"location":"NYC"}}}`
-	}
-	return []string{
-		`data: {"candidates":[{"content":{"parts":[` + part + `]}}]}` + "\n\n",
-		fmt.Sprintf(`data: {"candidates":[{"content":{"parts":[]},"finishReason":%q}],"usageMetadata":{"promptTokenCount":100,"candidatesTokenCount":%d,"totalTokenCount":%d}}`+"\n\n", finishReason, outputTokens, 100+outputTokens),
-	}
-}
-
-func geminiCandidateBody(finishReason string, outputTokens int, functionCall bool) string {
-	part := `{"text":"partial"}`
-	if functionCall {
-		part = `{"functionCall":{"name":"get_weather","args":{"location":"NYC"}}}`
-	}
-	return fmt.Sprintf(`{"candidates":[{"content":{"parts":[%s]},"finishReason":%q}],"usageMetadata":{"promptTokenCount":100,"candidatesTokenCount":%d,"totalTokenCount":%d}}`,
-		part, finishReason, outputTokens, 100+outputTokens)
-}
-
-func TestGeminiToOpenAISSETranslator_OutputLimit(t *testing.T) {
-	cases := []struct {
-		name             string
-		finishReason     string
-		outputTokens     int
-		functionCall     bool
-		wantReached      bool
-		wantFinishReason string
-	}{
-		{"raw MAX_TOKENS on text is a cap", "MAX_TOKENS", cappedOutputTokens, false, true, "length"},
-		{"raw MAX_TOKENS with a functionCall is a cap", "MAX_TOKENS", cappedOutputTokens, true, true, "length"},
-		{"long STOP with a functionCall is not a cap", "STOP", healthyLongOutputTokens, true, false, "tool_calls"},
-		{"long STOP is not a cap", "STOP", cappedOutputTokens / 2, false, false, "stop"},
-	}
-	for _, tc := range cases {
-		t.Run("streaming/"+tc.name, func(t *testing.T) {
-			rec := httptest.NewRecorder()
-			sink := &fakeUsageSink{}
-			w := translate.NewGeminiToOpenAISSETranslator(rec, outputLimitGeminiModel, sink)
-			require.NoError(t, driveSSE(t, w, geminiStream(tc.finishReason, tc.outputTokens, tc.functionCall)...))
-
-			assert.Equal(t, tc.wantReached, sink.outputLimitReached)
-			assert.Equal(t, tc.outputTokens, sink.output)
-			body := rec.Body.String()
-			assert.Contains(t, body, fmt.Sprintf(`"finish_reason":%q`, tc.wantFinishReason))
-			assert.Contains(t, body, "data: [DONE]")
-			if tc.functionCall {
-				assert.Contains(t, body, `"name":"get_weather"`)
-			}
-		})
-		t.Run("buffered/"+tc.name, func(t *testing.T) {
-			rec := httptest.NewRecorder()
-			sink := &fakeUsageSink{}
-			w := translate.NewGeminiToOpenAISSETranslator(rec, outputLimitGeminiModel, sink)
-			require.NoError(t, driveJSON(t, w, geminiCandidateBody(tc.finishReason, tc.outputTokens, tc.functionCall)))
-
-			assert.Equal(t, tc.wantReached, sink.outputLimitReached)
-			assert.Equal(t, tc.outputTokens, sink.output)
-			root := gjson.ParseBytes(rec.Body.Bytes())
-			assert.Equal(t, tc.wantFinishReason, root.Get("choices.0.finish_reason").String())
-		})
-	}
-}
-
-func TestGeminiToOpenAISSETranslator_OutputLimit_NoTerminalIsNotACap(t *testing.T) {
-	rec := httptest.NewRecorder()
-	sink := &fakeUsageSink{}
-	w := translate.NewGeminiToOpenAISSETranslator(rec, outputLimitGeminiModel, sink)
-	require.ErrorIs(t, driveSSE(t, w, geminiStream("MAX_TOKENS", cappedOutputTokens, false)[:1]...), translate.ErrStreamIncomplete)
-
-	assert.False(t, sink.outputLimitReached)
-	assert.NotContains(t, rec.Body.String(), "data: [DONE]")
-}
-
-// Gemini -> chat -> Messages is how the proxy serves an Anthropic client from
-// Gemini: the outer translator has no sink and maps MAX_TOKENS to chat
-// "length", which the inner translator records before promoting the
-// surviving functionCall to stop_reason tool_use.
-func TestGeminiToAnthropicChain_OutputLimit(t *testing.T) {
-	cases := []struct {
-		name           string
-		finishReason   string
-		outputTokens   int
-		wantReached    bool
-		wantStopReason string
-	}{
-		{"raw MAX_TOKENS with a functionCall is a cap", "MAX_TOKENS", cappedOutputTokens, true, "tool_use"},
-		{"long STOP with a functionCall is not a cap", "STOP", healthyLongOutputTokens, false, "tool_use"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			rec := httptest.NewRecorder()
-			sink := &fakeUsageSink{}
-			anthropicTr := translate.NewAnthropicSSETranslator(rec, outputLimitGeminiModel, sink)
-			require.NoError(t, anthropicTr.Prelude(true))
-			geminiTr := translate.NewGeminiToOpenAISSETranslator(anthropicTr, outputLimitGeminiModel, nil)
-			require.NoError(t, driveSSE(t, geminiTr, geminiStream(tc.finishReason, tc.outputTokens, true)...))
-			require.NoError(t, anthropicTr.Finalize())
-
-			assert.Equal(t, tc.wantReached, sink.outputLimitReached)
-			assert.Equal(t, tc.outputTokens, sink.output)
-			body := rec.Body.String()
-			assert.Contains(t, body, `"type":"tool_use"`)
-			assert.Contains(t, body, fmt.Sprintf(`"stop_reason":%q`, tc.wantStopReason))
-			assert.Equal(t, tc.wantStopReason, anthropicTr.Summary().StopReason)
 		})
 	}
 }

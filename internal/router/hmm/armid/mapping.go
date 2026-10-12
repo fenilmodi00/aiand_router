@@ -10,30 +10,14 @@ import (
 	"weave-os/router/internal/router/catalog"
 )
 
-var rosterAliases = map[string]string{
-	"claude-sonnet-4-6": "anthropic/claude-sonnet-4.6",
-	"claude-haiku-4-5":  "anthropic/claude-haiku-4.5",
-	"claude-sonnet-5":   "anthropic/claude-sonnet-5",
-	"claude-opus-4-8":   "anthropic/claude-opus-4.8",
-	"claude-fable-5":    "anthropic/claude-fable-5",
-	"claude-fable-5-1":  "anthropic/claude-fable-5.1",
-	"claude-opus-5-5":   "anthropic/claude-opus-5.5",
-	"claude-sonnet-5-5": "anthropic/claude-sonnet-5.5",
-}
-
 // ForModel maps a compiled catalog model to its canonical roster identity.
 func ForModel(m catalog.Model) string {
-	if alias, ok := rosterAliases[m.ID]; ok {
-		return alias
-	}
 	if strings.Contains(m.ID, "/") {
 		return m.ID
 	}
 	switch m.PrimaryProvider() {
 	case providers.ProviderAnthropic:
 		return "anthropic/" + m.ID
-	case providers.ProviderOpenAI:
-		return "openai/" + m.ID
 	}
 	return ""
 }

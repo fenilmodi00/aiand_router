@@ -263,7 +263,7 @@ func TestOpenAISameFormat_ToolTurnOptsOutOfReasoningForDirectGPT56(t *testing.T)
 		t.Run(tc.name, func(t *testing.T) {
 			opts := translate.EmitOptions{
 				TargetModel:    tc.model,
-				TargetProvider: providers.ProviderOpenAI,
+				TargetProvider: providers.ProviderAIAND,
 				Capabilities:   capsFor(tc.model),
 			}
 			out := parseAndEmit(t, tc.body, "openai", opts)
@@ -1393,7 +1393,7 @@ func TestAnthropicSameFormat_OutputConfigFormatKeptByDefault(t *testing.T) {
 // encodeOpenAIReasoningSignature mints, for use in test fixtures.
 func openAIReasoningSignature(t *testing.T, id, enc string) string {
 	t.Helper()
-	raw, err := json.Marshal(map[string]any{"v": 1, "provider": "openai", "id": id, "enc": enc})
+	raw, err := json.Marshal(map[string]any{"v": 1, "provider": providers.ProviderAIAND, "id": id, "enc": enc})
 	require.NoError(t, err)
 	return base64.StdEncoding.EncodeToString(raw)
 }
@@ -1555,7 +1555,7 @@ func TestAnthropicToOpenAI_FillsMissingInputSchemaAsParameters(t *testing.T) {
 	assert.Equal(t, "object", tools.Get("1.function.parameters.type").String())
 	assert.JSONEq(t, `{"type":"object","properties":{}}`, tools.Get("1.function.parameters").Raw)
 
-	p, err = env.PrepareOpenAIResponses(http.Header{}, translate.EmitOptions{TargetModel: "gpt-5.5", TargetProvider: providers.ProviderOpenAI, Capabilities: capsFor("gpt-5.5")})
+	p, err = env.PrepareOpenAIResponses(http.Header{}, translate.EmitOptions{TargetModel: "gpt-5.5", TargetProvider: providers.ProviderAIAND, Capabilities: capsFor("gpt-5.5")})
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"type":"object","properties":{}}`, gjson.GetBytes(p.Body, "tools.1.parameters").Raw)
 	assert.Equal(t, "false", gjson.GetBytes(p.Body, "tools.1.strict").Raw)

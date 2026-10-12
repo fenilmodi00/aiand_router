@@ -42,7 +42,7 @@ func TestProxyOpenAIResponses_CodexDuplicateToolOutputsReachAnthropicOnce(t *tes
 	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "zai-org/glm-5.3", Reason: "test"}}
 	svc := proxy.NewService(fr, map[string]providers.Client{
 		providers.ProviderAnthropic: anthropic,
-		providers.ProviderOpenAI:    &fakeProvider{},
+		providers.ProviderAIAND:     &fakeProvider{},
 	}, nil, false, nil, nil, false, providers.ProviderAnthropic, "zai-org/glm-5.3", nil)
 
 	rec := httptest.NewRecorder()
@@ -69,10 +69,10 @@ func TestProxyOpenAIResponses_CodexDuplicateToolOutputsStayVerbatimOnNativeOpenA
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = io.WriteString(w, `{"id":"resp_1","object":"response","output":[{"type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"ok"}]}]}`)
 	}}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "moonshotai/kimi-k3", Reason: "test"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "moonshotai/kimi-k3", Reason: "test"}}
 	svc := proxy.NewService(fr, map[string]providers.Client{
-		providers.ProviderOpenAI: openai,
-	}, nil, false, nil, nil, false, providers.ProviderOpenAI, "moonshotai/kimi-k3", nil)
+		providers.ProviderAIAND: openai,
+	}, nil, false, nil, nil, false, providers.ProviderAIAND, "moonshotai/kimi-k3", nil)
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(""))

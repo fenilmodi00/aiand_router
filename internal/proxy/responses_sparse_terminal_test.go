@@ -49,9 +49,9 @@ func TestProxyOpenAIResponses_NativeStreamCompletionDoesNotReplayOutput(t *testi
 			t.Run(fmt.Sprintf("client=%s/interrupted=%t", clientApp, interrupt), func(t *testing.T) {
 				client := &sparseResponsesClient{interrupt: interrupt}
 				svc := NewService(
-					staticRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "zai-org/glm-5.3-flash", Reason: "test"}},
-					map[string]providers.Client{providers.ProviderOpenAI: client},
-					nil, false, nil, nil, false, providers.ProviderOpenAI, "moonshotai/kimi-k3", nil,
+					staticRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "zai-org/glm-5.3-flash", Reason: "test"}},
+					map[string]providers.Client{providers.ProviderAIAND: client},
+					nil, false, nil, nil, false, providers.ProviderAIAND, "moonshotai/kimi-k3", nil,
 				)
 				svc.retrySleep = noopSleep
 				ctx := context.WithValue(context.Background(), ClientIdentityContextKey{}, ClientIdentity{ClientApp: clientApp})

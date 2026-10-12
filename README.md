@@ -49,9 +49,9 @@ Point Claude Code, Codex, Cursor, or your own app at `localhost:8080`. The route
   (See [docs/SEMANTICS.md](docs/SEMANTICS.md) for the canonical terminology:
   the router routes per **action**, not per **turn**.)
 - 🔌 **Speaks everyone's API.** Anthropic Messages, OpenAI Chat Completions,
-  Gemini native. Streaming, tools, vision, the works.
-- 🧠 **Knows OSS too.** DeepSeek, Kimi, GLM, Qwen, Llama, Mistral via
-  OpenRouter (or any OpenAI-compatible endpoint).
+  and OpenAI Responses. Streaming, tools, vision, the works.
+- 🧠 **One upstream.** Every request is served by AIand's OpenAI-compatible
+  endpoint over Claude Code's translated turn.
 - 🔒 **BYOK by default.** Provider keys stay on your box, encrypted at rest.
 - 📊 **Observable.** OTLP traces out of the box. See them in the Weave dashboard (http://localhost:8080/ui/dashboard) or drop in Honeycomb, Datadog,
   Grafana, whatever.
@@ -93,8 +93,8 @@ continues to receive the same releases.
 If you want the router (and dashboard) running on your own box:
 
 ```bash
-# 1. Drop a provider key in. OpenRouter is the recommended baseline.
-echo "OPENROUTER_API_KEY=sk-or-v1-..." >> .env.local
+# 1. Drop a provider key in.
+echo "AIAND_API_KEY=..." >> .env.local
 
 # 2. Set a dashboard password. Without one, inference still runs but
 # dashboard administration is disabled.
@@ -138,7 +138,7 @@ flowchart LR
     hmm["HMM policy sidecar :8093<br/>optional, make up-hmm"]
     pg[("Postgres<br/>installations, rk_ keys,<br/>encrypted BYOK keys, usage")]
     ui["Dashboard /ui<br/>selfhosted mode only"]
-    providers["Anthropic · OpenAI · Gemini<br/>OpenRouter and any<br/>OpenAI-compatible endpoint"]
+    providers["AIand<br/>OpenAI-compatible upstream<br/>deployment or BYOK key"]
     otel["Your OTLP collector<br/>Honeycomb, Datadog, Grafana"]
 
     client -->|"rk_… bearer token,<br/>streamed response back"| router
@@ -184,10 +184,9 @@ The provider preserves Codex's existing ChatGPT OAuth login while the router
 key rides in an `X-Weave-Router-Key` HTTP header and the installer selects the
 HMM strategy for the public hosted endpoint. `--codex --local` and custom
 self-hosted URLs keep their router's configured default because the HMM
-sidecar is optional. HMM and forced selections in the native Codex family
-(`gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`) use that OAuth credential;
-every other selected model uses its WorkWeave deployment or BYOK credential,
-matching the Claude Code plugin's model-to-credential dispatch.
+sidecar is optional. Forced selections resolve against the AIand roster and
+its deployment or BYOK credential, matching the Claude Code plugin's
+model-to-credential dispatch.
 Codex does not load third-party slash-command files, so the installer ships
 `$force-model <model-id>` (alias `$fm <model-id>`), `$unforce-model` (alias
 `$ufm`), and `$router-feedback <text>` (alias `$rf <text>`) as native Codex
@@ -238,7 +237,7 @@ dashboard, where selection is an organization-wide setting. See
 [install/README.md](install/README.md#choosing-which-models-the-router-may-pick).
 
 > Two keys, don't mix them up:
-> - `sk-or-...` / `sk-ant-...` / `sk-...` = your **upstream** provider key. Lives in `.env.local`.
+> - the upstream AIand key = your **upstream** provider key. Lives in `.env.local`.
 > - `rk_...` = your **router** key. Clients send this as a Bearer token.
 
 ## Endpoints
@@ -247,7 +246,7 @@ dashboard, where selection is an organization-wide setting. See
 | ------------------------------ | ---------------------------------------- |
 | `POST /v1/messages`            | Anthropic Messages, routed               |
 | `POST /v1/chat/completions`    | OpenAI Chat Completions, routed          |
-| `POST /v1beta/models/:action`  | Gemini `generateContent`, routed         |
+| `POST /v1/responses`            | OpenAI Responses, routed                |
 | `POST /v1/route`               | Returns the decision, no upstream call   |
 | `GET /v1/models` &nbsp;·&nbsp; `POST /v1/messages/count_tokens` | Anthropic passthrough |
 | `GET /health` &nbsp;·&nbsp; `GET /readyz` &nbsp;·&nbsp; `GET /validate` | liveness + dependency readiness + key check |
@@ -278,7 +277,7 @@ the final Anthropic `message_delta` usage event.
   rollout checklist for adding an out-of-process policy model.
 - 📏 [**Codex benchmark harness**](bench/README.md): reproduce the published
   SWE-Atlas QnA and Terminal-Bench 4.0 comparisons of
-  `/beta` routing vs. direct and OpenRouter controls.
+  `/beta` routing.
 - 🛠️ [**Contributing**](CONTRIBUTING.md): layering rules, hot-reload dev,
   migrations, tests, the whole engineering loop.
 - 🏗️ [**Architecture**](AGENTS.md): package layout, import contracts,

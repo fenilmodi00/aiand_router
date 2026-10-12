@@ -38,11 +38,10 @@ HEALTH_TIMEOUT_SECONDS = 120
 HEALTH_POLL_SECONDS = 2
 ROUTER_PORT = 8080
 MINIMUM_COMPOSE_VERSION = (2, 24, 4)
-MODEL_OVERRIDE_ENVIRONMENTS = ("SMOKE_PIN_MODEL", "SMOKE_OPENAI_PIN_MODEL")
+MODEL_OVERRIDE_ENVIRONMENTS = ("SMOKE_PIN_MODEL",)
 CLIENT_ENVIRONMENTS = (
     "SMOKE_ROUTER_KEY",
     "SMOKE_BASE_URL",
-    "SMOKE_OPENAI_ENABLED",
     *MODEL_OVERRIDE_ENVIRONMENTS,
 )
 SMOKE_DEPLOYMENT_MODE: Literal["selfhosted"] = "selfhosted"
@@ -111,9 +110,6 @@ class SmokeRun:
             self.record_credentials["SMOKE_RECORD_ANTHROPIC_KEY"] = os.environ[
                 "ANTHROPIC_API_KEY"
             ]
-            self.record_credentials["SMOKE_RECORD_OPENAI_KEY"] = os.environ.get(
-                "OPENAI_API_KEY", ""
-            )
             self.record_credentials["SMOKE_RECORD_AIAND_KEY"] = os.environ.get(
                 "AIAND_API_KEY", ""
             )
@@ -253,9 +249,6 @@ class SmokeRun:
             "ANTHROPIC_API_KEY": (
                 PLACEHOLDER_KEY if replay else "${SMOKE_RECORD_ANTHROPIC_KEY:-}"
             ),
-            "OPENAI_API_KEY": (
-                PLACEHOLDER_KEY if replay else "${SMOKE_RECORD_OPENAI_KEY:-}"
-            ),
             "AIAND_API_KEY": (
                 PLACEHOLDER_KEY if replay else "${SMOKE_RECORD_AIAND_KEY:-}"
             ),
@@ -390,11 +383,6 @@ class SmokeRun:
         test_environment = self.environment | {
             "SMOKE_ROUTER_KEY": match.group(),
             "SMOKE_BASE_URL": base_url,
-            "SMOKE_OPENAI_ENABLED": (
-                "1"
-                if self.mode == ProxyMode.REPLAY or os.environ.get("OPENAI_API_KEY")
-                else "0"
-            ),
         }
         for key in MODEL_OVERRIDE_ENVIRONMENTS:
             if key in os.environ:

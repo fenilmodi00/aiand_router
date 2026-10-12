@@ -18,8 +18,6 @@ func (e *RequestEnvelope) base64ImageStats() (bytes, count int) {
 		return anthropicImageBytes(e.body)
 	case FormatOpenAI:
 		return openAIImageBytes(e.body)
-	case FormatGemini:
-		return geminiImageBytes(e.body)
 	default:
 		return 0, 0
 	}
@@ -80,26 +78,6 @@ func openAIImageBytes(body []byte) (total, count int) {
 			// From just after the marker to the closing quote.
 			if n := len(raw) - i - len(dataURLBase64Marker) - 1; n > 0 {
 				total += n
-				count++
-			}
-			return true
-		})
-		return true
-	})
-	return total, count
-}
-
-// geminiImageBytes sums base64 payloads in Gemini inlineData parts (camelCase
-// and snake_case). fileData URIs carry no in-body payload and are skipped.
-func geminiImageBytes(body []byte) (total, count int) {
-	gjson.GetBytes(body, "contents").ForEach(func(_, content gjson.Result) bool {
-		content.Get("parts").ForEach(func(_, part gjson.Result) bool {
-			data := part.Get("inlineData.data")
-			if !data.Exists() {
-				data = part.Get("inline_data.data")
-			}
-			if data.Exists() {
-				total += jsonStringBytes(data)
 				count++
 			}
 			return true

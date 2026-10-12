@@ -19,6 +19,7 @@ import (
 	"strings"
 	"testing"
 
+	"weave-os/router/internal/flags"
 	"weave-os/router/internal/providers"
 	"weave-os/router/internal/proxy"
 	"weave-os/router/internal/router"
@@ -74,7 +75,14 @@ func runConformanceCase(t *testing.T, c conformanceCase) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
 	req.Header.Set(routingMarkerHeader, "off")
-	require.NoError(t, svc.ProxyMessages(context.Background(), []byte(c.inbound), rec, req),
+	// This suite pins chat/completions wire translation, and the AIand-only
+	// build promotes AIand turns to /v1/responses (the fakes here replay
+	// chat/completions fixtures only). The documented override keeps the turn
+	// on the surface under test; the promotion itself has its own coverage.
+	ctx := flags.WithOverrides(context.Background(), flags.Overrides{
+		Bools: map[flags.Key]bool{flags.KeyOpenAIResponsesBroad: false},
+	})
+	require.NoError(t, svc.ProxyMessages(ctx, []byte(c.inbound), rec, req),
 		"ProxyMessages should succeed for a healthy upstream")
 
 	if c.wantUpstream != nil {

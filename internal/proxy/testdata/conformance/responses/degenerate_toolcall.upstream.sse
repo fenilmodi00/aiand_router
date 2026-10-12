@@ -1,0 +1,20 @@
+event: response.created
+data: {"type":"response.created","response":{"id":"resp_deg","status":"in_progress","model":"deepseek-ai/deepseek-v4-flash","output":[]}}
+
+event: response.output_item.added
+data: {"type":"response.output_item.added","output_index":0,"item":{"id":"msg_1","type":"message","role":"assistant","status":"in_progress","content":[]}}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","item_id":"msg_1","output_index":0,"content_index":0,"delta":"Let me run that for you."}
+
+event: response.output_item.done
+data: {"type":"response.output_item.done","output_index":0,"item":{"id":"msg_1","type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"Let me run that for you."}]}}
+
+event: response.output_item.added
+data: {"type":"response.output_item.added","output_index":1,"item":{"id":"fc_deg","type":"function_call","call_id":"call_x","name":"","arguments":"{}","status":"in_progress"}}
+
+event: response.output_item.done
+data: {"type":"response.output_item.done","output_index":1,"item":{"id":"fc_deg","type":"function_call","call_id":"call_x","name":"","arguments":"{}","status":"completed"}}
+
+event: response.completed
+data: {"type":"response.completed","response":{"id":"resp_deg","status":"completed","model":"deepseek-ai/deepseek-v4-flash","output":[{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"output_text","text":"Let me run that for you."}]},{"id":"fc_deg","type":"function_call","call_id":"call_x","name":"","arguments":"{}"}],"usage":{"input_tokens":20,"output_tokens":8}}}

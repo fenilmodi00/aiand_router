@@ -29,7 +29,8 @@ def _row(row_id: int, requested_at: datetime, session: str = "s1") -> dict[str, 
         "id": row_id,
         "session_id": session,
         "requested_at": requested_at.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
-        "decision_model": "gpt-5.6-sol",
+        "decision_model": "zai-org/glm-5.3",
+        "decision_provider": "aiand",
         "actual_input_cost_usd": 0.5,
         "actual_output_cost_usd": 0.25,
     }
@@ -55,10 +56,12 @@ def test_ndjson_round_trip_and_cost(tmp_path: Path) -> None:
 
 def test_fresh_input_tokens_follow_the_provider_usage_convention() -> None:
     usage = {"input_tokens": 1000, "cache_read_tokens": 600, "cache_creation_tokens": 100}
-    assert row_fresh_input_tokens({**usage, "decision_provider": "openai"}) == 300
-    assert row_fresh_input_tokens({**usage, "decision_provider": "google"}) == 300
+    # aiand is the router's only upstream and is OpenAI-compat: input_tokens is
+    # cache-inclusive, so fresh is the remainder.
+    assert row_fresh_input_tokens({**usage, "decision_provider": "aiand"}) == 300
+    # An Anthropic-wire row is already fresh-only.
     assert row_fresh_input_tokens({**usage, "decision_provider": "anthropic"}) == 1000
-    assert row_fresh_input_tokens({"input_tokens": 10, "cache_read_tokens": 50, "decision_provider": "openai"}) == 0
+    assert row_fresh_input_tokens({"input_tokens": 10, "cache_read_tokens": 50, "decision_provider": "aiand"}) == 0
 
 
 def test_by_session_dedupes_rows_repeated_across_pages() -> None:

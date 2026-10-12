@@ -334,7 +334,7 @@ func TestDebitForInference_WarnsOnZeroPricingForRealUsage(t *testing.T) {
 		OrganizationID:  "org_x",
 		RouterRequestID: "req_unknown",
 		Model:           "gpt-5.2",
-		Provider:        providers.ProviderOpenAI,
+		Provider:        providers.ProviderAIAND,
 		InputTokens:     1_000_000,
 		OutputTokens:    250_000,
 		Pricing:         catalog.Pricing{}, // zero value: model not in catalog
@@ -357,7 +357,7 @@ func TestDebitForInference_WarnsOnZeroPricingForCacheOnlyUsage(t *testing.T) {
 		OrganizationID:  "org_x",
 		RouterRequestID: "req_cache_only",
 		Model:           "gpt-5.2",
-		Provider:        providers.ProviderOpenAI,
+		Provider:        providers.ProviderAIAND,
 		CacheRead:       500_000,
 		Pricing:         catalog.Pricing{}, // zero value: model not in catalog
 	})
@@ -392,7 +392,7 @@ func TestDebitForInference_NoWarnOnZeroPricingOverride(t *testing.T) {
 	_, err := svc.DebitForInference(context.Background(), billing.DebitInferenceParams{
 		OrganizationID: "org_internal",
 		Model:          "gpt-5.2",
-		Provider:       providers.ProviderOpenAI,
+		Provider:       providers.ProviderAIAND,
 		InputTokens:    1_000_000,
 		OutputTokens:   250_000,
 		Pricing:        catalog.Pricing{},
@@ -411,7 +411,7 @@ func TestDebitForInference_NoWarnOnZeroTokenUsage(t *testing.T) {
 	_, err := svc.DebitForInference(context.Background(), billing.DebitInferenceParams{
 		OrganizationID: "org_x",
 		Model:          "gpt-5.2",
-		Provider:       providers.ProviderOpenAI,
+		Provider:       providers.ProviderAIAND,
 		Pricing:        catalog.Pricing{},
 	})
 	require.NoError(t, err)

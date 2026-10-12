@@ -137,16 +137,3 @@ func TestTrailingAssistantTexts_OpenAICollectsAssistantOnlyContinuations(t *test
 
 	assert.Equal(t, []string{"the complete answer", "the complete answer", "the complete answer"}, env.TrailingAssistantTexts())
 }
-
-func TestTrailingAssistantTexts_GeminiReturnsNil(t *testing.T) {
-	body := mustMarshalJSON(t, map[string]any{
-		"model": "gemini-3.1-pro-preview",
-		"contents": []any{
-			map[string]any{"role": "model", "parts": []any{map[string]any{"text": "hi"}}},
-		},
-	})
-	env, err := translate.ParseGemini(body)
-	require.NoError(t, err)
-
-	assert.Nil(t, env.TrailingAssistantTexts())
-}

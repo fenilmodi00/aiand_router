@@ -132,8 +132,7 @@ func TestExcludeContextOverflowModels_UsesRoutableBinding(t *testing.T) {
 		"deepseek-ai/deepseek-v4-pro": {},
 	}
 	enabledBoth := map[string]struct{}{
-		providers.ProviderAIAND:  {},
-		providers.ProviderOpenAI: {},
+		providers.ProviderAIAND: {},
 	}
 	enabledAIANDOnly := map[string]struct{}{
 		providers.ProviderAIAND: {},

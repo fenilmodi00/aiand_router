@@ -68,9 +68,9 @@ if [ "${ROUTER_MODE:-full}" = "down" ]; then
   exit 7
 fi
 
-catalog='{"models":[{"model":"claude-opus-5","provider":"anthropic"},{"model":"gpt-5.6","provider":"openai"}]}'
-models='[{"model":"claude-opus-5","provider":"anthropic","enabled":true},{"model":"claude-haiku-4-5","provider":"anthropic","enabled":false},{"model":"gpt-5.6","provider":"openai","enabled":true}]'
-providers='[{"provider":"anthropic","enabled":true},{"provider":"openai","enabled":false}]'
+catalog='{"models":[{"model":"zai-org/glm-5.3","provider":"aiand"},{"model":"deepseek-ai/deepseek-v4-pro","provider":"aiand"}]}'
+models='[{"model":"zai-org/glm-5.3","provider":"aiand","enabled":true},{"model":"moonshotai/kimi-k3","provider":"aiand","enabled":false},{"model":"deepseek-ai/deepseek-v4-pro","provider":"aiand","enabled":true}]'
+providers='[{"provider":"aiand","enabled":true},{"provider":"aiand","enabled":false}]'
 
 case "$path" in
   /v1/router/models) emit 200 "$catalog" ;;
@@ -83,7 +83,7 @@ fi
 case "$path" in
   /admin/v1/models)                  emit 200 "$models" ;;
   /admin/v1/providers)               emit 200 "$providers" ;;
-  /admin/v1/preferred-models)        emit 200 '{"preferred":["claude-opus-5"]}' ;;
+  /admin/v1/preferred-models)        emit 200 '{"preferred":["zai-org/glm-5.3"]}' ;;
 esac
 
 # The router validates ids against the deployed set, so a typo comes back 400.
@@ -92,8 +92,8 @@ case "$body" in
 esac
 
 case "$path" in
-  /admin/v1/excluded-models*)        emit 200 '{"available":[],"excluded":["gpt-5.6"],"env_override_active":false}' ;;
-  /admin/v1/excluded-providers*)     emit 200 '{"available":[],"excluded":["openai"],"env_override_active":false}' ;;
+  /admin/v1/excluded-models*)        emit 200 '{"available":[],"excluded":["deepseek-ai/deepseek-v4-pro"],"env_override_active":false}' ;;
+  /admin/v1/excluded-providers*)     emit 200 '{"available":[],"excluded":["aiand"],"env_override_active":false}' ;;
   *)                                 emit 404 '{"error":"404 page not found"}' ;;
 esac
 FAKE_CURL
@@ -184,69 +184,69 @@ export REQUEST_LOG="$work/list.log"
 
 run_models "$home" -- --claude
 check "list exits 0" "$rc" "0"
-contains "list marks an enabled model" "$out" "[x] claude-opus-5"
-contains "list marks a disabled model" "$out" "[ ] claude-haiku-4-5"
-contains "list groups by provider" "$out" "openai"
+contains "list marks an enabled model" "$out" "[x] zai-org/glm-5.3"
+contains "list marks a disabled model" "$out" "[ ] moonshotai/kimi-k3"
+contains "list groups by provider" "$out" "aiand"
 contains "list reports the enabled count" "$out" "2 of 3 enabled"
-contains "list shows the preferred ranking" "$out" "Preferred order: claude-opus-5"
+contains "list shows the preferred ranking" "$out" "Preferred order: zai-org/glm-5.3"
 check "list reads the installed endpoint, not the hosted default" \
   "$(grep -c '^GET /admin/v1/models ' "$REQUEST_LOG")" "1"
 
 run_models_stdout "$home" -- --claude --json
 check "--json emits the raw payload" \
-  "$(printf '%s' "$out" | jq -r '.[0].model')" "claude-opus-5"
+  "$(printf '%s' "$out" | jq -r '.[0].model')" "zai-org/glm-5.3"
 # models writes no config, so the install-time "client not on PATH, we'll write
 # it anyway" warnings must not fire — they would also corrupt a piped --json.
 check "--json writes nothing to stderr" "$errout" ""
 
 run_models "$home" -- providers --claude
-contains "providers list marks an enabled provider" "$out" "[x] anthropic"
-contains "providers list marks a disabled provider" "$out" "[ ] openai"
+contains "providers list marks an enabled provider" "$out" "[x] aiand"
+contains "providers list marks a disabled provider" "$out" "[ ] aiand"
 
 # ---------- editing ----------
 
 : >"$REQUEST_LOG"
-run_models "$home" -- disable gpt-5.6 --claude
+run_models "$home" -- disable deepseek-ai/deepseek-v4-pro --claude
 check "disable exits 0" "$rc" "0"
-contains "disable reports the model" "$out" "model gpt-5.6 is disabled"
+contains "disable reports the model" "$out" "model deepseek-ai/deepseek-v4-pro is disabled"
 check "disable adds to the exclusion list" \
-  "$(grep -c '^POST /admin/v1/excluded-models {"model":"gpt-5.6"}$' "$REQUEST_LOG")" "1"
+  "$(grep -c '^POST /admin/v1/excluded-models {"model":"deepseek-ai/deepseek-v4-pro"}$' "$REQUEST_LOG")" "1"
 
 : >"$REQUEST_LOG"
-run_models "$home" -- enable gpt-5.6 --claude
-contains "enable reports the model" "$out" "model gpt-5.6 is enabled"
+run_models "$home" -- enable deepseek-ai/deepseek-v4-pro --claude
+contains "enable reports the model" "$out" "model deepseek-ai/deepseek-v4-pro is enabled"
 check "enable removes from the exclusion list" \
-  "$(grep -c '^POST /admin/v1/excluded-models/remove {"model":"gpt-5.6"}$' "$REQUEST_LOG")" "1"
+  "$(grep -c '^POST /admin/v1/excluded-models/remove {"model":"deepseek-ai/deepseek-v4-pro"}$' "$REQUEST_LOG")" "1"
 
 # A flag may appear before, after, or between operands — the slash wrapper's
 # first call is `models --claude` (flag before any sub-verb), so a follow-up
 # `enable`/`disable` written the same way must not become "Unknown flag".
 : >"$REQUEST_LOG"
-run_models "$home" -- --claude enable gpt-5.6
+run_models "$home" -- --claude enable deepseek-ai/deepseek-v4-pro
 check "enable with the client flag before the sub-verb exits 0" "$rc" "0"
 check "enable with the client flag before the sub-verb still calls the API" \
-  "$(grep -c '^POST /admin/v1/excluded-models/remove {"model":"gpt-5.6"}$' "$REQUEST_LOG")" "1"
+  "$(grep -c '^POST /admin/v1/excluded-models/remove {"model":"deepseek-ai/deepseek-v4-pro"}$' "$REQUEST_LOG")" "1"
 
 : >"$REQUEST_LOG"
-run_models "$home" -- disable --claude gpt-5.6
+run_models "$home" -- disable --claude deepseek-ai/deepseek-v4-pro
 check "disable with the client flag between the verb and the id exits 0" "$rc" "0"
 check "disable with the client flag between the verb and the id still calls the API" \
-  "$(grep -c '^POST /admin/v1/excluded-models {"model":"gpt-5.6"}$' "$REQUEST_LOG")" "1"
+  "$(grep -c '^POST /admin/v1/excluded-models {"model":"deepseek-ai/deepseek-v4-pro"}$' "$REQUEST_LOG")" "1"
 
 : >"$REQUEST_LOG"
-run_models "$home" -- disable claude-haiku-4-5 gpt-5.6 --claude
+run_models "$home" -- disable moonshotai/kimi-k3 deepseek-ai/deepseek-v4-pro --claude
 check "disable accepts several models in one call" \
   "$(grep -c '^POST /admin/v1/excluded-models ' "$REQUEST_LOG")" "2"
 
 : >"$REQUEST_LOG"
-run_models "$home" -- providers disable openai --claude
+run_models "$home" -- providers disable aiand --claude
 check "providers disable hits the provider endpoint" \
-  "$(grep -c '^POST /admin/v1/excluded-providers {"provider":"openai"}$' "$REQUEST_LOG")" "1"
+  "$(grep -c '^POST /admin/v1/excluded-providers {"provider":"aiand"}$' "$REQUEST_LOG")" "1"
 
 : >"$REQUEST_LOG"
-run_models "$home" -- prefer claude-opus-5 gpt-5.6 --claude
+run_models "$home" -- prefer zai-org/glm-5.3 deepseek-ai/deepseek-v4-pro --claude
 check "prefer replaces the whole ranking" \
-  "$(grep -c '^PUT /admin/v1/preferred-models {"preferred":\["claude-opus-5","gpt-5.6"\]}$' "$REQUEST_LOG")" "1"
+  "$(grep -c '^PUT /admin/v1/preferred-models {"preferred":\["zai-org/glm-5.3","deepseek-ai/deepseek-v4-pro"\]}$' "$REQUEST_LOG")" "1"
 
 : >"$REQUEST_LOG"
 run_models "$home" -- prefer clear --claude
@@ -256,8 +256,8 @@ check "prefer clear empties the ranking" \
 # --json is a contract about stdout: a scripted caller parses it. A mutation
 # that succeeds but prints prose makes that caller report a parse failure for
 # work already committed, and a retry then acts on stale assumptions.
-for mutation in "disable gpt-5.6" "enable gpt-5.6" "providers disable openai" \
-                "prefer claude-opus-5" "prefer clear"; do
+for mutation in "disable deepseek-ai/deepseek-v4-pro" "enable deepseek-ai/deepseek-v4-pro" "providers disable aiand" \
+                "prefer zai-org/glm-5.3" "prefer clear"; do
   # shellcheck disable=SC2086
   run_models_stdout "$home" -- $mutation --claude --json
   check "'models $mutation --json' exits 0" "$rc" "0"
@@ -268,7 +268,7 @@ done
 # A model id the router doesn't know comes back 400; the CLI must surface the
 # router's own message rather than a bare status code, and stop.
 : >"$REQUEST_LOG"
-run_models "$home" -- disable no-such-model gpt-5.6 --claude
+run_models "$home" -- disable no-such-model deepseek-ai/deepseek-v4-pro --claude
 check "an unknown model id fails" "$rc" "1"
 contains "an unknown model id surfaces the router's message" "$out" "unknown model"
 check "an unknown model id stops before the remaining ids" \
@@ -280,7 +280,7 @@ ROUTER_MODE="managed"
 : >"$REQUEST_LOG"
 run_models "$home" -- --claude
 check "list against a router without the API still exits 0" "$rc" "0"
-contains "list falls back to the public catalog" "$out" "claude-opus-5"
+contains "list falls back to the public catalog" "$out" "zai-org/glm-5.3"
 contains "list says where model selection lives" "$out" "router.workweave.ai/dashboard/settings"
 # The catalog endpoint reports what is deployed, not what this installation
 # enabled, so the fallback must not render on/off state it cannot know.
@@ -289,7 +289,7 @@ case "$out" in
   *)               ok "the fallback claims no on/off state" ;;
 esac
 
-run_models "$home" -- disable gpt-5.6 --claude
+run_models "$home" -- disable deepseek-ai/deepseek-v4-pro --claude
 check "editing against a router without the API fails" "$rc" "1"
 contains "the failure names the dashboard" "$out" "router.workweave.ai/dashboard/settings"
 
@@ -297,7 +297,7 @@ contains "the failure names the dashboard" "$out" "router.workweave.ai/dashboard
 # same way on a 404 rather than hard-failing while listing still succeeds.
 run_models "$home" -- providers --claude
 check "providers list against a router without the API still exits 0" "$rc" "0"
-contains "providers list falls back to the public catalog" "$out" "anthropic"
+contains "providers list falls back to the public catalog" "$out" "aiand"
 contains "providers list says where selection lives" "$out" "router.workweave.ai/dashboard/settings"
 case "$out" in
   *"[x]"*|*"[ ]"*) no "the providers fallback claims no on/off state" "no checkbox markers" "$out" ;;
@@ -306,9 +306,9 @@ esac
 
 run_models_stdout "$home" -- providers --claude --json
 check "providers list --json against a router without the API emits the provider names" \
-  "$(printf '%s' "$out" | jq -c 'sort')" '["anthropic","openai"]'
+  "$(printf '%s' "$out" | jq -c 'sort')" '["aiand"]'
 
-run_models "$home" -- providers disable openai --claude
+run_models "$home" -- providers disable aiand --claude
 check "editing providers against a router without the API still fails" "$rc" "1"
 contains "the providers failure names the dashboard" "$out" "router.workweave.ai/dashboard/settings"
 

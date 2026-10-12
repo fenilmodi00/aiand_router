@@ -29,14 +29,6 @@ func BenchmarkEscalationAssembly(b *testing.B) {
 			body := escalationAnthropicToolBenchmarkBody(deltaCount)
 			benchmarkEscalationResponse(b, body, translate.EscalationResponseAnthropic, len("before")+len("after"), 4)
 		})
-		b.Run("gemini-text/"+strconv.Itoa(deltaCount), func(b *testing.B) {
-			body := escalationGeminiTextBenchmarkBody(deltaCount)
-			benchmarkEscalationResponse(b, body, translate.EscalationResponseGemini, deltaCount, 1)
-		})
-		b.Run("gemini-interleaved-tools/"+strconv.Itoa(deltaCount), func(b *testing.B) {
-			body := escalationGeminiToolBenchmarkBody(deltaCount)
-			benchmarkEscalationResponse(b, body, translate.EscalationResponseGemini, deltaCount*len("gemini-"), deltaCount*2)
-		})
 	}
 }
 
@@ -151,36 +143,6 @@ func escalationAnthropicToolBenchmarkBody(deltaCount int) []byte {
 	}
 	writeEscalationSSEFrame(&body, `{"type":"message_delta","delta":{"stop_reason":"tool_use"}}`)
 	writeEscalationSSEFrame(&body, `{"type":"message_stop"}`)
-	return []byte(body.String())
-}
-
-func escalationGeminiTextBenchmarkBody(deltaCount int) []byte {
-	var body strings.Builder
-	for i := 0; i < deltaCount; i++ {
-		body.WriteString(`data: {"candidates":[{"content":{"parts":[{"text":"x"}]}`)
-		if i == deltaCount-1 {
-			body.WriteString(`,"finishReason":"STOP"`)
-		}
-		body.WriteString(`}]}`)
-		body.WriteString("\n\n")
-	}
-	return []byte(body.String())
-}
-
-func escalationGeminiToolBenchmarkBody(deltaCount int) []byte {
-	var body strings.Builder
-	for i := 0; i < deltaCount; i++ {
-		body.WriteString(`data: {"candidates":[{"content":{"parts":[{"text":"gemini-"},{"functionCall":{"id":"call-`)
-		body.WriteString(strconv.Itoa(i))
-		body.WriteString(`","name":"run","args":{"step":`)
-		body.WriteString(strconv.Itoa(i))
-		body.WriteString(`}}}]}`)
-		if i == deltaCount-1 {
-			body.WriteString(`,"finishReason":"STOP"`)
-		}
-		body.WriteString(`}]}`)
-		body.WriteString("\n\n")
-	}
 	return []byte(body.String())
 }
 

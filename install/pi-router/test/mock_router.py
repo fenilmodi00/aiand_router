@@ -28,8 +28,8 @@ the real router does.
 Env:
   MOCK_PORT          listen port                       (default 8899)
   MOCK_LOG           request log path (JSONL)          (default ./requests.jsonl)
-  MOCK_MAIN_MODEL    x-router-model for main requests  (default claude-opus-4-8)
-  MOCK_SUBAGENT_MODEL x-router-model for subagents     (default claude-haiku-4-5)
+  MOCK_MAIN_MODEL    x-router-model for main requests  (default zai-org/glm-5.3)
+  MOCK_SUBAGENT_MODEL x-router-model for subagents     (default moonshotai/kimi-k3)
   DISPATCH_MARKER    main-loop prompt trigger          (default __DISPATCH__)
 """
 
@@ -44,8 +44,8 @@ from responses_fixture import Scenario, responses_fixture
 
 PORT = int(os.environ.get("MOCK_PORT", "8899"))
 LOG_PATH = os.environ.get("MOCK_LOG", os.path.join(os.getcwd(), "requests.jsonl"))
-MAIN_MODEL = os.environ.get("MOCK_MAIN_MODEL", "claude-opus-4-8")
-SUBAGENT_MODEL = os.environ.get("MOCK_SUBAGENT_MODEL", "claude-haiku-4-5")
+MAIN_MODEL = os.environ.get("MOCK_MAIN_MODEL", "zai-org/glm-5.3")
+SUBAGENT_MODEL = os.environ.get("MOCK_SUBAGENT_MODEL", "moonshotai/kimi-k3")
 DISPATCH_MARKER = os.environ.get("DISPATCH_MARKER", "__DISPATCH__")
 
 # The clients intentionally use different SDK base-URL conventions. Reject
@@ -73,9 +73,9 @@ _forced_models: dict[str, str] = {}
 _responses_requests: dict[str, int] = {}
 
 FORCE_MODEL_ALIASES = {
-    "haiku": "claude-haiku-4-5",
-    "opus": "claude-opus-4-8",
-    "sonnet": "claude-sonnet-4-6",
+    "haiku": "moonshotai/kimi-k3",
+    "opus": "zai-org/glm-5.3",
+    "sonnet": "zai-org/glm-5.3",
 }
 
 

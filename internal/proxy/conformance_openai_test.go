@@ -55,27 +55,33 @@ func TestConformance_OpenAIChat(t *testing.T) {
 			},
 		},
 		{
+			// Reasoning + tools is promoted to the Responses API (narrow gate
+			// bypasses the broad flag), so the tool translation this case pins
+			// happens on the Responses wire; the chat-shaped fixture and golden
+			// for that turn live under responses/toolcall_stream.
 			name:            "openai_chat/toolcall",
 			provider:        providers.ProviderAIAND,
-			model:           "deepseek-ai/deepseek-v4-pro",
+			model:           "deepseek-ai/deepseek-v4-flash",
 			newClient:       aiandClient,
-			inbound:         `{"model":"deepseek-ai/deepseek-v4-pro","stream":true,"max_tokens":1024,"tools":` + weatherTool + `,"messages":[{"role":"user","content":"Weather in NYC?"}]}`,
+			inbound:         `{"model":"deepseek-ai/deepseek-v4-flash","stream":true,"max_tokens":1024,"tools":` + weatherTool + `,"messages":[{"role":"user","content":"Weather in NYC?"}]}`,
 			stream:          true,
-			upstreamFixture: "openai_chat/toolcall.upstream.sse",
+			upstreamFixture: "responses/toolcall.upstream.sse",
 			wantUpstream: func(t *testing.T, _ string, body []byte, _ http.Header) {
-				assert.Equal(t, "get_weather", gjson.GetBytes(body, "tools.0.function.name").String(), "Anthropic tool must translate to OpenAI function shape")
+				assert.Equal(t, "get_weather", gjson.GetBytes(body, "tools.0.name").String(), "Anthropic tool must translate to the Responses tool shape")
 			},
 		},
 		{
 			// Guards #293: finish_reason="tool_calls" with no usable tool_use
 			// block must demote stop_reason to end_turn, not strand the agent.
+			// Promoted to the Responses wire (reasoning + tools), so the
+			// degenerate shape is served from the Responses fixture.
 			name:            "openai_chat/degenerate_toolcall_demotes",
 			provider:        providers.ProviderAIAND,
-			model:           "deepseek-ai/deepseek-v4-pro",
+			model:           "deepseek-ai/deepseek-v4-flash",
 			newClient:       aiandClient,
-			inbound:         `{"model":"deepseek-ai/deepseek-v4-pro","stream":true,"max_tokens":1024,"tools":` + weatherTool + `,"messages":[{"role":"user","content":"Run the tool."}]}`,
+			inbound:         `{"model":"deepseek-ai/deepseek-v4-flash","stream":true,"max_tokens":1024,"tools":` + weatherTool + `,"messages":[{"role":"user","content":"Run the tool."}]}`,
 			stream:          true,
-			upstreamFixture: "openai_chat/degenerate_toolcall.upstream.sse",
+			upstreamFixture: "responses/degenerate_toolcall.upstream.sse",
 		},
 		{
 			name:            "openai_chat/system_prompt",
@@ -92,25 +98,27 @@ func TestConformance_OpenAIChat(t *testing.T) {
 		},
 		{
 			// Unrepairable args degrade to `{}` (never raw malformed bytes)
-			// so the tool_use block stays dispatchable.
+			// so the tool_use block stays dispatchable. Promoted to the
+			// Responses wire (reasoning + tools).
 			name:            "openai_chat/invalid_toolcall_args",
 			provider:        providers.ProviderAIAND,
-			model:           "deepseek-ai/deepseek-v4-pro",
+			model:           "deepseek-ai/deepseek-v4-flash",
 			newClient:       aiandClient,
-			inbound:         `{"model":"deepseek-ai/deepseek-v4-pro","stream":true,"max_tokens":1024,"tools":` + readTool + `,"messages":[{"role":"user","content":"Read a.go"}]}`,
+			inbound:         `{"model":"deepseek-ai/deepseek-v4-flash","stream":true,"max_tokens":1024,"tools":` + readTool + `,"messages":[{"role":"user","content":"Read a.go"}]}`,
 			stream:          true,
-			upstreamFixture: "openai_chat/invalid_toolcall_args.upstream.sse",
+			upstreamFixture: "responses/invalid_toolcall_args.upstream.sse",
 		},
 		{
 			// Normalize+repair: empty-string optional dropped (#339),
 			// hallucinated param dropped, "5"-for-integer coerced.
+			// Promoted to the Responses wire (reasoning + tools).
 			name:            "openai_chat/toolcall_repaired_args",
 			provider:        providers.ProviderAIAND,
-			model:           "deepseek-ai/deepseek-v4-pro",
+			model:           "deepseek-ai/deepseek-v4-flash",
 			newClient:       aiandClient,
-			inbound:         `{"model":"deepseek-ai/deepseek-v4-pro","stream":true,"max_tokens":1024,"tools":` + readTool + `,"messages":[{"role":"user","content":"Read a.go"}]}`,
+			inbound:         `{"model":"deepseek-ai/deepseek-v4-flash","stream":true,"max_tokens":1024,"tools":` + readTool + `,"messages":[{"role":"user","content":"Read a.go"}]}`,
 			stream:          true,
-			upstreamFixture: "openai_chat/toolcall_repaired_args.upstream.sse",
+			upstreamFixture: "responses/toolcall_repaired_args.upstream.sse",
 		},
 	}
 	for _, c := range cases {

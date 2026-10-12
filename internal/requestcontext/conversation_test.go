@@ -30,8 +30,6 @@ func TestCanonicalConversationIdentityGolden(t *testing.T) {
 		{"oversized header falls through", requestcontext.ConversationResponses, map[string]string{"X-Claude-Code-Session-Id": strings.Repeat("a", 129), "Session-Id": "codex"}, `{}`, "codex"},
 		{"responses thread fallback", requestcontext.ConversationResponses, map[string]string{"Thread-Id": "thread"}, `{"input":"compacted text"}`, "thread"},
 		{"responses does not project user", requestcontext.ConversationResponses, nil, `{"user":"ignored","metadata":{"user_id":"body"}}`, "body"},
-		{"gemini header before metadata", requestcontext.ConversationGemini, map[string]string{"Session-Id": "header"}, `{"metadata":{"user_id":"body"}}`, "header"},
-		{"gemini metadata", requestcontext.ConversationGemini, nil, `{"metadata":{"user_id":"prefix_` + sessionUUID + `"}}`, sessionUUID},
 		{"no first-message fallback", requestcontext.ConversationAnthropic, nil, `{"messages":[{"role":"user","content":"hello"}]}`, ""},
 		{"opencode session", requestcontext.ConversationResponses, map[string]string{"X-OpenCode-Session": "ses_opencode"}, `{}`, "ses_opencode"},
 		{"opencode subagent binds parent", requestcontext.ConversationResponses, map[string]string{"X-OpenCode-Session": "ses_child", "X-Parent-Session-Id": "ses_parent"}, `{}`, "ses_parent"},

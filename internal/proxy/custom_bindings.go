@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"slices"
 	"sort"
 
 	"weave-os/router/internal/auth"
@@ -91,6 +92,12 @@ func customBindingsFromKeys(keys []*auth.ExternalAPIKey) map[string][]string {
 			}
 			if out == nil {
 				out = make(map[string][]string)
+			}
+			// Two keys on the same endpoint (one per installation column, say)
+			// must not enroll it twice: the rescue walk would then try an
+			// identical binding again rather than moving to a real stand-in.
+			if slices.Contains(out[m.ID], key.Provider) {
+				continue
 			}
 			out[m.ID] = append(out[m.ID], key.Provider)
 		}

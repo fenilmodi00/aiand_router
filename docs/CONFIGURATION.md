@@ -131,8 +131,8 @@ Recommended settings:
 
 Every gateway and federated-credential flow was cut with the AIand-only split,
 and the walkthroughs that documented them were removed with it. They cannot
-succeed now: `providers.RequiresBaseURL` is `false` for every registered
-provider, so `auth.UpsertExternalAPIKey` rejects `auth_type` `keypair_jwt`,
+succeed now: no registered provider declares a base-URL override, so
+`auth.UpsertExternalAPIKey` rejects `auth_type` `keypair_jwt`,
 `wif`, and `azure_entra` with a `400` ("no registered provider accepts …").
 
 - **Anthropic- and OpenAI-compatible gateways** (`anthropic_gateway`,

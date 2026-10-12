@@ -64,6 +64,9 @@ func TestProxyMessages_OverloadedModelDegradesToSameClusterCandidate(t *testing.
 	}))
 	defer anthropicUpstream.Close()
 
+	// AIand turns are promoted to POST /v1/responses (see
+	// translate.UseOpenAIResponsesAPI), so the candidate upstream must answer a
+	// Responses stream, not Chat Completions.
 	fireworks := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		mu.Lock()
@@ -74,9 +77,9 @@ func TestProxyMessages_OverloadedModelDegradesToSameClusterCandidate(t *testing.
 		w.WriteHeader(http.StatusOK)
 		flusher, _ := w.(http.Flusher)
 		for _, c := range []string{
-			`data: {"id":"fw-1","object":"chat.completion.chunk","created":1,"model":"deepseek-ai/deepseek-v4-pro","choices":[{"index":0,"delta":{"role":"assistant","content":"hi"},"finish_reason":null}]}` + "\n\n",
-			`data: {"id":"fw-1","object":"chat.completion.chunk","created":1,"model":"deepseek-ai/deepseek-v4-pro","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":5,"completion_tokens":1}}` + "\n\n",
-			"data: [DONE]\n\n",
+			`data: {"type":"response.created","response":{"id":"fw-1","status":"in_progress"}}` + "\n\n",
+			`data: {"type":"response.output_text.delta","output_index":0,"content_index":0,"delta":"hi"}` + "\n\n",
+			`data: {"type":"response.completed","response":{"id":"fw-1","status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"hi"}]}],"usage":{"input_tokens":5,"output_tokens":1}}}` + "\n\n",
 		} {
 			_, _ = w.Write([]byte(c))
 			if flusher != nil {
@@ -144,6 +147,10 @@ func newRankedRescueFixture(t *testing.T) *rankedRescueFixture {
 	}))
 	t.Cleanup(anthropicUpstream.Close)
 
+	// Responses-shaped frames: the rescue candidates are AIand models, and a
+	// promoted turn dispatches them to POST /v1/responses. A chat/completions
+	// turn without tools dispatches them on chat/completions, so the endpoint
+	// the sibling was dispatched to decides which dialect it answers in.
 	fireworks := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		model := gjson.GetBytes(body, "model").String()
@@ -158,9 +165,15 @@ func newRankedRescueFixture(t *testing.T) *rankedRescueFixture {
 		}
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
+		if strings.HasSuffix(r.URL.Path, "/responses") {
+			_, _ = io.WriteString(w, `data: {"type":"response.created","response":{"id":"fw-1","status":"in_progress"}}`+"\n\n")
+			_, _ = io.WriteString(w, `data: {"type":"response.output_text.delta","output_index":0,"content_index":0,"delta":"hi"}`+"\n\n")
+			_, _ = io.WriteString(w, `data: {"type":"response.completed","response":{"id":"fw-1","status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"hi"}]}],"usage":{"input_tokens":5,"output_tokens":1}}}`+"\n\n")
+			return
+		}
 		_, _ = io.WriteString(w, `data: {"id":"fw-1","object":"chat.completion.chunk","created":1,"model":"deepseek-ai/deepseek-v4-pro","choices":[{"index":0,"delta":{"role":"assistant","content":"hi"},"finish_reason":null}]}`+"\n\n")
-		_, _ = io.WriteString(w, `data: {"id":"fw-1","object":"chat.completion.chunk","created":1,"model":"deepseek-ai/deepseek-v4-pro","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":5,"completion_tokens":1}}`+"\n\n")
-		_, _ = io.WriteString(w, "data: [DONE]\n\n")
+		_, _ = io.WriteString(w, `data: {"id":"fw-1","object":"chat.completion.chunk","created":1,"model":"deepseek-ai/deepseek-v4-pro","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":3}}`+"\n\n")
+		_, _ = io.WriteString(w, `data: [DONE]`+"\n\n")
 	}))
 	t.Cleanup(fireworks.Close)
 
@@ -265,12 +278,12 @@ func TestProxyMessages_OverloadAfterCommitKeepsServingModel(t *testing.T) {
 		&fakeRouter{decision: siblingClusterDecision("")},
 		map[string]providers.Client{
 			providers.ProviderAnthropic: openaicompat.NewClient("test-anthropic-key", anthropicUpstream.URL),
-			providers.ProviderOpenAI:    openaicompat.NewClient("test-fw-key", fireworks.URL),
+			providers.ProviderAIAND:     openaicompat.NewClient("test-fw-key", fireworks.URL),
 		},
 		nil, false, nil, nil, false, providers.ProviderAnthropic, "zai-org/glm-5.3-flash", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
 		providers.ProviderAnthropic: {},
-		providers.ProviderOpenAI:    {},
+		providers.ProviderAIAND:     {},
 	}).WithRetrySleep(noRetrySleep)
 
 	rec := httptest.NewRecorder()

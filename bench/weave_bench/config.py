@@ -42,22 +42,9 @@ class RouterConfig:
 
 @dataclass(frozen=True)
 class ProviderConfig:
-    openai_api_key_env: str = "OPENAI_API_KEY"
-    # Atlas rubric judge (Claude Opus 4.5 via an OpenAI-compatible endpoint).
-    judge_api_key_env: str = "ANTHROPIC_API_KEY"
-    openrouter_api_key_env: str = "OPENROUTER_API_KEY"
-
-
-@dataclass(frozen=True)
-class OpenRouterTapConfig:
-    # Where the tap process listens. The tap authenticates nobody (it relays the
-    # caller's own OpenRouter key), so bind it to an interface only the sandboxes
-    # reach — Docker's default bridge gateway for local Harbor runs.
-    listen_host: str = "172.17.0.1"
-    listen_port: int = 8787
-    # ...and how sandboxes reach it; a Modal deployment substitutes its web URL.
-    public_url: str = "http://172.17.0.1:8787"
-    records_path: str = "jobs/openrouter-tap.jsonl"
+    # Atlas rubric judge key; the judge is served over any OpenAI-compatible
+    # endpoint (default: AIand), so this defaults to the AIand key.
+    judge_api_key_env: str = "AIAND_API_KEY"
 
 
 @dataclass(frozen=True)
@@ -72,12 +59,11 @@ class HarborConfig:
 class BenchConfig:
     router: RouterConfig = RouterConfig()
     providers: ProviderConfig = ProviderConfig()
-    openrouter_tap: OpenRouterTapConfig = OpenRouterTapConfig()
     harbor: HarborConfig = HarborConfig()
 
 
-Section = RouterConfig | ProviderConfig | OpenRouterTapConfig | HarborConfig
-SECTION_NAMES = ("router", "providers", "openrouter_tap", "harbor")
+Section = RouterConfig | ProviderConfig | HarborConfig
+SECTION_NAMES = ("router", "providers", "harbor")
 
 
 def _coerce(field_type: type, raw: object) -> object:
@@ -116,7 +102,6 @@ def load_config(path: Path | None, env: Mapping[str, str] = os.environ) -> Bench
     return BenchConfig(
         router=_section("router", RouterConfig, document, env),
         providers=_section("providers", ProviderConfig, document, env),
-        openrouter_tap=_section("openrouter_tap", OpenRouterTapConfig, document, env),
         harbor=_section("harbor", HarborConfig, document, env),
     )
 

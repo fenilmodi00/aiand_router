@@ -117,8 +117,12 @@ func TestHMMCommandOnlyTurnHonorsEligibilityAndPolicyPin(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "zai-org/glm-5.3-flash", decision.Model)
 
+	// A deployment whose enabled providers serve none of the deployed roster
+	// is an installation-configuration error, not a routing failure. The
+	// AIand-only roster admits exactly one provider, so the exclusion has to
+	// name a provider the deployment does not have.
 	request.ExcludedModels = nil
-	request.EnabledProviders = map[string]struct{}{providers.ProviderOpenAI: {}}
+	request.EnabledProviders = map[string]struct{}{providers.ProviderAnthropic: {}}
 	_, err = svc.routeWithStrategy(ctx, router.StrategyHMMEmbedding, request)
 	require.ErrorIs(t, err, policy.ErrNoRoutableModels)
 

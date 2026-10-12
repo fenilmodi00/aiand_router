@@ -11,8 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tidwall/gjson"
-	"github.com/tidwall/sjson"
 	"weave-os/router/internal/observability"
 	"weave-os/router/internal/providers"
 	"weave-os/router/internal/providers/httputil"
@@ -32,10 +30,6 @@ type Client struct {
 	baseURL   string
 	http      *http.Client
 	modelHTTP *http.Client
-	// modelIDMap rewrites the request body's "model" field before sending, when
-	// the router's public slug differs from the upstream's canonical ID.
-	// Nil/empty = no rewrite.
-	modelIDMap map[string]string
 	// sseIdleTimeout overrides httputil.DefaultSSEIdleTimeout when > 0; tests
 	// set it small so the output-stall watchdog fires before this one.
 	sseIdleTimeout time.Duration
@@ -76,33 +70,14 @@ func WithModelListHTTPClient(client *http.Client) Option {
 }
 
 func NewClient(apiKey, baseURL string, opts ...Option) *Client {
-	return NewClientWithModelIDMap(apiKey, baseURL, nil, opts...)
-}
-
-// NewClientWithModelIDMap builds a client that rewrites the body's top-level
-// "model" field before forwarding when the requested model has a mapping.
-// Pass nil to disable rewriting.
-func NewClientWithModelIDMap(apiKey, baseURL string, modelIDMap map[string]string, opts ...Option) *Client {
 	if baseURL == "" {
 		baseURL = AIANDBaseURL
 	}
-	return newClient(apiKey, baseURL, modelIDMap, opts...)
-}
-
-// NewGatewayClient builds a client for a customer-supplied OpenAI-spec endpoint.
-// Unlike NewClient, no default base URL is applied: an unconfigured gateway must
-// fail rather than silently dispatch the tenant's token to a default endpoint.
-func NewGatewayClient(apiKey, baseURL string, opts ...Option) *Client {
-	return newClient(apiKey, baseURL, nil, opts...)
-}
-
-func newClient(apiKey, baseURL string, modelIDMap map[string]string, opts ...Option) *Client {
 	client := &Client{
-		apiKey:     apiKey,
-		baseURL:    strings.TrimRight(baseURL, "/"),
-		http:       httputil.NewClient(httputil.NewTransport(5*time.Second, 5*time.Second)),
-		modelHTTP:  httputil.NewDefaultModelDiscoveryClient(),
-		modelIDMap: modelIDMap,
+		apiKey:    apiKey,
+		baseURL:   strings.TrimRight(baseURL, "/"),
+		http:      httputil.NewClient(httputil.NewTransport(5*time.Second, 5*time.Second)),
+		modelHTTP: httputil.NewDefaultModelDiscoveryClient(),
 	}
 	for _, opt := range opts {
 		opt(client)
@@ -197,42 +172,9 @@ func NewClientWithThroughputGuard(apiKey, baseURL string, window, minElapsed tim
 	return c
 }
 
-// rewriteModelField rewrites the body's top-level "model" field according to
-// modelIDMap. Returns the input unchanged when the map is empty, the body
-// isn't a JSON object, or the model isn't mapped.
-func rewriteModelField(body []byte, modelIDMap map[string]string) []byte {
-	if len(modelIDMap) == 0 || len(body) == 0 {
-		return body
-	}
-	model := gjson.GetBytes(body, "model").String()
-	upstream, ok := modelIDMap[model]
-	if !ok {
-		return body
-	}
-	out, err := sjson.SetBytes(body, "model", upstream)
-	if err != nil {
-		return body
-	}
-	return out
-}
-
-func stripSnowflakeCortexUnsupportedResponsesFields(body []byte, baseURL string, endpoint providers.Endpoint) []byte {
-	if endpoint != providers.EndpointResponses || !providers.IsSnowflakeCortexBaseURL(baseURL) {
-		return body
-	}
-	out, err := sjson.DeleteBytes(body, "reasoning.summary")
-	if err != nil {
-		return body
-	}
-	return out
-}
-
-// effectiveBaseURL resolves this request's base URL, folding an Azure resource
-// endpoint onto /openai/v1 and a Snowflake Cortex REST root onto
-// /api/v2/cortex/v1 — the OpenAI-spec surfaces they actually serve.
+// effectiveBaseURL resolves this request's base URL.
 func (c *Client) effectiveBaseURL(ctx context.Context) string {
-	base := providers.NormalizeAzureOpenAIBaseURL(requestcontext.EffectiveBaseURL(ctx, c.baseURL))
-	return providers.NormalizeSnowflakeCortexOpenAIBaseURL(base)
+	return requestcontext.EffectiveBaseURL(ctx, c.baseURL)
 }
 
 // setAuth sets the Authorization header, preferring BYOK credentials over the deployment-level key.
@@ -250,16 +192,13 @@ func (c *Client) Proxy(ctx context.Context, decision router.Decision, prep provi
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
 
-	body := rewriteModelField(prep.Body, c.modelIDMap)
-	// Applied after the catalog map so a BYOK endpoint's own naming wins.
-	body = requestcontext.ApplyModelAlias(ctx, body, decision.Model)
+	// Applied so a BYOK endpoint's own model naming wins.
+	body := requestcontext.ApplyModelAlias(ctx, prep.Body, decision.Model)
 	baseURL := c.effectiveBaseURL(ctx)
-	body = stripSnowflakeCortexUnsupportedResponsesFields(body, baseURL, prep.Endpoint)
 
 	// EndpointResponses is the Responses surface: reasoning models reject a tool
-	// turn on chat/completions, and gateways that mount /v1/responses (Snowflake
-	// Cortex) serve it there. The proxy re-emits onto chat/completions when the
-	// gateway answers that it has no such surface.
+	// turn on chat/completions. The proxy re-emits onto chat/completions when
+	// the upstream answers that it has no such surface.
 	suffix := "/chat/completions"
 	if prep.Endpoint == providers.EndpointResponses {
 		suffix = "/responses"

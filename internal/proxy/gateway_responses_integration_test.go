@@ -56,12 +56,12 @@ const anthropicToollessTurn = `{"model":"motif-technologies/motif-3","stream":tr
 func directOpenAIService(t *testing.T, baseURL string, broad bool) *proxy.Service {
 	t.Helper()
 	return proxy.NewService(
-		&fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "motif-technologies/motif-3"}},
+		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "motif-technologies/motif-3"}},
 		map[string]providers.Client{
-			providers.ProviderOpenAI: openaicompat.NewClient("test-key", baseURL+"/v1"),
+			providers.ProviderAIAND: openaicompat.NewClient("test-key", baseURL+"/v1"),
 		},
 		nil, false, nil, nil, false, providers.ProviderAnthropic, "zai-org/glm-5.3-flash", nil,
-	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderOpenAI: {}}).
+	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}}).
 		WithOpenAIResponsesBroad(broad)
 }
 

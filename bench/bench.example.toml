@@ -17,20 +17,9 @@ analytics_base_url = ""
 analytics_key_env = "WEAVE_ANALYTICS_KEY"
 
 [providers]
-openai_api_key_env = "OPENAI_API_KEY"          # direct `sol` / `luna` / `astra` arms
-judge_api_key_env = "ANTHROPIC_API_KEY"        # SWE-Atlas rubric judge (Claude Opus 4.5)
-openrouter_api_key_env = "OPENROUTER_API_KEY"  # `openrouter*` arms via the tap
-
-[openrouter_tap]
-# The tap relays whatever OpenRouter key the caller presents and authenticates
-# nobody itself: bind it to an interface only the sandboxes can reach (Docker's
-# default bridge gateway), never to a public address.
-listen_host = "172.17.0.1"
-listen_port = 8787
-# How Codex inside the sandbox reaches the tap. Docker's default bridge gateway
-# for local runs; a Modal deployment substitutes its public web URL.
-public_url = "http://172.17.0.1:8787"
-records_path = "jobs/openrouter-tap.jsonl"
+# SWE-Atlas rubric judge, served over the AIand-compatible endpoint
+# (judge model/base URL are pinned in weave_bench/benchmarks.py).
+judge_api_key_env = "AIAND_API_KEY"
 
 [harbor]
 environment = "docker"                    # or "modal" once the docker path is verified

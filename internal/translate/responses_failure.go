@@ -14,6 +14,10 @@ import (
 // in-stream failure for a prompt larger than the model's window.
 const responsesContextOverflowCode = "context_length_exceeded"
 
+// responsesInvalidRequestType is the OpenAI error type carried by an in-stream
+// rejection the client caused — a cyber-policy refusal, a rejected parameter.
+const responsesInvalidRequestType = "invalid_request_error"
+
 // responsesErrorEventFailure extracts the type/message of a Responses `error`
 // event. OpenAI nests them under "error" (code, then type); the flat
 // top-level shape is read as a fallback.
@@ -68,9 +72,12 @@ func responsesSSEFailure(b []byte) (errType, msg string, found bool) {
 // responsesFailureStatus is the HTTP status a Responses failure reports to
 // dispatch. OpenAI rejects an over-window prompt inside an HTTP 200 stream, so
 // that failure reports 400 to classify as a context overflow like any other
-// provider's rejection; every other failure is an upstream fault.
+// provider's rejection. An invalid_request_event — a classifier refusal, a
+// rejected parameter — is the client's own fault and likewise reports 400, so
+// dispatch stops instead of retrying a fault it cannot fix; every other
+// failure is an upstream fault and stays a retryable 502.
 func responsesFailureStatus(errType string) int {
-	if errType == responsesContextOverflowCode {
+	if errType == responsesContextOverflowCode || errType == responsesInvalidRequestType {
 		return http.StatusBadRequest
 	}
 	return http.StatusBadGateway

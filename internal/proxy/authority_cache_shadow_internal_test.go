@@ -370,7 +370,7 @@ func TestCandidateScoreFor(t *testing.T) {
 		})
 		dec.Metadata.CandidateArmProviders = map[string]string{
 			"anthropic/" + shadowPinnedModel: providers.ProviderAnthropic,
-			"openai/" + shadowPinnedModel:    providers.ProviderOpenAI,
+			"openai/" + shadowPinnedModel:    providers.ProviderAIAND,
 		}
 		got := candidateScoreForWithProvider(dec, shadowPinnedModel, providers.ProviderAnthropic)
 		require.NotNil(t, got)

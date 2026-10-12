@@ -180,33 +180,6 @@ func (e *RequestEnvelope) EscalationObservation() (EscalationObservation, error)
 			}
 			observation.Messages = append(observation.Messages, EscalationMessage{Role: role, Blocks: blocks, HasOmittedMedia: hasOmittedMedia})
 		}
-	case FormatGemini:
-		system := root.Get("systemInstruction")
-		if !system.Exists() {
-			system = root.Get("system_instruction")
-		}
-		if system.Exists() {
-			blocks, hasOmittedMedia, err := escalationGeminiBlocks(system.Get("parts"))
-			if err != nil {
-				return observation, err
-			}
-			observation.Messages = append(observation.Messages, EscalationMessage{Role: EscalationRoleSystem, Blocks: blocks, HasOmittedMedia: hasOmittedMedia})
-		}
-		for _, message := range root.Get("contents").Array() {
-			roleName := message.Get("role").String()
-			if roleName == "" {
-				roleName = string(EscalationRoleUser)
-			}
-			role, err := escalationSemanticRole(roleName)
-			if err != nil {
-				return observation, err
-			}
-			blocks, hasOmittedMedia, err := escalationGeminiBlocks(message.Get("parts"))
-			if err != nil {
-				return observation, err
-			}
-			observation.Messages = append(observation.Messages, EscalationMessage{Role: role, Blocks: blocks, HasOmittedMedia: hasOmittedMedia})
-		}
 	default:
 		return observation, fmt.Errorf("unsupported escalation request format %d", e.format)
 	}
@@ -374,56 +347,6 @@ func escalationContentBlocks(content gjson.Result) ([]EscalationBlock, bool, err
 		default:
 			return nil, false, fmt.Errorf("unsupported observation content block %q", kind)
 		}
-	}
-	return blocks, hasOmittedMedia, nil
-}
-
-func escalationGeminiBlocks(parts gjson.Result) ([]EscalationBlock, bool, error) {
-	blocks := make([]EscalationBlock, 0)
-	hasOmittedMedia := false
-	for _, part := range parts.Array() {
-		if part.Get("thought").Bool() {
-			continue
-		}
-		if part.Get("text").Exists() {
-			blocks = append(blocks, EscalationBlock{Type: EscalationBlockText, Text: part.Get("text").String()})
-			continue
-		}
-		call := part.Get("functionCall")
-		if !call.Exists() {
-			call = part.Get("function_call")
-		}
-		if call.Exists() {
-			if !escalationNamedTool(call) {
-				return nil, false, fmt.Errorf("invalid Gemini function call")
-			}
-			arguments := call.Get("args")
-			if !arguments.Exists() {
-				arguments = call.Get("arguments")
-			}
-			blocks = append(blocks, EscalationBlock{Type: EscalationBlockToolCall, ID: call.Get("id").String(), Name: call.Get("name").String(), ArgumentsJSON: escalationJSON(arguments)})
-			continue
-		}
-		response := part.Get("functionResponse")
-		if !response.Exists() {
-			response = part.Get("function_response")
-		}
-		if response.Exists() {
-			if !escalationNamedTool(response) {
-				return nil, false, fmt.Errorf("invalid Gemini function response")
-			}
-			isError := escalationErrorFlag(response)
-			if isError == nil {
-				isError = escalationErrorFlag(response.Get("response"))
-			}
-			blocks = append(blocks, EscalationBlock{Type: EscalationBlockToolResult, CallID: response.Get("id").String(), Name: response.Get("name").String(), ContentJSON: escalationJSON(response.Get("response")), IsError: isError})
-			continue
-		}
-		if part.Get("inlineData").Exists() || part.Get("inline_data").Exists() || part.Get("fileData").Exists() || part.Get("file_data").Exists() {
-			hasOmittedMedia = true
-			continue
-		}
-		return nil, false, fmt.Errorf("unsupported Gemini observation part")
 	}
 	return blocks, hasOmittedMedia, nil
 }

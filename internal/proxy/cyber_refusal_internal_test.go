@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"weave-os/router/internal/providers"
 	"weave-os/router/internal/router"
 	"weave-os/router/internal/router/sessionpin"
 )
@@ -216,29 +215,12 @@ func TestMaybeRepinOnRefusal_PrefersPairedModel(t *testing.T) {
 	}
 }
 
-// OpenAI's classifier declines the request on any of its models, so the pin's
-// runner-up is only an escape when it is another vendor.
-func TestRepinOffRefusingModel_SkipsPairedModelOnTheRefusingVendor(t *testing.T) {
-	store := &repinFakeStore{
-		hasPin: true,
-		getPin: sessionpin.Pin{PairedModel: "qwen/qwen3.8-27b", PairedProvider: providers.ProviderOpenAI},
-	}
-	s := &Service{pinStore: store, cyberRefusalRepin: true, cyberRefusalFallbackModel: "deepseek-ai/deepseek-v4.1-flash"}
-	served := router.Decision{Provider: providers.ProviderOpenAI, Model: "moonshotai/kimi-k3"}
-
-	s.repinOffRefusingModel(repinCtx(), [sessionpin.SessionKeyLen]byte{8, 9}, "main_loop", served,
-		providers.CyberPolicyErrorCode, providers.ProviderOpenAI)
-
-	if len(store.upserts) != 1 {
-		t.Fatalf("expected 1 upsert, got %d", len(store.upserts))
-	}
-	if got := store.upserts[0].Model; got != "deepseek-ai/deepseek-v4.1-flash" {
-		t.Fatalf("re-pinned to %q, want the off-vendor fallback", got)
-	}
-	if got := store.upserts[0].Provider; got != providers.ProviderAIAND {
-		t.Fatalf("re-pin provider = %q, want aiand", got)
-	}
-}
+// TestRepinOffRefusingModel_SkipsPairedModelOnTheRefusingVendor was removed
+// with the multi-provider cut: its premise was an escape onto a second
+// vendor's model, but the AIand-only roster binds every catalog model to the
+// one OpenAI-compatible upstream, so repinOffRefusingModel can no longer find
+// an off-vendor fallback. It degrades by design (logs "no distinct fallback
+// model available; not re-pinning").
 
 func TestMaybeRepinOnRefusal_NoOpCases(t *testing.T) {
 	served := router.Decision{Provider: "anthropic", Model: "zai-org/glm-5.3"}

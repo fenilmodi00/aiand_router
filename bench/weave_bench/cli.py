@@ -4,9 +4,8 @@ Subcommands::
 
   weave-bench probe                          # router version / roster / /beta ack
   weave-bench fetch atlas
-  weave-bench tap serve                      # OpenRouter recording tap
   weave-bench run <benchmark> [--arms a,b] [--smoke|--tasks ...] [--dry-run]
-  weave-bench report <benchmark> <run-id> [--no-analytics] [--tap-records PATH]
+  weave-bench report <benchmark> <run-id> [--no-analytics]
 
 No subcommand spends money unless it is ``run`` without ``--dry-run``.
 """
@@ -23,7 +22,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from weave_bench.analytics import AnalyticsUnavailable, DecisionRow, fetch_rows, write_ndjson
-from weave_bench.arms import ArmSpec, parse_arms
+from weave_bench.arms import DEFAULT_ARMS, ArmSpec, parse_arms
 from weave_bench.benchmarks import PINS, Benchmark
 from weave_bench.config import BenchConfig, load_config, require_secret
 from weave_bench.fetch import fetch_atlas
@@ -31,7 +30,7 @@ from weave_bench.harbor_command import job_name
 from weave_bench.launch import LaunchPlan, plan, render_dry_run, run_job
 from weave_bench.markdown import render_markdown
 from weave_bench.probe import probe_router
-from weave_bench.report import build_report, load_tap_rows
+from weave_bench.report import build_report
 from weave_bench.trials import TrialRecord, load_job
 
 DEFAULT_RUN_ID_FORMAT = "%Y%m%d-%H%M%S"
@@ -41,7 +40,6 @@ RUN_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 ANALYTICS_WINDOW_PAD = timedelta(minutes=5)
 ANALYTICS_CACHE_STAMP = "%Y%m%dT%H%M%S"
 REPORT_DIRNAME = "reports"
-TAP_MODULE = "weave_bench.tap.app"
 
 
 def _default_run_id(benchmark: Benchmark) -> str:
@@ -82,20 +80,6 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     config = _load(args)
     print(fetch_atlas(Path(config.harbor.atlas_checkout_dir)))
     return 0
-
-
-def cmd_tap_serve(args: argparse.Namespace) -> int:
-    """Runs the tap as a child interpreter so the ``tap`` extra is only needed here."""
-    tap = _load(args).openrouter_tap
-    command = [
-        sys.executable,
-        "-m",
-        TAP_MODULE,
-        f"--records={tap.records_path}",
-        f"--host={tap.listen_host}",
-        f"--port={tap.listen_port}",
-    ]
-    return subprocess.call(command)
 
 
 def _plan_from_args(args: argparse.Namespace, config: BenchConfig) -> LaunchPlan:
@@ -196,14 +180,12 @@ def cmd_report(args: argparse.Namespace) -> int:
         analytics_rows = _read_ndjson(args.analytics_ndjson)
     else:
         analytics_rows = _analytics_rows(config, trials_by_arm, report_dir)
-    tap_records = args.tap_records or Path(config.openrouter_tap.records_path)
     report = build_report(
         benchmark=str(benchmark),
         run_id=args.run_id,
         trials_by_arm=trials_by_arm,
         k=args.k or PINS[benchmark].n_attempts,
         analytics_rows=analytics_rows,
-        tap_rows=load_tap_rows(tap_records),
     )
     markdown = render_markdown(report)
     (report_dir / "report.md").write_text(markdown)
@@ -228,16 +210,10 @@ def build_parser() -> argparse.ArgumentParser:
     fetch.add_argument("source", choices=("atlas",))
     fetch.set_defaults(func=cmd_fetch)
 
-    tap = subparsers.add_parser("tap", help="OpenRouter recording tap")
-    tap_sub = tap.add_subparsers(dest="tap_command", required=True)
-    tap_serve = tap_sub.add_parser("serve")
-    _add_common(tap_serve)
-    tap_serve.set_defaults(func=cmd_tap_serve)
-
     run = subparsers.add_parser("run", help="launch Harbor jobs for every arm (or print them with --dry-run)")
     _add_common(run)
     run.add_argument("benchmark", choices=[b.value for b in Benchmark])
-    run.add_argument("--arms", default="", help="comma-separated arm names (default: router,sol)")
+    run.add_argument("--arms", default="", help=f"comma-separated arm names (default: {','.join(DEFAULT_ARMS)})")
     run.add_argument("--run-id", type=run_id_arg, default=None)
     run.add_argument("--smoke", action="store_true", help="the pinned <=3-task smoke subset")
     run.add_argument("--tasks", nargs="*", default=None, help="explicit Harbor task names")
@@ -255,7 +231,6 @@ def build_parser() -> argparse.ArgumentParser:
     report.add_argument("--k", type=int, default=None, help="pass@k (default: the benchmark's n_attempts)")
     report.add_argument("--no-analytics", action="store_true", help="skip the router analytics export")
     report.add_argument("--analytics-ndjson", type=Path, default=None, help="replay a saved export instead of fetching")
-    report.add_argument("--tap-records", type=Path, default=None)
     report.set_defaults(func=cmd_report)
 
     return parser

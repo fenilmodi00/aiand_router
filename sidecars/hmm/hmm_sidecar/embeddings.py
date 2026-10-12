@@ -23,58 +23,6 @@ class Embedder(Protocol):
     async def embed(self, texts: list[str]) -> list[list[float]]: ...
 
 
-def _google_model_name(model: str) -> str:
-    configured = os.environ.get("HMM_EMBEDDING_MODEL", model)
-    return configured.removeprefix("google/").removeprefix("models/")
-
-
-class GoogleEmbedder:
-    def __init__(self, contract: EmbeddingContract) -> None:
-        self.contract = contract
-        self.api_key = (
-            os.environ.get("GOOGLE_API_KEY", "").strip()
-            or os.environ.get("GEMINI_API_KEY", "").strip()
-        )
-        if not self.api_key:
-            raise EmbeddingError("GOOGLE_API_KEY or GEMINI_API_KEY is required")
-        self.base_url = os.environ.get(
-            "HMM_GOOGLE_EMBEDDING_BASE_URL",
-            "https://generativelanguage.googleapis.com/v1beta",
-        ).rstrip("/")
-
-    async def embed(self, texts: list[str]) -> list[list[float]]:
-        model = _google_model_name(self.contract.model)
-        requests = []
-        for text in texts:
-            request: dict[str, object] = {
-                "model": f"models/{model}",
-                "content": {"parts": [{"text": text}]},
-                "outputDimensionality": self.contract.dimensions,
-            }
-            if self.contract.task_type:
-                request["taskType"] = self.contract.task_type
-            requests.append(request)
-        url = f"{self.base_url}/models/{model}:batchEmbedContents"
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                url,
-                params={"key": self.api_key},
-                json={"requests": requests},
-            )
-            if response.is_error:
-                raise EmbeddingError(
-                    f"Google embedding request failed with status {response.status_code}"
-                )
-            payload = response.json()
-        embeddings = payload.get("embeddings") if isinstance(payload, dict) else None
-        if not isinstance(embeddings, list):
-            raise EmbeddingError("Google embedding response lacks embeddings")
-        return [
-            list(item.get("values") or []) if isinstance(item, dict) else []
-            for item in embeddings
-        ]
-
-
 class OpenAICompatibleEmbedder:
     def __init__(self, contract: EmbeddingContract) -> None:
         self.contract = contract
@@ -111,14 +59,12 @@ class OpenAICompatibleEmbedder:
 
 
 def build_embedder(contract: EmbeddingContract) -> Embedder:
-    provider = os.environ.get("HMM_EMBEDDING_PROVIDER", "google").strip().lower()
-    if provider == "google":
-        return GoogleEmbedder(contract)
+    provider = (
+        os.environ.get("HMM_EMBEDDING_PROVIDER", "openai-compatible").strip().lower()
+    )
     if provider == "openai-compatible":
         return OpenAICompatibleEmbedder(contract)
-    raise EmbeddingError(
-        "HMM_EMBEDDING_PROVIDER must be 'google' or 'openai-compatible'"
-    )
+    raise EmbeddingError("HMM_EMBEDDING_PROVIDER must be 'openai-compatible'")
 
 
 def validate_vectors(

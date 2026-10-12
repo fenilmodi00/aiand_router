@@ -107,7 +107,7 @@ func assertServedByPin(t *testing.T, r response) {
 
 // assertServedByModel is assertServedByPin generalized to an arbitrary
 // model/provider pair, for scenarios that pin something other than the
-// suite-wide default (e.g. a gpt-5.x model on the direct OpenAI provider).
+// suite-wide default.
 func assertServedByModel(t *testing.T, r response, wantModel, wantProvider string) {
 	t.Helper()
 	gotModel := r.headers.Get(headerRouterModel)

@@ -657,19 +657,6 @@ func TestExtractForceModelCommand_NoUserMessage(t *testing.T) {
 	assert.False(t, found)
 }
 
-func TestExtractForceModelCommand_GeminiFormatIgnored(t *testing.T) {
-	body := mustMarshalJSON(t, map[string]any{
-		"contents": []any{
-			map[string]any{"role": "user", "parts": []any{map[string]any{"text": "/force-model gpt-5"}}},
-		},
-	})
-	env, err := translate.ParseGemini(body)
-	require.NoError(t, err)
-
-	_, found := env.ExtractForceModelCommand()
-	assert.False(t, found, "Gemini format should not be scanned for force-model commands")
-}
-
 // buildAnthropicBody creates a minimal Anthropic Messages request with text as
 // the sole user message content.
 func buildAnthropicBody(t *testing.T, text string) []byte {

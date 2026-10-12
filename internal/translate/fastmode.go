@@ -16,10 +16,10 @@ const fastModeBeta = "fast-mode-2026-02-01"
 const openAIPriorityServiceTier = "priority"
 
 // ApplyOpenAIFastMode sets service_tier:"priority" on a body bound for
-// first-party OpenAI when opts.FastMode is on. Gateways relay whatever tier
+// the AIand surface when opts.FastMode is on. Gateways relay whatever tier
 // their own account is on and may reject the field, so they are left alone.
 func ApplyOpenAIFastMode(body []byte, opts EmitOptions) ([]byte, error) {
-	if !opts.FastMode || opts.TargetProvider != providers.ProviderOpenAI {
+	if !opts.FastMode || opts.TargetProvider != providers.ProviderAIAND {
 		return body, nil
 	}
 	out, err := sjson.SetBytes(body, "service_tier", openAIPriorityServiceTier)

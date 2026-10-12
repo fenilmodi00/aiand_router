@@ -100,17 +100,3 @@ func TestTranslationRequirements_DetectsOpenAIMediaAndSearch(t *testing.T) {
 	assert.True(t, req.CitationsOrSearch)
 	assert.True(t, req.StructuredOutput)
 }
-
-func TestTranslationRequirements_DetectsGeminiAudioAndFiles(t *testing.T) {
-	env, err := ParseGemini([]byte(`{
-        "contents":[{"role":"user","parts":[
-          {"inlineData":{"mimeType":"audio/wav","data":"AA=="}},
-          {"fileData":{"mimeType":"application/pdf","fileUri":"gs://bucket/doc.pdf"}}
-        ]}]
-    }`))
-	require.NoError(t, err)
-
-	req := env.TranslationRequirements(router.EndpointGeminiGenerate)
-	assert.True(t, req.Audio)
-	assert.True(t, req.Files)
-}

@@ -19,7 +19,7 @@ type codexTitleRouter struct {
 
 func (r *codexTitleRouter) Route(context.Context, router.Request) (router.Decision, error) {
 	r.routeCalls++
-	return router.Decision{Provider: providers.ProviderOpenAI, Model: "moonshotai/kimi-k3", Reason: "scored"}, nil
+	return router.Decision{Provider: providers.ProviderAIAND, Model: "moonshotai/kimi-k3", Reason: "scored"}, nil
 }
 
 type codexTitleProvider struct {
@@ -42,9 +42,9 @@ func TestCodexResponsesTitleGenerationHardPinsWithoutScoring(t *testing.T) {
 	provider := &codexTitleProvider{}
 	svc := NewService(
 		routerSpy,
-		map[string]providers.Client{providers.ProviderOpenAI: provider},
+		map[string]providers.Client{providers.ProviderAIAND: provider},
 		nil, false, nil, nil, false,
-		providers.ProviderOpenAI, "zai-org/glm-5.3-flash", nil,
+		providers.ProviderAIAND, "zai-org/glm-5.3-flash", nil,
 	)
 	body := []byte(`{
 		"model":"moonshotai/kimi-k3",
@@ -73,9 +73,9 @@ func TestCodexResponsesTitlePromptHardPinsWithoutScoring(t *testing.T) {
 	provider := &codexTitleProvider{}
 	svc := NewService(
 		routerSpy,
-		map[string]providers.Client{providers.ProviderOpenAI: provider},
+		map[string]providers.Client{providers.ProviderAIAND: provider},
 		nil, false, nil, nil, false,
-		providers.ProviderOpenAI, "zai-org/glm-5.3-flash", nil,
+		providers.ProviderAIAND, "zai-org/glm-5.3-flash", nil,
 	)
 	body := []byte(`{
 		"model":"moonshotai/kimi-k3",
@@ -104,9 +104,9 @@ func TestCodexResponsesTitlePromptAfterHarnessContextHardPins(t *testing.T) {
 	provider := &codexTitleProvider{}
 	svc := NewService(
 		routerSpy,
-		map[string]providers.Client{providers.ProviderOpenAI: provider},
+		map[string]providers.Client{providers.ProviderAIAND: provider},
 		nil, false, nil, nil, false,
-		providers.ProviderOpenAI, "zai-org/glm-5.3-flash", nil,
+		providers.ProviderAIAND, "zai-org/glm-5.3-flash", nil,
 	)
 	body := []byte(`{
 		"model":"moonshotai/kimi-k3",
@@ -135,9 +135,9 @@ func TestCodexResponsesTitlePromptWithAssistantHistoryUsesScorer(t *testing.T) {
 	provider := &codexTitleProvider{}
 	svc := NewService(
 		routerSpy,
-		map[string]providers.Client{providers.ProviderOpenAI: provider},
+		map[string]providers.Client{providers.ProviderAIAND: provider},
 		nil, false, nil, nil, false,
-		providers.ProviderOpenAI, "zai-org/glm-5.3-flash", nil,
+		providers.ProviderAIAND, "zai-org/glm-5.3-flash", nil,
 	)
 	body := []byte(`{
 		"model":"moonshotai/kimi-k3",
@@ -163,9 +163,9 @@ func TestResponsesTitlePromptWithoutCodexIdentityUsesScorer(t *testing.T) {
 	provider := &codexTitleProvider{}
 	svc := NewService(
 		routerSpy,
-		map[string]providers.Client{providers.ProviderOpenAI: provider},
+		map[string]providers.Client{providers.ProviderAIAND: provider},
 		nil, false, nil, nil, false,
-		providers.ProviderOpenAI, "zai-org/glm-5.3-flash", nil,
+		providers.ProviderAIAND, "zai-org/glm-5.3-flash", nil,
 	)
 	body := []byte(`{
 		"model":"moonshotai/kimi-k3",

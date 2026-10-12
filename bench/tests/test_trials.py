@@ -17,7 +17,7 @@ def test_attempts_are_assigned_chronologically_per_task(tmp_path: Path, write_tr
     write_trial(job, task="t1", trial_name="t1__aaa", reward=0.0, started_at=T0 + timedelta(minutes=1))
     write_trial(job, task="t2", trial_name="t2__mmm", reward=1.0, started_at=T0 + timedelta(minutes=2))
     (job / "not-a-trial").mkdir()
-    records = load_job(ARMS["sol"], job)
+    records = load_job(ARMS["router"], job)
     assert [(r.task, r.trial_name, r.attempt) for r in records] == [
         ("t1", "t1__zzz", 1),
         ("t1", "t1__aaa", 2),
@@ -59,10 +59,10 @@ def test_session_falls_back_to_thread_started_event(tmp_path: Path, write_trial:
     assert record.passed is False
 
 
-def test_direct_arm_has_no_beta_verdict(tmp_path: Path, write_trial: TrialWriter) -> None:
+def test_force_arm_has_no_beta_verdict(tmp_path: Path, write_trial: TrialWriter) -> None:
     job = tmp_path / "job"
     write_trial(job, task="t1", trial_name="t1__abc", reward=1.0, beta_output="Beta enabled")
-    (record,) = load_job(ARMS["sol"], job)
+    (record,) = load_job(ARMS["router-glm"], job)
     assert record.beta_acknowledged is None
 
 
@@ -108,7 +108,7 @@ def test_error_categories(tmp_path: Path, write_trial: TrialWriter) -> None:
         exception={"exception_type": "RuntimeError", "exception_message": "boom"},
     )
     write_trial(job, task="fine", trial_name="fine__1", reward=1.0)
-    by_task = {r.task: r for r in load_job(ARMS["sol"], job)}
+    by_task = {r.task: r for r in load_job(ARMS["router"], job)}
     assert by_task["setup"].error_category is ErrorCategory.ENVIRONMENT_SETUP
     assert by_task["killed"].error_category is ErrorCategory.AGENT_KILLED
     assert by_task["refused"].error_category is ErrorCategory.CYBER_REFUSAL

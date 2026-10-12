@@ -9,7 +9,7 @@ from weave_bench.agent.beta_turn import beta_acknowledged, is_fresh_exec, with_b
 HARBOR_COMMAND = (
     "if [ -s ~/.nvm/nvm.sh ]; then . ~/.nvm/nvm.sh; fi; "
     "codex exec --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check "
-    "--model gpt-5.6-sol --json --enable unified_exec -- "
+    "--model zai-org/glm-5.3 --json --enable unified_exec -- "
     "'Please resume -- the task' 2>&1 </dev/null | tee /logs/agent/codex.txt"
 )
 
@@ -24,7 +24,7 @@ def test_beta_turn_precedes_a_native_resume_with_the_same_flags() -> None:
     beta_turn, task_turn = with_beta_turn(HARBOR_COMMAND, "/logs/agent/codex-beta.txt").split("\n")
     assert beta_turn.startswith("if [ -s ~/.nvm/nvm.sh ]; then . ~/.nvm/nvm.sh; fi; codex exec --dangerously")
     assert beta_turn.endswith(f"-- {shlex.quote('/beta')} 2>&1 </dev/null | tee /logs/agent/codex-beta.txt")
-    assert "--model gpt-5.6-sol --json --enable unified_exec" in beta_turn
+    assert "--model zai-org/glm-5.3 --json --enable unified_exec" in beta_turn
     assert task_turn.startswith(
         "if [ -s ~/.nvm/nvm.sh ]; then . ~/.nvm/nvm.sh; fi; codex exec resume --last --dangerously"
     )

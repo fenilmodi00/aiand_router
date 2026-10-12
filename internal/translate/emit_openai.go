@@ -20,6 +20,22 @@ import (
 // call_id) — longer ids get a 400 ("string too long").
 const maxToolCallIDLen = 64
 
+func generateToolCallID() string {
+	return "call_" + randomHex(4)
+}
+
+// clampToModelOutputCap caps v to the model's max output token limit.
+func clampToModelOutputCap(v int64, model string) int64 {
+	outputCap := modelMaxOutputTokens[model]
+	if outputCap == 0 {
+		outputCap = defaultMaxOutputTokenCap
+	}
+	if v > int64(outputCap) {
+		return int64(outputCap)
+	}
+	return v
+}
+
 // resolveReasoningEffortFor returns the effort to write on chat/completions:
 // ForceEffort wins over ForceReasoningEffort; both empty → "".
 func resolveReasoningEffortFor(opts EmitOptions) string {
@@ -44,7 +60,7 @@ func reasoningEffortAcceptedOnChatCompletions(opts EmitOptions, hasTools bool) b
 // gpt-5.6 applies its own effort when the field is absent; /v1/responses
 // dispatch is what preserves reasoning. Gateways excluded: proxy downgrades them.
 func toolTurnNeedsExplicitEffortNone(opts EmitOptions, hasTools bool) bool {
-	return hasTools && opts.TargetProvider == providers.ProviderOpenAI &&
+	return hasTools && opts.TargetProvider == providers.ProviderAIAND &&
 		strings.HasPrefix(opts.TargetModel, "gpt-5.6")
 }
 
@@ -142,7 +158,7 @@ func (e *RequestEnvelope) PrepareOpenAI(in http.Header, opts EmitOptions) (provi
 // leaving prefix-less requests unhinted. Without this, an Anthropic→OpenAI
 // route re-bills the full prefix every turn (NULL cache_read in prod).
 func applySessionAffinity(body []byte, headers http.Header, opts EmitOptions) ([]byte, error) {
-	if opts.TargetProvider == providers.ProviderOpenAI {
+	if opts.TargetProvider == providers.ProviderAIAND {
 		if opts.StripPromptCacheKey {
 			// The endpoint rejects the field as unknown; a caller-supplied key
 			// would 400 identically, so it is dropped too.

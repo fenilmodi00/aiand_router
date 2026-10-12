@@ -19,12 +19,13 @@ import (
 
 const recoveryOpusModel = "moonshotai/kimi-k3"
 
-// recoverySiblingStream is a complete OpenAI-chat-shaped success stream for
-// the rescuing sibling arm: the AIAND upstream is OpenAI-compatible, so a
-// translated Anthropic turn reads it back as chat frames.
-const recoverySiblingStream = `data: {"id":"c1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":"ok"},"finish_reason":null}]}` + "\n\n" +
-	`data: {"id":"c1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":5,"completion_tokens":1}}` + "\n\n" +
-	"data: [DONE]\n\n"
+// recoverySiblingStream is a complete Responses-shaped success stream for the
+// rescuing sibling arm: every roster row is AIand-only, so an Anthropic turn
+// landing on AIand dispatches on /v1/responses and the translator reads it
+// back from Responses frames.
+const recoverySiblingStream = "data: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_1\",\"status\":\"in_progress\"}}\n\n" +
+	"data: {\"type\":\"response.output_text.delta\",\"output_index\":0,\"content_index\":0,\"delta\":\"ok\"}\n\n" +
+	"data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"status\":\"completed\",\"output\":[{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"ok\"}]}],\"usage\":{\"input_tokens\":5,\"output_tokens\":1,\"total_tokens\":6}}}\n\n"
 
 // modelDispatchClient routes each attempt by decision.Model so a single
 // AIAND registration can play both the failing primary arm and the sibling

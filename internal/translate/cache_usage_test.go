@@ -111,60 +111,6 @@ func TestAnthropicSSETranslator_MessageStartCarriesEstimatedInputTokens(t *testi
 	assert.Contains(t, startSegment, `"usage":{"input_tokens":1234,"output_tokens":0}`)
 }
 
-// Gemini implicit caching is the only signal we have that caching works on
-// the Gemini path, so cachedContentTokenCount must reach the usage sink.
-func TestGeminiSSETranslator_ForwardsCachedContentTokenCount(t *testing.T) {
-	rec := httptest.NewRecorder()
-	sink := &fakeUsageSink{}
-	translator := translate.NewGeminiToOpenAISSETranslator(rec, "gemini-3.1-flash-lite-preview", sink)
-
-	translator.Header().Set("Content-Type", "text/event-stream")
-	translator.WriteHeader(http.StatusOK)
-
-	chunks := []string{
-		`data: {"candidates":[{"content":{"parts":[{"text":"ok"}]}}]}` + "\n\n",
-		`data: {"candidates":[{"content":{"parts":[]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":2048,"candidatesTokenCount":4,"totalTokenCount":2052,"cachedContentTokenCount":1900}}` + "\n\n",
-	}
-	for _, c := range chunks {
-		_, err := translator.Write([]byte(c))
-		require.NoError(t, err)
-	}
-	require.NoError(t, translator.Finalize())
-
-	assert.Equal(t, 2048, sink.input)
-	assert.Equal(t, 4, sink.output)
-	assert.Equal(t, 0, sink.cacheCreation, "Gemini reports only cache reads, not creation")
-	assert.Equal(t, 1900, sink.cacheRead)
-
-	// Must carry prompt_tokens_details.cached_tokens for the downstream
-	// AnthropicSSETranslator to pick up (stream.go:604).
-	body := rec.Body.String()
-	assert.Contains(t, body, `"prompt_tokens_details":{"cached_tokens":1900}`)
-}
-
-// Same field, non-streaming path (Gemini :generateContent returned as a single
-// JSON body rather than SSE). Same propagation requirement.
-func TestGeminiSSETranslator_NonStreamingForwardsCachedContentTokenCount(t *testing.T) {
-	rec := httptest.NewRecorder()
-	sink := &fakeUsageSink{}
-	translator := translate.NewGeminiToOpenAISSETranslator(rec, "gemini-3.1-flash-lite-preview", sink)
-
-	translator.Header().Set("Content-Type", "application/json")
-	translator.WriteHeader(http.StatusOK)
-
-	body := `{"candidates":[{"content":{"parts":[{"text":"ok"}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":1500,"candidatesTokenCount":3,"totalTokenCount":1503,"cachedContentTokenCount":1200}}`
-	_, err := translator.Write([]byte(body))
-	require.NoError(t, err)
-	require.NoError(t, translator.Finalize())
-
-	assert.Equal(t, 1500, sink.input)
-	assert.Equal(t, 3, sink.output)
-	assert.Equal(t, 1200, sink.cacheRead)
-}
-
-// Anthropic splits token counts across two events: message_start carries
-// input_tokens, message_delta carries only output_tokens. Without persisting
-// input_tokens from message_start, the final chunk's prompt_tokens is always 0.
 func TestSSETranslator_FinalChunkCarriesPromptTokensFromMessageStart(t *testing.T) {
 	rec := httptest.NewRecorder()
 	sink := &fakeUsageSink{}

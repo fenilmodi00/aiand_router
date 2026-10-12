@@ -179,9 +179,9 @@ func TestCrossFormatResponsesOverflowClassifiesAsContextWindowExceeded(t *testin
 				// carrying the overflow), which only the OpenAI-shaped provider
 				// speaks; the AIand roster serves chat completions.
 				svc := proxy.NewService(
-					&fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "deepseek-ai/deepseek-v4-flash", Reason: "cluster"}},
-					map[string]providers.Client{providers.ProviderOpenAI: upstream},
-					nil, false, nil, newFakePinStore(), false, providers.ProviderOpenAI, "deepseek-ai/deepseek-v4-flash", nil,
+					&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek-ai/deepseek-v4-flash", Reason: "cluster"}},
+					map[string]providers.Client{providers.ProviderAIAND: upstream},
+					nil, false, nil, newFakePinStore(), false, providers.ProviderAIAND, "deepseek-ai/deepseek-v4-flash", nil,
 				)
 				rec := httptest.NewRecorder()
 				body := []byte(fmt.Sprintf(ingress.body, stream))

@@ -37,8 +37,6 @@ func (e *RequestEnvelope) ConversationMessages() []ConversationMessage {
 		return e.anthropicConversationMessages()
 	case FormatOpenAI:
 		return e.openAIConversationMessages()
-	case FormatGemini:
-		return e.geminiConversationMessages()
 	default:
 		return nil
 	}
@@ -84,31 +82,6 @@ func (e *RequestEnvelope) openAIConversationMessages() []ConversationMessage {
 			Role:      role,
 			Text:      strings.TrimSpace(openAIContentTextGJSON(msg.Get("content"))),
 			ToolCalls: openAIToolCalls(msg.Get("tool_calls")),
-		})
-		return true
-	})
-	return compactConversationMessages(out)
-}
-
-func (e *RequestEnvelope) geminiConversationMessages() []ConversationMessage {
-	out := make([]ConversationMessage, 0)
-	if text := strings.TrimSpace(geminiSystemText(e.body)); text != "" {
-		out = append(out, ConversationMessage{Role: "system", Text: text})
-	}
-	gjson.GetBytes(e.body, "contents").ForEach(func(_, msg gjson.Result) bool {
-		role := msg.Get("role").String()
-		switch role {
-		case "model":
-			role = "assistant"
-		case "":
-			role = "user"
-		}
-		parts := msg.Get("parts")
-		out = append(out, ConversationMessage{
-			Role:        role,
-			Text:        strings.TrimSpace(geminiPartsText(parts)),
-			ToolCalls:   geminiToolCalls(parts),
-			ToolResults: geminiToolResults(parts),
 		})
 		return true
 	})
@@ -195,79 +168,6 @@ func openAIToolResults(msg gjson.Result) []ConversationToolResult {
 		Text:      strings.TrimSpace(openAIContentTextGJSON(msg.Get("content"))),
 	}
 	return []ConversationToolResult{result}
-}
-
-func geminiToolCalls(parts gjson.Result) []ConversationToolCall {
-	if !parts.IsArray() {
-		return nil
-	}
-	calls := make([]ConversationToolCall, 0)
-	parts.ForEach(func(_, part gjson.Result) bool {
-		call := part.Get("functionCall")
-		if !call.Exists() {
-			call = part.Get("function_call")
-		}
-		if !call.Exists() {
-			return true
-		}
-		args := call.Get("args")
-		if !args.Exists() {
-			args = call.Get("arguments")
-		}
-		name := strings.TrimSpace(call.Get("name").String())
-		if name == "" {
-			return true
-		}
-		calls = append(calls, ConversationToolCall{
-			Name:      name,
-			InputKeys: objectKeys(args),
-			InputJSON: strings.TrimSpace(args.Raw),
-		})
-		return true
-	})
-	return calls
-}
-
-func geminiToolResults(parts gjson.Result) []ConversationToolResult {
-	if !parts.IsArray() {
-		return nil
-	}
-	results := make([]ConversationToolResult, 0)
-	parts.ForEach(func(_, part gjson.Result) bool {
-		resp := part.Get("functionResponse")
-		if !resp.Exists() {
-			resp = part.Get("function_response")
-		}
-		if !resp.Exists() {
-			return true
-		}
-		results = append(results, ConversationToolResult{
-			ToolUseID: strings.TrimSpace(resp.Get("name").String()),
-			Text:      strings.TrimSpace(geminiFunctionResponseText(resp)),
-		})
-		return true
-	})
-	return results
-}
-
-func geminiFunctionResponseText(resp gjson.Result) string {
-	response := resp.Get("response")
-	if !response.Exists() {
-		return ""
-	}
-	if result := response.Get("result"); result.Exists() {
-		if result.Type == gjson.String {
-			return result.String()
-		}
-		return result.Raw
-	}
-	if output := response.Get("output"); output.Exists() {
-		if output.Type == gjson.String {
-			return output.String()
-		}
-		return output.Raw
-	}
-	return response.Raw
 }
 
 func objectKeys(value gjson.Result) []string {

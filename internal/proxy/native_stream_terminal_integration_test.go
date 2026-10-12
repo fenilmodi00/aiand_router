@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"weave-os/router/internal/flags"
 	"weave-os/router/internal/providers"
 	"weave-os/router/internal/proxy"
 	"weave-os/router/internal/router"
@@ -68,7 +69,7 @@ func nativeSurfaceService(provider *fakeProvider, providerName, model string) *p
 		&fakeRouter{decision: router.Decision{Provider: providerName, Model: model, Reason: "test"}},
 		map[string]providers.Client{providerName: provider},
 		nil, false, nil, nil, false, providerName, model, nil,
-	).WithOpenAIResponsesBroad(providerName == providers.ProviderOpenAI).
+	).WithOpenAIResponsesBroad(providerName == providers.ProviderAIAND).
 		WithRetrySleep(noRetrySleep)
 }
 
@@ -114,8 +115,14 @@ func TestProxyOpenAIChatCompletion_NativeStreamWithoutFinishReasonFailsInStream(
 	svc := nativeSurfaceService(provider, providers.ProviderAIAND, nativeChatModel)
 	body := []byte(`{"model":"` + nativeChatModel + `","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
 
+	// This test pins the chat/completions stream surface, not the Responses
+	// promotion AIand now takes by default; turn the rollout off so the turn
+	// stays on the wire shape the fixture speaks.
+	ctx := flags.WithOverrides(authedCtx(uuid.NewString()), flags.Overrides{
+		Bools: map[flags.Key]bool{flags.KeyOpenAIResponsesBroad: false},
+	})
 	rec := httptest.NewRecorder()
-	err := svc.ProxyOpenAIChatCompletion(authedCtx(uuid.NewString()), body, rec, httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil))
+	err := svc.ProxyOpenAIChatCompletion(ctx, body, rec, httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil))
 
 	require.Error(t, err)
 	require.Equal(t, []providers.Endpoint{providers.EndpointChatCompletions}, provider.proxyEndpoints)
@@ -128,8 +135,13 @@ func TestProxyOpenAIChatCompletion_EmptyNativeStreamRetriedBeforeCommit(t *testi
 	svc := nativeSurfaceService(provider, providers.ProviderAIAND, nativeChatModel)
 	body := []byte(`{"model":"` + nativeChatModel + `","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
 
+	// Same as its incomplete sibling: the fixture speaks chat/completions, so
+	// keep the rollout off and pin the wire shape under test.
+	ctx := flags.WithOverrides(authedCtx(uuid.NewString()), flags.Overrides{
+		Bools: map[flags.Key]bool{flags.KeyOpenAIResponsesBroad: false},
+	})
 	rec := httptest.NewRecorder()
-	require.NoError(t, svc.ProxyOpenAIChatCompletion(authedCtx(uuid.NewString()), body, rec, httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)))
+	require.NoError(t, svc.ProxyOpenAIChatCompletion(ctx, body, rec, httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)))
 
 	assert.Len(t, provider.proxyBodies, 2)
 	assert.Contains(t, rec.Body.String(), `"finish_reason":"stop"`)
@@ -138,7 +150,7 @@ func TestProxyOpenAIChatCompletion_EmptyNativeStreamRetriedBeforeCommit(t *testi
 
 func TestProxyOpenAIResponses_NativeStreamWithoutTerminalFailsInStream(t *testing.T) {
 	provider := scriptedStream(responsesCutFrames)
-	svc := nativeSurfaceService(provider, providers.ProviderOpenAI, nativeResponsesModel)
+	svc := nativeSurfaceService(provider, providers.ProviderAIAND, nativeResponsesModel)
 	body := []byte(`{"model":"auto","stream":true,"input":"hi"}`)
 
 	rec := httptest.NewRecorder()
@@ -152,7 +164,7 @@ func TestProxyOpenAIResponses_NativeStreamWithoutTerminalFailsInStream(t *testin
 
 func TestProxyOpenAIResponses_EmptyNativeStreamRetriedBeforeCommit(t *testing.T) {
 	provider := scriptedStream(nil, responsesCompleteFrames)
-	svc := nativeSurfaceService(provider, providers.ProviderOpenAI, nativeResponsesModel)
+	svc := nativeSurfaceService(provider, providers.ProviderAIAND, nativeResponsesModel)
 	body := []byte(`{"model":"auto","stream":true,"input":"hi"}`)
 
 	rec := httptest.NewRecorder()

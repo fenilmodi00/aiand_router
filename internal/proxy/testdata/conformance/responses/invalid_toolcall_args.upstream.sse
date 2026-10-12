@@ -1,0 +1,14 @@
+event: response.created
+data: {"type":"response.created","response":{"id":"resp_badargs","status":"in_progress","model":"deepseek-ai/deepseek-v4-flash","output":[]}}
+
+event: response.output_item.added
+data: {"type":"response.output_item.added","output_index":0,"item":{"id":"fc_1","type":"function_call","call_id":"call_bad","name":"Read","arguments":"","status":"in_progress"}}
+
+event: response.function_call_arguments.delta
+data: {"type":"response.function_call_arguments.delta","item_id":"fc_1","output_index":0,"delta":"{\"file_path\":\"a.go\"]"}
+
+event: response.output_item.done
+data: {"type":"response.output_item.done","output_index":0,"item":{"id":"fc_1","type":"function_call","call_id":"call_bad","name":"Read","arguments":"{\"file_path\":\"a.go\"]","status":"completed"}}
+
+event: response.completed
+data: {"type":"response.completed","response":{"id":"resp_badargs","status":"completed","model":"deepseek-ai/deepseek-v4-flash","output":[{"id":"fc_1","type":"function_call","call_id":"call_bad","name":"Read","arguments":"{\"file_path\":\"a.go\"]"}],"usage":{"input_tokens":30,"output_tokens":12}}}

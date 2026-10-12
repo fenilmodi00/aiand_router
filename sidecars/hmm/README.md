@@ -8,10 +8,13 @@ outside this package.
 
 ## Quickstart
 
-Add a Google API key to `.env.local`, then start the optional profile:
+Set an OpenAI-compatible embedding endpoint in `.env.local`, then start the
+optional profile:
 
 ```bash
-echo 'GOOGLE_API_KEY=...' >> .env.local
+echo 'HMM_EMBEDDING_PROVIDER=openai-compatible
+HMM_EMBEDDING_BASE_URL=http://host.docker.internal:11434/v1
+HMM_EMBEDDING_MODEL=google/gemini-embedding-2' >> .env.local
 make up-hmm
 ```
 
@@ -60,7 +63,7 @@ HMM_EMBEDDING_API_KEY=...
 HMM_EMBEDDING_MODEL=google/gemini-embedding-2
 ```
 
-It must expose the same underlying Google embedding model and pass the probe.
+It must expose the same underlying embedding model and pass the probe.
 Ollama, vLLM, or another local embedder requires an HMM/classifier package
 trained in that model's own vector space.
 

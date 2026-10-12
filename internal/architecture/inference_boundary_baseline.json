@@ -111,18 +111,6 @@
       "removal_phase": "8"
     },
     {
-      "id": "direct_provider_call|internal/proxy/service.go|Service.ProxyMessages|weave-os/router/internal/providers.Proxy|2",
-      "kind": "direct_provider_call",
-      "file": "internal/proxy/service.go",
-      "line": 3883,
-      "symbol": "Service.ProxyMessages",
-      "detail": "weave-os/router/internal/providers.Proxy",
-      "owner": "@steventohme",
-      "rationale": "Existing Gemini attempt for the Messages surface remains until executor migration preserves the two-stage translation path.",
-      "operation_class": "main_inference",
-      "removal_phase": "8"
-    },
-    {
       "id": "target_construction|internal/proxy/service.go|pinDecision|router.Decision|1",
       "kind": "target_construction",
       "file": "internal/proxy/service.go",
@@ -179,18 +167,6 @@
       "detail": "weave-os/router/internal/providers.Proxy",
       "owner": "@steventohme",
       "rationale": "Existing Anthropic translation dispatch remains until the OpenAI public surface migrates through the executor.",
-      "operation_class": "main_inference",
-      "removal_phase": "8"
-    },
-    {
-      "id": "direct_provider_call|internal/proxy/service.go|Service.ProxyOpenAIChatCompletion|weave-os/router/internal/providers.Proxy|3",
-      "kind": "direct_provider_call",
-      "file": "internal/proxy/service.go",
-      "line": 6614,
-      "symbol": "Service.ProxyOpenAIChatCompletion",
-      "detail": "weave-os/router/internal/providers.Proxy",
-      "owner": "@steventohme",
-      "rationale": "Existing Gemini translation dispatch remains until the OpenAI public surface migrates through the executor.",
       "operation_class": "main_inference",
       "removal_phase": "8"
     },

@@ -137,7 +137,7 @@ func (r *countingPinnedRouter) Route(context.Context, router.Request) (router.De
 
 func pinnedTurnLoopService(t *testing.T, rt router.Router, store sessionpin.Store) *Service {
 	t.Helper()
-	clients := map[string]providers.Client{providers.ProviderAnthropic: nil, providers.ProviderOpenAI: nil}
+	clients := map[string]providers.Client{providers.ProviderAnthropic: nil, providers.ProviderAIAND: nil}
 	return NewService(rt, clients, nil, false, nil, store, false, providers.ProviderAnthropic, "zai-org/glm-5.3-flash", nil)
 }
 
@@ -155,7 +155,7 @@ func TestRunTurnLoop_HonouredPinBypassesStickyPinAndScoresFresh(t *testing.T) {
 	role := roleForTier(catalog.TierFor(feats.Model))
 	store.byRole[role] = sessionpin.Pin{Provider: providers.ProviderAnthropic, Model: stickyModel, Reason: "hmm_policy", PinnedUntil: time.Now().Add(time.Hour)}
 	rt := &countingPinnedRouter{decision: router.Decision{
-		Provider: providers.ProviderOpenAI, Model: "deepseek-ai/deepseek-v4-flash",
+		Provider: providers.ProviderAIAND, Model: "deepseek-ai/deepseek-v4-flash",
 		Metadata: &router.RoutingMetadata{PolicyPinHonoured: true},
 	}}
 	svc := pinnedTurnLoopService(t, rt, store)
@@ -178,7 +178,7 @@ func TestRunTurnLoop_HonouredPinKeepsSessionIdentity(t *testing.T) {
 	env, feats := pinnedTurnLoopEnvelope(t)
 	role := roleForTier(catalog.TierFor(feats.Model))
 	rt := &countingPinnedRouter{decision: router.Decision{
-		Provider: providers.ProviderOpenAI, Model: "deepseek-ai/deepseek-v4-flash",
+		Provider: providers.ProviderAIAND, Model: "deepseek-ai/deepseek-v4-flash",
 		Metadata: &router.RoutingMetadata{PolicyPinHonoured: true},
 	}}
 	store := &rolePinStore{byRole: map[string]sessionpin.Pin{}}
@@ -208,7 +208,7 @@ func TestRunTurnLoop_HonouredPinClassifierKeepsSessionKeyZero(t *testing.T) {
 	require.NoError(t, err)
 	feats := env.RoutingFeatures(false)
 	rt := &countingPinnedRouter{decision: router.Decision{
-		Provider: providers.ProviderOpenAI, Model: "deepseek-ai/deepseek-v4-flash",
+		Provider: providers.ProviderAIAND, Model: "deepseek-ai/deepseek-v4-flash",
 		Metadata: &router.RoutingMetadata{PolicyPinHonoured: true},
 	}}
 	store := &rolePinStore{byRole: map[string]sessionpin.Pin{}}
@@ -228,7 +228,7 @@ func TestRunTurnLoop_HonouredPinClassifierKeepsSessionKeyZero(t *testing.T) {
 func TestRunTurnLoop_HonouredPinBypassesForceModel(t *testing.T) {
 	env, feats := pinnedTurnLoopEnvelope(t)
 	rt := &countingPinnedRouter{decision: router.Decision{
-		Provider: providers.ProviderOpenAI, Model: "deepseek-ai/deepseek-v4-flash",
+		Provider: providers.ProviderAIAND, Model: "deepseek-ai/deepseek-v4-flash",
 		Metadata: &router.RoutingMetadata{PolicyPinHonoured: true},
 	}}
 	svc := pinnedTurnLoopService(t, rt, &rolePinStore{byRole: map[string]sessionpin.Pin{}})
