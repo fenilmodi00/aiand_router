@@ -54,6 +54,11 @@ var globalLoggerBudget = map[string]int{
 	// Transport construction (cmd/router composition root) has no request ctx;
 	// this log reports h2 budget scaling — a process-level config warning.
 	"internal/providers/httputil": 1,
+
+	// Scorer construction (NewScorer): a negative/unknown cost-cap knob is a
+	// deployment config error reported once at boot, before any request exists.
+	// The request path itself logs through observability.FromContext.
+	"internal/router/cluster": 2,
 }
 
 // TestGlobalLoggerBudget fails when a package gains an untagged log site.

@@ -3,7 +3,6 @@ package cluster
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
@@ -1204,11 +1203,6 @@ type v2BundleOpts struct {
 	// one-hot in dims 0..count-1, so an embed vector summing those dims makes all
 	// of them the prompt's top-P). Unset keeps the harness's two-cluster default.
 	clusterCount int
-	// extraModels adds registry rows beyond the two the harness ships. Each
-	// entry needs model + provider; bench_column defaults to model name.
-	// Required so a scenario with a third lane can price it against the other
-	// two exactly.
-	extraModels []DeployedEntry
 	// topP overrides the Scorer's TopP; unset keeps the harness default of 1,
 	// so tests that only exercise one cluster are unaffected.
 	topP *int
@@ -1234,19 +1228,12 @@ func newV2BundleForTest(t *testing.T, emb Embedder, opts v2BundleOpts) *Scorer {
 	centroids, err := loadCentroids(centroidsBlob)
 	require.NoError(t, err)
 
-	registryJSON := `{
+	registry, err := loadRegistry([]byte(`{
 		"deployed_models": [
 			{"model": "claude-opus-4-7", "provider": "anthropic", "bench_column": "gpt-5", "proxy": true},
-			{"model": "claude-haiku-4-5", "provider": "anthropic", "bench_column": "gemini-2.5-flash", "proxy": true}`
-	for _, e := range opts.extraModels {
-		bench := e.BenchColumn
-		if bench == "" {
-			bench = e.Model
-		}
-		registryJSON += fmt.Sprintf(",\n\t\t\t{\"model\": %q, \"provider\": %q, \"bench_column\": %q}", e.Model, e.Provider, bench)
-	}
-	registryJSON += "\n\t]\n}"
-	registry, err := loadRegistry([]byte(registryJSON))
+			{"model": "claude-haiku-4-5", "provider": "anthropic", "bench_column": "gemini-2.5-flash", "proxy": true}
+		]
+	}`))
 	require.NoError(t, err)
 
 	qm := opts.qualityMeans
