@@ -126,13 +126,11 @@ func (s *Service) dispatchSubscriptionStateModels(ctx context.Context, in failov
 	in.subscriptionStateRequest = nil
 	in.alternatives = nil
 	includedModels := s.includedSubscriptionModels(ctx, request, in.subscriptionStateHeaders)
-	rotationBudget, cancel := context.WithTimeout(ctx, subscriptionRotationBudget)
-	defer cancel()
-	ctx = context.WithValue(ctx, subscriptionRotationBudgetKey{}, rotationBudget)
+	ctx, rotationBudget := withSubscriptionAdmissionBudget(ctx)
 	hasFixedTarget := request.ForceModel != "" || callerModelPassthroughActive(ctx) ||
 		in.origin == policy.OverrideSourceDeployment || in.origin == policy.OverrideSourceRequest
 	readmitted := false
-	for len(includedModels) > 0 && rotationBudget.Err() == nil {
+	for len(includedModels) > 0 && rotationBudget.remaining > 0 {
 		attemptCtx, attemptReq := s.subscriptionStateRequest(ctx, request, includedModels)
 		attemptCtx = context.WithValue(attemptCtx, subscriptionOnlyAttemptKey{}, true)
 		attemptReq.EnabledProviders = make(map[string]struct{})
@@ -204,9 +202,6 @@ func (s *Service) dispatchSubscriptionStateModels(ctx context.Context, in failov
 	paidCtx, paidReq := s.subscriptionStateRequest(ctx, request, paidModels)
 	paidCtx = billing.ReleaseLinkedFirst(paidCtx)
 	paidCtx = context.WithValue(paidCtx, subscriptionAPIOnlyKey{}, true)
-	if subscriptionRotationExpired(ctx, rotationBudget) {
-		paidCtx = context.WithValue(paidCtx, subscriptionRotationBudgetDisabledKey{}, true)
-	}
 	paidCtx = withSuppressedClaudeSubscription(withSuppressedCodexSubscription(paidCtx))
 	target := in.initialDecision
 	for {
@@ -259,13 +254,12 @@ func (s *Service) includedSubscriptionModels(ctx context.Context, req router.Req
 	return models
 }
 
-func subscriptionRotationExpired(ctx, rotationBudget context.Context) bool {
-	return ctx.Err() == nil && rotationBudget.Err() != nil
-}
-
 func (s *Service) subscriptionStatePaidTargetAvailable(ctx context.Context, headers http.Header, target router.Decision) bool {
 	resolvedCredentials := s.resolveCredentials(clearCredentials(ctx), target.Provider, target.Model, headers)
 	if servedOnSubscription(resolvedCredentials) || servedOnCodexSubscription(resolvedCredentials) {
+		return false
+	}
+	if s.subscriptionAPIAuthorization(s.withSubscriptionFundingAuthorization(ctx, headers), target.Provider, target.Model) != nil {
 		return false
 	}
 	return len(s.resolveBindingsForDispatch(resolvedCredentials, target)) > 0
