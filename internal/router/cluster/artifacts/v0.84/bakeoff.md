@@ -597,3 +597,46 @@ conversational/trivial_nl.
 
 **The verdict of Revision 1 stands: `artifacts/latest` remains a maintainer decision
 and was not modified here. No commit was made and no Go source was edited.**
+
+# Revision 3 — final sweep append, 4 further graded v4.1-flash cells (2026-10-14)
+
+The AIDER sweep's last gradable cells landed after Revision 2: four more
+`deepseek-v4.1-flash` AIDER rows (AIDER_75/80/85 plus one re-grade) with real
+scorer output, all score 0.0 (16k-truncated generations). Corpus grew
+14,399 -> 14,403 rows. No new prompt ids, so the assignment cache and all
+geometry assets are byte-identical (`8f1d52f3...`).
+
+## R9. Numbers over the final corpus (sha256 `0469fe49...`)
+
+| arm | n | accuracy | cost/prompt |
+|---|---|---|---|
+| v0.82 cap 3.0 | 1,850 | 67.8370% [65.6743, 69.9275] | $0.000943 |
+| v0.84 cap 3.0 | 1,870 | 68.9583% [66.8503, 71.0397] | $0.000509 |
+| v0.84 uncapped | 1,863 | 68.7644% [66.6187, 70.8242] | $0.001151 |
+
+Paired (capped, n=1,838): +14.981 pt [+6.420, +23.975], W/T/L 54/1,747/37.
+All-8 subset (n=1,508): 75.0601% -> 77.1513%, +20.912 pt [+11.427, +30.736].
+Provenance unchanged: 11 measured (c0,c4,c6,c7,c8,c9,c10,c11,c12,c14,c15) /
+5 prior (c1,c2,c3,c5,c13). `go test ./internal/router/cluster/` passes; the
+register-probe guard still holds 4 of 8 models with no premium leak.
+
+## R10. Sweep outcome and the spend that bought it
+
+The 539-cell AIDER gap is now 84 cells closed (v4-flash 4, v4-pro 8,
+v4.1-flash 72 = 84 graded rows across both revision appends), of which 26
+passed the real test-command scorers and 58 failed on the merits. Sweep spend
+was $9.77 for the whole campaign, inside the $12 completion-phase ceiling.
+The lanes that are still incomplete are incomplete for recorded reasons:
+
+| lane | answered / 150 | blocker |
+|---|---|---|
+| deepseek-v4-flash, deepseek-v4-pro | 150 / 150 | complete |
+| deepseek-v4.1-flash | 132 / 150 | remaining 18 cells are proven 16k-token truncations (deterministic at this budget) |
+| glm-5.3-flash | 49 / 150 | request budget ran out mid-lane |
+| qwen3.8-27b | 69 / 150 | request budget ran out mid-lane |
+| glm-5.3 | 33 / 150 | not reached; ~$7.76 estimated |
+| kimi-k3 | 10 / 150 | **blocked**: 60 minutes of request starts, zero cache writes (API lane dead on this key) |
+
+kimi-k3's 140 cells are the single largest remaining block and the one lane
+where no spend produced data; it needs a fresh diagnostic before any further
+generation attempt.

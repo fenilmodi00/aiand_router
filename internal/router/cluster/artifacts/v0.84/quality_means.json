@@ -357,8 +357,8 @@
       "output_cost_ratio": 0.25,
       "cost_ladder_spread_ocr0": 20.0,
       "cost_ladder_spread": 25.49,
-      "replay_v082_knobs": 0.695318,
-      "replay_new_knobs": 0.693778,
+      "replay_v082_knobs": 0.694943,
+      "replay_new_knobs": 0.693405,
       "generated_by": "build_v084_knobs.py"
     }
   },
