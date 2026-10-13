@@ -2,6 +2,8 @@
 
 package main
 
+import "syscall"
+
 // openCaptureFileFlags adds the O_NOFOLLOW (refuse symlinked capture paths) and
 // O_NONBLOCK guards. Windows has no O_NOFOLLOW; the follow-up Stat + IsRegular
 // check in newTrafficCaptureFromEnvironment is what keeps a symlinked or

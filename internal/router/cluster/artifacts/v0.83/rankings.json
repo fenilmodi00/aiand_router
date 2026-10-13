@@ -1,0 +1,279 @@
+{
+  "meta": {
+    "k": 16,
+    "top_p": 4,
+    "alpha": 0.96,
+    "shrinkage_k0": 10.0,
+    "score_normalization": "per_prompt_zscore_across_bench_columns",
+    "per_model_zscore": false,
+    "seed": 42,
+    "n_prompts": 1775,
+    "training_data_mix": {
+      "d1": 1.0,
+      "d2": 0.0,
+      "d3": 0.0
+    },
+    "output_cost_ratio": 0.0,
+    "speed_weight": 0.0,
+    "expected_output_tokens": 2000,
+    "per_model_verbosity": true,
+    "include_routerarena_labels": "routerarena_labels_combined.jsonl",
+    "routerarena_only": false,
+    "bench_coding_only": false,
+    "include_benchmark_corpus": true,
+    "benchmark_corpus_loaders": "aider-polyglot-go,aider-polyglot-rust-cpp-java,livecodebench-ts-and-aider-polyglot-ts,bfcl-v4-simple,bfcl-v4-parallel-multi",
+    "source_fractions": {
+      "routerarena": 0.1
+    },
+    "exclude_prompts": null,
+    "n_excluded_prompts": 0,
+    "include_aa_labels": "aa_quality_priors_v0.64.json",
+    "aa_evidence_scale": 3.0,
+    "cold_model_aa_boost": 1.0,
+    "aa_label_tier_weights": {
+      "AIDER_POLYGLOT_GO": 1.0,
+      "AIDER_POLYGLOT_RUST_CPP_JAVA": 1.0,
+      "BFCL_V4_PARALLEL_MULTI": 0.8,
+      "BFCL_V4_SIMPLE": 0.3,
+      "GPQA_DIAMOND": 0.3,
+      "IFBENCH": 0.3,
+      "LIVECODEBENCH": 1.0,
+      "LIVECODEBENCH_TS": 1.0,
+      "MATH_500": 0.3,
+      "MMLU_PRO": 0.3,
+      "SCICODE": 1.0,
+      "SWE_BENCH_VERIFIED": 1.0,
+      "TAU2_BENCH_TELECOM": 1.0,
+      "TERMINAL_BENCH_HARD": 1.0
+    },
+    "aa_label_residuals": {
+      "fraction_under_threshold": 0.8876404494382022,
+      "max": 0.2636900631579798,
+      "mean": 0.05666298416741266,
+      "median": 0.03600941472238445,
+      "n_cells": 178,
+      "p90": 0.15338418701568313
+    },
+    "default_routing_knobs": {
+      "alpha": [
+        0.66,
+        0.6,
+        0.6,
+        0.73,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.6,
+        0.96,
+        0.96,
+        0.96,
+        0.96,
+        0.96
+      ],
+      "alpha_floor": [
+        0.3,
+        0.1,
+        0.29,
+        0.18,
+        0.17,
+        0.01,
+        0.0,
+        0.0,
+        0.0,
+        0.01,
+        0.0,
+        0.55,
+        0.18,
+        0.3,
+        0.3,
+        0.55
+      ],
+      "speed_weight": 0.0,
+      "output_cost_ratio": 0.0,
+      "expected_output_tokens": 2000,
+      "per_model_verbosity": true
+    },
+    "recommended_ui_defaults": {
+      "quality_pareto": {
+        "alpha": 0.6,
+        "speed_weight": 0.1,
+        "output_cost_ratio": 0.25
+      },
+      "cost_pareto": {
+        "alpha": 0.4,
+        "speed_weight": 0.05,
+        "output_cost_ratio": 0.4
+      },
+      "balanced": {
+        "alpha": 0.5,
+        "speed_weight": 0.12,
+        "output_cost_ratio": 0.25
+      }
+    }
+  },
+  "rankings": {
+    "0": {
+      "deepseek-ai/deepseek-v4-pro": 0.2984304012626724,
+      "deepseek-ai/deepseek-v4-flash": 0.4137991183580604,
+      "deepseek-ai/deepseek-v4.1-flash": 0.5107419413585867,
+      "zai-org/glm-5.3": 0.6262608510896619,
+      "zai-org/glm-5.3-flash": 0.6580225281602001,
+      "qwen/qwen3.8-27b": 0.355674507002134,
+      "moonshotai/kimi-k3": 0.66,
+      "motif-technologies/motif-3": 0.2982456140350877
+    },
+    "1": {
+      "deepseek-ai/deepseek-v4-pro": 0.4727017543859651,
+      "deepseek-ai/deepseek-v4-flash": 0.7099130434782608,
+      "deepseek-ai/deepseek-v4.1-flash": 0.9789473684210527,
+      "zai-org/glm-5.3": 0.7607017543859652,
+      "zai-org/glm-5.3-flash": 0.4,
+      "qwen/qwen3.8-27b": 0.8156157289776169,
+      "moonshotai/kimi-k3": 0.3820778032036623,
+      "motif-technologies/motif-3": 0.8308771929824564
+    },
+    "2": {
+      "deepseek-ai/deepseek-v4-pro": 0.6763774300616412,
+      "deepseek-ai/deepseek-v4-flash": 0.8107650022904256,
+      "deepseek-ai/deepseek-v4.1-flash": 0.774623044096729,
+      "zai-org/glm-5.3": 0.34252607871028895,
+      "zai-org/glm-5.3-flash": 0.7911334804191946,
+      "qwen/qwen3.8-27b": 0.37615306694254047,
+      "moonshotai/kimi-k3": 0.0,
+      "motif-technologies/motif-3": 0.9508771929824561
+    },
+    "3": {
+      "deepseek-ai/deepseek-v4-pro": 0.18947368421052632,
+      "deepseek-ai/deepseek-v4-flash": 0.727565107458912,
+      "deepseek-ai/deepseek-v4.1-flash": 0.28809035863996274,
+      "zai-org/glm-5.3": 0.45434094084769416,
+      "zai-org/glm-5.3-flash": 0.27,
+      "qwen/qwen3.8-27b": 0.39842359317440806,
+      "moonshotai/kimi-k3": 0.73,
+      "motif-technologies/motif-3": 0.5017093619003257
+    },
+    "4": {
+      "deepseek-ai/deepseek-v4-pro": 0.7887484915993686,
+      "deepseek-ai/deepseek-v4-flash": 0.5807712215320913,
+      "deepseek-ai/deepseek-v4.1-flash": 0.3789473684210527,
+      "zai-org/glm-5.3": 0.5825200844577196,
+      "zai-org/glm-5.3-flash": 0.6192209162145872,
+      "qwen/qwen3.8-27b": 0.47664882314481843,
+      "moonshotai/kimi-k3": 0.05679057337220595,
+      "motif-technologies/motif-3": 0.9508771929824561
+    },
+    "5": {
+      "deepseek-ai/deepseek-v4-pro": 0.4413171390013495,
+      "deepseek-ai/deepseek-v4-flash": 0.5661538461538462,
+      "deepseek-ai/deepseek-v4.1-flash": 0.7495982559950174,
+      "zai-org/glm-5.3": 0.7910314247156351,
+      "zai-org/glm-5.3-flash": 1.0,
+      "qwen/qwen3.8-27b": 0.572604588394062,
+      "moonshotai/kimi-k3": 0.5607692307692308,
+      "motif-technologies/motif-3": 0.3508771929824561
+    },
+    "6": {
+      "deepseek-ai/deepseek-v4-pro": 0.7657660703255927,
+      "deepseek-ai/deepseek-v4-flash": 0.947575331557268,
+      "deepseek-ai/deepseek-v4.1-flash": 0.9789473684210527,
+      "zai-org/glm-5.3": 0.347978790909136,
+      "zai-org/glm-5.3-flash": 0.4,
+      "qwen/qwen3.8-27b": 0.7916502379986678,
+      "moonshotai/kimi-k3": 0.2570168348020771,
+      "motif-technologies/motif-3": 0.7233949019994073
+    },
+    "7": {
+      "deepseek-ai/deepseek-v4-pro": 0.49946486886578223,
+      "deepseek-ai/deepseek-v4-flash": 0.7646183377830873,
+      "deepseek-ai/deepseek-v4.1-flash": 0.9789473684210527,
+      "zai-org/glm-5.3": 0.8263389334052557,
+      "zai-org/glm-5.3-flash": 0.4,
+      "qwen/qwen3.8-27b": 0.791964329084736,
+      "moonshotai/kimi-k3": 0.4965747116163703,
+      "motif-technologies/motif-3": 0.9049946978365219
+    },
+    "8": {
+      "deepseek-ai/deepseek-v4-pro": 0.7942463945206083,
+      "deepseek-ai/deepseek-v4-flash": 0.9749946426162461,
+      "deepseek-ai/deepseek-v4.1-flash": 0.9789473684210527,
+      "zai-org/glm-5.3": 0.3880093636333586,
+      "zai-org/glm-5.3-flash": 0.4,
+      "qwen/qwen3.8-27b": 0.8814378875876436,
+      "moonshotai/kimi-k3": 0.23390131390722774,
+      "motif-technologies/motif-3": 0.83570859646609
+    },
+    "9": {
+      "deepseek-ai/deepseek-v4-pro": 0.3156223893065997,
+      "deepseek-ai/deepseek-v4-flash": 0.4857142857142859,
+      "deepseek-ai/deepseek-v4.1-flash": 0.49209022556390986,
+      "zai-org/glm-5.3": 0.7496093174111749,
+      "zai-org/glm-5.3-flash": 1.0,
+      "qwen/qwen3.8-27b": 0.45062656641604026,
+      "moonshotai/kimi-k3": 0.25714285714285706,
+      "motif-technologies/motif-3": 0.3508771929824561
+    },
+    "10": {
+      "deepseek-ai/deepseek-v4-pro": 0.7033639230379467,
+      "deepseek-ai/deepseek-v4-flash": 0.7507861919189296,
+      "deepseek-ai/deepseek-v4.1-flash": 0.472559559583012,
+      "zai-org/glm-5.3": 0.5955862547681774,
+      "zai-org/glm-5.3-flash": 0.7480039485572875,
+      "qwen/qwen3.8-27b": 0.8137745386449258,
+      "moonshotai/kimi-k3": 0.0,
+      "motif-technologies/motif-3": 0.9508771929824561
+    },
+    "11": {
+      "deepseek-ai/deepseek-v4-pro": 0.7654894064205164,
+      "deepseek-ai/deepseek-v4-flash": 0.7492910617819518,
+      "deepseek-ai/deepseek-v4.1-flash": 0.9978947368421053,
+      "zai-org/glm-5.3": 0.028070175438596516,
+      "zai-org/glm-5.3-flash": 0.09376627031140079,
+      "qwen/qwen3.8-27b": 0.8980925810213297,
+      "moonshotai/kimi-k3": 0.33926754007063953,
+      "motif-technologies/motif-3": 0.8559373043852344
+    },
+    "12": {
+      "deepseek-ai/deepseek-v4-pro": 0.9880701754385964,
+      "deepseek-ai/deepseek-v4-flash": 0.49425877880714325,
+      "deepseek-ai/deepseek-v4.1-flash": 0.18958623246983997,
+      "zai-org/glm-5.3": 0.52823340437717,
+      "zai-org/glm-5.3-flash": 0.36422792568311463,
+      "qwen/qwen3.8-27b": 0.4025605765517905,
+      "moonshotai/kimi-k3": 0.0,
+      "motif-technologies/motif-3": 0.5559619478833985
+    },
+    "13": {
+      "deepseek-ai/deepseek-v4-pro": 0.9124393915502303,
+      "deepseek-ai/deepseek-v4-flash": 1.0,
+      "deepseek-ai/deepseek-v4.1-flash": 0.9346349608095814,
+      "zai-org/glm-5.3": 0.028070175438596516,
+      "zai-org/glm-5.3-flash": 0.2938091164486826,
+      "qwen/qwen3.8-27b": 0.842529464451455,
+      "moonshotai/kimi-k3": 0.7737933476812954,
+      "motif-technologies/motif-3": 0.8249555304143231
+    },
+    "14": {
+      "deepseek-ai/deepseek-v4-pro": 0.4629545765557364,
+      "deepseek-ai/deepseek-v4-flash": 0.8335043042474553,
+      "deepseek-ai/deepseek-v4.1-flash": 0.8637656446045512,
+      "zai-org/glm-5.3": 0.1811059085554747,
+      "zai-org/glm-5.3-flash": 0.040000000000000036,
+      "qwen/qwen3.8-27b": 0.9964912280701754,
+      "moonshotai/kimi-k3": 0.3216978738422337,
+      "motif-technologies/motif-3": 0.49069828637426716
+    },
+    "15": {
+      "deepseek-ai/deepseek-v4-pro": 0.6356591721997413,
+      "deepseek-ai/deepseek-v4-flash": 0.7854671906829481,
+      "deepseek-ai/deepseek-v4.1-flash": 0.9978947368421053,
+      "zai-org/glm-5.3": 0.16695298342695244,
+      "zai-org/glm-5.3-flash": 0.040000000000000036,
+      "qwen/qwen3.8-27b": 0.6941861683298054,
+      "moonshotai/kimi-k3": 0.15584665850276366,
+      "motif-technologies/motif-3": 0.5309558990668197
+    }
+  }
+}
