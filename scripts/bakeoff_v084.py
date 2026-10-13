@@ -7,8 +7,12 @@ v0.83 builders and the tickets cite):
   1. The routing input is the live cluster embedding: every corpus prompt is
      embedded with the committed jina-v2-base-code-int8 embedder (same masked
      mean-pool + L2-norm contract as the Go Embedder and the v0.82/v0.83
-     builders), and .context/label-runs/prompt-clusters-v082-full.json is
-     verified to be its exact top-1 cosine route (scripts/... --verify-clusters).
+     builders) and assigned its top-1 cosine cluster from centroids.bin, the
+     same id Route receives. The committed
+     .context/label-runs/prompt-clusters-v082-full.json is audited, not
+     trusted: it predates the final centroid retrain (150 of its 1,682 entries
+     disagree with the live route) and using it would feed both arms a stale
+     cluster id. --verify-clusters prints the disagreement.
   2. For every prompt, the route decision is recomputed exactly as
      internal/router/cluster/scorer.go Route does: sum blendScoresV2 over the
      prompt's top_p=4 nearest clusters (topPNearest, ties by ascending cluster
@@ -46,6 +50,13 @@ ASSIGN = REPO / ".context/label-runs/prompt-clusters-v082-full.json"
 CANDIDATE = REPO / "internal/router/cluster/artifacts/v0.84"
 BASELINE = REPO / "internal/router/cluster/artifacts/v0.82"
 EMBEDDER_ASSETS = REPO / "assets-extracted/jina-v2-base-code-int8"
+# PEM1 embedding cache (same auditable format as testdata/register_probes.emb):
+# magic "PEM1" + uint32 header length + JSON header + [n][dim]float32 rows, in
+# corpus (sorted global_index) order. Keyed by the corpus sha256, so a corpus
+# edit invalidates it and forces a re-embed rather than silently reusing stale
+# vectors.
+EMBED_CACHE = REPO / ".context/label-runs/corpus-embeds-v084.bin"
+PEM_MAGIC = b"PEM1"
 
 # internal/router/cluster/scorer.go DefaultConfig(): TopP 4, MaxPromptChars
 # 1024; DefaultCostCapMultiple is the knee Route applies unless overridden.
@@ -70,6 +81,9 @@ class Interval:
 
     def __init__(self, point: float, low: float, high: float):
         self.point, self.low, self.high = point, low, high
+
+    def as_dict(self) -> dict:
+        return {"point": self.point, "low": self.low, "high": self.high}
 
 
 def wilson(successes: int, trials: int, z: float = Z_95) -> Interval:
@@ -249,7 +263,12 @@ def top_p_clusters(vec, cents, p: int) -> list:
 def embed_prompts(texts):
     """The embedder contract the Go Embedder and the v0.82/v0.83 builders use:
     tail-truncate to 1024 bytes, tokenize (last 256 ids), masked mean pool,
-    L2 normalize. Committed jina-v2-base-code-int8 ONNX assets."""
+    L2 normalize. Committed jina-v2-base-code-int8 ONNX assets.
+
+    Batches are grouped by token length so padding inside a batch stays small
+    (the model's cost is linear in padded length). Deterministic: order within a
+    bucket is the input order and pooling is per-row.
+    """
     import numpy as np
     import onnxruntime as ort
     from tokenizers import Tokenizer
@@ -257,25 +276,76 @@ def embed_prompts(texts):
     tok = Tokenizer.from_file(str(EMBEDDER_ASSETS / "tokenizer.json"))
     sess = ort.InferenceSession(str(EMBEDDER_ASSETS / "model.onnx"),
                                providers=["CPUExecutionProvider"])
+
+    order = []  # (bucket, row index, token ids) in input order
+    for idx, t in enumerate(texts):
+        b = t.encode("utf-8", errors="replace")
+        s = b[-MAX_PROMPT_CHARS:].decode("utf-8", errors="ignore") if len(b) > MAX_PROMPT_CHARS else t
+        enc = tok.encode(s)
+        ids_j = enc.ids[-MAX_TOKENS:]
+        if ids_j:
+            bucket = (16 if len(ids_j) <= 16 else 32 if len(ids_j) <= 32 else
+                      64 if len(ids_j) <= 64 else 128 if len(ids_j) <= 128 else MAX_TOKENS)
+            order.append((bucket, idx, ids_j))
+
+    rows_by_bucket: dict[int, list] = {}
+    for bucket, idx, ids_j in order:
+        rows_by_bucket.setdefault(bucket, []).append((idx, ids_j))
     out = np.zeros((len(texts), 768), dtype=np.float32)
-    for i in range(0, len(texts), 32):
-        chunk = []
-        for t in texts[i:i + 32]:
-            b = t.encode("utf-8", errors="replace")
-            chunk.append(b[-MAX_PROMPT_CHARS:].decode("utf-8", errors="ignore")
-                         if len(b) > MAX_PROMPT_CHARS else t)
-        enc = tok.encode_batch(chunk)
-        ids = np.zeros((len(chunk), MAX_TOKENS), dtype=np.int64)
-        mask = np.zeros((len(chunk), MAX_TOKENS), dtype=np.int64)
-        for j, e in enumerate(enc):
-            ids_j = e.ids[-MAX_TOKENS:]
-            ids[j, :len(ids_j)] = ids_j
-            mask[j, :len(ids_j)] = 1
-        vec = sess.run(None, {"input_ids": ids, "attention_mask": mask})[0]
-        m = mask.astype(np.float32)
-        pooled = (vec * m[:, :, None]).sum(1) / np.clip(m.sum(1, keepdims=True), 1e-9, None)
-        out[i:i + 32] = pooled / np.clip(np.linalg.norm(pooled, axis=1, keepdims=True), 1e-9, None)
+    for bucket, rows in sorted(rows_by_bucket.items()):
+        for i in range(0, len(rows), 32):
+            chunk = rows[i:i + 32]
+            ids = np.zeros((len(chunk), bucket), dtype=np.int64)
+            mask = np.zeros((len(chunk), bucket), dtype=np.int64)
+            for j, (idx, ids_j) in enumerate(chunk):
+                ids[j, :len(ids_j)] = ids_j
+                mask[j, :len(ids_j)] = 1
+            vec = sess.run(None, {"input_ids": ids, "attention_mask": mask})[0]
+            m = mask.astype(np.float32)
+            pooled = (vec * m[:, :, None]).sum(1) / np.clip(m.sum(1, keepdims=True), 1e-9, None)
+            pooled = pooled / np.clip(np.linalg.norm(pooled, axis=1, keepdims=True), 1e-9, None)
+            for j, (idx, _) in enumerate(chunk):
+                out[idx] = pooled[j]
     return out
+
+
+def load_or_embed(prompts, texts, corpus_sha):
+    """Embed the corpus, caching the vectors as PEM1 beside the labels (same
+    auditable format as testdata/register_probes.emb). The cache is keyed by
+    corpus sha256 and the embedder id, so a corpus or embedder change re-embeds
+    instead of reusing stale vectors. Vector rows follow the sorted-prompt order
+    the caller passes in, and that order is recorded in the header."""
+    import struct
+    import numpy as np
+    header = {
+        "embedder_id": "jina-v2-base-code-int8",
+        "embed_dim": 768,
+        "n": len(prompts),
+        "corpus_sha256": corpus_sha,
+        "prompt_order": "sorted(global_index)",
+        "centroids_sha256": sha256_of(CANDIDATE / "centroids.bin"),
+        "comment": "Bake-off corpus embeddings; regenerate by deleting the file "
+                   "(scripts/bakeoff_v084.py re-embeds automatically).",
+    }
+    hb = json.dumps(header, sort_keys=True).encode()
+    if EMBED_CACHE.exists():
+        raw = EMBED_CACHE.read_bytes()
+        if (len(raw) >= 8 and raw[:4] == PEM_MAGIC
+                and json.loads(raw[8:8 + int.from_bytes(raw[4:8], "little")]) == header):
+            vecs = np.frombuffer(raw[8 + len(hb):], dtype="<f4").reshape(len(prompts), 768)
+            print(f"embeddings: cache hit ({len(prompts)} rows, corpus sha256 {corpus_sha[:12]})")
+            return vecs.copy()
+        print("embeddings: cache stale (corpus/embedder changed); re-embedding")
+    print(f"embedding {len(prompts)} prompts (one-time; cached to "
+          f"{EMBED_CACHE.relative_to(REPO)})...")
+    vecs = embed_prompts([texts[p] for p in prompts]).astype("<f4")
+    EMBED_CACHE.parent.mkdir(parents=True, exist_ok=True)
+    with EMBED_CACHE.open("wb") as fh:
+        fh.write(PEM_MAGIC)
+        fh.write(struct.pack("<I", len(hb)))
+        fh.write(hb)
+        fh.write(vecs.tobytes())
+    return vecs
 
 
 def route_all(by_prompt, assign, cents, bundle, knobs, cap_multiple, vecs, label=""):
@@ -352,7 +422,13 @@ def self_check() -> int:
 
 def verify_clusters() -> int:
     """Re-embed the corpus and confirm the assignment cache is the live top-1
-    cosine route for every prompt (so the cache is the runtime's cluster id)."""
+    cosine route for every prompt (so the cache is the runtime's cluster id).
+
+    The cache is regenerated, never trusted: the live top-P neighbourhood from
+    this embedding is the routing input. The cache is only audited so the
+    bake-off can report how far stale it is (it predates the final centroid
+    retrain; see bakeoff.md's "cluster assignment" note).
+    """
     import numpy as np
     rows, by_prompt, assign_all = load_rows_and_assign(LABELS, ASSIGN)
     prompts = sorted(by_prompt)
@@ -362,12 +438,14 @@ def verify_clusters() -> int:
     cents = load_centroids(CANDIDATE)
     vecs = embed_prompts([texts[p] for p in prompts])
     top1 = np.argmax(cents @ vecs.T, axis=0)
-    mism = [p for i, p in enumerate(prompts) if int(top1[i]) != int(assign_all[p])]
-    print(f"verify-clusters: {len(prompts)} prompts embedded, {len(mism)} top-1 mismatches "
-          f"(cache covers {len(assign_all)} prompts)")
+    mism = [p for i, p in enumerate(prompts)
+            if p in assign_all and int(top1[i]) != int(assign_all[p])]
+    covered = sum(1 for p in prompts if p in assign_all)
+    print(f"verify-clusters: {len(prompts)} prompts embedded, {len(mism)}/{covered} "
+          f"cached assignments disagree with the live top-1 cosine route")
     for p in mism[:10]:
         i = prompts.index(p)
-        print(f"  {p}: cache={assign_all[p]} fresh={int(top1[i])}")
+        print(f"  {p}: cache={assign_all[p]} live={int(top1[i])}")
     return 1 if mism else 0
 
 
@@ -380,7 +458,19 @@ def run_bakeoff() -> dict:
         texts.setdefault(r["global_index"], r.get("question") or "")
 
     cents = load_centroids(CANDIDATE)
-    vecs_all = {p: v for p, v in zip(prompts, embed_prompts([texts[p] for p in prompts]))}
+    corpus_sha = sha256_of(LABELS)
+    vecs = load_or_embed(prompts, texts, corpus_sha)
+    vecs_all = {p: v for p, v in zip(prompts, vecs)}
+
+    # Live cluster assignment: top-1 cosine per prompt (the runtime's cluster id),
+    # recomputed here rather than trusted from prompt-clusters-v082-full.json —
+    # the cache predates the final centroid retrain (150/1682 entries disagree),
+    # and every prior builder's cache would make the two arms disagree about
+    # which clusters a prompt belongs to. Both arms use the same live ids.
+    import numpy as np
+    top1 = np.argmax(cents @ vecs.T, axis=0)
+    live_assign = {p: int(top1[i]) for i, p in enumerate(prompts)}
+    stale = sum(1 for p in prompts if p in assign_all and int(assign_all[p]) != live_assign[p])
 
     k82, k84 = load_knobs(BASELINE), load_knobs(CANDIDATE)
     base_bundle, cand_bundle = load_bundle(BASELINE), load_bundle(CANDIDATE)
@@ -388,22 +478,21 @@ def run_bakeoff() -> dict:
     out = {
         "corpus": {
             "file": str(LABELS.relative_to(REPO).as_posix()),
-            "sha256": sha256_of(LABELS),
+            "sha256": corpus_sha,
             "assign_sha256": sha256_of(ASSIGN),
             "rows": len(rows),
             "prompts": len(prompts),
             "assigned": len(assign_all),
             "all8": len(all8),
+            "stale_cache_entries": stale,
         },
         "arms": {},
     }
 
     def arm(tag, bundle, knobs, cap):
-        vecs = {p: vecs_all[p] for p in prompts}
-        dec, reasons = route_all(by_prompt, assign_all, cents, bundle, knobs, cap, vecs, tag)
+        dec, reasons = route_all(by_prompt, live_assign, cents, bundle, knobs, cap, vecs_all, tag)
         s = summarize(dec, tag)
         s["unroutable"] = dict(reasons)
-        # per-model mix restricted to the all-8 scored subset (coverage control)
         dec8 = {p: v for p, v in dec.items() if p in set(all8)}
         s["n_all8"] = len(dec8)
         s["accuracy_all8"] = (sum(v[1] for v in dec8.values()) / len(dec8)) if dec8 else 0.0
@@ -419,8 +508,8 @@ def run_bakeoff() -> dict:
 
     # Paired delta on the identical scored prompt set (matched prompts only).
     def paired(cap):
-        dec_a, rea_a = route_all(by_prompt, assign_all, cents, base_bundle, k82, cap, vecs_all, "v0.82")
-        dec_b, rea_b = route_all(by_prompt, assign_all, cents, cand_bundle, k84, cap, vecs_all, "v0.84")
+        dec_a, rea_a = route_all(by_prompt, live_assign, cents, base_bundle, k82, cap, vecs_all, "v0.82")
+        dec_b, rea_b = route_all(by_prompt, live_assign, cents, cand_bundle, k84, cap, vecs_all, "v0.84")
         common = sorted(set(dec_a) & set(dec_b))
         diffs = [dec_b[p][1] - dec_a[p][1] for p in common]
         wins = sum(1 for d in diffs if d > 0)
@@ -432,6 +521,11 @@ def run_bakeoff() -> dict:
             "n": len(common),
             "acc_a": sum(dec_a[p][1] for p in common) / len(common),
             "acc_b": sum(dec_b[p][1] for p in common) / len(common),
+            # Wilson intervals on the SAME identical prompt set the delta uses
+            # (successes = prompts the arm scores strictly above 0.5), so the
+            # two arms' accuracies are directly comparable.
+            "acc_a_ci": wilson(sum(1 for p in common if dec_a[p][1] > 0.5), len(common)),
+            "acc_b_ci": wilson(sum(1 for p in common if dec_b[p][1] > 0.5), len(common)),
             "delta_mean": sum(diffs) / len(diffs),
             "delta_ci": bootstrap_mean(diffs),
             "delta_wilson_on_pairs": wilson(sum(1 for d in diffs if d > 0),
@@ -458,23 +552,6 @@ def run_bakeoff() -> dict:
     return out
 
 
-def render(res: dict) -> str:
-    """bakeoff.md body (everything after the hand-written header)."""
-    L = []
-    w = L.append
-    a = res["arms"]
-    cap, unc = res["paired"]["cap3.0"], res["paired"]["uncapped"]
-    c84, c82 = a["v0.84/cap3.0"], a["v0.82/cap3.0"]
-    u84, u82 = a["v0.84/uncapped"], a["v0.82/uncapped"]
-    w("| arm | eval n | accuracy | 95% Wilson CI | cost/prompt |")
-    w("|---|---|---|---|---|")
-    for s in (c82, c84, u82, u84):
-        w(f"| {s['arm']} {'(capped 3.0x)' if 'uncapped' not in str(s) else '(uncapped)'} | {s['n']} | "
-          f"{100*s['accuracy']:.4f}% | [{100*s['accuracy_ci'].low:.4f}%, {100*s['accuracy_ci'].high:.4f}%] | "
-          f"${s['cost_per_prompt']:.6f} |")
-    return "\n".join(L)
-
-
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[1])
     ap.add_argument("--self-check", action="store_true")
@@ -488,8 +565,8 @@ def main() -> int:
 
     res = run_bakeoff()
     if args.json:
-        print(json.dumps(res, indent=2, sort_keys=True, default=lambda o: o.__dict__)
-              .replace("__", ""))
+        print(json.dumps(res, indent=2, sort_keys=True,
+                        default=lambda o: o.as_dict() if isinstance(o, Interval) else str(o)))
         return 0
 
     print(f"corpus: {res['corpus']['rows']} rows, {res['corpus']['prompts']} prompts "
@@ -498,14 +575,18 @@ def main() -> int:
         print(f"{tag:>16}: n={s['n']:5d} acc={100*s['accuracy']:.4f}% "
               f"CI=[{100*s['accuracy_ci'].low:.4f},{100*s['accuracy_ci'].high:.4f}]% "
               f"cost=${s['cost_per_prompt']:.6f} unroutable={s['unroutable']}")
-        print(f"{'':>16}  all8: n={s['n_all8']} acc={100*s['accuracy_all8']:.4f}% mix={s['mix']}")
+        print(f"{'':>16}  all8: n={s['n_all8']} acc={100*s['accuracy_all8']:.4f}% "
+              f"CI=[{100*s['accuracy_all8_ci'].low:.4f},{100*s['accuracy_all8_ci'].high:.4f}]%")
+        print(f"{'':>16}  mix: "
+              + ", ".join(f"{m.split('/')[-1]} {c} ({100*c/s['n']:.1f}%)" for m, c in s['mix'].items()))
     for tag, p in res["paired"].items():
         print(f"paired[{tag}]: n={p['n']} {100*p['acc_a']:.4f}% -> {100*p['acc_b']:.4f}% "
               f"delta={1000*p['delta_mean']:+.3f}pt CI=[{1000*p['delta_ci'].low:+.3f},{1000*p['delta_ci'].high:+.3f}]pt "
               f"W/T/L={p['wins']}/{p['ties']}/{p['losses']} "
               f"cost ${p['cost_a']:.6f} -> ${p['cost_b']:.6f}")
-    print()
-    print(render(res))
+        print(f"{'':>16}  all-8 subset: n={p['n8']} {100*p['acc_a8']:.4f}% -> {100*p['acc_b8']:.4f}% "
+              f"delta={1000*p['delta_mean8']:+.3f}pt "
+              f"CI=[{1000*p['delta_ci8'].low:+.3f},{1000*p['delta_ci8'].high:+.3f}]pt")
     return 0
 
 
