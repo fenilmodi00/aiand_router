@@ -397,6 +397,21 @@ def main():
     print(f"  V1 acc={100*sel['acc_v1']:.2f}% cost=${sel['cost_per_1k_v1']:.2f}/1k "
           f"coding acc={100*(sel['acc_coding'] or 0):.2f}%")
 
+    # Hard baseline bar: the chosen bundle must beat pinning every request to
+    # the strongest constant lane. A router that loses to one fixed model is a
+    # regression dressed as routing; shipping it spends the classification
+    # budget to come out behind. Refuse to emit rather than bisect later.
+    print(f"baseline bar (constant-flash): V1 acc={100*rep_flash['acc_v1']:.2f}% "
+          f"coding acc={100*(rep_flash['acc_coding'] or 0):.2f}% "
+          f"cost=${rep_flash['cost_per_1k_v1']:.2f}/1k")
+    if sel["acc_v1"] < rep_flash["acc_v1"]:
+        raise SystemExit(
+            f"REFUSING TO EMIT: chosen config {sel['tag']!r} replays at "
+            f"{100*sel['acc_v1']:.2f}% V1, below the constant "
+            f"{FLASH} baseline {100*rep_flash['acc_v1']:.2f}%. Routing must "
+            f"beat the pinned lane, not lose to it — fix the cells or emit "
+            f"the constant bundle.")
+
     # --- 9. emit v0.82
     DST.mkdir(parents=True, exist_ok=True)
     for fn in ["centroids.bin", "model_axes.json", "model_registry.json"]:

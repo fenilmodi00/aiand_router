@@ -84,3 +84,7 @@ results/
 
 # Local ONNX embedder asset extraction (scripts/build_v079*.py reads it)
 assets-extracted/
+
+# Scratch copies of upstream (origin/main) artifacts pulled for analysis; refetch with
+# `git cat-file -p origin/main:<path>` rather than committing duplicated data.
+upstream/
