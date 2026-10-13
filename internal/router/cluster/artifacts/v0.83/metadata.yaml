@@ -59,17 +59,17 @@ training:
     p90: 0.15338418701568313
   default_routing_knobs:
     alpha:
-    - 0.66
-    - 0.6
-    - 0.6
-    - 0.73
-    - 0.6
-    - 0.6
-    - 0.6
-    - 0.6
-    - 0.6
-    - 0.6
-    - 0.6
+    - 0.96
+    - 0.8
+    - 0.96
+    - 0.96
+    - 0.96
+    - 0.96
+    - 0.96
+    - 0.96
+    - 0.96
+    - 0.96
+    - 0.96
     - 0.96
     - 0.96
     - 0.96
@@ -77,23 +77,23 @@ training:
     - 0.96
     alpha_floor:
     - 0.3
-    - 0.1
-    - 0.29
-    - 0.18
     - 0.17
-    - 0.01
-    - 0.0
-    - 0.0
-    - 0.0
-    - 0.01
-    - 0.0
+    - 0.55
+    - 0.18
+    - 0.3
+    - 0.3
+    - 0.19
+    - 0.3
+    - 0.3
+    - 0.55
+    - 0.11
     - 0.55
     - 0.18
     - 0.3
     - 0.3
     - 0.55
     speed_weight: 0.0
-    output_cost_ratio: 0.0
+    output_cost_ratio: 0.25
     expected_output_tokens: 2000
     per_model_verbosity: true
   recommended_ui_defaults:
@@ -129,12 +129,16 @@ cost_per_1k_input_usd:
   moonshotai/kimi-k3: 0.003
   qwen/qwen3.8-27b: 0.0004
   motif-technologies/motif-3: 0.0005
-changelog: 'v0.83 = v0.82 with two coordinated changes. (1) default_routing_knobs.alpha
-  restored toward the upstream quality-dominant semantics: local v0.82 dropped mean
-  alpha to 0.512, giving the cost term 48.8% of the blend against upstream v0.75''s
-  9.0%, which is what collapsed routing onto the two cheapest flash lanes. (2) quality_means
-  re-derived from measured ground-truth labels for the 7 clusters that carry full
-  8-model label coverage, min-max rescaled into each cluster''s existing cell range
-  so alpha geometry is preserved; the other 9 clusters keep v0.82 cells byte-identical.
-  centroids.bin, model_axes.json and model_registry.json BYTE-IDENTICAL to v0.82.
-  Candidate; artifacts/latest NOT bumped.'
+changelog: 'v0.83 = v0.82, full-roster routing with cost sensitivity. Local v0.82
+  had mean alpha 0.512, giving the cost term 48.8% of the blend against upstream v0.75''s
+  9.0%. Combined with min-max cost normalisation on a 20x price ladder, that collapsed
+  routing onto two flash lanes: glm-5.3, glm-5.3-flash and kimi-k3 won 0/16 clusters
+  at every alpha from 0 to 1. v0.83 restores upstream''s quality-dominant alpha semantics
+  and re-derives quality_means from measured ground-truth accuracy on the 9 labelled
+  clusters, rescaled into each cluster''s existing range. output_cost_ratio 0.0 ->
+  0.25 (upstream quality_pareto) widens the effective cost ladder to 25.3x by counting
+  measured verbosity. Per cluster, alpha stays 0.96 where the measured winner leads
+  by more than 2pt and drops to 0.80 where the top models are a statistical tie, so
+  a tie resolves to the cheaper lane while a real capability margin keeps the premium
+  model. centroids.bin, model_axes.json and model_registry.json BYTE-IDENTICAL to
+  v0.82.'
