@@ -66,7 +66,7 @@ ART = REPO / "internal/router/cluster/artifacts"
 SRC = ART / "v0.82"
 DST = ART / "v0.84"
 LABELS = REPO / ".context/label-runs/v082-expanded-labels.jsonl"
-ASSIGN = REPO / ".context/label-runs/prompt-clusters-v082-full.json"
+ASSIGN = REPO / ".context/label-runs/prompt-clusters-v084.json"  # live cluster ids (refreshed by scripts/refresh_cluster_assignments.py); the v082 cache is stale — 150/1682 entries disagree with the live top-1 cosine route
 
 
 def short(m: str) -> str:
@@ -238,7 +238,7 @@ def main() -> int:
         "(costs[m] = input_per_1k + 0.25*output_per_1k*verbosity/median_verbosity) and widens "
         f"the effective cost ladder from {spread0:.1f}x to {spread:.1f}x. Measured replay on the "
         f"identical prompt set (.context/label-runs/v082-expanded-labels.jsonl + "
-        "prompt-clusters-v082-full.json): the new routed mix scores "
+        "prompt-clusters-v084.json): the new routed mix scores "
         f"{100*acc_new:.2f}% (n={int(n_new)}) of ground-truth score vs "
         f"{100*acc_old:.2f}% (n={int(n_old)}) for v0.82's routed mix on the same corpus; on the "
         f"{len(both)} prompts scored under BOTH mixes the comparison is {100*num_o/len(both):.2f}% "

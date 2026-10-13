@@ -136,7 +136,7 @@ PRIORS = {
 
 REPO = Path(__file__).resolve().parent.parent
 LABELS = REPO / ".context/label-runs/v082-expanded-labels.jsonl"
-ASSIGN = REPO / ".context/label-runs/prompt-clusters-v082-full.json"
+ASSIGN = REPO / ".context/label-runs/prompt-clusters-v084.json"  # live cluster ids (refreshed by scripts/refresh_cluster_assignments.py); the v082 cache is stale — 150/1682 entries disagree with the live top-1 cosine route
 ART = REPO / "internal/router/cluster/artifacts"
 DST = ART / "v0.84"
 

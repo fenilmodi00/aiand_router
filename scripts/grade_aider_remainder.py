@@ -35,7 +35,7 @@ REPO = Path("D:/router")
 ARENA = REPO.parent / "router-arena"
 CR = ARENA / "cached_results"
 CORPUS = REPO / ".context" / "label-runs" / "v082-expanded-labels.jsonl"
-CLUSTERS = REPO / ".context" / "label-runs" / "prompt-clusters-v082-full.json"
+CLUSTERS = REPO / ".context" / "label-runs" / "prompt-clusters-v084.json"  # live cluster ids (refreshed by scripts/refresh_cluster_assignments.py); the v082 cache is stale — 150/1682 entries disagree with the live top-1 cosine route
 GT = {
     "AIDER": ARENA / "dataset" / "aider_polyglot.jsonl",
     "LCBv5": ARENA / "dataset" / "lcbv5.jsonl",

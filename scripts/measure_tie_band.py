@@ -10,9 +10,9 @@ the ticket's table:
 
 Method (mirrors the live path exactly):
   1. Load .context/label-runs/v082-expanded-labels.jsonl (per-(prompt, model)
-     measured ground-truth rows) and prompt-clusters-v082-full.json (cluster
-     assignment per prompt, produced by the runtime embedding contract, so no
-     embedder is needed).
+     measured ground-truth rows) and prompt-clusters-v084.json (cluster
+     assignment per prompt = the live top-1 cosine route, so no embedder is
+     needed; refreshed by scripts/refresh_cluster_assignments.py).
   2. Recompute the blend exactly as internal/router/cluster/scorer.go
      blendScoresV2 does, over the cells and axes in
      internal/router/cluster/artifacts/v0.84/. Every knob is loaded from that
@@ -71,7 +71,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 LABELS = REPO / ".context/label-runs/v082-expanded-labels.jsonl"
-ASSIGN = REPO / ".context/label-runs/prompt-clusters-v082-full.json"
+ASSIGN = REPO / ".context/label-runs/prompt-clusters-v084.json"  # live cluster ids (refreshed by scripts/refresh_cluster_assignments.py); the v082 cache is stale — 150/1682 entries disagree with the live top-1 cosine route
 ART = REPO / "internal/router/cluster/artifacts/v0.84"
 
 # The 8-roster deployed models (artifacts/v0.84/model_registry.json

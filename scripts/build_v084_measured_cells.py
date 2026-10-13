@@ -13,8 +13,10 @@ all-8-scored corpus using upstream v0.75's calibration recipe:
   3. min-max rescale into each cluster's existing v0.82 cell range
 
 Cluster assignment reuses the committed cache
-(.context/label-runs/prompt-clusters-v082-full.json), which was produced by
-the runtime embedding contract, so no embedder is required here.
+(.context/label-runs/prompt-clusters-v084.json), which is the live top-1 cosine
+route produced by scripts/refresh_cluster_assignments.py, so no embedder is
+required here. (The earlier v082-named cache was stale: 150 of its 1,682
+entries disagreed with that route.)
 """
 from __future__ import annotations
 
@@ -44,7 +46,7 @@ MODELS = [
 
 REPO = Path(__file__).resolve().parent.parent
 LABELS = REPO / ".context/label-runs/v082-expanded-labels.jsonl"
-ASSIGN = REPO / ".context/label-runs/prompt-clusters-v082-full.json"
+ASSIGN = REPO / ".context/label-runs/prompt-clusters-v084.json"  # live cluster ids (refreshed by scripts/refresh_cluster_assignments.py); the v082 cache is stale — 150/1682 entries disagree with the live top-1 cosine route
 ART = REPO / "internal/router/cluster/artifacts"
 SRC = ART / "v0.82"
 DST = ART / "v0.84"
@@ -211,7 +213,9 @@ def main() -> int:
         f"min-max rescaled into each cluster's existing cell range. Source: "
         f".context/label-runs/v082-expanded-labels.jsonl ({len(rows)} rows, "
         f"{len(z_scores)} z-scored prompts) with cluster assignment from "
-        f".context/label-runs/prompt-clusters-v082-full.json. {n_meas} of {K} "
+        f".context/label-runs/prompt-clusters-v084.json (live top-1 cosine route, "
+        f"refreshed by scripts/refresh_cluster_assignments.py; the v082-named cache "
+        f"is stale by 150 of its 1,682 entries). {n_meas} of {K} "
         f"clusters pass the n>={MIN_USABLE_N} usable gate and are measured-only; "
         f"the remaining {K-n_meas} keep the v0.82 cell (tracked for ticket #91 "
         f"priors). Provenance per cluster is recorded in quality_means.json "

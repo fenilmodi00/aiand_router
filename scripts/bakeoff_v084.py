@@ -9,10 +9,11 @@ v0.83 builders and the tickets cite):
      mean-pool + L2-norm contract as the Go Embedder and the v0.82/v0.83
      builders) and assigned its top-1 cosine cluster from centroids.bin, the
      same id Route receives. The committed
-     .context/label-runs/prompt-clusters-v082-full.json is audited, not
-     trusted: it predates the final centroid retrain (150 of its 1,682 entries
-     disagree with the live route) and using it would feed both arms a stale
-     cluster id. --verify-clusters prints the disagreement.
+     .context/label-runs/prompt-clusters-v084.json is that live route
+     (refreshed by scripts/refresh_cluster_assignments.py); the older
+     v082-named cache predates the final centroid retrain (150 of its 1,682
+     entries disagree with the live route) and is kept only as historical
+     provenance. --verify-clusters re-embeds and re-checks the disagreement.
   2. For every prompt, the route decision is recomputed exactly as
      internal/router/cluster/scorer.go Route does: sum blendScoresV2 over the
      prompt's top_p=4 nearest clusters (topPNearest, ties by ascending cluster
@@ -46,7 +47,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 LABELS = REPO / ".context/label-runs/v082-expanded-labels.jsonl"
-ASSIGN = REPO / ".context/label-runs/prompt-clusters-v082-full.json"
+ASSIGN = REPO / ".context/label-runs/prompt-clusters-v084.json"  # live cluster ids (refreshed by scripts/refresh_cluster_assignments.py); the v082 cache is stale — 150/1682 entries disagree with the live top-1 cosine route
 CANDIDATE = REPO / "internal/router/cluster/artifacts/v0.84"
 BASELINE = REPO / "internal/router/cluster/artifacts/v0.82"
 EMBEDDER_ASSETS = REPO / "assets-extracted/jina-v2-base-code-int8"
@@ -463,10 +464,9 @@ def run_bakeoff() -> dict:
     vecs_all = {p: v for p, v in zip(prompts, vecs)}
 
     # Live cluster assignment: top-1 cosine per prompt (the runtime's cluster id),
-    # recomputed here rather than trusted from prompt-clusters-v082-full.json —
-    # the cache predates the final centroid retrain (150/1682 entries disagree),
-    # and every prior builder's cache would make the two arms disagree about
-    # which clusters a prompt belongs to. Both arms use the same live ids.
+    # recomputed here (the same code path refresh_cluster_assignments.py writes
+    # to prompt-clusters-v084.json) so both arms use the same live ids, not the
+    # stale v082-named cache.
     import numpy as np
     top1 = np.argmax(cents @ vecs.T, axis=0)
     live_assign = {p: int(top1[i]) for i, p in enumerate(prompts)}
