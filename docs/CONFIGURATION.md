@@ -302,6 +302,16 @@ reach.
 when the loaded bundle is a v1 artifact (no quality cells to blend). See
 `internal/router/cluster/reachability.go`.
 
+The report is deliberately pinned to the **deployment** cap. Scored turns
+(`MainLoop` / `ToolResult`) that carry agentic-scale signals — tool-result
+payloads ≥ 40k chars, estimated prompt ≥ 30k tokens, two or more declared tools,
+or visible history ≥ 20 messages — are routed with a per-turn clamp of 6.0×
+(`internal/router/turntype/premium_worthy.go`) so a lane just outside the
+deployment budget can win on merit for those turns only. On the shipped v0.84
+ladder that adds one lane (`motif-3`, 4.70×); lanes deeper in the ladder stay
+out. Every other turn, including every hard-pinned one, prices at the
+deployment cap.
+
 ### Authoritative upgrade evidence policy
 
 Authoritative HMM turns evaluate a typed evidence policy for expensive fresh

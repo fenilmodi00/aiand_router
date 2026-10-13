@@ -243,6 +243,14 @@ type Request struct {
 	// at full catalog so Haiku↔Opus spread is preserved); the planner instead
 	// treats it as a literal cost multiplier for dollar-EV cache-switch math.
 	SubsidizedModelCostFactor map[string]float64
+	// CostCapMultiple relaxes the cluster scorer's deployment cost cap for this
+	// turn: nil keeps the deployment default (Config.CostCapMultiple), a
+	// positive value clamps the cap to that multiple of the cheapest eligible
+	// lane instead. Router-internal decode only — the proxy sets it from the
+	// turn type and turn signals (see turntype.PremiumWorthyCapMultiple), and
+	// no header or client input can reach it. Negative values are ignored so a
+	// mis-computed decode can never disable the cap.
+	CostCapMultiple *float64
 	// ClusterArmOverrides is the per-API-key HMM cluster allowlist: cluster label
 	// → ordered catalog model IDs (index 0 = highest priority). Absent clusters
 	// keep the artifact default. Nil means no override.

@@ -780,6 +780,17 @@ func (s *Service) runTurnLoop(
 		RequestedTier:       catalog.TierFor(feats.Model),
 		StripThinkingBlocks: betaArtifactHistoryFromContext(ctx),
 	}
+	// Relax the cost cap before any route call on a scored turn. Only scored
+	// types decode true, so hard-pinned turns (which never reach the scorer)
+	// carry the nil deployment default here anyway.
+	if cap, ok := turntype.PremiumWorthyCap(res.TurnType, feats, env); ok {
+		cap := cap
+		req.CostCapMultiple = &cap
+		log.Debug("turnloop relaxed cost cap for premium-worthy turn",
+			"turn_type", string(res.TurnType),
+			"cap_multiple", cap,
+		)
+	}
 	res.AuthoritativePerTurn = authoritativePolicyTurn(res.TurnType) &&
 		s.authoritativePerTurnSelection(ctx)
 	res.PinRole = roleForTier(res.RequestedTier)

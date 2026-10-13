@@ -954,6 +954,14 @@ func (s *Scorer) Route(ctx context.Context, req router.Request) (router.Decision
 	// per-request candidate set and never touches the blended scores or the
 	// quality cells behind them. Never narrows to empty.
 	if s.cfg.CostCapMultiple > 0 && s.isV2 {
+		// Per-request relaxation is honored here and only here: a premium-worthy
+		// turn's widened candidate set must actually change what it competes
+		// against. Reachability() still reports the deployment cap, so the
+		// roster diagnostic keeps describing what the operator configured.
+		capMultiple := s.cfg.CostCapMultiple
+		if req.CostCapMultiple != nil && *req.CostCapMultiple >= 0 {
+			capMultiple = *req.CostCapMultiple
+		}
 		knobs := s.defaultActiveKnobs()
 		if req.RoutingKnobs != nil {
 			if req.RoutingKnobs.OutputCostRatio != nil {
@@ -971,13 +979,13 @@ func (s *Scorer) Route(ctx context.Context, req router.Request) (router.Decision
 			// applyCostCapCluster), not per cluster. activeKnobs carries the
 			// bundle defaults plus every cost-knob override the request made,
 			// so pricing and blend weights match what was just scored.
-			capped = s.applyCostCapCluster(topClusters, activeKnobs, eligibleModels, s.cfg.CostCapMultiple, req.SubsidizedModelCostFactor, priorityBonus)
+			capped = s.applyCostCapCluster(topClusters, activeKnobs, eligibleModels, capMultiple, req.SubsidizedModelCostFactor, priorityBonus)
 		} else {
-			capped = s.applyCostCap(eligibleModels, s.cfg.CostCapMultiple, knobs)
+			capped = s.applyCostCap(eligibleModels, capMultiple, knobs)
 		}
 		if len(capped) < len(eligibleModels) {
 			log.Debug("Cluster scorer: cost cap applied",
-				"cap_multiple", s.cfg.CostCapMultiple,
+				"cap_multiple", capMultiple,
 				"cap_mode", capMode,
 				"dropped_models", len(eligibleModels)-len(capped),
 				"eligible_models", len(eligibleModels),

@@ -19,6 +19,11 @@ Classifies inbound requests into:
 
 Used by [`../../proxy`](../../proxy) to keep the action loop cheap + correct.
 
+`PremiumWorthyCap` (premium_worthy.go) is a pure decode of agentic-scale turn
+shape that returns a per-turn cost-cap clamp (6.0×) for the scored turn types
+only; every other type always returns the deployment default. See
+`docs/CONFIGURATION.md` "Model reachability report".
+
 ## Invariants
 
 - **Compaction's fingerprint is checked in the system prompt AND the last user message.** Claude Code 2.x appends the canonical "your task is to create a detailed summary" instruction to the trailing turn (next to the last `tool_result`) rather than the system prompt; a system-only check falls through to `ToolResult` and routes summarization through the scorer. In a user message the phrase must co-occur with the template's "do not call any tools" clause, inside a bounded prefix scan — on its own it is text a human could type.
