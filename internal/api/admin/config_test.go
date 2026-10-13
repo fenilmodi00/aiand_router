@@ -27,9 +27,11 @@ func TestConfigHandler_EnvProviderKeys_IncludesEveryDeployedProvider(t *testing.
 
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
+	// nil reachability source: a non-cluster router must still serve config,
+	// with the reachability block null.
 	engine.GET("/admin/v1/config", func(c *gin.Context) {
 		c.Set("router_installation", &auth.Installation{ID: "inst-1"})
-	}, admin.ConfigHandler)
+	}, admin.ConfigHandler(nil))
 
 	req := httptest.NewRequest(http.MethodGet, "/admin/v1/config", nil)
 	rec := httptest.NewRecorder()

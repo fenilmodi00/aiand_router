@@ -41,6 +41,38 @@ type Config struct {
 	// disable the cap entirely. See DefaultCostCapMultiple for the measured
 	// default and applyCostCap for the fallback semantics.
 	CostCapMultiple float64
+	// CostCapMode shapes the budget CostCapMultiple is measured against:
+	// CostCapModeGlobal (default, one budget from the cheapest eligible model)
+	// or CostCapModeCluster (a budget per top-P cluster, anchored at the
+	// cheapest model that cluster's own blend elects — see
+	// applyCostCapCluster). Unknown values fall back to global with a warning.
+	CostCapMode string
+}
+
+// Cost cap budget shapes for Config.CostCapMode.
+const (
+	// CostCapModeGlobal budgets every prompt against the cheapest eligible
+	// model on the roster: one budget for the whole deployment.
+	CostCapModeGlobal = "global"
+	// CostCapModeCluster budgets each of the prompt's top-P clusters against
+	// the cheapest model that cluster's own blend elects, so a premium lane is
+	// priced against the lane it actually competes with instead of the roster's
+	// cheapest lane everywhere.
+	CostCapModeCluster = "cluster"
+)
+
+// NormalizeCostCapMode validates a cost-cap mode value: case-insensitive,
+// surrounding whitespace tolerated, empty means CostCapModeGlobal (the zero
+// value). Returns the canonical mode and whether v named a valid one; callers
+// warn-and-default on false.
+func NormalizeCostCapMode(v string) (string, bool) {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "", CostCapModeGlobal:
+		return CostCapModeGlobal, true
+	case CostCapModeCluster:
+		return CostCapModeCluster, true
+	}
+	return "", false
 }
 
 // DefaultCostCapMultiple is the measured quality/cost knee: restricting argmax
@@ -58,6 +90,10 @@ func DefaultConfig() Config {
 		MaxPromptChars:  1024,
 		EmbedTimeout:    1500 * time.Millisecond,
 		CostCapMultiple: DefaultCostCapMultiple,
+		// One deployment-wide budget (the historical behavior). Cluster mode
+		// is opt-in; see the ROUTER_CLUSTER_COST_CAP_MODE measurement in
+		// docs/CONFIGURATION.md before choosing it.
+		CostCapMode: CostCapModeGlobal,
 	}
 }
 
@@ -138,6 +174,20 @@ func NewScorer(bundle *Bundle, cfg Config, embed Embedder, availableProviders ma
 			"value", cfg.CostCapMultiple,
 		)
 		cfg.CostCapMultiple = 0
+	}
+	// An unrecognized mode must not fail boot (Config is runtime knobs, not
+	// cluster geometry), but silently reverting to global would hide a typo
+	// that also disables the cluster mode someone meant to enable. Warn with
+	// the resolved value and fall back to the historical global budget.
+	if mode, ok := NormalizeCostCapMode(cfg.CostCapMode); ok {
+		cfg.CostCapMode = mode
+	} else {
+		observability.Get().Warn(
+			"Cluster scorer: unknown cost cap mode; using global",
+			"value", cfg.CostCapMode,
+			"default", CostCapModeGlobal,
+		)
+		cfg.CostCapMode = CostCapModeGlobal
 	}
 	if len(availableProviders) == 0 {
 		return nil, fmt.Errorf("cluster: availableProviders must not be empty")
@@ -761,6 +811,10 @@ func (s *Scorer) Route(ctx context.Context, req router.Request) (router.Decision
 
 	var scores map[string]float32
 	var effectiveKnobsHash uint64
+	// activeKnobs is declared here (not inside the v2 branch) because the
+	// cost-cap block below needs the same effective knobs the blend was scored
+	// with, in both modes; nil on the v1 fallback path, where no cap applies.
+	var activeKnobs DefaultRoutingKnobs
 
 	if s.isV2 {
 		// 1. Resolve Knobs and Validate
@@ -772,7 +826,7 @@ func (s *Scorer) Route(ctx context.Context, req router.Request) (router.Decision
 		// clusters by design, and that's not something an operator can act
 		// on, so it must never WARN.
 		defaultKnobs := s.defaultActiveKnobs()
-		activeKnobs := s.defaultActiveKnobs()
+		activeKnobs = s.defaultActiveKnobs()
 
 		if req.RoutingKnobs != nil {
 			switch {
@@ -909,10 +963,22 @@ func (s *Scorer) Route(ctx context.Context, req router.Request) (router.Decision
 				knobs.PerModelVerbosity = *req.RoutingKnobs.PerModelVerbosity
 			}
 		}
-		capped := s.applyCostCap(eligibleModels, s.cfg.CostCapMultiple, knobs)
+		var capped []string
+		capMode := s.cfg.CostCapMode
+		if capMode == CostCapModeCluster {
+			// Per-cluster budgets anchored at each cluster's own elected set;
+			// the never-empty fallback is prompt-level (see
+			// applyCostCapCluster), not per cluster. activeKnobs carries the
+			// bundle defaults plus every cost-knob override the request made,
+			// so pricing and blend weights match what was just scored.
+			capped = s.applyCostCapCluster(topClusters, activeKnobs, eligibleModels, s.cfg.CostCapMultiple, req.SubsidizedModelCostFactor, priorityBonus)
+		} else {
+			capped = s.applyCostCap(eligibleModels, s.cfg.CostCapMultiple, knobs)
+		}
 		if len(capped) < len(eligibleModels) {
 			log.Debug("Cluster scorer: cost cap applied",
 				"cap_multiple", s.cfg.CostCapMultiple,
+				"cap_mode", capMode,
 				"dropped_models", len(eligibleModels)-len(capped),
 				"eligible_models", len(eligibleModels),
 			)
@@ -1150,6 +1216,130 @@ func (s *Scorer) applyCostCap(models []string, capMultiple float64, knobs Defaul
 	}
 	if len(capped) == 0 {
 		return models
+	}
+	return capped
+}
+
+// applyCostCapCluster implements CostCapModeCluster: a per-cluster budget
+// instead of one deployment-wide budget.
+//
+// EXACT SEMANTICS. topClusters is the prompt's top-P cluster list, activeKnobs
+// the effective knobs Route already resolved (dial alpha included), and models
+// the post-filter eligible list. For each cluster k in topClusters:
+//
+//  1. Compute k's own blend: blendScoresV2([]int{k}, ...) — the same blend the
+//     live route uses, over the same eligible models, so it is exactly how well
+//     each model competes INSIDE cluster k.
+//  2. ELECTED(k) = the models tied at cluster k's best blend score (the models
+//     that cluster elects under the active knobs).
+//  3. anchor(k) = the cheapest effective cost in ELECTED(k); budget(k) =
+//     capMultiple * anchor(k). So a cluster whose blend elects a premium lane
+//     prices the budget against THAT lane, not against the roster's cheapest
+//     lane everywhere.
+//  4. ADMITTED(k) = the models in ELECTED(k) whose effective cost is within
+//     budget(k): the models cluster k elects, priced against the cheapest
+//     model cluster k elects.
+//
+// The prompt's candidate set is
+//
+//	globalSet ∪ (union over k of ADMITTED(k)),
+//
+// where globalSet = applyCostCap(models, capMultiple, knobs) — the deployment's
+// historical candidate set for this prompt, so global mode's constraint stays
+// fully in force for every model that was already affordable. The per-cluster
+// term only WIDENS the set, and only by models one of the prompt's own
+// clusters elects: a model must be elected — hence in budget — on a cluster
+// where it actually competes, which is what lets a premium lane win a cluster
+// where the blend genuinely prefers it while the cheap lane keeps holding the
+// clusters it dominates (and with them every prompt the deployment-wide budget
+// already covered).
+//
+// This is deliberately a union, not the intersection across the top-P clusters
+// of the per-cluster budget sets: with the anchor priced at each cluster's
+// cheapest elected model, a flash-electing cluster's budget excludes the
+// premium lanes, so intersecting would drop a premium winner on every cluster
+// but its own and cluster mode would collapse back to global mode on this
+// roster (measured: strict intersection admits exactly the global set, since
+// the cheapest lane sits inside every cluster's budget).
+//
+// Never-empty is prompt-level, not per-cluster, matching applyCostCap: if the
+// union ends up empty the full eligible set is returned. Each cluster's ADMITTED
+// is non-empty by construction (its own cheapest elected model is always within
+// capMultiple of itself), and globalSet is non-empty by the same argument, so
+// the fallback is a guard, not a working path.
+//
+// Like applyCostCap this is a policy layer over the blend: it narrows or widens
+// which models can win, never the scores, the quality cells, or the blend
+// itself.
+func (s *Scorer) applyCostCapCluster(topClusters []int, activeKnobs DefaultRoutingKnobs, models []string, capMultiple float64, subsidyFactors map[string]float64, priorityBonus map[string]float32) []string {
+	if capMultiple <= 0 || len(models) == 0 || len(topClusters) == 0 {
+		return models
+	}
+
+	keep := make(map[string]struct{}, len(models))
+	// Global budget first: every model the deployment-wide cap already admits
+	// stays routable, on every prompt.
+	for _, m := range s.applyCostCap(models, capMultiple, activeKnobs) {
+		keep[m] = struct{}{}
+	}
+
+	for _, k := range topClusters {
+		if _, ok := s.qualityMeans[k]; !ok {
+			continue
+		}
+		clusterScores := s.blendScoresV2([]int{k}, activeKnobs, models, subsidyFactors, priorityBonus)
+
+		// ELECTED(k): models at the cluster's best blend score.
+		var elected []string
+		var best float32
+		first := true
+		for _, m := range models {
+			cs, ok := clusterScores[m]
+			if !ok {
+				continue
+			}
+			if first || cs > best {
+				elected, best, first = []string{m}, cs, false
+				continue
+			}
+			if cs == best {
+				elected = append(elected, m)
+			}
+		}
+		if len(elected) == 0 {
+			continue
+		}
+
+		// Budget(k) = capMultiple × the cheapest elected model's cost.
+		anchorCost := math.Inf(1)
+		for _, m := range elected {
+			if c := s.effectiveCost(m, activeKnobs); c < anchorCost {
+				anchorCost = c
+			}
+		}
+		if math.IsInf(anchorCost, 1) || math.IsNaN(anchorCost) {
+			continue
+		}
+		budget := capMultiple * anchorCost
+		if math.IsInf(budget, 1) || math.IsNaN(budget) {
+			continue
+		}
+		for _, m := range elected {
+			if s.effectiveCost(m, activeKnobs) <= budget {
+				keep[m] = struct{}{}
+			}
+		}
+	}
+
+	if len(keep) == 0 {
+		// Prompt-level never-empty fallback: the cap never strands a turn.
+		return models
+	}
+	capped := make([]string, 0, len(keep))
+	for _, m := range models {
+		if _, ok := keep[m]; ok {
+			capped = append(capped, m)
+		}
 	}
 	return capped
 }

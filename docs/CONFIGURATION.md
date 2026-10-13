@@ -246,6 +246,7 @@ Keep the signing key identical on gateway and workers of the same environment.
 | `ROUTER_CLUSTER_VERSION`          | *(reads `artifacts/latest`)* | Pin a specific cluster artifact version (e.g. `v0.79`). |
 | `ROUTER_CLUSTER_EMBED_TIMEOUT_MS` | `200`                        | Per-request ONNX embed timeout. Increase for slower hosts. |
 | `ROUTER_CLUSTER_COST_CAP_MULTIPLE` | `3.0`                      | Deployment cost cap: argmax only considers models whose effective cost (`input_per_1k + output_cost_ratio * output_per_1k * verbosity_factor`) is within this multiple of the cheapest deployed lane. Set to `0` to disable and restore the pure quality/cost blend. Measured over the full labelled corpus (`.context/label-runs/v082-expanded-labels.jsonl`, 1,503 all-8-scored prompts): cheapest-lane-only 67.24% accuracy @ $0.00034/prompt, `3.0` (default) 71.03% @ $0.00058/prompt, cap disabled 74.36% @ $0.00512/prompt. A cap that would empty the candidate set falls back to the full set, so a turn is never failed over pricing. |
+| `ROUTER_CLUSTER_COST_CAP_MODE`    | `global`                   | Budget shape for `ROUTER_CLUSTER_COST_CAP_MULTIPLE`: `global` = one deployment-wide budget (cap × the cheapest eligible lane on the whole roster, the historical behavior), `cluster` = a budget per top-P cluster (cap × the cheapest model that cluster's own blend elects) unioned with the global set. Unknown values warn at boot and fall back to `global`. Measured over the committed v0.84 bundle (8 models, alpha 0.96 / 0.80 demotions, `output_cost_ratio` 0.25) on both the 180 register probes (`testdata/register_probes.jsonl`) and the labelled corpus (1,853 routed prompts): `global` reaches 2 of 8 models (deepseek-v4-flash 993, deepseek-v4.1-flash 866) at $0.000457/prompt and 68.9898% accuracy; `cluster` reaches 4 of 8 (adding deepseek-v4-pro 66 = 3.6% and qwen/qwen3.8-27b 45 = 2.4%) at $0.001081/prompt and 68.9196% accuracy. So cluster mode recovers the two lanes the cap alone silences — exactly the uncapped-reachable set (4 of 8) — at +2.4x measured cost for -0.07pt accuracy, while still holding the cheap lane on every cluster it dominates; it can never remove a route `global` had. Default stays `global`: the measured trade does not pay for itself on accuracy, so take `cluster` when roster coverage matters more than the 2.4x cost. Measure with `python scripts/measure_cost_cap_modes.py`. |
 | `ROUTER_EMBED_ONLY_USER_MESSAGE`  | `true`                       | Feed only user-role text to the embedder. Set `false` to embed the full concatenated turn. |
 | `ROUTER_STICKY_DECISION_TTL_MS`   | `0` (disabled)               | Reuse a routing decision per API key for this many ms. |
 | `ROUTER_SESSION_PIN_ENABLED`      | `true`                       | Pin a session to its first-routed model so multi-turn conversations stay coherent. |
@@ -271,6 +272,35 @@ Keep the signing key identical on gateway and workers of the same environment.
 If the cluster scorer can't run (missing model, embed timeout, etc.), the
 router returns HTTP 503 — it does *not* silently fall back to a default
 model. Failures are loud by design.
+
+### Model reachability report
+
+"Will this router route all needful models when needed?" is answered at runtime
+by `GET /admin/v1/config` (self-hosted dashboard/admin group — no new endpoint),
+in the `cluster_reachability` block, and summarized in the
+`Cluster model reachability` boot log. It is derived from the loaded cluster
+bundle and the deployment's own `ROUTER_CLUSTER_COST_CAP_MULTIPLE`, and is a
+read-only diagnostic: calling it never moves a routing decision.
+
+| Field | Meaning |
+| --- | --- |
+| `cluster_version`, `cluster_count` | The bundle being reported and how many clusters it routes over. |
+| `cost_cap_multiple`, `cost_cap_mode` | The scorer's effective cap (`0` = disabled) and the budget shape it uses — `global` (one budget from the roster's cheapest lane) or `cluster` (a budget per top-P cluster, anchored at the cheapest model that cluster elects). The `winners_with_cost_cap` list is only comparable against the mode that produced it. |
+| `alpha_grid_points` | Resolution of the uniform-alpha sweep behind `wins_alpha_low`/`wins_alpha_high`. |
+| `models[]` | One row per deployed model, cheapest effective cost first. Each carries `effective_cost_per_1k_input_usd` (the blend's own cost term: `input_per_1k + output_cost_ratio * output_per_1k * verbosity_factor`), `cost_multiple_vs_cheapest`, `inside_cost_cap_lane`, the cluster indices it wins with the cap (`clusters_won_with_cost_cap`) and with it off (`clusters_won_without_cost_cap`), and the alpha interval where it wins anything. |
+| `winners_with_cost_cap`, `winners_without_cost_cap` | The models that win at least one cluster under the deployed cap / with the cap off. |
+
+Cluster wins are one vote per cluster centroid at the bundle's shipped knobs, so
+this is mix reachability, not a traffic forecast. `0` clusters won means the
+model is never chosen automatically — every model is still reachable on demand
+via an explicit `RequestedModel`, `PreferredModels`, `/force-model`, or a relaxed
+cap. The alpha sweep deliberately ignores `alpha_floor`, so a model that wins
+only below every floor shows an interval the QualityBias dial cannot legally
+reach.
+
+`cluster_reachability` is `null` when the router is not the cluster scorer, or
+when the loaded bundle is a v1 artifact (no quality cells to blend). See
+`internal/router/cluster/reachability.go`.
 
 ### Authoritative upgrade evidence policy
 

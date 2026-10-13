@@ -3,6 +3,7 @@ package cluster
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
@@ -1196,6 +1197,21 @@ type v2BundleOpts struct {
 	// costCapMultiple overrides the Config's cost cap for the built Scorer.
 	// 0 disables the cap; unset keeps DefaultConfig's measured default.
 	costCapMultiple *float64
+	// costCapMode overrides Config.CostCapMode; unset keeps DefaultConfig's
+	// CostCapModeGlobal (the historical deployment-wide budget).
+	costCapMode string
+	// clusterCount overrides the synthetic bundle's cluster count (centroids are
+	// one-hot in dims 0..count-1, so an embed vector summing those dims makes all
+	// of them the prompt's top-P). Unset keeps the harness's two-cluster default.
+	clusterCount int
+	// extraModels adds registry rows beyond the two the harness ships. Each
+	// entry needs model + provider; bench_column defaults to model name.
+	// Required so a scenario with a third lane can price it against the other
+	// two exactly.
+	extraModels []DeployedEntry
+	// topP overrides the Scorer's TopP; unset keeps the harness default of 1,
+	// so tests that only exercise one cluster are unaffected.
+	topP *int
 }
 
 // newV2BundleForTest builds a synthetic two-cluster v2 bundle (Opus +
@@ -1203,21 +1219,34 @@ type v2BundleOpts struct {
 func newV2BundleForTest(t *testing.T, emb Embedder, opts v2BundleOpts) *Scorer {
 	t.Helper()
 	dim := EmbedDim
-	c0 := make([]float32, dim)
-	c0[0] = 1
-	c1 := make([]float32, dim)
-	c1[1] = 1
-	full := append(append([]float32{}, c0...), c1...)
-	centroidsBlob := buildCentroidsBlob(t, 2, dim, full)
+	k := opts.clusterCount
+	if k <= 0 {
+		k = 2
+	}
+	require.LessOrEqual(t, k, dim, "synthetic cluster count must fit the embedding dim")
+	full := make([]float32, 0, k*dim)
+	for c := range k {
+		row := make([]float32, dim)
+		row[c] = 1
+		full = append(full, row...)
+	}
+	centroidsBlob := buildCentroidsBlob(t, k, dim, full)
 	centroids, err := loadCentroids(centroidsBlob)
 	require.NoError(t, err)
 
-	registry, err := loadRegistry([]byte(`{
+	registryJSON := `{
 		"deployed_models": [
 			{"model": "claude-opus-4-7", "provider": "anthropic", "bench_column": "gpt-5", "proxy": true},
-			{"model": "claude-haiku-4-5", "provider": "anthropic", "bench_column": "gemini-2.5-flash", "proxy": true}
-		]
-	}`))
+			{"model": "claude-haiku-4-5", "provider": "anthropic", "bench_column": "gemini-2.5-flash", "proxy": true}`
+	for _, e := range opts.extraModels {
+		bench := e.BenchColumn
+		if bench == "" {
+			bench = e.Model
+		}
+		registryJSON += fmt.Sprintf(",\n\t\t\t{\"model\": %q, \"provider\": %q, \"bench_column\": %q}", e.Model, e.Provider, bench)
+	}
+	registryJSON += "\n\t]\n}"
+	registry, err := loadRegistry([]byte(registryJSON))
 	require.NoError(t, err)
 
 	qm := opts.qualityMeans
@@ -1273,7 +1302,7 @@ func newV2BundleForTest(t *testing.T, emb Embedder, opts v2BundleOpts) *Scorer {
 	meta := &ArtifactMetadata{
 		FormatVersion: 2,
 		Training: ArtifactTraining{
-			K:                   2,
+			K:                   k,
 			TopP:                2,
 			DefaultRoutingKnobs: defaults,
 		},
@@ -1298,6 +1327,12 @@ func newV2BundleForTest(t *testing.T, emb Embedder, opts v2BundleOpts) *Scorer {
 	cfg.CostCapMultiple = 0
 	if opts.costCapMultiple != nil {
 		cfg.CostCapMultiple = *opts.costCapMultiple
+	}
+	if opts.costCapMode != "" {
+		cfg.CostCapMode = opts.costCapMode
+	}
+	if opts.topP != nil {
+		cfg.TopP = *opts.topP
 	}
 	scorer, err := NewScorer(bundle, cfg, emb, allProviders())
 	require.NoError(t, err)
@@ -1705,4 +1740,125 @@ func TestScorer_CostCapRestrictsToCheapestLane(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, afterExclusion.Metadata.CandidateModels, "candidate set must never be empty")
 	assert.Equal(t, "claude-opus-4-7", afterExclusion.Model, "excluding the cheap lane routes on the remaining candidate")
+}
+
+// CostCapModeCluster vs CostCapModeGlobal: the same cap multiple, priced two
+// different ways, routes differently on the roster shape the mode exists for —
+// a premium lane that wins a cluster's uncapped blend while the cheap lane wins
+// the roster's other clusters.
+//
+// Scenario (two lanes, three clusters, TopP=2 so the prompt's blend covers two
+// premium-electing clusters):
+//
+//	premium $0.012/1k — leads clusters 0 and 1 on quality (12x the cheap lane)
+//	cheap   $0.001/1k — leads cluster 2 on quality
+//
+// The prompt vector is equidistant from all three one-hot centroids, so TopP=2
+// picks clusters 0 and 1 (ties broken by the lower cluster index) — the two the
+// premium lane wins — and the uncapped blend therefore elects premium.
+//
+// At the production knee capMultiple=3.0 the two modes disagree:
+//   - global prices ONE deployment-wide budget against the cheapest eligible
+//     lane, so the premium lane is out of budget on every cluster and the cheap
+//     lane routes instead;
+//   - cluster prices each cluster's budget against the cheapest model THAT
+//     cluster elects — clusters 0 and 1 elect premium, so premium sits inside
+//     their budgets, and the blend's own winner routes.
+//
+// Cluster mode is a strict widening: the global set is the union's first term,
+// so the cheap lane stays routable in both modes and the premium lane is the
+// only thing the budget shape decides.
+func TestScorer_CostCapClusterModeAdmitsClusterElectedLanes(t *testing.T) {
+	const (
+		premiumModel = "claude-opus-4-7"  // $0.012/1k
+		cheapModel   = "claude-haiku-4-5" // $0.001/1k
+		clusters     = 3
+	)
+	topP := 2
+	premiumIn, cheapIn := 0.012, 0.001
+	ttft, tps := 0.2, 100.0
+	axes := map[string]ModelAxis{
+		premiumModel: {InputPer1KUSD: &premiumIn, TTFTSeconds: &ttft, TPS: &tps},
+		cheapModel:   {InputPer1KUSD: &cheapIn, TTFTSeconds: &ttft, TPS: &tps},
+	}
+	// The premium lane owns clusters 0 and 1; the cheap lane owns cluster 2.
+	// Cluster 2 is still a legitimate cluster of the bundle — it is simply not
+	// in this prompt's top-P, which is what makes the cheap lane routable only
+	// via the shared deployment-wide budget term.
+	quality := Rankings{
+		0: {premiumModel: 0.9, cheapModel: 0.1},
+		1: {premiumModel: 0.9, cheapModel: 0.1},
+		2: {cheapModel: 0.9, premiumModel: 0.1},
+	}
+	// Quality-led blend (alpha 0.9) with the cost term priced at input price
+	// only (output_cost_ratio 0, verbosity off), so the 12x cost relationship is
+	// exact and the 3x budget math is exact.
+	knobs := &DefaultRoutingKnobs{
+		Alpha:                []float64{0.9, 0.9, 0.9},
+		SpeedWeight:          0.0,
+		OutputCostRatio:      0.0,
+		ExpectedOutputTokens: 2000,
+		PerModelVerbosity:    false,
+	}
+
+	emb := &fakeEmbedder{vec: weightedVec(EmbedDim, clusters, 1.0, 0.0)}
+	capKnee := DefaultCostCapMultiple
+	build := func(mode string, cap float64) *Scorer {
+		c := cap
+		return newV2BundleForTest(t, emb, v2BundleOpts{
+			qualityMeans:    quality,
+			modelAxes:       axes,
+			defaultKnobs:    knobs,
+			clusterCount:    clusters,
+			topP:            &topP,
+			costCapMode:     mode,
+			costCapMultiple: &c,
+		})
+	}
+
+	req := router.Request{PromptText: "test"}
+
+	// Uncapped baseline: the blend elects the premium lane on these two clusters.
+	uncapped, err := build("", 0).Route(context.Background(), req)
+	require.NoError(t, err)
+	require.Equal(t, premiumModel, uncapped.Model, "precondition: the uncapped blend elects the premium lane")
+
+	global, err := build(CostCapModeGlobal, capKnee).Route(context.Background(), req)
+	require.NoError(t, err)
+	clusterMode, err := build(CostCapModeCluster, capKnee).Route(context.Background(), req)
+	require.NoError(t, err)
+	require.NotNil(t, global.Metadata)
+	require.NotNil(t, clusterMode.Metadata)
+
+	// The observable difference at the SAME cap multiple: the deployment-wide
+	// budget compares the premium lane against the cheapest lane on the roster
+	// and drops it; the per-cluster budgets compare it against the lane each
+	// cluster elects, which IS the premium lane.
+	assert.Equal(t, []string{cheapModel}, global.Metadata.CandidateModels,
+		"global budget: only the cheapest lane is within 3x of it")
+	assert.ElementsMatch(t, []string{cheapModel, premiumModel}, clusterMode.Metadata.CandidateModels,
+		"cluster budget: the cheap lane stays in via the shared budget term, the premium lane re-enters on its own cluster")
+	assert.Equal(t, cheapModel, global.Model, "global mode routes the cheap lane the budget admits")
+	assert.Equal(t, premiumModel, clusterMode.Model, "cluster mode routes the blend's own premium winner")
+
+	// The cap is a candidate-set policy: it never touches the scores behind it,
+	// so the cluster-mode decision carries the uncapped blend's score.
+	assert.Equal(t, uncapped.Metadata.ChosenScore, clusterMode.Metadata.ChosenScore,
+		"the cap widens the candidate set, never the scores behind it")
+}
+
+// weightedVec builds an embed vector with first on the first count dims and
+// rest on the rest, so a bundle whose centroids are one-hot in those dims sees
+// equal similarity and topPNearest's tie-break (lowest cluster index) decides
+// which clusters make the prompt's top-P.
+func weightedVec(dim, count int, first, rest float32) []float32 {
+	v := make([]float32, dim)
+	for i := range dim {
+		if i < count {
+			v[i] = first
+			continue
+		}
+		v[i] = rest
+	}
+	return v
 }

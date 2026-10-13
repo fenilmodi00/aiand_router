@@ -1348,6 +1348,21 @@ func buildClusterScorer(availableProviders map[string]struct{}) (router.Router, 
 			logger.Info("Cluster top_p overridden", "top_p", n)
 		}
 	}
+	if v := config.GetOr("ROUTER_CLUSTER_COST_CAP_MODE", ""); v != "" {
+		// Empty/absent already means the global default below; anything else
+		// must name one of the two documented modes (case-insensitive) or it is
+		// a typo that would silently disable a mode someone meant to enable.
+		mode, ok := cluster.NormalizeCostCapMode(v)
+		if !ok {
+			logger.Warn(
+				"Invalid ROUTER_CLUSTER_COST_CAP_MODE; using default",
+				"value", v, "default", cluster.CostCapModeGlobal,
+				"valid_modes", []string{cluster.CostCapModeGlobal, cluster.CostCapModeCluster},
+			)
+			mode = cluster.CostCapModeGlobal
+		}
+		cfg.CostCapMode = mode
+	}
 	if v := config.GetOr("ROUTER_CLUSTER_COST_CAP_MULTIPLE", ""); v != "" {
 		m, parseErr := strconv.ParseFloat(v, 64)
 		if parseErr != nil {
@@ -1367,6 +1382,7 @@ func buildClusterScorer(availableProviders map[string]struct{}) (router.Router, 
 	} else {
 		logger.Info("Cluster cost cap at default knee", "cost_cap_multiple", cfg.CostCapMultiple)
 	}
+	logger.Info("Cluster cost cap mode", "cost_cap_mode", cfg.CostCapMode)
 	scorers := make(map[string]*cluster.Scorer, len(versions))
 	warmed := make(map[string]cluster.Embedder)
 	var defaultEmbedderID string
@@ -1438,6 +1454,41 @@ func buildClusterScorer(availableProviders map[string]struct{}) (router.Router, 
 		"requested_version", requestedVersion,
 		"build_all_versions", buildAll,
 	)
+	// Log the reachability answer once at boot so an operator sees which models
+	// this bundle can actually pick (and which never win traffic) without
+	// querying the admin endpoint. Purely additive: DefaultReachability only
+	// reads the scorer's bundle.
+	if report, err := multi.DefaultReachability(); err != nil {
+		logger.Warn("Cluster reachability unavailable", "cluster_version", defaultVersion, "err", err)
+	} else {
+		logger.Info(
+			"Cluster model reachability",
+			"cluster_version", report.ClusterVersion,
+			"clusters", report.ClusterCount,
+			"cost_cap_multiple", report.CostCapMultiple,
+			"cost_cap_mode", report.CostCapMode,
+			"winners_with_cost_cap", report.WinnersWithCostCap,
+			"winners_without_cost_cap", report.WinnersWithoutCostCap,
+		)
+		for _, row := range report.Models {
+			wins := "none"
+			if len(row.ClustersWonWithCostCap) > 0 || len(row.ClustersWonWithoutCostCap) > 0 {
+				wins = fmt.Sprintf("capped=%v uncapped=%v", row.ClustersWonWithCostCap, row.ClustersWonWithoutCostCap)
+			}
+			alpha := "-"
+			if row.WinsAlphaLow != nil {
+				alpha = fmt.Sprintf("%.3f-%.3f", *row.WinsAlphaLow, *row.WinsAlphaHigh)
+			}
+			logger.Info(
+				"Cluster model reachability row",
+				"model", row.Model,
+				"cost_multiple", fmt.Sprintf("%.2fx", row.CostMultipleVsCheapest),
+				"inside_cost_cap_lane", row.InsideCostCapLane,
+				"cluster_wins", wins,
+				"wins_alpha_range", alpha,
+			)
+		}
+	}
 
 	// Warmup: burn each embedder's lazy ONNX graph-optimization cost at boot.
 	for id, embedder := range warmed {

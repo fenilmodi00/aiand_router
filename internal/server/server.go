@@ -276,7 +276,14 @@ func RegisterWithFeatures(engine *gin.Engine, authSvc *auth.Service, proxySvc *p
 		mgmt.GET("/provider-keys/:id/models", admin.ListUpstreamModelsHandler(authSvc, proxySvc))
 		mgmt.POST("/provider-keys/discover-models", admin.DiscoverModelsHandler(proxySvc))
 		mgmt.DELETE("/provider-keys/:id", admin.DeleteExternalKeyHandler(authSvc))
-		mgmt.GET("/config", admin.ConfigHandler)
+		// The cluster scorer doubles as the reachability source: the config
+		// payload carries which models the bundle can actually pick. A nil or
+		// non-cluster source leaves the field null (the handler takes nil).
+		var reachability admin.ReachabilitySource
+		if src, ok := deployedModels.(admin.ReachabilitySource); ok && src != nil {
+			reachability = src
+		}
+		mgmt.GET("/config", admin.ConfigHandler(reachability))
 		mgmt.GET("/onboarding", admin.OnboardingHandler(authSvc))
 		mgmt.GET("/routing-preferences", admin.GetRoutingPreferencesHandler(authSvc))
 		mgmt.PUT("/routing-preferences", admin.UpdateRoutingPreferencesHandler(authSvc))
