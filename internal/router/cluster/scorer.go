@@ -35,14 +35,29 @@ type Config struct {
 	TopP           int
 	MaxPromptChars int
 	EmbedTimeout   time.Duration
+	// CostCapMultiple caps the routing candidate set at models whose effective
+	// cost (input_per_1k + output_cost_ratio*output_per_1k*verbosity_factor) is
+	// at most this multiple of the cheapest deployed model's. Set to 0 to
+	// disable the cap entirely. See DefaultCostCapMultiple for the measured
+	// default and applyCostCap for the fallback semantics.
+	CostCapMultiple float64
 }
+
+// DefaultCostCapMultiple is the measured quality/cost knee: restricting argmax
+// to models within 3x of the cheapest deployed lane recovers most of
+// unlimited routing's accuracy at a fraction of its cost. Measured over the
+// full labelled corpus (.context/label-runs/v082-expanded-labels.jsonl, 1,503
+// all-8-scored prompts): cheapest-lane-only 67.24% @ $0.00034/prompt, 3x
+// 71.03% @ $0.00058, unlimited 74.36% @ $0.00512.
+const DefaultCostCapMultiple = 3.0
 
 // DefaultConfig returns production defaults.
 func DefaultConfig() Config {
 	return Config{
-		TopP:           4,
-		MaxPromptChars: 1024,
-		EmbedTimeout:   1500 * time.Millisecond,
+		TopP:            4,
+		MaxPromptChars:  1024,
+		EmbedTimeout:    1500 * time.Millisecond,
+		CostCapMultiple: DefaultCostCapMultiple,
 	}
 }
 
@@ -113,6 +128,16 @@ func NewScorer(bundle *Bundle, cfg Config, embed Embedder, availableProviders ma
 	}
 	if cfg.MaxPromptChars <= 0 {
 		return nil, fmt.Errorf("cluster: MaxPromptChars must be positive, got %d", cfg.MaxPromptChars)
+	}
+	// 0 means "cap disabled" (reachable via env); negative is a config bug but
+	// must not cost a deployment its router, so warn-and-disable instead of
+	// failing boot.
+	if cfg.CostCapMultiple < 0 {
+		observability.Get().Warn(
+			"Cluster scorer: cost cap multiple is negative; disabling the cost cap",
+			"value", cfg.CostCapMultiple,
+		)
+		cfg.CostCapMultiple = 0
 	}
 	if len(availableProviders) == 0 {
 		return nil, fmt.Errorf("cluster: availableProviders must not be empty")
@@ -869,6 +894,32 @@ func (s *Scorer) Route(ctx context.Context, req router.Request) (router.Decision
 		}
 	}
 
+	// Deployment cost cap: restrict the argmax candidate set to models within
+	// the configured multiple of the cheapest eligible cost. Applied after the
+	// blend (and after every soft eligibility filter), so it prices the real
+	// per-request candidate set and never touches the blended scores or the
+	// quality cells behind them. Never narrows to empty.
+	if s.cfg.CostCapMultiple > 0 && s.isV2 {
+		knobs := s.defaultActiveKnobs()
+		if req.RoutingKnobs != nil {
+			if req.RoutingKnobs.OutputCostRatio != nil {
+				knobs.OutputCostRatio = *req.RoutingKnobs.OutputCostRatio
+			}
+			if req.RoutingKnobs.PerModelVerbosity != nil {
+				knobs.PerModelVerbosity = *req.RoutingKnobs.PerModelVerbosity
+			}
+		}
+		capped := s.applyCostCap(eligibleModels, s.cfg.CostCapMultiple, knobs)
+		if len(capped) < len(eligibleModels) {
+			log.Debug("Cluster scorer: cost cap applied",
+				"cap_multiple", s.cfg.CostCapMultiple,
+				"dropped_models", len(eligibleModels)-len(capped),
+				"eligible_models", len(eligibleModels),
+			)
+		}
+		eligibleModels = capped
+	}
+
 	chosenModel, chosenScore := argmax(scores, eligibleModels)
 	scoreUs := time.Since(scoreStart).Microseconds()
 
@@ -1049,6 +1100,58 @@ func argmax(scores map[string]float32, order []string) (string, float32) {
 		}
 	}
 	return bestModel, bestScore
+}
+
+// effectiveCost returns the per-model cost the blend uses: input_per_1k +
+// output_cost_ratio * output_per_1k * verbosity_factor. Mirrors the cost term
+// inside blendScoresV2 so the cap prices candidates identically to the blend.
+func (s *Scorer) effectiveCost(m string, knobs DefaultRoutingKnobs) float64 {
+	axis := s.modelAxes[m]
+	vFactor := 1.0
+	if knobs.PerModelVerbosity && axis.VerbosityTokens != nil && s.medianVerbosity > 0 {
+		vFactor = *axis.VerbosityTokens / s.medianVerbosity
+	}
+	inputPer1K := 0.0
+	if axis.InputPer1KUSD != nil {
+		inputPer1K = *axis.InputPer1KUSD
+	}
+	outputPer1K := 0.0
+	if axis.OutputPer1KUSD != nil {
+		outputPer1K = *axis.OutputPer1KUSD
+	}
+	return inputPer1K + knobs.OutputCostRatio*outputPer1K*vFactor
+}
+
+// applyCostCap restricts the argmax candidate set to models whose effective
+// cost is at most capMultiple times the cheapest eligible model's. The cap is
+// a policy layer over the calibrated blend: it narrows which models can win,
+// never the scores or the quality cells themselves. Falls back to the full
+// candidate set when the cap would empty it, so a turn is never failed over
+// pricing — same soft-filter contract as the tool-use/image filters in Route.
+func (s *Scorer) applyCostCap(models []string, capMultiple float64, knobs DefaultRoutingKnobs) []string {
+	if capMultiple <= 0 || len(models) == 0 {
+		return models
+	}
+	minCost := math.Inf(1)
+	for _, m := range models {
+		if c := s.effectiveCost(m, knobs); c < minCost {
+			minCost = c
+		}
+	}
+	if math.IsInf(minCost, 1) || math.IsNaN(minCost) {
+		return models
+	}
+	budget := capMultiple * minCost
+	var capped []string
+	for _, m := range models {
+		if s.effectiveCost(m, knobs) <= budget {
+			capped = append(capped, m)
+		}
+	}
+	if len(capped) == 0 {
+		return models
+	}
+	return capped
 }
 
 // runnerUp returns the highest-scoring model other than exclude, tie-breaking

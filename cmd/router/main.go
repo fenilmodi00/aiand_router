@@ -1348,6 +1348,25 @@ func buildClusterScorer(availableProviders map[string]struct{}) (router.Router, 
 			logger.Info("Cluster top_p overridden", "top_p", n)
 		}
 	}
+	if v := config.GetOr("ROUTER_CLUSTER_COST_CAP_MULTIPLE", ""); v != "" {
+		m, parseErr := strconv.ParseFloat(v, 64)
+		if parseErr != nil {
+			logger.Warn(
+				"Invalid ROUTER_CLUSTER_COST_CAP_MULTIPLE; using default",
+				"value", v, "default", cfg.CostCapMultiple,
+			)
+		} else if m <= 0 {
+			// 0 is the documented opt-out; treat it (and negatives) as
+			// "cap disabled" rather than failing boot.
+			cfg.CostCapMultiple = 0
+			logger.Info("Cluster cost cap disabled", "value", v)
+		} else {
+			cfg.CostCapMultiple = m
+			logger.Info("Cluster cost cap multiple overridden", "cost_cap_multiple", m)
+		}
+	} else {
+		logger.Info("Cluster cost cap at default knee", "cost_cap_multiple", cfg.CostCapMultiple)
+	}
 	scorers := make(map[string]*cluster.Scorer, len(versions))
 	warmed := make(map[string]cluster.Embedder)
 	var defaultEmbedderID string

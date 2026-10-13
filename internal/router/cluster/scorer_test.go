@@ -1135,6 +1135,9 @@ func TestScorer_V2DynamicScoring(t *testing.T) {
 
 	cfg := DefaultConfig()
 	cfg.TopP = 1
+	// Case 2 asserts the blend's own quality argmax; the cost cap (a separate
+	// post-blend policy layer) is off so the case tests the blend alone.
+	cfg.CostCapMultiple = 0
 	scorer, err := NewScorer(bundle, cfg, emb, allProviders())
 	require.NoError(t, err)
 
@@ -1190,6 +1193,9 @@ type v2BundleOpts struct {
 	modelAxes       map[string]ModelAxis
 	medianVerbosity float64
 	defaultKnobs    *DefaultRoutingKnobs
+	// costCapMultiple overrides the Config's cost cap for the built Scorer.
+	// 0 disables the cap; unset keeps DefaultConfig's measured default.
+	costCapMultiple *float64
 }
 
 // newV2BundleForTest builds a synthetic two-cluster v2 bundle (Opus +
@@ -1286,6 +1292,13 @@ func newV2BundleForTest(t *testing.T, emb Embedder, opts v2BundleOpts) *Scorer {
 
 	cfg := DefaultConfig()
 	cfg.TopP = 1
+	// Cap off by default: existing tests assert the blend's own argmax over
+	// both models. The deployment knob's own coverage sets costCapMultiple
+	// explicitly (see TestScorer_CostCapRestrictsToCheapestLane).
+	cfg.CostCapMultiple = 0
+	if opts.costCapMultiple != nil {
+		cfg.CostCapMultiple = *opts.costCapMultiple
+	}
 	scorer, err := NewScorer(bundle, cfg, emb, allProviders())
 	require.NoError(t, err)
 	return scorer
@@ -1636,4 +1649,60 @@ func TestExtremeRoutingKnobWarnOnlyOnOverride(t *testing.T) {
 			assert.Contains(t, w.Message, "Extreme routing knob override")
 		}
 	})
+}
+
+// The deployment cost cap is a policy layer over the calibrated blend: a tight
+// cap routes the cheapest deployed lane, an uncapped run reproduces the
+// uncapped blend argmax, and a cap that would strand every candidate falls
+// back to the full candidate set instead of failing the turn.
+func TestScorer_CostCapRestrictsToCheapestLane(t *testing.T) {
+	emb := &fakeEmbedder{vec: makeOpusVec()}
+	hardClusterKnobs := &DefaultRoutingKnobs{
+		Alpha:           []float64{0.9, 0.9},
+		SpeedWeight:     0.0,
+		OutputCostRatio: 0.0,
+	}
+	capNone := 0.0
+	capHaikuOnly := 1.0000001 // Haiku's cost exactly; Opus (60x) excluded
+	capUnlimited := 1e9
+
+	// Uncapped baseline: cluster-0-aligned Opus wins on a quality-leaning blend.
+	uncapped, err := newV2BundleForTest(t, emb, v2BundleOpts{
+		defaultKnobs:    hardClusterKnobs,
+		costCapMultiple: &capNone,
+	}).Route(context.Background(), router.Request{PromptText: "test"})
+	require.NoError(t, err)
+	require.Equal(t, "claude-opus-4-7", uncapped.Model, "precondition: uncapped blend picks Opus")
+
+	// Tiny cap: only Haiku (input $0.00025/1K vs Opus $0.015/1K) is within budget.
+	tiny, err := newV2BundleForTest(t, emb, v2BundleOpts{
+		defaultKnobs:    hardClusterKnobs,
+		costCapMultiple: &capHaikuOnly,
+	}).Route(context.Background(), router.Request{PromptText: "test"})
+	require.NoError(t, err)
+	assert.Equal(t, "claude-haiku-4-5", tiny.Model, "a tiny cap must force the cheapest lane")
+	require.NotNil(t, tiny.Metadata)
+	assert.NotEmpty(t, tiny.Metadata.CandidateModels, "candidate set must never be empty")
+
+	// Huge cap: the cap admits every candidate, so the decision is identical to
+	// the uncapped blend argmax.
+	huge, err := newV2BundleForTest(t, emb, v2BundleOpts{
+		defaultKnobs:    hardClusterKnobs,
+		costCapMultiple: &capUnlimited,
+	}).Route(context.Background(), router.Request{PromptText: "test"})
+	require.NoError(t, err)
+	assert.Equal(t, uncapped.Model, huge.Model, "a huge cap must reproduce the uncapped blend argmax")
+	assert.Equal(t, uncapped.Metadata.ChosenScore, huge.Metadata.ChosenScore, "a huge cap must not change scores")
+
+	// Excluding every model the cap keeps must still route on what remains,
+	// never fail.
+	excluded := &router.Request{PromptText: "test"}
+	excluded.ExcludedModels = map[string]struct{}{"claude-haiku-4-5": {}}
+	afterExclusion, err := newV2BundleForTest(t, emb, v2BundleOpts{
+		defaultKnobs:    hardClusterKnobs,
+		costCapMultiple: &capHaikuOnly,
+	}).Route(context.Background(), *excluded)
+	require.NoError(t, err)
+	require.NotEmpty(t, afterExclusion.Metadata.CandidateModels, "candidate set must never be empty")
+	assert.Equal(t, "claude-opus-4-7", afterExclusion.Model, "excluding the cheap lane routes on the remaining candidate")
 }
