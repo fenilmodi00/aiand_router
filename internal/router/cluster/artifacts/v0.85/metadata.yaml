@@ -1,0 +1,149 @@
+format_version: 2
+version: v0.85
+parent: v0.82
+status: candidate
+embedder:
+  model: jina-v2-base-code-int8
+  embed_dim: 768
+  max_tokens: 256
+training:
+  k: 16
+  top_p: 4
+  alpha: 0.96
+  shrinkage_k0: 10.0
+  score_normalization: per_prompt_zscore_across_bench_columns
+  per_model_zscore: false
+  seed: 42
+  n_prompts: 1775
+  training_data_mix:
+    d1: 1.0
+    d2: 0.0
+    d3: 0.0
+  output_cost_ratio: 0.0
+  speed_weight: 0.0
+  expected_output_tokens: 2000
+  per_model_verbosity: true
+  include_routerarena_labels: routerarena_labels_combined.jsonl
+  routerarena_only: false
+  bench_coding_only: false
+  include_benchmark_corpus: true
+  benchmark_corpus_loaders: aider-polyglot-go,aider-polyglot-rust-cpp-java,livecodebench-ts-and-aider-polyglot-ts,bfcl-v4-simple,bfcl-v4-parallel-multi
+  source_fractions:
+    routerarena: 0.1
+  exclude_prompts: null
+  n_excluded_prompts: 0
+  include_aa_labels: aa_quality_priors_v0.64.json
+  aa_evidence_scale: 3.0
+  cold_model_aa_boost: 1.0
+  aa_label_tier_weights:
+    AIDER_POLYGLOT_GO: 1.0
+    AIDER_POLYGLOT_RUST_CPP_JAVA: 1.0
+    BFCL_V4_PARALLEL_MULTI: 0.8
+    BFCL_V4_SIMPLE: 0.3
+    GPQA_DIAMOND: 0.3
+    IFBENCH: 0.3
+    LIVECODEBENCH: 1.0
+    LIVECODEBENCH_TS: 1.0
+    MATH_500: 0.3
+    MMLU_PRO: 0.3
+    SCICODE: 1.0
+    SWE_BENCH_VERIFIED: 1.0
+    TAU2_BENCH_TELECOM: 1.0
+    TERMINAL_BENCH_HARD: 1.0
+  aa_label_residuals:
+    fraction_under_threshold: 0.8876404494382022
+    max: 0.2636900631579798
+    mean: 0.05666298416741266
+    median: 0.03600941472238445
+    n_cells: 178
+    p90: 0.15338418701568313
+  default_routing_knobs:
+    alpha:
+    - 0.96
+    - 0.8
+    - 0.96
+    - 0.96
+    - 0.96
+    - 0.96
+    - 0.96
+    - 0.96
+    - 0.96
+    - 0.96
+    - 0.96
+    - 0.96
+    - 0.96
+    - 0.96
+    - 0.96
+    - 0.96
+    alpha_floor:
+    - 0.3
+    - 0.17
+    - 0.55
+    - 0.18
+    - 0.3
+    - 0.3
+    - 0.19
+    - 0.3
+    - 0.3
+    - 0.55
+    - 0.11
+    - 0.55
+    - 0.18
+    - 0.3
+    - 0.3
+    - 0.55
+    speed_weight: 0.0
+    output_cost_ratio: 0.25
+    expected_output_tokens: 2000
+    per_model_verbosity: true
+  recommended_ui_defaults:
+    quality_pareto:
+      alpha: 0.6
+      speed_weight: 0.1
+      output_cost_ratio: 0.25
+    cost_pareto:
+      alpha: 0.4
+      speed_weight: 0.05
+      output_cost_ratio: 0.4
+    balanced:
+      alpha: 0.5
+      speed_weight: 0.12
+      output_cost_ratio: 0.25
+deployed_providers:
+- aiand
+deployed_models:
+- deepseek-ai/deepseek-v4-pro
+- deepseek-ai/deepseek-v4-flash
+- deepseek-ai/deepseek-v4.1-flash
+- zai-org/glm-5.3
+- zai-org/glm-5.3-flash
+- qwen/qwen3.8-27b
+- moonshotai/kimi-k3
+- motif-technologies/motif-3
+cost_per_1k_input_usd:
+  zai-org/glm-5.3: 0.001
+  zai-org/glm-5.3-flash: 0.00015
+  deepseek-ai/deepseek-v4-flash: 0.00015
+  deepseek-ai/deepseek-v4.1-flash: 0.0003
+  deepseek-ai/deepseek-v4-pro: 0.001
+  moonshotai/kimi-k3: 0.003
+  qwen/qwen3.8-27b: 0.0004
+  motif-technologies/motif-3: 0.0005
+changelog: 'v0.83 = v0.82, full-roster routing with cost sensitivity. Local v0.82
+  had mean alpha 0.512, giving the cost term 48.8% of the blend against upstream v0.75''s
+  9.0%. Combined with min-max cost normalisation on a 20x price ladder, that collapsed
+  routing onto two flash lanes: glm-5.3, glm-5.3-flash and kimi-k3 won 0/16 clusters
+  at every alpha from 0 to 1. v0.83 restores upstream''s quality-dominant alpha semantics
+  and re-derives quality_means from measured ground-truth accuracy on the 9 labelled
+  clusters, rescaled into each cluster''s existing range. output_cost_ratio 0.0 ->
+  0.25 (upstream quality_pareto) widens the effective cost ladder to 25.3x by counting
+  measured verbosity. Per cluster, alpha stays 0.96 where the measured winner leads
+  by more than 2pt and drops to 0.80 where the top models are a statistical tie, so
+  a tie resolves to the cheaper lane while a real capability margin keeps the premium
+  model. centroids.bin, model_axes.json and model_registry.json BYTE-IDENTICAL to
+  v0.82.'
+
+# v0.85 operator override: rankings.json bias +0.25 on zai-org/glm-5.3-flash and zai-org/glm-5.3
+#   Reason: the AIDER fair-label campaign returned UNRESOLVED for GLM (combined 0.271 @ n=299 vs deepseek-v4.1-flash 0.414 @ n=133), so the owner elected price/category judgment over the measurement. 
+#   quality_means.json and model_axes.json are UNTOUCHED evidence. Rebuild from measured labels via scripts/build_v084_measured_cells.py plus a fresh fair-label campaign to reverse this. 
+#   kimi-k3 is deliberately NOT preferred: $3.00/$12.50 per 1k is unaffordable for general traffic.

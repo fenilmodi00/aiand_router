@@ -243,7 +243,7 @@ Keep the signing key identical on gateway and workers of the same environment.
 | Variable                          | Default                      | Purpose |
 | --------------------------------- | ---------------------------- | ------- |
 | `ROUTER_DEFAULT_STRATEGY`         | `cluster`                    | Strategy used when an installation has no persisted strategy. Change only after the policy rollout gate passes. The router refuses to boot, and `/readyz` fails, when this strategy has no router configured (e.g. `hmm_embedding` without `ROUTER_POLICY_ENVIRONMENT`). Managed serving workers (`ROUTER_DEPLOYMENT_MODE=managed` with `ROUTER_SERVING_ASSERTION_KEY`) additionally refuse to boot unless it is set to one of the policy strategies they register (`hmm`, `hmm_embedding`); the legacy `router` service, self-hosted deployments and the gateway keep the `cluster` default. |
-| `ROUTER_CLUSTER_VERSION`          | *(reads `artifacts/latest`)* | Pin a specific cluster artifact version (e.g. `v0.79`). |
+| `ROUTER_CLUSTER_VERSION`          | *(reads `artifacts/latest`)* | Pin a specific cluster artifact version (e.g. `v0.79`). The served default is **v0.85** (2026-10-15), which is v0.83 plus an explicit operator bias on the GLM lanes. See [GLM lanes in auto-routing](#glm-lanes-in-auto-routing). |
 | `ROUTER_CLUSTER_EMBED_TIMEOUT_MS` | `200`                        | Per-request ONNX embed timeout. Increase for slower hosts. |
 | `ROUTER_CLUSTER_COST_CAP_MULTIPLE` | `3.0`                      | Deployment cost cap: argmax only considers models whose effective cost (`input_per_1k + output_cost_ratio * output_per_1k * verbosity_factor`) is within this multiple of the cheapest deployed lane. Set to `0` to disable and restore the pure quality/cost blend. Measured over the full labelled corpus (`.context/label-runs/v082-expanded-labels.jsonl`, 1,503 all-8-scored prompts): cheapest-lane-only 67.24% accuracy @ $0.00034/prompt, `3.0` (default) 71.03% @ $0.00058/prompt, cap disabled 74.36% @ $0.00512/prompt. A cap that would empty the candidate set falls back to the full set, so a turn is never failed over pricing. |
 | `ROUTER_CLUSTER_COST_CAP_MODE`    | `cluster`                  | Budget shape for `ROUTER_CLUSTER_COST_CAP_MULTIPLE`: `global` = one deployment-wide budget (cap × the cheapest eligible lane on the whole roster, the historical behavior), `cluster` = a budget per top-P cluster (cap × the cheapest model that cluster's own blend elects) unioned with the global set. Unknown values warn at boot and fall back to `global`. Measured over the committed v0.83 bundle (8-model roster, deployed via artifacts/latest): global reaches 3 of 8 models (the two flash lanes + glm-5.3-flash), cluster reaches 7 of 8 (adding deepseek-v4-pro, kimi-k3, motif-3, qwen3.8-27b); only glm-5.3 stays out because it leads no cluster at any alpha. On that bundle cluster mode buys the spread at the shipped cap 3.0 with no cap change, and can never remove a route global mode had. On the v0.84 candidate the same modes reach 2 and 4 of 8 respectively at +2.4x measured cost for -0.07pt accuracy.
@@ -400,6 +400,84 @@ cluster](#forcing-a-model-or-a-routing-cluster)).
 
 Excluding every provider that serves the models you route to leaves requests
 with nowhere to go (HTTP 503 from the scorer), so exclude deliberately.
+
+## GLM lanes in auto-routing
+
+The AIand registry carries 8 models, but the measured-quality blend reaches only 3 of them
+on its own (`reachability` on v0.82: deepseek-v4-flash, deepseek-v4.1-flash; on v0.83 plus
+`ROUTER_CLUSTER_COST_CAP_MODE=cluster`: those two plus kimi-k3, motif-3, and glm-5.3-flash).
+The **v0.85** bundle adds an explicit operator preference for the two GLM lanes so they
+receive ordinary traffic.
+
+### Why it is an override, not a measured cell
+
+The AIDER fair-label campaign (`.context/glm-merit-evidence.md` section 8) could not
+separate GLM from the best deepseek lane, and the sample that campaign finally reached put
+GLM behind it:
+
+| lane | n | accuracy | Wilson 95% |
+|---|---|---|---|
+| moonshotai/kimi-k3 | 101 | 0.624 | (0.526, 0.712) |
+| deepseek-ai/deepseek-v4.1-flash | 133 | 0.414 | (0.333, 0.499) |
+| GLM combined (glm-5.3 + glm-5.3-flash) | 299 | 0.271 | (0.224, 0.324) |
+
+The campaign also found the blocker that had hidden GLM's weakness: without
+`reasoning_effort: low` on the AIand request, GLM spends its entire 16,384-token budget on
+hidden reasoning and emits **zero** answer characters on 70.7% of `glm-5.3` cells (46.7% on
+`glm-5.3-flash`). Recovering those cells *lowered* GLM's estimate from 0.306 at n=111 to 0.271
+at n=299, because the hidden cells pass at 23.2% against 31.3% for the ones that survived.
+
+Given that, the decision to route GLM on price and category judgment is a **product
+decision, recorded as such**: `glm-5.3-flash` is the $0.15/$0.50 lane and the cheapest
+capability tier available, and `kimi-k3` at $3.00/$12.50 per 1k is unaffordable for general
+traffic despite being the strongest measured lane. The tradeoff is being accepted
+deliberately rather than discovered later.
+
+### How the override is expressed
+
+`scripts/build_v085_glm_preference.py` copies v0.83's geometry byte-for-byte
+(`centroids.bin`, `model_axes.json`, `model_registry.json`, `model_features.json`) and adds
+`offset` to the GLM lanes' cells in `quality_means.json`, where the v2 blend actually reads
+them (`blendScoresV2`).
+
+Three properties make it auditable:
+
+1. **The measured cells survive.** Every biased cell keeps its measured value under
+   `meta.operator_override.measured_cells_preserved`, next to the rationale and the reversal
+   instructions, inside the artifact itself.
+2. **The offset is range-relative.** It is a fraction of each cluster's own cell spread, not
+   a raw additive. A raw offset applied before the runtime's per-cluster min-max
+   normalization flattens the distinction between all models and collapses the mix onto the
+   preferred lanes - measured: offset 0.9 raw routed 2 of 8 models, offset 0.9
+   range-relative routes all 8.
+3. **Only the GLM lanes move.** Every other cell and every other artifact file is untouched.
+
+### Result
+
+Current shipped offset `0.25` (25% of each cluster's quality spread). Register-corpus mix
+through the production defaults, 180 probes:
+
+| | v0.83 | v0.85 |
+|---|---|---|
+| glm-5.3-flash | 11 (6.1%) | **44 (24.4%)** |
+| glm-5.3 | 0 (0%) | **4 (2.2%)** |
+| deepseek-v4.1-flash | 27 (15.0%) | 58 (32.2%) |
+| kimi-k3 | 58 (32.2%) | 19 (10.6%) |
+| motif-3 | 44 (24.4%) | 25 (13.9%) |
+| deepseek-v4-pro | 25 (13.9%) | 14 (7.8%) |
+| deepseek-v4-flash | 9 (5.0%) | 9 (5.0%) |
+| qwen/qwen3.8-27b | 6 (3.3%) | 7 (3.9%) |
+| **models reached** | 7/8 | **8/8** |
+
+GLM now carries roughly a quarter of register traffic at the $0.15/$0.50 lane, and the mix
+spans the full roster with `TestRegisterProbeMixDoesNotCollapse` passing (floor 4 distinct
+winners).
+
+To tune: `python scripts/build_v085_glm_preference.py --offset <fraction> --out v0.85 --apply`
+then re-run the register mix and the collapse guard. To reverse: delete the
+`meta.operator_override` block and the corresponding cell offsets, or rebuild the evidence
+with `scripts/build_v084_measured_cells.py` plus a fresh fair-label campaign.
+
 
 ## Forcing a model or a routing cluster
 

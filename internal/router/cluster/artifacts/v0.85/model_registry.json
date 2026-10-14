@@ -1,0 +1,98 @@
+{
+  "meta": {
+    "comment": "v0.78: aiand-only product bundle — 8-model registry (2026-10-04 roster decision, parent issue #64). The registry is the enforcement surface: boot registers all providers regardless of keys, so narrowing lives here. Cells inherited from v0.77's researched anchoring; measured labels land in v0.79. Family note: deepseek-v4-flash + v4.1-flash are distinct capability variants (text-only vs multimodal), not a supersession.",
+    "last_refreshed": "2026-10-05",
+    "parent": "v0.78",
+    "training_recipe": "k=16, alpha=0.80, shrinkage_k0=10, score_normalization=zscore, output_cost_ratio=0.25, speed_weight=0.08, per_model_verbosity=true, include_aa_labels (v0.56-keyed), aa_evidence_scale=3.0. Direct labels: routerarena_labels_combined.jsonl (236k rows) + Tier 3 SWE-bench Easy shards (tier3-full-20260527 + tier3-opus48-20260529, 5820 shards). measured_speed/verbosity from tier1_20260530.json. opus-4-8 proxies opus-4-7 RouterArena column + own swebench column."
+  },
+  "deployed_models": [
+    {
+      "model": "deepseek-ai/deepseek-v4-pro",
+      "provider": "aiand",
+      "bench_column": "routerarena_measured_sub_10",
+      "proxy": false,
+      "proxy_note": "Same weights as the deployed deepseek-v4-pro (deepinfra-hosted); column cloned directly.",
+      "research_note": "Twin of deepseek/deepseek-v4-pro; AA 36; SWE-V 96.4 INDEP (Vals rank 2).",
+      "research_date": "2026-10-04",
+      "measured": true,
+      "measured_split": "sub_10"
+    },
+    {
+      "model": "deepseek-ai/deepseek-v4-flash",
+      "provider": "aiand",
+      "bench_column": "routerarena_measured_sub_10",
+      "proxy": false,
+      "proxy_note": "Same model family already on the roster (deepinfra-hosted); column cloned directly.",
+      "research_note": "Twin of deepseek/deepseek-v4-flash; AA 34; SWE-V 88.8 INDEP; fastest lane.",
+      "research_date": "2026-10-04",
+      "measured": true,
+      "measured_split": "sub_10"
+    },
+    {
+      "model": "deepseek-ai/deepseek-v4.1-flash",
+      "provider": "aiand",
+      "bench_column": "routerarena_measured_sub_10",
+      "proxy": false,
+      "proxy_note": "v4.1 is the newer flash (adds vision); no labels day-0; clone v4-flash column.",
+      "research_note": "AA 39; SWE-V not independently measured (released after Vals board archive).",
+      "research_date": "2026-10-04",
+      "measured": true,
+      "measured_split": "sub_10"
+    },
+    {
+      "model": "zai-org/glm-5.3",
+      "provider": "aiand",
+      "bench_column": "routerarena_measured_sub_10",
+      "proxy": false,
+      "proxy_note": "glm-5.3 day-0 on AIand, no labels yet; clone glm-5.2 (immediate predecessor, same tier/price).",
+      "research_note": "AA 45; SWE-V 95.4 INDEP (Vals rank 6); strongest AIand coder by index.",
+      "research_date": "2026-10-04",
+      "measured": true,
+      "measured_split": "sub_10"
+    },
+    {
+      "model": "zai-org/glm-5.3-flash",
+      "provider": "aiand",
+      "bench_column": "routerarena_measured_sub_10",
+      "proxy": false,
+      "proxy_note": "Flash tier of glm-5.3; clone glm-5.2 scaled 0.85 (day-0, no labels; $0.15/$0.50 lane).",
+      "research_note": "AA 42; SWE-V 92.0 INDEP; near-frontier quality at flash pricing.",
+      "research_date": "2026-10-04",
+      "measured": true,
+      "measured_split": "sub_10"
+    },
+    {
+      "model": "qwen/qwen3.8-27b",
+      "provider": "aiand",
+      "bench_column": "routerarena_measured_sub_10",
+      "proxy": false,
+      "proxy_note": "Day-0 27B coder (newer than 3.6); clone qwen3-coder-next scaled 0.95.",
+      "research_note": "AA 34 (xhigh variant); SWE-V 86.0 INDEP (Vals rank 15).",
+      "research_date": "2026-10-04",
+      "measured": true,
+      "measured_split": "sub_10"
+    },
+    {
+      "model": "moonshotai/kimi-k3",
+      "provider": "aiand",
+      "bench_column": "routerarena_measured_sub_10",
+      "proxy": false,
+      "proxy_note": "k3 is stronger than k2.7; clone kimi-k2.7 scaled 1.05, clamped to the cluster max.",
+      "research_note": "AA 44; SWE-V 93.4 INDEP (rank 8); premium lane, slow (40 TPS, 4.1s TTFT).",
+      "research_date": "2026-10-04",
+      "measured": true,
+      "measured_split": "sub_10"
+    },
+    {
+      "model": "motif-technologies/motif-3",
+      "provider": "aiand",
+      "bench_column": "routerarena_measured_sub_10",
+      "proxy": false,
+      "proxy_note": "Unlabeled open-weight coder day-0; proxied onto qwen3-coder-next scaled 0.88.",
+      "research_note": "AA 34 is AA's own estimate (no measured run); SWE-V 76.2 SELF only.",
+      "research_date": "2026-10-04",
+      "measured": true,
+      "measured_split": "sub_10"
+    }
+  ]
+}

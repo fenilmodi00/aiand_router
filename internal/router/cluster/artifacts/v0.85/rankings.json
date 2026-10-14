@@ -1,0 +1,279 @@
+{
+  "meta": {
+    "k": 16,
+    "top_p": 4,
+    "alpha": 0.96,
+    "shrinkage_k0": 10.0,
+    "score_normalization": "per_prompt_zscore_across_bench_columns",
+    "per_model_zscore": false,
+    "seed": 42,
+    "n_prompts": 1775,
+    "training_data_mix": {
+      "d1": 1.0,
+      "d2": 0.0,
+      "d3": 0.0
+    },
+    "output_cost_ratio": 0.0,
+    "speed_weight": 0.0,
+    "expected_output_tokens": 2000,
+    "per_model_verbosity": true,
+    "include_routerarena_labels": "routerarena_labels_combined.jsonl",
+    "routerarena_only": false,
+    "bench_coding_only": false,
+    "include_benchmark_corpus": true,
+    "benchmark_corpus_loaders": "aider-polyglot-go,aider-polyglot-rust-cpp-java,livecodebench-ts-and-aider-polyglot-ts,bfcl-v4-simple,bfcl-v4-parallel-multi",
+    "source_fractions": {
+      "routerarena": 0.1
+    },
+    "exclude_prompts": null,
+    "n_excluded_prompts": 0,
+    "include_aa_labels": "aa_quality_priors_v0.64.json",
+    "aa_evidence_scale": 3.0,
+    "cold_model_aa_boost": 1.0,
+    "aa_label_tier_weights": {
+      "AIDER_POLYGLOT_GO": 1.0,
+      "AIDER_POLYGLOT_RUST_CPP_JAVA": 1.0,
+      "BFCL_V4_PARALLEL_MULTI": 0.8,
+      "BFCL_V4_SIMPLE": 0.3,
+      "GPQA_DIAMOND": 0.3,
+      "IFBENCH": 0.3,
+      "LIVECODEBENCH": 1.0,
+      "LIVECODEBENCH_TS": 1.0,
+      "MATH_500": 0.3,
+      "MMLU_PRO": 0.3,
+      "SCICODE": 1.0,
+      "SWE_BENCH_VERIFIED": 1.0,
+      "TAU2_BENCH_TELECOM": 1.0,
+      "TERMINAL_BENCH_HARD": 1.0
+    },
+    "aa_label_residuals": {
+      "fraction_under_threshold": 0.8876404494382022,
+      "max": 0.2636900631579798,
+      "mean": 0.05666298416741266,
+      "median": 0.03600941472238445,
+      "n_cells": 178,
+      "p90": 0.15338418701568313
+    },
+    "default_routing_knobs": {
+      "alpha": [
+        0.96,
+        0.8,
+        0.96,
+        0.8,
+        0.96,
+        0.96,
+        0.96,
+        0.96,
+        0.96,
+        0.96,
+        0.8,
+        0.96,
+        0.8,
+        0.96,
+        0.96,
+        0.96
+      ],
+      "alpha_floor": [
+        0.3,
+        0.17,
+        0.55,
+        0.18,
+        0.3,
+        0.3,
+        0.19,
+        0.3,
+        0.3,
+        0.55,
+        0.11,
+        0.55,
+        0.18,
+        0.3,
+        0.3,
+        0.55
+      ],
+      "speed_weight": 0.0,
+      "output_cost_ratio": 0.25,
+      "expected_output_tokens": 2000,
+      "per_model_verbosity": true
+    },
+    "recommended_ui_defaults": {
+      "quality_pareto": {
+        "alpha": 0.6,
+        "speed_weight": 0.1,
+        "output_cost_ratio": 0.25
+      },
+      "cost_pareto": {
+        "alpha": 0.4,
+        "speed_weight": 0.05,
+        "output_cost_ratio": 0.4
+      },
+      "balanced": {
+        "alpha": 0.5,
+        "speed_weight": 0.12,
+        "output_cost_ratio": 0.25
+      }
+    }
+  },
+  "rankings": {
+    "0": {
+      "deepseek-ai/deepseek-v4-flash": 0.1473441721571788,
+      "deepseek-ai/deepseek-v4-pro": 0.11596068058062829,
+      "deepseek-ai/deepseek-v4.1-flash": 0.31268949132976853,
+      "moonshotai/kimi-k3": 0.96,
+      "motif-technologies/motif-3": 0.033949036062006756,
+      "qwen/qwen3.8-27b": 0.09665600019806239,
+      "zai-org/glm-5.3": 0.4152130325814537,
+      "zai-org/glm-5.3-flash": 1.25
+    },
+    "1": {
+      "deepseek-ai/deepseek-v4-pro": 0.4832080200501252,
+      "deepseek-ai/deepseek-v4-flash": 0.7714285714285711,
+      "deepseek-ai/deepseek-v4.1-flash": 0.9894736842105263,
+      "zai-org/glm-5.3": 0.3689223057644108,
+      "zai-org/glm-5.3-flash": 0.19999999999999996,
+      "qwen/qwen3.8-27b": 0.8681704260651628,
+      "moonshotai/kimi-k3": 0.11428571428571442,
+      "motif-technologies/motif-3": 0.6325814536340848
+    },
+    "2": {
+      "deepseek-ai/deepseek-v4-pro": 0.4394987468671673,
+      "deepseek-ai/deepseek-v4-flash": 1.0,
+      "deepseek-ai/deepseek-v4.1-flash": 0.8607518796992479,
+      "zai-org/glm-5.3": 0.1652130325814538,
+      "zai-org/glm-5.3-flash": 0.040000000000000036,
+      "qwen/qwen3.8-27b": 0.7222055137844609,
+      "moonshotai/kimi-k3": 0.2742857142857146,
+      "motif-technologies/motif-3": 0.5836591478696737
+    },
+    "3": {
+      "deepseek-ai/deepseek-v4-pro": 0.5974937343358397,
+      "deepseek-ai/deepseek-v4-flash": 1.0,
+      "deepseek-ai/deepseek-v4.1-flash": 0.8751879699248117,
+      "zai-org/glm-5.3": 0.25463659147869705,
+      "zai-org/glm-5.3-flash": 0.19999999999999996,
+      "qwen/qwen3.8-27b": 0.5253132832080198,
+      "moonshotai/kimi-k3": 0.22857142857142865,
+      "motif-technologies/motif-3": 0.7468671679198
+    },
+    "4": {
+      "deepseek-ai/deepseek-v4-flash": 0.329233954451346,
+      "deepseek-ai/deepseek-v4-pro": 0.841804318253562,
+      "deepseek-ai/deepseek-v4.1-flash": 0.03830886849239824,
+      "moonshotai/kimi-k3": 0.09086491739552953,
+      "motif-technologies/motif-3": 0.9939490360620067,
+      "qwen/qwen3.8-27b": 0.20925400497148441,
+      "zai-org/glm-5.3": 0.5523558897243117,
+      "zai-org/glm-5.3-flash": 1.25
+    },
+    "5": {
+      "deepseek-ai/deepseek-v4-flash": 0.25267692307692313,
+      "deepseek-ai/deepseek-v4-pro": 0.23451723101980826,
+      "deepseek-ai/deepseek-v4.1-flash": 0.5127420045870731,
+      "moonshotai/kimi-k3": 0.7177846153846156,
+      "motif-technologies/motif-3": 0.033949036062006756,
+      "qwen/qwen3.8-27b": 0.29632169090873567,
+      "zai-org/glm-5.3": 0.2780701754385965,
+      "zai-org/glm-5.3-flash": 1.25
+    },
+    "6": {
+      "deepseek-ai/deepseek-v4-flash": 0.5199999999999998,
+      "deepseek-ai/deepseek-v4-pro": 0.5089295387121157,
+      "deepseek-ai/deepseek-v4.1-flash": 0.3583088684923982,
+      "moonshotai/kimi-k3": 0.96,
+      "motif-technologies/motif-3": 0.033949036062006756,
+      "qwen/qwen3.8-27b": 0.7132562687376436,
+      "zai-org/glm-5.3": 0.2780701754385965,
+      "zai-org/glm-5.3-flash": 1.25
+    },
+    "7": {
+      "deepseek-ai/deepseek-v4-flash": 0.4454684694975684,
+      "deepseek-ai/deepseek-v4-pro": 0.15884050099995645,
+      "deepseek-ai/deepseek-v4.1-flash": 0.8884729931363843,
+      "moonshotai/kimi-k3": 0.6547675251668298,
+      "motif-technologies/motif-3": 0.7974294911010482,
+      "qwen/qwen3.8-27b": 0.5538971197166728,
+      "zai-org/glm-5.3": 1.1510896618694617,
+      "zai-org/glm-5.3-flash": 0.29000000000000004
+    },
+    "8": {
+      "deepseek-ai/deepseek-v4-pro": 0.5506681938736854,
+      "deepseek-ai/deepseek-v4-flash": 0.8238970276526335,
+      "deepseek-ai/deepseek-v4.1-flash": 0.9978947368421053,
+      "zai-org/glm-5.3": 0.1587196800473688,
+      "zai-org/glm-5.3-flash": 0.040000000000000036,
+      "qwen/qwen3.8-27b": 0.6897387511140367,
+      "moonshotai/kimi-k3": 0.26129900921754434,
+      "motif-technologies/motif-3": 0.4270362331245623
+    },
+    "9": {
+      "deepseek-ai/deepseek-v4-flash": 0.14971428571428586,
+      "deepseek-ai/deepseek-v4-pro": 0.07362795141052846,
+      "deepseek-ai/deepseek-v4.1-flash": 0.18313172563525532,
+      "moonshotai/kimi-k3": 0.32914285714285685,
+      "motif-technologies/motif-3": 0.033949036062006756,
+      "qwen/qwen3.8-27b": 0.14018982277686778,
+      "zai-org/glm-5.3": 0.2780701754385965,
+      "zai-org/glm-5.3-flash": 1.25
+    },
+    "10": {
+      "deepseek-ai/deepseek-v4-pro": 0.7039004353956249,
+      "deepseek-ai/deepseek-v4-flash": 0.6677149225585728,
+      "deepseek-ai/deepseek-v4.1-flash": 0.31428993909313874,
+      "zai-org/glm-5.3": 0.5601968777025992,
+      "zai-org/glm-5.3-flash": 0.6640052647430499,
+      "qwen/qwen3.8-27b": 0.7809391509417725,
+      "moonshotai/kimi-k3": 0.0,
+      "motif-technologies/motif-3": 0.9754385964912281
+    },
+    "11": {
+      "deepseek-ai/deepseek-v4-pro": 0.7654894064205164,
+      "deepseek-ai/deepseek-v4-flash": 0.7492910617819518,
+      "deepseek-ai/deepseek-v4.1-flash": 0.9978947368421053,
+      "zai-org/glm-5.3": 0.028070175438596516,
+      "zai-org/glm-5.3-flash": 0.09376627031140079,
+      "qwen/qwen3.8-27b": 0.8980925810213297,
+      "moonshotai/kimi-k3": 0.33926754007063953,
+      "motif-technologies/motif-3": 0.8559373043852344
+    },
+    "12": {
+      "deepseek-ai/deepseek-v4-pro": 0.9403508771929825,
+      "deepseek-ai/deepseek-v4-flash": 0.578548982339286,
+      "deepseek-ai/deepseek-v4.1-flash": 0.3158832639003052,
+      "zai-org/glm-5.3": 0.5571535679751272,
+      "zai-org/glm-5.3-flash": 0.4701899380692622,
+      "qwen/qwen3.8-27b": 0.48751393075222305,
+      "moonshotai/kimi-k3": 0.0,
+      "motif-technologies/motif-3": 0.6095004536455222
+    },
+    "13": {
+      "deepseek-ai/deepseek-v4-pro": 0.9124393915502303,
+      "deepseek-ai/deepseek-v4-flash": 1.0,
+      "deepseek-ai/deepseek-v4.1-flash": 0.9346349608095814,
+      "zai-org/glm-5.3": 0.028070175438596516,
+      "zai-org/glm-5.3-flash": 0.2938091164486826,
+      "qwen/qwen3.8-27b": 0.842529464451455,
+      "moonshotai/kimi-k3": 0.7737933476812954,
+      "motif-technologies/motif-3": 0.8249555304143231
+    },
+    "14": {
+      "deepseek-ai/deepseek-v4-pro": 0.4629545765557364,
+      "deepseek-ai/deepseek-v4-flash": 0.8335043042474553,
+      "deepseek-ai/deepseek-v4.1-flash": 0.8637656446045512,
+      "zai-org/glm-5.3": 0.1811059085554747,
+      "zai-org/glm-5.3-flash": 0.040000000000000036,
+      "qwen/qwen3.8-27b": 0.9964912280701754,
+      "moonshotai/kimi-k3": 0.3216978738422337,
+      "motif-technologies/motif-3": 0.49069828637426716
+    },
+    "15": {
+      "deepseek-ai/deepseek-v4-pro": 0.6356591721997413,
+      "deepseek-ai/deepseek-v4-flash": 0.7854671906829481,
+      "deepseek-ai/deepseek-v4.1-flash": 0.9978947368421053,
+      "zai-org/glm-5.3": 0.16695298342695244,
+      "zai-org/glm-5.3-flash": 0.040000000000000036,
+      "qwen/qwen3.8-27b": 0.6941861683298054,
+      "moonshotai/kimi-k3": 0.15584665850276366,
+      "motif-technologies/motif-3": 0.5309558990668197
+    }
+  }
+}

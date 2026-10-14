@@ -279,7 +279,7 @@ func TestResolveVersion_UnknownErrors(t *testing.T) {
 func TestListVersions_KeptVersionsOnly(t *testing.T) {
 	versions, err := ListVersions()
 	require.NoError(t, err)
-	assert.ElementsMatch(t, []string{"v0.78", "v0.79", "v0.80", "v0.82", "v0.83", "v0.84"}, versions)
+	assert.ElementsMatch(t, []string{"v0.78", "v0.79", "v0.80", "v0.82", "v0.83", "v0.84", "v0.85"}, versions)
 }
 
 func TestCheapestModel(t *testing.T) {

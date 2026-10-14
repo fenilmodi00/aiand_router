@@ -252,3 +252,43 @@ The verdict does not depend on the choice: kimi-k3 beats GLM combined by 35.29pp
 (p=1.7e-10) on the last-row basis and 34.30pp (p=5.0e-10) on the first-row basis,
 with non-overlapping Wilson intervals in both. P3's conclusion is
 dedup-basis-invariant.
+
+---
+
+## Owner decision, applied (2026-10-15): GLM promotion by price and category judgment
+
+The UNRESOLVED verdict above stands as the measurement outcome. The product owner has
+nevertheless directed that the GLM lanes be routed, on the explicit grounds that kimi-k3's
+per-token cost rules it out for general traffic and `glm-5.3-flash` is the strongest lane
+available at the $0.15/$0.50 price point. That decision is now applied as a recorded
+operator override rather than a measured cell, so the evidence is not overwritten:
+
+- `scripts/build_v085_glm_preference.py --offset 0.25 --out v0.85 --apply`
+- v0.85 = v0.83 geometry (centroids, model_axes, model_registry, model_features
+  byte-identical) with a range-relative offset added to the GLM lanes' cells in
+  `quality_means.json`, which is what `blendScoresV2` actually reads.
+- Every biased cell keeps its measured value under
+  `meta.operator_override.measured_cells_preserved`, with the rationale and reversal
+  instructions in the artifact itself.
+
+Measured effect on the 180-probe register corpus through production defaults:
+
+| | v0.83 | v0.85 |
+|---|---|---|
+| glm-5.3-flash | 11 (6.1%) | 44 (24.4%) |
+| glm-5.3 | 0 | 4 (2.2%) |
+| models reached | 7/8 | 8/8 |
+
+Two implementation notes worth keeping, both learned by measurement during this change:
+
+1. An override on `rankings.json` alone has **no effect** - that file is the v1 legacy
+   path; v2 bundles blend from `quality_means.json`.
+2. A **raw additive** offset applied before the runtime's per-cluster min-max
+   normalization flattens the entire cell range and collapses routing onto the
+   preferred lanes (2 of 8 reached). Expressing the offset as a fraction of each
+   cluster's own cell spread keeps the mix open instead.
+
+kimi-k3 is deliberately NOT preferred despite being the strongest measured lane, because
+$3.00/$12.50 per 1k makes it unusable for everyday traffic. GLM's measured weakness is
+accepted as the cost of this decision, and the measurement corpus remains intact so the
+choice can be revisited when new evidence lands.
