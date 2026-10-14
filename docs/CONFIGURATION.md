@@ -322,7 +322,20 @@ own `metrics.aider_accuracy`: glm-5.3 0.364 (44 cells), glm-5.3-flash 0.269 (67)
 against deepseek-v4-flash 0.153, deepseek-v4-pro 0.160, deepseek-v4.1-flash
 0.235. GLM separates from the two cheaper lanes and overlaps v4.1-flash, so this
 is a rank-decaying **preference** the scorer applies — it wins close calls and
-never overrides a clearly better model — not a cell change and not a mandate.
+never overrides a clearly better model.
+
+**This preference currently changes no route, and that is a measured fact, not
+an oversight.** The bonus is 0.15 at rank 0; the smallest gap any GLM lane faces
+to the blend winner on the 180 register probes is 1.366 (glm-5.3) / 1.847
+(glm-5.3-flash) — about 9×. Driving all 180 probes through the real scorer with
+the preference applied changes 0 of 180. Two campaigns were run to close that
+gap and both measured negative: (a) growing GLM's AIDER sample from 33/49 to
+44/67 fair-budget cells — the lead holds but does not grow; (b) retrying the
+same cells at a 32,768-token budget — accuracy **fell** from 0.312 to 0.250 on
+the same 32 graded cells, because glm-5.3's long AIDER solutions are truncation-
+prone rather than cap-limited. The decode is retained as the seam a future cell
+improvement would need; see `.context/glm-merit-evidence.md`.
+
 The deployment's own `PreferredModels` still ranks first; an explicit
 `RequestedModel`, `/force-model`, or session pin is unaffected.
 
