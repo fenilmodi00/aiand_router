@@ -791,6 +791,20 @@ func (s *Service) runTurnLoop(
 			"cap_multiple", cap,
 		)
 	}
+	// Agentic-repair-shaped turns prefer the lanes that measurably lead that
+	// class (turntype.AgenticRepairModels). Applied as a preference in front of
+	// the installation's own ranking, so an operator's explicit list still wins
+	// and the scorer's rank-decaying bonus cannot override a clearly better
+	// model. Hard-pinned and utility turns decode nil and are untouched.
+	if pref := turntype.AgenticRepairPreference(res.TurnType, feats, env); len(pref) > 0 {
+		req.PreferredModels = append(append([]string{}, pref...), req.PreferredModels...)
+		log.Debug("turnloop preferred agentic-repair lanes for repair-shaped turn",
+			"turn_type", string(res.TurnType),
+			"preferred_models", strings.Join(pref, ","),
+			"message_count", feats.MessageCount,
+			"tool_result_chars", turntype.ToolResultCharCount(env),
+		)
+	}
 	res.AuthoritativePerTurn = authoritativePolicyTurn(res.TurnType) &&
 		s.authoritativePerTurnSelection(ctx)
 	res.PinRole = roleForTier(res.RequestedTier)

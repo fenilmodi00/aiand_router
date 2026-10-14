@@ -19,9 +19,22 @@ Classifies inbound requests into:
 
 Used by [`../../proxy`](../../proxy) to keep the action loop cheap + correct.
 
-`PremiumWorthyCap` (premium_worthy.go) is a pure decode of agentic-scale turn
-shape that returns a per-turn cost-cap clamp (6.0×) for the scored turn types
-only; every other type always returns the deployment default. See
+Two pure decodes live here alongside `Detect`:
+
+- `PremiumWorthyCap` (premium_worthy.go) — widens the cluster scorer's cost cap
+  to 6.0x for scored MainLoop/ToolResult turns carrying agentic-scale signals
+  (tool results >= 40k chars, prompt >= 30k tokens, >= 2 tools, >= 20 messages).
+- `AgenticRepairPreference` (agentic_repair.go) — prefers
+  `AgenticRepairModels` for turns decoding as a repair loop in progress (deep
+  history >= 6 messages AND >= 20k chars of tool results). Evidence: AIDER
+  polyglot fair-budget labels, glm-5.3 0.364 / glm-5.3-flash 0.269 vs the
+  deepseek lanes' 0.153-0.235; GLM separates from the cheaper lanes but
+  overlaps v4.1-flash, so it is a preference, not a mandate. Deliberately NOT
+  written into the cluster quality cells — on fair LCBv5 labels deepseek-v4-pro
+  (0.897) leads glm-5.3 (0.783), and a cell override would hand GLM the
+  live-coding traffic it loses.
+
+Both return the deployment default for every non-scored turn type. See
 `docs/CONFIGURATION.md` "Model reachability report".
 
 ## Invariants

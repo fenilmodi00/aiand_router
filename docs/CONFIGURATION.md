@@ -312,6 +312,20 @@ ladder that adds one lane (`motif-3`, 4.70×); lanes deeper in the ladder stay
 out. Every other turn, including every hard-pinned one, prices at the
 deployment cap.
 
+A second, independent per-turn signal applies to the same scored types. Turns
+that decode as a **repair loop in progress** — visible history ≥ 6 messages AND
+≥ 20k chars of tool results (a failing test log or a diff being reworked) —
+carry `zai-org/glm-5.3` then `zai-org/glm-5.3-flash` ahead of the installation's
+own preference ranking (`internal/router/turntype/agentic_repair.go`). Measured
+on the AIDER polyglot corpus at a fair token budget, every score from the arena's
+own `metrics.aider_accuracy`: glm-5.3 0.364 (44 cells), glm-5.3-flash 0.269 (67)
+against deepseek-v4-flash 0.153, deepseek-v4-pro 0.160, deepseek-v4.1-flash
+0.235. GLM separates from the two cheaper lanes and overlaps v4.1-flash, so this
+is a rank-decaying **preference** the scorer applies — it wins close calls and
+never overrides a clearly better model — not a cell change and not a mandate.
+The deployment's own `PreferredModels` still ranks first; an explicit
+`RequestedModel`, `/force-model`, or session pin is unaffected.
+
 ### Authoritative upgrade evidence policy
 
 Authoritative HMM turns evaluate a typed evidence policy for expensive fresh
