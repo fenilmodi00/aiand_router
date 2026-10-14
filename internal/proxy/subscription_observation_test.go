@@ -68,20 +68,19 @@ func TestPresentSubscriptionTokens_DisabledReportsNone(t *testing.T) {
 	assert.True(t, RequestPresentsCoveringSubscription(context.Background(), h, routePathMessages))
 }
 
-// Paid extra usage suppresses OAuth, but does not prove included quota exhaustion.
-func TestClaudeOverageDoesNotAuthorizeDeploymentKey(t *testing.T) {
+// Paid extra usage means included quota is spent: OAuth is suppressed and the deployment key serves.
+func TestClaudeOverageAuthorizesDeploymentKey(t *testing.T) {
 	ingress := parityAnthropicIngress()
 	upstream := &parityUpstream{okBody: ingress.upstreamOK(false)}
 	service := ingress.parityService(upstream)
 	observer := usage.NewObserver([]byte("salt"), 10*time.Minute, time.Now)
 	service.WithUsageObserver(observer)
-	observer.Record(observer.Key([]byte(ingress.token)), usage.Snapshot{OverageInUse: true})
+	observer.Record(observer.Key([]byte(ingress.token)), usage.Snapshot{OverageInUse: true, UnifiedResetAt: time.Now().Add(time.Hour)})
 
 	recorder, request, body := ingress.request(t, false)
-	require.ErrorIs(t, ingress.call(service, ingress.subCtx(), body, recorder, request), ErrSubscriptionPoolUnavailable)
-	assert.Empty(t, recorder.Body.String(), "unverified quota must not commit provider output")
+	require.NoError(t, ingress.call(service, ingress.subCtx(), body, recorder, request))
 	assert.Zero(t, upstream.subDispatches, "billable Claude OAuth must be suppressed before dispatch")
-	assert.Zero(t, upstream.paidDispatches, "overage alone cannot authorize API inference")
+	assert.Equal(t, 1, upstream.paidDispatches, "observed overage authorizes API inference")
 }
 
 func TestPresentSubscriptionTokens_MaxProductScopeReportsNone(t *testing.T) {
