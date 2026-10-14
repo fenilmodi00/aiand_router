@@ -406,8 +406,14 @@ def self_check() -> int:
             for k in range(16):
                 assert abs(feats[m]["psi_probe"][k] - quality[k][m]) < 1e-12, (tag, k, m)
     k84, k82 = load_knobs(CANDIDATE), load_knobs(BASELINE)
-    assert k84["alpha"] == [0.96, 0.96, 0.8, 0.8, 0.8, 0.96, 0.8, 0.96,
-                            0.96, 0.96, 0.96, 0.96, 0.96, 0.96, 0.96, 0.96], k84["alpha"]
+    # The alpha vector is the bundle's shipped knobs. It was pinned to the
+    # #89 SHIPPED vector (c2/c3/c4/c6 demoted) while the cells came from the
+    # broken-template corpus; the fair-label rebuild re-measured the demotion
+    # set, so the pin is the invariant that survives (four demoted clusters at
+    # 0.80, everything else 0.96), not the specific indices.
+    a84 = k84["alpha"]
+    assert len(a84) == 16 and sorted(set(a84)) == [0.8, 0.96], a84
+    assert sum(1 for a in a84 if a == 0.8) == 4, a84
     assert k84["speed_weight"] == 0.0 and k84["output_cost_ratio"] == 0.25
     assert len(k82["alpha"]) == 16 and k82["speed_weight"] == 0.0
     assert cand[3] == base[3], "roster differs between arms"
@@ -415,9 +421,10 @@ def self_check() -> int:
     assert (c82 == c84).all(), "centroids differ between arms"
     # median verbosity must reproduce artifacts.go's upper-middle rule.
     assert cand[2] == base[2] == 516.4268292682926, (cand[2], base[2])
-    print("self-check OK: 16 clusters, identical roster/centroids/axes, "
-          "model_features.json mirrors quality_means.json, "
-          "v0.84 alpha=[0.96,0.96,0.8,0.8,0.8,0.96,0.8,0.96,...], ocr=0.25")
+    demoted = [k for k, a in enumerate(a84) if a == 0.8]
+    print(f"self-check OK: 16 clusters, identical roster/centroids/axes, "
+          f"model_features.json mirrors quality_means.json, "
+          f"v0.84 alpha demoted at {demoted} (0.80), rest 0.96, ocr=0.25")
     return 0
 
 

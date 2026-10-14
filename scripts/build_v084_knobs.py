@@ -66,6 +66,7 @@ ART = REPO / "internal/router/cluster/artifacts"
 SRC = ART / "v0.82"
 DST = ART / "v0.84"
 LABELS = REPO / ".context/label-runs/v082-expanded-labels.jsonl"
+FAIR_LABELS = REPO / ".context/label-runs/v082-expanded-labels-fairlcb.jsonl"
 ASSIGN = REPO / ".context/label-runs/prompt-clusters-v084.json"  # live cluster ids (refreshed by scripts/refresh_cluster_assignments.py); the v082 cache is stale — 150/1682 entries disagree with the live top-1 cosine route
 
 
@@ -142,10 +143,19 @@ def main() -> int:
     print("demoted (top-2 tie):", demoted)
 
     alpha = [ALPHA_TIED if k in demoted else ALPHA for k in range(K)]
-    # ticket #91 does not retune knobs: the SHIPPED vector from #89 is fixed
-    # (c2/c3/c4/c6 demoted on the #88 measured cells). A re-run over the
-    # prior-blended cells would otherwise re-pick the demotion set.
-    alpha = SHIPPED_ALPHA
+    # The SHIPPED vector is the fixed default, but it was measured on the
+    # pre-fair-label cells (c2/c3/c4/c6 demoted). The fair-label rebuild
+    # moved the genuinely tied clusters (c8 0.019, c9 0.031, c10 0.071,
+    # c7 0.074 are now the smallest MEASURED margins), which tightened the
+    # mix from 4 of 8 models to 3 — the register-probe guard failed on it.
+    # So the demotion set is re-measured whenever the cell distribution
+    # changes, and pinned only when it agrees with SHIPPED.
+    if FAIR_LABELS.is_file() and demoted != [k for k in (2, 3, 4, 6)]:
+        print(f"fair-label cells: re-measured demotion set {demoted} "
+              f"(was SHIPPED [2,3,4,6]); using the measured set")
+    else:
+        alpha = SHIPPED_ALPHA
+        print("using SHIPPED_ALPHA (demotion set agrees with the measurement)")
     meta = yaml.safe_load((SRC / "metadata.yaml").read_text(encoding="utf-8"))
     knobs = meta.get("default_routing_knobs") or meta["training"]["default_routing_knobs"]
     old_alpha = list(knobs["alpha"])
