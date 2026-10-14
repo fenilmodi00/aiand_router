@@ -40,10 +40,23 @@ SESSION = "aider-grade"
 IMAGE_TAG = "aider-grade:rustjs-v1"
 SANDBOX_STAGE = Path(os.environ.get("TEMP", "/tmp")) / "aider-grade-stage-glm"
 
-MODELS = ["zai-org/glm-5.3", "zai-org/glm-5.3-flash"]
+MODELS = [
+    "zai-org/glm-5.3",
+    "zai-org/glm-5.3-flash",
+    "deepseek-ai/deepseek-v4-flash",
+    "deepseek-ai/deepseek-v4.1-flash",
+    "deepseek-ai/deepseek-v4-pro",
+    "moonshotai/kimi-k3",
+    "motif-technologies/motif-3",
+]
 PRICE = {
     "zai-org/glm-5.3": (0.00100, 0.00400),
     "zai-org/glm-5.3-flash": (0.00015, 0.00050),
+    "deepseek-ai/deepseek-v4-flash": (0.00015, 0.00025),
+    "deepseek-ai/deepseek-v4.1-flash": (0.00030, 0.00060),
+    "deepseek-ai/deepseek-v4-pro": (0.00100, 0.00250),
+    "moonshotai/kimi-k3": (0.00300, 0.01250),
+    "motif-technologies/motif-3": (0.00050, 0.00200),
 }
 
 
@@ -78,13 +91,25 @@ def load_corpus_keys() -> set[tuple[str, str]]:
     return out
 
 
+def cache_path(model: str) -> Path | None:
+    """The 16k-token grader reads aiderfair16k-<model>.jsonl; the GLM lanes
+    wrote aiderfair-<model>.jsonl. Prefer whichever exists (16k wins when both
+    do), so one script serves both naming generations."""
+    tag = model.replace('/', '__')
+    p16 = RETRY_OUT / f"aiderfair16k-{tag}.jsonl"
+    plain = RETRY_OUT / f"aiderfair-{tag}.jsonl"
+    if p16.exists():
+        return p16
+    return plain if plain.exists() else None
+
+
 def select() -> tuple[list[dict], collections.Counter]:
     gt = load_gt()
     have = load_corpus_keys()
     todo, audit = [], collections.Counter()
     for model in MODELS:
-        p = RETRY_OUT / f"aiderfair-{model.replace('/', '__')}.jsonl"
-        if not p.exists():
+        p = cache_path(model)
+        if p is None:
             print(f"no generation cache for {model}")
             continue
         seen = {}
@@ -142,7 +167,9 @@ apt-get install -y -qq curl python3 python3-pip python3-venv ca-certificates \
 """
 
 GRADER = r'''
-import json, sys
+import json, sys, warnings, os
+warnings.filterwarnings("ignore")
+os.environ["ANTLR4_WARN"] = "0"
 sys.path.insert(0, "/work/llm_evaluation")
 from metrics import aider_accuracy
 items = json.loads(sys.stdin.read())
@@ -175,19 +202,32 @@ def run_in_sandbox(todo: list[dict]) -> list[dict]:
     shutil.copytree(src, dst, ignore=shutil.ignore_patterns("__pycache__"))
     runner = SANDBOX_STAGE / "grade_glm_rustjs.py"
     runner.write_text(GRADER, encoding="utf-8")
-    sh(f"contree -S {SESSION} use {IMAGE_TAG}")
-    sh(f"contree -S {SESSION} mkdir -p /work")
-    sh(f"contree -S {SESSION} upload {dst} /work/llm_evaluation")
-    sh(f"contree -S {SESSION} upload {runner} /work/grade_glm_rustjs.py")
     payload = [{"key": t["global_index"], "answer": t["answer"], "gt": t["gt"]}
                for t in todo]
-    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False,
-                                     encoding="utf-8") as fh:
-        json.dump(payload, fh)
-        p = fh.name
-    outp = str(Path(p).with_suffix(".out.json"))
-    sh(f"contree -S {SESSION} run -- python3 /work/grade_glm_rustjs.py < {p} > {outp}")
-    return [json.loads(l) for l in Path(outp).read_text(encoding="utf-8").splitlines() if l.strip()]
+    payload_path = SANDBOX_STAGE / "grade_input.json"
+    payload_path.write_text(json.dumps(payload), encoding="utf-8")
+    # contree CLI caps -t at 3600s
+    proc = subprocess.run(
+        ["contree", "-S", SESSION, "run",
+         "-t", "3600",
+         "-F", f"{dst}:/work/llm_evaluation",
+         "-F", f"{runner}:/work/grade_glm_rustjs.py",
+         "-F", f"{payload_path}:/work/grade_input.json",
+         "--", "sh", "-c",
+         "cd /work && python3 /work/grade_glm_rustjs.py < /work/grade_input.json"],
+        capture_output=True, text=True, timeout=3800)
+    if proc.returncode != 0:
+        raise RuntimeError(f"contree run failed: {proc.stderr[-4000:]}")
+    results = []
+    for l in proc.stdout.splitlines():
+        l = l.strip()
+        if not l.startswith("{"):
+            continue  # ANTLR/pip warnings share stdout; only JSON rows are results
+        try:
+            results.append(json.loads(l))
+        except json.JSONDecodeError:
+            continue
+    return results
 
 
 def cmd_report() -> int:
