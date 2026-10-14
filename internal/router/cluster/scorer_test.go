@@ -1197,7 +1197,7 @@ type v2BundleOpts struct {
 	// 0 disables the cap; unset keeps DefaultConfig's measured default.
 	costCapMultiple *float64
 	// costCapMode overrides Config.CostCapMode; unset keeps DefaultConfig's
-	// CostCapModeGlobal (the historical deployment-wide budget).
+	// CostCapModeCluster (the deployment default per-cluster budget).
 	costCapMode string
 	// clusterCount overrides the synthetic bundle's cluster count (centroids are
 	// one-hot in dims 0..count-1, so an embed vector summing those dims makes all
@@ -1688,10 +1688,19 @@ func TestScorer_CostCapRestrictsToCheapestLane(t *testing.T) {
 	capHaikuOnly := 1.0000001 // Haiku's cost exactly; Opus (60x) excluded
 	capUnlimited := 1e9
 
+	// These assertions describe the GLOBAL budget: one deployment-wide cap
+	// priced against the roster's cheapest lane, so a tiny cap forces the
+	// cheapest lane on every cluster. The per-cluster budget's own contrast
+	// lives in TestScorer_CostCapModeClusterVsGlobal below, so this one pins
+	// the mode it means to measure rather than inheriting whatever the
+	// deployment default happens to be.
+	gmode := CostCapModeGlobal
+
 	// Uncapped baseline: cluster-0-aligned Opus wins on a quality-leaning blend.
 	uncapped, err := newV2BundleForTest(t, emb, v2BundleOpts{
 		defaultKnobs:    hardClusterKnobs,
 		costCapMultiple: &capNone,
+		costCapMode:     gmode,
 	}).Route(context.Background(), router.Request{PromptText: "test"})
 	require.NoError(t, err)
 	require.Equal(t, "claude-opus-4-7", uncapped.Model, "precondition: uncapped blend picks Opus")
@@ -1700,6 +1709,7 @@ func TestScorer_CostCapRestrictsToCheapestLane(t *testing.T) {
 	tiny, err := newV2BundleForTest(t, emb, v2BundleOpts{
 		defaultKnobs:    hardClusterKnobs,
 		costCapMultiple: &capHaikuOnly,
+		costCapMode:     gmode,
 	}).Route(context.Background(), router.Request{PromptText: "test"})
 	require.NoError(t, err)
 	assert.Equal(t, "claude-haiku-4-5", tiny.Model, "a tiny cap must force the cheapest lane")
@@ -1711,6 +1721,7 @@ func TestScorer_CostCapRestrictsToCheapestLane(t *testing.T) {
 	huge, err := newV2BundleForTest(t, emb, v2BundleOpts{
 		defaultKnobs:    hardClusterKnobs,
 		costCapMultiple: &capUnlimited,
+		costCapMode:     gmode,
 	}).Route(context.Background(), router.Request{PromptText: "test"})
 	require.NoError(t, err)
 	assert.Equal(t, uncapped.Model, huge.Model, "a huge cap must reproduce the uncapped blend argmax")
@@ -1723,6 +1734,7 @@ func TestScorer_CostCapRestrictsToCheapestLane(t *testing.T) {
 	afterExclusion, err := newV2BundleForTest(t, emb, v2BundleOpts{
 		defaultKnobs:    hardClusterKnobs,
 		costCapMultiple: &capHaikuOnly,
+		costCapMode:     gmode,
 	}).Route(context.Background(), *excluded)
 	require.NoError(t, err)
 	require.NotEmpty(t, afterExclusion.Metadata.CandidateModels, "candidate set must never be empty")

@@ -1349,17 +1349,18 @@ func buildClusterScorer(availableProviders map[string]struct{}) (router.Router, 
 		}
 	}
 	if v := config.GetOr("ROUTER_CLUSTER_COST_CAP_MODE", ""); v != "" {
-		// Empty/absent already means the global default below; anything else
-		// must name one of the two documented modes (case-insensitive) or it is
-		// a typo that would silently disable a mode someone meant to enable.
+		// Empty/absent already means the deployment default below; anything
+		// else must name one of the two documented modes (case-insensitive) or
+		// it is a typo that would silently disable a mode someone meant to
+		// enable.
 		mode, ok := cluster.NormalizeCostCapMode(v)
 		if !ok {
 			logger.Warn(
 				"Invalid ROUTER_CLUSTER_COST_CAP_MODE; using default",
-				"value", v, "default", cluster.CostCapModeGlobal,
+				"value", v, "default", cluster.CostCapModeCluster,
 				"valid_modes", []string{cluster.CostCapModeGlobal, cluster.CostCapModeCluster},
 			)
-			mode = cluster.CostCapModeGlobal
+			mode = cluster.CostCapModeCluster
 		}
 		cfg.CostCapMode = mode
 	}

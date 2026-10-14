@@ -42,10 +42,10 @@ type Config struct {
 	// default and applyCostCap for the fallback semantics.
 	CostCapMultiple float64
 	// CostCapMode shapes the budget CostCapMultiple is measured against:
-	// CostCapModeGlobal (default, one budget from the cheapest eligible model)
-	// or CostCapModeCluster (a budget per top-P cluster, anchored at the
+	// CostCapModeCluster (default, a budget per top-P cluster anchored at the
 	// cheapest model that cluster's own blend elects — see
-	// applyCostCapCluster). Unknown values fall back to global with a warning.
+	// applyCostCapCluster) or CostCapModeGlobal (one budget from the cheapest
+	// eligible model). Unknown values fall back to the default with a warning.
 	CostCapMode string
 }
 
@@ -62,15 +62,15 @@ const (
 )
 
 // NormalizeCostCapMode validates a cost-cap mode value: case-insensitive,
-// surrounding whitespace tolerated, empty means CostCapModeGlobal (the zero
-// value). Returns the canonical mode and whether v named a valid one; callers
-// warn-and-default on false.
+// surrounding whitespace tolerated, empty means the deployment default
+// (CostCapModeCluster). Returns the canonical mode and whether v named a
+// valid one; callers warn-and-default on false.
 func NormalizeCostCapMode(v string) (string, bool) {
 	switch strings.ToLower(strings.TrimSpace(v)) {
-	case "", CostCapModeGlobal:
-		return CostCapModeGlobal, true
-	case CostCapModeCluster:
+	case "", CostCapModeCluster:
 		return CostCapModeCluster, true
+	case CostCapModeGlobal:
+		return CostCapModeGlobal, true
 	}
 	return "", false
 }
@@ -90,10 +90,14 @@ func DefaultConfig() Config {
 		MaxPromptChars:  1024,
 		EmbedTimeout:    1500 * time.Millisecond,
 		CostCapMultiple: DefaultCostCapMultiple,
-		// One deployment-wide budget (the historical behavior). Cluster mode
-		// is opt-in; see the ROUTER_CLUSTER_COST_CAP_MODE measurement in
-		// docs/CONFIGURATION.md before choosing it.
-		CostCapMode: CostCapModeGlobal,
+		// A budget per top-P cluster, unioned with the global set: a premium
+		// lane is priced against the lane it competes with on the cluster where
+		// it leads, so it re-enters there while the cheap lane keeps holding
+		// the clusters it dominates. Deployment decision on the v0.83 bundle:
+		// 3/8 models reached under global, 7/8 under cluster, at the same cap
+		// multiple. See the ROUTER_CLUSTER_COST_CAP_MODE measurement in
+		// docs/CONFIGURATION.md.
+		CostCapMode: CostCapModeCluster,
 	}
 }
 
@@ -178,16 +182,16 @@ func NewScorer(bundle *Bundle, cfg Config, embed Embedder, availableProviders ma
 	// An unrecognized mode must not fail boot (Config is runtime knobs, not
 	// cluster geometry), but silently reverting to global would hide a typo
 	// that also disables the cluster mode someone meant to enable. Warn with
-	// the resolved value and fall back to the historical global budget.
+	// the resolved value and fall back to the deployment default budget.
 	if mode, ok := NormalizeCostCapMode(cfg.CostCapMode); ok {
 		cfg.CostCapMode = mode
 	} else {
 		observability.Get().Warn(
-			"Cluster scorer: unknown cost cap mode; using global",
+			"Cluster scorer: unknown cost cap mode; using default",
 			"value", cfg.CostCapMode,
-			"default", CostCapModeGlobal,
+			"default", CostCapModeCluster,
 		)
-		cfg.CostCapMode = CostCapModeGlobal
+		cfg.CostCapMode = CostCapModeCluster
 	}
 	if len(availableProviders) == 0 {
 		return nil, fmt.Errorf("cluster: availableProviders must not be empty")

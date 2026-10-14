@@ -97,7 +97,7 @@ func (s *Scorer) Reachability() (ReachabilityReport, error) {
 	// InsideCostCapLane so the roster-wide ladder stays readable.
 	capMode := s.cfg.CostCapMode
 	if mode, ok := NormalizeCostCapMode(capMode); !ok {
-		capMode = CostCapModeGlobal
+		capMode = CostCapModeCluster
 	} else {
 		capMode = mode
 	}

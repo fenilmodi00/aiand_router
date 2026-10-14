@@ -10,13 +10,13 @@ import (
 	"weave-os/router/internal/providers"
 )
 
-// aiandRoster mirrors the v0.78 cluster registry
-// (internal/router/cluster/artifacts/latest = v0.78): the complete
-// set of models an auto-model request may be routed to on an
-// AIand-only deployment. The registry — not the BYOK credential —
-// gates the candidate pool (docs/CONFIGURATION.md, "AIand-only
-// deployment"): a vendor key for a provider outside the roster
-// cannot widen it.
+// aiandRoster mirrors the AIand cluster registry shared by every
+// bundle in internal/router/cluster/artifacts (the served version is
+// artifacts/latest): the complete set of models an auto-model request
+// may be routed to on an AIand-only deployment. The registry — not the
+// BYOK credential — gates the candidate pool
+// (docs/CONFIGURATION.md, "AIand-only deployment"): a vendor key for a
+// provider outside the roster cannot widen it.
 var aiandRoster = []string{
 	"deepseek-ai/deepseek-v4-pro",
 	"deepseek-ai/deepseek-v4-flash",
@@ -50,7 +50,7 @@ func TestAIandRoster(t *testing.T) {
 			text("Reply with exactly the word: ok").build(t)
 
 		// A vendor key for a provider whose models are not in the
-		// v0.78 registry. X-Weave-Router-Key authenticates the client
+		// registry. X-Weave-Router-Key authenticates the client
 		// to the router; Authorization is preserved verbatim for the
 		// upstream. The decision must still come from the AIand
 		// roster, not from the credential's provider.
@@ -73,7 +73,7 @@ func assertServedByAIandRoster(t *testing.T, r response) {
 		t.Errorf("missing %s header", headerRouterModel)
 	} else {
 		assert.Contains(t, aiandRoster, gotModel,
-			"auto-model decision must be a v0.78 AIand roster model")
+			"auto-model decision must be an AIand roster model")
 	}
 	if gotProvider := r.headers.Get(headerRouterProvider); gotProvider == "" {
 		t.Errorf("missing %s header", headerRouterProvider)
