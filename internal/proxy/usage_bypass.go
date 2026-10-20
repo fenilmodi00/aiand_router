@@ -10,8 +10,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
-
 	"weave-os/router/internal/auth"
 	"weave-os/router/internal/billing"
 	"weave-os/router/internal/observability"
@@ -23,6 +21,8 @@ import (
 	"weave-os/router/internal/subscriptions"
 	"weave-os/router/internal/subscriptions/entitlement"
 	"weave-os/router/internal/translate"
+
+	"github.com/google/uuid"
 )
 
 // Decision reasons for the two strict pass-through lanes. Both dispatch through
@@ -529,10 +529,14 @@ func (s *Service) bypassToAnthropic(
 	// Tap the response stream so the bypass span carries token usage for
 	// Weave's router cost-savings metric — subscription turns are otherwise invisible.
 	var extractor *otel.UsageExtractor
-	if s.usageRequired() {
+	if s.usageRequired() || streamCost != nil {
 		extractor = otel.NewUsageExtractor(respW, decision.Provider)
 		extractor.SetRequestCacheTTL1h(func() bool { return translate.AnthropicRequestCacheTTL1h(prep.Body) })
 		respW = extractor
+	}
+
+	if streamCost != nil {
+		streamCost.source = extractor.UsageFacts
 	}
 
 	var terminal *streamTerminalObserver
