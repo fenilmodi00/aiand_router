@@ -462,7 +462,6 @@ type RouterModelRouterInstallation struct {
 	ModelsWhenSubscriptionActive []string
 	// Optional model allowlist while the caller subscription is exhausted; empty means no conditional restriction.
 	ModelsWhenSubscriptionInactive         []string
-	FastModeModels                         []string
 	TrialCaptureEnabled                    bool
 	TrialEnrollmentID                      pgtype.UUID
 	TrialShadowSampleRate                  pgtype.Numeric

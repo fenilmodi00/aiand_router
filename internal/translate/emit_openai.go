@@ -125,10 +125,6 @@ func (e *RequestEnvelope) PrepareOpenAI(in http.Header, opts EmitOptions) (provi
 	if err != nil {
 		return providers.PreparedRequest{}, err
 	}
-	body, err = ApplyOpenAIFastMode(body, opts)
-	if err != nil {
-		return providers.PreparedRequest{}, err
-	}
 	return providers.PreparedRequest{Body: body, Headers: headers, Stats: stats, ResponseToolNames: toolNames}, nil
 }
 

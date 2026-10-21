@@ -561,13 +561,6 @@ type SessionStrikeReadmitModelsContextKey struct{}
 // preference (index 0 = first preference). See preferredModelsForRequest.
 type InstallationPreferredModelsContextKey struct{}
 
-// InstallationFastModeModelsContextKey is the context key for the authed
-// installation's fast-mode opt-in list, carried as []string of catalog model
-// IDs. Every dispatch of a listed model goes out on the provider's fast tier
-// (OpenAI service_tier=priority, Anthropic speed=fast) and is billed at that
-// tier's rate; routing still scores on list price. See fastModeForAttempt.
-type InstallationFastModeModelsContextKey struct{}
-
 // InstallationRoutingKnobsContextKey is the context key for the authed
 // installation's persisted routing preference (the "quality vs price" dial).
 // Carried as *router.Overrides with only Alpha (quality weight) set; the
@@ -1214,20 +1207,6 @@ func (s *Service) excludedProvidersForRequest(ctx context.Context) map[string]st
 // present.
 func installationPreferredModelsFromContext(ctx context.Context) []string {
 	v := ctx.Value(InstallationPreferredModelsContextKey{})
-	if v == nil {
-		return nil
-	}
-	out, _ := v.([]string)
-	return out
-}
-
-// installationFastModeModelsFromContext returns the per-installation fast-mode
-// opt-in list stashed on ctx by the auth middleware, or nil when none is present.
-func installationFastModeModelsFromContext(ctx context.Context) []string {
-	if planOwnedServingRequest(ctx) {
-		return nil
-	}
-	v := ctx.Value(InstallationFastModeModelsContextKey{})
 	if v == nil {
 		return nil
 	}
@@ -4148,7 +4127,6 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	// customer-paid overage. Credential resolution then falls through to the
 	// deployment/BYOK key at full cost.
 	ctx = s.resolveCredentials(ctx, decision.Provider, decision.Model, r.Header)
-	opts.FastMode = fastModeForAttempt(ctx, decision.Model, decision.Provider)
 
 	// Wrap every request (not just multi-binding) in a preludeBuffer so a
 	// pre-first-byte upstream error can discard the buffered prelude (marker +
@@ -4263,38 +4241,13 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	toolValidator := env.ToolValidator()
 	setExtractor := func(e *otel.UsageExtractor) { extractor = e }
 	anthropicPrelude := &requestNoticeStream{}
-	// fastServed tracks whether the most recent attempt went out on the fast
-	// tier; each attempt closure sets it before dispatch so the stream cost
-	// calculator and post-dispatch billing price the winning attempt.
-	fastServed := false
 	setStreamCost := func(d router.Decision, inputIncludesCache bool, requestCacheTTL1h func() bool) {
 		if streamCost != nil {
-			streamCost.SetCostCalculator(routerCostCalculatorFor(d.Model, d.Provider, fastServed), inputIncludesCache, requestCacheTTL1h)
+			streamCost.SetCostCalculator(routerCostCalculatorFor(d.Model, d.Provider), inputIncludesCache, requestCacheTTL1h)
 			// Each attempt assigns extractor after this setup; resolve it at invocation.
 			streamCost.source = func() providerusage.Facts { return extractor.UsageFacts() }
 		}
 	}
-	anthropicTierAttemptFor := func(targetOpts translate.EmitOptions, prep providers.PreparedRequest, targetNotice translate.RouterNotice) *anthropicTierAttempt {
-		return &anthropicTierAttempt{
-			s:             s,
-			log:           log,
-			env:           env,
-			r:             r,
-			opts:          targetOpts,
-			native:        s.anthropicNativeAttempt(env, r, prep, sink, preludeBuf, anthropicPrelude, streamCut, targetNotice, setExtractor, setStreamCost),
-			sink:          sink,
-			preludeBuf:    preludeBuf,
-			preludeState:  anthropicPrelude,
-			streamCut:     streamCut,
-			notice:        targetNotice,
-			setExtractor:  setExtractor,
-			setStreamCost: setStreamCost,
-			logBody: func(d router.Decision, body []byte) {
-				logUpstreamBody(log, routeRes.SessionKey, d, feats, body)
-			},
-		}
-	}
-	recordFastServed := func(fast bool) { fastServed = fast }
 
 	// buildAttempt dispatches by translation family so new OpenAI-compat
 	// providers route automatically; a closure so in-turn model failover can
@@ -4316,9 +4269,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 				attemptOpts := targetOpts
 				attemptOpts.TargetProvider = d.Provider
 				attemptOpts.StripPromptCacheKey = stripPromptCacheKey
-				attemptOpts.FastMode = fastModeForAttempt(actx, d.Model, d.Provider)
 				attemptOpts.ReasoningReplayScope = s.reasoningReplayScope(actx, d)
-				fastServed = attemptOpts.FastMode
 				setStreamCost(d, true, nil)
 				respSummary = translate.ResponseSummary{}
 				var prep providers.PreparedRequest
@@ -4686,7 +4637,6 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		baselineEffort.apply(&baselineOpts)
 		baselineCtx := subscriptionStatePaidRescueContext(ctx, baselineModel)
 		baselineCtx = s.resolveCredentials(baselineCtx, providers.ProviderAIAND, baselineModel, r.Header)
-		baselineOpts.FastMode = fastModeForAttempt(baselineCtx, baselineModel, providers.ProviderAIAND)
 		baselinePrep, baselineEmitErr := env.PrepareAnthropic(r.Header, baselineOpts)
 		if baselineEmitErr != nil {
 			log.Error("Baseline failover: emit Anthropic body failed; surfacing original error", "err", baselineEmitErr, "baseline_model", baselineModel)
@@ -4702,8 +4652,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 			effortServed = baselineEffort
 			baselineBindings := s.resolveBindingsForDispatch(baselineCtx, baselineDecision)
 			baselineMarker := suppressMarkerIfRequested(ctx, r.Header, modelSelectionMarkerForRequest(ctx, routeRes, baselineRoutingMarkerFor(routeRes, baselineModel), baselineModel, markerReasonBaseline))
-			baselineAttempt := anthropicTierAttemptFor(baselineOpts, baselinePrep, routerNoticeForRequest(ctx, r.Header, subscriptionSourceClaude, baselineOpts.TargetModel, baselineMarker)).attempt(recordFastServed)
-			fastServed = baselineOpts.FastMode
+			baselineAttempt := s.anthropicNativeAttempt(env, r, baselinePrep, sink, preludeBuf, anthropicPrelude, streamCut, routerNoticeForRequest(ctx, r.Header, subscriptionSourceClaude, baselineOpts.TargetModel, baselineMarker), setExtractor, setStreamCost)
 			crossFormat = false
 			respSummary = translate.ResponseSummary{}
 			reqStats = providers.RequestMutationStats{}
@@ -4751,9 +4700,8 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		subCtx = resolveAndInjectCredentials(subCtx, providers.ProviderAIAND, decision.Model, r.Header)
 		// Model is unchanged, but rebuild prep so the retry gets a pristine
 		// PreparedRequest under the suppressed-subscription context — which
-		// now pays on the Weave key, so the fast-mode opt-in applies.
+		// now pays on the Weave key.
 		subOpts := opts
-		subOpts.FastMode = fastModeForAttempt(subCtx, decision.Model, providers.ProviderAIAND)
 		subPrep, subEmitErr := env.PrepareAnthropic(r.Header, subOpts)
 		if subEmitErr != nil {
 			log.Error("Subscription failover: emit Anthropic body failed; surfacing original error", "err", subEmitErr, "model", decision.Model)
@@ -4777,8 +4725,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 				"model", decision.Model,
 				"err", proxyErr,
 				"upstream_status", upstreamStatus(proxyErr))
-			subAttempt := anthropicTierAttemptFor(subOpts, subPrep, routerNoticeForRequest(ctx, r.Header, subscriptionSourceClaude, subOpts.TargetModel, marker)).attempt(recordFastServed)
-			fastServed = subOpts.FastMode
+			subAttempt := s.anthropicNativeAttempt(env, r, subPrep, sink, preludeBuf, anthropicPrelude, streamCut, routerNoticeForRequest(ctx, r.Header, subscriptionSourceClaude, subOpts.TargetModel, marker), setExtractor, setStreamCost)
 			crossFormat = false
 			respSummary = translate.ResponseSummary{}
 			reqStats = providers.RequestMutationStats{}
@@ -4843,7 +4790,6 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 			siblingEffort := s.resolveEffort(ctx, siblingDecision, siblingOpts.Capabilities, routeRes.EscalateEffort)
 			siblingEffort.apply(&siblingOpts)
 			siblingCtx := s.resolveCredentials(subscriptionStatePaidRescueContext(ctx, siblingDecision.Model), siblingDecision.Provider, siblingDecision.Model, r.Header)
-			siblingOpts.FastMode = fastModeForAttempt(siblingCtx, siblingDecision.Model, siblingDecision.Provider)
 			siblingBindings := s.resolveBindingsForDispatch(siblingCtx, siblingDecision)
 			siblingMarker := suppressMarkerIfRequested(ctx, r.Header, modelSelectionMarkerForRequest(ctx, routeRes, siblingRoutingMarkerFor(routeRes, siblingDecision.Model), siblingDecision.Model, markerReasonSibling))
 			siblingAttempt, siblingBuildErr := buildAttempt(siblingDecision, siblingOpts, siblingMarker)
@@ -4928,15 +4874,13 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	// Re-resolve pricing for the binding that actually served: the
 	// pre-dispatch lookup always returns the catalog's PRIMARY binding price,
 	// which would misreport cost after a successful failover to a different
-	// binding's rate — or after a fast-tier dispatch, billed at the fast rate.
-	// A client-sent speed:"fast" is billed fast even when the installation
-	// has not opted the model into fast mode.
-	if extractor.Speed() == catalog.SpeedFast {
-		fastServed = true
-	}
-	if actBindingPricing, ok := servedPricing(finalProvider, decision.Model, fastServed); ok {
+	// binding's rate.
+	if actBindingPricing, ok := servedPricing(finalProvider, decision.Model); ok {
 		actPricing = actBindingPricing
 	}
+	// The upstream's own speed report — the client asked for speed:"fast", or
+	// the provider served the turn on its fast tier.
+	upstreamFast := extractor.Speed() == catalog.SpeedFast
 
 	// Cache store: only on success when body fits. Any top-p cluster id
 	// works for storage since LRU.Lookup scans all of them.
@@ -5019,7 +4963,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		Float64("cost.actual_input_usd", catalog.EffectiveInputCost(in, cacheCreation, cacheRead, actPricing, decision.Provider, usageMods)).
 		Float64("cost.actual_output_usd", catalog.EffectiveOutputCost(catalog.PromptTokens(in, cacheCreation, cacheRead, decision.Provider), out, actPricing, usageMods)).
 		Bool("cost.subscription_served", s.costNeutralSubscriptionServed(ctx)).
-		Bool("cost.fast_mode", fastServed).
+		Bool("cost.fast_mode", upstreamFast).
 		Int64("latency.upstream_ms", proxyMs).
 		Int64("latency.total_ms", time.Since(requestStart).Milliseconds()).
 		Int64("upstream.status_code", int64(upstreamStatus(proxyErr))).
@@ -5316,7 +5260,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		policyResp = &policyOutcomeResponse{Body: policyRespBody, Truncated: policyRespTrunc}
 	}
 	if !agentShadowMode {
-		s.reportPolicyOutcome(ctx, routeRes, decision, effortServed, finalProvider, fastServed, feats.Tokens, in, out, cacheCreation, cacheRead, usageMods, routeMs, proxyMs, proxyErr, policyResp)
+		s.reportPolicyOutcome(ctx, routeRes, decision, effortServed, finalProvider, feats.Tokens, in, out, cacheCreation, cacheRead, usageMods, routeMs, proxyMs, proxyErr, policyResp)
 	}
 	return proxyErr
 }
@@ -5652,7 +5596,7 @@ func isAuthoritativePinHoldMismatch(res turnLoopResult, served router.Decision) 
 	}
 }
 
-func (s *Service) reportPolicyOutcome(ctx context.Context, res turnLoopResult, decision router.Decision, effort effortResolution, finalProvider string, servedFast bool, estimatedInputTokens, inputTokens, outputTokens, cacheCreation, cacheRead int, usageMods catalog.UsageModifiers, routeMs, proxyMs int64, proxyErr error, response *policyOutcomeResponse) {
+func (s *Service) reportPolicyOutcome(ctx context.Context, res turnLoopResult, decision router.Decision, effort effortResolution, finalProvider string, estimatedInputTokens, inputTokens, outputTokens, cacheCreation, cacheRead int, usageMods catalog.UsageModifiers, routeMs, proxyMs int64, proxyErr error, response *policyOutcomeResponse) {
 	routeDecision, routeMetadata, reporter, ok := s.policyOutcomeRoute(res, decision)
 	if !ok {
 		return
@@ -5759,7 +5703,7 @@ func (s *Service) reportPolicyOutcome(ctx context.Context, res turnLoopResult, d
 	if proxyErr != nil {
 		payload["error"] = proxyErr.Error()
 	}
-	if price, ok := servedPricing(finalProvider, decision.Model, servedFast); ok {
+	if price, ok := servedPricing(finalProvider, decision.Model); ok {
 		inputCost := catalog.EffectiveInputCost(inputTokens, cacheCreation, cacheRead, price, finalProvider, usageMods)
 		outputCost := catalog.EffectiveOutputCost(catalog.PromptTokens(inputTokens, cacheCreation, cacheRead, finalProvider), outputTokens, price, usageMods)
 		payload["cost_usd"] = inputCost + outputCost
@@ -6981,10 +6925,6 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	} else {
 		ctx = resolvedCtx
 	}
-	opts.FastMode = fastModeForAttempt(ctx, decision.Model, decision.Provider)
-	// fastServed tracks whether the most recent attempt went out on the fast
-	// tier so post-dispatch billing prices the winning attempt.
-	fastServed := false
 
 	// See ProxyMessages for the preludeBuffer rationale — wrap unconditionally
 	// so single-binding upstream errors don't strand the routing-marker chunk
@@ -7205,12 +7145,6 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 					}
 					nativeOpts := targetOpts
 					nativeOpts.TargetProvider = d.Provider
-					nativeOpts.FastMode = fastModeForAttempt(actx, d.Model, d.Provider)
-					fastServed = nativeOpts.FastMode
-					outBody, setErr = translate.ApplyOpenAIFastMode(outBody, nativeOpts)
-					if setErr != nil {
-						return fmt.Errorf("set codex service_tier: %w", setErr)
-					}
 					// The caller's own effort would otherwise serve an effort-qualified
 					// arm, so the policy learns from a level it never bought.
 					outBody, setErr = translate.ApplyOpenAIResponsesEffort(outBody, nativeOpts)
@@ -7229,9 +7163,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 					attemptOpts := targetOpts
 					attemptOpts.TargetProvider = d.Provider
 					attemptOpts.StripPromptCacheKey = stripPromptCacheKey
-					attemptOpts.FastMode = fastModeForAttempt(actx, d.Model, d.Provider)
 					attemptOpts.ReasoningReplayScope = s.reasoningReplayScope(actx, d)
-					fastServed = attemptOpts.FastMode
 					var emitErr error
 					if surface == surfaceResponsesTranslated {
 						prep, emitErr = env.PrepareOpenAIResponses(r.Header, attemptOpts)
@@ -7567,7 +7499,6 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		subCtx := subscriptionStatePaidRescueContext(ctx, decision.Model)
 		subCtx = resolveAndInjectCredentials(subCtx, providers.ProviderAIAND, decision.Model, r.Header)
 		subOpts := opts
-		subOpts.FastMode = fastModeForAttempt(subCtx, decision.Model, providers.ProviderAIAND)
 		subAttempt, subBuildErr := buildAttempt(decision, subOpts, marker)
 		subBindings := s.resolveBindingsForDispatch(subCtx, decision)
 		switch {
@@ -7613,7 +7544,6 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		subCtx := subscriptionStatePaidRescueContext(ctx, decision.Model)
 		subCtx = resolveAndInjectCredentials(subCtx, providers.ProviderAIAND, decision.Model, r.Header)
 		subOpts := opts
-		subOpts.FastMode = fastModeForAttempt(subCtx, decision.Model, providers.ProviderAIAND)
 		subAttempt, subBuildErr := buildAttempt(decision, subOpts, marker)
 		subBindings := s.resolveBindingsForDispatch(subCtx, decision)
 		switch {
@@ -7669,7 +7599,6 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		retryEffort := s.resolveEffort(ctx, cyberRetryTarget, retryOpts.Capabilities, routeRes.EscalateEffort)
 		retryEffort.apply(&retryOpts)
 		retryCtx := resolveAndInjectCredentials(subscriptionStatePaidRescueContext(ctx, cyberRetryTarget.Model), cyberRetryTarget.Provider, cyberRetryTarget.Model, r.Header)
-		retryOpts.FastMode = fastModeForAttempt(retryCtx, cyberRetryTarget.Model, cyberRetryTarget.Provider)
 		retryBindings := s.resolveBindingsForDispatch(retryCtx, cyberRetryTarget)
 		retryMarker := suppressMarkerIfRequested(ctx, r.Header, modelSelectionMarkerForRequest(ctx, routeRes, cyberRefusalRoutingMarkerFor(routeRes, cyberRetryTarget.Model), cyberRetryTarget.Model, markerReasonCyberRefusal))
 		retryAttempt, retryBuildErr := buildAttempt(cyberRetryTarget, retryOpts, retryMarker)
@@ -7749,7 +7678,6 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 			siblingEffort := s.resolveEffort(ctx, siblingDecision, siblingOpts.Capabilities, routeRes.EscalateEffort)
 			siblingEffort.apply(&siblingOpts)
 			siblingCtx := s.resolveCredentials(subscriptionStatePaidRescueContext(ctx, siblingDecision.Model), siblingDecision.Provider, siblingDecision.Model, r.Header)
-			siblingOpts.FastMode = fastModeForAttempt(siblingCtx, siblingDecision.Model, siblingDecision.Provider)
 			siblingBindings := s.resolveBindingsForDispatch(siblingCtx, siblingDecision)
 			siblingMarker := suppressMarkerIfRequested(ctx, r.Header, modelSelectionMarkerForRequest(ctx, routeRes, siblingRoutingMarkerFor(routeRes, siblingDecision.Model), siblingDecision.Model, markerReasonSibling))
 			siblingAttempt, siblingBuildErr := buildAttempt(siblingDecision, siblingOpts, siblingMarker)
@@ -7829,14 +7757,11 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	ctx = s.resolveCredentials(ctx, finalProvider, decision.Model, r.Header)
 
 	// Re-resolve pricing for the binding that actually served (see ProxyMessages).
-	// A client-sent speed:"fast" is billed fast even when the installation
-	// has not opted the model into fast mode.
-	if extractor.Speed() == catalog.SpeedFast {
-		fastServed = true
-	}
-	if actBindingPricing, ok := servedPricing(finalProvider, decision.Model, fastServed); ok {
+	if actBindingPricing, ok := servedPricing(finalProvider, decision.Model); ok {
 		actPricing = actBindingPricing
 	}
+	// The upstream's own speed report (see ProxyMessages).
+	upstreamFast := extractor.Speed() == catalog.SpeedFast
 
 	if cacheEligible && proxyErr == nil && captureW != nil && s.semanticCacheStoreAllowed(ctx, cacheProvenance, decision, finalProvider) {
 		if body, status, ok := captureW.captured(); ok && status == http.StatusOK {
@@ -7904,7 +7829,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		Float64("cost.actual_input_usd", catalog.EffectiveInputCost(in, cacheCreation, cacheRead, actPricing, decision.Provider, usageMods)).
 		Float64("cost.actual_output_usd", catalog.EffectiveOutputCost(catalog.PromptTokens(in, cacheCreation, cacheRead, decision.Provider), out, actPricing, usageMods)).
 		Bool("cost.subscription_served", s.costNeutralSubscriptionServed(ctx)).
-		Bool("cost.fast_mode", fastServed).
+		Bool("cost.fast_mode", upstreamFast).
 		Int64("latency.upstream_ms", proxyMs).
 		Int64("latency.total_ms", time.Since(requestStart).Milliseconds()).
 		Int64("upstream.status_code", int64(upstreamStatus(proxyErr))).
@@ -8138,7 +8063,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 
 	servedCredentialSource, servedSubscriptionTier := s.servedCredentialLogValues(ctx)
 	log.Info("ProxyOpenAIChatCompletion complete", append(append([]any{"requested_model", feats.Model, "baseline_model", s.baselineFor(feats.Model), "decision_model", decision.Model, "decision_provider", decision.Provider, "primary_provider", primaryProvider, "primary_model", primaryModel, "fallback_attempts", winnerIdx, "failover_used", failoverUsed, "failover_attempted", failoverAttempted, "subscription_failover", codexFailoverUsed || claudeFailoverUsed, "decision_reason", decision.Reason, "requested_tier", routeRes.RequestedTier.String(), "decision_tier", catalog.TierFor(decision.Model).String(), "embedded_tokens", len(promptText) / 4, "total_input_tokens", feats.Tokens, "has_tools", feats.HasTools, "embed_input", embedInput, "cross_format", crossFormat, "sticky_hit", stickyHit, "pin_tier", pinTier, "turn_type", string(tt), "route_ms", routeMs, "proxy_ms", proxyMs, "proxy_err", proxyErr, "upstream_err_body", s.zdrLogField(ctx, providers.UpstreamErrorBodyMessage(proxyErr)), "upstream_status", upstreamStatus(proxyErr), "upstream_finish_reason", respSummary.UpstreamFinishReason, "resp_stop_reason", respSummary.StopReason, "stop_reason_promoted", respSummary.StopReasonPromoted, "tool_use_blocks", respSummary.ToolUseBlocks, "invalid_tool_args_blocks", respSummary.InvalidToolArgsBlocks, "tool_call_invalid_blocks", len(respSummary.ToolCallIssues), "routing_marker", marker, "prior_served_model", routeRes.PriorServedModel, "hard_pinned", routeRes.HardPinned, "credential_source", servedCredentialSource, "subscription_tier", servedSubscriptionTier}, append(append(armStrikeLogFieldsWithPrimaryReason(armDemotedOAI, armDemotionReasonOAI, rescuedArmDemotedOAI, rescuedArmDemotionReasonOAI), plannerLogFields(routeRes)...), rateLimit.completionLogFields()...)...), downgradeShadowLogFields(routeRes)...)...)
-	s.reportPolicyOutcome(ctx, routeRes, decision, effortServed, finalProvider, fastServed, feats.Tokens, in, out, cacheCreation, cacheRead, usageMods, routeMs, proxyMs, proxyErr, nil)
+	s.reportPolicyOutcome(ctx, routeRes, decision, effortServed, finalProvider, feats.Tokens, in, out, cacheCreation, cacheRead, usageMods, routeMs, proxyMs, proxyErr, nil)
 
 	// Subscription-only mode disables paid failover by pinning dispatch to the
 	// single subscription binding above, so a dispatch failure here is the
