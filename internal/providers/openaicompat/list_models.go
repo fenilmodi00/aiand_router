@@ -99,7 +99,6 @@ func (c *Client) getModelList(ctx context.Context, listURL string, withEntity bo
 		upstream.Header.Set("Accept", "application/json")
 	}
 	c.setAuth(ctx, upstream)
-	requestcontext.ApplyWIFTokenType(ctx, upstream)
 	requestcontext.ApplyIdentityHeader(ctx, upstream)
 
 	resp, err := c.modelHTTP.Do(upstream)

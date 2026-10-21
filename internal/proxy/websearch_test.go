@@ -33,9 +33,8 @@ const searchTurnBody = `{
 
 func gatewayCtx() context.Context {
 	return context.WithValue(context.Background(), CredentialsContextKey{}, &Credentials{
-		APIKey:   []byte("WIF.GCP.token"),
-		BaseURL:  "https://acct.snowflakecomputing.com/api/v2/cortex",
-		AuthType: auth.AuthTypeWIF,
+		APIKey:  []byte("WIF.GCP.token"),
+		BaseURL: "https://acct.snowflakecomputing.com/api/v2/cortex",
 	})
 }
 

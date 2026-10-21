@@ -95,13 +95,6 @@ func IsOpenAICompat(provider string) bool {
 	return FamilyFor(provider) == FamilyOpenAICompat
 }
 
-// IsGateway reports whether the provider is a customer-hosted gateway rather
-// than a vendor API. A gateway serves only the models its key's aliases name,
-// so routing treats it as the installation's exclusive upstream.
-func IsGateway(provider string) bool {
-	return false
-}
-
 // AllProviders returns every known Provider* constant (every ProviderFamilies
 // key), sorted for deterministic iteration and display order.
 func AllProviders() []string {
@@ -139,13 +132,6 @@ var APIKeyEnvVars = map[string]string{
 // when the provider is unknown.
 func APIKeyEnvVar(provider string) string {
 	return APIKeyEnvVars[provider]
-}
-
-// RequiresBaseURL reports whether a BYOK credential for this provider must
-// carry its own endpoint. Every provider here has a vendor default, so a
-// credential without a base URL is still dispatchable.
-func RequiresBaseURL(provider string) bool {
-	return false
 }
 
 // OutputExcludesReasoning reports whether this provider's reported output token
