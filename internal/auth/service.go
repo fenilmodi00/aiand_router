@@ -64,24 +64,24 @@ func (NoOpInstallationChangeNotifier) NotifyInstallationChanged(string) {}
 
 // Service authenticates incoming bearer tokens. Identity only; routing/dispatch lives in proxy.Service.
 type Service struct {
-	installations           InstallationRepository
-	apiKeys                 APIKeyRepository
-	credentialSubjects      CredentialSubjectLookup
-	externalKeys            ExternalAPIKeyRepository
-	users                   UserRepository
-	clusterModelLists       ClusterModelListRepository
-	userClusterModelLists   UserClusterModelListRepository
-	blindExperiments        BlindExperimentRepository
-	routingPolicies         RoutingPolicyRepository
-	routingPolicyCache      *RoutingPolicyCache
-	cache                   APIKeyCache
-	userCache               UserCache
-	userClusterCache        UserClusterListCache
-	blindExperimentCache    BlindExperimentCache
-	blindExperimentFetches  singleflight.Group
-	notifier                InstallationChangeNotifier
-	now                     Clock
-	encryptor               Encryptor
+	installations          InstallationRepository
+	apiKeys                APIKeyRepository
+	credentialSubjects     CredentialSubjectLookup
+	externalKeys           ExternalAPIKeyRepository
+	users                  UserRepository
+	clusterModelLists      ClusterModelListRepository
+	userClusterModelLists  UserClusterModelListRepository
+	blindExperiments       BlindExperimentRepository
+	routingPolicies        RoutingPolicyRepository
+	routingPolicyCache     *RoutingPolicyCache
+	cache                  APIKeyCache
+	userCache              UserCache
+	userClusterCache       UserClusterListCache
+	blindExperimentCache   BlindExperimentCache
+	blindExperimentFetches singleflight.Group
+	notifier               InstallationChangeNotifier
+	now                    Clock
+	encryptor              Encryptor
 
 	// flagOverridesDisabled is the deployment-wide escape hatch
 	// (ROUTER_FLAG_OVERRIDES_DISABLED). When set, per-organization flag

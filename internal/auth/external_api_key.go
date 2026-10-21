@@ -32,9 +32,9 @@ type ExternalAPIKey struct {
 	// caller's email under on-behalf-of; empty forwards nothing.
 	BaggageHeader string
 	// AuthType is how Plaintext authenticates upstream; see AuthType* constants.
-	AuthType string
-	CreatedAt   time.Time
-	LastUsedAt  *time.Time
+	AuthType   string
+	CreatedAt  time.Time
+	LastUsedAt *time.Time
 	// Plaintext is populated after decrypt; never logged.
 	Plaintext []byte
 }
@@ -57,7 +57,7 @@ type CreateExternalAPIKeyParams struct {
 	ForwardedClientHeaders []string
 	BaggageHeader          *string
 	AuthType               string
-	CreatedBy   *string
+	CreatedBy              *string
 }
 
 // AuthTypeBearer sends the stored secret verbatim as the upstream bearer.

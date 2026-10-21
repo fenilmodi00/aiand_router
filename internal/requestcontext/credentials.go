@@ -18,17 +18,38 @@ import (
 	"github.com/tidwall/sjson"
 )
 
+// SubscriptionTokenPrefix marks a Claude subscription (Claude.ai OAuth)
+// bearer. Matches the "oat" stem to cover both sk-ant-oat- and the
+// real-world sk-ant-oat01-… shapes.
+const SubscriptionTokenPrefix = "sk-ant-oat"
+
+// ChatGPTAccountIDHeader is the header Codex sends alongside a ChatGPT
+// subscription bearer; its presence disambiguates that JWT from a plain
+// OpenAI API key.
+const ChatGPTAccountIDHeader = "ChatGPT-Account-ID"
+
 // Credential sources, for logging and precedence reasoning. Never log the key
 // itself — only the source.
 const (
-	SourceBYOK   = "byok"
-	SourceClient = "client"
+	SourceBYOK                = "byok"
+	SourceClient              = "client"
+	SourceSubscription        = "subscription"
+	SourceSubscriptionOverage = "subscription_overage"
+	SourceCodexSubscription   = "codex_subscription"
 )
 
 // Credentials holds the API key to use for an upstream request.
 type Credentials struct {
-	APIKey []byte // never logged
-	Source string // SourceBYOK | SourceClient
+	SubscriptionAccountID string
+	APIKey                []byte // never logged
+	Source                string // SourceBYOK | SourceClient | SourceSubscription | SourceCodexSubscription
+	// OAuth marks a subscription bearer (Claude sk-ant-oat- token, Anthropic
+	// only; or Codex ChatGPT JWT, OpenAI only). Authenticates via
+	// Authorization: Bearer, never x-api-key.
+	OAuth bool
+	// AccountID is the ChatGPT-Account-ID paired with a Codex subscription
+	// bearer; the Codex backend 401/403s without it. Never logged.
+	AccountID []byte
 	// BaseURL overrides the upstream endpoint per-request; non-empty only on BYOK
 	// credentials, where the boot-time deployment URL is provider-wide, not per-key.
 	BaseURL string
@@ -146,6 +167,39 @@ func ExtractClientCredentials(provider string, headers http.Header) *Credentials
 		}
 	}
 	return nil
+}
+
+// SubscriptionCredsFromToken returns subscription credentials for a bare
+// token, or nil if it isn't a Claude subscription bearer. Anthropic-only.
+func SubscriptionCredsFromToken(token string) *Credentials {
+	if !strings.HasPrefix(token, SubscriptionTokenPrefix) {
+		return nil
+	}
+	return &Credentials{APIKey: []byte(token), Source: SourceSubscription, OAuth: true}
+}
+
+// CodexSubscriptionCreds returns Codex subscription credentials for a
+// ChatGPT-login JWT paired with its account id, or nil otherwise. Rejects
+// router keys and OpenAI API keys; requires a non-empty account id since
+// the Codex backend 401/403s without it.
+func CodexSubscriptionCreds(token, accountID string) *Credentials {
+	token = strings.TrimSpace(token)
+	accountID = strings.TrimSpace(accountID)
+	if token == "" || accountID == "" {
+		return nil
+	}
+	if auth.HasAPIKeyPrefix(token) || strings.HasPrefix(token, "sk-") {
+		return nil
+	}
+	// The bearer is a refreshed OAuth JWT; the account id is what stays put
+	// across a refresh, so it is this credential's principal.
+	return &Credentials{
+		APIKey:      []byte(token),
+		AccountID:   []byte(accountID),
+		Source:      SourceCodexSubscription,
+		OAuth:       true,
+		PrincipalID: "chatgpt-account:" + accountID,
+	}
 }
 
 // CodexSubscriptionCanAttemptModel reports whether model belongs to the native
