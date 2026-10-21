@@ -34,37 +34,13 @@ admission, inference limits, caching/failure semantics and staged-model validati
 
 ## Provider API keys
 
-The router registers each upstream provider only when its API key is present
-in the environment. Anthropic is special: when `ANTHROPIC_API_KEY` is unset,
-the router still registers the provider but forwards Anthropic auth headers
-(`Authorization` / `x-api-key`) to `api.anthropic.com` directly. This lets
-Claude Code keep using the user's logged-in plan.
+The router dispatches to exactly one upstream, ai&'s OpenAI-compatible Chat
+Completions surface, and registers it only when `AIAND_API_KEY` is present in
+the environment. Anthropic, OpenAI, and Gemini ingress requests are translated
+onto it.
 
 | Variable              | Default                                                   | Effect |
 | --------------------- | --------------------------------------------------------- | ------ |
-| `OPENROUTER_API_KEY`  | *(none)*                                                  | **Recommended baseline.** Enables OpenRouter and the full OSS-model pool the cluster scorer is trained against. |
-| `OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1`                            | Override for OpenRouter or any OpenAI-compatible endpoint (vLLM, Together, Fireworks, self-hosted). |
-| `ROUTER_MODEL_ID_MAP` | *(none)* | Comma-separated `catalog=upstream` pairs rewritten on the OpenRouter client's request body only. Catalog IDs, logs, `x-router-model`, and billing stay unchanged. Empty/unset is a no-op; invalid pairs fail boot. |
-| `ANTHROPIC_API_KEY`   | *(none — passthrough)*                                    | Router's own Anthropic key. When unset, client `Authorization` headers pass through. |
-| `OPENAI_API_KEY`      | *(none)*                                                  | Enables the OpenAI provider (Chat Completions API). |
-| `OPENAI_BASE_URL`     | `https://api.openai.com`                                  | Override for OpenAI (e.g. Azure OpenAI). |
-| `ROUTER_CODEX_ALLOW_EXTRA_CREDITS` | `false` | Self-hosted only. Allows enrolled and caller-presented Codex logins to use verified available ChatGPT subscription credits after included quota runs out. Applies to all Codex accounts served by this deployment; does not enable API-key fallback, buy credits, or change Claude extra usage. Invalid values or enabling it in managed mode fail startup. |
-| `ROUTER_CODEX_BASE_URL` | `https://chatgpt.com/backend-api/codex`                  | Local-testing override for the ChatGPT subscription Responses backend; leave unset in production. |
-| `MINIMAX_API_KEY`     | *(none)*                                                   | Enables the native MiniMax provider through its OpenAI-compatible API. |
-| `MINIMAX_REGION`      | `global`                                                   | Set to `cn` (or `china`) to use the mainland-China endpoint. |
-| `MINIMAX_BASE_URL`    | regional default                                           | Override the MiniMax endpoint; defaults to `https://api.minimax.io/v1` globally or `https://api.minimaxi.com/v1` for mainland China. |
-| `ROUTER_SUBSCRIPTION_POOLS_ENABLED` | `false`                                         | Enables encrypted server-side subscription enrollment and account-management endpoints. Set `false` as the emergency pool-disable switch. |
-| `WEAVE_CODEX_OAUTH_ISSUER` | `https://auth.openai.com` | Optional Codex OAuth issuer override for self-hosted testing. |
-| `WEAVE_ANTHROPIC_OAUTH_AUTHORIZE` | `https://claude.ai/oauth/authorize` | Optional Claude OAuth authorization endpoint override used by the enrollment CLI. |
-| `WEAVE_ANTHROPIC_OAUTH_TOKEN` | `https://console.anthropic.com/v1/oauth/token` | Optional Claude OAuth token endpoint override used by enrollment and server-side refresh. |
-| `GOOGLE_API_KEY`      | *(none)*                                                  | Enables Gemini via its OpenAI-compatible endpoint. |
-| `GOOGLE_BASE_URL`     | `https://generativelanguage.googleapis.com/v1beta/openai` | Override for Gemini. |
-| `ANTHROPIC_GATEWAY_BASE_URL` | *(none)*                                           | Base URL of an Anthropic-compatible gateway; `/v1/messages` is appended to it. |
-| `ANTHROPIC_GATEWAY_TOKEN`    | *(none)*                                           | Token for that gateway, sent as `Authorization: Bearer`. Only used when `ANTHROPIC_GATEWAY_BASE_URL` is also set. |
-| `OPENAI_GATEWAY_BASE_URL`    | *(none)*                                           | Base URL of an OpenAI-compatible gateway; `/chat/completions` is appended to it. |
-| `OPENAI_GATEWAY_TOKEN`       | *(none)*                                           | Token for that gateway, sent as `Authorization: Bearer`. Only used when `OPENAI_GATEWAY_BASE_URL` is also set. |
-| `WAFER_API_KEY`   | *(none)*                                                  | Enables Wafer Serverless (both its OpenAI-compatible `wafer` and Anthropic-compatible `wafer_anthropic` surfaces; one key covers both). |
-| `WAFER_BASE_URL`  | `https://pass.wafer.ai/v1`                                | Override for the Wafer OpenAI-compatible endpoint (`wafer_anthropic` uses the fixed `/v1/messages` endpoint). |
 | `AIAND_API_KEY`   | *(none)*                                                  | Enables the ai& provider through its OpenAI-compatible Chat Completions API. |
 | `AIAND_BASE_URL`  | `https://api.aiand.com/v1`                                | Override for the ai& endpoint. |
 
