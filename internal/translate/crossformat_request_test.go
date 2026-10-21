@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"weave-os/router/internal/router"
 	"weave-os/router/internal/translate"
 
 	"github.com/stretchr/testify/assert"
@@ -1271,7 +1270,7 @@ func TestCrossFormat_AnthropicToOpenAI_ReasoningModelOmitsStop(t *testing.T) {
 	prep, err := env.PrepareOpenAI(http.Header{}, translate.EmitOptions{
 		TargetModel:    "gpt-5.4-mini",
 		TargetProvider: "openai",
-		Capabilities:   router.Lookup("gpt-5.4-mini"),
+		Capabilities:   reasoningSpec,
 	})
 	require.NoError(t, err)
 

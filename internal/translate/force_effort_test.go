@@ -21,6 +21,7 @@ func TestForceReasoningEffort_GeminiOverride(t *testing.T) {
 	require.NoError(t, err)
 	prep, err := env.PrepareGemini(http.Header{}, translate.EmitOptions{
 		TargetModel:          "gemini-3.1-pro-preview",
+		Capabilities:         alwaysOnSpec,
 		ForceReasoningEffort: "low",
 	})
 	require.NoError(t, err)
@@ -39,6 +40,7 @@ func TestForceReasoningEffort_GeminiFromOpenAI(t *testing.T) {
 	require.NoError(t, err)
 	prep, err := env.PrepareGemini(http.Header{}, translate.EmitOptions{
 		TargetModel:          "gemini-3.1-pro-preview",
+		Capabilities:         alwaysOnSpec,
 		ForceReasoningEffort: "low",
 	})
 	require.NoError(t, err)
@@ -72,7 +74,7 @@ func TestForceEffort_GeminiMaxLevel(t *testing.T) {
 		t.Run(level, func(t *testing.T) {
 			prep, err := env.PrepareGemini(http.Header{}, translate.EmitOptions{
 				TargetModel:          "gemini-3.1-pro-preview",
-				Capabilities:         router.NewSpec(router.CapReasoning),
+				Capabilities:         alwaysOnSpec,
 				ForceReasoningEffort: level,
 			})
 			require.NoError(t, err)
