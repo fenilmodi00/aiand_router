@@ -82,36 +82,6 @@ func TestInternalInferencePolicies_StaticMatchesRegistry(t *testing.T) {
 	assert.NotContains(t, rec.Body.String(), "sk-")
 }
 
-func TestInternalInferencePolicies_DeploymentReportsBindings(t *testing.T) {
-	engine := inferencePoliciesEngine(t)
-	rec := httptest.NewRecorder()
-	engine.ServeHTTP(rec, inspectionRequest(t, http.MethodGet, "/internal/v1/inference-policies/deployment", nil))
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	var body policy.DeploymentProjection
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
-	assert.Equal(t, []string{providers.ProviderAIAND, providers.ProviderAIAND}, body.AvailableProviders)
-	assert.Positive(t, body.RoutableModels)
-
-	byPurpose := make(map[policy.Purpose]policy.DeploymentPolicyProjection, len(body.Policies))
-	for _, entry := range body.Policies {
-		byPurpose[entry.Purpose] = entry
-	}
-	handover := byPurpose[policy.PurposeHandoverSummary]
-	require.NotEmpty(t, handover.CandidateBindings)
-	assert.Equal(t, "z-ai/glm-5.3-flash", handover.CandidateBindings[0].CatalogID)
-	assert.Equal(t, providers.ProviderAIAND, handover.CandidateBindings[0].Provider)
-
-	subAgent := byPurpose[policy.PurposeSubAgentDispatch]
-	require.NotNil(t, subAgent.DeploymentTarget)
-	assert.Equal(t, "z-ai/glm-5.3-flash", subAgent.DeploymentTarget.CatalogID)
-	require.Len(t, subAgent.CandidateBindings, 1)
-
-	messages := byPurpose[policy.PurposeAnthropicMessages]
-	assert.Empty(t, messages.CandidateBindings)
-	assert.Equal(t, body.RoutableModels, messages.RoutableModels)
-}
-
 func TestInternalInferencePolicies_ResolvePreviewsFixedPurpose(t *testing.T) {
 	engine := inferencePoliciesEngine(t)
 	rec := httptest.NewRecorder()

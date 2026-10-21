@@ -22,28 +22,16 @@ import (
 type overflowRouter struct{}
 
 func (overflowRouter) Route(context.Context, router.Request) (router.Decision, error) {
-	return router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-5-mini", Reason: "test"}, nil
+	return router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4.1-flash", Reason: "test"}, nil
 }
 
 type overflowProvider struct{}
 
 func (overflowProvider) Proxy(_ context.Context, _ router.Decision, _ providers.PreparedRequest, w http.ResponseWriter, _ *http.Request) error {
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.WriteHeader(http.StatusOK)
-	_, err := w.Write([]byte(`event: response.created
-data: {"type":"response.created","response":{"id":"resp_1","status":"in_progress","output":[]}}
-
-event: error
-data: {"type":"error","error":{"type":"invalid_request_error","code":"context_length_exceeded","message":"Your input exceeds the context window of this model."}}
-
-event: response.failed
-data: {"type":"response.failed","response":{"id":"resp_1","status":"failed","error":{"code":"context_length_exceeded","message":"Your input exceeds the context window of this model."},"output":[]}}
-
-`))
-	if flusher, ok := w.(http.Flusher); ok {
-		flusher.Flush()
+	return &providers.UpstreamErrorResponse{
+		Status: http.StatusBadRequest,
+		Body:   []byte(`{"error":{"message":"Your input exceeds the context window of this model.","type":"invalid_request_error","code":"context_length_exceeded"}}`),
 	}
-	return err
 }
 
 func (overflowProvider) Passthrough(context.Context, providers.PreparedRequest, http.ResponseWriter, *http.Request) error {
@@ -56,11 +44,11 @@ func TestChatCompletionHandler_CrossFormatOverflowReturnsNativeError(t *testing.
 		t.Run(fmt.Sprintf("stream=%t", stream), func(t *testing.T) {
 			svc := proxy.NewService(
 				overflowRouter{}, map[string]providers.Client{providers.ProviderAIAND: overflowProvider{}},
-				nil, false, nil, nil, false, providers.ProviderAIAND, "gpt-5-mini", nil,
+				nil, false, nil, nil, false, providers.ProviderAIAND, "deepseek/deepseek-v4.1-flash", nil,
 			)
 			engine := gin.New()
 			engine.POST("/v1/chat/completions", openai.ChatCompletionHandler(svc, nil))
-			body := fmt.Sprintf(`{"model":"gpt-5-mini","max_tokens":1024,"stream":%t,"messages":[{"role":"user","content":"hi"}]}`, stream)
+			body := fmt.Sprintf(`{"model":"deepseek/deepseek-v4.1-flash","max_tokens":1024,"stream":%t,"messages":[{"role":"user","content":"hi"}]}`, stream)
 			rec := httptest.NewRecorder()
 			engine.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body)))
 
