@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"context"
-	"net/http"
 	"testing"
 
 	"weave-os/router/internal/dispatch"
@@ -146,29 +145,18 @@ func TestReasoningReplayScope_DeploymentKeyedTurnsAreDistinct(t *testing.T) {
 // leak the key it is derived from.
 func TestReasoningReplayScope_DoesNotLeakCredential(t *testing.T) {
 	svc := reasoningScopeService(t, nil)
-	creds := &requestcontext.Credentials{APIKey: []byte("sk-secret-value"), AccountID: []byte("acct-secret")}
+	creds := &requestcontext.Credentials{APIKey: []byte("sk-secret-value")}
 	scope := svc.reasoningReplayScope(requestcontext.WithCredentials(context.Background(), creds),
 		router.Decision{Provider: "openai", Model: "gpt-5.5"})
 
 	assert.NotContains(t, scope, "sk-secret-value")
-	assert.NotContains(t, scope, "acct-secret")
 	assert.NotContains(t, openaicompat.NewClient("sk-secret-value", cortexBaseURL).DeploymentPrincipal(), "sk-secret-value")
 }
 
-// A Codex subscription refreshes its bearer mid-session; the ChatGPT account
-// it authenticates is what the upstream decrypts under.
-func TestCodexSubscriptionPrincipalIsTheAccount(t *testing.T) {
-	headers := http.Header{}
-	headers.Set(requestcontext.ChatGPTAccountIDHeader, "acct-123")
-	first := requestcontext.CodexSubscriptionCreds("jwt-a", "acct-123")
-	second := requestcontext.CodexSubscriptionCreds("jwt-b", "acct-123")
-	require.NotNil(t, first)
-	require.NotNil(t, second)
-
-	firstPrincipal, secret := first.UpstreamPrincipal()
-	secondPrincipal, _ := second.UpstreamPrincipal()
+// A BYOK credential names its upstream principal by key id, not by secret.
+func TestUpstreamPrincipalPrefersTheNamedPrincipal(t *testing.T) {
+	creds := &requestcontext.Credentials{APIKey: []byte("sk-secret-value"), PrincipalID: "external-key:key-a"}
+	principal, secret := creds.UpstreamPrincipal()
 	assert.False(t, secret)
-	assert.Equal(t, firstPrincipal, secondPrincipal)
-	other, _ := requestcontext.CodexSubscriptionCreds("jwt-a", "acct-456").UpstreamPrincipal()
-	assert.NotEqual(t, firstPrincipal, other)
+	assert.Equal(t, "external-key:key-a", principal)
 }

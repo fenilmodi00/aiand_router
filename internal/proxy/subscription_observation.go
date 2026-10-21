@@ -85,23 +85,22 @@ func (s *Service) WithUsageObserver(obs *usage.Observer) *Service {
 
 // subscriptionCredentialFallbackUsed reports that the turn first tried a
 // subscription credential and then served on a non-subscription one, so the
-// failover must be attributed to the subscription path.
+// failover must be attributed to the subscription path. No subscription
+// credential is ever resolved, so the turn never takes that path.
 func subscriptionCredentialFallbackUsed(ctx context.Context) bool {
-	state, _ := ctx.Value(ManagedSubscriptionUsageContextKey{}).(*ManagedSubscriptionUsage)
-	return state != nil && state.Finished && state.SubscriptionAttempted && (state.WinningCredentials == nil || !state.WinningCredentials.OAuth)
+	return false
 }
 
 // costNeutralSubscriptionServed reports that the turn ran on the caller's own
-// subscription plan, so it costs the organization nothing.
+// subscription plan, so it costs the organization nothing. No subscription
+// credential is ever resolved, so the turn is never cost-neutral.
 func (s *Service) costNeutralSubscriptionServed(ctx context.Context) bool {
-	return servedOnSubscription(ctx)
+	return false
 }
 
 // presentSubscriptionTokens returns the caller's Codex and Claude subscription
-// tokens, "" when absent. Native harnesses send a Claude Code sk-ant-oat…
-// bearer or Codex CLI JWT+account-id on Authorization / x-api-key. The token
-// doubles as the usage-observer key, and equals the eventually-resolved
-// credential, so record and read agree regardless of source.
+// tokens, "" when absent. A client bearer is a plain API key, never a
+// subscription credential, so no subscription token is ever present.
 //
 // A free function (not a *Service method) because it reads only ctx + headers:
 // the prepaid balance gate (server/middleware) has no Service handle but must
@@ -112,80 +111,29 @@ func presentSubscriptionTokens(ctx context.Context, headers http.Header) (codex,
 	if subscriptionRoutingDisabledForRequest(ctx) || subscriptionFundingOutOfPlayForRequest(ctx) {
 		return "", ""
 	}
-	c := ExtractClientCredentials(providers.ProviderAIAND, headers)
-	if c == nil || !c.OAuth {
-		return "", ""
-	}
-	// One inbound bearer covers both consumer surfaces; the route decides which
-	// lane the turn may take.
-	return string(c.APIKey), string(c.APIKey)
+	return "", ""
 }
 
 // subscriptionServableProviders returns the provider lanes the caller's own
-// subscription can enter: OpenAI for a Codex (ChatGPT) sub, Anthropic for a
-// Claude sub. Codex model coverage is narrower than its provider lane and is
-// applied by excludeCodexOAuthOnlyModels before routing.
+// subscription can enter. A client bearer is never a subscription credential,
+// so no lane is ever servable.
 func subscriptionServableProviders(ctx context.Context, headers http.Header) map[string]struct{} {
-	codex, anthropic := presentSubscriptionTokens(ctx, headers)
-	out := make(map[string]struct{}, 2)
-	if codex != "" {
-		out[providers.ProviderAIAND] = struct{}{}
-	}
-	if anthropic != "" {
-		out[providers.ProviderAIAND] = struct{}{}
-	}
-	return out
-}
-
-// restrictToSubscriptionProviders intersects enabled with the providers the
-// caller's subscription can serve, so subscription-only mode routes only to
-// the caller's own plan and never a paid model.
-// Returns enabled unchanged when the caller presents no usable subscription
-// (defensive: the balance gate only flags subscription-only when a covering sub
-// is present, so this keeps a misconfiguration from emptying the eligible set).
-func restrictToSubscriptionProviders(ctx context.Context, headers http.Header, enabled map[string]struct{}) map[string]struct{} {
-	sub := subscriptionServableProviders(ctx, headers)
-	if len(sub) == 0 {
-		return enabled
-	}
-	out := make(map[string]struct{}, len(sub))
-	for p := range enabled {
-		if _, ok := sub[p]; ok {
-			out[p] = struct{}{}
-		}
-	}
-	return out
+	return nil
 }
 
 // RequestPresentsCoveringSubscription reports whether the request carries a
 // validated subscription credential that can serve at least one model on
-// routePath: a Claude (sk-ant-oat…) sub for /v1/messages, a Codex sub for
-// /v1/chat/completions and /v1/responses. Codex's exact model coverage is
-// applied downstream before selection. Any other route returns false.
-//
-// Scoped to the covering family (not "any subscription present") so a Codex
-// bearer on /v1/messages — which can't serve that route — doesn't exempt a
-// turn that would debit the prepaid balance.
+// routePath. A client bearer is a plain API key, never a subscription
+// credential, so no route is ever covered.
 func RequestPresentsCoveringSubscription(ctx context.Context, headers http.Header, routePath string) bool {
-	if subscriptionFundingOutOfPlayForRequest(ctx) {
-		return false
-	}
-	codex, anthropic := presentSubscriptionTokens(ctx, headers)
-	switch routePath {
-	case routePathMessages:
-		return anthropic != ""
-	case routePathChatCompletions, routePathResponses:
-		return codex != ""
-	default:
-		return false
-	}
+	return false
 }
 
 // withUsageObserver records headers against the credential actually dispatched.
-// Direct OAuth retains token-keyed observation.
+// Only a subscription credential carries quota headers, and none is ever
+// resolved, so the observer never records a snapshot.
 func (s *Service) withUsageObserver(ctx context.Context, headers http.Header) context.Context {
-	_, anthroTok := presentSubscriptionTokens(ctx, headers)
-	if s.usageObserver == nil && anthroTok == "" {
+	if s.usageObserver == nil {
 		return ctx
 	}
 	ctx = withUnifiedLimitCapture(ctx)
@@ -198,42 +146,6 @@ func (s *Service) withUsageObserver(ctx context.Context, headers http.Header) co
 			}()
 			captureUnifiedLimitHeaders(callCtx, h)
 		}()
-
-		if s.usageObserver == nil {
-			return
-		}
-		// Record only the call's resolved subscription credential. Gating on the
-		// resolved credential also skips internal calls that don't use the sub,
-		// e.g. the handover summarizer's deployment-key Anthropic call after
-		// clearCredentials. The parser follows the matched token's family, so this
-		// works for the inbound bearer.
-		creds := CredentialsFromContext(callCtx)
-		if creds == nil || !creds.OAuth {
-			return
-		}
-		switch creds.Source {
-		case credSourceCodexSubscription:
-			if snap, ok := usage.ParseCodexHeaders(h); ok {
-				s.usageObserver.Record(s.subscriptionUsageKey(creds), snap)
-				if creds.SubscriptionAccountID != "" {
-					s.usageObserver.Record(s.usageObserver.Key(creds.APIKey), snap)
-				}
-			}
-		case credSourceSubscription:
-			if snap, ok := usage.ParseAnthropicUnifiedHeaders(h); ok {
-				s.usageObserver.Record(s.subscriptionUsageKey(creds), snap)
-				if creds.SubscriptionAccountID != "" {
-					s.usageObserver.Record(s.usageObserver.Key(creds.APIKey), snap)
-				}
-			}
-		}
 	}
 	return providers.WithUpstreamHeaderObserver(ctx, obs)
-}
-
-func (s *Service) subscriptionUsageKey(creds *Credentials) usage.CredentialKey {
-	if creds.SubscriptionAccountID != "" {
-		return s.usageObserver.Key([]byte("subscription-account:" + creds.SubscriptionAccountID))
-	}
-	return s.usageObserver.Key(creds.APIKey)
 }

@@ -2893,13 +2893,7 @@ func resolveSummarizerCreds(ctx context.Context, provider string, headers http.H
 			return creds
 		}
 	}
-	creds := ExtractClientCredentials(provider, headers)
-	if creds != nil && creds.OAuth {
-		// A Claude subscription token can't authenticate the synthetic
-		// summarizer call (no Claude Code identity block) and would 401.
-		return nil
-	}
-	return creds
+	return ExtractClientCredentials(provider, headers)
 }
 
 // sortedEnabledKeys returns a deterministic slice of the keys in m for

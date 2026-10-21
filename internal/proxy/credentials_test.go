@@ -7,6 +7,7 @@ import (
 
 	"weave-os/router/internal/auth"
 	"weave-os/router/internal/proxy"
+	"weave-os/router/internal/requestcontext"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -150,9 +151,9 @@ func TestExtractClientCredentials_RejectsSubscriptionForNonAnthropic(t *testing.
 
 const codexJWT = "eyJhbGciOiJSUzI1NiJ9.codex-access-token.signature"
 
-func TestExtractClientCredentials_CodexSubscriptionIsOpenAIOnly(t *testing.T) {
-	// The Codex JWT is OpenAI-only; an account-id header on another vendor's
-	// surface must not produce an OAuth credential there.
+func TestExtractClientCredentials_CodexJWTIsNotASubscriptionCredential(t *testing.T) {
+	// A Codex JWT is a plain client bearer: an account-id header on another
+	// vendor's surface must not turn it into a subscription credential.
 	headers := http.Header{
 		"Authorization":      []string{"Bearer " + codexJWT},
 		"Chatgpt-Account-Id": []string{"acct-12345"},
@@ -160,8 +161,7 @@ func TestExtractClientCredentials_CodexSubscriptionIsOpenAIOnly(t *testing.T) {
 	for _, provider := range []string{"google", "openrouter", "fireworks"} {
 		creds := proxy.ExtractClientCredentials(provider, headers)
 		if creds != nil {
-			assert.Falsef(t, creds.OAuth, "a Codex subscription must never be resolved for %s", provider)
-			assert.Emptyf(t, creds.AccountID, "no Codex account-id must attach to %s creds", provider)
+			assert.Equalf(t, requestcontext.SourceClient, creds.Source, "a Codex JWT must be a plain client credential for %s", provider)
 		}
 	}
 }

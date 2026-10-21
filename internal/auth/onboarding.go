@@ -6,7 +6,6 @@ import "time"
 // must be nonblocking, concurrency-safe, and best-effort; delivery is not durable.
 type OnboardingObserver interface {
 	APIKeyFirstUsed(APIKeyFirstUsedEvent)
-	SubscriptionConnected(SubscriptionConnectedEvent)
 	HarnessLifecycle(HarnessLifecycleEvent)
 }
 
@@ -17,16 +16,6 @@ type APIKeyFirstUsedEvent struct {
 	CredentialSubjectID    string
 	APIKeyID               string
 	Harness                string
-	OccurredAt             time.Time
-}
-
-// SubscriptionConnectedEvent records a newly enrolled or adopted account.
-type SubscriptionConnectedEvent struct {
-	InstallationExternalID string
-	CredentialSubjectID    string
-	APIKeyID               string
-	AccountID              string
-	Provider               SubscriptionProvider
 	OccurredAt             time.Time
 }
 

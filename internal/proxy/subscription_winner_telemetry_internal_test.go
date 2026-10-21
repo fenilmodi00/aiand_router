@@ -16,8 +16,7 @@ func TestFailedAPIFallbackReplacesInboundSubscriptionAttribution(t *testing.T) {
 	usage.SubscriptionAttempted = true
 	ctx = context.WithValue(ctx, CredentialsContextKey{}, &Credentials{
 		APIKey: []byte("oauth-sentinel"),
-		OAuth:  true,
-		Source: credSourceSubscription,
+		Source: credSourceClient,
 	})
 	apiCtx := context.WithValue(ctx, CredentialsContextKey{}, &Credentials{
 		APIKey: []byte("api-sentinel"),
@@ -30,7 +29,6 @@ func TestFailedAPIFallbackReplacesInboundSubscriptionAttribution(t *testing.T) {
 	winner := CredentialsFromContext(ctx)
 	require.Equal(t, credSourceBYOK, winner.Source)
 	require.Equal(t, []byte("api-sentinel"), winner.APIKey)
-	require.False(t, winner.OAuth)
 	assert.False(t, (&Service{}).costNeutralSubscriptionServed(ctx))
 	telemetry := InsertTelemetryParams{RequestedModel: "deepseek/deepseek-v4-pro", DecisionModel: "deepseek/deepseek-v4-pro"}
 	applySubscriberTelemetry(ctx, &telemetry)

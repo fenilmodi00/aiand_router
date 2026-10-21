@@ -11,7 +11,6 @@ import (
 	"weave-os/router/internal/observability"
 	"weave-os/router/internal/providers"
 	"weave-os/router/internal/proxy/usage"
-	"weave-os/router/internal/requestcontext"
 	"weave-os/router/internal/router/catalog"
 )
 
@@ -24,18 +23,8 @@ func (s *Service) withSubscriptionFundingAuthorization(ctx context.Context, head
 		return ctx
 	}
 	codexToken, claudeToken := presentSubscriptionTokens(ctx, headers)
-	if creds := CredentialsFromContext(ctx); creds != nil && creds.OAuth {
-		if creds.Source == requestcontext.SourceCodexSubscription {
-			codexToken = string(creds.APIKey)
-		} else {
-			claudeToken = string(creds.APIKey)
-		}
-	}
 	admissionCtx := ctx
 	return dispatch.WithAuthorization(ctx, func(callCtx context.Context, target inference.Target) error {
-		if creds := CredentialsFromContext(callCtx); creds != nil && creds.OAuth {
-			return nil
-		}
 		source, compatible := subscriptionSourceForModel(target)
 		if !compatible {
 			return nil

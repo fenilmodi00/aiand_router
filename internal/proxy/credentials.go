@@ -12,11 +12,8 @@ import (
 // Credential sources, for logging and precedence reasoning. Never log the key
 // itself — only the source.
 const (
-	credSourceBYOK                = requestcontext.SourceBYOK
-	credSourceClient              = requestcontext.SourceClient
-	credSourceSubscription        = requestcontext.SourceSubscription
-	credSourceSubscriptionOverage = requestcontext.SourceSubscriptionOverage
-	credSourceCodexSubscription   = requestcontext.SourceCodexSubscription
+	credSourceBYOK   = requestcontext.SourceBYOK
+	credSourceClient = requestcontext.SourceClient
 )
 
 // Credentials is the request-scoped upstream credential; defined in
@@ -103,14 +100,6 @@ func BuildCredentialsMap(keys []*auth.ExternalAPIKey) map[string]*Credentials {
 // headers. See requestcontext.ExtractClientCredentials.
 func ExtractClientCredentials(provider string, headers http.Header) *Credentials {
 	return requestcontext.ExtractClientCredentials(provider, headers)
-}
-
-func subscriptionCredsFromToken(token string) *Credentials {
-	return requestcontext.SubscriptionCredsFromToken(strings.TrimSpace(token))
-}
-
-func codexSubscriptionCreds(token, accountID string) *Credentials {
-	return requestcontext.CodexSubscriptionCreds(token, accountID)
 }
 
 // clearCredentials sets an explicit nil so CredentialsFromContext reports

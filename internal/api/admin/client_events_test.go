@@ -39,8 +39,7 @@ func (clientEventInstallationRepo) MarkFirstRequestServed(context.Context, strin
 
 type lifecycleRecorder struct{ events []auth.HarnessLifecycleEvent }
 
-func (*lifecycleRecorder) APIKeyFirstUsed(auth.APIKeyFirstUsedEvent)             {}
-func (*lifecycleRecorder) SubscriptionConnected(auth.SubscriptionConnectedEvent) {}
+func (*lifecycleRecorder) APIKeyFirstUsed(auth.APIKeyFirstUsedEvent) {}
 func (r *lifecycleRecorder) HarnessLifecycle(event auth.HarnessLifecycleEvent) {
 	r.events = append(r.events, event)
 }

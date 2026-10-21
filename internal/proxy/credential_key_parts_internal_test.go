@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func ctxWithCreds(creds *Credentials) context.Context {
@@ -27,24 +26,24 @@ func TestCredentialKeyParts_DeploymentKeyTurnIsEmpty(t *testing.T) {
 
 func TestCredentialKeyParts_RecordsPrefixSuffixAndSource(t *testing.T) {
 	s := &Service{}
-	ctx := ctxWithCreds(&Credentials{APIKey: []byte("sk-ant-oat-vinh-1234"), Source: credSourceSubscription})
+	ctx := ctxWithCreds(&Credentials{APIKey: []byte("sk-byok-vinh-1234"), Source: credSourceBYOK})
 
 	prefix, suffix, src := s.credentialKeyParts(ctx)
-	assert.Equal(t, "sk-ant-o", prefix)
+	assert.Equal(t, "sk-byok-", prefix)
 	assert.Equal(t, "1234", suffix)
-	assert.Equal(t, credSourceSubscription, src)
+	assert.Equal(t, credSourceBYOK, src)
 }
 
 func TestCredentialKeyParts_SharedTokenAcrossUsersMatches(t *testing.T) {
 	s := &Service{}
-	shared := []byte("sk-ant-oat-shared-account")
+	shared := []byte("sk-byok-shared-account")
 
-	prefixA, suffixA, _ := s.credentialKeyParts(ctxWithCreds(&Credentials{APIKey: shared, Source: credSourceSubscription}))
-	prefixB, suffixB, _ := s.credentialKeyParts(ctxWithCreds(&Credentials{APIKey: shared, Source: credSourceSubscription}))
+	prefixA, suffixA, _ := s.credentialKeyParts(ctxWithCreds(&Credentials{APIKey: shared, Source: credSourceBYOK}))
+	prefixB, suffixB, _ := s.credentialKeyParts(ctxWithCreds(&Credentials{APIKey: shared, Source: credSourceBYOK}))
 	assert.Equal(t, prefixA, prefixB, "a shared token must have the same safe prefix regardless of caller")
 	assert.Equal(t, suffixA, suffixB, "a shared token must have the same safe suffix regardless of caller")
 
-	prefixOther, suffixOther, _ := s.credentialKeyParts(ctxWithCreds(&Credentials{APIKey: []byte("sk-ant-oat-different-9999"), Source: credSourceSubscription}))
+	prefixOther, suffixOther, _ := s.credentialKeyParts(ctxWithCreds(&Credentials{APIKey: []byte("sk-byok-different-9999"), Source: credSourceBYOK}))
 	assert.NotEqual(t, prefixA+suffixA, prefixOther+suffixOther, "distinct tokens should differ in their safe display parts")
 }
 
@@ -56,17 +55,8 @@ func TestCredentialKeyParts_ShortKey(t *testing.T) {
 	assert.Equal(t, credSourceClient, src)
 }
 
-// These string values are a wire contract with the SQL export query; changing them breaks subscription_served.
-func TestCredentialSources_OAuthValuesMatchExportContract(t *testing.T) {
-	assert.Equal(t, "subscription", credSourceSubscription)
-	assert.Equal(t, "codex_subscription", credSourceCodexSubscription)
-
-	for _, creds := range []*Credentials{
-		subscriptionCredsFromToken("sk-ant-oat01-live"),
-		codexSubscriptionCreds("chatgpt-jwt", "acct_123"),
-	} {
-		require.NotNil(t, creds)
-		assert.True(t, creds.OAuth, "%s must be an OAuth credential", creds.Source)
-		assert.Contains(t, []string{credSourceSubscription, credSourceCodexSubscription}, creds.Source)
-	}
+// These string values are a wire contract with the SQL export query; changing them breaks the export.
+func TestCredentialSources_MatchExportContract(t *testing.T) {
+	assert.Equal(t, "byok", credSourceBYOK)
+	assert.Equal(t, "client", credSourceClient)
 }

@@ -13,22 +13,15 @@ import (
 )
 
 type onboardingRecorder struct {
-	mu            sync.Mutex
-	harnesses     []auth.APIKeyFirstUsedEvent
-	subscriptions []auth.SubscriptionConnectedEvent
-	lifecycles    []auth.HarnessLifecycleEvent
+	mu         sync.Mutex
+	harnesses  []auth.APIKeyFirstUsedEvent
+	lifecycles []auth.HarnessLifecycleEvent
 }
 
 func (r *onboardingRecorder) APIKeyFirstUsed(event auth.APIKeyFirstUsedEvent) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.harnesses = append(r.harnesses, event)
-}
-
-func (r *onboardingRecorder) SubscriptionConnected(event auth.SubscriptionConnectedEvent) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.subscriptions = append(r.subscriptions, event)
 }
 
 func (r *onboardingRecorder) HarnessLifecycle(event auth.HarnessLifecycleEvent) {

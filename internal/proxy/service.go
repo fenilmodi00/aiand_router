@@ -1464,30 +1464,9 @@ func (s *Service) avoidCodexOnChatEndpoint(ctx context.Context, provider, model 
 		subscriptionRoutingDisabledForRequest(ctx) || subscriptionFundingOutOfPlayForRequest(ctx) {
 		return ctx, nil
 	}
-	personalSubscription := servedOnCodexSubscription(resolveAndInjectCredentials(ctx, provider, model, headers))
-	if !personalSubscription {
-		return ctx, nil
-	}
-	if !s.openaiFallbackKeyAvailable(ctx) {
-		return nil, subscriptionOnlyUnavailable(ctx)
-	}
-	return withCodexChatEndpoint(ctx), nil
-}
-
-// servedOnCodexSubscription reports whether the resolved credential is the
-// caller's ChatGPT OAuth token (paired with an account id), i.e. the turn is
-// pinned to their Codex plan and has no other OpenAI binding to walk.
-func servedOnCodexSubscription(ctx context.Context) bool {
-	creds := CredentialsFromContext(ctx)
-	return creds != nil && creds.OAuth && len(creds.AccountID) > 0
-}
-
-// servedOnSubscription reports whether the turn's resolved credential is a
-// subscription OAuth token (Claude or Codex) — i.e. the customer's own plan
-// paid, so billing applies the subscription fee rather than full cost.
-func servedOnSubscription(ctx context.Context) bool {
-	creds := CredentialsFromContext(ctx)
-	return creds != nil && creds.OAuth
+	// No credential is a Codex subscription bearer, so the turn is never
+	// pinned to the caller's plan.
+	return ctx, nil
 }
 
 // servedOnBYOK reports whether the turn's resolved credential is a customer-owned
@@ -1529,8 +1508,9 @@ func codexResponsesRequest(ctx context.Context, headers http.Header) bool {
 	if subscriptionRoutingDisabledForRequest(ctx) || subscriptionFundingOutOfPlayForRequest(ctx) {
 		return false
 	}
-	c := ExtractClientCredentials(providers.ProviderAIAND, headers)
-	return c != nil && c.OAuth
+	// An inbound client bearer is a plain API key, never a subscription
+	// credential, so the Codex subscription lane is never taken.
+	return false
 }
 
 // DefaultPlannerThresholdUSD is the minimum positive EV over remaining-turn
@@ -3525,9 +3505,6 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 
 	// Linked-first is a funding preference; only depleted capacity restricts
 	// selection to providers the caller's subscription can serve.
-	if billing.SubscriptionOnlyFromContext(ctx) && !linkedFirst(ctx) {
-		enabledProviders = restrictToSubscriptionProviders(ctx, r.Header, enabledProviders)
-	}
 
 	// Pre-filter models whose context window cannot fit this request.
 	// FullTokenEstimate uses raw body bytes (÷5) to capture tool definitions,
@@ -3901,22 +3878,15 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	// OAuth credential in context; this is belt-and-suspenders) so failover
 	// can't reroute onto a paid provider.
 	if billing.SubscriptionOnlyFromContext(ctx) && !subscriptionStateModelsEnabled(ctx) {
-		switch {
-		case !servedOnSubscription(ctx):
-			released, ok := releaseUnservableLinkedFirst(ctx, decision)
-			if !ok {
-				log.Info("Subscription-only request cannot be served on the subscription; refusing",
-					"requested_model", feats.Model, "external_id", externalID, "decision_provider", decision.Provider)
-				return subscriptionOnlyUnavailable(ctx)
-			}
-			ctx = released
-		case s.anthropicSubscriptionObservedExhausted(ctx, r.Header):
+		// No credential is a subscription bearer, so a subscription-only turn
+		// can never be served on the caller's plan.
+		released, ok := releaseUnservableLinkedFirst(ctx, decision)
+		if !ok {
 			log.Info("Subscription-only request cannot be served on the subscription; refusing",
 				"requested_model", feats.Model, "external_id", externalID, "decision_provider", decision.Provider)
 			return subscriptionOnlyUnavailable(ctx)
-		default:
-			bindings = []catalog.ProviderBinding{{Provider: decision.Provider}}
 		}
+		ctx = released
 	}
 	// Append the one-click feedback thumbs as a trailing content block,
 	// wrapped below the capture layer so the footer never lands in
@@ -4167,7 +4137,6 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	// credits are intact, so its throttle rolls over like any other.
 	subscriptionRetryEligible := decision.Provider == providers.ProviderAIAND &&
 		!agentShadowMode &&
-		servedOnSubscription(ctx) &&
 		!paidFallbackForbiddenForModel(ctx, decision.Model) &&
 		s.anthropicFallbackKeyAvailable(ctx)
 
@@ -5658,21 +5627,6 @@ func (s *Service) enabledProvidersForRequest(ctx context.Context, surfaceProvide
 		}
 		out[k.Provider] = struct{}{}
 	}
-	// A Claude subscription bearer (sk-ant-oat-) in the inbound
-	// Authorization enrolls Anthropic even on router-keyed requests — Claude
-	// Code keeps its OAuth token there while the router key rides in
-	// X-Weave-Router-Key. OAuth-subset only: a general API key still can't
-	// enroll a provider on the router-key path.
-	if c := ExtractClientCredentials(providers.ProviderAIAND, headers); c != nil && c.OAuth {
-		out[providers.ProviderAIAND] = struct{}{}
-	}
-	// A Codex subscription bearer
-	// in Authorization (paired with ChatGPT-Account-ID) enrolls OpenAI even on
-	// router-keyed requests. OAuth-subset only: a plain API key still can't
-	// enroll OpenAI on the router-key path.
-	if c := ExtractClientCredentials(providers.ProviderAIAND, headers); c != nil && c.OAuth {
-		out[providers.ProviderAIAND] = struct{}{}
-	}
 	// Passthrough-eligible providers are surface-scoped: a provider without a
 	// deployment key joins the eligible set only when the inbound surface
 	// matches, else an Anthropic-surface `x-api-key` could leak to
@@ -5728,7 +5682,7 @@ func (s *Service) hasOpenAIInfrastructureCredential(ctx context.Context, headers
 		}
 	}
 	if installationIDFromContext(ctx) == uuid.Nil {
-		if client := ExtractClientCredentials(providers.ProviderAIAND, headers); client != nil && !client.OAuth {
+		if ExtractClientCredentials(providers.ProviderAIAND, headers) != nil {
 			return true
 		}
 	}
@@ -5796,15 +5750,7 @@ func resolveAndInjectCredentials(ctx context.Context, provider, model string, he
 		creds = byok[provider]
 	}
 	if creds == nil && !routerKeyed {
-		client := ExtractClientCredentials(provider, headers)
-		// A suppressed subscription must not slip back in as the inbound OAuth
-		// bearer off the router-key path, undoing the skip above.
-		if client != nil && client.OAuth &&
-			((provider == providers.ProviderAIAND && claudeModelDenied) ||
-				(provider == providers.ProviderAIAND && codexModelDenied)) {
-			client = nil
-		}
-		creds = client
+		creds = ExtractClientCredentials(provider, headers)
 	}
 	if creds != nil {
 		return context.WithValue(ctx, CredentialsContextKey{}, creds)
@@ -5986,7 +5932,7 @@ func (s *Service) emitBilling(ctx context.Context, requestID, externalID, reques
 		Pricing:            actPricing,
 		UsageModifiers:     usageMods,
 		HasOverride:        hasOverride,
-		SubscriptionServed: servedOnSubscription(ctx),
+		SubscriptionServed: false,
 		ByokServed:         servedOnBYOK(ctx),
 		APIKeyID:           apiKeyID,
 		RouterUserID:       auth.UserIDFrom(ctx),
@@ -6347,10 +6293,6 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 
 	// Linked-first is a funding preference; only depleted capacity restricts
 	// selection to providers the caller's subscription can serve.
-	if billing.SubscriptionOnlyFromContext(ctx) && !linkedFirst(ctx) {
-		enabledProviders = restrictToSubscriptionProviders(ctx, r.Header, enabledProviders)
-	}
-
 	// Codex (ChatGPT) subscription passthrough: ProxyOpenAIResponses stashed the
 	// caller's original Responses body. Such turns skip the routing marker +
 	// semantic cache below, and dispatch the verbatim body to the Codex
@@ -6593,9 +6535,6 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 			ChatOnlyParams: env.RequiresChatCompletionsParams(opts.Capabilities),
 			Broad:          s.ResolveOpenAIResponsesBroad(ctx),
 		})
-		if !env.RequiresChatCompletionsParams(opts.Capabilities) && servedOnCodexSubscription(resolvedCtx) {
-			openAIResponsesEndpoint = true
-		}
 	}
 	endpointCtx, endpointErr := s.avoidCodexOnChatEndpoint(ctx, decision.Provider, decision.Model, openAIResponsesEndpoint, r.Header)
 	if endpointErr != nil {
@@ -6620,17 +6559,15 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	// continues paid instead. When it did, pin dispatch to that single binding
 	// so failover can't reroute onto a paid provider.
 	if billing.SubscriptionOnlyFromContext(ctx) && !subscriptionStateModelsEnabled(ctx) {
-		if !servedOnSubscription(ctx) {
-			released, ok := releaseUnservableLinkedFirst(ctx, decision)
-			if !ok {
-				log.Info("Subscription-only request cannot be served on the subscription; refusing",
-					"requested_model", feats.Model, "external_id", externalID, "decision_provider", decision.Provider)
-				return subscriptionOnlyUnavailable(ctx)
-			}
-			ctx = released
-		} else {
-			bindings = []catalog.ProviderBinding{{Provider: decision.Provider}}
+		// No credential is a subscription bearer, so a subscription-only turn
+		// can never be served on the caller's plan.
+		released, ok := releaseUnservableLinkedFirst(ctx, decision)
+		if !ok {
+			log.Info("Subscription-only request cannot be served on the subscription; refusing",
+				"requested_model", feats.Model, "external_id", externalID, "decision_provider", decision.Provider)
+			return subscriptionOnlyUnavailable(ctx)
 		}
+		ctx = released
 	}
 	// Append the one-click feedback thumbs as a trailing chunk (see
 	// ProxyMessages). Skipped on the Responses-API path (w is a
@@ -6982,19 +6919,14 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	// rolls over to Weave credits. Suppressed when credits are depleted, where
 	// paid spend is exactly what the caller forbade; a linked-first turn's
 	// credits are intact, so its throttle rolls over like any other.
-	codexRetryViable := decision.Provider == providers.ProviderAIAND &&
-		servedOnCodexSubscription(ctx) &&
-		!blindExperimentPassthroughActive(ctx) &&
-		!paidFallbackForbiddenForModel(ctx, decision.Model) &&
-		s.openaiFallbackKeyAvailable(ctx)
+	//
+	// No credential is ever a subscription bearer, so the subscription-pinned
+	// retry never applies.
+	codexRetryViable := false
 	// OpenAI-compatible callers can route to Anthropic too; give their Claude
 	// subscription model-access and third-party refusals the same paid recovery
 	// as /v1/messages.
-	claudeRetryViable := decision.Provider == providers.ProviderAIAND &&
-		servedOnSubscription(ctx) &&
-		!blindExperimentPassthroughActive(ctx) &&
-		!paidFallbackForbiddenForModel(ctx, decision.Model) &&
-		s.anthropicFallbackKeyAvailable(ctx)
+	claudeRetryViable := false
 
 	siblingDecisions := subscriptionStatePaidRescueDecisions(ctx, s.siblingFailoverDecisions(ctx, rescueBasisForTurn(decision, routeRes), overflowEstimateOAI, env.SignatureTokenSavings(), outputReserveOAI))
 	siblingViable := s.ResolveSiblingFailover(ctx) &&

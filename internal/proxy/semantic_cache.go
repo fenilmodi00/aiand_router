@@ -59,9 +59,6 @@ func (s *Service) semanticCacheRequestAllowed(ctx context.Context, req router.Re
 	if len(s.globalAutomaticExcludedModels(ctx)) > 0 {
 		return false
 	}
-	if creds := CredentialsFromContext(ctx); creds != nil && creds.OAuth {
-		return false
-	}
 	requirements := req.TranslationRequirements
 	if original, present := translationRequirementsFromContext(ctx); present {
 		if !semanticCacheRequirementsAllowed(original) {

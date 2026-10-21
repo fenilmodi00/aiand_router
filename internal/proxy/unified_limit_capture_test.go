@@ -15,11 +15,8 @@ func TestUnifiedLimitHeadersFrom_NoCaptureInstalled(t *testing.T) {
 	assert.Nil(t, UnifiedLimitHeadersFrom(context.Background()))
 }
 
-func TestCaptureUnifiedLimitHeaders_RecordsOnSubscriptionCredential(t *testing.T) {
+func TestCaptureUnifiedLimitHeaders_RecordsUnifiedHeaders(t *testing.T) {
 	ctx := withUnifiedLimitCapture(context.Background())
-	ctx = context.WithValue(ctx, CredentialsContextKey{}, &Credentials{
-		APIKey: []byte("sk-ant-oat01-live"), Source: credSourceSubscription, OAuth: true,
-	})
 
 	resp := http.Header{}
 	resp.Set("anthropic-ratelimit-unified-status", "allowed")
@@ -37,35 +34,9 @@ func TestCaptureUnifiedLimitHeaders_RecordsOnSubscriptionCredential(t *testing.T
 	}
 }
 
-func TestCaptureUnifiedLimitHeaders_SkipsNonOAuthCredential(t *testing.T) {
-	// BYOK/deployment-key call must not be recorded — headers describe a different account's quota.
-	ctx := withUnifiedLimitCapture(context.Background())
-	ctx = context.WithValue(ctx, CredentialsContextKey{}, &Credentials{
-		APIKey: []byte("sk-ant-api-deployment"), Source: credSourceBYOK, OAuth: false,
-	})
-
-	resp := http.Header{}
-	resp.Set("anthropic-ratelimit-unified-status", "allowed")
-	captureUnifiedLimitHeaders(ctx, resp)
-
-	assert.Nil(t, UnifiedLimitHeadersFrom(ctx), "non-OAuth credential must not be captured")
-}
-
-func TestCaptureUnifiedLimitHeaders_NoCredentialsResolved(t *testing.T) {
-	ctx := withUnifiedLimitCapture(context.Background())
-	resp := http.Header{}
-	resp.Set("anthropic-ratelimit-unified-status", "allowed")
-	captureUnifiedLimitHeaders(ctx, resp) // no CredentialsContextKey set at all
-
-	assert.Nil(t, UnifiedLimitHeadersFrom(ctx))
-}
-
 func TestCaptureUnifiedLimitHeaders_NoUnifiedHeadersPresent(t *testing.T) {
-	// Subscription response with no unified headers must leave capture nil, not empty-but-non-nil.
+	// A response with no unified headers must leave capture nil, not empty-but-non-nil.
 	ctx := withUnifiedLimitCapture(context.Background())
-	ctx = context.WithValue(ctx, CredentialsContextKey{}, &Credentials{
-		APIKey: []byte("sk-ant-oat01-live"), Source: credSourceSubscription, OAuth: true,
-	})
 	captureUnifiedLimitHeaders(ctx, http.Header{"Content-Type": {"application/json"}})
 
 	assert.Nil(t, UnifiedLimitHeadersFrom(ctx))
@@ -79,9 +50,6 @@ func TestUnifiedLimitHeadersJSON(t *testing.T) {
 
 	t.Run("captured set round-trips through JSON", func(t *testing.T) {
 		ctx := withUnifiedLimitCapture(context.Background())
-		ctx = context.WithValue(ctx, CredentialsContextKey{}, &Credentials{
-			APIKey: []byte("sk-ant-oat01-live"), Source: credSourceSubscription, OAuth: true,
-		})
 		resp := http.Header{}
 		resp.Set("anthropic-ratelimit-unified-status", "allowed")
 		resp.Set("anthropic-ratelimit-unified-5h-utilization", "0.42")
@@ -96,11 +64,11 @@ func TestUnifiedLimitHeadersJSON(t *testing.T) {
 	})
 }
 
-// No-op contract: nothing captured when usageObserver is nil AND no subscription
-// token is present — Phase 0 must not capture on every request.
+// No-op contract: with no usage observer wired, nothing is captured — Phase 0
+// must not capture on every request.
 func TestWithUsageObserver_NoopWhenNothingToObserve(t *testing.T) {
 	s := &Service{}
 	ctx := context.Background()
 	got := s.withUsageObserver(ctx, http.Header{}) // no Authorization at all
-	assert.Nil(t, UnifiedLimitHeadersFrom(got), "no subscription token present -> capture never installed")
+	assert.Nil(t, UnifiedLimitHeadersFrom(got), "no usage observer -> capture never installed")
 }
