@@ -22,7 +22,7 @@ VALUES (
     $2::varchar,
     $3
 )
-RETURNING id, external_id, name, created_at, updated_at, deleted_at, created_by, excluded_models, excluded_providers, routing_quality_weight, usage_bypass_enabled, usage_bypass_threshold, preferred_models, subscription_routing_disabled, routing_strategy, routing_rollout_id, policy_shadow_strategy, policy_debug_enabled, policy_header_overrides_enabled, policy_routing_intent, ai_training_allowed, byok_enabled, content_capture_mode, hide_terminal_surfaces, allowed_models, first_request_served_at, flag_overrides, models_when_subscription_active, models_when_subscription_inactive, fast_mode_models, trial_capture_enabled, trial_enrollment_id, trial_shadow_sample_rate, trial_shadow_daily_ceiling_usd_micros, show_model_selection_reasoning, subscription_sharing_enabled, subscription_state_models_enabled, models_excluded_when_subscription_active, models_excluded_when_subscription_inactive
+RETURNING id, external_id, name, created_at, updated_at, deleted_at, created_by, excluded_models, excluded_providers, routing_quality_weight, usage_bypass_enabled, usage_bypass_threshold, preferred_models, subscription_routing_disabled, routing_strategy, routing_rollout_id, policy_shadow_strategy, policy_debug_enabled, policy_header_overrides_enabled, policy_routing_intent, ai_training_allowed, byok_enabled, content_capture_mode, hide_terminal_surfaces, allowed_models, first_request_served_at, flag_overrides, models_when_subscription_active, models_when_subscription_inactive, trial_capture_enabled, trial_enrollment_id, trial_shadow_sample_rate, trial_shadow_daily_ceiling_usd_micros, show_model_selection_reasoning, subscription_sharing_enabled, subscription_state_models_enabled, models_excluded_when_subscription_active, models_excluded_when_subscription_inactive
 `
 
 type CreateModelRouterInstallationParams struct {
@@ -43,7 +43,7 @@ type CreateModelRouterInstallationParams struct {
 //	    $2::varchar,
 //	    $3
 //	)
-//	RETURNING id, external_id, name, created_at, updated_at, deleted_at, created_by, excluded_models, excluded_providers, routing_quality_weight, usage_bypass_enabled, usage_bypass_threshold, preferred_models, subscription_routing_disabled, routing_strategy, routing_rollout_id, policy_shadow_strategy, policy_debug_enabled, policy_header_overrides_enabled, policy_routing_intent, ai_training_allowed, byok_enabled, content_capture_mode, hide_terminal_surfaces, allowed_models, first_request_served_at, flag_overrides, models_when_subscription_active, models_when_subscription_inactive, fast_mode_models, trial_capture_enabled, trial_enrollment_id, trial_shadow_sample_rate, trial_shadow_daily_ceiling_usd_micros, show_model_selection_reasoning, subscription_sharing_enabled, subscription_state_models_enabled, models_excluded_when_subscription_active, models_excluded_when_subscription_inactive
+//	RETURNING id, external_id, name, created_at, updated_at, deleted_at, created_by, excluded_models, excluded_providers, routing_quality_weight, usage_bypass_enabled, usage_bypass_threshold, preferred_models, subscription_routing_disabled, routing_strategy, routing_rollout_id, policy_shadow_strategy, policy_debug_enabled, policy_header_overrides_enabled, policy_routing_intent, ai_training_allowed, byok_enabled, content_capture_mode, hide_terminal_surfaces, allowed_models, first_request_served_at, flag_overrides, models_when_subscription_active, models_when_subscription_inactive, trial_capture_enabled, trial_enrollment_id, trial_shadow_sample_rate, trial_shadow_daily_ceiling_usd_micros, show_model_selection_reasoning, subscription_sharing_enabled, subscription_state_models_enabled, models_excluded_when_subscription_active, models_excluded_when_subscription_inactive
 func (q *Queries) CreateModelRouterInstallation(ctx context.Context, arg CreateModelRouterInstallationParams) (RouterModelRouterInstallation, error) {
 	row := q.db.QueryRow(ctx, createModelRouterInstallation, arg.ExternalID, arg.Name, arg.CreatedBy)
 	var i RouterModelRouterInstallation
@@ -77,7 +77,6 @@ func (q *Queries) CreateModelRouterInstallation(ctx context.Context, arg CreateM
 		&i.FlagOverrides,
 		&i.ModelsWhenSubscriptionActive,
 		&i.ModelsWhenSubscriptionInactive,
-		&i.FastModeModels,
 		&i.TrialCaptureEnabled,
 		&i.TrialEnrollmentID,
 		&i.TrialShadowSampleRate,
@@ -92,7 +91,7 @@ func (q *Queries) CreateModelRouterInstallation(ctx context.Context, arg CreateM
 }
 
 const getModelRouterInstallation = `-- name: GetModelRouterInstallation :one
-SELECT id, external_id, name, created_at, updated_at, deleted_at, created_by, excluded_models, excluded_providers, routing_quality_weight, usage_bypass_enabled, usage_bypass_threshold, preferred_models, subscription_routing_disabled, routing_strategy, routing_rollout_id, policy_shadow_strategy, policy_debug_enabled, policy_header_overrides_enabled, policy_routing_intent, ai_training_allowed, byok_enabled, content_capture_mode, hide_terminal_surfaces, allowed_models, first_request_served_at, flag_overrides, models_when_subscription_active, models_when_subscription_inactive, fast_mode_models, trial_capture_enabled, trial_enrollment_id, trial_shadow_sample_rate, trial_shadow_daily_ceiling_usd_micros, show_model_selection_reasoning, subscription_sharing_enabled, subscription_state_models_enabled, models_excluded_when_subscription_active, models_excluded_when_subscription_inactive
+SELECT id, external_id, name, created_at, updated_at, deleted_at, created_by, excluded_models, excluded_providers, routing_quality_weight, usage_bypass_enabled, usage_bypass_threshold, preferred_models, subscription_routing_disabled, routing_strategy, routing_rollout_id, policy_shadow_strategy, policy_debug_enabled, policy_header_overrides_enabled, policy_routing_intent, ai_training_allowed, byok_enabled, content_capture_mode, hide_terminal_surfaces, allowed_models, first_request_served_at, flag_overrides, models_when_subscription_active, models_when_subscription_inactive, trial_capture_enabled, trial_enrollment_id, trial_shadow_sample_rate, trial_shadow_daily_ceiling_usd_micros, show_model_selection_reasoning, subscription_sharing_enabled, subscription_state_models_enabled, models_excluded_when_subscription_active, models_excluded_when_subscription_inactive
 FROM router.model_router_installations
 WHERE id = $1::uuid
   AND external_id = $2::varchar
@@ -106,7 +105,7 @@ type GetModelRouterInstallationParams struct {
 
 // Gets an installation by id, scoped to an external_id to prevent cross-tenant access.
 //
-//	SELECT id, external_id, name, created_at, updated_at, deleted_at, created_by, excluded_models, excluded_providers, routing_quality_weight, usage_bypass_enabled, usage_bypass_threshold, preferred_models, subscription_routing_disabled, routing_strategy, routing_rollout_id, policy_shadow_strategy, policy_debug_enabled, policy_header_overrides_enabled, policy_routing_intent, ai_training_allowed, byok_enabled, content_capture_mode, hide_terminal_surfaces, allowed_models, first_request_served_at, flag_overrides, models_when_subscription_active, models_when_subscription_inactive, fast_mode_models, trial_capture_enabled, trial_enrollment_id, trial_shadow_sample_rate, trial_shadow_daily_ceiling_usd_micros, show_model_selection_reasoning, subscription_sharing_enabled, subscription_state_models_enabled, models_excluded_when_subscription_active, models_excluded_when_subscription_inactive
+//	SELECT id, external_id, name, created_at, updated_at, deleted_at, created_by, excluded_models, excluded_providers, routing_quality_weight, usage_bypass_enabled, usage_bypass_threshold, preferred_models, subscription_routing_disabled, routing_strategy, routing_rollout_id, policy_shadow_strategy, policy_debug_enabled, policy_header_overrides_enabled, policy_routing_intent, ai_training_allowed, byok_enabled, content_capture_mode, hide_terminal_surfaces, allowed_models, first_request_served_at, flag_overrides, models_when_subscription_active, models_when_subscription_inactive, trial_capture_enabled, trial_enrollment_id, trial_shadow_sample_rate, trial_shadow_daily_ceiling_usd_micros, show_model_selection_reasoning, subscription_sharing_enabled, subscription_state_models_enabled, models_excluded_when_subscription_active, models_excluded_when_subscription_inactive
 //	FROM router.model_router_installations
 //	WHERE id = $1::uuid
 //	  AND external_id = $2::varchar
@@ -144,7 +143,6 @@ func (q *Queries) GetModelRouterInstallation(ctx context.Context, arg GetModelRo
 		&i.FlagOverrides,
 		&i.ModelsWhenSubscriptionActive,
 		&i.ModelsWhenSubscriptionInactive,
-		&i.FastModeModels,
 		&i.TrialCaptureEnabled,
 		&i.TrialEnrollmentID,
 		&i.TrialShadowSampleRate,
@@ -159,7 +157,7 @@ func (q *Queries) GetModelRouterInstallation(ctx context.Context, arg GetModelRo
 }
 
 const listModelRouterInstallationsForExternalID = `-- name: ListModelRouterInstallationsForExternalID :many
-SELECT id, external_id, name, created_at, updated_at, deleted_at, created_by, excluded_models, excluded_providers, routing_quality_weight, usage_bypass_enabled, usage_bypass_threshold, preferred_models, subscription_routing_disabled, routing_strategy, routing_rollout_id, policy_shadow_strategy, policy_debug_enabled, policy_header_overrides_enabled, policy_routing_intent, ai_training_allowed, byok_enabled, content_capture_mode, hide_terminal_surfaces, allowed_models, first_request_served_at, flag_overrides, models_when_subscription_active, models_when_subscription_inactive, fast_mode_models, trial_capture_enabled, trial_enrollment_id, trial_shadow_sample_rate, trial_shadow_daily_ceiling_usd_micros, show_model_selection_reasoning, subscription_sharing_enabled, subscription_state_models_enabled, models_excluded_when_subscription_active, models_excluded_when_subscription_inactive
+SELECT id, external_id, name, created_at, updated_at, deleted_at, created_by, excluded_models, excluded_providers, routing_quality_weight, usage_bypass_enabled, usage_bypass_threshold, preferred_models, subscription_routing_disabled, routing_strategy, routing_rollout_id, policy_shadow_strategy, policy_debug_enabled, policy_header_overrides_enabled, policy_routing_intent, ai_training_allowed, byok_enabled, content_capture_mode, hide_terminal_surfaces, allowed_models, first_request_served_at, flag_overrides, models_when_subscription_active, models_when_subscription_inactive, trial_capture_enabled, trial_enrollment_id, trial_shadow_sample_rate, trial_shadow_daily_ceiling_usd_micros, show_model_selection_reasoning, subscription_sharing_enabled, subscription_state_models_enabled, models_excluded_when_subscription_active, models_excluded_when_subscription_inactive
 FROM router.model_router_installations
 WHERE external_id = $1::varchar
   AND deleted_at IS NULL
@@ -168,7 +166,7 @@ ORDER BY created_at DESC
 
 // ListModelRouterInstallationsForExternalID
 //
-//	SELECT id, external_id, name, created_at, updated_at, deleted_at, created_by, excluded_models, excluded_providers, routing_quality_weight, usage_bypass_enabled, usage_bypass_threshold, preferred_models, subscription_routing_disabled, routing_strategy, routing_rollout_id, policy_shadow_strategy, policy_debug_enabled, policy_header_overrides_enabled, policy_routing_intent, ai_training_allowed, byok_enabled, content_capture_mode, hide_terminal_surfaces, allowed_models, first_request_served_at, flag_overrides, models_when_subscription_active, models_when_subscription_inactive, fast_mode_models, trial_capture_enabled, trial_enrollment_id, trial_shadow_sample_rate, trial_shadow_daily_ceiling_usd_micros, show_model_selection_reasoning, subscription_sharing_enabled, subscription_state_models_enabled, models_excluded_when_subscription_active, models_excluded_when_subscription_inactive
+//	SELECT id, external_id, name, created_at, updated_at, deleted_at, created_by, excluded_models, excluded_providers, routing_quality_weight, usage_bypass_enabled, usage_bypass_threshold, preferred_models, subscription_routing_disabled, routing_strategy, routing_rollout_id, policy_shadow_strategy, policy_debug_enabled, policy_header_overrides_enabled, policy_routing_intent, ai_training_allowed, byok_enabled, content_capture_mode, hide_terminal_surfaces, allowed_models, first_request_served_at, flag_overrides, models_when_subscription_active, models_when_subscription_inactive, trial_capture_enabled, trial_enrollment_id, trial_shadow_sample_rate, trial_shadow_daily_ceiling_usd_micros, show_model_selection_reasoning, subscription_sharing_enabled, subscription_state_models_enabled, models_excluded_when_subscription_active, models_excluded_when_subscription_inactive
 //	FROM router.model_router_installations
 //	WHERE external_id = $1::varchar
 //	  AND deleted_at IS NULL
@@ -212,7 +210,6 @@ func (q *Queries) ListModelRouterInstallationsForExternalID(ctx context.Context,
 			&i.FlagOverrides,
 			&i.ModelsWhenSubscriptionActive,
 			&i.ModelsWhenSubscriptionInactive,
-			&i.FastModeModels,
 			&i.TrialCaptureEnabled,
 			&i.TrialEnrollmentID,
 			&i.TrialShadowSampleRate,
@@ -412,40 +409,6 @@ func (q *Queries) UpdateModelRouterInstallationExcludedProviders(ctx context.Con
 	return result.RowsAffected(), nil
 }
 
-const updateModelRouterInstallationFastModeModels = `-- name: UpdateModelRouterInstallationFastModeModels :execrows
-UPDATE router.model_router_installations
-SET fast_mode_models = $1::text[],
-    updated_at = NOW()
-WHERE id = $2::uuid
-  AND external_id = $3::varchar
-  AND deleted_at IS NULL
-`
-
-type UpdateModelRouterInstallationFastModeModelsParams struct {
-	FastModeModels []string
-	ID             uuid.UUID
-	ExternalID     string
-}
-
-// Replaces the per-installation fast-mode opt-in list, scoped to an
-// external_id to prevent cross-tenant updates. Listed models dispatch on the
-// provider's fast tier; empty array means no model runs fast. Bumps updated_at
-// so dashboards see the change.
-//
-//	UPDATE router.model_router_installations
-//	SET fast_mode_models = $1::text[],
-//	    updated_at = NOW()
-//	WHERE id = $2::uuid
-//	  AND external_id = $3::varchar
-//	  AND deleted_at IS NULL
-func (q *Queries) UpdateModelRouterInstallationFastModeModels(ctx context.Context, arg UpdateModelRouterInstallationFastModeModelsParams) (int64, error) {
-	result, err := q.db.Exec(ctx, updateModelRouterInstallationFastModeModels, arg.FastModeModels, arg.ID, arg.ExternalID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const updateModelRouterInstallationFlagOverrides = `-- name: UpdateModelRouterInstallationFlagOverrides :execrows
 UPDATE router.model_router_installations
 SET flag_overrides = $1::jsonb,
@@ -461,7 +424,7 @@ type UpdateModelRouterInstallationFlagOverridesParams struct {
 	ExternalID    string
 }
 
-// Replaces the per-installation behavioral flag override set, scoped to an
+// Replaces the per-installation flag override set, scoped to an
 // external_id to prevent cross-tenant updates. The payload is the whole sparse
 // object, not a delta: callers read-modify-write so clearing an override is
 // expressed by omitting its key. Keys are validated against internal/flags'

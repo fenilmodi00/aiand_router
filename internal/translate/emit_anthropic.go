@@ -92,10 +92,6 @@ func (e *RequestEnvelope) PrepareAnthropic(in http.Header, opts EmitOptions) (pr
 	if err != nil {
 		return providers.PreparedRequest{}, err
 	}
-	body, err = applyAnthropicFastMode(body, opts)
-	if err != nil {
-		return providers.PreparedRequest{}, err
-	}
 	if maxOutputTokens := modelMaxOutputTokens[router.StripDateSuffix(opts.TargetModel)]; maxOutputTokens > 0 {
 		body = clampFieldBytes(body, "max_tokens", int64(maxOutputTokens))
 	}
@@ -125,9 +121,6 @@ func deriveAnthropicHeaders(in http.Header, opts EmitOptions, body []byte) http.
 	}
 	if gjson.GetBytes(body, "fallbacks").Exists() {
 		beta = ensureBetaToken(beta, serverSideFallbackBeta)
-	}
-	if gjson.GetBytes(body, "speed").Exists() {
-		beta = ensureBetaToken(beta, fastModeBeta)
 	}
 	if containsAnthropicSystemOnlyContentBlocks(body) {
 		beta = ensureBetaToken(beta, anthropicMidConversationToolChangesBeta)
