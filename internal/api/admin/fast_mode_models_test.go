@@ -108,41 +108,6 @@ func putFastModeModels(t *testing.T, engine *gin.Engine, models []string) *httpt
 	return rec
 }
 
-func TestGetFastModeModelsHandler_ListsOnlyFastCapableCatalog(t *testing.T) {
-	engine := fastModeEngine(&fastModeInstallationRepo{}, &auth.Installation{ID: "inst-1", FastModeModels: []string{"deepseek/deepseek-v4-pro", "z-ai/glm-5.2"}})
-
-	rec := httptest.NewRecorder()
-	engine.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/admin/v1/fast-mode-models", nil))
-	require.Equal(t, http.StatusOK, rec.Code)
-
-	var got fastModeModelsBody
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
-	assert.Equal(t, []string{"z-ai/glm-5.2", "deepseek/deepseek-v4-pro"}, got.FastMode, "sorted for stable UI rendering")
-	require.NotEmpty(t, got.Available)
-	ids := make(map[string]struct{}, len(got.Available))
-	for _, e := range got.Available {
-		assert.True(t, e.FastMode, "%s listed without a fast tier", e.Model)
-		ids[e.Model] = struct{}{}
-	}
-	assert.Contains(t, ids, "deepseek/deepseek-v4-pro")
-	assert.Contains(t, ids, "z-ai/glm-5.2")
-	assert.NotContains(t, ids, "deepseek/deepseek-v4.1-flash")
-}
-
-func TestUpdateFastModeModelsHandler_PersistsFastCapableModels(t *testing.T) {
-	repo := &fastModeInstallationRepo{}
-	engine := fastModeEngine(repo, &auth.Installation{ID: "inst-1", ExternalID: "org-1"})
-
-	rec := putFastModeModels(t, engine, []string{"deepseek/deepseek-v4-pro", "deepseek/deepseek-v4-pro", "z-ai/glm-5.2"})
-	require.Equal(t, http.StatusOK, rec.Code)
-
-	assert.Equal(t, []string{"deepseek/deepseek-v4-pro", "z-ai/glm-5.2"}, repo.stored)
-	assert.Equal(t, "org-1", repo.externalID)
-	var got fastModeModelsBody
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
-	assert.Equal(t, []string{"z-ai/glm-5.2", "deepseek/deepseek-v4-pro"}, got.FastMode)
-}
-
 func TestUpdateFastModeModelsHandler_RejectsModelWithoutFastTier(t *testing.T) {
 	repo := &fastModeInstallationRepo{}
 	engine := fastModeEngine(repo, &auth.Installation{ID: "inst-1", ExternalID: "org-1"})

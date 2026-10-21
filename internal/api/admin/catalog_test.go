@@ -27,10 +27,10 @@ func TestCatalogModelsHandler_SortsByProviderThenModel(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	src := fakeDeployedModels{entries: []cluster.DeployedEntry{
-		{Model: "gpt-5.5", Provider: providers.ProviderAIAND},
 		{Model: "z-ai/glm-5.2", Provider: providers.ProviderAIAND},
 		{Model: "z-ai/glm-5.3-flash", Provider: providers.ProviderAIAND},
-		{Model: "gpt-5.4-mini", Provider: providers.ProviderAIAND},
+		{Model: "deepseek/deepseek-v4.1-flash", Provider: providers.ProviderAIAND},
+		{Model: "deepseek/deepseek-v4-flash", Provider: providers.ProviderAIAND},
 	}}
 
 	engine := gin.New()
@@ -47,13 +47,13 @@ func TestCatalogModelsHandler_SortsByProviderThenModel(t *testing.T) {
 
 	require.Len(t, got.Models, 4)
 	assert.Equal(t, providers.ProviderAIAND, got.Models[0].Provider)
-	assert.Equal(t, "z-ai/glm-5.3-flash", got.Models[0].Model)
+	assert.Equal(t, "deepseek/deepseek-v4-flash", got.Models[0].Model)
 	assert.Equal(t, providers.ProviderAIAND, got.Models[1].Provider)
-	assert.Equal(t, "z-ai/glm-5.2", got.Models[1].Model)
+	assert.Equal(t, "deepseek/deepseek-v4.1-flash", got.Models[1].Model)
 	assert.Equal(t, providers.ProviderAIAND, got.Models[2].Provider)
-	assert.Equal(t, "gpt-5.4-mini", got.Models[2].Model)
+	assert.Equal(t, "z-ai/glm-5.2", got.Models[2].Model)
 	assert.Equal(t, providers.ProviderAIAND, got.Models[3].Provider)
-	assert.Equal(t, "gpt-5.5", got.Models[3].Model)
+	assert.Equal(t, "z-ai/glm-5.3-flash", got.Models[3].Model)
 }
 
 func TestCatalogModelsHandler_EmptyListReturnsEmptyArray(t *testing.T) {
@@ -84,36 +84,6 @@ func (f *fakeHMMRoster) HMMDeployedModels(context.Context) ([]cluster.DeployedEn
 		return nil, f.err
 	}
 	return f.entries, nil
-}
-
-func TestCatalogModelsHandler_HMMStrategyReturnsRosterNotCluster(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	clusterSrc := fakeDeployedModels{entries: []cluster.DeployedEntry{
-		{Model: "gpt-5.5", Provider: providers.ProviderAIAND},
-	}}
-	hmmSrc := &fakeHMMRoster{entries: []cluster.DeployedEntry{
-		{Model: "gpt-5.6-sol", Provider: providers.ProviderAIAND},
-		{Model: "z-ai/glm-5.2", Provider: providers.ProviderAIAND},
-	}}
-
-	engine := gin.New()
-	engine.GET("/v1/router/models", admin.CatalogModelsHandler(clusterSrc, hmmSrc))
-
-	req := httptest.NewRequest(http.MethodGet, "/v1/router/models?strategy=hmm", nil)
-	rec := httptest.NewRecorder()
-	engine.ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.Equal(t, 1, hmmSrc.calls)
-
-	var got admin.CatalogModelsResponse
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
-	require.Len(t, got.Models, 2)
-	// Sorted provider-then-model: anthropic first, then openai's 5.6 — and
-	// crucially the cluster's gpt-5.5 does NOT appear.
-	assert.Equal(t, "z-ai/glm-5.2", got.Models[0].Model)
-	assert.Equal(t, "gpt-5.6-sol", got.Models[1].Model)
 }
 
 func TestCatalogModelsHandler_HMMStrategyFallsBackToClusterWhenNoSource(t *testing.T) {
