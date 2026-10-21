@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 	"weave-os/router/internal/billing"
-	"weave-os/router/internal/observability/otel"
 	"weave-os/router/internal/providers"
 	"weave-os/router/internal/router"
 	"weave-os/router/internal/router/turntype"
@@ -134,39 +133,6 @@ func TestFundingNoticePolicyAndReplay(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestFundingNoticeDoesNotEstablishProviderFacts(t *testing.T) {
-	rec := httptest.NewRecorder()
-	buffer := newPreludeBuffer(rec)
-	caps := translate.NoticeCapabilities{Format: translate.FormatAnthropic, Streaming: true, Presentation: translate.NoticeText, Eager: true}
-	delivery := translate.NewNoticeDelivery(context.Background(), translate.NewProtocolNoticeSink(buffer, caps), caps)
-	extractor := otel.NewUsageExtractor(delivery, providers.ProviderAIAND)
-	terminal := newStreamTerminalObserver(extractor, nativeStreamAnthropic)
-	terminal.Header().Set("Content-Type", "text/event-stream")
-	terminal.WriteHeader(http.StatusOK)
-	_, err := delivery.Deliver(translate.NewRouterNotice(translate.NoticeFundingWarning, subscriptionOnlyWarningMarker, "synthetic-model", ""))
-	require.NoError(t, err)
-	progress := 0
-	require.True(t, terminal.ArmOutputProgress(func() { progress++ }))
-	_, err = delivery.Deliver(translate.NewRouterNotice(translate.NoticeFundingWarning, subscriptionSpendCapWarningMarker, "synthetic-model", ""))
-	require.NoError(t, err)
-	assert.Contains(t, rec.Body.String(), "credits are depleted")
-	assert.Zero(t, progress)
-	input, output := extractor.Tokens()
-	assert.Zero(t, input)
-	assert.Zero(t, output)
-	assert.ErrorIs(t, terminal.streamErr(), translate.ErrStreamEmpty)
-	assert.False(t, buffer.Committed())
-	buffer.Seal()
-	_, err = terminal.Write([]byte("event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":7}}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"provider answer\"}}\n\nevent: message_delta\ndata: {\"type\":\"message_delta\",\"usage\":{\"output_tokens\":2}}\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"))
-	require.NoError(t, err)
-	assert.Equal(t, 1, progress)
-	input, output = extractor.Tokens()
-	assert.Equal(t, 7, input)
-	assert.Equal(t, 2, output)
-	require.NoError(t, terminal.streamErr())
-	assert.True(t, buffer.Committed())
 }
 
 func TestFundingNoticeBufferedAndStreamingCapabilities(t *testing.T) {

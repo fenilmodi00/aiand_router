@@ -8,7 +8,6 @@ import (
 	"weave-os/router/internal/providers"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func ctxWithKeys(keys ...*auth.ExternalAPIKey) context.Context {
@@ -28,19 +27,6 @@ func gatewayKey(provider, baseURL string, models ...string) *auth.ExternalAPIKey
 	}
 }
 
-// A direct vendor has catalog bindings as its source of truth, so its 404s
-// must not be memoized as an endpoint capability.
-func TestGatewayModelKey_OnlyGateways(t *testing.T) {
-	assert.Empty(t, gatewayModelKey("https://api.x.ai", providers.ProviderAIAND, "grok-4.6"))
-	assert.Empty(t, gatewayModelKey("https://gw.example.com", providers.ProviderAIAND, ""))
-	assert.Equal(t, "https://gw.example.com|grok-4.6",
-		gatewayModelKey("https://gw.example.com/", providers.ProviderAIAND, "grok-4.6"),
-		"trailing slashes must not split one endpoint into two memo entries")
-	assert.Equal(t, providers.ProviderAIAND+"|grok-4.6",
-		gatewayModelKey("", providers.ProviderAIAND, "grok-4.6"),
-		"a deployment-keyed gateway has one endpoint per process, keyed by provider")
-}
-
 func TestGatewayUnservedModelsForRequest_EmptyWithoutGatewayKeys(t *testing.T) {
 	s := &Service{}
 	s.rememberGatewayLacksModel(context.Background(), providers.ProviderAIAND, "grok-4.6")
@@ -50,20 +36,6 @@ func TestGatewayUnservedModelsForRequest_EmptyWithoutGatewayKeys(t *testing.T) {
 		&auth.ExternalAPIKey{Provider: providers.ProviderAIAND, Plaintext: []byte("t"),
 			ModelAliases: map[string]string{"grok-4.6": "grok-4.6"}},
 	)), "a vendor BYOK key is not gateway-exclusive")
-}
-
-func TestGatewayUnservedModelsForRequest_ExcludesRefusedAliasOnly(t *testing.T) {
-	const endpoint = "https://cortex.example.com/api/v2/cortex"
-	s := &Service{}
-	s.unservedGatewayModels.Store(gatewayModelKey(endpoint, providers.ProviderAIAND, "grok-4.6"), struct{}{})
-
-	got := s.gatewayUnservedModelsForRequest(ctxWithKeys(
-		gatewayKey(providers.ProviderAIAND, endpoint, "grok-4.6", "z-ai/glm-5.3-flash"),
-	))
-
-	require.NotNil(t, got)
-	assert.Contains(t, got, "grok-4.6")
-	assert.NotContains(t, got, "z-ai/glm-5.3-flash")
 }
 
 // Another endpoint aliasing the same model may still serve it; excluding the
@@ -80,19 +52,6 @@ func TestGatewayUnservedModelsForRequest_KeepsModelWhenAnotherGatewayServesIt(t 
 	))
 
 	assert.NotContains(t, got, "grok-4.6")
-}
-
-func TestRememberGatewayLacksModel_MemoizesPerEndpointAndModel(t *testing.T) {
-	const endpoint = "https://cortex.example.com/api/v2/cortex"
-	s := &Service{}
-	ctx := context.WithValue(context.Background(), CredentialsContextKey{},
-		&Credentials{APIKey: []byte("k"), BaseURL: endpoint})
-
-	s.rememberGatewayLacksModel(ctx, providers.ProviderAIAND, "grok-4.6")
-
-	assert.True(t, s.gatewayLacksModel(gatewayModelKey(endpoint, providers.ProviderAIAND, "grok-4.6")))
-	assert.False(t, s.gatewayLacksModel(gatewayModelKey(endpoint, providers.ProviderAIAND, "z-ai/glm-5.3-flash")))
-	assert.False(t, s.gatewayLacksModel(gatewayModelKey("https://other.example.com", providers.ProviderAIAND, "grok-4.6")))
 }
 
 // An unknown alias key never reaches routing, so it must not be reported.

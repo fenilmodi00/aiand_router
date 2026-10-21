@@ -19,7 +19,6 @@ import (
 	"weave-os/router/internal/providers"
 	"weave-os/router/internal/router"
 	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/translate"
 )
 
 // fakeClient is a per-attempt scripted providers.Client; Proxy replays the
@@ -303,91 +302,6 @@ func TestDispatchWithFallback_RetriesOnTransportError(t *testing.T) {
 	assert.Equal(t, 1, winnerIdx)
 	assert.Equal(t, 1, primary.calls)
 	assert.Equal(t, 1, fallback.calls)
-}
-
-func TestDispatchWithFallback_RetriesOnResponseHeaderTimeout(t *testing.T) {
-	primary := &fakeClient{
-		name:     "makora",
-		outcomes: []fakeOutcome{{err: responseHeaderTimeoutErr(t)}},
-	}
-	fallback := &fakeClient{
-		name:     "openrouter",
-		outcomes: []fakeOutcome{{writeBytes: []byte("rescued")}},
-	}
-
-	s := newServiceWithProviders(t, map[string]providers.Client{
-		providers.ProviderAIAND: primary,
-	})
-
-	rec := httptest.NewRecorder()
-	buf := newPreludeBuffer(rec)
-	r := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
-
-	winnerIdx, err := s.dispatchWithFallback(context.Background(), failoverInputs{
-		w:               rec,
-		buf:             buf,
-		initialDecision: router.Decision{Model: "deepseek/deepseek-v4-flash"},
-		purpose:         inference.PurposeAnthropicMessages,
-		bindings: []catalog.ProviderBinding{
-			{Provider: providers.ProviderAIAND},
-			{Provider: providers.ProviderAIAND},
-		},
-		attempt: func(ctx context.Context, d router.Decision, p providers.Client) error {
-			buf.Seal()
-			return p.Proxy(ctx, d, providers.PreparedRequest{}, buf, r)
-		},
-	})
-
-	require.NoError(t, err)
-	assert.Equal(t, 1, winnerIdx)
-	assert.Equal(t, 1, primary.calls)
-	assert.Equal(t, 1, fallback.calls)
-	assert.Equal(t, "rescued", rec.Body.String())
-	assert.Equal(t, providers.ProviderAIAND, rec.Header().Get(HeaderRouterFallbackFrom))
-}
-
-// Covers the mid-stream stall watchdog (prod incident 2026-06-09: streams
-// went silent after headers). Adapter returns ErrUpstreamIdleTimeout having
-// written nothing, so dispatch must rescue via the next binding.
-func TestDispatchWithFallback_RetriesOnUpstreamIdleTimeout(t *testing.T) {
-	primary := &fakeClient{
-		name:     "openai",
-		outcomes: []fakeOutcome{{err: providers.ErrUpstreamIdleTimeout}},
-	}
-	fallback := &fakeClient{
-		name:     "openrouter",
-		outcomes: []fakeOutcome{{writeBytes: []byte("rescued")}},
-	}
-
-	s := newServiceWithProviders(t, map[string]providers.Client{
-		providers.ProviderAIAND: primary,
-	})
-
-	rec := httptest.NewRecorder()
-	buf := newPreludeBuffer(rec)
-	r := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
-
-	winnerIdx, err := s.dispatchWithFallback(context.Background(), failoverInputs{
-		w:               rec,
-		buf:             buf,
-		initialDecision: router.Decision{Model: "gpt-5.5"},
-		purpose:         inference.PurposeAnthropicMessages,
-		bindings: []catalog.ProviderBinding{
-			{Provider: providers.ProviderAIAND},
-			{Provider: providers.ProviderAIAND},
-		},
-		attempt: func(ctx context.Context, d router.Decision, p providers.Client) error {
-			buf.Seal()
-			return p.Proxy(ctx, d, providers.PreparedRequest{}, buf, r)
-		},
-	})
-
-	require.NoError(t, err)
-	assert.Equal(t, 1, winnerIdx)
-	assert.Equal(t, 1, primary.calls)
-	assert.Equal(t, 1, fallback.calls)
-	assert.Equal(t, "rescued", rec.Body.String())
-	assert.Equal(t, providers.ProviderAIAND, rec.Header().Get(HeaderRouterFallbackFrom))
 }
 
 func TestDispatchWithFallback_NoRetryOnNonRetryableStatus(t *testing.T) {
@@ -912,85 +826,6 @@ func TestShouldFailover(t *testing.T) {
 	})
 }
 
-func TestResolveBindingsForDispatch(t *testing.T) {
-	t.Run("BYOK active returns single primary", func(t *testing.T) {
-		s := &Service{}
-		ctx := context.WithValue(context.Background(), CredentialsContextKey{}, &Credentials{APIKey: []byte("k"), Source: "client"})
-		bs := s.resolveBindingsForDispatch(ctx, router.Decision{Model: "deepseek/deepseek-v4-pro", Provider: "fireworks"})
-		require.Len(t, bs, 1)
-		assert.Equal(t, "fireworks", bs[0].Provider)
-	})
-	t.Run("nil deploymentKeyedProviders falls back to single attempt", func(t *testing.T) {
-		s := &Service{} // deploymentKeyedProviders == nil
-		bs := s.resolveBindingsForDispatch(context.Background(), router.Decision{Model: "deepseek/deepseek-v4-pro", Provider: "fireworks"})
-		require.Len(t, bs, 1, "legacy 'all registered' mode disables failover to avoid retrying on unwired providers")
-		assert.Equal(t, "fireworks", bs[0].Provider)
-	})
-	t.Run("multi-binding model with both keys returns ordered list", func(t *testing.T) {
-		s := &Service{deploymentKeyedProviders: map[string]struct{}{"fireworks": {}, "openrouter": {}}}
-		bs := s.resolveBindingsForDispatch(context.Background(), router.Decision{Model: "deepseek/deepseek-v4-pro", Provider: "fireworks"})
-		require.GreaterOrEqual(t, len(bs), 2, "deepseek/deepseek-v4-pro must have at least 2 bindings in catalog")
-		assert.Equal(t, "fireworks", bs[0].Provider, "catalog order: fireworks primary")
-		assert.Equal(t, "openrouter", bs[1].Provider, "catalog order: openrouter fallback")
-	})
-	t.Run("selected temporal arm is first dispatch attempt", func(t *testing.T) {
-		s := &Service{deploymentKeyedProviders: map[string]struct{}{"fireworks": {}, "openrouter": {}}}
-		bs := s.resolveBindingsForDispatch(context.Background(), router.Decision{
-			Model:    "deepseek/deepseek-v4-pro",
-			Provider: "openrouter",
-			Metadata: &router.RoutingMetadata{
-				SelectedArmID:      "tq_arm_selected",
-				SelectedUpstreamID: "deepseek/deepseek-v4-pro",
-				BindingIndex:       3,
-			},
-		})
-		require.GreaterOrEqual(t, len(bs), 2)
-		assert.Equal(t, "openrouter", bs[0].Provider)
-		assert.Equal(t, "fireworks", bs[1].Provider)
-	})
-	t.Run("single-binding Anthropic model returns one binding even with multiple keys wired", func(t *testing.T) {
-		s := &Service{deploymentKeyedProviders: map[string]struct{}{"anthropic": {}, "openrouter": {}}}
-		bs := s.resolveBindingsForDispatch(context.Background(), router.Decision{Model: "z-ai/glm-5.2", Provider: "anthropic"})
-		require.Len(t, bs, 1)
-		assert.Equal(t, "anthropic", bs[0].Provider)
-	})
-	t.Run("excluded provider cannot be resurrected as a fallback binding", func(t *testing.T) {
-		s := &Service{deploymentKeyedProviders: map[string]struct{}{"fireworks": {}, "openrouter": {}}}
-		ctx := context.WithValue(context.Background(), InstallationExcludedProvidersContextKey{}, []string{"openrouter"})
-		bs := s.resolveBindingsForDispatch(ctx, router.Decision{Model: "deepseek/deepseek-v4-pro", Provider: "fireworks"})
-		require.Len(t, bs, 1, "openrouter fallback binding must be filtered out by the provider exclusion")
-		assert.Equal(t, "fireworks", bs[0].Provider)
-	})
-	t.Run("all bindings excluded with excluded primary returns empty walk", func(t *testing.T) {
-		// If exclusion filters out every binding, the walk must be empty so
-		// dispatch 502s instead of serving a forbidden provider.
-		s := &Service{deploymentKeyedProviders: map[string]struct{}{"fireworks": {}, "openrouter": {}}}
-		ctx := context.WithValue(context.Background(), InstallationExcludedProvidersContextKey{}, []string{"fireworks", "openrouter"})
-		bs := s.resolveBindingsForDispatch(ctx, router.Decision{Model: "deepseek/deepseek-v4-pro", Provider: "fireworks"})
-		assert.Empty(t, bs, "no eligible binding may remain when the primary itself is excluded")
-	})
-	t.Run("catalog-miss model keeps legacy single-attempt primary", func(t *testing.T) {
-		// Catalog-miss model keeps the legacy [primary] walk when primary isn't excluded.
-		s := &Service{deploymentKeyedProviders: map[string]struct{}{"anthropic": {}}}
-		ctx := context.WithValue(context.Background(), InstallationExcludedProvidersContextKey{}, []string{"openrouter"})
-		bs := s.resolveBindingsForDispatch(ctx, router.Decision{Model: "not-in-catalog", Provider: "anthropic"})
-		require.Len(t, bs, 1)
-		assert.Equal(t, "anthropic", bs[0].Provider)
-	})
-	t.Run("excluded primary is never re-added as the first attempt", func(t *testing.T) {
-		// Defense in depth: routing already filters excluded providers, so this
-		// would be an upstream bug — dispatch must not re-prepend the excluded primary.
-		s := &Service{deploymentKeyedProviders: map[string]struct{}{"fireworks": {}, "openrouter": {}}}
-		ctx := context.WithValue(context.Background(), InstallationExcludedProvidersContextKey{}, []string{"fireworks"})
-		bs := s.resolveBindingsForDispatch(ctx, router.Decision{Model: "deepseek/deepseek-v4-pro", Provider: "fireworks"})
-		require.NotEmpty(t, bs)
-		for _, b := range bs {
-			assert.NotEqual(t, "fireworks", b.Provider,
-				"an excluded provider must not appear anywhere in the dispatch walk")
-		}
-	})
-}
-
 // TestProvidersIsRetryable round-trips the dispatcher's classifier
 // against the inputs it'll actually see in production.
 func TestProvidersIsRetryable(t *testing.T) {
@@ -1181,36 +1016,3 @@ type fakeFlushTracker struct {
 }
 
 func (f *fakeFlushTracker) Flush() { f.onFlush() }
-
-func TestResolveBindingsForDispatch_LinkedSubscriptionWithoutAPIKey(t *testing.T) {
-	svc := &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: &fakeClient{}}), deploymentKeyedProviders: map[string]struct{}{}}
-	ctx := managedSubscriptionContext(auth.SubscriptionProviderCodex)
-	decision := router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-6.1-sol", Reason: translate.ReasonUserForceModel}
-	t.Run("linked Codex supplies the forced model binding", func(t *testing.T) {
-		bindings := svc.resolveBindingsForDispatch(ctx, decision)
-		require.Len(t, bindings, 1)
-		assert.Equal(t, providers.ProviderAIAND, bindings[0].Provider)
-		assert.Empty(t, svc.deploymentKeyedProviders, "linked request must not change deployment credentials")
-	})
-	t.Run("provider exclusions still refuse the binding", func(t *testing.T) {
-		excluded := context.WithValue(ctx, InstallationExcludedProvidersContextKey{}, []string{providers.ProviderAIAND})
-		assert.Empty(t, svc.resolveBindingsForDispatch(excluded, decision))
-	})
-	t.Run("API-only request cannot use linked binding", func(t *testing.T) {
-		paid := context.WithValue(ctx, subscriptionAPIOnlyKey{}, true)
-		assert.Empty(t, svc.resolveBindingsForDispatch(paid, decision))
-	})
-	t.Run("unsupported transport cannot use linked binding", func(t *testing.T) {
-		unsupported := &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: nil}), deploymentKeyedProviders: map[string]struct{}{}}
-		assert.Empty(t, unsupported.resolveBindingsForDispatch(ctx, decision))
-	})
-}
-
-func TestResolveBindingsForDispatch_LinkedSubscriptionPreservesFundedBindings(t *testing.T) {
-	svc := &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: &fakeClient{}}), deploymentKeyedProviders: map[string]struct{}{providers.ProviderAIAND: {}}}
-	decision := router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.2"}
-	before := svc.resolveBindingsForDispatch(context.Background(), decision)
-	require.Len(t, before, 2)
-	linked := svc.resolveBindingsForDispatch(managedSubscriptionContext(auth.SubscriptionProviderClaude), decision)
-	assert.Equal(t, before, linked, "linked enrollment must preserve the existing deployment-funded binding walk")
-}

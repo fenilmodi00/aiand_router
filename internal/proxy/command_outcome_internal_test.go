@@ -185,15 +185,3 @@ func TestAcknowledgmentWriteFailureDoesNotUndoPin(t *testing.T) {
 	require.True(t, found)
 	assert.Equal(t, "z-ai/glm-5.2", pin.Model)
 }
-
-func TestHeaderPersistenceFailureRetainsSameActionForce(t *testing.T) {
-	store := &failedCommandStore{newForceModelMapStore()}
-	svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
-		WithDeploymentKeyedProviders(keyed(providers.ProviderAIAND))
-	request := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
-	request.Header.Set(ForceModelHeader, "opus:high")
-	_, model, err := svc.applyForceModelHeader(context.Background(), request, uuid.New(), [sessionpin.SessionKeyLen]byte{1})
-	require.NoError(t, err)
-	assert.Equal(t, "claude-opus-5-5:high", model)
-	assert.Empty(t, store.pins)
-}

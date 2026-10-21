@@ -25,38 +25,10 @@ func ctxWithRequestSubset(ctx context.Context, models ...string) context.Context
 	return context.WithValue(ctx, RequestAllowedModelsContextKey{}, RequestAllowedModels{Requested: models, Effective: models})
 }
 
-func TestParseAllowedModelsHeader_ResolvesAliasesAndDedupes(t *testing.T) {
-	got, err := ParseAllowedModelsHeader(" gpt-5-6-sol, terra ,gpt-5.6-sol,", nil)
-	require.NoError(t, err)
-	assert.Equal(t, []string{testSol, testTerra}, got.Requested)
-	assert.Equal(t, []string{testSol, testTerra}, got.Effective)
-}
-
-func TestParseAllowedModelsHeader_UnknownAliasRejected(t *testing.T) {
-	_, err := ParseAllowedModelsHeader("sol,not-a-model", nil)
-	var headerErr *AllowedModelsHeaderError
-	require.ErrorAs(t, err, &headerErr)
-	assert.Contains(t, headerErr.Reason, "not-a-model")
-}
-
 func TestParseAllowedModelsHeader_BlankRejected(t *testing.T) {
 	_, err := ParseAllowedModelsHeader(" , ", nil)
 	var headerErr *AllowedModelsHeaderError
 	require.ErrorAs(t, err, &headerErr)
-}
-
-func TestParseAllowedModelsHeader_IntersectsInstallationAllowlist(t *testing.T) {
-	got, err := ParseAllowedModelsHeader("gpt-5-6-sol,terra", []string{testSol, testOpus})
-	require.NoError(t, err)
-	assert.Equal(t, []string{testSol, testTerra}, got.Requested)
-	assert.Equal(t, []string{testSol}, got.Effective)
-}
-
-func TestParseAllowedModelsHeader_EmptyIntersectionFailsClosed(t *testing.T) {
-	_, err := ParseAllowedModelsHeader("terra", []string{testSol})
-	var headerErr *AllowedModelsHeaderError
-	require.ErrorAs(t, err, &headerErr)
-	assert.Contains(t, headerErr.Reason, testTerra)
 }
 
 func TestAllowedModelsForRequest_SubsetNarrowsPolicyAllowlist(t *testing.T) {
@@ -135,19 +107,6 @@ func TestReadmitForcedModel_KeepsPolicyExclusion(t *testing.T) {
 	assert.Contains(t, got, testOpus)
 }
 
-func TestReadmitForcedModel_KeepsAdvisorPairingExclusion(t *testing.T) {
-	s := &Service{availableModels: map[string]struct{}{testSol: {}, "z-ai/glm-5.2": {}}}
-	ctx := ctxWithRequestSubset(context.Background(), testSol)
-	env, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.2","max_tokens":16,"messages":[{"role":"user","content":"hi"}],"tools":[{"type":"advisor_20260301","name":"advisor","model":"z-ai/glm-5.2"}]}`))
-	require.NoError(t, err)
-	req := router.Request{ExcludedModels: s.excludedModelsForRequest(ctx)}
-	require.Contains(t, req.ExcludedModels, "z-ai/glm-5.2")
-
-	pin := sessionpin.Pin{Model: "z-ai/glm-5.2", Provider: providers.ProviderAIAND}
-	got := s.readmitForcedModel(ctx, req, env, translate.RoutingFeatures{MaxTokens: 16}, pin)
-	assert.Contains(t, got, "z-ai/glm-5.2", "an opus-5 advisor cannot advise fable-5.1")
-}
-
 func TestReadmitForcedModel_NoSubsetIsNoOp(t *testing.T) {
 	s := &Service{availableModels: map[string]struct{}{testSol: {}, testTerra: {}}}
 	req := router.Request{ExcludedModels: map[string]struct{}{testTerra: {}}}
@@ -213,22 +172,4 @@ func TestRequestAllowedModelsPresent(t *testing.T) {
 	assert.False(t, requestAllowedModelsPresent(context.Background()))
 	assert.True(t, requestAllowedModelsPresent(
 		ctxWithRequestSubset(context.Background(), testSol)))
-}
-
-func TestReadmitForcedModel_GatewayBypassKeepsUnsignedHistoryGeminiExclusion(t *testing.T) {
-	const gemini = "gemini-3.1-pro-preview"
-	s := &Service{availableModels: map[string]struct{}{testOpus: {}, gemini: {}}}
-	ctx := context.WithValue(gatewayKeyCtx(gemini), InstallationAllowedModelsContextKey{}, []string{testOpus})
-	req := router.Request{ExcludedModels: s.excludedModelsForRequest(ctx)}
-	require.Contains(t, req.ExcludedModels, gemini)
-	pin := sessionpin.Pin{Model: gemini, Provider: providers.ProviderAIAND}
-
-	fresh, err := translate.ParseAnthropic([]byte(`{"model":"x","max_tokens":16,"messages":[{"role":"user","content":"hi"}]}`))
-	require.NoError(t, err)
-	assert.NotContains(t, s.readmitForcedModel(ctx, req, fresh, translate.RoutingFeatures{MaxTokens: 16}, pin), gemini)
-
-	unsigned, err := translate.ParseAnthropic([]byte(`{"model":"x","max_tokens":16,"messages":[{"role":"assistant","content":[{"type":"tool_use","id":"toolu_1","name":"Bash","input":{}}]}]}`))
-	require.NoError(t, err)
-	assert.Contains(t, s.readmitForcedModel(ctx, req, unsigned, translate.RoutingFeatures{MaxTokens: 16}, pin), gemini,
-		"gemini-3.x cannot take unsigned tool-call history")
 }

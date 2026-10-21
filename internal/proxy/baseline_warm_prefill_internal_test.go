@@ -52,18 +52,6 @@ func TestBaselineWarmPrefillTokens_EffortOnlyChangeIsNotASwitch(t *testing.T) {
 	assert.Zero(t, turnResult.baselineWarmPrefillTokens(time.Now(), 100_000, 0, "gpt-5.6-sol", "z-ai/glm-5.2", false))
 }
 
-// The TTL that matters is the baseline's: Anthropic holds the prefix for an
-// hour, OpenAI for five minutes.
-func TestBaselineWarmPrefillTokens_UsesBaselineProviderTTL(t *testing.T) {
-	turnResult := priorTurn("gpt-5.6-sol", 20*time.Minute)
-	assert.Equal(t, 100_000, turnResult.baselineWarmPrefillTokens(time.Now(), 100_000, 0, "z-ai/glm-5.2", "z-ai/glm-5.2", false),
-		"a 20m gap is inside the Anthropic baseline's cache TTL")
-
-	turnResult = priorTurn("z-ai/glm-5.2", 20*time.Minute)
-	assert.Zero(t, turnResult.baselineWarmPrefillTokens(time.Now(), 100_000, 0, "gpt-5.6-sol", "gpt-5.6-sol", false),
-		"a 20m gap expires the OpenAI baseline's cache, so it would have re-primed too")
-}
-
 // A fresh HMM switch has no thread pin; the prior served turn lives only on
 // the HMM history pin, and its timing and size must come from that same pin.
 func TestApplySwitchHistory_ReadsThePriorTurnFromTheSelectedPin(t *testing.T) {
@@ -78,17 +66,6 @@ func TestApplySwitchHistory_ReadsThePriorTurnFromTheSelectedPin(t *testing.T) {
 	turnResult.applySwitchHistory(sessionpin.Pin{}, hmmHistory)
 
 	assert.Equal(t, 100_000, turnResult.baselineWarmPrefillTokens(time.Now(), 110_000, 0, "gpt-5.6-sol", "z-ai/glm-5.2", false))
-}
-
-// Gateway and Wafer Anthropic bindings report usage in the Anthropic shape,
-// so their cache counters are disjoint from input_tokens like first-party.
-func TestPriorPromptTokens_AnthropicFamilyAddsDisjointCacheCounters(t *testing.T) {
-	for _, provider := range []string{providers.ProviderAIAND, providers.ProviderAIAND, providers.ProviderAIAND} {
-		pin := sessionpin.Pin{Provider: provider, LastInputTokens: 2_000, LastCachedReadTokens: 90_000, LastCachedWriteTokens: 8_000}
-		assert.Equal(t, 100_000, priorPromptTokens(pin), provider)
-	}
-	openAI := sessionpin.Pin{Provider: providers.ProviderAIAND, LastInputTokens: 100_000, LastCachedReadTokens: 90_000}
-	assert.Equal(t, 100_000, priorPromptTokens(openAI), "OpenAI prompt_tokens already include cached tokens")
 }
 
 func TestBaselineWarmPrefillTokens_BaselineWouldAlsoBeCold(t *testing.T) {

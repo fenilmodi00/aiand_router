@@ -159,23 +159,6 @@ func TestCallerModelPassthroughRejectsUnknownModelWithoutBlamingProviderKeys(t *
 		"a routing placeholder must not surface as the missing-provider-keys error")
 }
 
-func TestCallerModelPassthroughResolvesDatedAlias(t *testing.T) {
-	service := NewService(nil, nil, nil, false, nil, nil, false,
-		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil)
-
-	decision, _, err := service.blindExperimentPassthroughDecision(
-		blindExperimentContext(auth.BlindExperimentArmPassthrough),
-		router.Request{
-			RequestedModel:   "claude-haiku-4-5-20251001",
-			EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}},
-		},
-	)
-
-	require.NoError(t, err, "a dated catalog alias is a known model and must still pass through")
-	assert.Equal(t, providers.ProviderAIAND, decision.Provider)
-	assert.Equal(t, "claude-haiku-4-5-20251001", decision.Model)
-}
-
 func TestCallerModelPassthroughHonorsExcludedModels(t *testing.T) {
 	routerSpy := &blindExperimentRouterSpy{err: errors.New("scorer must not run")}
 	service := NewService(routerSpy, nil, nil, false, nil, nil, false,

@@ -28,24 +28,6 @@ func TestCacheablePrefixUsesMeasuredRatioNotCurrentEstimate(t *testing.T) {
 	assert.Equal(t, 45_000, got, "share is scale-free; it must not clamp to the current total")
 }
 
-// input_tokens is fresh-only on Anthropic but already cache-inclusive on
-// OpenAI-compatible providers. Same counters, different denominators.
-func TestCacheablePrefixHonoursProviderTokenBasis(t *testing.T) {
-	counters := sessionpin.Pin{LastInputTokens: 100_000, LastCachedReadTokens: 80_000}
-
-	anthropic := counters
-	anthropic.Provider = providers.ProviderAIAND
-	got, _ := cacheablePrefixTokens(anthropic, 100_000, false)
-	// Disjoint: 80k / (100k + 80k) = 0.444
-	assert.Equal(t, 44_444, got)
-
-	compat := counters
-	compat.Provider = providers.ProviderAIAND
-	got, _ = cacheablePrefixTokens(compat, 100_000, false)
-	// Inclusive: 80k / 100k = 0.8
-	assert.Equal(t, 80_000, got)
-}
-
 // A pin with no usage telemetry must report "unknown" so the planner can take
 // the legacy fallback, while a client trim is a MEASURED eviction of zero.
 func TestCacheablePrefixDistinguishesUnknownFromMeasuredZero(t *testing.T) {

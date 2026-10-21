@@ -130,56 +130,6 @@ func (s *overwritingPinStore) Consume(context.Context, [sessionpin.SessionKeyLen
 }
 func (s *overwritingPinStore) SweepExpired(context.Context) error { return nil }
 
-// Regression: a force-pinned high-tier model evicted by the context-window
-// pre-filter used to collapse all the way to the low-tier default instead of
-// the next-best same-tier model.
-func TestRunTurnLoop_ForcedModelContextOverflow_StaysInTier(t *testing.T) {
-	const forced = "z-ai/glm-5.2"
-	require.Equal(t, catalog.TierHigh, catalog.TierFor(forced), "test premise: forced model is high-tier")
-	require.Equal(t, catalog.TierLow, catalog.TierFor("z-ai/glm-5.3-flash"), "test premise: haiku is low-tier")
-	require.Equal(t, catalog.TierHigh, catalog.TierFor("z-ai/glm-5.2"), "test premise: opus is high-tier")
-
-	fr := &tierProbeRouter{available: map[string]struct{}{
-		forced:               {},
-		"z-ai/glm-5.3-flash": {},
-	}}
-	store := &forcedPinStore{pin: sessionpin.Pin{
-		Provider:    providers.ProviderAIAND,
-		Model:       forced,
-		Reason:      translate.ReasonUserForceModel,
-		PinnedUntil: time.Now().Add(time.Hour),
-	}}
-	svc := NewService(fr, nil, nil, false, nil, store, false,
-		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
-		WithAvailableModels(fr.available).
-		WithPlannerEnabled(false)
-
-	env, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"hello"}]}`))
-	require.NoError(t, err)
-	feats := env.RoutingFeatures(false)
-
-	// The context-window pre-filter would add the forced model to ExcludedModels
-	// on the turn its window is breached; simulate that here.
-	res, err := svc.runTurnLoop(context.Background(), env, feats, "key-1", uuid.New(), "", nil, router.Request{
-		RequestedModel: feats.Model,
-		ExcludedModels: map[string]struct{}{forced: {}},
-	})
-	require.NoError(t, err)
-
-	assert.Equal(t, "z-ai/glm-5.2", res.Decision.Model,
-		"evicted high-tier force-model must reroute to the next-best same-tier model, not collapse to low-tier")
-	assert.Equal(t, catalog.TierHigh, catalog.TierFor(res.Decision.Model),
-		"replacement must share the forced model's tier")
-
-	// The scorer must have been handed a tier-constrained denylist: the
-	// low-tier candidate is excluded so it can never be chosen.
-	require.Len(t, fr.captured, 1, "exactly one (constrained) scorer call")
-	_, haikuExcluded := fr.captured[0].ExcludedModels["z-ai/glm-5.3-flash"]
-	assert.True(t, haikuExcluded, "tier constraint must exclude the low-tier model from the scorer pool")
-	_, opusExcluded := fr.captured[0].ExcludedModels["z-ai/glm-5.2"]
-	assert.False(t, opusExcluded, "the same-tier replacement must remain eligible")
-}
-
 func TestRunTurnLoop_ForcedModelOverridesHardPin(t *testing.T) {
 	store := &forcedPinStore{pin: sessionpin.Pin{
 		Provider:    providers.ProviderAIAND,

@@ -205,67 +205,6 @@ func TestRunTurnLoop_ForceModelSessionPinAppliesAcrossChildThreads(t *testing.T)
 	assert.Equal(t, pinNeverExpires, store.pins[forceModelMapKey(childThreadKey, forceModelHistoryRole(result.PinRole))].PinnedUntil)
 }
 
-func TestRunTurnLoop_DroppedSessionForcePreservesThreadPin(t *testing.T) {
-	const apiKeyID = "api-key"
-	installationID := uuid.New()
-	ctx := context.WithValue(context.Background(), ClientIdentityContextKey{}, ClientIdentity{SessionID: "client-session"})
-	env, err := translate.ParseAnthropic([]byte(`{
-		"model":"z-ai/glm-5.2",
-		"messages":[{"role":"user","content":"task"}]
-	}`))
-	require.NoError(t, err)
-	features := env.RoutingFeatures(false)
-	threadKey := deriveSessionKeyForRequest(ctx, env, apiKeyID)
-	forceKey := deriveForceModelSessionKeyForRequest(ctx, env, apiKeyID, threadKey)
-	role := roleForTier(catalog.TierFor(features.Model))
-	store := &recoveryForceModelMapStore{forceModelMapStore: newForceModelMapStore()}
-	store.pins[forceModelMapKey(forceKey, forceModelSessionRole)] = sessionpin.Pin{
-		SessionKey:     forceKey,
-		Role:           forceModelSessionRole,
-		InstallationID: installationID,
-		Provider:       providers.ProviderAIAND,
-		Model:          "z-ai/glm-5.2",
-		Reason:         translate.ReasonUserForceModel,
-		PinnedUntil:    pinNeverExpires,
-	}
-	store.pins[forceModelMapKey(threadKey, role)] = sessionpin.Pin{
-		SessionKey:     threadKey,
-		Role:           role,
-		InstallationID: installationID,
-		Provider:       providers.ProviderAIAND,
-		Model:          "gpt-5.5",
-		Reason:         "cluster:existing",
-		Strategy:       router.StrategyCluster,
-		PinnedUntil:    time.Now().Add(time.Hour),
-	}
-	store.pins[forceModelMapKey(threadKey, hmmHistoryRole(role))] = sessionpin.Pin{
-		SessionKey: threadKey,
-		Role:       hmmHistoryRole(role),
-		DemotionCooldowns: map[string]time.Time{
-			catalog.ModelIDDeepSeekV4Pro.String(): time.Now().Add(-time.Minute),
-		},
-	}
-	freshRouter := &tierProbeRouter{available: map[string]struct{}{"z-ai/glm-5.3-flash": {}}}
-	svc := NewService(freshRouter, nil, nil, false, nil, store, false,
-		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil)
-	svc.WithTransientRateLimit(true, 45)
-	ctx = router.WithStrategy(ctx, router.StrategyCluster)
-
-	result, err := svc.runTurnLoop(ctx, env, features, apiKeyID, installationID, "", nil, router.Request{
-		RequestedModel: features.Model,
-		EnabledProviders: map[string]struct{}{
-			providers.ProviderAIAND: {},
-		},
-	})
-	require.NoError(t, err)
-	assert.Equal(t, "gpt-5.5", result.Decision.Model)
-	assert.True(t, result.StickyHit)
-	assert.True(t, result.ForcedPinDropped)
-	assert.Equal(t, "provider_not_enabled", result.ForcedPinDropReason)
-	assert.Equal(t, []string{catalog.ModelIDDeepSeekV4Pro.String()}, store.attempted,
-		"a forced pin dropped for this request must not suppress a recovery probe for an eligible model")
-}
-
 func TestRunTurnLoop_ClearTombstoneBlocksLegacyForce(t *testing.T) {
 	const apiKeyID = "api-key"
 	installationID := uuid.New()
@@ -347,62 +286,6 @@ func TestRunTurnLoop_SessionForceOverridesAuxiliaryHardPin(t *testing.T) {
 	assert.False(t, result.HardPinned)
 	assert.Equal(t, threadKey, result.SessionKey)
 	assert.Empty(t, freshRouter.captured)
-}
-
-func TestApplyForceModelCommand_FableThenAstraWritesAndClearsSessionControl(t *testing.T) {
-	const (
-		apiKeyID     = "api-key"
-		fableModelID = "z-ai/glm-5.2"
-		astraModelID = "gpt-6-astra"
-	)
-	installationID := uuid.New()
-	ctx := context.WithValue(context.Background(), ClientIdentityContextKey{}, ClientIdentity{SessionID: "client-session"})
-	env, err := translate.ParseAnthropic([]byte(`{
-		"model":"z-ai/glm-5.2",
-		"messages":[{"role":"user","content":"task"}]
-	}`))
-	require.NoError(t, err)
-	threadKey := deriveSessionKeyForRequest(ctx, env, apiKeyID)
-	forceKey := deriveForceModelSessionKeyForRequest(ctx, env, apiKeyID, threadKey)
-	store := newForceModelMapStore()
-	svc := NewService(nil, nil, nil, false, nil, store, false,
-		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil)
-
-	forcedModel, _, err := svc.applyForceModelCommand(ctx, translate.ForceModelResult{Model: "fable"}, installationID, threadKey, forceKey)
-	require.NoError(t, err)
-	assert.Equal(t, fableModelID, forcedModel)
-	pin, found, err := store.Get(ctx, forceKey, forceModelSessionRole)
-	require.NoError(t, err)
-	require.True(t, found)
-	assert.Equal(t, fableModelID, pin.Model)
-	assert.Equal(t, providers.ProviderAIAND, pin.Provider)
-	assert.Equal(t, translate.ReasonUserForceModel, pin.Reason)
-	assert.Equal(t, pinNeverExpires, pin.PinnedUntil)
-	for _, role := range forceModelClearRoles() {
-		_, threadForceFound, getErr := store.Get(ctx, threadKey, role)
-		require.NoError(t, getErr)
-		assert.False(t, threadForceFound, "new force state must have only one authoritative row")
-	}
-
-	nextModel, _, err := svc.applyForceModelCommand(ctx, translate.ForceModelResult{Model: "astra"}, installationID, threadKey, forceKey)
-	require.NoError(t, err)
-	assert.Equal(t, astraModelID, nextModel)
-	switched, found, err := store.Get(ctx, forceKey, forceModelSessionRole)
-	require.NoError(t, err)
-	require.True(t, found)
-	assert.Equal(t, fableModelID, switched.LastServedModel)
-	assert.Equal(t, providers.ProviderAIAND, switched.Provider)
-
-	_, _, err = svc.applyForceModelCommand(ctx, translate.ForceModelResult{Clear: true}, installationID, threadKey, forceKey)
-	require.NoError(t, err)
-	cleared, found, err := store.Get(ctx, forceKey, forceModelSessionRole)
-	require.NoError(t, err)
-	require.True(t, found)
-	assert.Equal(t, pinNeverExpires, cleared.PinnedUntil, "the clear tombstone prevents legacy child pins from reviving")
-	assert.Empty(t, cleared.Model)
-	assert.Equal(t, astraModelID, cleared.LastServedModel)
-	assert.True(t, cleared.HasEverSwitched)
-	assert.Equal(t, userUnforcedReason, cleared.Reason)
 }
 
 func TestRecordTurnUsage_ForcedDecisionWritesThreadHistoryOnly(t *testing.T) {

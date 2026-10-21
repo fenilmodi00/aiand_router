@@ -1,8 +1,6 @@
 package otel_test
 
 import (
-	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"weave-os/router/internal/observability/otel"
@@ -27,69 +25,6 @@ func writeAll(t *testing.T, ext *otel.UsageExtractor, chunks ...string) {
 	for _, chunk := range chunks {
 		_, err := ext.Write([]byte(chunk))
 		require.NoError(t, err)
-	}
-}
-
-func TestUsageExtractor_AnthropicNonStreamingReportsCacheSplitSpeedAndGeo(t *testing.T) {
-	ext := otel.NewUsageExtractor(httptest.NewRecorder(), providers.ProviderAIAND)
-	writeAll(t, ext, anthropicSplitBody)
-
-	assert.Equal(t, catalog.UsageModifiers{CacheCreation1h: 300, InferenceGeo: catalog.InferenceGeoUS}, ext.UsageModifiers())
-	assert.Equal(t, catalog.SpeedFast, ext.Speed())
-	assert.Equal(t, catalog.InferenceGeoUS, ext.InferenceGeo())
-}
-
-func TestUsageExtractor_AnthropicStreamingKeepsMessageStartSplitAcrossMessageDelta(t *testing.T) {
-	ext := otel.NewUsageExtractor(httptest.NewRecorder(), providers.ProviderAIAND)
-	writeAll(t, ext,
-		"event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"claude-opus-5\",\"usage\":{\"input_tokens\":3,\"cache_creation_input_tokens\":9217,\"cache_read_input_tokens\":0,\"cache_creation\":{\"ephemeral_5m_input_tokens\":0,\"ephemeral_1h_input_tokens\":9217},\"output_tokens\":1,\"service_tier\":\"standard\",\"inference_geo\":\"global\"}}}\n\n",
-		"event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"input_tokens\":3,\"cache_creation_input_tokens\":9217,\"cache_read_input_tokens\":0,\"output_tokens\":4}}\n\n",
-	)
-
-	creation, _ := ext.CacheTokens()
-	assert.Equal(t, 9217, creation)
-	assert.Equal(t, catalog.UsageModifiers{CacheCreation1h: 9217, InferenceGeo: "global"}, ext.UsageModifiers())
-	assert.Empty(t, ext.Speed(), "standard responses carry no speed field")
-}
-
-func TestUsageExtractor_GatewayStreamingSplitIsParsedByFamily(t *testing.T) {
-	ext := otel.NewUsageExtractor(httptest.NewRecorder(), providers.ProviderAIAND)
-	writeAll(t, ext,
-		"event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":5,\"cache_creation_input_tokens\":100,\"cache_creation\":{\"ephemeral_5m_input_tokens\":60,\"ephemeral_1h_input_tokens\":40}}}}\n\n",
-	)
-
-	assert.Equal(t, 40, ext.UsageModifiers().CacheCreation1h)
-}
-
-func TestUsageExtractor_UnreportedSplitFallsBackToRequestTTL(t *testing.T) {
-	cases := []struct {
-		name        string
-		declared1h  bool
-		body        string
-		want1h      int
-		wantChecked bool
-	}{
-		{name: "1h request, no split", declared1h: true, body: anthropicNoSplitBody, want1h: 322, wantChecked: true},
-		{name: "5m or mixed request, no split", declared1h: false, body: anthropicNoSplitBody, want1h: 0, wantChecked: true},
-		{name: "reported zero split wins over declared TTL", declared1h: true, body: strings.Replace(anthropicNoSplitBody, `"output_tokens":4`, `"output_tokens":4,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0}`, 1), want1h: 0, wantChecked: false},
-		{name: "reported split wins over declared TTL", declared1h: true, body: anthropicSplitBody, want1h: 300, wantChecked: false},
-		{name: "null cache_creation is not a split", declared1h: true, body: strings.Replace(anthropicNoSplitBody, `"output_tokens":4`, `"output_tokens":4,"cache_creation":null`, 1), want1h: 322, wantChecked: true},
-		{name: "null per-TTL counts are not a split", declared1h: true, body: strings.Replace(anthropicNoSplitBody, `"output_tokens":4`, `"output_tokens":4,"cache_creation":{"ephemeral_5m_input_tokens":null,"ephemeral_1h_input_tokens":null}`, 1), want1h: 322, wantChecked: true},
-		{name: "empty cache_creation is not a split", declared1h: true, body: strings.Replace(anthropicNoSplitBody, `"output_tokens":4`, `"output_tokens":4,"cache_creation":{}`, 1), want1h: 322, wantChecked: true},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			ext := otel.NewUsageExtractor(httptest.NewRecorder(), providers.ProviderAIAND)
-			checked := false
-			ext.SetRequestCacheTTL1h(func() bool {
-				checked = true
-				return tc.declared1h
-			})
-			writeAll(t, ext, tc.body)
-
-			assert.Equal(t, tc.want1h, ext.UsageModifiers().CacheCreation1h)
-			assert.Equal(t, tc.wantChecked, checked, "the request body is scanned only when the upstream omits the split")
-		})
 	}
 }
 

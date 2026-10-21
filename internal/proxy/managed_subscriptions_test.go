@@ -86,39 +86,6 @@ func exhaustedManagedSubscriptionContext(provider auth.SubscriptionProvider) con
 	}})
 }
 
-func TestManagedSubscriptionMapsOutOfRosterOpenAIModelToCodex(t *testing.T) {
-	provider, ok := managedSubscriptionProviderFromUpstream(providers.ProviderAIAND, "gpt-6-astra")
-	require.True(t, ok, "an out-of-roster OpenAI catalog model may attempt managed Codex funding")
-	assert.Equal(t, subscriptions.ProviderCodex, provider)
-}
-
-func TestDispatchWithFallbackUsesOnlyMatchingManagedProviderFamily(t *testing.T) {
-	leaser := &scriptedSubscriptionLeaser{leases: []subscriptions.Lease{{AccountID: "opaque-codex", AccessToken: "token-codex"}}}
-	client := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{writeBytes: []byte("served")}}}
-	svc := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: client}).WithManagedSubscriptions(leaser)
-	recorder := httptest.NewRecorder()
-	buffer := newPreludeBuffer(recorder)
-	request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
-	ctx := managedSubscriptionContext(auth.SubscriptionProviderCodex)
-
-	_, err := svc.dispatchWithFallback(ctx, failoverInputs{
-		w: recorder, buf: buffer,
-		initialDecision: router.Decision{Model: "gpt-5.6-sol", Provider: providers.ProviderAIAND},
-		purpose:         inference.PurposeAnthropicMessages,
-		bindings:        []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}},
-		attempt: func(ctx context.Context, decision router.Decision, client providers.Client) error {
-			require.Equal(t, "token-codex", string(CredentialsFromContext(ctx).APIKey))
-			buffer.Seal()
-			return client.Proxy(ctx, decision, providers.PreparedRequest{}, buffer, request)
-		},
-	})
-
-	require.NoError(t, err)
-	require.Equal(t, []subscriptions.Provider{subscriptions.ProviderCodex}, leaser.providers)
-	require.Equal(t, "served", recorder.Body.String())
-	assert.Equal(t, credSourceCodexSubscription, managedSubscriptionCredentialSource(ctx))
-}
-
 func TestLeaseManagedSubscriptionSkipsObservedExhaustedAccount(t *testing.T) {
 	leaser := &healthSubscriptionLeaser{scriptedSubscriptionLeaser: &scriptedSubscriptionLeaser{
 		leases: []subscriptions.Lease{

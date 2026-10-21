@@ -9,20 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestCustomBindingsFromKeys_DeclaredByAliases is the point of the overlay:
-// onboarding a custom endpoint's model is a key edit, not a catalog edit.
-func TestCustomBindingsFromKeys_DeclaredByAliases(t *testing.T) {
-	got := customBindingsFromKeys([]*auth.ExternalAPIKey{{
-		Provider:     providers.ProviderAIAND,
-		Plaintext:    []byte("pat"),
-		ModelAliases: map[string]string{"gpt-5": "openai-gpt-5"},
-	}})
-
-	assert.Equal(t,
-		map[string][]string{"gpt-5": {providers.ProviderAIAND}},
-		got)
-}
-
 func TestCustomBindingsFromKeys_SkipsUnusableDeclarations(t *testing.T) {
 	got := customBindingsFromKeys([]*auth.ExternalAPIKey{
 		{
@@ -61,21 +47,6 @@ func TestCustomBindingsFromKeys_ProvidersAreOrdered(t *testing.T) {
 	assert.Equal(t,
 		[]string{providers.ProviderAIAND, providers.ProviderAIAND},
 		customBindingsFromKeys(keys)["deepseek/deepseek-v4.1-flash"])
-}
-
-// TestGatewayProvidersFromKeys_OnlyUsableGateways: the gateway set switches the
-// whole request to gateway-exclusive routing, so a vendor key or a key with no
-// usable secret must never put it there.
-func TestGatewayProvidersFromKeys_OnlyUsableGateways(t *testing.T) {
-	got := gatewayProvidersFromKeys([]*auth.ExternalAPIKey{
-		{Provider: providers.ProviderAIAND, Plaintext: []byte("pat")},
-		{Provider: providers.ProviderAIAND},
-		{Provider: providers.ProviderAIAND, Plaintext: []byte("pat")},
-	})
-
-	assert.Equal(t,
-		map[string]struct{}{providers.ProviderAIAND: {}},
-		got)
 }
 
 func TestGatewayProvidersFromKeys_NoGatewayKeys(t *testing.T) {

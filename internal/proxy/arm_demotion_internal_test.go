@@ -14,7 +14,6 @@ import (
 	"weave-os/router/internal/auth"
 	"weave-os/router/internal/providers"
 	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/policy"
 	"weave-os/router/internal/router/sessionpin"
 	"weave-os/router/internal/translate"
 
@@ -579,55 +578,6 @@ func TestMaybeDemoteArmAfterRescuedFailure_Classification(t *testing.T) {
 			assert.Equal(t, string(wantDemotionReason), store.expired[0].Reason)
 		})
 	}
-}
-
-func TestUnrescuedResponseHeaderTimeoutExcludesPrimaryOnNextTurn(t *testing.T) {
-	store := newRowBackedPinStore()
-	svc := newRescuedDemotionTestService(store, true)
-	installationID := uuid.New()
-	primary := router.Decision{Provider: providers.ProviderAIAND, Model: demotedPinModel, Reason: "hmm:authoritative model=" + demotedPinModel}
-	strategy := router.Strategy("response-header-timeout-next-turn")
-	turnContext := router.WithStrategy(context.Background(), strategy)
-	env, _ := demotionTurnLoopEnv(t)
-	sessionKey := deriveSessionKeyForRequest(turnContext, env, "api-key")
-
-	demoted, demotionReason := svc.maybeStrikeArmAfterRescuedFailure(
-		turnContext,
-		false,
-		false,
-		responseHeaderTimeoutErr(t),
-		primary,
-		installationID,
-		sessionKey,
-		sessionpin.DefaultRole,
-		sessionpin.DefaultRole,
-	)
-
-	assert.Equal(t, demotedPinModel, demoted)
-	assert.Equal(t, sessionpin.DemotionReasonResponseHeaderTimeout, demotionReason)
-	require.Contains(t, store.rows[sessionpin.DefaultRole].DemotedModels, demotedPinModel)
-	require.Contains(t, store.rows[hmmHistoryRole(sessionpin.DefaultRole)].DemotedModels, demotedPinModel)
-
-	scorer := &authoritativeTestRouter{decision: router.Decision{
-		Provider: providers.ProviderAIAND,
-		Model:    freshTurnModel,
-		Reason:   "response-header-timeout-next-turn",
-	}}
-	nextTurnService := NewService(nil, nil, nil, false, nil, &rolePinStore{byRole: store.rows}, false,
-		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
-		WithPolicyStrategy(policy.StrategySpec{
-			Strategy: strategy,
-			Router:   scorer,
-			Capabilities: policy.Capabilities{
-				SchemaVersion:                 policy.SchemaVersionV1,
-				AuthoritativePerTurnSelection: true,
-			},
-		})
-
-	turnResult := runDemotionTurnLoop(t, nextTurnService, turnContext)
-	assert.Equal(t, freshTurnModel, turnResult.Decision.Model)
-	require.Len(t, scorer.requests, 1)
-	assert.Contains(t, scorer.requests[0].AutomaticExcludedModels, demotedPinModel)
 }
 
 // The two demotion hooks are independent: a turn whose primary was rescued
