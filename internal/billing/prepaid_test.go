@@ -76,17 +76,21 @@ func TestOrganizationBookRejectsCrossedOwnerWhenUsedDirectly(t *testing.T) {
 	assert.Equal(t, int64(5_000_000), repo.balanceMicros)
 }
 
+// An owner kind that validates but has no wired book fails closed with
+// ErrOwnerKindUnsupported instead of reaching another owner's funds. The
+// internal-test book is registered only on an opt-in deployment, so a plain
+// service leaves that kind without a book.
 func TestPrepaidUnknownOwnerKindUnsupported(t *testing.T) {
 	t.Parallel()
 
 	repo := &fakeRepo{balanceMicros: 5_000_000, balanceRowExists: true}
 	svc := billing.NewService(repo)
 
-	_, err := svc.PrepaidBalance(context.Background(), billing.Owner{Kind: "account", OrganizationID: "org_1"})
+	_, err := svc.PrepaidBalance(context.Background(), billing.InternalTestOwner("subject-1"))
 	assert.ErrorIs(t, err, billing.ErrOwnerKindUnsupported)
 
 	_, err = svc.DebitPrepaid(context.Background(), billing.PrepaidDebit{
-		Owner:          billing.Owner{Kind: "account", OrganizationID: "org_1"},
+		Owner:          billing.InternalTestOwner("subject-1"),
 		DeltaUsdMicros: -1_000_000,
 		EntryType:      billing.EntryTypeInference,
 	})
