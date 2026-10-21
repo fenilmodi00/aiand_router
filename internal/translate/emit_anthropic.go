@@ -107,7 +107,7 @@ func deriveAnthropicHeaders(in http.Header, opts EmitOptions, body []byte) http.
 		h.Set("anthropic-version", "2023-06-01")
 	}
 	beta := filterBetaHeader(in.Get("anthropic-beta"))
-	}
+
 	if containsAnthropicSystemOnlyContentBlocks(body) {
 		beta = ensureBetaToken(beta, anthropicMidConversationToolChangesBeta)
 	}
