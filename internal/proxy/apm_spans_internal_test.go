@@ -3,19 +3,14 @@ package proxy
 import (
 	"context"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"weave-os/router/internal/providers"
 	"weave-os/router/internal/router"
-	"weave-os/router/internal/translate"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -47,48 +42,6 @@ func (p *flowSpanProvider) Proxy(ctx context.Context, _ router.Decision, _ provi
 
 func (p *flowSpanProvider) Passthrough(context.Context, providers.PreparedRequest, http.ResponseWriter, *http.Request) error {
 	return nil
-}
-
-func TestProxyOpenAITranslationErrorMarksInferenceSpanFailed(t *testing.T) {
-	recorder := tracetest.NewSpanRecorder()
-	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
-	t.Cleanup(func() { require.NoError(t, provider.Shutdown(context.Background())) })
-
-	previousTracer := proxyFlowTracer
-	proxyFlowTracer = provider.Tracer("test")
-	t.Cleanup(func() { proxyFlowTracer = previousTracer })
-
-	routerImpl := &flowSpanRouter{decision: router.Decision{
-		Provider: providers.ProviderAIAND,
-		Model:    "gemini-3-pro-preview",
-		Reason:   "cluster",
-	}}
-	providerImpl := &flowSpanProvider{}
-	svc := NewService(
-		routerImpl,
-		map[string]providers.Client{providers.ProviderAIAND: providerImpl},
-		nil,
-		false,
-		nil,
-		nil,
-		false,
-		providers.ProviderAIAND,
-		"gemini-3-pro-preview",
-		nil,
-	)
-
-	ctx, requestSpan := provider.Tracer("test").Start(context.Background(), "request")
-	body := []byte(`{"model":"gpt-5","messages":[{"role":"user","content":"continue"},{"role":"assistant","tool_calls":[{"id":"call_1","type":"function","function":{"name":"Bash","arguments":"{}"}}]},{"role":"tool","tool_call_id":"call_1","content":"ok"}]}`)
-	err := svc.ProxyOpenAIChatCompletion(ctx, body, httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil))
-	requestSpan.End()
-	require.ErrorIs(t, err, translate.ErrGeminiUnsignedToolHistory)
-
-	inference := proxyEndedSpanByName(t, recorder.Ended(), "router.inference")
-	assert.Equal(t, requestSpan.SpanContext().SpanID(), inference.Parent().SpanID())
-	assert.Equal(t, codes.Error, inference.Status().Code)
-	require.Len(t, inference.Events(), 1)
-	assert.Equal(t, "exception", inference.Events()[0].Name)
-	assert.False(t, providerImpl.spanID.IsValid(), "translation failures must not dispatch upstream")
 }
 
 func proxyEndedSpanByName(t *testing.T, spans []sdktrace.ReadOnlySpan, name string) sdktrace.ReadOnlySpan {

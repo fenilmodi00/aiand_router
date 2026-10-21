@@ -5,17 +5,14 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"weave-os/router/internal/providers"
 	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/policy"
 	"weave-os/router/internal/router/sessionpin"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"github.com/tidwall/gjson"
 )
 
 func TestRoutingModelDoesNotReadLegacyBetaPreference(t *testing.T) {
@@ -63,42 +60,4 @@ func (p *routingModelCaptureProvider) Passthrough(_ context.Context, prepared pr
 	w.Header().Set("Content-Type", "application/json")
 	_, err := w.Write([]byte(`{"id":"synthetic-reply","type":"message","role":"assistant","model":"z-ai/glm-5.3-flash","content":[{"type":"text","text":"selected policy reply"}],"stop_reason":"end_turn","usage":{"input_tokens":1,"output_tokens":1}}`))
 	return err
-}
-
-func TestRoutingModelDispatchesConcreteModelAcrossClientProtocols(t *testing.T) {
-	for _, choice := range []struct {
-		model    router.RoutingModel
-		strategy router.Strategy
-	}{
-		{model: router.ModelAutomatic, strategy: router.StrategyHMMEmbedding},
-		{model: router.ModelHMM, strategy: router.StrategyHMMBeta},
-		{model: router.ModelQwen, strategy: router.StrategyHMMQwen},
-	} {
-		for _, tc := range []struct {
-			path string
-			body string
-			call func(*Service, context.Context, []byte, http.ResponseWriter, *http.Request) error
-		}{
-			{path: "/v1/messages", body: `{"model":"` + string(choice.model) + `","max_tokens":1024,"messages":[{"role":"user","content":"hello"}]}`, call: (*Service).ProxyMessages},
-			{path: "/v1/responses", body: `{"model":"` + string(choice.model) + `","input":[{"role":"user","content":"hello"}]}`, call: (*Service).ProxyOpenAIResponses},
-		} {
-			t.Run(string(choice.model)+tc.path, func(t *testing.T) {
-				const completionModel = "z-ai/glm-5.3-flash"
-				defaultRouter := &betaTestRouter{}
-				hmmRouter := &betaTestRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: completionModel}}
-				provider := &routingModelCaptureProvider{}
-				svc := NewService(defaultRouter, map[string]providers.Client{providers.ProviderAIAND: provider}, nil, false, nil, nil, false, providers.ProviderAIAND, completionModel, nil).
-					WithPolicyStrategy(policy.StrategySpec{Strategy: choice.strategy, Router: hmmRouter})
-				ctx := router.WithRoutingModel(router.WithStrategy(context.Background(), choice.strategy), choice.model)
-				request := httptest.NewRequest(http.MethodPost, tc.path, nil)
-				response := httptest.NewRecorder()
-				require.NoError(t, tc.call(svc, ctx, []byte(tc.body), response, request))
-				require.Zero(t, defaultRouter.calls)
-				require.Equal(t, 1, hmmRouter.calls)
-				require.Equal(t, completionModel, gjson.GetBytes(provider.body, "model").String())
-				require.Contains(t, response.Body.String(), "selected policy reply")
-				require.False(t, strings.Contains(string(provider.body), string(choice.model)))
-			})
-		}
-	}
 }

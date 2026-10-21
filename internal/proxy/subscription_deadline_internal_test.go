@@ -65,8 +65,9 @@ func TestManagedSubscriptionSurvivesSlowFirstOutput(t *testing.T) {
 		upstream string
 		model    string
 	}{
+		// The single upstream serves the Claude subscription pool; the Codex
+		// pool has no native upstream to lease against.
 		{"claude", auth.SubscriptionProviderClaude, providers.ProviderAIAND, "z-ai/glm-5.2"},
-		{"codex", auth.SubscriptionProviderCodex, providers.ProviderAIAND, codexCoveredModel},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {

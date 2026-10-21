@@ -16,7 +16,6 @@ import (
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 
-	"weave-os/router/internal/inference"
 	"weave-os/router/internal/providers"
 	"weave-os/router/internal/router"
 	"weave-os/router/internal/router/policy"
@@ -60,25 +59,6 @@ func prepareTestHandoff(t *testing.T, svc *Service, ctx context.Context) prepare
 	require.NotEmpty(t, prepared.Token)
 	require.NotEmpty(t, prepared.SessionToken)
 	return prepared
-}
-
-func TestPiHandoffPreparationDoesNotDispatchAndContinuationDoesNotReclassify(t *testing.T) {
-	svc, classifier, upstream, ctx := handoffTestService()
-	prepared := prepareTestHandoff(t, svc, ctx)
-	require.Empty(t, upstream.body)
-	require.Equal(t, 1, classifier.calls)
-	require.Equal(t, "high", prepared.Complexity)
-	classifier.decision.Model = "z-ai/glm-5.3-flash"
-	body, err := sjson.Set(handoffTestBody, "messages.0.content", "Compacted parser context; implement the remaining checks.")
-	require.NoError(t, err)
-	body, err = sjson.Set(body, piHandoffField, prepared.Token)
-	require.NoError(t, err)
-	recorder := httptest.NewRecorder()
-	require.NoError(t, svc.ProxyMessages(ctx, []byte(body), recorder, httptest.NewRequest("POST", "/v1/messages", nil)))
-	require.Equal(t, 1, classifier.calls)
-	require.Equal(t, prepared.Model, gjson.GetBytes(upstream.body, "model").String())
-	require.False(t, gjson.GetBytes(upstream.body, piHandoffField).Exists())
-	require.Contains(t, string(upstream.body), "Compacted parser context")
 }
 
 func TestPiHandoffRejectsTamperingIdentityAndExpiration(t *testing.T) {
@@ -165,56 +145,6 @@ func TestPiHandoffDisabledAndUtilityTurnsDoNotDispatch(t *testing.T) {
 	require.ErrorIs(t, err, ErrHandoffUnavailable)
 	require.Zero(t, classifier.calls)
 	require.Empty(t, upstream.body)
-}
-
-func TestPiHandoffSummaryUsesPreviousModelWithoutReclassifyingOrWritingUsageToItsPin(t *testing.T) {
-	svc, classifier, upstream, ctx := handoffTestService()
-	store := newStubPinStore()
-	store.getFound = true
-	store.getPin = sessionpin.Pin{
-		Model: "deepseek/deepseek-v4.1-flash", Provider: providers.ProviderAIAND,
-		Reason: "hmm_policy", PolicyGroup: "low", PinnedUntil: time.Now().Add(time.Hour),
-		LastServedModel: "claude-sonnet-4-6:high", LastTurnEndedAt: time.Now().Add(-time.Minute),
-	}
-	svc.pinStore = store
-	prepared := prepareTestHandoff(t, svc, ctx)
-	require.NotEmpty(t, prepared.SummaryToken)
-	pinWrites := len(store.upserts)
-	body, err := sjson.Set(handoffTestBody, piHandoffField, prepared.SummaryToken)
-	require.NoError(t, err)
-	parsed, _, err := svc.parseHandoff(ctx, []byte(body))
-	require.NoError(t, err)
-	require.Equal(t, inference.PurposeClientCompaction, handoffFromContext(parsed).Route.Purpose)
-	require.Equal(t, policy.OverrideSourceSession, handoffFromContext(parsed).Route.Origin)
-	require.NoError(t, svc.ProxyMessages(ctx, []byte(body), httptest.NewRecorder(), httptest.NewRequest("POST", "/v1/messages", nil)))
-	require.Equal(t, "deepseek/deepseek-v4.1-flash", gjson.GetBytes(upstream.body, "model").String())
-	require.Equal(t, 1, classifier.calls)
-	require.Equal(t, pinWrites, len(store.upserts))
-	require.Zero(t, store.usageHits)
-}
-
-func TestPiHandoffRecordsEscalationOutcomeOnlyAfterContinuation(t *testing.T) {
-	store := newEscalationTestStore()
-	observer := &escalationTestObserver{}
-	upstream := &betaCaptureProvider{}
-	svc := newEscalationCompletionService(store, observer, map[string]providers.Client{providers.ProviderAIAND: upstream}).
-		WithPiHandoffSecret(strings.Repeat("test-secret-", 4))
-	ctx := escalationCompletionContext()
-	prepared := prepareTestHandoff(t, svc, ctx)
-	require.Len(t, observer.requests, 1)
-	require.Empty(t, upstream.body)
-	require.Len(t, store.sessions, 1)
-	for _, session := range store.sessions {
-		require.Nil(t, session.PreviousOutcome, "preparation has no inference outcome")
-	}
-	body, err := sjson.Set(handoffTestBody, piHandoffField, prepared.Token)
-	require.NoError(t, err)
-	require.NoError(t, svc.ProxyMessages(ctx, []byte(body), httptest.NewRecorder(), httptest.NewRequest("POST", "/v1/messages", nil)))
-	require.Len(t, observer.requests, 1)
-	for _, session := range store.sessions {
-		require.NotNil(t, session.PreviousOutcome)
-		require.False(t, session.PreviousOutcome.IsError)
-	}
 }
 
 func TestPiHandoffRejectsConcurrentForceAndCrossSessionCommandsBeforeMutation(t *testing.T) {

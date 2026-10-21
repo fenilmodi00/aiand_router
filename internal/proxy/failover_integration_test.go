@@ -286,7 +286,9 @@ func TestProxyMessages_RoutingMarkerWaitsForProviderOutput(t *testing.T) {
 				proxyResponse: func(w http.ResponseWriter) {
 					close(providerStarted)
 					<-releaseProvider
-					_, _ = w.Write([]byte("event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"))
+					// The upstream is the OpenAI-compatible surface, so it answers
+					// with a chat/completions body the translator reads.
+					_, _ = w.Write([]byte(`{"id":"chatcmpl_1","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1}}`))
 				},
 			},
 		},

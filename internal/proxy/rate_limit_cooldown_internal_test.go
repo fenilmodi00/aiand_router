@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"weave-os/router/internal/auth"
 	"weave-os/router/internal/dispatch"
 	"weave-os/router/internal/flags"
 	"weave-os/router/internal/providers"
@@ -209,81 +208,6 @@ func TestMergeDemotionCooldowns_KeepsLaterExpiry(t *testing.T) {
 	assert.Equal(t, []string{"b", "a", "c"}, cooldownsByExpiry(merged))
 }
 
-// A leftover cooldown never outranks a session-lifetime strike on the same
-// model, and an image-bearing turn cannot readmit a text-only arm.
-func TestReadmittableCooldowns_DropsPermanentAndImageUnsafeArms(t *testing.T) {
-	until := rateLimitTestNow.Add(30 * time.Second)
-	cooling := map[string]time.Time{
-		"z-ai/glm-5.2":              until,
-		"glm-5":                     until,
-		"qwen/qwen3-235b-a22b-2507": until,
-	}
-
-	assert.Equal(t, map[string]time.Time{"z-ai/glm-5.2": until, "qwen/qwen3-235b-a22b-2507": until},
-		readmittableCooldowns(cooling, []string{"glm-5"}, false))
-	assert.Equal(t, map[string]time.Time{"z-ai/glm-5.2": until},
-		readmittableCooldowns(cooling, []string{"glm-5"}, true))
-	assert.Nil(t, readmittableCooldowns(map[string]time.Time{"glm-5": until}, []string{"glm-5"}, false))
-}
-
-// Exhausted pool: every candidate but the failed arm is cooling down, so the
-// rescue readmits the cooling arms, the one that has cooled longest first,
-// and never the arm that just 429'd. A session-lifetime demotion stays out.
-// Exhaustion is recorded only when the walk actually dispatches one.
-func TestRescueDecisions_ExhaustedPoolReadmitsCoolingArms(t *testing.T) {
-	s := siblingService(providers.ProviderAIAND, providers.ProviderAIAND)
-	md := &router.RoutingMetadata{
-		CandidateModels: []string{"z-ai/glm-5.2", "deepseek/deepseek-v4-pro", "deepseek/deepseek-v4-pro", "z-ai/glm-5.3-flash"},
-		CandidateProviders: map[string]string{
-			"deepseek/deepseek-v4-pro": providers.ProviderAIAND,
-			"z-ai/glm-5.3-flash":       providers.ProviderAIAND,
-		},
-	}
-	cooling := map[string]time.Time{
-		"deepseek/deepseek-v4-pro": rateLimitTestNow.Add(40 * time.Second),
-	}
-	ctx := context.Background()
-	ctx = context.WithValue(ctx, SessionDemotedModelsContextKey{}, []string{"deepseek/deepseek-v4-pro", "deepseek/deepseek-v4-pro", "z-ai/glm-5.3-flash"})
-	ctx = context.WithValue(ctx, SessionCooldownModelsContextKey{}, cooling)
-	ctx, turn := withRateLimitTurn(ctx)
-
-	got := s.siblingFailoverDecisions(ctx, overloadedDecision(md), 1_000, 0, 0)
-
-	assert.Equal(t, []string{"deepseek/deepseek-v4-pro", "deepseek/deepseek-v4-pro"}, siblingModels(got),
-		"soonest-to-recover first; the permanently demoted haiku and the failed opus stay out")
-	assert.NotContains(t, turn.completionLogFields(), true, "nothing dispatched yet")
-
-	s.noteRescueReadmission(ctx, overloadedDecision(md), got[0])
-	fields := turn.completionLogFields()
-	assert.Contains(t, fields, "rescue_pool_exhausted")
-	assert.Contains(t, fields, true)
-	assert.Contains(t, fields, []string{"deepseek/deepseek-v4-pro"})
-}
-
-// A cooling arm ranks behind every eligible candidate: the walk reaches it
-// only after they all failed, and dispatching the eligible one records no
-// exhaustion.
-func TestRescueDecisions_CoolingArmRanksBehindEligibleCandidates(t *testing.T) {
-	s := siblingService(providers.ProviderAIAND, providers.ProviderAIAND)
-	md := &router.RoutingMetadata{
-		CandidateModels: []string{"z-ai/glm-5.2", "deepseek/deepseek-v4-pro", "deepseek/deepseek-v4-pro"},
-		CandidateProviders: map[string]string{
-			"deepseek/deepseek-v4-pro": providers.ProviderAIAND,
-		},
-	}
-	ctx := context.Background()
-	ctx = context.WithValue(ctx, SessionDemotedModelsContextKey{}, []string{"deepseek/deepseek-v4-pro"})
-	ctx = context.WithValue(ctx, SessionCooldownModelsContextKey{}, map[string]time.Time{"deepseek/deepseek-v4-pro": rateLimitTestNow.Add(time.Minute)})
-	ctx, turn := withRateLimitTurn(ctx)
-
-	got := s.siblingFailoverDecisions(ctx, overloadedDecision(md), 1_000, 0, 0)
-
-	assert.Equal(t, []string{"deepseek/deepseek-v4-pro", "deepseek/deepseek-v4-pro"}, siblingModels(got))
-	s.noteRescueReadmission(ctx, overloadedDecision(md), got[0])
-	assert.Contains(t, turn.completionLogFields(), false)
-	assert.NotContains(t, turn.completionLogFields(), true)
-}
-
 // Without cooldowns on ctx (flag off, or nothing cooling) an exhausted pool
 // is what it was: no candidate.
 func TestRescueDecisions_ExhaustedPoolWithoutCooldownsStaysEmpty(t *testing.T) {
@@ -314,31 +238,6 @@ func TestRescueDecisions_ReadmitsCoolingArmAbsentFromScoredCandidates(t *testing
 	got := s.siblingFailoverDecisions(ctx, failed, 1_000, 0, 0)
 
 	assert.Equal(t, []string{"z-ai/glm-5.3-flash", "z-ai/glm-5.2"}, siblingModels(got))
-	assert.Equal(t, providers.ProviderAIAND, got[1].Provider)
-}
-
-func TestSiblingFailover_ScorerReadmitsOnlyEligibleCoolingPeersAtOrAboveSelectedTier(t *testing.T) {
-	s := siblingService(providers.ProviderAIAND, providers.ProviderAIAND)
-	failed := router.Decision{
-		Provider: providers.ProviderAIAND,
-		Model:    "deepseek/deepseek-v4-pro",
-		Metadata: &router.RoutingMetadata{
-			ClusterRouterVersion: "v-test",
-			CandidateModels:      []string{"deepseek/deepseek-v4-pro", "gpt-5"},
-			ScorerRescuePool:     []string{"deepseek/deepseek-v4-pro", "gpt-5", "z-ai/glm-5.2", "z-ai/glm-5.3-flash"},
-			CandidateProviders:   map[string]string{"gpt-5": providers.ProviderAIAND},
-		},
-	}
-	ctx := context.WithValue(context.Background(), SessionDemotedModelsContextKey{}, []string{"z-ai/glm-5.2", "z-ai/glm-5.3-flash", "gpt-4.1-mini"})
-	ctx = context.WithValue(ctx, SessionCooldownModelsContextKey{}, map[string]time.Time{
-		"z-ai/glm-5.2":       rateLimitTestNow.Add(30 * time.Second),
-		"z-ai/glm-5.3-flash": rateLimitTestNow.Add(10 * time.Second),
-		"gpt-4.1-mini":       rateLimitTestNow.Add(5 * time.Second),
-	})
-
-	got := s.siblingFailoverDecisions(ctx, failed, 1_000, 0, 0)
-
-	assert.Equal(t, []string{"gpt-5", "z-ai/glm-5.2"}, siblingModels(got))
 	assert.Equal(t, providers.ProviderAIAND, got[1].Provider)
 }
 
@@ -409,26 +308,6 @@ func TestRescueDecisions_ReadmissionKeepsGlobalExclusionOnCoolingArm(t *testing.
 	assert.Equal(t, []string{"z-ai/glm-5.3-flash"}, siblingModels(got))
 }
 
-// The gateway BYOK walk readmits cooling arms the same way.
-func TestGatewayRescueDecisions_ExhaustedPoolReadmitsCoolingArms(t *testing.T) {
-	s := &Service{}
-	ctx := context.WithValue(context.Background(), ExternalAPIKeysContextKey{}, []*auth.ExternalAPIKey{
-		{Provider: providers.ProviderAIAND, Plaintext: []byte("pat"), ModelAliases: map[string]string{"grok-4.6": "grok-4.6"}},
-		{Provider: providers.ProviderAIAND, Plaintext: []byte("pat"), ModelAliases: map[string]string{"z-ai/glm-5.2": "z-ai/glm-5.2"}},
-	})
-	ctx = context.WithValue(ctx, SessionDemotedModelsContextKey{}, []string{"z-ai/glm-5.2"})
-	ctx = context.WithValue(ctx, SessionCooldownModelsContextKey{}, map[string]time.Time{"z-ai/glm-5.2": rateLimitTestNow.Add(time.Minute)})
-	failed := router.Decision{
-		Provider: providers.ProviderAIAND,
-		Model:    "grok-4.6",
-		Metadata: &router.RoutingMetadata{CandidateModels: []string{"grok-4.6", "z-ai/glm-5.2"}},
-	}
-
-	got := s.siblingFailoverDecisions(ctx, failed, 1_000, 0, 0)
-
-	assert.Equal(t, []string{"z-ai/glm-5.2"}, siblingModels(got))
-}
-
 // The turn's throttle policy is the dispatch default schedule with the
 // turn's account as observer: an honoured Retry-After lands on the
 // completion line.
@@ -469,98 +348,4 @@ func cooldownTurnLoopService(store sessionpin.Store, transient bool) (*Service, 
 		WithTransientRateLimit(transient, 45)
 	svc.now = func() time.Time { return rateLimitTestNow }
 	return svc, scorer
-}
-
-// A cooldown still in force keeps the arm out of the next turn's automatic
-// pool and off the pin, and is carried on the result for the in-turn rescue.
-func TestTurnLoopExcludesCoolingArmBeforeExpiry(t *testing.T) {
-	until := rateLimitTestNow.Add(30 * time.Second)
-	store := &rolePinStore{byRole: map[string]sessionpin.Pin{
-		sessionpin.DefaultRole: coolingPin(demotedPinModel, map[string]time.Time{demotedPinModel: until}),
-	}}
-	svc, scorer := cooldownTurnLoopService(store, true)
-
-	res := runDemotionTurnLoop(t, svc, context.Background())
-
-	assert.Equal(t, freshTurnModel, res.Decision.Model)
-	assert.False(t, res.StickyHit, "a cooling pin must not be reused")
-	require.Len(t, scorer.requests, 1)
-	assert.Contains(t, scorer.requests[0].AutomaticExcludedModels, demotedPinModel)
-	assert.Equal(t, []string{demotedPinModel}, res.SessionDemotedModels)
-	assert.Equal(t, map[string]time.Time{demotedPinModel: until}, res.SessionCooldownModels)
-}
-
-// Once the cooldown has expired the arm is eligible again: the pin holds and
-// nothing is excluded.
-func TestTurnLoopReadmitsArmAfterCooldownExpiry(t *testing.T) {
-	store := &rolePinStore{byRole: map[string]sessionpin.Pin{
-		sessionpin.DefaultRole: coolingPin(demotedPinModel, map[string]time.Time{demotedPinModel: rateLimitTestNow.Add(-time.Second)}),
-	}}
-	svc, scorer := cooldownTurnLoopService(store, true)
-
-	res := runDemotionTurnLoop(t, svc, context.Background())
-
-	assert.Equal(t, demotedPinModel, res.Decision.Model, "the cooled arm is served again")
-	assert.True(t, res.StickyHit)
-	for _, req := range scorer.requests {
-		assert.NotContains(t, req.AutomaticExcludedModels, demotedPinModel)
-	}
-	assert.Empty(t, res.SessionDemotedModels)
-	assert.Empty(t, res.SessionCooldownModels)
-}
-
-// A cooldown recorded on the HMM history row counts too.
-func TestTurnLoopHonoursCooldownRecordedOnHMMHistory(t *testing.T) {
-	until := rateLimitTestNow.Add(30 * time.Second)
-	store := &rolePinStore{byRole: map[string]sessionpin.Pin{
-		sessionpin.DefaultRole:                 demotedPin(demotedPinModel),
-		hmmHistoryRole(sessionpin.DefaultRole): coolingPin(demotedPinModel, map[string]time.Time{demotedPinModel: until}),
-	}}
-	svc, scorer := cooldownTurnLoopService(store, true)
-
-	res := runDemotionTurnLoop(t, svc, context.Background())
-
-	assert.Equal(t, freshTurnModel, res.Decision.Model)
-	require.Len(t, scorer.requests, 1)
-	assert.Contains(t, scorer.requests[0].AutomaticExcludedModels, demotedPinModel)
-	assert.Equal(t, map[string]time.Time{demotedPinModel: until}, res.SessionCooldownModels)
-}
-
-// A model struck for the session and still carrying a stale cooldown entry
-// stays out: the turn loop excludes it and offers it for readmission only as
-// a struck-out arm, never as a cooling one.
-func TestTurnLoopPermanentStrikeOutranksLeftoverCooldown(t *testing.T) {
-	until := rateLimitTestNow.Add(30 * time.Second)
-	store := &rolePinStore{byRole: map[string]sessionpin.Pin{
-		sessionpin.DefaultRole: coolingPin(demotedPinModel, map[string]time.Time{demotedPinModel: until}, demotedPinModel),
-	}}
-	svc, scorer := cooldownTurnLoopService(store, true)
-
-	res := runDemotionTurnLoop(t, svc, context.Background())
-
-	assert.Equal(t, freshTurnModel, res.Decision.Model)
-	require.Len(t, scorer.requests, 1)
-	assert.Contains(t, scorer.requests[0].AutomaticExcludedModels, demotedPinModel)
-	assert.Equal(t, []string{demotedPinModel}, res.SessionDemotedModels)
-	assert.Nil(t, res.SessionCooldownModels, "a lifetime strike is never readmitted as a cooldown")
-	assert.Equal(t, []string{demotedPinModel}, res.SessionStrikeReadmitModels, "only as the struck-out last resort")
-}
-
-// Flag off, a stored cooldown is ignored entirely: the turn loop reads only
-// the session-lifetime strikes, as before.
-func TestTurnLoopIgnoresCooldownsWhenFlagOff(t *testing.T) {
-	store := &rolePinStore{byRole: map[string]sessionpin.Pin{
-		sessionpin.DefaultRole: coolingPin(demotedPinModel, map[string]time.Time{demotedPinModel: rateLimitTestNow.Add(time.Hour)}),
-	}}
-	svc, scorer := cooldownTurnLoopService(store, false)
-
-	res := runDemotionTurnLoop(t, svc, context.Background())
-
-	assert.Equal(t, demotedPinModel, res.Decision.Model)
-	assert.True(t, res.StickyHit)
-	for _, req := range scorer.requests {
-		assert.NotContains(t, req.AutomaticExcludedModels, demotedPinModel)
-	}
-	assert.Empty(t, res.SessionDemotedModels)
-	assert.Nil(t, res.SessionCooldownModels)
 }

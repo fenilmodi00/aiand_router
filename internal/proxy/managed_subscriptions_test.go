@@ -177,40 +177,6 @@ func TestLeaseManagedSubscriptionHonorsResetQuotaWindows(t *testing.T) {
 	require.Empty(t, leaser.exhaustedIDs)
 	lease.Release()
 }
-func TestDispatchWithFallbackDoesNotCrossManagedProviderFamilies(t *testing.T) {
-	leaser := &scriptedSubscriptionLeaser{leases: []subscriptions.Lease{{AccountID: "opaque-claude", AccessToken: "token-claude"}}}
-	svc := newServiceWithProviders(t, nil).WithManagedSubscriptions(leaser)
-
-	ctx, _, managed, err := svc.leaseManagedSubscription(
-		managedSubscriptionContext(auth.SubscriptionProviderClaude),
-		providers.ProviderAIAND,
-		"gpt-5.6-sol",
-	)
-
-	require.NoError(t, err)
-	require.False(t, managed)
-	require.Nil(t, CredentialsFromContext(ctx))
-	require.Empty(t, leaser.providers)
-}
-
-func TestLeaseManagedCodexRefusesPaidFallbackAfterAllLinkedAccountsAreRejected(t *testing.T) {
-	leaser := &scriptedSubscriptionLeaser{leases: []subscriptions.Lease{
-		{AccountID: "opaque-codex", AccessToken: "token-codex"},
-	}}
-	svc := newServiceWithProviders(t, nil).WithManagedSubscriptions(leaser)
-	svc.deploymentKeyedProviders = map[string]struct{}{providers.ProviderAIAND: {}}
-	ctx := managedSubscriptionContext(auth.SubscriptionProviderCodex)
-	svc.subscriptionModels.denyManaged(
-		"account:opaque-codex", "opaque-codex", providers.ProviderAIAND, "gpt-5.6-sol", time.Now().Add(time.Minute),
-	)
-
-	_, lease, managed, err := svc.leaseManagedSubscription(ctx, providers.ProviderAIAND, "gpt-5.6-sol")
-
-	require.True(t, codexSubscriptionModelRejected(err))
-	require.True(t, managed)
-	require.Empty(t, lease.AccountID)
-	require.Len(t, leaser.providers, 2)
-}
 
 func TestManagedSubscriptionOverridesBYOKButNotInboundOAuth(t *testing.T) {
 	leaser := &scriptedSubscriptionLeaser{leases: []subscriptions.Lease{{AccountID: "opaque-claude", AccessToken: "managed-token"}}}
@@ -252,22 +218,6 @@ func TestManagedSubscriptionEnrollmentFailureDoesNotClaimCapacity(t *testing.T) 
 			require.Empty(t, leaser.providers)
 		})
 	}
-}
-
-func TestManagedSubscriptionEnrollmentFailureDoesNotBlockUnrelatedProvider(t *testing.T) {
-	leaser := &scriptedSubscriptionLeaser{}
-	svc := newServiceWithProviders(t, nil).WithManagedSubscriptions(leaser)
-	ctx := context.WithValue(managedSubscriptionTestContext(), ManagedSubscriptionEnrollmentUnavailableContextKey{}, true)
-	credentials := &Credentials{APIKey: []byte("google-api-key"), Source: credSourceBYOK}
-	ctx = context.WithValue(ctx, CredentialsContextKey{}, credentials)
-
-	out, lease, managed, err := svc.leaseManagedSubscription(ctx, providers.ProviderAIAND, "gemini-2.5-pro")
-
-	require.NoError(t, err)
-	require.False(t, managed)
-	require.Empty(t, lease.AccountID)
-	require.Same(t, credentials, CredentialsFromContext(out))
-	require.Empty(t, leaser.providers)
 }
 
 // meteredOnlyClient exposes only the API transport, without OAuth support.

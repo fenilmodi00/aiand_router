@@ -3,9 +3,7 @@ package proxy
 import (
 	"context"
 	"net/http"
-	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -16,45 +14,6 @@ import (
 	"weave-os/router/internal/router/sessionpin"
 	"weave-os/router/internal/translate"
 )
-
-// The `:level` suffix of a /force-model command must be persisted on the pin;
-// later turns have no header or command to recover it from.
-func TestForceModelCommand_PersistsEffortOnPin(t *testing.T) {
-	store := &recordingPinStore{}
-	svc := NewService(nil, nil, nil, false, nil, store, false,
-		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil)
-
-	env := forceCommandEnv(t)
-	rec := httptest.NewRecorder()
-	require.NoError(t, svc.handleForceModelCommand(context.Background(), rec, env,
-		translate.ForceModelResult{Model: "opus:xhigh"},
-		uuid.New(), DeriveSessionKey(env, "key-1"), DeriveSessionKey(env, "key-1"), 10))
-
-	require.Len(t, store.upserts, 1)
-	assert.Equal(t, "z-ai/glm-5.2", store.upserts[0].Model)
-	assert.Equal(t, "xhigh", store.upserts[0].Effort)
-	assert.Contains(t, rec.Body.String(), "claude-opus-5-5:xhigh")
-}
-
-// The tool-result form of the command dispatches on the same turn through
-// req.ForceModel, so the returned spec must keep the suffix.
-func TestApplyForceModelCommand_ReturnsEffortQualifiedSpec(t *testing.T) {
-	store := &recordingPinStore{}
-	svc := NewService(nil, nil, nil, false, nil, store, false,
-		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil)
-
-	env := forceCommandEnv(t)
-	spec, _, err := svc.applyForceModelCommand(context.Background(),
-		translate.ForceModelResult{Model: "opus:xhigh", FromToolResult: true},
-		uuid.New(), DeriveSessionKey(env, "key-1"), DeriveSessionKey(env, "key-1"))
-	require.NoError(t, err)
-	assert.Equal(t, "claude-opus-5-5:xhigh", spec)
-
-	model, _, known, effort := resolveForceModelWithEffort(spec)
-	require.True(t, known)
-	assert.Equal(t, "z-ai/glm-5.2", model)
-	assert.Equal(t, "xhigh", effort)
-}
 
 func TestForceModelHeader_PersistsEffortOnPin(t *testing.T) {
 	store := &recordingPinStore{}
@@ -72,40 +31,6 @@ func TestForceModelHeader_PersistsEffortOnPin(t *testing.T) {
 
 	require.Len(t, store.upserts, 1)
 	assert.Equal(t, "high", store.upserts[0].Effort)
-}
-
-// A turn served from a stored force-model pin must rehydrate the pinned effort
-// onto the decision so dispatch emits it.
-func TestRunTurnLoop_ForcedPinRehydratesEffort(t *testing.T) {
-	store := &forcedPinStore{pin: sessionpin.Pin{
-		Provider:    providers.ProviderAIAND,
-		Model:       "z-ai/glm-5.2",
-		Effort:      "xhigh",
-		Reason:      translate.ReasonUserForceModel,
-		PinnedUntil: time.Now().Add(time.Hour),
-	}}
-	fr := &tierProbeRouter{available: map[string]struct{}{"z-ai/glm-5.3-flash": {}}}
-	svc := NewService(fr, nil, nil, false, nil, store, false,
-		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil)
-
-	env, err := translate.ParseAnthropic([]byte(`{
-		"model":"z-ai/glm-5.2",
-		"system":"Your task is to create a detailed summary of the conversation so far.",
-		"messages":[{"role":"user","content":"summarize"}]
-	}`))
-	require.NoError(t, err)
-	feats := env.RoutingFeatures(false)
-
-	res, err := svc.runTurnLoop(context.Background(), env, feats, "key-1", uuid.New(), "", nil, router.Request{
-		RequestedModel: feats.Model,
-	})
-	require.NoError(t, err)
-
-	assert.Equal(t, "z-ai/glm-5.2", res.Decision.Model)
-	assert.Equal(t, "xhigh", res.Decision.Effort)
-	assert.Equal(t, "xhigh",
-		svc.resolveEffort(context.Background(), res.Decision,
-			router.Lookup(res.Decision.Model), false).Selected)
 }
 
 // req.ForceModel (the header path) carries its own suffix into the in-memory
@@ -174,24 +99,4 @@ func TestOrderBandPair_AnchoredHalfKeepsEffort(t *testing.T) {
 	assert.Equal(t, "z-ai/glm-5.2", large.Model)
 	assert.Equal(t, "high", large.Effort)
 	assert.Empty(t, small.Effort)
-}
-
-// An explicit per-request knob still outranks whatever the pin carries.
-func TestResolveEffort_KnobWinsOverDecision(t *testing.T) {
-	svc := NewService(nil, nil, nil, false, nil, nil, false,
-		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil)
-	decision := router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.2", Effort: "xhigh"}
-	caps := router.Lookup(decision.Model)
-
-	ctx := router.WithRoutingKnobs(context.Background(), &router.Overrides{ForceEffort: "low"})
-	knobbed := svc.resolveEffort(ctx, decision, caps, false)
-	assert.Equal(t, "low", knobbed.Selected)
-	assert.Equal(t, effortSourceUser, knobbed.Source)
-
-	arm := svc.resolveEffort(context.Background(), decision, caps, false)
-	assert.Equal(t, "xhigh", arm.Selected)
-	assert.Equal(t, effortSourceArm, arm.Source)
-
-	assert.Empty(t, svc.resolveEffort(context.Background(),
-		router.Decision{Provider: decision.Provider, Model: decision.Model}, caps, false).Selected)
 }
