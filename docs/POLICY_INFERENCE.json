@@ -1,6 +1,6 @@
 {
   "schema_version": "inference_policy_registry_v2",
-  "registry_revision": "sha256:3baeb6cecb678d675d7766700260b5ae4f7188fc4077ef55d864657f4968608c",
+  "registry_revision": "sha256:064ce8411d21f5f35694c1aa430d66e7c2e37037b91bccf684d0e55e20d1bc34",
   "policies": [
     {
       "purpose": "agent_shadow_evaluation",
@@ -164,20 +164,11 @@
       "selection_strategy": "fixed_catalog",
       "candidate_source": "fixed_catalog",
       "fixed_catalog_models": [
-        "claude-sonnet-5-5",
-        "claude-opus-5",
-        "claude-sonnet-4-5",
-        "claude-sonnet-4-6",
-        "claude-sonnet-5",
-        "claude-opus-4-0",
-        "claude-opus-4-1",
-        "claude-opus-4-5",
-        "claude-opus-4-6",
-        "claude-opus-4-7",
-        "claude-opus-4-8",
-        "claude-opus-5-5",
-        "claude-fable-5",
-        "claude-fable-5-1"
+        "z-ai/glm-5.2",
+        "z-ai/glm-5.3",
+        "deepseek/deepseek-v4-pro-0813",
+        "moonshotai/kimi-k2.7",
+        "moonshotai/kimi-k3"
       ],
       "hard_constraints": [
         "catalog_binding",
@@ -221,40 +212,6 @@
       },
       "fallback": {
         "kind": "local_recovery"
-      },
-      "migration_status": "executor"
-    },
-    {
-      "optional": true,
-      "fixed_provider": "fireworks",
-      "purpose": "escalation_judge",
-      "dispatch_class": "auxiliary_inference",
-      "policy_id": "aux-escalation-judge",
-      "policy_revision": "2",
-      "owner": "@steventohme",
-      "rationale": "Judge a completed conversation prefix asynchronously with the pinned Switchyard rubric through Fireworks; failures leave serving unchanged and inference is funded by Weave.",
-      "selection_strategy": "fixed_catalog",
-      "candidate_source": "fixed_catalog",
-      "fixed_catalog_models": [
-        "z-ai/glm-5.3-flash"
-      ],
-      "hard_constraints": [
-        "catalog_binding",
-        "context_window",
-        "model_exclusions",
-        "provider_exclusions"
-      ],
-      "override_precedence": [
-        "policy_default"
-      ],
-      "budget": {
-        "source": "policy",
-        "max_attempts": 1,
-        "timeout_millis": 20000,
-        "max_output_tokens": 4096
-      },
-      "fallback": {
-        "kind": "none"
       },
       "migration_status": "executor"
     },
@@ -306,7 +263,7 @@
       "selection_strategy": "fixed_catalog",
       "candidate_source": "fixed_catalog",
       "fixed_catalog_models": [
-        "claude-haiku-4-5"
+        "z-ai/glm-5.3-flash"
       ],
       "hard_constraints": [
         "catalog_binding",
@@ -510,20 +467,11 @@
       "selection_strategy": "fixed_catalog",
       "candidate_source": "fixed_catalog",
       "fixed_catalog_models": [
-        "claude-sonnet-5-5",
-        "claude-opus-5",
-        "claude-sonnet-4-5",
-        "claude-sonnet-4-6",
-        "claude-sonnet-5",
-        "claude-opus-4-0",
-        "claude-opus-4-1",
-        "claude-opus-4-5",
-        "claude-opus-4-6",
-        "claude-opus-4-7",
-        "claude-opus-4-8",
-        "claude-opus-5-5",
-        "claude-fable-5",
-        "claude-fable-5-1"
+        "z-ai/glm-5.2",
+        "z-ai/glm-5.3",
+        "deepseek/deepseek-v4-pro-0813",
+        "moonshotai/kimi-k2.7",
+        "moonshotai/kimi-k3"
       ],
       "hard_constraints": [
         "catalog_binding",

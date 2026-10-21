@@ -106,12 +106,10 @@ type Service struct {
 	escalationObserver         escalation.Observer
 	escalationDashboardStore   escalationdashboard.Store
 	llmEscalationStore         llmescalation.Store
-	llmEscalationJudge         llmescalation.Judge
 	qwenEscalationJudge        llmescalation.Judge
 	llmEscalationSlots         chan struct{}
 	llmEscalationConfiguration llmescalation.ConfigurationStore
 	llmEscalationInvalidate    func(string)
-	llmEscalationActiveEnabled bool
 	// sessionStrategyStore persists the explicit per-session /beta selection.
 	// Stable routing is represented by no row.
 	sessionStrategyStore sessionstrategy.Store

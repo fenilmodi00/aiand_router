@@ -37,9 +37,8 @@ type llmEscalationTurn struct {
 }
 
 // WithLLMEscalation wires optional background judging without altering XGBoost.
-func (s *Service) WithLLMEscalation(store llmescalation.Store, judge llmescalation.Judge) *Service {
+func (s *Service) WithLLMEscalation(store llmescalation.Store) *Service {
 	s.llmEscalationStore = store
-	s.llmEscalationJudge = judge
 	s.llmEscalationSlots = make(chan struct{}, llmescalation.MaxWorkers)
 	return s
 }
@@ -66,13 +65,15 @@ func (t *llmEscalationTurn) constraint() *escalation.Constraint {
 
 func (s *Service) beginLLMEscalation(ctx context.Context, env *translate.RequestEnvelope, req router.Request, res *turnLoopResult, apiKeyID string) *llmEscalationTurn {
 	selection := flags.EscalationFromContext(ctx)
-	active := flags.IsLLMEscalationClassifier(selection.Active) && (selection.Active != flags.EscalationClassifierSwitchyard || s.llmEscalationActiveEnabled)
+	active := flags.IsLLMEscalationClassifier(selection.Active)
 	shadow := flags.IsLLMEscalationClassifier(selection.Shadow)
 	classifier := selection.Shadow
 	if active {
 		classifier = selection.Active
 	}
-	judge := s.llmEscalationJudge
+	// Only the pinned L4 classifier has a judge; every other LLM classifier
+	// selection is inert because this deployment ships no judge for it.
+	var judge llmescalation.Judge
 	if classifier == flags.EscalationClassifierLLM {
 		judge = s.qwenEscalationJudge
 	}
@@ -219,11 +220,10 @@ func (s *Service) completeLLMEscalation(ctx context.Context, res turnLoopResult,
 		return
 	}
 	transcript := llmescalation.RenderTranscript(messages)
-	judge := s.llmEscalationJudge
+	judge := s.qwenEscalationJudge
 	ready := true
 	if turn.session.Config.EffectiveClassifier() == flags.EscalationClassifierLLM {
 		transcript, ready = llmescalation.RenderQwenInterval(messages, turn.session.CompletedTurns+1)
-		judge = s.qwenEscalationJudge
 		if !ready {
 			observability.FromContext(ctx).Info("LLM escalation interval unavailable", "completed_turns", turn.session.CompletedTurns+1)
 		}
@@ -287,7 +287,7 @@ func llmEscalationFailure(judgeErr, judgeContextErr error) llmescalation.Failure
 		return llmescalation.FailureNone
 	case errors.Is(judgeErr, context.DeadlineExceeded), errors.Is(judgeErr, context.Canceled) && errors.Is(judgeContextErr, context.DeadlineExceeded):
 		return llmescalation.FailureTimeout
-	case errors.Is(judgeErr, ErrInvalidEscalationJudgment), errors.Is(judgeErr, llmescalation.ErrInvalidJudgment):
+	case errors.Is(judgeErr, llmescalation.ErrInvalidJudgment):
 		return llmescalation.FailureInvalid
 	default:
 		return llmescalation.FailureJudge
