@@ -67,8 +67,7 @@ Three concentric layers. Imports flow inward only.
 |  |                            `make generate`)                 |  |
 |  |  internal/router/cluster  (Router impl: AvengersPro,        |  |
 |  |                            Multiversion)                    |  |
-|  |  internal/providers/*     (Client impls: anthropic, openai, |  |
-|  |                            google native, openaicompat,     |  |
+|  |  internal/providers/*     (Client impls: openaicompat,        |  |
 |  |                            httputil)                        |  |
 |  |  internal/observability/otel (span emitter; adapter)        |  |
 |  |  internal/observability/apm  (second OTel/SigNoz adapter:   |  |
