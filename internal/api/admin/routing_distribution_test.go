@@ -87,7 +87,7 @@ func TestRoutingDistributionHandler_ParsesExclusionParams(t *testing.T) {
 	src := &fakeDistributionSource{}
 	engine := newDistributionEngine(src)
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/router/routing-distribution?excluded_models=claude-opus-4-8,%20deepseek-v4-flash%20&excluded_providers=fireworks", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/router/routing-distribution?excluded_models=z-ai/glm-5.2,%20deepseek-v4-flash%20&excluded_providers=fireworks", nil)
 	rec := httptest.NewRecorder()
 	engine.ServeHTTP(rec, req)
 

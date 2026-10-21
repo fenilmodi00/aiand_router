@@ -42,8 +42,9 @@ func putAllowedModels(t *testing.T, routable admin.RoutableModelsSource, allowed
 
 // A catalog-valid but unroutable-only list must 400 before it is saved.
 func TestUpdateAllowedModelsHandler_RejectsAllowlistWithNoRoutableMember(t *testing.T) {
+	// The allowlist names a model this deployment cannot route.
 	rec := putAllowedModels(t,
-		stubRoutableModels{models: map[string]struct{}{"z-ai/glm-5.2": {}}},
+		stubRoutableModels{models: map[string]struct{}{"z-ai/glm-5.3": {}}},
 		[]string{"z-ai/glm-5.2"},
 	)
 

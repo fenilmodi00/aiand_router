@@ -106,7 +106,6 @@ func TestSiblingFailoverDecision(t *testing.T) {
 			CandidateModels: []string{"z-ai/glm-5.2", "deepseek/deepseek-v4-pro", "deepseek/deepseek-v4-pro"},
 			CandidateProviders: map[string]string{
 				"deepseek/deepseek-v4-pro": providers.ProviderAIAND,
-				"deepseek/deepseek-v4-pro": providers.ProviderAIAND,
 			},
 		}), 1_000, 0, 0)
 		require.True(t, ok)
@@ -145,7 +144,6 @@ func TestSiblingFailoverDecision(t *testing.T) {
 			CandidateModels: []string{"z-ai/glm-5.2", "deepseek/deepseek-v4-pro", "deepseek/deepseek-v4-pro"},
 			CandidateProviders: map[string]string{
 				"deepseek/deepseek-v4-pro": providers.ProviderAIAND,
-				"deepseek/deepseek-v4-pro": providers.ProviderAIAND,
 			},
 			PairedModel: "deepseek/deepseek-v4-pro",
 		}), 1_000, 0, 0)
@@ -158,7 +156,6 @@ func TestSiblingFailoverDecision(t *testing.T) {
 		got, ok := firstSibling(s, ctx, overloadedDecision(&router.RoutingMetadata{
 			CandidateModels: []string{"deepseek/deepseek-v4-pro", "deepseek/deepseek-v4-pro"},
 			CandidateProviders: map[string]string{
-				"deepseek/deepseek-v4-pro": providers.ProviderAIAND,
 				"deepseek/deepseek-v4-pro": providers.ProviderAIAND,
 			},
 		}), 1_000, 0, 0)
@@ -226,7 +223,6 @@ func TestSiblingFailoverDecision(t *testing.T) {
 		md := &router.RoutingMetadata{
 			CandidateModels: []string{"z-ai/glm-5.2", "deepseek/deepseek-v4-pro", "deepseek/deepseek-v4-pro"},
 			CandidateProviders: map[string]string{
-				"deepseek/deepseek-v4-pro": providers.ProviderAIAND,
 				"deepseek/deepseek-v4-pro": providers.ProviderAIAND,
 			},
 		}
@@ -393,7 +389,6 @@ func TestSiblingFailover_RosterOrderBeatsProviderPreferenceAndExcludesUnlistedMo
 			"z-ai/glm-5.2", "deepseek/deepseek-v4-pro", "deepseek/deepseek-v4-pro", "z-ai/glm-5.3-flash",
 		},
 		CandidateProviders: map[string]string{
-			"deepseek/deepseek-v4-pro": providers.ProviderAIAND,
 			"deepseek/deepseek-v4-pro": providers.ProviderAIAND,
 			"z-ai/glm-5.3-flash":       providers.ProviderAIAND,
 		},

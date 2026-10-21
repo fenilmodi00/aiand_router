@@ -141,7 +141,6 @@ func TestRunTurnLoop_ForcedModelContextOverflow_StaysInTier(t *testing.T) {
 
 	fr := &tierProbeRouter{available: map[string]struct{}{
 		forced:               {},
-		"z-ai/glm-5.2":       {},
 		"z-ai/glm-5.3-flash": {},
 	}}
 	store := &forcedPinStore{pin: sessionpin.Pin{

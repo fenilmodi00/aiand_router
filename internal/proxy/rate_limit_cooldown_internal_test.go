@@ -236,13 +236,11 @@ func TestRescueDecisions_ExhaustedPoolReadmitsCoolingArms(t *testing.T) {
 		CandidateModels: []string{"z-ai/glm-5.2", "deepseek/deepseek-v4-pro", "deepseek/deepseek-v4-pro", "z-ai/glm-5.3-flash"},
 		CandidateProviders: map[string]string{
 			"deepseek/deepseek-v4-pro": providers.ProviderAIAND,
-			"deepseek/deepseek-v4-pro": providers.ProviderAIAND,
 			"z-ai/glm-5.3-flash":       providers.ProviderAIAND,
 		},
 	}
 	cooling := map[string]time.Time{
 		"deepseek/deepseek-v4-pro": rateLimitTestNow.Add(40 * time.Second),
-		"deepseek/deepseek-v4-pro": rateLimitTestNow.Add(5 * time.Second),
 	}
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, SessionDemotedModelsContextKey{}, []string{"deepseek/deepseek-v4-pro", "deepseek/deepseek-v4-pro", "z-ai/glm-5.3-flash"})
@@ -270,7 +268,6 @@ func TestRescueDecisions_CoolingArmRanksBehindEligibleCandidates(t *testing.T) {
 	md := &router.RoutingMetadata{
 		CandidateModels: []string{"z-ai/glm-5.2", "deepseek/deepseek-v4-pro", "deepseek/deepseek-v4-pro"},
 		CandidateProviders: map[string]string{
-			"deepseek/deepseek-v4-pro": providers.ProviderAIAND,
 			"deepseek/deepseek-v4-pro": providers.ProviderAIAND,
 		},
 	}

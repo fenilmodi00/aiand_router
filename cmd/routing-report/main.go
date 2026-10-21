@@ -45,11 +45,12 @@ var registers = []string{
 // opusModels and premiumModels classify the deployed pool for the summary
 // percentages; premium = tiers a chit-chat turn has no business reaching.
 var opusModels = map[string]struct{}{
-	"z-ai/glm-5.2": {}, "z-ai/glm-5.2": {}, "z-ai/glm-5.2": {},
+	"z-ai/glm-5.2": {}, "z-ai/glm-5.3": {}, "moonshotai/kimi-k3": {},
 }
 var premiumModels = map[string]struct{}{
-	"z-ai/glm-5.2": {}, "z-ai/glm-5.2": {}, "z-ai/glm-5.2": {},
-	"gpt-5.5": {}, "gemini-3.1-pro-preview": {}, "deepseek/deepseek-v4.1-flash": {},
+	"z-ai/glm-5.2": {}, "z-ai/glm-5.3": {}, "moonshotai/kimi-k3": {},
+	"deepseek/deepseek-v4-pro": {}, "deepseek/deepseek-v4.1-flash": {},
+	"deepseek/deepseek-v4-flash": {},
 }
 
 type probe struct {
