@@ -89,10 +89,9 @@ type LLMEscalationDetail struct {
 }
 
 // WithEscalationConfiguration wires internal control-plane reads and writes.
-func (s *Service) WithEscalationConfiguration(store llmescalation.ConfigurationStore, invalidate func(string), activeEnabled bool) *Service {
+func (s *Service) WithEscalationConfiguration(store llmescalation.ConfigurationStore, invalidate func(string)) *Service {
 	s.llmEscalationConfiguration = store
 	s.llmEscalationInvalidate = invalidate
-	s.llmEscalationActiveEnabled = activeEnabled
 	return s
 }
 
@@ -148,15 +147,12 @@ func (s *Service) UpdateEscalationSelection(ctx context.Context, installationID 
 		return llmescalation.Selection{}, ErrEscalationJudgeUnavailable
 	}
 	usesJudge := update.Active == flags.EscalationClassifierSwitchyard || update.Shadow == flags.EscalationClassifierSwitchyard
-	if usesJudge && s.llmEscalationJudge == nil {
+	if usesJudge {
 		return llmescalation.Selection{}, fmt.Errorf("%w: deployment capability is disabled", ErrEscalationJudgeUnavailable)
 	}
 	usesQwen := update.Active == flags.EscalationClassifierLLM || update.Shadow == flags.EscalationClassifierLLM
 	if usesQwen && s.qwenEscalationJudge == nil {
 		return llmescalation.Selection{}, fmt.Errorf("%w: Qwen deployment capability is disabled", ErrEscalationJudgeUnavailable)
-	}
-	if update.Active == flags.EscalationClassifierSwitchyard && !s.llmEscalationActiveEnabled {
-		return llmescalation.Selection{}, fmt.Errorf("%w: active rollout is disabled", ErrEscalationJudgeUnavailable)
 	}
 	selection, err := s.llmEscalationConfiguration.SetSelection(ctx, installationID, update)
 	if err != nil {
@@ -171,16 +167,14 @@ func (s *Service) UpdateEscalationSelection(ctx context.Context, installationID 
 func (s *Service) withEscalationReadiness(selection llmescalation.Selection) llmescalation.Selection {
 	selection.Ready = true
 	if selection.Active == flags.EscalationClassifierSwitchyard || selection.Shadow == flags.EscalationClassifierSwitchyard {
-		selection.Ready = s.llmEscalationJudge != nil
+		// No judge ships for this classifier: the selection can never run.
+		selection.Ready = false
 	}
 	if selection.Active == flags.EscalationClassifierLLM || selection.Shadow == flags.EscalationClassifierLLM {
 		selection.Ready = selection.Ready && s.qwenEscalationJudge != nil
 	}
 	if !selection.Ready {
 		selection.UnavailableReason = "deployment capability is disabled"
-	} else if selection.Active == flags.EscalationClassifierSwitchyard && !s.llmEscalationActiveEnabled {
-		selection.Ready = false
-		selection.UnavailableReason = "active rollout is disabled"
 	}
 	return selection
 }
