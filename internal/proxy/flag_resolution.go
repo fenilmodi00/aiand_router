@@ -227,9 +227,3 @@ func (s *Service) ResolveCyberRefusalRetry(ctx context.Context) bool {
 func (s *Service) ResolveCyberRefusalFallbackModel(ctx context.Context) string {
 	return flags.StringOr(ctx, flags.KeyCyberRefusalFallback, s.cyberRefusalFallbackModel)
 }
-
-// ResolveAnthropicServerSideFallback reports whether Anthropic-targeted
-// requests ask Anthropic to re-serve a safety-refused turn on a fallback model.
-func (s *Service) ResolveAnthropicServerSideFallback(ctx context.Context) bool {
-	return flags.BoolOr(ctx, flags.KeyAnthropicServerFallback, s.anthropicServerSideFallback)
-}

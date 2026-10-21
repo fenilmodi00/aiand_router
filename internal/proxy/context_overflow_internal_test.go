@@ -29,18 +29,6 @@ func TestExcludeContextOverflowModels_NoOverflowUnderWindow(t *testing.T) {
 	assert.Nil(t, out, "no additions returns the original (nil) denylist unchanged")
 }
 
-// TestShouldEnableExtendedContext gates the 1M-context beta on request size:
-// ordinary turns stay on the standard window; a large request trips the beta
-// well before the ÷5 estimate's undercount could let it reach the 200K wall.
-func TestShouldEnableExtendedContext(t *testing.T) {
-	assert.False(t, shouldEnableExtendedContext(20_000, 8_000), "small turn must not opt into the 1M window")
-	assert.False(t, shouldEnableExtendedContext(extendedContextTriggerTokens-8_000, 8_000), "exactly at the trigger is not over it")
-	assert.True(t, shouldEnableExtendedContext(extendedContextTriggerTokens, 8_000), "estimate above the trigger turns the beta on")
-	// A ~250K-real-token request estimates well above the trigger even with the
-	// ÷5 undercount, so the beta is enabled before it can 400 on the 200K default.
-	assert.True(t, shouldEnableExtendedContext(180_000, 8_000), "near-200K request opts into 1M")
-}
-
 // TestExcludeContextOverflowModels_UsesRoutableBinding verifies the first
 // available catalog binding supplies the context window.
 func TestExcludeContextOverflowModels_UsesRoutableBinding(t *testing.T) {

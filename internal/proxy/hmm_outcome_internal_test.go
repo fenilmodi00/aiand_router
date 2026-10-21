@@ -192,7 +192,7 @@ func TestReportPolicyOutcome_EffortMismatchExcludedFromTraining(t *testing.T) {
 		},
 	}
 	ctx := context.WithValue(context.Background(), PolicyTrainingAllowedContextKey{}, true)
-	effort := effortResolutionFor(router.Lookup(decision.Model), decision.Effort, decision.Effort, effortSourceArm)
+	effort := effortResolutionFor(router.NewSpecWithReasoning(router.ReasoningCapabilities{Levels: []string{"low", "medium", "high"}}, router.CapReasoning), decision.Effort, decision.Effort, effortSourceArm)
 
 	s.reportPolicyOutcome(
 		ctx,

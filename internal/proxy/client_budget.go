@@ -40,17 +40,9 @@ func resolveClientBudget(clientIdentity ClientIdentity, headers http.Header, mod
 	if _, known := catalog.ByID(model); !known || !strings.HasPrefix(model, "claude-") {
 		return budget
 	}
-	// ANTHROPIC_BETAS can add this capability without changing the local window.
-	// The shipped client also strips a real [1m] suffix before sending it.
-	if budget.InboundContext1M && !hadVariant && router.Lookup(model).Supports(router.CapExtendedContext) {
-		budget.Evidence = router.ClientBudgetAmbiguousLongContext
-		return budget
-	}
+	// The harness's own window applies: no catalog model offers a 1M context.
 	budget.Evidence = router.ClientBudgetHarnessDefault
 	budget.DefaultWindow = claudeCodeDefaultWindow
-	if hadVariant && router.Lookup(model).Supports(router.CapExtendedContext) {
-		budget.DefaultWindow = 1_000_000
-	}
 	budget.DefaultCompactThreshold = budget.DefaultWindow - claudeCodeCompactOutputReserve - claudeCodeAutoCompactBuffer
 	return budget
 }

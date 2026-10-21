@@ -50,7 +50,6 @@ import (
 	"weave-os/router/internal/timing"
 	"weave-os/router/internal/translate"
 	providerusage "weave-os/router/internal/usage"
-	"weave-os/router/internal/websearch"
 
 	"github.com/google/uuid"
 	"github.com/tidwall/gjson"
@@ -262,11 +261,6 @@ type Service struct {
 	// reached the client. Independent of cyberRefusalRepin, which governs the
 	// following turns.
 	cyberRefusalRetry bool
-	// anthropicServerSideFallback (ROUTER_ANTHROPIC_SERVER_SIDE_FALLBACK, default on)
-	// opts Anthropic-targeted requests into server-side fallback: Anthropic re-serves
-	// a refused turn on a fallback model (rescues the current turn; cyberRefusalRepin
-	// only re-pins future turns).
-	anthropicServerSideFallback bool
 
 	// siblingFailover is the kill switch (ROUTER_SIBLING_FAILOVER, default on)
 	// for degrading to a same-cluster candidate when every binding of the
@@ -381,9 +375,6 @@ type Service struct {
 	// summarizer produces a bounded-cost handover summary on switch turns.
 	// nil passes the full prior history through unchanged.
 	summarizer handover.Summarizer
-	// webSearch executes Anthropic's native web-search server tool for
-	// upstreams that reject it. nil leaves such turns on normal routing.
-	webSearch websearch.Executor
 	// compactionHandoverSummarizer serves runCompactionHandover under its own
 	// policy purpose; nil reuses summarizer.
 	compactionHandoverSummarizer handover.Summarizer
@@ -1321,29 +1312,9 @@ func planOwnedServingRequest(ctx context.Context) bool {
 // response when comparing the request estimate against the context window.
 const contextWindowOutputReserve = 8_000
 
-// extendedContextTriggerTokens triggers the context-1m-2025-08-07 beta well
-// below the 200K standard window: FullTokenEstimate (body bytes ÷5) undercounts
-// real tokens by ~20-30% on dense Claude Code bodies, so 140K estimated is
-// roughly 175-200K real — the beta must be in place before that arrives.
-const extendedContextTriggerTokens = 140_000
-
-// shouldEnableExtendedContext reports whether a request is large enough to
-// warrant a CapExtendedContext model's 1M window. Gating on the estimate keeps
-// ordinary turns on the standard window; the trigger is low enough that the
-// ÷5 undercount can't let a genuinely-near-200K request slip through.
-func shouldEnableExtendedContext(est, outputReserve int) bool {
-	return est+outputReserve > extendedContextTriggerTokens
-}
-
 // contextWindowForRequest returns the effective context window for a model.
-// CapExtendedContext models (Opus 4.6+, Sonnet 4.6) always report 1M since the
-// proxy unconditionally injects the context-1m beta for them — gating on the
-// client's beta header or the token estimate instead would let a large
-// request slip onto 200K and overflow on the first turn.
+// The catalog is the single source of truth: no wired model offers a 1M window.
 func contextWindowForRequest(modelID string, provider ...string) int {
-	if router.Lookup(modelID).Supports(router.CapExtendedContext) {
-		return 1_000_000
-	}
 	if len(provider) > 0 && provider[0] != "" {
 		return catalog.ContextWindowForBinding(modelID, provider[0])
 	}
@@ -1855,7 +1826,6 @@ func NewService(r router.Router, providerMap map[string]providers.Client, emitte
 		loopEscalationEnabled:          true,
 		cyberRefusalRepin:              true,
 		cyberRefusalRetry:              true,
-		anthropicServerSideFallback:    true,
 		siblingFailover:                true,
 		openAIResponsesBroad:           true,
 		nativeAnthropicResponseSignals: true,
@@ -1924,14 +1894,6 @@ func (s *Service) WithCyberRefusalRepin(enabled bool) *Service {
 // cyber-refusal rescue (ROUTER_CYBER_REFUSAL_RETRY); see cyberRefusalRetry.
 func (s *Service) WithCyberRefusalRetry(enabled bool) *Service {
 	s.cyberRefusalRetry = enabled
-	return s
-}
-
-// WithAnthropicServerSideFallback is the kill switch for Anthropic's
-// server-side fallback beta (ROUTER_ANTHROPIC_SERVER_SIDE_FALLBACK); see
-// anthropicServerSideFallback.
-func (s *Service) WithAnthropicServerSideFallback(enabled bool) *Service {
-	s.anthropicServerSideFallback = enabled
 	return s
 }
 
@@ -2438,14 +2400,6 @@ func (s *Service) WithSummarizer(sz handover.Summarizer) *Service {
 // nil falls back to the switch-handover summarizer.
 func (s *Service) WithCompactionHandoverSummarizer(sz handover.Summarizer) *Service {
 	s.compactionHandoverSummarizer = sz
-	return s
-}
-
-// WithWebSearchExecutor installs the backend that runs Anthropic's native
-// web-search server tool when the routed upstream rejects it. nil leaves
-// those turns on normal routing.
-func (s *Service) WithWebSearchExecutor(ex websearch.Executor) *Service {
-	s.webSearch = ex
 	return s
 }
 
@@ -3913,13 +3867,6 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		enabledProviders = restrictToSubscriptionProviders(ctx, r.Header, enabledProviders)
 	}
 
-	// Anthropic's native web-search server tool, when no enabled provider runs
-	// it. Served before routing: the scorer's only lever is picking a model,
-	// and for a gateway-exclusive tenant every candidate rejects the tool.
-	if !preparingHandoff(ctx) && s.serveNativeWebSearch(ctx, body, feats.Model, env.Stream(), feats.Tokens, enabledProviders, r.Header, w) {
-		return nil
-	}
-
 	// Pre-filter models whose context window cannot fit this request.
 	// FullTokenEstimate uses raw body bytes (÷5) to capture tool definitions,
 	// tool calls, and tool results that feats.Tokens (text-only) misses.
@@ -4321,8 +4268,6 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		IncludeStreamUsage:                s.usageRequired(),
 		SessionAffinity:                   sessionAffinityHint(routeRes.SessionKey),
 		ModelSwitched:                     routeRes.modelSwitched(),
-		EnableExtendedContext:             shouldEnableExtendedContext(env.FullTokenEstimate(), outputReserve),
-		EnableServerSideFallback:          s.ResolveAnthropicServerSideFallback(ctx),
 		KeepCrossVendorOrchestrationTools: s.ccOrchToolsCrossVendor,
 		KeepCrossVendorTaskTools:          s.ResolveCCTaskToolsCrossVendor(ctx),
 		AppendAutonomySystem:              s.autonomySystemAppendApplies(ctx, body, env, routeRes.TurnType),
@@ -7205,9 +7150,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		Capabilities:             router.Lookup(decision.Model),
 		IncludeStreamUsage:       s.usageRequired(),
 		SessionAffinity:          sessionAffinityHint(routeRes.SessionKey),
-		EnableServerSideFallback: s.ResolveAnthropicServerSideFallback(ctx),
 		ModelSwitched:            routeRes.modelSwitched(),
-		EnableExtendedContext:    shouldEnableExtendedContext(env.FullTokenEstimate(), outputReserveOAI),
 	}
 	effortServed := s.resolveEffort(ctx, decision, opts.Capabilities, routeRes.EscalateEffort)
 	effortServed.apply(&opts)

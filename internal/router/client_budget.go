@@ -4,9 +4,8 @@ package router
 type ClientBudgetEvidence string
 
 const (
-	ClientBudgetUnknown              ClientBudgetEvidence = ""
-	ClientBudgetHarnessDefault       ClientBudgetEvidence = "harness_default"
-	ClientBudgetAmbiguousLongContext ClientBudgetEvidence = "ambiguous_long_context"
+	ClientBudgetUnknown        ClientBudgetEvidence = ""
+	ClientBudgetHarnessDefault ClientBudgetEvidence = "harness_default"
 )
 
 // ClientBudget is recomputed at ingress, never inherited from a session pin.

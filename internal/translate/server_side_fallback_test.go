@@ -25,38 +25,15 @@ func prepareWithFallback(t *testing.T, in http.Header, body string, opts transla
 	return prep
 }
 
-func TestServerSideFallback_DisabledLeavesRequestUntouched(t *testing.T) {
-	prep := prepareWithFallback(t, http.Header{}, serverSideFallbackBody, translate.EmitOptions{
-		TargetModel:    "z-ai/glm-5.2",
-		TargetProvider: providers.ProviderAIAND,
-	})
-
-	assert.False(t, gjson.GetBytes(prep.Body, "fallbacks").Exists())
-	assert.NotContains(t, prep.Headers.Get("anthropic-beta"), "server-side-fallback")
-}
-
-// Only opus-5 / fable-5 accept the field; the rest 400 on it.
-func TestServerSideFallback_SkippedForUnsupportedModel(t *testing.T) {
-	prep := prepareWithFallback(t, http.Header{}, serverSideFallbackBody, translate.EmitOptions{
-		TargetModel:              "z-ai/glm-5.3-flash",
-		TargetProvider:           providers.ProviderAIAND,
-		EnableServerSideFallback: true,
-	})
-
-	assert.False(t, gjson.GetBytes(prep.Body, "fallbacks").Exists())
-	assert.NotContains(t, prep.Headers.Get("anthropic-beta"), "server-side-fallback")
-}
-
-// A re-pin off opus-5 must not forward the client's own "fallbacks" to a model
-// that rejects it, nor its beta token.
-func TestServerSideFallback_StripsClientFieldOnUnsupportedModel(t *testing.T) {
+// No wired target accepts Anthropic's top-level "fallbacks" field, so it is
+// never forwarded and its beta token never rides along.
+func TestServerSideFallback_FieldAndBetaNeverForwarded(t *testing.T) {
 	in := http.Header{}
 	in.Set("anthropic-beta", "server-side-fallback-2026-07-01")
 	body := `{"model":"z-ai/glm-5.3-flash","max_tokens":1024,"messages":[{"role":"user","content":"hi"}],"fallbacks":"default"}`
 	prep := prepareWithFallback(t, in, body, translate.EmitOptions{
-		TargetModel:              "z-ai/glm-5.3-flash",
-		TargetProvider:           providers.ProviderAIAND,
-		EnableServerSideFallback: true,
+		TargetModel:    "z-ai/glm-5.3-flash",
+		TargetProvider: providers.ProviderAIAND,
 	})
 
 	assert.False(t, gjson.GetBytes(prep.Body, "fallbacks").Exists())
