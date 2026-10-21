@@ -879,7 +879,7 @@ func TestScorer_AutomaticExcludedModelsEmptyingPoolStillRoutes(t *testing.T) {
 	got, err := s.Route(context.Background(), router.Request{
 		PromptText: strings.Repeat("x", 100),
 		AutomaticExcludedModels: map[string]struct{}{
-			"z-ai/glm-5.2":       {},
+			"z-ai/glm-5.2":           {},
 			"moonshotai/kimi-k3": {},
 		},
 	})
@@ -896,7 +896,7 @@ func TestScorer_ExcludedModelsEmptyingPoolReturnsErrNoEligibleProvider(t *testin
 	_, err := s.Route(context.Background(), router.Request{
 		PromptText: strings.Repeat("x", 100),
 		ExcludedModels: map[string]struct{}{
-			"z-ai/glm-5.2":       {},
+			"z-ai/glm-5.2":           {},
 			"moonshotai/kimi-k3": {},
 		},
 	})
@@ -916,7 +916,7 @@ func TestScorer_AllowlistEmptyingPoolReturnsErrAllowlistEmptiesPool(t *testing.T
 		// The proxy desugars the allowlist into ExcludedModels; AllowedModels
 		// only names the cause.
 		ExcludedModels: map[string]struct{}{
-			"z-ai/glm-5.2":       {},
+			"z-ai/glm-5.2":           {},
 			"moonshotai/kimi-k3": {},
 		},
 		AllowedModels: map[string]struct{}{"some-retired-model": {}},

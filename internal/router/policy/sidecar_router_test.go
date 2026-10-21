@@ -24,6 +24,79 @@ type recordingPolicy struct {
 	feedback     map[string]interface{}
 }
 
+func TestSidecarRouter_OrdersRescueBySelectedGroupAndForceCluster(t *testing.T) {
+	models := []string{"z-ai/glm-5.3-flash", "z-ai/glm-5.2", "moonshotai/kimi-k3"}
+	decider := &recordingPolicy{result: policy.Result{
+		SchemaVersion: policy.SchemaVersionV1,
+		Model:         "z-ai/glm-5.3-flash",
+		Provider:      providers.ProviderAIAND,
+		PolicyGroup:   "low",
+		RankedFallback: []policy.PreviewGroup{
+			{Group: "high", EligibleArms: []string{"moonshotai/kimi-k3"}},
+			{Group: "medium", EligibleArms: []string{"z-ai/glm-5.2"}},
+			{Group: "low", EligibleArms: []string{"z-ai/glm-5.3-flash", "z-ai/glm-5.2"}},
+		},
+	}}
+	adapter := policy.NewSidecarRouter(policy.SidecarRouterConfig{Strategy: router.StrategyHMM}, decider,
+		policy.NewResolver(set(models...), set(providers.ProviderAIAND, providers.ProviderAIAND), catalogRosterID, policy.ManagedProviderPolicy()))
+
+	decision, err := adapter.Route(context.Background(), router.Request{})
+	require.NoError(t, err)
+	assert.True(t, decision.Metadata.RosterFailover)
+	// Rescue order follows the selected group upwards (low → medium → high);
+	// each model appears once even when several groups list it.
+	assert.Equal(t, []string{"z-ai/glm-5.3-flash", "z-ai/glm-5.2", "moonshotai/kimi-k3"}, decision.Metadata.RescueModels)
+
+	forced, err := adapter.Route(context.Background(), router.Request{ForceCluster: "low"})
+	require.NoError(t, err)
+	assert.True(t, forced.Metadata.RosterFailover)
+	assert.Equal(t, []string{"z-ai/glm-5.3-flash", "z-ai/glm-5.2"}, forced.Metadata.RescueModels)
+}
+
+func TestSidecarRouter_CoolingRescuePoolStaysWithinEligibleGroups(t *testing.T) {
+	models := []string{
+		"z-ai/glm-5.3-flash",
+		"z-ai/glm-5.2",
+		"moonshotai/kimi-k3",
+		"deepseek/deepseek-v4-pro-0813",
+		"deepseek/deepseek-v4.1-flash",
+	}
+	decider := &recordingPolicy{result: policy.Result{
+		SchemaVersion: policy.SchemaVersionV1,
+		Model:         "z-ai/glm-5.3-flash",
+		Provider:      providers.ProviderAIAND,
+		PolicyGroup:   "low",
+		RankedFallback: []policy.PreviewGroup{
+			{Group: "low", RosterArms: []string{"z-ai/glm-5.3-flash", "z-ai/glm-5.2"}, EligibleArms: []string{"z-ai/glm-5.3-flash", "z-ai/glm-5.2"}},
+			{Group: "high", RosterArms: []string{"moonshotai/kimi-k3", "deepseek/deepseek-v4-pro-0813"}, EligibleArms: nil},
+		},
+	}}
+	adapter := policy.NewSidecarRouter(policy.SidecarRouterConfig{Strategy: router.StrategyHMM}, decider,
+		policy.NewResolver(set(models...), set(providers.ProviderAIAND, providers.ProviderAIAND), catalogRosterID, policy.ManagedProviderPolicy()))
+	req := router.Request{
+		// Kimi K3 is only withdrawn from automatic selection, so it stays a
+		// cooling-rescue candidate. V4 Pro 0813 is excluded outright.
+		AutomaticExcludedModels: set("moonshotai/kimi-k3", "deepseek/deepseek-v4.1-flash"),
+		ExcludedModels:          set("deepseek/deepseek-v4-pro-0813"),
+	}
+
+	decision, err := adapter.Route(context.Background(), req)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"moonshotai/kimi-k3"}, decision.Metadata.SidecarRescuePool)
+	assert.Equal(t, []string{"z-ai/glm-5.3-flash", "z-ai/glm-5.2"}, decision.Metadata.RescueModels)
+
+	req.ForceCluster = "low"
+	forced, err := adapter.Route(context.Background(), req)
+	require.NoError(t, err)
+	assert.Empty(t, forced.Metadata.SidecarRescuePool)
+
+	req.ForceCluster = ""
+	req.ClusterArmOverrides = map[string][]string{"high": {"z-ai/glm-5.2"}}
+	limited, err := adapter.Route(context.Background(), req)
+	require.NoError(t, err)
+	assert.Empty(t, limited.Metadata.SidecarRescuePool)
+}
+
 func (p *recordingPolicy) Decide(_ context.Context, query policy.Query) (policy.Result, error) {
 	p.query = query
 	return p.result, nil
@@ -42,6 +115,280 @@ func (p *recordingPolicy) ReportOutcome(_ context.Context, payload map[string]in
 func (p *recordingPolicy) ReportFeedback(_ context.Context, payload map[string]interface{}) error {
 	p.feedback = payload
 	return nil
+}
+
+func TestSidecarRouterOnboardsFutureStrategyWithoutProxyChanges(t *testing.T) {
+	strategy := router.Strategy("future-policy")
+	decider := &recordingPolicy{result: policy.Result{
+		SchemaVersion:        policy.SchemaVersionV1,
+		RouteID:              "route-future",
+		Model:                "future/z-ai/glm-5.2",
+		Provider:             providers.ProviderAIAND,
+		Score:                0.9,
+		CandidateScores:      map[string]float32{"future/z-ai/glm-5.2": 0.9},
+		PolicyRouteKey:       "high",
+		PolicyArtifactID:     "future-prod",
+		PolicyArtifactSHA256: "sha256:future",
+		RosterVersion:        "roster-1",
+		DebugRef:             "must-not-leak",
+	}}
+	resolver := policy.NewResolver(
+		set("z-ai/glm-5.2"),
+		set(providers.ProviderAIAND),
+		func(model catalog.Model) string { return "future/" + model.ID },
+		policy.ManagedProviderPolicy(),
+	)
+	adapter := policy.NewSidecarRouter(policy.SidecarRouterConfig{
+		Strategy:    strategy,
+		Unavailable: errors.New("future unavailable"),
+	}, decider, resolver).WithCapabilities(policy.Capabilities{
+		SchemaVersion:                 policy.SchemaVersionV1,
+		AuthoritativePerTurnSelection: true,
+		ReportsOutcomes:               true,
+		ReportsFeedback:               true,
+	})
+	priorOutputTokens := 42
+
+	decision, err := adapter.Route(context.Background(), router.Request{
+		OrganizationID:       "org-1",
+		InstallationID:       "installation-1",
+		ClientApp:            "cursor",
+		RoutingIntent:        "high",
+		TrainingAllowed:      true,
+		CaptureMode:          "hashed",
+		EstimatedInputTokens: 1000,
+		PolicyTurnContext: &router.PolicyTurnContext{
+			VisibleTurnIndex:    3,
+			SessionTurnCount:    4,
+			TurnType:            "main_loop",
+			PreviousServedModel: "z-ai/glm-5.2",
+			PreviousProvider:    providers.ProviderAIAND,
+			CacheState:          router.PolicyCacheStateWarm,
+			PriorOutputTokens:   &priorOutputTokens,
+		},
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, "z-ai/glm-5.2", decision.Model)
+	assert.Equal(t, providers.ProviderAIAND, decision.Provider)
+	assert.Equal(t, "future-policy", decision.Metadata.Strategy)
+	assert.Equal(t, "route-future", decision.Metadata.RouteID)
+	assert.Equal(t, "high", decision.Metadata.PolicyRouteKey)
+	assert.Equal(t, "future-prod", decision.Metadata.PolicyArtifactID)
+	assert.Equal(t, map[string]float32{"z-ai/glm-5.2": 0.9}, decision.Metadata.CandidateScores) // roster "future/…" maps back to the catalog ID
+	assert.True(t, decision.Metadata.AuthoritativePerTurnSelection)
+	assert.Empty(t, decision.Metadata.DebugRef)
+	assert.Equal(t, strategy, decider.query.Strategy)
+	assert.Equal(t, policy.SchemaVersionV1, decider.query.SchemaVersion)
+	assert.Equal(t, policy.ExecutionModeServing, decider.query.ExecutionMode)
+	assert.Equal(t, "org-1", decider.query.OrganizationID)
+	assert.Equal(t, "cursor", decider.query.ClientApp)
+	assert.True(t, decider.query.TrainingAllowed)
+	assert.Equal(t, "hashed", decider.query.CaptureMode)
+	require.NotNil(t, decider.query.TurnContext)
+	assert.Equal(t, 3, decider.query.TurnContext.VisibleTurnIndex)
+	assert.Equal(t, "z-ai/glm-5.2", decider.query.TurnContext.PreviousServedModel)
+	require.Len(t, decider.query.Candidates, 1)
+	assert.Equal(t, "future/z-ai/glm-5.2", decider.query.Candidates[0].RosterID)
+	assert.Greater(t, decider.query.Candidates[0].InputUSDPer1M, 0.0)
+	assert.Greater(t, decider.query.Candidates[0].Capabilities.ContextWindow, 0)
+
+	require.NoError(t, adapter.ReportOutcome(context.Background(), map[string]interface{}{"route_id": "route-future"}))
+	require.NoError(t, adapter.ReportFeedback(context.Background(), map[string]interface{}{"feedback": "positive"}))
+	assert.Equal(t, "route-future", decider.outcome["route_id"])
+	assert.Equal(t, "positive", decider.feedback["feedback"])
+}
+
+func TestSidecarRouterDispatchesSidecarSelectedArm(t *testing.T) {
+	resolver := policy.NewArmResolver(
+		set("z-ai/glm-5.2", "moonshotai/kimi-k3"),
+		set(providers.ProviderAIAND, providers.ProviderAIAND),
+		func(model catalog.Model) string { return model.ID },
+		policy.ManagedProviderPolicy(),
+	)
+	resolved := resolver.Resolve(router.Request{})
+	require.Len(t, resolved.Candidates, 2)
+	selected := resolved.Candidates[1]
+	decider := &recordingPolicy{result: policy.Result{
+		ArmID:    selected.ArmID,
+		Provider: selected.Provider,
+		Score:    0.9,
+		CandidateScores: map[string]float32{
+			resolved.Candidates[0].ArmID: 0.1,
+			resolved.Candidates[1].ArmID: 0.9,
+		},
+	}}
+	adapter := policy.NewSidecarRouter(policy.SidecarRouterConfig{
+		Strategy: router.Strategy("future-policy"),
+	}, decider, resolver)
+
+	decision, err := adapter.Route(context.Background(), router.Request{})
+
+	require.NoError(t, err)
+	assert.Equal(t, selected.CatalogID, decision.Model)
+	assert.Equal(t, selected.Provider, decision.Provider)
+	assert.Equal(t, selected.ArmID, decision.Metadata.SelectedArmID)
+	assert.Equal(t, map[string]string{
+		resolved.Candidates[0].ArmID: resolved.Candidates[0].Provider,
+		resolved.Candidates[1].ArmID: resolved.Candidates[1].Provider,
+	}, decision.Metadata.CandidateArmProviders)
+	assert.Equal(t, map[string]float32{
+		resolved.Candidates[0].ArmID: 0.1,
+		resolved.Candidates[1].ArmID: 0.9,
+	}, decision.Metadata.CandidateArmScores)
+	assert.Equal(t, policy.SchemaVersionV2, decider.query.SchemaVersion)
+}
+
+func TestSidecarRouterMarksShadowDecisionsNonLearning(t *testing.T) {
+	decider := &recordingPolicy{result: policy.Result{Model: "z-ai/glm-5.2"}}
+	adapter := policy.NewSidecarRouter(policy.SidecarRouterConfig{
+		Strategy: router.Strategy("future-policy"),
+	}, decider, policy.NewResolver(
+		set("z-ai/glm-5.2"),
+		set(providers.ProviderAIAND),
+		func(model catalog.Model) string { return model.ID },
+		policy.ManagedProviderPolicy(),
+	))
+
+	_, err := adapter.Route(context.Background(), router.Request{
+		ShadowMode: true, TrainingAllowed: true, DebugEnabled: true,
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, policy.ExecutionModeShadow, decider.query.ExecutionMode)
+	assert.False(t, decider.query.TrainingAllowed)
+	assert.False(t, decider.query.DebugEnabled)
+}
+
+func TestSidecarRouterPreviewReturnsAllEligibleArmsWithoutLifecycleCallbacks(t *testing.T) {
+	decider := &recordingPolicy{preview: policy.PreviewResult{
+		SchemaVersion:         policy.SchemaVersionV1,
+		PolicyArtifactID:      "hmm-prod",
+		PolicyArtifactSHA256:  "sha256:artifact",
+		RosterSHA256:          "sha256:roster",
+		HMMStateID:            7,
+		HMMStatePath:          []int{2, 7},
+		HMMStateProbabilities: []float64{0.01, 0.01, 0.05, 0.01, 0.01, 0.01, 0.1, 0.8},
+		ClassOrder:            []string{"hard", "balanced"},
+		ClassProbabilities:    map[string]float64{"hard": 0.8, "balanced": 0.2},
+		RankedFallback: []policy.PreviewGroup{{
+			Group:        "hard",
+			Probability:  0.8,
+			RosterArms:   []string{"moonshotai/kimi-k3", "z-ai/glm-5.2"},
+			EligibleArms: []string{"moonshotai/kimi-k3", "z-ai/glm-5.2"},
+		}, {
+			Group:       "balanced",
+			Probability: 0.2,
+		}},
+		SelectedGroup:     "hard",
+		EligibleRosterIDs: []string{"moonshotai/kimi-k3", "z-ai/glm-5.2"},
+	}}
+	adapter := policy.NewSidecarRouter(policy.SidecarRouterConfig{
+		Strategy: router.StrategyHMM,
+	}, decider, policy.NewResolver(
+		set("moonshotai/kimi-k3", "z-ai/glm-5.2"),
+		set(providers.ProviderAIAND, providers.ProviderAIAND),
+		catalogRosterID,
+		policy.ManagedProviderPolicy(),
+	)).WithCapabilities(policy.Capabilities{SupportsPreview: true})
+
+	result, err := adapter.PreviewRoute(context.Background(), router.Request{
+		OrganizationID:  "org-1",
+		InstallationID:  "installation-1",
+		TrainingAllowed: true,
+		DebugEnabled:    false,
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"moonshotai/kimi-k3", "z-ai/glm-5.2"}, result.EligibleRosterIDs)
+	assert.Equal(t, router.StrategyHMM, result.Strategy)
+	assert.NotEmpty(t, result.RouteID)
+	assert.Equal(t, policy.SchemaVersionV1, decider.previewQuery.SchemaVersion)
+	assert.Equal(t, policy.ExecutionModePreview, decider.previewQuery.ExecutionMode)
+	assert.False(t, decider.previewQuery.TrainingAllowed)
+	assert.True(t, decider.previewQuery.DebugEnabled)
+	assert.Len(t, decider.previewQuery.Candidates, 2)
+	assert.Nil(t, decider.outcome)
+	assert.Nil(t, decider.feedback)
+}
+
+func TestSidecarRouterPreviewUsesArmSchemaAndIDs(t *testing.T) {
+	resolver := policy.NewArmResolver(
+		set("z-ai/glm-5.2", "moonshotai/kimi-k3"),
+		set(providers.ProviderAIAND, providers.ProviderAIAND),
+		catalogRosterID,
+		policy.ManagedProviderPolicy(),
+	)
+	resolved := resolver.Resolve(router.Request{})
+	require.Len(t, resolved.Candidates, 2)
+	selectedArmID := resolved.Candidates[0].ArmID
+	decider := &recordingPolicy{preview: policy.PreviewResult{
+		SchemaVersion:         policy.SchemaVersionV2,
+		PolicyArtifactID:      "temporal-q-v1",
+		PolicyArtifactSHA256:  "sha256:artifact",
+		RosterSHA256:          "sha256:roster",
+		HMMStateID:            0,
+		HMMStatePath:          []int{0},
+		HMMStateProbabilities: []float64{1},
+		ClassOrder:            []string{"provider-aware"},
+		ClassProbabilities:    map[string]float64{"provider-aware": 1},
+		RankedFallback: []policy.PreviewGroup{{
+			Group:        "provider-aware",
+			Probability:  1,
+			EligibleArms: []string{selectedArmID},
+		}},
+		SelectedGroup:     "provider-aware",
+		EligibleRosterIDs: []string{selectedArmID},
+	}}
+	adapter := policy.NewSidecarRouter(policy.SidecarRouterConfig{
+		Strategy: router.Strategy("temporal-q"),
+	}, decider, resolver).WithCapabilities(policy.Capabilities{SupportsPreview: true})
+
+	result, err := adapter.PreviewRoute(context.Background(), router.Request{})
+
+	require.NoError(t, err)
+	assert.Equal(t, policy.SchemaVersionV2, decider.previewQuery.SchemaVersion)
+	assert.Equal(t, []string{selectedArmID}, result.EligibleRosterIDs)
+}
+
+func TestSidecarRouterPreviewRecordsZeroEligibleArms(t *testing.T) {
+	decider := &recordingPolicy{preview: policy.PreviewResult{
+		SchemaVersion:         policy.SchemaVersionV1,
+		PolicyArtifactID:      "hmm-prod",
+		PolicyArtifactSHA256:  "sha256:artifact",
+		RosterSHA256:          "sha256:roster",
+		HMMStateID:            1,
+		HMMStatePath:          []int{1},
+		HMMStateProbabilities: []float64{0.2, 0.8},
+		ClassOrder:            []string{"hard"},
+		ClassProbabilities:    map[string]float64{"hard": 1},
+		RankedFallback: []policy.PreviewGroup{{
+			Group:       "hard",
+			Probability: 1,
+		}},
+	}}
+	adapter := policy.NewSidecarRouter(policy.SidecarRouterConfig{
+		Strategy: router.StrategyHMM,
+	}, decider, policy.NewResolver(
+		set("z-ai/glm-5.2"),
+		set(providers.ProviderAIAND),
+		catalogRosterID,
+		policy.ManagedProviderPolicy(),
+	)).WithCapabilities(policy.Capabilities{SupportsPreview: true})
+
+	result, err := adapter.PreviewRoute(context.Background(), router.Request{
+		ExcludedModels: set("z-ai/glm-5.2"),
+	})
+
+	require.NoError(t, err)
+	assert.Empty(t, result.EligibleRosterIDs)
+	assert.Empty(t, result.ResolverCandidates)
+	assert.Contains(t, result.ResolverExclusions, policy.Diagnostic{
+		CatalogID: "z-ai/glm-5.2",
+		Reason:    policy.ExclusionRequested,
+	})
+	assert.Empty(t, result.SelectedGroup)
+	assert.Empty(t, decider.previewQuery.Candidates)
 }
 
 func TestSidecarRouterPreviewRejectsUnknownArm(t *testing.T) {
@@ -67,7 +414,7 @@ func TestSidecarRouterPreviewRejectsUnknownArm(t *testing.T) {
 	adapter := policy.NewSidecarRouter(policy.SidecarRouterConfig{
 		Strategy: router.StrategyHMM,
 	}, decider, policy.NewResolver(
-		set("gpt-5.5"),
+		set("z-ai/glm-5.2"),
 		set(providers.ProviderAIAND),
 		catalogRosterID,
 		policy.ManagedProviderPolicy(),
@@ -129,23 +476,253 @@ func TestSidecarRouterCapabilitiesCanRefreshAfterStartup(t *testing.T) {
 // override path: anthropic models map to "anthropic/<id>".
 func clusterOverrideMapper(model catalog.Model) string { return "anthropic/" + model.ID }
 
-// A force that coincides with the sidecar's own pick must not waive the
-// provider-agreement check: nothing was re-selected, so a mismatched provider
-// still means the sidecar and resolver disagree.
-func TestSidecarRouterForcedClusterKeepsProviderAgreementCheck(t *testing.T) {
+func TestSidecarRouterAppliesClusterArmOverride(t *testing.T) {
 	resolver := policy.NewResolver(
-		set("claude-opus-4-8"),
+		set("moonshotai/kimi-k3", "z-ai/glm-5.2"),
+		set(providers.ProviderAIAND),
+		clusterOverrideMapper,
+		policy.ManagedProviderPolicy(),
+	)
+	// Sidecar classifies into "maximum" and would serve opus first.
+	decider := &recordingPolicy{result: policy.Result{
+		SchemaVersion: policy.SchemaVersionV1,
+		Model:         "moonshotai/kimi-k3",
+		Provider:      providers.ProviderAIAND,
+		Score:         0.8,
+		PolicyGroup:   "maximum",
+		RankedFallback: []policy.PreviewGroup{{
+			Group:        "maximum",
+			Probability:  0.8,
+			RosterArms:   []string{"moonshotai/kimi-k3", "z-ai/glm-5.2"},
+			EligibleArms: []string{"moonshotai/kimi-k3", "z-ai/glm-5.2"},
+		}},
+	}}
+	// Capability flag is deliberately false: the presence of ranked_fallback in
+	// the /route response must be enough to enforce overrides, so a stale
+	// boot-time capability (older sidecar, no refresh) can't block them.
+	adapter := policy.NewSidecarRouter(policy.SidecarRouterConfig{
+		Strategy: router.StrategyHMM,
+	}, decider, resolver).WithCapabilities(policy.Capabilities{
+		SchemaVersion:         policy.SchemaVersionV1,
+		ReportsRankedFallback: false,
+	})
+
+	// The key reorders the maximum cluster so sonnet-5 wins over opus.
+	decision, err := adapter.Route(context.Background(), router.Request{
+		ClusterArmOverrides: map[string][]string{
+			"maximum": {"z-ai/glm-5.2", "moonshotai/kimi-k3"},
+		},
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, "z-ai/glm-5.2", decision.Model,
+		"override order must decide the served model, not the sidecar's first arm")
+	assert.Equal(t, providers.ProviderAIAND, decision.Provider)
+	assert.Contains(t, decision.Reason, "cluster_override",
+		"an override that changes the pick must annotate the reason")
+}
+
+// The sidecar's DisplayMarker names its pre-override pick (opus). Once the
+// router reselects sonnet-5, that marker must not survive into the decision
+// metadata, or the banner and telemetry disagree about the served model.
+func TestSidecarRouterClusterOverrideSuppressesStaleDisplayMarker(t *testing.T) {
+	resolver := policy.NewResolver(
+		set("moonshotai/kimi-k3", "z-ai/glm-5.2"),
 		set(providers.ProviderAIAND),
 		clusterOverrideMapper,
 		policy.ManagedProviderPolicy(),
 	)
 	decider := &recordingPolicy{result: policy.Result{
 		SchemaVersion: policy.SchemaVersionV1,
-		Model:         "anthropic/claude-opus-4-8",
-		Provider:      providers.ProviderAIAND, // disagrees with the resolved binding
+		Model:         "moonshotai/kimi-k3",
+		Provider:      providers.ProviderAIAND,
+		Score:         0.8,
+		PolicyGroup:   "maximum",
+		DisplayMarker: "✦ **Weave Router** → Delegating work with moonshotai/kimi-k3",
 		RankedFallback: []policy.PreviewGroup{{
 			Group:        "maximum",
-			EligibleArms: []string{"anthropic/claude-opus-4-8"},
+			Probability:  0.8,
+			RosterArms:   []string{"moonshotai/kimi-k3", "z-ai/glm-5.2"},
+			EligibleArms: []string{"moonshotai/kimi-k3", "z-ai/glm-5.2"},
+		}},
+	}}
+	adapter := policy.NewSidecarRouter(policy.SidecarRouterConfig{
+		Strategy: router.StrategyHMM,
+	}, decider, resolver).WithCapabilities(policy.Capabilities{
+		SchemaVersion:         policy.SchemaVersionV1,
+		ReportsRankedFallback: false,
+	})
+
+	decision, err := adapter.Route(context.Background(), router.Request{
+		ClusterArmOverrides: map[string][]string{
+			"maximum": {"z-ai/glm-5.2", "moonshotai/kimi-k3"},
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "z-ai/glm-5.2", decision.Model)
+	assert.Empty(t, decision.Metadata.DisplayMarker,
+		"a reselected arm must drop the sidecar's stale marker so the generic path renders the served model")
+}
+
+func TestSidecarRouterClusterOverrideResolvesArmEnumeratingBinding(t *testing.T) {
+	// Arm-enumerating resolver: arm IDs differ from roster IDs. Binding resolution
+	// must go through the arm ID — shared roster IDs are dropped from ByRosterID as
+	// ambiguous.
+	resolver := policy.NewArmResolver(
+		set("moonshotai/kimi-k3", "z-ai/glm-5.2"),
+		set(providers.ProviderAIAND),
+		clusterOverrideMapper,
+		policy.ManagedProviderPolicy(),
+	)
+	resolved := resolver.Resolve(router.Request{})
+	require.NotEmpty(t, resolved.Candidates)
+	// Confirm the premise: arm IDs are not equal to roster IDs on this resolver.
+	require.NotEqual(t, resolved.Candidates[0].ArmID, resolved.Candidates[0].RosterID)
+
+	decider := &recordingPolicy{result: policy.Result{
+		SchemaVersion: policy.SchemaVersionV2,
+		ArmID:         resolved.Candidates[0].ArmID,
+		Model:         resolved.Candidates[0].RosterID,
+		Provider:      providers.ProviderAIAND,
+		Score:         0.8,
+		RankedFallback: []policy.PreviewGroup{{
+			Group:        "maximum",
+			Probability:  0.8,
+			RosterArms:   []string{"moonshotai/kimi-k3", "z-ai/glm-5.2"},
+			EligibleArms: []string{"moonshotai/kimi-k3", "z-ai/glm-5.2"},
+		}},
+	}}
+	adapter := policy.NewSidecarRouter(policy.SidecarRouterConfig{
+		Strategy: router.StrategyHMM,
+	}, decider, resolver)
+
+	decision, err := adapter.Route(context.Background(), router.Request{
+		ClusterArmOverrides: map[string][]string{
+			"maximum": {"z-ai/glm-5.2", "moonshotai/kimi-k3"},
+		},
+	})
+
+	require.NoError(t, err, "override must resolve via the arm ID on an arm-enumerating resolver")
+	assert.Equal(t, "z-ai/glm-5.2", decision.Model)
+	assert.Equal(t, providers.ProviderAIAND, decision.Provider)
+}
+
+func TestSidecarRouterClusterOverrideFailsOpenWithoutRankedFallback(t *testing.T) {
+	resolver := policy.NewResolver(
+		set("moonshotai/kimi-k3", "z-ai/glm-5.2"),
+		set(providers.ProviderAIAND),
+		clusterOverrideMapper,
+		policy.ManagedProviderPolicy(),
+	)
+	// Old sidecar: no ranked fallback in the result, capability off.
+	decider := &recordingPolicy{result: policy.Result{
+		SchemaVersion: policy.SchemaVersionV1,
+		Model:         "anthropic/moonshotai/kimi-k3",
+		Provider:      providers.ProviderAIAND,
+		Score:         0.8,
+	}}
+	adapter := policy.NewSidecarRouter(policy.SidecarRouterConfig{
+		Strategy: router.StrategyHMM,
+	}, decider, resolver).WithCapabilities(policy.Capabilities{
+		SchemaVersion:         policy.SchemaVersionV1,
+		ReportsRankedFallback: false,
+	})
+
+	decision, err := adapter.Route(context.Background(), router.Request{
+		ClusterArmOverrides: map[string][]string{
+			"maximum": {"z-ai/glm-5.2"},
+		},
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, "moonshotai/kimi-k3", decision.Model,
+		"an old sidecar without ranked fallback must serve its own selection unchanged")
+	assert.NotContains(t, decision.Reason, "cluster_override")
+}
+
+func TestSidecarRouterServesWithinForcedCluster(t *testing.T) {
+	resolver := policy.NewResolver(
+		set("moonshotai/kimi-k3", "z-ai/glm-5.3-flash"),
+		set(providers.ProviderAIAND),
+		clusterOverrideMapper,
+		policy.ManagedProviderPolicy(),
+	)
+	// The sidecar classified into "maximum" and would serve Kimi K3.
+	decider := &recordingPolicy{result: policy.Result{
+		SchemaVersion: policy.SchemaVersionV1,
+		Model:         "anthropic/moonshotai/kimi-k3",
+		Provider:      providers.ProviderAIAND,
+		PolicyGroup:   "maximum",
+		RankedFallback: []policy.PreviewGroup{
+			{Group: "maximum", Probability: 0.8, EligibleArms: []string{"anthropic/moonshotai/kimi-k3"}},
+			{Group: "fast", Probability: 0.2, EligibleArms: []string{"anthropic/z-ai/glm-5.3-flash"}},
+		},
+	}}
+	adapter := policy.NewSidecarRouter(policy.SidecarRouterConfig{
+		Strategy: router.StrategyHMM,
+	}, decider, resolver)
+
+	decision, err := adapter.Route(context.Background(), router.Request{ForceCluster: "fast"})
+
+	require.NoError(t, err)
+	assert.Equal(t, "z-ai/glm-5.3-flash", decision.Model,
+		"the forced cluster must outrank the sidecar's own argmax group")
+	assert.Contains(t, decision.Reason, "force_cluster")
+	assert.Len(t, decider.query.Candidates, 2,
+		"the sidecar still classifies over the full candidate set; the force is enforced router-side")
+}
+
+// Same stale-marker hazard as the cluster_override branch: a forced cluster
+// that reselects away from the sidecar's argmax must not carry the sidecar's
+// marker for its own (unserved) pick into the decision.
+func TestSidecarRouterForcedClusterSuppressesStaleDisplayMarker(t *testing.T) {
+	resolver := policy.NewResolver(
+		set("moonshotai/kimi-k3", "z-ai/glm-5.3-flash"),
+		set(providers.ProviderAIAND),
+		clusterOverrideMapper,
+		policy.ManagedProviderPolicy(),
+	)
+	decider := &recordingPolicy{result: policy.Result{
+		SchemaVersion: policy.SchemaVersionV1,
+		Model:         "anthropic/moonshotai/kimi-k3",
+		Provider:      providers.ProviderAIAND,
+		PolicyGroup:   "maximum",
+		DisplayMarker: "✦ **Weave Router** → Delegating work with moonshotai/kimi-k3",
+		RankedFallback: []policy.PreviewGroup{
+			{Group: "maximum", Probability: 0.8, EligibleArms: []string{"anthropic/moonshotai/kimi-k3"}},
+			{Group: "fast", Probability: 0.2, EligibleArms: []string{"anthropic/z-ai/glm-5.3-flash"}},
+		},
+	}}
+	adapter := policy.NewSidecarRouter(policy.SidecarRouterConfig{
+		Strategy: router.StrategyHMM,
+	}, decider, resolver)
+
+	decision, err := adapter.Route(context.Background(), router.Request{ForceCluster: "fast"})
+
+	require.NoError(t, err)
+	require.Equal(t, "z-ai/glm-5.3-flash", decision.Model)
+	assert.Empty(t, decision.Metadata.DisplayMarker,
+		"the forced cluster serves GLM Flash, not the sidecar's Kimi K3 pick named in its marker")
+}
+
+// A force that coincides with the sidecar's own pick must not waive the
+// provider-agreement check: nothing was re-selected, so a mismatched provider
+// still means the sidecar and resolver disagree.
+func TestSidecarRouterForcedClusterKeepsProviderAgreementCheck(t *testing.T) {
+	resolver := policy.NewResolver(
+		set("moonshotai/kimi-k3"),
+		set(providers.ProviderAIAND),
+		clusterOverrideMapper,
+		policy.ManagedProviderPolicy(),
+	)
+	decider := &recordingPolicy{result: policy.Result{
+		SchemaVersion: policy.SchemaVersionV1,
+		Model:         "anthropic/moonshotai/kimi-k3",
+		Provider:      "aggregator", // disagrees with the resolved binding
+		RankedFallback: []policy.PreviewGroup{{
+			Group:        "maximum",
+			EligibleArms: []string{"anthropic/moonshotai/kimi-k3"},
 		}},
 	}}
 	unavailable := errors.New("hmm unavailable")
@@ -158,6 +735,91 @@ func TestSidecarRouterForcedClusterKeepsProviderAgreementCheck(t *testing.T) {
 
 	require.ErrorIs(t, err, unavailable,
 		"an unchanged selection must still be validated against the sidecar's provider")
+}
+
+func TestSidecarRouterForcedClusterNarrowedByPerKeyOverride(t *testing.T) {
+	resolver := policy.NewResolver(
+		set("moonshotai/kimi-k3", "z-ai/glm-5.2"),
+		set(providers.ProviderAIAND),
+		clusterOverrideMapper,
+		policy.ManagedProviderPolicy(),
+	)
+	decider := &recordingPolicy{result: policy.Result{
+		SchemaVersion: policy.SchemaVersionV1,
+		Model:         "moonshotai/kimi-k3",
+		Provider:      providers.ProviderAIAND,
+		RankedFallback: []policy.PreviewGroup{{
+			Group:        "maximum",
+			EligibleArms: []string{"moonshotai/kimi-k3", "z-ai/glm-5.2"},
+		}},
+	}}
+	adapter := policy.NewSidecarRouter(policy.SidecarRouterConfig{
+		Strategy: router.StrategyHMM,
+	}, decider, resolver)
+
+	decision, err := adapter.Route(context.Background(), router.Request{
+		ForceCluster:        "maximum",
+		ClusterArmOverrides: map[string][]string{"maximum": {"z-ai/glm-5.2", "moonshotai/kimi-k3"}},
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, "z-ai/glm-5.2", decision.Model,
+		"the key's cluster model list must still order the forced group")
+}
+
+func TestSidecarRouterForcedClusterNotInRosterErrorsUnwrapped(t *testing.T) {
+	resolver := policy.NewResolver(
+		set("moonshotai/kimi-k3"),
+		set(providers.ProviderAIAND),
+		clusterOverrideMapper,
+		policy.ManagedProviderPolicy(),
+	)
+	decider := &recordingPolicy{result: policy.Result{
+		SchemaVersion: policy.SchemaVersionV1,
+		Model:         "moonshotai/kimi-k3",
+		Provider:      providers.ProviderAIAND,
+		RankedFallback: []policy.PreviewGroup{{
+			Group:        "maximum",
+			EligibleArms: []string{"moonshotai/kimi-k3"},
+		}},
+	}}
+	unavailable := errors.New("hmm unavailable")
+	adapter := policy.NewSidecarRouter(policy.SidecarRouterConfig{
+		Strategy:    router.StrategyHMM,
+		Unavailable: unavailable,
+	}, decider, resolver)
+
+	_, err := adapter.Route(context.Background(), router.Request{ForceCluster: "explore"})
+
+	require.Error(t, err)
+	var unservable *policy.ForcedClusterUnservableError
+	require.ErrorAs(t, err, &unservable, "the typed error must survive for dispatch classification")
+	assert.Equal(t, "explore", unservable.Cluster)
+	assert.NotErrorIs(t, err, unavailable,
+		"a bad header is a client error, not a sidecar outage")
+}
+
+func TestSidecarRouterForcedClusterFailsClosedWithoutRankedFallback(t *testing.T) {
+	resolver := policy.NewResolver(
+		set("moonshotai/kimi-k3"),
+		set(providers.ProviderAIAND),
+		clusterOverrideMapper,
+		policy.ManagedProviderPolicy(),
+	)
+	// Older sidecar: serves a decision but reports no roster to verify against.
+	decider := &recordingPolicy{result: policy.Result{
+		SchemaVersion: policy.SchemaVersionV1,
+		Model:         "moonshotai/kimi-k3",
+		Provider:      providers.ProviderAIAND,
+	}}
+	adapter := policy.NewSidecarRouter(policy.SidecarRouterConfig{
+		Strategy: router.StrategyHMM,
+	}, decider, resolver)
+
+	_, err := adapter.Route(context.Background(), router.Request{ForceCluster: "maximum"})
+
+	require.ErrorIs(t, err, policy.ErrForcedClusterUnservable,
+		"with no roster the constraint can't be proven, so serving anything would ignore the force")
 }
 
 func TestSidecarRouterCapabilityRefreshIsConcurrentSafe(t *testing.T) {

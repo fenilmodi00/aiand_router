@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"weave-os/router/internal/providers"
 	"weave-os/router/internal/router"
@@ -13,18 +14,45 @@ import (
 
 func maxResolver() *policy.Resolver {
 	return policy.NewResolver(
-		set("deepseek/deepseek-v4-pro", "claude-opus-4-8", "muse-spark-1.3"),
-		set(providers.ProviderAIAND, providers.ProviderAIAND, providers.ProviderAIAND),
+		set("deepseek/deepseek-v4-pro", "moonshotai/kimi-k3", "z-ai/glm-5.3"),
+		set(providers.ProviderAIAND),
 		catalogRosterID,
 		policy.ManagedProviderPolicy(),
 	)
+}
+
+func TestResolverWithoutProductBoundaryKeepsEveryModel(t *testing.T) {
+	resolved := maxResolver().Resolve(router.Request{})
+
+	assert.ElementsMatch(t,
+		[]string{"deepseek/deepseek-v4-pro", "moonshotai/kimi-k3", "z-ai/glm-5.3"},
+		catalogIDs(resolved.Candidates),
+	)
+}
+
+// Every catalog model is open-source in the ai&-only roster, so the
+// Max open-source-only boundary excludes none of them: the pool survives
+// the boundary intact.
+func TestMaxBoundaryKeepsTheOpenSourceOnlyRoster(t *testing.T) {
+	resolved := maxResolver().Resolve(router.Request{ProductEligibility: eligibility.MaxOpenSourceOnly})
+
+	assert.ElementsMatch(t,
+		[]string{"deepseek/deepseek-v4-pro", "moonshotai/kimi-k3", "z-ai/glm-5.3"},
+		catalogIDs(resolved.Candidates),
+	)
+	for _, id := range []string{"deepseek/deepseek-v4-pro", "moonshotai/kimi-k3", "z-ai/glm-5.3"} {
+		assert.NotContainsf(t, resolved.Diagnostics, policy.Diagnostic{
+			CatalogID: id,
+			Reason:    policy.ExclusionProductIneligible,
+		}, "%q is open-source and must not be product-ineligible", id)
+	}
 }
 
 // The boundary is not a preference the resolver may drop to keep a pool
 // non-empty, and not something an org allowlist naming the model re-opens.
 func TestMaxBoundaryIsHardEvenWhenItEmptiesThePool(t *testing.T) {
 	resolver := policy.NewResolver(
-		set("claude-opus-4-8"),
+		set("moonshotai/kimi-k3"),
 		set(providers.ProviderAIAND),
 		catalogRosterID,
 		policy.ManagedProviderPolicy(),
@@ -32,11 +60,14 @@ func TestMaxBoundaryIsHardEvenWhenItEmptiesThePool(t *testing.T) {
 
 	resolved := resolver.Resolve(router.Request{
 		ProductEligibility: eligibility.MaxOpenSourceOnly,
-		AllowedModels:      set("claude-opus-4-8"),
-		PreferredModels:    []string{"claude-opus-4-8"},
+		AllowedModels:      set("moonshotai/kimi-k3"),
+		PreferredModels:    []string{"moonshotai/kimi-k3"},
 	})
 
-	assert.Empty(t, resolved.Candidates)
+	// The model is open-source, so the boundary keeps it; the pool is
+	// non-empty and the allowlist still governs membership.
+	require.Len(t, resolved.Candidates, 1)
+	assert.Equal(t, "moonshotai/kimi-k3", resolved.Candidates[0].CatalogID)
 }
 
 // An eligible model the org excluded is still an ordinary request exclusion.
@@ -46,7 +77,7 @@ func TestEligibleModelStillReportsRequestedExclusion(t *testing.T) {
 		ExcludedModels:     set("deepseek/deepseek-v4-pro"),
 	})
 
-	assert.Empty(t, resolved.Candidates)
+	assert.NotContains(t, catalogIDs(resolved.Candidates), "deepseek/deepseek-v4-pro")
 	assert.Contains(t, resolved.Diagnostics, policy.Diagnostic{
 		CatalogID: "deepseek/deepseek-v4-pro",
 		Reason:    policy.ExclusionRequested,

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"weave-os/router/internal/providers"
+	"weave-os/router/internal/router/catalog"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -13,12 +14,12 @@ import (
 func TestPlanProjection_BoundsAlternatives(t *testing.T) {
 	alternatives := make([]Binding, 0, maxProjectedAlternatives+3)
 	for index := 0; index < maxProjectedAlternatives+3; index++ {
-		alternatives = append(alternatives, Binding{CatalogID: "claude-haiku-4-5", Provider: providers.ProviderAIAND, BindingIndex: index})
+		alternatives = append(alternatives, Binding{CatalogID: "z-ai/glm-5.3-flash", Provider: providers.ProviderAIAND, BindingIndex: index})
 	}
 	plan := ResolvedPlan{
 		purpose:             PurposeHandoverSummary,
 		policyID:            "aux-handover-summary",
-		selectedBinding:     Binding{CatalogID: "claude-haiku-4-5", Provider: providers.ProviderAIAND},
+		selectedBinding:     Binding{CatalogID: "z-ai/glm-5.3-flash", Provider: providers.ProviderAIAND},
 		alternativeBindings: alternatives,
 		provenance:          PlanProvenance{SelectionStrategy: SelectionStrategyFixedCatalog, OverrideSource: OverrideSourcePolicyDefault},
 	}
@@ -52,4 +53,28 @@ func TestDeploymentProjection_OmitsCandidateDumpForRouterPolicies(t *testing.T) 
 			assert.Equal(t, projection.RoutableModels, entry.RoutableModels, entry.PolicyID)
 		}
 	}
+}
+
+func TestInspect_RouterPurposeUsesDeploymentServingUniverse(t *testing.T) {
+	available := map[string]struct{}{providers.ProviderAIAND: {}}
+	resolver, err := NewPlanResolver(DefaultRegistry(), NewResolver(
+		catalog.RoutingTargetSet(available), available, func(model catalog.Model) string { return model.ID }, ProviderPolicy{}))
+	require.NoError(t, err)
+	// An untiered catalog row is never a routing target, so it has no
+	// dispatchable binding and the inspection must refuse it.
+	request := InspectionRequest{Purpose: PurposeOpenAIResponses, Model: "deepseek/deepseek-v4-pro"}
+
+	_, err = resolver.Inspect(request, DeploymentPolicyConfig{AvailableProviders: available})
+	var resolution *ResolutionError
+	require.ErrorAs(t, err, &resolution)
+	assert.Equal(t, ResolutionErrorNoEligibleBinding, resolution.Code)
+
+	served := catalog.HMMRoutingTargetSet(available)
+	plan, err := resolver.Inspect(InspectionRequest{Purpose: PurposeOpenAIResponses, Model: "z-ai/glm-5.3-flash"},
+		DeploymentPolicyConfig{AvailableProviders: available, RoutableModels: served})
+	require.NoError(t, err)
+	assert.Equal(t, "z-ai/glm-5.3-flash", plan.SelectedBinding().CatalogID)
+
+	projection := DefaultRegistry().DeploymentProjection(DeploymentPolicyConfig{AvailableProviders: available, RoutableModels: served})
+	assert.Equal(t, len(served), projection.RoutableModels)
 }
