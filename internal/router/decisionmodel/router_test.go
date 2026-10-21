@@ -50,12 +50,12 @@ func TestRoutePicksLineupModel(t *testing.T) {
 		task, call      decisionmodel.Choice
 		want            string
 	}{
-		{name: "claude high task judgment", task: decisionmodel.ChoiceHigh, call: decisionmodel.ChoiceHigh, want: "claude-opus-4-8"},
-		{name: "claude high task grunt work", task: decisionmodel.ChoiceHigh, call: decisionmodel.ChoiceLow, want: "claude-haiku-4-5"},
+		{name: "claude high task judgment", task: decisionmodel.ChoiceHigh, call: decisionmodel.ChoiceHigh, want: "moonshotai/kimi-k3"},
+		{name: "claude high task grunt work", task: decisionmodel.ChoiceHigh, call: decisionmodel.ChoiceLow, want: "z-ai/glm-5.3-flash"},
 		{name: "claude low task judgment", task: decisionmodel.ChoiceLow, call: decisionmodel.ChoiceHigh, want: "z-ai/glm-5.3"},
-		{name: "claude low task grunt work", task: decisionmodel.ChoiceLow, call: decisionmodel.ChoiceLow, want: "claude-haiku-4-5"},
-		{name: "codex high task judgment", clientApp: "codex", task: decisionmodel.ChoiceHigh, call: decisionmodel.ChoiceHigh, want: "gpt-6.1-sol"},
-		{name: "codex high task grunt work", clientApp: "codex", task: decisionmodel.ChoiceHigh, call: decisionmodel.ChoiceLow, want: "gpt-5.6-luna"},
+		{name: "claude low task grunt work", task: decisionmodel.ChoiceLow, call: decisionmodel.ChoiceLow, want: "z-ai/glm-5.3-flash"},
+		{name: "codex high task judgment", clientApp: "codex", task: decisionmodel.ChoiceHigh, call: decisionmodel.ChoiceHigh, want: "moonshotai/kimi-k3"},
+		{name: "codex high task grunt work", clientApp: "codex", task: decisionmodel.ChoiceHigh, call: decisionmodel.ChoiceLow, want: "z-ai/glm-5.3-flash"},
 		{name: "codex low task judgment", clientApp: "codex", task: decisionmodel.ChoiceLow, call: decisionmodel.ChoiceHigh, want: "z-ai/glm-5.3"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -74,7 +74,7 @@ func TestSubscriptionSkipsTaskDecision(t *testing.T) {
 	req.SubscriptionProviders = map[string]struct{}{providers.ProviderAIAND: {}}
 	decision, err := decisionmodel.New(classifier).Route(context.Background(), req)
 	require.NoError(t, err)
-	require.Equal(t, "claude-opus-4-8", decision.Model)
+	require.Equal(t, "moonshotai/kimi-k3", decision.Model)
 	require.Equal(t, [][]decisionmodel.QuestionID{{decisionmodel.QuestionCallComplexity}}, classifier.asked)
 }
 
@@ -97,7 +97,7 @@ func TestEscalationIsCheckedEveryThirdCallAndSticks(t *testing.T) {
 		require.NoError(t, err)
 		served = append(served, decision.Model)
 	}
-	require.Equal(t, []string{"claude-haiku-4-5", "claude-haiku-4-5", "claude-haiku-4-5", "claude-opus-4-8", "claude-opus-4-8"}, served)
+	require.Equal(t, []string{"z-ai/glm-5.3-flash", "z-ai/glm-5.3-flash", "z-ai/glm-5.3-flash", "moonshotai/kimi-k3", "moonshotai/kimi-k3"}, served)
 	require.Contains(t, classifier.asked[3], decisionmodel.QuestionEscalate)
 	require.Len(t, classifier.asked, 4, "escalated sessions need no further judging")
 }
@@ -108,12 +108,12 @@ func TestHighTaskEscalatesOnlyAfterFastModel(t *testing.T) {
 	for calls := 1; calls <= 4; calls++ {
 		decision, err := routing.Route(context.Background(), request("", calls))
 		require.NoError(t, err)
-		require.Equal(t, "claude-opus-4-8", decision.Model)
+		require.Equal(t, "moonshotai/kimi-k3", decision.Model)
 	}
 	classifier.answers[decisionmodel.QuestionCallComplexity] = decisionmodel.ChoiceLow
 	decision, err := routing.Route(context.Background(), request("", 5))
 	require.NoError(t, err)
-	require.Equal(t, "claude-haiku-4-5", decision.Model, "a yes vote before any fast-model call must not escalate")
+	require.Equal(t, "z-ai/glm-5.3-flash", decision.Model, "a yes vote before any fast-model call must not escalate")
 }
 
 func TestUnavailableModelFallsBackThroughLineup(t *testing.T) {
@@ -122,7 +122,7 @@ func TestUnavailableModelFallsBackThroughLineup(t *testing.T) {
 	req.ExcludedModels = map[string]struct{}{"z-ai/glm-5.3": {}}
 	decision, err := decisionmodel.New(classifier).Route(context.Background(), req)
 	require.NoError(t, err)
-	require.Equal(t, "claude-opus-4-8", decision.Model)
+	require.Equal(t, "moonshotai/kimi-k3", decision.Model, "the excluded judgment model must fall back through the lineup")
 }
 
 func TestJudgmentFallbackToTopDoesNotEscalate(t *testing.T) {
@@ -132,7 +132,7 @@ func TestJudgmentFallbackToTopDoesNotEscalate(t *testing.T) {
 	first.ExcludedModels = map[string]struct{}{"z-ai/glm-5.3": {}}
 	decision, err := decisionRouter.Route(context.Background(), first)
 	require.NoError(t, err)
-	require.Equal(t, "claude-opus-4-8", decision.Model)
+	require.Equal(t, "moonshotai/kimi-k3", decision.Model)
 
 	classifier.answers[decisionmodel.QuestionCallComplexity] = decisionmodel.ChoiceLow
 	second := request("", 2)
@@ -140,7 +140,7 @@ func TestJudgmentFallbackToTopDoesNotEscalate(t *testing.T) {
 	second.PolicyTurnContext = &router.PolicyTurnContext{PreviousServedModel: decision.Model}
 	decision, err = decisionRouter.Route(context.Background(), second)
 	require.NoError(t, err)
-	require.Equal(t, "claude-haiku-4-5", decision.Model)
+	require.Equal(t, "z-ai/glm-5.3-flash", decision.Model)
 }
 
 func TestClassifierFailureIsUnavailable(t *testing.T) {
@@ -162,17 +162,17 @@ func TestImageRequestSkipsTextOnlyJudgmentModel(t *testing.T) {
 	req.HasImages = true
 	decision, err := decisionmodel.New(classifier).Route(context.Background(), req)
 	require.NoError(t, err)
-	require.Equal(t, "claude-opus-4-8", decision.Model)
+	require.Equal(t, "moonshotai/kimi-k3", decision.Model, "the text-only judgment model must be skipped on an image turn")
 }
 
 func TestGatewayInstallationDispatchesThroughAlias(t *testing.T) {
 	classifier := &scriptedClassifier{answers: map[decisionmodel.QuestionID]decisionmodel.Choice{decisionmodel.QuestionTaskComplexity: decisionmodel.ChoiceHigh, decisionmodel.QuestionCallComplexity: decisionmodel.ChoiceHigh}}
 	req := request("", 1)
 	req.GatewayProviders = map[string]struct{}{"gateway": {}}
-	req.CustomBindings = map[string][]string{"claude-opus-4-8": {"gateway"}}
+	req.CustomBindings = map[string][]string{"moonshotai/kimi-k3": {"gateway"}}
 	decision, err := decisionmodel.New(classifier).Route(context.Background(), req)
 	require.NoError(t, err)
-	require.Equal(t, "claude-opus-4-8", decision.Model)
+	require.Equal(t, "moonshotai/kimi-k3", decision.Model)
 	require.Equal(t, "gateway", decision.Provider)
 }
 
@@ -187,10 +187,10 @@ func TestGatewayInstallationWithoutAliasIsUnavailable(t *testing.T) {
 func TestAutomaticExclusionFallsBackWithinLineup(t *testing.T) {
 	classifier := &scriptedClassifier{answers: map[decisionmodel.QuestionID]decisionmodel.Choice{decisionmodel.QuestionTaskComplexity: decisionmodel.ChoiceHigh, decisionmodel.QuestionCallComplexity: decisionmodel.ChoiceLow}}
 	req := request("", 1)
-	req.AutomaticExcludedModels = map[string]struct{}{"claude-haiku-4-5": {}}
+	req.AutomaticExcludedModels = map[string]struct{}{"z-ai/glm-5.3-flash": {}}
 	decision, err := decisionmodel.New(classifier).Route(context.Background(), req)
 	require.NoError(t, err)
-	require.Equal(t, "claude-opus-4-8", decision.Model)
+	require.Equal(t, "moonshotai/kimi-k3", decision.Model, "the excluded fast model must fall back within the lineup")
 }
 
 func TestSplitAssistantMessagesCountAsOneCall(t *testing.T) {

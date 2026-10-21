@@ -30,9 +30,9 @@ type Lineup struct {
 
 var (
 	// ClaudeCodeLineup serves Claude Code and every non-Codex client.
-	ClaudeCodeLineup = Lineup{Top: string(catalog.ModelIDGLM53), Fast: string(catalog.ModelIDGLM53Flash), LowTaskJudgment: string(catalog.ModelIDGLM53Flash), SubscriptionProvider: providers.ProviderAIAND}
+	ClaudeCodeLineup = Lineup{Top: string(catalog.ModelIDKimiK3), Fast: string(catalog.ModelIDGLM53Flash), LowTaskJudgment: string(catalog.ModelIDGLM53), SubscriptionProvider: providers.ProviderAIAND}
 	// CodexLineup is used only for Codex; ai& serves it too.
-	CodexLineup = Lineup{Top: string(catalog.ModelIDGLM53), Fast: string(catalog.ModelIDGLM53Flash), LowTaskJudgment: string(catalog.ModelIDGLM53Flash), SubscriptionProvider: providers.ProviderAIAND}
+	CodexLineup = Lineup{Top: string(catalog.ModelIDKimiK3), Fast: string(catalog.ModelIDGLM53Flash), LowTaskJudgment: string(catalog.ModelIDGLM53), SubscriptionProvider: providers.ProviderAIAND}
 )
 
 // sessionState is what the router remembers per session between calls.
