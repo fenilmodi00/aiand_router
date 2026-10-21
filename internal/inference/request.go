@@ -32,7 +32,6 @@ const (
 	PurposeTaskDomainClassification  Purpose = "task_domain_classification"
 	PurposeClusterEmbedding          Purpose = "cluster_embedding"
 	PurposeSemanticCacheEmbedding    Purpose = "semantic_cache_embedding"
-	PurposeNativeWebSearch           Purpose = "native_web_search"
 )
 
 // DispatchClass separates provider inference from passthrough, control-plane,
@@ -46,7 +45,6 @@ const (
 	DispatchClassMetadataPassthrough DispatchClass = "metadata_passthrough"
 	DispatchClassControlPlane        DispatchClass = "control_plane"
 	DispatchClassLocalSupport        DispatchClass = "local_support"
-	DispatchClassWebSearchTool       DispatchClass = "web_search_tool"
 )
 
 // SelectionStrategy identifies which authority chooses an operation target.
