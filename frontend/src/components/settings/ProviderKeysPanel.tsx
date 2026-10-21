@@ -12,7 +12,6 @@ import {
   api,
   type DeployedModel,
   type ExternalKey,
-  type ProviderAuthType,
 } from "@/lib/api";
 import { ChevronDown, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -233,9 +232,6 @@ export function ProviderKeysPanel() {
   const [keyValue, setKeyValue] = useState("");
   const [name, setName] = useState("");
   const [baseURL, setBaseURL] = useState("");
-  const [authType, setAuthType] = useState<ProviderAuthType>("bearer");
-  const [authAccount, setAuthAccount] = useState("");
-  const [authUser, setAuthUser] = useState("");
   const [aliasRows, setAliasRows] = useState<AliasRow[]>([]);
   const [catalogModels, setCatalogModels] = useState<DeployedModel[]>([]);
   const [editingAliases, setEditingAliases] = useState<string | null>(null);
@@ -302,30 +298,16 @@ export function ProviderKeysPanel() {
   const baseURLRequired = provider != null && PROVIDERS_REQUIRING_BASE_URL.includes(provider);
   // Mirrors the server's normalization: a slash-only value normalizes away to nothing.
   const baseURLMissing = baseURLRequired && baseURL.trim().replace(/\/+$/, "") === "";
-  // Key-pair, workload-identity, and Entra auth are gateway-only credential shapes; the
-  // vendor providers authenticate with their own API keys.
-  const authTypeOffered = baseURLRequired;
-  const usingKeypair = authTypeOffered && authType === "keypair_jwt";
-  const usingWIF = authTypeOffered && authType === "wif";
-  const usingEntra = authTypeOffered && authType === "azure_entra";
-  const keypairIncomplete = usingKeypair && (authAccount.trim() === "" || authUser.trim() === "");
-  const entraIncomplete = usingEntra && (authAccount.trim() === "" || authUser.trim() === "");
-  // A WIF key carries no secret, so an empty key field is the expected state.
-  const keyMissing = !usingWIF && keyValue.trim() === "";
-  const saveDisabled = saving || keyMissing || baseURLMissing || keypairIncomplete || entraIncomplete;
-  // Pre-save discovery can only authenticate with a token sent as-is; derived
-  // auth (key pair, WIF) needs the stored key, so those save first and fetch
-  // from the saved entry.
-  const fetchHint =
-    authTypeOffered && authType !== "bearer"
-      ? "Save the key first, then fetch from the saved entry."
-      : keyMissing
-        ? "Enter the API key first."
-        : baseURLMissing
-          ? "Enter the endpoint URL first."
-          : null;
+  const keyMissing = keyValue.trim() === "";
+  const saveDisabled = saving || keyMissing || baseURLMissing;
+  // Pre-save discovery authenticates with the token sent as-is.
+  const fetchHint = keyMissing
+    ? "Enter the API key first."
+    : baseURLMissing
+      ? "Enter the endpoint URL first."
+      : null;
 
-  const canFetchNew = provider != null && authTypeOffered && authType === "bearer" && !keyMissing && !baseURLMissing;
+  const canFetchNew = provider != null && !keyMissing && !baseURLMissing;
 
   // Discover models as soon as a usable key + URL are entered, so endpoint IDs
   // and auto-matched aliases appear without an extra click.
@@ -395,20 +377,14 @@ export function ProviderKeysPanel() {
     try {
       await api.providerKeys.upsert(
         provider,
-        usingWIF ? "" : keyValue.trim(),
+        keyValue.trim(),
         name.trim() || undefined,
         baseURL.trim() || undefined,
         aliasMapFrom(aliasRows),
-        usingKeypair || usingEntra
-          ? { type: authType, account: authAccount.trim(), user: authUser.trim() }
-          : { type: authTypeOffered ? authType : "bearer" },
       );
       setKeyValue("");
       setName("");
       setBaseURL("");
-      setAuthType("bearer");
-      setAuthAccount("");
-      setAuthUser("");
       setAliasRows([]);
       setNewEndpointModels(null);
       load();
@@ -459,99 +435,20 @@ export function ProviderKeysPanel() {
             <form onSubmit={handleSave} className="space-y-3" autoComplete="off">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-[200px_1fr]">
                 <ProviderPicker value={provider} onChange={setPickedProvider} options={available} />
-                {usingWIF ? null : usingKeypair ? (
-                  <div className="flex flex-col gap-1.5">
-                    <label htmlFor="provider-private-key" className="text-xs font-medium text-foreground">
-                      Private key (PEM)
-                    </label>
-                    <textarea
-                      id="provider-private-key"
-                      name="provider-private-key"
-                      autoComplete="off"
-                      data-1p-ignore
-                      data-lpignore="true"
-                      data-form-type="other"
-                      spellCheck={false}
-                      rows={4}
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-2xs shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:border-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
-                      placeholder="-----BEGIN PRIVATE KEY-----"
-                      value={keyValue}
-                      onChange={e => setKeyValue(e.target.value)}
-                      required
-                    />
-                  </div>
-                ) : (
-                  <Input
-                    label={usingEntra ? "Client secret" : "API key"}
-                    type="password"
-                    name="provider-api-key"
-                    autoComplete="new-password"
-                    data-1p-ignore
-                    data-lpignore="true"
-                    data-form-type="other"
-                    placeholder={usingEntra ? "Azure Entra client secret" : "sk-..."}
-                    value={keyValue}
-                    onChange={e => setKeyValue(e.target.value)}
-                    required
-                  />
-                )}
+                <Input
+                  label="API key"
+                  type="password"
+                  name="provider-api-key"
+                  autoComplete="new-password"
+                  data-1p-ignore
+                  data-lpignore="true"
+                  data-form-type="other"
+                  placeholder="sk-..."
+                  value={keyValue}
+                  onChange={e => setKeyValue(e.target.value)}
+                  required
+                />
               </div>
-              {authTypeOffered ? (
-                <div className="flex flex-col gap-1.5">
-                  <label htmlFor="provider-auth-type" className="text-xs font-medium text-foreground">
-                    Authentication
-                  </label>
-                  <select
-                    id="provider-auth-type"
-                    name="provider-auth-type"
-                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:border-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
-                    value={authType}
-                    onChange={e => {
-                      setAuthType(e.target.value as ProviderAuthType);
-                      setKeyValue("");
-                    }}
-                  >
-                    <option value="bearer">Token (sent as-is)</option>
-                    <option value="keypair_jwt">Key pair (router signs a short-lived token)</option>
-                    <option value="wif">Workload identity (router attests its own identity)</option>
-                    <option value="azure_entra">Microsoft Entra (router mints a short-lived token)</option>
-                  </select>
-                  {usingWIF ? (
-                    <Text className="text-2xs text-muted-foreground">
-                      No credential to enter. Grant this router&apos;s workload identity access to the
-                      endpoint&apos;s service user.
-                    </Text>
-                  ) : null}
-                </div>
-              ) : null}
-              {usingKeypair || usingEntra ? (
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <Input
-                    label={usingEntra ? "Tenant ID" : "Account identifier"}
-                    name="provider-auth-account"
-                    autoComplete="off"
-                    placeholder={usingEntra ? "00000000-0000-0000-0000-000000000000" : "MYORG-MYACCOUNT"}
-                    value={authAccount}
-                    onChange={e => setAuthAccount(e.target.value)}
-                    required
-                  />
-                  <Input
-                    label={usingEntra ? "Client ID" : "User"}
-                    name="provider-auth-user"
-                    autoComplete="off"
-                    placeholder={usingEntra ? "00000000-0000-0000-0000-000000000000" : "SERVICE_USER"}
-                    value={authUser}
-                    onChange={e => setAuthUser(e.target.value)}
-                    required
-                  />
-                </div>
-              ) : null}
-              {usingEntra ? (
-                <Text className="text-2xs text-muted-foreground">
-                  The router exchanges the client secret for a short-lived Entra token and sends only
-                  that token to Azure.
-                </Text>
-              ) : null}
               <Input
                 label={baseURLRequired ? "Endpoint URL" : "Endpoint URL (optional)"}
                 name="provider-base-url"
@@ -586,7 +483,7 @@ export function ProviderKeysPanel() {
                 models={catalogModels}
                 idPrefix="new-key"
                 endpointModels={newEndpointModels}
-                onFetchModels={authTypeOffered ? handleFetchNewModels : undefined}
+                onFetchModels={handleFetchNewModels}
                 fetching={fetchingNewModels}
                 fetchHint={fetchHint}
               />
