@@ -1669,9 +1669,6 @@ func (s *Service) WithCyberRefusalRepin(enabled bool) *Service {
 }
 
 
-	return s
-}
-
 // WithSiblingFailover is the kill switch for same-cluster model failover
 // (ROUTER_SIBLING_FAILOVER); see siblingFailover.
 func (s *Service) WithSiblingFailover(enabled bool) *Service {
