@@ -54,13 +54,9 @@ func TestWithSubscriberAllowance_MaxIgnoresLinkedSubscriptionAndUsesAllowance(t 
 				})
 
 				request := httptest.NewRequest(http.MethodPost, route.path, nil)
-				if enrolled {
-					request = request.WithContext(context.WithValue(request.Context(), proxy.ManagedSubscriptionProvidersContextKey{}, map[auth.SubscriptionProvider]struct{}{route.provider: {}}))
-				} else {
-					request.Header.Set("Authorization", "Bearer "+route.bearer)
-					if route.provider == auth.SubscriptionProviderCodex {
-						request.Header.Set("ChatGPT-Account-ID", "test-account")
-					}
+				request.Header.Set("Authorization", "Bearer "+route.bearer)
+				if route.provider == auth.SubscriptionProviderCodex {
+					request.Header.Set("ChatGPT-Account-ID", "test-account")
 				}
 				response := httptest.NewRecorder()
 				engine.ServeHTTP(response, request)
@@ -87,8 +83,7 @@ func TestWithSubscriberAllowance_MaxExplicitSubscriptionOptOutUsesAllowance(t *t
 
 	request := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 	request.Header.Set("Authorization", "Bearer sk-ant-oat-test")
-	ctx := context.WithValue(request.Context(), proxy.ManagedSubscriptionProvidersContextKey{}, map[auth.SubscriptionProvider]struct{}{auth.SubscriptionProviderClaude: {}})
-	ctx = context.WithValue(ctx, proxy.InstallationSubscriptionRoutingDisabledContextKey{}, true)
+	ctx := context.WithValue(request.Context(), proxy.InstallationSubscriptionRoutingDisabledContextKey{}, true)
 	response := httptest.NewRecorder()
 	engine.ServeHTTP(response, request.WithContext(ctx))
 
