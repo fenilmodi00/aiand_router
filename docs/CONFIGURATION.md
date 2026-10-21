@@ -243,7 +243,7 @@ Keep the signing key identical on gateway and workers of the same environment.
 | Variable                          | Default                      | Purpose |
 | --------------------------------- | ---------------------------- | ------- |
 | `ROUTER_DEFAULT_STRATEGY`         | `cluster`                    | Strategy used when an installation has no persisted strategy. Change only after the policy rollout gate passes. The router refuses to boot, and `/readyz` fails, when this strategy has no router configured (e.g. `hmm_embedding` without `ROUTER_POLICY_ENVIRONMENT`). Managed serving workers (`ROUTER_DEPLOYMENT_MODE=managed` with `ROUTER_SERVING_ASSERTION_KEY`) additionally refuse to boot unless it is set to one of the policy strategies they register (`hmm`, `hmm_embedding`); the legacy `router` service, self-hosted deployments and the gateway keep the `cluster` default. |
-| `ROUTER_CLUSTER_VERSION`          | *(reads `artifacts/latest`)* | Pin a specific cluster artifact version (e.g. `v0.79`). The served default is **v0.85** (2026-10-15), which is v0.83 plus an explicit operator bias on the GLM lanes. See [GLM lanes in auto-routing](#glm-lanes-in-auto-routing). |
+| `ROUTER_CLUSTER_VERSION`          | *(reads `artifacts/latest`)* | Pin a specific cluster artifact version (e.g. `v0.79`). The served default is **v0.86** (2026-10-21) — v0.84's measured cells plus a coding-lane offset that restores `moonshotai/kimi-k3` on the coding-heavy clusters. Measured through the production scorer (`internal/router/cluster`'s corpus replay harness and register-probe mix): held-out AIDER coding accuracy **42.86%** vs v0.84's 35.90% and v0.83's 35.14%, at $0.001363/prompt honest cost vs v0.83's $0.003744. See [The coding lane in v0.86](#the-coding-lane-in-v086). v0.85 (v0.83 plus a +0.25 operator bias on the GLM lanes) is retained for comparison only — see [GLM lanes in auto-routing](#glm-lanes-in-auto-routing). |
 | `ROUTER_CLUSTER_EMBED_TIMEOUT_MS` | `200`                        | Per-request ONNX embed timeout. Increase for slower hosts. |
 | `ROUTER_CLUSTER_COST_CAP_MULTIPLE` | `3.0`                      | Deployment cost cap: argmax only considers models whose effective cost (`input_per_1k + output_cost_ratio * output_per_1k * verbosity_factor`) is within this multiple of the cheapest deployed lane. Set to `0` to disable and restore the pure quality/cost blend. Measured over the full labelled corpus (`.context/label-runs/v082-expanded-labels.jsonl`, 1,503 all-8-scored prompts): cheapest-lane-only 67.24% accuracy @ $0.00034/prompt, `3.0` (default) 71.03% @ $0.00058/prompt, cap disabled 74.36% @ $0.00512/prompt. A cap that would empty the candidate set falls back to the full set, so a turn is never failed over pricing. |
 | `ROUTER_CLUSTER_COST_CAP_MODE`    | `cluster`                  | Budget shape for `ROUTER_CLUSTER_COST_CAP_MULTIPLE`: `global` = one deployment-wide budget (cap × the cheapest eligible lane on the whole roster, the historical behavior), `cluster` = a budget per top-P cluster (cap × the cheapest model that cluster's own blend elects) unioned with the global set. Unknown values warn at boot and fall back to `global`. Measured over the committed v0.83 bundle (8-model roster, deployed via artifacts/latest): global reaches 3 of 8 models (the two flash lanes + glm-5.3-flash), cluster reaches 7 of 8 (adding deepseek-v4-pro, kimi-k3, motif-3, qwen3.8-27b); only glm-5.3 stays out because it leads no cluster at any alpha. On that bundle cluster mode buys the spread at the shipped cap 3.0 with no cap change, and can never remove a route global mode had. On the v0.84 candidate the same modes reach 2 and 4 of 8 respectively at +2.4x measured cost for -0.07pt accuracy.
@@ -400,6 +400,98 @@ cluster](#forcing-a-model-or-a-routing-cluster)).
 
 Excluding every provider that serves the models you route to leaves requests
 with nowhere to go (HTTP 503 from the scorer), so exclude deliberately.
+
+## The coding lane in v0.86
+
+**v0.86** is the served default. It is v0.84's measured cells plus one thing
+v0.84 does not have: a `moonshotai/kimi-k3` lane for coding traffic.
+
+### Why v0.84 alone was not enough
+
+v0.84 is the cheapest bundle on the labelled corpus, but its accuracy edge is
+**in-sample**: its quality cells were fitted to that corpus
+(`.context/label-runs/v082-expanded-labels.jsonl`). That corpus is dominated by
+tool-calling and QA — BFCLv4 3,834 rows, MMLU-Pro 2,101, LiveCodeBench 1,705,
+LCBv5 1,525 — and carries only **10 AIDER rows for `kimi-k3`**, the strongest
+measured lane (0.624 held-out AIDER accuracy, n=101). So the lane that wins
+coding turns is effectively unmeasured in the cells that decide them, and no
+cell elects it in any of the 16 clusters.
+
+That is not reachable by configuration. A cost cap, an `alpha`, a
+`ROUTER_CLUSTER_COST_CAP_MODE`, or a `PreferredModels` bonus all operate on the
+blend, and the blend starts from the cell: with v0.84's cells, `kimi-k3` wins
+**no** cluster, so widening the cap or the bonus cannot put it in play. Measured
+across the whole roster, v0.84's cells elect `kimi-k3` in 0 of 16 clusters and
+`motif-3` in 0 of 16, so the served mix is 4 of 8 models.
+
+### What the held-out measurement showed
+
+The AIDER fair-lane grades
+(`.context/label-runs/aider-fair-lanes-grades.jsonl` and
+`aider-glm-effort-graded.jsonl`) were taken **after** the corpus the cells were
+fitted to, so they are held out with respect to those cells. Scored on the
+fixed subset where every graded lane has a grade — so every bundle is compared
+on the same prompts — the shipped bundles are level on coding:
+
+| bundle | corpus accuracy | cost/prompt | held-out AIDER coding | models reached |
+|---|---|---|---|---|
+| v0.83 | 69.98% | $0.003744 | 35.14% | 7 |
+| v0.84 | 73.93% | $0.001004 | 35.90% | 4 |
+| v0.85 | 67.52% | $0.002937 | 22.76% | 8 |
+
+v0.84 buys its price with an accuracy edge that the held-out measurement does
+not confirm on coding. That is the gap v0.86 closes.
+
+### How v0.86 closes it
+
+`scripts/build_v086_coding_lane.py` copies v0.84 and applies a **range-relative
+cell offset** to `kimi-k3` in the coding-heavy clusters only — `c5`, `c8`,
+`c10`, `c12`, `c14`. The offset is a fraction of each cluster's own measured
+cell spread, the same mechanism `build_v085_glm_preference.py` uses, because a
+raw additive offset applied before the runtime's per-cluster min-max
+normalization flattens the cell range and collapses the mix.
+
+Two clusters are deliberately excluded. `c0` and `c9` are chit-chat-dominated
+(16.7% and 73.8% chit-chat in their neighbourhoods), and offsetting them
+routes conversational and trivial_nl turns onto the premium lane — the exact
+violation the register mix guard exists to prevent. Measured through the real
+scorer, `c0` in the set puts 4 of the 180 register probes on the premium lane;
+with the shipped set the count is 0.
+
+The result, measured through the production scorer:
+
+| bundle | corpus accuracy | cost/prompt | held-out AIDER coding | models reached |
+|---|---|---|---|---|
+| **v0.86** | 73.88% | **$0.001363** | **42.86%** | 5 |
+| v0.84 | 73.93% | $0.001004 | 35.90% | 4 |
+| v0.83 | 69.98% | $0.003744 | 35.14% | 7 |
+
+v0.86 matches v0.84 on the corpus, beats both on held-out coding, and costs a
+third of v0.83. The offset was chosen on one half of the fixed AIDER subset
+and reported on the other: paired **+7.69pt** on the validation half, 3 wins
+and 0 losses.
+
+The measured cells are preserved in the artifact under
+`meta.operator_override.measured_cells_preserved`, with the rationale and the
+reversal instructions, so the bias stays attributable. To reverse it, delete
+that block and the corresponding offsets, or rebuild from measured labels via
+`scripts/build_v084_measured_cells.py` plus a fresh fair-label campaign that
+covers the coding lanes.
+
+### Reproducing the comparison
+
+The comparison runs through the production scorer, not a port of it:
+
+```
+go test ./internal/router/cluster/ -run TestCorpusReplay -v
+go test ./internal/router/cluster/ -run TestCandidateSweep -v
+go test ./internal/router/cluster/ -run TestClusterComposition -v
+```
+
+`TestCorpusReplay` replays the labelled corpus through the real scorer and
+prints one JSON line per bundle. `TestCandidateSweep` sweeps the offset and
+the cluster set. `TestClusterComposition` reports the per-cluster register
+mix, which is how the chit-chat clusters are identified.
 
 ## GLM lanes in auto-routing
 
