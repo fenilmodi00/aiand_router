@@ -33,7 +33,7 @@ func TestDefaultInferenceRegistryCompactionPurposesShareSummarizers(t *testing.T
 	handover, found := registry.Spec(policy.PurposeCompactionHandoverSummary)
 	require.True(t, found)
 	assert.Equal(t, precompaction.FixedCatalogModels, handover.FixedCatalogModels)
-	assert.Contains(t, handover.FixedCatalogModels, "claude-sonnet-4-5")
+	assert.Contains(t, handover.FixedCatalogModels, "z-ai/glm-5.2")
 }
 
 func TestInferenceRegistryRejectsDuplicateAndMissingPurposes(t *testing.T) {
@@ -96,7 +96,7 @@ func TestInferenceRegistryRejectsInvalidFixedPolicy(t *testing.T) {
 
 	specs = policy.DefaultRegistry().Specs()
 	mainIndex := policyIndex(t, specs, policy.PurposeAnthropicMessages)
-	specs[mainIndex].FixedCatalogModels = []string{"claude-haiku-4-5"}
+	specs[mainIndex].FixedCatalogModels = []string{"z-ai/glm-5.3-flash"}
 	_, err = policy.NewRegistry(specs)
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "declares fixed catalog models")
@@ -118,7 +118,7 @@ func TestInferenceRegistryRejectsInvalidFallbackAndOverridePrecedence(t *testing
 	assert.ErrorContains(t, err, "without alternatives")
 
 	specs = policy.DefaultRegistry().Specs()
-	specs[index].Fallback.Alternatives = []string{"claude-haiku-4-5"}
+	specs[index].Fallback.Alternatives = []string{"z-ai/glm-5.3-flash"}
 	_, err = policy.NewRegistry(specs)
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "declares alternatives for fallback kind")
@@ -127,7 +127,7 @@ func TestInferenceRegistryRejectsInvalidFallbackAndOverridePrecedence(t *testing
 	fixedIndex := policyIndex(t, specs, policy.PurposeHandoverSummary)
 	specs[fixedIndex].Fallback = policy.FallbackSpec{
 		Kind:         policy.FallbackKindPlanAlternatives,
-		Alternatives: []string{"claude-haiku-4-5"},
+		Alternatives: []string{"z-ai/glm-5.3-flash"},
 	}
 	_, err = policy.NewRegistry(specs)
 	require.Error(t, err)
