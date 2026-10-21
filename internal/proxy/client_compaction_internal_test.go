@@ -21,7 +21,6 @@ func TestClientRecoveryLeavesUnknownBudgetsAndUtilityTurnsUntouched(t *testing.T
 		turn   turntype.TurnType
 	}{
 		{"unknown budget", router.ClientBudget{}, turntype.MainLoop},
-		{"ambiguous beta", router.ClientBudget{Evidence: router.ClientBudgetAmbiguousLongContext}, turntype.ToolResult},
 		{"probe", smallClientBudget(), turntype.Probe},
 		{"subagent", smallClientBudget(), turntype.SubAgentDispatch},
 	} {

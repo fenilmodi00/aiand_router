@@ -30,7 +30,7 @@ func ApplyOpenAIResponsesEffort(body []byte, opts EmitOptions) ([]byte, error) {
 // onto its reasoning menu. Empty when nothing is forced or the target has no
 // reasoning support.
 func EffectiveReasoningEffort(opts EmitOptions) string {
-	if !opts.Capabilities.Supports(router.CapReasoning) && !opts.Capabilities.Supports(router.CapAdaptiveThinking) {
+	if !opts.Capabilities.Supports(router.CapReasoning) {
 		return ""
 	}
 	return ClampReasoningLevel(opts.Capabilities, resolveReasoningEffortFor(opts))

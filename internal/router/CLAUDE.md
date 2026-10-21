@@ -2,7 +2,7 @@
 
 > **Mirror notice.** Source for generated [AGENTS.md](AGENTS.md). Edit this file, then run `make generate-agent-guides`; CI rejects drift.
 
-Inner-ring `Router` interface + `Request`/`Decision`/`ModelSpec`/`ModelRegistry` value types. Plus subpackages for cache-aware action-routing primitives. Read [root CLAUDE.md](../../CLAUDE.md) first.
+Inner-ring `Router` interface + `Request`/`Decision`/`ModelSpec` value types. Plus subpackages for cache-aware action-routing primitives. Read [root CLAUDE.md](../../CLAUDE.md) first.
 
 ## Subpackages
 

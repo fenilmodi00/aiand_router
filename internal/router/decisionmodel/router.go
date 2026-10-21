@@ -3,7 +3,6 @@ package decisionmodel
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 
 	"weave-os/router/internal/providers"
@@ -16,8 +15,6 @@ const EscalationCadence = 3
 
 const maxTrackedSessions = 10_000
 
-const clientAppCodex = "codex"
-
 // Lineup is one harness's models: Top for high-task judgment and escalation,
 // Fast for defined work, LowTaskJudgment for judgment calls on low tasks.
 // SubscriptionProvider is the provider whose subscription skips task judgment.
@@ -28,12 +25,14 @@ type Lineup struct {
 	SubscriptionProvider string
 }
 
-var (
-	// ClaudeCodeLineup serves Claude Code and every non-Codex client.
-	ClaudeCodeLineup = Lineup{Top: string(catalog.ModelIDKimiK3), Fast: string(catalog.ModelIDGLM53Flash), LowTaskJudgment: string(catalog.ModelIDGLM53), SubscriptionProvider: providers.ProviderAIAND}
-	// CodexLineup is used only for Codex; ai& serves it too.
-	CodexLineup = Lineup{Top: string(catalog.ModelIDKimiK3), Fast: string(catalog.ModelIDGLM53Flash), LowTaskJudgment: string(catalog.ModelIDGLM53), SubscriptionProvider: providers.ProviderAIAND}
-)
+// DefaultLineup serves every client: the single wired upstream serves the
+// whole lineup, so Codex and Claude Code route identically.
+var DefaultLineup = Lineup{
+	Top:                  string(catalog.ModelIDKimiK3),
+	Fast:                 string(catalog.ModelIDGLM53Flash),
+	LowTaskJudgment:      string(catalog.ModelIDGLM53),
+	SubscriptionProvider: providers.ProviderAIAND,
+}
 
 // sessionState is what the router remembers per session between calls.
 type sessionState struct {
@@ -58,10 +57,7 @@ func New(classifier Classifier) *Router {
 }
 
 func (r *Router) Route(ctx context.Context, req router.Request) (router.Decision, error) {
-	lineup := ClaudeCodeLineup
-	if strings.EqualFold(req.ClientApp, clientAppCodex) {
-		lineup = CodexLineup
-	}
+	lineup := DefaultLineup
 	sessionID := req.FeedbackKey
 	if sessionID == "" {
 		sessionID = req.ClientSessionID

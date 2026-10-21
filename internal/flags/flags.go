@@ -95,7 +95,6 @@ const (
 	KeyEffortEscalation                     Key = "effort_escalation"
 	KeyCyberRefusalRepin                    Key = "cyber_refusal_repin"
 	KeyCyberRefusalFallback                 Key = "cyber_refusal_fallback_model"
-	KeyAnthropicServerFallback              Key = "anthropic_server_side_fallback"
 	KeyEmbedOnlyUserMessage                 Key = "embed_only_user_message"
 	KeyOpenAIResponsesBroad                 Key = "openai_responses_broad"
 	KeyAllowedModelsHeader                  Key = "allowed_models_header"
@@ -317,13 +316,6 @@ var Registry = []Definition{
 		EnvVar:         "ROUTER_CYBER_REFUSAL_FALLBACK_MODEL",
 		Kind:           KindString,
 		Description:    "Fallback model for a safety-refusal re-pin with no runner-up.",
-		OrgOverridable: true,
-	},
-	{
-		Key:            KeyAnthropicServerFallback,
-		EnvVar:         "ROUTER_ANTHROPIC_SERVER_SIDE_FALLBACK",
-		Kind:           KindBool,
-		Description:    "Ask Anthropic to re-serve a safety-refused turn on a fallback model instead of returning the refusal.",
 		OrgOverridable: true,
 	},
 	{
