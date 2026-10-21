@@ -17,13 +17,6 @@ import (
 	"weave-os/router/internal/router"
 )
 
-// SubscriptionTransport identifies adapters that accept native subscription OAuth.
-// Account quota and overage observations govern whether a credential is usable;
-// this capability does not promise provider-enforced included-only billing.
-type SubscriptionTransport interface {
-	SupportsSubscriptions() bool
-}
-
 // UpstreamHeaderObserver records subscription rate-limit headroom (see
 // internal/proxy/usage) without coupling adapters to the observer. Ctx lets it
 // check the resolved credential so only responses on the caller's own

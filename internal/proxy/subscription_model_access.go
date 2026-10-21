@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"hash/maphash"
 	"net/http"
@@ -21,8 +20,6 @@ const subscriptionModelDenialTTL = 15 * time.Minute
 
 type subscriptionModelKey struct {
 	token    uint64
-	owner    string
-	account  string
 	provider string
 	model    string
 }
@@ -50,10 +47,6 @@ func (a *subscriptionModelAccess) keyForProvider(token []byte, provider, model s
 	return subscriptionModelKey{token: maphash.Bytes(a.seed, token), provider: provider, model: router.StripDateSuffix(model)}
 }
 
-func (a *subscriptionModelAccess) managedKey(owner, account, provider, model string) subscriptionModelKey {
-	return subscriptionModelKey{owner: owner, account: account, provider: provider, model: router.StripDateSuffix(model)}
-}
-
 func (a *subscriptionModelAccess) denied(token []byte, model string, now time.Time) bool {
 	return a.deniedForProvider(token, "", model, now)
 }
@@ -61,15 +54,6 @@ func (a *subscriptionModelAccess) denied(token []byte, model string, now time.Ti
 func (a *subscriptionModelAccess) deniedForProvider(token []byte, provider, model string, now time.Time) bool {
 	until, ok := a.cache().Get(a.keyForProvider(token, provider, model))
 	return ok && now.Before(until)
-}
-
-func (a *subscriptionModelAccess) managedDenied(owner, account, provider, model string, now time.Time) bool {
-	until, ok := a.cache().Get(a.managedKey(owner, account, provider, model))
-	return ok && now.Before(until)
-}
-
-func (a *subscriptionModelAccess) denyManaged(owner, account, provider, model string, until time.Time) {
-	a.cache().Add(a.managedKey(owner, account, provider, model), until)
 }
 
 func anthropicSubscriptionModelRejected(err error) bool {
@@ -81,15 +65,22 @@ func anthropicSubscriptionModelRejected(err error) bool {
 		strings.HasPrefix(strings.ToLower(gjson.GetBytes(upstream.Body, "error.message").String()), "model:")
 }
 
-func anthropicSubscriptionModelUnavailable(model string) error {
-	body, _ := json.Marshal(map[string]any{
-		"type": "error",
-		"error": map[string]string{
-			"type":    "not_found_error",
-			"message": "model: " + router.StripDateSuffix(model),
-		},
-	})
-	return &providers.UpstreamErrorResponse{Status: http.StatusNotFound, Body: body}
+// anthropicSubscriptionThirdPartyRefused reports whether err is Anthropic's
+// refusal to serve a non-Claude-Code client on a subscription's plan limits
+// ("Third-party apps now draw from your extra usage, not your plan limits").
+// It arrives as a 400 invalid_request_error, so neither IsRetryable nor the
+// OAuth-rejection gate catches it; the account is healthy for Claude Code
+// traffic, so it is a per-client-app capacity failure, not a bad credential.
+func anthropicSubscriptionThirdPartyRefused(err error) bool {
+	var upstream *providers.UpstreamErrorResponse
+	if !errors.As(err, &upstream) || upstream.Status != http.StatusBadRequest {
+		return false
+	}
+	if gjson.GetBytes(upstream.Body, "error.type").String() != "invalid_request_error" {
+		return false
+	}
+	message := strings.ToLower(gjson.GetBytes(upstream.Body, "error.message").String())
+	return strings.Contains(message, "third-party apps") && strings.Contains(message, "extra usage")
 }
 
 func (s *Service) recordSubscriptionModelRejection(ctx context.Context, provider, model string, err error) {

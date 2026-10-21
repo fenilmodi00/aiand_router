@@ -17,7 +17,6 @@ import (
 	feedbackapi "weave-os/router/internal/api/feedback"
 	geminiapi "weave-os/router/internal/api/gemini"
 	openaiapi "weave-os/router/internal/api/openai"
-	subscriptionsapi "weave-os/router/internal/api/subscriptions"
 	"weave-os/router/internal/auth"
 	"weave-os/router/internal/billing"
 	"weave-os/router/internal/policyclient"
@@ -254,11 +253,6 @@ func RegisterWithFeatures(engine *gin.Engine, authSvc *auth.Service, proxySvc *p
 			internalGroup.DELETE("/test-plans/launches/:id", admin.InternalTestPlanRevokeHandler(features.TestPlans))
 		}
 		internalGroup.POST("/provider-keys/models", admin.InternalListUpstreamModelsHandler(authSvc, proxySvc))
-		if authSvc.SubscriptionAccountsEnabled() {
-			internalGroup.GET("/subscription-accounts/:subscriberID", admin.InternalListSubscriptionAccountsHandler(authSvc))
-			internalGroup.PATCH("/subscription-accounts/:subscriberID/:accountID", admin.InternalUpdateSubscriptionAccountHandler(authSvc))
-			internalGroup.DELETE("/subscription-accounts/:subscriberID/:accountID", admin.InternalDeleteSubscriptionAccountHandler(authSvc))
-		}
 		// Inference-policy inspection: the reviewed registry, the deployment's
 		// view of it, and a resolution preview. Read-only and content-free; the
 		// control plane mirrors these into its policy inventory.
@@ -283,11 +277,6 @@ func RegisterWithFeatures(engine *gin.Engine, authSvc *auth.Service, proxySvc *p
 	adminAuthed.Use(servingAdmissionMiddleware...)
 	adminAuthed.GET("/validate", admin.ValidateHandler)
 	adminAuthed.POST("/v1/client-events", admin.ClientEventHandler(authSvc))
-	if authSvc.SubscriptionAccountsEnabled() {
-		subscriptionGroup := engine.Group("/v1", middleware.WithTimeout(subscriptionAccountTimeout), middleware.WithAuth(authSvc, byokRequiresOptIn, features.ServingAdmission))
-		subscriptionGroup.Use(servingAdmissionMiddleware...)
-		subscriptionsapi.Register(subscriptionGroup, authSvc)
-	}
 
 	if mode == DeploymentModeSelfHosted {
 		engine.GET("/", func(c *gin.Context) { c.Redirect(http.StatusFound, "/ui") })

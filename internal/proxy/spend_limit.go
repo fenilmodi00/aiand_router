@@ -55,8 +55,7 @@ func (s *Service) checkUserMonthlySpendLimit(ctx context.Context, headers http.H
 		// 402 free traffic. Flag subscription-only so the proxy serves on the
 		// subscription (or refuses a would-be-paid turn), bounding paid spend at
 		// the cap while subscription usage keeps flowing.
-		if _, bypassOn := usageBypassFromContext(ctx); bypassOn &&
-			RequestPresentsCoveringSubscription(ctx, headers, routePath) {
+		if RequestPresentsCoveringSubscription(ctx, headers, routePath) {
 			observability.FromContext(ctx).Info("Engineer monthly cap reached but subscription covers the route: serving subscription-only",
 				"organization_id", orgID,
 				"router_user_id", userID,

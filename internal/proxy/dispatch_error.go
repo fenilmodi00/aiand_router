@@ -70,7 +70,6 @@ const (
 	DispatchErrorClassifierInputTooLong
 	DispatchErrorClassifierUnavailable
 	DispatchErrorSpendCapReached
-	DispatchErrorSubscriptionClientAppRefused
 	DispatchErrorDecisionModelUnavailable
 )
 
@@ -127,14 +126,6 @@ func ClassifyDispatchError(err error) (DispatchErrorClass, bool) {
 			Message:    "This model is not included in your plan. Pick a model your plan covers.",
 			LogLevel:   "warn",
 			LogMessage: "Rejected request: model is not eligible for the caller's product",
-		}, true
-	case errors.Is(err, ErrSubscriptionClientAppRefused):
-		return DispatchErrorClass{
-			Kind:       DispatchErrorSubscriptionClientAppRefused,
-			Status:     http.StatusForbidden,
-			Message:    "Anthropic only lets Claude Code use Claude subscription plan limits, so this app can't use them for the forced Claude model. Use Claude Code, add extra usage at claude.ai/settings/usage, or pick a non-Claude model.",
-			LogLevel:   "warn",
-			LogMessage: "Rejected forced Claude turn: subscriptions refused third-party client",
 		}, true
 	// Ahead of the pool cases: a billing-gated pool refusal carries both.
 	case errors.Is(err, ErrSpendCapSubscriptionUnavailable):
@@ -494,7 +485,7 @@ func (k DispatchErrorKind) IsClientError() bool {
 	switch k {
 	case DispatchErrorClassifierHistory, DispatchErrorClassifierInputTooLong:
 		return true
-	case DispatchErrorRequestNotJSONObject, DispatchErrorResponsesChatCompletionsBody, DispatchErrorNoEligibleProvider, DispatchErrorAllowlistEmptiesPool, DispatchErrorContextWindowExceeded, DispatchErrorInvalidRoutingKnobs, DispatchErrorTranslationIntrinsicallyIncompatible, DispatchErrorAnthropicCacheControlInvalid, DispatchErrorForcedModelExcluded, DispatchErrorForcedModelUnknown, DispatchErrorPassthroughModelUnknown, DispatchErrorForcedClusterUnsupportedStrategy, DispatchErrorForcedClusterUnservable, DispatchErrorGatewayServesNoModel, DispatchErrorNoRoutableModels, DispatchErrorPlanOverrideRejected, DispatchErrorProductIneligible, DispatchErrorSubscriptionClientAppRefused:
+	case DispatchErrorRequestNotJSONObject, DispatchErrorResponsesChatCompletionsBody, DispatchErrorNoEligibleProvider, DispatchErrorAllowlistEmptiesPool, DispatchErrorContextWindowExceeded, DispatchErrorInvalidRoutingKnobs, DispatchErrorTranslationIntrinsicallyIncompatible, DispatchErrorAnthropicCacheControlInvalid, DispatchErrorForcedModelExcluded, DispatchErrorForcedModelUnknown, DispatchErrorPassthroughModelUnknown, DispatchErrorForcedClusterUnsupportedStrategy, DispatchErrorForcedClusterUnservable, DispatchErrorGatewayServesNoModel, DispatchErrorNoRoutableModels, DispatchErrorPlanOverrideRejected, DispatchErrorProductIneligible:
 		return true
 	default:
 		return false

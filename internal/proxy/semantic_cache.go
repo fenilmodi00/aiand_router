@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"weave-os/router/internal/auth"
 	"weave-os/router/internal/observability/otel"
 
 	"weave-os/router/internal/requestcontext"
@@ -61,9 +60,6 @@ func (s *Service) semanticCacheRequestAllowed(ctx context.Context, req router.Re
 		return false
 	}
 	if creds := CredentialsFromContext(ctx); creds != nil && creds.OAuth {
-		return false
-	}
-	if enrolled, _ := ctx.Value(ManagedSubscriptionProvidersContextKey{}).(map[auth.SubscriptionProvider]struct{}); len(enrolled) > 0 {
 		return false
 	}
 	requirements := req.TranslationRequirements
