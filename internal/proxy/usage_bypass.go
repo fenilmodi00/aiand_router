@@ -641,7 +641,6 @@ func (s *Service) bypassToAnthropic(
 			outcomeErr = upstreamErr
 		}
 		credentialKeyPrefix, credentialKeySuffix, credSource := s.credentialKeyParts(ctx)
-		stopReason, _, _ := extractor.AnthropicResponse()
 		// The routed path's key, so a session switching lanes keeps one turn clock.
 		sessionKey := deriveSessionKeyForRequest(ctx, env, apiKeyIDFromContext(ctx))
 		telemetryParams := InsertTelemetryParams{
@@ -667,7 +666,7 @@ func (s *Service) bypassToAnthropic(
 			UpstreamLatencyMs:      time.Since(proxyStart).Milliseconds(),
 			TotalLatencyMs:         time.Since(requestStart).Milliseconds(),
 			UpstreamStatusCode:     int32(upstreamStatus(outcomeErr)),
-			ErrorClass:             classifyTurnError(outcomeErr, stopReason, 0),
+			ErrorClass:             classifyTurnError(outcomeErr, "", 0),
 			UserPrompt:             &userPrompt,
 			LatestToolCallCounts:   latestToolCallCountsJSON(env),
 			SessionKey:             sessionKey[:],

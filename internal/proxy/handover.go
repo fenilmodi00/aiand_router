@@ -177,7 +177,6 @@ func summarizerRequest(scope router.Request, env *translate.RequestEnvelope) rou
 	request := router.Request{
 		EnabledProviders: scope.EnabledProviders,
 		ExcludedModels:   scope.ExcludedModels,
-		GatewayProviders: scope.GatewayProviders,
 		CustomBindings:   scope.CustomBindings,
 	}
 	if env != nil {

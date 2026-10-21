@@ -153,20 +153,16 @@ func (s *Service) readmitForcedModel(
 	pin sessionpin.Pin,
 ) map[string]struct{} {
 	excluded := req.ExcludedModels
-	bypassesAllowlist := len(s.gatewayProvidersForRequest(ctx)) > 0 && !modelPermittedByAllowlist(ctx, pin.Model)
-	if modelInRequestSubset(ctx, pin.Model) && !bypassesAllowlist {
+	if modelInRequestSubset(ctx, pin.Model) {
 		return excluded
 	}
 	if _, ok := excluded[pin.Model]; !ok {
 		return excluded
 	}
-	if _, ok := s.forcePolicyExcludedModels(ctx)[pin.Model]; ok {
+	if _, ok := s.policyExcludedModels(ctx)[pin.Model]; ok {
 		return excluded
 	}
 	if advisorRejectsModel(env, pin.Model) {
-		return excluded
-	}
-	if gemini3xRequiresSignedHistory(pin.Model) && env.HasUnsignedToolCallHistory() {
 		return excluded
 	}
 	outputReserve := contextWindowOutputReserve

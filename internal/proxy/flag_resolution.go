@@ -188,14 +188,6 @@ func (s *Service) ResolveRateLimitCooldown(ctx context.Context) time.Duration {
 	return time.Duration(seconds) * time.Second
 }
 
-// ResolveNativeAnthropicResponseSignals reports the
-// ROUTER_NATIVE_ANTHROPIC_RESPONSE_SIGNALS flag: whether an Anthropic-native
-// passthrough turn records its observed stop_reason and tool_use block count
-// on the telemetry row. Observability only.
-func (s *Service) ResolveNativeAnthropicResponseSignals(ctx context.Context) bool {
-	return flags.BoolOr(ctx, flags.KeyNativeAnthropicResponseSignals, s.nativeAnthropicResponseSignals)
-}
-
 // ResolveNativeOpenAIResponseSignals reports the
 // ROUTER_NATIVE_OPENAI_RESPONSE_SIGNALS flag: whether an OpenAI-native turn
 // records its observed finish_reason and tool-call count on the telemetry row.
@@ -214,12 +206,6 @@ func (s *Service) ResolveEffortEscalation(ctx context.Context) bool {
 // session off the refusing model.
 func (s *Service) ResolveCyberRefusalRepin(ctx context.Context) bool {
 	return flags.BoolOr(ctx, flags.KeyCyberRefusalRepin, s.cyberRefusalRepin)
-}
-
-// ResolveCyberRefusalRetry reports whether a turn OpenAI declined on cyber
-// policy is re-dispatched to the fallback model within the same turn.
-func (s *Service) ResolveCyberRefusalRetry(ctx context.Context) bool {
-	return flags.BoolOr(ctx, flags.KeyCyberRefusalRetry, s.cyberRefusalRetry)
 }
 
 // ResolveCyberRefusalFallbackModel returns the model to re-pin to on a safety

@@ -254,9 +254,6 @@ func (s *Service) dispatchPlanned(ctx context.Context, in failoverInputs, plan i
 				}
 			}
 			if committed(in.buf) || !rotate {
-				if providers.IsUpstreamModelNotFound(attemptErr) {
-					s.rememberGatewayLacksModel(attemptCtx, decision.Provider, decision.Model)
-				}
 				return attemptErr
 			}
 			lastSubscriptionErr = attemptErr

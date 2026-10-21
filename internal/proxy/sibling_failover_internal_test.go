@@ -146,19 +146,15 @@ func TestImageSafeModels_DropsTextOnlyArmsOnImageTurns(t *testing.T) {
 	assert.Equal(t, []string{"z-ai/glm-5.3-flash"}, imageSafeModels(models, true))
 }
 
-// Strike readmission belongs to sibling failover only: the cyber-refusal
-// retry walks its own runner-up then configured fallback, and a struck arm
-// must not jump ahead of that fallback.
-func TestRescueDecision_CyberRefusalRetryNeverReadmitsStruckArm(t *testing.T) {
+// A struck arm is readmitted by the sibling rescue: the session still gets
+// one rescue attempt on an arm that failed on an earlier turn.
+func TestRescueDecisions_StrikerArmIsReadmitted(t *testing.T) {
 	s := siblingService(providers.ProviderAIAND)
 	failed := overloadedDecision(&router.RoutingMetadata{})
 	ctx := context.WithValue(context.Background(), SessionDemotedModelsContextKey{}, []string{"deepseek/deepseek-v4-pro"})
 	ctx = context.WithValue(ctx, SessionStrikeReadmitModelsContextKey{}, []string{"deepseek/deepseek-v4-pro"})
 
-	_, found := s.rescueDecision(ctx, failed, []string{"deepseek/deepseek-v4-pro"}, ReasonCyberRefusalRetry, 1_000, 0, 0)
-	assert.False(t, found)
-
-	got := s.rescueDecisions(ctx, failed, []string{"deepseek/deepseek-v4-pro"}, ReasonSiblingFailover, 1_000, 0, 0)
+	got := s.rescueDecisions(ctx, failed, []string{"deepseek/deepseek-v4-pro"}, 1_000, 0, 0)
 	assert.Equal(t, []string{"deepseek/deepseek-v4-pro"}, siblingModels(got))
 }
 

@@ -94,7 +94,6 @@ const (
 	KeySiblingFailover                      Key = "sibling_failover"
 	KeyEffortEscalation                     Key = "effort_escalation"
 	KeyCyberRefusalRepin                    Key = "cyber_refusal_repin"
-	KeyCyberRefusalRetry                    Key = "cyber_refusal_retry"
 	KeyCyberRefusalFallback                 Key = "cyber_refusal_fallback_model"
 	KeyAnthropicServerFallback              Key = "anthropic_server_side_fallback"
 	KeyEmbedOnlyUserMessage                 Key = "embed_only_user_message"
@@ -108,7 +107,6 @@ const (
 	KeyRescuedFailureArmDemotion            Key = "rescued_failure_arm_demotion"
 	KeyTransientRateLimit                   Key = "transient_rate_limit"
 	KeyRateLimitCooldownSeconds             Key = "rate_limit_cooldown_seconds"
-	KeyNativeAnthropicResponseSignals       Key = "native_anthropic_response_signals"
 	KeyNativeOpenAIResponseSignals          Key = "native_openai_response_signals"
 )
 
@@ -121,6 +119,8 @@ const (
 	retiredKeyStruggleEscalationHoldout Key = "struggle_escalation_holdout_pct"
 	retiredKeyStruggleEvidenceArming    Key = "struggle_evidence_arming"
 	retiredKeySubscriberPaidFallback    Key = "subscriber_paid_fallback_enabled"
+	retiredKeyCyberRefusalRetry         Key = "cyber_refusal_retry"
+	retiredKeyNativeAnthropicResponse    Key = "native_anthropic_response_signals"
 )
 
 var retiredOverrideKeys = map[Key]struct{}{
@@ -128,6 +128,8 @@ var retiredOverrideKeys = map[Key]struct{}{
 	retiredKeyStruggleEscalationHoldout: {},
 	retiredKeyStruggleEvidenceArming:    {},
 	retiredKeySubscriberPaidFallback:    {},
+	retiredKeyCyberRefusalRetry:         {},
+	retiredKeyNativeAnthropicResponse:    {},
 }
 
 // Definition describes one overridable flag. DeploymentDefault is not stored
@@ -148,7 +150,7 @@ type Definition struct {
 // RegistryVersion changes whenever Registry's membership changes. Publish uses
 // it to make pruning safe during rolling deploys: a revision with an older
 // registry version may not delete definitions published by a newer revision.
-const RegistryVersion = 22
+const RegistryVersion = 24
 
 // Registry is the curated allowlist of flags that may carry a per-organization
 // override. It is deliberately explicit rather than derived from the env var
@@ -311,13 +313,6 @@ var Registry = []Definition{
 		OrgOverridable: true,
 	},
 	{
-		Key:            KeyCyberRefusalRetry,
-		EnvVar:         "ROUTER_CYBER_REFUSAL_RETRY",
-		Kind:           KindBool,
-		Description:    "Re-dispatch a turn OpenAI declined on cyber policy to a non-OpenAI fallback before any output reaches the client.",
-		OrgOverridable: true,
-	},
-	{
 		Key:            KeyCyberRefusalFallback,
 		EnvVar:         "ROUTER_CYBER_REFUSAL_FALLBACK_MODEL",
 		Kind:           KindString,
@@ -392,13 +387,6 @@ var Registry = []Definition{
 		EnvVar:         "ROUTER_RATE_LIMIT_COOLDOWN_SECONDS",
 		Kind:           KindInt,
 		Description:    "Seconds a model stays out of a session's automatic selection after a rescued 429 while transient_rate_limit is on. Default 45.",
-		OrgOverridable: true,
-	},
-	{
-		Key:            KeyNativeAnthropicResponseSignals,
-		EnvVar:         "ROUTER_NATIVE_ANTHROPIC_RESPONSE_SIGNALS",
-		Kind:           KindBool,
-		Description:    "Record stop_reason and tool_use block count on telemetry for Anthropic-native passthrough turns. On by default; kill switch for the added extraction. Observability only, never read by routing.",
 		OrgOverridable: true,
 	},
 	{

@@ -461,8 +461,7 @@ func main() {
 				meta, registry := bundle.Metadata, bundle.Registry
 				hardPinResolver = func(req proxy.HardPinRequest) (string, string, bool) {
 					return cluster.FastestModelForRequest(meta, registry, req.EnabledProviders, req.ExcludedModels, nil, cluster.RequestBindings{
-						Custom:   req.CustomBindings,
-						Gateways: req.GatewayProviders,
+						Custom: req.CustomBindings,
 					})
 				}
 				logger.Info("Hard-pin resolver wired (per-request fastest model from cluster bundle, applies excluded_models)", "version", version, "byok_only", byokOnly)
@@ -507,7 +506,6 @@ func main() {
 	// Safety-refusal backstop: re-pin session off the refusing model and ask
 	// Anthropic to re-serve the refused turn on a fallback model.
 	cyberRefusalRepin := config.GetOr("ROUTER_CYBER_REFUSAL_REPIN", "true") == "true"
-	cyberRefusalRetry := config.GetOr("ROUTER_CYBER_REFUSAL_RETRY", "true") == "true"
 	cyberRefusalFallbackModel := config.GetOr("ROUTER_CYBER_REFUSAL_FALLBACK_MODEL", "deepseek/deepseek-v4-pro")
 	anthropicServerSideFallback := config.GetOr("ROUTER_ANTHROPIC_SERVER_SIDE_FALLBACK", "true") == "true"
 	scopedSearchRequirement := config.GetOr("ROUTER_SCOPED_SEARCH_REQUIREMENT", "true") == "true"
@@ -532,7 +530,6 @@ func main() {
 	// nativeAnthropicResponseSignals records the stop reason and tool_use block
 	// count an Anthropic-native turn already streams past the usage extractor;
 	// kill switch for that extraction and the telemetry columns it fills.
-	nativeAnthropicResponseSignals := config.GetOr("ROUTER_NATIVE_ANTHROPIC_RESPONSE_SIGNALS", "true") == "true"
 	// nativeOpenAIResponseSignals is the same kill switch for the OpenAI-native
 	// surfaces: chat/completions passthrough and /v1/responses passthrough.
 	nativeOpenAIResponseSignals := config.GetOr("ROUTER_NATIVE_OPENAI_RESPONSE_SIGNALS", "true") == "true"
@@ -1011,11 +1008,9 @@ func main() {
 		flags.KeyRescuedFailureArmDemotion:            boolDefault(rescuedFailureArmDemotion),
 		flags.KeyTransientRateLimit:                   boolDefault(transientRateLimit),
 		flags.KeyRateLimitCooldownSeconds:             strconv.Itoa(rateLimitCooldownSeconds),
-		flags.KeyNativeAnthropicResponseSignals:       boolDefault(nativeAnthropicResponseSignals),
 		flags.KeyNativeOpenAIResponseSignals:          boolDefault(nativeOpenAIResponseSignals),
 		flags.KeyEffortEscalation:                     boolDefault(effortEscalation),
 		flags.KeyCyberRefusalRepin:                    boolDefault(cyberRefusalRepin),
-		flags.KeyCyberRefusalRetry:                    boolDefault(cyberRefusalRetry),
 		flags.KeyCyberRefusalFallback:                 cyberRefusalFallbackModel,
 		flags.KeyAnthropicServerFallback:              boolDefault(anthropicServerSideFallback),
 		flags.KeyEmbedOnlyUserMessage:                 boolDefault(embedOnlyUser),
@@ -1093,7 +1088,6 @@ func main() {
 		WithPlannerEnabled(plannerEnabled).
 		WithScoreToolResultTurns(scoreToolResultTurns).
 		WithCyberRefusalRepin(cyberRefusalRepin).
-		WithCyberRefusalRetry(cyberRefusalRetry).
 		WithCyberRefusalFallbackModel(cyberRefusalFallbackModel).
 		WithAnthropicServerSideFallback(anthropicServerSideFallback).
 		WithSiblingFailover(siblingFailover).
@@ -1102,7 +1096,6 @@ func main() {
 		WithCommittedStreamArmDemotion(committedStreamArmDemotion).
 		WithRescuedFailureArmDemotion(rescuedFailureArmDemotion).
 		WithTransientRateLimit(transientRateLimit, rateLimitCooldownSeconds).
-		WithNativeAnthropicResponseSignals(nativeAnthropicResponseSignals).
 		WithNativeOpenAIResponseSignals(nativeOpenAIResponseSignals).
 		WithSSEKeepalive(sseKeepalive).
 		WithPrefixTrimFreeSwitch(prefixTrimFreeSwitch).
