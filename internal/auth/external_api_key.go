@@ -32,13 +32,9 @@ type ExternalAPIKey struct {
 	// caller's email under on-behalf-of; empty forwards nothing.
 	BaggageHeader string
 	// AuthType is how Plaintext authenticates upstream; see AuthType* constants.
-	AuthType string
-	// AuthAccount and AuthUser identify the upstream principal; empty unless
-	// AuthType is AuthTypeKeypairJWT or AuthTypeAzureEntra.
-	AuthAccount string
-	AuthUser    string
-	CreatedAt   time.Time
-	LastUsedAt  *time.Time
+	AuthType   string
+	CreatedAt  time.Time
+	LastUsedAt *time.Time
 	// Plaintext is populated after decrypt; never logged.
 	Plaintext []byte
 }
@@ -61,24 +57,11 @@ type CreateExternalAPIKeyParams struct {
 	ForwardedClientHeaders []string
 	BaggageHeader          *string
 	AuthType               string
-	// AuthAccount and AuthUser identify the upstream principal; empty unless
-	// AuthType is AuthTypeKeypairJWT or AuthTypeAzureEntra.
-	AuthAccount *string
-	AuthUser    *string
-	CreatedBy   *string
+	CreatedBy              *string
 }
 
-// AuthTypeBearer sends the secret verbatim; AuthTypeKeypairJWT signs a short-lived JWT with it;
-// AuthTypeWIF stores no secret and attests the router's own workload identity per request;
-// AuthTypeAzureEntra exchanges the secret for a short-lived Microsoft Entra bearer token.
-const (
-	AuthTypeBearer     = "bearer"
-	AuthTypeKeypairJWT = "keypair_jwt"
-	// AuthTypeAzureEntra exchanges the stored client secret for a short-lived Entra token;
-	// AuthAccount is the tenant ID, AuthUser is the client ID.
-	AuthTypeAzureEntra = "azure_entra"
-	AuthTypeWIF        = "wif"
-)
+// AuthTypeBearer sends the stored secret verbatim as the upstream bearer.
+const AuthTypeBearer = "bearer"
 
 // Identity header formats. IdentityFormatEmail sends the bare address;
 // IdentityFormatJSON sends a URL-encoded JSON property bag (display name, session, client app).
@@ -362,56 +345,17 @@ func validBaseURLPort(parsed *url.URL) bool {
 	return err == nil && portNumber >= 1 && portNumber <= 65535
 }
 
-// maxKeypairFieldLength bounds the account and user identifiers.
-const maxKeypairFieldLength = 255
-
-// NormalizeAuthType validates authType with its account/user pair. Empty defaults to bearer;
-// keypair_jwt uppercases principal fields; azure_entra preserves the tenant and client IDs;
-// wif accepts neither because the attestation names the principal.
-func NormalizeAuthType(authType string, account, user *string) (string, *string, *string, error) {
+// NormalizeAuthType validates authType. Empty defaults to bearer; the bearer
+// mode is the only one left, so any other value is rejected.
+func NormalizeAuthType(authType string) (string, error) {
 	normalized := strings.ToLower(strings.TrimSpace(authType))
-	// An account locator carries its region as dotted suffixes; the JWT claims
-	// want the bare locator. Org-qualified identifiers are hyphenated and unaffected.
-	upperAccount, _, _ := strings.Cut(strings.ToUpper(trimmedValue(account)), ".")
-	upperUser := strings.ToUpper(trimmedValue(user))
 	if normalized == "" {
-		normalized = AuthTypeBearer
+		return AuthTypeBearer, nil
 	}
-	if normalized == AuthTypeAzureEntra {
-		tenantID := strings.TrimSpace(trimmedValue(account))
-		clientID := strings.TrimSpace(trimmedValue(user))
-		if tenantID == "" || clientID == "" {
-			return "", nil, nil, fmt.Errorf("%w: %s needs both a tenant ID and a client ID", ErrInvalidEntraAuth, AuthTypeAzureEntra)
-		}
-		if len(tenantID) > maxKeypairFieldLength || len(clientID) > maxKeypairFieldLength {
-			return "", nil, nil, fmt.Errorf("%w: tenant ID and client ID are limited to %d characters", ErrInvalidEntraAuth, maxKeypairFieldLength)
-		}
-		return normalized, &tenantID, &clientID, nil
+	if normalized != AuthTypeBearer {
+		return "", fmt.Errorf("%w: unknown auth type %q", ErrInvalidAuthType, authType)
 	}
-	if normalized == AuthTypeBearer || normalized == AuthTypeWIF {
-		if upperAccount != "" || upperUser != "" {
-			return "", nil, nil, fmt.Errorf("%w: account and user apply to %s only", ErrInvalidKeypairAuth, AuthTypeKeypairJWT)
-		}
-		return normalized, nil, nil, nil
-	}
-	if normalized != AuthTypeKeypairJWT {
-		return "", nil, nil, fmt.Errorf("%w: unknown auth type %q", ErrInvalidKeypairAuth, authType)
-	}
-	if upperAccount == "" || upperUser == "" {
-		return "", nil, nil, fmt.Errorf("%w: %s needs both an account and a user", ErrInvalidKeypairAuth, AuthTypeKeypairJWT)
-	}
-	if len(upperAccount) > maxKeypairFieldLength || len(upperUser) > maxKeypairFieldLength {
-		return "", nil, nil, fmt.Errorf("%w: account and user are limited to %d characters", ErrInvalidKeypairAuth, maxKeypairFieldLength)
-	}
-	return AuthTypeKeypairJWT, &upperAccount, &upperUser, nil
-}
-
-// trimmedValue returns the trimmed value behind s, or "" when s is nil.
-func trimmedValue(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return strings.TrimSpace(*s)
+	return normalized, nil
 }
 
 // ExternalAPIKeyRepository manages external API keys in storage.

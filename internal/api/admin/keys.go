@@ -182,19 +182,15 @@ type externalKeyResponse struct {
 	ForwardedClientHeaders []string          `json:"forwarded_client_headers,omitempty"`
 	BaggageHeader          string            `json:"baggage_header,omitempty"`
 
-	AuthType    string     `json:"auth_type,omitempty"`
-	AuthAccount string     `json:"auth_account,omitempty"`
-	AuthUser    string     `json:"auth_user,omitempty"`
-	LastUsedAt  *time.Time `json:"last_used_at"`
-	CreatedAt   time.Time  `json:"created_at"`
+	AuthType   string     `json:"auth_type,omitempty"`
+	LastUsedAt *time.Time `json:"last_used_at"`
+	CreatedAt  time.Time  `json:"created_at"`
 }
 
 type upsertExternalKeyRequest struct {
-	Provider string `json:"provider" binding:"required"`
-	// Key is required for every auth type but "wif", which carries no secret;
-	// the binding can't express that, so the emptiness check lives below.
-	Key  string  `json:"key"`
-	Name *string `json:"name"`
+	Provider string  `json:"provider" binding:"required"`
+	Key      string  `json:"key"`
+	Name     *string `json:"name"`
 	// BaseURL points this key at a non-default endpoint. Required for gateway
 	// providers, which have no deployment default to fall back to.
 	BaseURL *string `json:"base_url"`
@@ -208,11 +204,8 @@ type upsertExternalKeyRequest struct {
 	// ForwardedClientHeaders and BaggageHeader configure client-header passthrough to this endpoint.
 	ForwardedClientHeaders []string `json:"forwarded_client_headers"`
 	BaggageHeader          *string  `json:"baggage_header"`
-	// AuthType is "bearer" (default), "keypair_jwt" (Key is RSA; router signs a short-lived JWT
-	// for AuthAccount/AuthUser), or "wif" (no secret; router attests its own workload identity).
-	AuthType    string  `json:"auth_type"`
-	AuthAccount *string `json:"auth_account"`
-	AuthUser    *string `json:"auth_user"`
+	// AuthType is "bearer" (default).
+	AuthType string `json:"auth_type"`
 }
 
 func toExternalKeyResponse(k *auth.ExternalAPIKey) externalKeyResponse {
@@ -229,11 +222,9 @@ func toExternalKeyResponse(k *auth.ExternalAPIKey) externalKeyResponse {
 		ForwardedClientHeaders: k.ForwardedClientHeaders,
 		BaggageHeader:          k.BaggageHeader,
 
-		AuthType:    k.AuthType,
-		AuthAccount: k.AuthAccount,
-		AuthUser:    k.AuthUser,
-		LastUsedAt:  k.LastUsedAt,
-		CreatedAt:   k.CreatedAt,
+		AuthType:   k.AuthType,
+		LastUsedAt: k.LastUsedAt,
+		CreatedAt:  k.CreatedAt,
 	}
 }
 
@@ -269,7 +260,7 @@ func UpsertExternalKeyHandler(authSvc *auth.Service, models DeployedModelsSource
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Provider and key are required."})
 			return
 		}
-		if req.Key == "" && req.AuthType != auth.AuthTypeWIF {
+		if req.Key == "" {
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Provider and key are required."})
 			return
 		}
@@ -297,24 +288,17 @@ func UpsertExternalKeyHandler(authSvc *auth.Service, models DeployedModelsSource
 			ForwardedClientHeaders: req.ForwardedClientHeaders,
 			BaggageHeader:          req.BaggageHeader,
 
-			AuthType:    req.AuthType,
-			AuthAccount: req.AuthAccount,
-			AuthUser:    req.AuthUser,
+			AuthType: req.AuthType,
 		})
 		if err != nil {
 			if errors.Is(err, auth.ErrUnknownModel) || errors.Is(err, auth.ErrInvalidModelAlias) ||
 				errors.Is(err, auth.ErrInvalidIdentityHeader) || errors.Is(err, auth.ErrInvalidForwardedHeader) ||
-				errors.Is(err, auth.ErrInvalidKeypairAuth) ||
-				errors.Is(err, auth.ErrInvalidEntraAuth) {
+				errors.Is(err, auth.ErrInvalidAuthType) {
 				c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 				return
 			}
 			if errors.Is(err, auth.ErrInvalidBaseURL) {
 				c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Base URL must be an absolute http(s) URL."})
-				return
-			}
-			if errors.Is(err, auth.ErrBaseURLRequired) {
-				c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "This provider requires a base URL — it has no default endpoint."})
 				return
 			}
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Failed to save provider key."})

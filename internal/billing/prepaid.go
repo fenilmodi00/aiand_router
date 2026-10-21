@@ -7,22 +7,18 @@ import (
 )
 
 // OwnerKind names the party a prepaid book belongs to. Organization funds are
-// the Enterprise balance every managed org has had; subscriber funds belong to
-// one individual Max/Boost plan holder and are keyed by the stable credential
-// subject rather than by any organization the subscriber happens to work in.
+// the Enterprise balance every managed org has had.
 type OwnerKind string
 
 const (
 	OwnerKindOrganization OwnerKind = "organization"
-	OwnerKindSubscriber   OwnerKind = "subscriber"
 	OwnerKindInternalTest OwnerKind = "internal_test"
 )
 
-// Owner keeps organization, subscriber and internal test funding identifiers separate.
+// Owner keeps organization and internal test funding identifiers separate.
 type Owner struct {
 	Kind           OwnerKind
 	OrganizationID string
-	SubscriberID   string
 	TestSubjectID  string
 }
 
@@ -31,30 +27,19 @@ func OrganizationOwner(organizationID string) Owner {
 	return Owner{Kind: OwnerKindOrganization, OrganizationID: organizationID}
 }
 
-// SubscriberOwner addresses one individual subscriber's prepaid balance,
-// identified by their credential-subject id.
-func SubscriberOwner(subscriberID string) Owner {
-	return Owner{Kind: OwnerKindSubscriber, SubscriberID: subscriberID}
-}
-
 // Validate rejects an owner whose kind and identifier disagree, so a
 // half-populated owner fails before it reaches a book that would read the
 // field it does carry.
 func (o Owner) Validate() error {
 	switch o.Kind {
 	case OwnerKindInternalTest:
-		if o.TestSubjectID == "" || o.SubscriberID != "" || o.OrganizationID != "" {
+		if o.TestSubjectID == "" || o.OrganizationID != "" {
 			return fmt.Errorf("%w: internal test owner needs only a test subject", ErrInvalidOwner)
 		}
 		return nil
 	case OwnerKindOrganization:
-		if o.OrganizationID == "" || o.SubscriberID != "" || o.TestSubjectID != "" {
+		if o.OrganizationID == "" || o.TestSubjectID != "" {
 			return fmt.Errorf("%w: organization owner needs only an organization id", ErrInvalidOwner)
-		}
-		return nil
-	case OwnerKindSubscriber:
-		if o.SubscriberID == "" || o.OrganizationID != "" || o.TestSubjectID != "" {
-			return fmt.Errorf("%w: subscriber owner needs only a subscriber id", ErrInvalidOwner)
 		}
 		return nil
 	default:

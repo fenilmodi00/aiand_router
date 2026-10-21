@@ -45,9 +45,6 @@ const (
 	passthroughTimeout    = 10 * time.Second
 	routeTimeout          = 5 * time.Second
 	adminTimeout          = 10 * time.Second
-	// subscriptionAccountTimeout includes a 15-second provider exchange plus
-	// authentication, membership checks and the encrypted account write.
-	subscriptionAccountTimeout = 30 * time.Second
 	// catalogModelsTimeout bounds GET /v1/router/models; must exceed the HMM
 	// sidecar client budget (policyclient.DefaultTimeout) or a cold cache 503s.
 	catalogModelsTimeout    = policyclient.DefaultTimeout * 2

@@ -63,14 +63,9 @@ type Credentials struct {
 	// ForwardedClientHeaders and BaggageHeader configure client-header passthrough; empty forwards nothing.
 	ForwardedClientHeaders []string
 	BaggageHeader          string
-	// AuthType is the BYOK key's auth mode (see auth.AuthType*). APIKey already holds
-	// the derived credential; this tells the adapter how the upstream must read it.
-	AuthType string
 	// PrincipalID names the upstream account this credential authenticates as,
-	// independent of the bytes in APIKey: a workload-identity or keypair-JWT
-	// credential mints a fresh short-lived bearer per request, so the key is no
-	// identity at all. Non-secret and safe to fingerprint; empty when the
-	// credential is only known by its key material.
+	// independent of the bytes in APIKey. Non-secret and safe to fingerprint;
+	// empty when the credential is only known by its key material.
 	PrincipalID string
 }
 
@@ -207,11 +202,6 @@ func CodexSubscriptionCreds(token, accountID string) *Credentials {
 	}
 }
 
-// CodexCoveredModels returns a copy of the models a Codex subscription may serve.
-func CodexCoveredModels() []string {
-	return catalog.CodexSubscriptionModels()
-}
-
 // CodexSubscriptionCanAttemptModel reports whether model belongs to the native
 // Codex roster or is explicitly enabled for a subscription-first funding
 // attempt in the catalog. Unknown models fail closed.
@@ -237,14 +227,4 @@ func CodexSubscriptionCanAttemptModel(model string) bool {
 // catalog fallback targets outside the automatic roster.
 func CodexSubscriptionCoversModel(model string) bool {
 	return catalog.CodexSubscriptionCoversModel(model)
-}
-
-// ApplyWIFTokenType marks the bearer as a workload attestation, not an upstream-issued token.
-// Must be called after prep.Headers are copied so a client-supplied value can't suppress it.
-func ApplyWIFTokenType(ctx context.Context, upstream *http.Request) {
-	creds := CredentialsFromContext(ctx)
-	if creds == nil || creds.AuthType != auth.AuthTypeWIF {
-		return
-	}
-	upstream.Header.Set(auth.WIFTokenTypeHeader, auth.WIFTokenTypeValue)
 }

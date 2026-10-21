@@ -11,7 +11,6 @@ import (
 
 	"weave-os/router/internal/flags"
 	"weave-os/router/internal/observability"
-	"weave-os/router/internal/providers"
 
 	"github.com/hashicorp/golang-lru/v2/expirable"
 	"golang.org/x/sync/singleflight"
@@ -26,9 +25,6 @@ var ErrUnknownProvider = errors.New("auth: unknown provider")
 // ErrInvalidBaseURL is returned for a BYOK endpoint override that is not an absolute http(s) URL.
 var ErrInvalidBaseURL = errors.New("auth: invalid base url")
 
-// ErrBaseURLRequired is returned when a provider with no deployment endpoint is given no base URL.
-var ErrBaseURLRequired = errors.New("auth: base url required for provider")
-
 // ErrInvalidModelAlias is returned for a model alias map that is oversized or malformed.
 var ErrInvalidModelAlias = errors.New("auth: invalid model alias")
 
@@ -40,13 +36,9 @@ var ErrInvalidIdentityHeader = errors.New("auth: invalid identity header")
 // that is malformed or names a reserved header.
 var ErrInvalidForwardedHeader = errors.New("auth: invalid forwarded header")
 
-// ErrInvalidKeypairAuth is returned for a key-pair credential whose auth type,
-// principal, or private key is unusable.
-var ErrInvalidKeypairAuth = errors.New("auth: invalid keypair auth")
-
-// ErrInvalidEntraAuth is returned for an Azure Entra credential whose
-// principal or client secret is unusable.
-var ErrInvalidEntraAuth = errors.New("auth: invalid Microsoft Entra auth")
+// ErrInvalidAuthType is returned when a credential names an auth type the
+// router does not implement.
+var ErrInvalidAuthType = errors.New("auth: invalid auth type")
 
 type Clock func() time.Time
 
@@ -69,34 +61,24 @@ func (NoOpInstallationChangeNotifier) NotifyInstallationChanged(string) {}
 
 // Service authenticates incoming bearer tokens. Identity only; routing/dispatch lives in proxy.Service.
 type Service struct {
-	installations           InstallationRepository
-	apiKeys                 APIKeyRepository
-	credentialSubjects      CredentialSubjectLookup
-	externalKeys            ExternalAPIKeyRepository
-	users                   UserRepository
-	clusterModelLists       ClusterModelListRepository
-	userClusterModelLists   UserClusterModelListRepository
-	blindExperiments        BlindExperimentRepository
-	routingPolicies         RoutingPolicyRepository
-	routingPolicyCache      *RoutingPolicyCache
-	cache                   APIKeyCache
-	userCache               UserCache
-	userClusterCache        UserClusterListCache
-	blindExperimentCache    BlindExperimentCache
-	blindExperimentFetches  singleflight.Group
-	subscriptionAccounts    SubscriptionAccountRepository
-	codexEnrollmentVerifier CodexEnrollmentVerifier
-	notifier                InstallationChangeNotifier
-	now                     Clock
-	encryptor               Encryptor
-	keypairTokens           *KeypairTokenCache
-	// wifTokens is nil unless the deployment runs with a workload identity;
-	// WIF keys are then dropped rather than sent without a credential.
-	wifTokens WIFTokenSource
-
-	// entraTokens is nil unless the deployment has an Entra token source;
-	// Azure Entra keys are then dropped rather than sent as client secrets.
-	entraTokens EntraTokenSource
+	installations          InstallationRepository
+	apiKeys                APIKeyRepository
+	credentialSubjects     CredentialSubjectLookup
+	externalKeys           ExternalAPIKeyRepository
+	users                  UserRepository
+	clusterModelLists      ClusterModelListRepository
+	userClusterModelLists  UserClusterModelListRepository
+	blindExperiments       BlindExperimentRepository
+	routingPolicies        RoutingPolicyRepository
+	routingPolicyCache     *RoutingPolicyCache
+	cache                  APIKeyCache
+	userCache              UserCache
+	userClusterCache       UserClusterListCache
+	blindExperimentCache   BlindExperimentCache
+	blindExperimentFetches singleflight.Group
+	notifier               InstallationChangeNotifier
+	now                    Clock
+	encryptor              Encryptor
 
 	// flagOverridesDisabled is the deployment-wide escape hatch
 	// (ROUTER_FLAG_OVERRIDES_DISABLED). When set, per-organization flag
@@ -113,18 +95,6 @@ type Service struct {
 	adminLoginMu       sync.Mutex
 
 	onboarding OnboardingObserver
-}
-
-// WithSubscriptionAccounts wires encrypted server-side subscription storage.
-func (s *Service) WithSubscriptionAccounts(repo SubscriptionAccountRepository) *Service {
-	s.subscriptionAccounts = repo
-	return s
-}
-
-// WithCodexEnrollmentVerifier verifies provider identity before account storage.
-func (s *Service) WithCodexEnrollmentVerifier(verifier CodexEnrollmentVerifier) *Service {
-	s.codexEnrollmentVerifier = verifier
-	return s
 }
 
 // WithCredentialSubjectLookup wires the current eligibility projection used by read-only key checks.
@@ -169,24 +139,11 @@ func NewService(
 		notifier:             NoOpInstallationChangeNotifier{},
 		now:                  now,
 		encryptor:            NoOpEncryptor{},
-		keypairTokens:        NewKeypairTokenCache(now),
 	}
 }
 
 func (s *Service) WithEncryptor(e Encryptor) *Service {
 	s.encryptor = e
-	return s
-}
-
-// WithWIFTokenSource wires the attestation source backing AuthTypeWIF keys.
-func (s *Service) WithWIFTokenSource(src WIFTokenSource) *Service {
-	s.wifTokens = src
-	return s
-}
-
-// WithEntraTokenSource wires the source backing AuthTypeAzureEntra keys.
-func (s *Service) WithEntraTokenSource(src EntraTokenSource) *Service {
-	s.entraTokens = src
 	return s
 }
 
@@ -449,12 +406,8 @@ type UpsertExternalAPIKeyParams struct {
 	ForwardedClientHeaders []string
 	BaggageHeader          *string
 	// AuthType selects how RawKey authenticates upstream; empty means AuthTypeBearer.
-	// AuthTypeKeypairJWT makes RawKey an RSA private key issued for AuthAccount/AuthUser.
-	// AuthTypeAzureEntra makes RawKey an Entra client secret for AuthAccount/AuthUser.
-	AuthType    string
-	AuthAccount *string
-	AuthUser    *string
-	CreatedBy   *string
+	AuthType  string
+	CreatedBy *string
 }
 
 // UpsertExternalAPIKey replaces the provider's key for the installation.
@@ -491,41 +444,9 @@ func (s *Service) UpsertExternalAPIKey(ctx context.Context, installationID strin
 	if err := ValidateForwardingHeaderConfiguration(forwardedHeaders, baggageName, identityName); err != nil {
 		return nil, err
 	}
-	authType, authAccount, authUser, err := NormalizeAuthType(params.AuthType, params.AuthAccount, params.AuthUser)
+	authType, err := NormalizeAuthType(params.AuthType)
 	if err != nil {
 		return nil, err
-	}
-	if authType == AuthTypeWIF {
-		if !providers.RequiresBaseURL(provider) {
-			return nil, fmt.Errorf("%w: %s does not accept workload identity credentials", ErrInvalidKeypairAuth, provider)
-		}
-		// The attestation is minted per request from the router's own identity, so a
-		// pasted secret here would be stored and never used.
-		if rawKey != "" {
-			return nil, fmt.Errorf("%w: %s takes no key material", ErrInvalidKeypairAuth, AuthTypeWIF)
-		}
-	}
-	if authType == AuthTypeAzureEntra {
-		if !providers.RequiresBaseURL(provider) {
-			return nil, fmt.Errorf("%w: %s does not accept Microsoft Entra credentials", ErrInvalidEntraAuth, provider)
-		}
-		if rawKey == "" {
-			return nil, fmt.Errorf("%w: %s needs a client secret", ErrInvalidEntraAuth, AuthTypeAzureEntra)
-		}
-	}
-	if authType == AuthTypeKeypairJWT {
-		if !providers.RequiresBaseURL(provider) {
-			return nil, fmt.Errorf("%w: %s does not accept key-pair credentials", ErrInvalidKeypairAuth, provider)
-		}
-		// Reject an unusable private key here rather than at the first upstream
-		// call, where the only symptom is a 401 nobody can trace to the paste.
-		if _, err := ParseKeypairPrivateKey([]byte(rawKey)); err != nil {
-			return nil, err
-		}
-	}
-	// Checked after normalization: a slash-only value normalizes away to nil.
-	if normalizedBaseURL == nil && providers.RequiresBaseURL(provider) {
-		return nil, fmt.Errorf("%w: %s", ErrBaseURLRequired, provider)
 	}
 	// Generate external ID first so it binds into the ciphertext as AAD.
 	externalID := GenerateID("ekid")
@@ -554,10 +475,8 @@ func (s *Service) UpsertExternalAPIKey(ctx context.Context, installationID strin
 		ForwardedClientHeaders: forwardedHeaders,
 		BaggageHeader:          baggageHeader,
 
-		AuthType:    authType,
-		AuthAccount: authAccount,
-		AuthUser:    authUser,
-		CreatedBy:   params.CreatedBy,
+		AuthType:  authType,
+		CreatedBy: params.CreatedBy,
 	})
 	if err != nil {
 		return nil, err
@@ -807,7 +726,7 @@ func (s *Service) verifyAPIKey(ctx context.Context, rawToken string, includeUpst
 			if !includeUpstreamKeys {
 				return cached.Installation, cached.APIKey, nil, cached.ClusterModelLists, nil
 			}
-			return cached.Installation, cached.APIKey, s.resolveUpstreamSecrets(ctx, cached.ExternalKeys), cached.ClusterModelLists, nil
+			return cached.Installation, cached.APIKey, cached.ExternalKeys, cached.ClusterModelLists, nil
 		}
 		// Malformed positive entry (nil APIKey): fall through to DB lookup.
 	}
@@ -855,7 +774,7 @@ func (s *Service) verifyAPIKey(ctx context.Context, rawToken string, includeUpst
 	}
 	s.fireMarkUsed(apiKey, installation)
 	s.fireMarkFirstRequestServed(apiKey.InstallationID)
-	return installation, apiKey, s.resolveUpstreamSecrets(ctx, externalKeys), clusterModelLists, nil
+	return installation, apiKey, externalKeys, clusterModelLists, nil
 }
 
 // ResolveAndStashUser upserts a router user and stashes the ID on ctx. Email

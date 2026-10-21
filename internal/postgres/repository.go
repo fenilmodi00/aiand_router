@@ -25,7 +25,6 @@ type Repository struct {
 	UserClusterModelLists auth.UserClusterModelListRepository
 	BlindExperiments      auth.BlindExperimentRepository
 	RoutingPolicies       auth.RoutingPolicyRepository
-	SubscriptionAccounts  auth.SubscriptionAccountRepository
 	Telemetry             *TelemetryRepo
 	Feedback              *FeedbackRepo
 	Analytics             *AnalyticsRepo
@@ -47,7 +46,6 @@ func NewRepository(tx sqlc.DBTX, encryptor auth.Encryptor) *Repository {
 		UserClusterModelLists:     NewUserClusterModelListRepo(tx),
 		BlindExperiments:          NewBlindExperimentRepo(tx),
 		RoutingPolicies:           NewRoutingPolicyRepo(tx),
-		SubscriptionAccounts:      NewSubscriptionAccountRepo(tx),
 		Telemetry:                 NewTelemetryRepo(tx),
 		Feedback:                  NewFeedbackRepo(tx),
 		Analytics:                 NewAnalyticsRepo(tx),

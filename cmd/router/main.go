@@ -25,7 +25,6 @@ import (
 	"weave-os/router/internal/billing"
 	"weave-os/router/internal/config"
 	"weave-os/router/internal/dispatch"
-	"weave-os/router/internal/entra"
 	"weave-os/router/internal/escalationmodal"
 	"weave-os/router/internal/feedback"
 	"weave-os/router/internal/flags"
@@ -63,7 +62,6 @@ import (
 	"weave-os/router/internal/server"
 	"weave-os/router/internal/server/middleware"
 	"weave-os/router/internal/subscriptions/entitlement"
-	"weave-os/router/internal/wif"
 
 	_ "time/tzdata"
 
@@ -332,8 +330,6 @@ func main() {
 		WithUserClusterModelLists(repo.UserClusterModelLists, userClusterCache).
 		WithBlindExperiments(repo.BlindExperiments, blindExperimentCache).
 		WithRoutingPolicies(repo.RoutingPolicies, routingPolicyCache).
-		WithWIFTokenSource(buildWIFTokenSource(logger)).
-		WithEntraTokenSource(buildEntraTokenSource(logger)).
 		WithFlagOverridesDisabled(flagOverridesDisabled)
 	// Fans out Pub/Sub invalidations to this replica's cache; the 5-min TTL
 	// is the safety net if the listener falls behind.
@@ -1526,49 +1522,6 @@ func buildClusterScorer(availableProviders map[string]struct{}) (router.Router, 
 	)
 
 	return multi, defaultEmbedderID, nil
-}
-
-// buildEntraTokenSource returns the lazy Microsoft Entra client-credentials token source;
-// a deployment without Azure keys never contacts Microsoft Entra.
-func buildEntraTokenSource(logger *slog.Logger) auth.EntraTokenSource {
-	logger.Debug("Microsoft Entra client credentials token source initialized")
-	// This client posts the decrypted BYOK client_secret; never follow a
-	// redirect with it. The refused 3xx fails mint()'s 2xx status check.
-	entraClient := &http.Client{
-		Timeout: 10 * time.Second,
-		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
-	return entra.NewClientCredentialsSource(entraClient, time.Now)
-}
-
-// buildWIFTokenSource constructs the workload attestation source backing BYOK
-// keys with auth_type=wif. Returns nil when ROUTER_WIF_PROVIDER is unset — the
-// identity is the deployment's own, so only the operator can configure it.
-func buildWIFTokenSource(logger *slog.Logger) auth.WIFTokenSource {
-	provider := strings.ToUpper(strings.TrimSpace(config.GetOr("ROUTER_WIF_PROVIDER", "")))
-	audience := config.GetOr("ROUTER_WIF_AUDIENCE", auth.WIFAudience)
-	switch provider {
-	case "":
-		return nil
-	case auth.WIFProviderGCP:
-		logger.Info("Workload identity federation enabled", "provider", provider, "audience", audience)
-		return wif.NewGoogleTokenSource(audience)
-	case auth.WIFProviderOIDC:
-		path := config.GetOr("ROUTER_WIF_OIDC_TOKEN_FILE", "")
-		if path == "" {
-			err := fmt.Errorf("ROUTER_WIF_PROVIDER=%s requires ROUTER_WIF_OIDC_TOKEN_FILE", provider)
-			logger.Error("Refusing to boot with incomplete workload identity configuration", "err", err)
-			panic(err)
-		}
-		logger.Info("Workload identity federation enabled", "provider", provider, "token_file", path)
-		return wif.NewFileTokenSource(path)
-	default:
-		err := fmt.Errorf("Invalid ROUTER_WIF_PROVIDER %q (expected %q or %q)", provider, auth.WIFProviderGCP, auth.WIFProviderOIDC)
-		logger.Error("Refusing to boot with invalid workload identity provider", "err", err)
-		panic(err)
-	}
 }
 
 // buildOtelEmitter constructs the OTel span emitter from environment

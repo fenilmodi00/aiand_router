@@ -63,7 +63,7 @@ func TestInternalListUpstreamModelsHandler_UnmintableCredentialIs502(t *testing.
 		ID:             "ext-1",
 		InstallationID: testInstallationID,
 		Provider:       providers.ProviderAIAND,
-		AuthType:       auth.AuthTypeWIF,
+		AuthType:       auth.AuthTypeBearer,
 		BaseURL:        "https://cortex.example/api/v2/cortex/v1",
 	}
 	engine := internalUpstreamModelsEngine(
