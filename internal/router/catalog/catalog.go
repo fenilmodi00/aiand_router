@@ -654,6 +654,8 @@ var Models = []Model{
 			Price: Pricing{InputUSDPer1M: 0.280, OutputUSDPer1M: 0.560, CacheReadMultiplier: 0.07 / 0.280}},
 		{Provider: providers.ProviderWaferAnthropic, UpstreamID: "DeepSeek-V4-Flash-0731-Fast",
 			Price: Pricing{InputUSDPer1M: 0.280, OutputUSDPer1M: 0.560, CacheReadMultiplier: 0.07 / 0.280}},
+		{Provider: providers.ProviderAIAND, UpstreamID: "deepseek-ai/deepseek-v4-flash",
+			Price: Pricing{InputUSDPer1M: 0.150, OutputUSDPer1M: 0.250, CacheReadMultiplier: 0.08 / 0.150}},
 	}},
 	// V4.1-Flash: 552B MoE (8B active prefill / 16B decode), natively
 	// multimodal, 1M context. Makora replaces its retired V4 Flash endpoint;
@@ -664,6 +666,10 @@ var Models = []Model{
 		{Provider: providers.ProviderFireworks, UpstreamID: "accounts/fireworks/models/deepseek-v4p1-flash",
 			Price: Pricing{InputUSDPer1M: 0.220, OutputUSDPer1M: 0.660, CacheReadMultiplier: 0.007 / 0.220}},
 		{Provider: providers.ProviderOpenRouter, Price: Pricing{InputUSDPer1M: 0.100, OutputUSDPer1M: 0.500, CacheReadMultiplier: 0.10}},
+		// Trailing ai& binding ($0.30/$0.60): resolves only when Makora,
+		// Fireworks and OpenRouter are all unwired or excluded.
+		{Provider: providers.ProviderAIAND, UpstreamID: "deepseek-ai/deepseek-v4.1-flash",
+			Price: Pricing{InputUSDPer1M: 0.300, OutputUSDPer1M: 0.600, CacheReadMultiplier: 0.02 / 0.300}},
 	}},
 	// Ling-3.0-Flash: DeepInfra is the primary managed OSS route. OpenRouter
 	// remains a trailing self-hosted fallback, but is intentionally never the
@@ -697,6 +703,8 @@ var Models = []Model{
 		{Provider: providers.ProviderFireworks, UpstreamID: "accounts/fireworks/models/deepseek-v4-pro",
 			Price: Pricing{InputUSDPer1M: 1.740, OutputUSDPer1M: 3.480, CacheReadMultiplier: 0.0862}},
 		{Provider: providers.ProviderOpenRouter, Price: Pricing{InputUSDPer1M: 0.435, OutputUSDPer1M: 0.870, CacheReadMultiplier: 0.10}},
+		{Provider: providers.ProviderAIAND, UpstreamID: "deepseek-ai/deepseek-v4-pro",
+			Price: Pricing{InputUSDPer1M: 1.000, OutputUSDPer1M: 2.500, CacheReadMultiplier: 0.25 / 1.000}},
 	}},
 	// The current V4-Pro release, and the one Artificial Analysis scores
 	// (agentic index 49.56; our aa_skill_scores entry already carries
@@ -707,6 +715,8 @@ var Models = []Model{
 		{Provider: providers.ProviderFireworks, UpstreamID: "accounts/fireworks/models/deepseek-v4-pro",
 			Price: Pricing{InputUSDPer1M: 1.740, OutputUSDPer1M: 3.480, CacheReadMultiplier: 0.0862}},
 		{Provider: providers.ProviderOpenRouter, Price: Pricing{InputUSDPer1M: 0.660, OutputUSDPer1M: 1.980, CacheReadMultiplier: 0.022 / 0.660}},
+		{Provider: providers.ProviderAIAND, UpstreamID: "deepseek-ai/deepseek-v4-pro",
+			Price: Pricing{InputUSDPer1M: 1.000, OutputUSDPer1M: 2.500, CacheReadMultiplier: 0.25 / 1.000}},
 	}},
 	{ID: "moonshotai/kimi-k2.5", Source: SourceOpenSource, Tier: TierHigh, ContextWindow: 262_144, ImageInput: ImageInputUnsupported, Providers: []ProviderBinding{
 		{Provider: providers.ProviderBedrock, UpstreamID: "moonshotai.kimi-k2.5",
@@ -723,6 +733,8 @@ var Models = []Model{
 	{ID: "moonshotai/kimi-k2.7", Source: SourceOpenSource, Tier: TierHigh, ContextWindow: 262_144, ImageInput: ImageInputUnsupported, Providers: []ProviderBinding{
 		{Provider: providers.ProviderFireworks, UpstreamID: "accounts/fireworks/models/kimi-k2p7-code",
 			Price: Pricing{InputUSDPer1M: 0.950, OutputUSDPer1M: 4.000, CacheReadMultiplier: 0.20}},
+		{Provider: providers.ProviderAIAND, UpstreamID: "moonshotai/kimi-k2.7-code",
+			Price: Pricing{InputUSDPer1M: 0.750, OutputUSDPer1M: 3.500, CacheReadMultiplier: 0.20 / 0.750}},
 	}},
 	// kimi-k3 is a separate price class from k2.7 ($3/$15 vs $0.95/$4), not its
 	// successor — both stay routable. First multimodal Kimi, so unlike k2.5-k2.7
@@ -739,6 +751,8 @@ var Models = []Model{
 			Price: Pricing{InputUSDPer1M: 3.000, OutputUSDPer1M: 15.000, CacheReadMultiplier: 0.10}},
 		{Provider: providers.ProviderWaferAnthropic, UpstreamID: "Kimi-K3",
 			Price: Pricing{InputUSDPer1M: 3.000, OutputUSDPer1M: 15.000, CacheReadMultiplier: 0.10}},
+		{Provider: providers.ProviderAIAND, UpstreamID: "moonshotai/kimi-k3",
+			Price: Pricing{InputUSDPer1M: 3.000, OutputUSDPer1M: 12.500, CacheReadMultiplier: 0.50 / 3.000}},
 	}},
 	// AA top-performer additions (2026-05-18): ranked by composite of quality
 	// (Intelligence Index v4.0), cost (blended 3:1), and effective time per
@@ -803,6 +817,8 @@ var Models = []Model{
 			Price: Pricing{InputUSDPer1M: 1.400, OutputUSDPer1M: 4.400, CacheReadMultiplier: 0.26 / 1.400}},
 		{Provider: providers.ProviderFireworks, UpstreamID: "accounts/fireworks/models/glm-5p2",
 			Price: Pricing{InputUSDPer1M: 1.400, OutputUSDPer1M: 4.400, CacheReadMultiplier: 0.20}},
+		{Provider: providers.ProviderAIAND, UpstreamID: "zai-org/glm-5.2",
+			Price: Pricing{InputUSDPer1M: 1.000, OutputUSDPer1M: 4.000, CacheReadMultiplier: 0.30 / 1.000}},
 	}},
 	// GLM-5.3: text-only (AA inputModalityImage=false); Fireworks is the only
 	// managed binding. ContextWindow is 1,048,576 (Fireworks served max), not
@@ -810,6 +826,8 @@ var Models = []Model{
 	{ID: "z-ai/glm-5.3", Source: SourceOpenSource, Tier: TierHigh, ContextWindow: 1_048_576, ImageInput: ImageInputUnsupported, Providers: []ProviderBinding{
 		{Provider: providers.ProviderFireworks, UpstreamID: "accounts/fireworks/models/glm-5p3",
 			Price: Pricing{InputUSDPer1M: 1.400, OutputUSDPer1M: 4.400, CacheReadMultiplier: 0.26 / 1.400}},
+		{Provider: providers.ProviderAIAND, UpstreamID: "zai-org/glm-5.3",
+			Price: Pricing{InputUSDPer1M: 1.000, OutputUSDPer1M: 4.000, CacheReadMultiplier: 0.30 / 1.000}},
 	}},
 	// GLM-5.3-Flash: first native-multimodal (image+video) in the GLM-5 line —
 	// ImageInput stays default. Thinking cannot be disabled — do not add it to
@@ -830,6 +848,8 @@ var Models = []Model{
 		{Provider: providers.ProviderWaferAnthropic, UpstreamID: "GLM-5.3-Flash",
 			Price: Pricing{InputUSDPer1M: 0.150, OutputUSDPer1M: 0.500, CacheReadMultiplier: 0.03 / 0.150}},
 		{Provider: providers.ProviderFireworks, UpstreamID: "accounts/fireworks/models/glm-5p3-flash",
+			Price: Pricing{InputUSDPer1M: 0.150, OutputUSDPer1M: 0.500, CacheReadMultiplier: 0.03 / 0.150}},
+		{Provider: providers.ProviderAIAND, UpstreamID: "zai-org/glm-5.3-flash",
 			Price: Pricing{InputUSDPer1M: 0.150, OutputUSDPer1M: 0.500, CacheReadMultiplier: 0.03 / 0.150}},
 	}},
 	// Fireworks-dedicated rows below carry an OpenRouter trailing binding so

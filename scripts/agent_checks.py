@@ -406,6 +406,7 @@ def validation_environment(suite: SuiteID) -> dict[str, str]:
         "MINIMAX_",
         "XAI_",
         "META_",
+        "AIAND_",
         "WAFER_",
         "AWS_",
         "AZURE_",

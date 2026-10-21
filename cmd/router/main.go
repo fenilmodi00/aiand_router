@@ -406,6 +406,18 @@ func main() {
 	}
 
 	{
+		// ai& speaks OpenAI Chat Completions with vendor-prefixed upstream IDs
+		// ("deepseek-ai/deepseek-v4.1-flash"), so the model ID map comes from
+		// the catalog's per-binding UpstreamID.
+		aiandBaseURL := config.GetOr("AIAND_BASE_URL", openaiCompatProvider.AIANDBaseURL)
+		registerDeploymentKeyedProvider(providerMap, envKeyedProviders, logger,
+			providers.ProviderAIAND, "ai&", "AIAND_API_KEY", aiandBaseURL, byokOnly,
+			func(key, baseURL string) providers.Client {
+				return openaiCompatProvider.NewClientWithModelIDMap(key, baseURL, upstreamIDsForProvider(providers.ProviderAIAND), openaiCompatProvider.WithModelListHTTPClient(discoveryHTTPClient))
+			})
+	}
+
+	{
 		// Wafer-ZDR: required — Wafer rejects requests whose model doesn't
 		// support ZDR rather than serve them without retention.
 		waferBaseURL := config.GetOr("WAFER_BASE_URL", openaiCompatProvider.WaferBaseURL)
