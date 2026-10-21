@@ -118,12 +118,6 @@ type ProviderBinding struct {
 	UpstreamID string
 	// Price is the per-provider pricing for this binding.
 	Price Pricing
-	// FastPrice is the published per-token rate when the binding is dispatched
-	// on the provider's fast tier (OpenAI service_tier=priority, Anthropic
-	// speed=fast). Zero means the binding has no fast tier. A zero
-	// CacheReadMultiplier inherits Price's. Routing always scores on Price;
-	// only post-dispatch billing sees the fast rate.
-	FastPrice Pricing
 	// ContextWindow overrides the model-level ContextWindow for this binding.
 	// Zero means inherit. Use when the served window differs by provider.
 	ContextWindow int

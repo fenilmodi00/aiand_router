@@ -17,7 +17,7 @@ import (
 func TestStreamCostWriterAnnotatesFinalMessageDelta(t *testing.T) {
 	rec := httptest.NewRecorder()
 	writer := newStreamCostWriter(rec)
-	writer.SetCostCalculator(func(input, output, creation, read int, _ catalog.Speed, _ catalog.UsageModifiers) routerResponseCost {
+	writer.SetCostCalculator(func(input, output, creation, read int, _ catalog.UsageModifiers) routerResponseCost {
 		return routerResponseCost{
 			TotalUSD:            1.25,
 			InputUSD:            0.75,
@@ -113,7 +113,7 @@ const streamCostFixture = "event: message_start\n" +
 
 // tokenEchoingCost encodes its inputs so the annotation proves which counts
 // reached the calculator.
-func tokenEchoingCost(input, output, creation, read int, _ catalog.Speed, _ catalog.UsageModifiers) routerResponseCost {
+func tokenEchoingCost(input, output, creation, read int, _ catalog.UsageModifiers) routerResponseCost {
 	return routerResponseCost{
 		TotalUSD:            float64(input+output) / 1000,
 		InputUSD:            float64(input) / 1000,

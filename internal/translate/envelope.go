@@ -106,10 +106,6 @@ type EmitOptions struct {
 	// only where it was minted (see openai_reasoning_signature.go). Empty
 	// replays nothing.
 	ReasoningReplayScope string
-	// FastMode dispatches on the provider's paid fast tier: OpenAI
-	// service_tier:"priority", Anthropic speed:"fast" (+ beta). Honored only
-	// for first-party OpenAI/Anthropic targets; gateways relay their own tier.
-	FastMode bool
 }
 
 // RequestEnvelope wraps a parsed request body regardless of wire format.
