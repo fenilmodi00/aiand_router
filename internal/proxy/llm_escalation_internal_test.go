@@ -264,20 +264,6 @@ func TestSwitchyardEscalationReadinessReflectsMissingJudge(t *testing.T) {
 	require.Equal(t, "deployment capability is disabled", selection.UnavailableReason)
 }
 
-func TestQwenEscalationSkipsGatewayOnlyInstallation(t *testing.T) {
-	service := (&Service{}).
-		WithLLMEscalation(&llmEscalationStoreStub{}).
-		WithQwenEscalation(&blockingEscalationJudge{}).
-		WithEscalationConfiguration(nil, nil)
-	overrides := flags.Overrides{Strings: map[flags.Key]string{
-		flags.KeyEscalationActiveClassifier: string(flags.EscalationClassifierLLM),
-	}}
-	ctx := flags.WithOverrides(router.WithStrategy(context.Background(), router.StrategyHMMEmbedding), overrides)
-	requestResult := turnLoopResult{Strategy: router.StrategyHMMEmbedding, InstallationID: uuid.New(), TurnType: turntype.MainLoop}
-	request := router.Request{GatewayProviders: map[string]struct{}{providers.ProviderAIAND: {}}}
-	require.Nil(t, service.beginLLMEscalation(ctx, escalationTestEnvelope(t, 1), request, &requestResult, "test-key"))
-}
-
 func TestQwenEscalationRecordsUnavailableIntervalSeparatelyFromCapacity(t *testing.T) {
 	store := &llmEscalationStoreStub{}
 	service := (&Service{}).WithLLMEscalation(store).WithQwenEscalation(&blockingEscalationJudge{})

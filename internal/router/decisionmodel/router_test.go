@@ -165,25 +165,6 @@ func TestImageRequestSkipsTextOnlyJudgmentModel(t *testing.T) {
 	require.Equal(t, "moonshotai/kimi-k3", decision.Model, "the text-only judgment model must be skipped on an image turn")
 }
 
-func TestGatewayInstallationDispatchesThroughAlias(t *testing.T) {
-	classifier := &scriptedClassifier{answers: map[decisionmodel.QuestionID]decisionmodel.Choice{decisionmodel.QuestionTaskComplexity: decisionmodel.ChoiceHigh, decisionmodel.QuestionCallComplexity: decisionmodel.ChoiceHigh}}
-	req := request("", 1)
-	req.GatewayProviders = map[string]struct{}{"gateway": {}}
-	req.CustomBindings = map[string][]string{"moonshotai/kimi-k3": {"gateway"}}
-	decision, err := decisionmodel.New(classifier).Route(context.Background(), req)
-	require.NoError(t, err)
-	require.Equal(t, "moonshotai/kimi-k3", decision.Model)
-	require.Equal(t, "gateway", decision.Provider)
-}
-
-func TestGatewayInstallationWithoutAliasIsUnavailable(t *testing.T) {
-	classifier := &scriptedClassifier{answers: map[decisionmodel.QuestionID]decisionmodel.Choice{decisionmodel.QuestionTaskComplexity: decisionmodel.ChoiceHigh, decisionmodel.QuestionCallComplexity: decisionmodel.ChoiceHigh}}
-	req := request("", 1)
-	req.GatewayProviders = map[string]struct{}{"gateway": {}}
-	_, err := decisionmodel.New(classifier).Route(context.Background(), req)
-	require.ErrorIs(t, err, decisionmodel.ErrUnavailable)
-}
-
 func TestAutomaticExclusionFallsBackWithinLineup(t *testing.T) {
 	classifier := &scriptedClassifier{answers: map[decisionmodel.QuestionID]decisionmodel.Choice{decisionmodel.QuestionTaskComplexity: decisionmodel.ChoiceHigh, decisionmodel.QuestionCallComplexity: decisionmodel.ChoiceLow}}
 	req := request("", 1)

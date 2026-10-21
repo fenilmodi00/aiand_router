@@ -2,7 +2,6 @@ package policy
 
 import (
 	"errors"
-	"fmt"
 	"slices"
 	"sort"
 	"strings"
@@ -11,11 +10,6 @@ import (
 // ErrNoRoutableModels signals that resolution came back empty due to the
 // installation's own configuration, not a router fault.
 var ErrNoRoutableModels = errors.New("policy: configuration leaves no routable model")
-
-// ErrGatewayServesNoDeployedModel is ErrNoRoutableModels narrowed to the
-// gateway-exclusive case: no deployed model is aliased by any gateway key.
-var ErrGatewayServesNoDeployedModel = fmt.Errorf(
-	"policy: no deployed model is aliased by a gateway key: %w", ErrNoRoutableModels)
 
 // ErrContextWindowExceeded signals that resolution came back empty because the
 // request is too large, so the client receives its native prompt-too-long
@@ -28,9 +22,6 @@ var ErrContextWindowExceeded = errors.New("policy: request context exceeds every
 // context-window error; later request constraints can still empty an
 // overflow-admitted pool for an unrelated reason.
 func emptyCandidateError(diagnostics []Diagnostic) error {
-	if len(diagnostics) > 0 && !slices.ContainsFunc(diagnostics, func(d Diagnostic) bool { return d.Reason != ExclusionGatewayNotServed }) {
-		return ErrGatewayServesNoDeployedModel
-	}
 	if slices.ContainsFunc(diagnostics, func(d Diagnostic) bool { return d.Reason == ExclusionContextWindow }) {
 		return ErrContextWindowExceeded
 	}

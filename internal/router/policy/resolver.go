@@ -63,9 +63,6 @@ const (
 	ExclusionContextWindow ExclusionReason = "context_window"
 	// ExclusionUnsignedHistory means the model cannot accept this request's unsigned tool-call history.
 	ExclusionUnsignedHistory ExclusionReason = "unsigned_history"
-	// ExclusionGatewayNotServed means the installation routes exclusively through
-	// its own gateway and no gateway key aliases this model.
-	ExclusionGatewayNotServed ExclusionReason = "gateway_not_served"
 	// ExclusionAutomaticDisabled means Weave withdrew the model from automatic
 	// routing deployment-wide. Soft: an explicit user pin still reaches it, and
 	// the filter is skipped entirely rather than emptying the candidate set.
@@ -299,7 +296,6 @@ func (r *Resolver) Resolve(req router.Request) ResolvedCandidates {
 	if providerSet == nil {
 		providerSet = r.available
 	}
-	gateways := req.GatewayProviders
 
 	deployedIDs := make([]string, 0, len(r.deployed))
 	for id := range r.deployed {
@@ -348,24 +344,6 @@ func (r *Resolver) Resolve(req router.Request) ResolvedCandidates {
 		contextWindow := catalog.ContextWindowFor(id)
 		if exceedsContextWindow(req, id, contextWindow) {
 			diagnostics = append(diagnostics, Diagnostic{CatalogID: id, RosterID: rosterID, Reason: ExclusionContextWindow})
-			continue
-		}
-
-		if len(gateways) > 0 {
-			allowedBindings := gatewayBindings(id, gateways, req.CustomBindings)
-			if len(allowedBindings) == 0 {
-				diagnostics = append(diagnostics, Diagnostic{CatalogID: id, RosterID: rosterID, Reason: ExclusionGatewayNotServed})
-				continue
-			}
-			base = r.appendCandidates(base, candidateContext{
-				req:             req,
-				catalogID:       id,
-				rosterID:        rosterID,
-				model:           model,
-				contextWindow:   contextWindow,
-				armContext:      armContext,
-				preferenceRanks: preferenceRanks,
-			}, allowedBindings)
 			continue
 		}
 
@@ -591,22 +569,6 @@ func bindingFromCandidate(candidate Candidate) Binding {
 		ReasoningConfigurationSHA256: candidate.ReasoningConfigurationSHA256,
 		ToolConfigurationSHA256:      candidate.ToolConfigurationSHA256,
 	}
-}
-
-// gatewayBindings limits a model to the gateways whose key aliases it. A
-// catalog-declared gateway binding is not enough: only the key's aliases say
-// which models that tenant's endpoint actually serves.
-func gatewayBindings(id string, gateways map[string]struct{}, custom map[string][]string) []catalog.IndexedBinding {
-	aliased := make(map[string]struct{}, len(custom[id]))
-	for _, provider := range custom[id] {
-		if _, ok := gateways[provider]; ok {
-			aliased[provider] = struct{}{}
-		}
-	}
-	if len(aliased) == 0 {
-		return nil
-	}
-	return catalog.EnumerateBindingsWithCustom(id, aliased, custom)
 }
 
 func (r *Resolver) allowedProviders(in map[string]struct{}) map[string]struct{} {

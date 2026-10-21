@@ -642,49 +642,19 @@ func CheapestModelInSet(meta *ArtifactMetadata, registry *ModelRegistry, availab
 	return cheapestModelFiltered(meta, registry, available, denySet, allowSet, RequestBindings{})
 }
 
-// RequestBindings carries a key's model_aliases (Custom) and enrolled gateway
-// providers (Gateways); a non-empty Gateways set means gateway-exclusive routing.
+// RequestBindings carries a key's model_aliases (Custom).
 type RequestBindings struct {
-	Custom   map[string][]string
-	Gateways map[string]struct{}
+	Custom map[string][]string
 }
 
 func (b RequestBindings) resolve(modelID, registryProvider string, available map[string]struct{}) string {
-	if len(b.Gateways) > 0 {
-		return resolveGatewayProvider(modelID, available, b.Custom, b.Gateways)
-	}
 	return resolveProviderWithCustom(modelID, registryProvider, available, b.Custom)
 }
 
 // candidates returns the models these selectors may pick from: the bundle's
-// roster, plus — for a gateway-exclusive key — the catalog models it aliases
-// that this bundle never trained on (a gateway serves whatever its aliases name).
+// roster.
 func (b RequestBindings) candidates(registry *ModelRegistry) []DeployedEntry {
-	if len(b.Gateways) == 0 {
-		return registry.DeployedModels
-	}
-	onRoster := make(map[string]struct{}, len(registry.DeployedModels))
-	for _, e := range registry.DeployedModels {
-		onRoster[e.Model] = struct{}{}
-	}
-	offRoster := make([]DeployedEntry, 0, len(b.Custom))
-	for model := range b.Custom {
-		if _, known := onRoster[model]; known {
-			continue
-		}
-		m, inCatalog := catalog.ByID(model)
-		if !inCatalog || m.Tier == catalog.TierUnknown {
-			continue
-		}
-		offRoster = append(offRoster, DeployedEntry{Model: m.ID, Provider: m.PrimaryProvider()})
-	}
-	if len(offRoster) == 0 {
-		return registry.DeployedModels
-	}
-	// Alias maps iterate randomly; two equal-cost aliases must not pick
-	// differently per request.
-	sort.Slice(offRoster, func(i, j int) bool { return offRoster[i].Model < offRoster[j].Model })
-	return append(append(make([]DeployedEntry, 0, len(registry.DeployedModels)+len(offRoster)), registry.DeployedModels...), offRoster...)
+	return registry.DeployedModels
 }
 
 // inputCostPer1K prefers the bundle's trained cost, falling back to catalog
