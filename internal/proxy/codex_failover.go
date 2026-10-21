@@ -49,12 +49,12 @@ func codexExhaustionWindow(resetAt time.Time, now time.Time) usage.Window {
 // credential — strictly worse than surfacing the upstream error.
 func (s *Service) openaiFallbackKeyAvailable(ctx context.Context) bool {
 	if byok := BuildCredentialsMap(externalKeysFromContext(ctx)); byok != nil {
-		if _, ok := byok[providers.ProviderOpenAI]; ok {
+		if _, ok := byok[providers.ProviderAIAND]; ok {
 			return true
 		}
 	}
 	if s.deploymentKeyedProviders != nil {
-		if _, ok := s.deploymentKeyedProviders[providers.ProviderOpenAI]; ok {
+		if _, ok := s.deploymentKeyedProviders[providers.ProviderAIAND]; ok {
 			return true
 		}
 	}

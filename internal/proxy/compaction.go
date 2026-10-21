@@ -34,7 +34,7 @@ func anthropicSummarizerEligible(model string) bool {
 		return false
 	}
 	for _, b := range m.Providers {
-		if b.Provider == providers.ProviderAnthropic {
+		if b.Provider == providers.ProviderAIAND {
 			return true
 		}
 	}
@@ -50,7 +50,7 @@ func (s *Service) compactionPreferredSummarizer(ctx context.Context, sessionKey 
 		return ""
 	}
 	pin, active := s.loadPin(ctx, sessionKey, role)
-	if !active || pin.Provider != providers.ProviderAnthropic {
+	if !active || pin.Provider != providers.ProviderAIAND {
 		return ""
 	}
 	return pin.Model
@@ -78,7 +78,7 @@ func (s *Service) compactionHardPin(ctx context.Context, sessionKey [sessionpin.
 		}
 	}
 	if req.EnabledProviders != nil {
-		if _, enabled := req.EnabledProviders[providers.ProviderAnthropic]; !enabled {
+		if _, enabled := req.EnabledProviders[providers.ProviderAIAND]; !enabled {
 			return "", "", "", false
 		}
 	}
@@ -98,10 +98,10 @@ func (s *Service) compactionHardPin(ctx context.Context, sessionKey [sessionpin.
 	}
 	preferred := s.compactionPreferredSummarizer(ctx, sessionKey, role)
 	if latest := catalog.LatestInFamily(preferred, eligible); latest != "" {
-		return providers.ProviderAnthropic, latest, policy.OverrideSourceSession, true
+		return providers.ProviderAIAND, latest, policy.OverrideSourceSession, true
 	}
 	if m := catalog.LatestInFamily(s.compactionModelOrDefault(), eligible); m != "" {
-		return providers.ProviderAnthropic, m, policy.OverrideSourceDeployment, true
+		return providers.ProviderAIAND, m, policy.OverrideSourceDeployment, true
 	}
 	return "", "", "", false
 }
@@ -129,7 +129,7 @@ func (s *Service) compactionSessionModel(ctx context.Context, sessionKey [sessio
 			return false
 		}
 		binding, bound := s.servedBinding(candidate, served.Provider, req)
-		if !bound || binding.Provider == providers.ProviderAnthropic {
+		if !bound || binding.Provider == providers.ProviderAIAND {
 			return false
 		}
 		if s.availableModels != nil {

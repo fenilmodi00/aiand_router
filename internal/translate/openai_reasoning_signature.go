@@ -27,7 +27,7 @@ func encodeOpenAIReasoningSignature(id, enc, scope string) string {
 	}
 	b, err := json.Marshal(openAIReasoningSignatureEnvelope{
 		Version:  1,
-		Provider: providers.ProviderOpenAI,
+		Provider: providers.ProviderAIAND,
 		ID:       id,
 		Enc:      enc,
 		Scope:    scope,
@@ -53,7 +53,7 @@ func decodeOpenAIReasoningSignature(sig string) (openAIReasoningSignatureEnvelop
 	if err := json.Unmarshal(b, &env); err != nil {
 		return openAIReasoningSignatureEnvelope{}, false
 	}
-	if env.Version != 1 || env.Provider != providers.ProviderOpenAI || env.ID == "" || env.Enc == "" {
+	if env.Version != 1 || env.Provider != providers.ProviderAIAND || env.ID == "" || env.Enc == "" {
 		return openAIReasoningSignatureEnvelope{}, false
 	}
 	return env, true

@@ -25,7 +25,7 @@ import (
 func TestRecoveryAcceptanceRescued502HasBoundedWithdrawal(t *testing.T) {
 	store := &cooldownStubPinStore{}
 	svc := newRateLimitTestService(store, true, 45)
-	primary := router.Decision{Provider: providers.ProviderOpenAIGateway, Model: catalog.ModelGPT6Luna}
+	primary := router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelGPT6Luna}
 	model, _ := svc.maybeStrikeArmAfterRescuedFailure(context.Background(), true, false,
 		&providers.UpstreamErrorResponse{Status: http.StatusBadGateway}, primary,
 		uuid.New(), nonZeroSessionKey(), sessionpin.DefaultRole, sessionpin.DefaultRole)
@@ -137,9 +137,9 @@ type recoveryObservedRouter struct {
 func (r *recoveryObservedRouter) Route(_ context.Context, req router.Request) (router.Decision, error) {
 	r.requests <- req
 	if _, excluded := req.AutomaticExcludedModels[catalog.ModelGPT6Luna]; excluded {
-		return router.Decision{Provider: providers.ProviderAnthropicGateway, Model: recoveryOpusModel}, nil
+		return router.Decision{Provider: providers.ProviderAIAND, Model: recoveryOpusModel}, nil
 	}
-	return router.Decision{Provider: providers.ProviderOpenAIGateway, Model: catalog.ModelGPT6Luna}, nil
+	return router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelGPT6Luna}, nil
 }
 
 func TestRecoveryAcceptanceCooldownExpiryAdmitsOneConcurrentProbe(t *testing.T) {
@@ -150,8 +150,8 @@ func TestRecoveryAcceptanceCooldownExpiryAdmitsOneConcurrentProbe(t *testing.T) 
 		hmmHistoryRole(roleForTier(catalog.TierFor(catalog.ModelGPT6Luna))): {Strategy: router.StrategyCluster, DemotionCooldowns: map[string]time.Time{catalog.ModelGPT6Luna: rateLimitTestNow}},
 	}}, reads: make(chan recoveryBucketRead, 128)}
 	sibling := &recoveryAlternativeClient{}
-	svc := NewService(scorer, map[string]providers.Client{providers.ProviderOpenAIGateway: provider, providers.ProviderAnthropicGateway: sibling},
-		nil, false, nil, store, false, providers.ProviderAnthropic, recoveryOpusModel, nil).WithTransientRateLimit(true, 45)
+	svc := NewService(scorer, map[string]providers.Client{providers.ProviderAIAND: provider, providers.ProviderAIAND: sibling},
+		nil, false, nil, store, false, providers.ProviderAIAND, recoveryOpusModel, nil).WithTransientRateLimit(true, 45)
 	now := rateLimitTestNow.Add(-time.Nanosecond)
 	svc.now = func() time.Time { return now }
 	ctx, cancel := context.WithTimeout(twoModelGatewayContext(), 5*time.Second)

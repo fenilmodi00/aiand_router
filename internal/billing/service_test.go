@@ -183,7 +183,7 @@ func TestDebitForInference_MatchesExportedCostMath(t *testing.T) {
 		OrganizationID:  "org_x",
 		RouterRequestID: "req_abc",
 		Model:           "claude-sonnet-4-5",
-		Provider:        providers.ProviderAnthropic,
+		Provider:        providers.ProviderAIAND,
 		InputTokens:     1_000_000,
 		OutputTokens:    250_000,
 		Pricing:         p,
@@ -212,7 +212,7 @@ func TestDebitForInference_ByokChargesFeeOnlyNotUpstreamCost(t *testing.T) {
 		OrganizationID:  "org_byok",
 		RouterRequestID: "req_byok",
 		Model:           "claude-sonnet-4-5",
-		Provider:        providers.ProviderAnthropic,
+		Provider:        providers.ProviderAIAND,
 		InputTokens:     1_000_000,
 		OutputTokens:    250_000,
 		Pricing:         p,
@@ -246,7 +246,7 @@ func TestDebitForInference_ByokFeeIsExactlyFivePercent(t *testing.T) {
 		OrganizationID:  "org_byok",
 		RouterRequestID: "req_round",
 		Model:           "m",
-		Provider:        providers.ProviderAnthropic,
+		Provider:        providers.ProviderAIAND,
 		// $100.00 of input at $1/M — a round number so the 5% is unambiguous.
 		InputTokens: 100_000_000,
 		Pricing:     catalog.Pricing{InputUSDPer1M: 1.00},
@@ -268,7 +268,7 @@ func TestDebitForInference_ByokDefaultRateChargesNoFee(t *testing.T) {
 		OrganizationID:  "org_byok",
 		RouterRequestID: "req_free",
 		Model:           "m",
-		Provider:        providers.ProviderAnthropic,
+		Provider:        providers.ProviderAIAND,
 		InputTokens:     1_000_000,
 		Pricing:         catalog.Pricing{InputUSDPer1M: 3.00},
 		ByokServed:      true,
@@ -290,7 +290,7 @@ func TestDebitForInference_OverrideOutranksByok(t *testing.T) {
 		OrganizationID:  "org_override",
 		RouterRequestID: "req_ovr",
 		Model:           "m",
-		Provider:        providers.ProviderAnthropic,
+		Provider:        providers.ProviderAIAND,
 		InputTokens:     1_000_000,
 		Pricing:         catalog.Pricing{InputUSDPer1M: 3.00},
 		HasOverride:     true,
@@ -312,7 +312,7 @@ func TestDebitForInference_NonByokWritesNoFeeRow(t *testing.T) {
 		OrganizationID:  "org_plain",
 		RouterRequestID: "req_plain",
 		Model:           "m",
-		Provider:        providers.ProviderAnthropic,
+		Provider:        providers.ProviderAIAND,
 		InputTokens:     1_000_000,
 		Pricing:         catalog.Pricing{InputUSDPer1M: 3.00},
 	})
@@ -334,7 +334,7 @@ func TestDebitForInference_WarnsOnZeroPricingForRealUsage(t *testing.T) {
 		OrganizationID:  "org_x",
 		RouterRequestID: "req_unknown",
 		Model:           "gpt-5.2",
-		Provider:        providers.ProviderOpenAI,
+		Provider:        providers.ProviderAIAND,
 		InputTokens:     1_000_000,
 		OutputTokens:    250_000,
 		Pricing:         catalog.Pricing{}, // zero value: model not in catalog
@@ -357,7 +357,7 @@ func TestDebitForInference_WarnsOnZeroPricingForCacheOnlyUsage(t *testing.T) {
 		OrganizationID:  "org_x",
 		RouterRequestID: "req_cache_only",
 		Model:           "gpt-5.2",
-		Provider:        providers.ProviderOpenAI,
+		Provider:        providers.ProviderAIAND,
 		CacheRead:       500_000,
 		Pricing:         catalog.Pricing{}, // zero value: model not in catalog
 	})
@@ -374,7 +374,7 @@ func TestDebitForInference_NoWarnOnKnownPricing(t *testing.T) {
 	_, err := svc.DebitForInference(context.Background(), billing.DebitInferenceParams{
 		OrganizationID: "org_x",
 		Model:          "claude-sonnet-4-5",
-		Provider:       providers.ProviderAnthropic,
+		Provider:       providers.ProviderAIAND,
 		InputTokens:    1_000_000,
 		OutputTokens:   250_000,
 		Pricing:        p,
@@ -392,7 +392,7 @@ func TestDebitForInference_NoWarnOnZeroPricingOverride(t *testing.T) {
 	_, err := svc.DebitForInference(context.Background(), billing.DebitInferenceParams{
 		OrganizationID: "org_internal",
 		Model:          "gpt-5.2",
-		Provider:       providers.ProviderOpenAI,
+		Provider:       providers.ProviderAIAND,
 		InputTokens:    1_000_000,
 		OutputTokens:   250_000,
 		Pricing:        catalog.Pricing{},
@@ -411,7 +411,7 @@ func TestDebitForInference_NoWarnOnZeroTokenUsage(t *testing.T) {
 	_, err := svc.DebitForInference(context.Background(), billing.DebitInferenceParams{
 		OrganizationID: "org_x",
 		Model:          "gpt-5.2",
-		Provider:       providers.ProviderOpenAI,
+		Provider:       providers.ProviderAIAND,
 		Pricing:        catalog.Pricing{},
 	})
 	require.NoError(t, err)
@@ -427,7 +427,7 @@ func TestDebitForInference_OverrideWritesZeroDeltaWithNotional(t *testing.T) {
 	balance, err := svc.DebitForInference(context.Background(), billing.DebitInferenceParams{
 		OrganizationID: "org_internal",
 		Model:          "claude-sonnet-4-5",
-		Provider:       providers.ProviderAnthropic,
+		Provider:       providers.ProviderAIAND,
 		InputTokens:    1_000_000,
 		OutputTokens:   250_000,
 		Pricing:        p,
@@ -450,7 +450,7 @@ func TestDebitForInference_SubscriptionDebitsNothing(t *testing.T) {
 		OrganizationID:     "org_sub",
 		RouterRequestID:    "req_sub",
 		Model:              "claude-opus-4-8",
-		Provider:           providers.ProviderAnthropic,
+		Provider:           providers.ProviderAIAND,
 		InputTokens:        1_000_000,
 		OutputTokens:       250_000,
 		Pricing:            p,
@@ -473,7 +473,7 @@ func TestDebitForInference_OverrideBeatsSubscription(t *testing.T) {
 	balance, err := svc.DebitForInference(context.Background(), billing.DebitInferenceParams{
 		OrganizationID:     "org_internal",
 		Model:              "claude-opus-4-8",
-		Provider:           providers.ProviderAnthropic,
+		Provider:           providers.ProviderAIAND,
 		InputTokens:        1_000_000,
 		OutputTokens:       250_000,
 		Pricing:            p,
@@ -500,7 +500,7 @@ func TestDebitForInference_BalanceCanGoNegative(t *testing.T) {
 			InputTokens:    1_000_000,
 			OutputTokens:   250_000,
 			Pricing:        p,
-			Provider:       providers.ProviderAnthropic,
+			Provider:       providers.ProviderAIAND,
 		})
 		require.NoError(t, err)
 	}
@@ -519,7 +519,7 @@ func TestDebitForInference_ZeroTokensYieldsZeroCharge(t *testing.T) {
 	_, err := svc.DebitForInference(context.Background(), billing.DebitInferenceParams{
 		OrganizationID: "org_x",
 		Pricing:        p,
-		Provider:       providers.ProviderAnthropic,
+		Provider:       providers.ProviderAIAND,
 	})
 	require.NoError(t, err)
 	require.Len(t, repo.ledgerCalls, 1)
@@ -547,7 +547,7 @@ func TestDebitForInference_AttributesAPIKey(t *testing.T) {
 		OrganizationID:  "org_x",
 		RouterRequestID: "req_key",
 		Model:           "claude-sonnet-4-5",
-		Provider:        providers.ProviderAnthropic,
+		Provider:        providers.ProviderAIAND,
 		InputTokens:     1_000_000,
 		OutputTokens:    250_000,
 		Pricing:         p,
@@ -570,7 +570,7 @@ func TestDebitForInference_SubscriptionLeavesKeySpendFlat(t *testing.T) {
 	_, err := svc.DebitForInference(context.Background(), billing.DebitInferenceParams{
 		OrganizationID:     "org_sub",
 		Model:              "claude-opus-4-8",
-		Provider:           providers.ProviderAnthropic,
+		Provider:           providers.ProviderAIAND,
 		InputTokens:        1_000_000,
 		OutputTokens:       250_000,
 		Pricing:            p,
@@ -592,7 +592,7 @@ func TestDebitForInference_AutopaySignalsOnDownwardCrossing(t *testing.T) {
 			InputTokens:    1_000_000,
 			OutputTokens:   250_000,
 			Pricing:        p,
-			Provider:       providers.ProviderAnthropic,
+			Provider:       providers.ProviderAIAND,
 		})
 		return err
 	}
@@ -658,7 +658,7 @@ func TestDebitForInference_ByokReturnsPostFeeBalance(t *testing.T) {
 		OrganizationID: "org_byok",
 		InputTokens:    1_000_000,
 		Pricing:        catalog.Pricing{InputUSDPer1M: 1.00},
-		Provider:       providers.ProviderAnthropic,
+		Provider:       providers.ProviderAIAND,
 		ByokServed:     true,
 	})
 	require.NoError(t, err)
@@ -687,7 +687,7 @@ func TestDebitForInference_ByokFeeCrossingSignalsAutopay(t *testing.T) {
 		OrganizationID: "org_byok",
 		InputTokens:    1_000_000,
 		Pricing:        catalog.Pricing{InputUSDPer1M: 1.00},
-		Provider:       providers.ProviderAnthropic,
+		Provider:       providers.ProviderAIAND,
 		ByokServed:     true,
 	})
 	require.NoError(t, err)

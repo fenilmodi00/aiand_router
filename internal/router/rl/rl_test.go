@@ -44,12 +44,12 @@ func enabled(names ...string) map[string]struct{} {
 // allProviders is the deployment's keyed-provider set used to resolve dispatch
 // bindings on the unrestricted (nil EnabledProviders) path.
 var allProviders = enabled(
-	providers.ProviderAnthropic,
-	providers.ProviderOpenAI,
-	providers.ProviderGoogle,
-	providers.ProviderMakora,
-	providers.ProviderFireworks,
-	providers.ProviderBedrock,
+	providers.ProviderAIAND,
+	providers.ProviderAIAND,
+	providers.ProviderAIAND,
+	providers.ProviderAIAND,
+	providers.ProviderAIAND,
+	providers.ProviderAIAND,
 )
 
 func TestRouteMapsRosterChoiceBackToCatalogModel(t *testing.T) {
@@ -60,11 +60,11 @@ func TestRouteMapsRosterChoiceBackToCatalogModel(t *testing.T) {
 
 	decision, err := r.Route(context.Background(), router.Request{
 		PromptText:       "refactor the auth module",
-		EnabledProviders: enabled(providers.ProviderAnthropic, providers.ProviderMakora),
+		EnabledProviders: enabled(providers.ProviderAIAND, providers.ProviderAIAND),
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "claude-opus-4-8", decision.Model)
-	assert.Equal(t, providers.ProviderAnthropic, decision.Provider)
+	assert.Equal(t, providers.ProviderAIAND, decision.Provider)
 	assert.Contains(t, decision.Reason, "DPO score")
 	assert.Contains(t, decision.Reason, "implementing")
 
@@ -74,8 +74,8 @@ func TestRouteMapsRosterChoiceBackToCatalogModel(t *testing.T) {
 	for _, c := range dec.got.Candidates {
 		rosterIDs[c.RosterID] = c.Provider
 	}
-	assert.Equal(t, providers.ProviderAnthropic, rosterIDs["anthropic/claude-opus-4-8"])
-	assert.Equal(t, providers.ProviderMakora, rosterIDs["deepseek/deepseek-v4.1-flash"])
+	assert.Equal(t, providers.ProviderAIAND, rosterIDs["anthropic/claude-opus-4-8"])
+	assert.Equal(t, providers.ProviderAIAND, rosterIDs["deepseek/deepseek-v4.1-flash"])
 }
 
 func TestRouteOmitsModelsWithNoEnabledProvider(t *testing.T) {
@@ -84,7 +84,7 @@ func TestRouteOmitsModelsWithNoEnabledProvider(t *testing.T) {
 
 	_, err := r.Route(context.Background(), router.Request{
 		PromptText:       "hi",
-		EnabledProviders: enabled(providers.ProviderAnthropic),
+		EnabledProviders: enabled(providers.ProviderAIAND),
 	})
 	require.NoError(t, err)
 	for _, c := range dec.got.Candidates {
@@ -99,7 +99,7 @@ func TestRouteExcludesRequestedExclusions(t *testing.T) {
 
 	_, err := r.Route(context.Background(), router.Request{
 		PromptText:       "hi",
-		EnabledProviders: enabled(providers.ProviderAnthropic, providers.ProviderMakora),
+		EnabledProviders: enabled(providers.ProviderAIAND, providers.ProviderAIAND),
 		ExcludedModels:   map[string]struct{}{"claude-opus-4-8": {}},
 	})
 	require.NoError(t, err)
@@ -114,7 +114,7 @@ func TestRouteNoEligibleCandidatesIsUnavailable(t *testing.T) {
 
 	_, err := r.Route(context.Background(), router.Request{
 		PromptText:       "hi",
-		EnabledProviders: enabled(providers.ProviderOpenAI), // no binding for opus
+		EnabledProviders: enabled(providers.ProviderAIAND), // no binding for opus
 	})
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, rl.ErrPolicyUnavailable))
@@ -126,7 +126,7 @@ func TestRouteDeciderErrorIsUnavailable(t *testing.T) {
 
 	_, err := r.Route(context.Background(), router.Request{
 		PromptText:       "hi",
-		EnabledProviders: enabled(providers.ProviderAnthropic),
+		EnabledProviders: enabled(providers.ProviderAIAND),
 	})
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, rl.ErrPolicyUnavailable))
@@ -145,7 +145,7 @@ func TestRouteNilEnabledProvidersIsUnrestricted(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "claude-opus-4-8", decision.Model)
-	assert.Equal(t, providers.ProviderAnthropic, decision.Provider)
+	assert.Equal(t, providers.ProviderAIAND, decision.Provider)
 	assert.NotEmpty(t, dec.got.Candidates, "nil providers must not empty the candidate set")
 }
 
@@ -193,7 +193,7 @@ func TestRouteUnknownReturnedModelIsUnavailable(t *testing.T) {
 
 	_, err := r.Route(context.Background(), router.Request{
 		PromptText:       "hi",
-		EnabledProviders: enabled(providers.ProviderAnthropic),
+		EnabledProviders: enabled(providers.ProviderAIAND),
 	})
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, rl.ErrPolicyUnavailable))

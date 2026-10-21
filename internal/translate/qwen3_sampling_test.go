@@ -40,7 +40,7 @@ func TestQwen3Samplers_OpenAISameFormat_InjectedForQwen3(t *testing.T) {
 	require.NoError(t, err)
 	prep, err := env.PrepareOpenAI(http.Header{}, translate.EmitOptions{
 		TargetModel:    "qwen/qwen3.6-35b-a3b",
-		TargetProvider: providers.ProviderOpenRouter,
+		TargetProvider: providers.ProviderAIAND,
 		Capabilities:   router.Lookup("qwen/qwen3.6-35b-a3b"),
 	})
 	require.NoError(t, err)
@@ -57,7 +57,7 @@ func TestQwen3Samplers_AnthropicCrossFormat_InjectedForQwen3(t *testing.T) {
 	require.NoError(t, err)
 	prep, err := env.PrepareOpenAI(http.Header{}, translate.EmitOptions{
 		TargetModel:    "qwen/qwen3.6-35b-a3b",
-		TargetProvider: providers.ProviderOpenRouter,
+		TargetProvider: providers.ProviderAIAND,
 		Capabilities:   router.Lookup("qwen/qwen3.6-35b-a3b"),
 	})
 	require.NoError(t, err)
@@ -77,7 +77,7 @@ func TestQwen3Samplers_AppliedOnBedrockTarget(t *testing.T) {
 	require.NoError(t, err)
 	prep, err := env.PrepareOpenAI(http.Header{}, translate.EmitOptions{
 		TargetModel:    "qwen/qwen3-235b-a22b-2507",
-		TargetProvider: providers.ProviderBedrock,
+		TargetProvider: providers.ProviderAIAND,
 		Capabilities:   router.Lookup("qwen/qwen3-235b-a22b-2507"),
 	})
 	require.NoError(t, err)
@@ -98,7 +98,7 @@ func TestQwen3Samplers_RepetitionPenaltySkippedOnFireworks(t *testing.T) {
 	require.NoError(t, err)
 	prep, err := env.PrepareOpenAI(http.Header{}, translate.EmitOptions{
 		TargetModel:    "qwen/qwen3.8-max",
-		TargetProvider: providers.ProviderFireworks,
+		TargetProvider: providers.ProviderAIAND,
 		Capabilities:   router.Lookup("qwen/qwen3.8-max"),
 	})
 	require.NoError(t, err)
@@ -117,7 +117,7 @@ func TestQwen3Samplers_NotInjectedForNonQwen(t *testing.T) {
 	require.NoError(t, err)
 	prep, err := env.PrepareOpenAI(http.Header{}, translate.EmitOptions{
 		TargetModel:    "deepseek/deepseek-v4-pro",
-		TargetProvider: providers.ProviderOpenRouter,
+		TargetProvider: providers.ProviderAIAND,
 		Capabilities:   router.Lookup("deepseek/deepseek-v4-pro"),
 	})
 	require.NoError(t, err)
@@ -142,7 +142,7 @@ func TestQwen3Samplers_DoNotOverrideClientValues(t *testing.T) {
 	require.NoError(t, err)
 	prep, err := env.PrepareOpenAI(http.Header{}, translate.EmitOptions{
 		TargetModel:    "qwen/qwen3.6-35b-a3b",
-		TargetProvider: providers.ProviderOpenRouter,
+		TargetProvider: providers.ProviderAIAND,
 		Capabilities:   router.Lookup("qwen/qwen3.6-35b-a3b"),
 	})
 	require.NoError(t, err)
@@ -167,7 +167,7 @@ func TestQwen3Samplers_PartialClientOverridesFillRest(t *testing.T) {
 	require.NoError(t, err)
 	prep, err := env.PrepareOpenAI(http.Header{}, translate.EmitOptions{
 		TargetModel:    "qwen/qwen3.6-35b-a3b",
-		TargetProvider: providers.ProviderOpenRouter,
+		TargetProvider: providers.ProviderAIAND,
 		Capabilities:   router.Lookup("qwen/qwen3.6-35b-a3b"),
 	})
 	require.NoError(t, err)

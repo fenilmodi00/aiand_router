@@ -29,7 +29,7 @@ func (f fixedRouter) Route(context.Context, router.Request) (router.Decision, er
 // preserves the original throttle, and the client receives that failure once.
 func TestProxyOpenAIChatCompletion_ManagedPoolFailureIsRenderedOnce(t *testing.T) {
 	leaser := &scriptedSubscriptionLeaser{leases: []subscriptions.Lease{{AccountID: "opaque-a", AccessToken: "token-a"}}}
-	openAI := &fakeClient{name: providers.ProviderOpenAI, outcomes: []fakeOutcome{
+	openAI := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{
 		{err: &providers.UpstreamErrorResponse{
 			Status: http.StatusTooManyRequests,
 			Body:   []byte(`{"error":{"type":"rate_limit_error","message":"quota exhausted"}}`),
@@ -37,19 +37,19 @@ func TestProxyOpenAIChatCompletion_ManagedPoolFailureIsRenderedOnce(t *testing.T
 	}}
 	svc := NewService(
 		fixedRouter{decision: router.Decision{
-			Provider: providers.ProviderOpenAI,
+			Provider: providers.ProviderAIAND,
 			Model:    "gpt-5.6-sol",
 			Metadata: &router.RoutingMetadata{CandidateModels: []string{"gpt-5.6-sol"}},
 		}},
 		map[string]providers.Client{
-			providers.ProviderOpenAI:    openAI,
-			providers.ProviderAnthropic: &fakeClient{name: providers.ProviderAnthropic},
+			providers.ProviderAIAND:    openAI,
+			providers.ProviderAIAND: &fakeClient{name: providers.ProviderAIAND},
 		},
-		nil, false, nil, nil, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil,
+		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithManagedSubscriptions(leaser).
 		WithDeploymentKeyedProviders(map[string]struct{}{
-			providers.ProviderOpenAI:    {},
-			providers.ProviderAnthropic: {},
+			providers.ProviderAIAND:    {},
+			providers.ProviderAIAND: {},
 		})
 
 	ctx := context.WithValue(managedSubscriptionContext(auth.SubscriptionProviderCodex),

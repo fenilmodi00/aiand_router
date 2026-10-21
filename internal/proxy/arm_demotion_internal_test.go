@@ -128,7 +128,7 @@ func TestMaybeDemoteArmAfterUnrescuedStall(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			store := &demotionStubPinStore{}
-			svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil).
+			svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil).
 				WithRescuedFailureArmDemotion(tc.flagOn)
 			ctx := context.Background()
 			if tc.cancelled {
@@ -136,7 +136,7 @@ func TestMaybeDemoteArmAfterUnrescuedStall(t *testing.T) {
 				ctx, cancel = context.WithCancel(ctx)
 				cancel()
 			}
-			decision := router.Decision{Provider: providers.ProviderAnthropic, Model: demotedArm}
+			decision := router.Decision{Provider: providers.ProviderAIAND, Model: demotedArm}
 			if tc.forced {
 				decision.Reason = translate.ReasonUserForceModel
 			}
@@ -506,7 +506,7 @@ func newRescuedDemotionTestService(store sessionpin.Store, flagOn bool) *Service
 }
 
 func rescuedPrimaryDecision(reason string) router.Decision {
-	return router.Decision{Provider: providers.ProviderAnthropic, Model: demotedArm, Reason: reason}
+	return router.Decision{Provider: providers.ProviderAIAND, Model: demotedArm, Reason: reason}
 }
 
 // Classification of pre-output failures: rescued upstream failures and
@@ -585,7 +585,7 @@ func TestUnrescuedResponseHeaderTimeoutExcludesPrimaryOnNextTurn(t *testing.T) {
 	store := newRowBackedPinStore()
 	svc := newRescuedDemotionTestService(store, true)
 	installationID := uuid.New()
-	primary := router.Decision{Provider: providers.ProviderAnthropic, Model: demotedPinModel, Reason: "hmm:authoritative model=" + demotedPinModel}
+	primary := router.Decision{Provider: providers.ProviderAIAND, Model: demotedPinModel, Reason: "hmm:authoritative model=" + demotedPinModel}
 	strategy := router.Strategy("response-header-timeout-next-turn")
 	turnContext := router.WithStrategy(context.Background(), strategy)
 	env, _ := demotionTurnLoopEnv(t)
@@ -609,12 +609,12 @@ func TestUnrescuedResponseHeaderTimeoutExcludesPrimaryOnNextTurn(t *testing.T) {
 	require.Contains(t, store.rows[hmmHistoryRole(sessionpin.DefaultRole)].DemotedModels, demotedPinModel)
 
 	scorer := &authoritativeTestRouter{decision: router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    freshTurnModel,
 		Reason:   "response-header-timeout-next-turn",
 	}}
 	nextTurnService := NewService(nil, nil, nil, false, nil, &rolePinStore{byRole: store.rows}, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil).
+		providers.ProviderAIAND, "claude-haiku-4-5", nil).
 		WithPolicyStrategy(policy.StrategySpec{
 			Strategy: strategy,
 			Router:   scorer,

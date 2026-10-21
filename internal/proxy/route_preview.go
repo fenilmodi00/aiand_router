@@ -76,7 +76,7 @@ func (s *Service) anthropicRoutingRequest(
 		promptText = features.OnlyUserMessageText
 	}
 
-	enabledProviders := s.enabledProvidersForRequest(ctx, providers.ProviderAnthropic, headers)
+	enabledProviders := s.enabledProvidersForRequest(ctx, providers.ProviderAIAND, headers)
 	if paidFallbackForbidden(ctx) {
 		enabledProviders = restrictToSubscriptionProviders(ctx, headers, enabledProviders)
 	}

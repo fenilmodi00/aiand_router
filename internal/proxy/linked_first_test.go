@@ -31,14 +31,14 @@ func codexResponsesStream(w http.ResponseWriter) {
 // already seen the caller's ChatGPT plan bind its 5h window, with a deployment
 // OpenAI key available to serve the turn instead.
 func spentCodexService(p *fakeProvider) *proxy.Service {
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "gpt-5.6-sol", Reason: "test"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-5.6-sol", Reason: "test"}}
 	obs := usage.NewObserver([]byte("salt"), 10*time.Minute, time.Now)
 	obs.Record(obs.Key([]byte(codexSubToken)), usage.Snapshot{
 		Primary: usage.Window{UsedPercent: 1.0, WindowMinutes: 300},
 	})
-	return proxy.NewService(fr, map[string]providers.Client{providers.ProviderOpenAI: p}, nil, false, nil, nil, false, providers.ProviderOpenAI, "gpt-5.6-sol", nil).
+	return proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: p}, nil, false, nil, nil, false, providers.ProviderAIAND, "gpt-5.6-sol", nil).
 		WithUsageObserver(obs).
-		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderOpenAI: {}})
+		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 }
 
 // TestLinkedFirst_OpenAI_SpentCodexPlan_ContinuesOnWeaveKey: a linked-first
@@ -87,13 +87,13 @@ func TestSubscriptionOnly_OpenAI_SpentCodexPlan_DepletedStillRefuses402(t *testi
 // organization credits instead of the credits-exhausted 402 a depleted turn
 // gets (compare TestSubscriptionOnly_OpenAI_PaidRoute_Refuses402).
 func TestLinkedFirst_OpenAI_PaidRoute_ContinuesOnCredits(t *testing.T) {
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenRouter, Model: "deepseek/deepseek-chat", Reason: "test"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-chat", Reason: "test"}}
 	p := &fakeProvider{proxyResponse: func(w http.ResponseWriter) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = io.WriteString(w, `{"id":"x","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"hi"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1}}`)
 	}}
-	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderOpenRouter: p}, nil, false, nil, nil, false, providers.ProviderOpenAI, "gpt-5.6-sol", nil)
+	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: p}, nil, false, nil, nil, false, providers.ProviderAIAND, "gpt-5.6-sol", nil)
 
 	body := `{"model":"gpt-5.6-sol","messages":[{"role":"user","content":"Refactor the auth middleware and add tests."}],"max_tokens":4096,"tools":[{"type":"function","function":{"name":"edit_file","parameters":{"type":"object"}}}]}`
 	rec, req := codexSubRequest(t, body)
@@ -109,15 +109,15 @@ func TestLinkedFirst_OpenAI_PaidRoute_ContinuesOnCredits(t *testing.T) {
 // over to the deployment key instead of the 402 the depleted path keeps
 // (compare TestSubscriptionOnly_ExhaustedSubscription_Refuses402).
 func TestLinkedFirst_Anthropic_SpentClaudePlan_ContinuesOnWeaveKey(t *testing.T) {
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: bypassScorerPickMdl}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: bypassScorerPickMdl}}
 	p := &fakeProvider{proxyResponse: bypassStreamResponse}
 	obs := usage.NewObserver([]byte("salt"), 10*time.Minute, time.Now)
 	obs.Record(obs.Key([]byte(bypassSubToken)), usage.Snapshot{
 		Secondary: usage.Window{UsedPercent: 1.0, WindowMinutes: 10080},
 	})
-	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAnthropic: p}, nil, false, nil, nil, false, providers.ProviderAnthropic, bypassScorerPickMdl, nil).
+	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: p}, nil, false, nil, nil, false, providers.ProviderAIAND, bypassScorerPickMdl, nil).
 		WithUsageObserver(obs).
-		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAnthropic: {}})
+		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 
 	rec, req, body := bypassRequest(t)
 	ctx := billing.WithSubscriptionOnly(bypassCtx(0.80), billing.SubscriptionOnlyLinkedFirst)
@@ -154,15 +154,15 @@ func TestLinkedFirst_Anthropic_BypassThrottled_ReroutesOnCredits(t *testing.T) {
 	// The real adapter reports the 429's headers before returning, which is
 	// what lets the reroute see the plan as spent and pick the fallback key.
 	observing := &headerObservingProvider{headers: bypassResp.Headers, inner: wrappedP}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: bypassScorerPickMdl, Reason: "cluster:v0.2"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: bypassScorerPickMdl, Reason: "cluster:v0.2"}}
 	obs := usage.NewObserver([]byte("salt"), 10*time.Minute, time.Now)
 	// Under threshold so the bypass engages for the first attempt.
 	obs.Record(obs.Key([]byte(bypassSubToken)), usage.Snapshot{
 		Primary: usage.Window{UsedPercent: 0.20, WindowMinutes: 300},
 	})
-	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAnthropic: observing}, nil, false, nil, nil, false, providers.ProviderAnthropic, bypassScorerPickMdl, nil).
+	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: observing}, nil, false, nil, nil, false, providers.ProviderAIAND, bypassScorerPickMdl, nil).
 		WithUsageObserver(obs).
-		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAnthropic: {}})
+		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 
 	rec, req, body := bypassRequest(t)
 	ctx := billing.WithSubscriptionOnly(bypassCtx(0.80), billing.SubscriptionOnlyLinkedFirst)
@@ -183,13 +183,13 @@ func TestLinkedFirst_Anthropic_BypassThrottled_ReroutesOnCredits(t *testing.T) {
 // serve the turn, so it is refused as subscription pool exhaustion before any
 // dispatch onto a plan already known to 429.
 func TestLinkedFirst_Anthropic_SpentClaudePlan_NoFallbackKey_RefusesPoolExhausted(t *testing.T) {
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: bypassScorerPickMdl}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: bypassScorerPickMdl}}
 	p := &fakeProvider{proxyResponse: bypassStreamResponse}
 	obs := usage.NewObserver([]byte("salt"), 10*time.Minute, time.Now)
 	obs.Record(obs.Key([]byte(bypassSubToken)), usage.Snapshot{
 		Secondary: usage.Window{UsedPercent: 1.0, WindowMinutes: 10080},
 	})
-	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAnthropic: p}, nil, false, nil, nil, false, providers.ProviderAnthropic, bypassScorerPickMdl, nil).
+	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: p}, nil, false, nil, nil, false, providers.ProviderAIAND, bypassScorerPickMdl, nil).
 		WithUsageObserver(obs)
 
 	rec, req, body := bypassRequest(t)
@@ -266,10 +266,10 @@ func TestLinkedFirst_Anthropic_BypassThirdPartyRefusal_RefusesPaidReroute(t *tes
 	for _, stream := range []bool{false, true} {
 		t.Run(map[bool]string{false: "non_streaming", true: "streaming"}[stream], func(t *testing.T) {
 			p := &planRefusingProvider{stream: stream}
-			fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: bypassScorerPickMdl, Reason: "cluster:v0.2"}}
-			svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAnthropic: p}, nil, false, nil, nil, false, providers.ProviderAnthropic, bypassScorerPickMdl, nil).
+			fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: bypassScorerPickMdl, Reason: "cluster:v0.2"}}
+			svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: p}, nil, false, nil, nil, false, providers.ProviderAIAND, bypassScorerPickMdl, nil).
 				WithUsageObserver(underThresholdObserver()).
-				WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAnthropic: {}})
+				WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 
 			rec, req, body := bypassRequest(t)
 			if stream {
@@ -290,10 +290,10 @@ func TestLinkedFirst_Anthropic_BypassThirdPartyRefusal_RefusesPaidReroute(t *tes
 // depleted-credits turn forbids paid fallback, so the refusal must not reroute.
 func TestCreditsDepleted_Anthropic_BypassThirdPartyRefusal_StaysOffCredits(t *testing.T) {
 	p := &planRefusingProvider{}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: bypassScorerPickMdl, Reason: "cluster:v0.2"}}
-	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAnthropic: p}, nil, false, nil, nil, false, providers.ProviderAnthropic, bypassScorerPickMdl, nil).
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: bypassScorerPickMdl, Reason: "cluster:v0.2"}}
+	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: p}, nil, false, nil, nil, false, providers.ProviderAIAND, bypassScorerPickMdl, nil).
 		WithUsageObserver(underThresholdObserver()).
-		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAnthropic: {}})
+		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 
 	rec, req, body := bypassRequest(t)
 	ctx := billing.WithSubscriptionOnly(bypassCtx(0.80), billing.SubscriptionOnlyCreditsDepleted)

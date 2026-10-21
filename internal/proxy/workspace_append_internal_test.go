@@ -84,11 +84,11 @@ func TestWorkspaceSystemAppendApplies_IdempotentAndSkipsSearchSubTurn(t *testing
 
 func TestWorkspaceAppendFired_OnlyForCrossFormatServedAttempts(t *testing.T) {
 	on := translate.EmitOptions{AppendWorkspaceSystem: true}
-	assert.True(t, workspaceAppendFired(on, providers.ProviderOpenAI))
-	assert.True(t, workspaceAppendFired(on, providers.ProviderOpenAIGateway))
-	assert.True(t, workspaceAppendFired(on, providers.ProviderOpenRouter))
-	assert.True(t, workspaceAppendFired(on, providers.ProviderGoogle), "PrepareGemini carries this append, unlike the autonomy one")
-	assert.False(t, workspaceAppendFired(on, providers.ProviderAnthropic), "PrepareAnthropic ignores the option, telemetry must agree")
-	assert.False(t, workspaceAppendFired(on, providers.ProviderAnthropicGateway))
-	assert.False(t, workspaceAppendFired(translate.EmitOptions{}, providers.ProviderOpenAI))
+	assert.True(t, workspaceAppendFired(on, providers.ProviderAIAND))
+	assert.True(t, workspaceAppendFired(on, providers.ProviderAIAND))
+	assert.True(t, workspaceAppendFired(on, providers.ProviderAIAND))
+	assert.True(t, workspaceAppendFired(on, providers.ProviderAIAND), "PrepareGemini carries this append, unlike the autonomy one")
+	assert.False(t, workspaceAppendFired(on, providers.ProviderAIAND), "PrepareAnthropic ignores the option, telemetry must agree")
+	assert.False(t, workspaceAppendFired(on, providers.ProviderAIAND))
+	assert.False(t, workspaceAppendFired(translate.EmitOptions{}, providers.ProviderAIAND))
 }

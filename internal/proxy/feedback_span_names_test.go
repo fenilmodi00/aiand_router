@@ -111,18 +111,18 @@ func TestFeedbackSpans_UseDistinctNamesAndSchemas(t *testing.T) {
 	// --- Pipeline B: /router-feedback slash command ---
 	store := newFakePinStore()
 	store.hasPin = true
-	store.pin = sessionpin.Pin{Provider: providers.ProviderAnthropic, Model: "claude-haiku-4-5", LastServedModel: "claude-haiku-4-5"}
+	store.pin = sessionpin.Pin{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", LastServedModel: "claude-haiku-4-5"}
 	feedbackStore := &fakeFeedbackStore{}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "cluster"}}
 	cmdSvc := proxy.NewService(
 		fr,
-		map[string]providers.Client{providers.ProviderAnthropic: &fakeProvider{}},
+		map[string]providers.Client{providers.ProviderAIAND: &fakeProvider{}},
 		emitter,
 		false,
 		nil,
 		store,
 		false,
-		providers.ProviderAnthropic,
+		providers.ProviderAIAND,
 		"claude-haiku-4-5",
 		nil,
 	).WithRouterFeedbackStore(feedbackStore)

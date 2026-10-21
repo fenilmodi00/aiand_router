@@ -59,8 +59,8 @@ func TestMessagesHandler_LinkedSubscriptionSlowFirstResponseSucceeds(t *testing.
 	provider := &slowSubscriptionProvider{delay: 12 * time.Second}
 	// The service owns background cache janitors that never exit, so it is built
 	// outside the bubble; every request-path timer is still created inside it.
-	svc := newTestService(&fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-sonnet-4-5", Reason: "test"}}, providers.ProviderAnthropic, provider).
-		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAnthropic: {}})
+	svc := newTestService(&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-5", Reason: "test"}}, providers.ProviderAIAND, provider).
+		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 	engine := messagesEngine(svc)
 	synctest.Test(t, func(t *testing.T) {
 		body := `{"model":"claude-sonnet-4-5","stream":true,"messages":[{"role":"user","content":"synthetic slow turn"}],"max_tokens":4096}`

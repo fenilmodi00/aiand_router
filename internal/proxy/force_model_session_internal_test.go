@@ -168,7 +168,7 @@ func TestRunTurnLoop_ForceModelSessionPinAppliesAcrossChildThreads(t *testing.T)
 		SessionKey:        forceSessionKey,
 		Role:              forceModelSessionRole,
 		InstallationID:    installationID,
-		Provider:          providers.ProviderAnthropic,
+		Provider:          providers.ProviderAIAND,
 		Model:             forcedModel,
 		Reason:            translate.ReasonUserForceModel,
 		Strategy:          router.StrategyCluster,
@@ -179,7 +179,7 @@ func TestRunTurnLoop_ForceModelSessionPinAppliesAcrossChildThreads(t *testing.T)
 	}
 	freshRouter := &tierProbeRouter{available: map[string]struct{}{"claude-haiku-4-5": {}}}
 	svc := NewService(freshRouter, nil, nil, false, nil, store, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil)
+		providers.ProviderAIAND, "claude-haiku-4-5", nil)
 	features := child.RoutingFeatures(false)
 
 	ctx = router.WithStrategy(ctx, router.StrategyHMMBeta)
@@ -223,7 +223,7 @@ func TestRunTurnLoop_DroppedSessionForcePreservesThreadPin(t *testing.T) {
 		SessionKey:     forceKey,
 		Role:           forceModelSessionRole,
 		InstallationID: installationID,
-		Provider:       providers.ProviderAnthropic,
+		Provider:       providers.ProviderAIAND,
 		Model:          "claude-opus-5",
 		Reason:         translate.ReasonUserForceModel,
 		PinnedUntil:    pinNeverExpires,
@@ -232,7 +232,7 @@ func TestRunTurnLoop_DroppedSessionForcePreservesThreadPin(t *testing.T) {
 		SessionKey:     threadKey,
 		Role:           role,
 		InstallationID: installationID,
-		Provider:       providers.ProviderOpenAI,
+		Provider:       providers.ProviderAIAND,
 		Model:          "gpt-5.5",
 		Reason:         "cluster:existing",
 		Strategy:       router.StrategyCluster,
@@ -247,14 +247,14 @@ func TestRunTurnLoop_DroppedSessionForcePreservesThreadPin(t *testing.T) {
 	}
 	freshRouter := &tierProbeRouter{available: map[string]struct{}{"claude-haiku-4-5": {}}}
 	svc := NewService(freshRouter, nil, nil, false, nil, store, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil)
+		providers.ProviderAIAND, "claude-haiku-4-5", nil)
 	svc.WithTransientRateLimit(true, 45)
 	ctx = router.WithStrategy(ctx, router.StrategyCluster)
 
 	result, err := svc.runTurnLoop(ctx, env, features, apiKeyID, installationID, "", nil, router.Request{
 		RequestedModel: features.Model,
 		EnabledProviders: map[string]struct{}{
-			providers.ProviderOpenAI: {},
+			providers.ProviderAIAND: {},
 		},
 	})
 	require.NoError(t, err)
@@ -299,7 +299,7 @@ func TestRunTurnLoop_ClearTombstoneBlocksLegacyForce(t *testing.T) {
 		available: map[string]struct{}{"claude-haiku-4-5": {}},
 	}
 	svc := NewService(freshRouter, nil, nil, false, nil, store, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil)
+		providers.ProviderAIAND, "claude-haiku-4-5", nil)
 
 	result, err := svc.runTurnLoop(ctx, env, features, apiKeyID, installationID, "", nil, router.Request{
 		RequestedModel: features.Model,
@@ -328,14 +328,14 @@ func TestRunTurnLoop_SessionForceOverridesAuxiliaryHardPin(t *testing.T) {
 		SessionKey:     forceKey,
 		Role:           forceModelSessionRole,
 		InstallationID: installationID,
-		Provider:       providers.ProviderAnthropic,
+		Provider:       providers.ProviderAIAND,
 		Model:          "claude-opus-5",
 		Reason:         translate.ReasonUserForceModel,
 		PinnedUntil:    pinNeverExpires,
 	}
 	freshRouter := &tierProbeRouter{available: map[string]struct{}{"claude-haiku-4-5": {}}}
 	svc := NewService(freshRouter, nil, nil, false, nil, store, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil)
+		providers.ProviderAIAND, "claude-haiku-4-5", nil)
 	features := env.RoutingFeatures(false)
 
 	result, err := svc.runTurnLoop(ctx, env, features, apiKeyID, installationID, "", nil, router.Request{
@@ -366,7 +366,7 @@ func TestApplyForceModelCommand_FableThenAstraWritesAndClearsSessionControl(t *t
 	forceKey := deriveForceModelSessionKeyForRequest(ctx, env, apiKeyID, threadKey)
 	store := newForceModelMapStore()
 	svc := NewService(nil, nil, nil, false, nil, store, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil)
+		providers.ProviderAIAND, "claude-haiku-4-5", nil)
 
 	forcedModel, _, err := svc.applyForceModelCommand(ctx, translate.ForceModelResult{Model: "fable"}, installationID, threadKey, forceKey)
 	require.NoError(t, err)
@@ -375,7 +375,7 @@ func TestApplyForceModelCommand_FableThenAstraWritesAndClearsSessionControl(t *t
 	require.NoError(t, err)
 	require.True(t, found)
 	assert.Equal(t, fableModelID, pin.Model)
-	assert.Equal(t, providers.ProviderAnthropic, pin.Provider)
+	assert.Equal(t, providers.ProviderAIAND, pin.Provider)
 	assert.Equal(t, translate.ReasonUserForceModel, pin.Reason)
 	assert.Equal(t, pinNeverExpires, pin.PinnedUntil)
 	for _, role := range forceModelClearRoles() {
@@ -391,7 +391,7 @@ func TestApplyForceModelCommand_FableThenAstraWritesAndClearsSessionControl(t *t
 	require.NoError(t, err)
 	require.True(t, found)
 	assert.Equal(t, fableModelID, switched.LastServedModel)
-	assert.Equal(t, providers.ProviderOpenAI, switched.Provider)
+	assert.Equal(t, providers.ProviderAIAND, switched.Provider)
 
 	_, _, err = svc.applyForceModelCommand(ctx, translate.ForceModelResult{Clear: true}, installationID, threadKey, forceKey)
 	require.NoError(t, err)
@@ -408,14 +408,14 @@ func TestApplyForceModelCommand_FableThenAstraWritesAndClearsSessionControl(t *t
 func TestRecordTurnUsage_ForcedDecisionWritesThreadHistoryOnly(t *testing.T) {
 	store := newForceModelMapStore()
 	svc := NewService(nil, nil, nil, false, nil, store, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil)
+		providers.ProviderAIAND, "claude-haiku-4-5", nil)
 	threadKey := [sessionpin.SessionKeyLen]byte{1}
 	controlKey := [sessionpin.SessionKeyLen]byte{2}
 	role := roleForTier(catalog.TierFor("claude-opus-5"))
 	store.pins[forceModelMapKey(controlKey, forceModelSessionRole)] = sessionpin.Pin{
 		SessionKey: controlKey,
 		Role:       forceModelSessionRole,
-		Provider:   providers.ProviderAnthropic,
+		Provider:   providers.ProviderAIAND,
 		Model:      "claude-opus-5",
 		Reason:     translate.ReasonUserForceModel,
 	}
@@ -428,11 +428,11 @@ func TestRecordTurnUsage_ForcedDecisionWritesThreadHistoryOnly(t *testing.T) {
 		SessionKey: threadKey,
 		PinRole:    role,
 		Decision: router.Decision{
-			Provider: providers.ProviderAnthropic,
+			Provider: providers.ProviderAIAND,
 			Model:    "claude-opus-5",
 			Reason:   translate.ReasonUserForceModel,
 		},
-	}, providers.ProviderAnthropic, "claude-opus-5", 100, 10, 0, 0, false)
+	}, providers.ProviderAIAND, "claude-opus-5", 100, 10, 0, 0, false)
 
 	store.mu.Lock()
 	defer store.mu.Unlock()

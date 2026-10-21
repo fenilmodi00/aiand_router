@@ -264,7 +264,7 @@ func (s *Service) handleLoopEscalation(
 			SessionKey:      sessionKey,
 			Role:            role,
 			InstallationID:  installationID,
-			Provider:        providers.ProviderAnthropic,
+			Provider:        providers.ProviderAIAND,
 			Model:           escalateModel,
 			Reason:          translate.ReasonLoopEscalation,
 			Strategy:        router.StrategyFromContext(ctx),

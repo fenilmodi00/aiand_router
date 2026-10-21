@@ -43,16 +43,16 @@ func (p *pckStrictGatewayProvider) Proxy(ctx context.Context, decision router.De
 func TestService_ProxyOpenAIChatCompletion_GatewayPromptCacheKeyRejectionRetriesAndMemoizes(t *testing.T) {
 	gw := &pckStrictGatewayProvider{}
 	fr := &fakeRouter{decision: router.Decision{
-		Provider: providers.ProviderOpenAIGateway,
+		Provider: providers.ProviderAIAND,
 		Model:    "grok-4.6",
 		Reason:   "hmm:test",
 	}}
 	svc := proxy.NewService(fr, map[string]providers.Client{
-		providers.ProviderOpenAIGateway: gw,
-	}, nil, false, nil, nil, false, providers.ProviderOpenAIGateway, "grok-4.6", nil)
+		providers.ProviderAIAND: gw,
+	}, nil, false, nil, nil, false, providers.ProviderAIAND, "grok-4.6", nil)
 
 	ctx := context.WithValue(context.Background(), proxy.ExternalAPIKeysContextKey{}, []*auth.ExternalAPIKey{
-		{Provider: providers.ProviderOpenAIGateway, Plaintext: []byte("gw-key"), BaseURL: "https://gw.example.com/v1"},
+		{Provider: providers.ProviderAIAND, Plaintext: []byte("gw-key"), BaseURL: "https://gw.example.com/v1"},
 	})
 	body := []byte(`{"model":"grok-4.6","messages":[{"role":"system","content":"You are a terse assistant."},{"role":"user","content":"hello"}]}`)
 

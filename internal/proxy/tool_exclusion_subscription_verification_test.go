@@ -32,10 +32,10 @@ func (r *verificationToolResolverRouter) Route(_ context.Context, request router
 	for _, diagnostic := range r.resolved.Diagnostics {
 		trace.ResolverExclusions = append(trace.ResolverExclusions, router.SelectionExclusion{CatalogID: diagnostic.CatalogID, RosterID: diagnostic.RosterID, Reason: string(diagnostic.Reason)})
 	}
-	return router.Decision{Provider: providers.ProviderOpenAI, Model: codexCoveredModel, Reason: "test", Metadata: &router.RoutingMetadata{CandidateModels: r.resolved.CandidateModels(), SelectionTrace: trace}}, nil
+	return router.Decision{Provider: providers.ProviderAIAND, Model: codexCoveredModel, Reason: "test", Metadata: &router.RoutingMetadata{CandidateModels: r.resolved.CandidateModels(), SelectionTrace: trace}}, nil
 }
 func TestVerificationRealResolverWeakToolExclusionPreventsHTTP(t *testing.T) {
-	resolver := policy.NewResolver(map[string]struct{}{codexCoveredModel: {}, verificationWeakToolModel: {}}, map[string]struct{}{providers.ProviderOpenAI: {}, providers.ProviderBedrock: {}}, func(model catalog.Model) string { return model.ID }, policy.ManagedProviderPolicy())
+	resolver := policy.NewResolver(map[string]struct{}{codexCoveredModel: {}, verificationWeakToolModel: {}}, map[string]struct{}{providers.ProviderAIAND: {}, providers.ProviderAIAND: {}}, func(model catalog.Model) string { return model.ID }, policy.ManagedProviderPolicy())
 	require.Contains(t, resolver.Resolve(router.Request{}).CandidateModels(), verificationWeakToolModel, "fixture weak model must be otherwise eligible")
 	var models, bearers []string
 	var incompatibleRequests int
@@ -63,7 +63,7 @@ func TestVerificationRealResolverWeakToolExclusionPreventsHTTP(t *testing.T) {
 	client.SetCodexBaseURL(server.URL)
 	routed := &verificationToolResolverRouter{resolver: resolver}
 	// Both providers have a real HTTP transport available; rejected candidates must never reach either.
-	svc := NewService(routed, map[string]providers.Client{providers.ProviderOpenAI: client, providers.ProviderBedrock: client}, nil, false, nil, nil, false, providers.ProviderOpenAI, codexCoveredModel, nil).WithManagedSubscriptions(&verificationAlternativeLeaser{}).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderOpenAI: {}, providers.ProviderBedrock: {}})
+	svc := NewService(routed, map[string]providers.Client{providers.ProviderAIAND: client, providers.ProviderAIAND: client}, nil, false, nil, nil, false, providers.ProviderAIAND, codexCoveredModel, nil).WithManagedSubscriptions(&verificationAlternativeLeaser{}).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}, providers.ProviderAIAND: {}})
 	ctx := context.WithValue(managedSubscriptionContext(auth.SubscriptionProviderCodex), InstallationIDContextKey{}, "11111111-1111-1111-1111-111111111111")
 	body := `{"model":"auto","stream":true,"messages":[{"role":"user","content":"synthetic tools"}],"tools":[{"type":"function","function":{"name":"read_file","parameters":{"type":"object"}}}]}`
 	rec := httptest.NewRecorder()

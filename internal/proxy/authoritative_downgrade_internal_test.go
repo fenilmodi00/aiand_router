@@ -34,7 +34,7 @@ func authoritativeDowngradeService(store *stubPinStore, fresh router.Decision) *
 		nil,
 		store,
 		false,
-		providers.ProviderAnthropic,
+		providers.ProviderAIAND,
 		"claude-haiku-4-5",
 		nil,
 	).WithPolicyStrategy(policy.StrategySpec{
@@ -73,7 +73,7 @@ func runAuthoritativeDowngradeTurn(t *testing.T, svc *Service) turnLoopResult {
 
 func authoritativeDowngradePin(model string, votes int) sessionpin.Pin {
 	return sessionpin.Pin{
-		Provider:                  providers.ProviderAnthropic,
+		Provider:                  providers.ProviderAIAND,
 		Model:                     model,
 		Reason:                    "hmm_policy(classifier 'maximum' (p=0.95))",
 		PinnedUntil:               time.Now().Add(time.Hour),
@@ -83,19 +83,19 @@ func authoritativeDowngradePin(model string, votes int) sessionpin.Pin {
 
 func TestAuthoritativeDowngradeGuards(t *testing.T) {
 	cheapFresh := router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    "claude-haiku-4-5",
 		Reason:   "hmm_policy(classifier 'fast' (p=0.50))",
 		Metadata: &router.RoutingMetadata{ChosenScore: 0.5},
 	}
 	confidentCheapFresh := router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    "claude-haiku-4-5",
 		Reason:   "hmm_policy(classifier 'fast' (p=0.90))",
 		Metadata: &router.RoutingMetadata{ChosenScore: 0.9},
 	}
 	cheapUpgradeFresh := router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    "claude-opus-4-8",
 		Reason:   "hmm_policy(classifier 'maximum' (p=0.95))",
 		Metadata: &router.RoutingMetadata{ChosenScore: 0.95},
@@ -228,24 +228,24 @@ func TestAuthoritativeDowngradeGuards(t *testing.T) {
 // the guards would have done at the shadow threshold.
 func TestAuthoritativeDowngradeShadow(t *testing.T) {
 	cheapFresh := router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    "claude-haiku-4-5",
 		Reason:   "hmm_policy(classifier 'fast' (p=0.50))",
 		Metadata: &router.RoutingMetadata{ChosenScore: 0.5},
 	}
 	confidentCheapFresh := router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    "claude-haiku-4-5",
 		Reason:   "hmm_policy(classifier 'fast' (p=0.90))",
 		Metadata: &router.RoutingMetadata{ChosenScore: 0.9},
 	}
 	unscoredCheapFresh := router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    "claude-haiku-4-5",
 		Reason:   "hmm_policy(classifier 'fast')",
 	}
 	upgradeFresh := router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    "claude-opus-4-8",
 		Reason:   "hmm_policy(classifier 'maximum' (p=0.95))",
 		Metadata: &router.RoutingMetadata{ChosenScore: 0.95},
@@ -350,13 +350,13 @@ func TestDowngradeShadowLogFields(t *testing.T) {
 // pattern the flag exists to suppress.
 func TestAuthoritativeDowngradeHysteresisAcrossTurns(t *testing.T) {
 	cheaper := router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    "claude-haiku-4-5",
 		Reason:   "hmm_policy(classifier 'fast' (p=0.50))",
 		Metadata: &router.RoutingMetadata{ChosenScore: 0.5},
 	}
 	confirming := router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    "claude-opus-4-8",
 		Reason:   "hmm_policy(classifier 'maximum' (p=0.95))",
 		Metadata: &router.RoutingMetadata{ChosenScore: 0.95},

@@ -38,8 +38,8 @@ func TestHTTPDeciderPostsContractAndParsesResult(t *testing.T) {
 		PromptText: "fix the bug",
 		TurnIndex:  3,
 		Candidates: []rl.Candidate{
-			{RosterID: "anthropic/claude-opus-4-8", Provider: providers.ProviderAnthropic},
-			{RosterID: "deepseek/deepseek-v4-flash", Provider: providers.ProviderMakora},
+			{RosterID: "anthropic/claude-opus-4-8", Provider: providers.ProviderAIAND},
+			{RosterID: "deepseek/deepseek-v4-flash", Provider: providers.ProviderAIAND},
 		},
 	})
 	require.NoError(t, err)
@@ -52,7 +52,7 @@ func TestHTTPDeciderPostsContractAndParsesResult(t *testing.T) {
 		gotBody["candidate_models"])
 	providersMap, ok := gotBody["candidate_providers"].(map[string]any)
 	require.True(t, ok)
-	assert.Equal(t, providers.ProviderAnthropic, providersMap["anthropic/claude-opus-4-8"])
+	assert.Equal(t, providers.ProviderAIAND, providersMap["anthropic/claude-opus-4-8"])
 
 	assert.Equal(t, "anthropic/claude-opus-4-8", res.Model)
 	assert.InDelta(t, 1.875, res.Score, 1e-9)
@@ -79,7 +79,7 @@ func TestHTTPDeciderAttachesStaticHeaders(t *testing.T) {
 	_, err := d.Decide(context.Background(), rl.Query{
 		PromptText: "x",
 		Candidates: []rl.Candidate{
-			{RosterID: "anthropic/claude-opus-4-8", Provider: providers.ProviderAnthropic},
+			{RosterID: "anthropic/claude-opus-4-8", Provider: providers.ProviderAIAND},
 		},
 	})
 	require.NoError(t, err)

@@ -31,7 +31,7 @@ func gatewayAllowlistCtx(allowed []string, aliased ...string) context.Context {
 	id := uuid.New().String()
 	key := &auth.ExternalAPIKey{
 		InstallationID: id,
-		Provider:       providers.ProviderAnthropicGateway,
+		Provider:       providers.ProviderAIAND,
 		Plaintext:      []byte("gw-token"),
 		BaseURL:        "https://gateway.example.com",
 		ModelAliases:   aliases,
@@ -55,17 +55,17 @@ func TestService_GatewayForcedPinOutsideAllowlistServes(t *testing.T) {
 	store := newFakePinStore()
 	store.hasPin = true
 	store.pin = sessionpin.Pin{
-		Provider:    providers.ProviderAnthropicGateway,
+		Provider:    providers.ProviderAIAND,
 		Model:       "claude-opus-5",
 		Reason:      translate.ReasonUserForceModel,
 		PinnedUntil: time.Now().Add(time.Hour),
 	}
 	fr := &fakeRouter{decision: router.Decision{
-		Provider: providers.ProviderAnthropicGateway, Model: "claude-opus-5-5", Reason: "cluster:v0.2",
+		Provider: providers.ProviderAIAND, Model: "claude-opus-5-5", Reason: "cluster:v0.2",
 	}}
 	svc := proxy.NewService(fr,
-		map[string]providers.Client{providers.ProviderAnthropicGateway: anthropicOKProvider()},
-		nil, false, nil, store, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil)
+		map[string]providers.Client{providers.ProviderAIAND: anthropicOKProvider()},
+		nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil)
 
 	ctx := gatewayAllowlistCtx([]string{"claude-opus-5-5"}, "claude-opus-5", "claude-opus-5-5")
 	rec := httptest.NewRecorder()
@@ -81,11 +81,11 @@ func TestService_GatewayForceCommandOutsideAllowlistApplies(t *testing.T) {
 	const body = `{"model":"claude-opus-4-7","messages":[{"role":"user","content":"/force-model claude-opus-5"}]}`
 	store := newFakePinStore()
 	fr := &fakeRouter{decision: router.Decision{
-		Provider: providers.ProviderAnthropicGateway, Model: "claude-opus-5-5", Reason: "cluster:v0.2",
+		Provider: providers.ProviderAIAND, Model: "claude-opus-5-5", Reason: "cluster:v0.2",
 	}}
 	svc := proxy.NewService(fr,
-		map[string]providers.Client{providers.ProviderAnthropicGateway: anthropicOKProvider()},
-		nil, false, nil, store, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil)
+		map[string]providers.Client{providers.ProviderAIAND: anthropicOKProvider()},
+		nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil)
 
 	ctx := gatewayAllowlistCtx([]string{"claude-opus-5-5"}, "claude-opus-5", "claude-opus-5-5")
 	rec := httptest.NewRecorder()
@@ -96,7 +96,7 @@ func TestService_GatewayForceCommandOutsideAllowlistApplies(t *testing.T) {
 	waitForUpsert(t, store)
 	require.NotEmpty(t, store.upserts)
 	assert.Equal(t, "claude-opus-5", store.upserts[0].Model)
-	assert.Equal(t, providers.ProviderAnthropicGateway, store.upserts[0].Provider)
+	assert.Equal(t, providers.ProviderAIAND, store.upserts[0].Provider)
 }
 
 // The gateway bypass covers only the positive allowlist: a model the gateway
@@ -105,11 +105,11 @@ func TestService_GatewayForceCommandUnaliasedModelStillRejected(t *testing.T) {
 	const body = `{"model":"claude-opus-4-7","messages":[{"role":"user","content":"/force-model claude-sonnet-5-5"}]}`
 	store := newFakePinStore()
 	fr := &fakeRouter{decision: router.Decision{
-		Provider: providers.ProviderAnthropicGateway, Model: "claude-opus-5-5", Reason: "cluster:v0.2",
+		Provider: providers.ProviderAIAND, Model: "claude-opus-5-5", Reason: "cluster:v0.2",
 	}}
 	svc := proxy.NewService(fr,
-		map[string]providers.Client{providers.ProviderAnthropicGateway: anthropicOKProvider()},
-		nil, false, nil, store, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil)
+		map[string]providers.Client{providers.ProviderAIAND: anthropicOKProvider()},
+		nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil)
 
 	ctx := gatewayAllowlistCtx([]string{"claude-opus-5-5"}, "claude-opus-5", "claude-opus-5-5")
 	rec := httptest.NewRecorder()

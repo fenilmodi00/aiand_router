@@ -75,7 +75,7 @@ func TestVerificationAutomaticAlternativeHTTP(t *testing.T) {
 			if scenario.contextLimited {
 				resolverRequest.EstimatedInputTokens = catalog.ContextWindowFor(alternative) + 1
 			}
-			resolver := policy.NewResolver(map[string]struct{}{codexCoveredModel: {}, alternative: {}}, map[string]struct{}{providers.ProviderOpenAI: {}}, func(model catalog.Model) string { return model.ID }, policy.ManagedProviderPolicy())
+			resolver := policy.NewResolver(map[string]struct{}{codexCoveredModel: {}, alternative: {}}, map[string]struct{}{providers.ProviderAIAND: {}}, func(model catalog.Model) string { return model.ID }, policy.ManagedProviderPolicy())
 			resolved := resolver.Resolve(resolverRequest)
 			eligible := resolved.CandidateModels()
 			if scenario.excluded || scenario.contextLimited {
@@ -85,9 +85,9 @@ func TestVerificationAutomaticAlternativeHTTP(t *testing.T) {
 			metadata := &router.RoutingMetadata{CandidateModels: eligible, SelectionTrace: &router.SelectionTrace{SelectedGroup: "high", EffectiveOrders: map[string][]string{"high": {codexCoveredModel, alternative}}, CandidateRosterIDs: eligible}}
 			var pins sessionpin.Store
 			if scenario.sessionPinned {
-				pins = &overwritingPinStore{pin: sessionpin.Pin{Provider: providers.ProviderOpenAI, Model: codexCoveredModel, Reason: translate.ReasonUserForceModel, PinnedUntil: pinNeverExpires}, found: true}
+				pins = &overwritingPinStore{pin: sessionpin.Pin{Provider: providers.ProviderAIAND, Model: codexCoveredModel, Reason: translate.ReasonUserForceModel, PinnedUntil: pinNeverExpires}, found: true}
 			}
-			svc := NewService(staticRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: codexCoveredModel, Metadata: metadata, Reason: "test"}}, map[string]providers.Client{providers.ProviderOpenAI: client}, nil, false, nil, pins, false, providers.ProviderOpenAI, codexCoveredModel, nil).WithManagedSubscriptions(&verificationAlternativeLeaser{}).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderOpenAI: {}})
+			svc := NewService(staticRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: codexCoveredModel, Metadata: metadata, Reason: "test"}}, map[string]providers.Client{providers.ProviderAIAND: client}, nil, false, nil, pins, false, providers.ProviderAIAND, codexCoveredModel, nil).WithManagedSubscriptions(&verificationAlternativeLeaser{}).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 			ctx := context.WithValue(managedSubscriptionContext(auth.SubscriptionProviderCodex), InstallationIDContextKey{}, "11111111-1111-1111-1111-111111111111")
 			if scenario.max {
 				ctx = entitlement.WithProductScope(ctx, entitlement.PlanMax)
@@ -133,9 +133,9 @@ func TestVerificationAutomaticAlternativeHTTP(t *testing.T) {
 
 func TestVerificationAlternativesHonorHardRequestExclusions(t *testing.T) {
 	client := openai.NewClient("synthetic-api-key", "http://127.0.0.1:1")
-	svc := NewService(staticRouter{}, map[string]providers.Client{providers.ProviderOpenAI: client}, nil, false, nil, nil, false, providers.ProviderOpenAI, codexCoveredModel, nil)
+	svc := NewService(staticRouter{}, map[string]providers.Client{providers.ProviderAIAND: client}, nil, false, nil, nil, false, providers.ProviderAIAND, codexCoveredModel, nil)
 	ctx := managedSubscriptionContext(auth.SubscriptionProviderCodex)
-	selected := router.Decision{Provider: providers.ProviderOpenAI, Model: codexCoveredModel, Metadata: &router.RoutingMetadata{CandidateModels: []string{codexCoveredModel, "gpt-6-sol", "gpt-6.1-sol"}}}
+	selected := router.Decision{Provider: providers.ProviderAIAND, Model: codexCoveredModel, Metadata: &router.RoutingMetadata{CandidateModels: []string{codexCoveredModel, "gpt-6-sol", "gpt-6.1-sol"}}}
 	request := router.Request{
 		SafetyExcludedModels:          map[string]struct{}{"gpt-6-sol": {}},
 		UnsignedHistoryExcludedModels: map[string]struct{}{"gpt-6.1-sol": {}},

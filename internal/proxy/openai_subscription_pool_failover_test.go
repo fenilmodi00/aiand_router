@@ -23,12 +23,12 @@ import (
 
 func claudeOpusPinnedDecision() router.Decision {
 	return router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    "claude-opus-5",
 		Reason:   translate.ReasonLoopEscalation,
 		Metadata: &router.RoutingMetadata{
 			CandidateModels:    []string{"claude-opus-5", "gpt-5.6-luna"},
-			CandidateProviders: map[string]string{"gpt-5.6-luna": providers.ProviderOpenAI},
+			CandidateProviders: map[string]string{"gpt-5.6-luna": providers.ProviderAIAND},
 		},
 	}
 }
@@ -48,14 +48,14 @@ func TestProxyOpenAIChatCompletion_SubscriptionPoolExhaustionRescuesSibling(t *t
 	svc := NewService(
 		staticRouter{decision: claudeOpusPinnedDecision()},
 		map[string]providers.Client{
-			providers.ProviderAnthropic: &fakeClient{name: providers.ProviderAnthropic},
-			providers.ProviderOpenAI:    rescue,
+			providers.ProviderAIAND: &fakeClient{name: providers.ProviderAIAND},
+			providers.ProviderAIAND:    rescue,
 		},
-		nil, false, nil, store, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil,
+		nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithManagedSubscriptions(leaser).
 		WithDeploymentKeyedProviders(map[string]struct{}{
-			providers.ProviderAnthropic: {},
-			providers.ProviderOpenAI:    {},
+			providers.ProviderAIAND: {},
+			providers.ProviderAIAND:    {},
 		})
 
 	installationID := uuid.MustParse("33333333-3333-3333-3333-333333333333")
@@ -78,14 +78,14 @@ func TestProxyOpenAIChatCompletion_SubscriptionOnlyKeepsPoolUnavailability(t *te
 	svc := NewService(
 		staticRouter{decision: claudeOpusPinnedDecision()},
 		map[string]providers.Client{
-			providers.ProviderAnthropic: &fakeClient{name: providers.ProviderAnthropic},
-			providers.ProviderOpenAI:    rescue,
+			providers.ProviderAIAND: &fakeClient{name: providers.ProviderAIAND},
+			providers.ProviderAIAND:    rescue,
 		},
-		nil, false, nil, nil, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil,
+		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithManagedSubscriptions(leaser).
 		WithDeploymentKeyedProviders(map[string]struct{}{
-			providers.ProviderAnthropic: {},
-			providers.ProviderOpenAI:    {},
+			providers.ProviderAIAND: {},
+			providers.ProviderAIAND:    {},
 		})
 
 	ctx := billing.WithSubscriptionOnly(managedSubscriptionContext(auth.SubscriptionProviderClaude), billing.SubscriptionOnlyCreditsDepleted)
@@ -105,14 +105,14 @@ func TestProxyMessages_SubscriptionPoolExhaustionRescuesSibling(t *testing.T) {
 	svc := NewService(
 		staticRouter{decision: claudeOpusPinnedDecision()},
 		map[string]providers.Client{
-			providers.ProviderAnthropic: &fakeClient{name: providers.ProviderAnthropic},
-			providers.ProviderOpenAI:    rescue,
+			providers.ProviderAIAND: &fakeClient{name: providers.ProviderAIAND},
+			providers.ProviderAIAND:    rescue,
 		},
-		nil, false, nil, nil, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil,
+		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithManagedSubscriptions(leaser).
 		WithDeploymentKeyedProviders(map[string]struct{}{
-			providers.ProviderAnthropic: {},
-			providers.ProviderOpenAI:    {},
+			providers.ProviderAIAND: {},
+			providers.ProviderAIAND:    {},
 		})
 
 	ctx := context.WithValue(managedSubscriptionContext(auth.SubscriptionProviderClaude),
@@ -167,14 +167,14 @@ func TestProxyEndpoints_CachedManagedModelDenialEvictsAutomaticPin(t *testing.T)
 				leases:     []subscriptions.Lease{{AccountID: "opaque-claude", AccessToken: "managed-token"}},
 				repeatLast: true,
 			}
-			upstream := &fakeClient{name: providers.ProviderAnthropic}
+			upstream := &fakeClient{name: providers.ProviderAIAND}
 			store := &evictionStubPinStore{}
 			svc := NewService(
 				staticRouter{decision: claudeOpusPinnedDecision()},
-				map[string]providers.Client{providers.ProviderAnthropic: upstream},
-				nil, false, nil, store, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil,
+				map[string]providers.Client{providers.ProviderAIAND: upstream},
+				nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 			).WithManagedSubscriptions(leaser)
-			svc.subscriptionModels.denyManaged("account:opaque-claude", "opaque-claude", providers.ProviderAnthropic, "claude-opus-5", time.Now().Add(time.Minute))
+			svc.subscriptionModels.denyManaged("account:opaque-claude", "opaque-claude", providers.ProviderAIAND, "claude-opus-5", time.Now().Add(time.Minute))
 
 			installationID := uuid.MustParse("33333333-3333-3333-3333-333333333333")
 			ctx := billing.WithSubscriptionOnly(managedSubscriptionContext(auth.SubscriptionProviderClaude), billing.SubscriptionOnlyCreditsDepleted)

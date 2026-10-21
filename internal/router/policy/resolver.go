@@ -5,7 +5,6 @@ package policy
 import (
 	"sort"
 
-	"weave-os/router/internal/providers"
 	"weave-os/router/internal/router"
 	"weave-os/router/internal/router/catalog"
 )
@@ -19,9 +18,10 @@ type ProviderPolicy struct {
 	Denied map[string]struct{}
 }
 
-// ManagedProviderPolicy excludes OpenRouter from managed policy candidates.
+// ManagedProviderPolicy allows every provider: ai& is the only upstream left,
+// so there is no aggregator to exclude.
 func ManagedProviderPolicy() ProviderPolicy {
-	return ProviderPolicy{Denied: map[string]struct{}{providers.ProviderOpenRouter: {}}}
+	return ProviderPolicy{}
 }
 
 // Allows reports whether provider may be offered to the policy.

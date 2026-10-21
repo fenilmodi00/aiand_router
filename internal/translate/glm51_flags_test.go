@@ -25,7 +25,7 @@ func TestGLM51Flags_Fireworks_OpenAISameFormat(t *testing.T) {
 	require.NoError(t, err)
 	prep, err := env.PrepareOpenAI(http.Header{}, translate.EmitOptions{
 		TargetModel:    "z-ai/glm-5.1",
-		TargetProvider: providers.ProviderFireworks,
+		TargetProvider: providers.ProviderAIAND,
 		Capabilities:   router.Lookup("z-ai/glm-5.1"),
 	})
 	require.NoError(t, err)
@@ -47,7 +47,7 @@ func TestGLM51Flags_Fireworks_AnthropicCrossFormat(t *testing.T) {
 	require.NoError(t, err)
 	prep, err := env.PrepareOpenAI(http.Header{}, translate.EmitOptions{
 		TargetModel:    "z-ai/glm-5.1",
-		TargetProvider: providers.ProviderFireworks,
+		TargetProvider: providers.ProviderAIAND,
 		Capabilities:   router.Lookup("z-ai/glm-5.1"),
 	})
 	require.NoError(t, err)
@@ -72,7 +72,7 @@ func TestGLM51Flags_OpenRouter_NoTemplateKwargs(t *testing.T) {
 	require.NoError(t, err)
 	prep, err := env.PrepareOpenAI(http.Header{}, translate.EmitOptions{
 		TargetModel:    "z-ai/glm-5.1",
-		TargetProvider: providers.ProviderOpenRouter,
+		TargetProvider: providers.ProviderAIAND,
 		Capabilities:   router.Lookup("z-ai/glm-5.1"),
 	})
 	require.NoError(t, err)
@@ -93,7 +93,7 @@ func TestGLM51Flags_ClientSetToolStreamPreserved(t *testing.T) {
 	require.NoError(t, err)
 	prep, err := env.PrepareOpenAI(http.Header{}, translate.EmitOptions{
 		TargetModel:    "z-ai/glm-5.1",
-		TargetProvider: providers.ProviderFireworks,
+		TargetProvider: providers.ProviderAIAND,
 		Capabilities:   router.Lookup("z-ai/glm-5.1"),
 	})
 	require.NoError(t, err)
@@ -108,7 +108,7 @@ func TestGLM51Flags_NotAppliedToOtherModels(t *testing.T) {
 	require.NoError(t, err)
 	prep, err := env.PrepareOpenAI(http.Header{}, translate.EmitOptions{
 		TargetModel:    "z-ai/glm-5",
-		TargetProvider: providers.ProviderFireworks,
+		TargetProvider: providers.ProviderAIAND,
 		Capabilities:   router.Lookup("z-ai/glm-5"),
 	})
 	require.NoError(t, err)

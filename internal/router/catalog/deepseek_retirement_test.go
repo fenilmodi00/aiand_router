@@ -11,10 +11,10 @@ const deepSeekV4_1Flash = "deepseek/deepseek-v4.1-flash"
 
 func TestDeepSeekV4_1FlashMakoraBinding(t *testing.T) {
 	binding, ok := ResolveBinding(deepSeekV4_1Flash, map[string]struct{}{
-		providers.ProviderMakora: {}, providers.ProviderFireworks: {}, providers.ProviderOpenRouter: {},
+		providers.ProviderAIAND: {}, providers.ProviderAIAND: {}, providers.ProviderAIAND: {},
 	})
 	require.True(t, ok)
-	require.Equal(t, providers.ProviderMakora, binding.Provider)
+	require.Equal(t, providers.ProviderAIAND, binding.Provider)
 	require.Equal(t, "deepseek-ai/DeepSeek-V4.1-Flash", binding.UpstreamID)
 	require.Equal(t, 0.20, binding.Price.InputUSDPer1M)
 	require.Equal(t, 0.99, binding.Price.OutputUSDPer1M)
@@ -23,13 +23,13 @@ func TestDeepSeekV4_1FlashMakoraBinding(t *testing.T) {
 }
 
 func TestRetiredDeepSeekFlashDoesNotResolveMakora(t *testing.T) {
-	_, ok := ResolveBinding("deepseek/deepseek-v4-flash", map[string]struct{}{providers.ProviderMakora: {}})
+	_, ok := ResolveBinding("deepseek/deepseek-v4-flash", map[string]struct{}{providers.ProviderAIAND: {}})
 	require.False(t, ok)
 	require.Equal(t, TierUnknown, TierFor("deepseek/deepseek-v4-flash"))
 }
 
 func TestDeepSeekV4_1FlashKeepsFallbackBindings(t *testing.T) {
-	for _, provider := range []string{providers.ProviderFireworks, providers.ProviderOpenRouter} {
+	for _, provider := range []string{providers.ProviderAIAND, providers.ProviderAIAND} {
 		t.Run(provider, func(t *testing.T) {
 			binding, ok := ResolveBinding(deepSeekV4_1Flash, map[string]struct{}{provider: {}})
 			require.True(t, ok)

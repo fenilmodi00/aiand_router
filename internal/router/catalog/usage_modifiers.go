@@ -1,7 +1,6 @@
 package catalog
 
 import (
-	"weave-os/router/internal/providers"
 	"weave-os/router/internal/usage"
 )
 
@@ -29,21 +28,10 @@ type UsageModifiers struct {
 	InferenceGeo    InferenceGeo
 }
 
-// AnthropicCacheWrite1hMultiplier is Anthropic's 1-hour cache-write price
-// relative to base input price.
-const AnthropicCacheWrite1hMultiplier = 2.0
-
-// USInferenceGeoMultiplier is Anthropic's premium on every token category for
-// US-only inference on the models that support it.
-const USInferenceGeoMultiplier = 1.1
-
-// EffectiveCacheWrite1hMultiplier returns the 1-hour cache-write multiplier:
-// Anthropic's published rate on Anthropic-spec upstreams, else the 5-minute
-// rate since no other family distinguishes write TTLs.
+// EffectiveCacheWrite1hMultiplier returns the 1-hour cache-write multiplier.
+// The only upstream family is OpenAI-compatible, which does not distinguish
+// write TTLs, so the 5-minute rate applies.
 func (p Pricing) EffectiveCacheWrite1hMultiplier(upstreamProvider string) float64 {
-	if providers.FamilyFor(upstreamProvider) == providers.FamilyAnthropic {
-		return AnthropicCacheWrite1hMultiplier
-	}
 	return p.EffectiveCacheWriteMultiplier()
 }
 

@@ -19,7 +19,7 @@ func TestGLM53FlashFlags_OpenRouter_ToolStreamSet(t *testing.T) {
 	require.NoError(t, err)
 	prep, err := env.PrepareOpenAI(http.Header{}, translate.EmitOptions{
 		TargetModel:    "z-ai/glm-5.3-flash",
-		TargetProvider: providers.ProviderOpenRouter,
+		TargetProvider: providers.ProviderAIAND,
 		Capabilities:   router.Lookup("z-ai/glm-5.3-flash"),
 	})
 	require.NoError(t, err)
@@ -42,7 +42,7 @@ func TestGLM53FlashFlags_AnthropicCrossFormat_ToolStreamSet(t *testing.T) {
 	require.NoError(t, err)
 	prep, err := env.PrepareOpenAI(http.Header{}, translate.EmitOptions{
 		TargetModel:    "z-ai/glm-5.3-flash",
-		TargetProvider: providers.ProviderOpenRouter,
+		TargetProvider: providers.ProviderAIAND,
 		Capabilities:   router.Lookup("z-ai/glm-5.3-flash"),
 	})
 	require.NoError(t, err)
@@ -57,7 +57,7 @@ func TestGLM53FlashFlags_ClientSetToolStreamPreserved(t *testing.T) {
 	require.NoError(t, err)
 	prep, err := env.PrepareOpenAI(http.Header{}, translate.EmitOptions{
 		TargetModel:    "z-ai/glm-5.3-flash",
-		TargetProvider: providers.ProviderOpenRouter,
+		TargetProvider: providers.ProviderAIAND,
 		Capabilities:   router.Lookup("z-ai/glm-5.3-flash"),
 	})
 	require.NoError(t, err)
@@ -72,7 +72,7 @@ func TestGLM53FlashFlags_NotAppliedToOtherModels(t *testing.T) {
 	require.NoError(t, err)
 	prep, err := env.PrepareOpenAI(http.Header{}, translate.EmitOptions{
 		TargetModel:    "z-ai/glm-5",
-		TargetProvider: providers.ProviderOpenRouter,
+		TargetProvider: providers.ProviderAIAND,
 		Capabilities:   router.Lookup("z-ai/glm-5"),
 	})
 	require.NoError(t, err)

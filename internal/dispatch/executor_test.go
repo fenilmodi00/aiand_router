@@ -68,8 +68,8 @@ func (f *fakeUpstream) Passthrough(context.Context, providers.PreparedRequest, h
 }
 
 var (
-	primary = inference.Target{CatalogID: "kimi-k2.5", Provider: providers.ProviderFireworks, UpstreamID: "accounts/fireworks/models/kimi-k2p5", BindingIndex: 0}
-	backup  = inference.Target{CatalogID: "kimi-k2.5", Provider: providers.ProviderOpenRouter, UpstreamID: "moonshotai/kimi-k2.5", BindingIndex: 1}
+	primary = inference.Target{CatalogID: "kimi-k2.5", Provider: providers.ProviderAIAND, UpstreamID: "accounts/fireworks/models/kimi-k2p5", BindingIndex: 0}
+	backup  = inference.Target{CatalogID: "kimi-k2.5", Provider: providers.ProviderAIAND, UpstreamID: "moonshotai/kimi-k2.5", BindingIndex: 1}
 )
 
 type recorder struct{ events []inference.AttemptEvent }
@@ -101,10 +101,10 @@ func attemptWith(body []byte) dispatch.AttemptFunc {
 }
 
 func TestRunFailsOverToAlternativeAndRecordsOrderedAttempts(t *testing.T) {
-	fw := &fakeUpstream{name: providers.ProviderFireworks, errs: []error{&providers.UpstreamErrorResponse{Status: http.StatusServiceUnavailable}}}
-	or := &fakeUpstream{name: providers.ProviderOpenRouter}
+	fw := &fakeUpstream{name: providers.ProviderAIAND, errs: []error{&providers.UpstreamErrorResponse{Status: http.StatusServiceUnavailable}}}
+	or := &fakeUpstream{name: providers.ProviderAIAND}
 	rec := &recorder{}
-	exec := newExecutor(t, map[string]providers.Client{providers.ProviderFireworks: fw, providers.ProviderOpenRouter: or}, rec)
+	exec := newExecutor(t, map[string]providers.Client{providers.ProviderAIAND: fw, providers.ProviderAIAND: or}, rec)
 
 	resets := 0
 	result, err := exec.Run(context.Background(),
@@ -142,7 +142,7 @@ func TestRunFailsOverToAlternativeAndRecordsOrderedAttempts(t *testing.T) {
 func TestRunRejectsWireTargetMismatchBeforeIO(t *testing.T) {
 	fw := &fakeUpstream{}
 	rec := &recorder{}
-	exec := newExecutor(t, map[string]providers.Client{providers.ProviderFireworks: fw}, rec)
+	exec := newExecutor(t, map[string]providers.Client{providers.ProviderAIAND: fw}, rec)
 
 	_, err := exec.Run(context.Background(), inference.InvocationRequest{},
 		fakePlan{selected: primary},
@@ -157,7 +157,7 @@ func TestRunRejectsWireTargetMismatchBeforeIO(t *testing.T) {
 func TestRunDoesNotFailOverAfterCommit(t *testing.T) {
 	fw := &fakeUpstream{errs: []error{&providers.UpstreamStatusError{Status: http.StatusBadGateway}}}
 	or := &fakeUpstream{}
-	exec := newExecutor(t, map[string]providers.Client{providers.ProviderFireworks: fw, providers.ProviderOpenRouter: or}, &recorder{})
+	exec := newExecutor(t, map[string]providers.Client{providers.ProviderAIAND: fw, providers.ProviderAIAND: or}, &recorder{})
 
 	result, err := exec.Run(context.Background(), inference.InvocationRequest{},
 		fakePlan{selected: primary, alternatives: []inference.Target{backup}},
@@ -171,7 +171,7 @@ func TestRunDoesNotFailOverAfterCommit(t *testing.T) {
 
 func TestRunDoesNotRetrySameTargetAfterIdleWatchdog(t *testing.T) {
 	upstream := &fakeUpstream{errs: []error{providers.ErrUpstreamIdleTimeout}}
-	exec := newExecutor(t, map[string]providers.Client{providers.ProviderFireworks: upstream}, &recorder{})
+	exec := newExecutor(t, map[string]providers.Client{providers.ProviderAIAND: upstream}, &recorder{})
 
 	_, err := exec.Run(context.Background(), inference.InvocationRequest{},
 		fakePlan{selected: primary},
@@ -196,7 +196,7 @@ func TestRunFailsOverOnModelNotFoundButNotOnBadRequest(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			fw := &fakeUpstream{errs: []error{&providers.UpstreamErrorResponse{Status: tc.status}}}
 			or := &fakeUpstream{}
-			exec := newExecutor(t, map[string]providers.Client{providers.ProviderFireworks: fw, providers.ProviderOpenRouter: or}, &recorder{})
+			exec := newExecutor(t, map[string]providers.Client{providers.ProviderAIAND: fw, providers.ProviderAIAND: or}, &recorder{})
 			_, err := exec.Run(context.Background(), inference.InvocationRequest{},
 				fakePlan{selected: primary, alternatives: []inference.Target{backup}},
 				dispatch.Transport{Attempt: attemptWith([]byte(`{"model":"kimi-k2.5"}`))},
@@ -219,7 +219,7 @@ func TestRunRetriesSingleTargetInPlaceWithinBudget(t *testing.T) {
 	}}
 	rec := &recorder{}
 	var slept []time.Duration
-	exec, err := dispatch.NewExecutor(dispatch.NewClients(map[string]providers.Client{providers.ProviderFireworks: fw}),
+	exec, err := dispatch.NewExecutor(dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: fw}),
 		dispatch.WithAttemptSink(rec),
 		dispatch.WithSleep(func(_ context.Context, d time.Duration) error { slept = append(slept, d); return nil }),
 	)
@@ -241,7 +241,7 @@ func TestRunRetriesSingleTargetAfterEmptyCompletion(t *testing.T) {
 	fw := &fakeUpstream{errs: []error{
 		&providers.UpstreamErrorResponse{Status: http.StatusBadGateway, Cause: providers.ErrUpstreamEmptyCompletion},
 	}}
-	exec := newExecutor(t, map[string]providers.Client{providers.ProviderFireworks: fw}, &recorder{})
+	exec := newExecutor(t, map[string]providers.Client{providers.ProviderAIAND: fw}, &recorder{})
 
 	result, err := exec.Run(context.Background(), inference.InvocationRequest{},
 		fakePlan{selected: primary},
@@ -258,7 +258,7 @@ func TestRunMaxAttemptsBoundsSameTargetRetries(t *testing.T) {
 		&providers.UpstreamErrorResponse{Status: http.StatusTooManyRequests},
 		&providers.UpstreamErrorResponse{Status: http.StatusTooManyRequests},
 	}}
-	exec, err := dispatch.NewExecutor(dispatch.NewClients(map[string]providers.Client{providers.ProviderFireworks: fw}),
+	exec, err := dispatch.NewExecutor(dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: fw}),
 		dispatch.WithSleep(func(context.Context, time.Duration) error { return nil }),
 	)
 	require.NoError(t, err)
@@ -278,7 +278,7 @@ func TestRunStopsSameTargetRetryWhenWallClockBudgetSpent(t *testing.T) {
 		&providers.UpstreamErrorResponse{Status: http.StatusTooManyRequests},
 	}}
 	now := time.Unix(0, 0)
-	exec, err := dispatch.NewExecutor(dispatch.NewClients(map[string]providers.Client{providers.ProviderFireworks: fw}),
+	exec, err := dispatch.NewExecutor(dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: fw}),
 		dispatch.WithClock(func() time.Time { now = now.Add(6 * time.Second); return now }),
 		dispatch.WithSleep(func(context.Context, time.Duration) error { return nil }),
 	)
@@ -292,7 +292,7 @@ func TestRunStopsSameTargetRetryWhenWallClockBudgetSpent(t *testing.T) {
 func TestRunSkipsUnconfiguredProviderAndHonoursMaxAttempts(t *testing.T) {
 	or := &fakeUpstream{}
 	rec := &recorder{}
-	exec := newExecutor(t, map[string]providers.Client{providers.ProviderOpenRouter: or}, rec)
+	exec := newExecutor(t, map[string]providers.Client{providers.ProviderAIAND: or}, rec)
 
 	result, err := exec.Run(context.Background(), inference.InvocationRequest{},
 		fakePlan{selected: primary, alternatives: []inference.Target{backup}},
@@ -315,7 +315,7 @@ func TestRunSkipsUnconfiguredProviderAndHonoursMaxAttempts(t *testing.T) {
 func TestRunAbortsWhenPrepareFails(t *testing.T) {
 	fw := &fakeUpstream{}
 	rec := &recorder{}
-	exec := newExecutor(t, map[string]providers.Client{providers.ProviderFireworks: fw}, rec)
+	exec := newExecutor(t, map[string]providers.Client{providers.ProviderAIAND: fw}, rec)
 	boom := errors.New("no credentials")
 	_, err := exec.Run(context.Background(), inference.InvocationRequest{}, fakePlan{selected: primary},
 		dispatch.Transport{
@@ -330,7 +330,7 @@ func TestRunAbortsWhenPrepareFails(t *testing.T) {
 
 func TestBindSatisfiesInferenceExecutor(t *testing.T) {
 	fw := &fakeUpstream{}
-	exec := newExecutor(t, map[string]providers.Client{providers.ProviderFireworks: fw}, &recorder{})
+	exec := newExecutor(t, map[string]providers.Client{providers.ProviderAIAND: fw}, &recorder{})
 	var bound inference.Executor = exec.Bind(dispatch.Transport{Attempt: attemptWith([]byte(`{"model":"kimi-k2.5"}`))})
 	outcome, err := bound.Execute(context.Background(), inference.InvocationRequest{}, fakePlan{selected: primary})
 	require.NoError(t, err)
@@ -346,21 +346,21 @@ func TestValidateWireModelAcceptsCatalogOrUpstreamID(t *testing.T) {
 }
 
 func TestClientsRegistryIsDetachedFromSource(t *testing.T) {
-	src := map[string]providers.Client{providers.ProviderFireworks: &fakeUpstream{}, providers.ProviderOpenAI: nil}
+	src := map[string]providers.Client{providers.ProviderAIAND: &fakeUpstream{}, providers.ProviderAIAND: nil}
 	clients := dispatch.NewClients(src)
-	delete(src, providers.ProviderFireworks)
-	assert.True(t, clients.Has(providers.ProviderFireworks))
-	assert.True(t, clients.Has(providers.ProviderOpenAI), "nil clients count as registered")
-	_, err := clients.Client(providers.ProviderOpenAI)
+	delete(src, providers.ProviderAIAND)
+	assert.True(t, clients.Has(providers.ProviderAIAND))
+	assert.True(t, clients.Has(providers.ProviderAIAND), "nil clients count as registered")
+	_, err := clients.Client(providers.ProviderAIAND)
 	require.ErrorIs(t, err, dispatch.ErrProviderNotConfigured, "but can never be dispatched to")
-	assert.Equal(t, []string{providers.ProviderFireworks, providers.ProviderOpenAI}, clients.Names())
-	_, err = clients.Client(providers.ProviderAnthropic)
+	assert.Equal(t, []string{providers.ProviderAIAND, providers.ProviderAIAND}, clients.Names())
+	_, err = clients.Client(providers.ProviderAIAND)
 	require.ErrorIs(t, err, dispatch.ErrProviderNotConfigured)
 }
 
 func TestBufferedTransportValidatesTargetAndDeliversResponse(t *testing.T) {
 	fw := &fakeUpstream{}
-	exec, err := dispatch.NewExecutor(dispatch.NewClients(map[string]providers.Client{providers.ProviderFireworks: fw}))
+	exec, err := dispatch.NewExecutor(dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: fw}))
 	require.NoError(t, err)
 
 	var consumed int
@@ -405,7 +405,7 @@ func TestRunTerminalStopsSameTargetRetryAndFailover(t *testing.T) {
 			or := &fakeUpstream{}
 			slept := 0
 			exec, err := dispatch.NewExecutor(dispatch.NewClients(map[string]providers.Client{
-				providers.ProviderFireworks: fw, providers.ProviderOpenRouter: or,
+				providers.ProviderAIAND: fw, providers.ProviderAIAND: or,
 			}), dispatch.WithSleep(func(context.Context, time.Duration) error { slept++; return nil }))
 			require.NoError(t, err)
 
@@ -430,7 +430,7 @@ func TestRunBoundRetriesSameTargetButNeverFailsOver(t *testing.T) {
 	t.Run("single target keeps same-target retries", func(t *testing.T) {
 		slept = 0
 		fw := &fakeUpstream{errs: []error{transient}}
-		exec, err := dispatch.NewExecutor(dispatch.NewClients(map[string]providers.Client{providers.ProviderFireworks: fw}), dispatch.WithSleep(sleep))
+		exec, err := dispatch.NewExecutor(dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: fw}), dispatch.WithSleep(sleep))
 		require.NoError(t, err)
 
 		result, err := exec.Run(context.Background(), inference.InvocationRequest{}, fakePlan{selected: primary}, dispatch.Transport{
@@ -448,7 +448,7 @@ func TestRunBoundRetriesSameTargetButNeverFailsOver(t *testing.T) {
 		fw := &fakeUpstream{errs: []error{transient, transient, transient}}
 		or := &fakeUpstream{}
 		exec, err := dispatch.NewExecutor(dispatch.NewClients(map[string]providers.Client{
-			providers.ProviderFireworks: fw, providers.ProviderOpenRouter: or,
+			providers.ProviderAIAND: fw, providers.ProviderAIAND: or,
 		}), dispatch.WithSleep(sleep))
 		require.NoError(t, err)
 

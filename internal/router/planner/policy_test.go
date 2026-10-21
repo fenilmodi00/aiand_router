@@ -57,12 +57,12 @@ func TestDecide_UsesNamedProviderBindings(t *testing.T) {
 
 	base := planner.Inputs{
 		Pin: sessionpin.Pin{
-			Provider:        providers.ProviderMakora,
+			Provider:        providers.ProviderAIAND,
 			Model:           "deepseek/deepseek-v4.1-flash",
 			LastTurnEndedAt: time.Date(2026, 5, 12, 12, 0, 0, 0, time.UTC),
 		},
 		Fresh: router.Decision{
-			Provider: providers.ProviderOpenRouter,
+			Provider: providers.ProviderAIAND,
 			Model:    "qwen/qwen3-coder-next",
 		},
 		EstimatedInputTokens: 1_000_000,
@@ -78,7 +78,7 @@ func TestDecide_UsesNamedProviderBindings(t *testing.T) {
 	assert.False(t, makoraPin.FreshPriceFallback)
 
 	openRouterPinInput := base
-	openRouterPinInput.Pin.Provider = providers.ProviderOpenRouter
+	openRouterPinInput.Pin.Provider = providers.ProviderAIAND
 	openRouterPin := planner.Decide(openRouterPinInput, planner.EVConfig{ExpectedRemainingTurns: 3})
 	assert.InDelta(t, -0.075, openRouterPin.ExpectedSavingsUSD, 1e-9)
 	assert.NotEqual(t, makoraPin.ExpectedSavingsUSD, openRouterPin.ExpectedSavingsUSD,
@@ -94,7 +94,7 @@ func TestDecide_PrimaryPriceFallbackIsExplicit(t *testing.T) {
 			Model:           modelHaiku,
 			LastTurnEndedAt: time.Date(2026, 5, 12, 12, 0, 0, 0, time.UTC),
 		},
-		Fresh:                router.Decision{Provider: providers.ProviderAnthropic, Model: modelOpus},
+		Fresh:                router.Decision{Provider: providers.ProviderAIAND, Model: modelOpus},
 		EstimatedInputTokens: 50_000,
 		AvailableModels:      availableAll,
 	}

@@ -45,7 +45,7 @@ func (s *Service) serveNativeWebSearch(
 		return false
 	}
 
-	credCtx := resolveAndInjectCredentials(ctx, providers.ProviderAnthropicGateway, model, headers)
+	credCtx := resolveAndInjectCredentials(ctx, providers.ProviderAIAND, model, headers)
 	if CredentialsFromContext(credCtx) == nil {
 		log.Info("Native web-search executor skipped: no gateway credential for this request")
 		return false
@@ -77,12 +77,9 @@ func (s *Service) serveNativeWebSearch(
 
 // anyNativeServerToolProvider reports whether any enabled provider runs
 // Anthropic server tools natively, in which case the turn stays on routing.
+// No wired upstream speaks the Anthropic Messages spec, so none can serve the
+// server tool natively.
 func anyNativeServerToolProvider(enabled map[string]struct{}) bool {
-	for provider := range enabled {
-		if providers.SupportsAnthropicServerTools(provider) {
-			return true
-		}
-	}
 	return false
 }
 

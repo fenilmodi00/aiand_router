@@ -107,7 +107,7 @@ func (j *blockingEscalationJudge) Judge(_ context.Context, request llmescalation
 }
 
 func TestLLMEscalationJudgeRunsAfterCompletionWithoutBlocking(t *testing.T) {
-	job := llmescalation.Job{ID: "job-1", Lifetime: "life-1", Checkpoint: 3, Model: policy.EscalationJudgeModel, Provider: providers.ProviderFireworks}
+	job := llmescalation.Job{ID: "job-1", Lifetime: "life-1", Checkpoint: 3, Model: policy.EscalationJudgeModel, Provider: providers.ProviderAIAND}
 	store := &llmEscalationStoreStub{completion: llmescalation.Completion{Job: &job}, finished: make(chan struct{})}
 	judge := &blockingEscalationJudge{started: make(chan llmescalation.JudgeRequest, 1), release: make(chan struct{}), judgment: llmescalation.Judgment{Escalate: true, Reason: "loop"}}
 	service := (&Service{}).WithLLMEscalation(store, judge)
@@ -275,7 +275,7 @@ func TestQwenEscalationSkipsGatewayOnlyInstallation(t *testing.T) {
 	}}
 	ctx := flags.WithOverrides(router.WithStrategy(context.Background(), router.StrategyHMMEmbedding), overrides)
 	requestResult := turnLoopResult{Strategy: router.StrategyHMMEmbedding, InstallationID: uuid.New(), TurnType: turntype.MainLoop}
-	request := router.Request{GatewayProviders: map[string]struct{}{providers.ProviderOpenAIGateway: {}}}
+	request := router.Request{GatewayProviders: map[string]struct{}{providers.ProviderAIAND: {}}}
 	require.Nil(t, service.beginLLMEscalation(ctx, escalationTestEnvelope(t, 1), request, &requestResult, "test-key"))
 }
 

@@ -36,5 +36,5 @@ func (s *Service) workspaceSystemAppendApplies(ctx context.Context, body []byte,
 // the append: only the cross-format emitters apply it, so an attempt served
 // on an Anthropic-format binding is recorded as not fired.
 func workspaceAppendFired(opts translate.EmitOptions, servedProvider string) bool {
-	return opts.AppendWorkspaceSystem && providers.FamilyFor(servedProvider) != providers.FamilyAnthropic
+	return opts.AppendWorkspaceSystem && providers.FamilyFor(servedProvider) != providers.FamilyOpenAICompat
 }

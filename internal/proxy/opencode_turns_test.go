@@ -44,11 +44,11 @@ func newOpenCodeTurnSvc(fr *fakeRouter, store *fakePinStore) *proxy.Service {
 	return proxy.NewService(
 		fr,
 		map[string]providers.Client{
-			providers.ProviderAnthropic: &fakeProvider{proxyResponse: anthropicResp},
-			providers.ProviderOpenAI:    &fakeProvider{proxyResponse: responsesResp},
+			providers.ProviderAIAND: &fakeProvider{proxyResponse: anthropicResp},
+			providers.ProviderAIAND:    &fakeProvider{proxyResponse: responsesResp},
 		},
 		nil, false, nil, store, false,
-		providers.ProviderOpenAI, openCodeHardPinModel, nil,
+		providers.ProviderAIAND, openCodeHardPinModel, nil,
 	)
 }
 
@@ -64,7 +64,7 @@ func TestService_OpenCodeNativeSubagentSharesSessionIDButNotPin(t *testing.T) {
 	"input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"Reply with the single word pong"}]}]
 }`
 	store := newFakePinStore()
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: openCodeScoredTitleModel, Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: openCodeScoredTitleModel, Reason: "cluster"}}
 	svc := newOpenCodeTurnSvc(fr, store)
 	apiKeyID := uuid.New().String()
 
@@ -109,7 +109,7 @@ func TestService_OpenCode_ToolOutputCommandsStayActionable(t *testing.T) {
 		]
 	}`
 	store := newFakePinStore()
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "gpt-4o", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-4o", Reason: "cluster"}}
 	svc := newOpenCodeTurnSvc(fr, store)
 
 	httpReq := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(""))
@@ -156,7 +156,7 @@ func headerlessSender(t *testing.T, svc *proxy.Service, clientApp string) func(b
 func TestService_OpenCodeHeaderlessTitleScoresWithoutTouchingThePin(t *testing.T) {
 	store := newFakePinStore()
 	store.persistUpserts = true
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: openCodeScoredTitleModel, Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: openCodeScoredTitleModel, Reason: "cluster"}}
 	send := headerlessSender(t, newOpenCodeTurnSvc(fr, store), proxy.ClientAppOpencode)
 
 	rec := send(openCodeHeaderlessMainBody)
@@ -179,7 +179,7 @@ func TestService_OpenCodeHeaderlessTitleScoresWithoutTouchingThePin(t *testing.T
 // the same body keeps ordinary scoring and its session pin.
 func TestService_OpenCodeTitlePromptIgnoredForOtherClients(t *testing.T) {
 	store := newFakePinStore()
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "gpt-4o", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-4o", Reason: "cluster"}}
 	send := headerlessSender(t, newOpenCodeTurnSvc(fr, store), proxy.ClientAppCodex)
 
 	rec := send(openCodeHeaderlessTitleBody)
@@ -195,8 +195,8 @@ func TestService_OpenCodeTitlePromptIgnoredForOtherClients(t *testing.T) {
 // headers from another client select nothing.
 func TestService_OpenCodeChildSessionUsesSubAgentOverride(t *testing.T) {
 	const overrideModel = "gpt-5"
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "gpt-4o", Reason: "cluster"}}
-	svc := newOpenCodeTurnSvc(fr, newFakePinStore()).WithSubAgentOverride(providers.ProviderOpenAI, overrideModel)
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-4o", Reason: "cluster"}}
+	svc := newOpenCodeTurnSvc(fr, newFakePinStore()).WithSubAgentOverride(providers.ProviderAIAND, overrideModel)
 	apiKeyID := uuid.New().String()
 	send := func(clientApp string, headers map[string]string) *httptest.ResponseRecorder {
 		httpReq := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(""))

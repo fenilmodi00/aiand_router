@@ -26,7 +26,7 @@ import (
 const (
 	admissionTestRoot       = "gs://admission-fixture/registry"
 	admissionTestModel      = "gpt-5.6-sol"
-	admissionTestArm        = providers.ProviderOpenAI + "/" + admissionTestModel
+	admissionTestArm        = providers.ProviderAIAND + "/" + admissionTestModel
 	admissionTestClass      = "low"
 	admissionTestCredential = "rk_admission-fixture"
 	admissionTestBody       = "{ \"model\":\"auto\",\n \"messages\":[{\"role\":\"user\",\"content\":\"hello\"}] }"
@@ -84,7 +84,7 @@ func (s *admissionManifestStore) put(t *testing.T, kind policyregistry.ServingKi
 type admittedModelRouter struct{}
 
 func (admittedModelRouter) Route(context.Context, router.Request) (router.Decision, error) {
-	return router.Decision{Provider: providers.ProviderOpenAI, Model: admissionTestModel}, nil
+	return router.Decision{Provider: providers.ProviderAIAND, Model: admissionTestModel}, nil
 }
 
 func admissionMiddlewareFixture(t *testing.T) (*ServingAdmissionConfig, policyregistry.ServingAssertion, *admissionManifestStore, *int) {

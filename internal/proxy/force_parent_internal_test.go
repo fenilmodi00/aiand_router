@@ -33,7 +33,7 @@ func TestForceParentRoutesChildrenAndSupportsScopeTransitions(t *testing.T) {
 	require.Equal(t, controlKey, deriveForceModelSessionKeyForRequest(ctx, child, apiKeyID, childKey))
 	store := newForceModelMapStore()
 	scorer := &tierProbeRouter{available: map[string]struct{}{catalog.ModelIDClaudeHaiku45.String(): {}}}
-	svc := NewService(scorer, nil, nil, false, nil, store, false, providers.ProviderAnthropic, catalog.ModelIDClaudeHaiku45.String(), nil)
+	svc := NewService(scorer, nil, nil, false, nil, store, false, providers.ProviderAIAND, catalog.ModelIDClaudeHaiku45.String(), nil)
 	apply := func(command translate.ForceModelResult) string {
 		t.Helper()
 		_, ack, err := svc.applyForceModelCommand(ctx, command, installationID, parentKey, controlKey)
@@ -52,7 +52,7 @@ func TestForceParentRoutesChildrenAndSupportsScopeTransitions(t *testing.T) {
 	// Reproduce a legacy child force, which must not revive when narrowing scope.
 	require.NoError(t, store.Upsert(ctx, sessionpin.Pin{
 		SessionKey: childKey, Role: roleForTier(catalog.TierHigh), InstallationID: installationID,
-		Model: catalog.ModelIDClaudeOpus48.String(), Provider: providers.ProviderAnthropic,
+		Model: catalog.ModelIDClaudeOpus48.String(), Provider: providers.ProviderAIAND,
 		Reason: translate.ReasonUserForceModel, PinnedUntil: time.Now().Add(time.Hour),
 	}))
 	ack := apply(translate.ForceModelResult{Model: "opus-4-8:high", ParentOnly: true})
@@ -92,7 +92,7 @@ func TestForceParentDoesNotOverrideChildCompaction(t *testing.T) {
 	compaction, err := translate.ParseAnthropic([]byte(`{"model":"claude-sonnet-4-6","max_tokens":4096,"messages":[{"role":"user","content":"Implement the parser"},{"role":"assistant","content":"Inspecting the source"},{"role":"user","content":"Your task is to create a detailed summary. Do not call any tools."}]}`))
 	require.NoError(t, err)
 	store := newForceModelMapStore()
-	svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAnthropic, catalog.ModelIDClaudeSonnet46.String(), nil).WithCompactionHardPin(true)
+	svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAIAND, catalog.ModelIDClaudeSonnet46.String(), nil).WithCompactionHardPin(true)
 	parentKey := deriveSessionKeyForRequest(ctx, parent, apiKeyID)
 	require.Equal(t, parentKey, deriveSessionKeyForRequest(ctx, compaction, apiKeyID))
 	features := compaction.RoutingFeatures(false)
@@ -128,7 +128,7 @@ func TestForceParentPreservesChildLoopRescue(t *testing.T) {
 			threadKey, controlKey := loopTestKey(50), loopTestKey(51)
 			store := newForceModelMapStore()
 			events := &recordingLoopStore{}
-			svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAnthropic, catalog.ModelIDClaudeHaiku45.String(), nil).WithLoopEscalationStore(events)
+			svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAIAND, catalog.ModelIDClaudeHaiku45.String(), nil).WithLoopEscalationStore(events)
 			_, _, err := svc.applyForceModelCommand(ctx, translate.ForceModelResult{Model: catalog.ModelIDClaudeSonnet46.String(), ParentOnly: test.parentOnly}, installationID, threadKey, controlKey)
 			require.NoError(t, err)
 			svc.handleLoopEscalation(ctx, loopTestSig, 24, 0.2, 30, installationID, threadKey, sessionpin.DefaultRole, catalog.ModelIDClaudeHaiku45.String(), test.child, controlKey)

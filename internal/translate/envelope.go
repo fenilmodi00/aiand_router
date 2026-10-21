@@ -9,7 +9,6 @@ import (
 
 	"weave-os/router/internal/requestcontext"
 	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/catalog"
 	"weave-os/router/internal/translate/toolcheck"
 
 	"github.com/tidwall/gjson"
@@ -1452,55 +1451,17 @@ func resolvePassthroughOverrides(body []byte) (EmitOverrides, bool) {
 }
 
 var modelMaxOutputTokens = map[string]int{
-	catalog.ModelIDClaudeHaiku45.String(): 64000,
-	"claude-haiku-5-5":                    128000,
-	"gpt-4.1":                             32768, "gpt-4.1-mini": 32768, "gpt-4.1-nano": 32768,
-	"gpt-4o": 16384, "gpt-4o-mini": 16384,
-	"gpt-4-turbo": 4096, "gpt-4": 8192,
-	"gpt-5": 128000, "gpt-5-chat": 128000, "gpt-5-pro": 128000,
-	"gpt-5-mini": 128000, "gpt-5-nano": 128000,
-	"gpt-5.1": 128000, "gpt-5.2": 128000, "gpt-5.2-pro": 128000,
-	"gpt-5.3": 128000, "gpt-5.4": 128000, "gpt-5.4-pro": 128000,
-	"gpt-5.4-mini": 128000, "gpt-5.4-nano": 128000,
-	"gpt-5.5": 128000, "gpt-5.5-pro": 128000, "gpt-5.5-mini": 128000,
-	"gpt-5.5-nano": 128000,
-	"gpt-5.6-sol":  128000, "gpt-5.6-sol-pro": 128000,
-	"gpt-5.6-terra": 128000, "gpt-5.6-luna": 128000, "gpt-5.6-luna-pro": 128000,
-	"gpt-6-astra": 128000, "gpt-6-sol": 128000, "gpt-6.1-sol": 128000, "gpt-6-luna": 128000,
-	"grok-4.5": 131072, "grok-4.6": 131072, "grok-4.7": 131072,
-	"muse-spark-1.3": 131072, // Meta documents a 128K max output; always-on reasoning shares the budget
-	"o1":             100000, "o1-pro": 100000, "o1-mini": 65536,
-	"o3": 100000, "o3-pro": 100000, "o3-mini": 100000,
-	"o4-mini":              100000,
-	"gemini-3-pro-preview": 65536, "gemini-3.1-pro-preview": 65536,
-	"gemini-3-flash-preview": 65536, "gemini-3.1-flash-lite-preview": 65536,
-	"gemini-3.1-flash-live-preview": 65536,
-	"gemini-3.5-flash-lite":         65536, "gemini-3.6-flash": 65536,
-	"gemini-3.7-flash": 65536, "gemini-3.8-flash": 65536,
-	router.ModelGemini4Argon: 32768,
-	"gemini-2.5-pro":         65536, "gemini-2.5-flash": 65536,
-	"gemini-2.5-flash-lite": 65536,
-	"gemini-2.0-flash":      8192, "gemini-2.0-flash-lite": 8192,
 	// Keyed by full catalog ID, since decision.Model keeps the vendor prefix.
 	// OSS models accept far more than the 8192 fallback; leaving them unlisted
 	// clamped Claude Code's 64K output request, truncating every long turn.
-	"moonshotai/kimi-k3":               131072,
-	"qwen/qwen3.8-max":                 64000, // Fireworks reports a 64000 output token ceiling
-	"qwen/qwen3-coder-next":            16384, // Bedrock (primary) caps Qwen models at 16K output
-	"qwen/qwen3-235b-a22b-2507":        16384,
-	"qwen/qwen3-next-80b-a3b-instruct": 16384,
-	"deepseek/deepseek-v4-flash":       131072, // DeepSeek V4 documents 384K max output
-	"deepseek/deepseek-v4.1-flash":     131072,
-	"deepseek/deepseek-v4-pro":         131072,
-	"deepseek/deepseek-v4-pro-0813":    131072,
-	"minimax/minimax-m3":               131072, // 512K context, output up to the window
-	"minimax/minimax-m2.7":             65536,
-	"z-ai/glm-5":                       65536,
-	"z-ai/glm-5.1":                     65536,
-	"z-ai/glm-5.3":                     131072, // Both 5.3 arms document a 128K max output (docs.z.ai/guides/llm/glm-5.3)
-	"z-ai/glm-5.3-flash":               131072,
-	"google/gemini-3.7-flash":          65536,
-	"google/gemini-3.8-flash":          65536,
+	"moonshotai/kimi-k3":            131072,
+	"deepseek/deepseek-v4-flash":    131072, // DeepSeek V4 documents 384K max output
+	"deepseek/deepseek-v4.1-flash":  131072,
+	"deepseek/deepseek-v4-pro":      131072,
+	"deepseek/deepseek-v4-pro-0813": 131072,
+	"z-ai/glm-5.2":         131072,
+	"z-ai/glm-5.3":         131072, // Both 5.3 arms document a 128K max output (docs.z.ai/guides/llm/glm-5.3)
+	"z-ai/glm-5.3-flash":   131072,
 }
 
 const defaultMaxOutputTokenCap = 8192

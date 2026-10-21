@@ -55,7 +55,7 @@ func TestUnsubscribedRequestKeepsUnrestrictedRouting(t *testing.T) {
 // A router that reaches a closed-source model anyway — from a pin, a fallback
 // table, or its deployed-set default — is refused rather than dispatched.
 func TestMaxRouteRefusesAClosedSourceDecision(t *testing.T) {
-	closedRouter := &registryRouter{decision: router.Decision{Model: "claude-opus-4-8", Provider: providers.ProviderAnthropic}}
+	closedRouter := &registryRouter{decision: router.Decision{Model: "claude-opus-4-8", Provider: providers.ProviderAIAND}}
 	svc := &Service{router: closedRouter}
 
 	_, err := svc.Route(maxScopedContext(), router.Request{})
@@ -65,7 +65,7 @@ func TestMaxRouteRefusesAClosedSourceDecision(t *testing.T) {
 }
 
 func TestMaxRouteRefusesAnUnknownSourceDecision(t *testing.T) {
-	unknownRouter := &registryRouter{decision: router.Decision{Model: "muse-spark-1.3", Provider: providers.ProviderMeta}}
+	unknownRouter := &registryRouter{decision: router.Decision{Model: "muse-spark-1.3", Provider: providers.ProviderAIAND}}
 	svc := &Service{router: unknownRouter}
 
 	_, err := svc.Route(maxScopedContext(), router.Request{})
@@ -74,7 +74,7 @@ func TestMaxRouteRefusesAnUnknownSourceDecision(t *testing.T) {
 }
 
 func TestMaxRouteServesOpenSourceDecision(t *testing.T) {
-	openRouter := &registryRouter{decision: router.Decision{Model: "deepseek/deepseek-v4-pro", Provider: providers.ProviderFireworks}}
+	openRouter := &registryRouter{decision: router.Decision{Model: "deepseek/deepseek-v4-pro", Provider: providers.ProviderAIAND}}
 	svc := &Service{router: openRouter}
 
 	decision, err := svc.Route(maxScopedContext(), router.Request{})
@@ -88,7 +88,7 @@ func TestMaxRouteServesOpenSourceDecision(t *testing.T) {
 // Max sells an open-source-only boundary, so no book paying for the turn can
 // buy a closed-source model.
 func TestFundingCannotWidenMaxEligibility(t *testing.T) {
-	closedRouter := &registryRouter{decision: router.Decision{Model: "claude-opus-4-8", Provider: providers.ProviderAnthropic}}
+	closedRouter := &registryRouter{decision: router.Decision{Model: "claude-opus-4-8", Provider: providers.ProviderAIAND}}
 	svc := &Service{router: closedRouter}
 
 	for name, ctx := range map[string]context.Context{
@@ -115,12 +115,12 @@ func TestFundingCannotWidenMaxEligibility(t *testing.T) {
 // provider through dispatchWithFallback, which is where the boundary is
 // terminal.
 func TestDispatchRefusesAnIneligibleDecisionTheTurnLoopMinted(t *testing.T) {
-	anthropic := &fakeClient{name: providers.ProviderAnthropic, outcomes: []fakeOutcome{{writeBytes: []byte("served")}}}
-	svc := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAnthropic: anthropic})
+	anthropic := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{writeBytes: []byte("served")}}}
+	svc := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: anthropic})
 
 	rec := httptest.NewRecorder()
-	in := plannedInputs(rec, newPreludeBuffer(rec), []catalog.ProviderBinding{{Provider: providers.ProviderAnthropic}}, nil)
-	in.initialDecision = router.Decision{Model: "claude-opus-4-8", Provider: providers.ProviderAnthropic}
+	in := plannedInputs(rec, newPreludeBuffer(rec), []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}}, nil)
+	in.initialDecision = router.Decision{Model: "claude-opus-4-8", Provider: providers.ProviderAIAND}
 
 	_, err := svc.dispatchWithFallback(maxScopedContext(), in)
 
@@ -129,11 +129,11 @@ func TestDispatchRefusesAnIneligibleDecisionTheTurnLoopMinted(t *testing.T) {
 }
 
 func TestDispatchServesAnEligibleDecision(t *testing.T) {
-	fireworks := &fakeClient{name: providers.ProviderFireworks, outcomes: []fakeOutcome{{writeBytes: []byte("served")}}}
-	svc := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderFireworks: fireworks})
+	fireworks := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{writeBytes: []byte("served")}}}
+	svc := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: fireworks})
 
 	rec := httptest.NewRecorder()
-	in := plannedInputs(rec, newPreludeBuffer(rec), []catalog.ProviderBinding{{Provider: providers.ProviderFireworks}}, nil)
+	in := plannedInputs(rec, newPreludeBuffer(rec), []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}}, nil)
 
 	_, err := svc.dispatchWithFallback(maxScopedContext(), in)
 

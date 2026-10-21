@@ -9,7 +9,7 @@ import (
 )
 
 func TestUpstreamIDsForProvider_MiniMax(t *testing.T) {
-	ids := upstreamIDsForProvider(providers.ProviderMiniMax)
+	ids := upstreamIDsForProvider(providers.ProviderAIAND)
 
 	assert.Equal(t, "MiniMax-M3", ids["minimax/minimax-m3"])
 	assert.Equal(t, "MiniMax-M2.7", ids["minimax/minimax-m2.7"])

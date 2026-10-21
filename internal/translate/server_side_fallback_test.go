@@ -28,7 +28,7 @@ func prepareWithFallback(t *testing.T, in http.Header, body string, opts transla
 func TestServerSideFallback_SetsFieldAndBeta(t *testing.T) {
 	prep := prepareWithFallback(t, http.Header{}, serverSideFallbackBody, translate.EmitOptions{
 		TargetModel:              "claude-opus-5",
-		TargetProvider:           providers.ProviderAnthropic,
+		TargetProvider:           providers.ProviderAIAND,
 		EnableServerSideFallback: true,
 	})
 
@@ -39,7 +39,7 @@ func TestServerSideFallback_SetsFieldAndBeta(t *testing.T) {
 func TestServerSideFallback_DisabledLeavesRequestUntouched(t *testing.T) {
 	prep := prepareWithFallback(t, http.Header{}, serverSideFallbackBody, translate.EmitOptions{
 		TargetModel:    "claude-opus-5",
-		TargetProvider: providers.ProviderAnthropic,
+		TargetProvider: providers.ProviderAIAND,
 	})
 
 	assert.False(t, gjson.GetBytes(prep.Body, "fallbacks").Exists())
@@ -50,7 +50,7 @@ func TestServerSideFallback_DisabledLeavesRequestUntouched(t *testing.T) {
 func TestServerSideFallback_SkippedForNonFirstPartyTarget(t *testing.T) {
 	prep := prepareWithFallback(t, http.Header{}, serverSideFallbackBody, translate.EmitOptions{
 		TargetModel:              "claude-opus-5",
-		TargetProvider:           providers.ProviderAnthropicGateway,
+		TargetProvider:           providers.ProviderAIAND,
 		EnableServerSideFallback: true,
 	})
 
@@ -62,7 +62,7 @@ func TestServerSideFallback_PreservesClientChoice(t *testing.T) {
 	body := `{"model":"claude-opus-5","max_tokens":1024,"messages":[{"role":"user","content":"hi"}],"fallbacks":"none"}`
 	prep := prepareWithFallback(t, http.Header{}, body, translate.EmitOptions{
 		TargetModel:              "claude-opus-5",
-		TargetProvider:           providers.ProviderAnthropic,
+		TargetProvider:           providers.ProviderAIAND,
 		EnableServerSideFallback: true,
 	})
 
@@ -74,7 +74,7 @@ func TestServerSideFallback_PreservesClientChoice(t *testing.T) {
 func TestServerSideFallback_SkippedForUnsupportedModel(t *testing.T) {
 	prep := prepareWithFallback(t, http.Header{}, serverSideFallbackBody, translate.EmitOptions{
 		TargetModel:              "claude-haiku-4-5",
-		TargetProvider:           providers.ProviderAnthropic,
+		TargetProvider:           providers.ProviderAIAND,
 		EnableServerSideFallback: true,
 	})
 
@@ -90,7 +90,7 @@ func TestServerSideFallback_StripsClientFieldOnUnsupportedModel(t *testing.T) {
 	body := `{"model":"claude-haiku-4-5","max_tokens":1024,"messages":[{"role":"user","content":"hi"}],"fallbacks":"default"}`
 	prep := prepareWithFallback(t, in, body, translate.EmitOptions{
 		TargetModel:              "claude-haiku-4-5",
-		TargetProvider:           providers.ProviderAnthropic,
+		TargetProvider:           providers.ProviderAIAND,
 		EnableServerSideFallback: true,
 	})
 
@@ -103,7 +103,7 @@ func TestServerSideFallback_DedupesClientBeta(t *testing.T) {
 	in.Set("anthropic-beta", "server-side-fallback-2026-07-01")
 	prep := prepareWithFallback(t, in, serverSideFallbackBody, translate.EmitOptions{
 		TargetModel:              "claude-opus-5",
-		TargetProvider:           providers.ProviderAnthropic,
+		TargetProvider:           providers.ProviderAIAND,
 		EnableServerSideFallback: true,
 	})
 

@@ -30,13 +30,13 @@ type classifierResponseProvider struct{ betaCaptureProvider }
 
 func (p *classifierResponseProvider) Proxy(_ context.Context, decision router.Decision, request providers.PreparedRequest, w http.ResponseWriter, _ *http.Request) error {
 	p.body = append([]byte(nil), request.Body...)
-	if decision.Provider == providers.ProviderOpenAI {
+	if decision.Provider == providers.ProviderAIAND {
 		w.Header().Set("Content-Type", "text/event-stream")
 		_, err := io.WriteString(w, "data: {\"type\":\"response.output_text.delta\",\"output_index\":0,\"delta\":\"answer\"}\n\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"status\":\"completed\",\"output\":[{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"answer\"}]}],\"usage\":{\"input_tokens\":12,\"output_tokens\":3}}}\n\n")
 		return err
 	}
 	w.Header().Set("Content-Type", "application/json")
-	if decision.Provider == providers.ProviderAnthropic {
+	if decision.Provider == providers.ProviderAIAND {
 		_, err := io.WriteString(w, `{"type":"message","role":"assistant","content":[{"type":"text","text":"answer"}],"stop_reason":"end_turn","usage":{"input_tokens":12,"output_tokens":3}}`)
 		return err
 	}
@@ -50,25 +50,25 @@ func TestClassifierDispatchAcrossProtocols(t *testing.T) {
 		toolActivity, thirdUser                          string
 		proxyRequest                                     func(*Service, context.Context, []byte, http.ResponseWriter, *http.Request) error
 	}{
-		{"messages", providers.ProviderAnthropic, "claude-sonnet-4-6", "/v1/messages",
+		{"messages", providers.ProviderAIAND, "claude-sonnet-4-6", "/v1/messages",
 			`{"model":"claude-sonnet-4-6","max_tokens":1024,"messages":[{"role":"user","content":"first"}]}`,
 			`{"model":"claude-sonnet-4-6","max_tokens":1024,"messages":[{"role":"user","content":"first"},{"role":"assistant","content":[{"type":"thinking","thinking":"not a response"},{"type":"text","text":""},{"type":"text","text":"answer"}]},{"role":"user","content":"next"}]}`,
 			`{"role":"assistant","content":[{"type":"tool_use","id":"c1","name":"test","input":{}}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"c1","is_error":true,"content":"failed"}]}`,
 			`{"role":"user","content":"third"}`,
 			(*Service).ProxyMessages},
-		{"chat", providers.ProviderOpenAI, catalog.ModelIDGPT55.String(), "/v1/chat/completions",
+		{"chat", providers.ProviderAIAND, catalog.ModelIDGPT55.String(), "/v1/chat/completions",
 			fmt.Sprintf(`{"model":%q,"stream":true,"messages":[{"role":"user","content":"first"}]}`, catalog.ModelIDGPT55.String()),
 			fmt.Sprintf(`{"model":%q,"stream":true,"messages":[{"role":"user","content":"first"},{"role":"assistant","content":[{"type":"text","text":""},{"type":"text","text":"answer"}]},{"role":"user","content":"next"}]}`, catalog.ModelIDGPT55.String()),
 			`{"role":"assistant","content":null,"tool_calls":[{"id":"c1","type":"function","function":{"name":"test","arguments":"{}"}}]},{"role":"tool","tool_call_id":"c1","is_error":true,"content":"failed"}`,
 			`{"role":"user","content":"third"}`,
 			(*Service).ProxyOpenAIChatCompletion},
-		{"responses", providers.ProviderOpenAI, catalog.ModelIDGPT55.String(), "/v1/responses",
+		{"responses", providers.ProviderAIAND, catalog.ModelIDGPT55.String(), "/v1/responses",
 			fmt.Sprintf(`{"model":%q,"stream":true,"input":[{"role":"user","content":"first"}]}`, catalog.ModelIDGPT55.String()),
 			fmt.Sprintf(`{"model":%q,"stream":true,"input":[{"role":"user","content":"first"},{"role":"assistant","content":[{"type":"output_text","text":""},{"type":"output_text","text":"answer"}]},{"role":"user","content":"next"}]}`, catalog.ModelIDGPT55.String()),
 			`{"type":"function_call","call_id":"c1","name":"test","arguments":"{}"},{"type":"function_call_output","call_id":"c1","status":"failed","output":"failed"}`,
 			`{"role":"user","content":"third"}`,
 			(*Service).ProxyOpenAIResponses},
-		{"gemini", providers.ProviderGoogle, "gemini-2.5-pro", "/v1beta/models/gemini-2.5-pro:generateContent",
+		{"gemini", providers.ProviderAIAND, "gemini-2.5-pro", "/v1beta/models/gemini-2.5-pro:generateContent",
 			`{"model":"gemini-2.5-pro","contents":[{"role":"user","parts":[{"text":"first"}]}]}`,
 			`{"model":"gemini-2.5-pro","contents":[{"role":"user","parts":[{"text":"first"}]},{"role":"model","parts":[{"text":""},{"text":"answer"}]},{"role":"user","parts":[{"text":"next"}]}]}`,
 			`{"role":"model","parts":[{"functionCall":{"id":"c1","name":"test","args":{}}}]},{"role":"user","parts":[{"functionResponse":{"id":"c1","name":"test","response":{"error":"failed"}}}]}`,
@@ -168,7 +168,7 @@ func TestClassifierDispatchUsesConfiguredSubscriptionState(t *testing.T) {
 	const model = "claude-sonnet-4-6"
 	fixtureService, principal, store := classifierSessionFixture(t, classifierMedium)
 	upstream := &classifierResponseProvider{}
-	svc := NewService(nil, map[string]providers.Client{providers.ProviderAnthropic: upstream}, nil, false, nil, nil, false, "", "", nil)
+	svc := NewService(nil, map[string]providers.Client{providers.ProviderAIAND: upstream}, nil, false, nil, nil, false, "", "", nil)
 	require.NoError(t, svc.WithClassifierSessions(fixtureService.classifierSessions.config, store, fixtureService.classifierSessions.classifier))
 	ctx := classifierAdmit(t, svc, principal)
 	ctx = context.WithValue(ctx, InstallationSubscriptionModelsWhenActiveContextKey{}, []string{model})
@@ -182,7 +182,7 @@ func TestClassifierDispatchUsesConfiguredSubscriptionState(t *testing.T) {
 	for _, class := range classes {
 		roster.Clusters[class] = rosterdata.Cluster{Arms: []string{arm}, ArmScores: map[string]float64{arm: 1}}
 	}
-	resolver := policy.NewResolver(map[string]struct{}{model: {}}, map[string]struct{}{providers.ProviderAnthropic: {}}, armid.ForModel, policy.ManagedProviderPolicy())
+	resolver := policy.NewResolver(map[string]struct{}{model: {}}, map[string]struct{}{providers.ProviderAIAND: {}}, armid.ForModel, policy.ManagedProviderPolicy())
 	capabilities := policy.Capabilities{SchemaVersion: policy.SchemaVersionV4, AuthoritativePerTurnSelection: true}
 	routing := policy.NewSidecarRouter(policy.SidecarRouterConfig{Strategy: router.StrategyLLMClassifier, Unavailable: router.ErrClassifierUnavailable, ClassifierArtifactID: "llm-classifier-v1.0.0", ClassifierArtifactSHA256: strings.Repeat("a", 64), SelectionPolicyReleaseID: "llm-classifier-v1.0.0", SelectionPolicySHA256: roster.SHA256}, policy.AtomicClassifierFacts{Release: "llm-classifier-v1.0.0", ReleaseSHA256: strings.Repeat("a", 64)}, resolver).WithCapabilities(capabilities).WithArmSelector(selection.Selector(roster))
 	svc.WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyLLMClassifier, Router: routing, Capabilities: capabilities, Unavailable: router.ErrClassifierUnavailable})
@@ -197,7 +197,7 @@ func TestClassifierRecapServesWithoutAnchoringPin(t *testing.T) {
 	fixtureService, principal, store := classifierSessionFixture(t, classifierMedium)
 	upstream := &classifierResponseProvider{}
 	pins := newStubPinStore()
-	svc := NewService(&betaTestRouter{}, map[string]providers.Client{providers.ProviderAnthropic: upstream}, nil, false, nil, pins, false, providers.ProviderAnthropic, model, nil)
+	svc := NewService(&betaTestRouter{}, map[string]providers.Client{providers.ProviderAIAND: upstream}, nil, false, nil, pins, false, providers.ProviderAIAND, model, nil)
 	require.NoError(t, svc.WithClassifierSessions(fixtureService.classifierSessions.config, store, fixtureService.classifierSessions.classifier))
 	escalationClasses := []string{string(escalation.Low), string(escalation.Medium), string(escalation.High), string(escalation.Maximum)}
 	roster := &rosterdata.Roster{SchemaVersion: rosterdata.SchemaVersionPolicyV1, SHA256: strings.Repeat("b", 64), ClassOrder: escalationClasses, Clusters: map[string]rosterdata.Cluster{}}
@@ -207,7 +207,7 @@ func TestClassifierRecapServesWithoutAnchoringPin(t *testing.T) {
 	for _, class := range escalationClasses {
 		roster.Clusters[class] = rosterdata.Cluster{Arms: []string{arm}, ArmScores: map[string]float64{arm: 1}}
 	}
-	resolver := policy.NewResolver(map[string]struct{}{model: {}}, map[string]struct{}{providers.ProviderAnthropic: {}}, armid.ForModel, policy.ManagedProviderPolicy())
+	resolver := policy.NewResolver(map[string]struct{}{model: {}}, map[string]struct{}{providers.ProviderAIAND: {}}, armid.ForModel, policy.ManagedProviderPolicy())
 	capabilities := policy.Capabilities{SchemaVersion: policy.SchemaVersionV4, AuthoritativePerTurnSelection: true}
 	routing := policy.NewSidecarRouter(policy.SidecarRouterConfig{Strategy: router.StrategyLLMClassifier, Unavailable: router.ErrClassifierUnavailable, ClassifierArtifactID: "llm-classifier-v1.0.0", ClassifierArtifactSHA256: strings.Repeat("a", 64), SelectionPolicyReleaseID: "llm-classifier-v1.0.0", SelectionPolicySHA256: roster.SHA256}, policy.AtomicClassifierFacts{Release: "llm-classifier-v1.0.0", ReleaseSHA256: strings.Repeat("a", 64)}, resolver).WithCapabilities(capabilities).WithArmSelector(selection.Selector(roster))
 	svc.WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyLLMClassifier, Router: routing, Capabilities: capabilities, Unavailable: router.ErrClassifierUnavailable})
@@ -264,7 +264,7 @@ func TestClassifierUtilityRequestsDoNotEstablishThreadRoot(t *testing.T) {
 	upstream := &classifierResponseProvider{}
 	baseline := &betaTestRouter{}
 	pins := newStubPinStore()
-	svc := NewService(baseline, map[string]providers.Client{providers.ProviderAnthropic: upstream}, nil, false, nil, pins, false, providers.ProviderAnthropic, utilityModel.String(), nil)
+	svc := NewService(baseline, map[string]providers.Client{providers.ProviderAIAND: upstream}, nil, false, nil, pins, false, providers.ProviderAIAND, utilityModel.String(), nil)
 	require.NoError(t, svc.WithClassifierSessions(fixture.classifierSessions.config, store, fixture.classifierSessions.classifier))
 	ctx := classifierAdmit(t, svc, principal)
 	for _, utility := range []struct {

@@ -72,7 +72,7 @@ func TestProxyMessages_NativeToolUseStopPersistsLastToolDetail(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			decision := router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-opus-4-7"}
+			decision := router.Decision{Provider: providers.ProviderAIAND, Model: "claude-opus-4-7"}
 			provider := &fakeProvider{proxyResponse: func(w http.ResponseWriter) {
 				w.Header().Set("Content-Type", "text/event-stream")
 				w.WriteHeader(http.StatusOK)
@@ -83,9 +83,9 @@ func TestProxyMessages_NativeToolUseStopPersistsLastToolDetail(t *testing.T) {
 			telem := newCaptureTelemetry()
 			svc := proxy.NewService(
 				&fakeRouter{decision: decision},
-				map[string]providers.Client{providers.ProviderAnthropic: provider},
+				map[string]providers.Client{providers.ProviderAIAND: provider},
 				nil, false, nil, nil, false,
-				providers.ProviderAnthropic, "claude-opus-4-7", telem,
+				providers.ProviderAIAND, "claude-opus-4-7", telem,
 			)
 
 			ctx := context.WithValue(context.Background(), proxy.InstallationIDContextKey{}, installID)
@@ -130,10 +130,10 @@ func TestProxyMessages_TranslatedToolUseStopPersistsLastToolDetail(t *testing.T)
 	}}
 	telem := newCaptureTelemetry()
 	svc := proxy.NewService(
-		&fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "gpt-5.6-luna"}},
-		map[string]providers.Client{providers.ProviderOpenAI: provider},
+		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-5.6-luna"}},
+		map[string]providers.Client{providers.ProviderAIAND: provider},
 		nil, false, nil, nil, false,
-		providers.ProviderAnthropic, "claude-opus-4-7", telem,
+		providers.ProviderAIAND, "claude-opus-4-7", telem,
 	)
 
 	ctx := context.WithValue(context.Background(), proxy.InstallationIDContextKey{}, installID)

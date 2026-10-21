@@ -99,13 +99,9 @@ func (s *Service) recordSubscriptionModelRejection(ctx context.Context, provider
 	}
 	until := s.clockNow().Add(subscriptionModelDenialTTL)
 	switch provider {
-	case providers.ProviderAnthropic:
+	case providers.ProviderAIAND:
 		if anthropicSubscriptionModelRejected(err) {
 			s.subscriptionModels.cache().Add(s.subscriptionModels.key(creds.APIKey, model), until)
-		}
-	case providers.ProviderOpenAI:
-		if len(creds.AccountID) > 0 && codexSubscriptionModelRejected(err) {
-			s.subscriptionModels.cache().Add(s.subscriptionModels.keyForProvider(creds.APIKey, provider, model), until)
 		}
 	}
 }
@@ -121,12 +117,12 @@ func claudeModelSuppressed(ctx context.Context, model string) bool {
 func (s *Service) resolveCredentials(ctx context.Context, provider, model string, headers http.Header) context.Context {
 	resolved := resolveAndInjectCredentials(ctx, provider, model, headers)
 	creds := CredentialsFromContext(resolved)
-	if provider == providers.ProviderOpenAI && creds != nil && creds.OAuth && len(creds.AccountID) > 0 &&
+	if provider == providers.ProviderAIAND && creds != nil && creds.OAuth && len(creds.AccountID) > 0 &&
 
 		s.subscriptionModels.deniedForProvider(creds.APIKey, provider, model, s.clockNow()) {
 		return resolveAndInjectCredentials(withSuppressedCodexModel(resolved, model), provider, model, headers)
 	}
-	if provider != providers.ProviderAnthropic || creds == nil || !creds.OAuth ||
+	if provider != providers.ProviderAIAND || creds == nil || !creds.OAuth ||
 		!s.subscriptionModels.denied(creds.APIKey, model, s.clockNow()) {
 		return resolved
 	}

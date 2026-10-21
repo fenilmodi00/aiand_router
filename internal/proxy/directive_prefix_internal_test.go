@@ -25,8 +25,8 @@ func codexCtx(sessionID string) context.Context {
 func TestForceModelCommand_CodexAckNamesTheDollarForm(t *testing.T) {
 	store := &recordingPinStore{}
 	svc := NewService(nil, nil, nil, false, nil, store, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil).
-		WithDeploymentKeyedProviders(keyed(providers.ProviderAnthropic))
+		providers.ProviderAIAND, "claude-haiku-4-5", nil).
+		WithDeploymentKeyedProviders(keyed(providers.ProviderAIAND))
 
 	env := forceCommandEnv(t)
 	rec := httptest.NewRecorder()
@@ -44,8 +44,8 @@ func TestForceModelCommand_CodexAckNamesTheDollarForm(t *testing.T) {
 func TestForceModelCommand_ClaudeCodeAckKeepsTheSlashForm(t *testing.T) {
 	store := &recordingPinStore{}
 	svc := NewService(nil, nil, nil, false, nil, store, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil).
-		WithDeploymentKeyedProviders(keyed(providers.ProviderAnthropic))
+		providers.ProviderAIAND, "claude-haiku-4-5", nil).
+		WithDeploymentKeyedProviders(keyed(providers.ProviderAIAND))
 
 	env := forceCommandEnv(t)
 	rec := httptest.NewRecorder()
@@ -65,7 +65,7 @@ func TestForceModelCommand_ClaudeCodeAckKeepsTheSlashForm(t *testing.T) {
 func TestRouterSessionCommand_AnswersSyntheticallyFromRequestIdentity(t *testing.T) {
 	store := &recordingPinStore{}
 	svc := NewService(nil, nil, nil, false, nil, store, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil)
+		providers.ProviderAIAND, "claude-haiku-4-5", nil)
 
 	env := forceCommandEnv(t)
 	rec := httptest.NewRecorder()

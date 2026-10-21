@@ -213,16 +213,8 @@ func translationConstraints(req router.TranslationRequirements) ([]translationCo
 
 func sourceNativeConstraint(req router.TranslationRequirements, code string) (translationConstraint, bool) {
 	switch req.SourceFormat {
-	case router.WireFormatAnthropic:
-		return translationConstraint{Code: code, TargetFamily: providers.FamilyAnthropic, ExactProviders: singletonProviderSet(providers.ProviderAnthropic)}, true
-	case router.WireFormatOpenAI:
-		constraint := translationConstraint{Code: code, TargetFamily: providers.FamilyOpenAICompat}
-		if req.Endpoint == router.EndpointOpenAIResponses {
-			constraint.ExactProviders = singletonProviderSet(providers.ProviderOpenAI)
-		}
-		return constraint, true
-	case router.WireFormatGemini:
-		return translationConstraint{Code: code, TargetFamily: providers.FamilyGemini, ExactProviders: singletonProviderSet(providers.ProviderGoogle)}, true
+	case router.WireFormatAnthropic, router.WireFormatOpenAI, router.WireFormatGemini:
+		return translationConstraint{Code: code, TargetFamily: providers.FamilyOpenAICompat, ExactProviders: singletonProviderSet(providers.ProviderAIAND)}, true
 	default:
 		return translationConstraint{}, false
 	}
@@ -351,12 +343,8 @@ func (s *Service) applyTranslationPlan(ctx context.Context, req router.Request) 
 
 func familyName(family providers.TranslationFamily) string {
 	switch family {
-	case providers.FamilyAnthropic:
-		return "anthropic"
 	case providers.FamilyOpenAICompat:
 		return "openai"
-	case providers.FamilyGemini:
-		return "gemini"
 	default:
 		return ""
 	}

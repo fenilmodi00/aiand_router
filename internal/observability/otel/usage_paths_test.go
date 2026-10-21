@@ -30,34 +30,34 @@ func TestUsageFactsNativeAndTranslatedPaths(t *testing.T) {
 		prelude                       bool
 	}
 	cases := []path{
-		{"anthropic-chat", providers.ProviderAnthropic, `{"id":"msg_synthetic","content":[{"type":"text","text":"ok"}],"stop_reason":"end_turn","usage":` + anthropicUsage + `}`,
+		{"anthropic-chat", providers.ProviderAIAND, `{"id":"msg_synthetic","content":[{"type":"text","text":"ok"}],"stop_reason":"end_turn","usage":` + anthropicUsage + `}`,
 			"event: message_start\ndata: {\"message\":{\"id\":\"msg_synthetic\",\"usage\":" + anthropicUsage + "}}\n\nevent: content_block_delta\ndata: {\"delta\":{\"type\":\"text_delta\",\"text\":\"ok\"}}\n\nevent: message_delta\ndata: {\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":10}}\n\nevent: message_stop\ndata: {}\n\n",
 			func(w http.ResponseWriter, s translate.UsageSink) usageTranslator {
 				return translate.NewSSETranslator(w, "synthetic-model", s)
 			}, false},
-		{"chat-anthropic", providers.ProviderOpenAI, `{"choices":[{"message":{"content":"ok"},"finish_reason":"stop"}],"usage":` + chatUsage + `}`,
+		{"chat-anthropic", providers.ProviderAIAND, `{"choices":[{"message":{"content":"ok"},"finish_reason":"stop"}],"usage":` + chatUsage + `}`,
 			"data: {\"choices\":[{\"delta\":{\"content\":\"ok\"},\"finish_reason\":\"stop\"}],\"usage\":" + chatUsage + "}\n\ndata: [DONE]\n\n",
 			func(w http.ResponseWriter, s translate.UsageSink) usageTranslator {
 				return translate.NewAnthropicSSETranslator(w, "synthetic-model", s)
 			}, true},
-		{"xai-anthropic", providers.ProviderXAI, `{"choices":[{"message":{"content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":100,"completion_tokens":7,"completion_tokens_details":{"reasoning_tokens":3}}}`,
+		{"xai-anthropic", providers.ProviderAIAND, `{"choices":[{"message":{"content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":100,"completion_tokens":7,"completion_tokens_details":{"reasoning_tokens":3}}}`,
 			"data: {\"choices\":[{\"delta\":{\"content\":\"ok\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":100,\"completion_tokens\":7,\"completion_tokens_details\":{\"reasoning_tokens\":3}}}\n\ndata: [DONE]\n\n",
 			func(w http.ResponseWriter, s translate.UsageSink) usageTranslator {
 				tr := translate.NewAnthropicSSETranslator(w, "synthetic-model", s)
 				tr.SetUsageOutputBasis(usage.OutputExcludesReasoning)
 				return tr
 			}, true},
-		{"responses-chat", providers.ProviderOpenAI, `{"id":"resp_synthetic","status":"completed","output":[{"type":"message","content":[{"type":"output_text","text":"ok"}]}],"usage":` + responsesUsage + `}`,
+		{"responses-chat", providers.ProviderAIAND, `{"id":"resp_synthetic","status":"completed","output":[{"type":"message","content":[{"type":"output_text","text":"ok"}]}],"usage":` + responsesUsage + `}`,
 			"event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_synthetic\",\"status\":\"completed\",\"output\":[{\"type\":\"message\",\"content\":[{\"type\":\"output_text\",\"text\":\"ok\"}]}],\"usage\":" + responsesUsage + "}}\n\n",
 			func(w http.ResponseWriter, s translate.UsageSink) usageTranslator {
 				return translate.NewResponsesToOpenAIChatWriter(w, "synthetic-model", s)
 			}, true},
-		{"responses-anthropic", providers.ProviderOpenAI, `{"id":"resp_synthetic","status":"completed","output":[{"type":"message","content":[{"type":"output_text","text":"ok"}]}],"usage":` + responsesUsage + `}`,
+		{"responses-anthropic", providers.ProviderAIAND, `{"id":"resp_synthetic","status":"completed","output":[{"type":"message","content":[{"type":"output_text","text":"ok"}]}],"usage":` + responsesUsage + `}`,
 			"event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_synthetic\",\"status\":\"completed\",\"output\":[{\"type\":\"message\",\"content\":[{\"type\":\"output_text\",\"text\":\"ok\"}]}],\"usage\":" + responsesUsage + "}}\n\n",
 			func(w http.ResponseWriter, s translate.UsageSink) usageTranslator {
 				return translate.NewResponsesToAnthropicWriter(w, "synthetic-model", s)
 			}, true},
-		{"gemini-chat", providers.ProviderGoogle, `{"candidates":[{"content":{"parts":[{"text":"ok"}]},"finishReason":"STOP"}],"usageMetadata":` + geminiUsage + `}`,
+		{"gemini-chat", providers.ProviderAIAND, `{"candidates":[{"content":{"parts":[{"text":"ok"}]},"finishReason":"STOP"}],"usageMetadata":` + geminiUsage + `}`,
 			"data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"ok\"}]},\"finishReason\":\"STOP\"}],\"usageMetadata\":" + geminiUsage + "}\n\n",
 			func(w http.ResponseWriter, s translate.UsageSink) usageTranslator {
 				return translate.NewGeminiToOpenAISSETranslator(w, "synthetic-model", s)

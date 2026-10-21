@@ -17,7 +17,7 @@ func catalogRosterID(model catalog.Model) string { return model.ID }
 func TestManagedResolverMiMoV26FlashProviderOrder(t *testing.T) {
 	resolver := policy.NewResolver(
 		set(catalog.ModelMiMoV26Flash),
-		set(providers.ProviderMakora, providers.ProviderDeepInfra, providers.ProviderOpenRouter),
+		set(providers.ProviderAIAND, providers.ProviderAIAND, providers.ProviderAIAND),
 		catalogRosterID,
 		policy.ManagedProviderPolicy(),
 	)
@@ -27,8 +27,8 @@ func TestManagedResolverMiMoV26FlashProviderOrder(t *testing.T) {
 		provider   string
 		upstreamID string
 	}{
-		{"Makora primary", set(providers.ProviderMakora, providers.ProviderDeepInfra, providers.ProviderOpenRouter), providers.ProviderMakora, "XiaomiMiMo/MiMo-V2.6-Flash-RL"},
-		{"DeepInfra fallback", set(providers.ProviderDeepInfra, providers.ProviderOpenRouter), providers.ProviderDeepInfra, "XiaomiMiMo/MiMo-V2.6-Flash"},
+		{"Makora primary", set(providers.ProviderAIAND, providers.ProviderAIAND, providers.ProviderAIAND), providers.ProviderAIAND, "XiaomiMiMo/MiMo-V2.6-Flash-RL"},
+		{"DeepInfra fallback", set(providers.ProviderAIAND, providers.ProviderAIAND), providers.ProviderAIAND, "XiaomiMiMo/MiMo-V2.6-Flash"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -39,7 +39,7 @@ func TestManagedResolverMiMoV26FlashProviderOrder(t *testing.T) {
 			require.Equal(t, tc.upstreamID, resolved.Candidates[0].UpstreamID)
 		})
 	}
-	resolved := resolver.Resolve(router.Request{EnabledProviders: set(providers.ProviderOpenRouter)})
+	resolved := resolver.Resolve(router.Request{EnabledProviders: set(providers.ProviderAIAND)})
 	require.Empty(t, resolved.Candidates)
 	require.Contains(t, resolved.Diagnostics, policy.Diagnostic{
 		CatalogID: catalog.ModelMiMoV26Flash,
@@ -51,7 +51,7 @@ func TestManagedResolverMiMoV26FlashProviderOrder(t *testing.T) {
 func TestManagedResolverUsesCurrentProvidersAndNeverOpenRouter(t *testing.T) {
 	resolver := policy.NewResolver(
 		set("deepseek/deepseek-v4-pro", "xiaomi/mimo-v2.5-pro"),
-		set(providers.ProviderFireworks, providers.ProviderOpenRouter),
+		set(providers.ProviderAIAND, providers.ProviderAIAND),
 		catalogRosterID,
 		policy.ManagedProviderPolicy(),
 	)
@@ -60,7 +60,7 @@ func TestManagedResolverUsesCurrentProvidersAndNeverOpenRouter(t *testing.T) {
 
 	require.Len(t, resolved.Candidates, 1)
 	assert.Equal(t, "deepseek/deepseek-v4-pro", resolved.Candidates[0].CatalogID)
-	assert.Equal(t, providers.ProviderFireworks, resolved.Candidates[0].Provider)
+	assert.Equal(t, providers.ProviderAIAND, resolved.Candidates[0].Provider)
 	assert.Equal(t, "accounts/fireworks/models/deepseek-v4-pro", resolved.Candidates[0].UpstreamID)
 	assert.Contains(t, resolved.Diagnostics, policy.Diagnostic{
 		CatalogID: "xiaomi/mimo-v2.5-pro",
@@ -72,7 +72,7 @@ func TestManagedResolverUsesCurrentProvidersAndNeverOpenRouter(t *testing.T) {
 func TestResolverDefaultsUpstreamIDToCatalogID(t *testing.T) {
 	resolver := policy.NewResolver(
 		set("claude-opus-4-8"),
-		set(providers.ProviderAnthropic),
+		set(providers.ProviderAIAND),
 		catalogRosterID,
 		policy.ManagedProviderPolicy(),
 	)
@@ -88,7 +88,7 @@ func TestResolverDefaultsUpstreamIDToCatalogID(t *testing.T) {
 func TestArmResolverEnumeratesEachAllowedProviderBinding(t *testing.T) {
 	resolver := policy.NewArmResolver(
 		set("minimax/minimax-m2.7"),
-		set(providers.ProviderTogether, providers.ProviderFireworks),
+		set(providers.ProviderAIAND, providers.ProviderAIAND),
 		catalogRosterID,
 		policy.ManagedProviderPolicy(),
 	)
@@ -129,9 +129,9 @@ func TestArmResolverRejectsRosterOnlySelectionForThreeBindings(t *testing.T) {
 	resolver := policy.NewArmResolver(
 		set("minimax/minimax-m2.7"),
 		set(
-			providers.ProviderTogether,
-			providers.ProviderFireworks,
-			providers.ProviderOpenRouter,
+			providers.ProviderAIAND,
+			providers.ProviderAIAND,
+			providers.ProviderAIAND,
 		),
 		func(catalog.Model) string { return "shared/arm" },
 		policy.ProviderPolicy{},
@@ -148,13 +148,13 @@ func TestArmResolverRejectsRosterOnlySelectionForThreeBindings(t *testing.T) {
 func TestResolverAppliesHardFiltersAndPreferenceRanks(t *testing.T) {
 	resolver := policy.NewResolver(
 		set("claude-opus-4-8", "gpt-5.5"),
-		set(providers.ProviderAnthropic, providers.ProviderOpenAI),
+		set(providers.ProviderAIAND, providers.ProviderAIAND),
 		catalogRosterID,
 		policy.ManagedProviderPolicy(),
 	)
 
 	resolved := resolver.Resolve(router.Request{
-		EnabledProviders: set(providers.ProviderAnthropic),
+		EnabledProviders: set(providers.ProviderAIAND),
 		PreferredModels:  []string{"gpt-5.5", "claude-opus-4-8"},
 	})
 
@@ -172,7 +172,7 @@ func TestResolverAppliesHardFiltersAndPreferenceRanks(t *testing.T) {
 func TestResolverBuildsMappingOnlyFromFinalSoftFilteredPool(t *testing.T) {
 	resolver := policy.NewResolver(
 		set("claude-opus-4-8", "deepseek/deepseek-v4-flash"),
-		set(providers.ProviderAnthropic, providers.ProviderMakora),
+		set(providers.ProviderAIAND, providers.ProviderAIAND),
 		catalogRosterID,
 		policy.ManagedProviderPolicy(),
 	)
@@ -187,7 +187,7 @@ func TestResolverBuildsMappingOnlyFromFinalSoftFilteredPool(t *testing.T) {
 func TestResolverRejectsAmbiguousRosterMappings(t *testing.T) {
 	resolver := policy.NewResolver(
 		set("claude-opus-4-8", "gpt-5.5"),
-		set(providers.ProviderAnthropic, providers.ProviderOpenAI),
+		set(providers.ProviderAIAND, providers.ProviderAIAND),
 		func(catalog.Model) string { return "shared/arm" },
 		policy.ManagedProviderPolicy(),
 	)
@@ -202,7 +202,7 @@ func TestResolverRejectsAmbiguousRosterMappings(t *testing.T) {
 func TestResolverRejectsCandidatesThatCannotFitEstimatedInput(t *testing.T) {
 	resolver := policy.NewResolver(
 		set("claude-opus-4-8"),
-		set(providers.ProviderAnthropic),
+		set(providers.ProviderAIAND),
 		catalogRosterID,
 		policy.ManagedProviderPolicy(),
 	)
@@ -220,7 +220,7 @@ func TestResolverRejectsCandidatesThatCannotFitEstimatedInput(t *testing.T) {
 func TestResolverAllowsExactContextFit(t *testing.T) {
 	resolver := policy.NewResolver(
 		set("claude-opus-4-8"),
-		set(providers.ProviderAnthropic),
+		set(providers.ProviderAIAND),
 		catalogRosterID,
 		policy.ManagedProviderPolicy(),
 	)
@@ -234,7 +234,7 @@ func TestResolverAllowsExactContextFit(t *testing.T) {
 func TestResolverIncludesExpectedOutputInContextBudget(t *testing.T) {
 	resolver := policy.NewResolver(
 		set("claude-opus-4-8"),
-		set(providers.ProviderAnthropic),
+		set(providers.ProviderAIAND),
 		catalogRosterID,
 		policy.ManagedProviderPolicy(),
 	)
@@ -256,7 +256,7 @@ func TestResolverIncludesExpectedOutputInContextBudget(t *testing.T) {
 func TestResolverKeepsOverflowAdmittedModels(t *testing.T) {
 	resolver := policy.NewResolver(
 		set("claude-opus-4-8", "claude-sonnet-4-6"),
-		set(providers.ProviderAnthropic),
+		set(providers.ProviderAIAND),
 		catalogRosterID,
 		policy.ManagedProviderPolicy(),
 	)
@@ -279,7 +279,7 @@ func TestResolverPreservesUnsignedHistoryExclusionAfterOverflowAdmission(t *test
 	const model = "gemini-3.1-pro-preview"
 	resolver := policy.NewResolver(
 		set(model),
-		set(providers.ProviderGoogle),
+		set(providers.ProviderAIAND),
 		catalogRosterID,
 		policy.ManagedProviderPolicy(),
 	)
@@ -302,7 +302,7 @@ func TestResolverDoesNotCallUnmappedOverflowCandidateAContextExclusion(t *testin
 	const model = "gemini-3.1-pro-preview"
 	resolver := policy.NewResolver(
 		set(model),
-		set(providers.ProviderGoogle),
+		set(providers.ProviderAIAND),
 		func(catalog.Model) string { return "" },
 		policy.ManagedProviderPolicy(),
 	)
@@ -322,7 +322,7 @@ func TestResolverDoesNotCallUnmappedOverflowCandidateAContextExclusion(t *testin
 func TestResolverIncludesLiveCandidateEconomics(t *testing.T) {
 	resolver := policy.NewResolver(
 		set("claude-opus-4-8"),
-		set(providers.ProviderAnthropic),
+		set(providers.ProviderAIAND),
 		catalogRosterID,
 		policy.ManagedProviderPolicy(),
 	)
@@ -345,7 +345,7 @@ func TestResolverIncludesLiveCandidateEconomics(t *testing.T) {
 func TestResolverUsesLongContextPricing(t *testing.T) {
 	resolver := policy.NewResolver(
 		set("gpt-5.6-luna"),
-		set(providers.ProviderOpenAI),
+		set(providers.ProviderAIAND),
 		catalogRosterID,
 		policy.ManagedProviderPolicy(),
 	)
@@ -376,7 +376,7 @@ func set(values ...string) map[string]struct{} {
 func TestResolverReportsNotAllowlistedSeparatelyFromRequestedExclusion(t *testing.T) {
 	resolver := policy.NewResolver(
 		set("claude-opus-4-8", "claude-haiku-4-5"),
-		set(providers.ProviderAnthropic),
+		set(providers.ProviderAIAND),
 		catalogRosterID,
 		policy.ManagedProviderPolicy(),
 	)
@@ -404,7 +404,7 @@ func TestResolverReportsNotAllowlistedSeparatelyFromRequestedExclusion(t *testin
 func TestResolverKeepsRequestedExclusionWhenNoAllowlist(t *testing.T) {
 	resolver := policy.NewResolver(
 		set("claude-opus-4-8"),
-		set(providers.ProviderAnthropic),
+		set(providers.ProviderAIAND),
 		catalogRosterID,
 		policy.ManagedProviderPolicy(),
 	)
@@ -422,7 +422,7 @@ func TestResolverKeepsRequestedExclusionWhenNoAllowlist(t *testing.T) {
 func TestResolverDropsAutomaticallyDisabledModels(t *testing.T) {
 	resolver := policy.NewResolver(
 		set("claude-opus-4-8", "claude-haiku-4-5"),
-		set(providers.ProviderAnthropic),
+		set(providers.ProviderAIAND),
 		catalogRosterID,
 		policy.ManagedProviderPolicy(),
 	)
@@ -444,7 +444,7 @@ func TestResolverDropsAutomaticallyDisabledModels(t *testing.T) {
 func TestResolverKeepsPoolWhenAutomaticDisablesWouldEmptyIt(t *testing.T) {
 	resolver := policy.NewResolver(
 		set("claude-opus-4-8"),
-		set(providers.ProviderAnthropic),
+		set(providers.ProviderAIAND),
 		catalogRosterID,
 		policy.ManagedProviderPolicy(),
 	)
@@ -463,7 +463,7 @@ func TestResolverKeepsPoolWhenAutomaticDisablesWouldEmptyIt(t *testing.T) {
 func TestResolverSessionDemotionStaysInsideAllowlist(t *testing.T) {
 	resolver := policy.NewResolver(
 		set("claude-opus-4-8", "claude-sonnet-5", "gpt-5.6-luna"),
-		set(providers.ProviderAnthropic, providers.ProviderOpenAI),
+		set(providers.ProviderAIAND, providers.ProviderAIAND),
 		catalogRosterID,
 		policy.ManagedProviderPolicy(),
 	)
@@ -492,7 +492,7 @@ func TestResolverSessionDemotionStaysInsideAllowlist(t *testing.T) {
 func TestResolverDirectlyEnforcesAllowlistForStrategySpecificCandidates(t *testing.T) {
 	resolver := policy.NewResolver(
 		set("gpt-5.6-luna-pro"),
-		set(providers.ProviderOpenAI),
+		set(providers.ProviderAIAND),
 		catalogRosterID,
 		policy.ManagedProviderPolicy(),
 	)
@@ -512,10 +512,10 @@ func TestResolverDirectlyEnforcesAllowlistForStrategySpecificCandidates(t *testi
 func TestBindingForSelectionResolvesEffortQualifiedArmID(t *testing.T) {
 	resolved := policy.ResolvedCandidates{
 		ByArmID: map[string]policy.Binding{
-			"anthropic/claude-opus-5": {ArmID: "anthropic/claude-opus-5", CatalogID: "claude-opus-5", Provider: providers.ProviderAnthropic},
+			"anthropic/claude-opus-5": {ArmID: "anthropic/claude-opus-5", CatalogID: "claude-opus-5", Provider: providers.ProviderAIAND},
 		},
 		ByRosterID: map[string]policy.Binding{
-			"anthropic/claude-opus-5": {ArmID: "anthropic/claude-opus-5", CatalogID: "claude-opus-5", Provider: providers.ProviderAnthropic},
+			"anthropic/claude-opus-5": {ArmID: "anthropic/claude-opus-5", CatalogID: "claude-opus-5", Provider: providers.ProviderAIAND},
 		},
 	}
 
@@ -547,10 +547,10 @@ func TestBindingForSelectionResolvesEffortQualifiedArmID(t *testing.T) {
 func TestBindingForSelectionDoesNotResolveNonEffortColonSuffix(t *testing.T) {
 	resolved := policy.ResolvedCandidates{
 		ByArmID: map[string]policy.Binding{
-			"anthropic/claude-opus-5": {CatalogID: "claude-opus-5", Provider: providers.ProviderAnthropic},
+			"anthropic/claude-opus-5": {CatalogID: "claude-opus-5", Provider: providers.ProviderAIAND},
 		},
 		ByRosterID: map[string]policy.Binding{
-			"anthropic/claude-opus-5": {CatalogID: "claude-opus-5", Provider: providers.ProviderAnthropic},
+			"anthropic/claude-opus-5": {CatalogID: "claude-opus-5", Provider: providers.ProviderAIAND},
 		},
 	}
 
@@ -561,20 +561,20 @@ func TestBindingForSelectionDoesNotResolveNonEffortColonSuffix(t *testing.T) {
 func TestResolverRoutesOnlyGatewayAliasedModelsWhenGatewayConfigured(t *testing.T) {
 	resolver := policy.NewResolver(
 		set("claude-opus-5", "claude-sonnet-5", "gpt-5.5"),
-		set(providers.ProviderAnthropic, providers.ProviderOpenAI, providers.ProviderAnthropicGateway),
+		set(providers.ProviderAIAND, providers.ProviderAIAND, providers.ProviderAIAND),
 		catalogRosterID,
 		policy.ManagedProviderPolicy(),
 	)
 
 	resolved := resolver.Resolve(router.Request{
-		EnabledProviders: set(providers.ProviderAnthropicGateway),
-		GatewayProviders: set(providers.ProviderAnthropicGateway),
-		CustomBindings:   map[string][]string{"claude-opus-5": {providers.ProviderAnthropicGateway}},
+		EnabledProviders: set(providers.ProviderAIAND),
+		GatewayProviders: set(providers.ProviderAIAND),
+		CustomBindings:   map[string][]string{"claude-opus-5": {providers.ProviderAIAND}},
 	})
 
 	require.Len(t, resolved.Candidates, 1)
 	assert.Equal(t, "claude-opus-5", resolved.Candidates[0].CatalogID)
-	assert.Equal(t, providers.ProviderAnthropicGateway, resolved.Candidates[0].Provider)
+	assert.Equal(t, providers.ProviderAIAND, resolved.Candidates[0].Provider)
 	assert.Contains(t, resolved.Diagnostics, policy.Diagnostic{
 		CatalogID: "claude-sonnet-5",
 		RosterID:  "claude-sonnet-5",
@@ -592,32 +592,32 @@ func TestResolverIgnoresProviderExclusionsForGatewayRouting(t *testing.T) {
 	// gateway routing those exclusions must not touch the gateway's own models.
 	resolver := policy.NewResolver(
 		set("claude-opus-5"),
-		set(providers.ProviderAnthropicGateway),
+		set(providers.ProviderAIAND),
 		catalogRosterID,
 		policy.ManagedProviderPolicy(),
 	)
 
 	resolved := resolver.Resolve(router.Request{
-		EnabledProviders: set(providers.ProviderAnthropicGateway),
-		GatewayProviders: set(providers.ProviderAnthropicGateway),
-		CustomBindings:   map[string][]string{"claude-opus-5": {providers.ProviderAnthropicGateway}},
+		EnabledProviders: set(providers.ProviderAIAND),
+		GatewayProviders: set(providers.ProviderAIAND),
+		CustomBindings:   map[string][]string{"claude-opus-5": {providers.ProviderAIAND}},
 	})
 
 	require.Len(t, resolved.Candidates, 1)
-	assert.Equal(t, providers.ProviderAnthropicGateway, resolved.Candidates[0].Provider)
+	assert.Equal(t, providers.ProviderAIAND, resolved.Candidates[0].Provider)
 }
 
 func TestResolverYieldsNoCandidatesWhenGatewayKeysHaveNoAliases(t *testing.T) {
 	resolver := policy.NewResolver(
 		set("claude-opus-5", "gpt-5.5"),
-		set(providers.ProviderAnthropic, providers.ProviderOpenAIGateway),
+		set(providers.ProviderAIAND, providers.ProviderAIAND),
 		catalogRosterID,
 		policy.ManagedProviderPolicy(),
 	)
 
 	resolved := resolver.Resolve(router.Request{
-		EnabledProviders: set(providers.ProviderOpenAIGateway),
-		GatewayProviders: set(providers.ProviderOpenAIGateway),
+		EnabledProviders: set(providers.ProviderAIAND),
+		GatewayProviders: set(providers.ProviderAIAND),
 	})
 
 	assert.Empty(t, resolved.Candidates)
@@ -629,28 +629,28 @@ func TestResolverYieldsNoCandidatesWhenGatewayKeysHaveNoAliases(t *testing.T) {
 func TestResolverEnumeratesEveryAliasingGatewayForAModel(t *testing.T) {
 	resolver := policy.NewArmResolver(
 		set("claude-opus-5"),
-		set(providers.ProviderAnthropicGateway, providers.ProviderOpenAIGateway),
+		set(providers.ProviderAIAND, providers.ProviderAIAND),
 		catalogRosterID,
 		policy.ManagedProviderPolicy(),
 	)
 
 	resolved := resolver.Resolve(router.Request{
-		EnabledProviders: set(providers.ProviderAnthropicGateway, providers.ProviderOpenAIGateway),
-		GatewayProviders: set(providers.ProviderAnthropicGateway, providers.ProviderOpenAIGateway),
+		EnabledProviders: set(providers.ProviderAIAND, providers.ProviderAIAND),
+		GatewayProviders: set(providers.ProviderAIAND, providers.ProviderAIAND),
 		CustomBindings: map[string][]string{
-			"claude-opus-5": {providers.ProviderAnthropicGateway, providers.ProviderOpenAIGateway},
+			"claude-opus-5": {providers.ProviderAIAND, providers.ProviderAIAND},
 		},
 	})
 
 	require.Len(t, resolved.Candidates, 2)
-	assert.Equal(t, providers.ProviderAnthropicGateway, resolved.Candidates[0].Provider)
-	assert.Equal(t, providers.ProviderOpenAIGateway, resolved.Candidates[1].Provider)
+	assert.Equal(t, providers.ProviderAIAND, resolved.Candidates[0].Provider)
+	assert.Equal(t, providers.ProviderAIAND, resolved.Candidates[1].Provider)
 }
 
 func TestResolverKeepsVendorRoutingWhenNoGatewayConfigured(t *testing.T) {
 	resolver := policy.NewResolver(
 		set("claude-opus-5"),
-		set(providers.ProviderAnthropic),
+		set(providers.ProviderAIAND),
 		catalogRosterID,
 		policy.ManagedProviderPolicy(),
 	)
@@ -658,5 +658,5 @@ func TestResolverKeepsVendorRoutingWhenNoGatewayConfigured(t *testing.T) {
 	resolved := resolver.Resolve(router.Request{})
 
 	require.Len(t, resolved.Candidates, 1)
-	assert.Equal(t, providers.ProviderAnthropic, resolved.Candidates[0].Provider)
+	assert.Equal(t, providers.ProviderAIAND, resolved.Candidates[0].Provider)
 }

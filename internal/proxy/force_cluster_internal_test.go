@@ -77,8 +77,8 @@ func TestApplyForceClusterHeader_RejectsNonSidecarStrategy(t *testing.T) {
 func TestProxyMessages_ForceClusterOnNonSidecarStrategyRejects(t *testing.T) {
 	fr := &stripFailureRouter{}
 	fp := &stripFailureProvider{}
-	svc := NewService(fr, map[string]providers.Client{providers.ProviderAnthropic: fp}, nil, false, nil, nil, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil)
+	svc := NewService(fr, map[string]providers.Client{providers.ProviderAIAND: fp}, nil, false, nil, nil, false,
+		providers.ProviderAIAND, "claude-haiku-4-5", nil)
 
 	body := `{"model":"claude-opus-4-8","max_tokens":64,"messages":[{"role":"user","content":"hi"}]}`
 	rec := httptest.NewRecorder()
@@ -107,13 +107,13 @@ func (r *forceClusterCapturingRouter) Route(_ context.Context, req router.Reques
 func TestProxyMessages_ForceClusterReachesRouterRequest(t *testing.T) {
 	strategy := router.StrategyHMM
 	fr := &forceClusterCapturingRouter{decision: router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    "claude-haiku-4-5",
 		Reason:   "hmm_policy:force_cluster",
 	}}
 	fp := &stripFailureProvider{}
-	svc := NewService(nil, map[string]providers.Client{providers.ProviderAnthropic: fp}, nil, false, nil, nil, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil).
+	svc := NewService(nil, map[string]providers.Client{providers.ProviderAIAND: fp}, nil, false, nil, nil, false,
+		providers.ProviderAIAND, "claude-haiku-4-5", nil).
 		WithPolicyStrategy(policy.StrategySpec{Strategy: strategy, Router: fr})
 
 	// Tools + a real max_tokens keep the turn off the classifier/probe hard-pin

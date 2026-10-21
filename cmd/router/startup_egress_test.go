@@ -47,7 +47,7 @@ func TestStartupEgressWaitsForEveryRetainedClient(t *testing.T) {
 			}
 			return true, nil
 		}}
-		err = probe.wait(context.Background(), slog.Default(), map[string]providers.Client{providers.ProviderOpenAI: client}, map[string]struct{}{providers.ProviderOpenAI: {}}, nil)
+		err = probe.wait(context.Background(), slog.Default(), map[string]providers.Client{providers.ProviderAIAND: client}, map[string]struct{}{providers.ProviderAIAND: {}}, nil)
 		require.NoError(t, err)
 		require.Equal(t, 2, calls)
 	})
@@ -60,7 +60,7 @@ func TestStartupEgressHonorsCancellation(t *testing.T) {
 		client := startupProvider{warm: func(ctx context.Context, _ string) (bool, error) { <-ctx.Done(); return true, ctx.Err() }}
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
-		err = probe.wait(ctx, slog.Default(), map[string]providers.Client{providers.ProviderOpenAI: client}, map[string]struct{}{providers.ProviderOpenAI: {}}, nil)
+		err = probe.wait(ctx, slog.Default(), map[string]providers.Client{providers.ProviderAIAND: client}, map[string]struct{}{providers.ProviderAIAND: {}}, nil)
 		require.ErrorIs(t, err, context.DeadlineExceeded)
 	})
 }
@@ -95,7 +95,7 @@ func TestStartupEgressDoesNotInitializeUnknownTenantProviders(t *testing.T) {
 		t.Fatal("tenant provider must remain lazy")
 		return false, nil
 	}}
-	require.NoError(t, probe.wait(context.Background(), slog.Default(), map[string]providers.Client{providers.ProviderOpenAIGateway: client}, nil, nil))
+	require.NoError(t, probe.wait(context.Background(), slog.Default(), map[string]providers.Client{providers.ProviderAIAND: client}, nil, nil))
 }
 
 func TestStartupConnectionFailureDoesNotPreventBoot(t *testing.T) {
@@ -108,7 +108,7 @@ func TestStartupConnectionFailureDoesNotPreventBoot(t *testing.T) {
 		}}
 		var logs bytes.Buffer
 		started := time.Now()
-		probe.prepare(t.Context(), slog.New(slog.NewTextHandler(&logs, nil)), map[string]providers.Client{providers.ProviderOpenAI: client}, map[string]struct{}{providers.ProviderOpenAI: {}}, nil)
+		probe.prepare(t.Context(), slog.New(slog.NewTextHandler(&logs, nil)), map[string]providers.Client{providers.ProviderAIAND: client}, map[string]struct{}{providers.ProviderAIAND: {}}, nil)
 		require.LessOrEqual(t, time.Since(started), startupEgressTimeout)
 		require.Contains(t, logs.String(), "continuing boot")
 	})

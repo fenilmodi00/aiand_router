@@ -8,5 +8,5 @@ import (
 const fixedModel = "claude-haiku-4-5"
 
 func decision() router.Decision {
-	return router.Decision{Provider: providers.ProviderAnthropic, Model: fixedModel}
+	return router.Decision{Provider: providers.ProviderAIAND, Model: fixedModel}
 }

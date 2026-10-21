@@ -32,16 +32,16 @@ func TestProxyOutputLimitAcrossResponsePaths(t *testing.T) {
 		provider string
 		model    string
 	}{
-		{"messages", "anthropic", providers.ProviderAnthropic, capAnthropicModel},
-		{"messages", "chat", providers.ProviderOpenRouter, capChatModel},
-		{"messages", "responses", providers.ProviderOpenAI, capResponsesModel},
-		{"messages", "gemini", providers.ProviderGoogle, capGeminiModel},
-		{"chat", "anthropic", providers.ProviderAnthropic, capAnthropicModel},
-		{"chat", "chat", providers.ProviderOpenRouter, capChatModel},
-		{"chat", "responses", providers.ProviderOpenAI, capResponsesModel},
-		{"chat", "gemini", providers.ProviderGoogle, capGeminiModel},
-		{"responses", "responses", providers.ProviderOpenAI, capResponsesModel},
-		{"gemini", "gemini", providers.ProviderGoogle, capGeminiModel},
+		{"messages", "anthropic", providers.ProviderAIAND, capAnthropicModel},
+		{"messages", "chat", providers.ProviderAIAND, capChatModel},
+		{"messages", "responses", providers.ProviderAIAND, capResponsesModel},
+		{"messages", "gemini", providers.ProviderAIAND, capGeminiModel},
+		{"chat", "anthropic", providers.ProviderAIAND, capAnthropicModel},
+		{"chat", "chat", providers.ProviderAIAND, capChatModel},
+		{"chat", "responses", providers.ProviderAIAND, capResponsesModel},
+		{"chat", "gemini", providers.ProviderAIAND, capGeminiModel},
+		{"responses", "responses", providers.ProviderAIAND, capResponsesModel},
+		{"gemini", "gemini", providers.ProviderAIAND, capGeminiModel},
 	}
 	for _, path := range paths {
 		for _, stream := range []bool{false, true} {
@@ -105,9 +105,9 @@ func TestProxyGeminiTelemetryClassifiesOutputCap(t *testing.T) {
 				_, _ = w.Write([]byte(response))
 			}}
 			telem := newCaptureTelemetry()
-			svc := proxy.NewService(&fakeRouter{decision: router.Decision{Provider: providers.ProviderGoogle, Model: capGeminiModel, Reason: "fresh"}},
-				map[string]providers.Client{providers.ProviderGoogle: provider}, nil, false, nil, newFakePinStore(), false,
-				providers.ProviderGoogle, capGeminiModel, telem)
+			svc := proxy.NewService(&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: capGeminiModel, Reason: "fresh"}},
+				map[string]providers.Client{providers.ProviderAIAND: provider}, nil, false, nil, newFakePinStore(), false,
+				providers.ProviderAIAND, capGeminiModel, telem)
 			body := []byte(`{"contents":[{"role":"user","parts":[{"text":"Inspect the repository files"}]}],"generationConfig":{"maxOutputTokens":64000}}`)
 			require.NoError(t, svc.ProxyGeminiGenerateContent(authedCtx(uuid.NewString()), body, httptest.NewRecorder(),
 				httptest.NewRequest(http.MethodPost, "/v1beta/models/"+capGeminiModel+":generateContent", nil)))
@@ -190,9 +190,9 @@ func TestTurnLoop_HighOutputKeepsActiveAndExpiredPins(t *testing.T) {
 			if expired {
 				until = time.Now().Add(-time.Minute)
 			}
-			store.pin = sessionpin.Pin{Provider: providers.ProviderAnthropic, Model: capAnthropicModel, LastServedModel: capAnthropicModel,
+			store.pin = sessionpin.Pin{Provider: providers.ProviderAIAND, Model: capAnthropicModel, LastServedModel: capAnthropicModel,
 				Reason: "cluster", LastOutputTokens: 32000, LastTurnEndedAt: time.Now().Add(-time.Second), PinnedUntil: until}
-			routes := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: freshModel, Reason: "fresh"}}
+			routes := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: freshModel, Reason: "fresh"}}
 			svc := newPinSvc(routes, store).WithPlannerEnabled(false).WithAvailableModels(map[string]struct{}{capAnthropicModel: {}, freshModel: {}})
 			rec := httptest.NewRecorder()
 			require.NoError(t, svc.ProxyMessages(authedCtx(uuid.NewString()), []byte(pinTestBody), rec, httptest.NewRequest(http.MethodPost, "/v1/messages", nil)))

@@ -123,7 +123,7 @@ func (r *LLMEscalationRepo) Complete(ctx context.Context, request llmescalation.
 			}
 			switch session.Config.EffectiveClassifier() {
 			case flags.EscalationClassifierSwitchyard:
-				job.Model, job.Provider = policy.EscalationJudgeModel, providers.ProviderFireworks
+				job.Model, job.Provider = policy.EscalationJudgeModel, providers.ProviderAIAND
 				job.Version = llmescalation.Version
 				job.PromptRevision, job.SchemaRevision, job.RendererRevision = llmescalation.SwitchyardRevision, llmescalation.SwitchyardRevision, llmescalation.SwitchyardRevision
 			case flags.EscalationClassifierLLM:

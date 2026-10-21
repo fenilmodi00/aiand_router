@@ -45,7 +45,7 @@ func TestCallerModelPassthroughSkipsAutomaticPinsAndScorer(t *testing.T) {
 	routerSpy := &blindExperimentRouterSpy{err: errors.New("scorer must not run")}
 	pins := newStubPinStore()
 	service := NewService(routerSpy, nil, nil, false, nil, pins, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil)
+		providers.ProviderAIAND, "claude-haiku-4-5", nil)
 	envelope, err := translate.ParseAnthropic([]byte(`{"model":"claude-sonnet-4-6","messages":[{"role":"user","content":"hello"}]}`))
 	require.NoError(t, err)
 
@@ -60,7 +60,7 @@ func TestCallerModelPassthroughSkipsAutomaticPinsAndScorer(t *testing.T) {
 		router.Request{
 			RequestedModel: "claude-sonnet-4-6",
 			EnabledProviders: map[string]struct{}{
-				providers.ProviderAnthropic: {},
+				providers.ProviderAIAND: {},
 			},
 		},
 	)
@@ -70,7 +70,7 @@ func TestCallerModelPassthroughSkipsAutomaticPinsAndScorer(t *testing.T) {
 	assert.True(t, loopResult.CallerModelPassthrough)
 	assert.False(t, loopResult.UsageBypass)
 	assert.Equal(t, "claude-sonnet-4-6", loopResult.Decision.Model)
-	assert.Equal(t, providers.ProviderAnthropic, loopResult.Decision.Provider)
+	assert.Equal(t, providers.ProviderAIAND, loopResult.Decision.Provider)
 	assert.Equal(t, blindExperimentPublicDecisionReason, loopResult.Decision.Reason)
 	pins.mu.Lock()
 	defer pins.mu.Unlock()
@@ -83,7 +83,7 @@ func TestCallerModelPassthroughSkipsAutomaticPinsAndScorer(t *testing.T) {
 func TestCallerModelPassthroughLeavesAutomaticSessionHistoryUntouched(t *testing.T) {
 	pins := newStubPinStore()
 	service := NewService(nil, nil, nil, false, nil, pins, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil)
+		providers.ProviderAIAND, "claude-haiku-4-5", nil)
 	envelope, err := translate.ParseAnthropic([]byte(`{"model":"claude-sonnet-4-6","messages":[{"role":"user","content":"hello"}]}`))
 	require.NoError(t, err)
 
@@ -113,28 +113,28 @@ func TestCallerModelPassthroughLeavesAutomaticSessionHistoryUntouched(t *testing
 
 func TestCallerModelPassthroughUsesGatewayAlias(t *testing.T) {
 	service := NewService(nil, nil, nil, false, nil, nil, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil)
+		providers.ProviderAIAND, "claude-haiku-4-5", nil)
 
 	decision, passthrough, err := service.blindExperimentPassthroughDecision(
 		blindExperimentContext(auth.BlindExperimentArmPassthrough),
 		router.Request{
 			RequestedModel: "gpt-5.4",
 			EnabledProviders: map[string]struct{}{
-				providers.ProviderOpenAIGateway:    {},
-				providers.ProviderAnthropicGateway: {},
+				providers.ProviderAIAND:    {},
+				providers.ProviderAIAND: {},
 			},
 			GatewayProviders: map[string]struct{}{
-				providers.ProviderAnthropicGateway: {},
+				providers.ProviderAIAND: {},
 			},
 			CustomBindings: map[string][]string{
-				"gpt-5.4": {providers.ProviderAnthropicGateway},
+				"gpt-5.4": {providers.ProviderAIAND},
 			},
 		},
 	)
 
 	require.NoError(t, err)
 	assert.True(t, passthrough)
-	assert.Equal(t, providers.ProviderAnthropicGateway, decision.Provider,
+	assert.Equal(t, providers.ProviderAIAND, decision.Provider,
 		"gateway-exclusive passthrough must use the held key's alias instead of the catalog gateway binding")
 	assert.Equal(t, "gpt-5.4", decision.Model)
 	assert.Equal(t, blindExperimentPublicDecisionReason, decision.Reason)
@@ -142,13 +142,13 @@ func TestCallerModelPassthroughUsesGatewayAlias(t *testing.T) {
 
 func TestCallerModelPassthroughRejectsUnknownModelWithoutBlamingProviderKeys(t *testing.T) {
 	service := NewService(nil, nil, nil, false, nil, nil, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil)
+		providers.ProviderAIAND, "claude-haiku-4-5", nil)
 
 	_, _, err := service.blindExperimentPassthroughDecision(
 		blindExperimentContext(auth.BlindExperimentArmPassthrough),
 		router.Request{
 			RequestedModel:   "auto",
-			EnabledProviders: map[string]struct{}{providers.ProviderOpenAI: {}},
+			EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}},
 		},
 	)
 
@@ -162,25 +162,25 @@ func TestCallerModelPassthroughRejectsUnknownModelWithoutBlamingProviderKeys(t *
 
 func TestCallerModelPassthroughResolvesDatedAlias(t *testing.T) {
 	service := NewService(nil, nil, nil, false, nil, nil, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil)
+		providers.ProviderAIAND, "claude-haiku-4-5", nil)
 
 	decision, _, err := service.blindExperimentPassthroughDecision(
 		blindExperimentContext(auth.BlindExperimentArmPassthrough),
 		router.Request{
 			RequestedModel:   "claude-haiku-4-5-20251001",
-			EnabledProviders: map[string]struct{}{providers.ProviderAnthropic: {}},
+			EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}},
 		},
 	)
 
 	require.NoError(t, err, "a dated catalog alias is a known model and must still pass through")
-	assert.Equal(t, providers.ProviderAnthropic, decision.Provider)
+	assert.Equal(t, providers.ProviderAIAND, decision.Provider)
 	assert.Equal(t, "claude-haiku-4-5-20251001", decision.Model)
 }
 
 func TestCallerModelPassthroughHonorsExcludedModels(t *testing.T) {
 	routerSpy := &blindExperimentRouterSpy{err: errors.New("scorer must not run")}
 	service := NewService(routerSpy, nil, nil, false, nil, nil, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil)
+		providers.ProviderAIAND, "claude-haiku-4-5", nil)
 	envelope, err := translate.ParseAnthropic([]byte(`{"model":"claude-sonnet-4-6","messages":[{"role":"user","content":"hello"}]}`))
 	require.NoError(t, err)
 
@@ -224,10 +224,10 @@ func runBlindExperimentUtilityTurn(t *testing.T, ctx context.Context, body strin
 	t.Helper()
 	routerSpy := &blindExperimentRouterSpy{err: errors.New("scorer must not run")}
 	service := NewService(routerSpy, nil, nil, false, nil, newStubPinStore(), false,
-		providers.ProviderGoogle, experimentUtilityHardPinModel, nil).
+		providers.ProviderAIAND, experimentUtilityHardPinModel, nil).
 		WithExplicitUtilityHardPin(true).
 		WithCompactionHardPin(true).
-		WithSubAgentOverride(providers.ProviderGoogle, experimentSubAgentOverrideModel)
+		WithSubAgentOverride(providers.ProviderAIAND, experimentSubAgentOverrideModel)
 	envelope, err := translate.ParseAnthropic([]byte(body))
 	require.NoError(t, err)
 	features := envelope.RoutingFeatures(false)
@@ -242,8 +242,8 @@ func runBlindExperimentUtilityTurn(t *testing.T, ctx context.Context, body strin
 		router.Request{
 			RequestedModel: features.Model,
 			EnabledProviders: map[string]struct{}{
-				providers.ProviderAnthropic: {},
-				providers.ProviderGoogle:    {},
+				providers.ProviderAIAND: {},
+				providers.ProviderAIAND:    {},
 			},
 		},
 	)
@@ -262,7 +262,7 @@ func TestBlindExperimentPassthroughOutranksUtilityHardPins(t *testing.T) {
 			assert.False(t, loopResult.HardPinned)
 			assert.Empty(t, loopResult.Purpose, "a passthrough turn is not authorized as deployment utility work")
 			assert.Equal(t, "claude-opus-4-8", loopResult.Decision.Model)
-			assert.Equal(t, providers.ProviderAnthropic, loopResult.Decision.Provider)
+			assert.Equal(t, providers.ProviderAIAND, loopResult.Decision.Provider)
 			assert.Equal(t, blindExperimentPublicDecisionReason, loopResult.Decision.Reason)
 		})
 	}
@@ -323,7 +323,7 @@ const experimentSubAgentOverrideModel = "gemini-3-flash-preview"
 func TestBlindExperimentPassthroughYieldsUtilityTurnToForceModel(t *testing.T) {
 	routerSpy := &blindExperimentRouterSpy{err: errors.New("scorer must not run")}
 	service := NewService(routerSpy, nil, nil, false, nil, newStubPinStore(), false,
-		providers.ProviderGoogle, "gemini-3.1-flash-lite-preview", nil)
+		providers.ProviderAIAND, "gemini-3.1-flash-lite-preview", nil)
 	envelope, err := translate.ParseAnthropic([]byte(`{"model":"claude-opus-4-8","max_tokens":1,"messages":[{"role":"user","content":"quota"}]}`))
 	require.NoError(t, err)
 
@@ -338,7 +338,7 @@ func TestBlindExperimentPassthroughYieldsUtilityTurnToForceModel(t *testing.T) {
 		router.Request{
 			RequestedModel:   "claude-opus-4-8",
 			ForceModel:       "claude-sonnet-4-6",
-			EnabledProviders: map[string]struct{}{providers.ProviderAnthropic: {}},
+			EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}},
 		},
 	)
 
@@ -351,12 +351,12 @@ func TestBlindExperimentPassthroughYieldsUtilityTurnToForceModel(t *testing.T) {
 
 func TestBlindExperimentRouterOnUsesScorer(t *testing.T) {
 	routerSpy := &blindExperimentRouterSpy{decision: router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    "claude-haiku-4-5",
 		Reason:   "cluster:test",
 	}}
 	service := NewService(routerSpy, nil, nil, false, nil, nil, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil)
+		providers.ProviderAIAND, "claude-haiku-4-5", nil)
 	envelope, err := translate.ParseAnthropic([]byte(`{"model":"claude-sonnet-4-6","messages":[{"role":"user","content":"hello"}]}`))
 	require.NoError(t, err)
 

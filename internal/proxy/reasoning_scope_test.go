@@ -125,10 +125,10 @@ func TestReasoningReplayScope_NormalizesEndpoint(t *testing.T) {
 // key, which no request-scoped value describes — two deployments of the same
 // provider and model must still not share a scope.
 func TestReasoningReplayScope_DeploymentKeyedTurnsAreDistinct(t *testing.T) {
-	decision := router.Decision{Provider: providers.ProviderOpenRouter, Model: "grok-4.6"}
+	decision := router.Decision{Provider: providers.ProviderAIAND, Model: "grok-4.6"}
 	scopeFor := func(apiKey, baseURL string) string {
 		svc := reasoningScopeService(t, map[string]providers.Client{
-			providers.ProviderOpenRouter: openaicompat.NewClient(apiKey, baseURL),
+			providers.ProviderAIAND: openaicompat.NewClient(apiKey, baseURL),
 		})
 		return svc.reasoningReplayScope(requestcontext.WithCredentials(context.Background(), nil), decision)
 	}
@@ -161,14 +161,14 @@ func TestReasoningReplayScope_DoesNotLeakCredential(t *testing.T) {
 // A managed Codex lease hands out a refreshed access token, so the lease's
 // ChatGPT account — not the token — is what the scope must key on.
 func TestReasoningReplayScope_SurvivesManagedSubscriptionTokenRefresh(t *testing.T) {
-	decision := router.Decision{Provider: providers.ProviderOpenAI, Model: "gpt-5.6-sol"}
+	decision := router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-5.6-sol"}
 	scopeFor := func(accessToken, providerAccount string) string {
 		leaser := &scriptedSubscriptionLeaser{leases: []subscriptions.Lease{
 			{AccountID: "opaque-codex", ProviderAccount: providerAccount, AccessToken: accessToken},
 		}}
 		svc := newServiceWithProviders(t, nil).WithManagedSubscriptions(leaser)
 		ctx, lease, managed, err := svc.leaseManagedSubscription(
-			managedSubscriptionContext(auth.SubscriptionProviderCodex), providers.ProviderOpenAI, decision.Model,
+			managedSubscriptionContext(auth.SubscriptionProviderCodex), providers.ProviderAIAND, decision.Model,
 		)
 		require.NoError(t, err)
 		require.True(t, managed)

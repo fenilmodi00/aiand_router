@@ -37,13 +37,13 @@ func TestRunTurnLoop_ForcedTextOnlyModel_DropsPinForImageTurn(t *testing.T) {
 		"claude-sonnet-4-6": {},
 	}}
 	store := &forcedPinStore{pin: sessionpin.Pin{
-		Provider:    providers.ProviderFireworks,
+		Provider:    providers.ProviderAIAND,
 		Model:       textOnlyForcedModel,
 		Reason:      translate.ReasonUserForceModel,
 		PinnedUntil: time.Now().Add(time.Hour),
 	}}
 	svc := NewService(fr, nil, nil, false, nil, store, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil).
+		providers.ProviderAIAND, "claude-haiku-4-5", nil).
 		WithAvailableModels(fr.available).
 		WithPlannerEnabled(false)
 
@@ -78,13 +78,13 @@ func TestRunTurnLoop_ForcedTextOnlyModel_HonoredWithoutImages(t *testing.T) {
 		"claude-sonnet-4-6": {},
 	}}
 	store := &forcedPinStore{pin: sessionpin.Pin{
-		Provider:    providers.ProviderFireworks,
+		Provider:    providers.ProviderAIAND,
 		Model:       textOnlyForcedModel,
 		Reason:      translate.ReasonUserForceModel,
 		PinnedUntil: time.Now().Add(time.Hour),
 	}}
 	svc := NewService(fr, nil, nil, false, nil, store, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil).
+		providers.ProviderAIAND, "claude-haiku-4-5", nil).
 		WithAvailableModels(fr.available).
 		WithPlannerEnabled(false)
 
@@ -107,14 +107,14 @@ func TestRunTurnLoop_ForcedTextOnlyModel_HonoredWithoutImages(t *testing.T) {
 // forcedPinEligible is the gate for the hard-pinned-turn fast path, which is a
 // separate branch from the one above and needs the same guard.
 func TestForcedPinEligible_RejectsTextOnlyModelOnImageTurn(t *testing.T) {
-	pin := sessionpin.Pin{Provider: providers.ProviderFireworks, Model: textOnlyForcedModel}
+	pin := sessionpin.Pin{Provider: providers.ProviderAIAND, Model: textOnlyForcedModel}
 
 	assert.False(t, forcedPinEligible(pin, router.Request{HasImages: true}),
 		"text-only forced pin must be ineligible for an image-bearing turn")
 	assert.True(t, forcedPinEligible(pin, router.Request{HasImages: false}),
 		"same pin stays eligible without images")
 	assert.True(t, forcedPinEligible(
-		sessionpin.Pin{Provider: providers.ProviderAnthropic, Model: "claude-sonnet-4-6"},
+		sessionpin.Pin{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6"},
 		router.Request{HasImages: true}),
 		"an image-capable forced pin stays eligible on an image turn")
 }

@@ -18,7 +18,7 @@ const fastModeAnthropicBody = `{"model":"claude-opus-5","max_tokens":1024,"messa
 func TestFastMode_AnthropicSetsSpeedAndBeta(t *testing.T) {
 	prep := prepareWithFallback(t, http.Header{}, fastModeAnthropicBody, translate.EmitOptions{
 		TargetModel:    "claude-opus-5",
-		TargetProvider: providers.ProviderAnthropic,
+		TargetProvider: providers.ProviderAIAND,
 		FastMode:       true,
 	})
 
@@ -29,7 +29,7 @@ func TestFastMode_AnthropicSetsSpeedAndBeta(t *testing.T) {
 func TestFastMode_AnthropicOffLeavesRequestUntouched(t *testing.T) {
 	prep := prepareWithFallback(t, http.Header{}, fastModeAnthropicBody, translate.EmitOptions{
 		TargetModel:    "claude-opus-5",
-		TargetProvider: providers.ProviderAnthropic,
+		TargetProvider: providers.ProviderAIAND,
 	})
 
 	assert.False(t, gjson.GetBytes(prep.Body, "speed").Exists())
@@ -39,7 +39,7 @@ func TestFastMode_AnthropicOffLeavesRequestUntouched(t *testing.T) {
 func TestFastMode_AnthropicGatewayNeverGetsSpeed(t *testing.T) {
 	prep := prepareWithFallback(t, http.Header{}, fastModeAnthropicBody, translate.EmitOptions{
 		TargetModel:    "claude-opus-5",
-		TargetProvider: providers.ProviderAnthropicGateway,
+		TargetProvider: providers.ProviderAIAND,
 		FastMode:       true,
 	})
 
@@ -52,7 +52,7 @@ func TestFastMode_AnthropicDedupesClientBeta(t *testing.T) {
 	in.Set("anthropic-beta", "fast-mode-2026-02-01")
 	prep := prepareWithFallback(t, in, fastModeAnthropicBody, translate.EmitOptions{
 		TargetModel:    "claude-opus-5",
-		TargetProvider: providers.ProviderAnthropic,
+		TargetProvider: providers.ProviderAIAND,
 		FastMode:       true,
 	})
 
@@ -74,7 +74,7 @@ func prepareOpenAIFast(t *testing.T, opts translate.EmitOptions) (chat, response
 func TestFastMode_OpenAISetsPriorityServiceTierOnBothSurfaces(t *testing.T) {
 	chat, responses := prepareOpenAIFast(t, translate.EmitOptions{
 		TargetModel:    "gpt-5.6-luna",
-		TargetProvider: providers.ProviderOpenAI,
+		TargetProvider: providers.ProviderAIAND,
 		FastMode:       true,
 	})
 
@@ -85,7 +85,7 @@ func TestFastMode_OpenAISetsPriorityServiceTierOnBothSurfaces(t *testing.T) {
 func TestFastMode_OpenAIOffLeavesServiceTierUnset(t *testing.T) {
 	chat, responses := prepareOpenAIFast(t, translate.EmitOptions{
 		TargetModel:    "gpt-5.6-luna",
-		TargetProvider: providers.ProviderOpenAI,
+		TargetProvider: providers.ProviderAIAND,
 	})
 
 	assert.False(t, gjson.GetBytes(chat, "service_tier").Exists())
@@ -93,7 +93,7 @@ func TestFastMode_OpenAIOffLeavesServiceTierUnset(t *testing.T) {
 }
 
 func TestFastMode_OpenAICompatGatewaysNeverGetServiceTier(t *testing.T) {
-	for _, provider := range []string{providers.ProviderOpenAIGateway, providers.ProviderOpenRouter, providers.ProviderFireworks} {
+	for _, provider := range []string{providers.ProviderAIAND, providers.ProviderAIAND, providers.ProviderAIAND} {
 		chat, responses := prepareOpenAIFast(t, translate.EmitOptions{
 			TargetModel:    "gpt-5.6-luna",
 			TargetProvider: provider,

@@ -90,7 +90,7 @@ func TestEvaluateAuthoritativeUpgrade(t *testing.T) {
 
 func upgradeTestPin() sessionpin.Pin {
 	return sessionpin.Pin{
-		Model: upgradeTestPinModel, Provider: providers.ProviderAnthropic,
+		Model: upgradeTestPinModel, Provider: providers.ProviderAIAND,
 		Reason: "hmm_policy", PolicyGroup: string(escalation.Medium),
 		PinnedUntil: time.Now().Add(time.Hour), FirstPinnedAt: time.Now().Add(-2 * time.Hour),
 		LastTurnEndedAt: time.Now().Add(-time.Minute), LastOutputTokens: 100,
@@ -100,7 +100,7 @@ func upgradeTestPin() sessionpin.Pin {
 func upgradeTestFresh() router.Decision {
 	margin := 0.2
 	return router.Decision{
-		Model: upgradeTestFreshModel, Provider: providers.ProviderAnthropic, Reason: "hmm_policy",
+		Model: upgradeTestFreshModel, Provider: providers.ProviderAIAND, Reason: "hmm_policy",
 		Metadata: &router.RoutingMetadata{Strategy: string(router.StrategyHMM), PolicyGroup: string(escalation.High), ChosenScore: 0.7, ClassifierMargin: &margin},
 	}
 }
@@ -197,7 +197,7 @@ func TestUpgradeShadowPreservesServingAndPinWrites(t *testing.T) {
 				fresh.Metadata.ChosenScore = tc.score
 				margin := 0.1
 				strategy := router.Strategy("upgrade-shadow-test")
-				svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAnthropic, upgradeTestPinModel, nil).
+				svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAIAND, upgradeTestPinModel, nil).
 					WithAuthorityCacheShadow(enabled).WithAuthoritativeUpgradeGate(tc.gate).
 					WithAuthoritativeUpgradeConfig(AuthoritativeUpgradeConfig{MarginThreshold: &margin}).
 					WithPolicyStrategy(policy.StrategySpec{Strategy: strategy, Router: &authorityShadowTestRouter{decision: fresh}, Capabilities: policy.Capabilities{AuthoritativePerTurnSelection: true}})
@@ -304,7 +304,7 @@ func TestUpgradeShadowPreservesHigherPrecedencePaths(t *testing.T) {
 				policyRouter = &erroringTestRouter{err: policyDeadlineTestErr}
 			}
 			strategy := router.Strategy("upgrade-precedence-test")
-			svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAnthropic, upgradeTestPinModel, nil).
+			svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAIAND, upgradeTestPinModel, nil).
 				WithAuthorityCacheShadow(true).WithPolicyDeadlineFallback(true).
 				WithPolicyStrategy(policy.StrategySpec{Strategy: strategy, Router: policyRouter, Capabilities: policy.Capabilities{AuthoritativePerTurnSelection: true}})
 			body := fmt.Sprintf(`{"model":%q,"messages":[{"role":"user","content":"continue"}]}`, catalog.ModelIDClaudeOpus48.String())
@@ -334,7 +334,7 @@ func TestEvidenceUpgradeServesFreshWhenQualified(t *testing.T) {
 	threshold := 0.15
 	fresh.Metadata.ClassifierMargin = &margin
 	strategy := router.Strategy("upgrade-evidence-test")
-	svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAnthropic, upgradeTestPinModel, nil).
+	svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAIAND, upgradeTestPinModel, nil).
 		WithAuthoritativeUpgradeGate(true).
 		WithAuthoritativeUpgradePolicy(flags.AuthoritativeUpgradePolicyEvidence).
 		WithAuthoritativeUpgradeVotes(3).
@@ -364,7 +364,7 @@ func TestEvidenceUpgradeHoldsWarmLowMarginAndCountsVotes(t *testing.T) {
 	threshold := 0.15
 	fresh.Metadata.ClassifierMargin = &margin
 	strategy := router.Strategy("upgrade-evidence-hold")
-	svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAnthropic, upgradeTestPinModel, nil).
+	svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAIAND, upgradeTestPinModel, nil).
 		WithAuthoritativeUpgradeGate(true).
 		WithAuthoritativeUpgradePolicy(flags.AuthoritativeUpgradePolicyEvidence).
 		WithAuthoritativeUpgradeVotes(3).
@@ -413,7 +413,7 @@ func TestEvidenceUpgradeExclusionKeepsEligiblePin(t *testing.T) {
 	fresh := upgradeTestFresh()
 	store.getPin.DemotedModels = []string{fresh.Model}
 	strategy := router.Strategy("upgrade-evidence-exclusion")
-	svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAnthropic, upgradeTestPinModel, nil).
+	svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAIAND, upgradeTestPinModel, nil).
 		WithPolicyStrategy(policy.StrategySpec{
 			Strategy: strategy,
 			Router:   &authorityShadowTestRouter{decision: fresh},
@@ -440,7 +440,7 @@ func TestEvidenceUpgradeExclusionFailsOpenWhenOnlyDemotedModelIsAvailable(t *tes
 	fresh := upgradeTestFresh()
 	store.getPin.DemotedModels = []string{store.getPin.Model, fresh.Model}
 	strategy := router.Strategy("upgrade-evidence-exclusion-last-resort")
-	svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAnthropic, upgradeTestPinModel, nil).
+	svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAIAND, upgradeTestPinModel, nil).
 		WithPolicyStrategy(policy.StrategySpec{
 			Strategy: strategy,
 			Router:   &authorityShadowTestRouter{decision: fresh},

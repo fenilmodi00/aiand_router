@@ -28,15 +28,15 @@ func TestTwoModelGatewayRecoveryReadmitsStruckSibling(t *testing.T) {
 			Strategy: router.StrategyCluster, DemotedModels: []string{catalog.ModelGPT6Luna, recoveryOpusModel},
 		},
 	}}
-	decision := router.Decision{Provider: providers.ProviderOpenAIGateway, Model: catalog.ModelGPT6Luna, Metadata: &router.RoutingMetadata{
+	decision := router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelGPT6Luna, Metadata: &router.RoutingMetadata{
 		RosterFailover:    true,
 		RescueModels:      []string{catalog.ModelGPT6Luna},
 		SidecarRescuePool: []string{recoveryOpusModel},
 		CandidateModels:   []string{catalog.ModelGPT6Luna},
 	}}
 	svc := NewService(staticRouter{decision: decision}, map[string]providers.Client{
-		providers.ProviderOpenAIGateway: primary, providers.ProviderAnthropicGateway: sibling,
-	}, nil, false, nil, store, false, providers.ProviderAnthropic, recoveryOpusModel, nil).WithRetrySleep(func(context.Context, time.Duration) error { return nil })
+		providers.ProviderAIAND: primary, providers.ProviderAIAND: sibling,
+	}, nil, false, nil, store, false, providers.ProviderAIAND, recoveryOpusModel, nil).WithRetrySleep(func(context.Context, time.Duration) error { return nil })
 	svc.now = func() time.Time { return rateLimitTestNow }
 	body := []byte(`{"model":"gpt-6-luna","stream":true,"messages":[{"role":"user","content":"synthetic exhausted pool"}]}`)
 	rec := httptest.NewRecorder()
@@ -214,7 +214,7 @@ func TestRecoveryProbeSkipsModelWithoutEligibleProviderBinding(t *testing.T) {
 	env, features := demotionTurnLoopEnv(t)
 	result, err := svc.runTurnLoop(context.Background(), env, features, "api-key", uuid.New(), "", http.Header{}, router.Request{
 		RequestedModel:       features.Model,
-		EnabledProviders:     map[string]struct{}{providers.ProviderOpenAI: {}},
+		EnabledProviders:     map[string]struct{}{providers.ProviderAIAND: {}},
 		EstimatedInputTokens: features.Tokens,
 		HasTools:             features.HasTools,
 		ConversationMessages: conversationMessagesForRouting(env),
@@ -230,8 +230,8 @@ func twoModelGatewayContext() context.Context {
 	ctx := rescuedFailureCtx()
 	ctx = context.WithValue(ctx, InstallationAllowedModelsContextKey{}, []string{catalog.ModelGPT6Luna, recoveryOpusModel})
 	return context.WithValue(ctx, ExternalAPIKeysContextKey{}, []*auth.ExternalAPIKey{
-		{Provider: providers.ProviderOpenAIGateway, Plaintext: []byte("synthetic-key"), ModelAliases: map[string]string{catalog.ModelGPT6Luna: catalog.ModelGPT6Luna}},
-		{Provider: providers.ProviderAnthropicGateway, Plaintext: []byte("synthetic-key"), ModelAliases: map[string]string{recoveryOpusModel: recoveryOpusModel}},
+		{Provider: providers.ProviderAIAND, Plaintext: []byte("synthetic-key"), ModelAliases: map[string]string{catalog.ModelGPT6Luna: catalog.ModelGPT6Luna}},
+		{Provider: providers.ProviderAIAND, Plaintext: []byte("synthetic-key"), ModelAliases: map[string]string{recoveryOpusModel: recoveryOpusModel}},
 	})
 }
 
@@ -251,15 +251,15 @@ func TestTwoModelGatewayRecoveryRetriesThenRecordsWithdrawal(t *testing.T) {
 			store := &cooldownStubPinStore{}
 			primary := &failingClient{err: &providers.UpstreamErrorResponse{Status: scenario.status}}
 			sibling := &fakeClient{outcomes: []fakeOutcome{{writeBytes: []byte("event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"synthetic\",\"model\":\"" + recoveryOpusModel + "\",\"usage\":{\"input_tokens\":1,\"output_tokens\":0}}}\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"}\n\n")}}}
-			decision := router.Decision{Provider: providers.ProviderOpenAIGateway, Model: catalog.ModelGPT6Luna, Metadata: &router.RoutingMetadata{
+			decision := router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelGPT6Luna, Metadata: &router.RoutingMetadata{
 				RosterFailover:  true,
 				RescueModels:    []string{catalog.ModelGPT6Luna, recoveryOpusModel},
 				CandidateModels: []string{catalog.ModelGPT6Luna, recoveryOpusModel},
 			}}
 			svc := NewService(staticRouter{decision: decision}, map[string]providers.Client{
-				providers.ProviderOpenAIGateway:    primary,
-				providers.ProviderAnthropicGateway: sibling,
-			}, nil, false, nil, store, false, providers.ProviderAnthropic, recoveryOpusModel, nil).
+				providers.ProviderAIAND:    primary,
+				providers.ProviderAIAND: sibling,
+			}, nil, false, nil, store, false, providers.ProviderAIAND, recoveryOpusModel, nil).
 				WithRescuedFailureArmDemotion(true).WithTransientRateLimit(scenario.transient, 45)
 			now := rateLimitTestNow
 			svc.now = func() time.Time { return now }
@@ -309,10 +309,10 @@ func TestTwoModelRecoveryHMMRefreshDoesNotRewriteCooldown(t *testing.T) {
 	now := rateLimitTestNow
 	svc.now = func() time.Time { return now }
 	res := turnLoopResult{InstallationID: uuid.New(), SessionKey: nonZeroSessionKey(), PinRole: sessionpin.DefaultRole,
-		Decision: router.Decision{Provider: providers.ProviderAnthropic, Model: freshTurnModel, Reason: hmmHistoryReason}}
+		Decision: router.Decision{Provider: providers.ProviderAIAND, Model: freshTurnModel, Reason: hmmHistoryReason}}
 	for step := 0; step <= 96; step++ {
 		now = rateLimitTestNow.Add(time.Duration(step) * 30 * time.Minute)
-		svc.recordHMMTurnHistory(res, providers.ProviderAnthropic, freshTurnModel, 0, 0, 0, 0, false)
+		svc.recordHMMTurnHistory(res, providers.ProviderAIAND, freshTurnModel, 0, 0, 0, 0, false)
 		turn := runDemotionTurnLoop(t, svc, context.Background())
 		turn.releaseCooldownProbes()
 		if step == 0 {

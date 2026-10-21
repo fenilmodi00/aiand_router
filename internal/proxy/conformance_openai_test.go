@@ -29,7 +29,7 @@ func TestConformance_OpenAIChat(t *testing.T) {
 	cases := []conformanceCase{
 		{
 			name:            "openai_chat/basic_text",
-			provider:        providers.ProviderOpenRouter,
+			provider:        providers.ProviderAIAND,
 			model:           "deepseek/deepseek-v4-pro",
 			newClient:       openRouterClient,
 			inbound:         `{"model":"deepseek/deepseek-v4-pro","stream":true,"max_tokens":1024,"messages":[{"role":"user","content":"Say hi."}]}`,
@@ -44,7 +44,7 @@ func TestConformance_OpenAIChat(t *testing.T) {
 		},
 		{
 			name:            "openai_chat/basic_text_nonstream",
-			provider:        providers.ProviderOpenRouter,
+			provider:        providers.ProviderAIAND,
 			model:           "deepseek/deepseek-v4-pro",
 			newClient:       openRouterClient,
 			inbound:         `{"model":"deepseek/deepseek-v4-pro","stream":false,"max_tokens":1024,"messages":[{"role":"user","content":"Say hi."}]}`,
@@ -56,7 +56,7 @@ func TestConformance_OpenAIChat(t *testing.T) {
 		},
 		{
 			name:            "openai_chat/toolcall",
-			provider:        providers.ProviderOpenRouter,
+			provider:        providers.ProviderAIAND,
 			model:           "deepseek/deepseek-v4-pro",
 			newClient:       openRouterClient,
 			inbound:         `{"model":"deepseek/deepseek-v4-pro","stream":true,"max_tokens":1024,"tools":` + weatherTool + `,"messages":[{"role":"user","content":"Weather in NYC?"}]}`,
@@ -70,7 +70,7 @@ func TestConformance_OpenAIChat(t *testing.T) {
 			// Guards #293: finish_reason="tool_calls" with no usable tool_use
 			// block must demote stop_reason to end_turn, not strand the agent.
 			name:            "openai_chat/degenerate_toolcall_demotes",
-			provider:        providers.ProviderOpenRouter,
+			provider:        providers.ProviderAIAND,
 			model:           "deepseek/deepseek-v4-pro",
 			newClient:       openRouterClient,
 			inbound:         `{"model":"deepseek/deepseek-v4-pro","stream":true,"max_tokens":1024,"tools":` + weatherTool + `,"messages":[{"role":"user","content":"Run the tool."}]}`,
@@ -82,7 +82,7 @@ func TestConformance_OpenAIChat(t *testing.T) {
 			// reasoning:{enabled:false} to pin a caching host and avoid
 			// burning max_tokens on hidden thinking.
 			name:            "openai_chat/openrouter_gates",
-			provider:        providers.ProviderOpenRouter,
+			provider:        providers.ProviderAIAND,
 			model:           "deepseek/deepseek-v4-pro",
 			newClient:       openRouterClient,
 			inbound:         `{"model":"deepseek/deepseek-v4-pro","stream":true,"max_tokens":1024,"messages":[{"role":"user","content":"Say hi."}]}`,
@@ -95,7 +95,7 @@ func TestConformance_OpenAIChat(t *testing.T) {
 		},
 		{
 			name:            "openai_chat/system_prompt",
-			provider:        providers.ProviderOpenRouter,
+			provider:        providers.ProviderAIAND,
 			model:           "deepseek/deepseek-v4-pro",
 			newClient:       openRouterClient,
 			inbound:         `{"model":"deepseek/deepseek-v4-pro","stream":true,"max_tokens":1024,"system":"You are a helpful assistant.","messages":[{"role":"user","content":"Say hi."}]}`,
@@ -110,7 +110,7 @@ func TestConformance_OpenAIChat(t *testing.T) {
 			// Unrepairable args degrade to `{}` (never raw malformed bytes)
 			// so the tool_use block stays dispatchable.
 			name:            "openai_chat/invalid_toolcall_args",
-			provider:        providers.ProviderOpenRouter,
+			provider:        providers.ProviderAIAND,
 			model:           "deepseek/deepseek-v4-pro",
 			newClient:       openRouterClient,
 			inbound:         `{"model":"deepseek/deepseek-v4-pro","stream":true,"max_tokens":1024,"tools":` + readTool + `,"messages":[{"role":"user","content":"Read a.go"}]}`,
@@ -121,7 +121,7 @@ func TestConformance_OpenAIChat(t *testing.T) {
 			// Normalize+repair: empty-string optional dropped (#339),
 			// hallucinated param dropped, "5"-for-integer coerced.
 			name:            "openai_chat/toolcall_repaired_args",
-			provider:        providers.ProviderOpenRouter,
+			provider:        providers.ProviderAIAND,
 			model:           "deepseek/deepseek-v4-pro",
 			newClient:       openRouterClient,
 			inbound:         `{"model":"deepseek/deepseek-v4-pro","stream":true,"max_tokens":1024,"tools":` + readTool + `,"messages":[{"role":"user","content":"Read a.go"}]}`,

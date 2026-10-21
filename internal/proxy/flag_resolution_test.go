@@ -17,7 +17,7 @@ import (
 func newFlagTestService(embedOnly bool) *proxy.Service {
 	return proxy.NewService(
 		nil, map[string]providers.Client{}, nil, embedOnly, nil, nil,
-		false, providers.ProviderAnthropic, "claude-haiku-4-5", nil,
+		false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	)
 }
 

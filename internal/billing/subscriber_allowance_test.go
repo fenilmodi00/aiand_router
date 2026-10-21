@@ -60,7 +60,7 @@ func subscriberParams() billing.DebitInferenceParams {
 		OrganizationID:  "org_individual",
 		RouterRequestID: "req_sub",
 		Model:           "claude-sonnet-4-5",
-		Provider:        providers.ProviderAnthropic,
+		Provider:        providers.ProviderAIAND,
 		InputTokens:     1_000_000,
 		Pricing:         catalog.Pricing{InputUSDPer1M: 3.00},
 		APIKeyID:        "key_1",

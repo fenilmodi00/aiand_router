@@ -87,9 +87,9 @@ func TestProxyMessages_CCTaskToolsCrossVendor_OrgOverrideReachesUpstream(t *test
 
 			provider := ccTaskToolProvider()
 			svc := proxy.NewService(
-				&fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "gpt-5.6-luna", Reason: "test"}},
-				map[string]providers.Client{providers.ProviderOpenAI: provider},
-				nil, false, nil, nil, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil,
+				&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-5.6-luna", Reason: "test"}},
+				map[string]providers.Client{providers.ProviderAIAND: provider},
+				nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 			)
 
 			ctx := context.Background()

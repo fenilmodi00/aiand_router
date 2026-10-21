@@ -132,11 +132,11 @@ func TestExcludeContextOverflowModels_UsesRoutableBinding(t *testing.T) {
 		"deepseek/deepseek-v4-pro-0813": {},
 	}
 	enabledBoth := map[string]struct{}{
-		providers.ProviderTogether:  {},
-		providers.ProviderFireworks: {},
+		providers.ProviderAIAND:  {},
+		providers.ProviderAIAND: {},
 	}
 	enabledFireworksOnly := map[string]struct{}{
-		providers.ProviderFireworks: {},
+		providers.ProviderAIAND: {},
 	}
 
 	// 546016 + 64K reserve is below Fireworks' 1M served window, so the
@@ -187,27 +187,27 @@ func TestAdmitWidestOnTotalOverflow_IgnoresUnservableModels(t *testing.T) {
 		"claude-haiku-5-5": {},
 		"gemini-3.5-flash": {},
 	}
-	anthropicOnly := map[string]struct{}{providers.ProviderAnthropic: {}}
+	anthropicOnly := map[string]struct{}{providers.ProviderAIAND: {}}
 	ruledOut, overflowed := excludeContextOverflowModels(872_297, 0, 128_000, anthropicOnly, nil, available)
 	require.ElementsMatch(t, []string{"claude-opus-5-5", "claude-haiku-5-5"}, overflowed,
 		"the 1.05M Gemini window still fits the estimate")
 	assert.ElementsMatch(t, []string{"claude-opus-5-5", "claude-haiku-5-5"},
 		admitWidestOnTotalOverflow(ruledOut, overflowed, available, anthropicOnly, cluster.RequestBindings{}))
 
-	withGoogle := map[string]struct{}{providers.ProviderAnthropic: {}, providers.ProviderGoogle: {}}
+	withGoogle := map[string]struct{}{providers.ProviderAIAND: {}, providers.ProviderAIAND: {}}
 	ruledOut, overflowed = excludeContextOverflowModels(872_297, 0, 128_000, withGoogle, nil, available)
 	assert.Nil(t, admitWidestOnTotalOverflow(ruledOut, overflowed, available, withGoogle, cluster.RequestBindings{}),
 		"a servable model that fits leaves the exclusions alone")
 
-	customGateway := map[string][]string{"gemini-3.5-flash": {providers.ProviderOpenRouter}}
-	withGateway := map[string]struct{}{providers.ProviderAnthropic: {}, providers.ProviderOpenRouter: {}}
+	customGateway := map[string][]string{"gemini-3.5-flash": {providers.ProviderAIAND}}
+	withGateway := map[string]struct{}{providers.ProviderAIAND: {}, providers.ProviderAIAND: {}}
 	ruledOut, overflowed = excludeContextOverflowModels(872_297, 0, 128_000, withGateway, nil, available)
 	assert.Nil(t, admitWidestOnTotalOverflow(ruledOut, overflowed, available, withGateway, cluster.RequestBindings{Custom: customGateway}),
 		"a configuration-declared binding makes the model servable")
 
 	gatewayOnly := cluster.RequestBindings{
-		Custom:   map[string][]string{"claude-opus-5-5": {providers.ProviderOpenRouter}},
-		Gateways: map[string]struct{}{providers.ProviderOpenRouter: {}},
+		Custom:   map[string][]string{"claude-opus-5-5": {providers.ProviderAIAND}},
+		Gateways: map[string]struct{}{providers.ProviderAIAND: {}},
 	}
 	ruledOut, overflowed = excludeContextOverflowModels(872_297, 0, 128_000, withGateway, nil, available)
 	assert.Equal(t, []string{"claude-opus-5-5"}, admitWidestOnTotalOverflow(ruledOut, overflowed, available, withGateway, gatewayOnly),

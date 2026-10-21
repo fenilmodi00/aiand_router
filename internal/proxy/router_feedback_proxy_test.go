@@ -103,9 +103,9 @@ func TestService_RouterFeedbackCommand_PersistsAndAcks(t *testing.T) {
 	}`
 	store := newFakePinStore()
 	store.hasPin = true
-	store.pin = sessionpin.Pin{Provider: providers.ProviderAnthropic, Model: "claude-haiku-4-5", LastServedModel: "claude-haiku-4-5"}
+	store.pin = sessionpin.Pin{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", LastServedModel: "claude-haiku-4-5"}
 	feedback := &fakeFeedbackStore{}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "cluster"}}
 	svc := newPinSvc(fr, store).WithRouterFeedbackStore(feedback)
 
 	installationID := uuid.New().String()
@@ -176,19 +176,19 @@ func TestService_RouterFeedbackCommand_PreservesAutomaticPinForOneFollowup(t *te
 	store := newFakePinStore()
 	store.hasPin = true
 	store.pin = sessionpin.Pin{
-		Provider:        providers.ProviderAnthropic,
+		Provider:        providers.ProviderAIAND,
 		Model:           "claude-haiku-4-5",
 		Reason:          "hmm_policy(label=balanced)",
 		LastServedModel: "claude-haiku-4-5",
 		PinnedUntil:     sourceExpiry,
 	}
 	policyRouter := &fakePolicyFeedbackRouter{decision: router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    "claude-sonnet-4-6",
 		Reason:   "hmm_policy(label=high)",
 		Metadata: &router.RoutingMetadata{Strategy: string(router.StrategyHMMEmbedding)},
 	}}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "cluster"}}
 	svc := newPinSvc(fr, store).WithPolicyStrategy(policy.StrategySpec{
 		Strategy: router.StrategyHMMEmbedding,
 		Router:   policyRouter,
@@ -250,7 +250,7 @@ func TestService_RouterFeedbackCommand_DoesNotContinueMaxedPin(t *testing.T) {
 	store := newFakePinStore()
 	store.hasPin = true
 	store.pin = sessionpin.Pin{
-		Provider:        providers.ProviderAnthropic,
+		Provider:        providers.ProviderAIAND,
 		Model:           "claude-haiku-4-5",
 		Reason:          "hmm_policy(label=balanced)",
 		LastServedModel: "claude-haiku-4-5",
@@ -261,13 +261,13 @@ func TestService_RouterFeedbackCommand_DoesNotContinueMaxedPin(t *testing.T) {
 		PinnedUntil:       time.Now().Add(time.Minute),
 	}
 	policyRouter := &fakePolicyFeedbackRouter{decision: router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    "claude-sonnet-4-6",
 		Reason:   "hmm_policy(label=high)",
 		Metadata: &router.RoutingMetadata{Strategy: string(router.StrategyHMMEmbedding)},
 	}}
 	fr := &fakeRouter{decision: router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    "claude-sonnet-4-6",
 		Reason:   "cluster",
 	}}
@@ -322,20 +322,20 @@ func TestService_RouterFeedbackCommand_DoesNotResurrectClearedPin(t *testing.T) 
 	store := newFakePinStore()
 	store.hasPin = true
 	store.pin = sessionpin.Pin{
-		Provider:        providers.ProviderAnthropic,
+		Provider:        providers.ProviderAIAND,
 		Model:           "claude-haiku-4-5",
 		Reason:          "hmm_policy(label=balanced)",
 		LastServedModel: "claude-haiku-4-5",
 		PinnedUntil:     time.Now().Add(time.Minute),
 	}
 	policyRouter := &fakePolicyFeedbackRouter{decision: router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    "claude-sonnet-4-6",
 		Reason:   "hmm_policy(label=high)",
 		Metadata: &router.RoutingMetadata{Strategy: string(router.StrategyHMMEmbedding)},
 	}}
 	fr := &fakeRouter{decision: router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    "claude-sonnet-4-6",
 		Reason:   "cluster",
 	}}
@@ -383,10 +383,10 @@ func TestService_RouterFeedbackCommand_ForwardsPolicyFeedback(t *testing.T) {
 	}`
 	store := newFakePinStore()
 	store.hasPin = true
-	store.pin = sessionpin.Pin{Provider: providers.ProviderAnthropic, Model: "claude-haiku-4-5", LastServedModel: "claude-haiku-4-5"}
+	store.pin = sessionpin.Pin{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", LastServedModel: "claude-haiku-4-5"}
 	feedback := &fakeFeedbackStore{}
 	policyFeedback := &fakePolicyFeedbackRouter{}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "cluster"}}
 	svc := newPinSvc(fr, store).
 		WithRouterFeedbackStore(feedback).
 		WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyRL, Router: policyFeedback})
@@ -425,7 +425,7 @@ func TestService_RouterFeedbackCommand_AcksBeforePolicyFeedbackCompletes(t *test
 		]
 	}`
 	store := newFakePinStore()
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "cluster"}}
 	policyFeedback := &blockingPolicyFeedbackRouter{
 		started: make(chan bool, 1),
 		release: make(chan struct{}),
@@ -474,7 +474,7 @@ func TestService_RouterFeedbackCommand_OmitsTrainingTranscriptWithoutPermission(
 		]
 	}`
 	store := newFakePinStore()
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "cluster"}}
 	policyFeedback := &fakePolicyFeedbackRouter{}
 	svc := newPinSvc(fr, store).WithHMMRouter(policyFeedback)
 
@@ -505,12 +505,12 @@ func TestService_RouterFeedbackCommand_CorrelatesCompactedHMMEmbeddingRoute(t *t
 
 	store := newFakePinStore()
 	policyFeedback := &fakePolicyFeedbackRouter{decision: router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    "claude-haiku-4-5",
 		Reason:   "hmm_policy(label=balanced)",
 		Metadata: &router.RoutingMetadata{Strategy: string(router.StrategyHMMEmbedding)},
 	}}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-haiku-4-5", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", Reason: "cluster"}}
 	svc := newPinSvc(fr, store).
 		WithPolicyStrategy(policy.StrategySpec{
 			Strategy:    router.StrategyHMMEmbedding,
@@ -571,7 +571,7 @@ func TestService_RouterFeedbackCommand_DoesNotForwardPolicyFeedbackOutsideHMM(t 
 	}`
 	store := newFakePinStore()
 	policyFeedback := &fakePolicyFeedbackRouter{}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "cluster"}}
 	svc := newPinSvc(fr, store).WithHMMRouter(policyFeedback)
 
 	rec := httptest.NewRecorder()
@@ -590,7 +590,7 @@ func TestService_RouterFeedbackCommand_OpenAIIngress(t *testing.T) {
 	}`
 	store := newFakePinStore()
 	feedback := &fakeFeedbackStore{}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "gpt-4o", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-4o", Reason: "cluster"}}
 	svc := newOpenAIPinSvc(fr, store).WithRouterFeedbackStore(feedback)
 
 	ctx := authedCtx(uuid.New().String())
@@ -625,7 +625,7 @@ func TestService_RouterFeedbackCommand_AgentToolResultContinuesRouting(t *testin
 	}`
 	store := newFakePinStore()
 	feedback := &fakeFeedbackStore{}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "cluster"}}
 	svc := newPinSvc(fr, store).WithRouterFeedbackStore(feedback)
 
 	ctx := authedCtx(uuid.NewString())
@@ -649,7 +649,7 @@ func TestService_RouterFeedbackCommand_EmptyFeedbackAsksForText(t *testing.T) {
 	}`
 	store := newFakePinStore()
 	feedback := &fakeFeedbackStore{}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "cluster"}}
 	svc := newPinSvc(fr, store).WithRouterFeedbackStore(feedback)
 
 	ctx := authedCtx(uuid.New().String())
@@ -679,9 +679,9 @@ func TestService_RouterFeedbackCommand_ThumbsUpShortcutPersists(t *testing.T) {
 	}`
 	store := newFakePinStore()
 	store.hasPin = true
-	store.pin = sessionpin.Pin{Provider: providers.ProviderAnthropic, Model: "claude-haiku-4-5", LastServedModel: "claude-haiku-4-5"}
+	store.pin = sessionpin.Pin{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", LastServedModel: "claude-haiku-4-5"}
 	feedback := &fakeFeedbackStore{}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "cluster"}}
 	svc := newPinSvc(fr, store).WithRouterFeedbackStore(feedback)
 
 	ctx := authedCtx(uuid.New().String())
@@ -713,7 +713,7 @@ func TestService_RouterFeedbackCommand_ThumbsDownShortcutWithNote(t *testing.T) 
 	}`
 	store := newFakePinStore()
 	feedback := &fakeFeedbackStore{}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "gpt-4o", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-4o", Reason: "cluster"}}
 	svc := newOpenAIPinSvc(fr, store).WithRouterFeedbackStore(feedback)
 
 	ctx := authedCtx(uuid.New().String())
@@ -752,11 +752,11 @@ func TestService_RouterFeedbackCommand_SequenceResolvesTelemetryTurn(t *testing.
 	}`
 	store := newFakePinStore()
 	store.hasPin = true
-	store.pin = sessionpin.Pin{Provider: providers.ProviderAnthropic, Model: "claude-haiku-4-5", LastServedModel: "claude-haiku-4-5"}
+	store.pin = sessionpin.Pin{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", LastServedModel: "claude-haiku-4-5"}
 	feedback := &fakeFeedbackStore{}
 	telem := newCaptureTelemetry()
 	telem.seqResult = proxy.TelemetryTurnResult{RequestID: "req-abc", DecisionModel: "claude-opus-4-7", RouteID: "hmm:xyz"}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "cluster"}}
 	svc := newPinSvcWithTelemetry(fr, store, telem).WithRouterFeedbackStore(feedback)
 
 	ctx := authedCtx(uuid.New().String())
@@ -786,7 +786,7 @@ func TestService_RouterFeedbackCommand_SequenceNotFoundAcksGuidance(t *testing.T
 	feedback := &fakeFeedbackStore{}
 	telem := newCaptureTelemetry()
 	telem.seqErr = sql.ErrNoRows
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "cluster"}}
 	svc := newPinSvcWithTelemetry(fr, store, telem).WithRouterFeedbackStore(feedback)
 
 	ctx := authedCtx(uuid.New().String())
@@ -816,11 +816,11 @@ func TestService_RouterFeedbackCommand_DBErrorFallsBackToPin(t *testing.T) {
 	}`
 	store := newFakePinStore()
 	store.hasPin = true
-	store.pin = sessionpin.Pin{Provider: providers.ProviderAnthropic, Model: "claude-haiku-4-5", LastServedModel: "claude-haiku-4-5"}
+	store.pin = sessionpin.Pin{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", LastServedModel: "claude-haiku-4-5"}
 	feedback := &fakeFeedbackStore{}
 	telem := newCaptureTelemetry()
 	telem.seqErr = errors.New("connection refused")
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "cluster"}}
 	svc := newPinSvcWithTelemetry(fr, store, telem).WithRouterFeedbackStore(feedback)
 
 	ctx := authedCtx(uuid.New().String())
@@ -853,10 +853,10 @@ func TestService_RouterFeedbackCommand_NoSequenceKeepsPinServedModel(t *testing.
 	}`
 	store := newFakePinStore()
 	store.hasPin = true
-	store.pin = sessionpin.Pin{Provider: providers.ProviderAnthropic, Model: "claude-haiku-4-5", LastServedModel: "claude-haiku-4-5"}
+	store.pin = sessionpin.Pin{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", LastServedModel: "claude-haiku-4-5"}
 	feedback := &fakeFeedbackStore{}
 	telem := newCaptureTelemetry()
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "cluster"}}
 	svc := newPinSvcWithTelemetry(fr, store, telem).WithRouterFeedbackStore(feedback)
 
 	ctx := authedCtx(uuid.New().String())
@@ -885,7 +885,7 @@ func TestService_RouterFeedbackCommand_SequenceNoteOnlySkipsRequestFeedbackUpser
 	telem := newCaptureTelemetry()
 	telem.seqResult = proxy.TelemetryTurnResult{RequestID: "req-note-only", DecisionModel: "claude-opus-4-7"}
 	repo := &recordingFeedbackRepo{}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "cluster"}}
 	svc := newPinSvcWithTelemetry(fr, store, telem).WithRouterFeedbackStore(feedback).WithFeedback(repo, nil, "")
 
 	ctx := authedCtx(uuid.New().String())
@@ -911,7 +911,7 @@ func TestService_RouterFeedbackCommand_SequenceWithRatingUpsertsRequestFeedback(
 	telem := newCaptureTelemetry()
 	telem.seqResult = proxy.TelemetryTurnResult{RequestID: "req-rated", DecisionModel: "claude-opus-4-7"}
 	repo := &recordingFeedbackRepo{}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "cluster"}}
 	svc := newPinSvcWithTelemetry(fr, store, telem).WithRouterFeedbackStore(feedback).WithFeedback(repo, nil, "")
 
 	ctx := authedCtx(uuid.New().String())
@@ -945,7 +945,7 @@ func TestService_RouterFeedbackCommand_SequenceResolvesStrategyRoutesToItsReport
 	}
 	hmmReporter := &fakePolicyFeedbackRouter{}
 	rlReporter := &fakePolicyFeedbackRouter{}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "cluster"}}
 	ctx := authedCtx(uuid.New().String())
 	svc := newPinSvcWithTelemetry(fr, store, telem).
 		WithRouterFeedbackStore(feedback).
@@ -981,7 +981,7 @@ func TestService_RouterFeedbackCommand_SequenceRejectsHMMDeltaWithResolvedStrate
 		Strategy:      "hmm_embedding",
 	}
 	hmmReporter := &fakePolicyFeedbackRouter{}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "cluster"}}
 	ctx := router.WithStrategy(authedCtx(uuid.New().String()), router.StrategyHMMEmbedding)
 	svc := newPinSvcWithTelemetry(fr, store, telem).
 		WithRouterFeedbackStore(feedback).
@@ -1018,7 +1018,7 @@ func TestService_RouterFeedbackCommand_NegativeOnePreservesTrainingDelta(t *test
 	telem := newCaptureTelemetry()
 	telem.seqResult = proxy.TelemetryTurnResult{RequestID: "req-prev", DecisionModel: "claude-haiku-4-5", Strategy: "hmm_embedding"}
 	hmmReporter := &fakePolicyFeedbackRouter{}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-haiku-4-5", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", Reason: "cluster"}}
 	svc := newPinSvcWithTelemetry(fr, store, telem).
 		WithRouterFeedbackStore(feedback).
 		WithPolicyStrategy(policy.StrategySpec{
@@ -1061,7 +1061,7 @@ func TestService_RouterFeedbackCommand_ClusterResolvedTurnSkipsPolicyFeedback(t 
 		Strategy:      "cluster",
 	}
 	hmmReporter := &fakePolicyFeedbackRouter{}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "cluster"}}
 	ctx := router.WithStrategy(authedCtx(uuid.New().String()), router.StrategyHMM)
 	svc := newPinSvcWithTelemetry(fr, store, telem).
 		WithRouterFeedbackStore(feedback).

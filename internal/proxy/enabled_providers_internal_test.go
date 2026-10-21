@@ -22,35 +22,35 @@ func TestEnabledProvidersForRequest_PassthroughIsSurfaceScoped(t *testing.T) {
 	s := &Service{
 		// Mimic selfhosted with no env keys, both passthrough-eligible.
 		clients: dispatch.NewClients(map[string]providers.Client{
-			providers.ProviderAnthropic: nil,
-			providers.ProviderOpenAI:    nil,
+			providers.ProviderAIAND: nil,
+			providers.ProviderAIAND:    nil,
 		}),
 		deploymentKeyedProviders: map[string]struct{}{},
 		passthroughEligibleProviders: map[string]struct{}{
-			providers.ProviderAnthropic: {},
-			providers.ProviderOpenAI:    {},
+			providers.ProviderAIAND: {},
+			providers.ProviderAIAND:    {},
 		},
 	}
 
 	t.Run("anthropic surface enables anthropic only", func(t *testing.T) {
-		got := s.enabledProvidersForRequest(context.Background(), providers.ProviderAnthropic, http.Header{})
-		assert.Contains(t, got, providers.ProviderAnthropic)
-		assert.NotContains(t, got, providers.ProviderOpenAI,
+		got := s.enabledProvidersForRequest(context.Background(), providers.ProviderAIAND, http.Header{})
+		assert.Contains(t, got, providers.ProviderAIAND)
+		assert.NotContains(t, got, providers.ProviderAIAND,
 			"OpenAI must not be eligible on an Anthropic-surface request — the OpenAI client would forward the inbound x-api-key to api.openai.com")
 	})
 
 	t.Run("openai surface enables openai only", func(t *testing.T) {
-		got := s.enabledProvidersForRequest(context.Background(), providers.ProviderOpenAI, http.Header{})
-		assert.Contains(t, got, providers.ProviderOpenAI)
-		assert.NotContains(t, got, providers.ProviderAnthropic,
+		got := s.enabledProvidersForRequest(context.Background(), providers.ProviderAIAND, http.Header{})
+		assert.Contains(t, got, providers.ProviderAIAND)
+		assert.NotContains(t, got, providers.ProviderAIAND,
 			"Anthropic must not be eligible on an OpenAI-surface request — the Anthropic client would forward the inbound Authorization Bearer to api.anthropic.com")
 	})
 
 	t.Run("empty surface enables neither passthrough provider", func(t *testing.T) {
 		// surfaceProvider="" is the admin/passthrough-introspection path.
 		got := s.enabledProvidersForRequest(context.Background(), "", http.Header{})
-		assert.NotContains(t, got, providers.ProviderAnthropic)
-		assert.NotContains(t, got, providers.ProviderOpenAI)
+		assert.NotContains(t, got, providers.ProviderAIAND)
+		assert.NotContains(t, got, providers.ProviderAIAND)
 	})
 }
 
@@ -61,12 +61,12 @@ func TestEnabledProvidersForRequest_ExcludedProvidersSubtracted(t *testing.T) {
 	makeService := func() *Service {
 		return &Service{
 			clients: dispatch.NewClients(map[string]providers.Client{
-				providers.ProviderAnthropic: nil,
-				providers.ProviderOpenAI:    nil,
+				providers.ProviderAIAND: nil,
+				providers.ProviderAIAND:    nil,
 			}),
 			deploymentKeyedProviders: map[string]struct{}{
-				providers.ProviderAnthropic: {},
-				providers.ProviderOpenAI:    {},
+				providers.ProviderAIAND: {},
+				providers.ProviderAIAND:    {},
 			},
 			passthroughEligibleProviders: map[string]struct{}{},
 		}
@@ -74,28 +74,28 @@ func TestEnabledProvidersForRequest_ExcludedProvidersSubtracted(t *testing.T) {
 
 	t.Run("installation exclusion removes a deployment-keyed provider", func(t *testing.T) {
 		s := makeService()
-		ctx := context.WithValue(context.Background(), InstallationExcludedProvidersContextKey{}, []string{providers.ProviderOpenAI})
-		got := s.enabledProvidersForRequest(ctx, providers.ProviderAnthropic, http.Header{})
-		assert.Contains(t, got, providers.ProviderAnthropic)
-		assert.NotContains(t, got, providers.ProviderOpenAI,
+		ctx := context.WithValue(context.Background(), InstallationExcludedProvidersContextKey{}, []string{providers.ProviderAIAND})
+		got := s.enabledProvidersForRequest(ctx, providers.ProviderAIAND, http.Header{})
+		assert.Contains(t, got, providers.ProviderAIAND)
+		assert.NotContains(t, got, providers.ProviderAIAND,
 			"an excluded provider must be dropped even though its deployment key is wired")
 	})
 
 	t.Run("env override replaces the installation list", func(t *testing.T) {
-		s := makeService().WithExcludedProvidersOverride([]string{providers.ProviderAnthropic})
-		ctx := context.WithValue(context.Background(), InstallationExcludedProvidersContextKey{}, []string{providers.ProviderOpenAI})
-		got := s.enabledProvidersForRequest(ctx, providers.ProviderAnthropic, http.Header{})
-		assert.NotContains(t, got, providers.ProviderAnthropic,
+		s := makeService().WithExcludedProvidersOverride([]string{providers.ProviderAIAND})
+		ctx := context.WithValue(context.Background(), InstallationExcludedProvidersContextKey{}, []string{providers.ProviderAIAND})
+		got := s.enabledProvidersForRequest(ctx, providers.ProviderAIAND, http.Header{})
+		assert.NotContains(t, got, providers.ProviderAIAND,
 			"the deployment-wide override list must be enforced")
-		assert.Contains(t, got, providers.ProviderOpenAI,
+		assert.Contains(t, got, providers.ProviderAIAND,
 			"the override REPLACES the installation list rather than merging with it")
 	})
 
 	t.Run("no exclusions leaves the set untouched", func(t *testing.T) {
 		s := makeService()
-		got := s.enabledProvidersForRequest(context.Background(), providers.ProviderAnthropic, http.Header{})
-		assert.Contains(t, got, providers.ProviderAnthropic)
-		assert.Contains(t, got, providers.ProviderOpenAI)
+		got := s.enabledProvidersForRequest(context.Background(), providers.ProviderAIAND, http.Header{})
+		assert.Contains(t, got, providers.ProviderAIAND)
+		assert.Contains(t, got, providers.ProviderAIAND)
 	})
 }
 
@@ -108,8 +108,8 @@ func TestEnabledProvidersForRequest_SubscriptionEnrollsAnthropic(t *testing.T) {
 		return &Service{
 			byokOnly: true,
 			clients: dispatch.NewClients(map[string]providers.Client{
-				providers.ProviderAnthropic: nil,
-				providers.ProviderOpenAI:    nil,
+				providers.ProviderAIAND: nil,
+				providers.ProviderAIAND:    nil,
 			}),
 			deploymentKeyedProviders:     map[string]struct{}{},
 			passthroughEligibleProviders: map[string]struct{}{},
@@ -121,10 +121,10 @@ func TestEnabledProvidersForRequest_SubscriptionEnrollsAnthropic(t *testing.T) {
 
 	t.Run("subscription credential enrolls anthropic on a router-keyed byok-only request", func(t *testing.T) {
 		ctx := context.WithValue(routerKeyed(), AnthropicSubscriptionContextKey{}, "sk-ant-oat01-subscription-token")
-		got := makeService().enabledProvidersForRequest(ctx, providers.ProviderAnthropic, http.Header{})
-		assert.Contains(t, got, providers.ProviderAnthropic,
+		got := makeService().enabledProvidersForRequest(ctx, providers.ProviderAIAND, http.Header{})
+		assert.Contains(t, got, providers.ProviderAIAND,
 			"a subscription token must make Anthropic eligible so the scorer can route a Claude turn to it")
-		assert.NotContains(t, got, providers.ProviderOpenAI,
+		assert.NotContains(t, got, providers.ProviderAIAND,
 			"the subscription token is Anthropic-only and must never enroll another upstream")
 	})
 
@@ -132,33 +132,33 @@ func TestEnabledProvidersForRequest_SubscriptionEnrollsAnthropic(t *testing.T) {
 		// Managed Claude Code path: router key in X-Weave-Router-Key, OAuth
 		// token in Authorization — Anthropic must enroll off the inbound bearer.
 		headers := http.Header{"Authorization": []string{"Bearer sk-ant-oat01-subscription-token"}}
-		got := makeService().enabledProvidersForRequest(routerKeyed(), providers.ProviderAnthropic, headers)
-		assert.Contains(t, got, providers.ProviderAnthropic,
+		got := makeService().enabledProvidersForRequest(routerKeyed(), providers.ProviderAIAND, headers)
+		assert.Contains(t, got, providers.ProviderAIAND,
 			"the inbound subscription bearer (CC-through-router) must enroll Anthropic even when router-keyed")
-		assert.NotContains(t, got, providers.ProviderOpenAI,
+		assert.NotContains(t, got, providers.ProviderAIAND,
 			"the subscription token is Anthropic-only and must never enroll another upstream")
 	})
 
 	t.Run("inbound API-key bearer does NOT enroll anthropic on a router-keyed request", func(t *testing.T) {
 		// Only the sk-ant-oat OAuth subset enrolls off the bearer; a real API key must not.
 		headers := http.Header{"Authorization": []string{"Bearer sk-ant-api-real-client-key"}}
-		got := makeService().enabledProvidersForRequest(routerKeyed(), providers.ProviderAnthropic, headers)
-		assert.NotContains(t, got, providers.ProviderAnthropic,
+		got := makeService().enabledProvidersForRequest(routerKeyed(), providers.ProviderAIAND, headers)
+		assert.NotContains(t, got, providers.ProviderAIAND,
 			"a general inbound API key must not enroll Anthropic on the router-key path")
 	})
 
 	t.Run("no header leaves the set empty, proving the enrollment is load-bearing", func(t *testing.T) {
-		got := makeService().enabledProvidersForRequest(routerKeyed(), providers.ProviderAnthropic, http.Header{})
-		assert.NotContains(t, got, providers.ProviderAnthropic,
+		got := makeService().enabledProvidersForRequest(routerKeyed(), providers.ProviderAIAND, http.Header{})
+		assert.NotContains(t, got, providers.ProviderAIAND,
 			"without a subscription token a byok-only router-keyed request with no BYOK enrolls nothing")
 		assert.Empty(t, got)
 	})
 
 	t.Run("an excluded Anthropic still trumps the subscription enrollment", func(t *testing.T) {
 		ctx := context.WithValue(routerKeyed(), AnthropicSubscriptionContextKey{}, "sk-ant-oat01-subscription-token")
-		ctx = context.WithValue(ctx, InstallationExcludedProvidersContextKey{}, []string{providers.ProviderAnthropic})
-		got := makeService().enabledProvidersForRequest(ctx, providers.ProviderAnthropic, http.Header{})
-		assert.NotContains(t, got, providers.ProviderAnthropic,
+		ctx = context.WithValue(ctx, InstallationExcludedProvidersContextKey{}, []string{providers.ProviderAIAND})
+		got := makeService().enabledProvidersForRequest(ctx, providers.ProviderAIAND, http.Header{})
+		assert.NotContains(t, got, providers.ProviderAIAND,
 			"a provider exclusion must subtract Anthropic even when a subscription token is present")
 	})
 }
@@ -172,8 +172,8 @@ func TestEnabledProvidersForRequest_CodexSubscriptionEnrollsOpenAI(t *testing.T)
 		return &Service{
 			byokOnly: true,
 			clients: dispatch.NewClients(map[string]providers.Client{
-				providers.ProviderAnthropic: nil,
-				providers.ProviderOpenAI:    nil,
+				providers.ProviderAIAND: nil,
+				providers.ProviderAIAND:    nil,
 			}),
 			deploymentKeyedProviders:     map[string]struct{}{},
 			passthroughEligibleProviders: map[string]struct{}{},
@@ -186,10 +186,10 @@ func TestEnabledProvidersForRequest_CodexSubscriptionEnrollsOpenAI(t *testing.T)
 	t.Run("Codex subscription enrolls openai only", func(t *testing.T) {
 		ctx := context.WithValue(routerKeyed(), OpenAISubscriptionContextKey{}, codexJWT)
 		ctx = context.WithValue(ctx, OpenAIAccountIDContextKey{}, "acct-123")
-		got := makeService().enabledProvidersForRequest(ctx, providers.ProviderOpenAI, http.Header{})
-		assert.Contains(t, got, providers.ProviderOpenAI,
+		got := makeService().enabledProvidersForRequest(ctx, providers.ProviderAIAND, http.Header{})
+		assert.Contains(t, got, providers.ProviderAIAND,
 			"a Codex subscription must make OpenAI eligible so the scorer can route a Codex turn")
-		assert.NotContains(t, got, providers.ProviderAnthropic,
+		assert.NotContains(t, got, providers.ProviderAIAND,
 			"the Codex token is OpenAI-only and must never enroll another upstream")
 	})
 
@@ -200,10 +200,10 @@ func TestEnabledProvidersForRequest_CodexSubscriptionEnrollsOpenAI(t *testing.T)
 			"Authorization":      []string{"Bearer " + codexJWT},
 			"Chatgpt-Account-Id": []string{"acct-123"},
 		}
-		got := makeService().enabledProvidersForRequest(routerKeyed(), providers.ProviderOpenAI, headers)
-		assert.Contains(t, got, providers.ProviderOpenAI,
+		got := makeService().enabledProvidersForRequest(routerKeyed(), providers.ProviderAIAND, headers)
+		assert.Contains(t, got, providers.ProviderAIAND,
 			"the inbound Codex subscription bearer (Codex-through-router) must enroll OpenAI even when router-keyed")
-		assert.NotContains(t, got, providers.ProviderAnthropic,
+		assert.NotContains(t, got, providers.ProviderAIAND,
 			"the Codex token is OpenAI-only and must never enroll another upstream")
 	})
 
@@ -211,15 +211,15 @@ func TestEnabledProvidersForRequest_CodexSubscriptionEnrollsOpenAI(t *testing.T)
 		// Only the Codex OAuth subset (JWT + account-id) enrolls off the inbound
 		// bearer; a plain client API key with no account-id must not.
 		headers := http.Header{"Authorization": []string{"Bearer sk-proj-real-client-key"}}
-		got := makeService().enabledProvidersForRequest(routerKeyed(), providers.ProviderOpenAI, headers)
-		assert.NotContains(t, got, providers.ProviderOpenAI,
+		got := makeService().enabledProvidersForRequest(routerKeyed(), providers.ProviderAIAND, headers)
+		assert.NotContains(t, got, providers.ProviderAIAND,
 			"a general inbound OpenAI API key must not enroll OpenAI on the router-key path")
 	})
 
 	t.Run("token without account-id enrolls nothing (load-bearing)", func(t *testing.T) {
 		ctx := context.WithValue(routerKeyed(), OpenAISubscriptionContextKey{}, codexJWT)
-		got := makeService().enabledProvidersForRequest(ctx, providers.ProviderOpenAI, http.Header{})
-		assert.NotContains(t, got, providers.ProviderOpenAI,
+		got := makeService().enabledProvidersForRequest(ctx, providers.ProviderAIAND, http.Header{})
+		assert.NotContains(t, got, providers.ProviderAIAND,
 			"without the ChatGPT-Account-ID the subscription is unusable, so OpenAI must not be enrolled")
 		assert.Empty(t, got)
 	})
@@ -227,9 +227,9 @@ func TestEnabledProvidersForRequest_CodexSubscriptionEnrollsOpenAI(t *testing.T)
 	t.Run("an excluded OpenAI trumps the Codex enrollment", func(t *testing.T) {
 		ctx := context.WithValue(routerKeyed(), OpenAISubscriptionContextKey{}, codexJWT)
 		ctx = context.WithValue(ctx, OpenAIAccountIDContextKey{}, "acct-123")
-		ctx = context.WithValue(ctx, InstallationExcludedProvidersContextKey{}, []string{providers.ProviderOpenAI})
-		got := makeService().enabledProvidersForRequest(ctx, providers.ProviderOpenAI, http.Header{})
-		assert.NotContains(t, got, providers.ProviderOpenAI,
+		ctx = context.WithValue(ctx, InstallationExcludedProvidersContextKey{}, []string{providers.ProviderAIAND})
+		got := makeService().enabledProvidersForRequest(ctx, providers.ProviderAIAND, http.Header{})
+		assert.NotContains(t, got, providers.ProviderAIAND,
 			"a provider exclusion must subtract OpenAI even when a Codex subscription is present")
 	})
 }
@@ -238,12 +238,12 @@ func TestExcludeCodexOAuthOnlyModels(t *testing.T) {
 	const codexJWT = "eyJhbGciOiJSUzI1NiJ9.codex.sig"
 	ctx := context.WithValue(routerKeyedCtx(), OpenAISubscriptionContextKey{}, codexJWT)
 	ctx = context.WithValue(ctx, OpenAIAccountIDContextKey{}, "acct-123")
-	enabled := map[string]struct{}{providers.ProviderOpenAI: {}}
+	enabled := map[string]struct{}{providers.ProviderAIAND: {}}
 
 	t.Run("OAuth-only excludes infrastructure OpenAI models", func(t *testing.T) {
 		s := &Service{
 			byokOnly:                     true,
-			clients:                      dispatch.NewClients(map[string]providers.Client{providers.ProviderOpenAI: nil}),
+			clients:                      dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: nil}),
 			deploymentKeyedProviders:     map[string]struct{}{},
 			passthroughEligibleProviders: map[string]struct{}{},
 		}
@@ -257,12 +257,12 @@ func TestExcludeCodexOAuthOnlyModels(t *testing.T) {
 	t.Run("OpenAI BYOK keeps infrastructure models eligible", func(t *testing.T) {
 		s := &Service{
 			byokOnly:                     true,
-			clients:                      dispatch.NewClients(map[string]providers.Client{providers.ProviderOpenAI: nil}),
+			clients:                      dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: nil}),
 			deploymentKeyedProviders:     map[string]struct{}{},
 			passthroughEligibleProviders: map[string]struct{}{},
 		}
 		byokCtx := context.WithValue(ctx, ExternalAPIKeysContextKey{}, []*auth.ExternalAPIKey{
-			{Provider: providers.ProviderOpenAI, Plaintext: []byte("sk-oai-byok")},
+			{Provider: providers.ProviderAIAND, Plaintext: []byte("sk-oai-byok")},
 		})
 		got := s.excludeCodexOAuthOnlyModels(byokCtx, http.Header{}, enabled, nil)
 		assert.NotContains(t, got, "gpt-5.4-nano")
@@ -270,9 +270,9 @@ func TestExcludeCodexOAuthOnlyModels(t *testing.T) {
 
 	t.Run("subscription-only ignores infrastructure credentials", func(t *testing.T) {
 		s := &Service{
-			clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderOpenAI: nil}),
+			clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: nil}),
 			deploymentKeyedProviders: map[string]struct{}{
-				providers.ProviderOpenAI: {},
+				providers.ProviderAIAND: {},
 			},
 			passthroughEligibleProviders: map[string]struct{}{},
 		}
@@ -283,9 +283,9 @@ func TestExcludeCodexOAuthOnlyModels(t *testing.T) {
 
 	t.Run("managed subscription excludes unsupported OpenAI models", func(t *testing.T) {
 		s := &Service{
-			clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderOpenAI: nil}),
+			clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: nil}),
 			deploymentKeyedProviders: map[string]struct{}{
-				providers.ProviderOpenAI: {},
+				providers.ProviderAIAND: {},
 			},
 			passthroughEligibleProviders: map[string]struct{}{},
 		}
@@ -302,19 +302,19 @@ func TestExcludeCodexOAuthOnlyModels(t *testing.T) {
 func TestEnabledProvidersForRequest_DeploymentKeyedStillCrossSurface(t *testing.T) {
 	s := &Service{
 		clients: dispatch.NewClients(map[string]providers.Client{
-			providers.ProviderAnthropic: nil,
-			providers.ProviderOpenAI:    nil,
+			providers.ProviderAIAND: nil,
+			providers.ProviderAIAND:    nil,
 		}),
 		deploymentKeyedProviders: map[string]struct{}{
-			providers.ProviderAnthropic: {},
-			providers.ProviderOpenAI:    {},
+			providers.ProviderAIAND: {},
+			providers.ProviderAIAND:    {},
 		},
 		passthroughEligibleProviders: map[string]struct{}{},
 	}
 
-	got := s.enabledProvidersForRequest(context.Background(), providers.ProviderAnthropic, http.Header{})
-	assert.Contains(t, got, providers.ProviderAnthropic)
-	assert.Contains(t, got, providers.ProviderOpenAI,
+	got := s.enabledProvidersForRequest(context.Background(), providers.ProviderAIAND, http.Header{})
+	assert.Contains(t, got, providers.ProviderAIAND)
+	assert.Contains(t, got, providers.ProviderAIAND,
 		"env-keyed providers must remain eligible cross-surface; only passthrough is surface-scoped")
 }
 
@@ -323,86 +323,86 @@ func TestEnabledProvidersForRequest_DeploymentKeyedStillCrossSurface(t *testing.
 func TestEnabledProvidersForRequest_GatewayKeyDisplacesVendors(t *testing.T) {
 	s := &Service{
 		clients: dispatch.NewClients(map[string]providers.Client{
-			providers.ProviderAnthropic:        nil,
-			providers.ProviderOpenAI:           nil,
-			providers.ProviderAnthropicGateway: nil,
+			providers.ProviderAIAND:        nil,
+			providers.ProviderAIAND:           nil,
+			providers.ProviderAIAND: nil,
 		}),
 		deploymentKeyedProviders: map[string]struct{}{
-			providers.ProviderAnthropic: {},
-			providers.ProviderOpenAI:    {},
+			providers.ProviderAIAND: {},
+			providers.ProviderAIAND:    {},
 		},
 		passthroughEligibleProviders: map[string]struct{}{},
 	}
 	ctx := context.WithValue(context.Background(), ExternalAPIKeysContextKey{}, []*auth.ExternalAPIKey{
-		{Provider: providers.ProviderAnthropicGateway, Plaintext: []byte("pat")},
+		{Provider: providers.ProviderAIAND, Plaintext: []byte("pat")},
 	})
 
-	got := s.enabledProvidersForRequest(ctx, providers.ProviderAnthropic, http.Header{})
+	got := s.enabledProvidersForRequest(ctx, providers.ProviderAIAND, http.Header{})
 
-	assert.Equal(t, map[string]struct{}{providers.ProviderAnthropicGateway: {}}, got)
+	assert.Equal(t, map[string]struct{}{providers.ProviderAIAND: {}}, got)
 }
 
 func TestEnabledProvidersForRequest_VendorByokKeyDoesNotDisplaceVendors(t *testing.T) {
 	s := &Service{
 		clients: dispatch.NewClients(map[string]providers.Client{
-			providers.ProviderAnthropic: nil,
-			providers.ProviderOpenAI:    nil,
+			providers.ProviderAIAND: nil,
+			providers.ProviderAIAND:    nil,
 		}),
 		deploymentKeyedProviders: map[string]struct{}{
-			providers.ProviderAnthropic: {},
-			providers.ProviderOpenAI:    {},
+			providers.ProviderAIAND: {},
+			providers.ProviderAIAND:    {},
 		},
 		passthroughEligibleProviders: map[string]struct{}{},
 	}
 	ctx := context.WithValue(context.Background(), ExternalAPIKeysContextKey{}, []*auth.ExternalAPIKey{
-		{Provider: providers.ProviderAnthropic, Plaintext: []byte("pat")},
+		{Provider: providers.ProviderAIAND, Plaintext: []byte("pat")},
 	})
 
-	got := s.enabledProvidersForRequest(ctx, providers.ProviderAnthropic, http.Header{})
+	got := s.enabledProvidersForRequest(ctx, providers.ProviderAIAND, http.Header{})
 
-	assert.Contains(t, got, providers.ProviderOpenAI,
+	assert.Contains(t, got, providers.ProviderAIAND,
 		"a vendor BYOK key is not a gateway and must not narrow the eligible set")
 }
 
 // Linked accounts must be eligible across harness surfaces without an API key.
 func TestEnabledProvidersForRequest_LinkedSubscriptions(t *testing.T) {
 	s := &Service{clients: dispatch.NewClients(map[string]providers.Client{
-		providers.ProviderAnthropic: &fakeClient{}, providers.ProviderOpenAI: &fakeClient{},
+		providers.ProviderAIAND: &fakeClient{}, providers.ProviderAIAND: &fakeClient{},
 	}), deploymentKeyedProviders: map[string]struct{}{}, byokOnly: true}
 	ctx := context.WithValue(routerKeyedCtx(), ManagedSubscriptionProvidersContextKey{}, map[auth.SubscriptionProvider]struct{}{
 		auth.SubscriptionProviderClaude: {}, auth.SubscriptionProviderCodex: {},
 	})
 	t.Run("Claude harness can route to linked Codex", func(t *testing.T) {
-		assert.Equal(t, map[string]struct{}{providers.ProviderAnthropic: {}, providers.ProviderOpenAI: {}}, s.enabledProvidersForRequest(ctx, providers.ProviderAnthropic, http.Header{}))
+		assert.Equal(t, map[string]struct{}{providers.ProviderAIAND: {}, providers.ProviderAIAND: {}}, s.enabledProvidersForRequest(ctx, providers.ProviderAIAND, http.Header{}))
 	})
 	t.Run("API-only funding does not enroll linked accounts", func(t *testing.T) {
 		paid := context.WithValue(ctx, subscriptionAPIOnlyKey{}, true)
-		assert.Empty(t, s.enabledProvidersForRequest(paid, providers.ProviderAnthropic, http.Header{}))
+		assert.Empty(t, s.enabledProvidersForRequest(paid, providers.ProviderAIAND, http.Header{}))
 	})
 	t.Run("disabled subscriptions do not enroll linked accounts", func(t *testing.T) {
 		disabled := context.WithValue(ctx, InstallationSubscriptionRoutingDisabledContextKey{}, true)
-		assert.Empty(t, s.enabledProvidersForRequest(disabled, providers.ProviderAnthropic, http.Header{}))
+		assert.Empty(t, s.enabledProvidersForRequest(disabled, providers.ProviderAIAND, http.Header{}))
 	})
 	t.Run("unsupported subscription transports stay unavailable", func(t *testing.T) {
-		unsupported := &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAnthropic: nil, providers.ProviderOpenAI: nil}), deploymentKeyedProviders: map[string]struct{}{}, byokOnly: true}
-		assert.Empty(t, unsupported.enabledProvidersForRequest(ctx, providers.ProviderAnthropic, http.Header{}))
+		unsupported := &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: nil, providers.ProviderAIAND: nil}), deploymentKeyedProviders: map[string]struct{}{}, byokOnly: true}
+		assert.Empty(t, unsupported.enabledProvidersForRequest(ctx, providers.ProviderAIAND, http.Header{}))
 	})
 	t.Run("Max funding cannot enroll subscriptions", func(t *testing.T) {
 		maxCtx := entitlement.WithProductScope(ctx, entitlement.PlanMax)
-		assert.Empty(t, s.enabledProvidersForRequest(maxCtx, providers.ProviderAnthropic, http.Header{}))
+		assert.Empty(t, s.enabledProvidersForRequest(maxCtx, providers.ProviderAIAND, http.Header{}))
 	})
 	t.Run("linked Codex excludes models outside subscription coverage", func(t *testing.T) {
-		enabled := s.enabledProvidersForRequest(ctx, providers.ProviderAnthropic, http.Header{})
+		enabled := s.enabledProvidersForRequest(ctx, providers.ProviderAIAND, http.Header{})
 		excluded := s.excludeCodexOAuthOnlyModels(ctx, http.Header{}, enabled, nil)
 		assert.Contains(t, excluded, "gpt-5.4-mini")
 		assert.NotContains(t, excluded, "gpt-6.1-sol")
 	})
 	t.Run("provider exclusion still wins", func(t *testing.T) {
-		excluded := context.WithValue(ctx, InstallationExcludedProvidersContextKey{}, []string{providers.ProviderOpenAI})
-		assert.Equal(t, map[string]struct{}{providers.ProviderAnthropic: {}}, s.enabledProvidersForRequest(excluded, providers.ProviderAnthropic, http.Header{}))
+		excluded := context.WithValue(ctx, InstallationExcludedProvidersContextKey{}, []string{providers.ProviderAIAND})
+		assert.Equal(t, map[string]struct{}{providers.ProviderAIAND: {}}, s.enabledProvidersForRequest(excluded, providers.ProviderAIAND, http.Header{}))
 	})
 	t.Run("chat endpoint cannot serve linked Codex", func(t *testing.T) {
 		chat := context.WithValue(ctx, codexChatEndpointContextKey{}, true)
-		assert.NotContains(t, s.enabledProvidersForRequest(chat, providers.ProviderOpenAI, http.Header{}), providers.ProviderOpenAI)
+		assert.NotContains(t, s.enabledProvidersForRequest(chat, providers.ProviderAIAND, http.Header{}), providers.ProviderAIAND)
 	})
 }

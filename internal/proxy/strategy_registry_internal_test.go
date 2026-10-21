@@ -44,7 +44,7 @@ func (r *registryRouter) Route(_ context.Context, request router.Request) (route
 
 func TestPolicyStrategyRegistryRoutesFutureStrategyWithoutServiceChanges(t *testing.T) {
 	defaultRouter := &registryRouter{}
-	futureRouter := &registryRouter{decision: router.Decision{Model: "claude-opus-4-8", Provider: providers.ProviderAnthropic}}
+	futureRouter := &registryRouter{decision: router.Decision{Model: "claude-opus-4-8", Provider: providers.ProviderAIAND}}
 	strategy := router.Strategy("future-policy")
 	svc := (&Service{router: defaultRouter}).WithPolicyStrategy(policy.StrategySpec{
 		Strategy: strategy,

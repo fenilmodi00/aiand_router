@@ -131,7 +131,7 @@ func (s *Service) ProxyGeminiGenerateContent(ctx context.Context, body []byte, w
 		return forceErr
 	}
 
-	enabledProviders := s.enabledProvidersForRequest(ctx, providers.ProviderGoogle, r.Header)
+	enabledProviders := s.enabledProvidersForRequest(ctx, providers.ProviderAIAND, r.Header)
 	excluded := s.excludedModelsForRequest(ctx)
 	outputReserve := contextWindowOutputReserve
 	if feats.MaxTokens > outputReserve {
@@ -278,7 +278,7 @@ func (s *Service) ProxyGeminiGenerateContent(ctx context.Context, body []byte, w
 	otel.Flush(ctx)
 
 	// Cross-format from a Gemini envelope is deferred; handler maps to HTTP 501.
-	if decision.Provider != providers.ProviderGoogle {
+	if decision.Provider != providers.ProviderAIAND {
 		return fmt.Errorf("%w: decision picked provider %q for Gemini-source request", ErrGeminiCrossFormatUnsupported, decision.Provider)
 	}
 

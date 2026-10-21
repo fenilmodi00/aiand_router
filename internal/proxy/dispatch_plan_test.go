@@ -39,55 +39,55 @@ func plannedInputs(rec *httptest.ResponseRecorder, buf *preludeBuffer, bindings 
 }
 
 func TestDispatchPlanned_PrimarySucceeds(t *testing.T) {
-	primary := &fakeClient{name: providers.ProviderFireworks, outcomes: []fakeOutcome{{writeBytes: []byte("ok")}}}
-	fallback := &fakeClient{name: providers.ProviderOpenRouter}
-	s := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderFireworks: primary, providers.ProviderOpenRouter: fallback})
+	primary := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{writeBytes: []byte("ok")}}}
+	fallback := &fakeClient{name: providers.ProviderAIAND}
+	s := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: primary, providers.ProviderAIAND: fallback})
 
 	rec := httptest.NewRecorder()
 	buf := newPreludeBuffer(rec)
 	winnerIdx, err := s.dispatchWithFallback(context.Background(), plannedInputs(rec, buf,
-		[]catalog.ProviderBinding{{Provider: providers.ProviderFireworks}, {Provider: providers.ProviderOpenRouter}}, nil))
+		[]catalog.ProviderBinding{{Provider: providers.ProviderAIAND}, {Provider: providers.ProviderAIAND}}, nil))
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, winnerIdx)
 	assert.Equal(t, 1, primary.calls)
 	assert.Equal(t, 0, fallback.calls)
 	assert.Equal(t, "ok", rec.Body.String())
-	assert.Equal(t, providers.ProviderFireworks, rec.Header().Get(HeaderRouterProvider))
+	assert.Equal(t, providers.ProviderAIAND, rec.Header().Get(HeaderRouterProvider))
 	assert.Equal(t, plannedTestModel, rec.Header().Get(HeaderRouterModel))
 }
 
 func TestDispatchPlanned_FailsOverBeforeCommit(t *testing.T) {
-	primary := &fakeClient{name: providers.ProviderFireworks, outcomes: []fakeOutcome{{err: &providers.UpstreamErrorResponse{Status: 503, Body: []byte(`down`)}}}}
-	fallback := &fakeClient{name: providers.ProviderOpenRouter, outcomes: []fakeOutcome{{writeBytes: []byte("rescued")}}}
-	s := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderFireworks: primary, providers.ProviderOpenRouter: fallback})
+	primary := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{err: &providers.UpstreamErrorResponse{Status: 503, Body: []byte(`down`)}}}}
+	fallback := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{writeBytes: []byte("rescued")}}}
+	s := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: primary, providers.ProviderAIAND: fallback})
 
 	rec := httptest.NewRecorder()
 	buf := newPreludeBuffer(rec)
 	winnerIdx, err := s.dispatchWithFallback(context.Background(), plannedInputs(rec, buf,
-		[]catalog.ProviderBinding{{Provider: providers.ProviderFireworks}, {Provider: providers.ProviderOpenRouter}}, nil))
+		[]catalog.ProviderBinding{{Provider: providers.ProviderAIAND}, {Provider: providers.ProviderAIAND}}, nil))
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, winnerIdx)
 	assert.Equal(t, 1, primary.calls)
 	assert.Equal(t, 1, fallback.calls)
 	assert.Equal(t, "rescued", rec.Body.String())
-	assert.Equal(t, providers.ProviderFireworks, rec.Header().Get(HeaderRouterFallbackFrom))
-	assert.Equal(t, providers.ProviderOpenRouter, rec.Header().Get(HeaderRouterProvider))
+	assert.Equal(t, providers.ProviderAIAND, rec.Header().Get(HeaderRouterFallbackFrom))
+	assert.Equal(t, providers.ProviderAIAND, rec.Header().Get(HeaderRouterProvider))
 }
 
 func TestDispatchPlanned_NoFailoverAfterCommit(t *testing.T) {
-	primary := &fakeClient{name: providers.ProviderFireworks, outcomes: []fakeOutcome{{
+	primary := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{
 		writeBytes: []byte("event: message_start\n\npartial"),
 		err:        &providers.UpstreamErrorResponse{Status: 503, Body: []byte(`mid-stream`)},
 	}}}
-	fallback := &fakeClient{name: providers.ProviderOpenRouter}
-	s := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderFireworks: primary, providers.ProviderOpenRouter: fallback})
+	fallback := &fakeClient{name: providers.ProviderAIAND}
+	s := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: primary, providers.ProviderAIAND: fallback})
 
 	rec := httptest.NewRecorder()
 	buf := newPreludeBuffer(rec)
 	_, err := s.dispatchWithFallback(context.Background(), plannedInputs(rec, buf,
-		[]catalog.ProviderBinding{{Provider: providers.ProviderFireworks}, {Provider: providers.ProviderOpenRouter}}, nil))
+		[]catalog.ProviderBinding{{Provider: providers.ProviderAIAND}, {Provider: providers.ProviderAIAND}}, nil))
 
 	require.Error(t, err)
 	assert.Equal(t, 0, fallback.calls, "bytes reached the client; no retry")
@@ -95,14 +95,14 @@ func TestDispatchPlanned_NoFailoverAfterCommit(t *testing.T) {
 }
 
 func TestDispatchPlanned_WireModelMismatchNeverReachesProvider(t *testing.T) {
-	primary := &fakeClient{name: providers.ProviderFireworks, outcomes: []fakeOutcome{{writeBytes: []byte("ok")}}}
-	fallback := &fakeClient{name: providers.ProviderOpenRouter, outcomes: []fakeOutcome{{writeBytes: []byte("ok")}}}
-	s := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderFireworks: primary, providers.ProviderOpenRouter: fallback})
+	primary := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{writeBytes: []byte("ok")}}}
+	fallback := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{writeBytes: []byte("ok")}}}
+	s := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: primary, providers.ProviderAIAND: fallback})
 
 	rec := httptest.NewRecorder()
 	buf := newPreludeBuffer(rec)
 	_, err := s.dispatchWithFallback(context.Background(), plannedInputs(rec, buf,
-		[]catalog.ProviderBinding{{Provider: providers.ProviderFireworks}, {Provider: providers.ProviderOpenRouter}},
+		[]catalog.ProviderBinding{{Provider: providers.ProviderAIAND}, {Provider: providers.ProviderAIAND}},
 		[]byte(`{"model":"some-other-model"}`)))
 
 	require.ErrorIs(t, err, dispatch.ErrTargetMismatch)
@@ -129,18 +129,18 @@ func TestDispatchPlanned_WireModelMayNameUpstreamID(t *testing.T) {
 }
 
 func TestDispatchPlanned_SameBindingRetryUsesInjectedSleep(t *testing.T) {
-	only := &fakeClient{name: providers.ProviderFireworks, outcomes: []fakeOutcome{
+	only := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{
 		{err: &providers.UpstreamErrorResponse{Status: 503, Body: []byte(`blip`)}},
 		{writeBytes: []byte("ok")},
 	}}
-	s := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderFireworks: only})
+	s := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: only})
 	slept := 0
 	s.retrySleep = func(context.Context, time.Duration) error { slept++; return nil }
 
 	rec := httptest.NewRecorder()
 	buf := newPreludeBuffer(rec)
 	winnerIdx, err := s.dispatchWithFallback(context.Background(), plannedInputs(rec, buf,
-		[]catalog.ProviderBinding{{Provider: providers.ProviderFireworks}}, nil))
+		[]catalog.ProviderBinding{{Provider: providers.ProviderAIAND}}, nil))
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, winnerIdx)
@@ -150,13 +150,13 @@ func TestDispatchPlanned_SameBindingRetryUsesInjectedSleep(t *testing.T) {
 }
 
 func TestDispatchPlanned_ExhaustionFlushesUpstreamEnvelope(t *testing.T) {
-	only := &fakeClient{name: providers.ProviderFireworks, outcomes: []fakeOutcome{{err: &providers.UpstreamErrorResponse{Status: 404, Body: []byte(`nope`)}}}}
-	s := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderFireworks: only})
+	only := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{err: &providers.UpstreamErrorResponse{Status: 404, Body: []byte(`nope`)}}}}
+	s := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: only})
 
 	rec := httptest.NewRecorder()
 	buf := newPreludeBuffer(rec)
 	_, err := s.dispatchWithFallback(context.Background(), plannedInputs(rec, buf,
-		[]catalog.ProviderBinding{{Provider: providers.ProviderFireworks}}, nil))
+		[]catalog.ProviderBinding{{Provider: providers.ProviderAIAND}}, nil))
 
 	require.Error(t, err)
 	assert.Equal(t, 1, only.calls, "404 must not same-binding-retry")
@@ -164,13 +164,13 @@ func TestDispatchPlanned_ExhaustionFlushesUpstreamEnvelope(t *testing.T) {
 }
 
 func TestDispatchPlanned_DeferredFlushLeavesWriterUntouched(t *testing.T) {
-	only := &fakeClient{name: providers.ProviderFireworks, outcomes: []fakeOutcome{{err: &providers.UpstreamErrorResponse{Status: 500, Body: []byte(`boom`)}}}}
-	s := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderFireworks: only})
+	only := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{err: &providers.UpstreamErrorResponse{Status: 500, Body: []byte(`boom`)}}}}
+	s := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: only})
 	s.retrySleep = noopSleep
 
 	rec := httptest.NewRecorder()
 	buf := newPreludeBuffer(rec)
-	in := plannedInputs(rec, buf, []catalog.ProviderBinding{{Provider: providers.ProviderFireworks}}, nil)
+	in := plannedInputs(rec, buf, []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}}, nil)
 	in.deferFlushOnExhaustion = true
 	_, err := s.dispatchWithFallback(context.Background(), in)
 
@@ -180,13 +180,13 @@ func TestDispatchPlanned_DeferredFlushLeavesWriterUntouched(t *testing.T) {
 }
 
 func TestDispatchPlanned_ProviderMissingAtRuntimeSkipsToNext(t *testing.T) {
-	fallback := &fakeClient{name: providers.ProviderOpenRouter, outcomes: []fakeOutcome{{writeBytes: []byte("ok")}}}
-	s := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderOpenRouter: fallback})
+	fallback := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{writeBytes: []byte("ok")}}}
+	s := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: fallback})
 
 	rec := httptest.NewRecorder()
 	buf := newPreludeBuffer(rec)
 	winnerIdx, err := s.dispatchWithFallback(context.Background(), plannedInputs(rec, buf,
-		[]catalog.ProviderBinding{{Provider: providers.ProviderFireworks}, {Provider: providers.ProviderOpenRouter}}, nil))
+		[]catalog.ProviderBinding{{Provider: providers.ProviderAIAND}, {Provider: providers.ProviderAIAND}}, nil))
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, winnerIdx)
@@ -194,18 +194,18 @@ func TestDispatchPlanned_ProviderMissingAtRuntimeSkipsToNext(t *testing.T) {
 }
 
 func TestDispatchPlanned_RecordsAttemptProvenance(t *testing.T) {
-	primary := &fakeClient{name: providers.ProviderFireworks, outcomes: []fakeOutcome{{err: &providers.UpstreamErrorResponse{Status: 503, Body: []byte(`down`)}}}}
-	fallback := &fakeClient{name: providers.ProviderOpenRouter, outcomes: []fakeOutcome{{writeBytes: []byte("ok")}}}
+	primary := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{err: &providers.UpstreamErrorResponse{Status: 503, Body: []byte(`down`)}}}}
+	fallback := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{writeBytes: []byte("ok")}}}
 	sink := &recordingAttemptSink{}
 	executor, err := dispatch.NewExecutor(dispatch.NewClients(map[string]providers.Client{
-		providers.ProviderFireworks: primary, providers.ProviderOpenRouter: fallback,
+		providers.ProviderAIAND: primary, providers.ProviderAIAND: fallback,
 	}), dispatch.WithAttemptSink(sink))
 	require.NoError(t, err)
 	s := (&Service{}).WithInferenceExecutor(executor)
 
 	rec := httptest.NewRecorder()
 	buf := newPreludeBuffer(rec)
-	in := plannedInputs(rec, buf, []catalog.ProviderBinding{{Provider: providers.ProviderFireworks}, {Provider: providers.ProviderOpenRouter}}, nil)
+	in := plannedInputs(rec, buf, []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}, {Provider: providers.ProviderAIAND}}, nil)
 	in.initialDecision.Reason = translate.ReasonUserForceModel
 	in.origin = policy.OverrideSourceRequest
 	_, err = s.dispatchWithFallback(context.Background(), in)
@@ -217,19 +217,19 @@ func TestDispatchPlanned_RecordsAttemptProvenance(t *testing.T) {
 		assert.NotEmpty(t, event.Provenance.PolicyID)
 		assert.Equal(t, plannedTestModel, event.Target.CatalogID)
 	}
-	assert.Equal(t, providers.ProviderFireworks, sink.events[0].Target.Provider)
+	assert.Equal(t, providers.ProviderAIAND, sink.events[0].Target.Provider)
 	assert.Equal(t, inference.AttemptOutcomeFailed, sink.events[0].Outcome)
-	assert.Equal(t, providers.ProviderOpenRouter, sink.events[1].Target.Provider)
+	assert.Equal(t, providers.ProviderAIAND, sink.events[1].Target.Provider)
 	assert.Equal(t, inference.AttemptOutcomeServed, sink.events[1].Outcome)
 }
 
 func TestDispatchPlanned_UnregisteredPurposeFailsClosed(t *testing.T) {
-	primary := &fakeClient{name: providers.ProviderFireworks, outcomes: []fakeOutcome{{writeBytes: []byte("ok")}}}
-	s := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderFireworks: primary})
+	primary := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{writeBytes: []byte("ok")}}}
+	s := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: primary})
 
 	rec := httptest.NewRecorder()
 	buf := newPreludeBuffer(rec)
-	in := plannedInputs(rec, buf, []catalog.ProviderBinding{{Provider: providers.ProviderFireworks}}, nil)
+	in := plannedInputs(rec, buf, []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}}, nil)
 	in.purpose = inference.Purpose("not_a_purpose")
 	_, err := s.dispatchWithFallback(context.Background(), in)
 
@@ -246,10 +246,10 @@ func (r *recordingAttemptSink) RecordAttempt(_ context.Context, event inference.
 }
 
 func TestDispatchPlanned_LeaseFailureIsTerminal(t *testing.T) {
-	primary := &fakeClient{name: providers.ProviderAnthropic, outcomes: []fakeOutcome{{writeBytes: []byte("ok")}}}
-	fallback := &fakeClient{name: providers.ProviderOpenRouter, outcomes: []fakeOutcome{{writeBytes: []byte("paid")}}}
+	primary := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{writeBytes: []byte("ok")}}}
+	fallback := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{writeBytes: []byte("paid")}}}
 	s := newServiceWithProviders(t, map[string]providers.Client{
-		providers.ProviderAnthropic: primary, providers.ProviderOpenRouter: fallback,
+		providers.ProviderAIAND: primary, providers.ProviderAIAND: fallback,
 	}).WithManagedSubscriptions(&scriptedSubscriptionLeaser{})
 	slept := 0
 	s.retrySleep = func(context.Context, time.Duration) error { slept++; return nil }
@@ -257,7 +257,7 @@ func TestDispatchPlanned_LeaseFailureIsTerminal(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	buf := newPreludeBuffer(rec)
-	in := plannedInputs(rec, buf, []catalog.ProviderBinding{{Provider: providers.ProviderAnthropic}, {Provider: providers.ProviderOpenRouter}}, nil)
+	in := plannedInputs(rec, buf, []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}, {Provider: providers.ProviderAIAND}}, nil)
 	in.initialDecision.Model = "claude-opus-4-8"
 	_, err := s.dispatchWithFallback(ctx, in)
 

@@ -16,7 +16,7 @@ import (
 func TestPlanResolverPreservesExistingSidecarBinding(t *testing.T) {
 	candidateResolver := policy.NewResolver(
 		modelSet("claude-haiku-4-5", "gpt-5.6-luna"),
-		providerSet(providers.ProviderAnthropic, providers.ProviderOpenAI),
+		providerSet(providers.ProviderAIAND, providers.ProviderAIAND),
 		func(model catalog.Model) string { return "roster/" + model.ID },
 		policy.ProviderPolicy{},
 	)
@@ -47,7 +47,7 @@ func TestPlanResolverPreservesExistingSidecarBinding(t *testing.T) {
 func TestPlanResolverAppliesTypedOverridePrecedence(t *testing.T) {
 	planResolver := newPlanResolver(t,
 		modelSet("claude-haiku-4-5", "gpt-5.6-luna"),
-		providerSet(providers.ProviderAnthropic, providers.ProviderOpenAI),
+		providerSet(providers.ProviderAIAND, providers.ProviderAIAND),
 	)
 	plan, err := planResolver.Resolve(policy.ResolutionRequest{
 		Purpose: policy.PurposeAnthropicMessages,
@@ -65,7 +65,7 @@ func TestPlanResolverAppliesTypedOverridePrecedence(t *testing.T) {
 func TestPlanResolverRejectsInvalidExplicitOverrideWithoutSubstitution(t *testing.T) {
 	planResolver := newPlanResolver(t,
 		modelSet("claude-haiku-4-5", "gpt-5.6-luna"),
-		providerSet(providers.ProviderAnthropic, providers.ProviderOpenAI),
+		providerSet(providers.ProviderAIAND, providers.ProviderAIAND),
 	)
 	_, err := planResolver.Resolve(policy.ResolutionRequest{
 		Purpose: policy.PurposeAnthropicMessages,
@@ -81,7 +81,7 @@ func TestPlanResolverRejectsInvalidExplicitOverrideWithoutSubstitution(t *testin
 func TestPlanResolverRejectsDisallowedAndDuplicateOverrideSources(t *testing.T) {
 	planResolver := newPlanResolver(t,
 		modelSet("claude-haiku-4-5"),
-		providerSet(providers.ProviderAnthropic),
+		providerSet(providers.ProviderAIAND),
 	)
 
 	_, err := planResolver.Resolve(policy.ResolutionRequest{
@@ -113,7 +113,7 @@ func TestPlanResolverRejectsDisallowedAndDuplicateOverrideSources(t *testing.T) 
 func TestPlanResolverRequiresTypedForceModelOverride(t *testing.T) {
 	planResolver := newPlanResolver(t,
 		modelSet("claude-haiku-4-5"),
-		providerSet(providers.ProviderAnthropic),
+		providerSet(providers.ProviderAIAND),
 	)
 	_, err := planResolver.Resolve(policy.ResolutionRequest{
 		Purpose:       policy.PurposeAnthropicMessages,
@@ -127,7 +127,7 @@ func TestPlanResolverRequiresTypedForceModelOverride(t *testing.T) {
 func TestPlanResolverRestrictsFixedPolicyToReviewedModels(t *testing.T) {
 	planResolver := newPlanResolver(t,
 		modelSet("claude-haiku-4-5", "gpt-5.6-luna"),
-		providerSet(providers.ProviderAnthropic, providers.ProviderOpenAI),
+		providerSet(providers.ProviderAIAND, providers.ProviderAIAND),
 	)
 	plan, err := planResolver.Resolve(policy.ResolutionRequest{Purpose: policy.PurposeHandoverSummary})
 	require.NoError(t, err)
@@ -145,7 +145,7 @@ func TestPlanResolverRestrictsFixedPolicyToReviewedModels(t *testing.T) {
 func TestPlanResolverDeclaresOnlyEligibleBindingFallbacks(t *testing.T) {
 	planResolver := newPlanResolver(t,
 		modelSet("claude-haiku-4-5"),
-		providerSet(providers.ProviderAnthropic, providers.ProviderAnthropicGateway),
+		providerSet(providers.ProviderAIAND, providers.ProviderAIAND),
 	)
 	plan, err := planResolver.Resolve(policy.ResolutionRequest{
 		Purpose: policy.PurposeAnthropicMessages,
@@ -157,7 +157,7 @@ func TestPlanResolverDeclaresOnlyEligibleBindingFallbacks(t *testing.T) {
 
 	alternatives := plan.AlternativeBindings()
 	require.Len(t, alternatives, 1)
-	assert.Equal(t, providers.ProviderAnthropicGateway, alternatives[0].Provider)
+	assert.Equal(t, providers.ProviderAIAND, alternatives[0].Provider)
 	assert.Equal(t, plan.SelectedBinding().CatalogID, alternatives[0].CatalogID)
 }
 
@@ -172,7 +172,7 @@ func TestPlanResolverResolvesDeclaredModelFallbacks(t *testing.T) {
 	require.NoError(t, err)
 	candidateResolver := policy.NewResolver(
 		modelSet("claude-haiku-4-5", "gpt-5.6-luna"),
-		providerSet(providers.ProviderAnthropic, providers.ProviderOpenAI),
+		providerSet(providers.ProviderAIAND, providers.ProviderAIAND),
 		func(model catalog.Model) string { return model.ID },
 		policy.ProviderPolicy{},
 	)
@@ -196,7 +196,7 @@ func TestPlanResolverReportsMissingFixedTargetAsIneligible(t *testing.T) {
 	require.NoError(t, err)
 	candidateResolver := policy.NewResolver(
 		modelSet("gpt-5.6-luna"),
-		providerSet(providers.ProviderOpenAI),
+		providerSet(providers.ProviderAIAND),
 		func(model catalog.Model) string { return model.ID },
 		policy.ProviderPolicy{},
 	)
@@ -210,7 +210,7 @@ func TestPlanResolverReportsMissingFixedTargetAsIneligible(t *testing.T) {
 func TestPlanResolverEnforcesBudgetEnvelopeAndSpendCap(t *testing.T) {
 	planResolver := newPlanResolver(t,
 		modelSet("claude-haiku-4-5"),
-		providerSet(providers.ProviderAnthropic),
+		providerSet(providers.ProviderAIAND),
 	)
 	_, err := planResolver.Resolve(policy.ResolutionRequest{
 		Purpose:       policy.PurposeAnthropicMessages,
@@ -230,7 +230,7 @@ func TestPlanResolverEnforcesBudgetEnvelopeAndSpendCap(t *testing.T) {
 	require.NoError(t, registryErr)
 	candidateResolver := policy.NewResolver(
 		modelSet("claude-haiku-4-5"),
-		providerSet(providers.ProviderAnthropic),
+		providerSet(providers.ProviderAIAND),
 		func(model catalog.Model) string { return model.ID },
 		policy.ProviderPolicy{},
 	)
@@ -250,7 +250,7 @@ func TestPlanResolverEnforcesBudgetEnvelopeAndSpendCap(t *testing.T) {
 func TestResolvedPlanReturnsImmutableCopies(t *testing.T) {
 	planResolver := newPlanResolver(t,
 		modelSet("claude-haiku-4-5"),
-		providerSet(providers.ProviderAnthropic, providers.ProviderAnthropicGateway),
+		providerSet(providers.ProviderAIAND, providers.ProviderAIAND),
 	)
 	plan, err := planResolver.Resolve(policy.ResolutionRequest{
 		Purpose:   policy.PurposeAnthropicMessages,
@@ -279,7 +279,7 @@ func TestRegistryValidatesDeploymentTargets(t *testing.T) {
 	assert.ErrorContains(t, err, "requires a typed deployment target")
 
 	config = validDeploymentPolicyConfig()
-	config.TargetOverrides[0].Target.Provider = providers.ProviderOpenAI
+	config.TargetOverrides[0].Target.Provider = providers.ProviderAIAND
 	err = policy.DefaultRegistry().ValidateDeployment(config)
 	assert.ErrorContains(t, err, "has no available catalog binding")
 
@@ -292,7 +292,7 @@ func TestRegistryValidatesDeploymentTargets(t *testing.T) {
 func TestPlanResolverDoesNotFallBackToRosterForStaleArm(t *testing.T) {
 	planResolver := newPlanResolver(t,
 		modelSet("claude-haiku-4-5"),
-		providerSet(providers.ProviderAnthropic),
+		providerSet(providers.ProviderAIAND),
 	)
 	_, err := planResolver.Resolve(policy.ResolutionRequest{
 		Purpose: policy.PurposeAnthropicMessages,
@@ -315,7 +315,7 @@ func TestPlanResolverIncludesEveryAlternativeBinding(t *testing.T) {
 	require.NoError(t, err)
 	candidateResolver := policy.NewResolver(
 		modelSet("claude-haiku-4-5", "claude-sonnet-4-5"),
-		providerSet(providers.ProviderAnthropic, providers.ProviderAnthropicGateway),
+		providerSet(providers.ProviderAIAND, providers.ProviderAIAND),
 		func(model catalog.Model) string { return model.ID },
 		policy.ProviderPolicy{},
 	)
@@ -359,12 +359,12 @@ func validDeploymentPolicyConfig() policy.DeploymentPolicyConfig {
 			Target: policy.TargetOverride{
 				Source:    policy.OverrideSourceDeployment,
 				CatalogID: "claude-haiku-4-5",
-				Provider:  providers.ProviderAnthropic,
+				Provider:  providers.ProviderAIAND,
 			},
 		})
 	}
 	return policy.DeploymentPolicyConfig{
-		AvailableProviders: providerSet(providers.ProviderAnthropic, providers.ProviderOpenAI),
+		AvailableProviders: providerSet(providers.ProviderAIAND, providers.ProviderAIAND),
 		TargetOverrides:    targetOverrides,
 	}
 }
@@ -395,19 +395,19 @@ func assertResolutionErrorCode(t *testing.T, err error, expected policy.Resoluti
 func TestFixedCatalogTargetSetIncludesReviewedUntieredModels(t *testing.T) {
 	t.Parallel()
 
-	available := providerSet(providers.ProviderAnthropic)
+	available := providerSet(providers.ProviderAIAND)
 	targets := policy.DefaultRegistry().FixedCatalogTargetSet(available)
 	assert.Contains(t, targets, "claude-fable-5")
 	assert.Contains(t, targets, "claude-opus-4-8")
 	assert.NotContains(t, catalog.RoutingTargetSet(available), "claude-fable-5")
 
-	assert.Empty(t, policy.DefaultRegistry().FixedCatalogTargetSet(providerSet(providers.ProviderOpenAI)))
+	assert.Empty(t, policy.DefaultRegistry().FixedCatalogTargetSet(providerSet(providers.ProviderAIAND)))
 }
 
 func TestPlanResolverResolvesUntieredPrecompactionSummarizer(t *testing.T) {
 	t.Parallel()
 
-	available := providerSet(providers.ProviderAnthropic)
+	available := providerSet(providers.ProviderAIAND)
 	deployed := policy.DefaultRegistry().FixedCatalogTargetSet(available)
 	for id := range catalog.RoutingTargetSet(available) {
 		deployed[id] = struct{}{}
@@ -423,7 +423,7 @@ func TestPlanResolverResolvesUntieredPrecompactionSummarizer(t *testing.T) {
 			Overrides: []policy.TargetOverride{{
 				Source:    policy.OverrideSourceSession,
 				CatalogID: model,
-				Provider:  providers.ProviderAnthropic,
+				Provider:  providers.ProviderAIAND,
 			}},
 		})
 		require.NoError(t, err, model)
@@ -440,7 +440,7 @@ func TestRegistryAcceptsUntieredFixedCatalogDeploymentTarget(t *testing.T) {
 		Target: policy.TargetOverride{
 			Source:    policy.OverrideSourceDeployment,
 			CatalogID: "claude-fable-5",
-			Provider:  providers.ProviderAnthropic,
+			Provider:  providers.ProviderAIAND,
 		},
 	})
 	require.NoError(t, policy.DefaultRegistry().ValidateDeployment(config))

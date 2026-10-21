@@ -43,7 +43,7 @@ func gatewayCtx() context.Context {
 }
 
 func gatewayOnly() map[string]struct{} {
-	return map[string]struct{}{providers.ProviderAnthropicGateway: {}, providers.ProviderOpenAIGateway: {}}
+	return map[string]struct{}{providers.ProviderAIAND: {}, providers.ProviderAIAND: {}}
 }
 
 func TestServeNativeWebSearchAnswersGatewayOnlyTenant(t *testing.T) {
@@ -106,7 +106,7 @@ func TestServeNativeWebSearchStreams(t *testing.T) {
 func TestServeNativeWebSearchDefersToNativelyCapableProvider(t *testing.T) {
 	ex := &fakeSearch{}
 	s := &Service{webSearch: ex}
-	enabled := map[string]struct{}{providers.ProviderAnthropic: {}, providers.ProviderAnthropicGateway: {}}
+	enabled := map[string]struct{}{providers.ProviderAIAND: {}, providers.ProviderAIAND: {}}
 
 	if s.serveNativeWebSearch(gatewayCtx(), []byte(searchTurnBody), "claude-sonnet-5", false, 0, enabled, http.Header{}, httptest.NewRecorder()) {
 		t.Fatal("vendor Anthropic runs the tool itself; the turn must stay on normal routing")

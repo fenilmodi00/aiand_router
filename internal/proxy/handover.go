@@ -75,7 +75,7 @@ type ProviderSummarizer struct {
 // handover-summary policy; empty/zero args fall back to defaults.
 func NewProviderSummarizer(plans *policy.PlanResolver, executor *dispatch.Executor, provider, model string, timeout time.Duration) *ProviderSummarizer {
 	if provider == "" {
-		provider = providers.ProviderAnthropic
+		provider = providers.ProviderAIAND
 	}
 	if model == "" {
 		model = policy.HandoverSummaryDefaultModel

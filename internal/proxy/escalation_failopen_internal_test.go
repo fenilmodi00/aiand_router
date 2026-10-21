@@ -21,10 +21,10 @@ func TestEscalationCommitFailurePreservesEligibilityAndTurnEvidence(t *testing.T
 	observer := &escalationTestObserver{}
 	role := roleForTier(catalog.TierFor("claude-opus-4-8"))
 	pins := &rolePinStore{byRole: map[string]sessionpin.Pin{
-		role: {Provider: providers.ProviderGoogle, Model: "gemini-3-pro-preview", Strategy: router.StrategyHMMEmbedding, PinnedUntil: time.Now().Add(time.Hour)},
+		role: {Provider: providers.ProviderAIAND, Model: "gemini-3-pro-preview", Strategy: router.StrategyHMMEmbedding, PinnedUntil: time.Now().Add(time.Hour)},
 	}}
-	clients := map[string]providers.Client{providers.ProviderAnthropic: &stripFailureProvider{}, providers.ProviderGoogle: &stripFailureProvider{}}
-	svc := NewService(nil, clients, nil, false, nil, pins, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil).
+	clients := map[string]providers.Client{providers.ProviderAIAND: &stripFailureProvider{}, providers.ProviderAIAND: &stripFailureProvider{}}
+	svc := NewService(nil, clients, nil, false, nil, pins, false, providers.ProviderAIAND, "claude-haiku-4-5", nil).
 		WithEscalation(store, observer).
 		WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyHMMEmbedding, Router: escalationDispatchRouter{}, Capabilities: policy.Capabilities{SchemaVersion: policy.SchemaVersionV1}})
 	svc.scopedSearchRequirement = true
@@ -49,11 +49,11 @@ func TestEscalationCommitFailurePreservesEligibilityAndTurnEvidence(t *testing.T
 		})
 		require.NoError(t, err)
 		if n < 5 {
-			require.Equal(t, providers.ProviderGoogle, res.Decision.Provider)
+			require.Equal(t, providers.ProviderAIAND, res.Decision.Provider)
 			continue
 		}
 		require.Zero(t, res.EscalationOrdinal)
-		require.Equal(t, providers.ProviderAnthropic, res.Decision.Provider, "native search eligibility must still exclude the Google pin during fallback")
+		require.Equal(t, providers.ProviderAIAND, res.Decision.Provider, "native search eligibility must still exclude the Google pin during fallback")
 		require.Equal(t, "claude-haiku-4-5", res.Decision.Model)
 		require.False(t, res.StickyHit)
 		require.True(t, res.PrefixTrimmed, "fallback must retain the current turn's compaction evidence")

@@ -47,7 +47,7 @@ func authorityShadowPinServing(servedIdentity string) sessionpin.Pin {
 
 func authorityShadowBasePin() sessionpin.Pin {
 	return sessionpin.Pin{
-		Provider:              providers.ProviderAnthropic,
+		Provider:              providers.ProviderAIAND,
 		Model:                 shadowPinnedModel,
 		Reason:                shadowPinReason,
 		PolicyGroup:           "high",
@@ -80,7 +80,7 @@ func runAuthorityShadowTurnWithPin(
 	store.getPin = pin
 	svc := NewService(
 		nil, nil, nil, false, nil, store, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil,
+		providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithAuthorityCacheShadow(enabled).
 		WithPlanner(planner.EVConfig{
 			ThresholdUSD:           0.001,
@@ -108,7 +108,7 @@ func runAuthorityShadowTurnWithPin(
 			EstimatedInputTokens: features.Tokens,
 			HasTools:             features.HasTools,
 			ConversationMessages: conversationMessagesForRouting(env),
-			EnabledProviders:     map[string]struct{}{providers.ProviderAnthropic: {}},
+			EnabledProviders:     map[string]struct{}{providers.ProviderAIAND: {}},
 		},
 	)
 	require.NoError(t, err)
@@ -126,7 +126,7 @@ func hmmFreshDecisionWithArmScores(
 	armScores map[string]float32,
 ) router.Decision {
 	return router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    model,
 		Reason:   "hmm_policy(classifier 'high' (p=0.41))",
 		Metadata: &router.RoutingMetadata{
@@ -161,7 +161,7 @@ func TestAuthorityCacheShadowRecordsTheAbandonedPin(t *testing.T) {
 	shadow := result.AuthorityShadow
 	require.True(t, shadow.Computed)
 	assert.Equal(t, shadowPinnedModel, shadow.StayModel)
-	assert.Equal(t, providers.ProviderAnthropic, shadow.StayProvider)
+	assert.Equal(t, providers.ProviderAIAND, shadow.StayProvider)
 	assert.NotEqual(t, shadow.StayModel, result.Decision.Model)
 	assert.NotEmpty(t, shadow.Decision.Reason)
 }
@@ -186,7 +186,7 @@ func TestAuthorityCacheShadowKillSwitch(t *testing.T) {
 // verdict against a non-HMM decision would describe a rollout that cannot happen.
 func TestAuthorityCacheShadowSkipsNonHMMDecisions(t *testing.T) {
 	result := runAuthorityShadowTurn(t, true, router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    shadowFreshModel,
 		Reason:   "cluster:v0.2",
 	})
@@ -241,8 +241,8 @@ func TestAuthorityCacheShadowCandidateScoreCoverage(t *testing.T) {
 			"anthropic/" + shadowPinnedModel + ":" + effort: 0.62,
 			"anthropic/" + shadowFreshModel + ":" + effort:  0.71,
 		})
-		stay := candidateScoreForWithProvider(dec, shadowPinnedModel+":"+effort, providers.ProviderAnthropic)
-		fresh := candidateScoreForWithProvider(dec, shadowFreshModel+":"+effort, providers.ProviderAnthropic)
+		stay := candidateScoreForWithProvider(dec, shadowPinnedModel+":"+effort, providers.ProviderAIAND)
+		fresh := candidateScoreForWithProvider(dec, shadowFreshModel+":"+effort, providers.ProviderAIAND)
 		require.NotNil(t, stay)
 		require.NotNil(t, fresh)
 		assert.InDelta(t, 0.62, *stay, 1e-6)
@@ -265,7 +265,7 @@ func TestApplyAuthorityShadowTelemetryPreservesSignedEV(t *testing.T) {
 	res := turnLoopResult{AuthorityShadow: authorityCacheShadow{
 		Computed:     true,
 		StayModel:    shadowPinnedModel,
-		StayProvider: providers.ProviderAnthropic,
+		StayProvider: providers.ProviderAIAND,
 		Sticky:       true,
 		StayScore:    &stay,
 		Decision: planner.Decision{
@@ -286,7 +286,7 @@ func TestApplyAuthorityShadowTelemetryPreservesSignedEV(t *testing.T) {
 	assert.Equal(t, "stay", params.AuthorityShadowOutcome)
 	assert.Equal(t, planner.ReasonEVNegative, params.AuthorityShadowReason)
 	assert.Equal(t, shadowPinnedModel, params.AuthorityShadowStayModel)
-	assert.Equal(t, providers.ProviderAnthropic, params.AuthorityShadowStayProvider)
+	assert.Equal(t, providers.ProviderAIAND, params.AuthorityShadowStayProvider)
 	require.NotNil(t, params.AuthorityShadowExpectedSavingsUSD)
 	assert.Negative(t, *params.AuthorityShadowExpectedSavingsUSD)
 	require.NotNil(t, params.AuthorityShadowEvictionCostUSD)
@@ -358,7 +358,7 @@ func TestCandidateScoreFor(t *testing.T) {
 		dec := hmmFreshDecisionWithArmScores(shadowFreshModel, nil, map[string]float32{
 			rosterArmID: 0.71,
 		})
-		got := candidateScoreForWithArm(dec, shadowFreshModel, providers.ProviderAnthropic, rosterArmID)
+		got := candidateScoreForWithArm(dec, shadowFreshModel, providers.ProviderAIAND, rosterArmID)
 		require.NotNil(t, got)
 		assert.InDelta(t, 0.71, *got, 1e-6)
 	})
@@ -369,10 +369,10 @@ func TestCandidateScoreFor(t *testing.T) {
 			"openai/" + shadowPinnedModel:    0.91,
 		})
 		dec.Metadata.CandidateArmProviders = map[string]string{
-			"anthropic/" + shadowPinnedModel: providers.ProviderAnthropic,
-			"openai/" + shadowPinnedModel:    providers.ProviderOpenAI,
+			"anthropic/" + shadowPinnedModel: providers.ProviderAIAND,
+			"openai/" + shadowPinnedModel:    providers.ProviderAIAND,
 		}
-		got := candidateScoreForWithProvider(dec, shadowPinnedModel, providers.ProviderAnthropic)
+		got := candidateScoreForWithProvider(dec, shadowPinnedModel, providers.ProviderAIAND)
 		require.NotNil(t, got)
 		assert.InDelta(t, 0.62, *got, 1e-6)
 	})

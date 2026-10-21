@@ -83,7 +83,7 @@ func TestThrottlePolicyObservesHonouredRetryAfter(t *testing.T) {
 func TestRunHonoursThrottleBackoffSchedule(t *testing.T) {
 	fw := &fakeUpstream{errs: []error{rateLimited(""), rateLimited("")}}
 	var slept []time.Duration
-	exec, err := dispatch.NewExecutor(dispatch.NewClients(map[string]providers.Client{providers.ProviderFireworks: fw}),
+	exec, err := dispatch.NewExecutor(dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: fw}),
 		dispatch.WithSleep(func(_ context.Context, d time.Duration) error { slept = append(slept, d); return nil }),
 	)
 	require.NoError(t, err)
@@ -106,7 +106,7 @@ func TestRunHonoursRetryAfterUpToCap(t *testing.T) {
 	t.Run("within cap", func(t *testing.T) {
 		fw := &fakeUpstream{errs: []error{rateLimited("4")}}
 		var slept []time.Duration
-		exec, err := dispatch.NewExecutor(dispatch.NewClients(map[string]providers.Client{providers.ProviderFireworks: fw}),
+		exec, err := dispatch.NewExecutor(dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: fw}),
 			dispatch.WithSleep(func(_ context.Context, d time.Duration) error { slept = append(slept, d); return nil }),
 		)
 		require.NoError(t, err)
@@ -123,7 +123,7 @@ func TestRunHonoursRetryAfterUpToCap(t *testing.T) {
 	t.Run("above cap", func(t *testing.T) {
 		fw := &fakeUpstream{errs: []error{rateLimited("30"), nil}}
 		var slept []time.Duration
-		exec, err := dispatch.NewExecutor(dispatch.NewClients(map[string]providers.Client{providers.ProviderFireworks: fw}),
+		exec, err := dispatch.NewExecutor(dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: fw}),
 			dispatch.WithSleep(func(_ context.Context, d time.Duration) error { slept = append(slept, d); return nil }),
 		)
 		require.NoError(t, err)
@@ -145,7 +145,7 @@ func TestRunRetryDelayRespectsSameBindingBudget(t *testing.T) {
 	fw := &fakeUpstream{errs: []error{rateLimited("8"), rateLimited("8")}}
 	now := throttleNow
 	var slept []time.Duration
-	exec, err := dispatch.NewExecutor(dispatch.NewClients(map[string]providers.Client{providers.ProviderFireworks: fw}),
+	exec, err := dispatch.NewExecutor(dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: fw}),
 		dispatch.WithClock(func() time.Time { return now }),
 		dispatch.WithSleep(func(_ context.Context, d time.Duration) error {
 			slept = append(slept, d)
@@ -168,7 +168,7 @@ func TestRunRetryDelayRespectsSameBindingBudget(t *testing.T) {
 func TestRunWithoutRetryDelayKeepsDefaultBackoff(t *testing.T) {
 	fw := &fakeUpstream{errs: []error{rateLimited("4"), rateLimited("4")}}
 	var slept []time.Duration
-	exec, err := dispatch.NewExecutor(dispatch.NewClients(map[string]providers.Client{providers.ProviderFireworks: fw}),
+	exec, err := dispatch.NewExecutor(dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: fw}),
 		dispatch.WithSleep(func(_ context.Context, d time.Duration) error { slept = append(slept, d); return nil }),
 	)
 	require.NoError(t, err)

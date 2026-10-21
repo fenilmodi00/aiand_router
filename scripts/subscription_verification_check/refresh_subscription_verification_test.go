@@ -171,7 +171,7 @@ func TestVerificationSQLConcurrentSharedRefreshAndReset(t *testing.T) {
 type verificationBillingRouter struct{}
 
 func (verificationBillingRouter) Route(context.Context, router.Request) (router.Decision, error) {
-	return router.Decision{Provider: providers.ProviderOpenAI, Model: "gpt-5.6-sol", Reason: "test"}, nil
+	return router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-5.6-sol", Reason: "test"}, nil
 }
 
 type verificationIncludedClient struct{ *openai.Client }
@@ -219,7 +219,7 @@ func verifyDispatchBilling(t *testing.T, pool *pgxpool.Pool, authService *auth.S
 		}))
 		client := &verificationIncludedClient{openai.NewClient("synthetic-api-key", server.URL)}
 		client.SetCodexBaseURL(server.URL)
-		svc := proxy.NewService(verificationBillingRouter{}, map[string]providers.Client{providers.ProviderOpenAI: client}, nil, false, nil, nil, false, providers.ProviderOpenAI, "gpt-5.6-sol", nil).WithManagedSubscriptions(runtime).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderOpenAI: {}}).WithBillingService(billingService)
+		svc := proxy.NewService(verificationBillingRouter{}, map[string]providers.Client{providers.ProviderAIAND: client}, nil, false, nil, nil, false, providers.ProviderAIAND, "gpt-5.6-sol", nil).WithManagedSubscriptions(runtime).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}}).WithBillingService(billingService)
 		actionID, requestID := uuid.NewString(), uuid.NewString()
 		authorization, err := billingService.AuthorizeSubscriberPrepaid(ctx, billing.PrepaidAuthorizationRequest{Owner: billing.SubscriberOwner(requester.SubscriberID), ActionID: actionID, RouterRequestID: requestID, APIKeyID: key.String(), RequestedModel: "auto", UpperBoundUsdMicros: 1000000})
 		require.NoError(t, err)

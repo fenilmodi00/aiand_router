@@ -153,58 +153,18 @@ func ApplyModelAlias(ctx context.Context, body []byte, model string) []byte {
 	return out
 }
 
-// ExtractClientCredentials extracts provider credentials from request
-// headers. Anthropic uses x-api-key; OpenAI and Google use
-// Authorization: Bearer.
+// ExtractClientCredentials extracts provider credentials from request headers.
+// The OpenAI-compatible upstream authenticates via Authorization: Bearer.
 //
 // Rejects any token with auth.APIKeyPrefix — router-issued bearers (rk_...)
 // use the same headers via WithAuth, and this stops them leaking upstream.
 func ExtractClientCredentials(provider string, headers http.Header) *Credentials {
-	// Anthropic reads x-api-key / sk-ant- shapes and keeps its own branch.
-	// Every other family shares the Authorization: Bearer branch, keyed off
-	// family so a new OpenAI-compat provider works without editing a list.
-	family := providers.FamilyFor(provider)
-	if family == providers.FamilyAnthropic {
-		// Requiring the sk-ant- prefix here prevents a misplaced
-		// cross-provider key (e.g. an OpenAI key in x-api-key) from being
-		// misclassified as Anthropic creds.
-		if key := strings.TrimSpace(headers.Get("x-api-key")); key != "" &&
-			!auth.HasAPIKeyPrefix(key) && strings.HasPrefix(key, "sk-ant-") {
-			return &Credentials{APIKey: []byte(key), Source: SourceClient}
-		}
-		// sk-ant-api-… is a legitimate client key. sk-ant-oat-… is a Claude
-		// subscription (Claude.ai login) token — works against /v1/messages
-		// only via Bearer + oauth beta header, no x-api-key. Forwarded so
-		// the caller's subscription pays for their turns.
-		if raw, found := strings.CutPrefix(headers.Get("Authorization"), "Bearer "); found {
-			key := strings.TrimSpace(raw)
-			if !auth.HasAPIKeyPrefix(key) {
-				if strings.HasPrefix(key, "sk-ant-api-") {
-					return &Credentials{APIKey: []byte(key), Source: SourceClient}
-				}
-				if sub := SubscriptionCredsFromToken(key); sub != nil {
-					return sub
-				}
-			}
-		}
-		return nil
-	}
-	// OpenAI-compat upstreams and Gemini/Google authenticate via
-	// Authorization: Bearer. FamilyUnknown providers fall through to nil.
-	if family != providers.FamilyOpenAICompat && family != providers.FamilyGemini {
+	if providers.FamilyFor(provider) != providers.FamilyOpenAICompat {
 		return nil
 	}
 	authHeader := headers.Get("Authorization")
 	if raw, found := strings.CutPrefix(authHeader, "Bearer "); found {
 		key := strings.TrimSpace(raw)
-		// A Codex ChatGPT subscription bearer pairs with a ChatGPT-Account-ID
-		// header; resolve it before the client-key branch. OpenAI-only, so a
-		// stray header on another route can't reclassify its bearer.
-		if provider == providers.ProviderOpenAI {
-			if sub := CodexSubscriptionCreds(key, headers.Get(ChatGPTAccountIDHeader)); sub != nil {
-				return sub
-			}
-		}
 		// Reject Anthropic-shaped tokens (keys and OAuth bearers) so one
 		// Bearer header isn't misidentified as creds for every provider.
 		if key != "" && !auth.HasAPIKeyPrefix(key) && !strings.HasPrefix(key, "sk-ant-") {
@@ -226,7 +186,7 @@ func SubscriptionCredsFromToken(token string) *Credentials {
 // CodexSubscriptionCreds returns Codex subscription credentials for a
 // ChatGPT-login JWT paired with its account id, or nil otherwise. Rejects
 // router keys and OpenAI API keys; requires a non-empty account id since
-// the Codex backend 401/403s without it. OpenAI-only.
+// the Codex backend 401/403s without it.
 func CodexSubscriptionCreds(token, accountID string) *Credentials {
 	token = strings.TrimSpace(token)
 	accountID = strings.TrimSpace(accountID)
@@ -264,7 +224,7 @@ func CodexSubscriptionCanAttemptModel(model string) bool {
 		return false
 	}
 	for _, binding := range m.Providers {
-		if binding.Provider == providers.ProviderOpenAI {
+		if binding.Provider == providers.ProviderAIAND {
 			return true
 		}
 	}

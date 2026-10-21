@@ -17,7 +17,7 @@ import (
 // which is the assumption the corrected economics exist to remove.
 func TestCacheablePrefixUsesMeasuredRatioNotCurrentEstimate(t *testing.T) {
 	pin := sessionpin.Pin{
-		Provider:             providers.ProviderAnthropic,
+		Provider:             providers.ProviderAIAND,
 		LastInputTokens:      10_000,
 		LastCachedReadTokens: 90_000,
 	}
@@ -34,13 +34,13 @@ func TestCacheablePrefixHonoursProviderTokenBasis(t *testing.T) {
 	counters := sessionpin.Pin{LastInputTokens: 100_000, LastCachedReadTokens: 80_000}
 
 	anthropic := counters
-	anthropic.Provider = providers.ProviderAnthropic
+	anthropic.Provider = providers.ProviderAIAND
 	got, _ := cacheablePrefixTokens(anthropic, 100_000, false)
 	// Disjoint: 80k / (100k + 80k) = 0.444
 	assert.Equal(t, 44_444, got)
 
 	compat := counters
-	compat.Provider = providers.ProviderOpenAI
+	compat.Provider = providers.ProviderAIAND
 	got, _ = cacheablePrefixTokens(compat, 100_000, false)
 	// Inclusive: 80k / 100k = 0.8
 	assert.Equal(t, 80_000, got)
@@ -53,7 +53,7 @@ func TestCacheablePrefixDistinguishesUnknownFromMeasuredZero(t *testing.T) {
 	assert.False(t, known, "a pin that never completed a turn has no evidence")
 
 	trimmed, trimmedKnown := cacheablePrefixTokens(
-		sessionpin.Pin{Provider: providers.ProviderAnthropic, LastInputTokens: 10_000, LastCachedReadTokens: 90_000},
+		sessionpin.Pin{Provider: providers.ProviderAIAND, LastInputTokens: 10_000, LastCachedReadTokens: 90_000},
 		50_000, true,
 	)
 	assert.True(t, trimmedKnown, "a client trim is observed, not unknown")

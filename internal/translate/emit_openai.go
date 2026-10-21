@@ -47,10 +47,9 @@ func reasoningEffortAcceptedOnChatCompletions(opts EmitOptions, hasTools bool) b
 // toolTurnNeedsExplicitEffortNone reports whether the target refuses a
 // function-tool turn on chat/completions unless reasoning_effort is "none".
 // gpt-5.6 applies its own effort when the field is absent; /v1/responses
-// dispatch is what preserves reasoning. Gateways excluded: proxy downgrades them.
+// dispatch is what preserves reasoning.
 func toolTurnNeedsExplicitEffortNone(opts EmitOptions, hasTools bool) bool {
-	return hasTools && opts.TargetProvider == providers.ProviderOpenAI &&
-		strings.HasPrefix(opts.TargetModel, "gpt-5.6")
+	return hasTools && strings.HasPrefix(opts.TargetModel, "gpt-5.6")
 }
 
 // samplersAccepted reports whether the target accepts temperature / top_p.
@@ -62,8 +61,7 @@ func samplersAccepted(opts EmitOptions) bool {
 }
 
 func isOpenAIReasoningTarget(opts EmitOptions) bool {
-	return opts.TargetProvider == providers.ProviderOpenAI ||
-		strings.HasPrefix(opts.TargetModel, "gpt-") || strings.HasPrefix(opts.TargetModel, "o")
+	return strings.HasPrefix(opts.TargetModel, "gpt-") || strings.HasPrefix(opts.TargetModel, "o")
 }
 
 // clampOpenAIToolCallID makes a tool-call id safe for the OpenAI wire format:
@@ -159,58 +157,9 @@ func (e *RequestEnvelope) PrepareOpenAI(in http.Header, opts EmitOptions) (provi
 // leaving prefix-less requests unhinted. Without this, an Anthropic→OpenAI
 // route re-bills the full prefix every turn (NULL cache_read in prod).
 func applySessionAffinity(body []byte, headers http.Header, opts EmitOptions) ([]byte, error) {
-	switch opts.TargetProvider {
-	case providers.ProviderOpenRouter:
-		if opts.SessionAffinity != "" {
-			headers.Set("x-session-id", opts.SessionAffinity)
-		}
-		return body, nil
-	case providers.ProviderOpenAI, providers.ProviderOpenAIGateway:
-		if opts.TargetProvider == providers.ProviderOpenAIGateway &&
-			strings.HasPrefix(opts.TargetModel, "grok") && opts.SessionAffinity != "" {
-			headers.Set("x-grok-conv-id", opts.SessionAffinity)
-		}
-		if opts.StripPromptCacheKey {
-			// The endpoint rejects the field as unknown; a caller-supplied key
-			// would 400 identically, so it is dropped too.
-			out, err := sjson.DeleteBytes(body, "prompt_cache_key")
-			if err != nil {
-				return nil, fmt.Errorf("delete prompt_cache_key: %w", err)
-			}
-			return out, nil
-		}
-		cacheKey := opts.SessionAffinity
-		if cacheKey == "" {
-			// A same-format OpenAI caller may partition caching with its own
-			// prompt_cache_key; don't clobber it with our synthetic prefix hash.
-			if gjson.GetBytes(body, "prompt_cache_key").Exists() {
-				return body, nil
-			}
-			// Only hash if there's an actual prefix; hashing nothing would
-			// collapse every keyless conversation onto one synthetic key.
-			cacheKey = stablePromptCacheKey(body)
-			if cacheKey == "" {
-				return body, nil
-			}
-		}
-		out, err := sjson.SetBytes(body, "prompt_cache_key", cacheKey)
-		if err != nil {
-			return nil, fmt.Errorf("set prompt_cache_key: %w", err)
-		}
-		return out, nil
-	case providers.ProviderBedrock:
-		// Explicit cachePoint caching, centrally routed — no replica roulette.
-		return body, nil
-	case providers.ProviderXAI:
-		// Chat Completions affinity header; Responses API uses prompt_cache_key
-		// (we stay on chat/completions for CapReasoning×xAI in Stage A).
-		if opts.SessionAffinity != "" {
-			headers.Set("x-grok-conv-id", opts.SessionAffinity)
-		}
-		return body, nil
-	}
-	// Other OpenAI-compat serverless upstreams get x-session-affinity, gated
-	// on a real session key (see doc comment above).
+	// The single upstream is an OpenAI-compatible serverless surface, so it
+	// takes the generic x-session-affinity header, gated on a real session key
+	// (see doc comment above).
 	if providers.IsOpenAICompat(opts.TargetProvider) && opts.SessionAffinity != "" {
 		headers.Set("x-session-affinity", opts.SessionAffinity)
 	}
@@ -273,20 +222,6 @@ func (e *RequestEnvelope) buildOpenAIFromOpenAI(opts EmitOptions) ([]byte, error
 				return nil, fmt.Errorf("set openrouter reasoning hint: %w", err)
 			}
 		}
-		if reminder := openRouterSystemReminder(opts.TargetModel); reminder != "" && hasNonEmptyTools(body) {
-			body, err = applySystemReminderToBody(body, reminder)
-			if err != nil {
-				return nil, fmt.Errorf("set system reminder: %w", err)
-			}
-		}
-		if openRouterForcesToolTemperatureZero(opts.TargetModel) &&
-			hasNonEmptyTools(body) &&
-			!gjson.GetBytes(body, "temperature").Exists() {
-			body, err = sjson.SetBytes(body, "temperature", 0)
-			if err != nil {
-				return nil, fmt.Errorf("set tool temperature override: %w", err)
-			}
-		}
 	}
 	body, err = applyQwen3SamplersIfNeeded(body, opts)
 	if err != nil {
@@ -303,15 +238,11 @@ func (e *RequestEnvelope) buildOpenAIFromOpenAI(opts EmitOptions) ([]byte, error
 	return body, nil
 }
 
-// targetIsOpenRouter reports whether the emit target is OpenRouter — direct
-// upstreams (Fireworks/Bedrock/Makora/Together) reject OpenRouter-only fields like
-// `provider`/`reasoning`. Empty TargetProvider falls back to the model-slug
-// match for callers not yet plumbed through (the handover summarizer).
+// targetIsOpenRouter reports whether the emit target is OpenRouter. The single
+// upstream is a direct vendor, not OpenRouter, so OpenRouter-only body fields
+// (`provider`/`reasoning`) must not be sent — they are rejected downstream.
 func targetIsOpenRouter(opts EmitOptions) bool {
-	if opts.TargetProvider != "" {
-		return opts.TargetProvider == providers.ProviderOpenRouter
-	}
-	return true
+	return false
 }
 
 func (e *RequestEnvelope) buildOpenAIFromAnthropic(opts EmitOptions) ([]byte, providers.RequestMutationStats, error) {
@@ -355,24 +286,14 @@ func (e *RequestEnvelope) buildOpenAIFromAnthropic(opts EmitOptions) ([]byte, pr
 	writeOpenAIParallelToolCallsFromAnthropic(jw, body)
 
 	// Temperature, top_p
-	clientSetTemp := false
 	sampleOK := samplersAccepted(opts)
 	if r := gjson.GetBytes(body, "temperature"); r.Exists() && sampleOK {
 		jw.Key("temperature")
 		jw.Raw(r.Raw)
-		clientSetTemp = true
 	}
 	if r := gjson.GetBytes(body, "top_p"); r.Exists() && sampleOK {
 		jw.Key("top_p")
 		jw.Raw(r.Raw)
-	}
-
-	// Tool temperature override for OpenRouter
-	if !clientSetTemp && targetIsOpenRouter(opts) && openRouterForcesToolTemperatureZero(opts.TargetModel) {
-		if hasNonEmptyTools(body) {
-			jw.Key("temperature")
-			jw.Int(0)
-		}
 	}
 
 	// Max tokens
@@ -391,22 +312,6 @@ func (e *RequestEnvelope) buildOpenAIFromAnthropic(opts EmitOptions) ([]byte, pr
 		jw.Key("include_usage")
 		jw.Bool(true)
 		jw.EndObj()
-	}
-
-	// OpenRouter hints
-	if targetIsOpenRouter(opts) {
-		if hint := openRouterProviderHint(opts.TargetModel); hint != nil {
-			if hintBytes, err := json.Marshal(hint); err == nil {
-				jw.Key("provider")
-				jw.RawBytes(hintBytes)
-			}
-		}
-		if reasoning := openRouterReasoningHint(opts.TargetModel); reasoning != nil {
-			if reasoningBytes, err := json.Marshal(reasoning); err == nil {
-				jw.Key("reasoning")
-				jw.RawBytes(reasoningBytes)
-			}
-		}
 	}
 
 	jw.EndObj()
@@ -444,7 +349,7 @@ func applyGLM51FlagsIfNeeded(body []byte, opts EmitOptions) ([]byte, error) {
 		}
 		body = out
 	}
-	if !targetIsOpenRouter(opts) && !gjson.GetBytes(body, "chat_template_kwargs.enable_thinking").Exists() {
+	if !gjson.GetBytes(body, "chat_template_kwargs.enable_thinking").Exists() {
 		out, err := sjson.SetBytes(body, "chat_template_kwargs.enable_thinking", false)
 		if err != nil {
 			return nil, fmt.Errorf("set glm-5.1 chat_template_kwargs.enable_thinking: %w", err)
@@ -493,9 +398,7 @@ func applyQwen3SamplersIfNeeded(body []byte, opts EmitOptions) ([]byte, error) {
 		{"top_p", qwen3TopP},
 		{"presence_penalty", qwen3PresencePenalty},
 	}
-	if opts.TargetProvider != providers.ProviderFireworks {
-		defaults = append(defaults, sampler{"repetition_penalty", qwen3RepetitionPenalty})
-	}
+	defaults = append(defaults, sampler{"repetition_penalty", qwen3RepetitionPenalty})
 	for _, s := range defaults {
 		if gjson.GetBytes(body, s.key).Exists() {
 			continue
@@ -513,15 +416,6 @@ func applyQwen3SamplersIfNeeded(body []byte, opts EmitOptions) ([]byte, error) {
 // converting the Anthropic system field and messages array to OpenAI format.
 func writeOpenAISystemAndMessagesFromAnthropic(jw *jsonWriter, body []byte, opts EmitOptions) {
 	systemText := flattenAnthropicSystemGJSON(gjson.GetBytes(body, "system"))
-	if targetIsOpenRouter(opts) && hasNonEmptyTools(body) {
-		if reminder := openRouterSystemReminder(opts.TargetModel); reminder != "" {
-			if systemText == "" {
-				systemText = reminder
-			} else {
-				systemText = systemText + "\n\n" + reminder
-			}
-		}
-	}
 
 	jw.Key("messages")
 	jw.Arr()

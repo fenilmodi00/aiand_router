@@ -25,7 +25,7 @@ func TestConformance_GeminiNative(t *testing.T) {
 	cases := []conformanceCase{
 		{
 			name:            "gemini_native/basic_text",
-			provider:        providers.ProviderGoogle,
+			provider:        providers.ProviderAIAND,
 			model:           "gemini-3.1-pro-preview",
 			newClient:       geminiClient,
 			inbound:         `{"model":"gemini-3.1-pro-preview","stream":true,"max_tokens":1024,"messages":[{"role":"user","content":"Say hi."}]}`,
@@ -38,7 +38,7 @@ func TestConformance_GeminiNative(t *testing.T) {
 		},
 		{
 			name:            "gemini_native/toolcall",
-			provider:        providers.ProviderGoogle,
+			provider:        providers.ProviderAIAND,
 			model:           "gemini-3.1-pro-preview",
 			newClient:       geminiClient,
 			inbound:         `{"model":"gemini-3.1-pro-preview","stream":true,"max_tokens":1024,"tools":` + weatherTool + `,"messages":[{"role":"user","content":"Weather in NYC?"}]}`,
@@ -52,7 +52,7 @@ func TestConformance_GeminiNative(t *testing.T) {
 			// Guards router #328/#121: Gemini 3.x must use thinkingLevel (string),
 			// NOT the legacy numeric thinkingBudget — mixing both 400s.
 			name:            "gemini_native/thinking_level_gemini3",
-			provider:        providers.ProviderGoogle,
+			provider:        providers.ProviderAIAND,
 			model:           "gemini-3.1-pro-preview",
 			newClient:       geminiClient,
 			inbound:         `{"model":"gemini-3.1-pro-preview","stream":true,"max_tokens":1024,"reasoning_effort":"high","messages":[{"role":"user","content":"Think hard."}]}`,
@@ -69,7 +69,7 @@ func TestConformance_GeminiNative(t *testing.T) {
 			// budget must reach Gemini 3.x as a named thinkingLevel, rather than
 			// failing local translation before the provider call.
 			name:            "gemini_native/thinking_budget_gemini37",
-			provider:        providers.ProviderGoogle,
+			provider:        providers.ProviderAIAND,
 			model:           "gemini-3.7-flash",
 			newClient:       geminiClient,
 			inbound:         `{"model":"gemini-3.7-flash","stream":true,"max_tokens":1024,"thinking":{"type":"enabled","budget_tokens":31999},"messages":[{"role":"user","content":"Think hard."}]}`,
@@ -85,7 +85,7 @@ func TestConformance_GeminiNative(t *testing.T) {
 		{
 			// The 2.5 counterpart: numeric thinkingBudget, no thinkingLevel.
 			name:            "gemini_native/thinking_budget_gemini25",
-			provider:        providers.ProviderGoogle,
+			provider:        providers.ProviderAIAND,
 			model:           "gemini-2.5-pro",
 			newClient:       geminiClient,
 			inbound:         `{"model":"gemini-2.5-pro","stream":true,"max_tokens":1024,"thinking":{"type":"enabled","budget_tokens":24576},"messages":[{"role":"user","content":"Think hard."}]}`,
@@ -102,7 +102,7 @@ func TestConformance_GeminiNative(t *testing.T) {
 			// tool_use's signature must ride back onto the Gemini functionCall part,
 			// or the next turn 400s on Gemini 3.x preview models.
 			name:      "gemini_native/thought_signature_roundtrip",
-			provider:  providers.ProviderGoogle,
+			provider:  providers.ProviderAIAND,
 			model:     "gemini-3.1-pro-preview",
 			newClient: geminiClient,
 			inbound: `{"model":"gemini-3.1-pro-preview","stream":true,"max_tokens":1024,"tools":` + weatherTool + `,"messages":[` +
@@ -123,7 +123,7 @@ func TestConformance_GeminiNative(t *testing.T) {
 			// Gemini 3.x — schema-constrained tool args at decode time without
 			// forcing a function call.
 			name:            "gemini_native/validated_mode",
-			provider:        providers.ProviderGoogle,
+			provider:        providers.ProviderAIAND,
 			model:           "gemini-3.1-pro-preview",
 			newClient:       geminiClient,
 			inbound:         `{"model":"gemini-3.1-pro-preview","stream":true,"max_tokens":1024,"tools":` + weatherTool + `,"messages":[{"role":"user","content":"Weather in NYC?"}]}`,
@@ -138,7 +138,7 @@ func TestConformance_GeminiNative(t *testing.T) {
 			// An explicit client tool_choice must never be clobbered by the
 			// VALIDATED upgrade: forced single-tool stays ANY + allowlist.
 			name:            "gemini_native/validated_mode_forced_tool_preserved",
-			provider:        providers.ProviderGoogle,
+			provider:        providers.ProviderAIAND,
 			model:           "gemini-3.1-pro-preview",
 			newClient:       geminiClient,
 			inbound:         `{"model":"gemini-3.1-pro-preview","stream":true,"max_tokens":1024,"tools":` + weatherTool + `,"tool_choice":{"type":"tool","name":"get_weather"},"messages":[{"role":"user","content":"Weather in NYC?"}]}`,

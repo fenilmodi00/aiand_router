@@ -40,8 +40,8 @@ func TestNativeCodexSubscriptionWithDepletedCredits(t *testing.T) {
 			defer upstream.Close()
 			client := openai.NewClient("synthetic-paid-key", upstream.URL)
 			client.SetCodexBaseURL(upstream.URL)
-			svc := NewService(staticRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: codexCoveredModel, Reason: "test"}}, map[string]providers.Client{providers.ProviderOpenAI: client}, nil, false, nil, nil, false, providers.ProviderOpenAI, codexCoveredModel, nil).
-				WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderOpenAI: {}})
+			svc := NewService(staticRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: codexCoveredModel, Reason: "test"}}, map[string]providers.Client{providers.ProviderAIAND: client}, nil, false, nil, nil, false, providers.ProviderAIAND, codexCoveredModel, nil).
+				WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 			ctx := codexSubscriptionTestCtx()
 			expectedBearer := "Bearer " + codexTestToken
 			if managed {

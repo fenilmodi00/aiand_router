@@ -12,7 +12,7 @@ import (
 )
 
 func TestUsageExtractor_ReportedZeroReplacesSnapshot(t *testing.T) {
-	ex := otel.NewUsageExtractor(httptest.NewRecorder(), providers.ProviderOpenAI)
+	ex := otel.NewUsageExtractor(httptest.NewRecorder(), providers.ProviderAIAND)
 	for _, frame := range []string{
 		`data: {"usage":{"prompt_tokens":100,"completion_tokens":10,"prompt_tokens_details":{"cached_tokens":50},"completion_tokens_details":{"reasoning_tokens":3}}}` + "\n\n",
 		`data: {"usage":{"completion_tokens":0,"prompt_tokens_details":{"cached_tokens":0},"completion_tokens_details":{"reasoning_tokens":0}}}` + "\n\n",

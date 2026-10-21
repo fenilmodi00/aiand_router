@@ -71,14 +71,14 @@ func (c *servingClient) Passthrough(context.Context, providers.PreparedRequest, 
 
 func rescuableDecision(reason string, withSibling bool) router.Decision {
 	d := router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    rescuedPrimaryModel,
 		Reason:   reason,
 	}
 	if withSibling {
 		d.Metadata = &router.RoutingMetadata{
 			CandidateModels:    []string{rescuedPrimaryModel, rescuerModel},
-			CandidateProviders: map[string]string{rescuerModel: providers.ProviderOpenAI},
+			CandidateProviders: map[string]string{rescuerModel: providers.ProviderAIAND},
 		}
 	}
 	return d
@@ -88,13 +88,13 @@ func newRescuedFailureTurnService(store sessionpin.Store, decision router.Decisi
 	return NewService(
 		staticRouter{decision: decision},
 		map[string]providers.Client{
-			providers.ProviderAnthropic: primary,
-			providers.ProviderOpenAI:    sibling,
+			providers.ProviderAIAND: primary,
+			providers.ProviderAIAND:    sibling,
 		},
-		nil, false, nil, store, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil,
+		nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
-		providers.ProviderAnthropic: {},
-		providers.ProviderOpenAI:    {},
+		providers.ProviderAIAND: {},
+		providers.ProviderAIAND:    {},
 	}).WithRetrySleep(func(context.Context, time.Duration) error { return nil }).WithRescuedFailureArmDemotion(flagOn)
 }
 
@@ -223,15 +223,15 @@ func TestProxyMessages_BaselineRetryKeepsStallDemotionOnPrimary(t *testing.T) {
 	primary := &failingClient{err: providers.ErrUpstreamIdleTimeout}
 	baseline := &failingClient{err: providers.ErrUpstreamIdleTimeout}
 	svc := NewService(
-		staticRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: primaryModel, Reason: "test"}},
+		staticRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: primaryModel, Reason: "test"}},
 		map[string]providers.Client{
-			providers.ProviderAnthropic: baseline,
-			providers.ProviderOpenAI:    primary,
+			providers.ProviderAIAND: baseline,
+			providers.ProviderAIAND:    primary,
 		},
-		nil, false, nil, store, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil,
+		nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
-		providers.ProviderAnthropic: {},
-		providers.ProviderOpenAI:    {},
+		providers.ProviderAIAND: {},
+		providers.ProviderAIAND:    {},
 	}).WithRescuedFailureArmDemotion(true)
 
 	body := anthropicMessagesBody()

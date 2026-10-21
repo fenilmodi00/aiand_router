@@ -32,7 +32,7 @@ func TestPrepareOpenAI_AnthropicToolFallbackDisablesReasoning(t *testing.T) {
 			env, err := translate.ParseAnthropic(body)
 			require.NoError(t, err)
 			opts := translate.EmitOptions{
-				TargetModel: chatEffortModel, TargetProvider: providers.ProviderOpenAI,
+				TargetModel: chatEffortModel, TargetProvider: providers.ProviderAIAND,
 				Capabilities: router.Lookup(chatEffortModel), ForceReasoningEffort: tc.forceReasoningEffort,
 				ForceEffort: tc.forceEffort,
 			}
@@ -67,7 +67,7 @@ func TestPrepareOpenAI_AnthropicToolFallbackPreservesOutputBudget(t *testing.T) 
 			env, err := translate.ParseAnthropic(body)
 			require.NoError(t, err)
 			prep, err := env.PrepareOpenAI(http.Header{}, translate.EmitOptions{
-				TargetModel: chatEffortModel, TargetProvider: providers.ProviderOpenAI,
+				TargetModel: chatEffortModel, TargetProvider: providers.ProviderAIAND,
 				Capabilities: router.Lookup(chatEffortModel),
 			})
 			require.NoError(t, err)
@@ -82,7 +82,7 @@ func TestPrepareOpenAI_StrippedServerToolsDoNotDisableReasoning(t *testing.T) {
 	env, err := translate.ParseAnthropic([]byte(`{"messages":[{"role":"user","content":"search"}],"max_tokens":1024,"tools":[{"type":"web_search_20250305","name":"web_search"}]}`))
 	require.NoError(t, err)
 	prep, err := env.PrepareOpenAI(http.Header{}, translate.EmitOptions{
-		TargetModel: chatEffortModel, TargetProvider: providers.ProviderOpenAI,
+		TargetModel: chatEffortModel, TargetProvider: providers.ProviderAIAND,
 		Capabilities: router.Lookup(chatEffortModel),
 	})
 	require.NoError(t, err)

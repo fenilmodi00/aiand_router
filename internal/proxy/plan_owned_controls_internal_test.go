@@ -98,7 +98,7 @@ func TestBoostServingKeepsLegacyForceModelPinActive(t *testing.T) {
 		SessionKey:  sessionKey,
 		Role:        role,
 		Model:       "claude-opus-5",
-		Provider:    providers.ProviderAnthropic,
+		Provider:    providers.ProviderAIAND,
 		Reason:      translate.ReasonUserForceModel,
 		PinnedUntil: pinNeverExpires,
 	}

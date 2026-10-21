@@ -2,8 +2,6 @@ package catalog
 
 import (
 	"math"
-
-	"weave-os/router/internal/providers"
 )
 
 // EffectiveInputCost returns the true USD input cost after applying cache
@@ -11,18 +9,16 @@ import (
 // effective write multiplier; 1-hour cache-creation (usageModifiers.CacheCreation1h, a
 // subset of cacheCreation) at the 1-hour write multiplier; cache-read at the
 // binding's effective read multiplier; the whole sum scaled by the US
-// inference-geography multiplier when it applies. upstreamProvider's wire
-// family distinguishes Anthropic-spec upstreams (input_tokens is fresh-only)
-// from OpenAI / Gemini (prompt_tokens includes cached tokens — must subtract).
+// inference-geography multiplier when it applies.
+//
+// The only upstream family is OpenAI-compatible, whose prompt_tokens already
+// include cached tokens, so the cached counts are subtracted back out.
 //
 // Single source of truth for the proxy's OTel emitter, telemetry write
 // path, and the billing debit hook.
 func EffectiveInputCost(inputTokens, cacheCreation, cacheRead int, p Pricing, upstreamProvider string, usageModifiers UsageModifiers) float64 {
 	p = p.ForInputTokens(PromptTokens(inputTokens, cacheCreation, cacheRead, upstreamProvider))
-	fresh := inputTokens
-	if providers.FamilyFor(upstreamProvider) != providers.FamilyAnthropic {
-		fresh = inputTokens - cacheCreation - cacheRead
-	}
+	fresh := inputTokens - cacheCreation - cacheRead
 	if fresh < 0 {
 		fresh = 0
 	}
@@ -47,13 +43,10 @@ func CounterfactualInputCost(inputTokens, cacheCreation, cacheRead, warmPrefill 
 }
 
 // PromptTokens returns the full prompt length that selects a LongContext
-// tier. Anthropic-family input_tokens counts only uncached tokens, so the
-// cache writes and reads are added back; other families already include them.
+// tier. The only upstream family is OpenAI-compatible, whose prompt_tokens
+// already include cached tokens.
 func PromptTokens(inputTokens, cacheCreation, cacheRead int, upstreamProvider string) int {
-	if providers.FamilyFor(upstreamProvider) != providers.FamilyAnthropic {
-		return inputTokens
-	}
-	return inputTokens + max(cacheCreation, 0) + max(cacheRead, 0)
+	return inputTokens
 }
 
 // EffectiveOutputCost returns USD output cost for a call. Output tokens

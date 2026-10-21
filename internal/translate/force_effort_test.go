@@ -188,7 +188,7 @@ func TestForceReasoningEffort_GatewayToolTurnOmitsEffort(t *testing.T) {
 	require.NoError(t, err)
 	prep, err := env.PrepareOpenAI(http.Header{}, translate.EmitOptions{
 		TargetModel:          "grok-4.6",
-		TargetProvider:       providers.ProviderOpenAIGateway,
+		TargetProvider:       providers.ProviderAIAND,
 		Capabilities:         router.Lookup("grok-4.6"),
 		ForceReasoningEffort: "high",
 	})

@@ -13,7 +13,7 @@ import (
 
 func TestSemanticCacheStoreRejectsChangedCredential(t *testing.T) {
 	service := &Service{}
-	decision := router.Decision{Model: catalog.ModelIDClaudeHaiku45.String(), Provider: providers.ProviderAnthropic}
+	decision := router.Decision{Model: catalog.ModelIDClaudeHaiku45.String(), Provider: providers.ProviderAIAND}
 	original := context.WithValue(context.Background(), APIKeyIDContextKey{}, "verified-key")
 	original = requestcontext.WithCredentials(original, &Credentials{Source: credSourceBYOK, PrincipalID: "original-account"})
 	provenance := service.semanticCacheProvenance(original, decision)
@@ -27,7 +27,7 @@ func TestSemanticCacheStoreRejectsChangedCredential(t *testing.T) {
 
 func TestSemanticCacheManagedIdentityRequiresServingTuple(t *testing.T) {
 	service := &Service{}
-	decision := router.Decision{Model: catalog.ModelIDClaudeHaiku45.String(), Provider: providers.ProviderAnthropic}
+	decision := router.Decision{Model: catalog.ModelIDClaudeHaiku45.String(), Provider: providers.ProviderAIAND}
 	ctx := context.WithValue(context.Background(), APIKeyIDContextKey{}, "verified-key")
 	ctx = requestcontext.WithCredentials(ctx, &Credentials{Source: credSourceBYOK, PrincipalID: "account"})
 	identity := requestcontext.ServingIdentity{CredentialIdentity: "subject", ReleaseID: "release", BindingID: "binding"}

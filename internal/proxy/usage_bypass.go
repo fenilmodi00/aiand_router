@@ -96,14 +96,14 @@ func (s *Service) subscriptionPassthroughEngaged(ctx context.Context, headers ht
 // scorer, which already handles the paid-key fallback and subscription-only
 // refusal for that state.
 func (s *Service) classifierPassthroughEngaged(ctx context.Context, headers http.Header, req router.Request, turnType turntype.TurnType) (string, bool) {
-	if !s.supportsSubscriptionTransport(providers.ProviderAnthropic) {
+	if !s.supportsSubscriptionTransport(providers.ProviderAIAND) {
 		return "", false
 	}
 	if turnType != turntype.Classifier {
 		return "", false
 	}
 	provider, token, covered := subscriptionCoveredTarget(ctx, headers, req)
-	if !covered || provider != providers.ProviderAnthropic || s.subscriptionModels.denied([]byte(token), req.RequestedModel, s.clockNow()) {
+	if !covered || provider != providers.ProviderAIAND || s.subscriptionModels.denied([]byte(token), req.RequestedModel, s.clockNow()) {
 		return "", false
 	}
 	if s.usageObserver == nil {
@@ -136,7 +136,7 @@ func (s *Service) classifierPassthroughEngaged(ctx context.Context, headers http
 // normal routing path (routing and subscription account selection) takes over,
 // so the caller starts conserving their remaining quota.
 func (s *Service) usageBypassEngaged(ctx context.Context, headers http.Header, req router.Request) (string, bool) {
-	if !s.supportsSubscriptionTransport(providers.ProviderAnthropic) && !s.supportsSubscriptionTransport(providers.ProviderOpenAI) {
+	if !s.supportsSubscriptionTransport(providers.ProviderAIAND) && !s.supportsSubscriptionTransport(providers.ProviderAIAND) {
 		return "", false
 	}
 	cfg, ok := usageBypassFromContext(ctx)
@@ -147,7 +147,7 @@ func (s *Service) usageBypassEngaged(ctx context.Context, headers http.Header, r
 	if !covered || !s.supportsSubscriptionTransport(provider) {
 		return "", false
 	}
-	if provider == providers.ProviderAnthropic && s.subscriptionModels.denied([]byte(token), req.RequestedModel, s.clockNow()) {
+	if provider == providers.ProviderAIAND && s.subscriptionModels.denied([]byte(token), req.RequestedModel, s.clockNow()) {
 		return "", false
 	}
 	threshold := defaultUsageBypassThreshold
@@ -189,15 +189,10 @@ func subscriptionCoveredTarget(ctx context.Context, headers http.Header, req rou
 		return "", "", false
 	}
 	provider = m.PrimaryProvider()
-	codexTok, anthroTok := presentSubscriptionTokens(ctx, headers)
+	_, anthroTok := presentSubscriptionTokens(ctx, headers)
 	switch provider {
-	case providers.ProviderAnthropic:
+	case providers.ProviderAIAND:
 		token = anthroTok
-	case providers.ProviderOpenAI:
-		if !codexSubscriptionCoversModel(model) {
-			return "", "", false
-		}
-		token = codexTok
 	default:
 		return "", "", false
 	}
@@ -264,12 +259,12 @@ func (s *Service) anthropicSubscriptionObservedExhausted(ctx context.Context, he
 // 400 — strictly worse than the 429 — so the caller keeps using the subscription.
 func (s *Service) anthropicFallbackKeyAvailable(ctx context.Context) bool {
 	if byok := BuildCredentialsMap(externalKeysFromContext(ctx)); byok != nil {
-		if _, ok := byok[providers.ProviderAnthropic]; ok {
+		if _, ok := byok[providers.ProviderAIAND]; ok {
 			return true
 		}
 	}
 	if s.deploymentKeyedProviders != nil {
-		if _, ok := s.deploymentKeyedProviders[providers.ProviderAnthropic]; ok {
+		if _, ok := s.deploymentKeyedProviders[providers.ProviderAIAND]; ok {
 			return true
 		}
 	}
@@ -451,7 +446,7 @@ func (s *Service) bypassToAnthropic(
 ) error {
 	log := observability.FromContext(ctx)
 	decision := router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    feats.Model,
 		Reason:   reason,
 	}
@@ -467,7 +462,7 @@ func (s *Service) bypassToAnthropic(
 	w.Header().Set(HeaderRouterContextWindow, strconv.Itoa(contextWindowForRequest(decision.Model, decision.Provider)))
 	setContextEstimateHeaders(w.Header(), env.ContextOverflowTokenEstimate(), max(contextWindowOutputReserve, feats.MaxTokens))
 
-	p, provErr := s.provider(providers.ProviderAnthropic)
+	p, provErr := s.provider(providers.ProviderAIAND)
 	if provErr != nil {
 		return provErr
 	}

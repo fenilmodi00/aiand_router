@@ -282,5 +282,5 @@ func TestPerInstallationBucketCapIsolatesTenants(t *testing.T) {
 }
 
 func testProvenance() cache.Provenance {
-	return cache.NewProvenance(cache.ProvenanceScope{CredentialSubject: "subject", Product: cache.ProductLegacy, Model: catalog.ModelIDClaudeHaiku45, Provider: providers.ProviderAnthropic, UpstreamScope: "deployment"})
+	return cache.NewProvenance(cache.ProvenanceScope{CredentialSubject: "subject", Product: cache.ProductLegacy, Model: catalog.ModelIDClaudeHaiku45, Provider: providers.ProviderAIAND, UpstreamScope: "deployment"})
 }

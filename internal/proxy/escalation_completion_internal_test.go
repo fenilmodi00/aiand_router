@@ -23,7 +23,7 @@ func escalationCompletionContext() context.Context {
 }
 
 func newEscalationCompletionService(store *escalationTestStore, observer *escalationTestObserver, clients map[string]providers.Client) *Service {
-	return NewService(nil, clients, nil, false, nil, newStubPinStore(), false, providers.ProviderAnthropic, "claude-opus-4-8", nil).
+	return NewService(nil, clients, nil, false, nil, newStubPinStore(), false, providers.ProviderAIAND, "claude-opus-4-8", nil).
 		WithEscalation(store, observer).
 		WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyHMMEmbedding, Router: escalationDispatchRouter{}, Capabilities: policy.Capabilities{SchemaVersion: policy.SchemaVersionV1, AuthoritativePerTurnSelection: true}})
 }
@@ -43,7 +43,7 @@ func TestEscalationCompletionRecordsPostRoutingPreparationFailure(t *testing.T) 
 		t.Run(tc.name, func(t *testing.T) {
 			store := newEscalationTestStore()
 			observer := &escalationTestObserver{}
-			clients := map[string]providers.Client{providers.ProviderGoogle: &stripFailureProvider{}}
+			clients := map[string]providers.Client{providers.ProviderAIAND: &stripFailureProvider{}}
 			svc := newEscalationCompletionService(store, observer, clients)
 			err := tc.invoke(svc, escalationCompletionContext(), []byte(tc.body), httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/test", nil))
 			require.ErrorIs(t, err, tc.expectedError)
@@ -99,7 +99,7 @@ func TestEscalationCompletionWaitsForResponsesFinalization(t *testing.T) {
 				_, err := w.Write([]byte(`{"id":"msg_test","type":"message","role":"assistant","model":"claude-haiku-4-5","content":[{"type":"text","text":"repository inspected"}],"stop_reason":"end_turn","usage":{"input_tokens":10,"output_tokens":3}}`))
 				return err
 			}}
-			svc := newEscalationCompletionService(store, observer, map[string]providers.Client{providers.ProviderAnthropic: provider})
+			svc := newEscalationCompletionService(store, observer, map[string]providers.Client{providers.ProviderAIAND: provider})
 			finalizationErr := errors.New("response client disconnected during finalization")
 			writes := 0
 			writer := &escalationFinalizeFailureWriter{ResponseRecorder: httptest.NewRecorder(), beforeWrite: func() {
@@ -150,12 +150,12 @@ func TestEscalationTurnsBypassPopulatedSemanticCache(t *testing.T) {
 			semanticCache := cache.New(cache.DefaultConfig())
 			embedding := []float32{1, 0}
 			const externalID = "escalation-cache-test"
-			provenance := cache.NewProvenance(cache.ProvenanceScope{CredentialSubject: "completion-test-key", Product: cache.ProductLegacy, Model: catalog.ModelIDClaudeHaiku45, Provider: providers.ProviderAnthropic, UpstreamScope: "deployment"})
+			provenance := cache.NewProvenance(cache.ProvenanceScope{CredentialSubject: "completion-test-key", Product: cache.ProductLegacy, Model: catalog.ModelIDClaudeHaiku45, Provider: providers.ProviderAIAND, UpstreamScope: "deployment"})
 			semanticCache.Store(externalID, tc.format, embedding, 1, cache.CachedResponse{StatusCode: http.StatusOK, Body: []byte(`{"cached":true}`)}, "", 0, provenance)
 			_, hit := semanticCache.Lookup(externalID, tc.format, embedding, []int{1}, "", 0, provenance)
 			require.True(t, hit)
-			classifier := &authoritativeTestRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: catalog.ModelIDClaudeHaiku45.String(), Metadata: &router.RoutingMetadata{Strategy: string(router.StrategyHMMEmbedding), Embedding: embedding, ClusterIDs: []int{1}}}}
-			svc := NewService(nil, nil, nil, false, semanticCache, newStubPinStore(), false, providers.ProviderAnthropic, "claude-opus-4-8", nil).WithEscalation(store, &escalationTestObserver{}).WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyHMMEmbedding, Router: classifier, Capabilities: policy.Capabilities{SchemaVersion: policy.SchemaVersionV1}})
+			classifier := &authoritativeTestRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDClaudeHaiku45.String(), Metadata: &router.RoutingMetadata{Strategy: string(router.StrategyHMMEmbedding), Embedding: embedding, ClusterIDs: []int{1}}}}
+			svc := NewService(nil, nil, nil, false, semanticCache, newStubPinStore(), false, providers.ProviderAIAND, "claude-opus-4-8", nil).WithEscalation(store, &escalationTestObserver{}).WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyHMMEmbedding, Router: classifier, Capabilities: policy.Capabilities{SchemaVersion: policy.SchemaVersionV1}})
 			ctx := context.WithValue(escalationCompletionContext(), ExternalIDContextKey{}, externalID)
 			recorder := httptest.NewRecorder()
 			err := tc.invoke(svc, ctx, []byte(tc.body), recorder, httptest.NewRequest(http.MethodPost, "/test", nil))

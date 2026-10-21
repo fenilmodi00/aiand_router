@@ -116,7 +116,7 @@ func (s *Service) authorizeSubscriptionAPI(ctx context.Context, pool subscriptio
 		if s.managedAccountQuotaExhausted(ctx, candidate, now) {
 			continue
 		}
-		if refusal.counts && pool == subscriptions.ProviderClaude && (refusal.poolRefused || s.subscriptionModels.managedClientAppDenied(candidate.accountID, providers.ProviderAnthropic, refusal.clientApp, now)) {
+		if refusal.counts && pool == subscriptions.ProviderClaude && (refusal.poolRefused || s.subscriptionModels.managedClientAppDenied(candidate.accountID, providers.ProviderAIAND, refusal.clientApp, now)) {
 			continue
 		}
 		return fmt.Errorf("%w: included quota is available or unknown", ErrSubscriptionPoolUnavailable)

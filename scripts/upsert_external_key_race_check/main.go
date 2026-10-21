@@ -85,11 +85,11 @@ func checkUpsertExternalRace(ctx context.Context, pool *pgxpool.Pool) error {
 		return fmt.Errorf("create installation: %w", err)
 	}
 	fmt.Printf("installation_id=%s\n", install.ID)
-	fmt.Printf("provider=%s\n", providers.ProviderAnthropic)
+	fmt.Printf("provider=%s\n", providers.ProviderAIAND)
 
 	seedName := "seed-byok"
 	seeded, err := seedSvc.UpsertExternalAPIKey(ctx, install.ID, auth.UpsertExternalAPIKeyParams{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		RawKey:   "sk-ant-race-seed-key",
 		Name:     &seedName,
 	})
@@ -135,7 +135,7 @@ func checkUpsertExternalRace(ctx context.Context, pool *pgxpool.Pool) error {
 			<-start
 			name := fmt.Sprintf("race-byok-%d", i)
 			key, err := raceSvc.UpsertExternalAPIKey(ctx, install.ID, auth.UpsertExternalAPIKeyParams{
-				Provider: providers.ProviderAnthropic,
+				Provider: providers.ProviderAIAND,
 				RawKey:   fmt.Sprintf("sk-ant-race-upsert-%d-%s", i, uuid.NewString()[:8]),
 				Name:     &name,
 			})
@@ -174,7 +174,7 @@ func checkUpsertExternalRace(ctx context.Context, pool *pgxpool.Pool) error {
 		  COUNT(*) FILTER (WHERE deleted_at IS NOT NULL)
 		FROM router.model_router_external_api_keys
 		WHERE installation_id = $1::uuid AND provider = $2`,
-		install.ID, providers.ProviderAnthropic,
+		install.ID, providers.ProviderAIAND,
 	).Scan(&active, &deleted); err != nil {
 		return fmt.Errorf("count rows: %w", err)
 	}
@@ -185,7 +185,7 @@ func checkUpsertExternalRace(ctx context.Context, pool *pgxpool.Pool) error {
 		FROM router.model_router_external_api_keys
 		WHERE installation_id = $1::uuid AND provider = $2
 		ORDER BY created_at`,
-		install.ID, providers.ProviderAnthropic)
+		install.ID, providers.ProviderAIAND)
 	if err != nil {
 		return fmt.Errorf("select rows: %w", err)
 	}

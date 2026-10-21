@@ -285,7 +285,7 @@ func TestRunTurnLoop_PinTurnCountsCurrentTurnInclusively(t *testing.T) {
 	store := newStubPinStore()
 	store.getFound = true
 	store.getPin = sessionpin.Pin{
-		Provider:        providers.ProviderAnthropic,
+		Provider:        providers.ProviderAIAND,
 		Model:           "claude-sonnet-4-6",
 		Reason:          "fake",
 		PinnedUntil:     time.Now().Add(time.Hour),
@@ -294,7 +294,7 @@ func TestRunTurnLoop_PinTurnCountsCurrentTurnInclusively(t *testing.T) {
 		LastServedModel: "claude-sonnet-4-6",
 	}
 	svc := NewService(fr, nil, nil, false, nil, store, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil).
+		providers.ProviderAIAND, "claude-haiku-4-5", nil).
 		WithAvailableModels(fr.available).
 		WithPlannerEnabled(false)
 

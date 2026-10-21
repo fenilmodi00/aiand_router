@@ -177,7 +177,7 @@ func TestExpireSessionPinInvalidatesPostCommandContinuation(t *testing.T) {
 	continuationRole := commandContinuationRole(sessionpin.DefaultRole)
 	store := &evictionStubPinStore{continuations: map[string]sessionpin.Pin{
 		continuationRole: {
-			Provider:    providers.ProviderAnthropic,
+			Provider:    providers.ProviderAIAND,
 			Model:       "claude-haiku-4-5",
 			PinnedUntil: time.Now().Add(time.Minute),
 		},

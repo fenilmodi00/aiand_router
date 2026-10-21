@@ -83,9 +83,9 @@ func dispatchManagedThirdPartyTurnWithReason(t *testing.T, svc *Service, ctx con
 	_, err := svc.dispatchWithFallback(ctx, failoverInputs{
 		w:               recorder,
 		buf:             buffer,
-		initialDecision: router.Decision{Model: parityAnthropicModel, Provider: providers.ProviderAnthropic, Reason: reason},
+		initialDecision: router.Decision{Model: parityAnthropicModel, Provider: providers.ProviderAIAND, Reason: reason},
 		purpose:         inference.PurposeAnthropicMessages,
-		bindings:        []catalog.ProviderBinding{{Provider: providers.ProviderAnthropic}},
+		bindings:        []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}},
 		attempt: func(ctx context.Context, decision router.Decision, client providers.Client) error {
 			buffer.Seal()
 			return client.Proxy(ctx, decision, providers.PreparedRequest{}, buffer, httptest.NewRequest(http.MethodPost, "/v1/messages", nil))
@@ -100,9 +100,9 @@ func TestDispatchWithFallbackDoesNotPayForManagedThirdPartyRefusal(t *testing.T)
 		repeatLast: true,
 	}
 	upstream := &parityUpstream{subErr: thirdPartyRefusalError(), okBody: "served"}
-	svc := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAnthropic: upstream}).
+	svc := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: upstream}).
 		WithManagedSubscriptions(leaser).
-		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAnthropic: {}})
+		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 	svc.retrySleep = noopSleep
 
 	for range 2 {
@@ -123,9 +123,9 @@ func TestDispatchWithFallbackKeepsManagedThirdPartyRefusalClientSpecific(t *test
 		repeatLast: true,
 	}
 	upstream := &parityUpstream{subErr: thirdPartyRefusalError(), okBody: "served"}
-	svc := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAnthropic: upstream}).
+	svc := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: upstream}).
 		WithManagedSubscriptions(leaser).
-		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAnthropic: {}})
+		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 	svc.retrySleep = noopSleep
 
 	_, err := dispatchManagedThirdPartyTurn(t, svc, clientAppContext(managedSubscriptionTestContext(), ClientAppOpencode))
@@ -148,7 +148,7 @@ func TestDispatchWithFallbackSurfacesManagedThirdPartyRefusalWithoutFallbackKey(
 		repeatLast: true,
 	}
 	upstream := &parityUpstream{subErr: thirdPartyRefusalError(), okBody: "served"}
-	svc := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAnthropic: upstream}).
+	svc := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: upstream}).
 		WithManagedSubscriptions(leaser)
 	svc.retrySleep = noopSleep
 
@@ -194,9 +194,9 @@ func TestDispatchWithFallbackRejectsPaidFallbackForForcedThirdPartyRefusal(t *te
 		repeatLast: true,
 	}
 	upstream := &parityUpstream{subErr: thirdPartyRefusalError(), okBody: "served"}
-	svc := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAnthropic: upstream}).
+	svc := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: upstream}).
 		WithManagedSubscriptions(leaser).
-		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAnthropic: {}})
+		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 	svc.retrySleep = noopSleep
 
 	for range 2 {
@@ -213,15 +213,15 @@ func TestDispatchWithFallbackRejectsPaidFallbackForForcedThirdPartyRefusal(t *te
 
 func TestRotationBudgetPaidRescueRejectsForcedThirdPartyRefusal(t *testing.T) {
 	leaser := &scriptedSubscriptionLeaser{leases: []subscriptions.Lease{{AccountID: "opaque-a", AccessToken: "token-a"}}}
-	svc := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAnthropic: &fakeClient{name: providers.ProviderAnthropic}}).
+	svc := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: &fakeClient{name: providers.ProviderAIAND}}).
 		WithManagedSubscriptions(leaser).
-		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAnthropic: {}})
+		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 	ctx := expiredRotationContext(auth.SubscriptionProviderClaude)
 	markSubscriptionClientAppRefused(ctx)
 	rec := httptest.NewRecorder()
 	buf := newPreludeBuffer(rec)
-	in := plannedInputs(rec, buf, []catalog.ProviderBinding{{Provider: providers.ProviderAnthropic}}, nil)
-	in.initialDecision = router.Decision{Provider: providers.ProviderAnthropic, Model: parityAnthropicModel, Reason: translate.ReasonUserForceModel}
+	in := plannedInputs(rec, buf, []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}}, nil)
+	in.initialDecision = router.Decision{Provider: providers.ProviderAIAND, Model: parityAnthropicModel, Reason: translate.ReasonUserForceModel}
 	var apiCalls int
 	in.attempt = func(attemptCtx context.Context, _ router.Decision, _ providers.Client) error {
 		if creds := CredentialsFromContext(attemptCtx); creds == nil || !creds.OAuth {
@@ -259,9 +259,9 @@ func newThirdPartyRefusalService(t *testing.T) (*Service, *parityUpstream) {
 		repeatLast: true,
 	}
 	upstream := &parityUpstream{subErr: thirdPartyRefusalError(), okBody: "served"}
-	svc := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAnthropic: upstream}).
+	svc := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: upstream}).
 		WithManagedSubscriptions(leaser).
-		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAnthropic: {}})
+		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 	svc.retrySleep = noopSleep
 	return svc, upstream
 }
@@ -315,9 +315,9 @@ func TestForcedThirdPartyRefusalPaysThroughSubscriptionStateModelsOnlyWhenKeyCon
 	for _, consented := range []bool{false, true} {
 		t.Run(map[bool]string{false: "without consent", true: "with consent"}[consented], func(t *testing.T) {
 			upstream := &parityUpstream{subErr: thirdPartyRefusalError(), okBody: "served"}
-			svc := NewService(stateModelRouter{}, map[string]providers.Client{providers.ProviderAnthropic: upstream}, nil, false, nil, nil, false, "", "", nil).
+			svc := NewService(stateModelRouter{}, map[string]providers.Client{providers.ProviderAIAND: upstream}, nil, false, nil, nil, false, "", "", nil).
 				WithManagedSubscriptions(&stateModelLeaser{activeProviders: map[subscriptions.Provider]bool{subscriptions.ProviderClaude: true}}).
-				WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAnthropic: {}})
+				WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 			svc.retrySleep = noopSleep
 			ctx := WithManagedSubscriptionCandidates(managedSubscriptionTestContext(), []*auth.SubscriptionAccount{{
 				ID: "synthetic-claude", Provider: auth.SubscriptionProviderClaude, Enabled: true, State: auth.SubscriptionAccountStateActive,
@@ -329,14 +329,14 @@ func TestForcedThirdPartyRefusalPaysThroughSubscriptionStateModelsOnlyWhenKeyCon
 			ctx = context.WithValue(ctx, InstallationSubscriptionModelsWhenActiveContextKey{}, []string{stateClaudeModel})
 			ctx = context.WithValue(ctx, InstallationSubscriptionModelsWhenInactiveContextKey{}, []string{stateClaudeModel})
 			ctx = withTurnFailures(ctx)
-			req := router.Request{AllowedModels: allowedModelsForRequest(ctx), EnabledProviders: modelSet([]string{providers.ProviderAnthropic}), ForceModel: stateClaudeModel}
+			req := router.Request{AllowedModels: allowedModelsForRequest(ctx), EnabledProviders: modelSet([]string{providers.ProviderAIAND}), ForceModel: stateClaudeModel}
 			recorder := httptest.NewRecorder()
 			buffer := newPreludeBuffer(recorder)
 
 			_, err := svc.dispatchWithFallback(ctx, failoverInputs{
 				w: recorder, buf: buffer, subscriptionStateRequest: &req,
 				subscriptionStateWinnerProvider: new(string),
-				initialDecision:                 router.Decision{Model: stateClaudeModel, Provider: providers.ProviderAnthropic, Reason: translate.ReasonUserForceModel},
+				initialDecision:                 router.Decision{Model: stateClaudeModel, Provider: providers.ProviderAIAND, Reason: translate.ReasonUserForceModel},
 				purpose:                         inference.PurposeAnthropicMessages,
 				origin:                          policy.OverrideSourceRequest,
 				buildAlternative: func(router.Decision) (dispatchAttempt, error) {
@@ -378,9 +378,9 @@ func newSharedPoolRefusalService(t *testing.T, leases ...subscriptions.Lease) (*
 	t.Helper()
 	leaser := &scriptedSubscriptionLeaser{leases: leases}
 	upstream := &parityUpstream{subErr: thirdPartyRefusalError(), okBody: "served"}
-	svc := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAnthropic: upstream}).
+	svc := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: upstream}).
 		WithManagedSubscriptions(leaser).
-		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAnthropic: {}})
+		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 	svc.retrySleep = noopSleep
 	return svc, upstream, leaser
 }

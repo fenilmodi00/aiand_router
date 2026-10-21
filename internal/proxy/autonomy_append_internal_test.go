@@ -24,7 +24,7 @@ const autonomyGateBody = `{
 
 func newAutonomyGateService() *Service {
 	return NewService(nil, map[string]providers.Client{}, nil, false, nil, nil,
-		false, providers.ProviderAnthropic, "claude-haiku-4-5", nil)
+		false, providers.ProviderAIAND, "claude-haiku-4-5", nil)
 }
 
 func autonomyGateCtx(flagOn bool, clientApp string) context.Context {
@@ -102,9 +102,9 @@ func TestAutonomySystemAppendApplies_IdempotentAndSkipsSearchSubTurn(t *testing.
 
 func TestAutonomyAppendFired_NotRecordedForGeminiServedAttempt(t *testing.T) {
 	on := translate.EmitOptions{AppendAutonomySystem: true}
-	assert.True(t, autonomyAppendFired(on, providers.ProviderAnthropic))
-	assert.True(t, autonomyAppendFired(on, providers.ProviderOpenAI))
-	assert.True(t, autonomyAppendFired(on, providers.ProviderOpenRouter))
-	assert.False(t, autonomyAppendFired(on, providers.ProviderGoogle), "PrepareGemini drops the append, telemetry must agree")
-	assert.False(t, autonomyAppendFired(translate.EmitOptions{}, providers.ProviderAnthropic))
+	assert.True(t, autonomyAppendFired(on, providers.ProviderAIAND))
+	assert.True(t, autonomyAppendFired(on, providers.ProviderAIAND))
+	assert.True(t, autonomyAppendFired(on, providers.ProviderAIAND))
+	assert.False(t, autonomyAppendFired(on, providers.ProviderAIAND), "PrepareGemini drops the append, telemetry must agree")
+	assert.False(t, autonomyAppendFired(translate.EmitOptions{}, providers.ProviderAIAND))
 }

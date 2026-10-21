@@ -39,11 +39,7 @@ import (
 	"weave-os/router/internal/postgres/poolconfig"
 	servingpostgres "weave-os/router/internal/postgres/serving"
 	"weave-os/router/internal/providers"
-	"weave-os/router/internal/providers/anthropic"
-	"weave-os/router/internal/providers/cortexagents"
-	googleProvider "weave-os/router/internal/providers/google"
 	providerHTTP "weave-os/router/internal/providers/httputil"
-	openaiProvider "weave-os/router/internal/providers/openai"
 	openaiCompatProvider "weave-os/router/internal/providers/openaicompat"
 	"weave-os/router/internal/proxy"
 	"weave-os/router/internal/proxy/usage"
@@ -68,7 +64,6 @@ import (
 	"weave-os/router/internal/server/middleware"
 	"weave-os/router/internal/subscriptions"
 	"weave-os/router/internal/subscriptions/entitlement"
-	"weave-os/router/internal/websearch"
 	"weave-os/router/internal/wif"
 
 	_ "time/tzdata"
@@ -157,13 +152,6 @@ func main() {
 		panic(err)
 	}
 	logger.Info("Router deployment mode", "mode", deploymentMode)
-	allowCodexCredits, creditsErr := config.CodexExtraCreditsAllowed()
-	if creditsErr != nil {
-		panic(creditsErr)
-	}
-	if allowCodexCredits && deploymentMode != server.DeploymentModeSelfHosted {
-		panic("ROUTER_CODEX_ALLOW_EXTRA_CREDITS is supported only in selfhosted mode")
-	}
 
 	if err := validateManagedServingBoot(deploymentMode, osEnvLookup); err != nil {
 		logger.Error("Managed serving configuration is incomplete; refusing to boot", "mode", deploymentMode, "err", err)
@@ -205,12 +193,6 @@ func main() {
 	// Feeds resolveHardPinModel so compaction only lands where deployment
 	// auth actually exists — a BYOK/passthrough-only provider would 401.
 	envKeyedProviders := make(map[string]struct{})
-	// True when Anthropic has no deployment key but is reachable via client
-	// auth passthrough (Claude Code's OAuth/x-api-key flow). Must stay out of
-	// envKeyedProviders since not every request carries those credentials.
-	anthropicPassthroughEligible := false
-	// Mirrors anthropicPassthroughEligible for OpenAI (Codex's plan flow).
-	openaiPassthroughEligible := false
 
 	// Wired by default in managed mode. A boot-time health-check error (e.g.
 	// transient pool unreadiness) defaults to billing-enabled rather than
@@ -242,169 +224,6 @@ func main() {
 	}
 	byokOnly := deploymentMode == server.DeploymentModeManaged && billingSvc == nil
 
-	// Always registered. With ANTHROPIC_API_KEY (selfhosted only) the router
-	// uses its own key; otherwise client auth headers pass through directly.
-	anthropicKey := ""
-	if !byokOnly {
-		anthropicKey = config.GetOr("ANTHROPIC_API_KEY", "")
-	}
-	providerMap[providers.ProviderAnthropic] = anthropic.NewClient(anthropicKey, anthropic.DefaultBaseURL, anthropic.WithModelListHTTPClient(discoveryHTTPClient))
-	switch {
-	case byokOnly:
-		logger.Info("Anthropic provider enabled (BYOK only)", "base_url", anthropic.DefaultBaseURL)
-	case anthropicKey != "":
-		envKeyedProviders[providers.ProviderAnthropic] = struct{}{}
-		logger.Info("Anthropic provider enabled (router key)", "base_url", anthropic.DefaultBaseURL)
-	default:
-		// Selfhosted, no env key: passthrough-only, kept out of envKeyedProviders.
-		anthropicPassthroughEligible = true
-		logger.Info("Anthropic provider enabled (client auth passthrough)", "base_url", anthropic.DefaultBaseURL)
-	}
-
-	{
-		openaiBaseURL := config.GetOr("OPENAI_BASE_URL", openaiProvider.DefaultBaseURL)
-		openaiKey := ""
-		if !byokOnly {
-			openaiKey = config.GetOr("OPENAI_API_KEY", "")
-		}
-		// Codex (ChatGPT) subscription reroute to the Codex backend lives in
-		// the OpenAI client itself, keyed off the resolved credential.
-		openaiClient := openaiProvider.NewClientWithModelIDMap(
-			openaiKey,
-			openaiBaseURL,
-			upstreamIDsForProvider(providers.ProviderOpenAI),
-		)
-		openaiClient.SetCodexExtraCreditsAllowed(allowCodexCredits)
-		logger.Info("Codex subscription credit policy configured", "allow_extra_credits", allowCodexCredits)
-		// Local tests can point the subscription branch at a deterministic native
-		// Responses mock without changing the production ChatGPT endpoint.
-		if deploymentMode == server.DeploymentModeSelfHosted {
-			if codexBaseURL := config.GetOr("ROUTER_CODEX_BASE_URL", ""); codexBaseURL != "" {
-				openaiClient.SetCodexBaseURL(codexBaseURL)
-			}
-		}
-		providerMap[providers.ProviderOpenAI] = openaiClient
-		switch {
-		case byokOnly:
-			logger.Info("OpenAI provider enabled (BYOK only)", "base_url", openaiBaseURL)
-		case openaiKey != "":
-			envKeyedProviders[providers.ProviderOpenAI] = struct{}{}
-			logger.Info("OpenAI provider enabled", "base_url", openaiBaseURL)
-		default:
-			// OpenAI in selfhosted with no env key serves the passthrough
-			// path on client Authorization headers (Codex plan flow).
-			openaiPassthroughEligible = true
-			logger.Info("OpenAI provider enabled (client auth passthrough)", "base_url", openaiBaseURL)
-		}
-	}
-
-	{
-		openRouterBaseURL := config.GetOr("OPENROUTER_BASE_URL", openaiCompatProvider.DefaultBaseURL)
-		// Managed deploys don't use OpenRouter as a platform source by default
-		// (opt in via ROUTER_OPENROUTER_PLATFORM_ENABLED=true); selfhosted reads
-		// the key unconditionally. Either way BYOK OpenRouter keys still dispatch.
-		openRouterPlatformEnabled := deploymentMode == server.DeploymentModeSelfHosted ||
-			config.GetOr("ROUTER_OPENROUTER_PLATFORM_ENABLED", "false") == "true"
-		openRouterKey := ""
-		if !byokOnly && openRouterPlatformEnabled {
-			openRouterKey = config.GetOr("OPENROUTER_API_KEY", "")
-		}
-		openRouterModelIDMap, err := config.ParseModelIDMap(os.Getenv("ROUTER_MODEL_ID_MAP"))
-		if err != nil {
-			panic(fmt.Sprintf("ROUTER_MODEL_ID_MAP: %v", err))
-		}
-		providerMap[providers.ProviderOpenRouter] = openaiCompatProvider.NewClientWithModelIDMap(
-			openRouterKey,
-			openRouterBaseURL,
-			openRouterModelIDMap,
-			openaiCompatProvider.WithModelListHTTPClient(discoveryHTTPClient),
-		)
-		switch {
-		case byokOnly:
-			logger.Info("OpenRouter provider enabled (BYOK only)", "base_url", openRouterBaseURL)
-		case openRouterKey != "":
-			envKeyedProviders[providers.ProviderOpenRouter] = struct{}{}
-			logger.Info("OpenRouter provider enabled", "base_url", openRouterBaseURL)
-		case !openRouterPlatformEnabled:
-			logger.Info("OpenRouter provider registered (BYOK only — managed deploys don't use OpenRouter as a platform source; set ROUTER_OPENROUTER_PLATFORM_ENABLED=true to opt in)", "base_url", openRouterBaseURL)
-		default:
-			logger.Info("OpenRouter provider registered (BYOK only — set OPENROUTER_API_KEY for deployment-level use)", "base_url", openRouterBaseURL)
-		}
-	}
-
-	{
-		fireworksBaseURL := config.GetOr("FIREWORKS_BASE_URL", openaiCompatProvider.FireworksBaseURL)
-		registerDeploymentKeyedProvider(providerMap, envKeyedProviders, logger,
-			providers.ProviderFireworks, "Fireworks", "FIREWORKS_API_KEY", fireworksBaseURL, byokOnly,
-			func(key, baseURL string) providers.Client {
-				return openaiCompatProvider.NewClientWithModelIDMap(key, baseURL, upstreamIDsForProvider(providers.ProviderFireworks), openaiCompatProvider.WithModelListHTTPClient(discoveryHTTPClient))
-			})
-	}
-
-	{
-		// DeepInfra is the primary OSS serving surface for the Max candidate
-		// models. It speaks OpenAI Chat Completions and receives the canonical
-		// model IDs from the catalog's UpstreamID bindings.
-		deepInfraBaseURL := config.GetOr("DEEPINFRA_BASE_URL", openaiCompatProvider.DeepInfraBaseURL)
-		registerDeploymentKeyedProvider(providerMap, envKeyedProviders, logger,
-			providers.ProviderDeepInfra, "DeepInfra", "DEEPINFRA_API_KEY", deepInfraBaseURL, byokOnly,
-			func(key, baseURL string) providers.Client {
-				return openaiCompatProvider.NewClientWithModelIDMap(key, baseURL, upstreamIDsForProvider(providers.ProviderDeepInfra), openaiCompatProvider.WithModelListHTTPClient(discoveryHTTPClient))
-			})
-	}
-
-	{
-		// Makora uses provider-canonical model IDs vs. the router's slash-form
-		// slugs; modelIDMap comes from the catalog's per-binding UpstreamID.
-		makoraBaseURL := config.GetOr("MAKORA_BASE_URL", openaiCompatProvider.MakoraBaseURL)
-		registerDeploymentKeyedProvider(providerMap, envKeyedProviders, logger,
-			providers.ProviderMakora, "Makora", "MAKORA_API_KEY", makoraBaseURL, byokOnly,
-			func(key, baseURL string) providers.Client {
-				return openaiCompatProvider.NewClientWithModelIDMap(key, baseURL, upstreamIDsForProvider(providers.ProviderMakora), openaiCompatProvider.WithModelListHTTPClient(discoveryHTTPClient))
-			})
-	}
-
-	{
-		// Primary binding for DeepSeek V4 Pro / GLM-5.1 / MiniMax M2.7 (top of
-		// artificialanalysis.ai throughput tables); also an ordered fallback for
-		// models led by another provider. Uses "Org/Model" IDs vs. the router's
-		// slash-form slugs; modelIDMap comes from each binding's UpstreamID.
-		togetherBaseURL := config.GetOr("TOGETHER_BASE_URL", openaiCompatProvider.TogetherBaseURL)
-		registerDeploymentKeyedProvider(providerMap, envKeyedProviders, logger,
-			providers.ProviderTogether, "Together", "TOGETHER_API_KEY", togetherBaseURL, byokOnly,
-			func(key, baseURL string) providers.Client {
-				return openaiCompatProvider.NewClientWithModelIDMap(key, baseURL, upstreamIDsForProvider(providers.ProviderTogether), openaiCompatProvider.WithModelListHTTPClient(discoveryHTTPClient))
-			})
-	}
-
-	{
-		minimaxRegion := config.GetOr("MINIMAX_REGION", "global")
-		minimaxBaseURL := config.GetOr("MINIMAX_BASE_URL", openaiCompatProvider.MiniMaxBaseURL(minimaxRegion))
-		registerDeploymentKeyedProvider(providerMap, envKeyedProviders, logger,
-			providers.ProviderMiniMax, "MiniMax", "MINIMAX_API_KEY", minimaxBaseURL, byokOnly,
-			func(key, baseURL string) providers.Client {
-				return openaiCompatProvider.NewClientWithModelIDMap(key, baseURL, upstreamIDsForProvider(providers.ProviderMiniMax), openaiCompatProvider.WithModelListHTTPClient(discoveryHTTPClient))
-			})
-	}
-
-	{
-		xaiBaseURL := config.GetOr("XAI_BASE_URL", openaiCompatProvider.XAIBaseURL)
-		registerDeploymentKeyedProvider(providerMap, envKeyedProviders, logger,
-			providers.ProviderXAI, "XAI", "XAI_API_KEY", xaiBaseURL, byokOnly,
-			func(key, baseURL string) providers.Client {
-				return openaiCompatProvider.NewClient(key, baseURL, openaiCompatProvider.WithModelListHTTPClient(discoveryHTTPClient))
-			})
-	}
-
-	{
-		metaBaseURL := config.GetOr("META_BASE_URL", openaiCompatProvider.MetaBaseURL)
-		registerDeploymentKeyedProvider(providerMap, envKeyedProviders, logger,
-			providers.ProviderMeta, "Meta", "META_API_KEY", metaBaseURL, byokOnly,
-			func(key, baseURL string) providers.Client {
-				return openaiCompatProvider.NewClient(key, baseURL, openaiCompatProvider.WithModelListHTTPClient(discoveryHTTPClient))
-			})
-	}
-
 	{
 		// ai& speaks OpenAI Chat Completions with vendor-prefixed upstream IDs
 		// ("deepseek-ai/deepseek-v4.1-flash"), so the model ID map comes from
@@ -414,103 +233,6 @@ func main() {
 			providers.ProviderAIAND, "ai&", "AIAND_API_KEY", aiandBaseURL, byokOnly,
 			func(key, baseURL string) providers.Client {
 				return openaiCompatProvider.NewClientWithModelIDMap(key, baseURL, upstreamIDsForProvider(providers.ProviderAIAND), openaiCompatProvider.WithModelListHTTPClient(discoveryHTTPClient))
-			})
-	}
-
-	{
-		// Wafer-ZDR: required — Wafer rejects requests whose model doesn't
-		// support ZDR rather than serve them without retention.
-		waferBaseURL := config.GetOr("WAFER_BASE_URL", openaiCompatProvider.WaferBaseURL)
-		registerDeploymentKeyedProvider(providerMap, envKeyedProviders, logger,
-			providers.ProviderWafer, "Wafer", "WAFER_API_KEY", waferBaseURL, byokOnly,
-			func(key, baseURL string) providers.Client {
-				return openaiCompatProvider.NewClientWithModelIDMap(key, baseURL, upstreamIDsForProvider(providers.ProviderWafer), openaiCompatProvider.WithModelListHTTPClient(discoveryHTTPClient)).
-					WithProtectedHeaders(http.Header{"Wafer-ZDR": []string{"required"}})
-			})
-	}
-
-	{
-		// Wafer's Anthropic-compatible Messages surface; same WAFER_API_KEY,
-		// bearer auth, fixed endpoint.
-		waferAnthropicKey := ""
-		if !byokOnly {
-			waferAnthropicKey = config.GetOr(providers.APIKeyEnvVar(providers.ProviderWaferAnthropic), "")
-		}
-		waferMessagesBaseURL := anthropic.WaferMessagesBaseURL
-		providerMap[providers.ProviderWaferAnthropic] = anthropic.NewClient(
-			waferAnthropicKey, waferMessagesBaseURL,
-			anthropic.WithAuthScheme(anthropic.AuthBearer),
-			anthropic.WithModelListHTTPClient(discoveryHTTPClient)).
-			WithProtectedHeaders(http.Header{"Wafer-ZDR": []string{"required"}}).
-			WithModelIDMap(upstreamIDsForProvider(providers.ProviderWaferAnthropic))
-		if waferAnthropicKey != "" {
-			envKeyedProviders[providers.ProviderWaferAnthropic] = struct{}{}
-			logger.Info("Wafer Anthropic provider enabled", "base_url", waferMessagesBaseURL)
-		} else {
-			logger.Info("Wafer Anthropic provider registered (BYOK only — set WAFER_API_KEY for deployment-level use)", "base_url", waferMessagesBaseURL)
-		}
-	}
-
-	{
-		// "bedrock-mantle" OpenAI-compatible surface (AWS-recommended over
-		// bedrock-runtime/InvokeModel). Auth is a static Bedrock API key
-		// (AWS_BEARER_TOKEN_BEDROCK), not SigV4, so the standard bearer flow
-		// applies. Expects dot-form model IDs; modelIDMap comes from the catalog.
-		bedrockRegion := config.GetOr("AWS_REGION", "us-east-1")
-		bedrockBaseURL := config.GetOr("BEDROCK_BASE_URL", openaiCompatProvider.BedrockMantleBaseURL(bedrockRegion))
-		registerDeploymentKeyedProvider(providerMap, envKeyedProviders, logger,
-			providers.ProviderBedrock, "Bedrock", "AWS_BEARER_TOKEN_BEDROCK", bedrockBaseURL, byokOnly,
-			func(key, baseURL string) providers.Client {
-				return openaiCompatProvider.NewClientWithModelIDMap(key, baseURL, upstreamIDsForProvider(providers.ProviderBedrock), openaiCompatProvider.WithModelListHTTPClient(discoveryHTTPClient))
-			},
-			"region", bedrockRegion)
-	}
-
-	{
-		// Endpoint is per-tenant with no vendor default; token is only used when a
-		// base URL is also set.
-		gatewayBaseURL := config.GetOr("ANTHROPIC_GATEWAY_BASE_URL", "")
-		gatewayToken := ""
-		if !byokOnly && gatewayBaseURL != "" {
-			gatewayToken = config.GetOr(providers.APIKeyEnvVar(providers.ProviderAnthropicGateway), "")
-		}
-		providerMap[providers.ProviderAnthropicGateway] = anthropic.NewClient(
-			gatewayToken, gatewayBaseURL,
-			anthropic.WithAuthScheme(anthropic.AuthBearer),
-			anthropic.WithModelListHTTPClient(discoveryHTTPClient))
-		if gatewayToken != "" {
-			envKeyedProviders[providers.ProviderAnthropicGateway] = struct{}{}
-			logger.Info("Anthropic gateway provider enabled", "base_url", gatewayBaseURL)
-		} else {
-			logger.Info("Anthropic gateway provider registered (BYOK only — set ANTHROPIC_GATEWAY_TOKEN and ANTHROPIC_GATEWAY_BASE_URL for deployment-level use)")
-		}
-	}
-
-	{
-		// Same arrangement for the OpenAI-spec surface of a customer gateway
-		// (Snowflake Cortex serves its non-Claude models only here).
-		gatewayBaseURL := config.GetOr("OPENAI_GATEWAY_BASE_URL", "")
-		gatewayToken := ""
-		if !byokOnly && gatewayBaseURL != "" {
-			gatewayToken = config.GetOr(providers.APIKeyEnvVar(providers.ProviderOpenAIGateway), "")
-		}
-		providerMap[providers.ProviderOpenAIGateway] = openaiCompatProvider.NewGatewayClient(gatewayToken, gatewayBaseURL, openaiCompatProvider.WithModelListHTTPClient(discoveryHTTPClient))
-		if gatewayToken != "" {
-			envKeyedProviders[providers.ProviderOpenAIGateway] = struct{}{}
-			logger.Info("OpenAI gateway provider enabled", "base_url", gatewayBaseURL)
-		} else {
-			logger.Info("OpenAI gateway provider registered (BYOK only — set OPENAI_GATEWAY_TOKEN and OPENAI_GATEWAY_BASE_URL for deployment-level use)")
-		}
-	}
-
-	{
-		// Native REST surface, required for multi-turn tool use against Gemini
-		// 3.x's opaque thought_signature field (not exposed via OpenAI-compat).
-		googleBaseURL := config.GetOr("GOOGLE_BASE_URL", googleProvider.NativeBaseURL)
-		registerDeploymentKeyedProvider(providerMap, envKeyedProviders, logger,
-			providers.ProviderGoogle, "Google (Gemini) native", "GOOGLE_API_KEY", googleBaseURL, byokOnly,
-			func(key, baseURL string) providers.Client {
-				return googleProvider.NewNativeClient(key, baseURL)
 			})
 	}
 
@@ -778,19 +500,6 @@ func main() {
 		deploymentEligible[p] = struct{}{}
 	}
 
-	// Kept separate from deploymentEligible: adding these unconditionally would
-	// let e.g. an Anthropic-surface request route to OpenAI in passthrough mode,
-	// forwarding an Anthropic `x-api-key` to api.openai.com — a credential leak.
-	// WithPassthroughEligibleProviders only admits a provider when the request
-	// matches its own surface.
-	passthroughEligible := make(map[string]struct{}, 2)
-	if anthropicPassthroughEligible {
-		passthroughEligible[providers.ProviderAnthropic] = struct{}{}
-	}
-	if openaiPassthroughEligible {
-		passthroughEligible[providers.ProviderOpenAI] = struct{}{}
-	}
-
 	// Planner + handover config (Prism-style cache-aware routing); each default
 	// below can be overridden per deployment.
 	plannerEnabled := config.GetOr("ROUTER_PLANNER_ENABLED", "true") == "true"
@@ -911,7 +620,7 @@ func main() {
 	policyDeadlineFallback := config.GetOr("ROUTER_POLICY_DEADLINE_FALLBACK", "false") == "true"
 	// policyDeadlineDefaultModel is the tier-3 static fallback on a deadline miss with no pin; empty = fail-closed.
 	policyDeadlineDefaultModel := config.GetOr("ROUTER_POLICY_DEADLINE_DEFAULT_MODEL", "")
-	handoverProviderName := config.GetOr("ROUTER_HANDOVER_PROVIDER", providers.ProviderAnthropic)
+	handoverProviderName := config.GetOr("ROUTER_HANDOVER_PROVIDER", providers.ProviderAIAND)
 	handoverModel := config.GetOr("ROUTER_HANDOVER_MODEL", policy.HandoverSummaryDefaultModel)
 	handoverTimeout := parseEnvDurationMs("ROUTER_HANDOVER_TIMEOUT_MS", proxy.DefaultHandoverTimeout)
 	compactionTimeout := parseEnvDurationMs("ROUTER_COMPACTION_TIMEOUT_MS", proxy.DefaultCompactionTimeout)
@@ -928,9 +637,9 @@ func main() {
 		subAgentPolicyModel = hardPinModel
 	}
 	// The client's own compaction turn is served by proxy.compactionHardPin on
-	// Anthropic unless the operator pinned every utility turn explicitly.
+	// the only upstream unless the operator pinned every utility turn explicitly.
 	compactionHardPin := !hardPinOverrideConfigured
-	clientCompactionProvider, clientCompactionModel := providers.ProviderAnthropic, compactionModel
+	clientCompactionProvider, clientCompactionModel := providers.ProviderAIAND, compactionModel
 	if !compactionHardPin {
 		clientCompactionProvider, clientCompactionModel = hardPinProvider, hardPinModel
 	}
@@ -1342,7 +1051,6 @@ func main() {
 	servedModels := proxyRoutableModels(routingTargets, availableProviders, hmmRouter != nil)
 
 	proxySvc := proxy.NewService(routeEntry, providerMap, telemetryEmitter, embedOnlyUser, semanticCache, pinStore, hardPinExplore, hardPinProvider, hardPinModel, repo.Telemetry).
-		WithCodexExtraCredits(allowCodexCredits).
 		WithSessionStrategyStore(sessionStrategyStore).
 		WithSessionTurnClock(sessionTurnClock).
 		WithEscalation(escalationStore, escalationObserver).
@@ -1379,7 +1087,6 @@ func main() {
 		WithPiHandoffSecret(config.GetOr("ROUTER_PI_HANDOFF_SECRET", "")).
 		WithByokOnly(byokOnly).
 		WithDeploymentKeyedProviders(deploymentEligible).
-		WithPassthroughEligibleProviders(passthroughEligible).
 		WithHardPinResolver(hardPinResolver).
 		WithExplicitUtilityHardPin(hardPinOverrideConfigured).
 		WithSubAgentOverride(subAgentProvider, subAgentModel).
@@ -1432,7 +1139,6 @@ func main() {
 		WithPlanner(plannerCfg).
 		WithSummarizer(summarizer).
 		WithCompactionHandoverSummarizer(compactionHandoverSz).
-		WithWebSearchExecutor(cortexWebSearch(logger)).
 		WithCompactionModel(compactionModel).
 		WithCompactionHardPin(compactionHardPin).
 		WithAvailableModels(servedModels).
@@ -2206,27 +1912,6 @@ func runSessionTurnClockSweep(ctx context.Context, store *postgres.SessionTurnCl
 			cancel()
 		}
 	}
-}
-
-// cortexWebSearch builds the Cortex Agents web-search executor for gateway
-// tenants whose Anthropic path rejects the native server tool. Returns nil
-// when ROUTER_CORTEX_WEB_SEARCH != "true", leaving those turns on normal routing.
-func cortexWebSearch(logger *slog.Logger) websearch.Executor {
-	if config.GetOr("ROUTER_CORTEX_WEB_SEARCH", "true") != "true" {
-		logger.Info("Cortex Agents web-search executor disabled (ROUTER_CORTEX_WEB_SEARCH)")
-		return nil
-	}
-	role := config.GetOr("SNOWFLAKE_AGENT_ROLE", "")
-	hostSuffix := config.GetOr("SNOWFLAKE_AGENT_HOST_SUFFIX", "")
-	timeout := parseEnvDurationMs("SNOWFLAKE_AGENT_TIMEOUT_MS", 0)
-	logger.Info("Cortex Agents web-search executor enabled",
-		"snowflake_role", role, "host_suffix_override", hostSuffix,
-		"timeout_ms", timeout.Milliseconds())
-	opts := []cortexagents.Option{cortexagents.WithRole(role), cortexagents.WithTimeout(timeout)}
-	if hostSuffix != "" {
-		opts = append(opts, cortexagents.WithHostSuffix(hostSuffix))
-	}
-	return cortexagents.NewClient(config.GetOr("ANTHROPIC_GATEWAY_BASE_URL", ""), opts...)
 }
 
 // resolveDefaultBaselineModel returns the cost-comparison baseline used when

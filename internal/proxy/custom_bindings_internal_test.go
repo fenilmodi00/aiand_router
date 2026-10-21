@@ -13,13 +13,13 @@ import (
 // onboarding a custom endpoint's model is a key edit, not a catalog edit.
 func TestCustomBindingsFromKeys_DeclaredByAliases(t *testing.T) {
 	got := customBindingsFromKeys([]*auth.ExternalAPIKey{{
-		Provider:     providers.ProviderOpenAIGateway,
+		Provider:     providers.ProviderAIAND,
 		Plaintext:    []byte("pat"),
 		ModelAliases: map[string]string{"gpt-5": "openai-gpt-5"},
 	}})
 
 	assert.Equal(t,
-		map[string][]string{"gpt-5": {providers.ProviderOpenAIGateway}},
+		map[string][]string{"gpt-5": {providers.ProviderAIAND}},
 		got)
 }
 
@@ -27,11 +27,11 @@ func TestCustomBindingsFromKeys_SkipsUnusableDeclarations(t *testing.T) {
 	got := customBindingsFromKeys([]*auth.ExternalAPIKey{
 		{
 			// No plaintext: enrolling it would route to an upstream that 401s.
-			Provider:     providers.ProviderOpenAIGateway,
+			Provider:     providers.ProviderAIAND,
 			ModelAliases: map[string]string{"gpt-5": "openai-gpt-5"},
 		},
 		{
-			Provider:  providers.ProviderAnthropicGateway,
+			Provider:  providers.ProviderAIAND,
 			Plaintext: []byte("pat"),
 			ModelAliases: map[string]string{
 				"not-a-catalog-model": "whatever",
@@ -47,19 +47,19 @@ func TestCustomBindingsFromKeys_SkipsUnusableDeclarations(t *testing.T) {
 func TestCustomBindingsFromKeys_ProvidersAreOrdered(t *testing.T) {
 	keys := []*auth.ExternalAPIKey{
 		{
-			Provider:     providers.ProviderOpenAIGateway,
+			Provider:     providers.ProviderAIAND,
 			Plaintext:    []byte("pat"),
 			ModelAliases: map[string]string{"claude-sonnet-4-5": "claude-sonnet-4-5"},
 		},
 		{
-			Provider:     providers.ProviderAnthropicGateway,
+			Provider:     providers.ProviderAIAND,
 			Plaintext:    []byte("pat"),
 			ModelAliases: map[string]string{"claude-sonnet-4-5": "claude-sonnet-4-5"},
 		},
 	}
 
 	assert.Equal(t,
-		[]string{providers.ProviderAnthropicGateway, providers.ProviderOpenAIGateway},
+		[]string{providers.ProviderAIAND, providers.ProviderAIAND},
 		customBindingsFromKeys(keys)["claude-sonnet-4-5"])
 }
 
@@ -68,19 +68,19 @@ func TestCustomBindingsFromKeys_ProvidersAreOrdered(t *testing.T) {
 // usable secret must never put it there.
 func TestGatewayProvidersFromKeys_OnlyUsableGateways(t *testing.T) {
 	got := gatewayProvidersFromKeys([]*auth.ExternalAPIKey{
-		{Provider: providers.ProviderAnthropicGateway, Plaintext: []byte("pat")},
-		{Provider: providers.ProviderOpenAIGateway},
-		{Provider: providers.ProviderAnthropic, Plaintext: []byte("pat")},
+		{Provider: providers.ProviderAIAND, Plaintext: []byte("pat")},
+		{Provider: providers.ProviderAIAND},
+		{Provider: providers.ProviderAIAND, Plaintext: []byte("pat")},
 	})
 
 	assert.Equal(t,
-		map[string]struct{}{providers.ProviderAnthropicGateway: {}},
+		map[string]struct{}{providers.ProviderAIAND: {}},
 		got)
 }
 
 func TestGatewayProvidersFromKeys_NoGatewayKeys(t *testing.T) {
 	got := gatewayProvidersFromKeys([]*auth.ExternalAPIKey{
-		{Provider: providers.ProviderOpenAI, Plaintext: []byte("pat")},
+		{Provider: providers.ProviderAIAND, Plaintext: []byte("pat")},
 	})
 
 	assert.Empty(t, got)

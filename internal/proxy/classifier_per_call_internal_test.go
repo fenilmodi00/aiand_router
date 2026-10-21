@@ -101,7 +101,7 @@ func TestClassifierResponsesToolLoopSwitchesDispatchedModel(t *testing.T) {
 	const largeModel catalog.ModelID = "gpt-5.6-sol"
 	upstream := &classifierResponseProvider{}
 	baseline := &betaTestRouter{}
-	svc := NewService(baseline, map[string]providers.Client{providers.ProviderOpenAI: upstream}, nil, false, nil, nil, false, providers.ProviderOpenAI, smallModel.String(), nil)
+	svc := NewService(baseline, map[string]providers.Client{providers.ProviderAIAND: upstream}, nil, false, nil, nil, false, providers.ProviderAIAND, smallModel.String(), nil)
 	require.NoError(t, svc.WithClassifierSessions(config, store, classifier))
 	roster := &rosterdata.Roster{SchemaVersion: rosterdata.SchemaVersionPolicyV1, SHA256: config.SelectionPolicySHA256,
 		ClassOrder: []string{string(escalation.Low), string(escalation.Medium), string(escalation.High), string(escalation.Maximum)}, Clusters: map[string]rosterdata.Cluster{}}
@@ -115,7 +115,7 @@ func TestClassifierResponsesToolLoopSwitchesDispatchedModel(t *testing.T) {
 		arm := armid.ForModel(model)
 		roster.Clusters[class] = rosterdata.Cluster{Arms: []string{arm}, ArmScores: map[string]float64{arm: 1}}
 	}
-	resolver := policy.NewResolver(map[string]struct{}{smallModel.String(): {}, largeModel.String(): {}}, map[string]struct{}{providers.ProviderOpenAI: {}}, armid.ForModel, policy.ManagedProviderPolicy())
+	resolver := policy.NewResolver(map[string]struct{}{smallModel.String(): {}, largeModel.String(): {}}, map[string]struct{}{providers.ProviderAIAND: {}}, armid.ForModel, policy.ManagedProviderPolicy())
 	capabilities := policy.Capabilities{SchemaVersion: policy.SchemaVersionV4, AuthoritativePerTurnSelection: true}
 	routing := policy.NewSidecarRouter(policy.SidecarRouterConfig{Strategy: router.StrategyLLMClassifier, Unavailable: router.ErrClassifierUnavailable,
 		ClassifierArtifactID: config.Release, ClassifierArtifactSHA256: config.ReleaseSHA256, SelectionPolicyReleaseID: config.Release, SelectionPolicySHA256: config.SelectionPolicySHA256},

@@ -72,13 +72,13 @@ func TestProxyMessages_OverEngineerCap_CoveringSubscription_ServesFreeNo402(t *t
 	limit := int64(10_000_000)
 	repo := &capturingBillingRepo{userSpent: 10_002_854, userLimit: &limit} // over the cap
 
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-sonnet-4-6"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6"}}
 	p := &fakeProvider{proxyResponse: bypassStreamResponse}
 	obs := usage.NewObserver([]byte("salt"), 10*time.Minute, time.Now)
 	obs.Record(obs.Key([]byte(subToken)), usage.Snapshot{
 		Primary: usage.Window{UsedPercent: 0.20, WindowMinutes: 300},
 	})
-	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAnthropic: p}, nil, false, nil, nil, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil).
+	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: p}, nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil).
 		WithUsageObserver(obs).
 		WithBillingService(billing.NewService(repo))
 
@@ -116,13 +116,13 @@ func TestProxyMessages_OverEngineerCap_WarningAlreadyShown_NotRepeated(t *testin
 	limit := int64(10_000_000)
 	repo := &capturingBillingRepo{userSpent: 10_002_854, userLimit: &limit} // over the cap
 
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-sonnet-4-6"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6"}}
 	p := &fakeProvider{proxyResponse: bypassStreamResponse}
 	obs := usage.NewObserver([]byte("salt"), 10*time.Minute, time.Now)
 	obs.Record(obs.Key([]byte(subToken)), usage.Snapshot{
 		Primary: usage.Window{UsedPercent: 0.20, WindowMinutes: 300},
 	})
-	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAnthropic: p}, nil, false, nil, nil, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil).
+	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: p}, nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil).
 		WithUsageObserver(obs).
 		WithBillingService(billing.NewService(repo))
 
@@ -162,9 +162,9 @@ func TestProxyMessages_OverEngineerCap_NoSubscription_402s(t *testing.T) {
 	limit := int64(10_000_000)
 	repo := &capturingBillingRepo{userSpent: 10_002_854, userLimit: &limit}
 
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-sonnet-4-6"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6"}}
 	p := &fakeProvider{proxyResponse: bypassStreamResponse}
-	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAnthropic: p}, nil, false, nil, nil, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil).
+	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: p}, nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil).
 		WithBillingService(billing.NewService(repo))
 
 	// Usage-bypass enabled but no subscription credential on the request.
@@ -197,7 +197,7 @@ func TestProxyMessages_OverEngineerCap_ExhaustedSubscription_Refuses402(t *testi
 	limit := int64(10_000_000)
 	repo := &capturingBillingRepo{userSpent: 10_002_854, userLimit: &limit} // over the engineer cap
 
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-sonnet-4-6"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6"}}
 	p := &fakeProvider{proxyResponse: bypassStreamResponse}
 	obs := usage.NewObserver([]byte("salt"), 10*time.Minute, time.Now)
 	// Weekly window exhausted: the pre-dispatch guard reads this and refuses
@@ -206,7 +206,7 @@ func TestProxyMessages_OverEngineerCap_ExhaustedSubscription_Refuses402(t *testi
 	obs.Record(obs.Key([]byte(subToken)), usage.Snapshot{
 		Secondary: usage.Window{UsedPercent: 1.0, WindowMinutes: 10080},
 	})
-	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAnthropic: p}, nil, false, nil, nil, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil).
+	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: p}, nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil).
 		WithUsageObserver(obs).
 		WithBillingService(billing.NewService(repo))
 

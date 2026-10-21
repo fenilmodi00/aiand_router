@@ -6,5 +6,5 @@ import (
 )
 
 func decision() router.Decision {
-	return router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-haiku-4-5"}
+	return router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5"}
 }

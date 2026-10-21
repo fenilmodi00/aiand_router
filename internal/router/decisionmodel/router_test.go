@@ -71,7 +71,7 @@ func TestRoutePicksLineupModel(t *testing.T) {
 func TestSubscriptionSkipsTaskDecision(t *testing.T) {
 	classifier := &scriptedClassifier{answers: map[decisionmodel.QuestionID]decisionmodel.Choice{decisionmodel.QuestionCallComplexity: decisionmodel.ChoiceHigh}}
 	req := request("", 1)
-	req.SubscriptionProviders = map[string]struct{}{providers.ProviderAnthropic: {}}
+	req.SubscriptionProviders = map[string]struct{}{providers.ProviderAIAND: {}}
 	decision, err := decisionmodel.New(classifier).Route(context.Background(), req)
 	require.NoError(t, err)
 	require.Equal(t, "claude-opus-4-8", decision.Model)

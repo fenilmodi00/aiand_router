@@ -44,7 +44,7 @@ func TestExplicitRoutingPolicyPrecedesClassifierAndPins(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			routerSpy := &blindExperimentRouterSpy{err: errors.New("scorer must not run")}
 			pins := newStubPinStore()
-			service := NewService(routerSpy, nil, nil, false, nil, pins, false, providers.ProviderAnthropic, catalog.ModelIDClaudeHaiku45.String(), nil)
+			service := NewService(routerSpy, nil, nil, false, nil, pins, false, providers.ProviderAIAND, catalog.ModelIDClaudeHaiku45.String(), nil)
 			authService := auth.NewService(nil, nil, nil, nil, nil, nil, time.Now).WithRoutingPolicies(routingPolicyStub{mode: tc.mode, assigned: tc.assigned}, nil)
 			ctx, err := authService.WithRoutingPolicy(context.Background(), "installation")
 			require.NoError(t, err)
@@ -52,7 +52,7 @@ func TestExplicitRoutingPolicyPrecedesClassifierAndPins(t *testing.T) {
 			require.NoError(t, err)
 			envelope, err := translate.ParseAnthropic([]byte(`{"model":"claude-sonnet-4-6","messages":[{"role":"user","content":"hello"}]}`))
 			require.NoError(t, err)
-			request := router.Request{RequestedModel: catalog.ModelIDClaudeSonnet46.String(), EnabledProviders: map[string]struct{}{providers.ProviderAnthropic: {}}}
+			request := router.Request{RequestedModel: catalog.ModelIDClaudeSonnet46.String(), EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}}}
 			turn, err := service.runTurnLoop(ctx, envelope, envelope.RoutingFeatures(false), "api-key", uuid.New(), "", http.Header{}, request)
 			require.NoError(t, err)
 			assert.True(t, turn.CallerModelPassthrough)
@@ -88,7 +88,7 @@ func TestRoutingPolicyPreservesExplicitForcedModel(t *testing.T) {
 					forceModel = ""
 					pins.getFound = true
 					pins.getPin = sessionpin.Pin{
-						Model: catalog.ModelIDClaudeHaiku45.String(), Provider: providers.ProviderAnthropic,
+						Model: catalog.ModelIDClaudeHaiku45.String(), Provider: providers.ProviderAIAND,
 						Reason: translate.ReasonUserForceModel, PinnedUntil: pinNeverExpires,
 					}
 					if tc.cleared {
@@ -96,7 +96,7 @@ func TestRoutingPolicyPreservesExplicitForcedModel(t *testing.T) {
 					}
 				}
 				routerSpy := &blindExperimentRouterSpy{err: errors.New("scorer must not run")}
-				service := NewService(routerSpy, nil, nil, false, nil, pins, false, providers.ProviderAnthropic, catalog.ModelIDClaudeHaiku45.String(), nil)
+				service := NewService(routerSpy, nil, nil, false, nil, pins, false, providers.ProviderAIAND, catalog.ModelIDClaudeHaiku45.String(), nil)
 				authService := auth.NewService(nil, nil, nil, nil, nil, nil, time.Now).WithRoutingPolicies(routingPolicyStub{mode: mode}, nil)
 				ctx, err := authService.WithRoutingPolicy(context.Background(), "installation")
 				require.NoError(t, err)
@@ -108,7 +108,7 @@ func TestRoutingPolicyPreservesExplicitForcedModel(t *testing.T) {
 				envelope, err := translate.ParseAnthropic([]byte(`{"model":"claude-sonnet-4-6","messages":[{"role":"user","content":"hello"}]}`))
 				require.NoError(t, err)
 				turn, err := service.runTurnLoop(ctx, envelope, envelope.RoutingFeatures(false), "api-key", uuid.New(), "", http.Header{}, router.Request{
-					RequestedModel: catalog.ModelIDClaudeSonnet46.String(), ForceModel: forceModel, EnabledProviders: map[string]struct{}{providers.ProviderAnthropic: {}},
+					RequestedModel: catalog.ModelIDClaudeSonnet46.String(), ForceModel: forceModel, EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}},
 				})
 				assert.Zero(t, routerSpy.routeCalls)
 				if tc.excluded {
@@ -130,14 +130,14 @@ func TestRoutingPolicyPreservesExplicitForcedModel(t *testing.T) {
 }
 
 func TestRoutingPolicyPassthroughUnknownModelIsAttributedToPolicy(t *testing.T) {
-	service := NewService(nil, nil, nil, false, nil, nil, false, providers.ProviderAnthropic, catalog.ModelIDClaudeHaiku45.String(), nil)
+	service := NewService(nil, nil, nil, false, nil, nil, false, providers.ProviderAIAND, catalog.ModelIDClaudeHaiku45.String(), nil)
 	authService := auth.NewService(nil, nil, nil, nil, nil, nil, time.Now).WithRoutingPolicies(routingPolicyStub{mode: auth.RoutingPolicyPassthrough}, nil)
 	ctx, err := authService.WithRoutingPolicy(context.Background(), "installation")
 	require.NoError(t, err)
 
 	_, err = service.callerModelPassthroughDecision(ctx, router.Request{
 		RequestedModel:   "auto",
-		EnabledProviders: map[string]struct{}{providers.ProviderOpenAI: {}},
+		EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}},
 	})
 
 	var unknown *PassthroughModelUnknownError

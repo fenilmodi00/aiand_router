@@ -81,8 +81,8 @@ func (s *Service) subscriptionStateModelAvailable(ctx context.Context, req route
 		if !servedOnSubscription(resolvedCredentials) {
 			continue
 		}
-		if binding.Provider == providers.ProviderAnthropic && !s.claudeSubscriptionExhausted(ctx, headers) ||
-			binding.Provider == providers.ProviderOpenAI && !s.codexSubscriptionExhausted(ctx, headers) {
+		if binding.Provider == providers.ProviderAIAND && !s.claudeSubscriptionExhausted(ctx, headers) ||
+			binding.Provider == providers.ProviderAIAND && !s.codexSubscriptionExhausted(ctx, headers) {
 			return true
 		}
 	}

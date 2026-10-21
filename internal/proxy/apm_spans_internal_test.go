@@ -30,7 +30,7 @@ func (r *flowSpanRouter) Route(ctx context.Context, _ router.Request) (router.De
 		return r.decision, nil
 	}
 	return router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    "claude-haiku-4-5",
 		Reason:   "cluster",
 	}, nil
@@ -62,13 +62,13 @@ func TestProxyMessagesEmitsHighLevelFlowSpans(t *testing.T) {
 	providerImpl := &flowSpanProvider{}
 	svc := NewService(
 		routerImpl,
-		map[string]providers.Client{providers.ProviderAnthropic: providerImpl},
+		map[string]providers.Client{providers.ProviderAIAND: providerImpl},
 		nil,
 		false,
 		nil,
 		nil,
 		false,
-		providers.ProviderAnthropic,
+		providers.ProviderAIAND,
 		"claude-haiku-4-5",
 		nil,
 	)
@@ -92,7 +92,7 @@ func TestProxyMessagesEmitsHighLevelFlowSpans(t *testing.T) {
 	assert.Equal(t, "client-session-abc", proxySpanAttribute(t, inference.Attributes(), "client.session_id").AsString())
 	assert.Equal(t, "claude-opus-4-8", proxySpanAttribute(t, routing.Attributes(), "requested.model").AsString())
 	assert.Equal(t, "claude-haiku-4-5", proxySpanAttribute(t, routing.Attributes(), "decision.model").AsString())
-	assert.Equal(t, providers.ProviderAnthropic, proxySpanAttribute(t, inference.Attributes(), "served.provider").AsString())
+	assert.Equal(t, providers.ProviderAIAND, proxySpanAttribute(t, inference.Attributes(), "served.provider").AsString())
 }
 
 func TestProxyOpenAITranslationErrorMarksInferenceSpanFailed(t *testing.T) {
@@ -105,20 +105,20 @@ func TestProxyOpenAITranslationErrorMarksInferenceSpanFailed(t *testing.T) {
 	t.Cleanup(func() { proxyFlowTracer = previousTracer })
 
 	routerImpl := &flowSpanRouter{decision: router.Decision{
-		Provider: providers.ProviderGoogle,
+		Provider: providers.ProviderAIAND,
 		Model:    "gemini-3-pro-preview",
 		Reason:   "cluster",
 	}}
 	providerImpl := &flowSpanProvider{}
 	svc := NewService(
 		routerImpl,
-		map[string]providers.Client{providers.ProviderGoogle: providerImpl},
+		map[string]providers.Client{providers.ProviderAIAND: providerImpl},
 		nil,
 		false,
 		nil,
 		nil,
 		false,
-		providers.ProviderGoogle,
+		providers.ProviderAIAND,
 		"gemini-3-pro-preview",
 		nil,
 	)

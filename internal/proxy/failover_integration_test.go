@@ -124,7 +124,7 @@ func TestProxyMessages_FireworksFailureFallbackToOpenRouter(t *testing.T) {
 			"fireworks":  openaicompat.NewClient("test-fw-key", fireworks.URL),
 			"openrouter": openaicompat.NewClient("test-or-key", openrouter.URL),
 		},
-		nil, false, nil, nil, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil,
+		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
 		"fireworks":  {},
 		"openrouter": {},
@@ -196,7 +196,7 @@ func TestProxyMessages_BothBindingsFail(t *testing.T) {
 			"fireworks":  openaicompat.NewClient("test-fw-key", fireworks.URL),
 			"openrouter": openaicompat.NewClient("test-or-key", openrouter.URL),
 		},
-		nil, false, nil, nil, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil,
+		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
 		"fireworks":  {},
 		"openrouter": {},
@@ -244,9 +244,9 @@ func TestProxyMessages_SingleBindingPreservesEagerPrelude(t *testing.T) {
 
 	// claude-haiku-4-5 is single-binding (Anthropic only).
 	svc := makeProxyService(
-		router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-haiku-4-5"},
+		router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5"},
 		map[string]providers.Client{
-			providers.ProviderAnthropic: &fakeProvider{
+			providers.ProviderAIAND: &fakeProvider{
 				proxyResponse: func(w http.ResponseWriter) {
 					// Mirror the translator's expected SSE shape.
 					w.Header().Set("Content-Type", "text/event-stream")
@@ -256,7 +256,7 @@ func TestProxyMessages_SingleBindingPreservesEagerPrelude(t *testing.T) {
 				},
 			},
 		},
-	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAnthropic: {}})
+	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
@@ -282,9 +282,9 @@ func TestProxyMessages_RoutingMarkerWaitsForProviderOutput(t *testing.T) {
 		}
 	}()
 	svc := makeProxyService(
-		router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-haiku-4-5"},
+		router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5"},
 		map[string]providers.Client{
-			providers.ProviderAnthropic: &fakeProvider{
+			providers.ProviderAIAND: &fakeProvider{
 				proxyResponse: func(w http.ResponseWriter) {
 					close(providerStarted)
 					<-releaseProvider
@@ -292,7 +292,7 @@ func TestProxyMessages_RoutingMarkerWaitsForProviderOutput(t *testing.T) {
 				},
 			},
 		},
-	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAnthropic: {}})
+	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 
 	writer := newObservedResponseWriter()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
@@ -335,12 +335,12 @@ func TestProxyMessages_SingleBindingStreamingPreCommitError(t *testing.T) {
 	// inbound Anthropic Messages request so the cross-format
 	// AnthropicSSETranslator + Prelude path runs.
 	svc := proxy.NewService(
-		&fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "gpt-5"}},
+		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-5"}},
 		map[string]providers.Client{
-			providers.ProviderOpenAI: openaicompat.NewClient("test-key", stub.URL),
+			providers.ProviderAIAND: openaicompat.NewClient("test-key", stub.URL),
 		},
-		nil, false, nil, nil, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil,
-	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderOpenAI: {}}).
+		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}}).
 		WithRetrySleep(noRetrySleep)
 
 	rec := httptest.NewRecorder()
@@ -384,10 +384,10 @@ func TestProxyMessages_AnthropicSSEOverloadRetriesSameBinding(t *testing.T) {
 	defer upstream.Close()
 
 	svc := proxy.NewService(
-		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-haiku-4-5"}},
-		map[string]providers.Client{providers.ProviderAnthropic: anthropic.NewClient("test-key", upstream.URL)},
-		nil, false, nil, nil, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil,
-	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAnthropic: {}}).
+		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5"}},
+		map[string]providers.Client{providers.ProviderAIAND: anthropic.NewClient("test-key", upstream.URL)},
+		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}}).
 		WithRetrySleep(noRetrySleep)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
@@ -419,10 +419,10 @@ func TestProxyMessages_AnthropicSSEOverloadExhaustionRecords529(t *testing.T) {
 
 	telemetry := newCaptureTelemetry()
 	svc := proxy.NewService(
-		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-haiku-4-5"}},
-		map[string]providers.Client{providers.ProviderAnthropic: anthropic.NewClient("test-key", upstream.URL)},
-		nil, false, nil, nil, false, providers.ProviderAnthropic, "claude-haiku-4-5", telemetry,
-	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAnthropic: {}}).
+		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5"}},
+		map[string]providers.Client{providers.ProviderAIAND: anthropic.NewClient("test-key", upstream.URL)},
+		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", telemetry,
+	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}}).
 		WithRetrySleep(noRetrySleep)
 	ctx := context.WithValue(context.Background(), proxy.InstallationIDContextKey{}, "11111111-1111-1111-1111-111111111111")
 	ctx = context.WithValue(ctx, proxy.ExternalIDContextKey{}, "org-test")
@@ -462,18 +462,18 @@ func TestProxyMessages_TwoConsecutiveOverloadExhaustionsDisableProvider(t *testi
 	store := newFakePinStore()
 	store.hasPin = true
 	store.pin = sessionpin.Pin{
-		Provider:      providers.ProviderAnthropic,
+		Provider:      providers.ProviderAIAND,
 		Model:         "claude-haiku-4-5",
 		Reason:        "fresh",
 		PinnedUntil:   time.Now().Add(30 * time.Minute),
 		FirstPinnedAt: time.Now().Add(-5 * time.Minute),
 	}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-haiku-4-5", Reason: "fresh"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", Reason: "fresh"}}
 	svc := proxy.NewService(
 		fr,
-		map[string]providers.Client{providers.ProviderAnthropic: anthropic.NewClient("test-key", upstream.URL)},
-		nil, false, nil, store, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil,
-	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAnthropic: {}}).
+		map[string]providers.Client{providers.ProviderAIAND: anthropic.NewClient("test-key", upstream.URL)},
+		nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}}).
 		WithPlannerEnabled(false).
 		WithRetrySleep(noRetrySleep) // first-decision-wins: a pin hit serves straight through without scorer-vs-planner EV noise.
 
@@ -495,7 +495,7 @@ func TestProxyMessages_TwoConsecutiveOverloadExhaustionsDisableProvider(t *testi
 	req2 := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
 	err2 := svc.ProxyMessages(ctx, body, rec2, req2)
 	require.ErrorAs(t, err2, &upstreamErr)
-	require.Contains(t, store.disabledProviders, providers.ProviderAnthropic,
+	require.Contains(t, store.disabledProviders, providers.ProviderAIAND,
 		"second consecutive exhausted 529 must strike the provider out for the session")
 
 	// Turn 3: pin was evicted, so this is a fresh scorer call. The
@@ -505,7 +505,7 @@ func TestProxyMessages_TwoConsecutiveOverloadExhaustionsDisableProvider(t *testi
 	req3 := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
 	_ = svc.ProxyMessages(ctx, body, rec3, req3)
 	require.NotNil(t, fr.capturedReq)
-	_, stillEnabled := fr.capturedReq.EnabledProviders[providers.ProviderAnthropic]
+	_, stillEnabled := fr.capturedReq.EnabledProviders[providers.ProviderAIAND]
 	assert.False(t, stillEnabled, "anthropic must be excluded from EnabledProviders on the turn after being struck out")
 }
 
@@ -530,23 +530,23 @@ func TestProxyMessages_BaselineOverloadExhaustionDoesNotDisableAnthropic(t *test
 	store := newFakePinStore()
 	store.hasPin = true
 	store.pin = sessionpin.Pin{
-		Provider:      providers.ProviderFireworks,
+		Provider:      providers.ProviderAIAND,
 		Model:         "deepseek/deepseek-v4-pro",
 		Reason:        "fresh",
 		PinnedUntil:   time.Now().Add(30 * time.Minute),
 		FirstPinnedAt: time.Now().Add(-5 * time.Minute),
 	}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderFireworks, Model: "deepseek/deepseek-v4-pro", Reason: "fresh"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4-pro", Reason: "fresh"}}
 	svc := proxy.NewService(
 		fr,
 		map[string]providers.Client{
-			providers.ProviderFireworks: openaicompat.NewClient("test-fw-key", ossUpstream.URL),
-			providers.ProviderAnthropic: anthropic.NewClient("test-key", anthropicUpstream.URL),
+			providers.ProviderAIAND: openaicompat.NewClient("test-fw-key", ossUpstream.URL),
+			providers.ProviderAIAND: anthropic.NewClient("test-key", anthropicUpstream.URL),
 		},
-		nil, false, nil, store, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil,
+		nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
-		providers.ProviderFireworks: {},
-		providers.ProviderAnthropic: {},
+		providers.ProviderAIAND: {},
+		providers.ProviderAIAND: {},
 	}).WithPlannerEnabled(false).
 		WithRetrySleep(noRetrySleep)
 
@@ -603,15 +603,15 @@ func TestProxyMessages_ResponsesFailureBeforeOutputFallsBackToBaseline(t *testin
 	}}
 
 	svc := proxy.NewService(
-		&fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "gpt-5.5", Reason: "test"}},
+		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-5.5", Reason: "test"}},
 		map[string]providers.Client{
-			providers.ProviderOpenAI:    openai.NewClient("test-key", openAIUpstream.URL),
-			providers.ProviderAnthropic: baseline,
+			providers.ProviderAIAND:    openai.NewClient("test-key", openAIUpstream.URL),
+			providers.ProviderAIAND: baseline,
 		},
-		nil, false, nil, nil, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil,
+		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
-		providers.ProviderOpenAI:    {},
-		providers.ProviderAnthropic: {},
+		providers.ProviderAIAND:    {},
+		providers.ProviderAIAND: {},
 	}).WithRetrySleep(noRetrySleep)
 
 	rec := httptest.NewRecorder()
@@ -641,15 +641,15 @@ func TestProxyMessages_BaselineFailoverSkipsBaselineOverContextWindow(t *testing
 
 	baseline := &fakeProvider{}
 	svc := proxy.NewService(
-		&fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "gpt-5.5", Reason: "test"}},
+		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-5.5", Reason: "test"}},
 		map[string]providers.Client{
-			providers.ProviderOpenAI:    openai.NewClient("test-key", openAIUpstream.URL),
-			providers.ProviderAnthropic: baseline,
+			providers.ProviderAIAND:    openai.NewClient("test-key", openAIUpstream.URL),
+			providers.ProviderAIAND: baseline,
 		},
-		nil, false, nil, nil, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil,
+		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
-		providers.ProviderOpenAI:    {},
-		providers.ProviderAnthropic: {},
+		providers.ProviderAIAND:    {},
+		providers.ProviderAIAND: {},
 	}).WithRetrySleep(noRetrySleep)
 
 	// ~230K estimated tokens: fits gpt-5.5 (1.05M) but not claude-haiku-4-5 (200K).
@@ -716,10 +716,10 @@ func TestProxyMessages_GeminiValidated400RetriesWithAuto(t *testing.T) {
 	}
 
 	svc := proxy.NewService(
-		&fakeRouter{decision: router.Decision{Provider: providers.ProviderGoogle, Model: "gemini-3.1-pro-preview"}},
-		map[string]providers.Client{providers.ProviderGoogle: client},
-		nil, false, nil, nil, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil,
-	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderGoogle: {}})
+		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gemini-3.1-pro-preview"}},
+		map[string]providers.Client{providers.ProviderAIAND: client},
+		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
@@ -754,10 +754,10 @@ func TestProxyMessages_GeminiNon400NotRetried(t *testing.T) {
 	}
 
 	svc := proxy.NewService(
-		&fakeRouter{decision: router.Decision{Provider: providers.ProviderGoogle, Model: "gemini-3.1-pro-preview"}},
-		map[string]providers.Client{providers.ProviderGoogle: client},
-		nil, false, nil, nil, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil,
-	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderGoogle: {}})
+		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gemini-3.1-pro-preview"}},
+		map[string]providers.Client{providers.ProviderAIAND: client},
+		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
@@ -796,10 +796,10 @@ func TestProxyMessages_OutputConfigFormat400RetriesWithoutIt(t *testing.T) {
 	}
 
 	svc := proxy.NewService(
-		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropicGateway, Model: "claude-sonnet-5"}},
-		map[string]providers.Client{providers.ProviderAnthropicGateway: client},
-		nil, false, nil, nil, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil,
-	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAnthropicGateway: {}})
+		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-5"}},
+		map[string]providers.Client{providers.ProviderAIAND: client},
+		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
@@ -831,10 +831,10 @@ func TestProxyMessages_UnrelatedAnthropic400NotRetried(t *testing.T) {
 	}
 
 	svc := proxy.NewService(
-		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropicGateway, Model: "claude-sonnet-5"}},
-		map[string]providers.Client{providers.ProviderAnthropicGateway: client},
-		nil, false, nil, nil, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil,
-	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAnthropicGateway: {}})
+		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-5"}},
+		map[string]providers.Client{providers.ProviderAIAND: client},
+		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
