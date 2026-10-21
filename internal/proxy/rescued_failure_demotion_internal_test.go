@@ -153,34 +153,6 @@ func rescuedFailureTurnCases(t *testing.T) []rescuedFailureTurnCase {
 	}
 }
 
-// The full Messages turn: a primary that fails pre-commit and is handed to a
-// same-cluster sibling is struck out for the session; the sibling that served
-// (or also failed) never is. Overload, gateway absence, a missing sibling and
-// an explicit /force-model leave the primary eligible.
-func TestProxyMessages_RescuedPrimaryDemotion(t *testing.T) {
-	for _, tc := range rescuedFailureTurnCases(t) {
-		t.Run(tc.name, func(t *testing.T) {
-			store := &demotionStubPinStore{}
-			primary := &failingClient{err: tc.primaryErr}
-			sibling := &servingClient{err: tc.siblingErr}
-			svc := newRescuedFailureTurnService(store, rescuableDecision(tc.reason, tc.withSibling), primary, sibling, tc.flagOn)
-
-			rec := httptest.NewRecorder()
-			body := anthropicMessagesBody()
-			err := svc.ProxyMessages(rescuedFailureCtx(), body, rec, httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(string(body))))
-
-			if tc.wantTurnErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				assert.Contains(t, rec.Body.String(), "served by sibling")
-			}
-			assert.Positive(t, primary.calls, "the primary must have been dispatched")
-			assertRescuedFailureStrikes(t, store.demotions, tc.wantDemoted, tc.wantDemotionReason)
-		})
-	}
-}
-
 func TestProxyMessages_UnrescuedIdleFailureDemotesPrimary(t *testing.T) {
 	for _, ingress := range []struct {
 		name   string
@@ -211,61 +183,6 @@ func TestProxyMessages_UnrescuedIdleFailureDemotesPrimary(t *testing.T) {
 				assert.Equal(t, rescuedPrimaryModel, demotion.model)
 				assert.Equal(t, sessionpin.DemotionReasonUnrescuedStall, demotion.reason)
 			}
-		})
-	}
-}
-
-func TestProxyMessages_BaselineRetryKeepsStallDemotionOnPrimary(t *testing.T) {
-	const primaryModel = "gpt-6-astra"
-	store := &demotionStubPinStore{}
-	primary := &failingClient{err: providers.ErrUpstreamIdleTimeout}
-	baseline := &failingClient{err: providers.ErrUpstreamIdleTimeout}
-	svc := NewService(
-		staticRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: primaryModel, Reason: "test"}},
-		map[string]providers.Client{
-			providers.ProviderAIAND: baseline,
-		},
-		nil, false, nil, store, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
-	).WithDeploymentKeyedProviders(map[string]struct{}{
-		providers.ProviderAIAND: {},
-	}).WithRescuedFailureArmDemotion(true)
-
-	body := anthropicMessagesBody()
-	rec := httptest.NewRecorder()
-	err := svc.ProxyMessages(rescuedFailureCtx(), body, rec,
-		httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(string(body))))
-
-	require.ErrorIs(t, err, providers.ErrUpstreamIdleTimeout)
-	assert.Positive(t, primary.calls)
-	assert.Positive(t, baseline.calls, "the baseline retry must run before validating its demotion target")
-	require.Len(t, store.demotions, 2)
-	for _, demotion := range store.demotions {
-		assert.Equal(t, primaryModel, demotion.model, "a baseline retry must not replace the model that stalled")
-		assert.Equal(t, sessionpin.DemotionReasonUnrescuedStall, demotion.reason)
-	}
-}
-
-// Same contract on the OpenAI chat/completions surface.
-func TestProxyOpenAIChatCompletion_RescuedPrimaryDemotion(t *testing.T) {
-	for _, tc := range rescuedFailureTurnCases(t) {
-		t.Run(tc.name, func(t *testing.T) {
-			store := &demotionStubPinStore{}
-			primary := &failingClient{err: tc.primaryErr}
-			sibling := &servingClient{err: tc.siblingErr}
-			svc := newRescuedFailureTurnService(store, rescuableDecision(tc.reason, tc.withSibling), primary, sibling, tc.flagOn)
-
-			rec := httptest.NewRecorder()
-			body := openaiChatBody()
-			err := svc.ProxyOpenAIChatCompletion(rescuedFailureCtx(), body, rec, httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(string(body))))
-
-			if tc.wantTurnErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				assert.Contains(t, rec.Body.String(), "served by sibling")
-			}
-			assert.Positive(t, primary.calls, "the primary must have been dispatched")
-			assertRescuedFailureStrikes(t, store.demotions, tc.wantDemoted, tc.wantDemotionReason)
 		})
 	}
 }

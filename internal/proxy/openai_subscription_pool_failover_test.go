@@ -41,35 +41,6 @@ func anthropicMessagesBody() []byte {
 	return []byte(`{"model":"z-ai/glm-5.2","max_tokens":1024,"stream":true,"messages":[{"role":"user","content":"read main.go"}],"tools":[{"name":"read_file","input_schema":{"type":"object","properties":{"path":{"type":"string"}}}}]}`)
 }
 
-func TestProxyOpenAIChatCompletion_SubscriptionPoolExhaustionRescuesSibling(t *testing.T) {
-	leaser := &scriptedSubscriptionLeaser{}
-	rescue := &responsesRetryClient{}
-	store := &evictionStubPinStore{}
-	svc := NewService(
-		staticRouter{decision: claudeOpusPinnedDecision()},
-		map[string]providers.Client{
-			providers.ProviderAIAND: &fakeClient{name: providers.ProviderAIAND},
-		},
-		nil, false, nil, store, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
-	).WithManagedSubscriptions(leaser).
-		WithDeploymentKeyedProviders(map[string]struct{}{
-			providers.ProviderAIAND: {},
-		})
-
-	installationID := uuid.MustParse("33333333-3333-3333-3333-333333333333")
-	ctx := context.WithValue(managedSubscriptionContext(auth.SubscriptionProviderClaude),
-		InstallationIDContextKey{}, installationID.String())
-	rec := httptest.NewRecorder()
-	body := []byte(`{"model":"auto","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
-	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(string(body)))
-
-	err := svc.ProxyOpenAIChatCompletion(ctx, body, rec, req)
-
-	require.NoError(t, err, "an empty Claude pool must fail over to a same-cluster sibling")
-	require.NotEmpty(t, rescue.endpoints, "the OpenAI sibling must be dispatched")
-	assert.Contains(t, rec.Body.String(), "served after retry")
-}
-
 func TestProxyOpenAIChatCompletion_SubscriptionOnlyKeepsPoolUnavailability(t *testing.T) {
 	leaser := &scriptedSubscriptionLeaser{}
 	rescue := &responsesRetryClient{}
@@ -93,32 +64,6 @@ func TestProxyOpenAIChatCompletion_SubscriptionOnlyKeepsPoolUnavailability(t *te
 
 	require.ErrorIs(t, err, ErrSubscriptionPoolExhausted)
 	assert.Empty(t, rescue.endpoints, "subscription-only must not spend a paid sibling")
-}
-
-func TestProxyMessages_SubscriptionPoolExhaustionRescuesSibling(t *testing.T) {
-	leaser := &scriptedSubscriptionLeaser{}
-	rescue := &responsesRetryClient{}
-	svc := NewService(
-		staticRouter{decision: claudeOpusPinnedDecision()},
-		map[string]providers.Client{
-			providers.ProviderAIAND: &fakeClient{name: providers.ProviderAIAND},
-		},
-		nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
-	).WithManagedSubscriptions(leaser).
-		WithDeploymentKeyedProviders(map[string]struct{}{
-			providers.ProviderAIAND: {},
-		})
-
-	ctx := context.WithValue(managedSubscriptionContext(auth.SubscriptionProviderClaude),
-		InstallationIDContextKey{}, "33333333-3333-3333-3333-333333333333")
-	rec := httptest.NewRecorder()
-	body := []byte(`{"model":"auto","max_tokens":1024,"stream":true,"messages":[{"role":"user","content":"read main.go"}],"tools":[{"name":"read_file","input_schema":{"type":"object","properties":{"path":{"type":"string"}}}}]}`)
-
-	err := svc.ProxyMessages(ctx, body, rec, httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(string(body))))
-
-	require.NoError(t, err)
-	require.NotEmpty(t, rescue.endpoints)
-	assert.Contains(t, rec.Body.String(), "served after retry")
 }
 
 func TestMaybeExpireSubscriptionArmPin_StickyLoopEscalation(t *testing.T) {

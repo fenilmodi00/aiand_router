@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"weave-os/router/internal/providers"
 	"weave-os/router/internal/router"
 )
 
@@ -90,4 +92,64 @@ func serveSyntheticCodexQuota(w http.ResponseWriter, r *http.Request) bool {
 	}
 	_, _ = io.WriteString(w, `{"rate_limit":{"allowed":true,"limit_reached":false,"primary_window":{"used_percent":10}}}`)
 	return true
+}
+
+// fixedRouter routes every request to one decision.
+type fixedRouter struct{ decision router.Decision }
+
+func (f fixedRouter) Route(context.Context, router.Request) (router.Decision, error) {
+	return f.decision, nil
+}
+
+// staticRouter answers every routing call with one decision.
+type staticRouter struct{ decision router.Decision }
+
+func (s staticRouter) Route(context.Context, router.Request) (router.Decision, error) {
+	return s.decision, nil
+}
+
+// writeChatCompletionText streams text as a complete chat/completions turn.
+func writeChatCompletionText(w http.ResponseWriter, text string) {
+	content, _ := json.Marshal(text)
+	for _, frame := range []string{
+		`{"id":"c1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":` + string(content) + `},"finish_reason":null}]}`,
+		`{"id":"c1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":3}}`,
+		"[DONE]",
+	} {
+		_, _ = io.WriteString(w, "data: "+frame+"\n\n")
+	}
+}
+
+// responsesRetryClient fails its first dispatch retryably and answers the next
+// one with a complete non-streaming Responses body, recording each endpoint.
+type responsesRetryClient struct {
+	endpoints []providers.Endpoint
+}
+
+func (*responsesRetryClient) SupportsSubscriptions() bool { return true }
+
+func (c *responsesRetryClient) Proxy(_ context.Context, _ router.Decision, prep providers.PreparedRequest, w http.ResponseWriter, _ *http.Request) error {
+	c.endpoints = append(c.endpoints, prep.Endpoint)
+	if len(c.endpoints) == 1 {
+		return &providers.UpstreamErrorResponse{
+			Status: http.StatusServiceUnavailable,
+			Body:   []byte(`{"error":{"message":"overloaded"}}`),
+		}
+	}
+	w.Header().Set("Content-Type", "text/event-stream")
+	if prep.Endpoint == providers.EndpointChatCompletions {
+		writeChatCompletionText(w, "served after retry")
+		return nil
+	}
+	for _, frame := range []string{
+		`{"type":"response.output_text.delta","output_index":0,"delta":"served after retry"}`,
+		`{"type":"response.completed","response":{"id":"resp_1","status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"served after retry"}]}],"usage":{"input_tokens":12,"output_tokens":3}}}`,
+	} {
+		_, _ = io.WriteString(w, "data: "+frame+"\n\n")
+	}
+	return nil
+}
+
+func (c *responsesRetryClient) Passthrough(context.Context, providers.PreparedRequest, http.ResponseWriter, *http.Request) error {
+	return providers.ErrNotImplemented
 }

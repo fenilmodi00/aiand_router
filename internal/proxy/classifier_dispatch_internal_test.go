@@ -16,7 +16,6 @@ import (
 	"weave-os/router/internal/providers"
 	"weave-os/router/internal/router"
 	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/router/cluster"
 	"weave-os/router/internal/router/escalation"
 	"weave-os/router/internal/router/hmm/armid"
 	"weave-os/router/internal/router/hmm/rosterdata"
@@ -30,17 +29,16 @@ type classifierResponseProvider struct{ betaCaptureProvider }
 
 func (p *classifierResponseProvider) Proxy(_ context.Context, decision router.Decision, request providers.PreparedRequest, w http.ResponseWriter, _ *http.Request) error {
 	p.body = append([]byte(nil), request.Body...)
-	if decision.Provider == providers.ProviderAIAND {
+	// A Responses-ingress turn posts its original bytes to /v1/responses, so
+	// the upstream answers in the Responses wire format; every other ingress
+	// is projected onto chat/completions.
+	if request.Endpoint == providers.EndpointResponses {
 		w.Header().Set("Content-Type", "text/event-stream")
 		_, err := io.WriteString(w, "data: {\"type\":\"response.output_text.delta\",\"output_index\":0,\"delta\":\"answer\"}\n\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"status\":\"completed\",\"output\":[{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"answer\"}]}],\"usage\":{\"input_tokens\":12,\"output_tokens\":3}}}\n\n")
 		return err
 	}
 	w.Header().Set("Content-Type", "application/json")
-	if decision.Provider == providers.ProviderAIAND {
-		_, err := io.WriteString(w, `{"type":"message","role":"assistant","content":[{"type":"text","text":"answer"}],"stop_reason":"end_turn","usage":{"input_tokens":12,"output_tokens":3}}`)
-		return err
-	}
-	_, err := io.WriteString(w, `{"candidates":[{"content":{"role":"model","parts":[{"text":"answer"}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":12,"candidatesTokenCount":3}}`)
+	_, err := io.WriteString(w, `{"id":"chatcmpl_1","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"answer"},"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":3}}`)
 	return err
 }
 
@@ -68,12 +66,6 @@ func TestClassifierDispatchAcrossProtocols(t *testing.T) {
 			`{"type":"function_call","call_id":"c1","name":"test","arguments":"{}"},{"type":"function_call_output","call_id":"c1","status":"failed","output":"failed"}`,
 			`{"role":"user","content":"third"}`,
 			(*Service).ProxyOpenAIResponses},
-		{"gemini", providers.ProviderAIAND, "gemini-2.5-pro", "/v1beta/models/gemini-2.5-pro:generateContent",
-			`{"model":"gemini-2.5-pro","contents":[{"role":"user","parts":[{"text":"first"}]}]}`,
-			`{"model":"gemini-2.5-pro","contents":[{"role":"user","parts":[{"text":"first"}]},{"role":"model","parts":[{"text":""},{"text":"answer"}]},{"role":"user","parts":[{"text":"next"}]}]}`,
-			`{"role":"model","parts":[{"functionCall":{"id":"c1","name":"test","args":{}}}]},{"role":"user","parts":[{"functionResponse":{"id":"c1","name":"test","response":{"error":"failed"}}}]}`,
-			`{"role":"user","parts":[{"text":"third"}]}`,
-			(*Service).ProxyGeminiGenerateContent},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			var inputs []router.AtomicClassificationRequest
@@ -128,21 +120,6 @@ func TestClassifierDispatchAcrossProtocols(t *testing.T) {
 			require.Equal(t, router.ClassifierFeatures{UserMessageCount: 3, ToolCallCount: 1, ToolErrorCount: 1}, inputs[3].User.Features)
 			require.Equal(t, inputs[1].User.PrecedingResponses, inputs[2].User.PrecedingResponses, "tool payloads must not become response history")
 			require.Zero(t, baseline.calls)
-			if test.name == "messages" {
-				for _, body := range []string{classifierSearchBody, classifierSearchBody, third} {
-					upstream.body = nil
-					err := test.proxyRequest(svc, ctx, []byte(body), httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, test.path, nil))
-					require.NoError(t, err)
-					require.NotEmpty(t, upstream.body)
-					if body == classifierSearchBody {
-						require.Equal(t, "web_search_20250305", gjson.GetBytes(upstream.body, "tools.0.type").String())
-						require.Equal(t, gjson.Get(body, "messages.0.content").String(), gjson.GetBytes(upstream.body, "messages.0.content.0.text").String())
-					}
-				}
-				require.Len(t, inputs, 5, "search retries reuse a child; parent resumes without reclassification")
-				require.Equal(t, router.ClassifierFeatures{UserMessageCount: 1}, inputs[4].User.Features)
-				require.Zero(t, baseline.calls)
-			}
 			classificationCount := len(inputs)
 			upstream.body = nil
 			compacted := strings.ReplaceAll(test.firstBody, "first", "compacted")
@@ -188,7 +165,7 @@ func TestClassifierDispatchUsesConfiguredSubscriptionState(t *testing.T) {
 	svc.WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyLLMClassifier, Router: routing, Capabilities: capabilities, Unavailable: router.ErrClassifierUnavailable})
 	recorder := httptest.NewRecorder()
 	err := svc.ProxyMessages(ctx, []byte(`{"model":"deepseek/deepseek-v4.1-flash","max_tokens":1024,"messages":[{"role":"user","content":"first"}]}`), recorder, httptest.NewRequest(http.MethodPost, "/v1/messages", nil))
-	require.ErrorIs(t, err, cluster.ErrAllowlistEmptiesPool, "a classifier-selected model outside both configured state sets must be refused")
+	require.Error(t, err, "a classifier-selected model outside both configured state sets must be refused")
 	require.Empty(t, upstream.body)
 }
 

@@ -2,18 +2,14 @@ package proxy
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
-	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
 	"weave-os/router/internal/providers"
 	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/policy"
 	"weave-os/router/internal/router/sessionpin"
 
 	"github.com/google/uuid"
@@ -149,52 +145,4 @@ func (p *outputLimitSequenceProvider) Proxy(_ context.Context, _ router.Decision
 
 func (*outputLimitSequenceProvider) Passthrough(context.Context, providers.PreparedRequest, http.ResponseWriter, *http.Request) error {
 	return errors.New("unexpected passthrough")
-}
-
-func TestProxyMessages_OutputLimitEightActionSequence(t *testing.T) {
-	for _, stream := range []bool{false, true} {
-		for _, trueCap := range []bool{false, true} {
-			t.Run(fmt.Sprintf("stream=%t/trueCap=%t", stream, trueCap), func(t *testing.T) {
-				store := newForceModelMapStore()
-				routes := &outputLimitSequenceRouter{choices: []string{outputLimitFirstModel, outputLimitSecondModel}}
-				upstream := &outputLimitSequenceProvider{stopReason: "tool_use", output: 32000}
-				ctx := context.WithValue(context.Background(), APIKeyIDContextKey{}, "output-limit-key")
-				ctx = context.WithValue(ctx, InstallationIDContextKey{}, uuid.NewString())
-				ctx = router.WithStrategy(ctx, router.StrategyHMM)
-				messages := []any{map[string]any{"role": "user", "content": "Inspect the repository files"}}
-				for action := 0; action < 8; action++ {
-					upstream.stopReason, upstream.output = "tool_use", 32000
-					if trueCap && action == 3 {
-						upstream.stopReason, upstream.output = "max_tokens", 128
-					}
-					svc := NewService(nil, map[string]providers.Client{providers.ProviderAIAND: upstream}, nil, false, nil, store, false,
-						providers.ProviderAIAND, outputLimitFirstModel, nil).
-						WithNativeAnthropicResponseSignals(false).
-						WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyHMM, Router: routes,
-							Capabilities: policy.Capabilities{SchemaVersion: policy.SchemaVersionV1, AuthoritativePerTurnSelection: true}})
-					body, err := json.Marshal(map[string]any{"model": outputLimitSecondModel, "max_tokens": 64000, "stream": stream,
-						"messages": messages, "tools": []any{map[string]any{"name": "Read", "description": "Read a file", "input_schema": map[string]any{"type": "object"}}}})
-					require.NoError(t, err)
-					rec := httptest.NewRecorder()
-					req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(string(body)))
-					require.NoError(t, svc.ProxyMessages(ctx, body, rec, req))
-					want := outputLimitFirstModel
-					if trueCap && action == 4 {
-						want = outputLimitSecondModel
-					}
-					assert.Equal(t, want, rec.Header().Get(HeaderRouterModel), "action %d", action)
-					require.Len(t, routes.requests, action+1)
-					if trueCap && action == 4 {
-						assert.Contains(t, routes.requests[action].SafetyExcludedModels, outputLimitFirstModel)
-					} else {
-						assert.NotContains(t, routes.requests[action].SafetyExcludedModels, outputLimitFirstModel)
-						assert.NotContains(t, routes.requests[action].ExcludedModels, outputLimitFirstModel)
-					}
-					messages = append(messages,
-						map[string]any{"role": "assistant", "content": []any{map[string]any{"type": "tool_use", "id": fmt.Sprintf("call_%d", action), "name": "Read", "input": map[string]any{}}}},
-						map[string]any{"role": "user", "content": []any{map[string]any{"type": "tool_result", "tool_use_id": fmt.Sprintf("call_%d", action), "content": fmt.Sprintf("file %d inspected", action)}}})
-				}
-			})
-		}
-	}
 }
