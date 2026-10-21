@@ -169,17 +169,6 @@ type Service struct {
 	// byokOnly disables deployment-level credential fallback so customer
 	// requests never silently consume the platform's API key budget.
 	byokOnly bool
-	// noResponsesGateways memoizes gateway endpoints that answered they have no
-	// Responses API, so only the first tool turn against such an endpoint pays
-	// the probe. Keyed by gatewayResponsesKey.
-	noResponsesGateways sync.Map
-	// noPromptCacheKeyGateways memoizes gateway endpoints that rejected
-	// prompt_cache_key as an unknown field, so only the first turn against
-	// such an endpoint pays the 400. Keyed by gatewayResponsesKey.
-	noPromptCacheKeyGateways sync.Map
-	// unservedGatewayModels memos (endpoint, model) pairs a gateway answered
-	// model-not-found for. Keyed by gatewayModelKey.
-	unservedGatewayModels sync.Map
 	// excludedModelsOverride, when non-nil, replaces the per-installation
 	// exclusion list on every request. Set from ROUTER_EXCLUDED_MODELS at boot.
 	excludedModelsOverride map[string]struct{}
@@ -256,12 +245,6 @@ type Service struct {
 	// the session off the refusing model (opus ~45% refusal rate; sonnet 0%).
 	// Refusal detection itself is unconditional — the flag gates only the action.
 	cyberRefusalRepin bool
-	// cyberRefusalRetry is the kill switch (ROUTER_CYBER_REFUSAL_RETRY, default
-	// on) for the same-turn rescue of a turn OpenAI declined on cyber policy:
-	// the refusal is withheld and re-dispatched off-vendor while nothing has
-	// reached the client. Independent of cyberRefusalRepin, which governs the
-	// following turns.
-	cyberRefusalRetry bool
 	// anthropicServerSideFallback (ROUTER_ANTHROPIC_SERVER_SIDE_FALLBACK, default on)
 	// opts Anthropic-targeted requests into server-side fallback: Anthropic re-serves
 	// a refused turn on a fallback model (rescues the current turn; cyberRefusalRepin
@@ -276,10 +259,6 @@ type Service struct {
 	// openAIResponsesBroad is the deployment default for
 	// ROUTER_OPENAI_RESPONSES_BROAD; see ResolveOpenAIResponsesBroad.
 	openAIResponsesBroad bool
-	// nativeAnthropicResponseSignals records the stop reason and tool_use block
-	// count observed on an Anthropic-native passthrough turn. Env
-	// ROUTER_NATIVE_ANTHROPIC_RESPONSE_SIGNALS, on by default.
-	nativeAnthropicResponseSignals bool
 	// nativeOpenAIResponseSignals records the finish reason and tool-call count
 	// observed on an OpenAI-native turn, on both the chat/completions and the
 	// /v1/responses passthrough. Env ROUTER_NATIVE_OPENAI_RESPONSE_SIGNALS, on
@@ -842,7 +821,6 @@ const (
 	markerReasonBestPick         = "best pick for this turn"
 	markerReasonBaseline         = "fell back to baseline after provider outage"
 	markerReasonSibling          = "switched after the picked model was overloaded"
-	markerReasonCyberRefusal     = "switched after the picked model declined the request"
 	markerReasonForcedPinDropped = "your force-model pin could not be served this turn"
 )
 
@@ -880,15 +858,6 @@ func subscriptionTargetMarker(ctx context.Context, h http.Header, res turnLoopRe
 		return pickedMarker
 	}
 	return suppressMarkerIfRequested(ctx, h, modelSelectionMarkerForRequest(ctx, res, siblingRoutingMarkerFor(res, target.Model), target.Model, markerReasonSibling))
-}
-
-// cyberRefusalRoutingMarkerFor renders the routing badge for a turn re-served
-// after the picked model refused it.
-func cyberRefusalRoutingMarkerFor(res turnLoopResult, fallbackModel string) string {
-	if res.SuggestionMode || isUnpinnedScoredTurn(res.TurnType) || res.TurnType == turntype.Probe || fallbackModel == "" || baseModelOf(res.PriorServedModel) == fallbackModel {
-		return ""
-	}
-	return "✦ **Weave Router** → " + fallbackModel + " · " + markerReasonCyberRefusal + "\n\n"
 }
 
 // routingReasonShort returns a short user-facing reason for the routing
@@ -1096,13 +1065,12 @@ func routingKnobsForRequest(ctx context.Context) *router.Overrides {
 // Returns nil when neither filter fires.
 func (s *Service) safetyExcludedModels(env *translate.RequestEnvelope, outputReserve int, enabledProviders map[string]struct{}) map[string]struct{} {
 	_, overflowed := excludeContextOverflowModels(env.ContextOverflowTokenEstimate(), env.SignatureTokenSavings(), outputReserve, enabledProviders, nil, s.availableModels)
-	_, geminiUnsigned := excludeGemini3xOnUnsignedHistory(env, nil, s.availableModels)
 	_, advisorOutranking := excludeAdvisorOutrankingModels(env, nil, s.routableUniverse())
-	if len(overflowed) == 0 && len(geminiUnsigned) == 0 && len(advisorOutranking) == 0 {
+	if len(overflowed) == 0 && len(advisorOutranking) == 0 {
 		return nil
 	}
-	out := make(map[string]struct{}, len(overflowed)+len(geminiUnsigned)+len(advisorOutranking))
-	for _, models := range [][]string{overflowed, geminiUnsigned, advisorOutranking} {
+	out := make(map[string]struct{}, len(overflowed)+len(advisorOutranking))
+	for _, models := range [][]string{overflowed, advisorOutranking} {
 		for _, m := range models {
 			out[m] = struct{}{}
 		}
@@ -1151,9 +1119,6 @@ func (s *Service) excludedModelsFor(ctx context.Context, allowed map[string]stru
 				out[model] = struct{}{}
 			}
 		}
-	}
-	for model := range s.gatewayUnservedModelsForRequest(ctx) {
-		out[model] = struct{}{}
 	}
 	if len(out) == 0 {
 		return nil
@@ -1528,48 +1493,6 @@ func withoutModelsKeep(set map[string]struct{}, models, keep []string) map[strin
 	return withoutModels(set, filtered)
 }
 
-// gemini3xRequiresSignedHistory reports whether model is a Gemini 3.x model,
-// which 400s (INVALID_ARGUMENT) when the request history carries function-call
-// parts lacking the thoughtSignature Gemini issued. Scoped by family name; if
-// the catalog later grows a per-model capability flag this should move there.
-func gemini3xRequiresSignedHistory(model string) bool {
-	return strings.HasPrefix(model, "gemini-3") || model == router.ModelGemini4Argon
-}
-
-// excludeGemini3xOnUnsignedHistory augments excluded with every Gemini 3.x
-// model when the request history carries an assistant tool call lacking a
-// Gemini thoughtSignature (guaranteed 400 on foreign/cross-model history).
-// Native Gemini continuations round-trip their own signature and are
-// unaffected. Returns excluded unchanged (and nil) when nothing is added.
-func excludeGemini3xOnUnsignedHistory(env *translate.RequestEnvelope, excluded, available map[string]struct{}) (map[string]struct{}, []string) {
-	if env == nil || !env.HasUnsignedToolCallHistory() {
-		return excluded, nil
-	}
-	var out map[string]struct{}
-	var added []string
-	for model := range available {
-		if !gemini3xRequiresSignedHistory(model) {
-			continue
-		}
-		if _, already := excluded[model]; already {
-			continue
-		}
-		if out == nil {
-			out = make(map[string]struct{}, len(excluded)+1)
-			for k := range excluded {
-				out[k] = struct{}{}
-			}
-		}
-		out[model] = struct{}{}
-		added = append(added, model)
-	}
-	if len(added) == 0 {
-		return excluded, nil
-	}
-	sort.Strings(added)
-	return out, added
-}
-
 // restrictToTier returns a copy of excluded augmented with every routable
 // model whose tier differs from target. Counterpart to a dropped user-forced
 // pin: when the forced model can no longer serve (e.g. the pre-filter evicted
@@ -1854,11 +1777,9 @@ func NewService(r router.Router, providerMap map[string]providers.Client, emitte
 		scoreToolResultTurns:           true,
 		loopEscalationEnabled:          true,
 		cyberRefusalRepin:              true,
-		cyberRefusalRetry:              true,
 		anthropicServerSideFallback:    true,
 		siblingFailover:                true,
 		openAIResponsesBroad:           true,
-		nativeAnthropicResponseSignals: true,
 		nativeOpenAIResponseSignals:    true,
 		cyberRefusalFallbackModel:      "deepseek/deepseek-v4-pro",
 	}
@@ -1917,13 +1838,6 @@ func (s *Service) WithScoreToolResultTurns(enabled bool) *Service {
 // (ROUTER_CYBER_REFUSAL_REPIN); see cyberRefusalRepin.
 func (s *Service) WithCyberRefusalRepin(enabled bool) *Service {
 	s.cyberRefusalRepin = enabled
-	return s
-}
-
-// WithCyberRefusalRetry is the kill switch for the same-turn OpenAI
-// cyber-refusal rescue (ROUTER_CYBER_REFUSAL_RETRY); see cyberRefusalRetry.
-func (s *Service) WithCyberRefusalRetry(enabled bool) *Service {
-	s.cyberRefusalRetry = enabled
 	return s
 }
 
@@ -2078,15 +1992,6 @@ func (s *Service) clearRecoveredCooldown(ctx context.Context, res turnLoopResult
 			observability.FromContext(ctx).Warn("failed to clear recovered cooldown; next turns keep probing", "model", servedModel, "role", role, "err", err)
 		}
 	}
-}
-
-// WithNativeAnthropicResponseSignals is the kill switch
-// (ROUTER_NATIVE_ANTHROPIC_RESPONSE_SIGNALS) for recording Anthropic-native
-// stop_reason and tool_use counts on telemetry. On by default; disabling
-// leaves those columns NULL on native turns.
-func (s *Service) WithNativeAnthropicResponseSignals(enabled bool) *Service {
-	s.nativeAnthropicResponseSignals = enabled
-	return s
 }
 
 // WithNativeOpenAIResponseSignals is the kill switch
@@ -2483,13 +2388,11 @@ func (s *Service) WithAvailableModels(models map[string]struct{}) *Service {
 	return s
 }
 
-// HardPinRequest is the per-request context the hard-pin tier selects against;
-// gateway-exclusive installations can only reach models aliased onto the enrolled gateway.
+// HardPinRequest is the per-request context the hard-pin tier selects against.
 type HardPinRequest struct {
 	EnabledProviders map[string]struct{}
 	ExcludedModels   map[string]struct{}
 	CustomBindings   map[string][]string
-	GatewayProviders map[string]struct{}
 }
 
 // HardPinResolver picks the hard-pin tier's provider/model for one request.
@@ -2660,88 +2563,6 @@ func (s *Service) ExcludedProvidersOverride() []string {
 // Session pins, OTel export, DB telemetry persistence, and billing need it.
 func (s *Service) usageRequired() bool {
 	return s.pinStore != nil || s.emitter != nil || s.telemetry != nil || s.billing != nil
-}
-
-// gatewayResponsesKey identifies the endpoint whose Responses support is being
-// memoized: the BYOK base URL, or the provider name for a deployment-keyed
-// gateway (one endpoint per process). Empty for direct vendors, which are not
-// memoized.
-func gatewayResponsesKey(ctx context.Context, provider string) string {
-	if !providers.IsGateway(provider) {
-		return ""
-	}
-	return EffectiveBaseURL(ctx, provider)
-}
-
-// gatewayLacksResponses reports whether that endpoint already told us it serves
-// no Responses API.
-func (s *Service) gatewayLacksResponses(key string) bool {
-	if key == "" {
-		return false
-	}
-	_, ok := s.noResponsesGateways.Load(key)
-	return ok
-}
-
-// rememberGatewayLacksResponses records a gateway's rejection of the Responses
-// API so later tool turns go straight to chat/completions.
-func (s *Service) rememberGatewayLacksResponses(key string) {
-	if key == "" {
-		return
-	}
-	s.noResponsesGateways.Store(key, struct{}{})
-}
-
-// gatewayModelKey returns "endpoint|model" for gateway providers (BYOK base
-// URL, or provider name when deployment-keyed); empty for direct vendors.
-func gatewayModelKey(endpoint, provider, model string) string {
-	if !providers.IsGateway(provider) || model == "" {
-		return ""
-	}
-	endpoint = strings.TrimRight(endpoint, "/")
-	if endpoint == "" {
-		endpoint = provider
-	}
-	return endpoint + "|" + model
-}
-
-// gatewayLacksModel reports whether that endpoint already answered
-// model-not-found for the model.
-func (s *Service) gatewayLacksModel(key string) bool {
-	if key == "" {
-		return false
-	}
-	_, ok := s.unservedGatewayModels.Load(key)
-	return ok
-}
-
-// rememberGatewayLacksModel records a gateway's model-not-found answer so
-// later turns resolve around the alias instead of paying the 404 again.
-func (s *Service) rememberGatewayLacksModel(ctx context.Context, provider, model string) {
-	key := gatewayModelKey(EffectiveBaseURL(ctx, ""), provider, model)
-	if key == "" {
-		return
-	}
-	s.unservedGatewayModels.Store(key, struct{}{})
-}
-
-// gatewayRejectsPromptCacheKey reports whether that endpoint already told us
-// it refuses bodies carrying prompt_cache_key.
-func (s *Service) gatewayRejectsPromptCacheKey(key string) bool {
-	if key == "" {
-		return false
-	}
-	_, ok := s.noPromptCacheKeyGateways.Load(key)
-	return ok
-}
-
-// rememberGatewayRejectsPromptCacheKey records a gateway's unknown-field
-// rejection of prompt_cache_key so later turns go out without the hint.
-func (s *Service) rememberGatewayRejectsPromptCacheKey(key string) {
-	if key == "" {
-		return
-	}
-	s.noPromptCacheKeyGateways.Store(key, struct{}{})
 }
 
 // newTelemetryBuffer returns a request-scoped buffer, or nil when OTel is
@@ -3555,12 +3376,12 @@ func (s *Service) maybeRepinOnRefusal(ctx context.Context, obs *refusalObserver,
 	if obs == nil || !obs.refused {
 		return
 	}
-	s.repinOffRefusingModel(ctx, sessionKey, role, served, obs.category, "")
+	s.repinOffRefusingModel(ctx, sessionKey, role, served, obs.category)
 }
 
-// repinOffRefusingModel moves the session pin to the refusal fallback, whatever
-// vendor signalled the refusal (Anthropic's stop reason, OpenAI's cyber policy).
-func (s *Service) repinOffRefusingModel(ctx context.Context, sessionKey [sessionpin.SessionKeyLen]byte, role string, served router.Decision, category, avoidProvider string) {
+// repinOffRefusingModel moves the session pin to the refusal fallback after a
+// safety refusal.
+func (s *Service) repinOffRefusingModel(ctx context.Context, sessionKey [sessionpin.SessionKeyLen]byte, role string, served router.Decision, category string) {
 	if s.pinStore == nil {
 		return
 	}
@@ -3584,7 +3405,7 @@ func (s *Service) repinOffRefusingModel(ctx context.Context, sessionKey [session
 		return
 	}
 	log := observability.FromContext(ctx)
-	fbModel, fbProvider, ok := s.cyberRefusalFallback(ctx, sessionKey, role, served, avoidProvider)
+	fbModel, fbProvider, ok := s.refusalFallback(ctx, sessionKey, role, served)
 	if !ok {
 		log.Warn("safety refusal observed but no distinct fallback model available; not re-pinning",
 			"from_model", served.Model, "fallback_model", fbModel, "refusal_category", category)
@@ -3940,12 +3761,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 
 	// Hard exclusions run first so a model the request can never use does not
 	// count as fitting and suppress the total-overflow admission below.
-	excluded, geminiUnsigned := excludeGemini3xOnUnsignedHistory(env, baseExcluded, s.availableModels)
-	if len(geminiUnsigned) > 0 {
-		log.Info("gemini pre-filter: excluded gemini-3.x for unsigned tool-call history",
-			"excluded_models", strings.Join(geminiUnsigned, ","),
-		)
-	}
+	excluded := baseExcluded
 	excluded, advisorOutranking := excludeAdvisorOutrankingModels(env, excluded, s.routableUniverse())
 	if len(advisorOutranking) > 0 {
 		log.Info("advisor pre-filter: excluded models the advisor tool cannot advise",
@@ -3955,9 +3771,8 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	}
 	overflowEstimate := env.ContextOverflowTokenEstimate()
 	customBindings := s.customBindingsForRequest(ctx)
-	gatewayProviders := s.gatewayProvidersForRequest(ctx)
 	excluded, ctxOverflowed := excludeContextOverflowModels(overflowEstimate, env.SignatureTokenSavings(), outputReserve, enabledProviders, excluded, s.availableModels)
-	overflowAdmitted := admitWidestOnTotalOverflow(excluded, ctxOverflowed, s.availableModels, enabledProviders, cluster.RequestBindings{Custom: customBindings, Gateways: gatewayProviders})
+	overflowAdmitted := admitWidestOnTotalOverflow(excluded, ctxOverflowed, s.availableModels, enabledProviders, cluster.RequestBindings{Custom: customBindings})
 	excluded = withoutModels(excluded, overflowAdmitted)
 	if len(ctxOverflowed) > 0 {
 		log.Info("context window pre-filter: excluded over-capacity models",
@@ -3968,7 +3783,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 			"admitted_for_upstream", strings.Join(overflowAdmitted, ","),
 		)
 	}
-	hardExcluded := append(append([]string(nil), geminiUnsigned...), advisorOutranking...)
+	hardExcluded := advisorOutranking
 
 	routeStart := time.Now()
 	req := router.Request{
@@ -3994,13 +3809,11 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		ClientSessionID:               clientSessionIDForRequest(ctx, env),
 		EnabledProviders:              enabledProviders,
 		CustomBindings:                customBindings,
-		GatewayProviders:              gatewayProviders,
 		SubscriptionProviders:         subscriptionProvidersForRequest(ctx),
 		ExcludedModels:                excluded,
 		AllowedModels:                 allowedModelsForRequest(ctx),
 		SafetyExcludedModels:          withoutModelsKeep(s.safetyExcludedModels(env, outputReserve, enabledProviders), overflowAdmitted, hardExcluded),
 		ContextWindowExcludedModels:   contextWindowOnlyExclusions(ctxOverflowed, overflowAdmitted, hardExcluded),
-		UnsignedHistoryExcludedModels: modelSet(geminiUnsigned),
 		OverflowAdmittedModels:        modelSet(overflowAdmitted),
 		PreferredModels:               s.preferredModelsForRequest(ctx),
 		RoutingKnobs:                  routingKnobsForRequest(ctx),
@@ -4586,50 +4399,14 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 				return rawErr, finalize
 			}
 			return func(actx context.Context, d router.Decision, p providers.Client) error {
-				// Direct OpenAI serves every expressible turn on Responses;
-				// gateways only the reasoning tool turn chat/completions rejects.
-				gatewayKey := gatewayResponsesKey(actx, d.Provider)
 				useResponses := translate.UseOpenAIResponsesAPI(translate.ResponsesRoute{
 					Provider:       d.Provider,
 					Capabilities:   targetOpts.Capabilities,
 					HasTools:       feats.HasTools,
 					ChatOnlyParams: env.RequiresChatCompletionsParams(targetOpts.Capabilities),
 					Broad:          s.ResolveOpenAIResponsesBroad(actx),
-				}) && !s.gatewayLacksResponses(gatewayKey)
-				stripPCK := s.gatewayRejectsPromptCacheKey(gatewayKey)
-				rawErr, finalize := dispatchOpenAICompat(actx, d, p, useResponses, stripPCK)
-				// A gateway with no usable Responses surface answers 404, or 4xx
-				// prose saying the API is off for this account. Re-emit onto
-				// chat/completions once while pre-commit, and remember the answer
-				// so the next turn skips the probe.
-				if rawErr != nil && useResponses && !committed(preludeBuf) &&
-					providers.IsUpstreamResponsesUnsupported(rawErr) {
-					s.rememberGatewayLacksResponses(gatewayKey)
-					log.Warn("Gateway rejected the Responses API; retrying on chat/completions",
-						"model", d.Model,
-						"decision_provider", d.Provider,
-						"request_id", requestID)
-					if preludeBuf != nil {
-						preludeBuf.Discard()
-					}
-					useResponses = false
-					rawErr, finalize = dispatchOpenAICompat(actx, d, p, false, stripPCK)
-				}
-				// prompt_cache_key is a spec Chat Completions field, but gateway schemas
-				// that trail the spec 400 it as unknown. Re-emit once without the hint
-				// while pre-commit; memoize the endpoint so later turns skip it.
-				if rawErr != nil && !stripPCK && gatewayKey != "" && !committed(preludeBuf) &&
-					providers.IsUpstreamPromptCacheKeyRejection(rawErr) {
-					s.rememberGatewayRejectsPromptCacheKey(gatewayKey)
-					log.Warn("Gateway rejected prompt_cache_key; retrying without the affinity hint",
-						"model", d.Model,
-						"decision_provider", d.Provider,
-						"request_id", requestID)
-					if preludeBuf != nil {
-						preludeBuf.Discard()
-					}
-					rawErr, finalize = dispatchOpenAICompat(actx, d, p, useResponses, true)
-				}
+				})
+				rawErr, finalize := dispatchOpenAICompat(actx, d, p, useResponses, false)
 				return finalize(rawErr)
 			}, nil
 		default:
@@ -4711,7 +4488,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		!agentShadowMode &&
 		!routeRes.CallerModelPassthrough &&
 		decision.Reason != translate.ReasonUserForceModel &&
-		(s.shouldFailover(ctx) || s.gatewaySiblingAllowed(ctx, siblingDecisions[0])) &&
+		s.shouldFailover(ctx) &&
 		(!paidFallbackForbidden(ctx) || subscriptionStateModelsEnabled(ctx))
 
 	primaryProvider := decision.Provider
@@ -5170,19 +4947,6 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		respSummary.StopReason = anthropicRefusalStopReason
 	}
 
-	// Anthropic-native passthrough: the extractor already parses the upstream
-	// stream for usage, so the same pass yields the turn-ending signals a
-	// translator would have reported. The native stop_reason is the raw
-	// upstream value, hence both fields.
-	nativeRespSummary := false
-	if respSummary.StopReason == "" && s.ResolveNativeAnthropicResponseSignals(ctx) {
-		if stopReason, toolUseBlocks, observed := extractor.AnthropicResponse(); observed {
-			respSummary.UpstreamFinishReason = stopReason
-			respSummary.StopReason = stopReason
-			respSummary.ToolUseBlocks = toolUseBlocks
-			nativeRespSummary = true
-		}
-	}
 	// Observation-only tool detail for the proxy grader: the tool the client
 	// was handed on a tool_use stop, and this request's per-tool error tally.
 	terminalToolUse, endedOnToolUse := toolUseObs.terminal()
@@ -5280,7 +5044,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		credentialKeyPrefix, credentialKeySuffix, credSource := s.credentialKeyParts(ctx)
 		// Degeneracy evicts the session pin, so it stays on the translated
 		// signals it was calibrated against.
-		degShadow := proxyErr == nil && !nativeRespSummary && isDegenerateResponse(out, respSummary.ToolUseBlocks, respSummary.StopReason, respSummary.StopReasonDemoted)
+		degShadow := proxyErr == nil && isDegenerateResponse(out, respSummary.ToolUseBlocks, respSummary.StopReason, respSummary.StopReasonDemoted)
 		if degShadow && !agentShadowMode {
 			log.Info("router.degenerate_shadow",
 				"model", decision.Model,
@@ -5368,7 +5132,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 			// turn. Native args are never validated by the router, so that count
 			// stays unknown on passthrough.
 			ToolUseBlocks:         int32PtrIfKnown(int32(respSummary.ToolUseBlocks), respSummary.StopReason != ""),
-			InvalidToolArgsBlocks: int32PtrIfKnown(int32(respSummary.InvalidToolArgsBlocks), respSummary.StopReason != "" && !nativeRespSummary),
+			InvalidToolArgsBlocks: int32PtrIfKnown(int32(respSummary.InvalidToolArgsBlocks), respSummary.StopReason != ""),
 			LastToolUseName:       terminalToolUse.Name,
 			LastToolUseInputBytes: int32PtrIfKnown(int32(terminalToolUse.InputBytes), endedOnToolUse),
 			ToolErrorCounts:       toolErrorCountsJSON(toolErrorTally),
@@ -6289,13 +6053,6 @@ func (s *Service) enabledProvidersForRequest(ctx context.Context, surfaceProvide
 	for p := range s.excludedProvidersForRequest(ctx) {
 		delete(out, p)
 	}
-	// A BYOK gateway is the tenant's own endpoint and displaces every other
-	// upstream: routing through a vendor would send their traffic outside the
-	// gateway they mandated. Applied last so no enrollment path above can
-	// re-admit a vendor, and their provider exclusions become moot.
-	if gateways := s.gatewayProvidersForRequest(ctx); len(gateways) > 0 {
-		return gateways
-	}
 	return out
 }
 
@@ -7007,15 +6764,10 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	inboundLastUser := env.LastUserMessage()
 	inboundUserPromptOAI := env.EndsWithUserPrompt()
 
-	excludedOAI, geminiUnsignedOAI := excludeGemini3xOnUnsignedHistory(env, baseExcludedOAI, s.availableModels)
-	if len(geminiUnsignedOAI) > 0 {
-		log.Info("gemini pre-filter: excluded gemini-3.x for unsigned tool-call history",
-			"excluded_models", strings.Join(geminiUnsignedOAI, ","),
-		)
-	}
+	excludedOAI := baseExcludedOAI
 	overflowEstimateOAI := env.ContextOverflowTokenEstimate()
 	excludedOAI, ctxOverflowedOAI := excludeContextOverflowModels(overflowEstimateOAI, env.SignatureTokenSavings(), outputReserveOAI, enabledProviders, excludedOAI, s.availableModels)
-	overflowAdmittedOAI := admitWidestOnTotalOverflow(excludedOAI, ctxOverflowedOAI, s.availableModels, enabledProviders, cluster.RequestBindings{Custom: s.customBindingsForRequest(ctx), Gateways: s.gatewayProvidersForRequest(ctx)})
+	overflowAdmittedOAI := admitWidestOnTotalOverflow(excludedOAI, ctxOverflowedOAI, s.availableModels, enabledProviders, cluster.RequestBindings{Custom: s.customBindingsForRequest(ctx)})
 	excludedOAI = withoutModels(excludedOAI, overflowAdmittedOAI)
 	if len(ctxOverflowedOAI) > 0 {
 		log.Info("context window pre-filter: excluded over-capacity models",
@@ -7048,13 +6800,11 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		ClientSessionID:               clientSessionIDForRequest(ctx, env),
 		EnabledProviders:              enabledProviders,
 		CustomBindings:                s.customBindingsForRequest(ctx),
-		GatewayProviders:              s.gatewayProvidersForRequest(ctx),
 		SubscriptionProviders:         subscriptionProvidersForRequest(ctx),
 		ExcludedModels:                excludedOAI,
 		AllowedModels:                 allowedModelsForRequest(ctx),
-		SafetyExcludedModels:          withoutModelsKeep(s.safetyExcludedModels(env, outputReserveOAI, enabledProviders), overflowAdmittedOAI, geminiUnsignedOAI),
-		ContextWindowExcludedModels:   contextWindowOnlyExclusions(ctxOverflowedOAI, overflowAdmittedOAI, geminiUnsignedOAI),
-		UnsignedHistoryExcludedModels: modelSet(geminiUnsignedOAI),
+		SafetyExcludedModels:          withoutModelsKeep(s.safetyExcludedModels(env, outputReserveOAI, enabledProviders), overflowAdmittedOAI, nil),
+		ContextWindowExcludedModels:   contextWindowOnlyExclusions(ctxOverflowedOAI, overflowAdmittedOAI, nil),
 		OverflowAdmittedModels:        modelSet(overflowAdmittedOAI),
 		PreferredModels:               s.preferredModelsForRequest(ctx),
 		RoutingKnobs:                  routingKnobsForRequest(ctx),
@@ -7220,7 +6970,6 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		ctx = withSuppressedCodexSubscription(ctx)
 	}
 	resolvedCtx := s.resolveCredentials(ctx, decision.Provider, decision.Model, r.Header)
-	responsesEndpointKey := EffectiveBaseURL(resolvedCtx, decision.Provider)
 	openAIResponsesEndpoint := responsesPassthrough
 	if !openAIResponsesEndpoint && decision.Provider == providers.ProviderAIAND {
 		openAIResponsesEndpoint = translate.UseOpenAIResponsesAPI(translate.ResponsesRoute{
@@ -7229,8 +6978,8 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 			HasTools:       feats.HasTools,
 			ChatOnlyParams: env.RequiresChatCompletionsParams(opts.Capabilities),
 			Broad:          s.ResolveOpenAIResponsesBroad(ctx),
-		}) && !s.gatewayLacksResponses(responsesEndpointKey)
-		if !env.RequiresChatCompletionsParams(opts.Capabilities) && !s.gatewayLacksResponses(responsesEndpointKey) && s.supportsSubscriptionTransport(decision.Provider) &&
+		})
+		if !env.RequiresChatCompletionsParams(opts.Capabilities) && s.supportsSubscriptionTransport(decision.Provider) &&
 			(servedOnCodexSubscription(resolvedCtx) || managedSubscriptionCanServe(ctx, decision.Provider, decision.Model)) {
 			openAIResponsesEndpoint = true
 		}
@@ -7416,12 +7165,6 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	// than measured by a translator, so a count the router never computed stays
 	// unknown on the telemetry row.
 	nativeRespSummary := false
-	// cyberRetryArmed licenses the refusal gate to withhold a stream's preamble;
-	// set once the rescue target is known to be dispatchable.
-	cyberRetryArmed := false
-	// cyberRefusalSeen survives per-attempt writers so the re-pin runs whether
-	// the refusal was withheld, passed through, or arrived as an error body.
-	cyberRefusalSeen := false
 	// buildAttempt composes the dispatch for one target model: same structure as
 	// ProxyMessages', so a rescue on another model rebuilds the whole chain
 	// (emit, translator, marker) instead of reusing the failed model's.
@@ -7507,17 +7250,11 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 						return fmt.Errorf("emit body: %w", emitErr)
 					}
 				}
-				// OpenAI's cyber-policy refusal arrives on an HTTP 200 stream, so
-				// only the response body identifies it. The gate withholds the
-				// pre-output frames so a refusal can be swallowed and the turn
-				// re-dispatched off-vendor while the client has seen nothing.
 				noticeSink, noticeErr := makeMarkerSink(targetNotice)
 				if noticeErr != nil {
 					return fmt.Errorf("emit OpenAI router notice: %w", noticeErr)
 				}
-				refusalGate := newCyberRefusalGate(noticeSink,
-					cyberRetryArmed && d.Provider == providers.ProviderAIAND)
-				var attemptSink http.ResponseWriter = refusalGate
+				var attemptSink http.ResponseWriter = noticeSink
 				proxyWriter := attemptSink
 				// A translated attempt reads Responses SSE, which the chat-shaped
 				// usage extractor can't parse â€” the translator records usage instead.
@@ -7600,11 +7337,6 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 					if err == nil && env.Stream() {
 						err = nativeTerminal.state.err()
 					}
-					if isStreamTerminalMissing(err) {
-						// Releasing a withheld preamble would commit the client to a
-						// response that never finishes, ruling out the retry.
-						refusalGate.Abandon()
-					}
 					if nativeTerminal.observed && nativeTerminal.signals.OutputLimitReached {
 						extractor.RecordOutputLimitReached()
 					}
@@ -7615,18 +7347,6 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 						respSummary.ToolUseBlocks = nativeTerminal.signals.ToolCalls
 						nativeRespSummary = true
 					}
-				}
-				if releaseErr := refusalGate.Finalize(); releaseErr != nil && (err == nil || providers.IsUpstreamCyberPolicyRefusal(releaseErr)) {
-					err = releaseErr
-				}
-				if refusalGate.refused {
-					cyberRefusalSeen = true
-				}
-				// A withheld refusal left the turn unserved with nothing on the
-				// wire: report it as an upstream rejection so the dispatch chain
-				// classifies it like the non-streaming refusal.
-				if refusalGate.withheld {
-					err = providers.CyberPolicyRefusalError()
 				}
 				return err
 			}
@@ -7652,31 +7372,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		return attemptBuildErr
 	}
 
-	// OpenAI's cybersecurity classifier declines the turn itself, so the rescue
-	// has to leave the vendor — a retry on another OpenAI binding meets the same
-	// classifier. Resolved pre-dispatch: the refusal gate must be armed before
-	// the first upstream byte, and the primary dispatch has to hold its
-	// exhaustion flush so the refusal envelope can still be swallowed.
 	_, explicitRequestedModel := catalog.ByID(routeRequest.RequestedModel)
-	cyberRetryEligible := s.ResolveCyberRefusalRetry(ctx) &&
-		!routeRes.CallerModelPassthrough &&
-		decision.Provider == providers.ProviderAIAND &&
-		!strings.HasPrefix(decision.Reason, translate.ReasonUserForceModel) &&
-		!s.isHardPinnedTurn(ctx, routeRes.TurnType) &&
-		!billing.SubscriptionOnlyFromContext(ctx) &&
-		!bypassEval
-	var cyberRetryTarget router.Decision
-	cyberRetryViable := false
-	if cyberRetryEligible {
-		target, found := s.cyberRefusalRetryTarget(ctx, decision, routeRes.SessionKey, stickyStateRole(routeRes),
-			overflowEstimateOAI, env.SignatureTokenSavings(), outputReserveOAI)
-		cyberRetryViable = found && (s.shouldFailover(ctx) || s.gatewaySiblingAllowed(ctx, target)) &&
-			(!subscriptionStateModelsEnabled(ctx) || !paidFallbackForbiddenForModel(ctx, target.Model))
-		cyberRetryTarget = target
-	}
-	// The refusal gate may withhold the preamble once a rescue target is known
-	// to be dispatchable.
-	cyberRetryArmed = cyberRetryViable
 
 	// Codex-subscription failover: a turn served on the caller's ChatGPT plan is
 	// pinned to that one credential, so a plan throttle (429 usage_limit_reached)
@@ -7704,7 +7400,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		len(siblingDecisions) > 0 &&
 		!routeRes.CallerModelPassthrough &&
 		!strings.HasPrefix(decision.Reason, translate.ReasonUserForceModel) &&
-		(s.shouldFailover(ctx) || s.gatewaySiblingAllowed(ctx, siblingDecisions[0])) &&
+		s.shouldFailover(ctx) &&
 		(!paidFallbackForbidden(ctx) || subscriptionStateModelsEnabled(ctx))
 
 	primaryProvider := decision.Provider
@@ -7780,7 +7476,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		bindings:               bindings,
 		attempt:                attempt,
 		flushErr:               flushErrAsOpenAI,
-		deferFlushOnExhaustion: cyberRetryViable || codexRetryViable || claudeRetryViable || siblingViable,
+		deferFlushOnExhaustion: codexRetryViable || claudeRetryViable || siblingViable,
 		purpose:                routeRes.dispatchPurpose(surfacePurpose),
 		origin:                 routeRes.dispatchOrigin(decision),
 	})
@@ -7791,7 +7487,6 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	primaryFailureErr := proxyErr
 	subscriptionPoolFailure := isSubscriptionPoolError(proxyErr)
 	primarySubscriptionArmFailure := proxyErr
-	cyberRefusalSeen = cyberRefusalSeen || providers.IsUpstreamCyberPolicyRefusal(proxyErr)
 
 	// The deferred upstream error must reach the client exactly once: the rescue
 	// owns it, and flushes it itself when it declines to run. A managed-pool
@@ -7863,15 +7558,14 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 				attempt:         subAttempt,
 				flushErr:        flushErrAsOpenAI,
 				// A failed retry keeps the same model; hold the error so the
-				// cyber-refusal rescue below can still serve the turn.
-				deferFlushOnExhaustion: cyberRetryViable || siblingViable,
+				// sibling rescue below can still serve the turn.
+				deferFlushOnExhaustion: siblingViable,
 				purpose:                routeRes.dispatchPurpose(surfacePurpose),
 				origin:                 routeRes.dispatchOrigin(decision),
 			})
 			bindings = subBindings
 			codexFailoverUsed = proxyErr == nil
 			subscriptionPoolFailure = isSubscriptionPoolError(proxyErr)
-			cyberRefusalSeen = cyberRefusalSeen || providers.IsUpstreamCyberPolicyRefusal(proxyErr)
 		}
 	}
 
@@ -7906,89 +7600,20 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 				bindings:               subBindings,
 				attempt:                subAttempt,
 				flushErr:               flushErrAsOpenAI,
-				deferFlushOnExhaustion: cyberRetryViable || siblingViable,
+				deferFlushOnExhaustion: siblingViable,
 				purpose:                routeRes.dispatchPurpose(surfacePurpose),
 				origin:                 routeRes.dispatchOrigin(decision),
 			})
 			bindings = subBindings
 			claudeFailoverUsed = proxyErr == nil
 			subscriptionPoolFailure = isSubscriptionPoolError(proxyErr)
-			cyberRefusalSeen = cyberRefusalSeen || providers.IsUpstreamCyberPolicyRefusal(proxyErr)
 		}
 	}
 
 	// A subscription retry declined to run and no other rescue owns the held
 	// error; surface it now so it is never dropped.
 	if ((codexRetryViable && !codexRetryRan) || (claudeRetryViable && !claudeRetryRan)) &&
-		!cyberRetryViable && !siblingViable && proxyErr != nil && !preludeBuf.Committed() {
-		flushDeferredErr()
-	}
-
-	cyberRetryRan := false
-	if cyberRetryViable && proxyErr != nil && !preludeBuf.Committed() &&
-		providers.IsUpstreamCyberPolicyRefusal(proxyErr) {
-		retryOpts := opts
-		retryOpts.TargetModel = cyberRetryTarget.Model
-		retryOpts.TargetProvider = cyberRetryTarget.Provider
-		retryOpts.Capabilities = router.Lookup(cyberRetryTarget.Model)
-		// The turn now serves a model the session hasn't seen, so signed
-		// reasoning from the refusing model must not be replayed verbatim.
-		retryOpts.ModelSwitched = true
-		retryEffort := s.resolveEffort(ctx, cyberRetryTarget, retryOpts.Capabilities, routeRes.EscalateEffort)
-		retryEffort.apply(&retryOpts)
-		retryCtx := resolveAndInjectCredentials(subscriptionStatePaidRescueContext(ctx, cyberRetryTarget.Model), cyberRetryTarget.Provider, cyberRetryTarget.Model, r.Header)
-		retryOpts.FastMode = fastModeForAttempt(retryCtx, cyberRetryTarget.Model, cyberRetryTarget.Provider)
-		retryBindings := s.resolveBindingsForDispatch(retryCtx, cyberRetryTarget)
-		retryMarker := suppressMarkerIfRequested(ctx, r.Header, modelSelectionMarkerForRequest(ctx, routeRes, cyberRefusalRoutingMarkerFor(routeRes, cyberRetryTarget.Model), cyberRetryTarget.Model, markerReasonCyberRefusal))
-		retryAttempt, retryBuildErr := buildAttempt(cyberRetryTarget, retryOpts, retryMarker)
-		rw, responsesIngress := w.(*translate.ResponsesWriter)
-		switch {
-		case retryBuildErr != nil:
-			log.Error("Cyber-refusal retry: preparing the fallback request failed; surfacing the refusal",
-				"err", retryBuildErr,
-				"fallback_model", cyberRetryTarget.Model)
-		case len(retryBindings) == 0:
-			log.Warn("Cyber-refusal retry: fallback has no usable binding; surfacing the refusal",
-				"fallback_model", cyberRetryTarget.Model,
-				"fallback_provider", cyberRetryTarget.Provider)
-		// The refused attempt streamed native Responses; the fallback speaks
-		// another format, so the writer has to translate for the rest of the turn.
-		case verbatimPassthrough && (!responsesIngress || !rw.ClearPassthrough()):
-			log.Warn("Cyber-refusal retry: Responses passthrough already committed; surfacing the refusal",
-				"fallback_model", cyberRetryTarget.Model)
-		default:
-			log.Warn("Cyber-refusal retry: OpenAI declined the turn on cyber policy, retrying off-vendor",
-				"failed_model", primaryModel,
-				"failed_provider", primaryProvider,
-				"fallback_model", cyberRetryTarget.Model,
-				"fallback_provider", cyberRetryTarget.Provider,
-				"request_id", requestID)
-			if verbatimPassthrough {
-				verbatimPassthrough = false
-				responsesPassthrough = false
-			}
-			cyberRetryRan = true
-			effortServed = retryEffort
-			respSummary = translate.ResponseSummary{}
-			winnerIdx, proxyErr = s.dispatchWithFallback(retryCtx, failoverInputs{
-				w:                      contentSink,
-				buf:                    preludeBuf,
-				initialDecision:        cyberRetryTarget,
-				bindings:               retryBindings,
-				attempt:                retryAttempt,
-				flushErr:               flushErrAsOpenAI,
-				deferFlushOnExhaustion: siblingViable,
-				purpose:                routeRes.dispatchPurpose(surfacePurpose),
-				origin:                 routeRes.rescueOrigin(),
-			})
-			subscriptionPoolFailure = isSubscriptionPoolError(proxyErr)
-			decision = cyberRetryTarget
-			bindings = retryBindings
-			marker = retryMarker
-		}
-	}
-	// The rescue declined to run; surface the held error now so it's never dropped.
-	if cyberRetryViable && !cyberRetryRan && !siblingViable && proxyErr != nil && !preludeBuf.Committed() {
+		!siblingViable && proxyErr != nil && !preludeBuf.Committed() {
 		flushDeferredErr()
 	}
 
@@ -8191,7 +7816,6 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		Bool("dispatch.failover_used", failoverUsed).
 		Bool("dispatch.failover_attempted", failoverAttempted).
 		Bool("dispatch.subscription_failover", codexFailoverUsed || claudeFailoverUsed).
-		Bool("dispatch.cyber_refusal_retry", cyberRetryRan).
 		Bool("dispatch.sibling_failover", siblingFailoverUsed)
 	if responsesSurface, _ := ctx.Value(responsesSurfaceContextKey{}).(bool); responsesSurface {
 		openaiUpstreamBuilder.String("request.api_surface", string(requestAPISurfaceResponses))
@@ -8388,12 +8012,6 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 			markSubscriberTelemetryUnsettled(&telOAI)
 		}
 		s.fireTelemetry(telOAI)
-	}
-
-	// Re-pin the session off the refusing model so the next turn skips it,
-	// whether or not this turn was rescued.
-	if cyberRefusalSeen && !routeRes.CallerModelPassthrough {
-		s.repinOffRefusingModel(ctx, routeRes.SessionKey, stickyStateRole(routeRes), primaryDecision, providers.CyberPolicyErrorCode, primaryDecision.Provider)
 	}
 
 	// One event per tool call that failed toolcheck validation, mirroring the

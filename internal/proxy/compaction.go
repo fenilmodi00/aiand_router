@@ -68,10 +68,6 @@ func (s *Service) compactionPreferredSummarizer(ctx context.Context, sessionKey 
 // nothing is eligible for this request, so the caller falls back to the
 // generic hard-pin tier.
 func (s *Service) compactionHardPin(ctx context.Context, sessionKey [sessionpin.SessionKeyLen]byte, role string, req router.Request) (provider, model string, source policy.OverrideSource, ok bool) {
-	// Gateway-exclusive tenants drop vendor bindings; leave them to the resolver.
-	if len(req.GatewayProviders) > 0 {
-		return "", "", "", false
-	}
 	if req.ClientApp == ClientAppCodex {
 		if p, m, served := s.compactionSessionModel(ctx, sessionKey, role, req); served {
 			return p, m, policy.OverrideSourceSession, true

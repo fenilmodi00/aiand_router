@@ -1214,7 +1214,7 @@ func resolveOpenAIOverrides(body []byte, opts EmitOptions) EmitOverrides {
 	// effort belongs on the Responses API for those models.
 	if gjson.GetBytes(body, "reasoning_effort").Exists() &&
 		(!opts.Capabilities.Supports(router.CapReasoning) ||
-			!reasoningEffortAcceptedOnChatCompletions(opts, hasNonEmptyTools(body))) {
+			!reasoningEffortAcceptedOnChatCompletions(opts)) {
 		ov.DeleteKeys = append(ov.DeleteKeys, "reasoning_effort")
 	}
 
