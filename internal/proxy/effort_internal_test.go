@@ -13,7 +13,7 @@ import (
 // The arm's pre-cap level goes on ForceEffort so the per-model cap still
 // applies downstream; the wire level is what the emit paths resolve.
 func TestEffortResolution_Apply(t *testing.T) {
-	caps := router.Lookup("gpt-5.5")
+	caps := router.NewSpecWithReasoning(router.ReasoningCapabilities{Levels: []string{"low", "medium", "high"}}, router.CapReasoning)
 	opts := translate.EmitOptions{Capabilities: caps}
 
 	effortResolutionFor(caps, "xhigh", "xhigh", effortSourceArm).apply(&opts)

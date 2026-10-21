@@ -68,12 +68,6 @@ func (e *RequestEnvelope) PrepareAnthropic(in http.Header, opts EmitOptions) (pr
 	if err != nil {
 		return providers.PreparedRequest{}, fmt.Errorf("normalize anthropic final assistant: %w", err)
 	}
-	if opts.Capabilities.Supports(router.CapAssistantPrefillUnsupported) {
-		body, err = dropAnthropicFinalAssistant(body)
-		if err != nil {
-			return providers.PreparedRequest{}, fmt.Errorf("drop anthropic final assistant: %w", err)
-		}
-	}
 	body, err = applyAnthropicCachePolicy(body, true)
 	if err != nil {
 		return providers.PreparedRequest{}, err
@@ -84,7 +78,7 @@ func (e *RequestEnvelope) PrepareAnthropic(in http.Header, opts EmitOptions) (pr
 			return providers.PreparedRequest{}, err
 		}
 	}
-	body, err = applyServerSideFallback(body, opts)
+	body, err = applyServerSideFallback(body)
 	if err != nil {
 		return providers.PreparedRequest{}, err
 	}
@@ -112,15 +106,7 @@ func deriveAnthropicHeaders(in http.Header, opts EmitOptions, body []byte) http.
 	} else {
 		h.Set("anthropic-version", "2023-06-01")
 	}
-	beta := filterBetaHeader(in.Get("anthropic-beta"), opts.TargetModel)
-	if opts.EnableExtendedContext && router.Lookup(opts.TargetModel).Supports(router.CapExtendedContext) {
-		beta = ensureBetaToken(beta, context1MBeta)
-	}
-	if gjson.GetBytes(body, "context_management").Exists() {
-		beta = ensureBetaToken(beta, contextManagementBeta)
-	}
-	if gjson.GetBytes(body, "fallbacks").Exists() {
-		beta = ensureBetaToken(beta, serverSideFallbackBeta)
+	beta := filterBetaHeader(in.Get("anthropic-beta"))
 	}
 	if containsAnthropicSystemOnlyContentBlocks(body) {
 		beta = ensureBetaToken(beta, anthropicMidConversationToolChangesBeta)
@@ -131,8 +117,8 @@ func deriveAnthropicHeaders(in http.Header, opts EmitOptions, body []byte) http.
 	return h
 }
 
-// context1MBeta unlocks the 1M-token context window for CapExtendedContext
-// models; native-1M models (Fable 5) accept it as a no-op.
+// context1MBeta is Anthropic's 1M-token context-window beta. The router no
+// longer requests it, but the inbound client may still advertise it.
 const context1MBeta = "context-1m-2025-08-07"
 
 // HasContext1MBeta checks inbound capabilities without adding upstream-only betas.
@@ -145,31 +131,17 @@ func HasContext1MBeta(headers http.Header) bool {
 	return false
 }
 
-const contextManagementBeta = "context-management-2025-06-27"
-
-// serverSideFallbackBeta is the first-party Anthropic beta for server-side
-// fallback; gateways reject the unknown top-level key with a 400.
-const serverSideFallbackBeta = "server-side-fallback-2026-07-01"
-
 // anthropicMidConversationToolChangesBeta enables tool_addition/tool_removal
 // content blocks on role:"system" messages in Anthropic's Messages API.
 const anthropicMidConversationToolChangesBeta = "mid-conversation-tool-changes-2026-07-01"
 
-// applyServerSideFallback injects fallbacks:"default" so Anthropic re-serves
-// a safety-refused turn instead of returning stop_reason:"refusal" (HTTP 200).
-// A client-supplied "fallbacks" is left untouched; on non-CapServerSideFallback
-// targets (re-pin destination, gateway) the field is dropped — forwarding it 400s.
-func applyServerSideFallback(body []byte, opts EmitOptions) ([]byte, error) {
-	if !opts.Capabilities.Supports(router.CapServerSideFallback) {
-		if !gjson.GetBytes(body, "fallbacks").Exists() {
-			return body, nil
-		}
-		return sjson.DeleteBytes(body, "fallbacks")
-	}
-	if !opts.EnableServerSideFallback || gjson.GetBytes(body, "fallbacks").Exists() {
+// applyServerSideFallback drops the top-level "fallbacks" field: no wired
+// target accepts it, and forwarding it 400s.
+func applyServerSideFallback(body []byte) ([]byte, error) {
+	if !gjson.GetBytes(body, "fallbacks").Exists() {
 		return body, nil
 	}
-	return sjson.SetBytes(body, "fallbacks", "default")
+	return sjson.DeleteBytes(body, "fallbacks")
 }
 
 // ensureBetaToken appends token to a comma-separated anthropic-beta list when
@@ -186,32 +158,17 @@ func ensureBetaToken(beta, token string) string {
 	return beta + "," + token
 }
 
-func filterBetaHeader(beta, targetModel string) string {
+// filterBetaHeader drops the Anthropic beta tokens no wired target accepts:
+// the server-side fallback, 1M-context, and thinking families.
+func filterBetaHeader(beta string) string {
 	if beta == "" {
 		return ""
 	}
-	spec := router.Lookup(targetModel)
 	return joinKept(beta, func(token string) bool {
-		return betaCompatible(token, spec)
+		return !strings.Contains(token, "server-side-fallback") &&
+			!strings.Contains(token, "context-1m") &&
+			!strings.Contains(token, "thinking")
 	})
-}
-
-func betaCompatible(token string, spec router.ModelSpec) bool {
-	if strings.Contains(token, "server-side-fallback") {
-		return spec.Supports(router.CapServerSideFallback)
-	}
-	if strings.Contains(token, "context-1m") {
-		return spec.Supports(router.CapExtendedContext)
-	}
-	if strings.Contains(token, "interleaved-thinking") ||
-		strings.Contains(token, "adaptive-thinking") {
-		return spec.Supports(router.CapAdaptiveThinking)
-	}
-	if strings.Contains(token, "thinking") {
-		return spec.Supports(router.CapAdaptiveThinking) ||
-			spec.Supports(router.CapExtendedThinking)
-	}
-	return true
 }
 
 func joinKept(beta string, keep func(string) bool) string {
@@ -242,9 +199,9 @@ func (e *RequestEnvelope) buildAnthropicFromOpenAI(opts EmitOptions) ([]byte, er
 	}
 
 	writeAnthropicSystemAndMessages(jw, e.body)
-	writeAnthropicMaxTokens(jw, e.body, opts.TargetModel, opts.Capabilities)
+	writeAnthropicMaxTokens(jw, e.body, opts.TargetModel)
 	writeAnthropicStopSequences(jw, e.body)
-	writeAnthropicSamplingParams(jw, e.body, opts.Capabilities)
+	writeAnthropicSamplingParams(jw, e.body)
 
 	// tool_choice "none" suppresses tools entirely — Anthropic has no direct
 	// equivalent, so omitting tools is the only way to prevent tool calls.
@@ -252,7 +209,7 @@ func (e *RequestEnvelope) buildAnthropicFromOpenAI(opts EmitOptions) ([]byte, er
 	suppressTools := kind == toolChoiceNone
 	if !suppressTools {
 		writeAnthropicTools(jw, e.body)
-		writeAnthropicToolChoice(jw, e.body, opts.Capabilities.Supports(router.CapAutoToolChoiceOnly))
+		writeAnthropicToolChoice(jw, e.body)
 	}
 	jw.EndObj()
 	return jw.Bytes(), nil
@@ -668,7 +625,7 @@ func buildAnthropicImageBlock(urlStr string) string {
 	return string(jw.Bytes())
 }
 
-func writeAnthropicMaxTokens(jw *jsonWriter, body []byte, targetModel string, capabilities router.ModelSpec) {
+func writeAnthropicMaxTokens(jw *jsonWriter, body []byte, targetModel string) {
 	if r := gjson.GetBytes(body, "max_tokens"); r.Exists() {
 		jw.Key("max_tokens")
 		jw.Raw(r.Raw)
@@ -680,7 +637,7 @@ func writeAnthropicMaxTokens(jw *jsonWriter, body []byte, targetModel string, ca
 		return
 	}
 	jw.Key("max_tokens")
-	jw.Int(defaultAnthropicOutputTokens(targetModel, capabilities))
+	jw.Int(defaultOutputTokens(targetModel))
 }
 
 func writeAnthropicStopSequences(jw *jsonWriter, body []byte) {
@@ -741,11 +698,8 @@ func hasAnthropicFunctionTools(body []byte) bool {
 	return found
 }
 
-func writeAnthropicToolChoice(jw *jsonWriter, body []byte, autoOnly bool) {
+func writeAnthropicToolChoice(jw *jsonWriter, body []byte) {
 	kind, name := openAIToolChoice(body)
-	if autoOnly && (kind == toolChoiceRequired || kind == toolChoiceNamed) {
-		kind = toolChoiceAuto
-	}
 	// Anthropic carries the parallel limit on tool_choice, so a bare
 	// parallel_tool_calls:false still needs an explicit auto choice to ride on.
 	parallel := gjson.GetBytes(body, "parallel_tool_calls")
@@ -783,12 +737,10 @@ func writeAnthropicToolChoice(jw *jsonWriter, body []byte, autoOnly bool) {
 	jw.Raw(string(tw.Bytes()))
 }
 
-func writeAnthropicSamplingParams(jw *jsonWriter, body []byte, capabilities router.ModelSpec) {
-	if !capabilities.Supports(router.CapTemperatureUnsupported) {
-		if value := gjson.GetBytes(body, "temperature"); value.Exists() {
-			jw.Key("temperature")
-			jw.Raw(value.Raw)
-		}
+func writeAnthropicSamplingParams(jw *jsonWriter, body []byte) {
+	if value := gjson.GetBytes(body, "temperature"); value.Exists() {
+		jw.Key("temperature")
+		jw.Raw(value.Raw)
 	}
 	if value := gjson.GetBytes(body, "top_p"); value.Exists() {
 		jw.Key("top_p")

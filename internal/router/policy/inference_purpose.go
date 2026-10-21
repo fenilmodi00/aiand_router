@@ -28,7 +28,6 @@ const (
 	PurposeTaskDomainClassification  = inference.PurposeTaskDomainClassification
 	PurposeClusterEmbedding          = inference.PurposeClusterEmbedding
 	PurposeSemanticCacheEmbedding    = inference.PurposeSemanticCacheEmbedding
-	PurposeNativeWebSearch           = inference.PurposeNativeWebSearch
 )
 
 var knownPurposes = []Purpose{
@@ -55,7 +54,6 @@ var knownPurposes = []Purpose{
 	PurposeTaskDomainClassification,
 	PurposeClusterEmbedding,
 	PurposeSemanticCacheEmbedding,
-	PurposeNativeWebSearch,
 }
 
 // KnownPurposes returns every purpose the registry must cover.
@@ -72,7 +70,6 @@ const (
 	DispatchClassMetadataPassthrough = inference.DispatchClassMetadataPassthrough
 	DispatchClassControlPlane        = inference.DispatchClassControlPlane
 	DispatchClassLocalSupport        = inference.DispatchClassLocalSupport
-	DispatchClassWebSearchTool       = inference.DispatchClassWebSearchTool
 )
 
 type SelectionStrategy = inference.SelectionStrategy

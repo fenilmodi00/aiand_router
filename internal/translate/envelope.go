@@ -63,14 +63,6 @@ type EmitOptions struct {
 	// (x-weave-effort header / :level suffix). Wins over ForceReasoningEffort;
 	// per-model caps applied by ResolveForceEffort.
 	ForceEffort string
-	// CapExtendedContext targets (Opus 4.6+, Sonnet 4.6) get a 1M window
-	// instead of 200K, avoiding a 400 "prompt is too long" on large requests.
-	// No-op below 200K input. deriveAnthropicHeaders gates on CapExtendedContext.
-	EnableExtendedContext bool
-	// EnableServerSideFallback opts an Anthropic-targeted request into
-	// Anthropic re-serving a safety-refused turn on a fallback model. Ignored
-	// for non-first-party Anthropic targets; see applyServerSideFallback.
-	EnableServerSideFallback bool
 	// KeepCrossVendorOrchestrationTools preserves CC orchestration tools
 	// (Task/Agent, Workflow, Skill, plan-mode) on cross-vendor emit; other CC-only
 	// tools are always stripped. Set from ROUTER_CC_ORCH_TOOLS_CROSSVENDOR;
@@ -493,27 +485,9 @@ type EmitOverrides struct {
 	// from tools[].input_schema on same-format Anthropic requests; also omits
 	// empty allowed_domains/blocked_domains on native web_search/web_fetch tools (Anthropic 400s them).
 	SanitizeAnthropicToolSchemas bool
-	// RewriteThinkingAdaptive replaces the inbound thinking block with
-	// {"type":"adaptive"} and sets output_config.effort. Used when the target
-	// model only accepts adaptive thinking (claude-opus-4-6+ / sonnet-4-6+).
-	RewriteThinkingAdaptive bool
-	OutputConfigEffort      string
-	// ForceOutputConfigEffort, when set, overrides any inbound output_config.effort
-	// and the heuristic OutputConfigEffort â€” user knob beats request-derived default.
-	// Value is already cap-applied (xhighâ†’max) by resolveForceEffort upstream.
-	ForceOutputConfigEffort string
 	// StripOutputConfigFormat drops output_config.format, pruning output_config
 	// when nothing else remains. Mirrors EmitOptions.StripOutputConfigFormat.
 	StripOutputConfigFormat bool
-	// ClampEffortXhighTo downgrades a caller-supplied "xhigh" effort (`effort`
-	// and `output_config.effort`) to this value. Set when the target lacks
-	// xhigh (router.CapXhighEffort) so a mid-session re-route doesn't forward
-	// an effort level Anthropic rejects with a session-killing 400.
-	ClampEffortXhighTo string
-	// DowngradeForcedToolChoice rewrites an Anthropic tool_choice of type
-	// "any" / "tool" to {"type":"auto"} (keeping disable_parallel_tool_use).
-	// Set when the target carries router.CapAutoToolChoiceOnly.
-	DowngradeForcedToolChoice bool
 }
 
 func (e *RequestEnvelope) emitSameFormat(ov EmitOverrides) ([]byte, error) {
@@ -605,55 +579,6 @@ func applyOverrides(body []byte, ov EmitOverrides) ([]byte, error) {
 		}
 	}
 
-	if ov.RewriteThinkingAdaptive {
-		out, err = sjson.SetBytes(out, "thinking", map[string]string{"type": "adaptive"})
-		if err != nil {
-			return nil, fmt.Errorf("rewrite thinking to adaptive: %w", err)
-		}
-		if ov.OutputConfigEffort != "" {
-			if !gjson.GetBytes(out, "output_config.effort").Exists() {
-				out, err = sjson.SetBytes(out, "output_config.effort", ov.OutputConfigEffort)
-				if err != nil {
-					return nil, fmt.Errorf("set output_config.effort: %w", err)
-				}
-			}
-		}
-	}
-
-	if ov.ClampEffortXhighTo != "" {
-		for _, key := range []string{"effort", "output_config.effort"} {
-			if gjson.GetBytes(out, key).String() != effortXhigh {
-				continue
-			}
-			out, err = sjson.SetBytes(out, key, ov.ClampEffortXhighTo)
-			if err != nil {
-				return nil, fmt.Errorf("clamp %s: %w", key, err)
-			}
-		}
-	}
-
-	// ForceOutputConfigEffort wins over any request-derived or inbound
-	// output_config.effort. Anthropic Messages only accepts the nested form;
-	// a top-level `effort` field is rejected as an unknown input. Delete any
-	// client-supplied top-level value rather than forwarding it upstream.
-	if ov.ForceOutputConfigEffort != "" {
-		out, err = sjson.SetBytes(out, "output_config.effort", ov.ForceOutputConfigEffort)
-		if err != nil {
-			return nil, fmt.Errorf("set output_config.effort (forced): %w", err)
-		}
-		out, err = sjson.DeleteBytes(out, "effort")
-		if err != nil {
-			return nil, fmt.Errorf("delete effort (forced): %w", err)
-		}
-	}
-
-	if ov.DowngradeForcedToolChoice {
-		out, err = downgradeForcedToolChoiceBytes(out)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	for _, key := range ov.DeleteKeys {
 		out, err = sjson.DeleteBytes(out, key)
 		if err != nil {
@@ -668,31 +593,6 @@ func applyOverrides(body []byte, ov EmitOverrides) ([]byte, error) {
 		}
 	}
 
-	return out, nil
-}
-
-// downgradeForcedToolChoiceBytes rewrites tool_choice type "any"/"tool" to
-// "auto", keeping disable_parallel_tool_use; other shapes pass through.
-func downgradeForcedToolChoiceBytes(body []byte) ([]byte, error) {
-	tc := gjson.GetBytes(body, "tool_choice")
-	if !tc.IsObject() {
-		return body, nil
-	}
-	switch tc.Get("type").String() {
-	case "any", "tool":
-	default:
-		return body, nil
-	}
-	out, err := sjson.SetBytes(body, "tool_choice", map[string]string{"type": "auto"})
-	if err != nil {
-		return nil, fmt.Errorf("downgrade tool_choice: %w", err)
-	}
-	if dp := tc.Get("disable_parallel_tool_use"); dp.Exists() {
-		out, err = sjson.SetRawBytes(out, "tool_choice.disable_parallel_tool_use", []byte(dp.Raw))
-		if err != nil {
-			return nil, fmt.Errorf("downgrade tool_choice: %w", err)
-		}
-	}
 	return out, nil
 }
 
@@ -1312,22 +1212,6 @@ func resolveForceEffort(opts EmitOptions) string {
 	return ResolveForceEffort(opts.Capabilities, opts.ForceEffort)
 }
 
-// effortForBudget maps legacy thinking.budget_tokens onto an adaptive
-// output_config.effort tier per Anthropic's guidance (â‰¤4k low, â‰¤16k medium,
-// else high). Missing/zero budget defaults to "medium".
-func effortForBudget(budgetTokens int64) string {
-	switch {
-	case budgetTokens <= 0:
-		return "medium"
-	case budgetTokens <= 4096:
-		return effortLow
-	case budgetTokens <= 16384:
-		return "medium"
-	default:
-		return "high"
-	}
-}
-
 func resolveAnthropicOverrides(body []byte, opts EmitOptions) EmitOverrides {
 	ov := EmitOverrides{
 		Model:                        opts.TargetModel,
@@ -1335,94 +1219,28 @@ func resolveAnthropicOverrides(body []byte, opts EmitOptions) EmitOverrides {
 		StripThoughtSignature:        true,
 		SanitizeAnthropicToolSchemas: true,
 	}
-	if opts.Capabilities.Supports(router.CapTemperatureUnsupported) && gjson.GetBytes(body, "temperature").Exists() {
-		ov.DeleteKeys = append(ov.DeleteKeys, "temperature")
-	}
 
-	// User-forced effort wins over inbound heuristic; no-op on non-adaptive targets.
-	if forced := resolveForceEffort(opts); forced != "" && opts.Capabilities.Supports(router.CapAdaptiveThinking) {
-		ov.RewriteThinkingAdaptive = true
-		ov.OutputConfigEffort = forced
-		ov.ForceOutputConfigEffort = forced
-	}
-
-	thinkingResult := gjson.GetBytes(body, "thinking")
-	if thinkingResult.Exists() {
-		thinkingType := thinkingResult.Get("type").String()
-		shouldDelete := false
-		switch thinkingType {
-		case "adaptive":
-			shouldDelete = !opts.Capabilities.Supports(router.CapAdaptiveThinking)
-		case "enabled":
-			if opts.Capabilities.Supports(router.CapExtendedThinking) {
-				// Target accepts the legacy shape; leave it untouched.
-			} else if opts.Capabilities.Supports(router.CapAdaptiveThinking) {
-				ov.RewriteThinkingAdaptive = true
-				ov.OutputConfigEffort = effortForBudget(thinkingResult.Get("budget_tokens").Int())
-			} else {
-				shouldDelete = true
-			}
-		case "disabled":
-			if opts.Capabilities.Supports(router.CapExtendedThinking) {
-				// Legacy extended-thinking models accept thinking.type=disabled.
-			} else if opts.Capabilities.Supports(router.CapAdaptiveThinking) &&
-				!opts.Capabilities.Reasoning().AlwaysOn {
-				// Adaptive models that are not always-on (claude-haiku-5-5) accept it too.
-			} else if opts.Capabilities.Supports(router.CapAdaptiveThinking) {
-				// Adaptive models are always-on and 400 on thinking.type=disabled
-				// (e.g. claude-fable-5); map the "no thinking" intent to the
-				// lowest adaptive effort instead of forwarding the rejected shape.
-				ov.RewriteThinkingAdaptive = true
-				ov.OutputConfigEffort = effortLow
-			} else {
-				shouldDelete = true
-			}
-		default:
-			shouldDelete = !opts.Capabilities.Supports(router.CapAdaptiveThinking) && !opts.Capabilities.Supports(router.CapExtendedThinking)
-		}
-		if shouldDelete {
-			ov.DeleteKeys = append(ov.DeleteKeys, "thinking")
-		}
-	}
-
-	if !opts.Capabilities.Supports(router.CapAdaptiveThinking) {
-		for _, key := range []string{"context_management", "effort", "output_config"} {
-			if gjson.GetBytes(body, key).Exists() {
-				ov.DeleteKeys = append(ov.DeleteKeys, key)
-			}
+	// No wired target speaks Anthropic's inference-time controls, so the
+	// thinking block and the context_management / effort / output_config trio
+	// are dropped rather than forwarded.
+	for _, key := range []string{"thinking", "context_management", "effort", "output_config"} {
+		if gjson.GetBytes(body, key).Exists() {
+			ov.DeleteKeys = append(ov.DeleteKeys, key)
 		}
 	}
 
 	ov.StripOutputConfigFormat = opts.StripOutputConfigFormat
 
-	// "xhigh" is opus-4-7+ only; clamp to the max every adaptive model accepts
-	// so a re-route can't turn a valid request into an invalid one.
-	if opts.Capabilities.Supports(router.CapAdaptiveThinking) && !opts.Capabilities.Supports(router.CapXhighEffort) {
-		ov.ClampEffortXhighTo = effortMax
-	}
-
-	if !opts.Capabilities.Supports(router.CapAdaptiveThinking) && !opts.Capabilities.Supports(router.CapExtendedThinking) {
-		ov.StripThinkingBlocks = true
-	}
-
-	// Carried-over thinking blocks were signed by the previous model; strip
-	// them so stale signatures don't 400 against the new one.
-	if opts.ModelSwitched {
-		ov.StripThinkingBlocks = true
-	}
-
-	ov.DowngradeForcedToolChoice = opts.Capabilities.Supports(router.CapAutoToolChoiceOnly)
-
-	// Floor under the switch-history guard: Anthropic rejects unsigned blocks
-	// regardless of pin TTL, so strip them unconditionally (#860). Foreign-signed
-	// blocks fail the same way and are missed by ModelSwitched when client-side
-	// compaction re-keys the session.
+	// Anthropic rejects signed thinking blocks from any model, so they are
+	// always stripped (#860): the switch-history guard, the unsigned-block
+	// floor, and the foreign-signature floor.
+	ov.StripThinkingBlocks = true
 	ov.StripUnsignedThinkingBlocks = true
 	ov.StripForeignSignedThinkingBlocks = true
 
 	if !gjson.GetBytes(body, "max_tokens").Exists() {
 		ov.DefaultMaxTokensKey = "max_tokens"
-		ov.DefaultMaxTokensValue = defaultAnthropicOutputTokens(opts.TargetModel, opts.Capabilities)
+		ov.DefaultMaxTokensValue = defaultOutputTokens(opts.TargetModel)
 	}
 
 	return ov
@@ -1471,26 +1289,20 @@ func defaultOutputTokens(model string) int64 {
 	return defaultMaxOutputTokenCap
 }
 
-// defaultAnthropicOutputTokens leaves enough room for hidden reasoning on
-// always-on adaptive targets while respecting a documented model cap below the
-// reasoning floor. Explicit caller max_tokens values are handled separately
-// and are intentionally not changed here.
-func defaultAnthropicOutputTokens(model string, capabilities router.ModelSpec) int64 {
-	if !capabilities.Supports(router.CapAdaptiveThinking) {
-		catalogCapabilities := router.Lookup(model)
-		if catalogCapabilities.Supports(router.CapAdaptiveThinking) {
-			capabilities = catalogCapabilities
-		}
+// effortForBudget maps legacy thinking.budget_tokens onto an adaptive
+// output_config.effort tier per Anthropic's guidance (≤4k low, ≤16k medium,
+// else high). Missing/zero budget defaults to "medium".
+func effortForBudget(budgetTokens int64) string {
+	switch {
+	case budgetTokens <= 0:
+		return "medium"
+	case budgetTokens <= 4096:
+		return effortLow
+	case budgetTokens <= 16384:
+		return "medium"
+	default:
+		return "high"
 	}
-	defaultTokens := defaultOutputTokens(model)
-	if !capabilities.Supports(router.CapAdaptiveThinking) || !capabilities.Reasoning().AlwaysOn {
-		return defaultTokens
-	}
-	floored := reasoningOutputFloor(defaultTokens, true)
-	if tokenCap, ok := modelMaxOutputTokens[model]; ok && int64(tokenCap) < floored {
-		return int64(tokenCap)
-	}
-	return floored
 }
 
 // setMessages writes rebuilt back to the "messages" array and returns ret on

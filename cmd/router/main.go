@@ -81,10 +81,6 @@ func main() {
 	// Initialize propagation and APM before constructing HTTP clients so their
 	// OpenTelemetry transports capture the configured providers and propagator.
 	apm.Init()
-	if err := router.ValidateCatalogReasoningCapabilities(); err != nil {
-		logger.Error("Refusing to boot with invalid model reasoning capabilities", "err", err)
-		panic(err)
-	}
 
 	cfg, err := pgxpool.ParseConfig(config.PostgresDSN())
 	if err != nil {
@@ -483,7 +479,6 @@ func main() {
 	// Anthropic to re-serve the refused turn on a fallback model.
 	cyberRefusalRepin := config.GetOr("ROUTER_CYBER_REFUSAL_REPIN", "true") == "true"
 	cyberRefusalFallbackModel := config.GetOr("ROUTER_CYBER_REFUSAL_FALLBACK_MODEL", "deepseek/deepseek-v4-pro")
-	anthropicServerSideFallback := config.GetOr("ROUTER_ANTHROPIC_SERVER_SIDE_FALLBACK", "true") == "true"
 	scopedSearchRequirement := config.GetOr("ROUTER_SCOPED_SEARCH_REQUIREMENT", "true") == "true"
 	searchRequirementDecayTurns := parseEnvInt("ROUTER_SEARCH_REQUIREMENT_DECAY_TURNS", proxy.DefaultSearchRequirementDecayTurns)
 	effortEscalation := config.GetOr("ROUTER_EFFORT_ESCALATION", "false") == "true"
@@ -985,7 +980,6 @@ func main() {
 		flags.KeyEffortEscalation:                     boolDefault(effortEscalation),
 		flags.KeyCyberRefusalRepin:                    boolDefault(cyberRefusalRepin),
 		flags.KeyCyberRefusalFallback:                 cyberRefusalFallbackModel,
-		flags.KeyAnthropicServerFallback:              boolDefault(anthropicServerSideFallback),
 		flags.KeyEmbedOnlyUserMessage:                 boolDefault(embedOnlyUser),
 	})
 
@@ -1062,7 +1056,6 @@ func main() {
 		WithScoreToolResultTurns(scoreToolResultTurns).
 		WithCyberRefusalRepin(cyberRefusalRepin).
 		WithCyberRefusalFallbackModel(cyberRefusalFallbackModel).
-		WithAnthropicServerSideFallback(anthropicServerSideFallback).
 		WithSiblingFailover(siblingFailover).
 		WithOpenAIResponsesBroad(openAIResponsesBroad).
 		WithAllowedModelsHeader(allowedModelsHeader).
