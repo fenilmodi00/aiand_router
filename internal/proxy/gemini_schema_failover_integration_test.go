@@ -57,15 +57,15 @@ func TestProxyMessages_GeminiBuildIncompatibilityFailsOverToBaselineAnthropic(t 
 	svc := proxy.NewService(
 		// Router routes the turn to a Gemini 3.x model; the unsigned tool
 		// history below makes PrepareGemini fail before Google is ever dialed.
-		&fakeRouter{decision: router.Decision{Provider: providers.ProviderGoogle, Model: "gemini-3-pro-preview"}},
+		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gemini-3-pro-preview"}},
 		map[string]providers.Client{
-			providers.ProviderGoogle:    google.NewNativeClient("test-google-key", googleUpstream.URL),
-			providers.ProviderAnthropic: anthropic.NewClient("test-anthropic-key", anthropicUpstream.URL),
+			providers.ProviderAIAND:    google.NewNativeClient("test-google-key", googleUpstream.URL),
+			providers.ProviderAIAND: anthropic.NewClient("test-anthropic-key", anthropicUpstream.URL),
 		},
-		nil, false, nil, store, false, providers.ProviderAnthropic, "claude-haiku-4-5", tel,
+		nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", tel,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
-		providers.ProviderGoogle:    {},
-		providers.ProviderAnthropic: {},
+		providers.ProviderAIAND:    {},
+		providers.ProviderAIAND: {},
 	})
 
 	rec := httptest.NewRecorder()
@@ -93,6 +93,6 @@ func TestProxyMessages_GeminiBuildIncompatibilityFailsOverToBaselineAnthropic(t 
 	assert.Contains(t, respBody, "event: message_start", "client sees the Anthropic stream start")
 	assert.Contains(t, respBody, "event: message_stop", "client sees the Anthropic stream end")
 	assert.Contains(t, respBody, "hi", "client sees the canned completion text")
-	assert.Equal(t, providers.ProviderAnthropic, rec.Header().Get(proxy.HeaderRouterProvider), "served provider header reflects the baseline failover")
+	assert.Equal(t, providers.ProviderAIAND, rec.Header().Get(proxy.HeaderRouterProvider), "served provider header reflects the baseline failover")
 	assert.Equal(t, "claude-opus-4-8", rec.Header().Get(proxy.HeaderRouterModel), "x-router-model reflects the baseline model that served")
 }

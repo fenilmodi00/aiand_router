@@ -37,7 +37,7 @@ func trialCtx(installationID string) context.Context {
 func proxyClientGitContextTurn(t *testing.T, ctx context.Context, store *fakePinStore) proxy.InsertTelemetryParams {
 	t.Helper()
 	telem := newCaptureTelemetry()
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-haiku-4-5", Reason: "cluster:v0.2"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", Reason: "cluster:v0.2"}}
 	svc := newPinSvcWithTelemetry(fr, store, telem)
 
 	rec := httptest.NewRecorder()
@@ -71,7 +71,7 @@ func TestProxyMessages_ClientGitContext_SecondTurnLeavesNulls(t *testing.T) {
 	store := newFakePinStore()
 	store.hasPin = true
 	store.pin = sessionpin.Pin{
-		Provider:      providers.ProviderAnthropic,
+		Provider:      providers.ProviderAIAND,
 		Model:         "claude-haiku-4-5",
 		Reason:        "cluster:v0.2",
 		PinnedUntil:   time.Now().Add(30 * time.Minute),
@@ -92,7 +92,7 @@ func TestProxyMessages_ClientGitContext_ExpiredPinIsNotFirstTurn(t *testing.T) {
 	store := newFakePinStore()
 	store.hasPin = true
 	store.pin = sessionpin.Pin{
-		Provider:      providers.ProviderAnthropic,
+		Provider:      providers.ProviderAIAND,
 		Model:         "claude-haiku-4-5",
 		Reason:        "cluster:v0.2",
 		PinnedUntil:   time.Now().Add(-time.Minute),

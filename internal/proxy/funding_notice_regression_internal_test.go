@@ -141,7 +141,7 @@ func TestFundingNoticeDoesNotEstablishProviderFacts(t *testing.T) {
 	buffer := newPreludeBuffer(rec)
 	caps := translate.NoticeCapabilities{Format: translate.FormatAnthropic, Streaming: true, Presentation: translate.NoticeText, Eager: true}
 	delivery := translate.NewNoticeDelivery(context.Background(), translate.NewProtocolNoticeSink(buffer, caps), caps)
-	extractor := otel.NewUsageExtractor(delivery, providers.ProviderAnthropic)
+	extractor := otel.NewUsageExtractor(delivery, providers.ProviderAIAND)
 	terminal := newStreamTerminalObserver(extractor, nativeStreamAnthropic)
 	terminal.Header().Set("Content-Type", "text/event-stream")
 	terminal.WriteHeader(http.StatusOK)

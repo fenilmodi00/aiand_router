@@ -72,14 +72,14 @@ func newTestSummarizer(t *testing.T, fake providers.Client, model string, timeou
 	if model == "" {
 		model = policy.HandoverSummaryDefaultModel
 	}
-	available := map[string]struct{}{providers.ProviderAnthropic: {}}
+	available := map[string]struct{}{providers.ProviderAIAND: {}}
 	deployed := map[string]struct{}{model: {}}
 	plans, err := policy.NewPlanResolver(policy.DefaultRegistry(), policy.NewResolver(
 		deployed, available, func(m catalog.Model) string { return m.ID }, policy.ProviderPolicy{}))
 	require.NoError(t, err)
-	executor, err := dispatch.NewExecutor(dispatch.NewClients(map[string]providers.Client{providers.ProviderAnthropic: fake}))
+	executor, err := dispatch.NewExecutor(dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: fake}))
 	require.NoError(t, err)
-	return NewProviderSummarizer(plans, executor, providers.ProviderAnthropic, model, timeout)
+	return NewProviderSummarizer(plans, executor, providers.ProviderAIAND, model, timeout)
 }
 
 // sampleConversation is the test fixture used across the cases. Both
@@ -210,9 +210,9 @@ func TestProviderSummarizer_WireModelMatchesPlanTarget(t *testing.T) {
 	require.Equal(t, 1, fake.calls)
 	assert.Equal(t, []string{policy.HandoverSummaryDefaultModel}, fake.wireModels)
 	assert.Equal(t, policy.HandoverSummaryDefaultModel, fake.decisions[0].Model)
-	assert.Equal(t, providers.ProviderAnthropic, fake.decisions[0].Provider)
+	assert.Equal(t, providers.ProviderAIAND, fake.decisions[0].Provider)
 	assert.Equal(t, policy.HandoverSummaryDefaultModel, usage.Model)
-	assert.Equal(t, providers.ProviderAnthropic, usage.Provider)
+	assert.Equal(t, providers.ProviderAIAND, usage.Provider)
 }
 
 func TestProviderSummarizer_UnreviewedModelFailsBeforeIO(t *testing.T) {
@@ -255,20 +255,20 @@ func TestProviderSummarizer_AttemptEventsCarryRequestID(t *testing.T) {
 	require.NoError(t, err)
 
 	fake := &fakeHandoverProvider{respBody: canonicalAnthropicResponse, respStatus: http.StatusOK}
-	available := map[string]struct{}{providers.ProviderAnthropic: {}}
+	available := map[string]struct{}{providers.ProviderAIAND: {}}
 	deployed := map[string]struct{}{policy.HandoverSummaryDefaultModel: {}}
 	plans, err := policy.NewPlanResolver(policy.DefaultRegistry(), policy.NewResolver(
 		deployed, available, func(m catalog.Model) string { return m.ID }, policy.ProviderPolicy{}))
 	require.NoError(t, err)
 	var events []inference.AttemptEvent
 	executor, err := dispatch.NewExecutor(
-		dispatch.NewClients(map[string]providers.Client{providers.ProviderAnthropic: fake}),
+		dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: fake}),
 		dispatch.WithAttemptSink(dispatch.AttemptSinkFunc(func(_ context.Context, event inference.AttemptEvent) {
 			events = append(events, event)
 		})),
 	)
 	require.NoError(t, err)
-	s := NewProviderSummarizer(plans, executor, providers.ProviderAnthropic, policy.HandoverSummaryDefaultModel, 200*time.Millisecond)
+	s := NewProviderSummarizer(plans, executor, providers.ProviderAIAND, policy.HandoverSummaryDefaultModel, 200*time.Millisecond)
 
 	ctx := observability.WithRequestID(context.Background(), "req-handover-1")
 	_, _, err = s.Summarize(ctx, env, router.Request{})
@@ -281,7 +281,7 @@ func TestProviderSummarizer_AttemptEventsCarryRequestID(t *testing.T) {
 // cascade's candidates are all resolvable bindings.
 func newTestCompactionSummarizer(t *testing.T, fake providers.Client, compactionModel string, models ...string) *ProviderSummarizer {
 	t.Helper()
-	available := map[string]struct{}{providers.ProviderAnthropic: {}}
+	available := map[string]struct{}{providers.ProviderAIAND: {}}
 	deployed := map[string]struct{}{policy.HandoverSummaryDefaultModel: {}}
 	for _, m := range models {
 		deployed[m] = struct{}{}
@@ -289,9 +289,9 @@ func newTestCompactionSummarizer(t *testing.T, fake providers.Client, compaction
 	plans, err := policy.NewPlanResolver(policy.DefaultRegistry(), policy.NewResolver(
 		deployed, available, func(m catalog.Model) string { return m.ID }, policy.ProviderPolicy{}))
 	require.NoError(t, err)
-	executor, err := dispatch.NewExecutor(dispatch.NewClients(map[string]providers.Client{providers.ProviderAnthropic: fake}))
+	executor, err := dispatch.NewExecutor(dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: fake}))
 	require.NoError(t, err)
-	return NewProviderSummarizer(plans, executor, providers.ProviderAnthropic, "", 200*time.Millisecond).
+	return NewProviderSummarizer(plans, executor, providers.ProviderAIAND, "", 200*time.Millisecond).
 		WithCompactionModel(compactionModel).
 		WithCompactionTimeout(200 * time.Millisecond)
 }
@@ -307,7 +307,7 @@ func TestProviderSummarizer_RequestScopeExcludesSummaryModelBeforeIO(t *testing.
 
 	scopes := map[string]router.Request{
 		"excluded_model":    {ExcludedModels: map[string]struct{}{policy.HandoverSummaryDefaultModel: {}}},
-		"provider_disabled": {EnabledProviders: map[string]struct{}{providers.ProviderOpenAI: {}}},
+		"provider_disabled": {EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}}},
 	}
 	for name, scope := range scopes {
 		t.Run(name, func(t *testing.T) {
@@ -322,7 +322,7 @@ func TestProviderSummarizer_RequestScopeExcludesSummaryModelBeforeIO(t *testing.
 	assert.Equal(t, 0, fake.calls, "a summary the tenant's own turn could not use must never reach a provider")
 
 	got, _, err := s.Summarize(context.Background(), env, router.Request{
-		EnabledProviders: map[string]struct{}{providers.ProviderAnthropic: {}},
+		EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}},
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "Refactor in progress: step 1 done, step 2 pending.", got)

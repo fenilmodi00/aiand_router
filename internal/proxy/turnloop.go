@@ -141,7 +141,7 @@ func cacheablePrefixTokens(pin sessionpin.Pin, total int, prefixBroken bool) (in
 // (disjoint from read/write) but is prompt_tokens — already cache-inclusive —
 // everywhere else.
 func priorPromptTokens(pin sessionpin.Pin) int {
-	if providers.FamilyFor(pin.Provider) == providers.FamilyAnthropic {
+	if providers.FamilyFor(pin.Provider) == providers.FamilyOpenAICompat {
 		return pin.LastInputTokens + pin.LastCachedReadTokens + pin.LastCachedWriteTokens
 	}
 	return pin.LastInputTokens
@@ -1126,7 +1126,7 @@ func (s *Service) runTurnLoop(
 			req.EnabledProviders,
 			req.CustomBindings,
 		)
-		if !excluded && !safetyExcluded && allowed && bindingFound && binding.Provider == providers.ProviderAnthropic {
+		if !excluded && !safetyExcluded && allowed && bindingFound && binding.Provider == providers.ProviderAIAND {
 			res.SessionKey = threadSessionKey
 			res.Decision = router.Decision{
 				Provider: binding.Provider,

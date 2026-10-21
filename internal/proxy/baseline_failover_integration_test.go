@@ -87,7 +87,7 @@ func TestProxyMessages_OSSOutageFailsOverToBaselineAnthropic(t *testing.T) {
 			"openrouter": openaicompat.NewClient("test-or-key", openrouter.URL),
 			"anthropic":  anthropic.NewClient("test-anthropic-key", anthropicUpstream.URL),
 		},
-		nil, false, nil, store, false, providers.ProviderAnthropic, "claude-haiku-4-5", tel,
+		nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", tel,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
 		"fireworks":  {},
 		"openrouter": {},
@@ -167,7 +167,7 @@ func TestProxyMessages_AuthoritativePolicyNeverChangesModelOnFailover(t *testing
 
 	strategy := router.Strategy("authoritative-failover-test")
 	policyRouter := &fakeRouter{decision: router.Decision{
-		Provider: providers.ProviderFireworks,
+		Provider: providers.ProviderAIAND,
 		Model:    "deepseek/deepseek-v4-pro",
 		Reason:   "authoritative-test_policy",
 		Metadata: &router.RoutingMetadata{
@@ -179,22 +179,22 @@ func TestProxyMessages_AuthoritativePolicyNeverChangesModelOnFailover(t *testing
 	svc := proxy.NewService(
 		nil,
 		map[string]providers.Client{
-			providers.ProviderFireworks:  openaicompat.NewClient("test-fw-key", fireworks.URL),
-			providers.ProviderOpenRouter: openaicompat.NewClient("test-or-key", openrouter.URL),
-			providers.ProviderAnthropic:  anthropic.NewClient("test-anthropic-key", anthropicUpstream.URL),
+			providers.ProviderAIAND:  openaicompat.NewClient("test-fw-key", fireworks.URL),
+			providers.ProviderAIAND: openaicompat.NewClient("test-or-key", openrouter.URL),
+			providers.ProviderAIAND:  anthropic.NewClient("test-anthropic-key", anthropicUpstream.URL),
 		},
 		nil,
 		false,
 		nil,
 		newFakePinStore(),
 		false,
-		providers.ProviderAnthropic,
+		providers.ProviderAIAND,
 		"claude-haiku-4-5",
 		newCaptureTelemetry(),
 	).WithDeploymentKeyedProviders(map[string]struct{}{
-		providers.ProviderFireworks:  {},
-		providers.ProviderOpenRouter: {},
-		providers.ProviderAnthropic:  {},
+		providers.ProviderAIAND:  {},
+		providers.ProviderAIAND: {},
+		providers.ProviderAIAND:  {},
 	}).WithPolicyStrategy(policy.StrategySpec{
 		Strategy: strategy,
 		Router:   policyRouter,
@@ -235,15 +235,15 @@ func TestProxyMessages_ForcedModelUnavailableDoesNotSubstituteAnthropic(t *testi
 	}}
 	svc := makeProxyService(
 		router.Decision{
-			Provider: providers.ProviderGoogle,
+			Provider: providers.ProviderAIAND,
 			Model:    "gemini-3.1-pro-preview",
 			Reason:   translate.ReasonUserForceModel,
 		},
 		map[string]providers.Client{
-			providers.ProviderAnthropic: anthropic,
-			providers.ProviderGoogle:    google,
+			providers.ProviderAIAND: anthropic,
+			providers.ProviderAIAND:    google,
 		},
-	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAnthropic: {}})
+	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
@@ -285,7 +285,7 @@ func TestProxyMessages_OSSOutageNoBaselineWhenRequestedModelIsOSS(t *testing.T) 
 			"openrouter": openaicompat.NewClient("k", openrouter.URL),
 			"anthropic":  anthropic.NewClient("k", anthropicUpstream.URL),
 		},
-		nil, false, nil, nil, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil,
+		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
 		"fireworks": {}, "openrouter": {}, "anthropic": {},
 	}).WithRetrySleep(noRetrySleep)
@@ -327,10 +327,10 @@ func TestProxyMessages_OSSOutageNoBaselineWhenAnthropicExcluded(t *testing.T) {
 			"openrouter": openaicompat.NewClient("k", openrouter.URL),
 			"anthropic":  anthropic.NewClient("k", anthropicUpstream.URL),
 		},
-		nil, false, nil, nil, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil,
+		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
 		"fireworks": {}, "openrouter": {}, "anthropic": {},
-	}).WithExcludedProvidersOverride([]string{providers.ProviderAnthropic})
+	}).WithExcludedProvidersOverride([]string{providers.ProviderAIAND})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
@@ -338,7 +338,7 @@ func TestProxyMessages_OSSOutageNoBaselineWhenAnthropicExcluded(t *testing.T) {
 
 	_ = svc.ProxyMessages(context.Background(), body, rec, req)
 	assert.Equal(t, 0, anthropicCount, "baseline failover must not hit Anthropic when it is excluded")
-	assert.NotEqual(t, providers.ProviderAnthropic, rec.Header().Get(proxy.HeaderRouterProvider), "served provider must not be the excluded Anthropic")
+	assert.NotEqual(t, providers.ProviderAIAND, rec.Header().Get(proxy.HeaderRouterProvider), "served provider must not be the excluded Anthropic")
 }
 
 // TestProxyMessages_FailedBaselineReportsAnthropicProvider: when both the OSS
@@ -366,7 +366,7 @@ func TestProxyMessages_FailedBaselineReportsAnthropicProvider(t *testing.T) {
 			"openrouter": openaicompat.NewClient("k", openrouter.URL),
 			"anthropic":  anthropic.NewClient("k", anthropicUpstream.URL),
 		},
-		nil, false, nil, nil, false, providers.ProviderAnthropic, "claude-haiku-4-5", tel,
+		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", tel,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
 		"fireworks": {}, "openrouter": {}, "anthropic": {},
 	}).WithRetrySleep(noRetrySleep)
@@ -381,7 +381,7 @@ func TestProxyMessages_FailedBaselineReportsAnthropicProvider(t *testing.T) {
 
 	row := tel.firstRow(t)
 	assert.Equal(t, "claude-opus-4-8", row.DecisionModel, "telemetry records the baseline model after failover")
-	assert.Equal(t, providers.ProviderAnthropic, row.DecisionProvider, "failed-baseline provider must match the baseline model, not the OSS primary")
+	assert.Equal(t, providers.ProviderAIAND, row.DecisionProvider, "failed-baseline provider must match the baseline model, not the OSS primary")
 }
 
 // TestProxyMessages_AuthoritativePolicyFailsOverOnCapabilityRejection verifies
@@ -425,7 +425,7 @@ func TestProxyMessages_AuthoritativePolicyFailsOverOnCapabilityRejection(t *test
 
 	strategy := router.Strategy("authoritative-capability-test")
 	policyRouter := &fakeRouter{decision: router.Decision{
-		Provider: providers.ProviderFireworks,
+		Provider: providers.ProviderAIAND,
 		Model:    "deepseek/deepseek-v4-pro",
 		Reason:   "authoritative-capability_policy",
 		Metadata: &router.RoutingMetadata{
@@ -437,16 +437,16 @@ func TestProxyMessages_AuthoritativePolicyFailsOverOnCapabilityRejection(t *test
 	svc := proxy.NewService(
 		nil,
 		map[string]providers.Client{
-			providers.ProviderFireworks:  openaicompat.NewClient("test-fw-key", fireworks.URL),
-			providers.ProviderOpenRouter: openaicompat.NewClient("test-or-key", openrouter.URL),
-			providers.ProviderAnthropic:  anthropic.NewClient("test-anthropic-key", anthropicUpstream.URL),
+			providers.ProviderAIAND:  openaicompat.NewClient("test-fw-key", fireworks.URL),
+			providers.ProviderAIAND: openaicompat.NewClient("test-or-key", openrouter.URL),
+			providers.ProviderAIAND:  anthropic.NewClient("test-anthropic-key", anthropicUpstream.URL),
 		},
 		nil, false, nil, newFakePinStore(), false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", newCaptureTelemetry(),
+		providers.ProviderAIAND, "claude-haiku-4-5", newCaptureTelemetry(),
 	).WithDeploymentKeyedProviders(map[string]struct{}{
-		providers.ProviderFireworks:  {},
-		providers.ProviderOpenRouter: {},
-		providers.ProviderAnthropic:  {},
+		providers.ProviderAIAND:  {},
+		providers.ProviderAIAND: {},
+		providers.ProviderAIAND:  {},
 	}).WithPolicyStrategy(policy.StrategySpec{
 		Strategy: strategy,
 		Router:   policyRouter,

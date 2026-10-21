@@ -39,10 +39,10 @@ func unscorableHMMService(store sessionpin.Store, sidecarFailure error) *Service
 		},
 	}
 	policyRouter := hmm.NewForStrategy(router.StrategyHMMEmbedding, unavailableHMMDecider{sidecarFailure},
-		map[string]struct{}{providers.ProviderAnthropic: {}})
+		map[string]struct{}{providers.ProviderAIAND: {}})
 	policyRouter.WithArmSelector(selection.Selector(roster))
-	return NewService(nil, map[string]providers.Client{providers.ProviderAnthropic: nil}, nil, false, nil,
-		store, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil).
+	return NewService(nil, map[string]providers.Client{providers.ProviderAIAND: nil}, nil, false, nil,
+		store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil).
 		WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyHMMEmbedding, Router: policyRouter})
 }
 
@@ -64,7 +64,7 @@ func TestHMMCommandOnlyTurnUsesEligibleRosterFallback(t *testing.T) {
 	turn, err := svc.runTurnLoop(ctx, env, features, "api-key", uuid.New(), "", http.Header{}, requestForRouting)
 	require.NoError(t, err)
 	assert.Equal(t, "claude-haiku-4-5", turn.Decision.Model)
-	assert.Equal(t, providers.ProviderAnthropic, turn.Decision.Provider)
+	assert.Equal(t, providers.ProviderAIAND, turn.Decision.Provider)
 	assert.Equal(t, policy.UnscorableHMMDecisionReason, turn.Decision.Reason)
 	assert.Equal(t, turn.Decision, turn.Fresh)
 
@@ -88,8 +88,8 @@ func TestHMMCommandOnlyTurnUsesAdmittedRuntimeFallback(t *testing.T) {
 		router.StrategyHMMEmbedding: innerRouter,
 	}}
 	admittedRouter := policyregistry.NewAdmittedRouter(router.StrategyHMMEmbedding, snapshot)
-	service := NewService(nil, map[string]providers.Client{providers.ProviderAnthropic: nil}, nil, false, nil,
-		nil, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil).
+	service := NewService(nil, map[string]providers.Client{providers.ProviderAIAND: nil}, nil, false, nil,
+		nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil).
 		WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyHMMEmbedding, Router: admittedRouter})
 	ctx := policyregistry.WithServingSnapshot(
 		router.WithStrategy(context.Background(), router.StrategyHMMEmbedding),
@@ -118,7 +118,7 @@ func TestHMMCommandOnlyTurnHonorsEligibilityAndPolicyPin(t *testing.T) {
 	assert.Equal(t, "claude-haiku-4-5", decision.Model)
 
 	request.ExcludedModels = nil
-	request.EnabledProviders = map[string]struct{}{providers.ProviderOpenAI: {}}
+	request.EnabledProviders = map[string]struct{}{providers.ProviderAIAND: {}}
 	_, err = svc.routeWithStrategy(ctx, router.StrategyHMMEmbedding, request)
 	require.ErrorIs(t, err, policy.ErrNoRoutableModels)
 
@@ -219,7 +219,7 @@ func TestHMMCommandOnlyTurnKeepsEligibleSessionPin(t *testing.T) {
 	store := newStubPinStore()
 	store.getFound = true
 	store.getPin = sessionpin.Pin{
-		Provider:    providers.ProviderAnthropic,
+		Provider:    providers.ProviderAIAND,
 		Model:       "claude-sonnet-4-6",
 		Reason:      "hmm_policy",
 		PinnedUntil: time.Now().Add(time.Hour),

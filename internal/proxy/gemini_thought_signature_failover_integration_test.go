@@ -61,15 +61,15 @@ func TestProxyMessages_GeminiCorruptedThoughtSignatureFailsOverToBaselineAnthrop
 	store := newFakePinStore()
 	tel := newCaptureTelemetry()
 	svc := proxy.NewService(
-		&fakeRouter{decision: router.Decision{Provider: providers.ProviderGoogle, Model: "gemini-3-pro-preview"}},
+		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gemini-3-pro-preview"}},
 		map[string]providers.Client{
-			providers.ProviderGoogle:    google.NewNativeClient("test-google-key", googleUpstream.URL),
-			providers.ProviderAnthropic: anthropic.NewClient("test-anthropic-key", anthropicUpstream.URL),
+			providers.ProviderAIAND:    google.NewNativeClient("test-google-key", googleUpstream.URL),
+			providers.ProviderAIAND: anthropic.NewClient("test-anthropic-key", anthropicUpstream.URL),
 		},
-		nil, false, nil, store, false, providers.ProviderAnthropic, "claude-haiku-4-5", tel,
+		nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", tel,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
-		providers.ProviderGoogle:    {},
-		providers.ProviderAnthropic: {},
+		providers.ProviderAIAND:    {},
+		providers.ProviderAIAND: {},
 	})
 
 	rec := httptest.NewRecorder()
@@ -96,6 +96,6 @@ func TestProxyMessages_GeminiCorruptedThoughtSignatureFailsOverToBaselineAnthrop
 	assert.Contains(t, respBody, "event: message_start")
 	assert.Contains(t, respBody, "event: message_stop")
 	assert.NotContains(t, respBody, "Corrupted thought signature")
-	assert.Equal(t, providers.ProviderAnthropic, rec.Header().Get(proxy.HeaderRouterProvider))
+	assert.Equal(t, providers.ProviderAIAND, rec.Header().Get(proxy.HeaderRouterProvider))
 	assert.Equal(t, "claude-opus-4-8", rec.Header().Get(proxy.HeaderRouterModel))
 }

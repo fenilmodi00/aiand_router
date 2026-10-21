@@ -26,11 +26,7 @@ func TestSourceValid(t *testing.T) {
 }
 
 func TestSourceFor(t *testing.T) {
-	source, known := SourceFor("claude-opus-4-7")
-	require.True(t, known)
-	assert.Equal(t, SourceClosedSource, source)
-
-	source, known = SourceFor("z-ai/glm-5.3")
+	source, known := SourceFor("z-ai/glm-5.3")
 	require.True(t, known)
 	assert.Equal(t, SourceOpenSource, source)
 
@@ -46,7 +42,7 @@ func TestPermittedByAndCheckEligibility(t *testing.T) {
 	assert.True(t, PermittedBy(max, "z-ai/glm-5.3"))
 	assert.NoError(t, CheckEligibility(max, "z-ai/glm-5.3"))
 
-	for _, id := range []string{"claude-opus-4-7", "muse-spark-1.3", "not-in-the-catalog"} {
+	for _, id := range []string{"no-such-model"} {
 		assert.Falsef(t, PermittedBy(max, id), "%q should be ineligible for Max", id)
 		assert.ErrorIsf(t, CheckEligibility(max, id), eligibility.ErrModelIneligible, "%q should be refused", id)
 	}
@@ -54,7 +50,7 @@ func TestPermittedByAndCheckEligibility(t *testing.T) {
 	// An unrestricted boundary keeps pre-product behavior, including for IDs
 	// the catalog does not know.
 	unrestricted := eligibility.Unrestricted()
-	assert.True(t, PermittedBy(unrestricted, "claude-opus-4-7"))
+	assert.True(t, PermittedBy(unrestricted, "z-ai/glm-5.3"))
 	assert.NoError(t, CheckEligibility(unrestricted, "not-in-the-catalog"))
 }
 
@@ -82,5 +78,4 @@ func TestIDsWithSourceIsSortedAndPartitionsTheCatalog(t *testing.T) {
 	}
 	assert.Equal(t, len(Models), total)
 	assert.NotEmpty(t, IDsWithSource(SourceOpenSource))
-	assert.NotEmpty(t, IDsWithSource(SourceClosedSource))
 }

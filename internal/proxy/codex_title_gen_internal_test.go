@@ -21,7 +21,7 @@ type codexTitleRouter struct {
 
 func (r *codexTitleRouter) Route(context.Context, router.Request) (router.Decision, error) {
 	r.routeCalls++
-	return router.Decision{Provider: providers.ProviderOpenAI, Model: catalog.ModelIDGPT55.String(), Reason: "scored"}, nil
+	return router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDGPT55.String(), Reason: "scored"}, nil
 }
 
 type codexTitleProvider struct {
@@ -46,9 +46,9 @@ func TestCodexResponsesTitleGenerationScoresWithoutMarker(t *testing.T) {
 	provider := &codexTitleProvider{}
 	svc := NewService(
 		routerSpy,
-		map[string]providers.Client{providers.ProviderOpenAI: provider},
+		map[string]providers.Client{providers.ProviderAIAND: provider},
 		nil, false, nil, nil, false,
-		providers.ProviderOpenAI, "gpt-5.6-luna", nil,
+		providers.ProviderAIAND, "gpt-5.6-luna", nil,
 	)
 	body := []byte(`{
 		"model":"gpt-5.6-sol",
@@ -78,9 +78,9 @@ func TestCodexResponsesTitlePromptScoresWithoutMarker(t *testing.T) {
 	provider := &codexTitleProvider{}
 	svc := NewService(
 		routerSpy,
-		map[string]providers.Client{providers.ProviderOpenAI: provider},
+		map[string]providers.Client{providers.ProviderAIAND: provider},
 		nil, false, nil, nil, false,
-		providers.ProviderOpenAI, "gpt-5.6-luna", nil,
+		providers.ProviderAIAND, "gpt-5.6-luna", nil,
 	)
 	body := []byte(`{
 		"model":"gpt-5.6-sol",
@@ -110,9 +110,9 @@ func TestCodexResponsesTitlePromptAfterHarnessContextScores(t *testing.T) {
 	provider := &codexTitleProvider{}
 	svc := NewService(
 		routerSpy,
-		map[string]providers.Client{providers.ProviderOpenAI: provider},
+		map[string]providers.Client{providers.ProviderAIAND: provider},
 		nil, false, nil, nil, false,
-		providers.ProviderOpenAI, "gpt-5.6-luna", nil,
+		providers.ProviderAIAND, "gpt-5.6-luna", nil,
 	)
 	body := []byte(`{
 		"model":"gpt-5.6-sol",
@@ -142,9 +142,9 @@ func TestCodexResponsesTitlePromptWithAssistantHistoryUsesScorer(t *testing.T) {
 	provider := &codexTitleProvider{}
 	svc := NewService(
 		routerSpy,
-		map[string]providers.Client{providers.ProviderOpenAI: provider},
+		map[string]providers.Client{providers.ProviderAIAND: provider},
 		nil, false, nil, nil, false,
-		providers.ProviderOpenAI, "gpt-5.6-luna", nil,
+		providers.ProviderAIAND, "gpt-5.6-luna", nil,
 	)
 	body := []byte(`{
 		"model":"gpt-5.6-sol",
@@ -170,9 +170,9 @@ func TestResponsesTitlePromptWithoutCodexIdentityUsesScorer(t *testing.T) {
 	provider := &codexTitleProvider{}
 	svc := NewService(
 		routerSpy,
-		map[string]providers.Client{providers.ProviderOpenAI: provider},
+		map[string]providers.Client{providers.ProviderAIAND: provider},
 		nil, false, nil, nil, false,
-		providers.ProviderOpenAI, "gpt-5.6-luna", nil,
+		providers.ProviderAIAND, "gpt-5.6-luna", nil,
 	)
 	body := []byte(`{
 		"model":"gpt-5.6-sol",

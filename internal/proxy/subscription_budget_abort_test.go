@@ -21,12 +21,12 @@ func expiredRotationContext(provider auth.SubscriptionProvider) context.Context 
 
 func TestExpiredAdmissionBudgetDoesNotAuthorizeAPI(t *testing.T) {
 	leaser := &scriptedSubscriptionLeaser{leases: []subscriptions.Lease{{AccountID: "synthetic-seat", AccessToken: "seat-token"}}}
-	svc := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderOpenAI: &fakeClient{name: providers.ProviderOpenAI}}).WithManagedSubscriptions(leaser).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderOpenAI: {}})
+	svc := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: &fakeClient{name: providers.ProviderAIAND}}).WithManagedSubscriptions(leaser).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 	ctx := expiredRotationContext(auth.SubscriptionProviderCodex)
 	rec := httptest.NewRecorder()
 	buf := newPreludeBuffer(rec)
-	in := plannedInputs(rec, buf, []catalog.ProviderBinding{{Provider: providers.ProviderOpenAI}}, nil)
-	in.initialDecision = router.Decision{Provider: providers.ProviderOpenAI, Model: codexCoveredModel}
+	in := plannedInputs(rec, buf, []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}}, nil)
+	in.initialDecision = router.Decision{Provider: providers.ProviderAIAND, Model: codexCoveredModel}
 	var oauthCalls, apiCalls int
 	in.attempt = func(attemptCtx context.Context, _ router.Decision, _ providers.Client) error {
 		require.NoError(t, attemptCtx.Err(), "paid recovery runs on the caller's live context")
@@ -52,12 +52,12 @@ func TestExpiredAdmissionBudgetDoesNotAuthorizeAPI(t *testing.T) {
 
 func TestExpiredRotationBudgetRendersCleanErrorWithoutAPI(t *testing.T) {
 	leaser := &scriptedSubscriptionLeaser{leases: []subscriptions.Lease{{AccountID: "synthetic-seat", AccessToken: "seat-token"}}}
-	svc := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderOpenAI: &fakeClient{name: providers.ProviderOpenAI}}).WithManagedSubscriptions(leaser)
+	svc := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: &fakeClient{name: providers.ProviderAIAND}}).WithManagedSubscriptions(leaser)
 	ctx := expiredRotationContext(auth.SubscriptionProviderCodex)
 	rec := httptest.NewRecorder()
 	buf := newPreludeBuffer(rec)
-	in := plannedInputs(rec, buf, []catalog.ProviderBinding{{Provider: providers.ProviderOpenAI}}, nil)
-	in.initialDecision = router.Decision{Provider: providers.ProviderOpenAI, Model: codexCoveredModel}
+	in := plannedInputs(rec, buf, []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}}, nil)
+	in.initialDecision = router.Decision{Provider: providers.ProviderAIAND, Model: codexCoveredModel}
 	in.flushErr = func(w http.ResponseWriter, err error) {
 		w.WriteHeader(http.StatusTooManyRequests)
 		_, _ = w.Write([]byte("terminal error"))

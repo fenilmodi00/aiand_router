@@ -31,7 +31,7 @@ func TestSessionAffinity_FireworksSetsHeaderNotBody(t *testing.T) {
 
 	out, err := env.PrepareOpenAI(nil, translate.EmitOptions{
 		TargetModel:     "deepseek/deepseek-v4-pro",
-		TargetProvider:  providers.ProviderFireworks,
+		TargetProvider:  providers.ProviderAIAND,
 		SessionAffinity: affinityKey,
 	})
 	require.NoError(t, err)
@@ -47,7 +47,7 @@ func TestSessionAffinity_FireworksSetsHeaderNotBody(t *testing.T) {
 // prefill. Keying the header off the OpenAI-compat family gives them replica
 // stickiness with no per-provider edit.
 func TestSessionAffinity_MakoraAndTogetherSetHeader(t *testing.T) {
-	for _, provider := range []string{providers.ProviderMakora, providers.ProviderTogether} {
+	for _, provider := range []string{providers.ProviderAIAND, providers.ProviderAIAND} {
 		t.Run(provider, func(t *testing.T) {
 			env, err := translate.ParseAnthropic(anthropicSrc())
 			require.NoError(t, err)
@@ -73,7 +73,7 @@ func TestSessionAffinity_OpenRouterUsesSessionIDHeader(t *testing.T) {
 
 	out, err := env.PrepareOpenAI(nil, translate.EmitOptions{
 		TargetModel:     "deepseek/deepseek-v4-pro",
-		TargetProvider:  providers.ProviderOpenRouter,
+		TargetProvider:  providers.ProviderAIAND,
 		SessionAffinity: affinityKey,
 	})
 	require.NoError(t, err)
@@ -88,7 +88,7 @@ func TestSessionAffinity_OpenAIUsesPromptCacheKeyBody(t *testing.T) {
 
 	out, err := env.PrepareOpenAI(nil, translate.EmitOptions{
 		TargetModel:     "gpt-5.5",
-		TargetProvider:  providers.ProviderOpenAI,
+		TargetProvider:  providers.ProviderAIAND,
 		SessionAffinity: affinityKey,
 	})
 	require.NoError(t, err)
@@ -106,7 +106,7 @@ func TestSessionAffinity_OpenAIGatewayUsesPromptCacheKeyBody(t *testing.T) {
 
 	out, err := env.PrepareOpenAI(nil, translate.EmitOptions{
 		TargetModel:     "grok-4.6",
-		TargetProvider:  providers.ProviderOpenAIGateway,
+		TargetProvider:  providers.ProviderAIAND,
 		SessionAffinity: affinityKey,
 	})
 	require.NoError(t, err)
@@ -127,7 +127,7 @@ func TestSessionAffinity_OpenAIGatewayNonGrokOmitsGrokConvID(t *testing.T) {
 
 	out, err := env.PrepareOpenAI(nil, translate.EmitOptions{
 		TargetModel:     "gpt-5.5",
-		TargetProvider:  providers.ProviderOpenAIGateway,
+		TargetProvider:  providers.ProviderAIAND,
 		SessionAffinity: affinityKey,
 	})
 	require.NoError(t, err)
@@ -144,7 +144,7 @@ func TestSessionAffinity_OpenAIGatewayGrokKeepsConvIDWhenKeyStripped(t *testing.
 
 	out, err := env.PrepareOpenAI(nil, translate.EmitOptions{
 		TargetModel:         "grok-4.6",
-		TargetProvider:      providers.ProviderOpenAIGateway,
+		TargetProvider:      providers.ProviderAIAND,
 		SessionAffinity:     affinityKey,
 		StripPromptCacheKey: true,
 	})
@@ -163,7 +163,7 @@ func TestSessionAffinity_DirectOpenAIOmitsGrokConvID(t *testing.T) {
 
 	out, err := env.PrepareOpenAI(nil, translate.EmitOptions{
 		TargetModel:     "grok-4.6",
-		TargetProvider:  providers.ProviderOpenAI,
+		TargetProvider:  providers.ProviderAIAND,
 		SessionAffinity: affinityKey,
 	})
 	require.NoError(t, err)
@@ -191,7 +191,7 @@ func TestSessionAffinity_AnthropicGatewayUsesMetadataUserID(t *testing.T) {
 
 	out, err := env.PrepareAnthropic(nil, translate.EmitOptions{
 		TargetModel:     "claude-opus-4-7",
-		TargetProvider:  providers.ProviderAnthropicGateway,
+		TargetProvider:  providers.ProviderAIAND,
 		SessionAffinity: affinityKey,
 	})
 	require.NoError(t, err)
@@ -208,7 +208,7 @@ func TestSessionAffinity_AnthropicGatewayPreservesCallerUserID(t *testing.T) {
 
 	out, err := env.PrepareAnthropic(nil, translate.EmitOptions{
 		TargetModel:     "claude-opus-4-7",
-		TargetProvider:  providers.ProviderAnthropicGateway,
+		TargetProvider:  providers.ProviderAIAND,
 		SessionAffinity: affinityKey,
 	})
 	require.NoError(t, err)
@@ -224,7 +224,7 @@ func TestSessionAffinity_DirectAnthropicStaysUnhinted(t *testing.T) {
 
 	out, err := env.PrepareAnthropic(nil, translate.EmitOptions{
 		TargetModel:     "claude-opus-4-7",
-		TargetProvider:  providers.ProviderAnthropic,
+		TargetProvider:  providers.ProviderAIAND,
 		SessionAffinity: affinityKey,
 	})
 	require.NoError(t, err)
@@ -239,7 +239,7 @@ func TestSessionAffinity_AnthropicGatewayEmptyIsNoOp(t *testing.T) {
 
 	out, err := env.PrepareAnthropic(nil, translate.EmitOptions{
 		TargetModel:    "claude-opus-4-7",
-		TargetProvider: providers.ProviderAnthropicGateway,
+		TargetProvider: providers.ProviderAIAND,
 	})
 	require.NoError(t, err)
 
@@ -253,7 +253,7 @@ func TestSessionAffinity_XAIUsesGrokConvIDHeader(t *testing.T) {
 
 	out, err := env.PrepareOpenAI(nil, translate.EmitOptions{
 		TargetModel:     "grok-4.5",
-		TargetProvider:  providers.ProviderXAI,
+		TargetProvider:  providers.ProviderAIAND,
 		SessionAffinity: affinityKey,
 	})
 	require.NoError(t, err)
@@ -271,7 +271,7 @@ func TestSessionAffinity_BedrockGetsNoHint(t *testing.T) {
 
 	out, err := env.PrepareOpenAI(nil, translate.EmitOptions{
 		TargetModel:     "moonshotai/kimi-k2.5",
-		TargetProvider:  providers.ProviderBedrock,
+		TargetProvider:  providers.ProviderAIAND,
 		SessionAffinity: affinityKey,
 	})
 	require.NoError(t, err)
@@ -288,7 +288,7 @@ func TestSessionAffinity_EmptyIsNoOp(t *testing.T) {
 
 	out, err := env.PrepareOpenAI(nil, translate.EmitOptions{
 		TargetModel:    "deepseek/deepseek-v4-pro",
-		TargetProvider: providers.ProviderFireworks,
+		TargetProvider: providers.ProviderAIAND,
 	})
 	require.NoError(t, err)
 
@@ -308,7 +308,7 @@ func TestSessionAffinity_OpenAIFallsBackToStablePrefixKey(t *testing.T) {
 		require.NoError(t, err)
 		out, err := env.PrepareOpenAI(nil, translate.EmitOptions{
 			TargetModel:    "gpt-5.5",
-			TargetProvider: providers.ProviderOpenAI,
+			TargetProvider: providers.ProviderAIAND,
 		})
 		require.NoError(t, err)
 		v, ok := promptCacheKey(t, out.Body)
@@ -331,7 +331,7 @@ func TestSessionAffinity_OpenAIFallbackKeyVariesByPrefix(t *testing.T) {
 		require.NoError(t, err)
 		out, err := env.PrepareOpenAI(nil, translate.EmitOptions{
 			TargetModel:    "gpt-5.5",
-			TargetProvider: providers.ProviderOpenAI,
+			TargetProvider: providers.ProviderAIAND,
 		})
 		require.NoError(t, err)
 		v, ok := promptCacheKey(t, out.Body)
@@ -355,7 +355,7 @@ func TestSessionAffinity_OpenAIPreservesCallerPromptCacheKey(t *testing.T) {
 
 	out, err := env.PrepareOpenAI(nil, translate.EmitOptions{
 		TargetModel:    "gpt-5.5",
-		TargetProvider: providers.ProviderOpenAI,
+		TargetProvider: providers.ProviderAIAND,
 	})
 	require.NoError(t, err)
 
@@ -374,7 +374,7 @@ func TestSessionAffinity_OpenAIEmptyPrefixStaysUnhinted(t *testing.T) {
 
 	out, err := env.PrepareOpenAI(nil, translate.EmitOptions{
 		TargetModel:    "gpt-5.5",
-		TargetProvider: providers.ProviderOpenAI,
+		TargetProvider: providers.ProviderAIAND,
 	})
 	require.NoError(t, err)
 
@@ -393,7 +393,7 @@ func TestSessionAffinity_OpenAIEmptyToolsArrayStaysUnhinted(t *testing.T) {
 
 	out, err := env.PrepareOpenAI(nil, translate.EmitOptions{
 		TargetModel:    "gpt-5.5",
-		TargetProvider: providers.ProviderOpenAI,
+		TargetProvider: providers.ProviderAIAND,
 	})
 	require.NoError(t, err)
 
@@ -408,7 +408,7 @@ func TestSessionAffinity_StripPromptCacheKeySkipsInjection(t *testing.T) {
 
 	out, err := env.PrepareOpenAI(nil, translate.EmitOptions{
 		TargetModel:         "grok-4.6",
-		TargetProvider:      providers.ProviderOpenAIGateway,
+		TargetProvider:      providers.ProviderAIAND,
 		SessionAffinity:     affinityKey,
 		StripPromptCacheKey: true,
 	})
@@ -427,7 +427,7 @@ func TestSessionAffinity_StripPromptCacheKeyDropsCallerKey(t *testing.T) {
 
 	out, err := env.PrepareOpenAI(nil, translate.EmitOptions{
 		TargetModel:         "gpt-5.5",
-		TargetProvider:      providers.ProviderOpenAIGateway,
+		TargetProvider:      providers.ProviderAIAND,
 		StripPromptCacheKey: true,
 	})
 	require.NoError(t, err)
@@ -439,7 +439,7 @@ func TestSessionAffinity_StripPromptCacheKeyDropsCallerKey(t *testing.T) {
 // Responses turns that promote to /v1/responses must carry the same prompt_cache_key hint;
 // otherwise gateway reasoning-tool turns fan across replicas unhinted.
 func TestSessionAffinity_ResponsesCarriesPromptCacheKey(t *testing.T) {
-	for _, provider := range []string{providers.ProviderOpenAI, providers.ProviderOpenAIGateway} {
+	for _, provider := range []string{providers.ProviderAIAND, providers.ProviderAIAND} {
 		env, err := translate.ParseAnthropic(anthropicSrc())
 		require.NoError(t, err)
 
@@ -463,7 +463,7 @@ func TestSessionAffinity_ResponsesStripPromptCacheKey(t *testing.T) {
 
 	out, err := env.PrepareOpenAIResponses(nil, translate.EmitOptions{
 		TargetModel:         "grok-4.6",
-		TargetProvider:      providers.ProviderOpenAIGateway,
+		TargetProvider:      providers.ProviderAIAND,
 		SessionAffinity:     affinityKey,
 		StripPromptCacheKey: true,
 	})
@@ -483,7 +483,7 @@ func TestSessionAffinity_ResponsesFallbackPrefixHashStable(t *testing.T) {
 		require.NoError(t, err)
 		out, err := env.PrepareOpenAIResponses(nil, translate.EmitOptions{
 			TargetModel:    "gpt-5.5",
-			TargetProvider: providers.ProviderOpenAI,
+			TargetProvider: providers.ProviderAIAND,
 		})
 		require.NoError(t, err)
 		v, ok := promptCacheKey(t, out.Body)

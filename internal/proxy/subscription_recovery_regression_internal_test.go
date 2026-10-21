@@ -21,14 +21,14 @@ func TestSubscriptionRecoverySlowFailureUsesSecondSeat(t *testing.T) {
 			{AccountID: "seat-a", AccessToken: "token-a"},
 			{AccountID: "seat-b", AccessToken: "token-b"},
 		}}
-		provider := &fakeClient{name: providers.ProviderAnthropic, outcomes: []fakeOutcome{{writeBytes: []byte("included answer")}}}
-		svc := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAnthropic: provider}).
+		provider := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{writeBytes: []byte("included answer")}}}
+		svc := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: provider}).
 			WithManagedSubscriptions(leaser).
-			WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAnthropic: {}})
+			WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 		rec := httptest.NewRecorder()
 		buf := newPreludeBuffer(rec)
-		in := plannedInputs(rec, buf, []catalog.ProviderBinding{{Provider: providers.ProviderAnthropic}}, nil)
-		in.initialDecision = router.Decision{Provider: providers.ProviderAnthropic, Model: catalog.ModelIDClaudeOpus48.String()}
+		in := plannedInputs(rec, buf, []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}}, nil)
+		in.initialDecision = router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDClaudeOpus48.String()}
 		var seats []string
 		in.attempt = func(ctx context.Context, decision router.Decision, client providers.Client) error {
 			creds := CredentialsFromContext(ctx)
@@ -50,14 +50,14 @@ func TestSubscriptionRecoverySlowFailureUsesSecondSeat(t *testing.T) {
 }
 
 func TestSubscriptionRecoveryUnavailablePoolNeverBuysAPI(t *testing.T) {
-	provider := &fakeClient{name: providers.ProviderAnthropic, outcomes: []fakeOutcome{{writeBytes: []byte("paid answer")}}}
-	svc := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAnthropic: provider}).
+	provider := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{writeBytes: []byte("paid answer")}}}
+	svc := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: provider}).
 		WithManagedSubscriptions(&scriptedSubscriptionLeaser{}).
-		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAnthropic: {}})
+		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 	rec := httptest.NewRecorder()
 	buf := newPreludeBuffer(rec)
-	in := plannedInputs(rec, buf, []catalog.ProviderBinding{{Provider: providers.ProviderAnthropic}}, nil)
-	in.initialDecision = router.Decision{Provider: providers.ProviderAnthropic, Model: catalog.ModelIDClaudeOpus48.String()}
+	in := plannedInputs(rec, buf, []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}}, nil)
+	in.initialDecision = router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDClaudeOpus48.String()}
 	_, err := svc.dispatchWithFallback(managedSubscriptionTestContext(), in)
 	require.Error(t, err)
 	require.Zero(t, provider.calls)

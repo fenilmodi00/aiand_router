@@ -149,12 +149,12 @@ func (r *shadowRequestRouter) Route(_ context.Context, request router.Request) (
 func TestPolicyShadowComparisonSkipsDryRunAndCollectsServingRoute(t *testing.T) {
 	const installID = "66666666-6666-6666-6666-666666666666"
 	scorerDecision := router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    "claude-opus-4-7",
 	}
 	shadowRouter := &shadowRequestRouter{
 		decision: router.Decision{
-			Provider: providers.ProviderOpenAI,
+			Provider: providers.ProviderAIAND,
 			Model:    "gpt-5.5",
 			Metadata: &router.RoutingMetadata{
 				RouteID:              "shadow-route-1",
@@ -169,9 +169,9 @@ func TestPolicyShadowComparisonSkipsDryRunAndCollectsServingRoute(t *testing.T) 
 	shadowStrategy := router.Strategy("future-policy")
 	svc := proxy.NewService(
 		&fakeRouter{decision: scorerDecision},
-		map[string]providers.Client{providers.ProviderAnthropic: &fakeProvider{}},
+		map[string]providers.Client{providers.ProviderAIAND: &fakeProvider{}},
 		nil, false, nil, nil, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", telem,
+		providers.ProviderAIAND, "claude-haiku-4-5", telem,
 	).WithPolicyStrategy(policy.StrategySpec{Strategy: shadowStrategy, Router: shadowRouter})
 
 	ctx := context.WithValue(context.Background(), proxy.InstallationIDContextKey{}, installID)
@@ -219,7 +219,7 @@ func TestPolicyShadowComparisonCollectsUsageBypassRoute(t *testing.T) {
 	shadowStrategy := router.Strategy("future-policy")
 	shadowRouter := &shadowRequestRouter{
 		decision: router.Decision{
-			Provider: providers.ProviderOpenAI,
+			Provider: providers.ProviderAIAND,
 			Model:    "gpt-5.5",
 		},
 		requests: make(chan router.Request, 1),
@@ -230,10 +230,10 @@ func TestPolicyShadowComparisonCollectsUsageBypassRoute(t *testing.T) {
 		Primary: usage.Window{UsedPercent: 0.20, WindowMinutes: 300},
 	})
 	svc := proxy.NewService(
-		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: bypassScorerPickMdl}},
-		map[string]providers.Client{providers.ProviderAnthropic: &fakeProvider{}},
+		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: bypassScorerPickMdl}},
+		map[string]providers.Client{providers.ProviderAIAND: &fakeProvider{}},
 		nil, false, nil, nil, false,
-		providers.ProviderAnthropic, bypassScorerPickMdl, telem,
+		providers.ProviderAIAND, bypassScorerPickMdl, telem,
 	).WithUsageObserver(observer).
 		WithPolicyStrategy(policy.StrategySpec{Strategy: shadowStrategy, Router: shadowRouter})
 
@@ -258,7 +258,7 @@ func TestPolicyShadowComparisonCollectsUsageBypassRoute(t *testing.T) {
 func TestProxyMessages_RecordsClusterObservation(t *testing.T) {
 	const installID = "11111111-1111-1111-1111-111111111111"
 	decision := router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    "claude-haiku-4-5",
 		Reason:   "cluster:v-test top_p=[3,7] model=claude-haiku-4-5 provider=anthropic",
 		Metadata: &router.RoutingMetadata{
@@ -273,13 +273,13 @@ func TestProxyMessages_RecordsClusterObservation(t *testing.T) {
 	telem := newCaptureTelemetry()
 	svc := proxy.NewService(
 		&fakeRouter{decision: decision},
-		map[string]providers.Client{providers.ProviderAnthropic: &fakeProvider{}},
+		map[string]providers.Client{providers.ProviderAIAND: &fakeProvider{}},
 		nil,
 		false,
 		nil,
 		nil,
 		false,
-		providers.ProviderAnthropic, "claude-haiku-4-5",
+		providers.ProviderAIAND, "claude-haiku-4-5",
 		telem,
 	)
 
@@ -316,7 +316,7 @@ func TestProxyMessages_RecordsClusterObservation(t *testing.T) {
 func TestProxyMessages_RecordsPolicyObservation(t *testing.T) {
 	const installID = "55555555-5555-5555-5555-555555555555"
 	decision := router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    "claude-haiku-4-5",
 		Reason:   "policy:hmm",
 		Metadata: &router.RoutingMetadata{
@@ -349,9 +349,9 @@ func TestProxyMessages_RecordsPolicyObservation(t *testing.T) {
 	telem := newCaptureTelemetry()
 	svc := proxy.NewService(
 		&fakeRouter{decision: decision},
-		map[string]providers.Client{providers.ProviderAnthropic: &fakeProvider{}},
+		map[string]providers.Client{providers.ProviderAIAND: &fakeProvider{}},
 		nil, false, nil, nil, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5",
+		providers.ProviderAIAND, "claude-haiku-4-5",
 		telem,
 	).WithContentCapture(proxy.CaptureHashed, 0, nil)
 
@@ -391,7 +391,7 @@ func TestProxyMessages_RecordsPolicyObservation(t *testing.T) {
 func TestProxyMessages_PersistsCacheTokens(t *testing.T) {
 	const installID = "44444444-4444-4444-4444-444444444444"
 	decision := router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    "claude-haiku-4-5",
 		Reason:   "pin",
 	}
@@ -404,9 +404,9 @@ func TestProxyMessages_PersistsCacheTokens(t *testing.T) {
 	}
 	svc := proxy.NewService(
 		&fakeRouter{decision: decision},
-		map[string]providers.Client{providers.ProviderAnthropic: provider},
+		map[string]providers.Client{providers.ProviderAIAND: provider},
 		nil, false, nil, nil, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5",
+		providers.ProviderAIAND, "claude-haiku-4-5",
 		telem,
 	)
 
@@ -428,7 +428,7 @@ func TestProxyMessages_PersistsCacheTokens(t *testing.T) {
 func TestProxyMessages_ChosenScoreZeroIsPersisted(t *testing.T) {
 	const installID = "33333333-3333-3333-3333-333333333333"
 	decision := router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    "claude-haiku-4-5",
 		Reason:   "cluster:v-test top_p=[0] model=claude-haiku-4-5 provider=anthropic",
 		Metadata: &router.RoutingMetadata{
@@ -441,9 +441,9 @@ func TestProxyMessages_ChosenScoreZeroIsPersisted(t *testing.T) {
 	telem := newCaptureTelemetry()
 	svc := proxy.NewService(
 		&fakeRouter{decision: decision},
-		map[string]providers.Client{providers.ProviderAnthropic: &fakeProvider{}},
+		map[string]providers.Client{providers.ProviderAIAND: &fakeProvider{}},
 		nil, false, nil, nil, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5",
+		providers.ProviderAIAND, "claude-haiku-4-5",
 		telem,
 	)
 
@@ -465,7 +465,7 @@ func TestProxyMessages_NoMetadataOmitsClusterFields(t *testing.T) {
 	require.NotEqual(t, uuid.Nil.String(), installID)
 
 	decision := router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    "claude-haiku-4-5",
 		Reason:   "pin",
 		// Metadata intentionally nil; matches pinDecision shape.
@@ -473,13 +473,13 @@ func TestProxyMessages_NoMetadataOmitsClusterFields(t *testing.T) {
 	telem := newCaptureTelemetry()
 	svc := proxy.NewService(
 		&fakeRouter{decision: decision},
-		map[string]providers.Client{providers.ProviderAnthropic: &fakeProvider{}},
+		map[string]providers.Client{providers.ProviderAIAND: &fakeProvider{}},
 		nil,
 		false,
 		nil,
 		nil,
 		false,
-		providers.ProviderAnthropic, "claude-haiku-4-5",
+		providers.ProviderAIAND, "claude-haiku-4-5",
 		telem,
 	)
 
@@ -505,7 +505,7 @@ func TestProxyMessages_NoMetadataOmitsClusterFields(t *testing.T) {
 func TestProxyMessages_PersistsTurnType(t *testing.T) {
 	const installID = "55555555-5555-5555-5555-555555555555"
 	decision := router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    "claude-haiku-4-5",
 		Reason:   "pin",
 	}
@@ -531,9 +531,9 @@ func TestProxyMessages_PersistsTurnType(t *testing.T) {
 			telem := newCaptureTelemetry()
 			svc := proxy.NewService(
 				&fakeRouter{decision: decision},
-				map[string]providers.Client{providers.ProviderAnthropic: &fakeProvider{}},
+				map[string]providers.Client{providers.ProviderAIAND: &fakeProvider{}},
 				nil, false, nil, nil, false,
-				providers.ProviderAnthropic, "claude-haiku-4-5",
+				providers.ProviderAIAND, "claude-haiku-4-5",
 				telem,
 			)
 
@@ -554,16 +554,16 @@ func TestProxyMessages_PersistsRolloutID(t *testing.T) {
 	const installID = "66666666-6666-6666-6666-666666666666"
 	const rolloutID = "policy-rollout-1"
 	decision := router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    "claude-haiku-4-5",
 		Reason:   "pin",
 	}
 	telem := newCaptureTelemetry()
 	svc := proxy.NewService(
 		&fakeRouter{decision: decision},
-		map[string]providers.Client{providers.ProviderAnthropic: &fakeProvider{}},
+		map[string]providers.Client{providers.ProviderAIAND: &fakeProvider{}},
 		nil, false, nil, nil, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5",
+		providers.ProviderAIAND, "claude-haiku-4-5",
 		telem,
 	)
 
@@ -583,16 +583,16 @@ func TestProxyMessages_PersistedPolicyRolloutIDOverridesClientIdentity(t *testin
 	const installID = "66666666-6666-6666-6666-666666666666"
 	const rolloutID = "policy-rollout-42"
 	decision := router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    "claude-haiku-4-5",
 		Reason:   "pin",
 	}
 	telem := newCaptureTelemetry()
 	svc := proxy.NewService(
 		&fakeRouter{decision: decision},
-		map[string]providers.Client{providers.ProviderAnthropic: &fakeProvider{}},
+		map[string]providers.Client{providers.ProviderAIAND: &fakeProvider{}},
 		nil, false, nil, nil, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5",
+		providers.ProviderAIAND, "claude-haiku-4-5",
 		telem,
 	)
 
@@ -615,16 +615,16 @@ func TestProxyMessages_PersistedPolicyRolloutIDOverridesClientIdentity(t *testin
 func TestProxyMessages_PersistsSessionKeyAndRole(t *testing.T) {
 	const installID = "77777777-7777-7777-7777-777777777777"
 	decision := router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    "claude-haiku-4-5",
 		Reason:   "pin",
 	}
 	telem := newCaptureTelemetry()
 	svc := proxy.NewService(
 		&fakeRouter{decision: decision},
-		map[string]providers.Client{providers.ProviderAnthropic: &fakeProvider{}},
+		map[string]providers.Client{providers.ProviderAIAND: &fakeProvider{}},
 		nil, false, nil, nil, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5",
+		providers.ProviderAIAND, "claude-haiku-4-5",
 		telem,
 	)
 
@@ -692,7 +692,7 @@ func TestProxyMessages_NativeAnthropicResponseSignals(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			decision := router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-opus-4-7"}
+			decision := router.Decision{Provider: providers.ProviderAIAND, Model: "claude-opus-4-7"}
 			provider := &fakeProvider{proxyResponse: func(w http.ResponseWriter) {
 				for _, e := range tt.events {
 					_, _ = w.Write([]byte(e))
@@ -701,9 +701,9 @@ func TestProxyMessages_NativeAnthropicResponseSignals(t *testing.T) {
 			telem := newCaptureTelemetry()
 			svc := proxy.NewService(
 				&fakeRouter{decision: decision},
-				map[string]providers.Client{providers.ProviderAnthropic: provider},
+				map[string]providers.Client{providers.ProviderAIAND: provider},
 				nil, false, nil, nil, false,
-				providers.ProviderAnthropic, "claude-opus-4-7", telem,
+				providers.ProviderAIAND, "claude-opus-4-7", telem,
 			).WithNativeAnthropicResponseSignals(tt.enabled)
 
 			ctx := context.WithValue(context.Background(), proxy.InstallationIDContextKey{}, installID)
@@ -774,10 +774,10 @@ func TestProxyOpenAIChatCompletion_ResponseSignalTelemetry(t *testing.T) {
 			}}
 			telem := newCaptureTelemetry()
 			svc := proxy.NewService(
-				&fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "gpt-5.6-luna"}},
-				map[string]providers.Client{providers.ProviderOpenAI: provider},
+				&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-5.6-luna"}},
+				map[string]providers.Client{providers.ProviderAIAND: provider},
 				nil, false, nil, nil, false,
-				providers.ProviderOpenAI, "gpt-5.6-sol", telem,
+				providers.ProviderAIAND, "gpt-5.6-sol", telem,
 			)
 
 			ctx := context.WithValue(context.Background(), proxy.InstallationIDContextKey{}, installID)
@@ -851,10 +851,10 @@ func TestProxyOpenAIChatCompletion_NativeChatResponseSignals(t *testing.T) {
 			}}
 			telem := newCaptureTelemetry()
 			svc := proxy.NewService(
-				&fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "gpt-4.1"}},
-				map[string]providers.Client{providers.ProviderOpenAI: provider},
+				&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-4.1"}},
+				map[string]providers.Client{providers.ProviderAIAND: provider},
 				nil, false, nil, nil, false,
-				providers.ProviderOpenAI, "gpt-4.1", telem,
+				providers.ProviderAIAND, "gpt-4.1", telem,
 			).WithNativeOpenAIResponseSignals(tt.enabled)
 
 			ctx := context.WithValue(context.Background(), proxy.InstallationIDContextKey{}, installID)
@@ -936,10 +936,10 @@ func TestProxyOpenAIResponses_NativeResponseSignals(t *testing.T) {
 			}}
 			telem := newCaptureTelemetry()
 			svc := proxy.NewService(
-				&fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "gpt-5.6-luna"}},
-				map[string]providers.Client{providers.ProviderOpenAI: provider},
+				&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-5.6-luna"}},
+				map[string]providers.Client{providers.ProviderAIAND: provider},
 				nil, false, nil, nil, false,
-				providers.ProviderOpenAI, "gpt-5.6-sol", telem,
+				providers.ProviderAIAND, "gpt-5.6-sol", telem,
 			).WithNativeOpenAIResponseSignals(tt.enabled)
 
 			ctx := context.WithValue(context.Background(), proxy.InstallationIDContextKey{}, installID)

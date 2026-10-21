@@ -56,7 +56,7 @@ func runDemotionTurnLoop(t *testing.T, svc *Service, ctx context.Context) turnLo
 
 func demotedPin(model string, demoted ...string) sessionpin.Pin {
 	return sessionpin.Pin{
-		Provider:        providers.ProviderAnthropic,
+		Provider:        providers.ProviderAIAND,
 		Model:           model,
 		Reason:          "cluster:v0.2",
 		PinnedUntil:     time.Now().Add(time.Hour),
@@ -75,12 +75,12 @@ func TestTurnLoopExcludesDemotedModelUnderAuthoritativePolicy(t *testing.T) {
 		sessionpin.DefaultRole: demotedPin(demotedPinModel, demotedPinModel),
 	}}
 	policyRouter := &authoritativeTestRouter{decision: router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    freshTurnModel,
 		Reason:   "arm-demotion-authoritative-test_policy",
 	}}
 	svc := NewService(nil, nil, nil, false, nil, store, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil).
+		providers.ProviderAIAND, "claude-haiku-4-5", nil).
 		WithPolicyStrategy(policy.StrategySpec{
 			Strategy: strategy,
 			Router:   policyRouter,
@@ -105,12 +105,12 @@ func TestTurnLoopDropsDemotedPinOnScorerPath(t *testing.T) {
 		sessionpin.DefaultRole: demotedPin(demotedPinModel, demotedPinModel),
 	}}
 	scorer := &authoritativeTestRouter{decision: router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    freshTurnModel,
 		Reason:   "cluster:v0.2",
 	}}
 	svc := NewService(scorer, nil, nil, false, nil, store, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil)
+		providers.ProviderAIAND, "claude-haiku-4-5", nil)
 
 	res := runDemotionTurnLoop(t, svc, context.Background())
 
@@ -128,12 +128,12 @@ func TestTurnLoopHonoursDemotionRecordedOnHMMHistory(t *testing.T) {
 		hmmHistoryRole(sessionpin.DefaultRole): demotedPin(demotedPinModel, demotedPinModel),
 	}}
 	scorer := &authoritativeTestRouter{decision: router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    freshTurnModel,
 		Reason:   "cluster:v0.2",
 	}}
 	svc := NewService(scorer, nil, nil, false, nil, store, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil)
+		providers.ProviderAIAND, "claude-haiku-4-5", nil)
 
 	res := runDemotionTurnLoop(t, svc, context.Background())
 
@@ -149,12 +149,12 @@ func TestTurnLoopKeepsForcedModelDespiteDemotion(t *testing.T) {
 	forced.Reason = translate.ReasonUserForceModel
 	store := &rolePinStore{byRole: map[string]sessionpin.Pin{sessionpin.DefaultRole: forced}}
 	scorer := &authoritativeTestRouter{decision: router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    freshTurnModel,
 		Reason:   "cluster:v0.2",
 	}}
 	svc := NewService(scorer, nil, nil, false, nil, store, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil)
+		providers.ProviderAIAND, "claude-haiku-4-5", nil)
 
 	res := runDemotionTurnLoop(t, svc, context.Background())
 

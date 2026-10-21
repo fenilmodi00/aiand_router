@@ -14,10 +14,10 @@ func TestMiMoV26FlashProviderOrder(t *testing.T) {
 		provider   string
 		upstreamID string
 	}{
-		{"all providers", map[string]struct{}{providers.ProviderMakora: {}, providers.ProviderDeepInfra: {}, providers.ProviderOpenRouter: {}}, providers.ProviderMakora, "XiaomiMiMo/MiMo-V2.6-Flash-RL"},
-		{"Makora only", map[string]struct{}{providers.ProviderMakora: {}}, providers.ProviderMakora, "XiaomiMiMo/MiMo-V2.6-Flash-RL"},
-		{"DeepInfra fallback", map[string]struct{}{providers.ProviderDeepInfra: {}, providers.ProviderOpenRouter: {}}, providers.ProviderDeepInfra, "XiaomiMiMo/MiMo-V2.6-Flash"},
-		{"OpenRouter fallback", map[string]struct{}{providers.ProviderOpenRouter: {}}, providers.ProviderOpenRouter, ""},
+		{"all providers", map[string]struct{}{providers.ProviderAIAND: {}, providers.ProviderAIAND: {}, providers.ProviderAIAND: {}}, providers.ProviderAIAND, "XiaomiMiMo/MiMo-V2.6-Flash-RL"},
+		{"Makora only", map[string]struct{}{providers.ProviderAIAND: {}}, providers.ProviderAIAND, "XiaomiMiMo/MiMo-V2.6-Flash-RL"},
+		{"DeepInfra fallback", map[string]struct{}{providers.ProviderAIAND: {}, providers.ProviderAIAND: {}}, providers.ProviderAIAND, "XiaomiMiMo/MiMo-V2.6-Flash"},
+		{"OpenRouter fallback", map[string]struct{}{providers.ProviderAIAND: {}}, providers.ProviderAIAND, ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -35,9 +35,9 @@ func TestMiMoV26FlashProviderPricing(t *testing.T) {
 		inputUSD float64
 		cacheUSD float64
 	}{
-		{providers.ProviderMakora, 0.13, 0.002},
-		{providers.ProviderDeepInfra, 0.14, 0.0028},
-		{providers.ProviderOpenRouter, 0.14, 0.014},
+		{providers.ProviderAIAND, 0.13, 0.002},
+		{providers.ProviderAIAND, 0.14, 0.0028},
+		{providers.ProviderAIAND, 0.14, 0.014},
 	}
 	for _, tc := range cases {
 		t.Run(tc.provider, func(t *testing.T) {

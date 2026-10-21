@@ -697,21 +697,21 @@ func TestUseOpenAIResponsesAPI(t *testing.T) {
 			Broad:          broad,
 		}
 	}
-	assert.True(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderOpenAI, caps, true, false, true)))
-	assert.True(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderOpenAI, caps, false, false, true)),
+	assert.True(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderAIAND, caps, true, false, true)))
+	assert.True(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderAIAND, caps, false, false, true)),
 		"broad rollout serves every expressible direct-OpenAI turn, tools or not")
-	assert.True(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderOpenAI, router.Lookup("gpt-4o"), true, false, true)),
+	assert.True(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderAIAND, router.Lookup("gpt-4o"), true, false, true)),
 		"non-reasoning direct-OpenAI models go to Responses too")
-	assert.False(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderOpenAI, caps, true, true, true)),
+	assert.False(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderAIAND, caps, true, true, true)),
 		"a turn using a chat-only parameter stays on chat/completions")
-	assert.True(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderOpenAI, caps, true, false, false)),
+	assert.True(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderAIAND, caps, true, false, false)),
 		"with the rollout off, the reasoning tool turn chat/completions rejects is still promoted")
-	assert.False(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderOpenAI, caps, false, false, false)),
+	assert.False(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderAIAND, caps, false, false, false)),
 		"with the rollout off, a toolless turn keeps the chat projection")
-	assert.False(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderFireworks, caps, true, false, true)))
-	assert.True(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderOpenAIGateway, caps, true, false, true)),
+	assert.False(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderAIAND, caps, true, false, true)))
+	assert.True(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderAIAND, caps, true, false, true)),
 		"BYOK gateways reject tools alongside an effort on chat/completions too")
-	assert.False(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderOpenAIGateway, caps, false, false, true)),
+	assert.False(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderAIAND, caps, false, false, true)),
 		"gateways stay narrow even under the broad rollout: most mount no Responses surface")
 }
 

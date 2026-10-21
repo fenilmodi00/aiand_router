@@ -43,7 +43,7 @@ func (s *authoritativeHandoverSummarizer) Summarize(
 }
 
 func (s *authoritativeHandoverSummarizer) Provider() string {
-	return providers.ProviderAnthropic
+	return providers.ProviderAIAND
 }
 
 func TestAuthoritativePolicySelectsEveryEligibleTurn(t *testing.T) {
@@ -100,7 +100,7 @@ func TestAuthoritativePolicySelectsEveryEligibleTurn(t *testing.T) {
 			store := newStubPinStore()
 			store.getFound = test.pinFound
 			store.getPin = sessionpin.Pin{
-				Provider:         providers.ProviderAnthropic,
+				Provider:         providers.ProviderAIAND,
 				Model:            "claude-opus-4-7",
 				Reason:           "cluster:v0.2",
 				TurnCount:        7,
@@ -111,7 +111,7 @@ func TestAuthoritativePolicySelectsEveryEligibleTurn(t *testing.T) {
 				HasEverSwitched:  true,
 			}
 			policyRouter := &authoritativeTestRouter{decision: router.Decision{
-				Provider: providers.ProviderAnthropic,
+				Provider: providers.ProviderAIAND,
 				Model:    "claude-opus-4-8",
 				Reason:   "authoritative-test_policy",
 			}}
@@ -124,7 +124,7 @@ func TestAuthoritativePolicySelectsEveryEligibleTurn(t *testing.T) {
 				nil,
 				store,
 				false,
-				providers.ProviderAnthropic,
+				providers.ProviderAIAND,
 				"claude-haiku-4-5",
 				nil,
 			).WithScoreToolResultTurns(false).
@@ -179,7 +179,7 @@ func TestAuthoritativePolicySelectsEveryEligibleTurn(t *testing.T) {
 			if test.pinFound {
 				assert.Equal(t, 7, turnContext.SessionTurnCount)
 				assert.Equal(t, "claude-opus-4-7", turnContext.PreviousServedModel)
-				assert.Equal(t, providers.ProviderAnthropic, turnContext.PreviousProvider)
+				assert.Equal(t, providers.ProviderAIAND, turnContext.PreviousProvider)
 				expectedCacheState := router.PolicyCacheStateWarm
 				if test.historyTruncated {
 					expectedCacheState = router.PolicyCacheStateCold
@@ -221,13 +221,13 @@ func TestAuthoritativePolicyPreservesExplicitForceModel(t *testing.T) {
 	store := newStubPinStore()
 	store.getFound = true
 	store.getPin = sessionpin.Pin{
-		Provider:    providers.ProviderAnthropic,
+		Provider:    providers.ProviderAIAND,
 		Model:       "claude-opus-4-7",
 		Reason:      translate.ReasonUserForceModel,
 		PinnedUntil: time.Now().Add(time.Hour),
 	}
 	policyRouter := &authoritativeTestRouter{decision: router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    "claude-opus-4-8",
 	}}
 	svc := NewService(
@@ -238,7 +238,7 @@ func TestAuthoritativePolicyPreservesExplicitForceModel(t *testing.T) {
 		nil,
 		store,
 		false,
-		providers.ProviderAnthropic,
+		providers.ProviderAIAND,
 		"claude-haiku-4-5",
 		nil,
 	).WithPolicyStrategy(policy.StrategySpec{
@@ -293,7 +293,7 @@ func TestAuthoritativeUpgradeConfidenceGate(t *testing.T) {
 			pinFound: true,
 			pinModel: "claude-haiku-4-5",
 			fresh: router.Decision{
-				Provider: providers.ProviderAnthropic,
+				Provider: providers.ProviderAIAND,
 				Model:    "claude-opus-4-8",
 				Reason:   "hmm_policy(tool-result communication reroute: classifier 'maximum' (p=0.180))",
 				Metadata: &router.RoutingMetadata{ChosenScore: 0.18},
@@ -307,7 +307,7 @@ func TestAuthoritativeUpgradeConfidenceGate(t *testing.T) {
 			pinFound: true,
 			pinModel: "claude-haiku-4-5",
 			fresh: router.Decision{
-				Provider: providers.ProviderAnthropic,
+				Provider: providers.ProviderAIAND,
 				Model:    "claude-opus-4-8",
 				Reason:   "hmm_policy(classifier 'maximum' (p=0.91))",
 				Metadata: &router.RoutingMetadata{ChosenScore: 0.91},
@@ -321,7 +321,7 @@ func TestAuthoritativeUpgradeConfidenceGate(t *testing.T) {
 			pinFound: true,
 			pinModel: "claude-opus-4-8",
 			fresh: router.Decision{
-				Provider: providers.ProviderAnthropic,
+				Provider: providers.ProviderAIAND,
 				Model:    "claude-haiku-4-5",
 				Reason:   "hmm_policy(classifier 'fast' (p=0.20))",
 				Metadata: &router.RoutingMetadata{ChosenScore: 0.20},
@@ -335,7 +335,7 @@ func TestAuthoritativeUpgradeConfidenceGate(t *testing.T) {
 			pinFound: true,
 			pinModel: "claude-haiku-4-5",
 			fresh: router.Decision{
-				Provider: providers.ProviderAnthropic,
+				Provider: providers.ProviderAIAND,
 				Model:    "claude-opus-4-8",
 				Reason:   "authoritative-test_policy",
 			},
@@ -347,7 +347,7 @@ func TestAuthoritativeUpgradeConfidenceGate(t *testing.T) {
 			name:     "first turn without pin serves fresh",
 			pinFound: false,
 			fresh: router.Decision{
-				Provider: providers.ProviderAnthropic,
+				Provider: providers.ProviderAIAND,
 				Model:    "claude-opus-4-8",
 				Reason:   "hmm_policy(classifier 'maximum' (p=0.18))",
 				Metadata: &router.RoutingMetadata{ChosenScore: 0.18},
@@ -362,7 +362,7 @@ func TestAuthoritativeUpgradeConfidenceGate(t *testing.T) {
 			pinFound: true,
 			pinModel: "claude-haiku-4-5",
 			fresh: router.Decision{
-				Provider: providers.ProviderAnthropic,
+				Provider: providers.ProviderAIAND,
 				Model:    "claude-opus-4-8",
 				Reason:   "hmm_policy(classifier 'maximum' (p=0.18))",
 				Metadata: &router.RoutingMetadata{ChosenScore: 0.18},
@@ -378,7 +378,7 @@ func TestAuthoritativeUpgradeConfidenceGate(t *testing.T) {
 			store := newStubPinStore()
 			store.getFound = test.pinFound
 			store.getPin = sessionpin.Pin{
-				Provider:    providers.ProviderAnthropic,
+				Provider:    providers.ProviderAIAND,
 				Model:       test.pinModel,
 				Reason:      "hmm_policy(classifier 'fast' (p=0.60))",
 				PinnedUntil: time.Now().Add(time.Hour),
@@ -392,7 +392,7 @@ func TestAuthoritativeUpgradeConfidenceGate(t *testing.T) {
 				nil,
 				store,
 				false,
-				providers.ProviderAnthropic,
+				providers.ProviderAIAND,
 				"claude-haiku-4-5",
 				nil,
 			).WithPolicyStrategy(policy.StrategySpec{

@@ -60,7 +60,7 @@ func ctxWithGatewayAliases(installationID string, models ...string) context.Cont
 	}
 	key := &auth.ExternalAPIKey{
 		InstallationID: installationID,
-		Provider:       providers.ProviderOpenAIGateway,
+		Provider:       providers.ProviderAIAND,
 		Plaintext:      []byte("gw-token"),
 		BaseURL:        "https://cortex.example.com/api/v2/cortex",
 		ModelAliases:   aliases,
@@ -94,9 +94,9 @@ func TestService_HardPin_TitleGen_GatewayModelNotFound_ExcludedOnLaterTurns(t *t
 
 	gateway := &aliasGateway{unserved: unservedAlias}
 	svc := proxy.NewService(
-		fr, map[string]providers.Client{providers.ProviderOpenAIGateway: gateway},
+		fr, map[string]providers.Client{providers.ProviderAIAND: gateway},
 		nil, false, nil, store, false,
-		providers.ProviderAnthropic, servedAlias,
+		providers.ProviderAIAND, servedAlias,
 		nil,
 	).WithByokOnly(true).WithExplicitUtilityHardPin(true).WithHardPinResolver(resolver)
 
@@ -133,14 +133,14 @@ func TestService_HardPin_TitleGen_GatewayModelNotFound_KeepsServedAliasesRoutabl
 		if _, excluded := req.ExcludedModels[servedAlias]; excluded {
 			return "", "", false
 		}
-		return providers.ProviderOpenAIGateway, servedAlias, true
+		return providers.ProviderAIAND, servedAlias, true
 	}
 
 	gateway := &aliasGateway{unserved: unservedAlias}
 	svc := proxy.NewService(
-		fr, map[string]providers.Client{providers.ProviderOpenAIGateway: gateway},
+		fr, map[string]providers.Client{providers.ProviderAIAND: gateway},
 		nil, false, nil, store, false,
-		providers.ProviderAnthropic, servedAlias,
+		providers.ProviderAIAND, servedAlias,
 		nil,
 	).WithByokOnly(true).WithExplicitUtilityHardPin(true).WithHardPinResolver(resolver)
 
@@ -165,17 +165,17 @@ func TestService_HardPin_TitleGen_VendorModelNotFound_DoesNotExcludeModel(t *tes
 	var seen []proxy.HardPinRequest
 	resolver := func(req proxy.HardPinRequest) (string, string, bool) {
 		seen = append(seen, req)
-		return providers.ProviderAnthropic, servedAlias, true
+		return providers.ProviderAIAND, servedAlias, true
 	}
 
 	vendor := &aliasGateway{unserved: servedAlias}
 	svc := proxy.NewService(
-		fr, map[string]providers.Client{providers.ProviderAnthropic: vendor},
+		fr, map[string]providers.Client{providers.ProviderAIAND: vendor},
 		nil, false, nil, store, false,
-		providers.ProviderAnthropic, servedAlias,
+		providers.ProviderAIAND, servedAlias,
 		nil,
 	).WithExplicitUtilityHardPin(true).WithHardPinResolver(resolver).
-		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAnthropic: {}})
+		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 
 	ctx := authedCtx(uuid.New().String())
 	for i := 0; i < 2; i++ {

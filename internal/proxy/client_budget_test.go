@@ -27,9 +27,9 @@ const (
 
 func TestClientBudgetServingAndPreviewUseOriginalVariantEachTurn(t *testing.T) {
 	provider := &fakeProvider{}
-	serving := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: budgetIngressModel}}
+	serving := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: budgetIngressModel}}
 	preview := &fakePreviewRouter{}
-	svc := proxy.NewService(serving, map[string]providers.Client{providers.ProviderAnthropic: provider}, nil, false, nil, nil, false, providers.ProviderAnthropic, budgetIngressModel, nil).
+	svc := proxy.NewService(serving, map[string]providers.Client{providers.ProviderAIAND: provider}, nil, false, nil, nil, false, providers.ProviderAIAND, budgetIngressModel, nil).
 		WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyHMM, Router: preview})
 	ctx := requestcontext.WithClientIdentity(context.Background(), proxy.ClientIdentity{SessionID: "session-a", ClientApp: proxy.ClientAppClaudeCode, UserAgent: budgetIngressUserAgent})
 
@@ -58,7 +58,7 @@ func TestClientBudgetServingAndPreviewUseOriginalVariantEachTurn(t *testing.T) {
 
 func TestClientCompactionGuidanceAndResumeReachProvider(t *testing.T) {
 	provider := &fakeProvider{}
-	svc := makeProxyService(router.Decision{Provider: providers.ProviderAnthropic, Model: budgetIngressModel}, map[string]providers.Client{providers.ProviderAnthropic: provider})
+	svc := makeProxyService(router.Decision{Provider: providers.ProviderAIAND, Model: budgetIngressModel}, map[string]providers.Client{providers.ProviderAIAND: provider})
 	ctx := requestcontext.WithClientIdentity(context.Background(), proxy.ClientIdentity{ClientApp: proxy.ClientAppClaudeCode, UserAgent: budgetIngressUserAgent})
 	for _, tt := range []struct {
 		name         string

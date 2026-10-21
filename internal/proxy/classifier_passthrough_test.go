@@ -34,14 +34,14 @@ const (
 // ctx anywhere in this file: classifier passthrough must not depend on it.
 func classifierPassthroughFixture(t *testing.T, obs *usage.Observer) (*proxy.Service, *fakeRouter, *fakeProvider, *fakePinStore) {
 	t.Helper()
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: classifierScorerPickMdl, Reason: "cluster:v0.2"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: classifierScorerPickMdl, Reason: "cluster:v0.2"}}
 	p := &fakeProvider{proxyResponse: func(w http.ResponseWriter) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"id":"msg_1","type":"message","role":"assistant","model":"` + classifierRequestedMdl + `","content":[{"type":"text","text":"<severity>0</severity>"}],"stop_reason":"end_turn","usage":{"input_tokens":1,"output_tokens":1}}`))
 	}}
 	store := newFakePinStore()
-	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAnthropic: p}, nil, false, nil, store, false, providers.ProviderAnthropic, classifierRequestedMdl, nil)
+	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: p}, nil, false, nil, store, false, providers.ProviderAIAND, classifierRequestedMdl, nil)
 	if obs != nil {
 		svc = svc.WithUsageObserver(obs)
 	}
@@ -127,7 +127,7 @@ func TestClassifier_ForceModel_OutranksPassthrough(t *testing.T) {
 	svc, fr, p, store := classifierPassthroughFixture(t, nil)
 	store.hasPin = true
 	store.pin = sessionpin.Pin{
-		Provider: providers.ProviderAnthropic, Model: classifierScorerPickMdl,
+		Provider: providers.ProviderAIAND, Model: classifierScorerPickMdl,
 		Reason: translate.ReasonUserForceModel, PinnedUntil: time.Now().Add(24 * time.Hour),
 	}
 	rec, req := classifierRequest()
@@ -145,7 +145,7 @@ func TestClassifier_ForceModel_OutranksPassthrough(t *testing.T) {
 // the scored turn serves on the deployment key when one exists.
 func TestClassifier_ExhaustedSubscription_ServesOnDeploymentKey(t *testing.T) {
 	svc, fr, p, store := classifierPassthroughFixture(t, exhaustedObserver())
-	svc = svc.WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAnthropic: {}})
+	svc = svc.WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 	rec, req := classifierRequest()
 
 	require.NoError(t, svc.ProxyMessages(classifierSubscriptionCtx(), []byte(classifierBody), rec, req))
@@ -193,7 +193,7 @@ func TestClassifier_PassthroughRetryable_FallsBackToRoutedDispatch_NoPin(t *test
 		},
 		Body: []byte(`{"type":"error","error":{"type":"rate_limit_error","message":"weekly limit exceeded"}}`),
 	}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: classifierScorerPickMdl, Reason: "cluster:v0.2"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: classifierScorerPickMdl, Reason: "cluster:v0.2"}}
 	inner := &fakeProvider{proxyResponse: func(w http.ResponseWriter) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -201,7 +201,7 @@ func TestClassifier_PassthroughRetryable_FallsBackToRoutedDispatch_NoPin(t *test
 	}}
 	upstream := &swapErrProvider{first: limit, second: nil, inner: inner}
 	store := newFakePinStore()
-	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAnthropic: upstream}, nil, false, nil, store, false, providers.ProviderAnthropic, classifierRequestedMdl, nil)
+	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: upstream}, nil, false, nil, store, false, providers.ProviderAIAND, classifierRequestedMdl, nil)
 	rec, req := classifierRequest()
 
 	require.NoError(t, svc.ProxyMessages(classifierSubscriptionCtx(), []byte(classifierBody), rec, req))

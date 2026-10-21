@@ -27,7 +27,7 @@ func TestConformance_OpenAIResponses(t *testing.T) {
 		{
 			// Full Responses-SSE -> Anthropic translation plus the load-bearing stream:true guard.
 			name:            "responses/toolcall_stream",
-			provider:        providers.ProviderOpenAI,
+			provider:        providers.ProviderAIAND,
 			model:           "gpt-5.5",
 			newClient:       openAIClient,
 			inbound:         `{"model":"gpt-5.5","stream":true,` + reasoningToolTurn + `}`,
@@ -44,7 +44,7 @@ func TestConformance_OpenAIResponses(t *testing.T) {
 			// Non-streaming client still streams UPSTREAM (#331) and gets a
 			// reconstructed one-shot Anthropic body.
 			name:            "responses/toolcall_nonstream_client",
-			provider:        providers.ProviderOpenAI,
+			provider:        providers.ProviderAIAND,
 			model:           "gpt-5.5",
 			newClient:       openAIClient,
 			inbound:         `{"model":"gpt-5.5","stream":false,` + reasoningToolTurn + `}`,
@@ -58,7 +58,7 @@ func TestConformance_OpenAIResponses(t *testing.T) {
 		{
 			// Translation must preserve a valid client-selected medium level.
 			name:            "responses/effort_medium_preserved",
-			provider:        providers.ProviderOpenAI,
+			provider:        providers.ProviderAIAND,
 			model:           "gpt-5.5",
 			newClient:       openAIClient,
 			inbound:         `{"model":"gpt-5.5","stream":true,"max_tokens":2048,"thinking":{"type":"enabled","budget_tokens":8192},"tools":` + weatherTool + `,"messages":[{"role":"user","content":"Weather in NYC?"}]}`,
@@ -72,7 +72,7 @@ func TestConformance_OpenAIResponses(t *testing.T) {
 			// Strictifiable schemas must go out strict:true, additionalProperties:false,
 			// all-required, optionals as null unions.
 			name:            "responses/strict_tools",
-			provider:        providers.ProviderOpenAI,
+			provider:        providers.ProviderAIAND,
 			model:           "gpt-5.5",
 			newClient:       openAIClient,
 			inbound:         `{"model":"gpt-5.5","stream":true,"max_tokens":2048,"thinking":{"type":"enabled","budget_tokens":24576},"tools":` + readTool + `,"messages":[{"role":"user","content":"Read a.go"}]}`,
@@ -98,7 +98,7 @@ func TestConformance_OpenAIResponses(t *testing.T) {
 			// toolcheck must repair a truncated function_call arguments payload
 			// (missing closing brace) before it reaches the client.
 			name:            "responses/invalid_toolcall",
-			provider:        providers.ProviderOpenAI,
+			provider:        providers.ProviderAIAND,
 			model:           "gpt-5.5",
 			newClient:       openAIClient,
 			inbound:         `{"model":"gpt-5.5","stream":true,"max_tokens":2048,"thinking":{"type":"enabled","budget_tokens":24576},"tools":` + readTool + `,"messages":[{"role":"user","content":"Read a.go"}]}`,

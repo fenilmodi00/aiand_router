@@ -75,7 +75,7 @@ func (f *bypassFakeProvider) Passthrough(context.Context, providers.PreparedRequ
 // not exercised here; only bypassToAnthropic is.
 func newBypassService(p providers.Client) *Service {
 	return &Service{
-		clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAnthropic: p}),
+		clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: p}),
 	}
 }
 
@@ -93,7 +93,7 @@ func TestUsageBypassDecision_CodexSubscriptionPreservesRequestedModel(t *testing
 	obs.Record(obs.Key([]byte(codexToken)), usage.Snapshot{
 		Primary: usage.Window{UsedPercent: 0.20, WindowMinutes: 300},
 	})
-	svc := &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAnthropic: &bypassFakeProvider{}, providers.ProviderOpenAI: &bypassFakeProvider{}}), usageObserver: obs}
+	svc := &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: &bypassFakeProvider{}, providers.ProviderAIAND: &bypassFakeProvider{}}), usageObserver: obs}
 	ctx := context.WithValue(context.Background(), OpenAISubscriptionContextKey{}, codexToken)
 	ctx = context.WithValue(ctx, OpenAIAccountIDContextKey{}, "account-1")
 	ctx = context.WithValue(ctx, InstallationUsageBypassContextKey{}, UsageBypassConfig{
@@ -104,13 +104,13 @@ func TestUsageBypassDecision_CodexSubscriptionPreservesRequestedModel(t *testing
 	decision, ok := svc.usageBypassDecision(ctx, http.Header{}, router.Request{
 		RequestedModel: "gpt-5.6-sol",
 		EnabledProviders: map[string]struct{}{
-			providers.ProviderOpenAI: {},
+			providers.ProviderAIAND: {},
 		},
 	}, nil, turntype.MainLoop)
 
 	require.True(t, ok)
 	assert.Equal(t, router.Decision{
-		Provider: providers.ProviderOpenAI,
+		Provider: providers.ProviderAIAND,
 		Model:    "gpt-5.6-sol",
 		Reason:   "usage_bypass",
 	}, decision)
@@ -130,13 +130,13 @@ func TestUsageBypassDecision_SessionDemotionBlocks_GlobalAutomaticExclusionDoesN
 	obs.Record(obs.Key([]byte(token)), usage.Snapshot{
 		Primary: usage.Window{UsedPercent: 0.20, WindowMinutes: 300},
 	})
-	svc := &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAnthropic: &bypassFakeProvider{}, providers.ProviderOpenAI: &bypassFakeProvider{}}), usageObserver: obs}
+	svc := &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: &bypassFakeProvider{}, providers.ProviderAIAND: &bypassFakeProvider{}}), usageObserver: obs}
 	ctx := context.WithValue(context.Background(), AnthropicSubscriptionContextKey{}, token)
 	ctx = context.WithValue(ctx, InstallationUsageBypassContextKey{}, UsageBypassConfig{
 		Enabled:   true,
 		Threshold: &threshold,
 	})
-	want := router.Decision{Provider: providers.ProviderAnthropic, Model: model, Reason: "usage_bypass"}
+	want := router.Decision{Provider: providers.ProviderAIAND, Model: model, Reason: "usage_bypass"}
 
 	cases := []struct {
 		name           string
@@ -188,21 +188,21 @@ func TestUsageBypassEngaged_SafetyExclusionBlocks_PolicyExclusionDoesNot(t *test
 			Threshold: &threshold,
 		})
 	}
-	enabled := map[string]struct{}{providers.ProviderAnthropic: {}}
+	enabled := map[string]struct{}{providers.ProviderAIAND: {}}
 
 	t.Run("installation excluded_models does not block bypass", func(t *testing.T) {
-		svc := &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAnthropic: &bypassFakeProvider{}, providers.ProviderOpenAI: &bypassFakeProvider{}}), usageObserver: newObs()}
+		svc := &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: &bypassFakeProvider{}, providers.ProviderAIAND: &bypassFakeProvider{}}), usageObserver: newObs()}
 		provider, ok := svc.usageBypassEngaged(baseCtx(), http.Header{}, router.Request{
 			RequestedModel:   model,
 			EnabledProviders: enabled,
 			ExcludedModels:   map[string]struct{}{model: {}},
 		})
 		assert.True(t, ok, "an installation-excluded model must still bypass under threshold")
-		assert.Equal(t, providers.ProviderAnthropic, provider)
+		assert.Equal(t, providers.ProviderAIAND, provider)
 	})
 
 	t.Run("safety exclusion blocks bypass", func(t *testing.T) {
-		svc := &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAnthropic: &bypassFakeProvider{}, providers.ProviderOpenAI: &bypassFakeProvider{}}), usageObserver: newObs()}
+		svc := &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: &bypassFakeProvider{}, providers.ProviderAIAND: &bypassFakeProvider{}}), usageObserver: newObs()}
 		_, ok := svc.usageBypassEngaged(baseCtx(), http.Header{}, router.Request{
 			RequestedModel:       model,
 			EnabledProviders:     enabled,
@@ -212,7 +212,7 @@ func TestUsageBypassEngaged_SafetyExclusionBlocks_PolicyExclusionDoesNot(t *test
 	})
 
 	t.Run("both excluded: safety exclusion still blocks", func(t *testing.T) {
-		svc := &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAnthropic: &bypassFakeProvider{}, providers.ProviderOpenAI: &bypassFakeProvider{}}), usageObserver: newObs()}
+		svc := &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: &bypassFakeProvider{}, providers.ProviderAIAND: &bypassFakeProvider{}}), usageObserver: newObs()}
 		_, ok := svc.usageBypassEngaged(baseCtx(), http.Header{}, router.Request{
 			RequestedModel:       model,
 			EnabledProviders:     enabled,
@@ -236,7 +236,7 @@ func TestUsageBypass_PreservesSwitchHistory(t *testing.T) {
 		LastServedModel: "claude-haiku-4-5",
 		HasEverSwitched: true,
 	}
-	svc := NewService(nil, map[string]providers.Client{providers.ProviderAnthropic: &bypassFakeProvider{}}, nil, false, nil, store, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil).
+	svc := NewService(nil, map[string]providers.Client{providers.ProviderAIAND: &bypassFakeProvider{}}, nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil).
 		WithUsageObserver(obs)
 	ctx := context.WithValue(context.Background(), AnthropicSubscriptionContextKey{}, token)
 	ctx = context.WithValue(ctx, InstallationUsageBypassContextKey{}, UsageBypassConfig{
@@ -249,7 +249,7 @@ func TestUsageBypass_PreservesSwitchHistory(t *testing.T) {
 	res, err := svc.runTurnLoop(ctx, env, feats, "api-key", uuid.New(), "", http.Header{}, router.Request{
 		RequestedModel: feats.Model,
 		EnabledProviders: map[string]struct{}{
-			providers.ProviderAnthropic: {},
+			providers.ProviderAIAND: {},
 		},
 	})
 
@@ -276,11 +276,11 @@ func TestUsageBypass_EngagesUnderAuthoritativePolicy(t *testing.T) {
 		Primary: usage.Window{UsedPercent: 0.20, WindowMinutes: 300},
 	})
 	policyRouter := &authoritativeTestRouter{decision: router.Decision{
-		Provider: providers.ProviderOpenAI,
+		Provider: providers.ProviderAIAND,
 		Model:    "gpt-5.6-luna",
 		Reason:   "authoritative-bypass-test_policy",
 	}}
-	svc := NewService(nil, map[string]providers.Client{providers.ProviderAnthropic: &bypassFakeProvider{}}, nil, false, nil, newStubPinStore(), false, providers.ProviderAnthropic, "claude-haiku-4-5", nil).
+	svc := NewService(nil, map[string]providers.Client{providers.ProviderAIAND: &bypassFakeProvider{}}, nil, false, nil, newStubPinStore(), false, providers.ProviderAIAND, "claude-haiku-4-5", nil).
 		WithUsageObserver(obs).
 		WithPolicyStrategy(policy.StrategySpec{
 			Strategy: strategy,
@@ -302,8 +302,8 @@ func TestUsageBypass_EngagesUnderAuthoritativePolicy(t *testing.T) {
 	res, err := svc.runTurnLoop(ctx, env, feats, "api-key", uuid.New(), "", http.Header{}, router.Request{
 		RequestedModel: feats.Model,
 		EnabledProviders: map[string]struct{}{
-			providers.ProviderAnthropic: {},
-			providers.ProviderOpenAI:    {},
+			providers.ProviderAIAND: {},
+			providers.ProviderAIAND:    {},
 		},
 	})
 
@@ -401,9 +401,9 @@ func TestBypass_NonStreamResponseIncludesCostHeaders(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, upstream.respBody, rec.Body.String())
 
-	pricing, ok := catalog.PriceFor(providers.ProviderAnthropic, feats.Model)
+	pricing, ok := catalog.PriceFor(providers.ProviderAIAND, feats.Model)
 	require.True(t, ok, "test model must have catalog pricing")
-	want := routerResponseCostFromPricing(pricing, providers.ProviderAnthropic, inputTokens, outputTokens, 0, 0, catalog.UsageModifiers{})
+	want := routerResponseCostFromPricing(pricing, providers.ProviderAIAND, inputTokens, outputTokens, 0, 0, catalog.UsageModifiers{})
 	assert.Equal(t, strconv.FormatFloat(want.TotalUSD, 'f', -1, 64), rec.Header().Get(HeaderRouterCostUSD))
 	assert.Equal(t, strconv.FormatFloat(want.InputUSD, 'f', -1, 64), rec.Header().Get(HeaderRouterCostInputUSD))
 	assert.Equal(t, strconv.FormatFloat(want.OutputUSD, 'f', -1, 64), rec.Header().Get(HeaderRouterCostOutputUSD))
@@ -471,7 +471,7 @@ func subscriptionCtx() context.Context {
 // subscription flips credential resolution onto the deployment key.
 func TestSubscriptionFailover_EligibilityAndSuppression(t *testing.T) {
 	// A request whose Anthropic credential resolves to the caller's subscription.
-	ctx := resolveAndInjectCredentials(subscriptionCtx(), providers.ProviderAnthropic, "claude-opus-4-8", http.Header{})
+	ctx := resolveAndInjectCredentials(subscriptionCtx(), providers.ProviderAIAND, "claude-opus-4-8", http.Header{})
 	require.True(t, servedOnSubscription(ctx), "a resolved subscription token must report servedOnSubscription")
 
 	t.Run("no fallback key: not eligible", func(t *testing.T) {
@@ -481,7 +481,7 @@ func TestSubscriptionFailover_EligibilityAndSuppression(t *testing.T) {
 	})
 
 	t.Run("deployment Anthropic key present: eligible", func(t *testing.T) {
-		s := &Service{deploymentKeyedProviders: map[string]struct{}{providers.ProviderAnthropic: {}}}
+		s := &Service{deploymentKeyedProviders: map[string]struct{}{providers.ProviderAIAND: {}}}
 		assert.True(t, s.anthropicFallbackKeyAvailable(ctx),
 			"a deployment Anthropic key is a valid failover target for a throttled subscription")
 	})
@@ -491,7 +491,7 @@ func TestSubscriptionFailover_EligibilityAndSuppression(t *testing.T) {
 		// subscription token — so the retry dispatches on the deployment key and
 		// servedOnSubscription reports false (billed at full cost, not sub rate).
 		suppressed := withSuppressedClaudeSubscription(subscriptionCtx())
-		suppressed = resolveAndInjectCredentials(suppressed, providers.ProviderAnthropic, "claude-opus-4-8", http.Header{})
+		suppressed = resolveAndInjectCredentials(suppressed, providers.ProviderAIAND, "claude-opus-4-8", http.Header{})
 		assert.False(t, servedOnSubscription(suppressed),
 			"a suppressed subscription must not resolve back as the served credential")
 	})
@@ -639,10 +639,10 @@ func TestBypass_EmitsUsageAndCost(t *testing.T) {
 	// No subscription credential here, but spanBool fatals if the attribute is absent — guards the emitted contract.
 	assert.False(t, spanBool(t, sp, "cost.subscription_served"))
 
-	pricing, ok := catalog.PriceFor(providers.ProviderAnthropic, model)
+	pricing, ok := catalog.PriceFor(providers.ProviderAIAND, model)
 	require.True(t, ok, "test model must have catalog pricing")
 	wantOut := catalog.EffectiveOutputCost(inputTokens, outputTokens, pricing, catalog.UsageModifiers{})
-	wantIn := catalog.EffectiveInputCost(inputTokens, 0, 0, pricing, providers.ProviderAnthropic, catalog.UsageModifiers{})
+	wantIn := catalog.EffectiveInputCost(inputTokens, 0, 0, pricing, providers.ProviderAIAND, catalog.UsageModifiers{})
 
 	// Bypass never substitutes the model, so requested == actual on the span;
 	// Weave zeroes actual downstream when subscription_served is set.

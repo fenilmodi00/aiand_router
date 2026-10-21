@@ -145,9 +145,9 @@ func TestUsageExtractor_BilledOutputIncludesReasoningExactlyOnce(t *testing.T) {
 		provider string
 		body     string
 	}{
-		"xai":                {providers.ProviderXAI, xaiChat},
-		"xai_via_openrouter": {providers.ProviderOpenRouter, openAIChat},
-		"openai":             {providers.ProviderOpenAI, openAIChat},
+		"xai":                {providers.ProviderAIAND, xaiChat},
+		"xai_via_openrouter": {providers.ProviderAIAND, openAIChat},
+		"openai":             {providers.ProviderAIAND, openAIChat},
 	} {
 		ext := otel.NewUsageExtractor(httptest.NewRecorder(), tc.provider)
 		_, err := ext.Write([]byte(tc.body))
@@ -162,12 +162,12 @@ func TestUsageExtractor_BilledOutputIncludesReasoningExactlyOnce(t *testing.T) {
 func TestUsageExtractor_RecordedXAIUsageIncludesReasoning(t *testing.T) {
 	// Cross-format turns record usage from the translator rather than sniffing
 	// the client-bound bytes; the xAI correction must apply on that path too.
-	ext := otel.NewUsageExtractor(nil, providers.ProviderXAI)
+	ext := otel.NewUsageExtractor(nil, providers.ProviderAIAND)
 	ext.RecordProviderUsage(usage.Facts{Present: true, Input: usage.Reported(663), Output: usage.Reported(50), Reasoning: usage.Reported(124)})
 	_, out := ext.Tokens()
 	assert.Equal(t, 174, out)
 
-	nonReasoning := otel.NewUsageExtractor(nil, providers.ProviderXAI)
+	nonReasoning := otel.NewUsageExtractor(nil, providers.ProviderAIAND)
 	nonReasoning.RecordProviderUsage(usage.Facts{Present: true, Input: usage.Reported(663), Output: usage.Reported(50)})
 	_, out = nonReasoning.Tokens()
 	assert.Equal(t, 50, out)
@@ -650,28 +650,28 @@ func TestUsageExtractor_OutputLimitEvidence(t *testing.T) {
 		output   int
 		wantCap  bool
 	}{
-		{"anthropic small cap", providers.ProviderAnthropic, "max_tokens", 128, true},
-		{"anthropic old cap", providers.ProviderAnthropic, "max_tokens", 8192, true},
-		{"anthropic large cap", providers.ProviderAnthropic, "max_tokens", 64000, true},
-		{"anthropic long tool handoff", providers.ProviderAnthropic, "tool_use", 32000, false},
-		{"anthropic long answer", providers.ProviderAnthropic, "end_turn", 32000, false},
-		{"anthropic missing terminal", providers.ProviderAnthropic, "", 16000, false},
-		{"anthropic gateway cap", providers.ProviderAnthropicGateway, "max_tokens", 512, true},
-		{"chat cap", providers.ProviderOpenAI, "length", 8192, true},
-		{"chat long tool handoff", providers.ProviderOpenAI, "tool_calls", 32000, false},
-		{"chat long answer", providers.ProviderOpenAI, "stop", 32000, false},
-		{"chat missing terminal", providers.ProviderOpenAI, "", 16000, false},
-		{"openrouter cap", providers.ProviderOpenRouter, "length", 512, true},
-		{"gemini cap", providers.ProviderGoogle, "MAX_TOKENS", 512, true},
-		{"gemini long answer", providers.ProviderGoogle, "STOP", 32000, false},
-		{"gemini missing terminal", providers.ProviderGoogle, "", 16000, false},
+		{"anthropic small cap", providers.ProviderAIAND, "max_tokens", 128, true},
+		{"anthropic old cap", providers.ProviderAIAND, "max_tokens", 8192, true},
+		{"anthropic large cap", providers.ProviderAIAND, "max_tokens", 64000, true},
+		{"anthropic long tool handoff", providers.ProviderAIAND, "tool_use", 32000, false},
+		{"anthropic long answer", providers.ProviderAIAND, "end_turn", 32000, false},
+		{"anthropic missing terminal", providers.ProviderAIAND, "", 16000, false},
+		{"anthropic gateway cap", providers.ProviderAIAND, "max_tokens", 512, true},
+		{"chat cap", providers.ProviderAIAND, "length", 8192, true},
+		{"chat long tool handoff", providers.ProviderAIAND, "tool_calls", 32000, false},
+		{"chat long answer", providers.ProviderAIAND, "stop", 32000, false},
+		{"chat missing terminal", providers.ProviderAIAND, "", 16000, false},
+		{"openrouter cap", providers.ProviderAIAND, "length", 512, true},
+		{"gemini cap", providers.ProviderAIAND, "MAX_TOKENS", 512, true},
+		{"gemini long answer", providers.ProviderAIAND, "STOP", 32000, false},
+		{"gemini missing terminal", providers.ProviderAIAND, "", 16000, false},
 	}
 	for _, tc := range tests {
 		for _, stream := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/stream=%t", tc.name, stream), func(t *testing.T) {
 				var body string
 				switch providers.FamilyFor(tc.provider) {
-				case providers.FamilyAnthropic:
+				case providers.FamilyOpenAICompat:
 					if stream {
 						body = fmt.Sprintf("event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":%q},\"usage\":{\"output_tokens\":%d}}\n\n", tc.reason, tc.output)
 					} else {
@@ -682,7 +682,7 @@ func TestUsageExtractor_OutputLimitEvidence(t *testing.T) {
 					if stream {
 						body = "data: " + body + "\n\ndata: [DONE]\n\n"
 					}
-				case providers.FamilyGemini:
+				case providers.FamilyOpenAICompat:
 					body = fmt.Sprintf(`{"candidates":[{"content":{"parts":[{"text":"answer"}]},"finishReason":%q}],"usageMetadata":{"promptTokenCount":100,"candidatesTokenCount":%d}}`, tc.reason, tc.output)
 					if stream {
 						body = "data: " + body + "\n\n"
@@ -704,14 +704,14 @@ func TestUsageExtractor_OutputLimitEvidence(t *testing.T) {
 }
 
 func TestUsageExtractor_OutputLimitIsAttemptScoped(t *testing.T) {
-	capped := otel.NewUsageExtractor(httptest.NewRecorder(), providers.ProviderOpenAI)
+	capped := otel.NewUsageExtractor(httptest.NewRecorder(), providers.ProviderAIAND)
 	_, err := capped.Write([]byte("data: {\"choices\":[{\"finish_reason\":\"length\"}]}\n\n"))
 	require.NoError(t, err)
 	_, err = capped.Write([]byte("data: {\"choices\":[],\"usage\":{\"completion_tokens\":128}}\n\n"))
 	require.NoError(t, err)
 	assert.True(t, capped.OutputLimitReached(), "usage-only tails cannot erase the terminal cap")
 
-	winner := otel.NewUsageExtractor(httptest.NewRecorder(), providers.ProviderOpenAI)
+	winner := otel.NewUsageExtractor(httptest.NewRecorder(), providers.ProviderAIAND)
 	_, err = winner.Write([]byte("data: {\"choices\":[{\"finish_reason\":\"tool_calls\"}],\"usage\":{\"completion_tokens\":32000}}\n\n"))
 	require.NoError(t, err)
 	assert.False(t, winner.OutputLimitReached(), "another attempt has independent terminal evidence")
@@ -821,7 +821,7 @@ func TestUsageExtractor_FragmentationMatchesSingleWrite(t *testing.T) {
 	}{
 		{
 			name:     "anthropic tool stream",
-			provider: providers.ProviderAnthropic,
+			provider: providers.ProviderAIAND,
 			body:     anthropicToolStream,
 			want: usageTotals{
 				signals: usageSignals{stopReason: "tool_use", toolUseBlocks: 2, anthropicObserved: true},
@@ -830,7 +830,7 @@ func TestUsageExtractor_FragmentationMatchesSingleWrite(t *testing.T) {
 		},
 		{
 			name:     "anthropic tool stream with crlf framing",
-			provider: providers.ProviderAnthropic,
+			provider: providers.ProviderAIAND,
 			body:     strings.ReplaceAll(anthropicToolStream, "\n", "\r\n"),
 			want: usageTotals{
 				signals: usageSignals{stopReason: "tool_use", toolUseBlocks: 2, anthropicObserved: true},
@@ -839,7 +839,7 @@ func TestUsageExtractor_FragmentationMatchesSingleWrite(t *testing.T) {
 		},
 		{
 			name:     "anthropic stream capped at max_tokens",
-			provider: providers.ProviderAnthropic,
+			provider: providers.ProviderAIAND,
 			body:     strings.Replace(anthropicToolStream, `"stop_reason":"tool_use"`, `"stop_reason":"max_tokens"`, 1),
 			want: usageTotals{
 				signals: usageSignals{outputLimitReached: true, stopReason: "max_tokens", toolUseBlocks: 2, anthropicObserved: true},
@@ -848,7 +848,7 @@ func TestUsageExtractor_FragmentationMatchesSingleWrite(t *testing.T) {
 		},
 		{
 			name:     "anthropic frame spanning many writes",
-			provider: providers.ProviderAnthropic,
+			provider: providers.ProviderAIAND,
 			body:     largeAnthropicStream,
 			want: usageTotals{
 				signals: usageSignals{stopReason: "tool_use", toolUseBlocks: 2, anthropicObserved: true},
@@ -857,7 +857,7 @@ func TestUsageExtractor_FragmentationMatchesSingleWrite(t *testing.T) {
 		},
 		{
 			name:     "anthropic non-streaming body",
-			provider: providers.ProviderAnthropic,
+			provider: providers.ProviderAIAND,
 			body: `{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"text","text":"ok"},{"type":"tool_use","id":"toolu_1","name":"Read","input":{"path":"a.go"}}],` +
 				`"stop_reason":"tool_use","usage":{"input_tokens":42,"output_tokens":17,"cache_creation_input_tokens":256,"cache_read_input_tokens":1024}}`,
 			want: usageTotals{
@@ -867,7 +867,7 @@ func TestUsageExtractor_FragmentationMatchesSingleWrite(t *testing.T) {
 		},
 		{
 			name:     "openai chat tool stream",
-			provider: providers.ProviderOpenAI,
+			provider: providers.ProviderAIAND,
 			body:     openAIChatToolStream,
 			want: usageTotals{
 				signals: usageSignals{finishReason: "tool_calls", toolCalls: 2, chatObserved: true},
@@ -876,7 +876,7 @@ func TestUsageExtractor_FragmentationMatchesSingleWrite(t *testing.T) {
 		},
 		{
 			name:     "openai chat stream capped at length",
-			provider: providers.ProviderOpenRouter,
+			provider: providers.ProviderAIAND,
 			body:     strings.Replace(openAIChatToolStream, `"finish_reason":"tool_calls"`, `"finish_reason":"length"`, 1),
 			want: usageTotals{
 				signals: usageSignals{outputLimitReached: true, finishReason: "length", toolCalls: 2, chatObserved: true},
@@ -885,7 +885,7 @@ func TestUsageExtractor_FragmentationMatchesSingleWrite(t *testing.T) {
 		},
 		{
 			name:     "openai chat non-streaming body",
-			provider: providers.ProviderOpenAI,
+			provider: providers.ProviderAIAND,
 			body: `{"id":"chatcmpl-1","object":"chat.completion","choices":[{"index":0,"finish_reason":"tool_calls",` +
 				`"message":{"role":"assistant","tool_calls":[{"id":"call_1","function":{"name":"read","arguments":"{}"}}]}}],` +
 				`"usage":{"prompt_tokens":15,"completion_tokens":8,"prompt_tokens_details":{"cached_tokens":4,"cache_write_tokens":2}}}`,
@@ -896,7 +896,7 @@ func TestUsageExtractor_FragmentationMatchesSingleWrite(t *testing.T) {
 		},
 		{
 			name:     "openai responses stream",
-			provider: providers.ProviderOpenAI,
+			provider: providers.ProviderAIAND,
 			body: "event: response.created\ndata: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_1\"}}\n\n" +
 				"event: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"delta\":\"hi\"}\n\n" +
 				"event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"usage\":{\"input_tokens\":120,\"output_tokens\":34,\"input_tokens_details\":{\"cached_tokens\":40}}}}\n\n",
@@ -904,7 +904,7 @@ func TestUsageExtractor_FragmentationMatchesSingleWrite(t *testing.T) {
 		},
 		{
 			name:     "gemini stream capped at MAX_TOKENS",
-			provider: providers.ProviderGoogle,
+			provider: providers.ProviderAIAND,
 			body: "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"partial\"}]}}]}\n\n" +
 				"data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\" answer\"}]},\"finishReason\":\"MAX_TOKENS\"}],\"usageMetadata\":{\"promptTokenCount\":1200,\"candidatesTokenCount\":4,\"thoughtsTokenCount\":6,\"cachedContentTokenCount\":1024}}\n\n",
 			want: usageTotals{
@@ -956,7 +956,7 @@ func TestUsageExtractor_JSONFallbackObservesUsageOnTheWriteThatCompletesIt(t *te
 	body := `{"id":"msg_1","type":"message","content":[{"type":"text","text":"ok"}],"stop_reason":"end_turn","usage":{"input_tokens":42,"output_tokens":17}}`
 	usageEnd := strings.Index(body, `"output_tokens":17}`) + len(`"output_tokens":17}`)
 
-	ext := otel.NewUsageExtractor(httptest.NewRecorder(), providers.ProviderAnthropic)
+	ext := otel.NewUsageExtractor(httptest.NewRecorder(), providers.ProviderAIAND)
 	writeChunks(t, ext, []string{body[:usageEnd]})
 	input, output := ext.Tokens()
 	assert.Equal(t, 42, input)

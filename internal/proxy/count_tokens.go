@@ -42,13 +42,13 @@ func (s *Service) countTokens(ctx context.Context, body []byte, w http.ResponseW
 		}
 		// Unparseable body: fall through so the client sees the same error it
 		// would get from a credential-less passthrough today.
-		return s.PassthroughToNamedProvider(ctx, providers.ProviderAnthropic, body, w, r)
+		return s.PassthroughToNamedProvider(ctx, providers.ProviderAIAND, body, w, r)
 	}
 
 	upstreamCtx, cancel := context.WithTimeout(ctx, countTokensUpstreamBudget)
 	defer cancel()
 	buf := &bufferedResponse{header: make(http.Header)}
-	upstreamErr := s.PassthroughToNamedProvider(upstreamCtx, providers.ProviderAnthropic, body, buf, r)
+	upstreamErr := s.PassthroughToNamedProvider(upstreamCtx, providers.ProviderAIAND, body, buf, r)
 
 	if !countTokensShouldFallBack(upstreamErr, buf) {
 		return buf.replay(w, upstreamErr)

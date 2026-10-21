@@ -112,13 +112,13 @@ func buildPolicyDeadlineFallbackService(
 	t.Helper()
 	return NewService(
 		nil,
-		map[string]providers.Client{providers.ProviderAnthropic: nil},
+		map[string]providers.Client{providers.ProviderAIAND: nil},
 		nil,
 		false,
 		nil,
 		store,
 		false,
-		providers.ProviderAnthropic,
+		providers.ProviderAIAND,
 		"claude-haiku-4-5",
 		nil,
 	).WithPolicyDeadlineFallback(fallbackEnabled).
@@ -167,7 +167,7 @@ func runPolicyDeadlineFallbackTurnLoop(
 func TestTurnLoop_DeadlineFallbackToPin(t *testing.T) {
 	strategy := router.Strategy("policy-deadline-fallback-pin-test")
 	const pinnedModel = "claude-sonnet-4-6"
-	const pinnedProvider = providers.ProviderAnthropic
+	const pinnedProvider = providers.ProviderAIAND
 
 	store := newStubPinStore()
 	store.getFound = true
@@ -241,7 +241,7 @@ func TestTurnLoop_DeadlineFallbackToTierThreeDefault(t *testing.T) {
 
 	require.NoError(t, err, "a policy deadline miss with a configured tier-3 default must serve, not error")
 	assert.Equal(t, defaultModel, result.Decision.Model)
-	assert.Equal(t, providers.ProviderAnthropic, result.Decision.Provider)
+	assert.Equal(t, providers.ProviderAIAND, result.Decision.Provider)
 	assert.Equal(t, policyDeadlineDefaultReason, result.Decision.Reason)
 	assert.False(t, result.StickyHit, "the tier-3 default is a fresh pin, not a sticky reuse")
 	assert.True(t, result.PolicyFallback)
@@ -279,7 +279,7 @@ func TestTurnLoop_DeadlineFallbackKillSwitchOff(t *testing.T) {
 	store := newStubPinStore()
 	store.getFound = true
 	store.getPin = sessionpin.Pin{
-		Provider:        providers.ProviderAnthropic,
+		Provider:        providers.ProviderAIAND,
 		Model:           pinnedModel,
 		Reason:          "hmm_policy(classifier 'mid' (p=0.55))",
 		PolicyGroup:     "mid",
@@ -305,7 +305,7 @@ func TestTurnLoop_DeadlineFallbackContractViolationStillFailsClosed(t *testing.T
 	store := newStubPinStore()
 	store.getFound = true
 	store.getPin = sessionpin.Pin{
-		Provider:        providers.ProviderAnthropic,
+		Provider:        providers.ProviderAIAND,
 		Model:           pinnedModel,
 		Reason:          "hmm_policy(classifier 'mid' (p=0.55))",
 		PolicyGroup:     "mid",

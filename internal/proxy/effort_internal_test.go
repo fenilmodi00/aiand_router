@@ -13,7 +13,7 @@ import (
 
 func TestResolveEffort_SourcesAndClamping(t *testing.T) {
 	svc := NewService(nil, nil, nil, false, nil, nil, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil).WithEffortEscalation(true)
+		providers.ProviderAIAND, "claude-haiku-4-5", nil).WithEffortEscalation(true)
 
 	for _, tc := range []struct {
 		name         string
@@ -147,13 +147,13 @@ func TestEffortResolution_Apply(t *testing.T) {
 // would report an identity the sibling never served.
 func TestRescueDecisionFor_DropsEffort(t *testing.T) {
 	failed := router.Decision{
-		Provider: providers.ProviderOpenAI,
+		Provider: providers.ProviderAIAND,
 		Model:    "gpt-5.6-luna",
 		Effort:   "xhigh",
 		Metadata: &router.RoutingMetadata{SelectedArmID: "gpt-5.6-luna:xhigh"},
 	}
 
-	out := rescueDecisionFor(failed, "gpt-5.6-sol", providers.ProviderOpenAI, ReasonSiblingFailover)
+	out := rescueDecisionFor(failed, "gpt-5.6-sol", providers.ProviderAIAND, ReasonSiblingFailover)
 
 	assert.Empty(t, out.Effort)
 	assert.Equal(t, "gpt-5.6-sol", out.ServedIdentity())

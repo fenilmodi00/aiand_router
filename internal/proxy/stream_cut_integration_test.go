@@ -53,8 +53,8 @@ func TestProxyMessages_CommittedStreamCutLogsDiagnostics(t *testing.T) {
 		},
 	}
 	svc := makeProxyService(
-		router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-opus-4-8", Reason: "test"},
-		map[string]providers.Client{providers.ProviderAnthropic: provider},
+		router.Decision{Provider: providers.ProviderAIAND, Model: "claude-opus-4-8", Reason: "test"},
+		map[string]providers.Client{providers.ProviderAIAND: provider},
 	)
 
 	rec := httptest.NewRecorder()
@@ -97,8 +97,8 @@ func TestProxyMessages_ThinkingOnlyIdleCutReportsNoFinalBlocks(t *testing.T) {
 		},
 	}
 	svc := makeProxyService(
-		router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-opus-4-8", Reason: "test"},
-		map[string]providers.Client{providers.ProviderAnthropic: provider},
+		router.Decision{Provider: providers.ProviderAIAND, Model: "claude-opus-4-8", Reason: "test"},
+		map[string]providers.Client{providers.ProviderAIAND: provider},
 	)
 
 	rec := httptest.NewRecorder()
@@ -138,8 +138,8 @@ func TestProxyMessages_ClientCancelClassifiedSeparately(t *testing.T) {
 		},
 	}
 	svc := makeProxyService(
-		router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-opus-4-8", Reason: "test"},
-		map[string]providers.Client{providers.ProviderAnthropic: provider},
+		router.Decision{Provider: providers.ProviderAIAND, Model: "claude-opus-4-8", Reason: "test"},
+		map[string]providers.Client{providers.ProviderAIAND: provider},
 	)
 
 	rec := httptest.NewRecorder()
@@ -164,8 +164,8 @@ func TestProxyMessages_CleanStreamLogsNoStreamCutFields(t *testing.T) {
 		_, _ = io.WriteString(w, "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n")
 	}}
 	svc := makeProxyService(
-		router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-opus-4-8", Reason: "test"},
-		map[string]providers.Client{providers.ProviderAnthropic: provider},
+		router.Decision{Provider: providers.ProviderAIAND, Model: "claude-opus-4-8", Reason: "test"},
+		map[string]providers.Client{providers.ProviderAIAND: provider},
 	)
 
 	rec := httptest.NewRecorder()
@@ -189,8 +189,8 @@ func TestProxyMessages_TranslatedPathStreamCutLogsDiagnostics(t *testing.T) {
 		},
 	}
 	svc := makeProxyService(
-		router.Decision{Provider: providers.ProviderOpenAI, Model: "gpt-5.6-luna", Reason: "test"},
-		map[string]providers.Client{providers.ProviderOpenAI: provider},
+		router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-5.6-luna", Reason: "test"},
+		map[string]providers.Client{providers.ProviderAIAND: provider},
 	)
 
 	rec := httptest.NewRecorder()

@@ -82,7 +82,7 @@ type parityIngress struct {
 func parityAnthropicIngress() parityIngress {
 	return parityIngress{
 		name:           "anthropic",
-		provider:       providers.ProviderAnthropic,
+		provider:       providers.ProviderAIAND,
 		model:          parityAnthropicModel,
 		uncoveredModel: "claude-haiku-4-5",
 		token:          parityAnthropicToken,
@@ -123,7 +123,7 @@ func parityAnthropicIngress() parityIngress {
 func parityCodexIngress() parityIngress {
 	return parityIngress{
 		name:           "codex",
-		provider:       providers.ProviderOpenAI,
+		provider:       providers.ProviderAIAND,
 		model:          parityCodexModel,
 		uncoveredModel: parityUncoveredOpenAI,
 		token:          parityCodexToken,
@@ -225,7 +225,7 @@ func TestSubscriptionFailoverParity_Eligibility(t *testing.T) {
 			})
 
 			t.Run("another provider's key is not a fallback", func(t *testing.T) {
-				other := providers.ProviderOpenRouter
+				other := providers.ProviderAIAND
 				svc := &Service{deploymentKeyedProviders: map[string]struct{}{other: {}}}
 				assert.False(t, in.fallbackAvailable(svc, in.subCtx()),
 					"the fallback probe is provider-scoped; a key for another provider cannot serve this turn")
@@ -251,7 +251,7 @@ func TestSubscriptionFailoverParity_SubscriptionShape(t *testing.T) {
 	t.Run("codex: OAuth without an account id is not Codex-served", func(t *testing.T) {
 		ctx := context.WithValue(context.Background(), InstallationIDContextKey{}, parityInstallationID)
 		ctx = context.WithValue(ctx, AnthropicSubscriptionContextKey{}, parityAnthropicToken)
-		ctx = resolveAndInjectCredentials(ctx, providers.ProviderAnthropic, parityAnthropicModel, http.Header{})
+		ctx = resolveAndInjectCredentials(ctx, providers.ProviderAIAND, parityAnthropicModel, http.Header{})
 		assert.True(t, servedOnSubscription(ctx))
 		assert.False(t, servedOnCodexSubscription(ctx),
 			"an OAuth credential with no ChatGPT account id must not gate the Codex rescue (D1)")
@@ -373,10 +373,10 @@ func TestSubscriptionFailoverParity_SuppressionIsProviderScoped(t *testing.T) {
 		assert.True(t, claudeSubscriptionSuppressed(ctx))
 		assert.False(t, codexSubscriptionSuppressed(ctx))
 
-		anthropic := resolveAndInjectCredentials(ctx, providers.ProviderAnthropic, parityAnthropicModel, http.Header{})
+		anthropic := resolveAndInjectCredentials(ctx, providers.ProviderAIAND, parityAnthropicModel, http.Header{})
 		assert.Nil(t, CredentialsFromContext(anthropic), "the suppressed Claude subscription must not resolve")
 
-		codex := resolveAndInjectCredentials(ctx, providers.ProviderOpenAI, parityCodexModel, http.Header{})
+		codex := resolveAndInjectCredentials(ctx, providers.ProviderAIAND, parityCodexModel, http.Header{})
 		creds := CredentialsFromContext(codex)
 		require.NotNil(t, creds, "the untouched Codex subscription must still resolve")
 		assert.True(t, servedOnCodexSubscription(codex))
@@ -387,10 +387,10 @@ func TestSubscriptionFailoverParity_SuppressionIsProviderScoped(t *testing.T) {
 		assert.True(t, codexSubscriptionSuppressed(ctx))
 		assert.False(t, claudeSubscriptionSuppressed(ctx))
 
-		codex := resolveAndInjectCredentials(ctx, providers.ProviderOpenAI, parityCodexModel, http.Header{})
+		codex := resolveAndInjectCredentials(ctx, providers.ProviderAIAND, parityCodexModel, http.Header{})
 		assert.Nil(t, CredentialsFromContext(codex), "the suppressed Codex subscription must not resolve")
 
-		anthropic := resolveAndInjectCredentials(ctx, providers.ProviderAnthropic, parityAnthropicModel, http.Header{})
+		anthropic := resolveAndInjectCredentials(ctx, providers.ProviderAIAND, parityAnthropicModel, http.Header{})
 		creds := CredentialsFromContext(anthropic)
 		require.NotNil(t, creds, "the untouched Claude subscription must still resolve")
 		assert.True(t, servedOnSubscription(anthropic))
@@ -620,7 +620,7 @@ func (in parityIngress) quotaFailureUpstream(paidErr error, stream bool) *parity
 		subErr:  upstreamErr(http.StatusTooManyRequests, `{"error":{"type":"usage_limit_reached"}}`),
 		paidErr: paidErr, okBody: in.upstreamOK(stream),
 	}
-	if in.provider == providers.ProviderAnthropic {
+	if in.provider == providers.ProviderAIAND {
 		upstream.subErr = upstreamErr(http.StatusTooManyRequests, `{"error":{"type":"rate_limit_error"}}`)
 		upstream.subHeaders = make(http.Header)
 		upstream.subHeaders.Set("anthropic-ratelimit-unified-5h-utilization", "1")

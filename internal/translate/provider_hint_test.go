@@ -185,10 +185,10 @@ func TestPrepareOpenAI_AnthropicSource_SkipsHintsForNonOpenRouterProvider(t *tes
 		target   string
 		provider string
 	}{
-		{"fireworks dispatches deepseek", "deepseek/deepseek-v4-pro", providers.ProviderFireworks},
-		{"makora dispatches deepseek", "deepseek/deepseek-v4-flash", providers.ProviderMakora},
-		{"bedrock dispatches moonshotai", "moonshotai/kimi-k2.5", providers.ProviderBedrock},
-		{"bedrock dispatches qwen", "qwen/qwen3-coder-next", providers.ProviderBedrock},
+		{"fireworks dispatches deepseek", "deepseek/deepseek-v4-pro", providers.ProviderAIAND},
+		{"makora dispatches deepseek", "deepseek/deepseek-v4-flash", providers.ProviderAIAND},
+		{"bedrock dispatches moonshotai", "moonshotai/kimi-k2.5", providers.ProviderAIAND},
+		{"bedrock dispatches qwen", "qwen/qwen3-coder-next", providers.ProviderAIAND},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -216,7 +216,7 @@ func TestPrepareOpenAI_OpenAISource_SkipsHintsForNonOpenRouterProvider(t *testin
 
 	out, err := env.PrepareOpenAI(nil, translate.EmitOptions{
 		TargetModel:    "deepseek/deepseek-v4-pro",
-		TargetProvider: providers.ProviderFireworks,
+		TargetProvider: providers.ProviderAIAND,
 	})
 	require.NoError(t, err)
 
@@ -231,7 +231,7 @@ func TestPrepareOpenAI_ExplicitOpenRouterProviderStillGetsHints(t *testing.T) {
 
 	out, err := env.PrepareOpenAI(nil, translate.EmitOptions{
 		TargetModel:    "deepseek/deepseek-v4-pro",
-		TargetProvider: providers.ProviderOpenRouter,
+		TargetProvider: providers.ProviderAIAND,
 	})
 	require.NoError(t, err)
 

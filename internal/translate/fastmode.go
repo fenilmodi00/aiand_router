@@ -3,7 +3,6 @@ package translate
 import (
 	"fmt"
 
-	"weave-os/router/internal/providers"
 
 	"github.com/tidwall/sjson"
 )
@@ -15,11 +14,10 @@ const fastModeBeta = "fast-mode-2026-02-01"
 // and Responses.
 const openAIPriorityServiceTier = "priority"
 
-// ApplyOpenAIFastMode sets service_tier:"priority" on a body bound for
-// first-party OpenAI when opts.FastMode is on. Gateways relay whatever tier
-// their own account is on and may reject the field, so they are left alone.
+// ApplyOpenAIFastMode sets service_tier:"priority" on a body when opts.FastMode
+// is on. The single upstream accepts the field, so it is always sent.
 func ApplyOpenAIFastMode(body []byte, opts EmitOptions) ([]byte, error) {
-	if !opts.FastMode || opts.TargetProvider != providers.ProviderOpenAI {
+	if !opts.FastMode {
 		return body, nil
 	}
 	out, err := sjson.SetBytes(body, "service_tier", openAIPriorityServiceTier)
@@ -29,11 +27,11 @@ func ApplyOpenAIFastMode(body []byte, opts EmitOptions) ([]byte, error) {
 	return out, nil
 }
 
-// applyAnthropicFastMode sets speed:"fast" on a body bound for first-party
-// Anthropic when opts.FastMode is on; deriveAnthropicHeaders adds the beta
-// token whenever the field is present.
+// applyAnthropicFastMode sets speed:"fast" on a body bound for an
+// Anthropic-format upstream; deriveAnthropicHeaders adds the beta token
+// whenever the field is present.
 func applyAnthropicFastMode(body []byte, opts EmitOptions) ([]byte, error) {
-	if !opts.FastMode || opts.TargetProvider != providers.ProviderAnthropic {
+	if !opts.FastMode {
 		return body, nil
 	}
 	out, err := sjson.SetBytes(body, "speed", "fast")

@@ -5,50 +5,23 @@ package armid
 import (
 	"strings"
 
-	"weave-os/router/internal/providers"
 	"weave-os/router/internal/router"
 	"weave-os/router/internal/router/catalog"
 )
 
 var rosterAliases = map[string]string{
-	"claude-sonnet-4-6":    "anthropic/claude-sonnet-4.6",
-	"claude-haiku-4-5":     "anthropic/claude-haiku-4.5",
-	"claude-haiku-5-5":     "anthropic/claude-haiku-5.5",
-	"claude-sonnet-5":      "anthropic/claude-sonnet-5",
-	"claude-opus-4-8":      "anthropic/claude-opus-4.8",
-	"claude-fable-5":       "anthropic/claude-fable-5",
-	"claude-fable-5-1":     "anthropic/claude-fable-5.1",
-	"claude-opus-5-5":      "anthropic/claude-opus-5.5",
-	"claude-sonnet-5-5":    "anthropic/claude-sonnet-5.5",
+	// The policy roster knows Kimi K2.7 under its "-code" build name.
 	"moonshotai/kimi-k2.7": "moonshotai/kimi-k2.7-code",
-	// Bare first-party xAI IDs have no provider prefix to inherit, and the
-	// switch below deliberately stays empty for them (a bare ID whose primary
-	// provider is a hosting platform would be ambiguous). An explicit alias is
-	// what makes an xAI-native model roster-addressable.
-	"grok-4.5": "x-ai/grok-4.5",
-	"grok-4.6": "x-ai/grok-4.6",
-	"grok-4.7": "x-ai/grok-4.7",
-	// Same for Meta's first-party Muse Spark.
-	"muse-spark-1.3": "meta/muse-spark-1.3",
 }
 
 // ForModel maps a compiled catalog model to its canonical roster identity.
+// Every surviving catalog model is slash-form, so the ID is its own roster
+// identity apart from the explicit aliases above.
 func ForModel(m catalog.Model) string {
 	if alias, ok := rosterAliases[m.ID]; ok {
 		return alias
 	}
-	if strings.Contains(m.ID, "/") {
-		return m.ID
-	}
-	switch m.PrimaryProvider() {
-	case providers.ProviderAnthropic:
-		return "anthropic/" + m.ID
-	case providers.ProviderOpenAI:
-		return "openai/" + m.ID
-	case providers.ProviderGoogle:
-		return "google/" + m.ID
-	}
-	return ""
+	return m.ID
 }
 
 // SplitEffort splits a roster arm ID of the form "model:effort" into its base model and canonical effort level; bare arms return (armID, "").

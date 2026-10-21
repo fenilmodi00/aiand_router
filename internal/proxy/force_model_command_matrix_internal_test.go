@@ -40,7 +40,7 @@ func TestForceModelCommand_TypedForms(t *testing.T) {
 		t.Run(tt.typed, func(t *testing.T) {
 			store := &recordingPinStore{}
 			svc := NewService(nil, nil, nil, false, nil, store, false,
-				providers.ProviderAnthropic, "claude-haiku-4-5", nil)
+				providers.ProviderAIAND, "claude-haiku-4-5", nil)
 			env := typedCommandEnv(t, tt.typed+"\nfix the failing test")
 			cmd, found := env.ExtractForceModelCommand()
 			require.True(t, found, "command parsed")
@@ -64,7 +64,7 @@ func TestForceModelCommand_TypedUnknownKeepsRouting(t *testing.T) {
 		t.Run(typed, func(t *testing.T) {
 			store := &recordingPinStore{}
 			svc := NewService(nil, nil, nil, false, nil, store, false,
-				providers.ProviderAnthropic, "claude-haiku-4-5", nil)
+				providers.ProviderAIAND, "claude-haiku-4-5", nil)
 			env := typedCommandEnv(t, typed)
 			cmd, found := env.ExtractForceModelCommand()
 			require.True(t, found, "command parsed")
@@ -82,7 +82,7 @@ func TestForceModelCommand_TypedUnknownKeepsRouting(t *testing.T) {
 func TestForceModelCommand_TypoSuggestsWithoutPinning(t *testing.T) {
 	store := &recordingPinStore{}
 	svc := NewService(nil, nil, nil, false, nil, store, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil)
+		providers.ProviderAIAND, "claude-haiku-4-5", nil)
 	env := typedCommandEnv(t, "/fm opsu")
 	cmd, found := env.ExtractForceModelCommand()
 	require.True(t, found, "command parsed")

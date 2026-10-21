@@ -50,7 +50,7 @@ func TestHTTPRouterEndToEndWithSidecar(t *testing.T) {
 
 	r := New(
 		policyclient.New(server.URL, server.Client(), 0),
-		map[string]struct{}{providers.ProviderFireworks: {}},
+		map[string]struct{}{providers.ProviderAIAND: {}},
 	)
 	decision, err := r.Route(context.Background(), router.Request{
 		PromptText:           "please inspect the router source",
@@ -63,7 +63,7 @@ func TestHTTPRouterEndToEndWithSidecar(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, decision.Metadata)
 	assert.Equal(t, "moonshotai/kimi-k2.7", decision.Model)
-	assert.Equal(t, providers.ProviderFireworks, decision.Provider)
+	assert.Equal(t, providers.ProviderAIAND, decision.Provider)
 	assert.Equal(t, "hmm", decision.Metadata.Strategy)
 	assert.Equal(t, float32(0.5), decision.Metadata.Propensity)
 	assert.Contains(t, decision.Metadata.DisplayMarker, "delegated_work")

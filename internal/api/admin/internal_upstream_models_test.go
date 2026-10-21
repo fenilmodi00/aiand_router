@@ -35,14 +35,14 @@ func TestInternalListUpstreamModelsHandler_ListsWithMintedCredential(t *testing.
 	key := &auth.ExternalAPIKey{
 		ID:             "ext-1",
 		InstallationID: testInstallationID,
-		Provider:       providers.ProviderOpenAIGateway,
+		Provider:       providers.ProviderAIAND,
 		Plaintext:      []byte("sk-byok"),
 		BaseURL:        "https://cortex.example/api/v2/cortex/v1",
 	}
 	lister := &modelListingClient{models: []string{"claude-fable-5"}}
 	engine := internalUpstreamModelsEngine(
 		upstreamModelsAuthService([]*auth.ExternalAPIKey{key}),
-		upstreamModelsProxyService(map[string]providers.Client{providers.ProviderOpenAIGateway: lister}),
+		upstreamModelsProxyService(map[string]providers.Client{providers.ProviderAIAND: lister}),
 	)
 
 	rec := httptest.NewRecorder()
@@ -62,13 +62,13 @@ func TestInternalListUpstreamModelsHandler_UnmintableCredentialIs502(t *testing.
 	key := &auth.ExternalAPIKey{
 		ID:             "ext-1",
 		InstallationID: testInstallationID,
-		Provider:       providers.ProviderOpenAIGateway,
+		Provider:       providers.ProviderAIAND,
 		AuthType:       auth.AuthTypeWIF,
 		BaseURL:        "https://cortex.example/api/v2/cortex/v1",
 	}
 	engine := internalUpstreamModelsEngine(
 		upstreamModelsAuthService([]*auth.ExternalAPIKey{key}),
-		upstreamModelsProxyService(map[string]providers.Client{providers.ProviderOpenAIGateway: &modelListingClient{}}),
+		upstreamModelsProxyService(map[string]providers.Client{providers.ProviderAIAND: &modelListingClient{}}),
 	)
 
 	rec := httptest.NewRecorder()
@@ -81,12 +81,12 @@ func TestInternalListUpstreamModelsHandler_KeyOfAnotherInstallationIs404(t *test
 	key := &auth.ExternalAPIKey{
 		ID:             "ext-1",
 		InstallationID: testInstallationID,
-		Provider:       providers.ProviderOpenAIGateway,
+		Provider:       providers.ProviderAIAND,
 		BaseURL:        "https://cortex.example/api/v2/cortex/v1",
 	}
 	engine := internalUpstreamModelsEngine(
 		upstreamModelsAuthService([]*auth.ExternalAPIKey{key}),
-		upstreamModelsProxyService(map[string]providers.Client{providers.ProviderOpenAIGateway: &modelListingClient{}}),
+		upstreamModelsProxyService(map[string]providers.Client{providers.ProviderAIAND: &modelListingClient{}}),
 	)
 
 	rec := httptest.NewRecorder()

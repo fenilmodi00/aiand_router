@@ -61,7 +61,7 @@ func (f *fakeClient) Passthrough(context.Context, providers.PreparedRequest, htt
 func newServiceWithProviders(t *testing.T, providerMap map[string]providers.Client) *Service {
 	t.Helper()
 	if providerMap == nil {
-		providerMap = map[string]providers.Client{providers.ProviderOpenAI: &fakeClient{}, providers.ProviderAnthropic: &fakeClient{}}
+		providerMap = map[string]providers.Client{providers.ProviderAIAND: &fakeClient{}, providers.ProviderAIAND: &fakeClient{}}
 	}
 	s := &Service{clients: dispatch.NewClients(providerMap)}
 	return s
@@ -316,8 +316,8 @@ func TestDispatchWithFallback_RetriesOnResponseHeaderTimeout(t *testing.T) {
 	}
 
 	s := newServiceWithProviders(t, map[string]providers.Client{
-		providers.ProviderMakora:     primary,
-		providers.ProviderOpenRouter: fallback,
+		providers.ProviderAIAND:     primary,
+		providers.ProviderAIAND: fallback,
 	})
 
 	rec := httptest.NewRecorder()
@@ -330,8 +330,8 @@ func TestDispatchWithFallback_RetriesOnResponseHeaderTimeout(t *testing.T) {
 		initialDecision: router.Decision{Model: "deepseek/deepseek-v4-flash"},
 		purpose:         inference.PurposeAnthropicMessages,
 		bindings: []catalog.ProviderBinding{
-			{Provider: providers.ProviderMakora},
-			{Provider: providers.ProviderOpenRouter},
+			{Provider: providers.ProviderAIAND},
+			{Provider: providers.ProviderAIAND},
 		},
 		attempt: func(ctx context.Context, d router.Decision, p providers.Client) error {
 			buf.Seal()
@@ -344,7 +344,7 @@ func TestDispatchWithFallback_RetriesOnResponseHeaderTimeout(t *testing.T) {
 	assert.Equal(t, 1, primary.calls)
 	assert.Equal(t, 1, fallback.calls)
 	assert.Equal(t, "rescued", rec.Body.String())
-	assert.Equal(t, providers.ProviderMakora, rec.Header().Get(HeaderRouterFallbackFrom))
+	assert.Equal(t, providers.ProviderAIAND, rec.Header().Get(HeaderRouterFallbackFrom))
 }
 
 // Covers the mid-stream stall watchdog (prod incident 2026-06-09: streams
@@ -361,8 +361,8 @@ func TestDispatchWithFallback_RetriesOnUpstreamIdleTimeout(t *testing.T) {
 	}
 
 	s := newServiceWithProviders(t, map[string]providers.Client{
-		providers.ProviderOpenAI:     primary,
-		providers.ProviderOpenRouter: fallback,
+		providers.ProviderAIAND:     primary,
+		providers.ProviderAIAND: fallback,
 	})
 
 	rec := httptest.NewRecorder()
@@ -375,8 +375,8 @@ func TestDispatchWithFallback_RetriesOnUpstreamIdleTimeout(t *testing.T) {
 		initialDecision: router.Decision{Model: "gpt-5.5"},
 		purpose:         inference.PurposeAnthropicMessages,
 		bindings: []catalog.ProviderBinding{
-			{Provider: providers.ProviderOpenAI},
-			{Provider: providers.ProviderOpenRouter},
+			{Provider: providers.ProviderAIAND},
+			{Provider: providers.ProviderAIAND},
 		},
 		attempt: func(ctx context.Context, d router.Decision, p providers.Client) error {
 			buf.Seal()
@@ -389,7 +389,7 @@ func TestDispatchWithFallback_RetriesOnUpstreamIdleTimeout(t *testing.T) {
 	assert.Equal(t, 1, primary.calls)
 	assert.Equal(t, 1, fallback.calls)
 	assert.Equal(t, "rescued", rec.Body.String())
-	assert.Equal(t, providers.ProviderOpenAI, rec.Header().Get(HeaderRouterFallbackFrom))
+	assert.Equal(t, providers.ProviderAIAND, rec.Header().Get(HeaderRouterFallbackFrom))
 }
 
 func TestDispatchWithFallback_NoRetryOnNonRetryableStatus(t *testing.T) {
@@ -908,7 +908,7 @@ func TestShouldFailover(t *testing.T) {
 		s := &Service{}
 		ctx := context.WithValue(context.Background(), ExternalAPIKeysContextKey{},
 			[]*auth.ExternalAPIKey{
-				{Provider: providers.ProviderMakora, Plaintext: []byte("mk-byok")},
+				{Provider: providers.ProviderAIAND, Plaintext: []byte("mk-byok")},
 			})
 		assert.False(t, s.shouldFailover(ctx))
 	})
@@ -1185,17 +1185,17 @@ type fakeFlushTracker struct {
 func (f *fakeFlushTracker) Flush() { f.onFlush() }
 
 func TestResolveBindingsForDispatch_LinkedSubscriptionWithoutAPIKey(t *testing.T) {
-	svc := &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderOpenAI: &fakeClient{}}), deploymentKeyedProviders: map[string]struct{}{}}
+	svc := &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: &fakeClient{}}), deploymentKeyedProviders: map[string]struct{}{}}
 	ctx := managedSubscriptionContext(auth.SubscriptionProviderCodex)
-	decision := router.Decision{Provider: providers.ProviderOpenAI, Model: "gpt-6.1-sol", Reason: translate.ReasonUserForceModel}
+	decision := router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-6.1-sol", Reason: translate.ReasonUserForceModel}
 	t.Run("linked Codex supplies the forced model binding", func(t *testing.T) {
 		bindings := svc.resolveBindingsForDispatch(ctx, decision)
 		require.Len(t, bindings, 1)
-		assert.Equal(t, providers.ProviderOpenAI, bindings[0].Provider)
+		assert.Equal(t, providers.ProviderAIAND, bindings[0].Provider)
 		assert.Empty(t, svc.deploymentKeyedProviders, "linked request must not change deployment credentials")
 	})
 	t.Run("provider exclusions still refuse the binding", func(t *testing.T) {
-		excluded := context.WithValue(ctx, InstallationExcludedProvidersContextKey{}, []string{providers.ProviderOpenAI})
+		excluded := context.WithValue(ctx, InstallationExcludedProvidersContextKey{}, []string{providers.ProviderAIAND})
 		assert.Empty(t, svc.resolveBindingsForDispatch(excluded, decision))
 	})
 	t.Run("API-only request cannot use linked binding", func(t *testing.T) {
@@ -1203,14 +1203,14 @@ func TestResolveBindingsForDispatch_LinkedSubscriptionWithoutAPIKey(t *testing.T
 		assert.Empty(t, svc.resolveBindingsForDispatch(paid, decision))
 	})
 	t.Run("unsupported transport cannot use linked binding", func(t *testing.T) {
-		unsupported := &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderOpenAI: nil}), deploymentKeyedProviders: map[string]struct{}{}}
+		unsupported := &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: nil}), deploymentKeyedProviders: map[string]struct{}{}}
 		assert.Empty(t, unsupported.resolveBindingsForDispatch(ctx, decision))
 	})
 }
 
 func TestResolveBindingsForDispatch_LinkedSubscriptionPreservesFundedBindings(t *testing.T) {
-	svc := &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAnthropic: &fakeClient{}}), deploymentKeyedProviders: map[string]struct{}{providers.ProviderAnthropic: {}, providers.ProviderAnthropicGateway: {}}}
-	decision := router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-opus-5"}
+	svc := &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: &fakeClient{}}), deploymentKeyedProviders: map[string]struct{}{providers.ProviderAIAND: {}, providers.ProviderAIAND: {}}}
+	decision := router.Decision{Provider: providers.ProviderAIAND, Model: "claude-opus-5"}
 	before := svc.resolveBindingsForDispatch(context.Background(), decision)
 	require.Len(t, before, 2)
 	linked := svc.resolveBindingsForDispatch(managedSubscriptionContext(auth.SubscriptionProviderClaude), decision)

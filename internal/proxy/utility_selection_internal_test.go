@@ -32,19 +32,19 @@ func TestAutomaticUtilitySelectionDoesNotUseDeploymentShortcut(t *testing.T) {
 				}
 				t.Run(string(fixture.turnType), func(t *testing.T) {
 					scorer := &blindExperimentRouterSpy{decision: router.Decision{
-						Provider: providers.ProviderAnthropic,
+						Provider: providers.ProviderAIAND,
 						Model:    catalog.ModelIDClaudeSonnet46.String(),
 						Metadata: &router.RoutingMetadata{PolicyPinHonoured: true},
 					}}
 					pins := newStubPinStore()
 					service := NewService(scorer, nil, nil, false, nil, pins, false,
-						providers.ProviderAnthropic, catalog.ModelIDClaudeHaiku45.String(), nil)
+						providers.ProviderAIAND, catalog.ModelIDClaudeHaiku45.String(), nil)
 					envelope, err := translate.ParseAnthropic([]byte(fixture.body))
 					require.NoError(t, err)
 					features := envelope.RoutingFeatures(false)
 					turn, err := service.runTurnLoop(ctx, envelope, features, "utility-key", uuid.New(), "", http.Header{}, router.Request{
 						RequestedModel:   features.Model,
-						EnabledProviders: map[string]struct{}{providers.ProviderAnthropic: {}},
+						EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}},
 					})
 					require.NoError(t, err)
 					assert.False(t, turn.HardPinned)
@@ -53,12 +53,12 @@ func TestAutomaticUtilitySelectionDoesNotUseDeploymentShortcut(t *testing.T) {
 					if fixture.turnType == turntype.TitleGen {
 						assert.Equal(t, 1, scorer.routeCalls)
 						assert.Equal(t, catalog.ModelIDClaudeSonnet46.String(), turn.Decision.Model)
-						assert.Equal(t, providers.ProviderAnthropic, turn.Decision.Provider)
+						assert.Equal(t, providers.ProviderAIAND, turn.Decision.Provider)
 						assert.False(t, turn.CallerModelPassthrough)
 					} else {
 						assert.Zero(t, scorer.routeCalls)
 						assert.Equal(t, catalog.ModelIDClaudeOpus48.String(), turn.Decision.Model)
-						assert.Equal(t, providers.ProviderAnthropic, turn.Decision.Provider)
+						assert.Equal(t, providers.ProviderAIAND, turn.Decision.Provider)
 						assert.True(t, turn.CallerModelPassthrough)
 						assert.Equal(t, policy.OverrideSourceRequest, turn.Origin)
 					}
@@ -82,7 +82,7 @@ func TestAutomaticUtilitySelectionDoesNotUseDeploymentShortcut(t *testing.T) {
 func TestTitleNeverEmitsDroppedForceDiagnostic(t *testing.T) {
 	assert.Empty(t, routingMarkerFor(turnLoopResult{
 		TurnType:         turntype.TitleGen,
-		Decision:         router.Decision{Provider: providers.ProviderAnthropic, Model: catalog.ModelIDClaudeSonnet46.String()},
+		Decision:         router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDClaudeSonnet46.String()},
 		ForcedPinDropped: true,
 		ForcedPinModel:   catalog.ModelIDClaudeOpus48.String(),
 	}))
@@ -103,22 +103,22 @@ func TestAutomaticProbeWithoutConcreteTargetScoresWithoutPinning(t *testing.T) {
 	for _, requestedModel := range []string{automaticProbeModel, ""} {
 		t.Run(requestedModel, func(t *testing.T) {
 			scorer := &blindExperimentRouterSpy{decision: router.Decision{
-				Provider: providers.ProviderAnthropic, Model: catalog.ModelIDClaudeSonnet46.String(),
+				Provider: providers.ProviderAIAND, Model: catalog.ModelIDClaudeSonnet46.String(),
 			}}
 			pins := newStubPinStore()
 			service := NewService(scorer, nil, nil, false, nil, pins, false,
-				providers.ProviderAnthropic, catalog.ModelIDClaudeHaiku45.String(), nil)
+				providers.ProviderAIAND, catalog.ModelIDClaudeHaiku45.String(), nil)
 			body := strings.Replace(blindExperimentUtilityTurnBodies()[0].body, catalog.ModelIDClaudeOpus48.String(), requestedModel, 1)
 			envelope, err := translate.ParseAnthropic([]byte(body))
 			require.NoError(t, err)
 			features := envelope.RoutingFeatures(false)
 			turn, err := service.runTurnLoop(context.Background(), envelope, features, "utility-key", uuid.New(), "", http.Header{}, router.Request{
-				RequestedModel: features.Model, EnabledProviders: map[string]struct{}{providers.ProviderAnthropic: {}},
+				RequestedModel: features.Model, EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}},
 			})
 			require.NoError(t, err)
 			require.Equal(t, turntype.Probe, turn.TurnType)
 			assert.Equal(t, catalog.ModelIDClaudeSonnet46.String(), turn.Decision.Model)
-			assert.Equal(t, providers.ProviderAnthropic, turn.Decision.Provider)
+			assert.Equal(t, providers.ProviderAIAND, turn.Decision.Provider)
 			assert.Equal(t, 1, scorer.routeCalls)
 			assert.False(t, turn.CallerModelPassthrough)
 			assert.False(t, turn.HardPinned)
@@ -134,11 +134,11 @@ func TestDefaultProbeDroppedForceDoesNotAttachConversationState(t *testing.T) {
 	for _, requestedModel := range []string{automaticProbeModel, catalog.ModelIDClaudeSonnet46.String()} {
 		t.Run(requestedModel, func(t *testing.T) {
 			scorer := &blindExperimentRouterSpy{decision: router.Decision{
-				Provider: providers.ProviderAnthropic, Model: catalog.ModelIDClaudeSonnet46.String(),
+				Provider: providers.ProviderAIAND, Model: catalog.ModelIDClaudeSonnet46.String(),
 			}}
 			pins := newStubPinStore()
 			service := NewService(scorer, nil, nil, false, nil, pins, false,
-				providers.ProviderAnthropic, catalog.ModelIDClaudeHaiku45.String(), nil)
+				providers.ProviderAIAND, catalog.ModelIDClaudeHaiku45.String(), nil)
 			body := strings.Replace(blindExperimentUtilityTurnBodies()[0].body, catalog.ModelIDClaudeOpus48.String(), requestedModel, 1)
 			envelope, err := translate.ParseAnthropic([]byte(body))
 			require.NoError(t, err)
@@ -146,7 +146,7 @@ func TestDefaultProbeDroppedForceDoesNotAttachConversationState(t *testing.T) {
 			turn, err := service.runTurnLoop(context.Background(), envelope, features, "utility-key", uuid.New(), "", http.Header{}, router.Request{
 				RequestedModel:   features.Model,
 				ForceModel:       catalog.ModelIDGPT55.String(),
-				EnabledProviders: map[string]struct{}{providers.ProviderAnthropic: {}},
+				EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}},
 			})
 			require.NoError(t, err)
 			require.True(t, turn.ForcedPinDropped)

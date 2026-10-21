@@ -41,7 +41,7 @@ func TestTurnLoopHoldsPinnedEffortOnLowGapEscalation(t *testing.T) {
 			store := newStubPinStore()
 			store.getFound = true
 			store.getPin = sessionpin.Pin{
-				Provider:        providers.ProviderAnthropic,
+				Provider:        providers.ProviderAIAND,
 				Model:           pinnedModel,
 				Reason:          "hmm_policy(classifier 'high' (p=0.32))",
 				PolicyGroup:     "high",
@@ -50,7 +50,7 @@ func TestTurnLoopHoldsPinnedEffortOnLowGapEscalation(t *testing.T) {
 				LastServedModel: pinnedModel + ":low",
 			}
 			policyRouter := &authoritativeTestRouter{decision: router.Decision{
-				Provider: providers.ProviderAnthropic,
+				Provider: providers.ProviderAIAND,
 				Model:    pinnedModel,
 				Effort:   "high",
 				Reason:   "hmm_policy(classifier 'high' (p=0.91))",
@@ -71,7 +71,7 @@ func TestTurnLoopHoldsPinnedEffortOnLowGapEscalation(t *testing.T) {
 				nil,
 				store,
 				false,
-				providers.ProviderAnthropic,
+				providers.ProviderAIAND,
 				"claude-haiku-4-5",
 				nil,
 			).WithPolicyStrategy(policy.StrategySpec{

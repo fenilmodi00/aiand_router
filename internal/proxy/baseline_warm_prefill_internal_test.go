@@ -69,7 +69,7 @@ func TestBaselineWarmPrefillTokens_UsesBaselineProviderTTL(t *testing.T) {
 func TestApplySwitchHistory_ReadsThePriorTurnFromTheSelectedPin(t *testing.T) {
 	hmmHistory := sessionpin.Pin{
 		LastServedModel:      "claude-opus-5",
-		Provider:             providers.ProviderAnthropic,
+		Provider:             providers.ProviderAIAND,
 		LastTurnEndedAt:      priorTurnEndedAt(2 * time.Minute),
 		LastInputTokens:      2_000,
 		LastCachedReadTokens: 98_000,
@@ -83,11 +83,11 @@ func TestApplySwitchHistory_ReadsThePriorTurnFromTheSelectedPin(t *testing.T) {
 // Gateway and Wafer Anthropic bindings report usage in the Anthropic shape,
 // so their cache counters are disjoint from input_tokens like first-party.
 func TestPriorPromptTokens_AnthropicFamilyAddsDisjointCacheCounters(t *testing.T) {
-	for _, provider := range []string{providers.ProviderAnthropic, providers.ProviderAnthropicGateway, providers.ProviderWaferAnthropic} {
+	for _, provider := range []string{providers.ProviderAIAND, providers.ProviderAIAND, providers.ProviderAIAND} {
 		pin := sessionpin.Pin{Provider: provider, LastInputTokens: 2_000, LastCachedReadTokens: 90_000, LastCachedWriteTokens: 8_000}
 		assert.Equal(t, 100_000, priorPromptTokens(pin), provider)
 	}
-	openAI := sessionpin.Pin{Provider: providers.ProviderOpenAI, LastInputTokens: 100_000, LastCachedReadTokens: 90_000}
+	openAI := sessionpin.Pin{Provider: providers.ProviderAIAND, LastInputTokens: 100_000, LastCachedReadTokens: 90_000}
 	assert.Equal(t, 100_000, priorPromptTokens(openAI), "OpenAI prompt_tokens already include cached tokens")
 }
 

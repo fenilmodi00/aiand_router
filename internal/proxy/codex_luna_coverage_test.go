@@ -26,14 +26,14 @@ func TestBoostCodexLunaSubscriptionCoverage(t *testing.T) {
 	} {
 		t.Run(string(reason), func(t *testing.T) {
 			selection := &fakeRouter{decision: router.Decision{
-				Provider: providers.ProviderOpenAI,
+				Provider: providers.ProviderAIAND,
 				Model:    codexLunaCoverageModel,
 			}}
 			upstream := &fakeProvider{proxyResponse: codexResponsesStream}
 			service := proxy.NewService(selection, map[string]providers.Client{
-				providers.ProviderOpenAI: upstream,
-			}, nil, false, nil, nil, false, providers.ProviderOpenAI, codexLunaCoverageModel, nil).
-				WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderOpenAI: {}})
+				providers.ProviderAIAND: upstream,
+			}, nil, false, nil, nil, false, providers.ProviderAIAND, codexLunaCoverageModel, nil).
+				WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 
 			body := `{"model":"gpt-5.6-sol","messages":[{"role":"user","content":"Refactor the auth middleware and add tests."}],"max_tokens":4096,"stream":true,"tools":[{"type":"function","function":{"name":"edit_file","parameters":{"type":"object"}}}]}`
 			recorder, request := codexSubRequest(t, body)

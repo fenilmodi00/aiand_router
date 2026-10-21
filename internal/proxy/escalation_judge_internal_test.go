@@ -66,9 +66,9 @@ func (p *escalationJudgeTestProvider) Proxy(ctx context.Context, decision router
 
 func TestEscalationJudgeIsolatesCredentialsAndPreservesPrompt(t *testing.T) {
 	provider := &escalationJudgeTestProvider{fakeHandoverProvider: fakeHandoverProvider{respBody: string(escalationTestResponse(t, `{"escalate":false,"reason":"Progressing."}`))}}
-	plans, err := policy.NewPlanResolver(policy.DefaultRegistry(), policy.NewResolver(map[string]struct{}{policy.EscalationJudgeModel: {}}, map[string]struct{}{providers.ProviderFireworks: {}}, func(model catalog.Model) string { return model.ID }, policy.ProviderPolicy{}))
+	plans, err := policy.NewPlanResolver(policy.DefaultRegistry(), policy.NewResolver(map[string]struct{}{policy.EscalationJudgeModel: {}}, map[string]struct{}{providers.ProviderAIAND: {}}, func(model catalog.Model) string { return model.ID }, policy.ProviderPolicy{}))
 	require.NoError(t, err)
-	executor, err := dispatch.NewExecutor(dispatch.NewClients(map[string]providers.Client{providers.ProviderFireworks: provider}))
+	executor, err := dispatch.NewExecutor(dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: provider}))
 	require.NoError(t, err)
 	judge, err := NewEscalationJudge(plans, executor, "dedicated-test-key")
 	require.NoError(t, err)

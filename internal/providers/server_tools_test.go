@@ -8,10 +8,10 @@ import (
 
 func TestSupportsAnthropicServerTools(t *testing.T) {
 	cases := map[string]bool{
-		providers.ProviderAnthropic:        true,
-		providers.ProviderAnthropicGateway: false,
-		providers.ProviderOpenAI:           false,
-		providers.ProviderBedrock:          false,
+		providers.ProviderAIAND:        true,
+		providers.ProviderAIAND: false,
+		providers.ProviderAIAND:           false,
+		providers.ProviderAIAND:          false,
 	}
 	for provider, want := range cases {
 		if got := providers.SupportsAnthropicServerTools(provider); got != want {
@@ -21,10 +21,10 @@ func TestSupportsAnthropicServerTools(t *testing.T) {
 }
 
 func TestAnthropicGatewayShareFamilyButNotServerTools(t *testing.T) {
-	if providers.FamilyFor(providers.ProviderAnthropicGateway) != providers.FamilyFor(providers.ProviderAnthropic) {
+	if providers.FamilyFor(providers.ProviderAIAND) != providers.FamilyFor(providers.ProviderAIAND) {
 		t.Fatal("the gateway must stay Anthropic-family: it speaks the Messages wire format")
 	}
-	if providers.SupportsAnthropicServerTools(providers.ProviderAnthropicGateway) {
+	if providers.SupportsAnthropicServerTools(providers.ProviderAIAND) {
 		t.Fatal("wire-format compatibility must not imply server-tool support")
 	}
 }

@@ -47,7 +47,7 @@ func (c *heldPinGatewayClient) Proxy(_ context.Context, decision router.Decision
 func TestHeldAutomaticPinCannotRescueOutsideHeldGatewayAliases(t *testing.T) {
 	svc, ctx, upstream := heldPinRescueFixture()
 	ctx = context.WithValue(ctx, ExternalAPIKeysContextKey{}, []*auth.ExternalAPIKey{
-		gatewayKey(providers.ProviderOpenAIGateway, "https://gateway.example.com/v1", heldPinLunaModel),
+		gatewayKey(providers.ProviderAIAND, "https://gateway.example.com/v1", heldPinLunaModel),
 	})
 	body := []byte(`{"model":"claude-opus-4-8","stream":true,"messages":[{"role":"user","content":"continue"}]}`)
 
@@ -85,13 +85,13 @@ func heldPinRescueFixture() (*Service, context.Context, *heldPinGatewayClient) {
 	store := newStubPinStore()
 	store.getFound = true
 	store.getPin = sessionpin.Pin{
-		Provider:    providers.ProviderOpenAIGateway,
+		Provider:    providers.ProviderAIAND,
 		Model:       heldPinLunaModel,
 		Reason:      "hmm_policy(classifier 'fast' (p=0.60))",
 		PinnedUntil: time.Now().Add(time.Hour),
 	}
 	policyRouter := &authoritativeTestRouter{decision: router.Decision{
-		Provider: providers.ProviderOpenAIGateway,
+		Provider: providers.ProviderAIAND,
 		Model:    heldPinClaudeModel,
 		Reason:   "hmm_policy(classifier 'maximum' (p=0.18))",
 		Metadata: &router.RoutingMetadata{
@@ -104,8 +104,8 @@ func heldPinRescueFixture() (*Service, context.Context, *heldPinGatewayClient) {
 	}}
 	upstream := &heldPinGatewayClient{}
 	svc := NewService(nil, map[string]providers.Client{
-		providers.ProviderOpenAIGateway: upstream,
-	}, nil, false, nil, store, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil).
+		providers.ProviderAIAND: upstream,
+	}, nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil).
 		WithPolicyStrategy(policy.StrategySpec{
 			Strategy: strategy,
 			Router:   policyRouter,
@@ -116,7 +116,7 @@ func heldPinRescueFixture() (*Service, context.Context, *heldPinGatewayClient) {
 		}).WithRetrySleep(func(context.Context, time.Duration) error { return nil })
 
 	installationID := uuid.NewString()
-	ctx := ctxWithKeys(gatewayKey(providers.ProviderOpenAIGateway, "https://gateway.example.com/v1", heldPinLunaModel, heldPinClaudeModel))
+	ctx := ctxWithKeys(gatewayKey(providers.ProviderAIAND, "https://gateway.example.com/v1", heldPinLunaModel, heldPinClaudeModel))
 	ctx = router.WithStrategy(ctx, strategy)
 	ctx = context.WithValue(ctx, APIKeyIDContextKey{}, "key-1")
 	ctx = context.WithValue(ctx, InstallationIDContextKey{}, installationID)

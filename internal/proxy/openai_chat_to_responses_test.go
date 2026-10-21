@@ -40,9 +40,9 @@ func responsesStreamUpstream(w http.ResponseWriter) {
 
 func openAIChatService(provider providers.Client, model string) *proxy.Service {
 	return proxy.NewService(
-		&fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: model, Reason: "test"}},
-		map[string]providers.Client{providers.ProviderOpenAI: provider},
-		nil, false, nil, nil, false, providers.ProviderOpenAI, "gpt-5.6-sol", nil,
+		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: model, Reason: "test"}},
+		map[string]providers.Client{providers.ProviderAIAND: provider},
+		nil, false, nil, nil, false, providers.ProviderAIAND, "gpt-5.6-sol", nil,
 	)
 }
 
@@ -222,7 +222,7 @@ func TestService_ProxyOpenAIChatCompletion_UsesBYOKBaseForResponsesCapability(t 
 	}
 	svc := openAIChatService(provider, "gpt-5.6-luna")
 	ctx := context.WithValue(context.Background(), proxy.ExternalAPIKeysContextKey{}, []*auth.ExternalAPIKey{{
-		Provider:  providers.ProviderOpenAI,
+		Provider:  providers.ProviderAIAND,
 		Plaintext: []byte("synthetic-key"),
 		BaseURL:   "https://tenant.example.invalid/v1",
 	}})
@@ -333,9 +333,9 @@ func TestService_ProxyOpenAIChatCompletion_GatewayKeepsChatCompletions(t *testin
 		_, _ = io.WriteString(w, `{"id":"chatcmpl_1","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}]}`)
 	}}
 	svc := proxy.NewService(
-		&fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAIGateway, Model: "gpt-5.6-luna", Reason: "test"}},
-		map[string]providers.Client{providers.ProviderOpenAIGateway: provider},
-		nil, false, nil, nil, false, providers.ProviderOpenAI, "gpt-5.6-sol", nil,
+		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-5.6-luna", Reason: "test"}},
+		map[string]providers.Client{providers.ProviderAIAND: provider},
+		nil, false, nil, nil, false, providers.ProviderAIAND, "gpt-5.6-sol", nil,
 	)
 
 	body := `{"model":"auto","messages":[{"role":"user","content":"hi"}]}`

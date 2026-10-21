@@ -179,19 +179,19 @@ func TestSiblingRescueRecordsEveryFailedModel(t *testing.T) {
 	anthropicClient := &siblingChainClient{failing: map[string]bool{"claude-opus-5": true}}
 	openAIClient := &siblingChainClient{failing: map[string]bool{"gpt-5.6-luna": true}}
 	decision := router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    "claude-opus-5",
 		Reason:   "test",
 		Metadata: &router.RoutingMetadata{
 			CandidateModels:    []string{"claude-opus-5", "gpt-5.6-luna", "claude-sonnet-5-5"},
-			CandidateProviders: map[string]string{"gpt-5.6-luna": providers.ProviderOpenAI, "claude-sonnet-5-5": providers.ProviderAnthropic},
+			CandidateProviders: map[string]string{"gpt-5.6-luna": providers.ProviderAIAND, "claude-sonnet-5-5": providers.ProviderAIAND},
 		},
 	}
 	svc := NewService(staticRouter{decision: decision}, map[string]providers.Client{
-		providers.ProviderAnthropic: anthropicClient,
-		providers.ProviderOpenAI:    openAIClient,
-	}, nil, false, nil, nil, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil).
-		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAnthropic: {}, providers.ProviderOpenAI: {}})
+		providers.ProviderAIAND: anthropicClient,
+		providers.ProviderAIAND:    openAIClient,
+	}, nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil).
+		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}, providers.ProviderAIAND: {}})
 	svc.retrySleep = noopSleep
 	ctx := withTurnFailures(context.Background())
 

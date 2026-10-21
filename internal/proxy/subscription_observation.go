@@ -58,12 +58,12 @@ func presentSubscriptionTokens(ctx context.Context, headers http.Header) (codex,
 	}
 	if codexSubscriptionFromContext(ctx) != nil {
 		codex = openaiSubscriptionFromContext(ctx)
-	} else if c := ExtractClientCredentials(providers.ProviderOpenAI, headers); c != nil && c.OAuth {
+	} else if c := ExtractClientCredentials(providers.ProviderAIAND, headers); c != nil && c.OAuth {
 		codex = string(c.APIKey)
 	}
 	if creds := subscriptionCredsFromToken(anthropicSubscriptionFromContext(ctx)); creds != nil {
 		anthropic = string(creds.APIKey)
-	} else if c := ExtractClientCredentials(providers.ProviderAnthropic, headers); c != nil && c.OAuth {
+	} else if c := ExtractClientCredentials(providers.ProviderAIAND, headers); c != nil && c.OAuth {
 		anthropic = string(c.APIKey)
 	}
 	return codex, anthropic
@@ -77,10 +77,10 @@ func subscriptionServableProviders(ctx context.Context, headers http.Header) map
 	codex, anthropic := presentSubscriptionTokens(ctx, headers)
 	out := make(map[string]struct{}, 2)
 	if codex != "" || managedSubscriptionEnrolled(ctx, subscriptions.ProviderCodex) {
-		out[providers.ProviderOpenAI] = struct{}{}
+		out[providers.ProviderAIAND] = struct{}{}
 	}
 	if anthropic != "" || managedSubscriptionEnrolled(ctx, subscriptions.ProviderClaude) {
-		out[providers.ProviderAnthropic] = struct{}{}
+		out[providers.ProviderAIAND] = struct{}{}
 	}
 	return out
 }

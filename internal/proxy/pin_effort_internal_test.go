@@ -22,7 +22,7 @@ import (
 func TestForceModelCommand_PersistsEffortOnPin(t *testing.T) {
 	store := &recordingPinStore{}
 	svc := NewService(nil, nil, nil, false, nil, store, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil)
+		providers.ProviderAIAND, "claude-haiku-4-5", nil)
 
 	env := forceCommandEnv(t)
 	rec := httptest.NewRecorder()
@@ -41,7 +41,7 @@ func TestForceModelCommand_PersistsEffortOnPin(t *testing.T) {
 func TestApplyForceModelCommand_ReturnsEffortQualifiedSpec(t *testing.T) {
 	store := &recordingPinStore{}
 	svc := NewService(nil, nil, nil, false, nil, store, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil)
+		providers.ProviderAIAND, "claude-haiku-4-5", nil)
 
 	env := forceCommandEnv(t)
 	spec, _, err := svc.applyForceModelCommand(context.Background(),
@@ -59,7 +59,7 @@ func TestApplyForceModelCommand_ReturnsEffortQualifiedSpec(t *testing.T) {
 func TestForceModelHeader_PersistsEffortOnPin(t *testing.T) {
 	store := &recordingPinStore{}
 	svc := NewService(nil, nil, nil, false, nil, store, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil)
+		providers.ProviderAIAND, "claude-haiku-4-5", nil)
 
 	env := forceCommandEnv(t)
 	req, err := http.NewRequest(http.MethodPost, "/v1/messages", nil)
@@ -78,7 +78,7 @@ func TestForceModelHeader_PersistsEffortOnPin(t *testing.T) {
 // onto the decision so dispatch emits it.
 func TestRunTurnLoop_ForcedPinRehydratesEffort(t *testing.T) {
 	store := &forcedPinStore{pin: sessionpin.Pin{
-		Provider:    providers.ProviderAnthropic,
+		Provider:    providers.ProviderAIAND,
 		Model:       "claude-opus-4-8",
 		Effort:      "xhigh",
 		Reason:      translate.ReasonUserForceModel,
@@ -86,7 +86,7 @@ func TestRunTurnLoop_ForcedPinRehydratesEffort(t *testing.T) {
 	}}
 	fr := &tierProbeRouter{available: map[string]struct{}{"claude-haiku-4-5": {}}}
 	svc := NewService(fr, nil, nil, false, nil, store, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil)
+		providers.ProviderAIAND, "claude-haiku-4-5", nil)
 
 	env, err := translate.ParseAnthropic([]byte(`{
 		"model":"claude-opus-4-8",
@@ -114,7 +114,7 @@ func TestRunTurnLoop_RequestForceModelCarriesEffort(t *testing.T) {
 	store := &forcedPinStore{}
 	fr := &tierProbeRouter{available: map[string]struct{}{"claude-haiku-4-5": {}}}
 	svc := NewService(fr, nil, nil, false, nil, store, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil)
+		providers.ProviderAIAND, "claude-haiku-4-5", nil)
 
 	env, err := translate.ParseAnthropic([]byte(`{
 		"model":"claude-opus-4-8",
@@ -139,10 +139,10 @@ func TestRunTurnLoop_RequestForceModelCarriesEffort(t *testing.T) {
 func TestRefreshPin_CarriesEffortForward(t *testing.T) {
 	store := &recordingPinStore{}
 	svc := NewService(nil, nil, nil, false, nil, store, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil)
+		providers.ProviderAIAND, "claude-haiku-4-5", nil)
 
 	existing := sessionpin.Pin{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    "claude-opus-4-8",
 		Effort:   "xhigh",
 		Reason:   translate.ReasonUserForceModel,
@@ -156,7 +156,7 @@ func TestRefreshPin_CarriesEffortForward(t *testing.T) {
 
 	svc.refreshPin(context.Background(), uuid.New(), [sessionpin.SessionKeyLen]byte{},
 		existing, "default", router.Decision{
-			Provider: providers.ProviderAnthropic, Model: "claude-haiku-4-5",
+			Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5",
 		})
 	require.Len(t, store.upserts, 2)
 	assert.Empty(t, store.upserts[1].Effort,
@@ -165,10 +165,10 @@ func TestRefreshPin_CarriesEffortForward(t *testing.T) {
 
 func TestOrderBandPair_AnchoredHalfKeepsEffort(t *testing.T) {
 	large, small := orderBandPair(sessionpin.Pin{
-		Provider:       providers.ProviderAnthropic,
+		Provider:       providers.ProviderAIAND,
 		Model:          "claude-opus-4-7",
 		Effort:         "high",
-		PairedProvider: providers.ProviderAnthropic,
+		PairedProvider: providers.ProviderAIAND,
 		PairedModel:    "claude-haiku-4-5",
 	})
 	assert.Equal(t, "claude-opus-4-7", large.Model)
@@ -179,8 +179,8 @@ func TestOrderBandPair_AnchoredHalfKeepsEffort(t *testing.T) {
 // An explicit per-request knob still outranks whatever the pin carries.
 func TestResolveEffort_KnobWinsOverDecision(t *testing.T) {
 	svc := NewService(nil, nil, nil, false, nil, nil, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil)
-	decision := router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-opus-4-8", Effort: "xhigh"}
+		providers.ProviderAIAND, "claude-haiku-4-5", nil)
+	decision := router.Decision{Provider: providers.ProviderAIAND, Model: "claude-opus-4-8", Effort: "xhigh"}
 	caps := router.Lookup(decision.Model)
 
 	ctx := router.WithRoutingKnobs(context.Background(), &router.Overrides{ForceEffort: "low"})

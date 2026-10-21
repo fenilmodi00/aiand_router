@@ -880,14 +880,14 @@ func TestScorer_GatewayExclusiveRoutesOnlyAliasedModel(t *testing.T) {
 
 	got, err := s.Route(context.Background(), router.Request{
 		PromptText:       strings.Repeat("x", 100),
-		EnabledProviders: map[string]struct{}{providers.ProviderOpenAIGateway: {}},
-		GatewayProviders: map[string]struct{}{providers.ProviderOpenAIGateway: {}},
-		CustomBindings:   map[string][]string{"claude-opus-4-7": {providers.ProviderOpenAIGateway}},
+		EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}},
+		GatewayProviders: map[string]struct{}{providers.ProviderAIAND: {}},
+		CustomBindings:   map[string][]string{"claude-opus-4-7": {providers.ProviderAIAND}},
 	})
 	require.NoError(t, err)
 	// Ungated, gpt-5 wins cluster 0 and would ship an unaliased name upstream.
 	assert.Equal(t, "claude-opus-4-7", got.Model)
-	assert.Equal(t, providers.ProviderOpenAIGateway, got.Provider)
+	assert.Equal(t, providers.ProviderAIAND, got.Provider)
 }
 
 // A gateway key aliasing nothing is a customer configuration to fix, so the
@@ -898,8 +898,8 @@ func TestScorer_GatewayWithoutAliasesReturnsErrGatewayServesNoDeployedModel(t *t
 
 	_, err := s.Route(context.Background(), router.Request{
 		PromptText:       strings.Repeat("x", 100),
-		EnabledProviders: map[string]struct{}{providers.ProviderOpenAIGateway: {}},
-		GatewayProviders: map[string]struct{}{providers.ProviderOpenAIGateway: {}},
+		EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}},
+		GatewayProviders: map[string]struct{}{providers.ProviderAIAND: {}},
 	})
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, policy.ErrGatewayServesNoDeployedModel))

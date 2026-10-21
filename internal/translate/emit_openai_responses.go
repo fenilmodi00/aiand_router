@@ -63,11 +63,6 @@ func (e *RequestEnvelope) PrepareOpenAIResponses(in http.Header, opts EmitOption
 // surface: prompt_cache_key is a spec Responses field (forwarded with the body),
 // so reasoning-tool turns promoted to /v1/responses stay pinned to a warm replica.
 func applyResponsesSessionAffinity(body []byte, opts EmitOptions) ([]byte, error) {
-	switch opts.TargetProvider {
-	case providers.ProviderOpenAI, providers.ProviderOpenAIGateway:
-	default:
-		return body, nil
-	}
 	if opts.StripPromptCacheKey {
 		out, err := sjson.DeleteBytes(body, "prompt_cache_key")
 		if err != nil {
@@ -159,18 +154,10 @@ type ResponsesRoute struct {
 // Gateways keep the narrow rule — reasoning tool turns only — because most
 // mount no Responses surface; one without it is downgraded by the caller.
 func UseOpenAIResponsesAPI(rt ResponsesRoute) bool {
-	narrow := rt.Capabilities.Supports(router.CapReasoning) && rt.HasTools
-	switch rt.Provider {
-	case providers.ProviderOpenAI:
-		if rt.ChatOnlyParams {
-			return false
-		}
-		return rt.Broad || narrow
-	case providers.ProviderOpenAIGateway:
-		return narrow
-	default:
+	if rt.ChatOnlyParams {
 		return false
 	}
+	return rt.Broad || (rt.Capabilities.Supports(router.CapReasoning) && rt.HasTools)
 }
 
 // RequiresChatCompletionsParams reports whether the request asks for something

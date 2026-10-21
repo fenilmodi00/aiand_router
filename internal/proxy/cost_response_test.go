@@ -88,7 +88,7 @@ func TestRouterResponseCostFromPricingRoundsFloatNoise(t *testing.T) {
 	// gpt-5.4-mini pricing: 12 input + 9 output tokens yielded
 	// 0.000049500000000000004 before rounding.
 	pricing := catalog.Pricing{InputUSDPer1M: 0.75, OutputUSDPer1M: 4.5}
-	cost := routerResponseCostFromPricing(pricing, providers.ProviderOpenAI, 12, 9, 0, 0, catalog.UsageModifiers{})
+	cost := routerResponseCostFromPricing(pricing, providers.ProviderAIAND, 12, 9, 0, 0, catalog.UsageModifiers{})
 
 	rec := httptest.NewRecorder()
 	setRouterCostHeaders(rec.Header(), cost)
@@ -226,7 +226,7 @@ func TestStreamCostWriterPricesMessageStartModifiers(t *testing.T) {
 	const model = "claude-opus-5"
 	rec := httptest.NewRecorder()
 	writer := newStreamCostWriter(rec)
-	writer.SetCostCalculator(routerCostCalculatorFor(model, providers.ProviderAnthropic, false), false, nil)
+	writer.SetCostCalculator(routerCostCalculatorFor(model, providers.ProviderAIAND, false), false, nil)
 
 	_, err := writer.Write([]byte("event: message_start\n" +
 		`data: {"type":"message_start","message":{"usage":{"input_tokens":10,"cache_creation_input_tokens":5000,"cache_creation":{"ephemeral_5m_input_tokens":1000,"ephemeral_1h_input_tokens":4000},"speed":"fast","inference_geo":"us"}}}` + "\n\n" +
@@ -253,7 +253,7 @@ func TestStreamCostWriterUnsplitWritesUseRequestTTL(t *testing.T) {
 	for _, cacheCreation := range []string{``, `,"cache_creation":null`, `,"cache_creation":{}`, `,"cache_creation":{"ephemeral_5m_input_tokens":null,"ephemeral_1h_input_tokens":null}`} {
 		rec := httptest.NewRecorder()
 		writer := newStreamCostWriter(rec)
-		writer.SetCostCalculator(routerCostCalculatorFor(model, providers.ProviderAnthropicGateway, false), false, func() bool { return true })
+		writer.SetCostCalculator(routerCostCalculatorFor(model, providers.ProviderAIAND, false), false, func() bool { return true })
 
 		_, err := writer.Write([]byte("event: message_start\n" +
 			`data: {"type":"message_start","message":{"usage":{"input_tokens":10,"cache_creation_input_tokens":5000` + cacheCreation + `}}}` + "\n\n" +

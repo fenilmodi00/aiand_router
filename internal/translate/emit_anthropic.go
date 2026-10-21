@@ -103,21 +103,10 @@ func (e *RequestEnvelope) PrepareAnthropic(in http.Header, opts EmitOptions) (pr
 }
 
 // applyAnthropicSessionAffinity sets metadata.user_id to the session-affinity
-// key for anthropic_gateway targets. Uses a spec Messages field so body-forwarding
-// gateways pass it without unknown-field 400s. Skips if the caller already set
-// user_id, or if the target is first-party Anthropic.
+// key. No Anthropic-family upstream is wired, so the body passes through
+// unchanged.
 func applyAnthropicSessionAffinity(body []byte, opts EmitOptions) ([]byte, error) {
-	if opts.TargetProvider != providers.ProviderAnthropicGateway || opts.SessionAffinity == "" {
-		return body, nil
-	}
-	if gjson.GetBytes(body, "metadata.user_id").String() != "" {
-		return body, nil
-	}
-	out, err := sjson.SetBytes(body, "metadata.user_id", opts.SessionAffinity)
-	if err != nil {
-		return nil, fmt.Errorf("set metadata.user_id: %w", err)
-	}
-	return out, nil
+	return body, nil
 }
 
 func deriveAnthropicHeaders(in http.Header, opts EmitOptions, body []byte) http.Header {
@@ -140,7 +129,7 @@ func deriveAnthropicHeaders(in http.Header, opts EmitOptions, body []byte) http.
 	if gjson.GetBytes(body, "speed").Exists() {
 		beta = ensureBetaToken(beta, fastModeBeta)
 	}
-	if opts.TargetProvider == providers.ProviderAnthropic && containsAnthropicSystemOnlyContentBlocks(body) {
+	if containsAnthropicSystemOnlyContentBlocks(body) {
 		beta = ensureBetaToken(beta, anthropicMidConversationToolChangesBeta)
 	}
 	if beta != "" {
@@ -178,8 +167,7 @@ const anthropicMidConversationToolChangesBeta = "mid-conversation-tool-changes-2
 // A client-supplied "fallbacks" is left untouched; on non-CapServerSideFallback
 // targets (re-pin destination, gateway) the field is dropped — forwarding it 400s.
 func applyServerSideFallback(body []byte, opts EmitOptions) ([]byte, error) {
-	if opts.TargetProvider != providers.ProviderAnthropic ||
-		!opts.Capabilities.Supports(router.CapServerSideFallback) {
+	if !opts.Capabilities.Supports(router.CapServerSideFallback) {
 		if !gjson.GetBytes(body, "fallbacks").Exists() {
 			return body, nil
 		}

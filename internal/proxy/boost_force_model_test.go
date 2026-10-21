@@ -30,16 +30,16 @@ func TestBoostLinkedFirstHonorsForcedModel(t *testing.T) {
 		responses bool
 		messages  bool
 	}{
-		{name: "Astra header", model: astraModel, provider: providers.ProviderOpenAI},
-		{name: "Astra stored pin", model: astraModel, provider: providers.ProviderOpenAI, stored: true},
-		{name: "Astra Responses", model: astraModel, provider: providers.ProviderOpenAI, responses: true},
-		{name: "Astra Messages", model: astraModel, provider: providers.ProviderOpenAI, messages: true},
-		{name: "Opus outside linked provider", model: opusModel, provider: providers.ProviderAnthropic},
+		{name: "Astra header", model: astraModel, provider: providers.ProviderAIAND},
+		{name: "Astra stored pin", model: astraModel, provider: providers.ProviderAIAND, stored: true},
+		{name: "Astra Responses", model: astraModel, provider: providers.ProviderAIAND, responses: true},
+		{name: "Astra Messages", model: astraModel, provider: providers.ProviderAIAND, messages: true},
+		{name: "Opus outside linked provider", model: opusModel, provider: providers.ProviderAIAND},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			selection := &fakeRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "gpt-6.1-sol"}}
+			selection := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-6.1-sol"}}
 			upstream := &fakeProvider{proxyResponse: codexResponsesStream}
-			if tc.provider == providers.ProviderAnthropic {
+			if tc.provider == providers.ProviderAIAND {
 				upstream.proxyResponse = bypassStreamResponse
 			}
 			store := newFakePinStore()
@@ -52,7 +52,7 @@ func TestBoostLinkedFirstHonorsForcedModel(t *testing.T) {
 			}
 			service := proxy.NewService(selection, map[string]providers.Client{
 				tc.provider: upstream,
-			}, nil, false, nil, store, false, providers.ProviderOpenAI, "gpt-6.1-sol", nil).
+			}, nil, false, nil, store, false, providers.ProviderAIAND, "gpt-6.1-sol", nil).
 				WithDeploymentKeyedProviders(map[string]struct{}{tc.provider: {}})
 			body := `{"model":"gpt-6.1-sol","messages":[{"role":"user","content":"Review this change."}],"max_tokens":4096,"stream":true}`
 			if tc.responses {
@@ -80,10 +80,10 @@ func TestBoostLinkedFirstHonorsForcedModel(t *testing.T) {
 			assert.Equal(t, tc.model, recorder.Header().Get(proxy.HeaderRouterModel))
 			require.Len(t, upstream.proxyBodies, 1)
 			assert.Equal(t, tc.model, gjson.GetBytes(upstream.proxyBodies[0], "model").String())
-			if tc.provider == providers.ProviderOpenAI {
+			if tc.provider == providers.ProviderAIAND {
 				assert.Equal(t, "high", gjson.GetBytes(upstream.proxyBodies[0], "reasoning.effort").String())
 			}
-			if tc.provider == providers.ProviderOpenAI {
+			if tc.provider == providers.ProviderAIAND {
 				require.NotNil(t, upstream.proxyCreds[0])
 				assert.True(t, upstream.proxyCreds[0].OAuth, "an out-of-roster forced model must try the linked subscription first")
 			} else if upstream.proxyCreds[0] != nil {

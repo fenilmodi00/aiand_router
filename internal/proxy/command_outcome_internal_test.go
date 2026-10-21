@@ -35,8 +35,8 @@ func TestCommandOutcomesAcrossSurfaces(t *testing.T) {
 		for _, streaming := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%v/stream=%t", surface, streaming), func(t *testing.T) {
 				store := newForceModelMapStore()
-				svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil).
-					WithDeploymentKeyedProviders(keyed(providers.ProviderAnthropic))
+				svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil).
+					WithDeploymentKeyedProviders(keyed(providers.ProviderAIAND))
 				app := ClientAppClaudeCode
 				if surface != translate.FormatAnthropic {
 					app = ClientAppCodex
@@ -93,7 +93,7 @@ func TestCommandOutcomesAcrossSurfaces(t *testing.T) {
 					seen[outcome.ID] = true
 					if outcome.Pin.Transition == translate.PinApplied {
 						assert.Equal(t, "claude-opus-5-5", outcome.Pin.Model)
-						assert.Equal(t, providers.ProviderAnthropic, outcome.Pin.Provider)
+						assert.Equal(t, providers.ProviderAIAND, outcome.Pin.Provider)
 						assert.Equal(t, "high", outcome.Pin.Effort)
 					}
 					if surface == translate.FormatAnthropic {
@@ -139,8 +139,8 @@ func (*failedCommandStore) Upsert(context.Context, sessionpin.Pin) error {
 
 func TestCommandOutcomeRequiresPersistence(t *testing.T) {
 	store := &failedCommandStore{newForceModelMapStore()}
-	svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil).
-		WithDeploymentKeyedProviders(keyed(providers.ProviderAnthropic))
+	svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil).
+		WithDeploymentKeyedProviders(keyed(providers.ProviderAIAND))
 	env := forceCommandEnv(t)
 	for _, command := range []translate.ForceModelResult{{Model: "opus"}, {Clear: true}} {
 		rec := httptest.NewRecorder()
@@ -152,15 +152,15 @@ func TestCommandOutcomeRequiresPersistence(t *testing.T) {
 }
 
 func TestLoopStopsPreserveHistoricalForcePin(t *testing.T) {
-	svc := NewService(nil, nil, nil, false, nil, newForceModelMapStore(), false, providers.ProviderAnthropic, "claude-haiku-4-5", nil)
+	svc := NewService(nil, nil, nil, false, nil, newForceModelMapStore(), false, providers.ProviderAIAND, "claude-haiku-4-5", nil)
 	env := forceCommandEnv(t)
 	for _, repetition := range []bool{false, true} {
 		rec := httptest.NewRecorder()
 		var err error
 		if repetition {
-			err = svc.handleTextRepetitionBreak(context.Background(), rec, env, 3, "synthetic", uuid.New(), [sessionpin.SessionKeyLen]byte{1}, "maximum", "synthetic-model", providers.ProviderAnthropic, 1)
+			err = svc.handleTextRepetitionBreak(context.Background(), rec, env, 3, "synthetic", uuid.New(), [sessionpin.SessionKeyLen]byte{1}, "maximum", "synthetic-model", providers.ProviderAIAND, 1)
 		} else {
-			err = svc.handleNoProgressBreak(context.Background(), rec, env, 3, uuid.New(), [sessionpin.SessionKeyLen]byte{1}, "maximum", "synthetic-model", providers.ProviderAnthropic, 1, translate.ReasonUserForceModel)
+			err = svc.handleNoProgressBreak(context.Background(), rec, env, 3, uuid.New(), [sessionpin.SessionKeyLen]byte{1}, "maximum", "synthetic-model", providers.ProviderAIAND, 1, translate.ReasonUserForceModel)
 		}
 		require.NoError(t, err)
 		outcome := readCommandOutcome(t, rec)
@@ -175,8 +175,8 @@ func (*commandWriteFailure) Write([]byte) (int, error) { return 0, errors.New("s
 
 func TestAcknowledgmentWriteFailureDoesNotUndoPin(t *testing.T) {
 	store := newForceModelMapStore()
-	svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil).
-		WithDeploymentKeyedProviders(keyed(providers.ProviderAnthropic))
+	svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil).
+		WithDeploymentKeyedProviders(keyed(providers.ProviderAIAND))
 	key := [sessionpin.SessionKeyLen]byte{2}
 	err := svc.handleForceModelCommand(context.Background(), &commandWriteFailure{httptest.NewRecorder()}, forceCommandEnv(t), translate.ForceModelResult{Model: "opus"}, uuid.New(), [sessionpin.SessionKeyLen]byte{1}, key, 1)
 	require.Error(t, err)
@@ -188,8 +188,8 @@ func TestAcknowledgmentWriteFailureDoesNotUndoPin(t *testing.T) {
 
 func TestHeaderPersistenceFailureRetainsSameActionForce(t *testing.T) {
 	store := &failedCommandStore{newForceModelMapStore()}
-	svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil).
-		WithDeploymentKeyedProviders(keyed(providers.ProviderAnthropic))
+	svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil).
+		WithDeploymentKeyedProviders(keyed(providers.ProviderAIAND))
 	request := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 	request.Header.Set(ForceModelHeader, "opus:high")
 	_, model, err := svc.applyForceModelHeader(context.Background(), request, uuid.New(), [sessionpin.SessionKeyLen]byte{1})

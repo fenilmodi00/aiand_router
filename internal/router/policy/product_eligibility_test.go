@@ -15,7 +15,7 @@ import (
 func maxResolver() *policy.Resolver {
 	return policy.NewResolver(
 		set("deepseek/deepseek-v4-pro", "claude-opus-4-8", "muse-spark-1.3"),
-		set(providers.ProviderFireworks, providers.ProviderAnthropic, providers.ProviderMeta),
+		set(providers.ProviderAIAND, providers.ProviderAIAND, providers.ProviderAIAND),
 		catalogRosterID,
 		policy.ManagedProviderPolicy(),
 	)
@@ -47,7 +47,7 @@ func TestResolverDropsClosedAndUnknownSourceModelsUnderMax(t *testing.T) {
 func TestMaxBoundaryIsHardEvenWhenItEmptiesThePool(t *testing.T) {
 	resolver := policy.NewResolver(
 		set("claude-opus-4-8"),
-		set(providers.ProviderAnthropic),
+		set(providers.ProviderAIAND),
 		catalogRosterID,
 		policy.ManagedProviderPolicy(),
 	)

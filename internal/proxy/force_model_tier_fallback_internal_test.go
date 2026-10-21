@@ -41,7 +41,7 @@ func (r *tierProbeRouter) Route(_ context.Context, req router.Request) (router.D
 	if best == "" {
 		return router.Decision{}, errors.New("no eligible candidate")
 	}
-	return router.Decision{Provider: providers.ProviderAnthropic, Model: best, Reason: "fake"}, nil
+	return router.Decision{Provider: providers.ProviderAIAND, Model: best, Reason: "fake"}, nil
 }
 
 // forcedPinStore returns a single user-forced pin for every lookup.
@@ -145,13 +145,13 @@ func TestRunTurnLoop_ForcedModelContextOverflow_StaysInTier(t *testing.T) {
 		"claude-haiku-4-5": {},
 	}}
 	store := &forcedPinStore{pin: sessionpin.Pin{
-		Provider:    providers.ProviderFireworks,
+		Provider:    providers.ProviderAIAND,
 		Model:       forced,
 		Reason:      translate.ReasonUserForceModel,
 		PinnedUntil: time.Now().Add(time.Hour),
 	}}
 	svc := NewService(fr, nil, nil, false, nil, store, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil).
+		providers.ProviderAIAND, "claude-haiku-4-5", nil).
 		WithAvailableModels(fr.available).
 		WithPlannerEnabled(false)
 
@@ -183,7 +183,7 @@ func TestRunTurnLoop_ForcedModelContextOverflow_StaysInTier(t *testing.T) {
 
 func TestRunTurnLoop_ForcedModelOverridesHardPin(t *testing.T) {
 	store := &forcedPinStore{pin: sessionpin.Pin{
-		Provider:    providers.ProviderAnthropic,
+		Provider:    providers.ProviderAIAND,
 		Model:       "claude-opus-4-8",
 		Reason:      translate.ReasonUserForceModel,
 		PinnedUntil: time.Now().Add(time.Hour),
@@ -197,7 +197,7 @@ func TestRunTurnLoop_ForcedModelOverridesHardPin(t *testing.T) {
 		nil,
 		store,
 		false,
-		providers.ProviderAnthropic,
+		providers.ProviderAIAND,
 		"claude-haiku-4-5",
 		nil,
 	)
@@ -228,11 +228,11 @@ func TestRunTurnLoop_ForcedModelOverridesHardPin(t *testing.T) {
 // silently reverting an explicit user choice.
 func TestRunTurnLoop_ForcedModelServesDespiteDisabledProvider(t *testing.T) {
 	store := &forcedPinStore{pin: sessionpin.Pin{
-		Provider:          providers.ProviderAnthropic,
+		Provider:          providers.ProviderAIAND,
 		Model:             "claude-opus-4-8",
 		Reason:            translate.ReasonUserForceModel,
 		PinnedUntil:       time.Now().Add(time.Hour),
-		DisabledProviders: []string{providers.ProviderAnthropic},
+		DisabledProviders: []string{providers.ProviderAIAND},
 	}}
 	fr := &tierProbeRouter{available: map[string]struct{}{"claude-haiku-4-5": {}}}
 	svc := NewService(
@@ -243,7 +243,7 @@ func TestRunTurnLoop_ForcedModelServesDespiteDisabledProvider(t *testing.T) {
 		nil,
 		store,
 		false,
-		providers.ProviderAnthropic,
+		providers.ProviderAIAND,
 		"claude-haiku-4-5",
 		nil,
 	)
@@ -257,13 +257,13 @@ func TestRunTurnLoop_ForcedModelServesDespiteDisabledProvider(t *testing.T) {
 
 	res, err := svc.runTurnLoop(context.Background(), env, feats, "key-1", uuid.New(), "", nil, router.Request{
 		RequestedModel:   feats.Model,
-		EnabledProviders: map[string]struct{}{providers.ProviderAnthropic: {}},
+		EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}},
 	})
 	require.NoError(t, err)
 
 	assert.Equal(t, "claude-opus-4-8", res.Decision.Model,
 		"force-model must serve through the pinned provider despite the session-level disable")
-	assert.Equal(t, providers.ProviderAnthropic, res.Decision.Provider)
+	assert.Equal(t, providers.ProviderAIAND, res.Decision.Provider)
 	assert.Equal(t, translate.ReasonUserForceModel, res.Decision.Reason)
 	assert.True(t, res.StickyHit)
 	assert.Empty(t, fr.captured, "a forced pin must not invoke the scorer")
@@ -271,7 +271,7 @@ func TestRunTurnLoop_ForcedModelServesDespiteDisabledProvider(t *testing.T) {
 
 func TestForceModelHeader_OverridesHardPin(t *testing.T) {
 	store := &overwritingPinStore{pin: sessionpin.Pin{
-		Provider:    providers.ProviderAnthropic,
+		Provider:    providers.ProviderAIAND,
 		Model:       "claude-haiku-4-5",
 		Reason:      "cluster:v0.2",
 		PinnedUntil: time.Now().Add(time.Hour),
@@ -285,7 +285,7 @@ func TestForceModelHeader_OverridesHardPin(t *testing.T) {
 		nil,
 		store,
 		false,
-		providers.ProviderAnthropic,
+		providers.ProviderAIAND,
 		"claude-haiku-4-5",
 		nil,
 	)
@@ -319,7 +319,7 @@ func TestForceModelHeader_OverridesHardPin(t *testing.T) {
 // must return ok=false rather than hand the scorer an empty pool.
 func TestRestrictToTier_FallsBackWhenNoInTierCandidate(t *testing.T) {
 	svc := NewService(nil, nil, nil, false, nil, nil, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil).
+		providers.ProviderAIAND, "claude-haiku-4-5", nil).
 		WithAvailableModels(map[string]struct{}{"claude-haiku-4-5": {}})
 
 	excluded := map[string]struct{}{"deepseek/deepseek-v4-pro": {}}
@@ -332,7 +332,7 @@ func TestRestrictToTier_FallsBackWhenNoInTierCandidate(t *testing.T) {
 // models stay eligible.
 func TestRestrictToTier_ExcludesOtherTiers(t *testing.T) {
 	svc := NewService(nil, nil, nil, false, nil, nil, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil).
+		providers.ProviderAIAND, "claude-haiku-4-5", nil).
 		WithAvailableModels(map[string]struct{}{
 			"claude-opus-5":     {}, // high
 			"claude-haiku-4-5":  {}, // low

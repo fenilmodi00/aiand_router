@@ -101,7 +101,7 @@ func checkOutputLimitLifecycle(ctx context.Context, dsn string) (checkErr error)
 			SessionKey:     key,
 			Role:           role,
 			InstallationID: installationID,
-			Provider:       providers.ProviderAnthropic,
+			Provider:       providers.ProviderAIAND,
 			Model:          model,
 			Reason:         "output-limit lifecycle check",
 			Strategy:       strategy,
@@ -117,7 +117,7 @@ func checkOutputLimitLifecycle(ctx context.Context, dsn string) (checkErr error)
 			EndedAt:            endedAt,
 			OutputLimitReached: capped,
 			ServedModel:        model,
-			ServedProvider:     providers.ProviderAnthropic,
+			ServedProvider:     providers.ProviderAIAND,
 		}
 	}
 	get := func(role string) (sessionpin.Pin, error) {

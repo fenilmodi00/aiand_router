@@ -238,7 +238,7 @@ func TestOpenAISameFormat_ReasoningEffortDeletedForGPT5OnChatCompletions(t *test
 	}`)
 	opts := translate.EmitOptions{
 		TargetModel:    "gpt-5.6-luna",
-		TargetProvider: providers.ProviderOpenAIGateway,
+		TargetProvider: providers.ProviderAIAND,
 		Capabilities:   router.Lookup("gpt-5.6-luna"),
 	}
 	out := parseAndEmit(t, body, "openai", opts)
@@ -257,7 +257,7 @@ func TestOpenAISameFormat_ReasoningEffortDeletedForGatewayToolsOnAnyModel(t *tes
 	}`)
 	opts := translate.EmitOptions{
 		TargetModel:    "grok-4.6",
-		TargetProvider: providers.ProviderOpenAIGateway,
+		TargetProvider: providers.ProviderAIAND,
 		Capabilities:   router.Lookup("grok-4.6"),
 	}
 	out := parseAndEmit(t, body, "openai", opts)
@@ -307,7 +307,7 @@ func TestOpenAISameFormat_ToolTurnOptsOutOfReasoningForDirectGPT56(t *testing.T)
 		t.Run(tc.name, func(t *testing.T) {
 			opts := translate.EmitOptions{
 				TargetModel:    tc.model,
-				TargetProvider: providers.ProviderOpenAI,
+				TargetProvider: providers.ProviderAIAND,
 				Capabilities:   router.Lookup(tc.model),
 			}
 			out := parseAndEmit(t, tc.body, "openai", opts)
@@ -1362,7 +1362,7 @@ func TestAnthropicSameFormat_XhighEffortPreservedForCapableModel(t *testing.T) {
 func TestAnthropicSameFormat_XhighEffortNeverReachesIncapableModel(t *testing.T) {
 	var anthropicModels, capableModels int
 	for _, m := range catalog.Models {
-		if m.PrimaryProvider() != providers.ProviderAnthropic {
+		if m.PrimaryProvider() != providers.ProviderAIAND {
 			continue
 		}
 		anthropicModels++
@@ -1417,7 +1417,7 @@ func TestAnthropicSameFormat_OutputConfigFormatStrippedOnRequest(t *testing.T) {
 		`"output_config":{"format":{"type":"json_schema","schema":{"type":"object","properties":{"title":{"type":"string"}}}}}}`)
 	out := parseAndEmit(t, body, "anthropic", translate.EmitOptions{
 		TargetModel:             "claude-sonnet-5",
-		TargetProvider:          providers.ProviderAnthropicGateway,
+		TargetProvider:          providers.ProviderAIAND,
 		Capabilities:            router.Lookup("claude-sonnet-5"),
 		StripOutputConfigFormat: true,
 	})
@@ -1430,7 +1430,7 @@ func TestAnthropicSameFormat_OutputConfigEffortSurvivesFormatStrip(t *testing.T)
 		`"thinking":{"type":"adaptive"},"output_config":{"effort":"high","format":{"type":"json_schema"}}}`)
 	out := parseAndEmit(t, body, "anthropic", translate.EmitOptions{
 		TargetModel:             "claude-sonnet-5",
-		TargetProvider:          providers.ProviderAnthropicGateway,
+		TargetProvider:          providers.ProviderAIAND,
 		Capabilities:            router.Lookup("claude-sonnet-5"),
 		StripOutputConfigFormat: true,
 	})
@@ -1445,7 +1445,7 @@ func TestAnthropicSameFormat_OutputConfigEffortSurvivesFormatStrip(t *testing.T)
 func TestAnthropicSameFormat_OutputConfigFormatKeptByDefault(t *testing.T) {
 	body := []byte(`{"model":"claude-sonnet-5","messages":[{"role":"user","content":"hi"}],"max_tokens":1024,` +
 		`"output_config":{"format":{"type":"json_schema"}}}`)
-	for _, provider := range []string{providers.ProviderAnthropic, providers.ProviderAnthropicGateway} {
+	for _, provider := range []string{providers.ProviderAIAND, providers.ProviderAIAND} {
 		t.Run(provider, func(t *testing.T) {
 			out := parseAndEmit(t, body, "anthropic", translate.EmitOptions{
 				TargetModel:    "claude-sonnet-5",
@@ -1584,7 +1584,7 @@ func TestOpenAIToAnthropic_ForcedToolChoiceDowngradedForAutoOnlyModel(t *testing
 
 func TestOpenAIEmit_FillsMissingFunctionToolParameters(t *testing.T) {
 	empty := map[string]any{"type": "object", "properties": map[string]any{}}
-	opts := translate.EmitOptions{TargetModel: "grok-4.6", TargetProvider: providers.ProviderXAI, Capabilities: router.Lookup("grok-4.6")}
+	opts := translate.EmitOptions{TargetModel: "grok-4.6", TargetProvider: providers.ProviderAIAND, Capabilities: router.Lookup("grok-4.6")}
 
 	nested := []byte(`{"model":"grok-4.6","messages":[{"role":"user","content":"hi"}],"tools":[{"type":"function","function":{"name":"read_file","parameters":{"type":"object"}}},{"type":"function","function":{"name":"noop"}},{"type":"function","function":{"name":"ping","parameters":null}}]}`)
 	out := parseAndEmit(t, nested, "openai", opts)
@@ -1616,7 +1616,7 @@ func TestAnthropicToOpenAI_FillsMissingInputSchemaAsParameters(t *testing.T) {
 	body := []byte(`{"model":"claude-opus-4-6","max_tokens":1024,"messages":[{"role":"user","content":"hi"}],"tools":[{"name":"Read","input_schema":{"type":"object"}},{"name":"Ping","description":"no args"}]}`)
 	env, err := translate.ParseAnthropic(body)
 	require.NoError(t, err)
-	p, err := env.PrepareOpenAI(http.Header{}, translate.EmitOptions{TargetModel: "grok-4.6", TargetProvider: providers.ProviderXAI, Capabilities: router.Lookup("grok-4.6")})
+	p, err := env.PrepareOpenAI(http.Header{}, translate.EmitOptions{TargetModel: "grok-4.6", TargetProvider: providers.ProviderAIAND, Capabilities: router.Lookup("grok-4.6")})
 	require.NoError(t, err)
 	tools := gjson.GetBytes(p.Body, "tools")
 	require.Equal(t, int64(2), tools.Get("#").Int())
@@ -1625,7 +1625,7 @@ func TestAnthropicToOpenAI_FillsMissingInputSchemaAsParameters(t *testing.T) {
 	assert.Equal(t, "object", tools.Get("1.function.parameters.type").String())
 	assert.JSONEq(t, `{"type":"object","properties":{}}`, tools.Get("1.function.parameters").Raw)
 
-	p, err = env.PrepareOpenAIResponses(http.Header{}, translate.EmitOptions{TargetModel: "gpt-5.5", TargetProvider: providers.ProviderOpenAI, Capabilities: router.Lookup("gpt-5.5")})
+	p, err = env.PrepareOpenAIResponses(http.Header{}, translate.EmitOptions{TargetModel: "gpt-5.5", TargetProvider: providers.ProviderAIAND, Capabilities: router.Lookup("gpt-5.5")})
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"type":"object","properties":{}}`, gjson.GetBytes(p.Body, "tools.1.parameters").Raw)
 	assert.Equal(t, "false", gjson.GetBytes(p.Body, "tools.1.strict").Raw)

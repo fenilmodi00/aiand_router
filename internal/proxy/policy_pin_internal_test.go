@@ -137,8 +137,8 @@ func (r *countingPinnedRouter) Route(context.Context, router.Request) (router.De
 
 func pinnedTurnLoopService(t *testing.T, rt router.Router, store sessionpin.Store) *Service {
 	t.Helper()
-	clients := map[string]providers.Client{providers.ProviderAnthropic: nil, providers.ProviderOpenAI: nil}
-	return NewService(rt, clients, nil, false, nil, store, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil)
+	clients := map[string]providers.Client{providers.ProviderAIAND: nil, providers.ProviderAIAND: nil}
+	return NewService(rt, clients, nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil)
 }
 
 func pinnedTurnLoopEnvelope(t *testing.T) (*translate.RequestEnvelope, translate.RoutingFeatures) {
@@ -153,9 +153,9 @@ func TestRunTurnLoop_HonouredPinBypassesStickyPinAndScoresFresh(t *testing.T) {
 	store := &rolePinStore{byRole: map[string]sessionpin.Pin{}}
 	env, feats := pinnedTurnLoopEnvelope(t)
 	role := roleForTier(catalog.TierFor(feats.Model))
-	store.byRole[role] = sessionpin.Pin{Provider: providers.ProviderAnthropic, Model: stickyModel, Reason: "hmm_policy", PinnedUntil: time.Now().Add(time.Hour)}
+	store.byRole[role] = sessionpin.Pin{Provider: providers.ProviderAIAND, Model: stickyModel, Reason: "hmm_policy", PinnedUntil: time.Now().Add(time.Hour)}
 	rt := &countingPinnedRouter{decision: router.Decision{
-		Provider: providers.ProviderOpenAI, Model: "gpt-5.5",
+		Provider: providers.ProviderAIAND, Model: "gpt-5.5",
 		Metadata: &router.RoutingMetadata{PolicyPinHonoured: true},
 	}}
 	svc := pinnedTurnLoopService(t, rt, store)
@@ -178,7 +178,7 @@ func TestRunTurnLoop_HonouredPinKeepsSessionIdentity(t *testing.T) {
 	env, feats := pinnedTurnLoopEnvelope(t)
 	role := roleForTier(catalog.TierFor(feats.Model))
 	rt := &countingPinnedRouter{decision: router.Decision{
-		Provider: providers.ProviderOpenAI, Model: "gpt-5.5",
+		Provider: providers.ProviderAIAND, Model: "gpt-5.5",
 		Metadata: &router.RoutingMetadata{PolicyPinHonoured: true},
 	}}
 	store := &rolePinStore{byRole: map[string]sessionpin.Pin{}}
@@ -190,7 +190,7 @@ func TestRunTurnLoop_HonouredPinKeepsSessionIdentity(t *testing.T) {
 	assert.NotEqual(t, zeroKey, first.SessionKey, "a pinned turn must keep the thread session key for telemetry and history writeback")
 	assert.True(t, first.SessionFirstTurn, "no stored pin state is the session's first turn")
 
-	store.byRole[role] = sessionpin.Pin{Provider: providers.ProviderAnthropic, Model: "claude-sonnet-5", Reason: "hmm_policy", PinnedUntil: time.Now().Add(time.Hour)}
+	store.byRole[role] = sessionpin.Pin{Provider: providers.ProviderAIAND, Model: "claude-sonnet-5", Reason: "hmm_policy", PinnedUntil: time.Now().Add(time.Hour)}
 	later, err := svc.runTurnLoop(pinnedContext(true), env, feats, "key", uuid.Nil, "", nil, router.Request{RequestedModel: feats.Model})
 	require.NoError(t, err)
 	assert.Equal(t, first.SessionKey, later.SessionKey)
@@ -208,7 +208,7 @@ func TestRunTurnLoop_HonouredPinClassifierKeepsSessionKeyZero(t *testing.T) {
 	require.NoError(t, err)
 	feats := env.RoutingFeatures(false)
 	rt := &countingPinnedRouter{decision: router.Decision{
-		Provider: providers.ProviderOpenAI, Model: "gpt-5.5",
+		Provider: providers.ProviderAIAND, Model: "gpt-5.5",
 		Metadata: &router.RoutingMetadata{PolicyPinHonoured: true},
 	}}
 	store := &rolePinStore{byRole: map[string]sessionpin.Pin{}}
@@ -228,7 +228,7 @@ func TestRunTurnLoop_HonouredPinClassifierKeepsSessionKeyZero(t *testing.T) {
 func TestRunTurnLoop_HonouredPinBypassesForceModel(t *testing.T) {
 	env, feats := pinnedTurnLoopEnvelope(t)
 	rt := &countingPinnedRouter{decision: router.Decision{
-		Provider: providers.ProviderOpenAI, Model: "gpt-5.5",
+		Provider: providers.ProviderAIAND, Model: "gpt-5.5",
 		Metadata: &router.RoutingMetadata{PolicyPinHonoured: true},
 	}}
 	svc := pinnedTurnLoopService(t, rt, &rolePinStore{byRole: map[string]sessionpin.Pin{}})
@@ -253,7 +253,7 @@ func TestRunTurnLoop_HonouredPinScoresAutomaticProbesWithoutConversationState(t 
 				require.NoError(t, err)
 				feats := env.RoutingFeatures(false)
 				rt := &countingPinnedRouter{decision: router.Decision{
-					Provider: providers.ProviderOpenAI, Model: catalog.ModelIDGPT55.String(),
+					Provider: providers.ProviderAIAND, Model: catalog.ModelIDGPT55.String(),
 					Metadata: &router.RoutingMetadata{PolicyPinHonoured: true},
 				}}
 				store := newStubPinStore()
@@ -286,7 +286,7 @@ func TestRunTurnLoop_HonouredPinScoresAutomaticProbesWithoutConversationState(t 
 
 func TestRunTurnLoop_HonouredPinNeverServes200WithHonouredFalse(t *testing.T) {
 	env, feats := pinnedTurnLoopEnvelope(t)
-	rt := &countingPinnedRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: "claude-sonnet-5"}}
+	rt := &countingPinnedRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-5"}}
 	svc := pinnedTurnLoopService(t, rt, &rolePinStore{byRole: map[string]sessionpin.Pin{}})
 
 	_, err := svc.runTurnLoop(pinnedContext(true), env, feats, "key", uuid.Nil, "", nil, router.Request{RequestedModel: feats.Model})

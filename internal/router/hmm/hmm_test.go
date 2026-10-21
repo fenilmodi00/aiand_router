@@ -29,7 +29,7 @@ func TestRouterMapsSidecarRosterModelBackToCatalogDecision(t *testing.T) {
 	decider := &fakeDecider{res: Result{
 		RouteID:              "route-1",
 		Model:                "moonshotai/kimi-k2.7-code",
-		Provider:             providers.ProviderFireworks,
+		Provider:             providers.ProviderAIAND,
 		Score:                0.8,
 		CandidateScores:      map[string]float32{"moonshotai/kimi-k2.7-code": 0.8},
 		Reason:               "policy",
@@ -45,7 +45,7 @@ func TestRouterMapsSidecarRosterModelBackToCatalogDecision(t *testing.T) {
 		DebugRef:             "debug-1",
 	}}
 	deployed := map[string]struct{}{"moonshotai/kimi-k2.7": {}}
-	available := map[string]struct{}{providers.ProviderFireworks: {}}
+	available := map[string]struct{}{providers.ProviderAIAND: {}}
 	r := newWithRoutingTargets(router.StrategyHMM, decider, deployed, available)
 
 	decision, err := r.Route(context.Background(), router.Request{
@@ -93,7 +93,7 @@ func TestRouterMapsSidecarRosterModelBackToCatalogDecision(t *testing.T) {
 	candidate := decider.query.Candidates[0]
 	assert.Equal(t, "moonshotai/kimi-k2.7-code", candidate.RosterID)
 	assert.Equal(t, "moonshotai/kimi-k2.7", candidate.CatalogID)
-	assert.Equal(t, providers.ProviderFireworks, candidate.Provider)
+	assert.Equal(t, providers.ProviderAIAND, candidate.Provider)
 	assert.Equal(t, 0.95, candidate.InputUSDPer1M)
 	assert.Equal(t, 4.0, candidate.OutputUSDPer1M)
 	assert.InDelta(t, 0.0000095, candidate.EstimatedCostUSD, 1e-12)
@@ -111,7 +111,7 @@ func TestRouterUsesSeparatelySelectableHMMStrategies(t *testing.T) {
 				strategy,
 				decider,
 				map[string]struct{}{"moonshotai/kimi-k2.7": {}},
-				map[string]struct{}{providers.ProviderFireworks: {}},
+				map[string]struct{}{providers.ProviderAIAND: {}},
 			)
 
 			decision, err := r.Route(context.Background(), router.Request{PromptText: "hello"})
@@ -129,7 +129,7 @@ func TestRouterKeepsGeneratedRouteIDWhenSidecarOmitsIt(t *testing.T) {
 	decider := &fakeDecider{res: Result{
 		Model: "moonshotai/kimi-k2.7-code",
 	}}
-	r := newWithRoutingTargets(router.StrategyHMM, decider, map[string]struct{}{"moonshotai/kimi-k2.7": {}}, map[string]struct{}{providers.ProviderFireworks: {}})
+	r := newWithRoutingTargets(router.StrategyHMM, decider, map[string]struct{}{"moonshotai/kimi-k2.7": {}}, map[string]struct{}{providers.ProviderAIAND: {}})
 
 	decision, err := r.Route(context.Background(), router.Request{PromptText: "hello"})
 
@@ -141,7 +141,7 @@ func TestRouterKeepsGeneratedRouteIDWhenSidecarOmitsIt(t *testing.T) {
 
 func TestRouterFailsClosedOnUnknownReturnedModel(t *testing.T) {
 	decider := &fakeDecider{res: Result{Model: "unknown/model"}}
-	r := newWithRoutingTargets(router.StrategyHMM, decider, map[string]struct{}{"moonshotai/kimi-k2.7": {}}, map[string]struct{}{providers.ProviderFireworks: {}})
+	r := newWithRoutingTargets(router.StrategyHMM, decider, map[string]struct{}{"moonshotai/kimi-k2.7": {}}, map[string]struct{}{providers.ProviderAIAND: {}})
 
 	_, err := r.Route(context.Background(), router.Request{PromptText: "hello"})
 
@@ -150,8 +150,8 @@ func TestRouterFailsClosedOnUnknownReturnedModel(t *testing.T) {
 }
 
 func TestRouterFailsClosedOnReturnedProviderMismatch(t *testing.T) {
-	decider := &fakeDecider{res: Result{Model: "moonshotai/kimi-k2.7-code", Provider: providers.ProviderOpenRouter}}
-	r := newWithRoutingTargets(router.StrategyHMM, decider, map[string]struct{}{"moonshotai/kimi-k2.7": {}}, map[string]struct{}{providers.ProviderFireworks: {}})
+	decider := &fakeDecider{res: Result{Model: "moonshotai/kimi-k2.7-code", Provider: providers.ProviderAIAND}}
+	r := newWithRoutingTargets(router.StrategyHMM, decider, map[string]struct{}{"moonshotai/kimi-k2.7": {}}, map[string]struct{}{providers.ProviderAIAND: {}})
 
 	_, err := r.Route(context.Background(), router.Request{PromptText: "hello"})
 
@@ -163,7 +163,7 @@ func TestRouterDoesNotOfferOpenRouterFallbackCandidates(t *testing.T) {
 	decider := &fakeDecider{res: Result{Model: "minimax/minimax-m3"}}
 	r := New(
 		decider,
-		map[string]struct{}{providers.ProviderOpenRouter: {}},
+		map[string]struct{}{providers.ProviderAIAND: {}},
 	)
 
 	candidates := r.resolver.Resolve(router.Request{}).Candidates
@@ -179,15 +179,15 @@ func TestRouterDoesNotOfferOpenRouterFallbackCandidates(t *testing.T) {
 
 func TestCatalogRoutingTargetsResolveCurrentHMMRosterArmsToProviders(t *testing.T) {
 	available := map[string]struct{}{
-		providers.ProviderAnthropic:  {},
-		providers.ProviderOpenAI:     {},
-		providers.ProviderGoogle:     {},
-		providers.ProviderOpenRouter: {},
-		providers.ProviderFireworks:  {},
-		providers.ProviderBedrock:    {},
-		providers.ProviderMakora:     {},
-		providers.ProviderTogether:   {},
-		providers.ProviderXAI:        {},
+		providers.ProviderAIAND:  {},
+		providers.ProviderAIAND:     {},
+		providers.ProviderAIAND:     {},
+		providers.ProviderAIAND: {},
+		providers.ProviderAIAND:  {},
+		providers.ProviderAIAND:    {},
+		providers.ProviderAIAND:     {},
+		providers.ProviderAIAND:   {},
+		providers.ProviderAIAND:        {},
 	}
 	r := New(&fakeDecider{}, available)
 
@@ -195,7 +195,7 @@ func TestCatalogRoutingTargetsResolveCurrentHMMRosterArmsToProviders(t *testing.
 
 	gotRosterIDs := make([]string, 0, len(candidates))
 	for _, candidate := range candidates {
-		assert.NotEqual(t, providers.ProviderOpenRouter, candidate.Provider, candidate.RosterID)
+		assert.NotEqual(t, providers.ProviderAIAND, candidate.Provider, candidate.RosterID)
 		gotRosterIDs = append(gotRosterIDs, candidate.RosterID)
 	}
 	for _, rosterID := range []string{
@@ -248,21 +248,21 @@ func TestRosterIDForMapsBareMuseSparkToMetaRosterSlug(t *testing.T) {
 	got := DeployedModelsForRosterIDs([]string{"meta/muse-spark-1.3", "meta/muse-spark-1.3:xhigh"})
 	require.Len(t, got, 1)
 	assert.Equal(t, "muse-spark-1.3", got[0].Model)
-	assert.Equal(t, providers.ProviderMeta, got[0].Provider)
+	assert.Equal(t, providers.ProviderAIAND, got[0].Provider)
 }
 
 func TestRouterOffersAndSelectsTerraWithoutLegacyDeployedSet(t *testing.T) {
 	decider := &fakeDecider{res: Result{
 		Model:    "openai/gpt-5.6-terra",
-		Provider: providers.ProviderOpenAI,
+		Provider: providers.ProviderAIAND,
 	}}
-	r := New(decider, map[string]struct{}{providers.ProviderOpenAI: {}})
+	r := New(decider, map[string]struct{}{providers.ProviderAIAND: {}})
 
 	decision, err := r.Route(context.Background(), router.Request{PromptText: "solve this"})
 
 	require.NoError(t, err)
 	assert.Equal(t, "gpt-5.6-terra", decision.Model)
-	assert.Equal(t, providers.ProviderOpenAI, decision.Provider)
+	assert.Equal(t, providers.ProviderAIAND, decision.Provider)
 	assert.Contains(t, candidateRosterIDs(decider.query.Candidates), "openai/gpt-5.6-terra")
 }
 
@@ -272,22 +272,22 @@ func TestRouterOffersAndSelectsHMMOnlyGPT56ProTargets(t *testing.T) {
 			rosterID := "openai/" + model
 			decider := &fakeDecider{res: Result{
 				Model:    rosterID,
-				Provider: providers.ProviderOpenAI,
+				Provider: providers.ProviderAIAND,
 			}}
-			r := New(decider, map[string]struct{}{providers.ProviderOpenAI: {}})
+			r := New(decider, map[string]struct{}{providers.ProviderAIAND: {}})
 
 			decision, err := r.Route(context.Background(), router.Request{PromptText: "solve this"})
 
 			require.NoError(t, err)
 			assert.Equal(t, model, decision.Model)
-			assert.Equal(t, providers.ProviderOpenAI, decision.Provider)
+			assert.Equal(t, providers.ProviderAIAND, decision.Provider)
 			assert.Contains(t, candidateRosterIDs(decider.query.Candidates), rosterID)
 		})
 	}
 }
 
 func TestRouterDoesNotOfferTerraWithoutRegisteredOpenAIProvider(t *testing.T) {
-	r := New(&fakeDecider{}, map[string]struct{}{providers.ProviderAnthropic: {}})
+	r := New(&fakeDecider{}, map[string]struct{}{providers.ProviderAIAND: {}})
 
 	candidates := r.resolver.Resolve(router.Request{}).Candidates
 
@@ -306,7 +306,7 @@ func TestRosterIDForSkipsAmbiguousBareProviderIDs(t *testing.T) {
 	got := rosterIDFor(catalog.Model{
 		ID: "bare-provider-model",
 		Providers: []catalog.ProviderBinding{{
-			Provider: providers.ProviderFireworks,
+			Provider: providers.ProviderAIAND,
 		}},
 	})
 

@@ -11,7 +11,7 @@ import (
 
 func TestSubscriptionProvidersHonorRoutingToggle(t *testing.T) {
 	ctx := context.WithValue(context.Background(), AnthropicSubscriptionContextKey{}, "sk-ant-oat01-token")
-	require.Contains(t, subscriptionProvidersForRequest(ctx), providers.ProviderAnthropic)
+	require.Contains(t, subscriptionProvidersForRequest(ctx), providers.ProviderAIAND)
 
 	disabled := context.WithValue(ctx, InstallationSubscriptionRoutingDisabledContextKey{}, true)
 	require.Empty(t, subscriptionProvidersForRequest(disabled))

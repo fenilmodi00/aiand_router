@@ -15,34 +15,34 @@ import (
 func TestResolveCompactionModelFailsClosed(t *testing.T) {
 	t.Run("default", func(t *testing.T) {
 		t.Setenv("ROUTER_COMPACTION_MODEL", "")
-		model, err := resolveCompactionModel(providers.ProviderAnthropic)
+		model, err := resolveCompactionModel(providers.ProviderAIAND)
 		require.NoError(t, err)
 		assert.Equal(t, policy.PrecompactionDefaultModel, model)
 	})
 
 	t.Run("valid Anthropic binding", func(t *testing.T) {
 		t.Setenv("ROUTER_COMPACTION_MODEL", "claude-fable-5")
-		model, err := resolveCompactionModel(providers.ProviderAnthropic)
+		model, err := resolveCompactionModel(providers.ProviderAIAND)
 		require.NoError(t, err)
 		assert.Equal(t, "claude-fable-5", model)
 	})
 
 	t.Run("invalid binding", func(t *testing.T) {
 		t.Setenv("ROUTER_COMPACTION_MODEL", "gpt-5.5")
-		_, err := resolveCompactionModel(providers.ProviderAnthropic)
+		_, err := resolveCompactionModel(providers.ProviderAIAND)
 		assert.ErrorContains(t, err, "has no anthropic catalog binding")
 	})
 
 	t.Run("binding on the configured summarizer provider", func(t *testing.T) {
 		t.Setenv("ROUTER_COMPACTION_MODEL", "claude-fable-5")
-		_, err := resolveCompactionModel(providers.ProviderOpenAI)
+		_, err := resolveCompactionModel(providers.ProviderAIAND)
 		assert.ErrorContains(t, err, "has no openai catalog binding")
 	})
 }
 
 func TestResolveHardPinModelRejectsProviderWithoutModel(t *testing.T) {
 	t.Setenv("ROUTER_HARD_PIN_MODEL", "")
-	t.Setenv("ROUTER_HARD_PIN_PROVIDER", providers.ProviderOpenAI)
+	t.Setenv("ROUTER_HARD_PIN_PROVIDER", providers.ProviderAIAND)
 
 	_, _, err := resolveHardPinModel(nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	assert.ErrorContains(t, err, "requires ROUTER_HARD_PIN_MODEL")
@@ -54,6 +54,6 @@ func TestResolveHardPinModelUsesDefaultProviderForExplicitModel(t *testing.T) {
 
 	provider, model, err := resolveHardPinModel(nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	require.NoError(t, err)
-	assert.Equal(t, providers.ProviderAnthropic, provider)
+	assert.Equal(t, providers.ProviderAIAND, provider)
 	assert.Equal(t, "claude-haiku-4-5", model)
 }

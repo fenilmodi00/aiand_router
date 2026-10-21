@@ -40,15 +40,15 @@ func TestProxyMessages_SubscriptionRescueFailurePreservesHTTPError(t *testing.T)
 
 	svc := proxy.NewService(
 		&fakeRouter{decision: router.Decision{
-			Provider: providers.ProviderAnthropic,
+			Provider: providers.ProviderAIAND,
 			Model:    "claude-opus-4-8",
 			Metadata: &router.RoutingMetadata{CandidateModels: []string{"claude-opus-4-8"}},
 		}},
 		map[string]providers.Client{
-			providers.ProviderAnthropic: anthropic.NewClient("test-anthropic-key", upstream.URL),
+			providers.ProviderAIAND: anthropic.NewClient("test-anthropic-key", upstream.URL),
 		},
-		nil, false, nil, nil, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil,
-	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAnthropic: {}}).
+		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}}).
 		WithRetrySleep(noRetrySleep).
 		WithUsageObserver(usage.NewObserver([]byte("rescue-render-quota-salt"), time.Hour, time.Now))
 

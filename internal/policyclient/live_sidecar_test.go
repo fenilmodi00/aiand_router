@@ -64,7 +64,7 @@ func TestLiveGenericPolicySidecarContract(t *testing.T) {
 			{
 				RosterID:                  "claude-fable-5",
 				CatalogID:                 "claude-fable-5",
-				Provider:                  providers.ProviderAnthropic,
+				Provider:                  providers.ProviderAIAND,
 				UpstreamID:                "claude-fable-5",
 				InputUSDPer1M:             3,
 				OutputUSDPer1M:            15,
@@ -78,7 +78,7 @@ func TestLiveGenericPolicySidecarContract(t *testing.T) {
 			{
 				RosterID:                  "gpt-5.5",
 				CatalogID:                 "gpt-5.5",
-				Provider:                  providers.ProviderOpenAI,
+				Provider:                  providers.ProviderAIAND,
 				UpstreamID:                "gpt-5.5",
 				InputUSDPer1M:             2.5,
 				OutputUSDPer1M:            10,

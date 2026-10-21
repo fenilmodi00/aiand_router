@@ -29,7 +29,7 @@ func TestSidecarRouter_OrdersRescueBySelectedGroupAndForceCluster(t *testing.T) 
 	decider := &recordingPolicy{result: policy.Result{
 		SchemaVersion: policy.SchemaVersionV1,
 		Model:         "claude-haiku-4-5",
-		Provider:      providers.ProviderAnthropic,
+		Provider:      providers.ProviderAIAND,
 		PolicyGroup:   "low",
 		RankedFallback: []policy.PreviewGroup{
 			{Group: "high", EligibleArms: []string{"claude-opus-4-8"}},
@@ -38,7 +38,7 @@ func TestSidecarRouter_OrdersRescueBySelectedGroupAndForceCluster(t *testing.T) 
 		},
 	}}
 	adapter := policy.NewSidecarRouter(policy.SidecarRouterConfig{Strategy: router.StrategyHMM}, decider,
-		policy.NewResolver(set(models...), set(providers.ProviderAnthropic, providers.ProviderOpenAI), catalogRosterID, policy.ManagedProviderPolicy()))
+		policy.NewResolver(set(models...), set(providers.ProviderAIAND, providers.ProviderAIAND), catalogRosterID, policy.ManagedProviderPolicy()))
 
 	decision, err := adapter.Route(context.Background(), router.Request{})
 	require.NoError(t, err)
@@ -56,7 +56,7 @@ func TestSidecarRouter_CoolingRescuePoolStaysWithinEligibleGroups(t *testing.T) 
 	decider := &recordingPolicy{result: policy.Result{
 		SchemaVersion: policy.SchemaVersionV1,
 		Model:         "claude-haiku-4-5",
-		Provider:      providers.ProviderAnthropic,
+		Provider:      providers.ProviderAIAND,
 		PolicyGroup:   "low",
 		RankedFallback: []policy.PreviewGroup{
 			{Group: "low", RosterArms: []string{"claude-haiku-4-5", "gpt-4.1-mini"}, EligibleArms: []string{"claude-haiku-4-5", "gpt-4.1-mini"}},
@@ -64,7 +64,7 @@ func TestSidecarRouter_CoolingRescuePoolStaysWithinEligibleGroups(t *testing.T) 
 		},
 	}}
 	adapter := policy.NewSidecarRouter(policy.SidecarRouterConfig{Strategy: router.StrategyHMM}, decider,
-		policy.NewResolver(set(models...), set(providers.ProviderAnthropic, providers.ProviderOpenAI), catalogRosterID, policy.ManagedProviderPolicy()))
+		policy.NewResolver(set(models...), set(providers.ProviderAIAND, providers.ProviderAIAND), catalogRosterID, policy.ManagedProviderPolicy()))
 	req := router.Request{
 		AutomaticExcludedModels: set("claude-opus-4-8", "gpt-5"),
 		ExcludedModels:          set("claude-sonnet-5"),
@@ -113,7 +113,7 @@ func TestSidecarRouterOnboardsFutureStrategyWithoutProxyChanges(t *testing.T) {
 		SchemaVersion:        policy.SchemaVersionV1,
 		RouteID:              "route-future",
 		Model:                "future/gpt-5.5",
-		Provider:             providers.ProviderOpenAI,
+		Provider:             providers.ProviderAIAND,
 		Score:                0.9,
 		CandidateScores:      map[string]float32{"future/gpt-5.5": 0.9},
 		PolicyRouteKey:       "high",
@@ -124,7 +124,7 @@ func TestSidecarRouterOnboardsFutureStrategyWithoutProxyChanges(t *testing.T) {
 	}}
 	resolver := policy.NewResolver(
 		set("gpt-5.5"),
-		set(providers.ProviderOpenAI),
+		set(providers.ProviderAIAND),
 		func(model catalog.Model) string { return "future/" + model.ID },
 		policy.ManagedProviderPolicy(),
 	)
@@ -152,7 +152,7 @@ func TestSidecarRouterOnboardsFutureStrategyWithoutProxyChanges(t *testing.T) {
 			SessionTurnCount:    4,
 			TurnType:            "main_loop",
 			PreviousServedModel: "gpt-5.4",
-			PreviousProvider:    providers.ProviderOpenAI,
+			PreviousProvider:    providers.ProviderAIAND,
 			CacheState:          router.PolicyCacheStateWarm,
 			PriorOutputTokens:   &priorOutputTokens,
 		},
@@ -160,7 +160,7 @@ func TestSidecarRouterOnboardsFutureStrategyWithoutProxyChanges(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, "gpt-5.5", decision.Model)
-	assert.Equal(t, providers.ProviderOpenAI, decision.Provider)
+	assert.Equal(t, providers.ProviderAIAND, decision.Provider)
 	assert.Equal(t, "future-policy", decision.Metadata.Strategy)
 	assert.Equal(t, "route-future", decision.Metadata.RouteID)
 	assert.Equal(t, "high", decision.Metadata.PolicyRouteKey)
@@ -192,7 +192,7 @@ func TestSidecarRouterOnboardsFutureStrategyWithoutProxyChanges(t *testing.T) {
 func TestSidecarRouterDispatchesSidecarSelectedArm(t *testing.T) {
 	resolver := policy.NewArmResolver(
 		set("minimax/minimax-m2.7"),
-		set(providers.ProviderTogether, providers.ProviderFireworks),
+		set(providers.ProviderAIAND, providers.ProviderAIAND),
 		func(model catalog.Model) string { return model.ID },
 		policy.ManagedProviderPolicy(),
 	)
@@ -235,7 +235,7 @@ func TestSidecarRouterMarksShadowDecisionsNonLearning(t *testing.T) {
 		Strategy: router.Strategy("future-policy"),
 	}, decider, policy.NewResolver(
 		set("gpt-5.5"),
-		set(providers.ProviderOpenAI),
+		set(providers.ProviderAIAND),
 		func(model catalog.Model) string { return model.ID },
 		policy.ManagedProviderPolicy(),
 	))
@@ -277,7 +277,7 @@ func TestSidecarRouterPreviewReturnsAllEligibleArmsWithoutLifecycleCallbacks(t *
 		Strategy: router.StrategyHMM,
 	}, decider, policy.NewResolver(
 		set("claude-opus-4-8", "gpt-5.5"),
-		set(providers.ProviderAnthropic, providers.ProviderOpenAI),
+		set(providers.ProviderAIAND, providers.ProviderAIAND),
 		catalogRosterID,
 		policy.ManagedProviderPolicy(),
 	)).WithCapabilities(policy.Capabilities{SupportsPreview: true})
@@ -305,7 +305,7 @@ func TestSidecarRouterPreviewReturnsAllEligibleArmsWithoutLifecycleCallbacks(t *
 func TestSidecarRouterPreviewUsesArmSchemaAndIDs(t *testing.T) {
 	resolver := policy.NewArmResolver(
 		set("minimax/minimax-m2.7"),
-		set(providers.ProviderTogether, providers.ProviderFireworks),
+		set(providers.ProviderAIAND, providers.ProviderAIAND),
 		catalogRosterID,
 		policy.ManagedProviderPolicy(),
 	)
@@ -361,7 +361,7 @@ func TestSidecarRouterPreviewRecordsZeroEligibleArms(t *testing.T) {
 		Strategy: router.StrategyHMM,
 	}, decider, policy.NewResolver(
 		set("gpt-5.5"),
-		set(providers.ProviderOpenAI),
+		set(providers.ProviderAIAND),
 		catalogRosterID,
 		policy.ManagedProviderPolicy(),
 	)).WithCapabilities(policy.Capabilities{SupportsPreview: true})
@@ -405,7 +405,7 @@ func TestSidecarRouterPreviewRejectsUnknownArm(t *testing.T) {
 		Strategy: router.StrategyHMM,
 	}, decider, policy.NewResolver(
 		set("gpt-5.5"),
-		set(providers.ProviderOpenAI),
+		set(providers.ProviderAIAND),
 		catalogRosterID,
 		policy.ManagedProviderPolicy(),
 	))
@@ -469,7 +469,7 @@ func clusterOverrideMapper(model catalog.Model) string { return "anthropic/" + m
 func TestSidecarRouterAppliesClusterArmOverride(t *testing.T) {
 	resolver := policy.NewResolver(
 		set("claude-opus-4-8", "claude-sonnet-5"),
-		set(providers.ProviderAnthropic),
+		set(providers.ProviderAIAND),
 		clusterOverrideMapper,
 		policy.ManagedProviderPolicy(),
 	)
@@ -477,7 +477,7 @@ func TestSidecarRouterAppliesClusterArmOverride(t *testing.T) {
 	decider := &recordingPolicy{result: policy.Result{
 		SchemaVersion: policy.SchemaVersionV1,
 		Model:         "anthropic/claude-opus-4-8",
-		Provider:      providers.ProviderAnthropic,
+		Provider:      providers.ProviderAIAND,
 		Score:         0.8,
 		PolicyGroup:   "maximum",
 		RankedFallback: []policy.PreviewGroup{{
@@ -507,7 +507,7 @@ func TestSidecarRouterAppliesClusterArmOverride(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "claude-sonnet-5", decision.Model,
 		"override order must decide the served model, not the sidecar's first arm")
-	assert.Equal(t, providers.ProviderAnthropic, decision.Provider)
+	assert.Equal(t, providers.ProviderAIAND, decision.Provider)
 	assert.Contains(t, decision.Reason, "cluster_override",
 		"an override that changes the pick must annotate the reason")
 }
@@ -518,14 +518,14 @@ func TestSidecarRouterAppliesClusterArmOverride(t *testing.T) {
 func TestSidecarRouterClusterOverrideSuppressesStaleDisplayMarker(t *testing.T) {
 	resolver := policy.NewResolver(
 		set("claude-opus-4-8", "claude-sonnet-5"),
-		set(providers.ProviderAnthropic),
+		set(providers.ProviderAIAND),
 		clusterOverrideMapper,
 		policy.ManagedProviderPolicy(),
 	)
 	decider := &recordingPolicy{result: policy.Result{
 		SchemaVersion: policy.SchemaVersionV1,
 		Model:         "anthropic/claude-opus-4-8",
-		Provider:      providers.ProviderAnthropic,
+		Provider:      providers.ProviderAIAND,
 		Score:         0.8,
 		PolicyGroup:   "maximum",
 		DisplayMarker: "✦ **Weave Router** → Delegating work with claude-opus-4-8",
@@ -561,7 +561,7 @@ func TestSidecarRouterClusterOverrideResolvesArmEnumeratingBinding(t *testing.T)
 	// ambiguous.
 	resolver := policy.NewArmResolver(
 		set("claude-opus-4-8", "claude-sonnet-5"),
-		set(providers.ProviderAnthropic),
+		set(providers.ProviderAIAND),
 		clusterOverrideMapper,
 		policy.ManagedProviderPolicy(),
 	)
@@ -574,7 +574,7 @@ func TestSidecarRouterClusterOverrideResolvesArmEnumeratingBinding(t *testing.T)
 		SchemaVersion: policy.SchemaVersionV2,
 		ArmID:         resolved.Candidates[0].ArmID,
 		Model:         resolved.Candidates[0].RosterID,
-		Provider:      providers.ProviderAnthropic,
+		Provider:      providers.ProviderAIAND,
 		Score:         0.8,
 		RankedFallback: []policy.PreviewGroup{{
 			Group:        "maximum",
@@ -595,13 +595,13 @@ func TestSidecarRouterClusterOverrideResolvesArmEnumeratingBinding(t *testing.T)
 
 	require.NoError(t, err, "override must resolve via the arm ID on an arm-enumerating resolver")
 	assert.Equal(t, "claude-sonnet-5", decision.Model)
-	assert.Equal(t, providers.ProviderAnthropic, decision.Provider)
+	assert.Equal(t, providers.ProviderAIAND, decision.Provider)
 }
 
 func TestSidecarRouterClusterOverrideFailsOpenWithoutRankedFallback(t *testing.T) {
 	resolver := policy.NewResolver(
 		set("claude-opus-4-8", "claude-sonnet-5"),
-		set(providers.ProviderAnthropic),
+		set(providers.ProviderAIAND),
 		clusterOverrideMapper,
 		policy.ManagedProviderPolicy(),
 	)
@@ -609,7 +609,7 @@ func TestSidecarRouterClusterOverrideFailsOpenWithoutRankedFallback(t *testing.T
 	decider := &recordingPolicy{result: policy.Result{
 		SchemaVersion: policy.SchemaVersionV1,
 		Model:         "anthropic/claude-opus-4-8",
-		Provider:      providers.ProviderAnthropic,
+		Provider:      providers.ProviderAIAND,
 		Score:         0.8,
 	}}
 	adapter := policy.NewSidecarRouter(policy.SidecarRouterConfig{
@@ -634,7 +634,7 @@ func TestSidecarRouterClusterOverrideFailsOpenWithoutRankedFallback(t *testing.T
 func TestSidecarRouterServesWithinForcedCluster(t *testing.T) {
 	resolver := policy.NewResolver(
 		set("claude-opus-4-8", "claude-haiku-4-5"),
-		set(providers.ProviderAnthropic),
+		set(providers.ProviderAIAND),
 		clusterOverrideMapper,
 		policy.ManagedProviderPolicy(),
 	)
@@ -642,7 +642,7 @@ func TestSidecarRouterServesWithinForcedCluster(t *testing.T) {
 	decider := &recordingPolicy{result: policy.Result{
 		SchemaVersion: policy.SchemaVersionV1,
 		Model:         "anthropic/claude-opus-4-8",
-		Provider:      providers.ProviderAnthropic,
+		Provider:      providers.ProviderAIAND,
 		PolicyGroup:   "maximum",
 		RankedFallback: []policy.PreviewGroup{
 			{Group: "maximum", Probability: 0.8, EligibleArms: []string{"anthropic/claude-opus-4-8"}},
@@ -669,14 +669,14 @@ func TestSidecarRouterServesWithinForcedCluster(t *testing.T) {
 func TestSidecarRouterForcedClusterSuppressesStaleDisplayMarker(t *testing.T) {
 	resolver := policy.NewResolver(
 		set("claude-opus-4-8", "claude-haiku-4-5"),
-		set(providers.ProviderAnthropic),
+		set(providers.ProviderAIAND),
 		clusterOverrideMapper,
 		policy.ManagedProviderPolicy(),
 	)
 	decider := &recordingPolicy{result: policy.Result{
 		SchemaVersion: policy.SchemaVersionV1,
 		Model:         "anthropic/claude-opus-4-8",
-		Provider:      providers.ProviderAnthropic,
+		Provider:      providers.ProviderAIAND,
 		PolicyGroup:   "maximum",
 		DisplayMarker: "✦ **Weave Router** → Delegating work with claude-opus-4-8",
 		RankedFallback: []policy.PreviewGroup{
@@ -702,14 +702,14 @@ func TestSidecarRouterForcedClusterSuppressesStaleDisplayMarker(t *testing.T) {
 func TestSidecarRouterForcedClusterKeepsProviderAgreementCheck(t *testing.T) {
 	resolver := policy.NewResolver(
 		set("claude-opus-4-8"),
-		set(providers.ProviderAnthropic),
+		set(providers.ProviderAIAND),
 		clusterOverrideMapper,
 		policy.ManagedProviderPolicy(),
 	)
 	decider := &recordingPolicy{result: policy.Result{
 		SchemaVersion: policy.SchemaVersionV1,
 		Model:         "anthropic/claude-opus-4-8",
-		Provider:      providers.ProviderOpenAI, // disagrees with the resolved binding
+		Provider:      providers.ProviderAIAND, // disagrees with the resolved binding
 		RankedFallback: []policy.PreviewGroup{{
 			Group:        "maximum",
 			EligibleArms: []string{"anthropic/claude-opus-4-8"},
@@ -730,14 +730,14 @@ func TestSidecarRouterForcedClusterKeepsProviderAgreementCheck(t *testing.T) {
 func TestSidecarRouterForcedClusterNarrowedByPerKeyOverride(t *testing.T) {
 	resolver := policy.NewResolver(
 		set("claude-opus-4-8", "claude-sonnet-5"),
-		set(providers.ProviderAnthropic),
+		set(providers.ProviderAIAND),
 		clusterOverrideMapper,
 		policy.ManagedProviderPolicy(),
 	)
 	decider := &recordingPolicy{result: policy.Result{
 		SchemaVersion: policy.SchemaVersionV1,
 		Model:         "anthropic/claude-opus-4-8",
-		Provider:      providers.ProviderAnthropic,
+		Provider:      providers.ProviderAIAND,
 		RankedFallback: []policy.PreviewGroup{{
 			Group:        "maximum",
 			EligibleArms: []string{"anthropic/claude-opus-4-8", "anthropic/claude-sonnet-5"},
@@ -760,14 +760,14 @@ func TestSidecarRouterForcedClusterNarrowedByPerKeyOverride(t *testing.T) {
 func TestSidecarRouterForcedClusterNotInRosterErrorsUnwrapped(t *testing.T) {
 	resolver := policy.NewResolver(
 		set("claude-opus-4-8"),
-		set(providers.ProviderAnthropic),
+		set(providers.ProviderAIAND),
 		clusterOverrideMapper,
 		policy.ManagedProviderPolicy(),
 	)
 	decider := &recordingPolicy{result: policy.Result{
 		SchemaVersion: policy.SchemaVersionV1,
 		Model:         "anthropic/claude-opus-4-8",
-		Provider:      providers.ProviderAnthropic,
+		Provider:      providers.ProviderAIAND,
 		RankedFallback: []policy.PreviewGroup{{
 			Group:        "maximum",
 			EligibleArms: []string{"anthropic/claude-opus-4-8"},
@@ -792,7 +792,7 @@ func TestSidecarRouterForcedClusterNotInRosterErrorsUnwrapped(t *testing.T) {
 func TestSidecarRouterForcedClusterFailsClosedWithoutRankedFallback(t *testing.T) {
 	resolver := policy.NewResolver(
 		set("claude-opus-4-8"),
-		set(providers.ProviderAnthropic),
+		set(providers.ProviderAIAND),
 		clusterOverrideMapper,
 		policy.ManagedProviderPolicy(),
 	)
@@ -800,7 +800,7 @@ func TestSidecarRouterForcedClusterFailsClosedWithoutRankedFallback(t *testing.T
 	decider := &recordingPolicy{result: policy.Result{
 		SchemaVersion: policy.SchemaVersionV1,
 		Model:         "anthropic/claude-opus-4-8",
-		Provider:      providers.ProviderAnthropic,
+		Provider:      providers.ProviderAIAND,
 	}}
 	adapter := policy.NewSidecarRouter(policy.SidecarRouterConfig{
 		Strategy: router.StrategyHMM,

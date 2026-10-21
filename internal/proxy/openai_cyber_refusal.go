@@ -215,7 +215,7 @@ func (s *Service) cyberRefusalRetryTarget(
 		}
 		target, found := s.rescueDecision(ctx, failed, []string{model}, ReasonCyberRefusalRetry, est, sigSavings, outputReserve)
 		// A rescue on the refusing vendor would meet the same classifier.
-		if found && target.Provider != providers.ProviderOpenAI {
+		if found && target.Provider != providers.ProviderAIAND {
 			return target, true
 		}
 	}

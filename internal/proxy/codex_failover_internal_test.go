@@ -37,12 +37,12 @@ func codexSubscriptionTestCtx() context.Context {
 // such, a deployment OpenAI key counts as a fallback, and suppressing the
 // subscription flips credential resolution off the spent ChatGPT token.
 func TestCodexFailover_EligibilityAndSuppression(t *testing.T) {
-	ctx := resolveAndInjectCredentials(codexSubscriptionTestCtx(), providers.ProviderOpenAI, codexCoveredModel, http.Header{})
+	ctx := resolveAndInjectCredentials(codexSubscriptionTestCtx(), providers.ProviderAIAND, codexCoveredModel, http.Header{})
 	require.True(t, servedOnCodexSubscription(ctx),
 		"a resolved ChatGPT OAuth token + account id must report servedOnCodexSubscription")
 
 	t.Run("out-of-roster catalog model resolves Codex OAuth", func(t *testing.T) {
-		resolved := resolveAndInjectCredentials(codexSubscriptionTestCtx(), providers.ProviderOpenAI, "gpt-6-astra", http.Header{})
+		resolved := resolveAndInjectCredentials(codexSubscriptionTestCtx(), providers.ProviderAIAND, "gpt-6-astra", http.Header{})
 		assert.True(t, servedOnCodexSubscription(resolved),
 			"selected OpenAI catalog models outside the automatic Codex roster must get a subscription funding attempt")
 	})
@@ -54,14 +54,14 @@ func TestCodexFailover_EligibilityAndSuppression(t *testing.T) {
 	})
 
 	t.Run("deployment OpenAI key present: eligible", func(t *testing.T) {
-		s := &Service{deploymentKeyedProviders: map[string]struct{}{providers.ProviderOpenAI: {}}}
+		s := &Service{deploymentKeyedProviders: map[string]struct{}{providers.ProviderAIAND: {}}}
 		assert.True(t, s.openaiFallbackKeyAvailable(ctx),
 			"a deployment OpenAI key is a valid failover target for a spent ChatGPT plan")
 	})
 
 	t.Run("suppression flips resolution off the subscription", func(t *testing.T) {
 		suppressed := withSuppressedCodexSubscription(codexSubscriptionTestCtx())
-		suppressed = resolveAndInjectCredentials(suppressed, providers.ProviderOpenAI, codexCoveredModel, http.Header{})
+		suppressed = resolveAndInjectCredentials(suppressed, providers.ProviderAIAND, codexCoveredModel, http.Header{})
 		assert.False(t, servedOnCodexSubscription(suppressed),
 			"the retry must not resolve back onto the spent ChatGPT token")
 		assert.False(t, servedOnSubscription(suppressed),
@@ -70,7 +70,7 @@ func TestCodexFailover_EligibilityAndSuppression(t *testing.T) {
 
 	t.Run("suppression is Codex-scoped", func(t *testing.T) {
 		ctx := context.WithValue(codexSubscriptionTestCtx(), AnthropicSubscriptionContextKey{}, "sk-ant-oat01-test-subscription-token")
-		suppressed := resolveAndInjectCredentials(withSuppressedCodexSubscription(ctx), providers.ProviderAnthropic, "claude-opus-4-8", http.Header{})
+		suppressed := resolveAndInjectCredentials(withSuppressedCodexSubscription(ctx), providers.ProviderAIAND, "claude-opus-4-8", http.Header{})
 		assert.True(t, servedOnSubscription(suppressed),
 			"suppressing the Codex token must leave a Claude subscription on the same request untouched")
 	})
@@ -168,7 +168,7 @@ func TestCodexOAuthCredentialRejected(t *testing.T) {
 func TestCodexQuotaExhaustion_RecordedForLaterTurns(t *testing.T) {
 	svc := &Service{
 		usageObserver:            usage.NewObserver([]byte("test-salt"), time.Hour, time.Now),
-		deploymentKeyedProviders: map[string]struct{}{providers.ProviderOpenAI: {}},
+		deploymentKeyedProviders: map[string]struct{}{providers.ProviderAIAND: {}},
 	}
 	ctx := codexSubscriptionTestCtx()
 	headers := http.Header{}
@@ -238,7 +238,7 @@ func TestCodexQuotaExhaustion_SuppressionLastsUntilThePlanResets(t *testing.T) {
 			clock := time.Now()
 			svc := &Service{
 				usageObserver:            usage.NewObserver([]byte("test-salt"), time.Minute, func() time.Time { return clock }),
-				deploymentKeyedProviders: map[string]struct{}{providers.ProviderOpenAI: {}},
+				deploymentKeyedProviders: map[string]struct{}{providers.ProviderAIAND: {}},
 			}
 			ctx, headers := codexSubscriptionTestCtx(), http.Header{}
 
@@ -285,10 +285,10 @@ func (c *codexQuotaClient) Passthrough(context.Context, providers.PreparedReques
 // reports the plan spent, with a deployment OpenAI key so the rescue is viable.
 func codexQuotaService(client providers.Client) *Service {
 	svc := NewService(
-		staticRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: codexCoveredModel, Reason: "test"}},
-		map[string]providers.Client{providers.ProviderOpenAI: client},
-		nil, false, nil, nil, false, providers.ProviderOpenAI, codexCoveredModel, nil,
-	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderOpenAI: {}})
+		staticRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: codexCoveredModel, Reason: "test"}},
+		map[string]providers.Client{providers.ProviderAIAND: client},
+		nil, false, nil, nil, false, providers.ProviderAIAND, codexCoveredModel, nil,
+	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 	svc.retrySleep = noopSleep
 	return svc
 }

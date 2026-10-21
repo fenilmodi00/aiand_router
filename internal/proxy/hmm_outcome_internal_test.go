@@ -39,7 +39,7 @@ func TestReportPolicyOutcome_UsesFreshMetadataForStickyServedDecision(t *testing
 		StickyHit: true,
 		Fresh: router.Decision{
 			Model:    "moonshotai/kimi-k2.7",
-			Provider: providers.ProviderFireworks,
+			Provider: providers.ProviderAIAND,
 			Metadata: &router.RoutingMetadata{
 				RouteID:          "route-fresh",
 				Strategy:         string(router.StrategyHMM),
@@ -50,7 +50,7 @@ func TestReportPolicyOutcome_UsesFreshMetadataForStickyServedDecision(t *testing
 	}
 	served := router.Decision{
 		Model:    "claude-haiku-4-5",
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 	}
 
 	ctx := context.WithValue(context.Background(), PolicyTrainingAllowedContextKey{}, true)
@@ -61,26 +61,26 @@ func TestReportPolicyOutcome_UsesFreshMetadataForStickyServedDecision(t *testing
 		inputTokens  = 90
 		outputTokens = 10
 	)
-	s.reportPolicyOutcome(ctx, routeRes, served, effortResolution{}, providers.ProviderAnthropic, false, 100, inputTokens, outputTokens, 0, 0, catalog.UsageModifiers{}, 12, 34, nil, &policyOutcomeResponse{
+	s.reportPolicyOutcome(ctx, routeRes, served, effortResolution{}, providers.ProviderAIAND, false, 100, inputTokens, outputTokens, 0, 0, catalog.UsageModifiers{}, 12, 34, nil, &policyOutcomeResponse{
 		Body: []byte(`{"content":[{"type":"text","text":"done"}]}`),
 	})
 
-	price, ok := catalog.PriceFor(providers.ProviderAnthropic, "claude-haiku-4-5")
+	price, ok := catalog.PriceFor(providers.ProviderAIAND, "claude-haiku-4-5")
 	require.True(t, ok)
-	wantCost := catalog.EffectiveInputCost(inputTokens, 0, 0, price, providers.ProviderAnthropic, catalog.UsageModifiers{}) +
+	wantCost := catalog.EffectiveInputCost(inputTokens, 0, 0, price, providers.ProviderAIAND, catalog.UsageModifiers{}) +
 		catalog.EffectiveOutputCost(inputTokens, outputTokens, price, catalog.UsageModifiers{})
 
 	select {
 	case payload := <-reporter.ch:
 		require.Equal(t, "route-fresh", payload["route_id"])
 		assert.Equal(t, "moonshotai/kimi-k2.7", payload["selected_model"])
-		assert.Equal(t, providers.ProviderFireworks, payload["selected_provider"])
+		assert.Equal(t, providers.ProviderAIAND, payload["selected_provider"])
 		assert.Equal(t, "claude-haiku-4-5", payload["served_model"])
-		assert.Equal(t, providers.ProviderAnthropic, payload["served_provider"])
+		assert.Equal(t, providers.ProviderAIAND, payload["served_provider"])
 		assert.Equal(t, false, payload["selected_served_model_match"])
 		assert.NotContains(t, payload, "training_exclusion_reason")
 		assert.Equal(t, "moonshotai/kimi-k2.7", payload["decision_model"])
-		assert.Equal(t, providers.ProviderFireworks, payload["decision_provider"])
+		assert.Equal(t, providers.ProviderAIAND, payload["decision_provider"])
 		assert.Equal(t, "medium|mid", payload["policy_route_key"])
 		assert.Equal(t, "hmm-prod", payload["policy_artifact_id"])
 		assert.Equal(t, "org-1", payload["organization_id"])
@@ -107,7 +107,7 @@ func TestReportPolicyOutcome_OmitsResponseBodyWhenTrainingIsNotAllowed(t *testin
 		Metadata: &router.RoutingMetadata{RouteID: "route-1", Strategy: string(router.StrategyHMM)},
 	}}
 
-	s.reportPolicyOutcome(context.Background(), routeRes, routeRes.Fresh, effortResolution{}, providers.ProviderFireworks, false, 1, 1, 1, 0, 0, catalog.UsageModifiers{}, 1, 1, nil, &policyOutcomeResponse{Body: []byte("private response")})
+	s.reportPolicyOutcome(context.Background(), routeRes, routeRes.Fresh, effortResolution{}, providers.ProviderAIAND, false, 1, 1, 1, 0, 0, catalog.UsageModifiers{}, 1, 1, nil, &policyOutcomeResponse{Body: []byte("private response")})
 
 	select {
 	case payload := <-reporter.ch:
@@ -128,7 +128,7 @@ func TestReportPolicyOutcome_AuthoritativeMismatchFailsClosedForTraining(t *test
 	})
 	selected := router.Decision{
 		Model:    "claude-opus-4-8",
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Metadata: &router.RoutingMetadata{
 			RouteID:                       "route-authoritative",
 			Strategy:                      string(strategy),
@@ -137,7 +137,7 @@ func TestReportPolicyOutcome_AuthoritativeMismatchFailsClosedForTraining(t *test
 	}
 	served := router.Decision{
 		Model:    "claude-haiku-4-5",
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 	}
 	ctx := context.WithValue(context.Background(), PolicyTrainingAllowedContextKey{}, true)
 
@@ -146,7 +146,7 @@ func TestReportPolicyOutcome_AuthoritativeMismatchFailsClosedForTraining(t *test
 		turnLoopResult{Fresh: selected, AuthoritativePerTurn: true},
 		served,
 		effortResolution{},
-		providers.ProviderAnthropic,
+		providers.ProviderAIAND,
 		false,
 		100,
 		90,
@@ -184,7 +184,7 @@ func TestReportPolicyOutcome_EffortMismatchExcludedFromTraining(t *testing.T) {
 	})
 	decision := router.Decision{
 		Model:    "gpt-5.5",
-		Provider: providers.ProviderOpenAI,
+		Provider: providers.ProviderAIAND,
 		Effort:   "xhigh",
 		Metadata: &router.RoutingMetadata{
 			RouteID:  "route-effort",
@@ -199,7 +199,7 @@ func TestReportPolicyOutcome_EffortMismatchExcludedFromTraining(t *testing.T) {
 		turnLoopResult{Fresh: decision},
 		decision,
 		effort,
-		providers.ProviderOpenAI,
+		providers.ProviderAIAND,
 		false, 100, 90, 10, 0, 0, catalog.UsageModifiers{}, 12, 34, nil,
 		&policyOutcomeResponse{Body: []byte("must not train")},
 	)

@@ -74,10 +74,10 @@ func (c *scriptedFundingClient) Passthrough(context.Context, providers.PreparedR
 
 func outOfRosterFundingService(client providers.Client, reason string, repo billing.Repo) *Service {
 	svc := NewService(
-		staticRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: outOfRosterCodexModel, Reason: reason}},
-		map[string]providers.Client{providers.ProviderOpenAI: client},
-		nil, false, nil, nil, false, providers.ProviderOpenAI, outOfRosterCodexModel, nil,
-	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderOpenAI: {}}).
+		staticRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: outOfRosterCodexModel, Reason: reason}},
+		map[string]providers.Client{providers.ProviderAIAND: client},
+		nil, false, nil, nil, false, providers.ProviderAIAND, outOfRosterCodexModel, nil,
+	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}}).
 		WithBillingService(billing.NewService(repo))
 	svc.retrySleep = noopSleep
 	return svc
@@ -161,7 +161,7 @@ func TestCodexOutOfRosterModel_SubscriptionFirstFunding(t *testing.T) {
 					return
 				}
 				assert.Equal(t, outOfRosterCodexModel, rec.Header().Get(HeaderRouterModel))
-				assert.Equal(t, providers.ProviderOpenAI, rec.Header().Get(HeaderRouterProvider))
+				assert.Equal(t, providers.ProviderAIAND, rec.Header().Get(HeaderRouterProvider))
 				require.Eventually(t, func() bool { return len(repo.snapshot()) == 1 }, 2*time.Second, 10*time.Millisecond)
 				debit := repo.snapshot()[0]
 				assert.Equal(t, outOfRosterCodexModel, debit.RouterModel)

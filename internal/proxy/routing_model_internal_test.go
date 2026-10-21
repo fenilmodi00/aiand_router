@@ -85,9 +85,9 @@ func TestRoutingModelDispatchesConcreteModelAcrossClientProtocols(t *testing.T) 
 			t.Run(string(choice.model)+tc.path, func(t *testing.T) {
 				const completionModel = "claude-haiku-4-5"
 				defaultRouter := &betaTestRouter{}
-				hmmRouter := &betaTestRouter{decision: router.Decision{Provider: providers.ProviderAnthropic, Model: completionModel}}
+				hmmRouter := &betaTestRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: completionModel}}
 				provider := &routingModelCaptureProvider{}
-				svc := NewService(defaultRouter, map[string]providers.Client{providers.ProviderAnthropic: provider}, nil, false, nil, nil, false, providers.ProviderAnthropic, completionModel, nil).
+				svc := NewService(defaultRouter, map[string]providers.Client{providers.ProviderAIAND: provider}, nil, false, nil, nil, false, providers.ProviderAIAND, completionModel, nil).
 					WithPolicyStrategy(policy.StrategySpec{Strategy: choice.strategy, Router: hmmRouter})
 				ctx := router.WithRoutingModel(router.WithStrategy(context.Background(), choice.strategy), choice.model)
 				request := httptest.NewRequest(http.MethodPost, tc.path, nil)

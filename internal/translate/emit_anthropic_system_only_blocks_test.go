@@ -164,7 +164,7 @@ func TestPrepareAnthropic_AddsToolChangesBeta(t *testing.T) {
 	require.NoError(t, err)
 	prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{
 		TargetModel:    "claude-opus-5",
-		TargetProvider: providers.ProviderAnthropic,
+		TargetProvider: providers.ProviderAIAND,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "mid-conversation-tool-changes-2026-07-01", prep.Headers.Get("anthropic-beta"))

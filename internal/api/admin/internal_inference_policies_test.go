@@ -23,18 +23,18 @@ const inspectionToken = "internal-secret"
 func inferencePoliciesEngine(t *testing.T) *gin.Engine {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
-	available := map[string]struct{}{providers.ProviderAnthropic: {}, providers.ProviderOpenAI: {}}
+	available := map[string]struct{}{providers.ProviderAIAND: {}, providers.ProviderAIAND: {}}
 	plans, err := policy.NewPlanResolver(policy.DefaultRegistry(), policy.NewResolver(
 		catalog.RoutingTargetSet(available), available, func(model catalog.Model) string { return model.ID }, policy.ProviderPolicy{}))
 	require.NoError(t, err)
 	proxySvc := upstreamModelsProxyService(map[string]providers.Client{
-		providers.ProviderAnthropic: &modelListingClient{},
-		providers.ProviderOpenAI:    &modelListingClient{},
+		providers.ProviderAIAND: &modelListingClient{},
+		providers.ProviderAIAND:    &modelListingClient{},
 	}).WithInferencePlans(plans).WithInferenceDeployment(policy.DeploymentPolicyConfig{
 		AvailableProviders: available,
 		TargetOverrides: []policy.PurposeTargetOverride{{
 			Purpose: policy.PurposeSubAgentDispatch,
-			Target:  policy.TargetOverride{Source: policy.OverrideSourceDeployment, CatalogID: "claude-haiku-4-5", Provider: providers.ProviderAnthropic},
+			Target:  policy.TargetOverride{Source: policy.OverrideSourceDeployment, CatalogID: "claude-haiku-4-5", Provider: providers.ProviderAIAND},
 		}},
 	})
 	engine := gin.New()
@@ -91,7 +91,7 @@ func TestInternalInferencePolicies_DeploymentReportsBindings(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	var body policy.DeploymentProjection
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
-	assert.Equal(t, []string{providers.ProviderAnthropic, providers.ProviderOpenAI}, body.AvailableProviders)
+	assert.Equal(t, []string{providers.ProviderAIAND, providers.ProviderAIAND}, body.AvailableProviders)
 	assert.Positive(t, body.RoutableModels)
 
 	byPurpose := make(map[policy.Purpose]policy.DeploymentPolicyProjection, len(body.Policies))
@@ -101,7 +101,7 @@ func TestInternalInferencePolicies_DeploymentReportsBindings(t *testing.T) {
 	handover := byPurpose[policy.PurposeHandoverSummary]
 	require.NotEmpty(t, handover.CandidateBindings)
 	assert.Equal(t, "claude-haiku-4-5", handover.CandidateBindings[0].CatalogID)
-	assert.Equal(t, providers.ProviderAnthropic, handover.CandidateBindings[0].Provider)
+	assert.Equal(t, providers.ProviderAIAND, handover.CandidateBindings[0].Provider)
 
 	subAgent := byPurpose[policy.PurposeSubAgentDispatch]
 	require.NotNil(t, subAgent.DeploymentTarget)
@@ -124,7 +124,7 @@ func TestInternalInferencePolicies_ResolvePreviewsFixedPurpose(t *testing.T) {
 	assert.Equal(t, policy.PolicyID("aux-handover-summary"), body.PolicyID)
 	assert.Equal(t, policy.DefaultRegistry().Revision(), body.RegistryRevision)
 	assert.Equal(t, "claude-haiku-4-5", body.SelectedTarget.CatalogID)
-	assert.Equal(t, providers.ProviderAnthropic, body.SelectedTarget.Provider)
+	assert.Equal(t, providers.ProviderAIAND, body.SelectedTarget.Provider)
 	assert.Equal(t, policy.OverrideSourcePolicyDefault, body.Provenance.OverrideSource)
 	assert.LessOrEqual(t, len(body.Alternatives), 8)
 }

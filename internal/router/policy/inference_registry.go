@@ -24,44 +24,34 @@ const (
 	EscalationJudgeModel = "z-ai/glm-5.3-flash"
 
 	// HandoverSummaryDefaultModel is the reviewed default target of the
-	// handover-summary policy. Haiku-class: summarization is cheap.
-	HandoverSummaryDefaultModel = "claude-haiku-4-5"
-	// PrecompactionDefaultModel is the reviewed Sonnet-class summarizer the
-	// compaction cascade uses when the session has no warm Anthropic pin; the
-	// summary is the only record of the elided history, so it is worth a
-	// mid-tier model.
-	PrecompactionDefaultModel = "claude-sonnet-5-5"
-	// PrecompactionLargeWindowModel is the big-context Anthropic-family
-	// summarizer for histories too large for PrecompactionDefaultModel.
-	PrecompactionLargeWindowModel = "claude-opus-5"
+	// handover-summary policy. Flash-class: summarization is cheap.
+	HandoverSummaryDefaultModel = "z-ai/glm-5.3-flash"
+	// PrecompactionDefaultModel is the reviewed summarizer the compaction
+	// cascade uses when the session has no warm pin; the summary is the only
+	// record of the elided history, so it is worth a mid-tier model.
+	PrecompactionDefaultModel = "z-ai/glm-5.2"
+	// PrecompactionLargeWindowModel is the big-context summarizer for
+	// histories too large for PrecompactionDefaultModel.
+	PrecompactionLargeWindowModel = "z-ai/glm-5.3"
 	// UtilityHardPinDefaultProvider and UtilityHardPinDefaultModel are the
 	// reviewed fallback target of the utility hard-pin policies (title-gen,
 	// classifier, probe, sub-agent dispatch, client compaction without a
 	// summary-grade session model) when the deployment names no override and
 	// the cluster bundle cannot supply its fastest available model.
-	UtilityHardPinDefaultProvider = providers.ProviderAnthropic
-	UtilityHardPinDefaultModel    = "claude-haiku-4-5"
+	UtilityHardPinDefaultProvider = providers.ProviderAIAND
+	UtilityHardPinDefaultModel    = "z-ai/glm-5.3-flash"
 )
 
 // compactionSummarizerModels is the reviewed set both compaction purposes may
-// summarize with, in default preference order. It includes every Anthropic
-// non-low catalog model so a session's warm pin can summarize its own history
-// and so ROUTER_COMPACTION_MODEL, which pins both purposes, validates once.
+// summarize with, in default preference order. It includes every non-low
+// catalog model so a session's warm pin can summarize its own history and so
+// ROUTER_COMPACTION_MODEL, which pins both purposes, validates once.
 var compactionSummarizerModels = []string{
 	PrecompactionDefaultModel,
 	PrecompactionLargeWindowModel,
-	"claude-sonnet-4-5",
-	"claude-sonnet-4-6",
-	"claude-sonnet-5",
-	"claude-opus-4-0",
-	"claude-opus-4-1",
-	"claude-opus-4-5",
-	"claude-opus-4-6",
-	"claude-opus-4-7",
-	"claude-opus-4-8",
-	"claude-opus-5-5",
-	"claude-fable-5",
-	"claude-fable-5-1",
+	"deepseek/deepseek-v4-pro-0813",
+	"moonshotai/kimi-k2.7",
+	"moonshotai/kimi-k3",
 }
 
 // FallbackSpec declares the only fallback family and fixed alternatives a policy permits.
@@ -543,7 +533,7 @@ func defaultPolicySpecs() []PolicySpec {
 		{
 			Purpose:            PurposeEscalationJudge,
 			Optional:           true,
-			FixedProvider:      providers.ProviderFireworks,
+			FixedProvider:      providers.ProviderAIAND,
 			DispatchClass:      DispatchClassAuxiliaryInference,
 			PolicyID:           "aux-escalation-judge",
 			PolicyRevision:     "2",

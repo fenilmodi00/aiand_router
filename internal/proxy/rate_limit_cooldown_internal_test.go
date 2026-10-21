@@ -231,13 +231,13 @@ func TestReadmittableCooldowns_DropsPermanentAndImageUnsafeArms(t *testing.T) {
 // and never the arm that just 429'd. A session-lifetime demotion stays out.
 // Exhaustion is recorded only when the walk actually dispatches one.
 func TestRescueDecisions_ExhaustedPoolReadmitsCoolingArms(t *testing.T) {
-	s := siblingService(providers.ProviderAnthropic, providers.ProviderFireworks)
+	s := siblingService(providers.ProviderAIAND, providers.ProviderAIAND)
 	md := &router.RoutingMetadata{
 		CandidateModels: []string{"claude-opus-5", "claude-sonnet-5", "deepseek/deepseek-v4-pro", "claude-haiku-4-5"},
 		CandidateProviders: map[string]string{
-			"claude-sonnet-5":          providers.ProviderAnthropic,
-			"deepseek/deepseek-v4-pro": providers.ProviderFireworks,
-			"claude-haiku-4-5":         providers.ProviderAnthropic,
+			"claude-sonnet-5":          providers.ProviderAIAND,
+			"deepseek/deepseek-v4-pro": providers.ProviderAIAND,
+			"claude-haiku-4-5":         providers.ProviderAIAND,
 		},
 	}
 	cooling := map[string]time.Time{
@@ -266,12 +266,12 @@ func TestRescueDecisions_ExhaustedPoolReadmitsCoolingArms(t *testing.T) {
 // only after they all failed, and dispatching the eligible one records no
 // exhaustion.
 func TestRescueDecisions_CoolingArmRanksBehindEligibleCandidates(t *testing.T) {
-	s := siblingService(providers.ProviderAnthropic, providers.ProviderFireworks)
+	s := siblingService(providers.ProviderAIAND, providers.ProviderAIAND)
 	md := &router.RoutingMetadata{
 		CandidateModels: []string{"claude-opus-5", "deepseek/deepseek-v4-pro", "claude-sonnet-5"},
 		CandidateProviders: map[string]string{
-			"claude-sonnet-5":          providers.ProviderAnthropic,
-			"deepseek/deepseek-v4-pro": providers.ProviderFireworks,
+			"claude-sonnet-5":          providers.ProviderAIAND,
+			"deepseek/deepseek-v4-pro": providers.ProviderAIAND,
 		},
 	}
 	ctx := context.Background()
@@ -290,10 +290,10 @@ func TestRescueDecisions_CoolingArmRanksBehindEligibleCandidates(t *testing.T) {
 // Without cooldowns on ctx (flag off, or nothing cooling) an exhausted pool
 // is what it was: no candidate.
 func TestRescueDecisions_ExhaustedPoolWithoutCooldownsStaysEmpty(t *testing.T) {
-	s := siblingService(providers.ProviderAnthropic)
+	s := siblingService(providers.ProviderAIAND)
 	md := &router.RoutingMetadata{
 		CandidateModels:    []string{"claude-opus-5", "claude-sonnet-5"},
-		CandidateProviders: map[string]string{"claude-sonnet-5": providers.ProviderAnthropic},
+		CandidateProviders: map[string]string{"claude-sonnet-5": providers.ProviderAIAND},
 	}
 	ctx := context.WithValue(context.Background(), SessionDemotedModelsContextKey{}, []string{"claude-sonnet-5"})
 
@@ -304,10 +304,10 @@ func TestRescueDecisions_ExhaustedPoolWithoutCooldownsStaysEmpty(t *testing.T) {
 // cooling arm is usually absent from the scored list: it is still readmitted,
 // resolved through its catalog binding.
 func TestRescueDecisions_ReadmitsCoolingArmAbsentFromScoredCandidates(t *testing.T) {
-	s := siblingService(providers.ProviderAnthropic)
+	s := siblingService(providers.ProviderAIAND)
 	md := &router.RoutingMetadata{
 		CandidateModels:    []string{"claude-sonnet-5", "claude-haiku-4-5"},
-		CandidateProviders: map[string]string{"claude-haiku-4-5": providers.ProviderAnthropic},
+		CandidateProviders: map[string]string{"claude-haiku-4-5": providers.ProviderAIAND},
 	}
 	failed := overloadedDecision(md)
 	failed.Model = "claude-sonnet-5"
@@ -317,19 +317,19 @@ func TestRescueDecisions_ReadmitsCoolingArmAbsentFromScoredCandidates(t *testing
 	got := s.siblingFailoverDecisions(ctx, failed, 1_000, 0, 0)
 
 	assert.Equal(t, []string{"claude-haiku-4-5", "claude-opus-5"}, siblingModels(got))
-	assert.Equal(t, providers.ProviderAnthropic, got[1].Provider)
+	assert.Equal(t, providers.ProviderAIAND, got[1].Provider)
 }
 
 func TestSiblingFailover_ScorerReadmitsOnlyEligibleCoolingPeersAtOrAboveSelectedTier(t *testing.T) {
-	s := siblingService(providers.ProviderAnthropic, providers.ProviderOpenAI)
+	s := siblingService(providers.ProviderAIAND, providers.ProviderAIAND)
 	failed := router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    "claude-sonnet-5",
 		Metadata: &router.RoutingMetadata{
 			ClusterRouterVersion: "v-test",
 			CandidateModels:      []string{"claude-sonnet-5", "gpt-5"},
 			ScorerRescuePool:     []string{"claude-sonnet-5", "gpt-5", "claude-opus-5", "claude-haiku-4-5"},
-			CandidateProviders:   map[string]string{"gpt-5": providers.ProviderOpenAI},
+			CandidateProviders:   map[string]string{"gpt-5": providers.ProviderAIAND},
 		},
 	}
 	ctx := context.WithValue(context.Background(), SessionDemotedModelsContextKey{}, []string{"claude-opus-5", "claude-haiku-4-5", "gpt-4.1-mini"})
@@ -342,19 +342,19 @@ func TestSiblingFailover_ScorerReadmitsOnlyEligibleCoolingPeersAtOrAboveSelected
 	got := s.siblingFailoverDecisions(ctx, failed, 1_000, 0, 0)
 
 	assert.Equal(t, []string{"gpt-5", "claude-opus-5"}, siblingModels(got))
-	assert.Equal(t, providers.ProviderAnthropic, got[1].Provider)
+	assert.Equal(t, providers.ProviderAIAND, got[1].Provider)
 }
 
 func TestSiblingFailover_SidecarReadmitsCoolingRosterArmLast(t *testing.T) {
-	s := siblingService(providers.ProviderAnthropic, providers.ProviderOpenAI)
+	s := siblingService(providers.ProviderAIAND, providers.ProviderAIAND)
 	failed := router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    "claude-haiku-4-5",
 		Metadata: &router.RoutingMetadata{
 			RosterFailover:     true,
 			RescueModels:       []string{"claude-haiku-4-5", "gpt-4.1-mini"},
 			SidecarRescuePool:  []string{"claude-opus-5"},
-			CandidateProviders: map[string]string{"gpt-4.1-mini": providers.ProviderOpenAI},
+			CandidateProviders: map[string]string{"gpt-4.1-mini": providers.ProviderAIAND},
 		},
 	}
 	ctx := context.WithValue(context.Background(), SessionDemotedModelsContextKey{}, []string{"claude-opus-5", "gpt-5"})
@@ -366,19 +366,19 @@ func TestSiblingFailover_SidecarReadmitsCoolingRosterArmLast(t *testing.T) {
 	got := s.siblingFailoverDecisions(ctx, failed, 1_000, 0, 0)
 
 	assert.Equal(t, []string{"gpt-4.1-mini", "claude-opus-5"}, siblingModels(got))
-	assert.Equal(t, providers.ProviderAnthropic, got[1].Provider)
+	assert.Equal(t, providers.ProviderAIAND, got[1].Provider)
 }
 
 // Lifting the cooldowns lifts only the cooldowns: a deployment-wide
 // automatic exclusion still keeps its model out of the readmission walk.
 func TestRescueDecisions_ReadmissionKeepsGlobalAutomaticExclusions(t *testing.T) {
-	s := siblingService(providers.ProviderAnthropic).
+	s := siblingService(providers.ProviderAIAND).
 		WithGlobalAutomaticExclusions(&stubGlobalExclusionStore{byModel: map[string]string{"claude-haiku-4-5": "disabled"}})
 	md := &router.RoutingMetadata{
 		CandidateModels: []string{"claude-opus-5", "claude-sonnet-5", "claude-haiku-4-5"},
 		CandidateProviders: map[string]string{
-			"claude-sonnet-5":  providers.ProviderAnthropic,
-			"claude-haiku-4-5": providers.ProviderAnthropic,
+			"claude-sonnet-5":  providers.ProviderAIAND,
+			"claude-haiku-4-5": providers.ProviderAIAND,
 		},
 	}
 	ctx := context.WithValue(context.Background(), SessionDemotedModelsContextKey{}, []string{"claude-sonnet-5"})
@@ -392,13 +392,13 @@ func TestRescueDecisions_ReadmissionKeepsGlobalAutomaticExclusions(t *testing.T)
 // A cooling arm the deployment has disabled stays out: readmission lifts the
 // cooldown, never the deployment-wide exclusion on the same model.
 func TestRescueDecisions_ReadmissionKeepsGlobalExclusionOnCoolingArm(t *testing.T) {
-	s := siblingService(providers.ProviderAnthropic).
+	s := siblingService(providers.ProviderAIAND).
 		WithGlobalAutomaticExclusions(&stubGlobalExclusionStore{byModel: map[string]string{"claude-sonnet-5": "disabled"}})
 	md := &router.RoutingMetadata{
 		CandidateModels: []string{"claude-opus-5", "claude-sonnet-5", "claude-haiku-4-5"},
 		CandidateProviders: map[string]string{
-			"claude-sonnet-5":  providers.ProviderAnthropic,
-			"claude-haiku-4-5": providers.ProviderAnthropic,
+			"claude-sonnet-5":  providers.ProviderAIAND,
+			"claude-haiku-4-5": providers.ProviderAIAND,
 		},
 	}
 	ctx := context.WithValue(context.Background(), SessionDemotedModelsContextKey{}, []string{"claude-sonnet-5", "claude-haiku-4-5"})
@@ -416,13 +416,13 @@ func TestRescueDecisions_ReadmissionKeepsGlobalExclusionOnCoolingArm(t *testing.
 func TestGatewayRescueDecisions_ExhaustedPoolReadmitsCoolingArms(t *testing.T) {
 	s := &Service{}
 	ctx := context.WithValue(context.Background(), ExternalAPIKeysContextKey{}, []*auth.ExternalAPIKey{
-		{Provider: providers.ProviderOpenAIGateway, Plaintext: []byte("pat"), ModelAliases: map[string]string{"grok-4.6": "grok-4.6"}},
-		{Provider: providers.ProviderAnthropicGateway, Plaintext: []byte("pat"), ModelAliases: map[string]string{"claude-opus-5": "claude-opus-5"}},
+		{Provider: providers.ProviderAIAND, Plaintext: []byte("pat"), ModelAliases: map[string]string{"grok-4.6": "grok-4.6"}},
+		{Provider: providers.ProviderAIAND, Plaintext: []byte("pat"), ModelAliases: map[string]string{"claude-opus-5": "claude-opus-5"}},
 	})
 	ctx = context.WithValue(ctx, SessionDemotedModelsContextKey{}, []string{"claude-opus-5"})
 	ctx = context.WithValue(ctx, SessionCooldownModelsContextKey{}, map[string]time.Time{"claude-opus-5": rateLimitTestNow.Add(time.Minute)})
 	failed := router.Decision{
-		Provider: providers.ProviderOpenAIGateway,
+		Provider: providers.ProviderAIAND,
 		Model:    "grok-4.6",
 		Metadata: &router.RoutingMetadata{CandidateModels: []string{"grok-4.6", "claude-opus-5"}},
 	}
@@ -463,12 +463,12 @@ func coolingPin(model string, cooldowns map[string]time.Time, demoted ...string)
 
 func cooldownTurnLoopService(store sessionpin.Store, transient bool) (*Service, *authoritativeTestRouter) {
 	scorer := &authoritativeTestRouter{decision: router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    freshTurnModel,
 		Reason:   "cluster:v0.2",
 	}}
 	svc := NewService(scorer, nil, nil, false, nil, store, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil).
+		providers.ProviderAIAND, "claude-haiku-4-5", nil).
 		WithTransientRateLimit(transient, 45)
 	svc.now = func() time.Time { return rateLimitTestNow }
 	return svc, scorer

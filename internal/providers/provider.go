@@ -56,35 +56,10 @@ func ObserveUpstreamHeaders(ctx context.Context, h http.Header) {
 // even though the provider looked "enabled" at boot. ValidateDispatchable and
 // the table test catch this at boot instead of in production.
 const (
-	ProviderAnthropic  = "anthropic"
-	ProviderOpenAI     = "openai"
-	ProviderGoogle     = "google"
-	ProviderOpenRouter = "openrouter"
-	ProviderFireworks  = "fireworks"
-	ProviderDeepInfra  = "deepinfra"
-	ProviderBedrock    = "bedrock"
-	ProviderMakora     = "makora"
-	ProviderMiniMax    = "minimax"
-	ProviderTogether   = "together"
-	ProviderXAI        = "xai"
-	// ProviderMeta is Meta's Model API (api.meta.ai), OpenAI-compatible Chat Completions surface.
-	ProviderMeta = "meta"
 	// ProviderAIAND is ai&'s OpenAI-compatible Chat Completions surface
-	// (api.aiand.com/v1), bearer auth.
+	// (api.aiand.com/v1), bearer auth. It is the only upstream this router
+	// dispatches to.
 	ProviderAIAND = "aiand"
-	// ProviderWafer is Wafer Serverless' OpenAI-compatible surface; see
-	// ProviderWaferAnthropic for the Anthropic-spec surface (shared WAFER_API_KEY).
-	ProviderWafer = "wafer"
-	// ProviderWaferAnthropic is Wafer Serverless' Anthropic-spec Messages surface
-	// (pass.wafer.ai/v1/messages, bearer auth); shares WAFER_API_KEY with ProviderWafer.
-	ProviderWaferAnthropic = "wafer_anthropic"
-	// ProviderAnthropicGateway is an Anthropic-spec enterprise gateway using
-	// Bearer auth; its endpoint is per-tenant with no deployment default.
-	ProviderAnthropicGateway = "anthropic_gateway"
-	// ProviderOpenAIGateway is the OpenAI-Chat-Completions-spec counterpart
-	// to ProviderAnthropicGateway: a per-tenant endpoint, bearer auth, no
-	// deployment default. Serves model classes the Anthropic spec cannot carry.
-	ProviderOpenAIGateway = "openai_gateway"
 )
 
 // TranslationFamily is the wire-format family a provider speaks; the proxy
@@ -97,39 +72,15 @@ const (
 	// FamilyUnknown is the zero value (no ProviderFamilies entry).
 	// ValidateDispatchable panics at boot if a registered provider maps to it.
 	FamilyUnknown TranslationFamily = iota
-	// FamilyAnthropic speaks the Anthropic Messages wire format natively
-	// (Anthropic itself plus Anthropic-compatible gateways such as Wafer's).
-	FamilyAnthropic
-	// FamilyOpenAICompat speaks the OpenAI Chat Completions wire format
-	// (OpenAI itself plus every OpenAI-compatible upstream: OpenRouter,
-	// Fireworks, DeepInfra, Bedrock's OpenAI-compat surface, Makora, MiniMax,
-	// Together, XAI, Meta, ai&, Wafer).
+	// FamilyOpenAICompat speaks the OpenAI Chat Completions wire format, the
+	// only upstream surface this router dispatches to.
 	FamilyOpenAICompat
-	// FamilyGemini speaks the Google Generative Language (Gemini) wire format.
-	FamilyGemini
 )
 
 // ProviderFamilies is the single source of truth for cross-format dispatch;
 // keep it covering EVERY Provider* constant (see the three-map note above).
 var ProviderFamilies = map[string]TranslationFamily{
-	ProviderAnthropic:  FamilyAnthropic,
-	ProviderOpenAI:     FamilyOpenAICompat,
-	ProviderGoogle:     FamilyGemini,
-	ProviderOpenRouter: FamilyOpenAICompat,
-	ProviderFireworks:  FamilyOpenAICompat,
-	ProviderDeepInfra:  FamilyOpenAICompat,
-	ProviderBedrock:    FamilyOpenAICompat,
-	ProviderMakora:     FamilyOpenAICompat,
-	ProviderMiniMax:    FamilyOpenAICompat,
-	ProviderTogether:   FamilyOpenAICompat,
-	ProviderXAI:        FamilyOpenAICompat,
-	ProviderMeta:       FamilyOpenAICompat,
-	ProviderAIAND:      FamilyOpenAICompat,
-	ProviderWafer:      FamilyOpenAICompat,
-
-	ProviderWaferAnthropic:   FamilyAnthropic,
-	ProviderAnthropicGateway: FamilyAnthropic,
-	ProviderOpenAIGateway:    FamilyOpenAICompat,
+	ProviderAIAND: FamilyOpenAICompat,
 }
 
 // FamilyFor returns the translation family for a provider, or FamilyUnknown
@@ -148,20 +99,7 @@ func IsOpenAICompat(provider string) bool {
 // than a vendor API. A gateway serves only the models its key's aliases name,
 // so routing treats it as the installation's exclusive upstream.
 func IsGateway(provider string) bool {
-	switch provider {
-	case ProviderAnthropicGateway, ProviderOpenAIGateway:
-		return true
-	default:
-		return false
-	}
-}
-
-// SupportsAnthropicServerTools reports whether the provider natively executes
-// Anthropic's server-side tools (web_search_*, web_fetch_*). Speaking the
-// Anthropic wire format is not the same: gateways relay to function-tool-only
-// backends and reject a server tool with a 400.
-func SupportsAnthropicServerTools(provider string) bool {
-	return FamilyFor(provider) == FamilyAnthropic && !IsGateway(provider)
+	return false
 }
 
 // AllProviders returns every known Provider* constant (every ProviderFamilies
@@ -193,28 +131,8 @@ func ValidateDispatchable(registered []string) error {
 }
 
 // APIKeyEnvVars maps provider name to the env var providing its deployment-level upstream API key.
-// Bedrock uses AWS-issued long-term Bedrock API keys (static bearer tokens), not SigV4 access keys.
 var APIKeyEnvVars = map[string]string{
-	ProviderAnthropic:  "ANTHROPIC_API_KEY",
-	ProviderOpenAI:     "OPENAI_API_KEY",
-	ProviderGoogle:     "GOOGLE_API_KEY",
-	ProviderOpenRouter: "OPENROUTER_API_KEY",
-	ProviderFireworks:  "FIREWORKS_API_KEY",
-	ProviderDeepInfra:  "DEEPINFRA_API_KEY",
-	ProviderBedrock:    "AWS_BEARER_TOKEN_BEDROCK",
-	ProviderMakora:     "MAKORA_API_KEY",
-	ProviderMiniMax:    "MINIMAX_API_KEY",
-	ProviderTogether:   "TOGETHER_API_KEY",
-	ProviderXAI:        "XAI_API_KEY",
-	ProviderMeta:       "META_API_KEY",
-	ProviderAIAND:      "AIAND_API_KEY",
-	// Wafer's two surfaces share a single account key.
-	ProviderWafer:          "WAFER_API_KEY",
-	ProviderWaferAnthropic: "WAFER_API_KEY",
-	// Pairs with ANTHROPIC_GATEWAY_BASE_URL, the endpoint the token is scoped to.
-	ProviderAnthropicGateway: "ANTHROPIC_GATEWAY_TOKEN",
-	// Pairs with OPENAI_GATEWAY_BASE_URL, likewise.
-	ProviderOpenAIGateway: "OPENAI_GATEWAY_TOKEN",
+	ProviderAIAND: "AIAND_API_KEY",
 }
 
 // APIKeyEnvVar returns the env-var name for the given provider, or empty
@@ -223,53 +141,27 @@ func APIKeyEnvVar(provider string) string {
 	return APIKeyEnvVars[provider]
 }
 
-// baseURLRequiredProviders have no vendor endpoint to default to, so a
-// credential without a base URL is undispatchable.
-var baseURLRequiredProviders = map[string]struct{}{
-	ProviderAnthropicGateway: {},
-	ProviderOpenAIGateway:    {},
-}
-
 // RequiresBaseURL reports whether a BYOK credential for this provider must
-// carry its own endpoint.
+// carry its own endpoint. Every provider here has a vendor default, so a
+// credential without a base URL is still dispatchable.
 func RequiresBaseURL(provider string) bool {
-	_, ok := baseURLRequiredProviders[provider]
-	return ok
+	return false
 }
 
 // OutputExcludesReasoning reports whether this provider's reported output token
 // count omits its reasoning tokens, so billed output is output + reasoning.
-// xAI reports completion_tokens_details.reasoning_tokens on top of
-// completion_tokens (prompt + completion + reasoning = total_tokens) while
-// billing reasoning at the output rate. Every other OpenAI-compatible
-// upstream, OpenRouter's xAI route included, folds reasoning into
-// completion_tokens as OpenAI does.
+// The OpenAI-compatible upstream folds reasoning into completion_tokens as
+// OpenAI does, so no provider here excludes it.
 func OutputExcludesReasoning(provider string) bool {
-	return provider == ProviderXAI
+	return false
 }
 
 // CacheTTL is the best-effort upstream prompt-cache lifetime per provider.
-// Anthropic's 1h extended cache is what pinSessionTTL is sized to; OSS
-// OpenAI-compatible providers cache on an undocumented minutes-scale window,
+// OpenAI-compatible upstreams cache on an undocumented minutes-scale window,
 // so a pin can outlive the cache — the planner uses this to stop crediting a
 // stale pin a cache-read discount it no longer earns.
 var CacheTTL = map[string]time.Duration{
-	ProviderAnthropic:      time.Hour,
-	ProviderOpenAI:         5 * time.Minute,
-	ProviderGoogle:         5 * time.Minute,
-	ProviderOpenRouter:     5 * time.Minute,
-	ProviderFireworks:      5 * time.Minute,
-	ProviderDeepInfra:      5 * time.Minute,
-	ProviderBedrock:        5 * time.Minute,
-	ProviderXAI:            5 * time.Minute,
-	ProviderMeta:           5 * time.Minute,
-	ProviderAIAND:          5 * time.Minute,
-	ProviderWafer:          5 * time.Minute,
-	ProviderWaferAnthropic: 5 * time.Minute,
-	// A gateway publishes no prompt-cache lifetime of its own, so it keeps the
-	// conservative window rather than inheriting Anthropic's 1h extended cache.
-	ProviderAnthropicGateway: 5 * time.Minute,
-	ProviderOpenAIGateway:    5 * time.Minute,
+	ProviderAIAND: 5 * time.Minute,
 }
 
 // DefaultCacheTTL is the conservative fallback cache lifetime for providers
@@ -611,10 +503,10 @@ func IsUpstreamSchemaRejection(err error) bool {
 	return false
 }
 
-// thoughtSignatureRejectionPhrases are Gemini 3.x 400 bodies rejecting the
-// thoughtSignature replayed on a historical functionCall ("Corrupted thought
-// signature.", "Missing thought signature ..."). Any model that does not
-// validate Gemini signatures can serve the same history.
+// thoughtSignatureRejectionPhrases are 400 bodies rejecting a thoughtSignature
+// replayed on a historical functionCall ("Corrupted thought signature.",
+// "Missing thought signature ..."). Any model that does not validate those
+// signatures can serve the same history.
 var thoughtSignatureRejectionPhrases = []string{
 	"thought signature",
 	"thought_signature",
@@ -622,10 +514,10 @@ var thoughtSignatureRejectionPhrases = []string{
 }
 
 // IsUpstreamThoughtSignatureRejection reports whether err is a buffered
-// upstream 400 rejecting a Gemini thoughtSignature in the request history.
+// upstream 400 rejecting a thoughtSignature in the request history.
 // The signature is opaque and lives in the client-echoed tool id, so the
-// router cannot repair it; the same request 400s on every Gemini 3.x turn for
-// the rest of the session unless it is rescued onto a model that ignores the
+// router cannot repair it; the same request 400s on every turn for the rest
+// of the session unless it is rescued onto a model that ignores the
 // signature. Cross-binding rescue signal only, like IsUpstreamSchemaRejection.
 func IsUpstreamThoughtSignatureRejection(err error) bool {
 	var buffered *UpstreamErrorResponse
@@ -675,9 +567,8 @@ func IsUpstreamOutputConfigFormatRejection(err error) bool {
 }
 
 // IsAnthropicFastModeQuotaRejection reports whether err is a buffered 429
-// refusing a fast-tier request for lack of fast-mode allocation (Anthropic
-// phrases it as a rate limit of N "fast mode input tokens"), as opposed to an
-// ordinary rate limit — licensing a one-shot retry at standard speed.
+// refusing a fast-tier request for lack of fast-mode allocation, as opposed to
+// an ordinary rate limit — licensing a one-shot retry at standard speed.
 func IsAnthropicFastModeQuotaRejection(err error) bool {
 	var buffered *UpstreamErrorResponse
 	if !errors.As(err, &buffered) || buffered.Status != http.StatusTooManyRequests {

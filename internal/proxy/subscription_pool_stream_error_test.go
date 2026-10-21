@@ -22,7 +22,7 @@ import (
 // request retains the classified HTTP error path when the pool is unavailable.
 func TestProxyMessages_ManagedPoolStreamingFailureLeavesRenderingToHandler(t *testing.T) {
 	leaser := &scriptedSubscriptionLeaser{leases: []subscriptions.Lease{{AccountID: "opaque-a", AccessToken: "token-a"}}}
-	anthropic := &fakeClient{name: providers.ProviderAnthropic, outcomes: []fakeOutcome{
+	anthropic := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{
 		{err: &providers.UpstreamErrorResponse{
 			Status: http.StatusTooManyRequests,
 			Body:   []byte(`{"type":"error","error":{"type":"rate_limit_error","message":"quota exhausted"}}`),
@@ -30,14 +30,14 @@ func TestProxyMessages_ManagedPoolStreamingFailureLeavesRenderingToHandler(t *te
 	}}
 	svc := NewService(
 		fixedRouter{decision: router.Decision{
-			Provider: providers.ProviderAnthropic,
+			Provider: providers.ProviderAIAND,
 			Model:    "claude-opus-4-8",
 			Metadata: &router.RoutingMetadata{CandidateModels: []string{"claude-opus-4-8"}},
 		}},
-		map[string]providers.Client{providers.ProviderAnthropic: anthropic},
-		nil, false, nil, nil, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil,
+		map[string]providers.Client{providers.ProviderAIAND: anthropic},
+		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithManagedSubscriptions(leaser).
-		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAnthropic: {}})
+		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 
 	ctx := context.WithValue(managedSubscriptionContext(auth.SubscriptionProviderClaude),
 		InstallationIDContextKey{}, "44444444-4444-4444-4444-444444444444")
@@ -63,7 +63,7 @@ func TestProxyMessages_ManagedPoolStreamingFailureLeavesRenderingToHandler(t *te
 // must leave the response body untouched.
 func TestProxyMessages_ManagedPoolFailureBeforeAnyBytesLeavesRenderingToHandler(t *testing.T) {
 	leaser := &scriptedSubscriptionLeaser{leases: []subscriptions.Lease{{AccountID: "opaque-a", AccessToken: "token-a"}}}
-	anthropic := &fakeClient{name: providers.ProviderAnthropic, outcomes: []fakeOutcome{
+	anthropic := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{
 		{err: &providers.UpstreamErrorResponse{
 			Status: http.StatusTooManyRequests,
 			Body:   []byte(`{"type":"error","error":{"type":"rate_limit_error","message":"quota exhausted"}}`),
@@ -71,14 +71,14 @@ func TestProxyMessages_ManagedPoolFailureBeforeAnyBytesLeavesRenderingToHandler(
 	}}
 	svc := NewService(
 		fixedRouter{decision: router.Decision{
-			Provider: providers.ProviderAnthropic,
+			Provider: providers.ProviderAIAND,
 			Model:    "claude-opus-4-8",
 			Metadata: &router.RoutingMetadata{CandidateModels: []string{"claude-opus-4-8"}},
 		}},
-		map[string]providers.Client{providers.ProviderAnthropic: anthropic},
-		nil, false, nil, nil, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil,
+		map[string]providers.Client{providers.ProviderAIAND: anthropic},
+		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithManagedSubscriptions(leaser).
-		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAnthropic: {}})
+		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 
 	ctx := context.WithValue(managedSubscriptionContext(auth.SubscriptionProviderClaude),
 		InstallationIDContextKey{}, "66666666-6666-6666-6666-666666666666")

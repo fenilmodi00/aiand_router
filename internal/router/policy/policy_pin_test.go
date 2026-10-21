@@ -36,7 +36,7 @@ func newPinnedAdapter(t *testing.T, servedArtifactSHA string) (*policy.SidecarRo
 	decider := &recordingPolicy{result: result}
 	resolver := policy.NewResolver(
 		set("claude-opus-4-8", "claude-sonnet-5"),
-		set(providers.ProviderAnthropic),
+		set(providers.ProviderAIAND),
 		func(model catalog.Model) string { return "anthropic/" + model.ID },
 		policy.ManagedProviderPolicy(),
 	)

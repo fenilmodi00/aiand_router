@@ -692,10 +692,10 @@ func TestProxyEntrypointsStripHistoricalBetaArtifactsBeforeRouting(t *testing.T)
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			decisionProvider := providers.ProviderAnthropic
+			decisionProvider := providers.ProviderAIAND
 			decisionModel := "claude-haiku-4-5"
 			if tt.openAI {
-				decisionProvider = providers.ProviderOpenAI
+				decisionProvider = providers.ProviderAIAND
 				decisionModel = "gpt-5.5"
 			}
 			routing := &betaTestRouter{decision: router.Decision{
@@ -706,11 +706,11 @@ func TestProxyEntrypointsStripHistoricalBetaArtifactsBeforeRouting(t *testing.T)
 			svc := NewService(
 				routing,
 				map[string]providers.Client{
-					providers.ProviderAnthropic: embedTestProvider{},
-					providers.ProviderOpenAI:    embedTestProvider{},
+					providers.ProviderAIAND: embedTestProvider{},
+					providers.ProviderAIAND:    embedTestProvider{},
 				},
 				nil, false, nil, nil, false,
-				providers.ProviderAnthropic, "claude-haiku-4-5", nil,
+				providers.ProviderAIAND, "claude-haiku-4-5", nil,
 			)
 			body, err := json.Marshal(map[string]any{
 				"model": "claude-opus-4-8",
@@ -754,16 +754,16 @@ func TestHistoricalBetaArtifactsStripStaleThinkingSignatures(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			routing := &betaTestRouter{decision: router.Decision{
-				Provider: providers.ProviderAnthropic,
+				Provider: providers.ProviderAIAND,
 				Model:    "claude-opus-4-7",
 				Reason:   "test",
 			}}
 			provider := &betaCaptureProvider{}
 			svc := NewService(
 				routing,
-				map[string]providers.Client{providers.ProviderAnthropic: provider},
+				map[string]providers.Client{providers.ProviderAIAND: provider},
 				nil, false, nil, nil, false,
-				providers.ProviderAnthropic, "claude-opus-4-7", nil,
+				providers.ProviderAIAND, "claude-opus-4-7", nil,
 			)
 			body := []byte(`{
 				"model":"claude-opus-4-7",
@@ -802,10 +802,10 @@ func TestBetaPreferenceSurvivesFirstMessageRewriteWithinClientSession(t *testing
 		{name: "openai", openAI: true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			decisionProvider := providers.ProviderAnthropic
+			decisionProvider := providers.ProviderAIAND
 			decisionModel := "claude-haiku-4-5"
 			if tt.openAI {
-				decisionProvider = providers.ProviderOpenAI
+				decisionProvider = providers.ProviderAIAND
 				decisionModel = "gpt-5.5"
 			}
 			decision := router.Decision{Provider: decisionProvider, Model: decisionModel, Reason: "test"}
@@ -814,11 +814,11 @@ func TestBetaPreferenceSurvivesFirstMessageRewriteWithinClientSession(t *testing
 			svc := NewService(
 				stableRouter,
 				map[string]providers.Client{
-					providers.ProviderAnthropic: embedTestProvider{},
-					providers.ProviderOpenAI:    embedTestProvider{},
+					providers.ProviderAIAND: embedTestProvider{},
+					providers.ProviderAIAND:    embedTestProvider{},
 				},
 				nil, false, nil, nil, false,
-				providers.ProviderAnthropic, "claude-haiku-4-5", nil,
+				providers.ProviderAIAND, "claude-haiku-4-5", nil,
 			).
 				WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyHMMBeta, Router: betaRouter}).
 				WithSessionStrategyStore(&betaTestPreferenceStore{})

@@ -27,10 +27,10 @@ func TestCatalogModelsHandler_SortsByProviderThenModel(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	src := fakeDeployedModels{entries: []cluster.DeployedEntry{
-		{Model: "gpt-5.5", Provider: providers.ProviderOpenAI},
-		{Model: "claude-opus-4-7", Provider: providers.ProviderAnthropic},
-		{Model: "claude-haiku-4-5", Provider: providers.ProviderAnthropic},
-		{Model: "gpt-5.4-mini", Provider: providers.ProviderOpenAI},
+		{Model: "gpt-5.5", Provider: providers.ProviderAIAND},
+		{Model: "claude-opus-4-7", Provider: providers.ProviderAIAND},
+		{Model: "claude-haiku-4-5", Provider: providers.ProviderAIAND},
+		{Model: "gpt-5.4-mini", Provider: providers.ProviderAIAND},
 	}}
 
 	engine := gin.New()
@@ -46,13 +46,13 @@ func TestCatalogModelsHandler_SortsByProviderThenModel(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
 
 	require.Len(t, got.Models, 4)
-	assert.Equal(t, providers.ProviderAnthropic, got.Models[0].Provider)
+	assert.Equal(t, providers.ProviderAIAND, got.Models[0].Provider)
 	assert.Equal(t, "claude-haiku-4-5", got.Models[0].Model)
-	assert.Equal(t, providers.ProviderAnthropic, got.Models[1].Provider)
+	assert.Equal(t, providers.ProviderAIAND, got.Models[1].Provider)
 	assert.Equal(t, "claude-opus-4-7", got.Models[1].Model)
-	assert.Equal(t, providers.ProviderOpenAI, got.Models[2].Provider)
+	assert.Equal(t, providers.ProviderAIAND, got.Models[2].Provider)
 	assert.Equal(t, "gpt-5.4-mini", got.Models[2].Model)
-	assert.Equal(t, providers.ProviderOpenAI, got.Models[3].Provider)
+	assert.Equal(t, providers.ProviderAIAND, got.Models[3].Provider)
 	assert.Equal(t, "gpt-5.5", got.Models[3].Model)
 }
 
@@ -90,11 +90,11 @@ func TestCatalogModelsHandler_HMMStrategyReturnsRosterNotCluster(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	clusterSrc := fakeDeployedModels{entries: []cluster.DeployedEntry{
-		{Model: "gpt-5.5", Provider: providers.ProviderOpenAI},
+		{Model: "gpt-5.5", Provider: providers.ProviderAIAND},
 	}}
 	hmmSrc := &fakeHMMRoster{entries: []cluster.DeployedEntry{
-		{Model: "gpt-5.6-sol", Provider: providers.ProviderOpenAI},
-		{Model: "claude-opus-4-8", Provider: providers.ProviderAnthropic},
+		{Model: "gpt-5.6-sol", Provider: providers.ProviderAIAND},
+		{Model: "claude-opus-4-8", Provider: providers.ProviderAIAND},
 	}}
 
 	engine := gin.New()
@@ -120,7 +120,7 @@ func TestCatalogModelsHandler_HMMStrategyFallsBackToClusterWhenNoSource(t *testi
 	gin.SetMode(gin.TestMode)
 
 	clusterSrc := fakeDeployedModels{entries: []cluster.DeployedEntry{
-		{Model: "gpt-5.5", Provider: providers.ProviderOpenAI},
+		{Model: "gpt-5.5", Provider: providers.ProviderAIAND},
 	}}
 
 	engine := gin.New()
@@ -156,10 +156,10 @@ func TestCatalogModelsHandler_ScopeCatalogReturnsFullCatalog(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	clusterSrc := fakeDeployedModels{entries: []cluster.DeployedEntry{
-		{Model: "gpt-5.5", Provider: providers.ProviderOpenAI},
+		{Model: "gpt-5.5", Provider: providers.ProviderAIAND},
 	}}
 	hmmSrc := &fakeHMMRoster{entries: []cluster.DeployedEntry{
-		{Model: "gpt-5.6-sol", Provider: providers.ProviderOpenAI},
+		{Model: "gpt-5.6-sol", Provider: providers.ProviderAIAND},
 	}}
 
 	engine := gin.New()

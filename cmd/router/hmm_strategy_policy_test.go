@@ -71,10 +71,10 @@ func TestThreeHMMClassifiersSelectPinnedRostersThroughTheSharedSidecar(t *testin
 		Release:      policyregistry.Release{Classifier: identity, Policy: policyregistry.PolicyObject{SHA256: defaultPolicySHA}},
 		Policy:       roster("openai/" + catalog.ModelGPT6Luna),
 		StrategyPolicies: map[router.Strategy]policyregistry.StrategyPolicy{
-			router.StrategyHMMQwen: {Reference: policyregistry.PolicyObject{SHA256: qwenPolicySHA}, Roster: roster(providers.ProviderGoogle + "/" + router.ModelGemini4Argon)},
+			router.StrategyHMMQwen: {Reference: policyregistry.PolicyObject{SHA256: qwenPolicySHA}, Roster: roster(providers.ProviderAIAND + "/" + router.ModelGemini4Argon)},
 		},
 	}
-	build := hmmPolicySnapshotBuilder(map[string]struct{}{providers.ProviderOpenAI: {}, providers.ProviderGoogle: {}},
+	build := hmmPolicySnapshotBuilder(map[string]struct{}{providers.ProviderAIAND: {}, providers.ProviderAIAND: {}},
 		[]router.Strategy{router.StrategyHMM, router.StrategyHMMBeta, router.StrategyHMMQwen}, "none", time.Second, time.Second)
 	routers, err := build(context.Background(), candidate)
 	require.NoError(t, err)

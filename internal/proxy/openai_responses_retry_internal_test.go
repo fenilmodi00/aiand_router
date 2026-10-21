@@ -76,9 +76,9 @@ func (c *responsesRetryClient) Passthrough(context.Context, providers.PreparedRe
 func TestProxyOpenAIChatCompletion_SameBindingRetryStaysOnResponses(t *testing.T) {
 	client := &responsesRetryClient{}
 	svc := NewService(
-		staticRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "gpt-5.6-luna", Reason: "test"}},
-		map[string]providers.Client{providers.ProviderOpenAI: client},
-		nil, false, nil, nil, false, providers.ProviderOpenAI, "gpt-5.6-sol", nil,
+		staticRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-5.6-luna", Reason: "test"}},
+		map[string]providers.Client{providers.ProviderAIAND: client},
+		nil, false, nil, nil, false, providers.ProviderAIAND, "gpt-5.6-sol", nil,
 	)
 	svc.retrySleep = noopSleep
 
@@ -111,24 +111,24 @@ func TestProxyMessages_SiblingFailoverOntoOpenAIUsesResponses(t *testing.T) {
 	failing := &alwaysFailingClient{}
 	rescue := &responsesRetryClient{}
 	decision := router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    "claude-opus-5",
 		Reason:   "test",
 		Metadata: &router.RoutingMetadata{
 			CandidateModels:    []string{"claude-opus-5", "gpt-5.6-luna"},
-			CandidateProviders: map[string]string{"gpt-5.6-luna": providers.ProviderOpenAI},
+			CandidateProviders: map[string]string{"gpt-5.6-luna": providers.ProviderAIAND},
 		},
 	}
 	svc := NewService(
 		staticRouter{decision: decision},
 		map[string]providers.Client{
-			providers.ProviderAnthropic: failing,
-			providers.ProviderOpenAI:    rescue,
+			providers.ProviderAIAND: failing,
+			providers.ProviderAIAND:    rescue,
 		},
-		nil, false, nil, nil, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil,
+		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
-		providers.ProviderAnthropic: {},
-		providers.ProviderOpenAI:    {},
+		providers.ProviderAIAND: {},
+		providers.ProviderAIAND:    {},
 	})
 	svc.retrySleep = noopSleep
 
@@ -187,9 +187,9 @@ func (c *emptyThenOKResponsesClient) Passthrough(context.Context, providers.Prep
 func TestProxyOpenAIResponses_RetriesNativeEmptyCompletion(t *testing.T) {
 	client := &emptyThenOKResponsesClient{}
 	svc := NewService(
-		staticRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "gpt-5.6-luna", Reason: "test"}},
-		map[string]providers.Client{providers.ProviderOpenAI: client},
-		nil, false, nil, nil, false, providers.ProviderOpenAI, "gpt-5.6-sol", nil,
+		staticRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-5.6-luna", Reason: "test"}},
+		map[string]providers.Client{providers.ProviderAIAND: client},
+		nil, false, nil, nil, false, providers.ProviderAIAND, "gpt-5.6-sol", nil,
 	)
 	svc.retrySleep = noopSleep
 	body := "{\"model\":\"gpt-5.6-luna\",\"input\":\"hi\"}"
@@ -203,9 +203,9 @@ func TestProxyOpenAIResponses_RetriesNativeEmptyCompletion(t *testing.T) {
 func TestProxyOpenAIResponses_RetriesNativeStreamingEmptyCompletion(t *testing.T) {
 	client := &emptyThenOKResponsesClient{streaming: true}
 	svc := NewService(
-		staticRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "gpt-5.6-luna", Reason: "test"}},
-		map[string]providers.Client{providers.ProviderOpenAI: client},
-		nil, false, nil, nil, false, providers.ProviderOpenAI, "gpt-5.6-sol", nil,
+		staticRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-5.6-luna", Reason: "test"}},
+		map[string]providers.Client{providers.ProviderAIAND: client},
+		nil, false, nil, nil, false, providers.ProviderAIAND, "gpt-5.6-sol", nil,
 	)
 	svc.retrySleep = noopSleep
 	body := "{\"model\":\"gpt-5.6-luna\",\"stream\":true,\"input\":\"hi\"}"
@@ -219,9 +219,9 @@ func TestProxyOpenAIResponses_RetriesNativeStreamingEmptyCompletion(t *testing.T
 func TestProxyOpenAIChatCompletion_RetriesNonStreamingEmptyCompletion(t *testing.T) {
 	client := &emptyThenOKResponsesClient{streaming: true}
 	svc := NewService(
-		staticRouter{decision: router.Decision{Provider: providers.ProviderOpenAI, Model: "gpt-5.6-luna", Reason: "test"}},
-		map[string]providers.Client{providers.ProviderOpenAI: client},
-		nil, false, nil, nil, false, providers.ProviderOpenAI, "gpt-5.6-sol", nil,
+		staticRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-5.6-luna", Reason: "test"}},
+		map[string]providers.Client{providers.ProviderAIAND: client},
+		nil, false, nil, nil, false, providers.ProviderAIAND, "gpt-5.6-sol", nil,
 	)
 	svc.retrySleep = noopSleep
 	body := "{\"model\":\"auto\",\"stream\":false,\"max_tokens\":256,\"messages\":[{\"role\":\"user\",\"content\":\"read main.go\"}],\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"read_file\",\"parameters\":{\"type\":\"object\"}}}],\"reasoning_effort\":\"medium\"}"
@@ -263,9 +263,9 @@ func TestProxyOpenAIResponses_RetriesTranslatedStreamingEmptyCompletion(t *testi
 		assert.Contains(t, rec.Body.String(), "event: response.created\n", "the client must see the prelude before provider dispatch, even without a notice")
 	}}
 	svc := NewService(
-		staticRouter{decision: router.Decision{Provider: providers.ProviderXAI, Model: servedModel, Reason: "test"}},
-		map[string]providers.Client{providers.ProviderXAI: client},
-		nil, false, nil, nil, false, providers.ProviderXAI, servedModel, nil,
+		staticRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: servedModel, Reason: "test"}},
+		map[string]providers.Client{providers.ProviderAIAND: client},
+		nil, false, nil, nil, false, providers.ProviderAIAND, servedModel, nil,
 	)
 	svc.retrySleep = noopSleep
 	ctx := context.WithValue(context.Background(), ClientIdentityContextKey{}, ClientIdentity{ClientApp: ClientAppCodex})

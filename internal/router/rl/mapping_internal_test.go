@@ -17,11 +17,11 @@ import (
 // dispatch drift guard) instead of silently falling through to the bare
 // model-ID default.
 var expectedRosterPrefix = map[string]string{
-	providers.ProviderAnthropic:        "anthropic/",
-	providers.ProviderOpenAI:           "openai/",
-	providers.ProviderGoogle:           "google/",
-	providers.ProviderXAI:              "x-ai/",
-	providers.ProviderAnthropicGateway: "anthropic/",
+	providers.ProviderAIAND:        "anthropic/",
+	providers.ProviderAIAND:           "openai/",
+	providers.ProviderAIAND:           "google/",
+	providers.ProviderAIAND:              "x-ai/",
+	providers.ProviderAIAND: "anthropic/",
 }
 
 // defaultRosterPrefixProviders are providers intentionally left off
@@ -31,24 +31,24 @@ var expectedRosterPrefix = map[string]string{
 // like wafer_anthropic's sibling wafer, or the RL policy roster doesn't need
 // to distinguish them.
 var defaultRosterPrefixProviders = map[string]struct{}{
-	providers.ProviderOpenRouter: {},
-	providers.ProviderFireworks:  {},
-	providers.ProviderDeepInfra:  {},
-	providers.ProviderBedrock:    {},
-	providers.ProviderMakora:     {},
-	providers.ProviderMiniMax:    {},
-	providers.ProviderTogether:   {},
+	providers.ProviderAIAND: {},
+	providers.ProviderAIAND:  {},
+	providers.ProviderAIAND:  {},
+	providers.ProviderAIAND:    {},
+	providers.ProviderAIAND:     {},
+	providers.ProviderAIAND:    {},
+	providers.ProviderAIAND:   {},
 	// Muse Spark is not in the trained roster yet; bare ID is best-effort.
-	providers.ProviderMeta: {},
+	providers.ProviderAIAND: {},
 	// ai& serves vendor-prefixed OSS slugs, so the bare model ID is right.
 	providers.ProviderAIAND: {},
 	// Anthropic-spec surfaces serving non-Claude models (Wafer's Messages API)
 	// stay bare — the roster keys vendor-prefixed Anthropic slots by Claude ID.
-	providers.ProviderWaferAnthropic: {},
-	providers.ProviderWafer:          {},
+	providers.ProviderAIAND: {},
+	providers.ProviderAIAND:          {},
 	// An OpenAI-spec gateway serves several vendors' models, so no single
 	// vendor prefix is right; the bare ID lets the sidecar match what it can.
-	providers.ProviderOpenAIGateway: {},
+	providers.ProviderAIAND: {},
 }
 
 // TestRosterIDForCoversEveryProvider guards against a new Provider* constant

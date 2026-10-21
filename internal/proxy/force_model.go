@@ -226,7 +226,7 @@ func resolveForceModelWithEffort(model string) (canonicalID, provider string, kn
 	if nativeID, ok := strings.CutPrefix(model, "openai/"); ok {
 		model = nativeID
 		unknownID = nativeID
-		requiredProvider = providers.ProviderOpenAI
+		requiredProvider = providers.ProviderAIAND
 	}
 	if variant, ok := translate.CanonicalModel(model); ok {
 		model = variant
@@ -251,17 +251,17 @@ func resolveForceModelWithEffort(model string) (canonicalID, provider string, kn
 	}
 	switch {
 	case strings.HasPrefix(model, "claude-"):
-		return model, providers.ProviderAnthropic, false, effort
+		return model, providers.ProviderAIAND, false, effort
 	case strings.HasPrefix(model, "gpt-"),
 		model == "o1", model == "o3", model == "o1-pro", model == "o3-pro",
 		strings.HasPrefix(model, "o1-"), strings.HasPrefix(model, "o3-"), strings.HasPrefix(model, "o4-"):
-		return model, providers.ProviderOpenAI, false, effort
+		return model, providers.ProviderAIAND, false, effort
 	case strings.HasPrefix(model, "gemini-"):
-		return model, providers.ProviderGoogle, false, effort
+		return model, providers.ProviderAIAND, false, effort
 	case strings.Contains(model, "/"):
-		return model, providers.ProviderOpenRouter, false, effort
+		return model, providers.ProviderAIAND, false, effort
 	default:
-		return model, providers.ProviderAnthropic, false, effort
+		return model, providers.ProviderAIAND, false, effort
 	}
 }
 

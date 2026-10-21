@@ -61,8 +61,8 @@ func TestResolveRouted_AuthorizesBindingWalkInOrder(t *testing.T) {
 func TestResolveRouted_RecordsCallerOrigin(t *testing.T) {
 	plan, err := routedResolver(t).ResolveRouted(policy.RoutedResolutionRequest{
 		Purpose:  policy.PurposeAnthropicMessages,
-		Decision: router.Decision{Model: "claude-haiku-4-5", Provider: providers.ProviderAnthropic},
-		Bindings: []catalog.ProviderBinding{{Provider: providers.ProviderAnthropic}},
+		Decision: router.Decision{Model: "claude-haiku-4-5", Provider: providers.ProviderAIAND},
+		Bindings: []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}},
 		Origin:   policy.OverrideSourceRequest,
 	})
 	require.NoError(t, err)
@@ -73,8 +73,8 @@ func TestResolveRouted_RecordsCallerOrigin(t *testing.T) {
 func TestResolveRouted_AppliesRequestBudgetOverride(t *testing.T) {
 	plan, err := routedResolver(t).ResolveRouted(policy.RoutedResolutionRequest{
 		Purpose:  policy.PurposeAnthropicMessages,
-		Decision: router.Decision{Model: "claude-haiku-4-5", Provider: providers.ProviderAnthropic},
-		Bindings: []catalog.ProviderBinding{{Provider: providers.ProviderAnthropic}},
+		Decision: router.Decision{Model: "claude-haiku-4-5", Provider: providers.ProviderAIAND},
+		Bindings: []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}},
 		Budget:   &policy.BudgetOverride{Source: policy.BudgetSourceRequest, MaxAttempts: 2, TimeoutMillis: 1500},
 	})
 	require.NoError(t, err)
@@ -87,8 +87,8 @@ func TestResolveRouted_FailsClosed(t *testing.T) {
 	resolver := routedResolver(t)
 	valid := policy.RoutedResolutionRequest{
 		Purpose:  policy.PurposeAnthropicMessages,
-		Decision: router.Decision{Model: "claude-haiku-4-5", Provider: providers.ProviderAnthropic},
-		Bindings: []catalog.ProviderBinding{{Provider: providers.ProviderAnthropic}},
+		Decision: router.Decision{Model: "claude-haiku-4-5", Provider: providers.ProviderAIAND},
+		Bindings: []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}},
 	}
 	cases := map[string]struct {
 		mutate func(*policy.RoutedResolutionRequest)
@@ -123,12 +123,12 @@ func TestResolveRouted_FailsClosed(t *testing.T) {
 // overrides the policy declares are accepted.
 func TestResolveRouted_AuthorizesHardPinnedUtilityTurns(t *testing.T) {
 	resolver := routedResolver(t)
-	anthropic := []catalog.ProviderBinding{{Provider: providers.ProviderAnthropic}}
+	anthropic := []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}}
 
 	for _, purpose := range []policy.Purpose{policy.PurposeTitleGeneration, policy.PurposeClassifier, policy.PurposeProbe, policy.PurposeSubAgentDispatch} {
 		plan, err := resolver.ResolveRouted(policy.RoutedResolutionRequest{
 			Purpose:  purpose,
-			Decision: router.Decision{Model: "claude-haiku-4-5", Provider: providers.ProviderAnthropic},
+			Decision: router.Decision{Model: "claude-haiku-4-5", Provider: providers.ProviderAIAND},
 			Bindings: anthropic,
 			Origin:   policy.OverrideSourceDeployment,
 		})
@@ -140,8 +140,8 @@ func TestResolveRouted_AuthorizesHardPinnedUtilityTurns(t *testing.T) {
 
 	compaction, err := resolver.ResolveRouted(policy.RoutedResolutionRequest{
 		Purpose:  policy.PurposeClientCompaction,
-		Decision: router.Decision{Model: "gpt-5.6-sol", Provider: providers.ProviderOpenAI},
-		Bindings: []catalog.ProviderBinding{{Provider: providers.ProviderOpenAI}},
+		Decision: router.Decision{Model: "gpt-5.6-sol", Provider: providers.ProviderAIAND},
+		Bindings: []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}},
 		Origin:   policy.OverrideSourceSession,
 	})
 	require.NoError(t, err, "a compaction turn kept on the session's own model")
@@ -153,18 +153,18 @@ func TestResolveRouted_AuthorizesHardPinnedUtilityTurns(t *testing.T) {
 	}{
 		"hard pin without origin": {policy.RoutedResolutionRequest{
 			Purpose:  policy.PurposeTitleGeneration,
-			Decision: router.Decision{Model: "claude-haiku-4-5", Provider: providers.ProviderAnthropic},
+			Decision: router.Decision{Model: "claude-haiku-4-5", Provider: providers.ProviderAIAND},
 			Bindings: anthropic,
 		}, policy.ResolutionErrorMissingSelection},
 		"utility turn claiming a session pin": {policy.RoutedResolutionRequest{
 			Purpose:  policy.PurposeTitleGeneration,
-			Decision: router.Decision{Model: "claude-haiku-4-5", Provider: providers.ProviderAnthropic},
+			Decision: router.Decision{Model: "claude-haiku-4-5", Provider: providers.ProviderAIAND},
 			Bindings: anthropic,
 			Origin:   policy.OverrideSourceSession,
 		}, policy.ResolutionErrorOverrideNotAllowed},
 		"summary operation is not routed": {policy.RoutedResolutionRequest{
 			Purpose:  policy.PurposePrecompactionSummary,
-			Decision: router.Decision{Model: "claude-sonnet-4-6", Provider: providers.ProviderAnthropic},
+			Decision: router.Decision{Model: "claude-sonnet-4-6", Provider: providers.ProviderAIAND},
 			Bindings: anthropic,
 			Origin:   policy.OverrideSourceDeployment,
 		}, policy.ResolutionErrorUnsupportedPurpose},

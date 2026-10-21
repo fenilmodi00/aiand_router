@@ -20,8 +20,8 @@ import (
 const countTokensBody = `{"model":"claude-sonnet-4-6","messages":[{"role":"user","content":"hello world"}]}`
 
 func countTokensService(provider *fakeProvider) *proxy.Service {
-	return makeProxyService(router.Decision{}, map[string]providers.Client{providers.ProviderAnthropic: provider}).
-		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAnthropic: {}})
+	return makeProxyService(router.Decision{}, map[string]providers.Client{providers.ProviderAIAND: provider}).
+		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 }
 
 func countTokensRequest() *http.Request {

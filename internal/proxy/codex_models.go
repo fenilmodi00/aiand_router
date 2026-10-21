@@ -22,7 +22,7 @@ const CodexAutomaticModel = string(router.ModelAutomatic)
 // Weave routing choices. A visible one-entry response would make Codex hide
 // its native models, because visible remote catalogs replace its bundled list.
 func (s *Service) CodexModelCatalog(ctx context.Context, headers http.Header, clientVersion string) ([]byte, error) {
-	client, err := s.provider(providers.ProviderOpenAI)
+	client, err := s.provider(providers.ProviderAIAND)
 	if err != nil {
 		return nil, err
 	}
@@ -34,7 +34,7 @@ func (s *Service) CodexModelCatalog(ctx context.Context, headers http.Header, cl
 	}
 	// Model-specific credential resolution deliberately rejects an empty model.
 	// Discovery instead uses only the caller's paired ChatGPT credential.
-	creds := ExtractClientCredentials(providers.ProviderOpenAI, headers)
+	creds := ExtractClientCredentials(providers.ProviderAIAND, headers)
 	ctx = requestcontext.WithCredentials(ctx, creds)
 	catalog, err := fetcher.FetchCodexModelCatalog(ctx, clientVersion)
 	if err != nil {

@@ -24,7 +24,7 @@ func TestConformance_Anthropic(t *testing.T) {
 	cases := []conformanceCase{
 		{
 			name:            "anthropic/passthrough_text",
-			provider:        providers.ProviderAnthropic,
+			provider:        providers.ProviderAIAND,
 			model:           "claude-opus-4-8",
 			newClient:       anthropicClient,
 			inbound:         `{"model":"claude-opus-4-8","stream":true,"max_tokens":1024,"messages":[{"role":"user","content":"Say hi."}]}`,
@@ -39,7 +39,7 @@ func TestConformance_Anthropic(t *testing.T) {
 			// must be hoisted to the top-level system field; left in place it 400s
 			// on a same-format Anthropic bounce.
 			name:            "anthropic/system_role_hoisted",
-			provider:        providers.ProviderAnthropic,
+			provider:        providers.ProviderAIAND,
 			model:           "claude-opus-4-8",
 			newClient:       anthropicClient,
 			inbound:         `{"model":"claude-opus-4-8","stream":true,"max_tokens":1024,"messages":[{"role":"system","content":"Be terse."},{"role":"user","content":"hi"}]}`,
@@ -57,7 +57,7 @@ func TestConformance_Anthropic(t *testing.T) {
 			// "max" — sonnet's menu has no xhigh and the resulting 400 is
 			// non-retryable, killing the session.
 			name:            "anthropic/xhigh_effort_clamped_on_reroute",
-			provider:        providers.ProviderAnthropic,
+			provider:        providers.ProviderAIAND,
 			model:           "claude-sonnet-4-6",
 			newClient:       anthropicClient,
 			inbound:         `{"model":"claude-opus-4-7","stream":true,"max_tokens":1024,"thinking":{"type":"adaptive"},"output_config":{"effort":"xhigh"},"messages":[{"role":"user","content":"hi"}]}`,

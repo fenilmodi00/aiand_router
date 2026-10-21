@@ -15,9 +15,9 @@ import (
 func compatibilityService(mode TranslationCompatibilityMode) *Service {
 	return &Service{
 		clients: dispatch.NewClients(map[string]providers.Client{
-			providers.ProviderAnthropic: nil,
-			providers.ProviderOpenAI:    nil,
-			providers.ProviderGoogle:    nil,
+			providers.ProviderAIAND: nil,
+			providers.ProviderAIAND:    nil,
+			providers.ProviderAIAND:    nil,
 		}),
 		translationCompatibilityMode: mode,
 	}
@@ -27,8 +27,8 @@ func TestTranslationPlan_NativeResponsesFiltersToOpenAIFamilyInShadow(t *testing
 	svc := compatibilityService(TranslationCompatibilityShadow)
 	plan := svc.planTranslation(router.Request{
 		EnabledProviders: map[string]struct{}{
-			providers.ProviderAnthropic: {},
-			providers.ProviderOpenAI:    {},
+			providers.ProviderAIAND: {},
+			providers.ProviderAIAND:    {},
 		},
 		TranslationRequirements: router.TranslationRequirements{
 			SourceFormat: router.WireFormatOpenAI,
@@ -38,17 +38,17 @@ func TestTranslationPlan_NativeResponsesFiltersToOpenAIFamilyInShadow(t *testing
 		},
 	})
 
-	assert.Equal(t, map[string]struct{}{providers.ProviderOpenAI: {}}, plan.EnabledProviders)
+	assert.Equal(t, map[string]struct{}{providers.ProviderAIAND: {}}, plan.EnabledProviders)
 	assert.Equal(t, providers.FamilyOpenAICompat, plan.TargetFamily)
-	requireExclusion(t, plan, "native_wire_family_required", providers.ProviderAnthropic, true)
+	requireExclusion(t, plan, "native_wire_family_required", providers.ProviderAIAND, true)
 }
 
 func TestTranslationPlan_GeminiIngressNeverOffersForeignFamily(t *testing.T) {
 	svc := compatibilityService(TranslationCompatibilityShadow)
 	plan := svc.planTranslation(router.Request{
 		EnabledProviders: map[string]struct{}{
-			providers.ProviderAnthropic: {},
-			providers.ProviderGoogle:    {},
+			providers.ProviderAIAND: {},
+			providers.ProviderAIAND:    {},
 		},
 		TranslationRequirements: router.TranslationRequirements{
 			SourceFormat: router.WireFormatGemini,
@@ -56,8 +56,8 @@ func TestTranslationPlan_GeminiIngressNeverOffersForeignFamily(t *testing.T) {
 		},
 	})
 
-	assert.Equal(t, map[string]struct{}{providers.ProviderGoogle: {}}, plan.EnabledProviders)
-	requireExclusion(t, plan, "native_wire_family_required", providers.ProviderAnthropic, true)
+	assert.Equal(t, map[string]struct{}{providers.ProviderAIAND: {}}, plan.EnabledProviders)
+	requireExclusion(t, plan, "native_wire_family_required", providers.ProviderAIAND, true)
 }
 
 func TestTranslationPlan_ImageConstraintShadowsBeforeEnforcement(t *testing.T) {
@@ -75,8 +75,8 @@ func TestTranslationPlan_ImageConstraintShadowsBeforeEnforcement(t *testing.T) {
 func TestTranslationPlan_OffRestoresNativeFamilyEligibility(t *testing.T) {
 	plan := compatibilityService(TranslationCompatibilityOff).planTranslation(router.Request{
 		EnabledProviders: map[string]struct{}{
-			providers.ProviderAnthropic: {},
-			providers.ProviderOpenAI:    {},
+			providers.ProviderAIAND: {},
+			providers.ProviderAIAND:    {},
 		},
 		TranslationRequirements: router.TranslationRequirements{
 			SourceFormat: router.WireFormatOpenAI,
@@ -86,18 +86,18 @@ func TestTranslationPlan_OffRestoresNativeFamilyEligibility(t *testing.T) {
 	})
 
 	assert.Equal(t, map[string]struct{}{
-		providers.ProviderAnthropic: {},
-		providers.ProviderOpenAI:    {},
+		providers.ProviderAIAND: {},
+		providers.ProviderAIAND:    {},
 	}, plan.EnabledProviders)
-	requireExclusion(t, plan, "native_wire_family_required", providers.ProviderAnthropic, false)
+	requireExclusion(t, plan, "native_wire_family_required", providers.ProviderAIAND, false)
 }
 
 func TestTranslationPlan_NativeResponsesRequireOpenAIResponsesAdapter(t *testing.T) {
 	svc := compatibilityService(TranslationCompatibilityShadow)
 	plan := svc.planTranslation(router.Request{
 		EnabledProviders: map[string]struct{}{
-			providers.ProviderOpenAI:     {},
-			providers.ProviderOpenRouter: {},
+			providers.ProviderAIAND:     {},
+			providers.ProviderAIAND: {},
 		},
 		TranslationRequirements: router.TranslationRequirements{
 			SourceFormat: router.WireFormatOpenAI,
@@ -106,15 +106,15 @@ func TestTranslationPlan_NativeResponsesRequireOpenAIResponsesAdapter(t *testing
 		},
 	})
 
-	assert.Equal(t, map[string]struct{}{providers.ProviderOpenAI: {}}, plan.EnabledProviders)
-	requireExclusion(t, plan, "native_wire_family_required", providers.ProviderOpenRouter, true)
+	assert.Equal(t, map[string]struct{}{providers.ProviderAIAND: {}}, plan.EnabledProviders)
+	requireExclusion(t, plan, "native_wire_family_required", providers.ProviderAIAND, true)
 }
 
 func TestTranslationPlan_BroadSemanticRequirementOnlyFiltersInEnforce(t *testing.T) {
 	req := router.Request{
 		EnabledProviders: map[string]struct{}{
-			providers.ProviderAnthropic: {},
-			providers.ProviderOpenAI:    {},
+			providers.ProviderAIAND: {},
+			providers.ProviderAIAND:    {},
 		},
 		TranslationRequirements: router.TranslationRequirements{
 			SourceFormat:       router.WireFormatAnthropic,
@@ -126,9 +126,9 @@ func TestTranslationPlan_BroadSemanticRequirementOnlyFiltersInEnforce(t *testing
 	enforce := compatibilityService(TranslationCompatibilityEnforce).planTranslation(req)
 
 	assert.Equal(t, req.EnabledProviders, shadow.EnabledProviders)
-	requireExclusion(t, shadow, "prompt_cache_control_native_required", providers.ProviderOpenAI, false)
-	assert.Equal(t, map[string]struct{}{providers.ProviderAnthropic: {}}, enforce.EnabledProviders)
-	requireExclusion(t, enforce, "prompt_cache_control_native_required", providers.ProviderOpenAI, true)
+	requireExclusion(t, shadow, "prompt_cache_control_native_required", providers.ProviderAIAND, false)
+	assert.Equal(t, map[string]struct{}{providers.ProviderAIAND: {}}, enforce.EnabledProviders)
+	requireExclusion(t, enforce, "prompt_cache_control_native_required", providers.ProviderAIAND, true)
 }
 
 func TestTranslationPlan_NativeSearchAlwaysFiltersToSourceProvider(t *testing.T) {
@@ -140,8 +140,8 @@ func TestTranslationPlan_NativeSearchAlwaysFiltersToSourceProvider(t *testing.T)
 		t.Run(string(mode), func(t *testing.T) {
 			plan := compatibilityService(mode).planTranslation(router.Request{
 				EnabledProviders: map[string]struct{}{
-					providers.ProviderAnthropic: {},
-					providers.ProviderOpenAI:    {},
+					providers.ProviderAIAND: {},
+					providers.ProviderAIAND:    {},
 				},
 				TranslationRequirements: router.TranslationRequirements{
 					SourceFormat:      router.WireFormatAnthropic,
@@ -151,19 +151,19 @@ func TestTranslationPlan_NativeSearchAlwaysFiltersToSourceProvider(t *testing.T)
 			})
 
 			assert.True(t, plan.Enforced)
-			assert.Equal(t, map[string]struct{}{providers.ProviderAnthropic: {}}, plan.EnabledProviders)
-			requireExclusion(t, plan, "citations_or_search_native_required", providers.ProviderOpenAI, true)
+			assert.Equal(t, map[string]struct{}{providers.ProviderAIAND: {}}, plan.EnabledProviders)
+			requireExclusion(t, plan, "citations_or_search_native_required", providers.ProviderAIAND, true)
 		})
 	}
 }
 
 func TestApplyTranslationPlan_CompatibleButUnavailable(t *testing.T) {
 	svc := &Service{
-		clients:                      dispatch.NewClients(map[string]providers.Client{providers.ProviderAnthropic: nil}),
+		clients:                      dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: nil}),
 		translationCompatibilityMode: TranslationCompatibilityShadow,
 	}
 	_, err := svc.applyTranslationPlan(context.Background(), router.Request{
-		EnabledProviders: map[string]struct{}{providers.ProviderAnthropic: {}},
+		EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}},
 		TranslationRequirements: router.TranslationRequirements{
 			SourceFormat: router.WireFormatOpenAI,
 			Endpoint:     router.EndpointOpenAIResponses,

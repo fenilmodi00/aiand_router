@@ -91,12 +91,8 @@ func WithManagedSubscriptionUsage(ctx context.Context) context.Context {
 
 func managedSubscriptionProviderFromUpstream(provider, model string) (subscriptions.Provider, bool) {
 	switch provider {
-	case providers.ProviderAnthropic:
+	case providers.ProviderAIAND:
 		return subscriptions.ProviderClaude, true
-	case providers.ProviderOpenAI:
-		if codexSubscriptionCanAttemptModel(model) {
-			return subscriptions.ProviderCodex, true
-		}
 	}
 	return "", false
 }
@@ -111,7 +107,7 @@ func managedSubscriptionEnrolled(ctx context.Context, provider subscriptions.Pro
 }
 
 func managedSubscriptionCanServe(ctx context.Context, provider, model string) bool {
-	if provider == providers.ProviderOpenAI && codexChatEndpoint(ctx) {
+	if provider == providers.ProviderAIAND && codexChatEndpoint(ctx) {
 		return false
 	}
 	poolProvider, eligible := managedSubscriptionProviderFromUpstream(provider, model)
@@ -202,7 +198,7 @@ func (s *Service) leaseManagedSubscription(ctx context.Context, provider, model 
 	if subscriptionAttemptOnly(ctx) && (!eligible || !s.supportsSubscriptionTransport(provider) || !managedSubscriptionEnrolled(ctx, poolProvider)) && !servedOnSubscription(ctx) {
 		return ctx, subscriptions.Lease{}, true, subscriptionPoolExhausted(ctx)
 	}
-	if eligible && (claudeSubscriptionSuppressed(ctx) && provider == providers.ProviderAnthropic || codexSubscriptionSuppressed(ctx) && provider == providers.ProviderOpenAI) && !managedSubscriptionEnrolled(ctx, poolProvider) && !s.managedProviderFallbackAvailable(ctx, poolProvider) {
+	if eligible && (claudeSubscriptionSuppressed(ctx) && provider == providers.ProviderAIAND || codexSubscriptionSuppressed(ctx) && provider == providers.ProviderAIAND) && !managedSubscriptionEnrolled(ctx, poolProvider) && !s.managedProviderFallbackAvailable(ctx, poolProvider) {
 		return ctx, subscriptions.Lease{}, true, subscriptionPoolExhausted(ctx)
 	}
 	if !eligible || s.managedSubscriptions == nil || !managedSubscriptionEnrolled(ctx, poolProvider) ||
@@ -364,13 +360,13 @@ func (s *Service) recordManagedSubscriptionFailure(ctx context.Context, provider
 	}
 	status := upstreamStatus(attemptErr)
 	owner := subscriptionOwnerFromContext(ctx)
-	if provider == providers.ProviderAnthropic && anthropicSubscriptionModelRejected(attemptErr) {
+	if provider == providers.ProviderAIAND && anthropicSubscriptionModelRejected(attemptErr) {
 		s.subscriptionModels.denyManaged("account:"+lease.AccountID, lease.AccountID, provider, model, s.clockNow().Add(subscriptionModelDenialTTL))
 		observability.FromContext(ctx).Warn("Managed subscription account cannot access model",
 			"provider", poolProvider, "account_id", lease.AccountID, "model", model)
 		return true
 	}
-	if provider == providers.ProviderAnthropic && anthropicSubscriptionThirdPartyRefused(attemptErr) {
+	if provider == providers.ProviderAIAND && anthropicSubscriptionThirdPartyRefused(attemptErr) {
 		clientApp := ClientIdentityFrom(ctx).ClientApp
 		s.subscriptionModels.denyManagedClientApp(lease.AccountID, provider, clientApp, s.clockNow().Add(subscriptionThirdPartyDenialTTL))
 		markSubscriptionClientAppRefused(ctx)
@@ -378,7 +374,7 @@ func (s *Service) recordManagedSubscriptionFailure(ctx context.Context, provider
 			"provider", poolProvider, "account_id", lease.AccountID, "client_app", clientApp)
 		return true
 	}
-	if provider == providers.ProviderOpenAI && codexSubscriptionModelRejected(attemptErr) {
+	if provider == providers.ProviderAIAND && codexSubscriptionModelRejected(attemptErr) {
 		s.subscriptionModels.denyManaged("account:"+lease.AccountID, lease.AccountID, provider, model, s.clockNow().Add(subscriptionModelDenialTTL))
 		observability.FromContext(ctx).Warn("Managed subscription account cannot access model",
 			"provider", poolProvider, "account_id", lease.AccountID, "model", model)

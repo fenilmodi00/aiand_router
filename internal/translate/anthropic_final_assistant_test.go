@@ -19,7 +19,7 @@ func TestAnthropicFinalAssistantResponsesProjection(t *testing.T) {
 	require.NoError(t, err)
 	envelope, err := translate.ParseOpenAI(conversion.Body)
 	require.NoError(t, err)
-	prepared, err := envelope.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "claude-fable-5-1", Capabilities: router.Lookup("claude-fable-5-1"), TargetProvider: providers.ProviderAnthropic})
+	prepared, err := envelope.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "claude-fable-5-1", Capabilities: router.Lookup("claude-fable-5-1"), TargetProvider: providers.ProviderAIAND})
 	require.NoError(t, err)
 	assert.Equal(t, "Hello", gjson.GetBytes(prepared.Body, "messages.1.content.0.text").String())
 }
@@ -108,7 +108,7 @@ func prepareFinalAssistantAnthropic(t *testing.T, body []byte) []byte {
 	t.Helper()
 	envelope, err := translate.ParseAnthropic(body)
 	require.NoError(t, err)
-	prepared, err := envelope.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "claude-fable-5-1", Capabilities: router.Lookup("claude-fable-5-1"), TargetProvider: providers.ProviderAnthropic})
+	prepared, err := envelope.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "claude-fable-5-1", Capabilities: router.Lookup("claude-fable-5-1"), TargetProvider: providers.ProviderAIAND})
 	require.NoError(t, err)
 	return prepared.Body
 }
@@ -119,7 +119,7 @@ func TestAnthropicFinalAssistantDroppedForPrefillUnsupportedModel(t *testing.T) 
 	require.NoError(t, err)
 	envelope, err := translate.ParseOpenAI(conversion.Body)
 	require.NoError(t, err)
-	prepared, err := envelope.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "claude-opus-5-5", Capabilities: router.Lookup("claude-opus-5-5"), TargetProvider: providers.ProviderAnthropic})
+	prepared, err := envelope.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "claude-opus-5-5", Capabilities: router.Lookup("claude-opus-5-5"), TargetProvider: providers.ProviderAIAND})
 	require.NoError(t, err)
 	messages := gjson.GetBytes(prepared.Body, "messages").Array()
 	require.Len(t, messages, 1)
@@ -141,7 +141,7 @@ func TestAnthropicFinalAssistantPrefillUnsupportedBoundaries(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			envelope, err := translate.ParseAnthropic([]byte(`{"model":"claude-opus-5-5","messages":` + tc.messages + `}`))
 			require.NoError(t, err)
-			prepared, err := envelope.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "claude-opus-5-5", Capabilities: router.Lookup("claude-opus-5-5"), TargetProvider: providers.ProviderAnthropic})
+			prepared, err := envelope.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "claude-opus-5-5", Capabilities: router.Lookup("claude-opus-5-5"), TargetProvider: providers.ProviderAIAND})
 			require.NoError(t, err)
 			var roles []string
 			for _, message := range gjson.GetBytes(prepared.Body, "messages").Array() {

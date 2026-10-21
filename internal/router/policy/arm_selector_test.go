@@ -17,7 +17,7 @@ import (
 func newSelectorAdapter(result policy.Result) *policy.SidecarRouter {
 	resolver := policy.NewResolver(
 		set("claude-opus-4-8", "claude-sonnet-5"),
-		set(providers.ProviderAnthropic),
+		set(providers.ProviderAIAND),
 		func(model catalog.Model) string { return "anthropic/" + model.ID },
 		policy.ManagedProviderPolicy(),
 	)
@@ -75,7 +75,7 @@ func TestArmSelectorPickIsServed(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, "claude-sonnet-5", decision.Model)
-	assert.Equal(t, providers.ProviderAnthropic, decision.Provider)
+	assert.Equal(t, providers.ProviderAIAND, decision.Provider)
 	assert.NotContains(t, decision.Reason, ":go_selection")
 	assert.Contains(t, decision.Reason, "group=maximum,arm=anthropic/claude-sonnet-5")
 	require.NotNil(t, decision.Metadata)
@@ -166,7 +166,7 @@ func TestArmSelectorRejectsLegacySchema(t *testing.T) {
 func TestArmSelectorNegotiatesV4(t *testing.T) {
 	resolver := policy.NewResolver(
 		set("claude-opus-4-8"),
-		set(providers.ProviderAnthropic),
+		set(providers.ProviderAIAND),
 		func(model catalog.Model) string { return "anthropic/" + model.ID },
 		policy.ManagedProviderPolicy(),
 	)

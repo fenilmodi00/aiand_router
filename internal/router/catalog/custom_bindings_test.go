@@ -10,25 +10,26 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// customModel has a single google binding, so a configuration-declared
-// gateway is the only way it reaches a customer's own endpoint.
-const customModel = "gemini-2.5-flash"
+// customModel is catalog-bound to ai&, so a configuration-declared endpoint is
+// the only way it reaches a customer's own gateway.
+const customModel = "z-ai/glm-5.3"
 
 func customFor(provider string) map[string][]string {
 	return map[string][]string{customModel: {provider}}
 }
 
 func TestResolveBindingWithCustom_ServesModelWithNoCatalogBinding(t *testing.T) {
-	available := map[string]struct{}{providers.ProviderOpenAIGateway: {}}
+	const custom = "custom_endpoint"
+	available := map[string]struct{}{custom: {}}
 
 	_, ok := catalog.ResolveBinding(customModel, available)
-	require.False(t, ok, "precondition: the catalog does not bind this model to a gateway")
+	require.False(t, ok, "precondition: the catalog does not bind this model to the custom endpoint")
 
 	binding, ok := catalog.ResolveBindingWithCustom(
-		customModel, available, customFor(providers.ProviderOpenAIGateway))
+		customModel, available, customFor(custom))
 
 	require.True(t, ok)
-	assert.Equal(t, providers.ProviderOpenAIGateway, binding.Provider)
+	assert.Equal(t, custom, binding.Provider)
 
 	// Pricing falls back to list price: a custom endpoint bills on its own
 	// contract and the primary binding's rate is the only one we have.
@@ -37,60 +38,59 @@ func TestResolveBindingWithCustom_ServesModelWithNoCatalogBinding(t *testing.T) 
 	assert.Equal(t, primary, binding.Price)
 }
 
-// TestResolveBindingWithCustom_DirectVendorWins: the overlay must never
-// demote a wired direct vendor to a customer relay.
 func TestResolveBindingWithCustom_DirectVendorWins(t *testing.T) {
+	const custom = "custom_endpoint"
 	binding, ok := catalog.ResolveBindingWithCustom(
 		customModel,
 		map[string]struct{}{
-			providers.ProviderGoogle:        {},
-			providers.ProviderOpenAIGateway: {},
+			providers.ProviderAIAND: {},
+			custom:                   {},
 		},
-		customFor(providers.ProviderOpenAIGateway),
+		customFor(custom),
 	)
 
 	require.True(t, ok)
-	assert.Equal(t, providers.ProviderGoogle, binding.Provider)
+	assert.Equal(t, providers.ProviderAIAND, binding.Provider)
 }
 
 func TestResolveBindingWithCustom_IgnoresUnavailableProvider(t *testing.T) {
 	_, ok := catalog.ResolveBindingWithCustom(
 		customModel,
 		map[string]struct{}{},
-		customFor(providers.ProviderOpenAIGateway),
+		customFor("custom_endpoint"),
 	)
 
 	assert.False(t, ok)
 }
 
 func TestEnumerateBindingsWithCustom_CustomRanksAfterCatalog(t *testing.T) {
+	const custom = "custom_endpoint"
 	got := catalog.EnumerateBindingsWithCustom(
 		customModel,
 		map[string]struct{}{
-			providers.ProviderGoogle:        {},
-			providers.ProviderOpenAIGateway: {},
+			providers.ProviderAIAND: {},
+			custom:                   {},
 		},
-		customFor(providers.ProviderOpenAIGateway),
+		customFor(custom),
 	)
 
 	require.Len(t, got, 2)
-	assert.Equal(t, providers.ProviderGoogle, got[0].Provider)
-	assert.Equal(t, providers.ProviderOpenAIGateway, got[1].Provider)
+	assert.Equal(t, providers.ProviderAIAND, got[0].Provider)
+	assert.Equal(t, custom, got[1].Provider)
 	assert.Greater(t, got[1].Index, got[0].Index, "failover order must stay strictly increasing")
 }
 
 // TestEnumerateBindingsWithCustom_NoDuplicateProvider: a key may declare a
-// model the catalog already binds to that same gateway; dispatch must not
+// model the catalog already binds to that same provider; dispatch must not
 // retry the identical upstream as its own fallback.
 func TestEnumerateBindingsWithCustom_NoDuplicateProvider(t *testing.T) {
-	const claude = "claude-sonnet-4-5"
-	available := map[string]struct{}{providers.ProviderAnthropicGateway: {}}
+	available := map[string]struct{}{providers.ProviderAIAND: {}}
 
 	got := catalog.EnumerateBindingsWithCustom(
-		claude,
+		customModel,
 		available,
-		map[string][]string{claude: {providers.ProviderAnthropicGateway}},
+		map[string][]string{customModel: {providers.ProviderAIAND}},
 	)
 
-	assert.Equal(t, catalog.EnumerateBindings(claude, available), got)
+	assert.Equal(t, catalog.EnumerateBindings(customModel, available), got)
 }

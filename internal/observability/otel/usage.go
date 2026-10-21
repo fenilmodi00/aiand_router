@@ -269,13 +269,10 @@ func (u *UsageExtractor) scanBuffer() {
 	u.tryExtractFromJSON()
 }
 
-// Dispatch is family-based so Anthropic-spec gateway providers
-// (e.g. anthropic_gateway) are parsed correctly instead of recording zero usage.
+// Dispatch is family-based so the upstream's wire format selects the parser.
 func (u *UsageExtractor) extractFromSSEEvent(eventType []byte, data []byte) {
 	switch providers.FamilyFor(u.provider) {
-	case providers.FamilyAnthropic:
-		u.extractAnthropicSSE(eventType, data)
-	case providers.FamilyOpenAICompat, providers.FamilyGemini:
+	case providers.FamilyOpenAICompat:
 		u.extractOpenAISSE(data)
 	}
 }
@@ -314,9 +311,6 @@ func (u *UsageExtractor) extractOpenAISSE(data []byte) {
 	}
 
 	u.extractOpenAIChatSSEResponse(trimmed)
-	if providers.FamilyFor(u.provider) == providers.FamilyGemini && gjson.GetBytes(trimmed, "candidates.0.finishReason").String() == geminiFinishMaxTokens {
-		u.RecordOutputLimitReached()
-	}
 
 	u.RecordProviderUsage(u.parseUsage(trimmed))
 }
@@ -335,14 +329,8 @@ func (u *UsageExtractor) tryExtractFromJSON() {
 	// write before the last, and usage is the final top-level member, so a
 	// found usage object is what makes content[] safe to count.
 	switch providers.FamilyFor(u.provider) {
-	case providers.FamilyAnthropic:
-		u.extractAnthropicJSONResponse(u.leftover)
 	case providers.FamilyOpenAICompat:
 		u.extractOpenAIChatJSONResponse(u.leftover)
-	case providers.FamilyGemini:
-		if gjson.GetBytes(u.leftover, "candidates.0.finishReason").String() == geminiFinishMaxTokens {
-			u.RecordOutputLimitReached()
-		}
 	}
 
 	u.RecordProviderUsage(facts)
@@ -415,23 +403,14 @@ func (u *UsageExtractor) observeOpenAIToolCall(index int) {
 }
 
 func (u *UsageExtractor) parseUsage(body []byte) usage.Facts {
-	family := providers.FamilyFor(u.provider)
-	if family == providers.FamilyAnthropic {
-		return usage.ParseAnthropic(anthropicUsage(body))
+	if providers.FamilyFor(u.provider) != providers.FamilyOpenAICompat {
+		return usage.Facts{}
 	}
-	if family == providers.FamilyGemini {
-		if meta := gjson.GetBytes(body, "usageMetadata"); meta.IsObject() {
-			return usage.ParseGemini(meta)
-		}
+	object := gjson.GetBytes(body, "usage")
+	if !object.IsObject() {
+		object = gjson.GetBytes(body, "response.usage")
 	}
-	if family == providers.FamilyOpenAICompat || family == providers.FamilyGemini {
-		object := gjson.GetBytes(body, "usage")
-		if !object.IsObject() {
-			object = gjson.GetBytes(body, "response.usage")
-		}
-		return usage.ParseOpenAI(object)
-	}
-	return usage.Facts{}
+	return usage.ParseOpenAI(object)
 }
 
 func anthropicUsage(body []byte) gjson.Result {

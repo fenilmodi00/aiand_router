@@ -57,9 +57,9 @@ func TestMaxedOutServedModel_RequiresMatchingTerminalEvidence(t *testing.T) {
 }
 
 func TestNormalizeHMMStayPin_HighOutputIsNotExhaustion(t *testing.T) {
-	svc := NewService(nil, map[string]providers.Client{providers.ProviderAnthropic: nil}, nil, false, nil, nil, false,
-		providers.ProviderAnthropic, outputLimitFirstModel, nil)
-	pin := sessionpin.Pin{Provider: providers.ProviderAnthropic, LastServedModel: outputLimitFirstModel,
+	svc := NewService(nil, map[string]providers.Client{providers.ProviderAIAND: nil}, nil, false, nil, nil, false,
+		providers.ProviderAIAND, outputLimitFirstModel, nil)
+	pin := sessionpin.Pin{Provider: providers.ProviderAIAND, LastServedModel: outputLimitFirstModel,
 		LastOutputTokens: 32000, LastTurnEndedAt: time.Now().Add(-time.Second), PinnedUntil: time.Now().Add(time.Hour)}
 	got, ok := svc.normalizeHMMStayPin(router.Request{}, pin)
 	require.True(t, ok)
@@ -75,13 +75,13 @@ func TestPostCommandContinuation_UsesTerminalEvidence(t *testing.T) {
 			store := newForceModelMapStore()
 			key := [sessionpin.SessionKeyLen]byte{1}
 			pin := sessionpin.Pin{SessionKey: key, Role: sessionpin.DefaultRole, Strategy: router.StrategyCluster,
-				Provider: providers.ProviderAnthropic, Model: outputLimitFirstModel, LastServedModel: outputLimitFirstModel,
+				Provider: providers.ProviderAIAND, Model: outputLimitFirstModel, LastServedModel: outputLimitFirstModel,
 				LastOutputTokens: 32000, LastTurnEndedAt: time.Now(), PinnedUntil: time.Now().Add(time.Hour), Reason: "cluster"}
 			if capped {
 				pin.LastOutputLimitAt = pin.LastTurnEndedAt
 			}
 			store.pins[forceModelMapKey(key, pin.Role)] = pin
-			svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAnthropic, outputLimitFirstModel, nil)
+			svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAIAND, outputLimitFirstModel, nil)
 			ctx := router.WithStrategy(context.Background(), router.StrategyCluster)
 			svc.grantPostCommandContinuation(ctx, uuid.New(), key, pin.Role)
 			got, found := svc.consumePostCommandContinuation(ctx, key, pin.Role)
@@ -97,12 +97,12 @@ func TestPostCommandContinuation_UsesTerminalEvidence(t *testing.T) {
 
 func TestRefreshPin_PreservesOutputLimitEvidence(t *testing.T) {
 	store := newStubPinStore()
-	svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAnthropic, outputLimitFirstModel, nil)
+	svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAIAND, outputLimitFirstModel, nil)
 	ended := time.Now().Add(-time.Second)
-	pin := sessionpin.Pin{Provider: providers.ProviderAnthropic, Model: outputLimitSecondModel, LastServedModel: outputLimitFirstModel,
+	pin := sessionpin.Pin{Provider: providers.ProviderAIAND, Model: outputLimitSecondModel, LastServedModel: outputLimitFirstModel,
 		LastTurnEndedAt: ended, LastOutputLimitAt: ended, LastOutputTokens: 128}
 	svc.refreshPin(context.Background(), uuid.New(), [sessionpin.SessionKeyLen]byte{1}, pin, sessionpin.DefaultRole,
-		router.Decision{Provider: providers.ProviderAnthropic, Model: outputLimitSecondModel})
+		router.Decision{Provider: providers.ProviderAIAND, Model: outputLimitSecondModel})
 	require.Len(t, store.upserts, 1)
 	assert.Equal(t, outputLimitFirstModel, maxedOutServedModel(store.upserts[0]), "refreshing the anchor cannot lose the prior served outcome")
 }
@@ -118,7 +118,7 @@ func (r *outputLimitSequenceRouter) Route(_ context.Context, req router.Request)
 		if _, excluded := req.ExcludedModels[model]; excluded {
 			continue
 		}
-		return router.Decision{Provider: providers.ProviderAnthropic, Model: model, Reason: "hmm_policy(label=maximum)",
+		return router.Decision{Provider: providers.ProviderAIAND, Model: model, Reason: "hmm_policy(label=maximum)",
 			Metadata: &router.RoutingMetadata{Strategy: string(router.StrategyHMM)}}, nil
 	}
 	return router.Decision{}, errors.New("no eligible test model")
@@ -167,8 +167,8 @@ func TestProxyMessages_OutputLimitEightActionSequence(t *testing.T) {
 					if trueCap && action == 3 {
 						upstream.stopReason, upstream.output = "max_tokens", 128
 					}
-					svc := NewService(nil, map[string]providers.Client{providers.ProviderAnthropic: upstream}, nil, false, nil, store, false,
-						providers.ProviderAnthropic, outputLimitFirstModel, nil).
+					svc := NewService(nil, map[string]providers.Client{providers.ProviderAIAND: upstream}, nil, false, nil, store, false,
+						providers.ProviderAIAND, outputLimitFirstModel, nil).
 						WithNativeAnthropicResponseSignals(false).
 						WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyHMM, Router: routes,
 							Capabilities: policy.Capabilities{SchemaVersion: policy.SchemaVersionV1, AuthoritativePerTurnSelection: true}})

@@ -1,22 +1,15 @@
 package rl
 
 import (
-	"strings"
-
-	"weave-os/router/internal/providers"
 	"weave-os/router/internal/router/catalog"
 )
 
 // rosterAliases maps a catalog model ID to the policy-artifact roster ID when
-// the vendor-prefix rule below would produce the wrong slug. The RL policy was
-// trained on OpenRouter-style slugs (ml_dev/agent_environment/roster.py's
-// OPENROUTER_MODEL_ALIASES); Opus 4.x uses dash-separated minor versions but
-// Sonnet/Haiku 4.x use dotted minor versions, so those two need an explicit
-// entry. Everything else is derived (slash-form is already a slug; bare
-// first-party IDs take their primary provider's vendor prefix).
+// the slash-form rule below would produce the wrong slug. Every surviving
+// catalog model is slash-form except the Kimi K2.7 row, which the policy
+// knows under its "-code" build name.
 var rosterAliases = map[string]string{
-	"claude-sonnet-4-6": "anthropic/claude-sonnet-4.6",
-	"claude-haiku-4-5":  "anthropic/claude-haiku-4.5",
+	"moonshotai/kimi-k2.7": "moonshotai/kimi-k2.7-code",
 }
 
 // rosterIDFor returns the policy-artifact roster ID for a catalog model. The
@@ -25,21 +18,6 @@ var rosterAliases = map[string]string{
 func rosterIDFor(m catalog.Model) string {
 	if alias, ok := rosterAliases[m.ID]; ok {
 		return alias
-	}
-	if strings.Contains(m.ID, "/") {
-		return m.ID
-	}
-	switch m.PrimaryProvider() {
-	case providers.ProviderAnthropic, providers.ProviderAnthropicGateway:
-		// A gateway serves the Claude family unchanged, so a gateway-primary
-		// binding maps onto the same roster slug as the direct Anthropic one.
-		return "anthropic/" + m.ID
-	case providers.ProviderOpenAI:
-		return "openai/" + m.ID
-	case providers.ProviderGoogle:
-		return "google/" + m.ID
-	case providers.ProviderXAI:
-		return "x-ai/" + m.ID
 	}
 	return m.ID
 }

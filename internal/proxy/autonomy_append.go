@@ -36,5 +36,5 @@ func (s *Service) autonomySystemAppendApplies(ctx context.Context, body []byte, 
 // append. translate.PrepareGemini ignores the option, so a turn that failed
 // over onto a Gemini binding is recorded as not fired.
 func autonomyAppendFired(opts translate.EmitOptions, servedProvider string) bool {
-	return opts.AppendAutonomySystem && providers.FamilyFor(servedProvider) != providers.FamilyGemini
+	return opts.AppendAutonomySystem && providers.FamilyFor(servedProvider) != providers.FamilyOpenAICompat
 }

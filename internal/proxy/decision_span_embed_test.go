@@ -32,7 +32,7 @@ type embedTestRouter struct {
 
 func (r *embedTestRouter) Route(context.Context, router.Request) (router.Decision, error) {
 	decision := router.Decision{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    "claude-haiku-4-5",
 		Reason:   "cluster",
 		Metadata: r.metadata,
@@ -96,8 +96,8 @@ func newEmbedTestService(t *testing.T, collector *bypassSpanCollector, rt router
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = emitter.Shutdown(context.Background()) })
-	return NewService(rt, map[string]providers.Client{providers.ProviderAnthropic: embedTestProvider{}, providers.ProviderGoogle: embedTestProvider{}}, emitter, false, nil, pins, false,
-		providers.ProviderAnthropic, "claude-haiku-4-5", nil)
+	return NewService(rt, map[string]providers.Client{providers.ProviderAIAND: embedTestProvider{}, providers.ProviderAIAND: embedTestProvider{}}, emitter, false, nil, pins, false,
+		providers.ProviderAIAND, "claude-haiku-4-5", nil)
 }
 
 // decisionSpanEmbed drives one Anthropic turn and returns the exported
@@ -178,7 +178,7 @@ func TestDecisionSpan_EmbedMs_SurvivesPlannerStay(t *testing.T) {
 	store := newStubPinStore()
 	store.getFound = true
 	store.getPin = sessionpin.Pin{
-		Provider:    providers.ProviderAnthropic,
+		Provider:    providers.ProviderAIAND,
 		Model:       "claude-haiku-4-5",
 		Reason:      "cluster",
 		PinnedUntil: time.Now().Add(time.Hour),
@@ -242,7 +242,7 @@ func TestDecisionSpan_SidecarTimings_OnlySelectMsSet(t *testing.T) {
 // replay: pins must rehydrate with Metadata nil.
 func TestPinDecision_NeverRehydratesMetadata(t *testing.T) {
 	dec := pinDecision(sessionpin.Pin{
-		Provider: providers.ProviderAnthropic,
+		Provider: providers.ProviderAIAND,
 		Model:    "claude-haiku-4-5",
 		Reason:   "compaction",
 	})
@@ -297,7 +297,7 @@ func TestDecisionAndUpstreamSpansCarryCallerRoutingState(t *testing.T) {
 			path:     "/v1beta/models/gemini-2.5-pro:generateContent",
 			body:     []byte(`{"model":"gemini-2.5-pro","stream":false,"contents":[{"role":"user","parts":[{"text":"hi"}]}]}`),
 			call:     (*Service).ProxyGeminiGenerateContent,
-			provider: providers.ProviderGoogle,
+			provider: providers.ProviderAIAND,
 			model:    "gemini-2.5-flash",
 		},
 	}

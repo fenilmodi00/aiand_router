@@ -39,11 +39,11 @@ func (p *handoffResponseProvider) Proxy(ctx context.Context, decision router.Dec
 
 func handoffTestService() (*Service, *betaTestRouter, *betaCaptureProvider, context.Context) {
 	classifier := &betaTestRouter{decision: router.Decision{
-		Model: "claude-opus-4-7", Provider: providers.ProviderAnthropic,
+		Model: "claude-opus-4-7", Provider: providers.ProviderAIAND,
 		Metadata: &router.RoutingMetadata{PolicyGroup: "high", AuthoritativePerTurnSelection: true},
 	}}
 	upstream := &betaCaptureProvider{}
-	svc := NewService(nil, map[string]providers.Client{providers.ProviderAnthropic: upstream}, nil, false, nil, nil, false, providers.ProviderAnthropic, "claude-haiku-4-5", nil).
+	svc := NewService(nil, map[string]providers.Client{providers.ProviderAIAND: upstream}, nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil).
 		WithPiHandoffSecret(strings.Repeat("test-secret-", 4)).
 		WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyHMM, Router: classifier, Capabilities: policy.Capabilities{AuthoritativePerTurnSelection: true}})
 	ctx := context.WithValue(context.Background(), APIKeyIDContextKey{}, "handoff-test-key")
@@ -172,7 +172,7 @@ func TestPiHandoffSummaryUsesPreviousModelWithoutReclassifyingOrWritingUsageToIt
 	store := newStubPinStore()
 	store.getFound = true
 	store.getPin = sessionpin.Pin{
-		Model: "claude-sonnet-4-6", Provider: providers.ProviderAnthropic,
+		Model: "claude-sonnet-4-6", Provider: providers.ProviderAIAND,
 		Reason: "hmm_policy", PolicyGroup: "low", PinnedUntil: time.Now().Add(time.Hour),
 		LastServedModel: "claude-sonnet-4-6:high", LastTurnEndedAt: time.Now().Add(-time.Minute),
 	}
@@ -197,7 +197,7 @@ func TestPiHandoffRecordsEscalationOutcomeOnlyAfterContinuation(t *testing.T) {
 	store := newEscalationTestStore()
 	observer := &escalationTestObserver{}
 	upstream := &betaCaptureProvider{}
-	svc := newEscalationCompletionService(store, observer, map[string]providers.Client{providers.ProviderAnthropic: upstream}).
+	svc := newEscalationCompletionService(store, observer, map[string]providers.Client{providers.ProviderAIAND: upstream}).
 		WithPiHandoffSecret(strings.Repeat("test-secret-", 4))
 	ctx := escalationCompletionContext()
 	prepared := prepareTestHandoff(t, svc, ctx)
@@ -224,7 +224,7 @@ func TestPiHandoffRejectsConcurrentForceAndCrossSessionCommandsBeforeMutation(t 
 	require.NoError(t, err)
 	store := newStubPinStore()
 	store.getFound = true
-	store.getPin = sessionpin.Pin{Model: "claude-haiku-4-5", Provider: providers.ProviderAnthropic, Reason: translate.ReasonUserForceModel, PinnedUntil: time.Now().Add(time.Hour)}
+	store.getPin = sessionpin.Pin{Model: "claude-haiku-4-5", Provider: providers.ProviderAIAND, Reason: translate.ReasonUserForceModel, PinnedUntil: time.Now().Add(time.Hour)}
 	svc.pinStore = store
 	err = svc.ProxyMessages(ctx, []byte(body), httptest.NewRecorder(), httptest.NewRequest("POST", "/v1/messages", nil))
 	require.ErrorIs(t, err, ErrHandoffInvalid)

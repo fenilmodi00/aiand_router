@@ -47,7 +47,7 @@ func (j *EscalationJudge) Judge(ctx context.Context, request llmescalation.Judge
 	plan, err := j.plans.Resolve(policy.ResolutionRequest{
 		Purpose: policy.PurposeEscalationJudge,
 		RouterRequest: router.Request{
-			EnabledProviders:     map[string]struct{}{providers.ProviderFireworks: {}},
+			EnabledProviders:     map[string]struct{}{providers.ProviderAIAND: {}},
 			EstimatedInputTokens: (len(request.Transcript) + len(llmescalation.SystemPrompt)) / 3,
 		},
 	})
@@ -148,8 +148,8 @@ func parseEscalationJudgment(encoded []byte) (llmescalation.Judgment, error) {
 				judgment.CostUSD = *response.Usage.Cost
 				judgment.CostKnown = true
 				judgment.CostSource = llmescalation.CostSourceProviderReported
-			} else if pricing, found := catalog.PriceFor(providers.ProviderFireworks, policy.EscalationJudgeModel); found {
-				judgment.CostUSD = catalog.EffectiveInputCost(prompt, 0, cached, pricing, providers.ProviderFireworks, catalog.UsageModifiers{}) + catalog.EffectiveOutputCost(prompt, completion, pricing, catalog.UsageModifiers{})
+			} else if pricing, found := catalog.PriceFor(providers.ProviderAIAND, policy.EscalationJudgeModel); found {
+				judgment.CostUSD = catalog.EffectiveInputCost(prompt, 0, cached, pricing, providers.ProviderAIAND, catalog.UsageModifiers{}) + catalog.EffectiveOutputCost(prompt, completion, pricing, catalog.UsageModifiers{})
 				judgment.CostKnown = true
 				judgment.CostSource = llmescalation.CostSourceCatalogEstimate
 			}
