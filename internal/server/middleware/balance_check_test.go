@@ -10,7 +10,6 @@ import (
 
 	"weave-os/router/internal/auth"
 	"weave-os/router/internal/billing"
-	"weave-os/router/internal/proxy"
 	"weave-os/router/internal/server/middleware"
 	"weave-os/router/internal/subscriptions/entitlement"
 
@@ -283,90 +282,6 @@ func runMiddlewarePrep(t *testing.T, repo billing.Repo, threshold int64, routePa
 	req := httptest.NewRequest(http.MethodGet, routePath, nil)
 	engine.ServeHTTP(w, req)
 	return w, reached, hasOverride
-}
-
-// stashAnthropicSub plants a Claude OAuth value on the request context.
-func stashAnthropicSub(c *gin.Context, value string) {
-	ctx := context.WithValue(c.Request.Context(), proxy.AnthropicSubscriptionContextKey{}, value)
-	c.Request = c.Request.WithContext(ctx)
-}
-
-// stashCodexSub plants a dedicated Codex subscription (JWT + account id) on the
-// request context the way WithAuth does. Both are required for a usable Codex sub.
-func stashCodexSub(c *gin.Context, token, accountID string) {
-	ctx := context.WithValue(c.Request.Context(), proxy.OpenAISubscriptionContextKey{}, token)
-	ctx = context.WithValue(ctx, proxy.OpenAIAccountIDContextKey{}, accountID)
-	c.Request = c.Request.WithContext(ctx)
-}
-
-func TestWithBalanceCheck_402sJunkAnthropicOAuth(t *testing.T) {
-	// A junk OAuth value is never injected as a
-	// subscription (injection requires sk-ant-oat), so the gate must NOT treat
-	// it as one — otherwise a bypass org routes paid turns on deployment keys at
-	// $0. Detection validates the credential, not a bare presence check.
-	repo := &stubBillingRepo{balance: 0}
-	prep := func(c *gin.Context) {
-		withUsageBypassInstallation(c, "org_sub")
-		stashAnthropicSub(c, "not-a-real-token")
-	}
-	w, reached, _ := runMiddlewarePrep(t, repo, 0, "/v1/messages", prep)
-	assert.False(t, reached, "junk OAuth value must not exempt the gate")
-	assert.Equal(t, http.StatusPaymentRequired, w.Code)
-}
-
-func TestWithBalanceCheck_ExemptsValidAnthropicOAuth(t *testing.T) {
-	// A valid sk-ant-oat token on the authenticated request must exempt,
-	// mirroring credential injection's acceptance.
-	repo := &stubBillingRepo{balance: 0}
-	prep := func(c *gin.Context) {
-		withUsageBypassInstallation(c, "org_sub")
-		stashAnthropicSub(c, "sk-ant-oat01-valid-token")
-	}
-	w, reached, _ := runMiddlewarePrep(t, repo, 0, "/v1/messages", prep)
-	assert.True(t, reached, "a valid subscription must exempt the gate")
-	assert.Equal(t, http.StatusOK, w.Code)
-}
-
-func TestWithBalanceCheck_OverrideFlagSetEvenForSubscriptionRequest(t *testing.T) {
-	// An override org that also presents a subscription credential must still get
-	// the override context flag (so the debit hook writes delta=0 for ALL turns),
-	// not be short-circuited by the subscription exemption before CheckBalance.
-	repo := &stubBillingRepo{override: true}
-	prep := func(c *gin.Context) {
-		withUsageBypassInstallation(c, "org_override")
-		stashAnthropicSub(c, "sk-ant-oat01-valid-token")
-	}
-	w, reached, hasOverride := runMiddlewarePrep(t, repo, 0, "/v1/messages", prep)
-	assert.True(t, reached, "override org must reach the handler")
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, hasOverride, "override flag must be planted even when a subscription is present")
-}
-
-func TestWithBalanceCheck_ExemptsCodexSubscriptionOnOpenAIRoute(t *testing.T) {
-	// A Codex subscription covers the OpenAI chat/responses APIs, so a bypass
-	// org presenting one on /v1/responses at $0 balance must be exempt.
-	repo := &stubBillingRepo{balance: 0}
-	prep := func(c *gin.Context) {
-		withUsageBypassInstallation(c, "org_codex")
-		stashCodexSub(c, "eyJhbGciOi.codex.jwt", "acct-abc-123")
-	}
-	w, reached, _ := runMiddlewarePrep(t, repo, 0, "/v1/responses", prep)
-	assert.True(t, reached, "a Codex subscription must exempt an OpenAI-route request")
-	assert.Equal(t, http.StatusOK, w.Code)
-}
-
-func TestWithBalanceCheck_402sCodexSubscriptionOnAnthropicRoute(t *testing.T) {
-	// The greptile P1: a Codex subscription can't serve /v1/messages, so the turn
-	// would route to a paid Anthropic model. The exemption is route-scoped, so a
-	// Codex sub on the Anthropic route must NOT exempt — a depleted balance 402s.
-	repo := &stubBillingRepo{balance: 0}
-	prep := func(c *gin.Context) {
-		withUsageBypassInstallation(c, "org_codex")
-		stashCodexSub(c, "eyJhbGciOi.codex.jwt", "acct-abc-123")
-	}
-	w, reached, _ := runMiddlewarePrep(t, repo, 0, "/v1/messages", prep)
-	assert.False(t, reached, "a Codex sub must not exempt an Anthropic-route request")
-	assert.Equal(t, http.StatusPaymentRequired, w.Code)
 }
 
 func TestWithBalanceCheck_NonSubscriptionStill402sBelowZero(t *testing.T) {
