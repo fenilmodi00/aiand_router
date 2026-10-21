@@ -64,9 +64,10 @@ func gatewayService(t *testing.T, baseURL string) *proxy.Service {
 	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 }
 
-// A reasoning tool turn on a gateway goes to Responses, because gateways like
-// Snowflake Cortex reject function tools on chat/completions for those models.
-func TestProxyMessages_GatewayToolTurnUsesResponses(t *testing.T) {
+// An upstream that mounts the Responses surface serves a direct Responses
+// ingress on it: the caller's own bytes go upstream unchanged apart from the
+// routed model.
+func TestProxyOpenAIResponses_GatewayServesTheResponsesSurface(t *testing.T) {
 	var (
 		mu    sync.Mutex
 		paths []string
@@ -75,36 +76,31 @@ func TestProxyMessages_GatewayToolTurnUsesResponses(t *testing.T) {
 		mu.Lock()
 		paths = append(paths, r.URL.Path)
 		mu.Unlock()
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.WriteHeader(http.StatusOK)
-		flusher, _ := w.(http.Flusher)
-		for _, c := range []string{
-			`data: {"type":"response.created","response":{"id":"resp_1","status":"in_progress"}}` + "\n\n",
-			`data: {"type":"response.output_text.delta","delta":"hi"}` + "\n\n",
-			`data: {"type":"response.completed","response":{"id":"resp_1","status":"completed","usage":{"input_tokens":5,"output_tokens":1}}}` + "\n\n",
-		} {
-			_, _ = w.Write([]byte(c))
-			if flusher != nil {
-				flusher.Flush()
-			}
-		}
+		writeOpenAIResponsesSSE(w)
 	}))
 	defer gateway.Close()
 
+	svc := proxy.NewService(
+		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-5.4-mini"}},
+		map[string]providers.Client{
+			providers.ProviderAIAND: openaicompat.NewGatewayClient("test-key", gateway.URL+"/v1"),
+		},
+		nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
+	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
+
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
-	require.NoError(t, gatewayService(t, gateway.URL+"/v1").
-		ProxyMessages(context.Background(), []byte(gatewayToolTurn), rec, req))
+	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(""))
+	body := []byte(`{"model":"gpt-5.4-mini","input":"list files"}`)
+	require.NoError(t, svc.ProxyOpenAIResponses(context.Background(), body, rec, req))
 
 	mu.Lock()
 	defer mu.Unlock()
 	assert.Equal(t, []string{"/v1/responses"}, paths)
-	assert.Contains(t, rec.Body.String(), "event: message_start")
 }
 
-// A Responses request the gateway genuinely rejected is the client's error,
+// A Responses request the upstream genuinely rejected is the client's error,
 // not a signal to retry on chat/completions.
-func TestProxyMessages_GatewayResponsesRejectionIsNotRetried(t *testing.T) {
+func TestProxyOpenAIResponses_GatewayRejectionIsNotRetried(t *testing.T) {
 	var (
 		mu    sync.Mutex
 		paths []string
@@ -119,10 +115,18 @@ func TestProxyMessages_GatewayResponsesRejectionIsNotRetried(t *testing.T) {
 	}))
 	defer gateway.Close()
 
+	svc := proxy.NewService(
+		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-5.4-mini"}},
+		map[string]providers.Client{
+			providers.ProviderAIAND: openaicompat.NewGatewayClient("test-key", gateway.URL+"/v1"),
+		},
+		nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
+	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
+
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
-	_ = gatewayService(t, gateway.URL+"/v1").
-		ProxyMessages(context.Background(), []byte(gatewayToolTurn), rec, req)
+	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(""))
+	body := []byte(`{"model":"gpt-5.4-mini","input":"list files"}`)
+	_ = svc.ProxyOpenAIResponses(context.Background(), body, rec, req)
 
 	mu.Lock()
 	defer mu.Unlock()
