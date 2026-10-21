@@ -26,7 +26,7 @@ func TestClientDecideParsesTypedContractFields(t *testing.T) {
 	defer server.Close()
 
 	result, err := New(server.URL, server.Client(), 0).Decide(context.Background(), policy.Query{
-		Candidates: []policy.Candidate{{RosterID: "anthropic/claude-opus-4-8", CatalogID: "claude-opus-4-8", Provider: providers.ProviderAIAND}},
+		Candidates: []policy.Candidate{{RosterID: "anthropic/claude-opus-4-8", CatalogID: "z-ai/glm-5.2", Provider: providers.ProviderAIAND}},
 	})
 
 	require.NoError(t, err)
@@ -53,7 +53,7 @@ func TestClientDecideLeavesTypedFieldsUnsetOnV1OnlyResponse(t *testing.T) {
 	defer server.Close()
 
 	result, err := New(server.URL, server.Client(), 0).Decide(context.Background(), policy.Query{
-		Candidates: []policy.Candidate{{RosterID: "anthropic/claude-opus-4-8", CatalogID: "claude-opus-4-8", Provider: providers.ProviderAIAND}},
+		Candidates: []policy.Candidate{{RosterID: "anthropic/claude-opus-4-8", CatalogID: "z-ai/glm-5.2", Provider: providers.ProviderAIAND}},
 	})
 
 	require.NoError(t, err)

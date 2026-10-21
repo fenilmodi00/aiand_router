@@ -57,7 +57,7 @@ func TestTimestampValidationRequiresCanonicalUTC(t *testing.T) {
 	finalizedAction := entitlement.Action{
 		Reservation:     reservation,
 		State:           entitlement.ActionStateFinalized,
-		ServedModel:     "claude-sonnet-4-5",
+		ServedModel:     "deepseek/deepseek-v4.1-flash",
 		RetailUsdMicros: 98_000,
 	}
 	finalizedAt := reservation.ReservedAt.Add(time.Minute)
@@ -218,7 +218,7 @@ func TestFinalizationAndReleaseValidateLifecycleInputs(t *testing.T) {
 	now := time.Date(2026, 9, 18, 7, 0, 0, 0, time.UTC)
 	finalization := entitlement.Finalization{
 		ActionID:        "request_1_main",
-		ServedModel:     "claude-sonnet-4-5",
+		ServedModel:     "deepseek/deepseek-v4.1-flash",
 		RetailUsdMicros: 98_000,
 		CapacitySource:  entitlement.CapacitySourceLinkedClaude,
 		FinalizedAt:     now,
@@ -244,7 +244,7 @@ func TestActionValidateRequiresStateSpecificOutcome(t *testing.T) {
 	require.NoError(t, action.Validate())
 
 	action.State = entitlement.ActionStateFinalized
-	action.ServedModel = "claude-sonnet-4-5"
+	action.ServedModel = "deepseek/deepseek-v4.1-flash"
 	action.RetailUsdMicros = 98_000
 	finalizedAt := reservation.ReservedAt.Add(time.Minute)
 	action.FinalizedAt = &finalizedAt
@@ -266,7 +266,7 @@ func validReservation() entitlement.Reservation {
 		WeeklyPeriod:       entitlement.Period{Kind: entitlement.PeriodKindWeekly, Start: start, End: start.Add(7 * 24 * time.Hour)},
 		SixHourPeriod:      entitlement.Period{Kind: entitlement.PeriodKindSixHour, Start: start, End: start.Add(6 * time.Hour)},
 		APIKeyID:           "f8fc3d54-3652-46c5-be85-6727f5572e5a",
-		RequestedModel:     "claude-opus-4-1",
+		RequestedModel:     "z-ai/glm-5.2",
 		ReservedUsdMicros:  125_000,
 		CapacitySource:     entitlement.CapacitySourceIncludedRouter,
 		ReservedAt:         start.Add(time.Minute),

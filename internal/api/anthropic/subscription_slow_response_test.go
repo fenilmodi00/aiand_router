@@ -18,12 +18,11 @@ import (
 	"weave-os/router/internal/router"
 )
 
-const slowSubscriptionStream = "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"synthetic\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"claude-sonnet-4-5\",\"content\":[],\"usage\":{\"input_tokens\":11,\"output_tokens\":0}}}\n\n" +
-	"event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n" +
-	"event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"slow subscription answer\"}}\n\n" +
-	"event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n" +
-	"event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":4}}\n\n" +
-	"event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"
+// slowSubscriptionStream is the upstream's OpenAI-compatible chat-completions
+// SSE; the router translates it into the Anthropic-shaped client response.
+const slowSubscriptionStream = "data: {\"id\":\"chatcmpl_synthetic\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"slow subscription answer\"},\"finish_reason\":null}]}\n\n" +
+	"data: {\"id\":\"chatcmpl_synthetic\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":11,\"completion_tokens\":4}}\n\n" +
+	"data: [DONE]\n\n"
 
 // slowSubscriptionProvider answers after a delay unless its request context
 // ends first, recording which credential source each call used.
@@ -59,11 +58,11 @@ func TestMessagesHandler_LinkedSubscriptionSlowFirstResponseSucceeds(t *testing.
 	provider := &slowSubscriptionProvider{delay: 12 * time.Second}
 	// The service owns background cache janitors that never exit, so it is built
 	// outside the bubble; every request-path timer is still created inside it.
-	svc := newTestService(&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-5", Reason: "test"}}, providers.ProviderAIAND, provider).
+	svc := newTestService(&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4.1-flash", Reason: "test"}}, providers.ProviderAIAND, provider).
 		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 	engine := messagesEngine(svc)
 	synctest.Test(t, func(t *testing.T) {
-		body := `{"model":"claude-sonnet-4-5","stream":true,"messages":[{"role":"user","content":"synthetic slow turn"}],"max_tokens":4096}`
+		body := `{"model":"deepseek/deepseek-v4.1-flash","stream":true,"messages":[{"role":"user","content":"synthetic slow turn"}],"max_tokens":4096}`
 		ctx := context.WithValue(proxy.WithManagedSubscriptionUsage(context.Background()), proxy.AnthropicSubscriptionContextKey{}, "sk-ant-oat01-synthetic-linked-token")
 		rec := httptest.NewRecorder()
 

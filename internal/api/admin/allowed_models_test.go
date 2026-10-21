@@ -43,8 +43,8 @@ func putAllowedModels(t *testing.T, routable admin.RoutableModelsSource, allowed
 // A catalog-valid but unroutable-only list must 400 before it is saved.
 func TestUpdateAllowedModelsHandler_RejectsAllowlistWithNoRoutableMember(t *testing.T) {
 	rec := putAllowedModels(t,
-		stubRoutableModels{models: map[string]struct{}{"claude-opus-4-7": {}}},
-		[]string{"claude-opus-4-8"},
+		stubRoutableModels{models: map[string]struct{}{"z-ai/glm-5.2": {}}},
+		[]string{"z-ai/glm-5.2"},
 	)
 
 	require.Equal(t, http.StatusBadRequest, rec.Code)
@@ -57,7 +57,7 @@ func TestUpdateAllowedModelsHandler_RejectsAllowlistWithNoRoutableMember(t *test
 // Unknown IDs must not be reported as a routability problem.
 func TestUpdateAllowedModelsHandler_RejectsUnknownModelBeforeRoutabilityCheck(t *testing.T) {
 	rec := putAllowedModels(t,
-		stubRoutableModels{models: map[string]struct{}{"claude-opus-4-7": {}}},
+		stubRoutableModels{models: map[string]struct{}{"z-ai/glm-5.2": {}}},
 		[]string{"not-a-real-model"},
 	)
 

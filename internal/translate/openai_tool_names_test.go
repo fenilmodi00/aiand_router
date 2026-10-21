@@ -17,7 +17,7 @@ func TestPrepareOpenAIAliasesLongToolNamesReversibly(t *testing.T) {
 	long := "mcp__claude_ai_Example_Server_2__getProjectIssueTypesMetadataLong"
 	sibling := long[:64] + "Y"
 	valid := strings.Repeat("v", 64)
-	body := []byte(fmt.Sprintf(`{"model":"claude-sonnet-5-5","max_tokens":1024,
+	body := []byte(fmt.Sprintf(`{"model":"deepseek/deepseek-v4-pro","max_tokens":1024,
 	  "tools":[{"name":%[1]q,"input_schema":{"type":"object"}},{"name":%[2]q,"input_schema":{"type":"object"}},{"name":%[3]q,"input_schema":{"type":"object"}}],
 	  "tool_choice":{"type":"tool","name":%[1]q},
 	  "messages":[{"role":"user","content":"hi"},

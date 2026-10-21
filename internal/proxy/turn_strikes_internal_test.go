@@ -45,7 +45,7 @@ func (s *turnStrikePinStore) ClearTurnStrikes(_ context.Context, _ [sessionpin.S
 
 var _ sessionpin.TurnStrikeStore = (*turnStrikePinStore)(nil)
 
-const toolResultTurnBody = `{"model":"claude-opus-4-8","messages":[` +
+const toolResultTurnBody = `{"model":"z-ai/glm-5.2","messages":[` +
 	`{"role":"user","content":"fix the build"},` +
 	`{"role":"assistant","content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"make"}}]},` +
 	`{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"ok"}]}]}`
@@ -176,31 +176,31 @@ func (c *siblingChainClient) Passthrough(context.Context, providers.PreparedRequ
 // Every sibling that fails before a later sibling serves is struck for the
 // turn, not only the primary.
 func TestSiblingRescueRecordsEveryFailedModel(t *testing.T) {
-	anthropicClient := &siblingChainClient{failing: map[string]bool{"claude-opus-5": true}}
+	anthropicClient := &siblingChainClient{failing: map[string]bool{"z-ai/glm-5.2": true}}
 	openAIClient := &siblingChainClient{failing: map[string]bool{"gpt-5.6-luna": true}}
 	decision := router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "claude-opus-5",
+		Model:    "z-ai/glm-5.2",
 		Reason:   "test",
 		Metadata: &router.RoutingMetadata{
-			CandidateModels:    []string{"claude-opus-5", "gpt-5.6-luna", "claude-sonnet-5-5"},
-			CandidateProviders: map[string]string{"gpt-5.6-luna": providers.ProviderAIAND, "claude-sonnet-5-5": providers.ProviderAIAND},
+			CandidateModels:    []string{"z-ai/glm-5.2", "gpt-5.6-luna", "deepseek/deepseek-v4-pro"},
+			CandidateProviders: map[string]string{"gpt-5.6-luna": providers.ProviderAIAND, "deepseek/deepseek-v4-pro": providers.ProviderAIAND},
 		},
 	}
 	svc := NewService(staticRouter{decision: decision}, map[string]providers.Client{
 		providers.ProviderAIAND: anthropicClient,
-	}, nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil).
+	}, nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 	svc.retrySleep = noopSleep
 	ctx := withTurnFailures(context.Background())
 
-	body := `{"model":"claude-opus-5","max_tokens":1024,"stream":true,"messages":[{"role":"user","content":"read main.go"}]}`
+	body := `{"model":"z-ai/glm-5.2","max_tokens":1024,"stream":true,"messages":[{"role":"user","content":"read main.go"}]}`
 	rec := httptest.NewRecorder()
 	require.NoError(t, svc.ProxyMessages(ctx, []byte(body), rec,
 		httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(body))))
 
 	require.Contains(t, rec.Body.String(), "rescued")
-	require.Contains(t, anthropicClient.failed, "claude-opus-5")
+	require.Contains(t, anthropicClient.failed, "z-ai/glm-5.2")
 	require.Contains(t, openAIClient.failed, "gpt-5.6-luna", "the first sibling fails before the second serves")
-	assert.ElementsMatch(t, []string{"claude-opus-5", "gpt-5.6-luna"}, turnFailuresFromContext(ctx).models)
+	assert.ElementsMatch(t, []string{"z-ai/glm-5.2", "gpt-5.6-luna"}, turnFailuresFromContext(ctx).models)
 }

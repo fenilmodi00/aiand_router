@@ -46,11 +46,11 @@ func TestPublicSurfaces_DispatchThroughResolvedPlan(t *testing.T) {
 		upstream func(http.ResponseWriter)
 	}{
 		"anthropic messages": {
-			provider: providers.ProviderAIAND, model: "claude-haiku-4-5",
+			provider: providers.ProviderAIAND, model: "z-ai/glm-5.3-flash",
 			purpose: inference.PurposeAnthropicMessages, policyID: "main-anthropic-messages",
 			upstream: jsonUpstream(`{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"text","text":"hi"}],"usage":{"input_tokens":1,"output_tokens":1}}`),
 			run: func(svc *proxy.Service, w http.ResponseWriter) error {
-				body := []byte(`{"model":"claude-haiku-4-5","max_tokens":4096,"messages":[{"role":"user","content":"hi"}]}`)
+				body := []byte(`{"model":"z-ai/glm-5.3-flash","max_tokens":4096,"messages":[{"role":"user","content":"hi"}]}`)
 				return svc.ProxyMessages(authedCtx("00000000-0000-0000-0000-000000000001"), body, w,
 					httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader("")))
 			},
@@ -122,11 +122,11 @@ func TestUtilityTurns_DispatchUnderResolvedPurpose(t *testing.T) {
 		policyID inference.PolicyID
 	}{
 		"probe": {
-			body:    `{"model":"claude-sonnet-4-6","max_tokens":1,"messages":[{"role":"user","content":"ping"}]}`,
+			body:    `{"model":"deepseek/deepseek-v4.1-flash","max_tokens":1,"messages":[{"role":"user","content":"ping"}]}`,
 			purpose: inference.PurposeProbe, policyID: "aux-probe",
 		},
 		"title generation": {
-			body:    `{"model":"claude-sonnet-4-6","max_tokens":512,"output_config":{"format":{"type":"json_schema","schema":{"type":"object","properties":{"title":{"type":"string"}}}}},"messages":[{"role":"user","content":"Please write a title for this conversation."}]}`,
+			body:    `{"model":"deepseek/deepseek-v4.1-flash","max_tokens":512,"output_config":{"format":{"type":"json_schema","schema":{"type":"object","properties":{"title":{"type":"string"}}}}},"messages":[{"role":"user","content":"Please write a title for this conversation."}]}`,
 			purpose: inference.PurposeTitleGeneration, policyID: "aux-title-generation",
 		},
 	}
@@ -142,8 +142,8 @@ func TestUtilityTurns_DispatchUnderResolvedPurpose(t *testing.T) {
 				sink := &purposeSink{}
 				executor, err := dispatch.NewExecutor(dispatch.NewClients(clients), dispatch.WithAttemptSink(sink))
 				require.NoError(t, err)
-				fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "test"}}
-				svc := proxy.NewService(fr, clients, nil, false, nil, newFakePinStore(), false, providers.ProviderAIAND, "claude-haiku-4-5", nil).
+				fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4.1-flash", Reason: "test"}}
+				svc := proxy.NewService(fr, clients, nil, false, nil, newFakePinStore(), false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 					WithExplicitUtilityHardPin(explicit).
 					WithInferenceExecutor(executor)
 
@@ -154,11 +154,11 @@ func TestUtilityTurns_DispatchUnderResolvedPurpose(t *testing.T) {
 				require.Len(t, provider.proxyBodies, 1)
 				require.Len(t, sink.events, 1)
 				event := sink.events[0]
-				purpose, policyID, model := tc.purpose, tc.policyID, "claude-haiku-4-5"
+				purpose, policyID, model := tc.purpose, tc.policyID, "z-ai/glm-5.3-flash"
 				if explicit {
 					assert.Zero(t, fr.routeCalls)
 				} else {
-					model = "claude-sonnet-4-6"
+					model = "deepseek/deepseek-v4.1-flash"
 					if tc.purpose == inference.PurposeTitleGeneration {
 						purpose, policyID = inference.PurposeAnthropicMessages, "main-anthropic-messages"
 						assert.Equal(t, 1, fr.routeCalls)
@@ -180,15 +180,15 @@ func TestUtilityTurns_DispatchUnderResolvedPurpose(t *testing.T) {
 // main-inference policy and served on the scorer's pick, not the hard pin.
 func TestClassifierTurn_DispatchUnderSurfacePurpose(t *testing.T) {
 	const anthropicOK = `{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"text","text":"ok"}],"usage":{"input_tokens":1,"output_tokens":1}}`
-	body := `{"model":"claude-sonnet-4-6","max_tokens":64,"messages":[{"role":"user","content":"is this safe? yes/no"}]}`
+	body := `{"model":"deepseek/deepseek-v4.1-flash","max_tokens":64,"messages":[{"role":"user","content":"is this safe? yes/no"}]}`
 
 	provider := &fakeProvider{proxyResponse: jsonUpstream(anthropicOK)}
 	clients := map[string]providers.Client{providers.ProviderAIAND: provider}
 	sink := &purposeSink{}
 	executor, err := dispatch.NewExecutor(dispatch.NewClients(clients), dispatch.WithAttemptSink(sink))
 	require.NoError(t, err)
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "test"}}
-	svc := proxy.NewService(fr, clients, nil, false, nil, newFakePinStore(), false, providers.ProviderAIAND, "claude-haiku-4-5", nil).
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4.1-flash", Reason: "test"}}
+	svc := proxy.NewService(fr, clients, nil, false, nil, newFakePinStore(), false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 		WithInferenceExecutor(executor)
 
 	rec := httptest.NewRecorder()
@@ -201,7 +201,7 @@ func TestClassifierTurn_DispatchUnderSurfacePurpose(t *testing.T) {
 	assert.Equal(t, inference.PurposeAnthropicMessages, event.Purpose)
 	assert.Equal(t, inference.PolicyID("main-anthropic-messages"), event.PolicyID)
 	assert.Equal(t, inference.AttemptOutcomeServed, event.Outcome)
-	assert.Equal(t, "claude-sonnet-4-6", event.Target.CatalogID)
+	assert.Equal(t, "deepseek/deepseek-v4.1-flash", event.Target.CatalogID)
 }
 
 func TestAutomaticProbesServeUnderIngressPolicyWithoutConversationState(t *testing.T) {

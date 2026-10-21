@@ -23,7 +23,7 @@ import (
 // ccTaskToolTurnBody is a Claude Code turn carrying the task-list tools plus
 // one of their system reminders, as it arrives on /v1/messages.
 const ccTaskToolTurnBody = `{
-	"model":"claude-opus-4-7",
+	"model":"z-ai/glm-5.2",
 	"system":"You are Claude Code.",
 	"messages":[{"role":"user","content":[
 		{"type":"text","text":"fix the bug"},
@@ -89,7 +89,7 @@ func TestProxyMessages_CCTaskToolsCrossVendor_OrgOverrideReachesUpstream(t *test
 			svc := proxy.NewService(
 				&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-5.6-luna", Reason: "test"}},
 				map[string]providers.Client{providers.ProviderAIAND: provider},
-				nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+				nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
 			)
 
 			ctx := context.Background()

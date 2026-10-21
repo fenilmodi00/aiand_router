@@ -22,25 +22,25 @@ func TestForceModelCommand_TypedForms(t *testing.T) {
 		wantModel  string
 		wantEffort string
 	}{
-		{"/fm opus", "claude-opus-5-5", ""},
-		{"/fm claude-opus-5.5", "claude-opus-5-5", ""},
-		{"/fm claude-opus-5-5", "claude-opus-5-5", ""},
-		{"/fm opus 5.5", "claude-opus-5-5", ""},
-		{"/fm   opus   5.5  ", "claude-opus-5-5", ""},
-		{"/force-model claude-opus-5.5", "claude-opus-5-5", ""},
-		{"/model opus-4.8", "claude-opus-4-8", ""},
+		{"/fm opus", "z-ai/glm-5.2", ""},
+		{"/fm claude-opus-5.5", "z-ai/glm-5.2", ""},
+		{"/fm claude-opus-5-5", "z-ai/glm-5.2", ""},
+		{"/fm opus 5.5", "z-ai/glm-5.2", ""},
+		{"/fm   opus   5.5  ", "z-ai/glm-5.2", ""},
+		{"/force-model claude-opus-5.5", "z-ai/glm-5.2", ""},
+		{"/model opus-4.8", "z-ai/glm-5.2", ""},
 		{"$fm sol", "gpt-6.1-sol", ""},
 		{"/fm sol:high", "gpt-6.1-sol", "high"},
 		{"/fm astra high", "gpt-6-astra", "high"},
-		{"/fm claude-opus-5-5[1m]", "claude-opus-5-5", ""},
+		{"/fm claude-opus-5-5[1m]", "z-ai/glm-5.2", ""},
 		{"/fm qwen 3.8", "qwen/qwen3.8-max", ""},
-		{"<command-name>/fm</command-name>\n/fm claude-opus-5.5", "claude-opus-5-5", ""},
+		{"<command-name>/fm</command-name>\n/fm claude-opus-5.5", "z-ai/glm-5.2", ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.typed, func(t *testing.T) {
 			store := &recordingPinStore{}
 			svc := NewService(nil, nil, nil, false, nil, store, false,
-				providers.ProviderAIAND, "claude-haiku-4-5", nil)
+				providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil)
 			env := typedCommandEnv(t, tt.typed+"\nfix the failing test")
 			cmd, found := env.ExtractForceModelCommand()
 			require.True(t, found, "command parsed")
@@ -64,7 +64,7 @@ func TestForceModelCommand_TypedUnknownKeepsRouting(t *testing.T) {
 		t.Run(typed, func(t *testing.T) {
 			store := &recordingPinStore{}
 			svc := NewService(nil, nil, nil, false, nil, store, false,
-				providers.ProviderAIAND, "claude-haiku-4-5", nil)
+				providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil)
 			env := typedCommandEnv(t, typed)
 			cmd, found := env.ExtractForceModelCommand()
 			require.True(t, found, "command parsed")
@@ -82,7 +82,7 @@ func TestForceModelCommand_TypedUnknownKeepsRouting(t *testing.T) {
 func TestForceModelCommand_TypoSuggestsWithoutPinning(t *testing.T) {
 	store := &recordingPinStore{}
 	svc := NewService(nil, nil, nil, false, nil, store, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil)
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil)
 	env := typedCommandEnv(t, "/fm opsu")
 	cmd, found := env.ExtractForceModelCommand()
 	require.True(t, found, "command parsed")
@@ -99,7 +99,7 @@ func TestForceModelCommand_TypoSuggestsWithoutPinning(t *testing.T) {
 func typedCommandEnv(t *testing.T, text string) *translate.RequestEnvelope {
 	t.Helper()
 	body, err := json.Marshal(map[string]any{
-		"model":    "claude-opus-4-8",
+		"model":    "z-ai/glm-5.2",
 		"messages": []map[string]any{{"role": "user", "content": text}},
 	})
 	require.NoError(t, err)

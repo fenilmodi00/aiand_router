@@ -17,9 +17,9 @@ func TestWorkspaceAppend_AnthropicTargetIsNeverTouched(t *testing.T) {
 	env, err := translate.ParseAnthropic([]byte(claudeCodeCachedSystemBody))
 	require.NoError(t, err)
 
-	off, err := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "claude-opus-5"})
+	off, err := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "z-ai/glm-5.2"})
 	require.NoError(t, err)
-	on, err := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "claude-opus-5", AppendWorkspaceSystem: true})
+	on, err := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "z-ai/glm-5.2", AppendWorkspaceSystem: true})
 	require.NoError(t, err)
 
 	assert.Equal(t, string(off.Body), string(on.Body), "an Anthropic-served attempt keeps the client prompt byte-identical")
@@ -99,11 +99,11 @@ func TestWorkspaceAppend_HasWorkspaceSystemText(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, plain.HasWorkspaceSystemText())
 
-	carried, err := translate.ParseAnthropic([]byte(`{"model":"claude-opus-5","system":[{"type":"text","text":"You are Claude Code."},{"type":"text","text":"Before answering, use your tools to Inspect The Workspace."}],"messages":[{"role":"user","content":"hi"}],"max_tokens":8}`))
+	carried, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.2","system":[{"type":"text","text":"You are Claude Code."},{"type":"text","text":"Before answering, use your tools to Inspect The Workspace."}],"messages":[{"role":"user","content":"hi"}],"max_tokens":8}`))
 	require.NoError(t, err)
 	assert.True(t, carried.HasWorkspaceSystemText(), "match is case-insensitive on the marker phrase")
 
-	autonomyOnly, err := translate.ParseAnthropic([]byte(`{"model":"claude-opus-5","system":"` + translate.AutonomySystemText + `","messages":[{"role":"user","content":"hi"}],"max_tokens":8}`))
+	autonomyOnly, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.2","system":"` + translate.AutonomySystemText + `","messages":[{"role":"user","content":"hi"}],"max_tokens":8}`))
 	require.NoError(t, err)
 	assert.False(t, autonomyOnly.HasWorkspaceSystemText(), "the two appends are tracked independently")
 }

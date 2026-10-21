@@ -698,7 +698,7 @@ func TestDispatchWithFallback_SingleBindingExhaustsRetries(t *testing.T) {
 	winnerIdx, err := s.dispatchWithFallback(context.Background(), failoverInputs{
 		w:               rec,
 		buf:             buf,
-		initialDecision: router.Decision{Model: "claude-opus-4-7"},
+		initialDecision: router.Decision{Model: "z-ai/glm-5.2"},
 		purpose:         inference.PurposeAnthropicMessages,
 		bindings:        []catalog.ProviderBinding{{Provider: "anthropic"}},
 		attempt: func(ctx context.Context, d router.Decision, p providers.Client) error {
@@ -758,7 +758,7 @@ func TestDispatchWithFallback_SlowAttemptsStopBeforeRetryCount(t *testing.T) {
 	_, err := s.dispatchWithFallback(context.Background(), failoverInputs{
 		w:               rec,
 		buf:             buf,
-		initialDecision: router.Decision{Model: "claude-opus-4-7"},
+		initialDecision: router.Decision{Model: "z-ai/glm-5.2"},
 		purpose:         inference.PurposeAnthropicMessages,
 		bindings:        []catalog.ProviderBinding{{Provider: "anthropic"}},
 		attempt: func(ctx context.Context, d router.Decision, p providers.Client) error {
@@ -794,7 +794,7 @@ func TestDispatchWithFallback_SingleBindingRetrySucceeds(t *testing.T) {
 	winnerIdx, err := s.dispatchWithFallback(context.Background(), failoverInputs{
 		w:               rec,
 		buf:             buf,
-		initialDecision: router.Decision{Model: "claude-opus-4-7"},
+		initialDecision: router.Decision{Model: "z-ai/glm-5.2"},
 		purpose:         inference.PurposeAnthropicMessages,
 		bindings:        []catalog.ProviderBinding{{Provider: "anthropic"}},
 		attempt: func(ctx context.Context, d router.Decision, p providers.Client) error {
@@ -828,7 +828,7 @@ func TestDispatchWithFallback_SingleBindingNonRetryableNoRetry(t *testing.T) {
 	_, err := s.dispatchWithFallback(context.Background(), failoverInputs{
 		w:               rec,
 		buf:             buf,
-		initialDecision: router.Decision{Model: "claude-opus-4-7"},
+		initialDecision: router.Decision{Model: "z-ai/glm-5.2"},
 		purpose:         inference.PurposeAnthropicMessages,
 		bindings:        []catalog.ProviderBinding{{Provider: "anthropic"}},
 		attempt: func(ctx context.Context, d router.Decision, p providers.Client) error {
@@ -864,7 +864,7 @@ func TestDispatchWithFallback_SingleBindingBackoffAbortsOnCancel(t *testing.T) {
 	_, err := s.dispatchWithFallback(context.Background(), failoverInputs{
 		w:               rec,
 		buf:             buf,
-		initialDecision: router.Decision{Model: "claude-opus-4-7"},
+		initialDecision: router.Decision{Model: "z-ai/glm-5.2"},
 		purpose:         inference.PurposeAnthropicMessages,
 		bindings:        []catalog.ProviderBinding{{Provider: "anthropic"}},
 		attempt: func(ctx context.Context, d router.Decision, p providers.Client) error {
@@ -950,7 +950,7 @@ func TestResolveBindingsForDispatch(t *testing.T) {
 	})
 	t.Run("single-binding Anthropic model returns one binding even with multiple keys wired", func(t *testing.T) {
 		s := &Service{deploymentKeyedProviders: map[string]struct{}{"anthropic": {}, "openrouter": {}}}
-		bs := s.resolveBindingsForDispatch(context.Background(), router.Decision{Model: "claude-opus-4-7", Provider: "anthropic"})
+		bs := s.resolveBindingsForDispatch(context.Background(), router.Decision{Model: "z-ai/glm-5.2", Provider: "anthropic"})
 		require.Len(t, bs, 1)
 		assert.Equal(t, "anthropic", bs[0].Provider)
 	})
@@ -1208,7 +1208,7 @@ func TestResolveBindingsForDispatch_LinkedSubscriptionWithoutAPIKey(t *testing.T
 
 func TestResolveBindingsForDispatch_LinkedSubscriptionPreservesFundedBindings(t *testing.T) {
 	svc := &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: &fakeClient{}}), deploymentKeyedProviders: map[string]struct{}{providers.ProviderAIAND: {}}}
-	decision := router.Decision{Provider: providers.ProviderAIAND, Model: "claude-opus-5"}
+	decision := router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.2"}
 	before := svc.resolveBindingsForDispatch(context.Background(), decision)
 	require.Len(t, before, 2)
 	linked := svc.resolveBindingsForDispatch(managedSubscriptionContext(auth.SubscriptionProviderClaude), decision)

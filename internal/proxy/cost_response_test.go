@@ -223,7 +223,7 @@ func TestStreamCostWriter_WriteErrorBeforeConsumeRetriesSameEvent(t *testing.T) 
 // The trailer prices the turn the way telemetry does: the 1h split, geography
 // and a client-sent fast speed reported on message_start all reach the rate.
 func TestStreamCostWriterPricesMessageStartModifiers(t *testing.T) {
-	const model = "claude-opus-5"
+	const model = "z-ai/glm-5.2"
 	rec := httptest.NewRecorder()
 	writer := newStreamCostWriter(rec)
 	writer.SetCostCalculator(routerCostCalculatorFor(model, providers.ProviderAIAND, false), false, nil)
@@ -249,7 +249,7 @@ func TestStreamCostWriterPricesMessageStartModifiers(t *testing.T) {
 // A gateway stream without a per-TTL split prices its trailer from the
 // dispatched request's declared TTL, matching telemetry and billing.
 func TestStreamCostWriterUnsplitWritesUseRequestTTL(t *testing.T) {
-	const model = "claude-opus-5"
+	const model = "z-ai/glm-5.2"
 	for _, cacheCreation := range []string{``, `,"cache_creation":null`, `,"cache_creation":{}`, `,"cache_creation":{"ephemeral_5m_input_tokens":null,"ephemeral_1h_input_tokens":null}`} {
 		rec := httptest.NewRecorder()
 		writer := newStreamCostWriter(rec)

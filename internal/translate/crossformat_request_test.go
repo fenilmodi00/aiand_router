@@ -842,7 +842,7 @@ func TestCrossFormat_AnthropicToOpenAI_ToolConversation(t *testing.T) {
 // an assistant message carrying neither content nor tool_calls.
 func TestCrossFormat_AnthropicToOpenAI_EmptyAssistantKeepsContent(t *testing.T) {
 	body, err := translate.StripRoutingMarkerFromMessages([]byte(`{
-		"model": "claude-opus-5",
+		"model": "z-ai/glm-5.2",
 		"max_tokens": 100,
 		"messages": [
 			{"role": "user", "content": "/force-model muse"},
@@ -873,7 +873,7 @@ func TestCrossFormat_AnthropicToOpenAI_OverlongToolUseIDClampedAndPaired(t *test
 	// IDs while keeping tool_use paired with its tool_result tool_call_id.
 	longID := "toolu_" + strings.Repeat("a", 1411)
 	body := []byte(`{
-		"model": "claude-opus-4-8",
+		"model": "z-ai/glm-5.2",
 		"max_tokens": 1024,
 		"messages": [
 			{"role": "user", "content": "read it"},
@@ -942,7 +942,7 @@ func TestCrossFormat_AnthropicToOpenAI_Image(t *testing.T) {
 // content is text-only, so images must be hoisted into the trailing user message.
 func TestCrossFormat_AnthropicToOpenAI_ToolResultImageHoisted(t *testing.T) {
 	body := []byte(`{
-		"model": "claude-opus-4-8",
+		"model": "z-ai/glm-5.2",
 		"messages": [
 			{"role": "user", "content": [{"type": "text", "text": "Read the screenshot"}]},
 			{"role": "assistant", "content": [
@@ -990,7 +990,7 @@ func TestCrossFormat_AnthropicToOpenAI_ToolResultImageHoisted(t *testing.T) {
 // message; only the image is hoisted.
 func TestCrossFormat_AnthropicToOpenAI_ToolResultTextAndImageSplit(t *testing.T) {
 	body := []byte(`{
-		"model": "claude-opus-4-8",
+		"model": "z-ai/glm-5.2",
 		"messages": [
 			{"role": "user", "content": [{"type": "text", "text": "Read the screenshot"}]},
 			{"role": "assistant", "content": [
@@ -1241,7 +1241,7 @@ func TestCrossFormat_OpenAIToAnthropic_ReasoningTargetOmitsTemperature(t *testin
 	require.NoError(t, err)
 
 	prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{
-		TargetModel: "claude-fable-5-1", Capabilities: router.Lookup("claude-fable-5-1"), TargetProvider: "anthropic",
+		TargetModel: "z-ai/glm-5.2", Capabilities: router.Lookup("z-ai/glm-5.2"), TargetProvider: "anthropic",
 	})
 	require.NoError(t, err)
 
@@ -1253,7 +1253,7 @@ func TestCrossFormat_OpenAIToAnthropic_ReasoningTargetOmitsTemperature(t *testin
 
 func TestCrossFormat_AnthropicToAnthropic_UnsupportedTemperatureIsOmitted(t *testing.T) {
 	body := []byte(`{
-		"model":"claude-fable-5-1",
+		"model":"z-ai/glm-5.2",
 		"messages":[{"role":"user","content":"hi"}],
 		"temperature":0.4,
 		"top_p":0.8,
@@ -1263,7 +1263,7 @@ func TestCrossFormat_AnthropicToAnthropic_UnsupportedTemperatureIsOmitted(t *tes
 	require.NoError(t, err)
 
 	prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{
-		TargetModel: "claude-fable-5-1", Capabilities: router.Lookup("claude-fable-5-1"),
+		TargetModel: "z-ai/glm-5.2", Capabilities: router.Lookup("z-ai/glm-5.2"),
 	})
 	require.NoError(t, err)
 
@@ -1303,7 +1303,7 @@ func TestCrossFormat_AnthropicToOpenAI_ScalarFieldsCarriedThrough(t *testing.T) 
 
 func TestCrossFormat_AnthropicToOpenAI_ReasoningModelOmitsStop(t *testing.T) {
 	body := []byte(`{
-		"model": "claude-sonnet-5",
+		"model": "deepseek/deepseek-v4-pro",
 		"stream": true,
 		"messages": [{"role": "user", "content": [{"type": "text", "text": "hi"}]}],
 		"stop_sequences": ["STOP"],
@@ -1937,7 +1937,7 @@ func TestSanitizeToolUseIDs_OpenAIToAnthropic(t *testing.T) {
 // also sanitizes non-Anthropic tool IDs carried in Anthropic-format history.
 func TestSanitizeToolUseIDs_AnthropicToAnthropic(t *testing.T) {
 	body := []byte(`{
-		"model": "claude-opus-4-7",
+		"model": "z-ai/glm-5.2",
 		"messages": [
 			{"role": "assistant", "content": [
 				{"type": "tool_use", "id": "functions.Grep:11", "name": "Grep", "input": {}}
@@ -1949,7 +1949,7 @@ func TestSanitizeToolUseIDs_AnthropicToAnthropic(t *testing.T) {
 	}`)
 	env, err := translate.ParseAnthropic(body)
 	require.NoError(t, err)
-	prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "claude-opus-4-7"})
+	prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "z-ai/glm-5.2"})
 	require.NoError(t, err)
 
 	var out map[string]any
@@ -1984,7 +1984,7 @@ func TestSanitizeOverlongToolUseNames(t *testing.T) {
 			name:  "anthropic history",
 			parse: translate.ParseAnthropic,
 			body: `{
-				"model": "claude-opus-4-7",
+				"model": "z-ai/glm-5.2",
 				"tools": [{"name": %q, "input_schema": {"type": "object"}}],
 				"tool_choice": {"type": "tool", "name": %q},
 				"messages": [
@@ -2018,7 +2018,7 @@ func TestSanitizeOverlongToolUseNames(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			env, err := tt.parse([]byte(fmt.Sprintf(tt.body, overlongName, overlongName, overlongName)))
 			require.NoError(t, err)
-			prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "claude-opus-4-7"})
+			prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "z-ai/glm-5.2"})
 			require.NoError(t, err)
 
 			emittedNames := []string{
@@ -2041,7 +2041,7 @@ func TestSanitizeAnthropicToolNamesUsesFieldSpecificLimits(t *testing.T) {
 	invalidDeclaredName := strings.Repeat("a", 129)
 	collidingDeclaredName := "invalid_tool_d96debf1bdcbc896e6c134ea76e8141f40d78536"
 	body := []byte(fmt.Sprintf(`{
-		"model": "claude-opus-4-7",
+		"model": "z-ai/glm-5.2",
 		"tools": [
 			{"name": %q, "input_schema": {"type": "object"}},
 			{"name": %q, "input_schema": {"type": "object"}}
@@ -2055,7 +2055,7 @@ func TestSanitizeAnthropicToolNamesUsesFieldSpecificLimits(t *testing.T) {
 
 	env, err := translate.ParseAnthropic(body)
 	require.NoError(t, err)
-	prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "claude-opus-4-7"})
+	prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "z-ai/glm-5.2"})
 	require.NoError(t, err)
 
 	assert.Equal(t, validHistoricalUnicodeName, gjson.GetBytes(prep.Body, "messages.0.content.0.name").String())
@@ -2071,7 +2071,7 @@ func TestSanitizeAnthropicToolNamesKeepsToolReferencesResolvable(t *testing.T) {
 	validLongName := "mcp__claude_ai_Atlassian_Rovo_2__getJiraProjectIssueTypesMetadata"
 	invalidDeclaredName := strings.Repeat("a", 129)
 	body := []byte(fmt.Sprintf(`{
-		"model": "claude-sonnet-5-5",
+		"model": "deepseek/deepseek-v4-pro",
 		"tools": [
 			{"name": "ToolSearch", "input_schema": {"type": "object"}},
 			{"name": %q, "input_schema": {"type": "object"}, "defer_loading": true},
@@ -2103,7 +2103,7 @@ func TestSanitizeAnthropicToolNamesKeepsToolReferencesResolvable(t *testing.T) {
 
 	env, err := translate.ParseAnthropic(body)
 	require.NoError(t, err)
-	prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "claude-sonnet-5-5"})
+	prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "deepseek/deepseek-v4-pro"})
 	require.NoError(t, err)
 
 	assert.Equal(t, validLongName, gjson.GetBytes(prep.Body, "tools.1.name").String())
@@ -2122,7 +2122,7 @@ func TestSanitizeAnthropicToolNamesKeepsToolReferencesResolvable(t *testing.T) {
 func TestSanitizeAnthropicHistoricalToolNameCountsUnicodeCharacters(t *testing.T) {
 	overlongHistoricalName := strings.Repeat("界", 201)
 	body := []byte(fmt.Sprintf(`{
-		"model": "claude-opus-4-7",
+		"model": "z-ai/glm-5.2",
 		"messages": [{"role": "assistant", "content": [
 			{"type": "tool_use", "id": "toolu_overlong_unicode", "name": %q, "input": {}}
 		]}]
@@ -2130,7 +2130,7 @@ func TestSanitizeAnthropicHistoricalToolNameCountsUnicodeCharacters(t *testing.T
 
 	env, err := translate.ParseAnthropic(body)
 	require.NoError(t, err)
-	prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "claude-opus-4-7"})
+	prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "z-ai/glm-5.2"})
 	require.NoError(t, err)
 
 	assert.Regexp(t, `^invalid_tool_[a-f0-9]{40}$`, gjson.GetBytes(prep.Body, "messages.0.content.0.name").String())
@@ -2140,7 +2140,7 @@ func TestSanitizeAnthropicToolNameAliasStableAcrossReplay(t *testing.T) {
 	invalidDeclaredName := strings.Repeat("a", 129)
 	collidingDeclaredName := "invalid_tool_d96debf1bdcbc896e6c134ea76e8141f40d78536"
 	initialBody := []byte(fmt.Sprintf(`{
-		"model": "claude-opus-4-7",
+		"model": "z-ai/glm-5.2",
 		"tools": [
 			{"name": %q, "input_schema": {"type": "object"}},
 			{"name": %q, "input_schema": {"type": "object"}}
@@ -2151,13 +2151,13 @@ func TestSanitizeAnthropicToolNameAliasStableAcrossReplay(t *testing.T) {
 
 	env, err := translate.ParseAnthropic(initialBody)
 	require.NoError(t, err)
-	prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "claude-opus-4-7"})
+	prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "z-ai/glm-5.2"})
 	require.NoError(t, err)
 	initialAlias := gjson.GetBytes(prep.Body, "tools.1.name").String()
 	require.NotEqual(t, collidingDeclaredName, initialAlias)
 
 	replayBody := []byte(fmt.Sprintf(`{
-		"model": "claude-opus-4-7",
+		"model": "z-ai/glm-5.2",
 		"tools": [
 			{"name": %q, "input_schema": {"type": "object"}},
 			{"name": %q, "input_schema": {"type": "object"}}
@@ -2170,7 +2170,7 @@ func TestSanitizeAnthropicToolNameAliasStableAcrossReplay(t *testing.T) {
 
 	replayEnv, err := translate.ParseAnthropic(replayBody)
 	require.NoError(t, err)
-	replay, err := replayEnv.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "claude-opus-4-7"})
+	replay, err := replayEnv.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "z-ai/glm-5.2"})
 	require.NoError(t, err)
 
 	assert.Equal(t, initialAlias, gjson.GetBytes(replay.Body, "tools.1.name").String())
@@ -2184,7 +2184,7 @@ func TestSanitizeAnthropicToolNameAliasStableAcrossReplay(t *testing.T) {
 // the signature for a later switch back to Gemini — survives untouched.
 func TestStripToolUseThoughtSignature_AnthropicToAnthropic(t *testing.T) {
 	body := []byte(`{
-		"model": "claude-opus-4-8",
+		"model": "z-ai/glm-5.2",
 		"messages": [
 			{"role": "assistant", "content": [
 				{"type": "tool_use", "id": "toolu_01__thought__c2ln", "name": "Read", "input": {"path": "x"}, "thought_signature": "c2lnbWE"}
@@ -2196,7 +2196,7 @@ func TestStripToolUseThoughtSignature_AnthropicToAnthropic(t *testing.T) {
 	}`)
 	env, err := translate.ParseAnthropic(body)
 	require.NoError(t, err)
-	prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "claude-opus-4-8"})
+	prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "z-ai/glm-5.2"})
 	require.NoError(t, err)
 
 	var out map[string]any
@@ -2272,8 +2272,8 @@ func TestCrossFormat_OpenAIToAnthropic_ParallelToolCalls(t *testing.T) {
 			env, err := translate.ParseOpenAI(body)
 			require.NoError(t, err)
 			prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{
-				TargetModel:  "claude-sonnet-5",
-				Capabilities: router.Lookup("claude-sonnet-5"),
+				TargetModel:  "deepseek/deepseek-v4-pro",
+				Capabilities: router.Lookup("deepseek/deepseek-v4-pro"),
 			})
 			require.NoError(t, err)
 
@@ -2291,7 +2291,7 @@ func TestCrossFormat_OpenAIToAnthropic_ParallelToolCalls(t *testing.T) {
 		body := []byte(`{"model":"gpt-6.1-sol","messages":[{"role":"user","content":"hi"}],"tools":[{"type":"web_search_preview"}],"parallel_tool_calls":false}`)
 		env, err := translate.ParseOpenAI(body)
 		require.NoError(t, err)
-		prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "claude-sonnet-5", Capabilities: router.Lookup("claude-sonnet-5")})
+		prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "deepseek/deepseek-v4-pro", Capabilities: router.Lookup("deepseek/deepseek-v4-pro")})
 		require.NoError(t, err)
 		assert.False(t, gjson.GetBytes(prep.Body, "tool_choice").Exists(), "no function tool reaches Anthropic, so tool_choice would be rejected")
 	})
@@ -2300,7 +2300,7 @@ func TestCrossFormat_OpenAIToAnthropic_ParallelToolCalls(t *testing.T) {
 		body := []byte(`{"model":"gpt-6.1-sol","messages":[{"role":"user","content":"hi"}],"tools":[],"parallel_tool_calls":false}`)
 		env, err := translate.ParseOpenAI(body)
 		require.NoError(t, err)
-		prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "claude-sonnet-5", Capabilities: router.Lookup("claude-sonnet-5")})
+		prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "deepseek/deepseek-v4-pro", Capabilities: router.Lookup("deepseek/deepseek-v4-pro")})
 		require.NoError(t, err)
 		assert.False(t, gjson.GetBytes(prep.Body, "tool_choice").Exists(), "tool_choice without tools is rejected by Anthropic")
 	})
@@ -2310,8 +2310,8 @@ func TestCrossFormat_OpenAIToAnthropic_ParallelToolCalls(t *testing.T) {
 		env, err := translate.ParseOpenAI(body)
 		require.NoError(t, err)
 		prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{
-			TargetModel:  "claude-sonnet-5-5",
-			Capabilities: router.Lookup("claude-sonnet-5-5"),
+			TargetModel:  "deepseek/deepseek-v4-pro",
+			Capabilities: router.Lookup("deepseek/deepseek-v4-pro"),
 		})
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"type":"auto","disable_parallel_tool_use":true}`, gjson.GetBytes(prep.Body, "tool_choice").Raw)

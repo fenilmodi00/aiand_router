@@ -483,7 +483,7 @@ func TestOpenAIToAnthropicResponse_ReportsRoutedModelNotUpstreamAlias(t *testing
 // alias the upstream names itself in message_start.
 func TestSSETranslator_ReportsRoutedModelNotUpstreamAlias(t *testing.T) {
 	rec := httptest.NewRecorder()
-	translator := translate.NewSSETranslator(rec, "claude-sonnet-4-5", nil)
+	translator := translate.NewSSETranslator(rec, "deepseek/deepseek-v4.1-flash", nil)
 	translator.Header().Set("Content-Type", "text/event-stream")
 	translator.WriteHeader(http.StatusOK)
 
@@ -502,14 +502,14 @@ func TestSSETranslator_ReportsRoutedModelNotUpstreamAlias(t *testing.T) {
 	require.NoError(t, translator.Finalize())
 
 	body := rec.Body.String()
-	assert.Contains(t, body, `"model":"claude-sonnet-4-5"`)
+	assert.Contains(t, body, `"model":"deepseek/deepseek-v4.1-flash"`)
 	assert.NotContains(t, body, "internal.claude-sonnet-4-5")
 }
 
 func TestAnthropicToOpenAIResponse_ReportsRoutedModelNotUpstreamAlias(t *testing.T) {
-	out, err := translate.AnthropicToOpenAIResponse(anthropicTextResponse, "claude-sonnet-4-5")
+	out, err := translate.AnthropicToOpenAIResponse(anthropicTextResponse, "deepseek/deepseek-v4.1-flash")
 	require.NoError(t, err)
-	assert.Equal(t, "claude-sonnet-4-5", unmarshal(t, out)["model"])
+	assert.Equal(t, "deepseek/deepseek-v4.1-flash", unmarshal(t, out)["model"])
 }
 
 func TestGeminiToOpenAIResponse_SimpleText(t *testing.T) {

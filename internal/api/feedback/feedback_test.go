@@ -44,7 +44,7 @@ func TestGetContextHandler_ValidTokenReturnsContext(t *testing.T) {
 	signer := token.NewSigner("secret", time.Hour)
 	repo := &fakeFeedbackRepo{ctxResult: proxy.FeedbackContext{
 		RequestID:      "req-1",
-		ChosenModel:    "claude-haiku-4-5",
+		ChosenModel:    "z-ai/glm-5.3-flash",
 		ChosenProvider: "anthropic",
 		ClientApp:      "claude-code",
 		RoutedAt:       time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC),
@@ -61,7 +61,7 @@ func TestGetContextHandler_ValidTokenReturnsContext(t *testing.T) {
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
 	assert.Equal(t, "req-1", got["request_id"])
-	assert.Equal(t, "claude-haiku-4-5", got["chosen_model"])
+	assert.Equal(t, "z-ai/glm-5.3-flash", got["chosen_model"])
 	assert.Equal(t, "anthropic", got["chosen_provider"])
 	fb, ok := got["feedback"].(map[string]any)
 	require.True(t, ok)

@@ -76,7 +76,7 @@ func TestIsPolicyDeadlineErr(t *testing.T) {
 		{
 			name: "contract violation (provider mismatch) must still fail closed",
 			err: fmt.Errorf("hmm_embedding: sidecar returned provider %q for %q, expected %q: %w",
-				"openai", "claude-opus-4-7", "anthropic", hmm.ErrHMMUnavailable),
+				"openai", "z-ai/glm-5.2", "anthropic", hmm.ErrHMMUnavailable),
 			want: false,
 		},
 		{
@@ -119,7 +119,7 @@ func buildPolicyDeadlineFallbackService(
 		store,
 		false,
 		providers.ProviderAIAND,
-		"claude-haiku-4-5",
+		"z-ai/glm-5.3-flash",
 		nil,
 	).WithPolicyDeadlineFallback(fallbackEnabled).
 		WithPolicyDeadlineDefaultModel(defaultModel).
@@ -140,7 +140,7 @@ func runPolicyDeadlineFallbackTurnLoop(
 ) (turnLoopResult, error) {
 	t.Helper()
 	env, err := translate.ParseAnthropic(
-		[]byte(`{"model":"claude-opus-4-8","messages":[{"role":"user","content":"continue"}]}`),
+		[]byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"continue"}]}`),
 	)
 	require.NoError(t, err)
 	features := env.RoutingFeatures(false)
@@ -166,7 +166,7 @@ func runPolicyDeadlineFallbackTurnLoop(
 // fallback enabled, a deadline error degrades to the pin instead of a 503.
 func TestTurnLoop_DeadlineFallbackToPin(t *testing.T) {
 	strategy := router.Strategy("policy-deadline-fallback-pin-test")
-	const pinnedModel = "claude-sonnet-4-6"
+	const pinnedModel = "deepseek/deepseek-v4.1-flash"
 	const pinnedProvider = providers.ProviderAIAND
 
 	store := newStubPinStore()
@@ -208,7 +208,7 @@ func TestTurnLoop_DeadlineFallbackToPin(t *testing.T) {
 // model the request forbids.
 func TestTurnLoop_DeadlineFallbackDefaultExcludedFailsClosed(t *testing.T) {
 	strategy := router.Strategy("policy-deadline-fallback-default-excluded-test")
-	const defaultModel = "claude-haiku-4-5"
+	const defaultModel = "z-ai/glm-5.3-flash"
 
 	store := newStubPinStore()
 	store.getFound = false
@@ -230,7 +230,7 @@ func TestTurnLoop_DeadlineFallbackDefaultExcludedFailsClosed(t *testing.T) {
 // no session pin yet, but a tier-3 static default model is configured.
 func TestTurnLoop_DeadlineFallbackToTierThreeDefault(t *testing.T) {
 	strategy := router.Strategy("policy-deadline-fallback-default-test")
-	const defaultModel = "claude-haiku-4-5"
+	const defaultModel = "z-ai/glm-5.3-flash"
 
 	store := newStubPinStore()
 	store.getFound = false // no pin: session start
@@ -274,7 +274,7 @@ func TestTurnLoop_DeadlineFallbackNoPinNoDefault(t *testing.T) {
 // preserves the 503 even with a pin present.
 func TestTurnLoop_DeadlineFallbackKillSwitchOff(t *testing.T) {
 	strategy := router.Strategy("policy-deadline-fallback-killswitch-test")
-	const pinnedModel = "claude-sonnet-4-6"
+	const pinnedModel = "deepseek/deepseek-v4.1-flash"
 
 	store := newStubPinStore()
 	store.getFound = true
@@ -300,7 +300,7 @@ func TestTurnLoop_DeadlineFallbackKillSwitchOff(t *testing.T) {
 // degrade even with fallback enabled — serving one would write a wrong route ledger.
 func TestTurnLoop_DeadlineFallbackContractViolationStillFailsClosed(t *testing.T) {
 	strategy := router.Strategy("policy-deadline-fallback-contract-violation-test")
-	const pinnedModel = "claude-sonnet-4-6"
+	const pinnedModel = "deepseek/deepseek-v4.1-flash"
 
 	store := newStubPinStore()
 	store.getFound = true
@@ -314,7 +314,7 @@ func TestTurnLoop_DeadlineFallbackContractViolationStillFailsClosed(t *testing.T
 		LastServedModel: pinnedModel,
 	}
 
-	svc := buildPolicyDeadlineFallbackService(t, strategy, policyContractViolationTestErr, store, true, "claude-haiku-4-5")
+	svc := buildPolicyDeadlineFallbackService(t, strategy, policyContractViolationTestErr, store, true, "z-ai/glm-5.3-flash")
 
 	_, err := runPolicyDeadlineFallbackTurnLoop(t, svc, strategy)
 

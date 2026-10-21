@@ -23,7 +23,7 @@ func TestInferenceAttemptParamsUnknownUsageStaysNull(t *testing.T) {
 		RequestID:          "req",
 		OperationID:        "handover_summary",
 		AttemptIndex:       1,
-		Target:             inference.Target{CatalogID: "claude-haiku-4-5", Provider: providers.ProviderAIAND, BindingIndex: 0},
+		Target:             inference.Target{CatalogID: "z-ai/glm-5.3-flash", Provider: providers.ProviderAIAND, BindingIndex: 0},
 		Outcome:            inference.AttemptOutcomeFailed,
 		FailureReason:      "upstream_5xx",
 		UpstreamStatusCode: 503,
@@ -51,7 +51,7 @@ func TestInferenceAttemptParamsUnknownUsageStaysNull(t *testing.T) {
 
 func TestInferenceAttemptParamsKnownUsageIsStored(t *testing.T) {
 	params := inferenceAttemptParams(uuid.New(), inference.AttemptEvent{
-		Target:  inference.Target{CatalogID: "claude-haiku-4-5", Provider: providers.ProviderAIAND, BindingIndex: 2},
+		Target:  inference.Target{CatalogID: "z-ai/glm-5.3-flash", Provider: providers.ProviderAIAND, BindingIndex: 2},
 		Outcome: inference.AttemptOutcomeServed,
 		Usage: inference.Usage{
 			Known:               true,
@@ -94,7 +94,7 @@ func TestInferenceSummaryProjectionPopulatesColumns(t *testing.T) {
 			PolicyRevision:   "p2",
 		},
 		PlanTarget:        inference.Target{CatalogID: "glm-5.1", Provider: providers.ProviderAIAND},
-		ServedTarget:      inference.Target{CatalogID: "claude-sonnet-4-6", Provider: providers.ProviderAIAND},
+		ServedTarget:      inference.Target{CatalogID: "deepseek/deepseek-v4.1-flash", Provider: providers.ProviderAIAND},
 		FallbackReason:    "upstream_retryable",
 		AccountingOutcome: inference.AccountingOutcomeUsageUnknown,
 	}

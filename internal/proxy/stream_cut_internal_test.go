@@ -196,7 +196,7 @@ func TestStreamCutObserver_SnapshotsWireStateAtTheCut(t *testing.T) {
 	clock := time.Date(2026, 9, 12, 0, 0, 0, 0, time.UTC)
 	rec := httptest.NewRecorder()
 	obs := newStreamCutObserver(func() time.Time { return clock })
-	turn, err := translate.ParseAnthropic([]byte(`{"model":"claude-opus-4-8","thinking":{"type":"enabled","budget_tokens":2048},"messages":[]}`))
+	turn, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.2","thinking":{"type":"enabled","budget_tokens":2048},"messages":[]}`))
 	require.NoError(t, err)
 	obs.describeRequest(48213, turn)
 	attempt := obs.attach(rec)

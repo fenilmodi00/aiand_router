@@ -388,7 +388,7 @@ func TestPrepareAnthropic_ClientCacheControlFidelity(t *testing.T) {
 	t.Run("ttl is preserved and router uses remaining capacity", func(t *testing.T) {
 		env, err := translate.ParseOpenAI([]byte(`{"messages":[{"role":"system","content":"rules","cache_control":{"type":"ephemeral","ttl":"1h"}},{"role":"user","content":"hi"}]}`))
 		require.NoError(t, err)
-		prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "claude-opus-4-8"})
+		prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "z-ai/glm-5.2"})
 		require.NoError(t, err)
 		var out map[string]any
 		require.NoError(t, json.Unmarshal(prep.Body, &out))
@@ -403,7 +403,7 @@ func TestPrepareAnthropic_ClientCacheControlFidelity(t *testing.T) {
 		body := []byte(`{"messages":[{"role":"system","content":"one","cache_control":{"type":"ephemeral"}},{"role":"system","content":"two","cache_control":{"type":"ephemeral"}},{"role":"system","content":"three","cache_control":{"type":"ephemeral"}},{"role":"system","content":"four","cache_control":{"type":"ephemeral"}},{"role":"system","content":"five","cache_control":{"type":"ephemeral"}}]}`)
 		env, err := translate.ParseOpenAI(body)
 		require.NoError(t, err)
-		_, err = env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "claude-opus-4-8"})
+		_, err = env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "z-ai/glm-5.2"})
 		require.ErrorIs(t, err, translate.ErrAnthropicCacheControlOverflow)
 		assert.False(t, errors.Is(err, translate.ErrAnthropicCacheControlInvalid))
 	})

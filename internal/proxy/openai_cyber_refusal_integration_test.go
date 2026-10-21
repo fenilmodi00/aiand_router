@@ -31,7 +31,7 @@ const cyberRefusalSSE = "event: response.created\n" +
 	`data: {"type":"turn.failed","error":{"message":"This content was flagged for possible cybersecurity risk."}}` + "\n\n"
 
 const anthropicRescueSSE = "event: message_start\n" +
-	`data: {"type":"message_start","message":{"id":"msg_1","type":"message","role":"assistant","content":[],"model":"claude-sonnet-5","usage":{"input_tokens":5,"output_tokens":0}}}` + "\n\n" +
+	`data: {"type":"message_start","message":{"id":"msg_1","type":"message","role":"assistant","content":[],"model":"deepseek/deepseek-v4-pro","usage":{"input_tokens":5,"output_tokens":0}}}` + "\n\n" +
 	"event: content_block_start\n" +
 	`data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}` + "\n\n" +
 	"event: content_block_delta\n" +
@@ -114,7 +114,7 @@ func cyberRefusalService(
 		map[string]providers.Client{
 			providers.ProviderAIAND: openaicompat.NewClient("test-openai-key", openAIURL),
 		},
-		nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", telemetry,
+		nil, false, nil, store, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", telemetry,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
 		providers.ProviderAIAND: {},
 	})
@@ -155,16 +155,16 @@ func TestProxyOpenAIResponses_CyberRefusalRescuesOffVendorAndRepins(t *testing.T
 	assert.NotContains(t, body, "cybersecurity risk", "the refusal must never reach the client")
 	assert.Contains(t, body, "rescued", "the client sees the fallback's answer")
 	assert.Contains(t, body, "response.completed")
-	assert.Equal(t, "claude-sonnet-5", rec.Header().Get(proxy.HeaderRouterModel))
+	assert.Equal(t, "deepseek/deepseek-v4-pro", rec.Header().Get(proxy.HeaderRouterModel))
 
 	row := telemetry.firstRow(t)
-	assert.Equal(t, "claude-sonnet-5", row.DecisionModel)
+	assert.Equal(t, "deepseek/deepseek-v4-pro", row.DecisionModel)
 	assert.Equal(t, providers.ProviderAIAND, row.DecisionProvider)
 	assert.Equal(t, proxy.ReasonCyberRefusalRetry, row.DecisionReason)
 
 	require.NotEmpty(t, store.upserts, "the session must be re-pinned off the refusing model")
 	pin := store.upserts[len(store.upserts)-1]
-	assert.Equal(t, "claude-sonnet-5", pin.Model)
+	assert.Equal(t, "deepseek/deepseek-v4-pro", pin.Model)
 	assert.Equal(t, providers.ProviderAIAND, pin.Provider)
 }
 
@@ -223,7 +223,7 @@ func TestProxyOpenAIResponses_CyberRefusalAfterCommittedOutputPassesThrough(t *t
 	assert.Contains(t, rec.Body.String(), "cybersecurity risk", "the client keeps the upstream's own error")
 
 	require.NotEmpty(t, store.upserts, "the re-pin runs even when the turn cannot be rescued")
-	assert.Equal(t, "claude-sonnet-5", store.upserts[len(store.upserts)-1].Model)
+	assert.Equal(t, "deepseek/deepseek-v4-pro", store.upserts[len(store.upserts)-1].Model)
 }
 
 // A caller who pinned the model with /force-model asked for that model, and the
@@ -236,7 +236,7 @@ func TestProxyOpenAIResponses_CyberRefusalRetrySkipped(t *testing.T) {
 		wantFinalPin string
 	}{
 		{name: "force-model pin", reason: translate.ReasonUserForceModel, retryFlag: true, wantFinalPin: "gpt-5.6-sol"},
-		{name: "retry kill switch off", reason: "test", retryFlag: false, wantFinalPin: "claude-sonnet-5"},
+		{name: "retry kill switch off", reason: "test", retryFlag: false, wantFinalPin: "deepseek/deepseek-v4-pro"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			upstreams := &cyberRefusalUpstreams{openAIResponse: streamResponses(cyberRefusalSSE)}

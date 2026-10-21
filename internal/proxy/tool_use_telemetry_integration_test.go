@@ -18,7 +18,7 @@ import (
 // toolUseHistoryBody is a Claude Code style history: two resolved Bash calls
 // (one errored), one resolved Read, and the user's follow-up. The next
 // assistant turn is what the fake upstream streams back.
-const toolUseHistoryBody = `{"model":"claude-opus-4-7","stream":true,"messages":[` +
+const toolUseHistoryBody = `{"model":"z-ai/glm-5.2","stream":true,"messages":[` +
 	`{"role":"user","content":"run the tests"},` +
 	`{"role":"assistant","content":[{"type":"tool_use","id":"toolu_1","name":"Bash","input":{"command":"go test ./..."}}]},` +
 	`{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","is_error":true,"content":"FAIL"}]},` +
@@ -72,7 +72,7 @@ func TestProxyMessages_NativeToolUseStopPersistsLastToolDetail(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			decision := router.Decision{Provider: providers.ProviderAIAND, Model: "claude-opus-4-7"}
+			decision := router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.2"}
 			provider := &fakeProvider{proxyResponse: func(w http.ResponseWriter) {
 				w.Header().Set("Content-Type", "text/event-stream")
 				w.WriteHeader(http.StatusOK)
@@ -85,7 +85,7 @@ func TestProxyMessages_NativeToolUseStopPersistsLastToolDetail(t *testing.T) {
 				&fakeRouter{decision: decision},
 				map[string]providers.Client{providers.ProviderAIAND: provider},
 				nil, false, nil, nil, false,
-				providers.ProviderAIAND, "claude-opus-4-7", telem,
+				providers.ProviderAIAND, "z-ai/glm-5.2", telem,
 			)
 
 			ctx := context.WithValue(context.Background(), proxy.InstallationIDContextKey{}, installID)
@@ -133,7 +133,7 @@ func TestProxyMessages_TranslatedToolUseStopPersistsLastToolDetail(t *testing.T)
 		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-5.6-luna"}},
 		map[string]providers.Client{providers.ProviderAIAND: provider},
 		nil, false, nil, nil, false,
-		providers.ProviderAIAND, "claude-opus-4-7", telem,
+		providers.ProviderAIAND, "z-ai/glm-5.2", telem,
 	)
 
 	ctx := context.WithValue(context.Background(), proxy.InstallationIDContextKey{}, installID)

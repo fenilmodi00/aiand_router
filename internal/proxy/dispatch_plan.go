@@ -212,6 +212,8 @@ func (s *Service) dispatchPlanned(ctx context.Context, in failoverInputs, plan i
 				}
 			}
 			attemptErr := in.attempt(credentialCtx, decision, guarded)
+			if attemptErr != nil {
+			}
 			// Health bookkeeping must persist even if the caller has gone.
 			bookkeepingCtx := context.WithoutCancel(credentialCtx)
 			if creds := CredentialsFromContext(credentialCtx); !managedAttempt && creds != nil && creds.OAuth && attemptErr != nil {

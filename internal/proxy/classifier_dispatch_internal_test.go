@@ -50,9 +50,9 @@ func TestClassifierDispatchAcrossProtocols(t *testing.T) {
 		toolActivity, thirdUser                          string
 		proxyRequest                                     func(*Service, context.Context, []byte, http.ResponseWriter, *http.Request) error
 	}{
-		{"messages", providers.ProviderAIAND, "claude-sonnet-4-6", "/v1/messages",
-			`{"model":"claude-sonnet-4-6","max_tokens":1024,"messages":[{"role":"user","content":"first"}]}`,
-			`{"model":"claude-sonnet-4-6","max_tokens":1024,"messages":[{"role":"user","content":"first"},{"role":"assistant","content":[{"type":"thinking","thinking":"not a response"},{"type":"text","text":""},{"type":"text","text":"answer"}]},{"role":"user","content":"next"}]}`,
+		{"messages", providers.ProviderAIAND, "deepseek/deepseek-v4.1-flash", "/v1/messages",
+			`{"model":"deepseek/deepseek-v4.1-flash","max_tokens":1024,"messages":[{"role":"user","content":"first"}]}`,
+			`{"model":"deepseek/deepseek-v4.1-flash","max_tokens":1024,"messages":[{"role":"user","content":"first"},{"role":"assistant","content":[{"type":"thinking","thinking":"not a response"},{"type":"text","text":""},{"type":"text","text":"answer"}]},{"role":"user","content":"next"}]}`,
 			`{"role":"assistant","content":[{"type":"tool_use","id":"c1","name":"test","input":{}}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"c1","is_error":true,"content":"failed"}]}`,
 			`{"role":"user","content":"third"}`,
 			(*Service).ProxyMessages},
@@ -165,7 +165,7 @@ func TestClassifierDispatchAcrossProtocols(t *testing.T) {
 }
 
 func TestClassifierDispatchUsesConfiguredSubscriptionState(t *testing.T) {
-	const model = "claude-sonnet-4-6"
+	const model = "deepseek/deepseek-v4.1-flash"
 	fixtureService, principal, store := classifierSessionFixture(t, classifierMedium)
 	upstream := &classifierResponseProvider{}
 	svc := NewService(nil, map[string]providers.Client{providers.ProviderAIAND: upstream}, nil, false, nil, nil, false, "", "", nil)
@@ -187,13 +187,13 @@ func TestClassifierDispatchUsesConfiguredSubscriptionState(t *testing.T) {
 	routing := policy.NewSidecarRouter(policy.SidecarRouterConfig{Strategy: router.StrategyLLMClassifier, Unavailable: router.ErrClassifierUnavailable, ClassifierArtifactID: "llm-classifier-v1.0.0", ClassifierArtifactSHA256: strings.Repeat("a", 64), SelectionPolicyReleaseID: "llm-classifier-v1.0.0", SelectionPolicySHA256: roster.SHA256}, policy.AtomicClassifierFacts{Release: "llm-classifier-v1.0.0", ReleaseSHA256: strings.Repeat("a", 64)}, resolver).WithCapabilities(capabilities).WithArmSelector(selection.Selector(roster))
 	svc.WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyLLMClassifier, Router: routing, Capabilities: capabilities, Unavailable: router.ErrClassifierUnavailable})
 	recorder := httptest.NewRecorder()
-	err := svc.ProxyMessages(ctx, []byte(`{"model":"claude-sonnet-4-6","max_tokens":1024,"messages":[{"role":"user","content":"first"}]}`), recorder, httptest.NewRequest(http.MethodPost, "/v1/messages", nil))
+	err := svc.ProxyMessages(ctx, []byte(`{"model":"deepseek/deepseek-v4.1-flash","max_tokens":1024,"messages":[{"role":"user","content":"first"}]}`), recorder, httptest.NewRequest(http.MethodPost, "/v1/messages", nil))
 	require.ErrorIs(t, err, cluster.ErrAllowlistEmptiesPool, "a classifier-selected model outside both configured state sets must be refused")
 	require.Empty(t, upstream.body)
 }
 
 func TestClassifierRecapServesWithoutAnchoringPin(t *testing.T) {
-	const model = "claude-sonnet-4-6"
+	const model = "deepseek/deepseek-v4.1-flash"
 	fixtureService, principal, store := classifierSessionFixture(t, classifierMedium)
 	upstream := &classifierResponseProvider{}
 	pins := newStubPinStore()
@@ -225,10 +225,10 @@ func TestClassifierRecapServesWithoutAnchoringPin(t *testing.T) {
 		return len(pins.upserts)
 	}
 
-	send(`{"model":"claude-sonnet-4-6","max_tokens":1024,"messages":[{"role":"user","content":"The user stepped away and is coming back. Recap in under 40 words, 1-2 plain sentences, no markdown."}]}`)
+	send(`{"model":"deepseek/deepseek-v4.1-flash","max_tokens":1024,"messages":[{"role":"user","content":"The user stepped away and is coming back. Recap in under 40 words, 1-2 plain sentences, no markdown."}]}`)
 	require.Zero(t, upsertCount(), "a recap must not move the session pin")
 
-	send(`{"model":"claude-sonnet-4-6","max_tokens":1024,"messages":[{"role":"user","content":"first"}]}`)
+	send(`{"model":"deepseek/deepseek-v4.1-flash","max_tokens":1024,"messages":[{"role":"user","content":"first"}]}`)
 	require.Equal(t, 1, upsertCount(), "a real turn on the same path still anchors the pin")
 }
 
@@ -259,7 +259,7 @@ func TestClassifierInputRejectsControlBypasses(t *testing.T) {
 }
 
 func TestClassifierUtilityRequestsDoNotEstablishThreadRoot(t *testing.T) {
-	const utilityModel catalog.ModelID = "claude-sonnet-4-6"
+	const utilityModel catalog.ModelID = "deepseek/deepseek-v4.1-flash"
 	fixture, principal, store := classifierSessionFixture(t, classifierMedium)
 	upstream := &classifierResponseProvider{}
 	baseline := &betaTestRouter{}

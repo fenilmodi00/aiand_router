@@ -9,7 +9,7 @@ import (
 )
 
 const workspaceCachedBody = `{
-	"model":"claude-opus-5",
+	"model":"z-ai/glm-5.2",
 	"system":[
 		{"type":"text","text":"x-anthropic-billing-header: cc_version=2.1.232; cc_entrypoint=sdk-cli"},
 		{"type":"text","text":"You are a Claude agent, built on Anthropic's Claude Agent SDK.","cache_control":{"type":"ephemeral"}}

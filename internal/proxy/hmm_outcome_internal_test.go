@@ -49,7 +49,7 @@ func TestReportPolicyOutcome_UsesFreshMetadataForStickyServedDecision(t *testing
 		},
 	}
 	served := router.Decision{
-		Model:    "claude-haiku-4-5",
+		Model:    "z-ai/glm-5.3-flash",
 		Provider: providers.ProviderAIAND,
 	}
 
@@ -65,7 +65,7 @@ func TestReportPolicyOutcome_UsesFreshMetadataForStickyServedDecision(t *testing
 		Body: []byte(`{"content":[{"type":"text","text":"done"}]}`),
 	})
 
-	price, ok := catalog.PriceFor(providers.ProviderAIAND, "claude-haiku-4-5")
+	price, ok := catalog.PriceFor(providers.ProviderAIAND, "z-ai/glm-5.3-flash")
 	require.True(t, ok)
 	wantCost := catalog.EffectiveInputCost(inputTokens, 0, 0, price, providers.ProviderAIAND, catalog.UsageModifiers{}) +
 		catalog.EffectiveOutputCost(inputTokens, outputTokens, price, catalog.UsageModifiers{})
@@ -75,7 +75,7 @@ func TestReportPolicyOutcome_UsesFreshMetadataForStickyServedDecision(t *testing
 		require.Equal(t, "route-fresh", payload["route_id"])
 		assert.Equal(t, "moonshotai/kimi-k2.7", payload["selected_model"])
 		assert.Equal(t, providers.ProviderAIAND, payload["selected_provider"])
-		assert.Equal(t, "claude-haiku-4-5", payload["served_model"])
+		assert.Equal(t, "z-ai/glm-5.3-flash", payload["served_model"])
 		assert.Equal(t, providers.ProviderAIAND, payload["served_provider"])
 		assert.Equal(t, false, payload["selected_served_model_match"])
 		assert.NotContains(t, payload, "training_exclusion_reason")
@@ -127,7 +127,7 @@ func TestReportPolicyOutcome_AuthoritativeMismatchFailsClosedForTraining(t *test
 		Router:   reporter,
 	})
 	selected := router.Decision{
-		Model:    "claude-opus-4-8",
+		Model:    "z-ai/glm-5.2",
 		Provider: providers.ProviderAIAND,
 		Metadata: &router.RoutingMetadata{
 			RouteID:                       "route-authoritative",
@@ -136,7 +136,7 @@ func TestReportPolicyOutcome_AuthoritativeMismatchFailsClosedForTraining(t *test
 		},
 	}
 	served := router.Decision{
-		Model:    "claude-haiku-4-5",
+		Model:    "z-ai/glm-5.3-flash",
 		Provider: providers.ProviderAIAND,
 	}
 	ctx := context.WithValue(context.Background(), PolicyTrainingAllowedContextKey{}, true)
@@ -162,8 +162,8 @@ func TestReportPolicyOutcome_AuthoritativeMismatchFailsClosedForTraining(t *test
 
 	select {
 	case payload := <-reporter.ch:
-		assert.Equal(t, "claude-opus-4-8", payload["selected_model"])
-		assert.Equal(t, "claude-haiku-4-5", payload["served_model"])
+		assert.Equal(t, "z-ai/glm-5.2", payload["selected_model"])
+		assert.Equal(t, "z-ai/glm-5.3-flash", payload["served_model"])
 		assert.Equal(t, false, payload["selected_served_model_match"])
 		assert.Equal(t, false, payload["training_allowed"])
 		assert.Equal(t, "selected_served_model_mismatch", payload["training_exclusion_reason"])

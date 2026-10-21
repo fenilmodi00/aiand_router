@@ -44,7 +44,7 @@ func TestBypassTelemetryRecordsOutcomeAndIncomingTools(t *testing.T) {
 			observer := usage.NewObserver([]byte("salt"), time.Minute, time.Now)
 			svc := proxy.NewService(&fakeRouter{}, map[string]providers.Client{providers.ProviderAIAND: provider}, nil, false, nil, nil, false, providers.ProviderAIAND, bypassRequestedMdl, telem).WithUsageObserver(observer)
 			ctx := context.WithValue(bypassCtx(0.8), proxy.InstallationIDContextKey{}, "55555555-5555-5555-5555-555555555555")
-			body := []byte(`{"model":"claude-sonnet-4-6","messages":[{"role":"user","content":"check"},{"role":"assistant","content":[{"type":"tool_use","id":"call-1","name":"Bash","input":{}}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"call-1","is_error":true,"content":"failed"}]}]}`)
+			body := []byte(`{"model":"deepseek/deepseek-v4.1-flash","messages":[{"role":"user","content":"check"},{"role":"assistant","content":[{"type":"tool_use","id":"call-1","name":"Bash","input":{}}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"call-1","is_error":true,"content":"failed"}]}]}`)
 			req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
 			require.NoError(t, svc.ProxyMessages(ctx, body, httptest.NewRecorder(), req))
 			row := telem.firstRow(t)

@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const accessOtherModel = "claude-opus-5"
+const accessOtherModel = "z-ai/glm-5.2"
 
 func modelAccessError() error {
 	return upstreamErr(http.StatusNotFound, `{"type":"error","error":{"type":"not_found_error","message":"model: `+parityAnthropicModel+`"}}`)

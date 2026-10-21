@@ -29,7 +29,7 @@ const editToolOpenAIJSON = `[{"type":"function","function":{"name":"Edit","param
 
 func TestToolTemperature_AnthropicSource_ClientTempWins(t *testing.T) {
 	src := []byte(`{
-		"model":"claude-opus-4-7",
+		"model":"z-ai/glm-5.2",
 		"messages":[{"role":"user","content":"hi"}],
 		"tools":` + editToolJSON + `,
 		"temperature":0.7,
@@ -48,7 +48,7 @@ func TestToolTemperature_AnthropicSource_ClientTempWins(t *testing.T) {
 
 func TestToolTemperature_AnthropicSource_NoOverrideWithoutTools(t *testing.T) {
 	src := []byte(`{
-		"model":"claude-opus-4-7",
+		"model":"z-ai/glm-5.2",
 		"messages":[{"role":"user","content":"hi"}],
 		"max_tokens":256
 	}`)
@@ -70,7 +70,7 @@ func TestToolTemperature_AnthropicSource_NoOverrideForOtherModels(t *testing.T) 
 	for _, model := range cases {
 		t.Run(model, func(t *testing.T) {
 			src := []byte(`{
-				"model":"claude-opus-4-7",
+				"model":"z-ai/glm-5.2",
 				"messages":[{"role":"user","content":"hi"}],
 				"tools":` + editToolJSON + `,
 				"max_tokens":256

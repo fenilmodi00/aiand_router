@@ -37,10 +37,10 @@ func TestMaxRequestCarriesTheBoundaryAndHardExclusions(t *testing.T) {
 	// Desugared into the HARD set, not AutomaticExcludedModels: a router may
 	// drop the soft set to keep a pool non-empty, which would serve exactly
 	// the models Max does not sell.
-	assert.Contains(t, req.ExcludedModels, "claude-opus-4-8")
+	assert.Contains(t, req.ExcludedModels, "z-ai/glm-5.2")
 	assert.Contains(t, req.ExcludedModels, "muse-spark-1.3")
 	assert.NotContains(t, req.ExcludedModels, "deepseek/deepseek-v4-pro")
-	assert.NotContains(t, req.AutomaticExcludedModels, "claude-opus-4-8")
+	assert.NotContains(t, req.AutomaticExcludedModels, "z-ai/glm-5.2")
 }
 
 func TestUnsubscribedRequestKeepsUnrestrictedRouting(t *testing.T) {
@@ -55,13 +55,13 @@ func TestUnsubscribedRequestKeepsUnrestrictedRouting(t *testing.T) {
 // A router that reaches a closed-source model anyway — from a pin, a fallback
 // table, or its deployed-set default — is refused rather than dispatched.
 func TestMaxRouteRefusesAClosedSourceDecision(t *testing.T) {
-	closedRouter := &registryRouter{decision: router.Decision{Model: "claude-opus-4-8", Provider: providers.ProviderAIAND}}
+	closedRouter := &registryRouter{decision: router.Decision{Model: "z-ai/glm-5.2", Provider: providers.ProviderAIAND}}
 	svc := &Service{router: closedRouter}
 
 	_, err := svc.Route(maxScopedContext(), router.Request{})
 
 	require.ErrorIs(t, err, eligibility.ErrModelIneligible)
-	assert.Contains(t, err.Error(), "claude-opus-4-8")
+	assert.Contains(t, err.Error(), "z-ai/glm-5.2")
 }
 
 func TestMaxRouteRefusesAnUnknownSourceDecision(t *testing.T) {
@@ -88,7 +88,7 @@ func TestMaxRouteServesOpenSourceDecision(t *testing.T) {
 // Max sells an open-source-only boundary, so no book paying for the turn can
 // buy a closed-source model.
 func TestFundingCannotWidenMaxEligibility(t *testing.T) {
-	closedRouter := &registryRouter{decision: router.Decision{Model: "claude-opus-4-8", Provider: providers.ProviderAIAND}}
+	closedRouter := &registryRouter{decision: router.Decision{Model: "z-ai/glm-5.2", Provider: providers.ProviderAIAND}}
 	svc := &Service{router: closedRouter}
 
 	for name, ctx := range map[string]context.Context{
@@ -102,7 +102,7 @@ func TestFundingCannotWidenMaxEligibility(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			req := svc.withPolicyRequestContext(ctx, router.Request{})
-			assert.Contains(t, req.ExcludedModels, "claude-opus-4-8")
+			assert.Contains(t, req.ExcludedModels, "z-ai/glm-5.2")
 
 			_, err := svc.Route(ctx, router.Request{})
 			require.ErrorIs(t, err, eligibility.ErrModelIneligible)
@@ -120,7 +120,7 @@ func TestDispatchRefusesAnIneligibleDecisionTheTurnLoopMinted(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	in := plannedInputs(rec, newPreludeBuffer(rec), []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}}, nil)
-	in.initialDecision = router.Decision{Model: "claude-opus-4-8", Provider: providers.ProviderAIAND}
+	in.initialDecision = router.Decision{Model: "z-ai/glm-5.2", Provider: providers.ProviderAIAND}
 
 	_, err := svc.dispatchWithFallback(maxScopedContext(), in)
 
@@ -154,7 +154,7 @@ func TestUsageBypassDisengagesForAnIneligibleModel(t *testing.T) {
 	ctx = context.WithValue(ctx, InstallationUsageBypassContextKey{}, UsageBypassConfig{Enabled: true, Threshold: &threshold})
 
 	_, engaged := svc.usageBypassDecision(ctx, http.Header{}, router.Request{
-		RequestedModel:     "claude-sonnet-4-6",
+		RequestedModel:     "deepseek/deepseek-v4.1-flash",
 		ProductEligibility: eligibility.MaxOpenSourceOnly,
 	}, nil, turntype.MainLoop)
 
@@ -168,9 +168,9 @@ func TestAgentShadowEvaluationRefusesAnIneligibleModel(t *testing.T) {
 	env := bypassAnthropicEnvelope(t)
 
 	_, err := svc.runAgentShadowEvaluationRoute(
-		maxScopedContext(), env, translate.RoutingFeatures{Model: "claude-opus-4-8"}, uuid.Nil,
+		maxScopedContext(), env, translate.RoutingFeatures{Model: "z-ai/glm-5.2"}, uuid.Nil,
 		router.Request{ProductEligibility: eligibility.MaxOpenSourceOnly},
-		AgentShadowEvaluation{Model: "claude-opus-4-8", RolloutID: "rollout-1", StateID: "state-1"},
+		AgentShadowEvaluation{Model: "z-ai/glm-5.2", RolloutID: "rollout-1", StateID: "state-1"},
 	)
 
 	require.ErrorIs(t, err, eligibility.ErrModelIneligible)
@@ -194,9 +194,9 @@ func TestExcludedModelsOverrideCannotWidenTheBoundary(t *testing.T) {
 
 	excluded := svc.excludedModelsForRequest(maxScopedContext())
 
-	assert.Contains(t, excluded, "claude-opus-4-8")
+	assert.Contains(t, excluded, "z-ai/glm-5.2")
 	assert.Contains(t, excluded, "muse-spark-1.3")
 	assert.Contains(t, excluded, "gpt-5.5")
 	assert.NotContains(t, excluded, "deepseek/deepseek-v4-pro")
-	assert.NotContains(t, svc.excludedModelsOverride, "claude-opus-4-8")
+	assert.NotContains(t, svc.excludedModelsOverride, "z-ai/glm-5.2")
 }

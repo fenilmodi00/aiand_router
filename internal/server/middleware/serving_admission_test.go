@@ -189,7 +189,7 @@ func TestServingAdmissionRejectsMalformedBodyBeforeBinding(t *testing.T) {
 
 func TestServingAdmissionAllowsRetirementReplyAfterAuthentication(t *testing.T) {
 	cfg, admitted, _, _ := admissionMiddlewareFixture(t)
-	body := `{"model":"claude-sonnet-4-5","max_tokens":1,"messages":[{"role":"user","content":"/beta"}]}`
+	body := `{"model":"deepseek/deepseek-v4.1-flash","max_tokens":1,"messages":[{"role":"user","content":"/beta"}]}`
 	response := runAdmissionMiddlewareWithBody(t, cfg, admitted, body, func(c *gin.Context) {
 		t.Fatal("retired command must finish before inference")
 	})

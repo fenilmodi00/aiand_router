@@ -59,7 +59,7 @@ func subscriberParams() billing.DebitInferenceParams {
 	return billing.DebitInferenceParams{
 		OrganizationID:  "org_individual",
 		RouterRequestID: "req_sub",
-		Model:           "claude-sonnet-4-5",
+		Model:           "deepseek/deepseek-v4.1-flash",
 		Provider:        providers.ProviderAIAND,
 		InputTokens:     1_000_000,
 		Pricing:         catalog.Pricing{InputUSDPer1M: 3.00},
@@ -148,15 +148,15 @@ func TestDebitForInferenceKeepsRequestedAndServedModelApart(t *testing.T) {
 	settler := &fakeSettler{}
 	svc := billing.NewService(repo).WithSubscriberAllowance(settler)
 	p := subscriberParams()
-	p.RequestedModel = "claude-opus-4-5"
+	p.RequestedModel = "z-ai/glm-5.2"
 
 	_, err := svc.DebitForInference(coveredContext(), p)
 	require.NoError(t, err)
 
 	settlements := settler.recorded()
 	require.Len(t, settlements, 1)
-	assert.Equal(t, "claude-opus-4-5", settlements[0].RequestedModel, "failover must not rewrite what the client asked for")
-	assert.Equal(t, "claude-sonnet-4-5", settlements[0].ServedModel)
+	assert.Equal(t, "z-ai/glm-5.2", settlements[0].RequestedModel, "failover must not rewrite what the client asked for")
+	assert.Equal(t, "deepseek/deepseek-v4.1-flash", settlements[0].ServedModel)
 }
 
 func TestDebitForInferenceGivesEachActionOfARequestItsOwnIdentity(t *testing.T) {

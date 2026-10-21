@@ -12,7 +12,7 @@ import (
 
 func TestStripRouterFeedbackArtifacts_StripsSequenceNotFoundAck(t *testing.T) {
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{"role": "user", "content": "first request"},
 			map[string]any{"role": "assistant", "content": "first response"},
@@ -28,7 +28,7 @@ func TestStripRouterFeedbackArtifacts_StripsSequenceNotFoundAck(t *testing.T) {
 	removed := env.StripRouterFeedbackArtifacts()
 	assert.Equal(t, 2, removed, "both the prior command and its sequence-not-found ack must be stripped")
 
-	raw, _ := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "claude-sonnet-4-6"})
+	raw, _ := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "deepseek/deepseek-v4.1-flash"})
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(raw.Body, &got))
 	msgs, _ := got["messages"].([]any)

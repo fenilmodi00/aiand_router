@@ -40,7 +40,7 @@ func keyed(names ...string) map[string]struct{} {
 func forceCommandEnv(t *testing.T) *translate.RequestEnvelope {
 	t.Helper()
 	env, err := translate.ParseAnthropic([]byte(`{
-		"model":"claude-opus-4-8",
+		"model":"z-ai/glm-5.2",
 		"messages":[{"role":"user","content":"hi"}]
 	}`))
 	require.NoError(t, err)
@@ -52,7 +52,7 @@ func forceCommandEnv(t *testing.T) *translate.RequestEnvelope {
 func TestForceModelCommand_RejectsSoleProviderExcluded(t *testing.T) {
 	store := &recordingPinStore{}
 	svc := NewService(nil, nil, nil, false, nil, store, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil).
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 		WithDeploymentKeyedProviders(keyed(providers.ProviderAIAND))
 
 	env := forceCommandEnv(t)
@@ -73,11 +73,11 @@ func TestForceModelCommand_RejectsSoleProviderExcluded(t *testing.T) {
 func TestForceModelCommand_RejectsExcludedModel(t *testing.T) {
 	store := &recordingPinStore{}
 	svc := NewService(nil, nil, nil, false, nil, store, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil).
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 		WithDeploymentKeyedProviders(keyed(providers.ProviderAIAND))
 
 	ctx := context.WithValue(context.Background(),
-		InstallationExcludedModelsContextKey{}, []string{"claude-opus-5-5"})
+		InstallationExcludedModelsContextKey{}, []string{"z-ai/glm-5.2"})
 	env := forceCommandEnv(t)
 	rec := httptest.NewRecorder()
 	require.NoError(t, svc.handleForceModelCommand(ctx, rec, env,
@@ -93,7 +93,7 @@ func TestForceModelCommand_RejectsExcludedModel(t *testing.T) {
 func TestForceModelCommand_AllowsWhenOneBindingSurvives(t *testing.T) {
 	store := &recordingPinStore{}
 	svc := NewService(nil, nil, nil, false, nil, store, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil).
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 		WithDeploymentKeyedProviders(keyed(providers.ProviderAIAND, providers.ProviderAIAND))
 
 	env := forceCommandEnv(t)
@@ -113,7 +113,7 @@ func TestForceModelCommand_AllowsWhenOneBindingSurvives(t *testing.T) {
 func TestForceModelCommand_RejectsWhenEveryBindingExcluded(t *testing.T) {
 	store := &recordingPinStore{}
 	svc := NewService(nil, nil, nil, false, nil, store, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil).
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 		WithDeploymentKeyedProviders(keyed(providers.ProviderAIAND, providers.ProviderAIAND))
 
 	env := forceCommandEnv(t)
@@ -132,7 +132,7 @@ func TestForceModelCommand_RejectsWhenEveryBindingExcluded(t *testing.T) {
 func TestForceModelCommand_SessionStrikeOutDoesNotReject(t *testing.T) {
 	store := &recordingPinStore{}
 	svc := NewService(nil, nil, nil, false, nil, store, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil).
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 		WithDeploymentKeyedProviders(keyed(providers.ProviderAIAND))
 
 	ctx := context.WithValue(context.Background(),
@@ -152,7 +152,7 @@ func TestForceModelCommand_SessionStrikeOutDoesNotReject(t *testing.T) {
 func TestForceModelHeader_RejectsExcludedModel(t *testing.T) {
 	store := &recordingPinStore{}
 	svc := NewService(nil, nil, nil, false, nil, store, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil).
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 		WithDeploymentKeyedProviders(keyed(providers.ProviderAIAND))
 
 	env := forceCommandEnv(t)
@@ -175,7 +175,7 @@ func TestForceModelHeader_RejectsExcludedModel(t *testing.T) {
 func TestForceModelHeader_UnfencedInstallationUnaffected(t *testing.T) {
 	store := &recordingPinStore{}
 	svc := NewService(nil, nil, nil, false, nil, store, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil)
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil)
 
 	env := forceCommandEnv(t)
 	req, err := http.NewRequest(http.MethodPost, "/v1/messages", nil)
@@ -186,7 +186,7 @@ func TestForceModelHeader_UnfencedInstallationUnaffected(t *testing.T) {
 		context.Background(), req, uuid.New(), DeriveSessionKey(env, "key-1"))
 
 	require.NoError(t, forceErr)
-	assert.Equal(t, "claude-opus-5-5", model)
+	assert.Equal(t, "z-ai/glm-5.2", model)
 	require.Len(t, store.upserts, 1)
 }
 
@@ -196,7 +196,7 @@ func TestForceModelHeader_UnfencedInstallationUnaffected(t *testing.T) {
 func TestForceModelHeader_EffortSuffixLandsOnReturnedContext(t *testing.T) {
 	store := &recordingPinStore{}
 	svc := NewService(nil, nil, nil, false, nil, store, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil)
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil)
 
 	env := forceCommandEnv(t)
 	req, err := http.NewRequest(http.MethodPost, "/v1/messages", nil)
@@ -216,15 +216,15 @@ func TestForceModelHeader_EffortSuffixLandsOnReturnedContext(t *testing.T) {
 // TestTurnLoop_ForcedPinToNewlyExcludedProviderRejects: policy can change
 // mid-session; the pre-exclusion pin would otherwise silently re-route.
 func TestTurnLoop_ForcedPinToNewlyExcludedProviderRejects(t *testing.T) {
-	fr := &tierProbeRouter{available: map[string]struct{}{"claude-haiku-4-5": {}}}
+	fr := &tierProbeRouter{available: map[string]struct{}{"z-ai/glm-5.3-flash": {}}}
 	store := &overwritingPinStore{pin: sessionpin.Pin{
 		Provider:    providers.ProviderAIAND,
-		Model:       "claude-opus-5",
+		Model:       "z-ai/glm-5.2",
 		Reason:      translate.ReasonUserForceModel,
 		PinnedUntil: pinNeverExpires,
 	}, found: true}
 	svc := NewService(fr, nil, nil, false, nil, store, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil).
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 		WithDeploymentKeyedProviders(keyed(providers.ProviderAIAND))
 
 	env := forceCommandEnv(t)
@@ -243,15 +243,15 @@ func TestTurnLoop_ForcedPinToNewlyExcludedProviderRejects(t *testing.T) {
 // TestTurnLoop_AutomaticPinToExcludedProviderStillFallsThrough: only an
 // explicit user force fails the request; automatic pins degrade gracefully.
 func TestTurnLoop_AutomaticPinToExcludedProviderStillFallsThrough(t *testing.T) {
-	fr := &tierProbeRouter{available: map[string]struct{}{"claude-haiku-4-5": {}}}
+	fr := &tierProbeRouter{available: map[string]struct{}{"z-ai/glm-5.3-flash": {}}}
 	store := &overwritingPinStore{pin: sessionpin.Pin{
 		Provider:    providers.ProviderAIAND,
-		Model:       "claude-opus-5",
+		Model:       "z-ai/glm-5.2",
 		Reason:      "cluster:v0.2",
 		PinnedUntil: time.Now().Add(time.Hour),
 	}, found: true}
 	svc := NewService(fr, nil, nil, false, nil, store, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil).
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 		WithDeploymentKeyedProviders(keyed(providers.ProviderAIAND))
 
 	env := forceCommandEnv(t)
@@ -269,7 +269,7 @@ func TestTurnLoop_AutomaticPinToExcludedProviderStillFallsThrough(t *testing.T) 
 func TestForceModelCommand_AllowsWhenAnotherKeyedBindingServes(t *testing.T) {
 	store := &recordingPinStore{}
 	svc := NewService(nil, nil, nil, false, nil, store, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil).
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 		WithDeploymentKeyedProviders(keyed(
 			providers.ProviderAIAND, providers.ProviderAIAND))
 
@@ -293,9 +293,9 @@ func TestForceModelCommand_AllowsWhenAnotherKeyedBindingServes(t *testing.T) {
 func TestForceModelCommand_RejectsDeploymentExcludedModel(t *testing.T) {
 	store := &recordingPinStore{}
 	svc := NewService(nil, nil, nil, false, nil, store, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil).
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 		WithDeploymentKeyedProviders(keyed(providers.ProviderAIAND)).
-		WithExcludedModelsOverride([]string{"claude-opus-5-5"})
+		WithExcludedModelsOverride([]string{"z-ai/glm-5.2"})
 
 	env := forceCommandEnv(t)
 	rec := httptest.NewRecorder()
@@ -310,15 +310,15 @@ func TestForceModelCommand_RejectsDeploymentExcludedModel(t *testing.T) {
 // TestTurnLoop_ForcedPinFollowsSurvivingBinding: excluding the pinned provider
 // must move the pin to a permitted binding, not silently drop it to the scorer.
 func TestTurnLoop_ForcedPinFollowsSurvivingBinding(t *testing.T) {
-	fr := &tierProbeRouter{available: map[string]struct{}{"claude-haiku-4-5": {}}}
+	fr := &tierProbeRouter{available: map[string]struct{}{"z-ai/glm-5.3-flash": {}}}
 	store := &overwritingPinStore{pin: sessionpin.Pin{
 		Provider:    providers.ProviderAIAND,
-		Model:       "claude-opus-5",
+		Model:       "z-ai/glm-5.2",
 		Reason:      translate.ReasonUserForceModel,
 		PinnedUntil: pinNeverExpires,
 	}, found: true}
 	svc := NewService(fr, nil, nil, false, nil, store, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil).
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 		WithDeploymentKeyedProviders(keyed(
 			providers.ProviderAIAND, providers.ProviderAIAND))
 
@@ -335,23 +335,23 @@ func TestTurnLoop_ForcedPinFollowsSurvivingBinding(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, res.StickyHit, "the force must survive on the permitted binding")
 	assert.Equal(t, providers.ProviderAIAND, res.Decision.Provider)
-	assert.Equal(t, "claude-opus-5", res.Decision.Model)
+	assert.Equal(t, "z-ai/glm-5.2", res.Decision.Model)
 	assert.Empty(t, fr.captured, "the pin must not fall through to the scorer")
 }
 
 // TestTurnLoop_StrikeExemptionCoversRemappedBinding: strike exemption must
 // cover the remapped binding, or a 529 strike on it vetoes the force.
 func TestTurnLoop_StrikeExemptionCoversRemappedBinding(t *testing.T) {
-	fr := &tierProbeRouter{available: map[string]struct{}{"claude-haiku-4-5": {}}}
+	fr := &tierProbeRouter{available: map[string]struct{}{"z-ai/glm-5.3-flash": {}}}
 	store := &overwritingPinStore{pin: sessionpin.Pin{
 		Provider:          providers.ProviderAIAND,
-		Model:             "claude-opus-5",
+		Model:             "z-ai/glm-5.2",
 		Reason:            translate.ReasonUserForceModel,
 		PinnedUntil:       pinNeverExpires,
 		DisabledProviders: []string{providers.ProviderAIAND},
 	}, found: true}
 	svc := NewService(fr, nil, nil, false, nil, store, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil).
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 		WithDeploymentKeyedProviders(keyed(
 			providers.ProviderAIAND, providers.ProviderAIAND))
 
@@ -373,20 +373,20 @@ func TestTurnLoop_StrikeExemptionCoversRemappedBinding(t *testing.T) {
 // TestTurnLoop_HardPinnedTurnForcedPinFollowsSurvivingBinding: the hard-pin
 // fast path needs the same remap or the force loses probe/compaction turns.
 func TestTurnLoop_HardPinnedTurnForcedPinFollowsSurvivingBinding(t *testing.T) {
-	fr := &tierProbeRouter{available: map[string]struct{}{"claude-haiku-4-5": {}}}
+	fr := &tierProbeRouter{available: map[string]struct{}{"z-ai/glm-5.3-flash": {}}}
 	store := &overwritingPinStore{pin: sessionpin.Pin{
 		Provider:    providers.ProviderAIAND,
-		Model:       "claude-opus-5",
+		Model:       "z-ai/glm-5.2",
 		Reason:      translate.ReasonUserForceModel,
 		PinnedUntil: pinNeverExpires,
 	}, found: true}
 	svc := NewService(fr, nil, nil, false, nil, store, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil).
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 		WithDeploymentKeyedProviders(keyed(
 			providers.ProviderAIAND, providers.ProviderAIAND))
 
 	env, err := translate.ParseAnthropic([]byte(
-		`{"model":"claude-opus-4-8","max_tokens":1,"messages":[{"role":"user","content":"quota"}]}`))
+		`{"model":"z-ai/glm-5.2","max_tokens":1,"messages":[{"role":"user","content":"quota"}]}`))
 	require.NoError(t, err)
 	feats := env.RoutingFeatures(false)
 	res, err := svc.runTurnLoop(
@@ -400,13 +400,13 @@ func TestTurnLoop_HardPinnedTurnForcedPinFollowsSurvivingBinding(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, turntype.Probe, res.TurnType, "fixture must exercise the hard-pinned path")
 	assert.False(t, res.HardPinned, "the force outranks the hard pin")
-	assert.Equal(t, "claude-opus-5", res.Decision.Model)
+	assert.Equal(t, "z-ai/glm-5.2", res.Decision.Model)
 	assert.Equal(t, providers.ProviderAIAND, res.Decision.Provider)
 }
 
 func TestClassifyDispatchError_ForcedModelExcluded(t *testing.T) {
 	cls, ok := ClassifyDispatchError(&ForcedModelExcludedError{
-		Model:  "claude-opus-5",
+		Model:  "z-ai/glm-5.2",
 		Reason: "claude-opus-5 is only served by anthropic, which is excluded on this installation",
 	})
 
@@ -414,7 +414,7 @@ func TestClassifyDispatchError_ForcedModelExcluded(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, cls.Status)
 	assert.True(t, cls.Kind.IsClientError(),
 		"an excluded force is a client-input problem, not an upstream failure")
-	assert.Contains(t, cls.Message, "claude-opus-5")
+	assert.Contains(t, cls.Message, "z-ai/glm-5.2")
 	// Sigil-free: this classifier has no request context to tell a Codex
 	// caller (which needs "$") from a Claude Code one (which needs "/").
 	assert.Contains(t, cls.Message, "unforce-model")
@@ -425,16 +425,16 @@ func TestClassifyDispatchError_ForcedModelExcluded(t *testing.T) {
 // and never in that set, so the allowlist check in forcedModelBinding must be direct.
 func TestForcedModelBinding_RejectsPassthroughModelOutsideAllowlist(t *testing.T) {
 	svc := NewService(nil, nil, nil, false, nil, nil, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil).
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 		WithDeploymentKeyedProviders(keyed(providers.ProviderAIAND)).
 		// nil availableModels enumerates the full catalog and masks the passthrough-
 		// only bypass; must be a routing-targets-only universe.
-		WithAvailableModels(map[string]struct{}{"claude-opus-5": {}})
+		WithAvailableModels(map[string]struct{}{"z-ai/glm-5.2": {}})
 
 	ctx := context.WithValue(context.Background(),
-		InstallationAllowedModelsContextKey{}, []string{"claude-opus-5"})
+		InstallationAllowedModelsContextKey{}, []string{"z-ai/glm-5.2"})
 
-	binding, reason := svc.forcedModelBinding(ctx, "claude-opus-4-8", providers.ProviderAIAND)
+	binding, reason := svc.forcedModelBinding(ctx, "z-ai/glm-5.2", providers.ProviderAIAND)
 
 	assert.Empty(t, binding, "a passthrough model outside the allowlist must not resolve a binding")
 	assert.Contains(t, reason, "allowed-model list",
@@ -444,13 +444,13 @@ func TestForcedModelBinding_RejectsPassthroughModelOutsideAllowlist(t *testing.T
 // The allowlist must only ever narrow: an allowlisted model still forces fine.
 func TestForcedModelBinding_AllowsPassthroughModelInsideAllowlist(t *testing.T) {
 	svc := NewService(nil, nil, nil, false, nil, nil, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil).
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 		WithDeploymentKeyedProviders(keyed(providers.ProviderAIAND))
 
 	ctx := context.WithValue(context.Background(),
-		InstallationAllowedModelsContextKey{}, []string{"claude-opus-4-8"})
+		InstallationAllowedModelsContextKey{}, []string{"z-ai/glm-5.2"})
 
-	binding, reason := svc.forcedModelBinding(ctx, "claude-opus-4-8", providers.ProviderAIAND)
+	binding, reason := svc.forcedModelBinding(ctx, "z-ai/glm-5.2", providers.ProviderAIAND)
 
 	assert.Empty(t, reason)
 	assert.Equal(t, providers.ProviderAIAND, binding)
@@ -459,10 +459,10 @@ func TestForcedModelBinding_AllowsPassthroughModelInsideAllowlist(t *testing.T) 
 // No allowlist configured = no restriction, so passthrough forcing is unchanged.
 func TestForcedModelBinding_NoAllowlistLeavesPassthroughForcingUnchanged(t *testing.T) {
 	svc := NewService(nil, nil, nil, false, nil, nil, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil).
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 		WithDeploymentKeyedProviders(keyed(providers.ProviderAIAND))
 
-	binding, reason := svc.forcedModelBinding(context.Background(), "claude-opus-4-8", providers.ProviderAIAND)
+	binding, reason := svc.forcedModelBinding(context.Background(), "z-ai/glm-5.2", providers.ProviderAIAND)
 
 	assert.Empty(t, reason)
 	assert.Equal(t, providers.ProviderAIAND, binding)
@@ -470,7 +470,7 @@ func TestForcedModelBinding_NoAllowlistLeavesPassthroughForcingUnchanged(t *test
 
 func TestForcedModelBinding_RefreshesRetiredProviderOnSavedPin(t *testing.T) {
 	svc := NewService(nil, nil, nil, false, nil, nil, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil).
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 		WithDeploymentKeyedProviders(keyed(providers.ProviderAIAND))
 
 	binding, reason := svc.forcedModelBinding(
@@ -494,11 +494,11 @@ func gatewayKeyCtx(model string) context.Context {
 // it would be rejected by the pin check and route automatically instead.
 func TestForcedModelBinding_GatewayExclusivePinsTheGateway(t *testing.T) {
 	svc := NewService(nil, nil, nil, false, nil, nil, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil).
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 		WithDeploymentKeyedProviders(keyed(providers.ProviderAIAND))
 
 	binding, reason := svc.forcedModelBinding(
-		gatewayKeyCtx("claude-opus-5"), "claude-opus-5", providers.ProviderAIAND)
+		gatewayKeyCtx("z-ai/glm-5.2"), "z-ai/glm-5.2", providers.ProviderAIAND)
 
 	assert.Empty(t, reason)
 	assert.Equal(t, providers.ProviderAIAND, binding)
@@ -508,11 +508,11 @@ func TestForcedModelBinding_GatewayExclusivePinsTheGateway(t *testing.T) {
 // be refused loudly rather than pinned to an unroutable vendor.
 func TestForcedModelBinding_GatewayExclusiveRefusesUnaliasedModel(t *testing.T) {
 	svc := NewService(nil, nil, nil, false, nil, nil, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil).
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 		WithDeploymentKeyedProviders(keyed(providers.ProviderAIAND))
 
 	binding, reason := svc.forcedModelBinding(
-		gatewayKeyCtx("claude-opus-5"), "claude-haiku-4-5", providers.ProviderAIAND)
+		gatewayKeyCtx("z-ai/glm-5.2"), "z-ai/glm-5.3-flash", providers.ProviderAIAND)
 
 	assert.Empty(t, binding)
 	assert.Contains(t, reason, "gateway keys")
@@ -522,16 +522,16 @@ func TestForcedModelBinding_GatewayExclusiveRefusesUnaliasedModel(t *testing.T) 
 // exclusion still refuses the model.
 func TestForcedModelBinding_GatewayExclusiveKeepsExplicitExclusion(t *testing.T) {
 	svc := NewService(nil, nil, nil, false, nil, nil, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil)
-	ctx := context.WithValue(gatewayKeyCtx("claude-opus-5"),
-		InstallationAllowedModelsContextKey{}, []string{"claude-opus-5-5"})
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil)
+	ctx := context.WithValue(gatewayKeyCtx("z-ai/glm-5.2"),
+		InstallationAllowedModelsContextKey{}, []string{"z-ai/glm-5.2"})
 
-	binding, reason := svc.forcedModelBinding(ctx, "claude-opus-5", providers.ProviderAIAND)
+	binding, reason := svc.forcedModelBinding(ctx, "z-ai/glm-5.2", providers.ProviderAIAND)
 	assert.Empty(t, reason, "the gateway, not the allowlist, bounds a force")
 	assert.Equal(t, providers.ProviderAIAND, binding)
 
-	ctx = context.WithValue(ctx, InstallationExcludedModelsContextKey{}, []string{"claude-opus-5"})
-	binding, reason = svc.forcedModelBinding(ctx, "claude-opus-5", providers.ProviderAIAND)
+	ctx = context.WithValue(ctx, InstallationExcludedModelsContextKey{}, []string{"z-ai/glm-5.2"})
+	binding, reason = svc.forcedModelBinding(ctx, "z-ai/glm-5.2", providers.ProviderAIAND)
 	assert.Empty(t, binding)
 	assert.Contains(t, reason, "excluded on this installation")
 }

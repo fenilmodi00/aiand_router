@@ -146,7 +146,7 @@ func TestRunRejectsWireTargetMismatchBeforeIO(t *testing.T) {
 
 	_, err := exec.Run(context.Background(), inference.InvocationRequest{},
 		fakePlan{selected: primary},
-		dispatch.Transport{Attempt: attemptWith([]byte(`{"model":"claude-sonnet-4-6"}`))},
+		dispatch.Transport{Attempt: attemptWith([]byte(`{"model":"deepseek/deepseek-v4.1-flash"}`))},
 	)
 	require.ErrorIs(t, err, dispatch.ErrTargetMismatch)
 	assert.Empty(t, fw.models, "mismatched wire target must never reach the upstream")

@@ -35,7 +35,7 @@ func TestCommandOutcomesAcrossSurfaces(t *testing.T) {
 		for _, streaming := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%v/stream=%t", surface, streaming), func(t *testing.T) {
 				store := newForceModelMapStore()
-				svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil).
+				svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 					WithDeploymentKeyedProviders(keyed(providers.ProviderAIAND))
 				app := ClientAppClaudeCode
 				if surface != translate.FormatAnthropic {
@@ -61,7 +61,7 @@ func TestCommandOutcomesAcrossSurfaces(t *testing.T) {
 					{"/fm opus", translate.CommandForceModel, translate.PinUnchanged, translate.CommandRejected, true},
 					{"/unforce-model", translate.CommandForceModel, translate.PinCleared, translate.CommandAccepted, false},
 				} {
-					body := map[string]any{"model": "claude-opus-4-8", "stream": streaming, "max_tokens": 100}
+					body := map[string]any{"model": "z-ai/glm-5.2", "stream": streaming, "max_tokens": 100}
 					input := []map[string]string{{"role": "user", "content": command.text}}
 					if surface == translate.FormatOpenAIResponses {
 						body["input"] = input
@@ -74,7 +74,7 @@ func TestCommandOutcomesAcrossSurfaces(t *testing.T) {
 					req := httptest.NewRequest(http.MethodPost, "/", nil)
 					requestContext := ctx
 					if command.excluded {
-						requestContext = context.WithValue(ctx, InstallationExcludedModelsContextKey{}, []string{"claude-opus-5-5"})
+						requestContext = context.WithValue(ctx, InstallationExcludedModelsContextKey{}, []string{"z-ai/glm-5.2"})
 					}
 					switch surface {
 					case translate.FormatAnthropic:
@@ -92,7 +92,7 @@ func TestCommandOutcomesAcrossSurfaces(t *testing.T) {
 					assert.False(t, seen[outcome.ID])
 					seen[outcome.ID] = true
 					if outcome.Pin.Transition == translate.PinApplied {
-						assert.Equal(t, "claude-opus-5-5", outcome.Pin.Model)
+						assert.Equal(t, "z-ai/glm-5.2", outcome.Pin.Model)
 						assert.Equal(t, providers.ProviderAIAND, outcome.Pin.Provider)
 						assert.Equal(t, "high", outcome.Pin.Effort)
 					}
@@ -115,7 +115,7 @@ func TestCommandOutcomesAcrossSurfaces(t *testing.T) {
 						if command.transition == translate.PinCleared {
 							assert.Equal(t, userUnforcedReason, pin.Reason)
 						} else {
-							assert.Equal(t, "claude-opus-5-5", pin.Model)
+							assert.Equal(t, "z-ai/glm-5.2", pin.Model)
 						}
 					}
 				}
@@ -139,7 +139,7 @@ func (*failedCommandStore) Upsert(context.Context, sessionpin.Pin) error {
 
 func TestCommandOutcomeRequiresPersistence(t *testing.T) {
 	store := &failedCommandStore{newForceModelMapStore()}
-	svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil).
+	svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 		WithDeploymentKeyedProviders(keyed(providers.ProviderAIAND))
 	env := forceCommandEnv(t)
 	for _, command := range []translate.ForceModelResult{{Model: "opus"}, {Clear: true}} {
@@ -152,7 +152,7 @@ func TestCommandOutcomeRequiresPersistence(t *testing.T) {
 }
 
 func TestLoopStopsPreserveHistoricalForcePin(t *testing.T) {
-	svc := NewService(nil, nil, nil, false, nil, newForceModelMapStore(), false, providers.ProviderAIAND, "claude-haiku-4-5", nil)
+	svc := NewService(nil, nil, nil, false, nil, newForceModelMapStore(), false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil)
 	env := forceCommandEnv(t)
 	for _, repetition := range []bool{false, true} {
 		rec := httptest.NewRecorder()
@@ -175,7 +175,7 @@ func (*commandWriteFailure) Write([]byte) (int, error) { return 0, errors.New("s
 
 func TestAcknowledgmentWriteFailureDoesNotUndoPin(t *testing.T) {
 	store := newForceModelMapStore()
-	svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil).
+	svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 		WithDeploymentKeyedProviders(keyed(providers.ProviderAIAND))
 	key := [sessionpin.SessionKeyLen]byte{2}
 	err := svc.handleForceModelCommand(context.Background(), &commandWriteFailure{httptest.NewRecorder()}, forceCommandEnv(t), translate.ForceModelResult{Model: "opus"}, uuid.New(), [sessionpin.SessionKeyLen]byte{1}, key, 1)
@@ -183,12 +183,12 @@ func TestAcknowledgmentWriteFailureDoesNotUndoPin(t *testing.T) {
 	pin, found, err := store.Get(context.Background(), key, forceModelSessionRole)
 	require.NoError(t, err)
 	require.True(t, found)
-	assert.Equal(t, "claude-opus-5-5", pin.Model)
+	assert.Equal(t, "z-ai/glm-5.2", pin.Model)
 }
 
 func TestHeaderPersistenceFailureRetainsSameActionForce(t *testing.T) {
 	store := &failedCommandStore{newForceModelMapStore()}
-	svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil).
+	svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 		WithDeploymentKeyedProviders(keyed(providers.ProviderAIAND))
 	request := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 	request.Header.Set(ForceModelHeader, "opus:high")

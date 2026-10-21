@@ -37,12 +37,12 @@ func TestProxyOpenAIResponses_CodexDuplicateToolOutputsReachAnthropicOnce(t *tes
 	anthropic := &fakeProvider{proxyResponse: func(w http.ResponseWriter) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_, _ = io.WriteString(w, `{"id":"msg_1","type":"message","role":"assistant","model":"claude-opus-5","content":[{"type":"text","text":"ok"}],"stop_reason":"end_turn","usage":{"input_tokens":1,"output_tokens":1}}`)
+		_, _ = io.WriteString(w, `{"id":"msg_1","type":"message","role":"assistant","model":"z-ai/glm-5.2","content":[{"type":"text","text":"ok"}],"stop_reason":"end_turn","usage":{"input_tokens":1,"output_tokens":1}}`)
 	}}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-opus-5", Reason: "test"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.2", Reason: "test"}}
 	svc := proxy.NewService(fr, map[string]providers.Client{
 		providers.ProviderAIAND: anthropic,
-	}, nil, false, nil, nil, false, providers.ProviderAIAND, "claude-opus-5", nil)
+	}, nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.2", nil)
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(""))
@@ -93,14 +93,14 @@ func TestProxyMessages_DuplicateToolResultsReachAnthropicOnce(t *testing.T) {
 	anthropic := &fakeProvider{proxyResponse: func(w http.ResponseWriter) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_, _ = io.WriteString(w, `{"id":"msg_1","type":"message","role":"assistant","model":"claude-opus-5","content":[{"type":"text","text":"ok"}],"stop_reason":"end_turn","usage":{"input_tokens":1,"output_tokens":1}}`)
+		_, _ = io.WriteString(w, `{"id":"msg_1","type":"message","role":"assistant","model":"z-ai/glm-5.2","content":[{"type":"text","text":"ok"}],"stop_reason":"end_turn","usage":{"input_tokens":1,"output_tokens":1}}`)
 	}}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-opus-5", Reason: "test"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.2", Reason: "test"}}
 	svc := proxy.NewService(fr, map[string]providers.Client{
 		providers.ProviderAIAND: anthropic,
-	}, nil, false, nil, nil, false, providers.ProviderAIAND, "claude-opus-5", nil)
+	}, nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.2", nil)
 
-	body := []byte(`{"model":"claude-opus-5","max_tokens":512,"messages":[` +
+	body := []byte(`{"model":"z-ai/glm-5.2","max_tokens":512,"messages":[` +
 		`{"role":"user","content":"poll the build"},` +
 		`{"role":"assistant","content":[{"type":"tool_use","id":"toolu_dup_1","name":"exec","input":{}}]},` +
 		`{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_dup_1","content":"done"},{"type":"tool_result","tool_use_id":"toolu_dup_1","content":"progress"},{"type":"text","text":"what next?"}]}]}`)

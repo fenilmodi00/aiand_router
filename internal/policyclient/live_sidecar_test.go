@@ -62,10 +62,10 @@ func TestLiveGenericPolicySidecarContract(t *testing.T) {
 		HasTools:             true,
 		Candidates: []policy.Candidate{
 			{
-				RosterID:                  "claude-fable-5",
-				CatalogID:                 "claude-fable-5",
+				RosterID:                  "z-ai/glm-5.2",
+				CatalogID:                 "z-ai/glm-5.2",
 				Provider:                  providers.ProviderAIAND,
-				UpstreamID:                "claude-fable-5",
+				UpstreamID:                "z-ai/glm-5.2",
 				InputUSDPer1M:             3,
 				OutputUSDPer1M:            15,
 				EstimatedCostUSD:          0.012,
@@ -95,7 +95,7 @@ func TestLiveGenericPolicySidecarContract(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, policy.SchemaVersionV1, result.SchemaVersion)
 	assert.Equal(t, "go-live-contract-route", result.RouteID)
-	assert.Contains(t, []string{"claude-fable-5", "gpt-5.5"}, result.Model)
+	assert.Contains(t, []string{"z-ai/glm-5.2", "gpt-5.5"}, result.Model)
 	assert.Len(t, result.CandidateScores, 2)
 	assert.Equal(t, 1.0, result.Propensity)
 	assert.NotEmpty(t, result.PolicyArtifactID)

@@ -17,7 +17,7 @@ import (
 func newFlagTestService(embedOnly bool) *proxy.Service {
 	return proxy.NewService(
 		nil, map[string]providers.Client{}, nil, embedOnly, nil, nil,
-		false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+		false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
 	)
 }
 
@@ -82,14 +82,14 @@ func TestCCTaskToolsCrossVendorResolution(t *testing.T) {
 func TestStringFlagOverride(t *testing.T) {
 	svc := newFlagTestService(true).
 		WithCyberRefusalRepin(true).
-		WithCyberRefusalFallbackModel("claude-sonnet-5")
+		WithCyberRefusalFallbackModel("deepseek/deepseek-v4-pro")
 
-	assert.Equal(t, "claude-sonnet-5", svc.ResolveCyberRefusalFallbackModel(context.Background()))
+	assert.Equal(t, "deepseek/deepseek-v4-pro", svc.ResolveCyberRefusalFallbackModel(context.Background()))
 
 	ctx := flags.WithOverrides(context.Background(), flags.Overrides{
-		Strings: map[flags.Key]string{flags.KeyCyberRefusalFallback: "claude-opus-5"},
+		Strings: map[flags.Key]string{flags.KeyCyberRefusalFallback: "z-ai/glm-5.2"},
 	})
-	assert.Equal(t, "claude-opus-5", svc.ResolveCyberRefusalFallbackModel(ctx))
+	assert.Equal(t, "z-ai/glm-5.2", svc.ResolveCyberRefusalFallbackModel(ctx))
 }
 
 func TestHeaderOverrideBeatsPerOrgOverride(t *testing.T) {

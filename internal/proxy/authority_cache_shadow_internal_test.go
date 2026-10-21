@@ -19,8 +19,8 @@ import (
 )
 
 const (
-	shadowPinnedModel = "claude-opus-4-7"
-	shadowFreshModel  = "claude-opus-4-6"
+	shadowPinnedModel = "z-ai/glm-5.2"
+	shadowFreshModel  = "z-ai/glm-5.2"
 	shadowPinReason   = "hmm_policy(classifier 'high' (p=0.32))"
 )
 
@@ -80,7 +80,7 @@ func runAuthorityShadowTurnWithPin(
 	store.getPin = pin
 	svc := NewService(
 		nil, nil, nil, false, nil, store, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil,
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
 	).WithAuthorityCacheShadow(enabled).
 		WithPlanner(planner.EVConfig{
 			ThresholdUSD:           0.001,
@@ -96,7 +96,7 @@ func runAuthorityShadowTurnWithPin(
 		})
 
 	env, err := translate.ParseAnthropic(
-		[]byte(`{"model":"claude-opus-4-8","messages":[{"role":"user","content":"continue"}]}`),
+		[]byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"continue"}]}`),
 	)
 	require.NoError(t, err)
 	features := env.RoutingFeatures(false)
@@ -394,7 +394,7 @@ func TestCandidateScoreFor(t *testing.T) {
 	})
 
 	t.Run("unscored model stays nil", func(t *testing.T) {
-		assert.Nil(t, candidateScoreFor(dec, "claude-haiku-4-5"))
+		assert.Nil(t, candidateScoreFor(dec, "z-ai/glm-5.3-flash"))
 		assert.Nil(t, candidateScoreFor(dec, ""))
 		assert.Nil(t, candidateScoreFor(router.Decision{}, shadowFreshModel))
 	})

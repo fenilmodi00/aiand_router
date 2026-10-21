@@ -35,7 +35,7 @@ import (
 const (
 	parityAnthropicToken  = "sk-ant-oat01-parity-subscription-token"
 	parityAnthropicBYOK   = "sk-ant-api-parity-byok"
-	parityAnthropicModel  = "claude-sonnet-4-6"
+	parityAnthropicModel  = "deepseek/deepseek-v4.1-flash"
 	parityCodexToken      = "eyJhbGciOiJIUzI1NiJ9.parity-codex-jwt.signature"
 	parityCodexAccountID  = "acct_parity_codex"
 	parityCodexBYOK       = "sk-oai-parity-byok"
@@ -84,7 +84,7 @@ func parityAnthropicIngress() parityIngress {
 		name:           "anthropic",
 		provider:       providers.ProviderAIAND,
 		model:          parityAnthropicModel,
-		uncoveredModel: "claude-haiku-4-5",
+		uncoveredModel: "z-ai/glm-5.3-flash",
 		token:          parityAnthropicToken,
 		byokKey:        parityAnthropicBYOK,
 		subCtx: func() context.Context {

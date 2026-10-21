@@ -112,10 +112,10 @@ func TestProxyMessages_SiblingFailoverOntoOpenAIUsesResponses(t *testing.T) {
 	rescue := &responsesRetryClient{}
 	decision := router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "claude-opus-5",
+		Model:    "z-ai/glm-5.2",
 		Reason:   "test",
 		Metadata: &router.RoutingMetadata{
-			CandidateModels:    []string{"claude-opus-5", "gpt-5.6-luna"},
+			CandidateModels:    []string{"z-ai/glm-5.2", "gpt-5.6-luna"},
 			CandidateProviders: map[string]string{"gpt-5.6-luna": providers.ProviderAIAND},
 		},
 	}
@@ -124,13 +124,13 @@ func TestProxyMessages_SiblingFailoverOntoOpenAIUsesResponses(t *testing.T) {
 		map[string]providers.Client{
 			providers.ProviderAIAND: failing,
 		},
-		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+		nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
 		providers.ProviderAIAND: {},
 	})
 	svc.retrySleep = noopSleep
 
-	body := `{"model":"claude-opus-5","max_tokens":1024,"stream":true,"messages":[{"role":"user","content":"read main.go"}],"tools":[{"name":"read_file","input_schema":{"type":"object","properties":{"path":{"type":"string"}}}}],"thinking":{"type":"adaptive"}}`
+	body := `{"model":"z-ai/glm-5.2","max_tokens":1024,"stream":true,"messages":[{"role":"user","content":"read main.go"}],"tools":[{"name":"read_file","input_schema":{"type":"object","properties":{"path":{"type":"string"}}}}],"thinking":{"type":"adaptive"}}`
 	rec := httptest.NewRecorder()
 	require.NoError(t, svc.ProxyMessages(context.Background(), []byte(body), rec,
 		httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(body))))

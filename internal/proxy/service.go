@@ -1860,7 +1860,7 @@ func NewService(r router.Router, providerMap map[string]providers.Client, emitte
 		openAIResponsesBroad:           true,
 		nativeAnthropicResponseSignals: true,
 		nativeOpenAIResponseSignals:    true,
-		cyberRefusalFallbackModel:      "claude-sonnet-5",
+		cyberRefusalFallbackModel:      "deepseek/deepseek-v4-pro",
 	}
 }
 
@@ -6702,17 +6702,21 @@ func upstreamStatus(err error) int {
 // inside Finalize; skipping on 4xx/5xx drops the upstream error envelope before
 // the client can see it. UpstreamStatusError takes precedence over Finalize
 // error so telemetry preserves the upstream status code.
+//
+// A status error skips Finalize entirely: the upstream already failed and
+// wrote no body, so the translator would try to translate an empty body and
+// write its own 502 — committing the response and masking the real status.
+// A buffered upstream error keeps Finalize: its body is the error envelope
+// the client must see.
 func finalizeAfterProxy(proxyErr error, fn func() error) error {
 	var statusErr *providers.UpstreamStatusError
-	isStatus := errors.As(proxyErr, &statusErr)
-	if proxyErr != nil && !isStatus {
+	if errors.As(proxyErr, &statusErr) {
 		return proxyErr
 	}
-	finErr := fn()
-	if isStatus {
+	if proxyErr != nil {
 		return proxyErr
 	}
-	return finErr
+	return fn()
 }
 
 // openAISurface names which OpenAI endpoint an attempt POSTs to and in what

@@ -80,7 +80,7 @@ func TestClientPostsVersionedRouteAndParsesPolicyMetadata(t *testing.T) {
 			VisibleTurnIndex:    7,
 			SessionTurnCount:    9,
 			TurnType:            "sub_agent_dispatch",
-			PreviousServedModel: "claude-opus-4-8",
+			PreviousServedModel: "z-ai/glm-5.2",
 			PreviousProvider:    providers.ProviderAIAND,
 			CacheState:          router.PolicyCacheStateWarm,
 			PriorOutputTokens:   intPointer(321),
@@ -127,7 +127,7 @@ func TestClientPostsVersionedRouteAndParsesPolicyMetadata(t *testing.T) {
 	require.NotNil(t, got.SessionTurnCount)
 	assert.Equal(t, 9, *got.SessionTurnCount)
 	assert.Equal(t, "sub_agent_dispatch", got.TurnType)
-	assert.Equal(t, "claude-opus-4-8", got.PreviousServedModel)
+	assert.Equal(t, "z-ai/glm-5.2", got.PreviousServedModel)
 	assert.Equal(t, providers.ProviderAIAND, got.PreviousProvider)
 	assert.Equal(t, router.PolicyCacheStateWarm, got.CacheState)
 	require.NotNil(t, got.PriorOutputTokens)
@@ -307,7 +307,7 @@ func decideWithTimings(t *testing.T, timings *routeTimings) policy.Result {
 	defer server.Close()
 
 	result, err := New(server.URL, server.Client(), 0).Decide(context.Background(), policy.Query{
-		Candidates: []policy.Candidate{{RosterID: "anthropic/claude-opus-4-8", CatalogID: "claude-opus-4-8", Provider: providers.ProviderAIAND}},
+		Candidates: []policy.Candidate{{RosterID: "anthropic/claude-opus-4-8", CatalogID: "z-ai/glm-5.2", Provider: providers.ProviderAIAND}},
 	})
 	require.NoError(t, err)
 	return result
@@ -354,7 +354,7 @@ func TestClientDecideLeavesTimingsNilWhenOmittedEntirely(t *testing.T) {
 	defer server.Close()
 
 	result, err := New(server.URL, server.Client(), 0).Decide(context.Background(), policy.Query{
-		Candidates: []policy.Candidate{{RosterID: "anthropic/claude-opus-4-8", CatalogID: "claude-opus-4-8", Provider: providers.ProviderAIAND}},
+		Candidates: []policy.Candidate{{RosterID: "anthropic/claude-opus-4-8", CatalogID: "z-ai/glm-5.2", Provider: providers.ProviderAIAND}},
 	})
 
 	require.NoError(t, err)
@@ -542,7 +542,7 @@ func TestClientAcceptsLegacyRouteResponse(t *testing.T) {
 	defer server.Close()
 
 	result, err := New(server.URL, server.Client(), 0).Decide(context.Background(), policy.Query{
-		Candidates: []policy.Candidate{{RosterID: "anthropic/claude-opus-4-8", CatalogID: "claude-opus-4-8", Provider: providers.ProviderAIAND}},
+		Candidates: []policy.Candidate{{RosterID: "anthropic/claude-opus-4-8", CatalogID: "z-ai/glm-5.2", Provider: providers.ProviderAIAND}},
 	})
 
 	require.NoError(t, err)

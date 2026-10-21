@@ -36,7 +36,7 @@ func TestProxyMessages_OpenAIToolAliasRoundTrip(t *testing.T) {
 	}}
 	decision := router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-5.5"}
 	svc := proxy.NewService(&fakeRouter{decision: decision}, map[string]providers.Client{providers.ProviderAIAND: upstream}, nil, false, nil, nil, false, providers.ProviderAIAND, "gpt-5.5", nil)
-	body := []byte(fmt.Sprintf(`{"model":"claude-sonnet-5-5","max_tokens":1024,"tools":[{"name":%q,"input_schema":{"type":"object"}}],"messages":[{"role":"user","content":"list issue types"}]}`, name))
+	body := []byte(fmt.Sprintf(`{"model":"deepseek/deepseek-v4-pro","max_tokens":1024,"tools":[{"name":%q,"input_schema":{"type":"object"}}],"messages":[{"role":"user","content":"list issue types"}]}`, name))
 	sink := httptest.NewRecorder()
 	require.NoError(t, svc.ProxyMessages(context.Background(), body, sink, httptest.NewRequest(http.MethodPost, "/v1/messages", nil)))
 	require.NotEqual(t, name, alias)

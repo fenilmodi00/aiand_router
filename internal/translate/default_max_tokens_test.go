@@ -18,8 +18,8 @@ import (
 func TestAnthropicSameFormat_DefaultMaxTokensInjectedWhenAbsent(t *testing.T) {
 	body := []byte(`{"model":"claude-sonnet-4-20250514","messages":[{"role":"user","content":"hi"}]}`)
 	opts := translate.EmitOptions{
-		TargetModel:  "claude-opus-4-7",
-		Capabilities: router.Lookup("claude-opus-4-7"),
+		TargetModel:  "z-ai/glm-5.2",
+		Capabilities: router.Lookup("z-ai/glm-5.2"),
 	}
 	out := parseAndEmit(t, body, "anthropic", opts)
 	assert.Equal(t, float64(16000), out["max_tokens"])
@@ -28,8 +28,8 @@ func TestAnthropicSameFormat_DefaultMaxTokensInjectedWhenAbsent(t *testing.T) {
 func TestAnthropicSameFormat_ExistingMaxTokensUnchanged(t *testing.T) {
 	body := []byte(`{"model":"claude-sonnet-4-20250514","messages":[{"role":"user","content":"hi"}],"max_tokens":1024}`)
 	opts := translate.EmitOptions{
-		TargetModel:  "claude-opus-4-7",
-		Capabilities: router.Lookup("claude-opus-4-7"),
+		TargetModel:  "z-ai/glm-5.2",
+		Capabilities: router.Lookup("z-ai/glm-5.2"),
 	}
 	out := parseAndEmit(t, body, "anthropic", opts)
 	assert.Equal(t, float64(1024), out["max_tokens"])
@@ -38,8 +38,8 @@ func TestAnthropicSameFormat_ExistingMaxTokensUnchanged(t *testing.T) {
 func TestAnthropicSameFormat_AdaptiveDefaultsHaveReasoningHeadroom(t *testing.T) {
 	body := []byte(`{"model":"claude-sonnet-4-20250514","messages":[{"role":"user","content":"hi"}]}`)
 	for _, model := range []string{
-		"claude-fable-5", "claude-fable-5-1", "claude-opus-5", "claude-opus-4-6",
-		"claude-opus-4-7", "claude-opus-4-8", "claude-sonnet-5", "claude-sonnet-4-6",
+		"z-ai/glm-5.2", "z-ai/glm-5.2", "z-ai/glm-5.2", "z-ai/glm-5.2",
+		"z-ai/glm-5.2", "z-ai/glm-5.2", "deepseek/deepseek-v4-pro", "deepseek/deepseek-v4.1-flash",
 	} {
 		t.Run(model, func(t *testing.T) {
 			out := parseAndEmit(t, body, "anthropic", translate.EmitOptions{
@@ -50,7 +50,7 @@ func TestAnthropicSameFormat_AdaptiveDefaultsHaveReasoningHeadroom(t *testing.T)
 	}
 
 	control := parseAndEmit(t, body, "anthropic", translate.EmitOptions{
-		TargetModel: "claude-opus-4-5", Capabilities: router.Lookup("claude-opus-4-5"),
+		TargetModel: "z-ai/glm-5.2", Capabilities: router.Lookup("z-ai/glm-5.2"),
 	})
 	assert.Equal(t, float64(8192), control["max_tokens"])
 }
@@ -60,8 +60,8 @@ func TestAnthropicCrossFormat_AdaptiveDefaultHasReasoningHeadroom(t *testing.T) 
 	env, err := translate.ParseOpenAI(body)
 	require.NoError(t, err)
 	prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{
-		TargetModel:  "claude-opus-4-7",
-		Capabilities: router.Lookup("claude-opus-4-7"),
+		TargetModel:  "z-ai/glm-5.2",
+		Capabilities: router.Lookup("z-ai/glm-5.2"),
 	})
 	require.NoError(t, err)
 	var out map[string]any
@@ -74,8 +74,8 @@ func TestAnthropicCrossFormat_AdaptiveDefaultHasReasoningHeadroom(t *testing.T) 
 	env, err = translate.ParseOpenAI(conversion.Body)
 	require.NoError(t, err)
 	prep, err = env.PrepareAnthropic(http.Header{}, translate.EmitOptions{
-		TargetModel:  "claude-opus-4-7",
-		Capabilities: router.Lookup("claude-opus-4-7"),
+		TargetModel:  "z-ai/glm-5.2",
+		Capabilities: router.Lookup("z-ai/glm-5.2"),
 	})
 	require.NoError(t, err)
 	require.NoError(t, json.Unmarshal(prep.Body, &out))
@@ -143,8 +143,8 @@ func TestCrossFormat_OpenAIToAnthropic_DefaultMaxTokensInjectedWhenAbsent(t *tes
 	env, err := translate.ParseOpenAI(body)
 	require.NoError(t, err)
 	prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{
-		TargetModel:  "claude-opus-4-7",
-		Capabilities: router.Lookup("claude-opus-4-7"),
+		TargetModel:  "z-ai/glm-5.2",
+		Capabilities: router.Lookup("z-ai/glm-5.2"),
 	})
 	require.NoError(t, err)
 	var out map[string]any
@@ -176,8 +176,8 @@ func TestAnthropicSameFormat_DefaultInjectionPreservesSourceBytes(t *testing.T) 
 	env, err := translate.ParseAnthropic(body)
 	require.NoError(t, err)
 	_, err = env.PrepareAnthropic(http.Header{}, translate.EmitOptions{
-		TargetModel:  "claude-opus-4-7",
-		Capabilities: router.Lookup("claude-opus-4-7"),
+		TargetModel:  "z-ai/glm-5.2",
+		Capabilities: router.Lookup("z-ai/glm-5.2"),
 	})
 	require.NoError(t, err)
 

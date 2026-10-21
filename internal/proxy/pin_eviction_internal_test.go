@@ -105,7 +105,7 @@ func newEvictionTestService(store *evictionStubPinStore) *Service {
 		nil,
 		store,
 		false,
-		"anthropic", "claude-haiku-4-5",
+		"anthropic", "z-ai/glm-5.3-flash",
 		nil,
 	)
 }
@@ -178,7 +178,7 @@ func TestExpireSessionPinInvalidatesPostCommandContinuation(t *testing.T) {
 	store := &evictionStubPinStore{continuations: map[string]sessionpin.Pin{
 		continuationRole: {
 			Provider:    providers.ProviderAIAND,
-			Model:       "claude-haiku-4-5",
+			Model:       "z-ai/glm-5.3-flash",
 			PinnedUntil: time.Now().Add(time.Minute),
 		},
 	}}

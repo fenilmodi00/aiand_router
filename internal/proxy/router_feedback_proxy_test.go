@@ -95,7 +95,7 @@ func (f *blockingPolicyFeedbackRouter) ReportFeedback(ctx context.Context, paylo
 
 func TestService_RouterFeedbackCommand_PersistsAndAcks(t *testing.T) {
 	const body = `{
-		"model":"claude-sonnet-4-6",
+		"model":"deepseek/deepseek-v4.1-flash",
 		"max_tokens":1024,
 		"messages":[
 			{"role":"user","content":"/router-feedback got stuck on Haiku for too long"}
@@ -103,9 +103,9 @@ func TestService_RouterFeedbackCommand_PersistsAndAcks(t *testing.T) {
 	}`
 	store := newFakePinStore()
 	store.hasPin = true
-	store.pin = sessionpin.Pin{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", LastServedModel: "claude-haiku-4-5"}
+	store.pin = sessionpin.Pin{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash", LastServedModel: "z-ai/glm-5.3-flash"}
 	feedback := &fakeFeedbackStore{}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4.1-flash", Reason: "cluster"}}
 	svc := newPinSvc(fr, store).WithRouterFeedbackStore(feedback)
 
 	installationID := uuid.New().String()
@@ -119,8 +119,8 @@ func TestService_RouterFeedbackCommand_PersistsAndAcks(t *testing.T) {
 	ev := feedback.events[0]
 	assert.Equal(t, installationID, ev.InstallationID)
 	assert.Equal(t, "got stuck on Haiku for too long", ev.Feedback)
-	assert.Equal(t, "claude-haiku-4-5", ev.ServedModel, "served_model comes from the session pin's last served model")
-	assert.Equal(t, "claude-sonnet-4-6", ev.RequestedModel)
+	assert.Equal(t, "z-ai/glm-5.3-flash", ev.ServedModel, "served_model comes from the session pin's last served model")
+	assert.Equal(t, "deepseek/deepseek-v4.1-flash", ev.RequestedModel)
 	assert.NotEmpty(t, ev.SessionKey)
 
 	var resp map[string]any
@@ -136,7 +136,7 @@ func TestService_RouterFeedbackCommand_PersistsAndAcks(t *testing.T) {
 
 func TestService_RouterFeedbackCommand_PreservesAutomaticPinForOneFollowup(t *testing.T) {
 	const feedbackBody = `{
-		"model":"claude-sonnet-4-6",
+		"model":"deepseek/deepseek-v4.1-flash",
 		"max_tokens":1024,
 		"metadata":{"user_id":"pi:post-command-continuation"},
 		"messages":[
@@ -146,7 +146,7 @@ func TestService_RouterFeedbackCommand_PreservesAutomaticPinForOneFollowup(t *te
 		]
 	}`
 	const followupBody = `{
-		"model":"claude-sonnet-4-6",
+		"model":"deepseek/deepseek-v4.1-flash",
 		"max_tokens":1024,
 		"metadata":{"user_id":"pi:post-command-continuation"},
 		"messages":[
@@ -158,7 +158,7 @@ func TestService_RouterFeedbackCommand_PreservesAutomaticPinForOneFollowup(t *te
 		]
 	}`
 	const laterBody = `{
-		"model":"claude-sonnet-4-6",
+		"model":"deepseek/deepseek-v4.1-flash",
 		"max_tokens":1024,
 		"metadata":{"user_id":"pi:post-command-continuation"},
 		"messages":[
@@ -177,18 +177,18 @@ func TestService_RouterFeedbackCommand_PreservesAutomaticPinForOneFollowup(t *te
 	store.hasPin = true
 	store.pin = sessionpin.Pin{
 		Provider:        providers.ProviderAIAND,
-		Model:           "claude-haiku-4-5",
+		Model:           "z-ai/glm-5.3-flash",
 		Reason:          "hmm_policy(label=balanced)",
-		LastServedModel: "claude-haiku-4-5",
+		LastServedModel: "z-ai/glm-5.3-flash",
 		PinnedUntil:     sourceExpiry,
 	}
 	policyRouter := &fakePolicyFeedbackRouter{decision: router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "claude-sonnet-4-6",
+		Model:    "deepseek/deepseek-v4.1-flash",
 		Reason:   "hmm_policy(label=high)",
 		Metadata: &router.RoutingMetadata{Strategy: string(router.StrategyHMMEmbedding)},
 	}}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4.1-flash", Reason: "cluster"}}
 	svc := newPinSvc(fr, store).WithPolicyStrategy(policy.StrategySpec{
 		Strategy: router.StrategyHMMEmbedding,
 		Router:   policyRouter,
@@ -215,17 +215,17 @@ func TestService_RouterFeedbackCommand_PreservesAutomaticPinForOneFollowup(t *te
 	followupRecorder := httptest.NewRecorder()
 	require.NoError(t, svc.ProxyMessages(ctx, []byte(followupBody), followupRecorder, httpReq))
 	assert.Empty(t, policyRouter.Requests(), "the first normal turn after a slash command must reuse the automatic pin")
-	assert.Equal(t, "claude-haiku-4-5", followupRecorder.Header().Get(proxy.HeaderRouterModel))
+	assert.Equal(t, "z-ai/glm-5.3-flash", followupRecorder.Header().Get(proxy.HeaderRouterModel))
 
 	laterRecorder := httptest.NewRecorder()
 	require.NoError(t, svc.ProxyMessages(ctx, []byte(laterBody), laterRecorder, httpReq))
 	require.Len(t, policyRouter.Requests(), 1, "the one-shot continuation must be consumed after one normal turn")
-	assert.Equal(t, "claude-sonnet-4-6", laterRecorder.Header().Get(proxy.HeaderRouterModel))
+	assert.Equal(t, "deepseek/deepseek-v4.1-flash", laterRecorder.Header().Get(proxy.HeaderRouterModel))
 }
 
 func TestService_RouterFeedbackCommand_DoesNotContinueMaxedPin(t *testing.T) {
 	const feedbackBody = `{
-		"model":"claude-sonnet-4-6",
+		"model":"deepseek/deepseek-v4.1-flash",
 		"max_tokens":1024,
 		"metadata":{"user_id":"pi:maxed-post-command"},
 		"messages":[
@@ -235,7 +235,7 @@ func TestService_RouterFeedbackCommand_DoesNotContinueMaxedPin(t *testing.T) {
 		]
 	}`
 	const followupBody = `{
-		"model":"claude-sonnet-4-6",
+		"model":"deepseek/deepseek-v4.1-flash",
 		"max_tokens":1024,
 		"metadata":{"user_id":"pi:maxed-post-command"},
 		"messages":[
@@ -251,9 +251,9 @@ func TestService_RouterFeedbackCommand_DoesNotContinueMaxedPin(t *testing.T) {
 	store.hasPin = true
 	store.pin = sessionpin.Pin{
 		Provider:        providers.ProviderAIAND,
-		Model:           "claude-haiku-4-5",
+		Model:           "z-ai/glm-5.3-flash",
 		Reason:          "hmm_policy(label=balanced)",
-		LastServedModel: "claude-haiku-4-5",
+		LastServedModel: "z-ai/glm-5.3-flash",
 		// A confirmed capped source must not become a post-command continuation.
 		LastOutputTokens:  8000,
 		LastTurnEndedAt:   time.Unix(100, 0),
@@ -262,13 +262,13 @@ func TestService_RouterFeedbackCommand_DoesNotContinueMaxedPin(t *testing.T) {
 	}
 	policyRouter := &fakePolicyFeedbackRouter{decision: router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "claude-sonnet-4-6",
+		Model:    "deepseek/deepseek-v4.1-flash",
 		Reason:   "hmm_policy(label=high)",
 		Metadata: &router.RoutingMetadata{Strategy: string(router.StrategyHMMEmbedding)},
 	}}
 	fr := &fakeRouter{decision: router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "claude-sonnet-4-6",
+		Model:    "deepseek/deepseek-v4.1-flash",
 		Reason:   "cluster",
 	}}
 	svc := newPinSvc(fr, store).WithPolicyStrategy(policy.StrategySpec{
@@ -292,12 +292,12 @@ func TestService_RouterFeedbackCommand_DoesNotContinueMaxedPin(t *testing.T) {
 	followupRecorder := httptest.NewRecorder()
 	require.NoError(t, svc.ProxyMessages(ctx, []byte(followupBody), followupRecorder, httpReq))
 	require.Len(t, policyRouter.Requests(), 1, "the maxed source pin must be excluded before fresh routing")
-	assert.Equal(t, "claude-sonnet-4-6", followupRecorder.Header().Get(proxy.HeaderRouterModel))
+	assert.Equal(t, "deepseek/deepseek-v4.1-flash", followupRecorder.Header().Get(proxy.HeaderRouterModel))
 }
 
 func TestService_RouterFeedbackCommand_DoesNotResurrectClearedPin(t *testing.T) {
 	const feedbackBody = `{
-		"model":"claude-sonnet-4-6",
+		"model":"deepseek/deepseek-v4.1-flash",
 		"max_tokens":1024,
 		"metadata":{"user_id":"pi:cleared-post-command"},
 		"messages":[
@@ -307,7 +307,7 @@ func TestService_RouterFeedbackCommand_DoesNotResurrectClearedPin(t *testing.T) 
 		]
 	}`
 	const followupBody = `{
-		"model":"claude-sonnet-4-6",
+		"model":"deepseek/deepseek-v4.1-flash",
 		"max_tokens":1024,
 		"metadata":{"user_id":"pi:cleared-post-command"},
 		"messages":[
@@ -323,20 +323,20 @@ func TestService_RouterFeedbackCommand_DoesNotResurrectClearedPin(t *testing.T) 
 	store.hasPin = true
 	store.pin = sessionpin.Pin{
 		Provider:        providers.ProviderAIAND,
-		Model:           "claude-haiku-4-5",
+		Model:           "z-ai/glm-5.3-flash",
 		Reason:          "hmm_policy(label=balanced)",
-		LastServedModel: "claude-haiku-4-5",
+		LastServedModel: "z-ai/glm-5.3-flash",
 		PinnedUntil:     time.Now().Add(time.Minute),
 	}
 	policyRouter := &fakePolicyFeedbackRouter{decision: router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "claude-sonnet-4-6",
+		Model:    "deepseek/deepseek-v4.1-flash",
 		Reason:   "hmm_policy(label=high)",
 		Metadata: &router.RoutingMetadata{Strategy: string(router.StrategyHMMEmbedding)},
 	}}
 	fr := &fakeRouter{decision: router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "claude-sonnet-4-6",
+		Model:    "deepseek/deepseek-v4.1-flash",
 		Reason:   "cluster",
 	}}
 	svc := newPinSvc(fr, store).WithPolicyStrategy(policy.StrategySpec{
@@ -366,7 +366,7 @@ func TestService_RouterFeedbackCommand_DoesNotResurrectClearedPin(t *testing.T) 
 	followupRecorder := httptest.NewRecorder()
 	require.NoError(t, svc.ProxyMessages(ctx, []byte(followupBody), followupRecorder, httpReq))
 	require.Len(t, policyRouter.Requests(), 1, "a stale continuation must not restore an intentionally cleared route")
-	assert.Equal(t, "claude-sonnet-4-6", followupRecorder.Header().Get(proxy.HeaderRouterModel))
+	assert.Equal(t, "deepseek/deepseek-v4.1-flash", followupRecorder.Header().Get(proxy.HeaderRouterModel))
 	store.mu.Lock()
 	continuationCount = len(store.commandContinuations)
 	store.mu.Unlock()
@@ -375,7 +375,7 @@ func TestService_RouterFeedbackCommand_DoesNotResurrectClearedPin(t *testing.T) 
 
 func TestService_RouterFeedbackCommand_ForwardsPolicyFeedback(t *testing.T) {
 	const body = `{
-		"model":"claude-sonnet-4-6",
+		"model":"deepseek/deepseek-v4.1-flash",
 		"max_tokens":1024,
 		"messages":[
 			{"role":"user","content":"/rf- label=\"high\" model=\"anthropic/claude-sonnet-5\" should have used the deeper route"}
@@ -383,10 +383,10 @@ func TestService_RouterFeedbackCommand_ForwardsPolicyFeedback(t *testing.T) {
 	}`
 	store := newFakePinStore()
 	store.hasPin = true
-	store.pin = sessionpin.Pin{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", LastServedModel: "claude-haiku-4-5"}
+	store.pin = sessionpin.Pin{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash", LastServedModel: "z-ai/glm-5.3-flash"}
 	feedback := &fakeFeedbackStore{}
 	policyFeedback := &fakePolicyFeedbackRouter{}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4.1-flash", Reason: "cluster"}}
 	svc := newPinSvc(fr, store).
 		WithRouterFeedbackStore(feedback).
 		WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyRL, Router: policyFeedback})
@@ -407,8 +407,8 @@ func TestService_RouterFeedbackCommand_ForwardsPolicyFeedback(t *testing.T) {
 	payload := payloads[0]
 	assert.Equal(t, "down", payload["rating"])
 	assert.Equal(t, "label=\"high\" model=\"anthropic/claude-sonnet-5\" should have used the deeper route", payload["feedback"])
-	assert.Equal(t, "claude-sonnet-4-6", payload["requested_model"])
-	assert.Equal(t, "claude-haiku-4-5", payload["served_model"])
+	assert.Equal(t, "deepseek/deepseek-v4.1-flash", payload["requested_model"])
+	assert.Equal(t, "z-ai/glm-5.3-flash", payload["served_model"])
 	assert.Equal(t, installationID, payload["installation_id"])
 	assert.Equal(t, string(router.StrategyRL), payload["strategy"])
 	assert.NotContains(t, payload, "training_conversation_delta")
@@ -418,14 +418,14 @@ func TestService_RouterFeedbackCommand_ForwardsPolicyFeedback(t *testing.T) {
 
 func TestService_RouterFeedbackCommand_AcksBeforePolicyFeedbackCompletes(t *testing.T) {
 	const body = `{
-		"model":"claude-sonnet-4-6",
+		"model":"deepseek/deepseek-v4.1-flash",
 		"max_tokens":1024,
 		"messages":[
 			{"role":"user","content":"/rf+"}
 		]
 	}`
 	store := newFakePinStore()
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4.1-flash", Reason: "cluster"}}
 	policyFeedback := &blockingPolicyFeedbackRouter{
 		started: make(chan bool, 1),
 		release: make(chan struct{}),
@@ -465,7 +465,7 @@ func TestService_RouterFeedbackCommand_AcksBeforePolicyFeedbackCompletes(t *test
 
 func TestService_RouterFeedbackCommand_OmitsTrainingTranscriptWithoutPermission(t *testing.T) {
 	const body = `{
-		"model":"claude-sonnet-4-6",
+		"model":"deepseek/deepseek-v4.1-flash",
 		"max_tokens":1024,
 		"messages":[
 			{"role":"user","content":"first request"},
@@ -474,7 +474,7 @@ func TestService_RouterFeedbackCommand_OmitsTrainingTranscriptWithoutPermission(
 		]
 	}`
 	store := newFakePinStore()
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4.1-flash", Reason: "cluster"}}
 	policyFeedback := &fakePolicyFeedbackRouter{}
 	svc := newPinSvc(fr, store).WithHMMRouter(policyFeedback)
 
@@ -490,7 +490,7 @@ func TestService_RouterFeedbackCommand_OmitsTrainingTranscriptWithoutPermission(
 
 func TestService_RouterFeedbackCommand_CorrelatesCompactedHMMEmbeddingRoute(t *testing.T) {
 	routeBody := []byte(`{
-		"model":"claude-haiku-4-5",
+		"model":"z-ai/glm-5.3-flash",
 		"max_tokens":195000,
 		"messages":[
 			{"role":"user","content":"` + strings.Repeat("x", 30_000) + `"},
@@ -506,18 +506,18 @@ func TestService_RouterFeedbackCommand_CorrelatesCompactedHMMEmbeddingRoute(t *t
 	store := newFakePinStore()
 	policyFeedback := &fakePolicyFeedbackRouter{decision: router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "claude-haiku-4-5",
+		Model:    "z-ai/glm-5.3-flash",
 		Reason:   "hmm_policy(label=balanced)",
 		Metadata: &router.RoutingMetadata{Strategy: string(router.StrategyHMMEmbedding)},
 	}}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash", Reason: "cluster"}}
 	svc := newPinSvc(fr, store).
 		WithPolicyStrategy(policy.StrategySpec{
 			Strategy:    router.StrategyHMMEmbedding,
 			Router:      policyFeedback,
 			Unavailable: router.ErrStrategyUnavailable,
 		}).
-		WithAvailableModels(map[string]struct{}{"claude-haiku-4-5": {}})
+		WithAvailableModels(map[string]struct{}{"z-ai/glm-5.3-flash": {}})
 	installationID := uuid.NewString()
 	ctx := router.WithStrategy(authedCtx(installationID), router.StrategyHMMEmbedding)
 	ctx = context.WithValue(ctx, proxy.ExternalIDContextKey{}, "org-test")
@@ -532,7 +532,7 @@ func TestService_RouterFeedbackCommand_CorrelatesCompactedHMMEmbeddingRoute(t *t
 	assert.Equal(t, installationID, requests[0].InstallationID)
 
 	feedbackBody := []byte(`{
-		"model":"claude-haiku-4-5",
+		"model":"z-ai/glm-5.3-flash",
 		"max_tokens":1024,
 		"messages":[
 			{"role":"user","content":"` + strings.Repeat("x", 30_000) + `"},
@@ -563,7 +563,7 @@ func TestService_RouterFeedbackCommand_CorrelatesCompactedHMMEmbeddingRoute(t *t
 
 func TestService_RouterFeedbackCommand_DoesNotForwardPolicyFeedbackOutsideHMM(t *testing.T) {
 	const body = `{
-		"model":"claude-sonnet-4-6",
+		"model":"deepseek/deepseek-v4.1-flash",
 		"max_tokens":1024,
 		"messages":[
 			{"role":"user","content":"/rf+"}
@@ -571,7 +571,7 @@ func TestService_RouterFeedbackCommand_DoesNotForwardPolicyFeedbackOutsideHMM(t 
 	}`
 	store := newFakePinStore()
 	policyFeedback := &fakePolicyFeedbackRouter{}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4.1-flash", Reason: "cluster"}}
 	svc := newPinSvc(fr, store).WithHMMRouter(policyFeedback)
 
 	rec := httptest.NewRecorder()
@@ -616,7 +616,7 @@ func TestService_RouterFeedbackCommand_OpenAIIngress(t *testing.T) {
 
 func TestService_RouterFeedbackCommand_AgentToolResultContinuesRouting(t *testing.T) {
 	const body = `{
-		"model":"claude-sonnet-4-6",
+		"model":"deepseek/deepseek-v4.1-flash",
 		"max_tokens":1024,
 		"messages":[
 			{"role":"assistant","content":[{"type":"tool_use","id":"toolu_skill","name":"exec","input":{}}]},
@@ -625,7 +625,7 @@ func TestService_RouterFeedbackCommand_AgentToolResultContinuesRouting(t *testin
 	}`
 	store := newFakePinStore()
 	feedback := &fakeFeedbackStore{}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4.1-flash", Reason: "cluster"}}
 	svc := newPinSvc(fr, store).WithRouterFeedbackStore(feedback)
 
 	ctx := authedCtx(uuid.NewString())
@@ -641,7 +641,7 @@ func TestService_RouterFeedbackCommand_AgentToolResultContinuesRouting(t *testin
 
 func TestService_RouterFeedbackCommand_EmptyFeedbackAsksForText(t *testing.T) {
 	const body = `{
-		"model":"claude-sonnet-4-6",
+		"model":"deepseek/deepseek-v4.1-flash",
 		"max_tokens":1024,
 		"messages":[
 			{"role":"user","content":"/router-feedback"}
@@ -649,7 +649,7 @@ func TestService_RouterFeedbackCommand_EmptyFeedbackAsksForText(t *testing.T) {
 	}`
 	store := newFakePinStore()
 	feedback := &fakeFeedbackStore{}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4.1-flash", Reason: "cluster"}}
 	svc := newPinSvc(fr, store).WithRouterFeedbackStore(feedback)
 
 	ctx := authedCtx(uuid.New().String())
@@ -671,7 +671,7 @@ func TestService_RouterFeedbackCommand_EmptyFeedbackAsksForText(t *testing.T) {
 
 func TestService_RouterFeedbackCommand_ThumbsUpShortcutPersists(t *testing.T) {
 	const body = `{
-		"model":"claude-sonnet-4-6",
+		"model":"deepseek/deepseek-v4.1-flash",
 		"max_tokens":1024,
 		"messages":[
 			{"role":"user","content":"/rf+"}
@@ -679,9 +679,9 @@ func TestService_RouterFeedbackCommand_ThumbsUpShortcutPersists(t *testing.T) {
 	}`
 	store := newFakePinStore()
 	store.hasPin = true
-	store.pin = sessionpin.Pin{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", LastServedModel: "claude-haiku-4-5"}
+	store.pin = sessionpin.Pin{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash", LastServedModel: "z-ai/glm-5.3-flash"}
 	feedback := &fakeFeedbackStore{}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4.1-flash", Reason: "cluster"}}
 	svc := newPinSvc(fr, store).WithRouterFeedbackStore(feedback)
 
 	ctx := authedCtx(uuid.New().String())
@@ -744,7 +744,7 @@ func (f *recordingFeedbackRepo) GetContext(_ context.Context, _, _ string) (prox
 
 func TestService_RouterFeedbackCommand_SequenceResolvesTelemetryTurn(t *testing.T) {
 	const body = `{
-		"model":"claude-sonnet-4-6",
+		"model":"deepseek/deepseek-v4.1-flash",
 		"max_tokens":1024,
 		"messages":[
 			{"role":"user","content":"/rf -2 - wrong tier for this"}
@@ -752,11 +752,11 @@ func TestService_RouterFeedbackCommand_SequenceResolvesTelemetryTurn(t *testing.
 	}`
 	store := newFakePinStore()
 	store.hasPin = true
-	store.pin = sessionpin.Pin{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", LastServedModel: "claude-haiku-4-5"}
+	store.pin = sessionpin.Pin{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash", LastServedModel: "z-ai/glm-5.3-flash"}
 	feedback := &fakeFeedbackStore{}
 	telem := newCaptureTelemetry()
-	telem.seqResult = proxy.TelemetryTurnResult{RequestID: "req-abc", DecisionModel: "claude-opus-4-7", RouteID: "hmm:xyz"}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	telem.seqResult = proxy.TelemetryTurnResult{RequestID: "req-abc", DecisionModel: "z-ai/glm-5.2", RouteID: "hmm:xyz"}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4.1-flash", Reason: "cluster"}}
 	svc := newPinSvcWithTelemetry(fr, store, telem).WithRouterFeedbackStore(feedback)
 
 	ctx := authedCtx(uuid.New().String())
@@ -767,7 +767,7 @@ func TestService_RouterFeedbackCommand_SequenceResolvesTelemetryTurn(t *testing.
 	require.Equal(t, []int{-2}, telem.seqCalls, "the parsed relative sequence must be resolved against telemetry")
 	require.Len(t, feedback.events, 1)
 	ev := feedback.events[0]
-	assert.Equal(t, "claude-opus-4-7", ev.ServedModel, "served_model comes from the resolved telemetry row, not the pin")
+	assert.Equal(t, "z-ai/glm-5.2", ev.ServedModel, "served_model comes from the resolved telemetry row, not the pin")
 	assert.Equal(t, "req-abc", ev.RequestID)
 	assert.Equal(t, "hmm:xyz", ev.RouteID)
 	assert.Equal(t, "down", ev.Rating)
@@ -776,7 +776,7 @@ func TestService_RouterFeedbackCommand_SequenceResolvesTelemetryTurn(t *testing.
 
 func TestService_RouterFeedbackCommand_SequenceNotFoundAcksGuidance(t *testing.T) {
 	const body = `{
-		"model":"claude-sonnet-4-6",
+		"model":"deepseek/deepseek-v4.1-flash",
 		"max_tokens":1024,
 		"messages":[
 			{"role":"user","content":"/rf -9 too slow"}
@@ -786,7 +786,7 @@ func TestService_RouterFeedbackCommand_SequenceNotFoundAcksGuidance(t *testing.T
 	feedback := &fakeFeedbackStore{}
 	telem := newCaptureTelemetry()
 	telem.seqErr = sql.ErrNoRows
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4.1-flash", Reason: "cluster"}}
 	svc := newPinSvcWithTelemetry(fr, store, telem).WithRouterFeedbackStore(feedback)
 
 	ctx := authedCtx(uuid.New().String())
@@ -808,7 +808,7 @@ func TestService_RouterFeedbackCommand_SequenceNotFoundAcksGuidance(t *testing.T
 
 func TestService_RouterFeedbackCommand_DBErrorFallsBackToPin(t *testing.T) {
 	const body = `{
-		"model":"claude-sonnet-4-6",
+		"model":"deepseek/deepseek-v4.1-flash",
 		"max_tokens":1024,
 		"messages":[
 			{"role":"user","content":"/rf -2 + wrong tier"}
@@ -816,11 +816,11 @@ func TestService_RouterFeedbackCommand_DBErrorFallsBackToPin(t *testing.T) {
 	}`
 	store := newFakePinStore()
 	store.hasPin = true
-	store.pin = sessionpin.Pin{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", LastServedModel: "claude-haiku-4-5"}
+	store.pin = sessionpin.Pin{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash", LastServedModel: "z-ai/glm-5.3-flash"}
 	feedback := &fakeFeedbackStore{}
 	telem := newCaptureTelemetry()
 	telem.seqErr = errors.New("connection refused")
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4.1-flash", Reason: "cluster"}}
 	svc := newPinSvcWithTelemetry(fr, store, telem).WithRouterFeedbackStore(feedback)
 
 	ctx := authedCtx(uuid.New().String())
@@ -830,7 +830,7 @@ func TestService_RouterFeedbackCommand_DBErrorFallsBackToPin(t *testing.T) {
 
 	require.Len(t, feedback.events, 1, "feedback must persist on transient DB errors, falling back to pin servedModel")
 	ev := feedback.events[0]
-	assert.Equal(t, "claude-haiku-4-5", ev.ServedModel, "falls back to the pin on transient DB failure")
+	assert.Equal(t, "z-ai/glm-5.3-flash", ev.ServedModel, "falls back to the pin on transient DB failure")
 	assert.Empty(t, ev.RequestID, "no telemetry row, so requestID is empty")
 	assert.Equal(t, "up", ev.Rating)
 
@@ -845,7 +845,7 @@ func TestService_RouterFeedbackCommand_DBErrorFallsBackToPin(t *testing.T) {
 
 func TestService_RouterFeedbackCommand_NoSequenceKeepsPinServedModel(t *testing.T) {
 	const body = `{
-		"model":"claude-sonnet-4-6",
+		"model":"deepseek/deepseek-v4.1-flash",
 		"max_tokens":1024,
 		"messages":[
 			{"role":"user","content":"/rf- too slow"}
@@ -853,10 +853,10 @@ func TestService_RouterFeedbackCommand_NoSequenceKeepsPinServedModel(t *testing.
 	}`
 	store := newFakePinStore()
 	store.hasPin = true
-	store.pin = sessionpin.Pin{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", LastServedModel: "claude-haiku-4-5"}
+	store.pin = sessionpin.Pin{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash", LastServedModel: "z-ai/glm-5.3-flash"}
 	feedback := &fakeFeedbackStore{}
 	telem := newCaptureTelemetry()
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4.1-flash", Reason: "cluster"}}
 	svc := newPinSvcWithTelemetry(fr, store, telem).WithRouterFeedbackStore(feedback)
 
 	ctx := authedCtx(uuid.New().String())
@@ -867,14 +867,14 @@ func TestService_RouterFeedbackCommand_NoSequenceKeepsPinServedModel(t *testing.
 	assert.Empty(t, telem.seqCalls, "no sequence means no telemetry lookup")
 	require.Len(t, feedback.events, 1)
 	ev := feedback.events[0]
-	assert.Equal(t, "claude-haiku-4-5", ev.ServedModel, "falls back to the pin's last served model")
+	assert.Equal(t, "z-ai/glm-5.3-flash", ev.ServedModel, "falls back to the pin's last served model")
 	assert.Empty(t, ev.RequestID)
 	assert.Empty(t, ev.RouteID)
 }
 
 func TestService_RouterFeedbackCommand_SequenceNoteOnlySkipsRequestFeedbackUpsert(t *testing.T) {
 	const body = `{
-		"model":"claude-sonnet-4-6",
+		"model":"deepseek/deepseek-v4.1-flash",
 		"max_tokens":1024,
 		"messages":[
 			{"role":"user","content":"/rf -2 the diff was incomplete"}
@@ -883,9 +883,9 @@ func TestService_RouterFeedbackCommand_SequenceNoteOnlySkipsRequestFeedbackUpser
 	store := newFakePinStore()
 	feedback := &fakeFeedbackStore{}
 	telem := newCaptureTelemetry()
-	telem.seqResult = proxy.TelemetryTurnResult{RequestID: "req-note-only", DecisionModel: "claude-opus-4-7"}
+	telem.seqResult = proxy.TelemetryTurnResult{RequestID: "req-note-only", DecisionModel: "z-ai/glm-5.2"}
 	repo := &recordingFeedbackRepo{}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4.1-flash", Reason: "cluster"}}
 	svc := newPinSvcWithTelemetry(fr, store, telem).WithRouterFeedbackStore(feedback).WithFeedback(repo, nil, "")
 
 	ctx := authedCtx(uuid.New().String())
@@ -900,7 +900,7 @@ func TestService_RouterFeedbackCommand_SequenceNoteOnlySkipsRequestFeedbackUpser
 
 func TestService_RouterFeedbackCommand_SequenceWithRatingUpsertsRequestFeedback(t *testing.T) {
 	const body = `{
-		"model":"claude-sonnet-4-6",
+		"model":"deepseek/deepseek-v4.1-flash",
 		"max_tokens":1024,
 		"messages":[
 			{"role":"user","content":"/rf -2 - too slow"}
@@ -909,9 +909,9 @@ func TestService_RouterFeedbackCommand_SequenceWithRatingUpsertsRequestFeedback(
 	store := newFakePinStore()
 	feedback := &fakeFeedbackStore{}
 	telem := newCaptureTelemetry()
-	telem.seqResult = proxy.TelemetryTurnResult{RequestID: "req-rated", DecisionModel: "claude-opus-4-7"}
+	telem.seqResult = proxy.TelemetryTurnResult{RequestID: "req-rated", DecisionModel: "z-ai/glm-5.2"}
 	repo := &recordingFeedbackRepo{}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4.1-flash", Reason: "cluster"}}
 	svc := newPinSvcWithTelemetry(fr, store, telem).WithRouterFeedbackStore(feedback).WithFeedback(repo, nil, "")
 
 	ctx := authedCtx(uuid.New().String())
@@ -929,7 +929,7 @@ func TestService_RouterFeedbackCommand_SequenceWithRatingUpsertsRequestFeedback(
 func TestService_RouterFeedbackCommand_SequenceResolvesStrategyRoutesToItsReporter(t *testing.T) {
 	// cluster strategy has no policy reporter; RL does — resolved turn must route to RL, not fall through to context.
 	const body = `{
-		"model":"claude-sonnet-4-6",
+		"model":"deepseek/deepseek-v4.1-flash",
 		"max_tokens":1024,
 		"messages":[
 			{"role":"user","content":"/rf -2 + wrong tier"}
@@ -940,12 +940,12 @@ func TestService_RouterFeedbackCommand_SequenceResolvesStrategyRoutesToItsReport
 	telem := newCaptureTelemetry()
 	telem.seqResult = proxy.TelemetryTurnResult{
 		RequestID:     "req-resolved-on-RL",
-		DecisionModel: "claude-opus-4-7",
+		DecisionModel: "z-ai/glm-5.2",
 		Strategy:      "rl",
 	}
 	hmmReporter := &fakePolicyFeedbackRouter{}
 	rlReporter := &fakePolicyFeedbackRouter{}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4.1-flash", Reason: "cluster"}}
 	ctx := authedCtx(uuid.New().String())
 	svc := newPinSvcWithTelemetry(fr, store, telem).
 		WithRouterFeedbackStore(feedback).
@@ -958,7 +958,7 @@ func TestService_RouterFeedbackCommand_SequenceResolvesStrategyRoutesToItsReport
 	payload := rlReporter.Payloads()[0]
 	assert.Equal(t, "rl", payload["strategy"], "the resolved turn's strategy must drive both the payload and the reporter")
 	assert.Equal(t, "req-resolved-on-RL", payload["request_id"])
-	assert.Equal(t, "claude-opus-4-7", payload["served_model"])
+	assert.Equal(t, "z-ai/glm-5.2", payload["served_model"])
 	assert.NotContains(t, payload, "training_conversation_delta", "training delta is suppressed for sequence-rated feedback (latest-turn slice is wrong for older turns)")
 }
 
@@ -966,7 +966,7 @@ func TestService_RouterFeedbackCommand_SequenceRejectsHMMDeltaWithResolvedStrate
 	// When an HMM-rated historical turn is being rated, the sidecar should
 	// receive the rating + resolved-turn identifiers but no mis-paired delta.
 	const body = `{
-		"model":"claude-sonnet-4-6",
+		"model":"deepseek/deepseek-v4.1-flash",
 		"max_tokens":1024,
 		"messages":[
 			{"role":"user","content":"/rf -2 - too slow"}
@@ -977,11 +977,11 @@ func TestService_RouterFeedbackCommand_SequenceRejectsHMMDeltaWithResolvedStrate
 	telem := newCaptureTelemetry()
 	telem.seqResult = proxy.TelemetryTurnResult{
 		RequestID:     "req-resolved-hmm",
-		DecisionModel: "claude-opus-4-7",
+		DecisionModel: "z-ai/glm-5.2",
 		Strategy:      "hmm_embedding",
 	}
 	hmmReporter := &fakePolicyFeedbackRouter{}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4.1-flash", Reason: "cluster"}}
 	ctx := router.WithStrategy(authedCtx(uuid.New().String()), router.StrategyHMMEmbedding)
 	svc := newPinSvcWithTelemetry(fr, store, telem).
 		WithRouterFeedbackStore(feedback).
@@ -990,7 +990,7 @@ func TestService_RouterFeedbackCommand_SequenceRejectsHMMDeltaWithResolvedStrate
 			Router:      hmmReporter,
 			Unavailable: router.ErrStrategyUnavailable,
 		}).
-		WithAvailableModels(map[string]struct{}{"claude-opus-4-7": {}})
+		WithAvailableModels(map[string]struct{}{"z-ai/glm-5.2": {}})
 	ctx = context.WithValue(ctx, proxy.PolicyTrainingAllowedContextKey{}, true)
 	require.NoError(t, svc.ProxyMessages(ctx, []byte(body), httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))))
 
@@ -1005,7 +1005,7 @@ func TestService_RouterFeedbackCommand_NegativeOnePreservesTrainingDelta(t *test
 	// `/rf -1` is "rate the previous turn" — the latest assistant message
 	// in env IS the rated turn, so the training-delta slice matches.
 	body := []byte(`{
-		"model":"claude-haiku-4-5",
+		"model":"z-ai/glm-5.3-flash",
 		"max_tokens":1024,
 		"messages":[
 			{"role":"user","content":"first request"},
@@ -1016,9 +1016,9 @@ func TestService_RouterFeedbackCommand_NegativeOnePreservesTrainingDelta(t *test
 	store := newFakePinStore()
 	feedback := &fakeFeedbackStore{}
 	telem := newCaptureTelemetry()
-	telem.seqResult = proxy.TelemetryTurnResult{RequestID: "req-prev", DecisionModel: "claude-haiku-4-5", Strategy: "hmm_embedding"}
+	telem.seqResult = proxy.TelemetryTurnResult{RequestID: "req-prev", DecisionModel: "z-ai/glm-5.3-flash", Strategy: "hmm_embedding"}
 	hmmReporter := &fakePolicyFeedbackRouter{}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash", Reason: "cluster"}}
 	svc := newPinSvcWithTelemetry(fr, store, telem).
 		WithRouterFeedbackStore(feedback).
 		WithPolicyStrategy(policy.StrategySpec{
@@ -1026,7 +1026,7 @@ func TestService_RouterFeedbackCommand_NegativeOnePreservesTrainingDelta(t *test
 			Router:      hmmReporter,
 			Unavailable: router.ErrStrategyUnavailable,
 		}).
-		WithAvailableModels(map[string]struct{}{"claude-haiku-4-5": {}})
+		WithAvailableModels(map[string]struct{}{"z-ai/glm-5.3-flash": {}})
 	ctx := router.WithStrategy(authedCtx(uuid.NewString()), router.StrategyHMMEmbedding)
 	ctx = context.WithValue(ctx, proxy.PolicyTrainingAllowedContextKey{}, true)
 	require.NoError(t, svc.ProxyMessages(ctx, body, httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))))
@@ -1046,7 +1046,7 @@ func TestService_RouterFeedbackCommand_NegativeOnePreservesTrainingDelta(t *test
 func TestService_RouterFeedbackCommand_ClusterResolvedTurnSkipsPolicyFeedback(t *testing.T) {
 	// The rated turn was served by cluster (no feedback reporter); crediting the active HMM reporter would pair its request_id with the wrong strategy.
 	const body = `{
-		"model":"claude-sonnet-4-6",
+		"model":"deepseek/deepseek-v4.1-flash",
 		"max_tokens":1024,
 		"messages":[
 			{"role":"user","content":"/rf -2 - wrong tier"}
@@ -1057,11 +1057,11 @@ func TestService_RouterFeedbackCommand_ClusterResolvedTurnSkipsPolicyFeedback(t 
 	telem := newCaptureTelemetry()
 	telem.seqResult = proxy.TelemetryTurnResult{
 		RequestID:     "req-cluster-turn",
-		DecisionModel: "claude-haiku-4-5",
+		DecisionModel: "z-ai/glm-5.3-flash",
 		Strategy:      "cluster",
 	}
 	hmmReporter := &fakePolicyFeedbackRouter{}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4.1-flash", Reason: "cluster"}}
 	ctx := router.WithStrategy(authedCtx(uuid.New().String()), router.StrategyHMM)
 	svc := newPinSvcWithTelemetry(fr, store, telem).
 		WithRouterFeedbackStore(feedback).

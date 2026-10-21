@@ -45,7 +45,7 @@ func TestApplyOpenAIResponsesEffort(t *testing.T) {
 		},
 		{
 			name:       "target the menu accepts xhigh on keeps it",
-			model:      "claude-opus-5",
+			model:      "z-ai/glm-5.2",
 			force:      "xhigh",
 			wantEffort: "xhigh",
 		},

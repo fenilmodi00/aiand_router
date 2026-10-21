@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	budgetTestFable     = "claude-fable-5-1"
-	budgetTestHaiku     = "claude-haiku-4-5"
+	budgetTestFable     = "z-ai/glm-5.2"
+	budgetTestHaiku     = "z-ai/glm-5.3-flash"
 	budgetTestUserAgent = "claude-cli/2.1.257 (external, sdk-ts)"
 	budgetTestBeta      = "context-1m-2025-08-07"
 )

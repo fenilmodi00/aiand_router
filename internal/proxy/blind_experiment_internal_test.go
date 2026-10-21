@@ -45,8 +45,8 @@ func TestCallerModelPassthroughSkipsAutomaticPinsAndScorer(t *testing.T) {
 	routerSpy := &blindExperimentRouterSpy{err: errors.New("scorer must not run")}
 	pins := newStubPinStore()
 	service := NewService(routerSpy, nil, nil, false, nil, pins, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil)
-	envelope, err := translate.ParseAnthropic([]byte(`{"model":"claude-sonnet-4-6","messages":[{"role":"user","content":"hello"}]}`))
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil)
+	envelope, err := translate.ParseAnthropic([]byte(`{"model":"deepseek/deepseek-v4.1-flash","messages":[{"role":"user","content":"hello"}]}`))
 	require.NoError(t, err)
 
 	loopResult, err := service.runTurnLoop(
@@ -58,7 +58,7 @@ func TestCallerModelPassthroughSkipsAutomaticPinsAndScorer(t *testing.T) {
 		"",
 		http.Header{},
 		router.Request{
-			RequestedModel: "claude-sonnet-4-6",
+			RequestedModel: "deepseek/deepseek-v4.1-flash",
 			EnabledProviders: map[string]struct{}{
 				providers.ProviderAIAND: {},
 			},
@@ -69,7 +69,7 @@ func TestCallerModelPassthroughSkipsAutomaticPinsAndScorer(t *testing.T) {
 	assert.Equal(t, 0, routerSpy.routeCalls)
 	assert.True(t, loopResult.CallerModelPassthrough)
 	assert.False(t, loopResult.UsageBypass)
-	assert.Equal(t, "claude-sonnet-4-6", loopResult.Decision.Model)
+	assert.Equal(t, "deepseek/deepseek-v4.1-flash", loopResult.Decision.Model)
 	assert.Equal(t, providers.ProviderAIAND, loopResult.Decision.Provider)
 	assert.Equal(t, blindExperimentPublicDecisionReason, loopResult.Decision.Reason)
 	pins.mu.Lock()
@@ -83,8 +83,8 @@ func TestCallerModelPassthroughSkipsAutomaticPinsAndScorer(t *testing.T) {
 func TestCallerModelPassthroughLeavesAutomaticSessionHistoryUntouched(t *testing.T) {
 	pins := newStubPinStore()
 	service := NewService(nil, nil, nil, false, nil, pins, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil)
-	envelope, err := translate.ParseAnthropic([]byte(`{"model":"claude-sonnet-4-6","messages":[{"role":"user","content":"hello"}]}`))
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil)
+	envelope, err := translate.ParseAnthropic([]byte(`{"model":"deepseek/deepseek-v4.1-flash","messages":[{"role":"user","content":"hello"}]}`))
 	require.NoError(t, err)
 
 	loopResult, err := service.runTurnLoop(
@@ -95,7 +95,7 @@ func TestCallerModelPassthroughLeavesAutomaticSessionHistoryUntouched(t *testing
 		uuid.New(),
 		"",
 		http.Header{},
-		router.Request{RequestedModel: "claude-sonnet-4-6"},
+		router.Request{RequestedModel: "deepseek/deepseek-v4.1-flash"},
 	)
 
 	require.NoError(t, err)
@@ -113,7 +113,7 @@ func TestCallerModelPassthroughLeavesAutomaticSessionHistoryUntouched(t *testing
 
 func TestCallerModelPassthroughUsesGatewayAlias(t *testing.T) {
 	service := NewService(nil, nil, nil, false, nil, nil, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil)
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil)
 
 	decision, passthrough, err := service.blindExperimentPassthroughDecision(
 		blindExperimentContext(auth.BlindExperimentArmPassthrough),
@@ -141,7 +141,7 @@ func TestCallerModelPassthroughUsesGatewayAlias(t *testing.T) {
 
 func TestCallerModelPassthroughRejectsUnknownModelWithoutBlamingProviderKeys(t *testing.T) {
 	service := NewService(nil, nil, nil, false, nil, nil, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil)
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil)
 
 	_, _, err := service.blindExperimentPassthroughDecision(
 		blindExperimentContext(auth.BlindExperimentArmPassthrough),
@@ -161,7 +161,7 @@ func TestCallerModelPassthroughRejectsUnknownModelWithoutBlamingProviderKeys(t *
 
 func TestCallerModelPassthroughResolvesDatedAlias(t *testing.T) {
 	service := NewService(nil, nil, nil, false, nil, nil, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil)
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil)
 
 	decision, _, err := service.blindExperimentPassthroughDecision(
 		blindExperimentContext(auth.BlindExperimentArmPassthrough),
@@ -179,8 +179,8 @@ func TestCallerModelPassthroughResolvesDatedAlias(t *testing.T) {
 func TestCallerModelPassthroughHonorsExcludedModels(t *testing.T) {
 	routerSpy := &blindExperimentRouterSpy{err: errors.New("scorer must not run")}
 	service := NewService(routerSpy, nil, nil, false, nil, nil, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil)
-	envelope, err := translate.ParseAnthropic([]byte(`{"model":"claude-sonnet-4-6","messages":[{"role":"user","content":"hello"}]}`))
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil)
+	envelope, err := translate.ParseAnthropic([]byte(`{"model":"deepseek/deepseek-v4.1-flash","messages":[{"role":"user","content":"hello"}]}`))
 	require.NoError(t, err)
 
 	_, err = service.runTurnLoop(
@@ -192,9 +192,9 @@ func TestCallerModelPassthroughHonorsExcludedModels(t *testing.T) {
 		"",
 		http.Header{},
 		router.Request{
-			RequestedModel: "claude-sonnet-4-6",
+			RequestedModel: "deepseek/deepseek-v4.1-flash",
 			ExcludedModels: map[string]struct{}{
-				"claude-sonnet-4-6": {},
+				"deepseek/deepseek-v4.1-flash": {},
 			},
 		},
 	)
@@ -212,10 +212,10 @@ func blindExperimentUtilityTurnBodies() []struct {
 		turnType turntype.TurnType
 		body     string
 	}{
-		{turntype.Probe, `{"model":"claude-opus-4-8","max_tokens":1,"messages":[{"role":"user","content":"quota"}]}`},
-		{turntype.TitleGen, `{"model":"claude-opus-4-8","max_tokens":1024,"output_config":{"format":{"type":"json_schema","schema":{"type":"object","properties":{"title":{"type":"string"}},"required":["title"]}}},"messages":[{"role":"user","content":"title"}]}`},
-		{turntype.Compaction, `{"model":"claude-opus-4-8","max_tokens":1024,"system":"Your task is to create a detailed summary","messages":[{"role":"user","content":"summary"}]}`},
-		{turntype.SubAgentDispatch, `{"model":"claude-opus-4-8","max_tokens":1024,"metadata":{"user_id":"subagent:Explore"},"messages":[{"role":"user","content":"list go files"}]}`},
+		{turntype.Probe, `{"model":"z-ai/glm-5.2","max_tokens":1,"messages":[{"role":"user","content":"quota"}]}`},
+		{turntype.TitleGen, `{"model":"z-ai/glm-5.2","max_tokens":1024,"output_config":{"format":{"type":"json_schema","schema":{"type":"object","properties":{"title":{"type":"string"}},"required":["title"]}}},"messages":[{"role":"user","content":"title"}]}`},
+		{turntype.Compaction, `{"model":"z-ai/glm-5.2","max_tokens":1024,"system":"Your task is to create a detailed summary","messages":[{"role":"user","content":"summary"}]}`},
+		{turntype.SubAgentDispatch, `{"model":"z-ai/glm-5.2","max_tokens":1024,"metadata":{"user_id":"subagent:Explore"},"messages":[{"role":"user","content":"list go files"}]}`},
 	}
 }
 
@@ -259,7 +259,7 @@ func TestBlindExperimentPassthroughOutranksUtilityHardPins(t *testing.T) {
 			assert.True(t, loopResult.CallerModelPassthrough)
 			assert.False(t, loopResult.HardPinned)
 			assert.Empty(t, loopResult.Purpose, "a passthrough turn is not authorized as deployment utility work")
-			assert.Equal(t, "claude-opus-4-8", loopResult.Decision.Model)
+			assert.Equal(t, "z-ai/glm-5.2", loopResult.Decision.Model)
 			assert.Equal(t, providers.ProviderAIAND, loopResult.Decision.Provider)
 			assert.Equal(t, blindExperimentPublicDecisionReason, loopResult.Decision.Reason)
 		})
@@ -322,7 +322,7 @@ func TestBlindExperimentPassthroughYieldsUtilityTurnToForceModel(t *testing.T) {
 	routerSpy := &blindExperimentRouterSpy{err: errors.New("scorer must not run")}
 	service := NewService(routerSpy, nil, nil, false, nil, newStubPinStore(), false,
 		providers.ProviderAIAND, "gemini-3.1-flash-lite-preview", nil)
-	envelope, err := translate.ParseAnthropic([]byte(`{"model":"claude-opus-4-8","max_tokens":1,"messages":[{"role":"user","content":"quota"}]}`))
+	envelope, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.2","max_tokens":1,"messages":[{"role":"user","content":"quota"}]}`))
 	require.NoError(t, err)
 
 	loopResult, err := service.runTurnLoop(
@@ -334,8 +334,8 @@ func TestBlindExperimentPassthroughYieldsUtilityTurnToForceModel(t *testing.T) {
 		"",
 		http.Header{},
 		router.Request{
-			RequestedModel:   "claude-opus-4-8",
-			ForceModel:       "claude-sonnet-4-6",
+			RequestedModel:   "z-ai/glm-5.2",
+			ForceModel:       "deepseek/deepseek-v4.1-flash",
 			EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}},
 		},
 	)
@@ -343,19 +343,19 @@ func TestBlindExperimentPassthroughYieldsUtilityTurnToForceModel(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, turntype.Probe, loopResult.TurnType)
 	assert.False(t, loopResult.CallerModelPassthrough)
-	assert.Equal(t, "claude-sonnet-4-6", loopResult.Decision.Model)
+	assert.Equal(t, "deepseek/deepseek-v4.1-flash", loopResult.Decision.Model)
 	assert.Equal(t, translate.ReasonUserForceModel, loopResult.Decision.Reason)
 }
 
 func TestBlindExperimentRouterOnUsesScorer(t *testing.T) {
 	routerSpy := &blindExperimentRouterSpy{decision: router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "claude-haiku-4-5",
+		Model:    "z-ai/glm-5.3-flash",
 		Reason:   "cluster:test",
 	}}
 	service := NewService(routerSpy, nil, nil, false, nil, nil, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil)
-	envelope, err := translate.ParseAnthropic([]byte(`{"model":"claude-sonnet-4-6","messages":[{"role":"user","content":"hello"}]}`))
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil)
+	envelope, err := translate.ParseAnthropic([]byte(`{"model":"deepseek/deepseek-v4.1-flash","messages":[{"role":"user","content":"hello"}]}`))
 	require.NoError(t, err)
 
 	loopResult, err := service.runTurnLoop(
@@ -366,13 +366,13 @@ func TestBlindExperimentRouterOnUsesScorer(t *testing.T) {
 		uuid.New(),
 		"",
 		http.Header{},
-		router.Request{RequestedModel: "claude-sonnet-4-6"},
+		router.Request{RequestedModel: "deepseek/deepseek-v4.1-flash"},
 	)
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, routerSpy.routeCalls)
 	assert.False(t, loopResult.CallerModelPassthrough)
-	assert.Equal(t, "claude-haiku-4-5", loopResult.Decision.Model)
+	assert.Equal(t, "z-ai/glm-5.3-flash", loopResult.Decision.Model)
 }
 
 func TestApplyBlindExperimentTelemetry(t *testing.T) {
@@ -401,7 +401,7 @@ func TestCohortTelemetrySeparatesScheduledIntendedAndApplied(t *testing.T) {
 	ctx := context.WithValue(context.Background(), auth.BlindExperimentContextKey{}, state)
 	params := InsertTelemetryParams{}
 	applyBlindExperimentTelemetry(ctx, &params, &turnLoopResult{
-		Decision: router.Decision{Model: "claude-sonnet-4-6"}, CallerModelPassthrough: true})
+		Decision: router.Decision{Model: "deepseek/deepseek-v4.1-flash"}, CallerModelPassthrough: true})
 	assert.Equal(t, auth.BlindExperimentArmRouterOn, params.CohortScheduledArm)
 	assert.Equal(t, auth.BlindExperimentArmPassthrough, params.BlindExperimentArm)
 	require.NotNil(t, params.CohortTreatmentApplied)
@@ -410,7 +410,7 @@ func TestCohortTelemetrySeparatesScheduledIntendedAndApplied(t *testing.T) {
 	state.Arm = auth.BlindExperimentArmRouterOn
 	ctx = context.WithValue(context.Background(), auth.BlindExperimentContextKey{}, state)
 	params = InsertTelemetryParams{}
-	applyBlindExperimentTelemetry(ctx, &params, &turnLoopResult{Decision: router.Decision{Model: "claude-sonnet-4-6"}, HardPinned: true})
+	applyBlindExperimentTelemetry(ctx, &params, &turnLoopResult{Decision: router.Decision{Model: "deepseek/deepseek-v4.1-flash"}, HardPinned: true})
 	require.NotNil(t, params.CohortTreatmentApplied)
 	assert.False(t, *params.CohortTreatmentApplied)
 	assert.Equal(t, auth.CohortBypassHardPin, params.CohortBypassReason)

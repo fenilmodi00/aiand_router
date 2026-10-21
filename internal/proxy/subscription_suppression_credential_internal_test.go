@@ -40,7 +40,7 @@ func TestResolveAndInjectCredentials_SuppressedSubClearedOnRouterKeyedPath(t *te
 	headers := http.Header{}
 	headers.Set("Authorization", "Bearer sk-ant-oat01-spent")
 
-	out := resolveAndInjectCredentials(ctx, providers.ProviderAIAND, "claude-opus-4-8", headers)
+	out := resolveAndInjectCredentials(ctx, providers.ProviderAIAND, "z-ai/glm-5.2", headers)
 
 	assert.Nil(t, CredentialsFromContext(out),
 		"a suppressed subscription must be cleared so the client uses its deployment key, not the spent token")
@@ -52,7 +52,7 @@ func TestResolveAndInjectCredentials_UnsuppressedSubStillForwarded(t *testing.T)
 	headers := http.Header{}
 	headers.Set("Authorization", "Bearer sk-ant-oat01-live")
 
-	out := resolveAndInjectCredentials(routerKeyedCtx(), providers.ProviderAIAND, "claude-opus-4-8", headers)
+	out := resolveAndInjectCredentials(routerKeyedCtx(), providers.ProviderAIAND, "z-ai/glm-5.2", headers)
 
 	got := CredentialsFromContext(out)
 	require.NotNil(t, got, "a live subscription must resolve on the router-key path")
@@ -87,7 +87,7 @@ func TestResolveAndInjectCredentials_DisabledSuppressesClaudeSubscription(t *tes
 	headers := http.Header{}
 	headers.Set("Authorization", "Bearer sk-ant-oat01-live")
 
-	out := resolveAndInjectCredentials(subscriptionDisabledCtx(), providers.ProviderAIAND, "claude-opus-4-8", headers)
+	out := resolveAndInjectCredentials(subscriptionDisabledCtx(), providers.ProviderAIAND, "z-ai/glm-5.2", headers)
 
 	assert.Nil(t, CredentialsFromContext(out),
 		"toggle off must suppress the Claude subscription so the turn bills prepaid")
@@ -141,7 +141,7 @@ func maxScopedRouterKeyedCtx() context.Context {
 func TestResolveAndInjectCredentials_MaxDoesNotInjectClaudeSubscription(t *testing.T) {
 	headers := http.Header{}
 	headers.Set("Authorization", "Bearer sk-ant-oat01-live")
-	out := resolveAndInjectCredentials(maxScopedRouterKeyedCtx(), providers.ProviderAIAND, "claude-opus-4-8", headers)
+	out := resolveAndInjectCredentials(maxScopedRouterKeyedCtx(), providers.ProviderAIAND, "z-ai/glm-5.2", headers)
 	assert.Nil(t, CredentialsFromContext(out))
 }
 

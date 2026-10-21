@@ -16,7 +16,7 @@ func anthropicEnv(t *testing.T, body string) *RequestEnvelope {
 
 func TestSearchToolUseRecency_AdvertisedOnlyIsNotUse(t *testing.T) {
 	env := anthropicEnv(t, `{
-		"model":"claude-sonnet-4-5",
+		"model":"deepseek/deepseek-v4.1-flash",
 		"tools":[{"type":"web_search_20250305","name":"web_search"}],
 		"messages":[
 			{"role":"user","content":"hello"},

@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	stateClaudeModel = "claude-opus-4-8"
+	stateClaudeModel = "z-ai/glm-5.2"
 	stateCodexModel  = "gpt-5.6-sol"
 	statePaidModel   = "deepseek/deepseek-v4-flash"
 )

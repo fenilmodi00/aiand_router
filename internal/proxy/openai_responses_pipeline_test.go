@@ -144,7 +144,7 @@ func TestService_ProxyMessages_HandoverSwitchToOpenAIEmitsResponses(t *testing.T
 	store.hasPin = true
 	store.pin = sessionpin.Pin{
 		Provider:        providers.ProviderAIAND,
-		Model:           "claude-opus-4-7",
+		Model:           "z-ai/glm-5.2",
 		Reason:          "cluster:v0.2",
 		PinnedUntil:     time.Now().Add(time.Hour),
 		LastInputTokens: 5000,
@@ -160,7 +160,7 @@ func TestService_ProxyMessages_HandoverSwitchToOpenAIEmitsResponses(t *testing.T
 		map[string]providers.Client{
 			providers.ProviderAIAND: &fakeProvider{},
 		},
-		nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+		nil, false, nil, store, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
 	).WithSummarizer(summarizer)
 
 	rec := httptest.NewRecorder()
@@ -182,7 +182,7 @@ func TestService_ProxyOpenAIChatCompletion_HandoverUsesResponsesEndpoint(t *test
 	store.hasPin = true
 	store.pin = sessionpin.Pin{
 		Provider:        providers.ProviderAIAND,
-		Model:           "claude-opus-4-7",
+		Model:           "z-ai/glm-5.2",
 		Reason:          "cluster:v0.2",
 		PinnedUntil:     time.Now().Add(time.Hour),
 		LastInputTokens: 5000,

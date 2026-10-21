@@ -28,7 +28,7 @@ func (f *fakeSearch) Search(_ context.Context, q websearch.Query) (websearch.Res
 }
 
 const searchTurnBody = `{
-	"model":"claude-sonnet-5",
+	"model":"deepseek/deepseek-v4-pro",
 	"stream":false,
 	"tools":[{"type":"web_search_20250305","name":"web_search"}],
 	"messages":[{"role":"user","content":"Perform a web search for the query: cortex agents"}]
@@ -54,7 +54,7 @@ func TestServeNativeWebSearchAnswersGatewayOnlyTenant(t *testing.T) {
 	s := &Service{webSearch: ex}
 	rec := httptest.NewRecorder()
 
-	if !s.serveNativeWebSearch(gatewayCtx(), []byte(searchTurnBody), "claude-sonnet-5", false, 42, gatewayOnly(), http.Header{}, rec) {
+	if !s.serveNativeWebSearch(gatewayCtx(), []byte(searchTurnBody), "deepseek/deepseek-v4-pro", false, 42, gatewayOnly(), http.Header{}, rec) {
 		t.Fatal("search turn was not served")
 	}
 	if ex.got.Text != "cortex agents" {
@@ -67,7 +67,7 @@ func TestServeNativeWebSearchAnswersGatewayOnlyTenant(t *testing.T) {
 	if got := body.Get("content.1.content.0.url").String(); got != "https://docs.snowflake.com/agents" {
 		t.Fatalf("result url = %q", got)
 	}
-	if got := body.Get("model").String(); got != "claude-sonnet-5" {
+	if got := body.Get("model").String(); got != "deepseek/deepseek-v4-pro" {
 		t.Fatalf("model = %q; the client must see the model it asked for", got)
 	}
 	if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
@@ -83,7 +83,7 @@ func TestServeNativeWebSearchStreams(t *testing.T) {
 	s := &Service{webSearch: ex}
 	rec := httptest.NewRecorder()
 
-	if !s.serveNativeWebSearch(gatewayCtx(), []byte(searchTurnBody), "claude-sonnet-5", true, 10, gatewayOnly(), http.Header{}, rec) {
+	if !s.serveNativeWebSearch(gatewayCtx(), []byte(searchTurnBody), "deepseek/deepseek-v4-pro", true, 10, gatewayOnly(), http.Header{}, rec) {
 		t.Fatal("search turn was not served")
 	}
 	out := rec.Body.String()
@@ -108,7 +108,7 @@ func TestServeNativeWebSearchDefersToNativelyCapableProvider(t *testing.T) {
 	s := &Service{webSearch: ex}
 	enabled := map[string]struct{}{providers.ProviderAIAND: {}}
 
-	if s.serveNativeWebSearch(gatewayCtx(), []byte(searchTurnBody), "claude-sonnet-5", false, 0, enabled, http.Header{}, httptest.NewRecorder()) {
+	if s.serveNativeWebSearch(gatewayCtx(), []byte(searchTurnBody), "deepseek/deepseek-v4-pro", false, 0, enabled, http.Header{}, httptest.NewRecorder()) {
 		t.Fatal("vendor Anthropic runs the tool itself; the turn must stay on normal routing")
 	}
 	if ex.runs != 0 {
@@ -121,7 +121,7 @@ func TestServeNativeWebSearchFallsThroughOnExecutorFailure(t *testing.T) {
 	s := &Service{webSearch: ex}
 	rec := httptest.NewRecorder()
 
-	if s.serveNativeWebSearch(gatewayCtx(), []byte(searchTurnBody), "claude-sonnet-5", false, 0, gatewayOnly(), http.Header{}, rec) {
+	if s.serveNativeWebSearch(gatewayCtx(), []byte(searchTurnBody), "deepseek/deepseek-v4-pro", false, 0, gatewayOnly(), http.Header{}, rec) {
 		t.Fatal("a failed search must not claim the turn")
 	}
 	if rec.Body.Len() != 0 {
@@ -132,9 +132,9 @@ func TestServeNativeWebSearchFallsThroughOnExecutorFailure(t *testing.T) {
 func TestServeNativeWebSearchIgnoresTurnsWithoutTheTool(t *testing.T) {
 	ex := &fakeSearch{}
 	s := &Service{webSearch: ex}
-	body := []byte(`{"model":"claude-sonnet-5","messages":[{"role":"user","content":"Perform a web search for the query: x"}]}`)
+	body := []byte(`{"model":"deepseek/deepseek-v4-pro","messages":[{"role":"user","content":"Perform a web search for the query: x"}]}`)
 
-	if s.serveNativeWebSearch(gatewayCtx(), body, "claude-sonnet-5", false, 0, gatewayOnly(), http.Header{}, httptest.NewRecorder()) {
+	if s.serveNativeWebSearch(gatewayCtx(), body, "deepseek/deepseek-v4-pro", false, 0, gatewayOnly(), http.Header{}, httptest.NewRecorder()) {
 		t.Fatal("no native tool declared; nothing to serve")
 	}
 	if ex.runs != 0 {
@@ -144,7 +144,7 @@ func TestServeNativeWebSearchIgnoresTurnsWithoutTheTool(t *testing.T) {
 
 func TestServeNativeWebSearchDisabled(t *testing.T) {
 	s := &Service{}
-	if s.serveNativeWebSearch(gatewayCtx(), []byte(searchTurnBody), "claude-sonnet-5", false, 0, gatewayOnly(), http.Header{}, httptest.NewRecorder()) {
+	if s.serveNativeWebSearch(gatewayCtx(), []byte(searchTurnBody), "deepseek/deepseek-v4-pro", false, 0, gatewayOnly(), http.Header{}, httptest.NewRecorder()) {
 		t.Fatal("no executor wired; the turn must stay on normal routing")
 	}
 }

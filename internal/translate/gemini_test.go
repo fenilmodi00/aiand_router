@@ -226,7 +226,7 @@ func TestPrepareGemini_ReasoningEffortMapsToThinkingLevel_Gemini3x(t *testing.T)
 
 func TestPrepareGemini_AnthropicAdaptiveThinkingMapsToGemini35Flash(t *testing.T) {
 	body := []byte(`{
-		"model":"claude-sonnet-5",
+		"model":"deepseek/deepseek-v4-pro",
 		"max_tokens":4096,
 		"thinking":{"type":"adaptive"},
 		"output_config":{"effort":"high"},
@@ -435,7 +435,7 @@ func TestPrepareGemini_FromAnthropic_ToolUseSignatureSurvivesUnknownFieldStrippi
 
 	// Turn 3: client sends history back. Router translates Anthropic → Gemini.
 	req := map[string]any{
-		"model": "claude-opus-4-7",
+		"model": "z-ai/glm-5.2",
 		"messages": []any{
 			map[string]any{"role": "user", "content": "list files"},
 			map[string]any{"role": "assistant", "content": []any{tu}},

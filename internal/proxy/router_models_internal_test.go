@@ -21,7 +21,7 @@ func set(ids ...string) map[string]struct{} {
 // The exclusions are on the request here, so each row gets marked.
 func TestRouterModelsMessage_MarksExcludedRowsOff(t *testing.T) {
 	msg := routerModelsMessage(
-		set("claude-opus-5", "gpt-5.5"),
+		set("z-ai/glm-5.2", "gpt-5.5"),
 		set("gpt-5.5"),
 		nil,
 		"$", translate.FormatOpenAI)
@@ -32,11 +32,11 @@ func TestRouterModelsMessage_MarksExcludedRowsOff(t *testing.T) {
 }
 
 func TestRouterModelsMessage_UsesTheClientsOwnSigilInTheFooter(t *testing.T) {
-	codex := routerModelsMessage(set("claude-opus-5"), nil, nil, "$", translate.FormatOpenAI)
+	codex := routerModelsMessage(set("z-ai/glm-5.2"), nil, nil, "$", translate.FormatOpenAI)
 	assert.Contains(t, codex, "$router-models enable")
 	assert.NotContains(t, codex, "/router-models enable")
 
-	claude := routerModelsMessage(set("claude-opus-5"), nil, nil, "/", translate.FormatAnthropic)
+	claude := routerModelsMessage(set("z-ai/glm-5.2"), nil, nil, "/", translate.FormatAnthropic)
 	assert.Contains(t, claude, "/router-models enable")
 	assert.Contains(t, claude, routingMarkerPrefix)
 }
@@ -53,7 +53,7 @@ func TestRouterModelsMessage_EmptyUniverseSaysSo(t *testing.T) {
 // order and the ids inside a group are sorted so the listing is stable
 // between turns rather than reordering with Go's map iteration.
 func TestRouterModelsMessage_IsDeterministicallyOrdered(t *testing.T) {
-	models := set("claude-opus-5", "claude-haiku-4-5", "gpt-5.5", "gemini-3-pro-preview")
+	models := set("z-ai/glm-5.2", "z-ai/glm-5.3-flash", "gpt-5.5", "gemini-3-pro-preview")
 	first := routerModelsMessage(models, nil, nil, "$", translate.FormatOpenAI)
 	for range 8 {
 		assert.Equal(t, first, routerModelsMessage(models, nil, nil, "$", translate.FormatOpenAI))
@@ -65,7 +65,7 @@ func TestRouterModelsMessage_IsDeterministicallyOrdered(t *testing.T) {
 // the two into [x]/[ ] would have claimed one or the other.
 func TestRouterModelsMessage_AutomaticExclusionGetsItsOwnMark(t *testing.T) {
 	msg := routerModelsMessage(
-		set("claude-opus-5", "gpt-5.5", "gemini-3-pro-preview"),
+		set("z-ai/glm-5.2", "gpt-5.5", "gemini-3-pro-preview"),
 		set("gemini-3-pro-preview"),
 		set("gpt-5.5"),
 		"$", translate.FormatOpenAI)
@@ -81,7 +81,7 @@ func TestRouterModelsMessage_AutomaticExclusionGetsItsOwnMark(t *testing.T) {
 // The legend is noise on the overwhelmingly common listing, so it only
 // appears when something is actually in that state.
 func TestRouterModelsMessage_NoAutomaticExclusionsMeansNoLegend(t *testing.T) {
-	msg := routerModelsMessage(set("claude-opus-5"), nil, nil, "$", translate.FormatOpenAI)
+	msg := routerModelsMessage(set("z-ai/glm-5.2"), nil, nil, "$", translate.FormatOpenAI)
 	assert.NotContains(t, msg, "[-]")
 	assert.NotContains(t, msg, "still serves it")
 }

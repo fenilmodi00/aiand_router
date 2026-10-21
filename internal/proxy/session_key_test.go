@@ -22,14 +22,14 @@ func TestDeriveSessionKey_StableAcrossTurns(t *testing.T) {
 	// System prompt mutates every turn; key must stay stable on the
 	// unchanging first user message instead.
 	turn1 := anthropicEnv(t, `{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"system": "You are a careful coding assistant. <reminder>cwd=/a</reminder>",
 		"messages": [
 			{"role": "user", "content": "Help me refactor server.go"}
 		]
 	}`)
 	turn2 := anthropicEnv(t, `{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"system": "You are a careful coding assistant. <reminder>cwd=/a/b time=12:01</reminder>",
 		"messages": [
 			{"role": "user", "content": "Help me refactor server.go"},

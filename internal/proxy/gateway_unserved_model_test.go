@@ -19,12 +19,12 @@ import (
 )
 
 // Claude Code's sidebar-title call: no tools, title json_schema output config.
-const titleGenBody = `{"model":"claude-haiku-4-5","max_tokens":32,"messages":[{"role":"user","content":"hello"}],` +
+const titleGenBody = `{"model":"z-ai/glm-5.3-flash","max_tokens":32,"messages":[{"role":"user","content":"hello"}],` +
 	`"output_config":{"format":{"type":"json_schema","schema":{"properties":{"title":{"type":"string"}}}}}}`
 
 const (
 	unservedAlias = "grok-4.6"
-	servedAlias   = "claude-haiku-4-5"
+	servedAlias   = "z-ai/glm-5.3-flash"
 )
 
 // aliasGateway answers 404 for one aliased model (the endpoint declares it but
@@ -72,7 +72,7 @@ func ctxWithGatewayAliases(installationID string, models ...string) context.Cont
 // the 404 must teach the router to skip it on later turns.
 func TestService_HardPin_TitleGen_GatewayModelNotFound_ExcludedOnLaterTurns(t *testing.T) {
 	store := newFakePinStore()
-	fr := &fakeRouter{decision: router.Decision{Provider: "anthropic", Model: "claude-opus-4-7", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: "anthropic", Model: "z-ai/glm-5.2", Reason: "cluster"}}
 
 	// Mimics cluster.FastestModelForRequest: the cheapest aliased candidate
 	// wins unless the request's exclusions rule it out.
@@ -125,7 +125,7 @@ func TestService_HardPin_TitleGen_GatewayModelNotFound_ExcludedOnLaterTurns(t *t
 // routable, or one bad alias would sideline the whole key.
 func TestService_HardPin_TitleGen_GatewayModelNotFound_KeepsServedAliasesRoutable(t *testing.T) {
 	store := newFakePinStore()
-	fr := &fakeRouter{decision: router.Decision{Provider: "anthropic", Model: "claude-opus-4-7", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: "anthropic", Model: "z-ai/glm-5.2", Reason: "cluster"}}
 
 	var seen []proxy.HardPinRequest
 	resolver := func(req proxy.HardPinRequest) (string, string, bool) {
@@ -160,7 +160,7 @@ func TestService_HardPin_TitleGen_GatewayModelNotFound_KeepsServedAliasesRoutabl
 // has its own binding walk — it must not feed the gateway memo.
 func TestService_HardPin_TitleGen_VendorModelNotFound_DoesNotExcludeModel(t *testing.T) {
 	store := newFakePinStore()
-	fr := &fakeRouter{decision: router.Decision{Provider: "anthropic", Model: "claude-opus-4-7", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: "anthropic", Model: "z-ai/glm-5.2", Reason: "cluster"}}
 
 	var seen []proxy.HardPinRequest
 	resolver := func(req proxy.HardPinRequest) (string, string, bool) {

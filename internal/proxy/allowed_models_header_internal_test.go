@@ -18,7 +18,7 @@ import (
 const (
 	testSol   = "gpt-5.6-sol"
 	testTerra = "gpt-5.6-terra"
-	testOpus  = "claude-opus-5"
+	testOpus  = "z-ai/glm-5.2"
 )
 
 func ctxWithRequestSubset(ctx context.Context, models ...string) context.Context {
@@ -111,7 +111,7 @@ func TestRequestedAllowedModelsForTelemetry(t *testing.T) {
 func TestReadmitForcedModel_LiftsSubsetOnlyExclusion(t *testing.T) {
 	s := &Service{availableModels: map[string]struct{}{testSol: {}, testTerra: {}, testOpus: {}}}
 	ctx := ctxWithRequestSubset(context.Background(), testSol)
-	env, err := translate.ParseAnthropic([]byte(`{"model":"claude-opus-5","max_tokens":16,"messages":[{"role":"user","content":"hi"}]}`))
+	env, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.2","max_tokens":16,"messages":[{"role":"user","content":"hi"}]}`))
 	require.NoError(t, err)
 	req := router.Request{ExcludedModels: s.excludedModelsForRequest(ctx)}
 	require.Contains(t, req.ExcludedModels, testTerra)
@@ -126,7 +126,7 @@ func TestReadmitForcedModel_LiftsSubsetOnlyExclusion(t *testing.T) {
 func TestReadmitForcedModel_KeepsPolicyExclusion(t *testing.T) {
 	s := &Service{availableModels: map[string]struct{}{testSol: {}, testTerra: {}, testOpus: {}}}
 	ctx := ctxWithRequestSubset(ctxWithAllowedModels(testSol, testTerra), testSol)
-	env, err := translate.ParseAnthropic([]byte(`{"model":"claude-opus-5","max_tokens":16,"messages":[{"role":"user","content":"hi"}]}`))
+	env, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.2","max_tokens":16,"messages":[{"role":"user","content":"hi"}]}`))
 	require.NoError(t, err)
 	req := router.Request{ExcludedModels: s.excludedModelsForRequest(ctx)}
 
@@ -136,16 +136,16 @@ func TestReadmitForcedModel_KeepsPolicyExclusion(t *testing.T) {
 }
 
 func TestReadmitForcedModel_KeepsAdvisorPairingExclusion(t *testing.T) {
-	s := &Service{availableModels: map[string]struct{}{testSol: {}, "claude-fable-5-1": {}}}
+	s := &Service{availableModels: map[string]struct{}{testSol: {}, "z-ai/glm-5.2": {}}}
 	ctx := ctxWithRequestSubset(context.Background(), testSol)
-	env, err := translate.ParseAnthropic([]byte(`{"model":"claude-opus-5","max_tokens":16,"messages":[{"role":"user","content":"hi"}],"tools":[{"type":"advisor_20260301","name":"advisor","model":"claude-opus-5"}]}`))
+	env, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.2","max_tokens":16,"messages":[{"role":"user","content":"hi"}],"tools":[{"type":"advisor_20260301","name":"advisor","model":"z-ai/glm-5.2"}]}`))
 	require.NoError(t, err)
 	req := router.Request{ExcludedModels: s.excludedModelsForRequest(ctx)}
-	require.Contains(t, req.ExcludedModels, "claude-fable-5-1")
+	require.Contains(t, req.ExcludedModels, "z-ai/glm-5.2")
 
-	pin := sessionpin.Pin{Model: "claude-fable-5-1", Provider: providers.ProviderAIAND}
+	pin := sessionpin.Pin{Model: "z-ai/glm-5.2", Provider: providers.ProviderAIAND}
 	got := s.readmitForcedModel(ctx, req, env, translate.RoutingFeatures{MaxTokens: 16}, pin)
-	assert.Contains(t, got, "claude-fable-5-1", "an opus-5 advisor cannot advise fable-5.1")
+	assert.Contains(t, got, "z-ai/glm-5.2", "an opus-5 advisor cannot advise fable-5.1")
 }
 
 func TestReadmitForcedModel_NoSubsetIsNoOp(t *testing.T) {
@@ -185,7 +185,7 @@ func TestTurnLoop_StickyPinOutsideRequestSubsetReroutes(t *testing.T) {
 			PinnedUntil: time.Now().Add(time.Hour),
 		}, found: true}
 		return NewService(fr, nil, nil, false, nil, store, false,
-			providers.ProviderAIAND, "claude-haiku-4-5", nil).
+			providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 			WithDeploymentKeyedProviders(keyed(providers.ProviderAIAND, providers.ProviderAIAND))
 	}
 	env := forceCommandEnv(t)

@@ -70,7 +70,7 @@ func TestCodexFailover_EligibilityAndSuppression(t *testing.T) {
 
 	t.Run("suppression is Codex-scoped", func(t *testing.T) {
 		ctx := context.WithValue(codexSubscriptionTestCtx(), AnthropicSubscriptionContextKey{}, "sk-ant-oat01-test-subscription-token")
-		suppressed := resolveAndInjectCredentials(withSuppressedCodexSubscription(ctx), providers.ProviderAIAND, "claude-opus-4-8", http.Header{})
+		suppressed := resolveAndInjectCredentials(withSuppressedCodexSubscription(ctx), providers.ProviderAIAND, "z-ai/glm-5.2", http.Header{})
 		assert.True(t, servedOnSubscription(suppressed),
 			"suppressing the Codex token must leave a Claude subscription on the same request untouched")
 	})

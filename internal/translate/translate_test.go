@@ -337,7 +337,7 @@ func TestSSETranslator_TranslatesErrorBodyToOpenAIShape(t *testing.T) {
 
 func TestSSETranslator_StreamingErrorAlsoTranslated(t *testing.T) {
 	rec := httptest.NewRecorder()
-	translator := translate.NewSSETranslator(rec, "claude-opus-4-7", nil)
+	translator := translate.NewSSETranslator(rec, "z-ai/glm-5.2", nil)
 
 	translator.Header().Set("Content-Type", "text/event-stream")
 	translator.WriteHeader(http.StatusTooManyRequests)
@@ -385,7 +385,7 @@ func TestSSETranslator_DropsStaleContentLengthAndEncoding(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			rec := httptest.NewRecorder()
-			translator := translate.NewSSETranslator(rec, "claude-opus-4-7", nil)
+			translator := translate.NewSSETranslator(rec, "z-ai/glm-5.2", nil)
 
 			translator.Header().Set("Content-Type", tc.contentType)
 			translator.Header().Set("Content-Length", "9999")
@@ -406,7 +406,7 @@ func TestSSETranslator_DropsStaleContentLengthAndEncoding(t *testing.T) {
 
 func TestSSETranslator_NonAnthropicErrorBodyPassesThrough(t *testing.T) {
 	rec := httptest.NewRecorder()
-	translator := translate.NewSSETranslator(rec, "claude-opus-4-7", nil)
+	translator := translate.NewSSETranslator(rec, "z-ai/glm-5.2", nil)
 
 	translator.Header().Set("Content-Type", "application/json")
 	translator.WriteHeader(http.StatusBadGateway)
@@ -924,9 +924,9 @@ func TestAnthropicSSETranslator_RoutingMarkerEmittedOnEmptyUpstream(t *testing.T
 	marker := "✦ **Weave Router** → gpt-5-mini (openai) · reason: top scorer\n\n"
 	markerProse := "✦ **Weave Router** → gpt-5-mini (openai) · reason: top scorer"
 	delivery := noticeDelivery(context.Background(), rec, translate.FormatAnthropic)
-	_, noticeErr := delivery.Deliver(translate.NewRouterNotice(translate.NoticeModelSelection, marker, "claude-opus-4-7", ""))
+	_, noticeErr := delivery.Deliver(translate.NewRouterNotice(translate.NoticeModelSelection, marker, "z-ai/glm-5.2", ""))
 	require.NoError(t, noticeErr)
-	translator := translate.NewAnthropicSSETranslator(delivery, "claude-opus-4-7", nil)
+	translator := translate.NewAnthropicSSETranslator(delivery, "z-ai/glm-5.2", nil)
 
 	translator.Header().Set("Content-Type", "text/event-stream")
 	translator.WriteHeader(http.StatusOK)

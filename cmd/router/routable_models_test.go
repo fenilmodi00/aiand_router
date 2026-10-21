@@ -10,7 +10,7 @@ import (
 )
 
 func TestProxyRoutableModels_WithoutHMMLeavesGenericSet(t *testing.T) {
-	generic := map[string]struct{}{"claude-opus-4-7": {}}
+	generic := map[string]struct{}{"z-ai/glm-5.2": {}}
 	got := proxyRoutableModels(generic, map[string]struct{}{"anthropic": {}}, false)
 	assert.Equal(t, generic, got)
 }

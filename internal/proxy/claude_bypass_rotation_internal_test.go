@@ -24,11 +24,11 @@ func TestFundingBypassPartialStreamRecoversOnLinkedSubscription(t *testing.T) {
 	for _, reason := range []billing.SubscriptionOnlyReason{billing.SubscriptionOnlyCreditsDepleted, billing.SubscriptionOnlySpendCapReached} {
 		for _, classifier := range []bool{false, true} {
 			name := string(reason) + "/usage-bypass"
-			model := "claude-sonnet-4-6"
+			model := "deepseek/deepseek-v4.1-flash"
 			maxTokens := 1024
 			if classifier {
 				name = string(reason) + "/classifier"
-				model = "claude-haiku-4-5"
+				model = "z-ai/glm-5.3-flash"
 				maxTokens = 5
 			}
 			t.Run(name, func(t *testing.T) {
@@ -86,11 +86,11 @@ func TestClaudeBypassDepletedCreditsRotatesLinkedAccounts(t *testing.T) {
 	for _, classifier := range []bool{false, true} {
 		for _, available := range []bool{false, true} {
 			name := "usage-bypass"
-			model := "claude-sonnet-4-6"
+			model := "deepseek/deepseek-v4.1-flash"
 			maxTokens := 1024
 			if classifier {
 				name = "classifier"
-				model = "claude-haiku-4-5"
+				model = "z-ai/glm-5.3-flash"
 				maxTokens = 5
 			}
 			if available {

@@ -11,7 +11,7 @@ import (
 
 func TestConversationMessagesStripsClaudeInjectedBlocks(t *testing.T) {
 	env, err := translate.ParseAnthropic([]byte(`{
-		"model":"claude-opus-4-7",
+		"model":"z-ai/glm-5.2",
 		"messages":[{
 			"role":"user",
 			"content":[
@@ -50,7 +50,7 @@ func TestConversationMessagesGeminiMissingRoleDefaultsToUser(t *testing.T) {
 
 func TestConversationMessagesPreservesAnthropicToolResultMarker(t *testing.T) {
 	env, err := translate.ParseAnthropic([]byte(`{
-		"model":"claude-opus-4-7",
+		"model":"z-ai/glm-5.2",
 		"messages":[{
 			"role":"user",
 			"content":[{
@@ -157,7 +157,7 @@ func TestConversationMessagesDropsNamelessGeminiToolCalls(t *testing.T) {
 
 func TestAvailableToolNamesProviderNeutral(t *testing.T) {
 	anthropicEnv, err := translate.ParseAnthropic([]byte(`{
-		"model":"claude-opus-4-7",
+		"model":"z-ai/glm-5.2",
 		"tools":[
 			{"name":"Read","input_schema":{"type":"object"}},
 			{"name":"Grep","input_schema":{"type":"object"}},

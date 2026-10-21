@@ -33,7 +33,7 @@ func inferencePoliciesEngine(t *testing.T) *gin.Engine {
 		AvailableProviders: available,
 		TargetOverrides: []policy.PurposeTargetOverride{{
 			Purpose: policy.PurposeSubAgentDispatch,
-			Target:  policy.TargetOverride{Source: policy.OverrideSourceDeployment, CatalogID: "claude-haiku-4-5", Provider: providers.ProviderAIAND},
+			Target:  policy.TargetOverride{Source: policy.OverrideSourceDeployment, CatalogID: "z-ai/glm-5.3-flash", Provider: providers.ProviderAIAND},
 		}},
 	})
 	engine := gin.New()
@@ -99,12 +99,12 @@ func TestInternalInferencePolicies_DeploymentReportsBindings(t *testing.T) {
 	}
 	handover := byPurpose[policy.PurposeHandoverSummary]
 	require.NotEmpty(t, handover.CandidateBindings)
-	assert.Equal(t, "claude-haiku-4-5", handover.CandidateBindings[0].CatalogID)
+	assert.Equal(t, "z-ai/glm-5.3-flash", handover.CandidateBindings[0].CatalogID)
 	assert.Equal(t, providers.ProviderAIAND, handover.CandidateBindings[0].Provider)
 
 	subAgent := byPurpose[policy.PurposeSubAgentDispatch]
 	require.NotNil(t, subAgent.DeploymentTarget)
-	assert.Equal(t, "claude-haiku-4-5", subAgent.DeploymentTarget.CatalogID)
+	assert.Equal(t, "z-ai/glm-5.3-flash", subAgent.DeploymentTarget.CatalogID)
 	require.Len(t, subAgent.CandidateBindings, 1)
 
 	messages := byPurpose[policy.PurposeAnthropicMessages]
@@ -122,7 +122,7 @@ func TestInternalInferencePolicies_ResolvePreviewsFixedPurpose(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
 	assert.Equal(t, policy.PolicyID("aux-handover-summary"), body.PolicyID)
 	assert.Equal(t, policy.DefaultRegistry().Revision(), body.RegistryRevision)
-	assert.Equal(t, "claude-haiku-4-5", body.SelectedTarget.CatalogID)
+	assert.Equal(t, "z-ai/glm-5.3-flash", body.SelectedTarget.CatalogID)
 	assert.Equal(t, providers.ProviderAIAND, body.SelectedTarget.Provider)
 	assert.Equal(t, policy.OverrideSourcePolicyDefault, body.Provenance.OverrideSource)
 	assert.LessOrEqual(t, len(body.Alternatives), 8)
@@ -133,14 +133,14 @@ func TestInternalInferencePolicies_ResolveRouterPurposeUsesProposedModel(t *test
 	rec := httptest.NewRecorder()
 	engine.ServeHTTP(rec, inspectionRequest(t, http.MethodPost, "/internal/v1/inference-policies/resolve", map[string]string{
 		"purpose": string(policy.PurposeAnthropicMessages),
-		"model":   "claude-haiku-4-5",
+		"model":   "z-ai/glm-5.3-flash",
 	}))
 
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	var body policy.PlanProjection
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
 	assert.Equal(t, policy.PolicyID("main-anthropic-messages"), body.PolicyID)
-	assert.Equal(t, "claude-haiku-4-5", body.SelectedTarget.CatalogID)
+	assert.Equal(t, "z-ai/glm-5.3-flash", body.SelectedTarget.CatalogID)
 	assert.Equal(t, policy.SelectionStrategyRouter, body.Provenance.SelectionStrategy)
 }
 
@@ -149,7 +149,7 @@ func TestInternalInferencePolicies_ResolveAppliesSnakeCaseBudgetOverride(t *test
 	rec := httptest.NewRecorder()
 	engine.ServeHTTP(rec, inspectionRequest(t, http.MethodPost, "/internal/v1/inference-policies/resolve", map[string]any{
 		"purpose": string(policy.PurposeAnthropicMessages),
-		"model":   "claude-haiku-4-5",
+		"model":   "z-ai/glm-5.3-flash",
 		"budget": map[string]any{
 			"source":            string(policy.BudgetSourceRequest),
 			"max_attempts":      2,
@@ -177,7 +177,7 @@ func TestInternalInferencePolicies_ResolveFailsClosedWithStableCode(t *testing.T
 	}{
 		"unknown purpose":        {body: map[string]string{"purpose": "nonexistent"}, code: policy.ResolutionErrorUnknownPurpose},
 		"router without model":   {body: map[string]string{"purpose": string(policy.PurposeAnthropicMessages)}, code: policy.ResolutionErrorMissingSelection},
-		"override not permitted": {body: map[string]string{"purpose": string(policy.PurposeHandoverSummary), "model": "claude-haiku-4-5"}, code: policy.ResolutionErrorOverrideNotAllowed},
+		"override not permitted": {body: map[string]string{"purpose": string(policy.PurposeHandoverSummary), "model": "z-ai/glm-5.3-flash"}, code: policy.ResolutionErrorOverrideNotAllowed},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {

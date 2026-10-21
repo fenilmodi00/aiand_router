@@ -469,7 +469,7 @@ func TestResponsesWriter_NativePreludeFallbackAndFailureStaySequenced(t *testing
 	w.SetPassthroughBadge()
 
 	require.NoError(t, w.Prelude(true))
-	w.SetRoutedModel("claude-opus-4-8")
+	w.SetRoutedModel("z-ai/glm-5.2")
 	require.NoError(t, w.EmitRoutingBadge("fallback decision"))
 	require.NoError(t, w.FinalizeError(errors.New("upstream failed")))
 
@@ -486,7 +486,7 @@ func TestResponsesWriter_NativePreludeFallbackAndFailureStaySequenced(t *testing
 	assert.Equal(t, "response.failed", events[13]["type"])
 	failed := events[13]["response"].(map[string]any)
 	assert.Equal(t, "failed", failed["status"])
-	assert.Equal(t, "claude-opus-4-8", failed["model"])
+	assert.Equal(t, "z-ai/glm-5.2", failed["model"])
 	output := failed["output"].([]any)
 	require.Len(t, output, 2)
 	initialContent := output[0].(map[string]any)["content"].([]any)
@@ -524,7 +524,7 @@ func TestResponsesWriter_ClearPassthroughContinuesVisiblePrelude(t *testing.T) {
 
 	require.NoError(t, w.Prelude(true))
 	require.True(t, w.ClearPassthrough())
-	w.SetRoutedModel("claude-opus-4-8")
+	w.SetRoutedModel("z-ai/glm-5.2")
 	require.NoError(t, w.EmitRoutingBadge("fallback decision"))
 	require.NoError(t, w.FinalizeError(errors.New("fallback failed")))
 
@@ -538,7 +538,7 @@ func TestResponsesWriter_ClearPassthroughContinuesVisiblePrelude(t *testing.T) {
 	assert.Contains(t, events[9]["delta"], "fallback decision")
 	assert.Equal(t, "response.failed", events[len(events)-1]["type"])
 	failed := events[len(events)-1]["response"].(map[string]any)
-	assert.Equal(t, "claude-opus-4-8", failed["model"])
+	assert.Equal(t, "z-ai/glm-5.2", failed["model"])
 }
 
 // Before anything streams, FinalizeError writes nothing so the handler can
@@ -963,7 +963,7 @@ func TestResponsesWriter_PrependsRoutingMarkerBadge(t *testing.T) {
 	w := translate.NewResponsesWriter(rec, "gpt-5.5")
 	w.SetBadgeText(passthroughTestMarker)
 	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("x-router-model", "claude-opus-4-7")
+	w.Header().Set("x-router-model", "z-ai/glm-5.2")
 	w.WriteHeader(200)
 
 	for _, c := range []string{
@@ -1006,7 +1006,7 @@ func TestResponsesWriter_WithoutMarkerEmitsNoBadge(t *testing.T) {
 	rec := httptest.NewRecorder()
 	w := translate.NewResponsesWriter(rec, "gpt-5.5")
 	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("x-router-model", "claude-opus-4-7")
+	w.Header().Set("x-router-model", "z-ai/glm-5.2")
 	w.WriteHeader(200)
 
 	_, err := w.Write([]byte(`data: {"choices":[{"index":0,"delta":{"content":"hi"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}` + "\n\n"))
@@ -1032,7 +1032,7 @@ func TestResponsesWriter_EmitsBadgeOnToolCallOnlyTurn(t *testing.T) {
 	w := translate.NewResponsesWriter(rec, "gpt-5.6-luna")
 	w.SetBadgeText(passthroughTestMarker)
 	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("x-router-model", "claude-opus-4-7")
+	w.Header().Set("x-router-model", "z-ai/glm-5.2")
 	w.WriteHeader(200)
 
 	for _, c := range []string{
@@ -1109,7 +1109,7 @@ func TestResponsesWriter_UsesRoutedModelFromHeader(t *testing.T) {
 	// Simulate the proxy stamping its routing decision on the writer headers
 	// before any body bytes flow through.
 	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("x-router-model", "claude-opus-4-7")
+	w.Header().Set("x-router-model", "z-ai/glm-5.2")
 	w.Header().Set("x-router-provider", "anthropic")
 	w.WriteHeader(200)
 
@@ -1135,8 +1135,8 @@ func TestResponsesWriter_UsesRoutedModelFromHeader(t *testing.T) {
 	}
 	require.NotNil(t, created)
 	require.NotNil(t, completed)
-	assert.Equal(t, "claude-opus-4-7", created["model"])
-	assert.Equal(t, "claude-opus-4-7", completed["model"])
+	assert.Equal(t, "z-ai/glm-5.2", created["model"])
+	assert.Equal(t, "z-ai/glm-5.2", completed["model"])
 }
 
 func TestResponsesWriter_UsesCustomBadgeText(t *testing.T) {
@@ -1490,7 +1490,7 @@ func TestStripRouterCommandsFromResponsesInput_LeavesChatProjectionIntact(t *tes
 
 func TestConvertResponsesToChatCompletions_RejectsChatCompletionsBody(t *testing.T) {
 	// Without this rejection the body reaches the upstream Responses endpoint verbatim as a 400.
-	body := []byte(`{"model":"claude-haiku-4-5","messages":[{"role":"user","content":"hi"}]}`)
+	body := []byte(`{"model":"z-ai/glm-5.3-flash","messages":[{"role":"user","content":"hi"}]}`)
 
 	_, err := translate.ConvertResponsesToChatCompletions(body)
 

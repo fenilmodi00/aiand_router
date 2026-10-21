@@ -24,10 +24,10 @@ import (
 func claudeOpusPinnedDecision() router.Decision {
 	return router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "claude-opus-5",
+		Model:    "z-ai/glm-5.2",
 		Reason:   translate.ReasonLoopEscalation,
 		Metadata: &router.RoutingMetadata{
-			CandidateModels:    []string{"claude-opus-5", "gpt-5.6-luna"},
+			CandidateModels:    []string{"z-ai/glm-5.2", "gpt-5.6-luna"},
 			CandidateProviders: map[string]string{"gpt-5.6-luna": providers.ProviderAIAND},
 		},
 	}
@@ -38,7 +38,7 @@ func openaiChatBody() []byte {
 }
 
 func anthropicMessagesBody() []byte {
-	return []byte(`{"model":"claude-opus-5","max_tokens":1024,"stream":true,"messages":[{"role":"user","content":"read main.go"}],"tools":[{"name":"read_file","input_schema":{"type":"object","properties":{"path":{"type":"string"}}}}]}`)
+	return []byte(`{"model":"z-ai/glm-5.2","max_tokens":1024,"stream":true,"messages":[{"role":"user","content":"read main.go"}],"tools":[{"name":"read_file","input_schema":{"type":"object","properties":{"path":{"type":"string"}}}}]}`)
 }
 
 func TestProxyOpenAIChatCompletion_SubscriptionPoolExhaustionRescuesSibling(t *testing.T) {
@@ -50,7 +50,7 @@ func TestProxyOpenAIChatCompletion_SubscriptionPoolExhaustionRescuesSibling(t *t
 		map[string]providers.Client{
 			providers.ProviderAIAND: &fakeClient{name: providers.ProviderAIAND},
 		},
-		nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+		nil, false, nil, store, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
 	).WithManagedSubscriptions(leaser).
 		WithDeploymentKeyedProviders(map[string]struct{}{
 			providers.ProviderAIAND: {},
@@ -78,7 +78,7 @@ func TestProxyOpenAIChatCompletion_SubscriptionOnlyKeepsPoolUnavailability(t *te
 		map[string]providers.Client{
 			providers.ProviderAIAND: &fakeClient{name: providers.ProviderAIAND},
 		},
-		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+		nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
 	).WithManagedSubscriptions(leaser).
 		WithDeploymentKeyedProviders(map[string]struct{}{
 			providers.ProviderAIAND: {},
@@ -103,7 +103,7 @@ func TestProxyMessages_SubscriptionPoolExhaustionRescuesSibling(t *testing.T) {
 		map[string]providers.Client{
 			providers.ProviderAIAND: &fakeClient{name: providers.ProviderAIAND},
 		},
-		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+		nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
 	).WithManagedSubscriptions(leaser).
 		WithDeploymentKeyedProviders(map[string]struct{}{
 			providers.ProviderAIAND: {},
@@ -166,9 +166,9 @@ func TestProxyEndpoints_CachedManagedModelDenialEvictsAutomaticPin(t *testing.T)
 			svc := NewService(
 				staticRouter{decision: claudeOpusPinnedDecision()},
 				map[string]providers.Client{providers.ProviderAIAND: upstream},
-				nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+				nil, false, nil, store, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
 			).WithManagedSubscriptions(leaser)
-			svc.subscriptionModels.denyManaged("account:opaque-claude", "opaque-claude", providers.ProviderAIAND, "claude-opus-5", time.Now().Add(time.Minute))
+			svc.subscriptionModels.denyManaged("account:opaque-claude", "opaque-claude", providers.ProviderAIAND, "z-ai/glm-5.2", time.Now().Add(time.Minute))
 
 			installationID := uuid.MustParse("33333333-3333-3333-3333-333333333333")
 			ctx := billing.WithSubscriptionOnly(managedSubscriptionContext(auth.SubscriptionProviderClaude), billing.SubscriptionOnlyCreditsDepleted)

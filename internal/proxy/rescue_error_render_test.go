@@ -41,13 +41,13 @@ func TestProxyMessages_SubscriptionRescueFailurePreservesHTTPError(t *testing.T)
 	svc := proxy.NewService(
 		&fakeRouter{decision: router.Decision{
 			Provider: providers.ProviderAIAND,
-			Model:    "claude-opus-4-8",
-			Metadata: &router.RoutingMetadata{CandidateModels: []string{"claude-opus-4-8"}},
+			Model:    "z-ai/glm-5.2",
+			Metadata: &router.RoutingMetadata{CandidateModels: []string{"z-ai/glm-5.2"}},
 		}},
 		map[string]providers.Client{
 			providers.ProviderAIAND: openaicompat.NewClient("test-anthropic-key", upstream.URL),
 		},
-		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+		nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}}).
 		WithRetrySleep(noRetrySleep).
 		WithUsageObserver(usage.NewObserver([]byte("rescue-render-quota-salt"), time.Hour, time.Now))
@@ -59,7 +59,7 @@ func TestProxyMessages_SubscriptionRescueFailurePreservesHTTPError(t *testing.T)
 	)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
-	body := []byte(`{"model":"claude-opus-4-8","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
+	body := []byte(`{"model":"z-ai/glm-5.2","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
 
 	err := svc.ProxyMessages(ctx, body, rec, req)
 	require.Error(t, err, "every attempt failed, so the turn surfaces the upstream error")

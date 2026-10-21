@@ -33,7 +33,7 @@ type embedTestRouter struct {
 func (r *embedTestRouter) Route(context.Context, router.Request) (router.Decision, error) {
 	decision := router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "claude-haiku-4-5",
+		Model:    "z-ai/glm-5.3-flash",
 		Reason:   "cluster",
 		Metadata: r.metadata,
 	}
@@ -49,7 +49,7 @@ type embedTestProvider struct{}
 // (OpenAI chat) can translate the response.
 func (embedTestProvider) Proxy(_ context.Context, _ router.Decision, _ providers.PreparedRequest, w http.ResponseWriter, _ *http.Request) error {
 	w.Header().Set("Content-Type", "application/json")
-	_, err := w.Write([]byte(`{"id":"msg_1","type":"message","role":"assistant","model":"claude-haiku-4-5",` +
+	_, err := w.Write([]byte(`{"id":"msg_1","type":"message","role":"assistant","model":"z-ai/glm-5.3-flash",` +
 		`"content":[{"type":"text","text":"ok"}],"stop_reason":"end_turn","usage":{"input_tokens":1,"output_tokens":1}}`))
 	return err
 }
@@ -78,7 +78,7 @@ func embedMsPtr(ms float64) *float64 { return &ms }
 // embedTurnBody mirrors the force-cluster harness body: tools + max_tokens
 // keep the turn off the classifier/probe hard-pin fast paths.
 func embedTurnBody() []byte {
-	return []byte(`{"model":"claude-opus-4-8","max_tokens":4096,` +
+	return []byte(`{"model":"z-ai/glm-5.2","max_tokens":4096,` +
 		`"tools":[{"name":"Bash","input_schema":{"type":"object"}}],` +
 		`"messages":[{"role":"user","content":"hi"}]}`)
 }
@@ -97,7 +97,7 @@ func newEmbedTestService(t *testing.T, collector *bypassSpanCollector, rt router
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = emitter.Shutdown(context.Background()) })
 	return NewService(rt, map[string]providers.Client{providers.ProviderAIAND: embedTestProvider{}}, emitter, false, nil, pins, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil)
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil)
 }
 
 // decisionSpanEmbed drives one Anthropic turn and returns the exported
@@ -179,7 +179,7 @@ func TestDecisionSpan_EmbedMs_SurvivesPlannerStay(t *testing.T) {
 	store.getFound = true
 	store.getPin = sessionpin.Pin{
 		Provider:    providers.ProviderAIAND,
-		Model:       "claude-haiku-4-5",
+		Model:       "z-ai/glm-5.3-flash",
 		Reason:      "cluster",
 		PinnedUntil: time.Now().Add(time.Hour),
 	}
@@ -243,7 +243,7 @@ func TestDecisionSpan_SidecarTimings_OnlySelectMsSet(t *testing.T) {
 func TestPinDecision_NeverRehydratesMetadata(t *testing.T) {
 	dec := pinDecision(sessionpin.Pin{
 		Provider: providers.ProviderAIAND,
-		Model:    "claude-haiku-4-5",
+		Model:    "z-ai/glm-5.3-flash",
 		Reason:   "compaction",
 	})
 	assert.Nil(t, dec.Metadata, "pins must never carry routing metadata — rehydrating it would replay stale sidecar timings")
@@ -287,7 +287,7 @@ func TestDecisionAndUpstreamSpansCarryCallerRoutingState(t *testing.T) {
 		{
 			name: "openai chat",
 			path: "/v1/chat/completions",
-			body: []byte(`{"model":"claude-opus-4-8","max_tokens":4096,` +
+			body: []byte(`{"model":"z-ai/glm-5.2","max_tokens":4096,` +
 				`"tools":[{"type":"function","function":{"name":"Bash","parameters":{"type":"object"}}}],` +
 				`"messages":[{"role":"user","content":"hi"}]}`),
 			call: (*Service).ProxyOpenAIChatCompletion,

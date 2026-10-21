@@ -20,7 +20,7 @@ import (
 //   - Gemini 3.x: toolConfig.functionCallingConfig.mode=VALIDATED.
 
 const anthropicToolsRequest = `{
-  "model":"claude-opus-4-8","max_tokens":4096,
+  "model":"z-ai/glm-5.2","max_tokens":4096,
   "tools":[{"name":"Read","description":"read a file","input_schema":{
 	"type":"object",
 	"properties":{"file_path":{"type":"string"},"pages":{"type":"string"}},
@@ -60,7 +60,7 @@ func TestPrepareOpenAIResponses_NonStrictifiableFallsBack(t *testing.T) {
 	// oneOf is outside the strict subset: fallback preserves that construct
 	// while closing object schemas that can be closed without changing meaning.
 	body := `{
-	  "model":"claude-opus-4-8","max_tokens":4096,
+	  "model":"z-ai/glm-5.2","max_tokens":4096,
 	  "tools":[{"name":"Pick","input_schema":{
 	    "type":"object",
 	    "properties":{"choice":{"oneOf":[{"type":"string"},{"type":"integer"}]}},
@@ -93,7 +93,7 @@ func TestPrepareOpenAIResponses_NonStrictifiableFallsBack(t *testing.T) {
 
 func TestPrepareOpenAIResponses_FallbackClosesNestedObjectsSafely(t *testing.T) {
 	body := `{
-	  "model":"claude-opus-4-8","max_tokens":4096,
+	  "model":"z-ai/glm-5.2","max_tokens":4096,
 	  "tools":[{"name":"Execute","input_schema":{
 	    "type":"object",
 	    "properties":{
@@ -170,7 +170,7 @@ func TestPrepareGemini_ForcedToolChoicePreserved(t *testing.T) {
 	// An explicit client tool_choice must never be clobbered by the
 	// VALIDATED upgrade.
 	body := `{
-	  "model":"claude-opus-4-8","max_tokens":4096,
+	  "model":"z-ai/glm-5.2","max_tokens":4096,
 	  "tools":[{"name":"Read","input_schema":{"type":"object","properties":{"file_path":{"type":"string"}},"required":["file_path"]}}],
 	  "tool_choice":{"type":"tool","name":"Read"},
 	  "messages":[{"role":"user","content":"read main.go"}]
@@ -223,7 +223,7 @@ func TestPrepareGemini_OpenAIIngressForcedChoicePreserved(t *testing.T) {
 
 func TestPrepareGemini_NoToolsNoValidated(t *testing.T) {
 	body := `{
-	  "model":"claude-opus-4-8","max_tokens":4096,
+	  "model":"z-ai/glm-5.2","max_tokens":4096,
 	  "messages":[{"role":"user","content":"hello"}]
 	}`
 	env, err := translate.ParseAnthropic([]byte(body))
@@ -288,7 +288,7 @@ func TestPrepareGemini_DowngradeNoOpWhenForcedChoice(t *testing.T) {
 	// A forced tool_choice never went out as VALIDATED, so the downgrade flag is
 	// a no-op: the explicit choice is preserved and no retry is signalled.
 	body := `{
-	  "model":"claude-opus-4-8","max_tokens":4096,
+	  "model":"z-ai/glm-5.2","max_tokens":4096,
 	  "tools":[{"name":"Read","input_schema":{"type":"object","properties":{"file_path":{"type":"string"}},"required":["file_path"]}}],
 	  "tool_choice":{"type":"tool","name":"Read"},
 	  "messages":[{"role":"user","content":"read main.go"}]

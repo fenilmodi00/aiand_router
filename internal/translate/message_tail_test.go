@@ -9,7 +9,7 @@ import (
 
 func TestMessageTailPreview_Anthropic(t *testing.T) {
 	body := []byte(`{
-		"model": "claude-opus-4-7",
+		"model": "z-ai/glm-5.2",
 		"system": "You are Claude.",
 		"messages": [
 			{"role": "user", "content": "hello"},
@@ -120,7 +120,7 @@ func TestMessageTailPreview_Gemini(t *testing.T) {
 
 func TestSystemTextTail(t *testing.T) {
 	body := []byte(`{
-		"model": "claude-opus-4-7",
+		"model": "z-ai/glm-5.2",
 		"system": "You are Claude. You can use tools.",
 		"messages": [{"role": "user", "content": "hi"}]
 	}`)
@@ -137,7 +137,7 @@ func TestSystemTextTail(t *testing.T) {
 
 func TestSystemTextTail_Short(t *testing.T) {
 	body := []byte(`{
-		"model": "claude-opus-4-7",
+		"model": "z-ai/glm-5.2",
 		"system": "Hi",
 		"messages": [{"role": "user", "content": "hi"}]
 	}`)
@@ -153,7 +153,7 @@ func TestSystemTextTail_Short(t *testing.T) {
 
 func TestSystemBlocks_AnthropicKeepsBlockBoundaries(t *testing.T) {
 	body := []byte(`{
-		"model": "claude-opus-4-7",
+		"model": "z-ai/glm-5.2",
 		"system": [
 			{"type": "text", "text": "You are Claude."},
 			{"type": "text", "text": "gitStatus: synthetic"}
@@ -167,7 +167,7 @@ func TestSystemBlocks_AnthropicKeepsBlockBoundaries(t *testing.T) {
 }
 
 func TestSystemBlocks_NoSystemIsNil(t *testing.T) {
-	body := []byte(`{"model": "claude-opus-4-7", "messages": [{"role": "user", "content": "hi"}]}`)
+	body := []byte(`{"model": "z-ai/glm-5.2", "messages": [{"role": "user", "content": "hi"}]}`)
 
 	env, err := ParseAnthropic(body)
 	require.NoError(t, err)

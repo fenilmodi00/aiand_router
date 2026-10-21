@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const extendedCtxBody = `{"model":"claude-opus-4-8","messages":[{"role":"user","content":"hi"}]}`
+const extendedCtxBody = `{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"hi"}]}`
 
 // TestEnableExtendedContext_InjectsContext1MBeta is the regression for serving a
 // CapExtendedContext model at its 200K default and 400ing on a large request:
@@ -21,7 +21,7 @@ func TestEnableExtendedContext_InjectsContext1MBeta(t *testing.T) {
 	require.NoError(t, err)
 
 	prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{
-		TargetModel:           "claude-opus-4-8",
+		TargetModel:           "z-ai/glm-5.2",
 		EnableExtendedContext: true,
 	})
 	require.NoError(t, err)
@@ -32,11 +32,11 @@ func TestEnableExtendedContext_InjectsContext1MBeta(t *testing.T) {
 // gated on the target model: a 200K-only model (Haiku) must never receive the
 // beta, since it cannot honor it.
 func TestEnableExtendedContext_NoOpWithoutCapability(t *testing.T) {
-	env, err := translate.ParseAnthropic([]byte(`{"model":"claude-haiku-4-5","messages":[{"role":"user","content":"hi"}]}`))
+	env, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.3-flash","messages":[{"role":"user","content":"hi"}]}`))
 	require.NoError(t, err)
 
 	prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{
-		TargetModel:           "claude-haiku-4-5",
+		TargetModel:           "z-ai/glm-5.3-flash",
 		EnableExtendedContext: true,
 	})
 	require.NoError(t, err)
@@ -53,7 +53,7 @@ func TestEnableExtendedContext_DedupesClientBeta(t *testing.T) {
 	in := http.Header{}
 	in.Set("anthropic-beta", "context-1m-2025-08-07")
 	prep, err := env.PrepareAnthropic(in, translate.EmitOptions{
-		TargetModel:           "claude-opus-4-8",
+		TargetModel:           "z-ai/glm-5.2",
 		EnableExtendedContext: true,
 	})
 	require.NoError(t, err)
@@ -69,7 +69,7 @@ func TestEnableExtendedContext_PreservesOtherBetas(t *testing.T) {
 	in := http.Header{}
 	in.Set("anthropic-beta", "interleaved-thinking-2025-05-14")
 	prep, err := env.PrepareAnthropic(in, translate.EmitOptions{
-		TargetModel:           "claude-opus-4-8",
+		TargetModel:           "z-ai/glm-5.2",
 		EnableExtendedContext: true,
 	})
 	require.NoError(t, err)
@@ -82,7 +82,7 @@ func TestEnableExtendedContext_OffLeavesHeaderUntouched(t *testing.T) {
 	env, err := translate.ParseAnthropic([]byte(extendedCtxBody))
 	require.NoError(t, err)
 
-	prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "claude-opus-4-8"})
+	prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "z-ai/glm-5.2"})
 	require.NoError(t, err)
 	assert.Empty(t, prep.Headers.Get("anthropic-beta"))
 }

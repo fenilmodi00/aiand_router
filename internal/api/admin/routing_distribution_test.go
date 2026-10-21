@@ -41,7 +41,7 @@ func newDistributionEngine(src admin.RoutingDistributionSource) *gin.Engine {
 func TestRoutingDistributionHandler_ReturnsPoints(t *testing.T) {
 	src := &fakeDistributionSource{points: []cluster.DistributionPoint{
 		{QualityBias: 0, Models: []cluster.ModelShare{{Model: "deepseek-v4-flash", Share: 1}}, ProjectedCostPer1KInputUSD: 0.00014},
-		{QualityBias: 1, Models: []cluster.ModelShare{{Model: "claude-opus-4-8", Share: 1}}, ProjectedCostPer1KInputUSD: 0.005},
+		{QualityBias: 1, Models: []cluster.ModelShare{{Model: "z-ai/glm-5.2", Share: 1}}, ProjectedCostPer1KInputUSD: 0.005},
 	}}
 	engine := newDistributionEngine(src)
 
@@ -58,7 +58,7 @@ func TestRoutingDistributionHandler_ReturnsPoints(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
 	require.Len(t, got.Points, 2)
 	assert.Equal(t, "deepseek-v4-flash", got.Points[0].Models[0].Model)
-	assert.Equal(t, "claude-opus-4-8", got.Points[1].Models[0].Model)
+	assert.Equal(t, "z-ai/glm-5.2", got.Points[1].Models[0].Model)
 }
 
 func TestRoutingDistributionHandler_DefaultsGridWhenAbsent(t *testing.T) {
@@ -92,7 +92,7 @@ func TestRoutingDistributionHandler_ParsesExclusionParams(t *testing.T) {
 	engine.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusOK, rec.Code)
-	assert.Equal(t, map[string]struct{}{"claude-opus-4-8": {}, "deepseek-v4-flash": {}}, src.lastExcludedMods, "comma-separated models should reach the source, trimmed")
+	assert.Equal(t, map[string]struct{}{"z-ai/glm-5.2": {}, "deepseek-v4-flash": {}}, src.lastExcludedMods, "comma-separated models should reach the source, trimmed")
 	assert.Equal(t, map[string]struct{}{"fireworks": {}}, src.lastExcludedProvs)
 }
 

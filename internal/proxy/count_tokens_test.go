@@ -17,7 +17,7 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-const countTokensBody = `{"model":"claude-sonnet-4-6","messages":[{"role":"user","content":"hello world"}]}`
+const countTokensBody = `{"model":"deepseek/deepseek-v4.1-flash","messages":[{"role":"user","content":"hello world"}]}`
 
 func countTokensService(provider *fakeProvider) *proxy.Service {
 	return makeProxyService(router.Decision{}, map[string]providers.Client{providers.ProviderAIAND: provider}).
@@ -44,7 +44,7 @@ func TestCountTokens_RoutingModelNeverReachesUpstream(t *testing.T) {
 	}}
 	for _, model := range []router.RoutingModel{router.ModelAutomatic, router.ModelHMM, router.ModelQwen} {
 		rec := httptest.NewRecorder()
-		body := strings.Replace(countTokensBody, "claude-sonnet-4-6", string(model), 1)
+		body := strings.Replace(countTokensBody, "deepseek/deepseek-v4.1-flash", string(model), 1)
 		require.NoError(t, countTokensService(provider).PassthroughToProvider(context.Background(), []byte(body), rec, countTokensRequest()))
 		assertLocalEstimate(t, rec)
 	}

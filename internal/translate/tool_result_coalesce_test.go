@@ -202,7 +202,7 @@ func TestCoalesceDuplicateToolResults_Anthropic_SeparateCallsReusingAnIDAreUntou
 }
 
 func TestCoalesceDuplicateToolResults_Anthropic_CacheMarkerDoesNotJumpAnIntervening1hMarker(t *testing.T) {
-	body := `{"model":"claude-opus-5","max_tokens":10,"messages":[` + coalesceAnthropicCallA + `,{"role":"user","content":[` +
+	body := `{"model":"z-ai/glm-5.2","max_tokens":10,"messages":[` + coalesceAnthropicCallA + `,{"role":"user","content":[` +
 		`{"type":"tool_result","tool_use_id":"a","content":"final"},` +
 		`{"type":"text","text":"note","cache_control":{"type":"ephemeral","ttl":"1h"}},` +
 		`{"type":"tool_result","tool_use_id":"a","content":"progress","cache_control":{"type":"ephemeral","ttl":"5m"}}]}]}`
@@ -214,7 +214,7 @@ func TestCoalesceDuplicateToolResults_Anthropic_CacheMarkerDoesNotJumpAnInterven
 		`{"type":"tool_result","tool_use_id":"a","content":"final\n\nprogress"},`+
 		`{"type":"text","text":"note","cache_control":{"type":"ephemeral","ttl":"1h"}}]}]`,
 		gjson.GetBytes(e.body, "messages").Raw)
-	_, err = e.PrepareAnthropic(nil, EmitOptions{TargetModel: "claude-opus-5"})
+	_, err = e.PrepareAnthropic(nil, EmitOptions{TargetModel: "z-ai/glm-5.2"})
 	require.NoError(t, err, "coalescing must not reverse breakpoint TTL order")
 }
 

@@ -132,7 +132,7 @@ func TestLeaseManagedSubscriptionSkipsObservedExhaustedAccount(t *testing.T) {
 	svc.now = func() time.Time { return time.Unix(1_000_000, 0) }
 
 	_, lease, managed, err := svc.leaseManagedSubscription(
-		managedSubscriptionTestContext(), providers.ProviderAIAND, "claude-opus-4-8",
+		managedSubscriptionTestContext(), providers.ProviderAIAND, "z-ai/glm-5.2",
 	)
 
 	require.NoError(t, err)
@@ -154,7 +154,7 @@ func TestLeaseManagedSubscriptionSkipsBillableOverageAccount(t *testing.T) {
 		WithUsageObserver(observerWithSnapshot("overage-token", usage.Snapshot{OverageInUse: true}))
 
 	_, lease, managed, err := svc.leaseManagedSubscription(
-		managedSubscriptionTestContext(), providers.ProviderAIAND, "claude-opus-4-8",
+		managedSubscriptionTestContext(), providers.ProviderAIAND, "z-ai/glm-5.2",
 	)
 
 	require.NoError(t, err)
@@ -175,7 +175,7 @@ func TestLeaseManagedSubscriptionNeverUsesOverageAsLastResort(t *testing.T) {
 	observer.Record(observer.Key([]byte("other-overage-token")), usage.Snapshot{OverageInUse: true})
 	svc := newServiceWithProviders(t, nil).WithManagedSubscriptions(leaser).WithUsageObserver(observer)
 
-	_, lease, managed, err := svc.leaseManagedSubscription(managedSubscriptionTestContext(), providers.ProviderAIAND, "claude-opus-4-8")
+	_, lease, managed, err := svc.leaseManagedSubscription(managedSubscriptionTestContext(), providers.ProviderAIAND, "z-ai/glm-5.2")
 
 	require.ErrorIs(t, err, ErrSubscriptionPoolExhausted)
 	require.True(t, managed)
@@ -201,7 +201,7 @@ func TestLeaseManagedSubscriptionHonorsResetQuotaWindows(t *testing.T) {
 		WithUsageObserver(observerWithSnapshot(exhaustedSubToken, snap))
 
 	_, lease, managed, err := svc.leaseManagedSubscription(
-		managedSubscriptionTestContext(), providers.ProviderAIAND, "claude-opus-4-8",
+		managedSubscriptionTestContext(), providers.ProviderAIAND, "z-ai/glm-5.2",
 	)
 
 	require.NoError(t, err)
@@ -251,7 +251,7 @@ func TestManagedSubscriptionOverridesBYOKButNotInboundOAuth(t *testing.T) {
 	base := managedSubscriptionTestContext()
 
 	byokCtx := context.WithValue(base, CredentialsContextKey{}, &Credentials{APIKey: []byte("byok-token"), Source: credSourceBYOK})
-	managedCtx, managedLease, managed, err := svc.leaseManagedSubscription(byokCtx, providers.ProviderAIAND, "claude-opus-4-8")
+	managedCtx, managedLease, managed, err := svc.leaseManagedSubscription(byokCtx, providers.ProviderAIAND, "z-ai/glm-5.2")
 	require.NoError(t, err)
 	require.True(t, managed)
 	require.Equal(t, "managed-token", string(CredentialsFromContext(managedCtx).APIKey))
@@ -259,7 +259,7 @@ func TestManagedSubscriptionOverridesBYOKButNotInboundOAuth(t *testing.T) {
 
 	oauth := &Credentials{APIKey: []byte("inbound-oauth"), Source: credSourceSubscription, OAuth: true}
 	oauthCtx := context.WithValue(base, CredentialsContextKey{}, oauth)
-	unchangedCtx, _, managed, err := svc.leaseManagedSubscription(oauthCtx, providers.ProviderAIAND, "claude-opus-4-8")
+	unchangedCtx, _, managed, err := svc.leaseManagedSubscription(oauthCtx, providers.ProviderAIAND, "z-ai/glm-5.2")
 	require.NoError(t, err)
 	require.False(t, managed)
 	require.Same(t, oauth, CredentialsFromContext(unchangedCtx))
@@ -270,7 +270,7 @@ func TestManagedSubscriptionEnrollmentFailureDoesNotClaimCapacity(t *testing.T) 
 		provider string
 		model    string
 	}{
-		{provider: providers.ProviderAIAND, model: "claude-opus-4-8"},
+		{provider: providers.ProviderAIAND, model: "z-ai/glm-5.2"},
 		{provider: providers.ProviderAIAND, model: "gpt-5.6-sol"},
 	} {
 		t.Run(test.provider, func(t *testing.T) {
@@ -314,7 +314,7 @@ func TestManagedSubscriptionEnrollmentFailureDoesNotAuthorizeAPIFallback(t *test
 	ctx := context.WithValue(managedSubscriptionTestContext(), ManagedSubscriptionEnrollmentUnavailableContextKey{}, true)
 	ctx = context.WithValue(ctx, CredentialsContextKey{}, &Credentials{APIKey: []byte("inbound-oauth"), OAuth: true, Source: credSourceSubscription})
 
-	out, lease, managed, err := svc.leaseManagedSubscription(ctx, providers.ProviderAIAND, "claude-opus-4-8")
+	out, lease, managed, err := svc.leaseManagedSubscription(ctx, providers.ProviderAIAND, "z-ai/glm-5.2")
 
 	require.ErrorIs(t, err, ErrSubscriptionPoolUnavailable)
 	require.True(t, managed)
@@ -334,7 +334,7 @@ func TestManagedSubscriptionAllPlansExhaustedPreservesSubscriptionOnly(t *testin
 	out, _, managed, err := svc.leaseManagedSubscription(
 		ctx,
 		providers.ProviderAIAND,
-		"claude-opus-4-8",
+		"z-ai/glm-5.2",
 	)
 
 	require.ErrorIs(t, err, ErrSubscriptionPoolExhausted)
@@ -353,7 +353,7 @@ func TestLeaseManagedSubscription_LinkedFirstExhaustedPool_FallsThroughToCredits
 		flags.Overrides{Bools: map[flags.Key]bool{flags.KeySubscriptionPlanAwareRouting: true}},
 	)
 
-	_, _, managed, err := svc.leaseManagedSubscription(ctx, providers.ProviderAIAND, "claude-opus-4-8")
+	_, _, managed, err := svc.leaseManagedSubscription(ctx, providers.ProviderAIAND, "z-ai/glm-5.2")
 	require.NoError(t, err)
 	require.False(t, managed, "an exhausted covering pool with a fallback key must not lease; the turn continues on credits")
 	require.Equal(t, []subscriptions.Provider{subscriptions.ProviderClaude}, leaser.providers)
@@ -367,7 +367,7 @@ func TestLeaseManagedSubscription_LinkedFirstExhaustedPool_NoFallbackKey_Refuses
 		flags.Overrides{Bools: map[flags.Key]bool{flags.KeySubscriptionPlanAwareRouting: true}},
 	)
 
-	_, _, managed, err := svc.leaseManagedSubscription(ctx, providers.ProviderAIAND, "claude-opus-4-8")
+	_, _, managed, err := svc.leaseManagedSubscription(ctx, providers.ProviderAIAND, "z-ai/glm-5.2")
 	require.ErrorIs(t, err, ErrSubscriptionPoolExhausted)
 	require.True(t, managed)
 	cls, ok := ClassifyDispatchError(err)
@@ -385,7 +385,7 @@ func TestLeaseManagedSubscription_CreditsDepletedExhaustedPool_StillRefuses(t *t
 		flags.Overrides{Bools: map[flags.Key]bool{flags.KeySubscriptionPlanAwareRouting: true}},
 	)
 
-	_, _, managed, err := svc.leaseManagedSubscription(ctx, providers.ProviderAIAND, "claude-opus-4-8")
+	_, _, managed, err := svc.leaseManagedSubscription(ctx, providers.ProviderAIAND, "z-ai/glm-5.2")
 	require.ErrorIs(t, err, ErrSubscriptionPoolExhausted)
 	require.True(t, managed)
 	cls, ok := ClassifyDispatchError(err)
@@ -412,7 +412,7 @@ func TestDispatchWithFallbackRotatesManagedAccountBeforeCommit(t *testing.T) {
 	ctx := managedSubscriptionTestContext()
 	_, err := svc.dispatchWithFallback(ctx, failoverInputs{
 		w: recorder, buf: buffer,
-		initialDecision: router.Decision{Model: "claude-opus-4-8", Provider: providers.ProviderAIAND},
+		initialDecision: router.Decision{Model: "z-ai/glm-5.2", Provider: providers.ProviderAIAND},
 		purpose:         inference.PurposeAnthropicMessages,
 		bindings:        []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}},
 		attempt: func(ctx context.Context, decision router.Decision, client providers.Client) error {
@@ -437,7 +437,7 @@ func TestDispatchWithFallbackDoesNotMarkFailedManagedAttemptServed(t *testing.T)
 
 	_, err := svc.dispatchWithFallback(ctx, failoverInputs{
 		w:               httptest.NewRecorder(),
-		initialDecision: router.Decision{Model: "claude-opus-4-8", Provider: providers.ProviderAIAND},
+		initialDecision: router.Decision{Model: "z-ai/glm-5.2", Provider: providers.ProviderAIAND},
 		purpose:         inference.PurposeAnthropicMessages,
 		bindings:        []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}},
 		attempt: func(ctx context.Context, decision router.Decision, client providers.Client) error {
@@ -546,7 +546,7 @@ func TestDispatchWithFallbackKeepsManagedModelDenialModelSpecific(t *testing.T) 
 	_, _, managed, deniedErr := svc.leaseManagedSubscription(managedSubscriptionTestContext(), providers.ProviderAIAND, parityAnthropicModel)
 	require.True(t, managed)
 	require.True(t, anthropicSubscriptionModelRejected(deniedErr), "cached denial remains model-specific")
-	_, availableLease, managed, otherModelErr := svc.leaseManagedSubscription(managedSubscriptionTestContext(), providers.ProviderAIAND, "claude-opus-4-8")
+	_, availableLease, managed, otherModelErr := svc.leaseManagedSubscription(managedSubscriptionTestContext(), providers.ProviderAIAND, "z-ai/glm-5.2")
 	require.NoError(t, otherModelErr)
 	require.True(t, managed)
 	require.Equal(t, "opaque-a", availableLease.AccountID, "the same account remains available for another model")
@@ -573,7 +573,7 @@ func TestDispatchWithFallbackSlowInferenceDoesNotConsumeLeaseBudget(t *testing.T
 
 	_, err := svc.dispatchWithFallback(managedSubscriptionTestContext(), failoverInputs{
 		w:               httptest.NewRecorder(),
-		initialDecision: router.Decision{Model: "claude-opus-4-8", Provider: providers.ProviderAIAND},
+		initialDecision: router.Decision{Model: "z-ai/glm-5.2", Provider: providers.ProviderAIAND},
 		purpose:         inference.PurposeAnthropicMessages,
 		bindings:        []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}},
 		attempt: func(ctx context.Context, decision router.Decision, client providers.Client) error {
@@ -602,7 +602,7 @@ func TestDispatchWithFallbackDisablesRejectedManagedAccountBeforeRotation(t *tes
 
 	_, err := svc.dispatchWithFallback(managedSubscriptionTestContext(), failoverInputs{
 		w: recorder, buf: buffer,
-		initialDecision: router.Decision{Model: "claude-opus-4-8", Provider: providers.ProviderAIAND},
+		initialDecision: router.Decision{Model: "z-ai/glm-5.2", Provider: providers.ProviderAIAND},
 		purpose:         inference.PurposeAnthropicMessages,
 		bindings:        []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}},
 		attempt: func(ctx context.Context, decision router.Decision, client providers.Client) error {
@@ -631,7 +631,7 @@ func TestDispatchWithFallbackDoesNotReplayCommittedManagedStream(t *testing.T) {
 
 	_, err := svc.dispatchWithFallback(managedSubscriptionTestContext(), failoverInputs{
 		w: recorder, buf: buffer,
-		initialDecision: router.Decision{Model: "claude-opus-4-8", Provider: providers.ProviderAIAND},
+		initialDecision: router.Decision{Model: "z-ai/glm-5.2", Provider: providers.ProviderAIAND},
 		purpose:         inference.PurposeAnthropicMessages,
 		bindings:        []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}},
 		attempt: func(ctx context.Context, decision router.Decision, client providers.Client) error {
@@ -658,7 +658,7 @@ func TestDispatchWithFallbackNeverUsesPaidBindingAfterManagedExhaustion(t *testi
 
 	_, err := svc.dispatchWithFallback(managedSubscriptionTestContext(), failoverInputs{
 		w: recorder, buf: buffer,
-		initialDecision: router.Decision{Model: "claude-opus-4-8", Provider: providers.ProviderAIAND},
+		initialDecision: router.Decision{Model: "z-ai/glm-5.2", Provider: providers.ProviderAIAND},
 		purpose:         inference.PurposeAnthropicMessages,
 		bindings: []catalog.ProviderBinding{
 			{Provider: providers.ProviderAIAND},
@@ -692,7 +692,7 @@ func TestDispatchWithFallbackRotatesManagedTransientErrorOnSameBinding(t *testin
 	ctx := managedSubscriptionTestContext()
 	_, err := svc.dispatchWithFallback(ctx, failoverInputs{
 		w: recorder, buf: buffer,
-		initialDecision: router.Decision{Model: "claude-opus-4-8", Provider: providers.ProviderAIAND},
+		initialDecision: router.Decision{Model: "z-ai/glm-5.2", Provider: providers.ProviderAIAND},
 		purpose:         inference.PurposeAnthropicMessages,
 		bindings:        []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}},
 		attempt: func(ctx context.Context, decision router.Decision, client providers.Client) error {

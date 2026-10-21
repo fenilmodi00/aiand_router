@@ -39,7 +39,7 @@ func runAgentShadowMiddleware(t *testing.T, installation *auth.Installation, hea
 
 func TestAgentShadowEvaluation_RequiresAuthorizedCompleteTriplet(t *testing.T) {
 	headers := http.Header{}
-	headers.Set(proxy.AgentShadowModelHeader, "claude-opus-4-8")
+	headers.Set(proxy.AgentShadowModelHeader, "z-ai/glm-5.2")
 	headers.Set(proxy.AgentShadowRolloutHeader, "pilot-1")
 	headers.Set(proxy.AgentShadowStateHeader, "state-1")
 
@@ -75,7 +75,7 @@ func TestAgentShadowEvaluation_SkipsCustomerBillingGates(t *testing.T) {
 	engine.Use(middleware.WithOrgMonthlySpendCap(nil))
 	engine.POST("/v1/messages", func(c *gin.Context) { c.Status(http.StatusOK) })
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
-	req.Header.Set(proxy.AgentShadowModelHeader, "claude-opus-4-8")
+	req.Header.Set(proxy.AgentShadowModelHeader, "z-ai/glm-5.2")
 	req.Header.Set(proxy.AgentShadowRolloutHeader, "pilot-1")
 	req.Header.Set(proxy.AgentShadowStateHeader, "state-1")
 	rec := httptest.NewRecorder()
