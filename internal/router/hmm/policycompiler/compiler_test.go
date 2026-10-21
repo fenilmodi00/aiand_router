@@ -27,15 +27,15 @@ func TestCompileLegacyRosterPreservesWIIDescription(t *testing.T) {
   "clusters": {
     "low": {
       "complexity_label": "low",
-      "arms": ["openai/gpt-5.6-sol"],
-      "arms_by_harness": {"codex": ["openai/gpt-5.6-sol"]},
+      "arms": ["z-ai/glm-5.3"],
+      "arms_by_harness": {"codex": ["z-ai/glm-5.3"]},
       "cost_ref_usd": 0.02,
       "latency_ref_ms": 8000,
-      "arm_scores": {"openai/gpt-5.6-sol": 10},
-      "arm_indices": {"openai/gpt-5.6-sol": {"wii_v1": 50, "wpi_v1": 10}}
+      "arm_scores": {"z-ai/glm-5.3": 10},
+      "arm_indices": {"z-ai/glm-5.3": {"wii_v1": 50, "wpi_v1": 10}}
     }
   },
-  "manual_pins": {"pi": {"low": ["openai/gpt-5.6-sol"]}}
+  "manual_pins": {"pi": {"low": ["z-ai/glm-5.3"]}}
 }`)
 
 	canonical, policy, err := policycompiler.Compile(source, policycompiler.Options{
@@ -44,7 +44,7 @@ func TestCompileLegacyRosterPreservesWIIDescription(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, rosterdata.SchemaVersionPolicyV1, policy.SchemaVersion)
 	assert.Equal(t, "six-benchmark absolute WII with frozen normalization", policy.Ranking.WIIDescription)
-	assert.Equal(t, []string{"openai/gpt-5.6-sol"}, policy.Clusters["low"].ManualPinsByHarness[rosterdata.HarnessPI])
+	assert.Equal(t, []string{"z-ai/glm-5.3"}, policy.Clusters["low"].ManualPinsByHarness[rosterdata.HarnessPI])
 	assert.Contains(t, string(canonical), `"wii_v1":"six-benchmark absolute WII with frozen normalization"`)
 }
 
@@ -64,22 +64,22 @@ func TestCompileMapsPooledPinsToAllHarness(t *testing.T) {
   "clusters": {
     "low": {
       "complexity_label": "low",
-      "arms": ["openai/gpt-5.6-sol"],
-      "arms_by_harness": {"codex": ["openai/gpt-5.6-sol"]},
+      "arms": ["z-ai/glm-5.3"],
+      "arms_by_harness": {"codex": ["z-ai/glm-5.3"]},
       "cost_ref_usd": 0.02,
       "latency_ref_ms": 8000,
-      "arm_scores": {"openai/gpt-5.6-sol": 10},
-      "arm_indices": {"openai/gpt-5.6-sol": {"wii_v1": 50, "wpi_v1": 10}}
+      "arm_scores": {"z-ai/glm-5.3": 10},
+      "arm_indices": {"z-ai/glm-5.3": {"wii_v1": 50, "wpi_v1": 10}}
     }
   },
-  "manual_pins": {"pooled": {"low": ["x-ai/grok-4.6"]}}
+  "manual_pins": {"pooled": {"low": ["moonshotai/kimi-k3"]}}
 }`)
 
 	canonical, policy, err := policycompiler.Compile(source, policycompiler.Options{
 		ClassOrder: []string{"low"},
 	})
 	require.NoError(t, err)
-	assert.Equal(t, []string{"x-ai/grok-4.6"}, policy.Clusters["low"].ManualPinsByHarness[rosterdata.HarnessAll])
+	assert.Equal(t, []string{"moonshotai/kimi-k3"}, policy.Clusters["low"].ManualPinsByHarness[rosterdata.HarnessAll])
 	assert.NotContains(t, string(canonical), "pooled")
 }
 
@@ -100,15 +100,15 @@ func TestCompileKeepsOpenCodeHarnessPolicy(t *testing.T) {
   "clusters": {
     "low": {
       "complexity_label": "low",
-      "arms": ["openai/gpt-5.6-sol", "x-ai/grok-4.6"],
-      "arms_by_harness": {"opencode": ["x-ai/grok-4.6", "openai/gpt-5.6-sol"]},
+      "arms": ["z-ai/glm-5.3", "moonshotai/kimi-k3"],
+      "arms_by_harness": {"opencode": ["moonshotai/kimi-k3", "z-ai/glm-5.3"]},
       "cost_ref_usd": 0.02,
       "latency_ref_ms": 8000,
-      "arm_scores": {"openai/gpt-5.6-sol": 10, "x-ai/grok-4.6": 12},
-      "arm_indices": {"openai/gpt-5.6-sol": {"wii_v1": 50, "wpi_v1": 10}, "x-ai/grok-4.6": {"wii_v1": 55, "wpi_v1": 15}}
+      "arm_scores": {"z-ai/glm-5.3": 10, "moonshotai/kimi-k3": 12},
+      "arm_indices": {"z-ai/glm-5.3": {"wii_v1": 50, "wpi_v1": 10}, "moonshotai/kimi-k3": {"wii_v1": 55, "wpi_v1": 15}}
     }
   },
-  "manual_pins": {"opencode": {"low": ["x-ai/grok-4.6"]}}
+  "manual_pins": {"opencode": {"low": ["moonshotai/kimi-k3"]}}
 }`)
 
 	_, policy, err := policycompiler.Compile(source, policycompiler.Options{
@@ -116,7 +116,7 @@ func TestCompileKeepsOpenCodeHarnessPolicy(t *testing.T) {
 	})
 	require.NoError(t, err)
 	low := policy.Clusters["low"]
-	assert.Equal(t, []string{"x-ai/grok-4.6", "openai/gpt-5.6-sol"}, low.ArmsByHarness[rosterdata.HarnessOpenCode])
-	assert.Equal(t, []string{"x-ai/grok-4.6"}, low.ManualPinsByHarness[rosterdata.HarnessOpenCode])
+	assert.Equal(t, []string{"moonshotai/kimi-k3", "z-ai/glm-5.3"}, low.ArmsByHarness[rosterdata.HarnessOpenCode])
+	assert.Equal(t, []string{"moonshotai/kimi-k3"}, low.ManualPinsByHarness[rosterdata.HarnessOpenCode])
 	assert.Equal(t, []string{"openai"}, low.PreferredVendorsByHarness[rosterdata.HarnessOpenCode])
 }
