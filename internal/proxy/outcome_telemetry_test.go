@@ -37,7 +37,13 @@ func TestBypassTelemetryRecordsOutcomeAndIncomingTools(t *testing.T) {
 	for _, rejected := range []bool{false, true} {
 		t.Run(map[bool]string{false: "success", true: "rejected"}[rejected], func(t *testing.T) {
 			telem := newCaptureTelemetry()
-			provider := &fakeProvider{}
+			provider := &fakeProvider{proxyResponse: func(w http.ResponseWriter) {
+				// The one wired upstream speaks chat/completions, so the
+				// non-streaming turn needs a body in that wire shape.
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte(`{"id":"chatcmpl_1","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1}}`))
+			}}
 			if rejected {
 				provider.proxyErr = &providers.UpstreamErrorResponse{Status: http.StatusBadRequest, Body: []byte(`{"error":{"message":"bad request"}}`)}
 			}
