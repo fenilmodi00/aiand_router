@@ -134,13 +134,6 @@ func APIKeyEnvVar(provider string) string {
 	return APIKeyEnvVars[provider]
 }
 
-// RequiresBaseURL reports whether a BYOK credential for this provider must
-// carry its own endpoint. Every provider here has a vendor default, so a
-// credential without a base URL is still dispatchable.
-func RequiresBaseURL(provider string) bool {
-	return false
-}
-
 // OutputExcludesReasoning reports whether this provider's reported output token
 // count omits its reasoning tokens, so billed output is output + reasoning.
 // The OpenAI-compatible upstream folds reasoning into completion_tokens as
