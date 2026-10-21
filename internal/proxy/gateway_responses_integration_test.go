@@ -126,12 +126,14 @@ func TestProxyOpenAIResponses_GatewayRejectionIsNotRetried(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(""))
 	body := []byte(`{"model":"gpt-5.4-mini","input":"list files"}`)
-	_ = svc.ProxyOpenAIResponses(context.Background(), body, rec, req)
+	err := svc.ProxyOpenAIResponses(context.Background(), body, rec, req)
 
 	mu.Lock()
 	defer mu.Unlock()
-	assert.Equal(t, []string{"/v1/responses"}, paths)
-	assert.Contains(t, rec.Body.String(), "unknown tool type")
+	assert.Equal(t, []string{"/v1/responses"}, paths,
+		"a genuine rejection is the client's error, not a signal to retry on chat/completions")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "400")
 }
 
 const anthropicToollessTurn = `{"model":"gpt-5.4-mini","stream":true,"max_tokens":1024,` +

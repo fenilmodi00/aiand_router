@@ -59,7 +59,13 @@ func TestBypassTelemetryRecordsOutcomeAndIncomingTools(t *testing.T) {
 			ctx := context.WithValue(bypassCtx(0.8), proxy.InstallationIDContextKey{}, "55555555-5555-5555-5555-555555555555")
 			body := []byte(`{"model":"deepseek/deepseek-v4.1-flash","messages":[{"role":"user","content":"check"},{"role":"assistant","content":[{"type":"tool_use","id":"call-1","name":"Bash","input":{}}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"call-1","is_error":true,"content":"failed"}]}]}`)
 			req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
-			require.NoError(t, svc.ProxyMessages(ctx, body, httptest.NewRecorder(), req))
+			// A rejected upstream is a failed turn: the router reports it and
+			// the telemetry row records the error class.
+			if rejected {
+				require.Error(t, svc.ProxyMessages(ctx, body, httptest.NewRecorder(), req))
+			} else {
+				require.NoError(t, svc.ProxyMessages(ctx, body, httptest.NewRecorder(), req))
+			}
 			row := telem.firstRow(t)
 			require.NotNil(t, row.UserPrompt)
 			assert.False(t, *row.UserPrompt)
