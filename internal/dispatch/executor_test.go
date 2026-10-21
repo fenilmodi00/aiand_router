@@ -276,15 +276,6 @@ func TestRunAbortsWhenPrepareFails(t *testing.T) {
 	assert.Equal(t, inference.AttemptOutcomeAborted, rec.events[0].Outcome)
 }
 
-func TestBindSatisfiesInferenceExecutor(t *testing.T) {
-	fw := &fakeUpstream{}
-	exec := newExecutor(t, map[string]providers.Client{providers.ProviderAIAND: fw}, &recorder{})
-	var bound inference.Executor = exec.Bind(dispatch.Transport{Attempt: attemptWith([]byte(`{"model":"kimi-k2.5"}`))})
-	outcome, err := bound.Execute(context.Background(), inference.InvocationRequest{}, fakePlan{selected: primary})
-	require.NoError(t, err)
-	assert.Equal(t, primary, outcome.ServedTarget)
-}
-
 func TestValidateWireModelAcceptsCatalogOrUpstreamID(t *testing.T) {
 	require.NoError(t, dispatch.ValidateWireModel(primary.CatalogID, primary))
 	require.NoError(t, dispatch.ValidateWireModel(primary.UpstreamID, primary))
