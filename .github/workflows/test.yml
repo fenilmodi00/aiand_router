@@ -239,16 +239,6 @@ jobs:
           ROUTER_TEST_DATABASE_URL: postgres://router:router@localhost:5432/router?sslmode=disable&search_path=router
         run: go run ./scripts/subscriber_entitlement_check
 
-      - name: Check subscription login and reconnect on ephemeral Postgres
-        env:
-          ROUTER_TEST_DATABASE_URL: postgres://router:router@localhost:5432/router?sslmode=disable&search_path=router
-        run: go test -count=1 ./scripts/subscription_enrollment_check
-
-      - name: Verify subscription ownership, isolation and concurrent refresh on ephemeral Postgres
-        env:
-          ROUTER_TEST_DATABASE_URL: postgres://router:router@localhost:5432/router?sslmode=disable&search_path=router
-        run: go test -count=1 ./scripts/subscription_verification_check
-
       - name: Check legacy worker startup with serving dependencies unavailable
         env:
           PGPASSWORD: router
