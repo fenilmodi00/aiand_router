@@ -11,6 +11,9 @@ import (
 
 type codexSelectedModelContextKey struct{}
 
+// CodexAutomaticModel is the native /model choice that keeps Weave routing automatic.
+const CodexAutomaticModel = string(router.ModelAutomatic)
+
 // CodexNativeModelPinHeader opts installed Codex clients into interpreting a
 // /model switch made during the session as an explicit force. The model a
 // session launches with (config.toml, SDK thread options) stays a baseline.
