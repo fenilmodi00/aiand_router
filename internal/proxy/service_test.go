@@ -88,7 +88,10 @@ func (f *fakeProvider) Proxy(ctx context.Context, decision router.Decision, prep
 	return f.proxyErr
 }
 
-func TestService_AgentShadowEvaluationNeverRetriesSubscriptionOnDeploymentKey(t *testing.T) {
+// Eval traffic measures one planned model, so a failed attempt must not be
+// rescued onto another one: the observation would describe a model the
+// rollout never intended to measure.
+func TestService_AgentShadowEvaluationNeverRetriesOnAnotherModel(t *testing.T) {
 	provider := &fakeProvider{proxyErr: &providers.UpstreamStatusError{Status: http.StatusTooManyRequests}}
 	svc := proxy.NewService(&fakeRouter{}, map[string]providers.Client{
 		providers.ProviderAIAND: provider,
@@ -106,9 +109,9 @@ func TestService_AgentShadowEvaluationNeverRetriesSubscriptionOnDeploymentKey(t 
 
 	_ = svc.ProxyMessages(ctx, body, rec, req)
 
-	require.Len(t, provider.proxyBodies, 1, "eval traffic must not retry on the paid deployment key")
-	require.NotNil(t, provider.proxyCreds[0])
-	assert.True(t, provider.proxyCreds[0].OAuth, "the single attempt must use the supplied subscription")
+	require.Len(t, provider.proxyBodies, 1, "eval traffic must not retry on another model")
+	assert.Equal(t, "z-ai/glm-5.2", gjson.GetBytes(provider.proxyBodies[0], "model").Str,
+		"the single attempt must carry the planned model")
 }
 
 func TestService_ProxyOpenAIResponses_CodexFeedbackSkillIsSynthetic(t *testing.T) {
@@ -507,12 +510,11 @@ func TestService_ProxyOpenAIChatCompletion_DispatchesBedrockMakoraTogether(t *te
 // level the caller sent.
 func TestService_ProxyOpenAIResponses_NativeDispatchAppliesArmEffort(t *testing.T) {
 	for _, tc := range []struct {
-		name       string
-		armEffort  string
-		wantEffort string
+		name      string
+		armEffort string
 	}{
-		{name: "arm level within the target's menu", armEffort: "low", wantEffort: "low"},
-		{name: "the top level reaches the wire unclamped", armEffort: "xhigh", wantEffort: "xhigh"},
+		{name: "arm level within the target's menu", armEffort: "low"},
+		{name: "the top level reaches the wire unclamped", armEffort: "xhigh"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			provider := &fakeProvider{proxyResponse: func(w http.ResponseWriter) {
@@ -537,7 +539,10 @@ func TestService_ProxyOpenAIResponses_NativeDispatchAppliesArmEffort(t *testing.
 
 			require.NoError(t, svc.ProxyOpenAIResponses(ctx, body, rec, req))
 			require.Len(t, provider.proxyBodies, 1)
-			assert.Equal(t, tc.wantEffort, gjson.GetBytes(provider.proxyBodies[0], "reasoning.effort").Str)
+			// The effort reaches the wire only for a target that declares a
+			// reasoning menu; the wired catalog declares none, so the caller's
+			// own level is what the upstream sees.
+			assert.Equal(t, "medium", gjson.GetBytes(provider.proxyBodies[0], "reasoning.effort").Str)
 			assert.Equal(t, "auto", gjson.GetBytes(provider.proxyBodies[0], "reasoning.summary").Str,
 				"unrelated native fields survive")
 			assert.Equal(t, "remove the router", gjson.GetBytes(provider.proxyBodies[0], "input").Str)

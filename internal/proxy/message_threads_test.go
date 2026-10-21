@@ -21,11 +21,13 @@ func TestProxyMessages_ThreadCreateServedStateless(t *testing.T) {
 	require.NoError(t, svc.ProxyMessages(bypassCtx(0.80), body, rec, req))
 
 	require.Len(t, p.proxyBodies, 1)
-	assert.False(t, gjson.GetBytes(p.proxyBodies[0], "thread").Exists(), "a thread create must reach Anthropic as a stateless request")
+	assert.False(t, gjson.GetBytes(p.proxyBodies[0], "thread").Exists(), "a thread create must reach the upstream as a stateless request")
 	assert.Contains(t, gjson.GetBytes(p.proxyBodies[0], "messages.0.content").Raw, `"hi"`, "the full transcript must still be forwarded")
+	// The one wired upstream speaks the OpenAI-compatible surface, so the
+	// Anthropic beta header is not forwarded at all — and in particular the
+	// message-threads token never reaches it.
 	beta := p.proxyHeaders[0].Get("anthropic-beta")
 	assert.NotContains(t, beta, "message-threads")
-	assert.Contains(t, beta, "claude-code-20250219")
 }
 
 func TestProxyMessages_ThreadContinueAsksClientForFullHistory(t *testing.T) {

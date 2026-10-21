@@ -42,10 +42,21 @@ const ccTaskToolTurnBody = `{
 
 func ccTaskToolProvider() *fakeProvider {
 	return &fakeProvider{proxyResponse: func(w http.ResponseWriter) {
+		// The one wired upstream speaks chat/completions, so the turn is
+		// projected onto that surface and the reply arrives in its wire shape.
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
-		_, _ = io.WriteString(w, "data: {\"type\":\"response.output_text.delta\",\"output_index\":0,\"delta\":\"ok\"}\n\n")
-		_, _ = io.WriteString(w, "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"status\":\"completed\",\"output\":[{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"ok\"}]}],\"usage\":{\"input_tokens\":1,\"output_tokens\":1}}}\n\n")
+		flusher, _ := w.(http.Flusher)
+		for _, chunk := range []string{
+			`data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"gpt-5.6-luna","choices":[{"index":0,"delta":{"role":"assistant","content":"ok"},"finish_reason":null}]}` + "\n\n",
+			`data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"gpt-5.6-luna","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1}}` + "\n\n",
+			"data: [DONE]\n\n",
+		} {
+			_, _ = io.WriteString(w, chunk)
+			if flusher != nil {
+				flusher.Flush()
+			}
+		}
 	}}
 }
 
