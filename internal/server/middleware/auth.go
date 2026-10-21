@@ -139,15 +139,6 @@ func withAPIKey(svc *auth.Service, byokRequiresOptIn bool, serving ...*ServingAd
 			owner := subscriptionOwnerForRequest(c, apiKey)
 			c.Set(ctxKeySubscriptionOwner, owner)
 			ctx = proxy.WithSubscriptionOwner(ctx, owner)
-			if testPlan == nil && svc.SubscriptionAccountsEnabled() {
-				accounts, listErr := svc.ListSubscriptionCandidates(ctx, owner)
-				if listErr != nil {
-					observability.FromContext(ctx).Error("Failed to load subscription account enrollment", "err", listErr)
-					ctx = context.WithValue(ctx, proxy.ManagedSubscriptionEnrollmentUnavailableContextKey{}, true)
-				} else {
-					ctx = proxy.WithManagedSubscriptionCandidates(ctx, accounts)
-				}
-			}
 		}
 		if installation != nil {
 			if installation.ExternalID != "" {

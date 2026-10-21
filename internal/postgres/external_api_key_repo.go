@@ -54,10 +54,8 @@ func (r *ExternalAPIKeyRepo) Create(ctx context.Context, params auth.CreateExter
 		ForwardedClientHeaders: params.ForwardedClientHeaders,
 		BaggageHeader:          params.BaggageHeader,
 
-		AuthType:    params.AuthType,
-		AuthAccount: params.AuthAccount,
-		AuthUser:    params.AuthUser,
-		CreatedBy:   params.CreatedBy,
+		AuthType:  params.AuthType,
+		CreatedBy: params.CreatedBy,
 	})
 	if err != nil {
 		return nil, err
@@ -191,10 +189,8 @@ func toExternalAPIKey(row sqlc.RouterModelRouterExternalAPIKey) (*auth.ExternalA
 		ForwardedClientHeaders: row.ForwardedClientHeaders,
 		BaggageHeader:          derefString(row.BaggageHeader),
 
-		AuthType:    row.AuthType,
-		AuthAccount: derefString(row.AuthAccount),
-		AuthUser:    derefString(row.AuthUser),
-		CreatedAt:   timestampOrZero(row.CreatedAt),
+		AuthType:  row.AuthType,
+		CreatedAt: timestampOrZero(row.CreatedAt),
 	}
 	key.Name = row.Name
 	key.LastUsedAt = timestampPtr(row.LastUsedAt)

@@ -2,7 +2,6 @@ package pubsub
 
 import (
 	"context"
-	"encoding/json"
 
 	"weave-os/router/internal/billing"
 	"weave-os/router/internal/observability"
@@ -50,11 +49,6 @@ func NewAutopayNotifier(publisher *gcppubsub.Publisher) *AutopayNotifier {
 	return &AutopayNotifier{publisher: gcpAutopayPublisher{inner: publisher}}
 }
 
-type subscriberRechargePayload struct {
-	OwnerKind    billing.OwnerKind `json:"owner_kind"`
-	SubscriberID string            `json:"subscriber_id"`
-}
-
 // NotifyRechargeNeeded publishes a compatible owner signal on the autopay topic.
 // Fire-and-forget: the balance debit has already committed and the
 // reconciliation sweep is the safety net, so a publish error is logged and
@@ -64,22 +58,8 @@ func (n *AutopayNotifier) NotifyRechargeNeeded(owner billing.Owner) {
 		return
 	}
 	payload := []byte(owner.OrganizationID)
-	if owner.Kind == billing.OwnerKindSubscriber {
-		var err error
-		payload, err = json.Marshal(subscriberRechargePayload{
-			OwnerKind:    owner.Kind,
-			SubscriberID: owner.SubscriberID,
-		})
-		if err != nil {
-			return
-		}
-	}
-	log := observability.Get().With("owner_kind", owner.Kind)
-	if owner.Kind == billing.OwnerKindOrganization {
-		log = log.With("organization_id", owner.OrganizationID)
-	} else {
-		log = log.With("subscriber_id", owner.SubscriberID)
-	}
+	log := observability.Get().With("owner_kind", owner.Kind).
+		With("organization_id", owner.OrganizationID)
 	observability.SafeGo(log, notifyTimeout, "NotifyRechargeNeeded", func(ctx context.Context) {
 		result := n.publisher.Publish(ctx, &gcppubsub.Message{Data: payload})
 		if _, err := result.Get(ctx); err != nil {
