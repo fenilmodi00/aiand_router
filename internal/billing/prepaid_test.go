@@ -58,9 +58,9 @@ func TestOrganizationBookRejectsCrossedOwnerWhenUsedDirectly(t *testing.T) {
 	repo := &fakeRepo{balanceMicros: 5_000_000, balanceRowExists: true}
 	book := billing.OrganizationBook(repo)
 	crossed := billing.Owner{
-		Kind:          billing.OwnerKindOrganization,
+		Kind:           billing.OwnerKindOrganization,
 		OrganizationID: "org_1",
-		TestSubjectID: "11111111-1111-4111-8111-111111111111",
+		TestSubjectID:  "11111111-1111-4111-8111-111111111111",
 	}
 
 	_, err := book.Balance(context.Background(), crossed)

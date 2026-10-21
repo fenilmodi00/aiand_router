@@ -182,14 +182,14 @@ type externalKeyResponse struct {
 	ForwardedClientHeaders []string          `json:"forwarded_client_headers,omitempty"`
 	BaggageHeader          string            `json:"baggage_header,omitempty"`
 
-	AuthType    string     `json:"auth_type,omitempty"`
-	LastUsedAt  *time.Time `json:"last_used_at"`
-	CreatedAt   time.Time  `json:"created_at"`
+	AuthType   string     `json:"auth_type,omitempty"`
+	LastUsedAt *time.Time `json:"last_used_at"`
+	CreatedAt  time.Time  `json:"created_at"`
 }
 
 type upsertExternalKeyRequest struct {
-	Provider string `json:"provider" binding:"required"`
-	Key      string `json:"key"`
+	Provider string  `json:"provider" binding:"required"`
+	Key      string  `json:"key"`
 	Name     *string `json:"name"`
 	// BaseURL points this key at a non-default endpoint. Required for gateway
 	// providers, which have no deployment default to fall back to.
@@ -222,9 +222,9 @@ func toExternalKeyResponse(k *auth.ExternalAPIKey) externalKeyResponse {
 		ForwardedClientHeaders: k.ForwardedClientHeaders,
 		BaggageHeader:          k.BaggageHeader,
 
-		AuthType:    k.AuthType,
-		LastUsedAt:  k.LastUsedAt,
-		CreatedAt:   k.CreatedAt,
+		AuthType:   k.AuthType,
+		LastUsedAt: k.LastUsedAt,
+		CreatedAt:  k.CreatedAt,
 	}
 }
 
