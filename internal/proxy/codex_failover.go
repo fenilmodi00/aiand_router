@@ -10,7 +10,6 @@ import (
 	"weave-os/router/internal/observability"
 	"weave-os/router/internal/providers"
 	"weave-os/router/internal/proxy/usage"
-	"weave-os/router/internal/router"
 )
 
 // codexQuotaErrorTypes are the OpenAI error types that mean the caller's own
@@ -106,20 +105,6 @@ func codexSubscriptionModelRejected(err error) bool {
 		return true
 	}
 	return errorEnvelope.Error.Param == "model" && errorEnvelope.Error.Type == "invalid_request_error"
-}
-
-// codexSubscriptionModelUnavailable makes a cached pool denial look like the
-// structured Codex model error so the same bounded API-credential fallback runs.
-func codexSubscriptionModelUnavailable(model string) error {
-	body, _ := json.Marshal(map[string]any{
-		"error": map[string]string{
-			"type":    "invalid_request_error",
-			"code":    "model_not_found",
-			"param":   "model",
-			"message": "The model " + router.StripDateSuffix(model) + " is unavailable to this subscription.",
-		},
-	})
-	return &providers.UpstreamErrorResponse{Status: http.StatusNotFound, Body: body}
 }
 
 // codexOAuthCredentialRejected reports whether err is a buffered OpenAI 401/403

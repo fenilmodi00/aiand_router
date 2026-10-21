@@ -132,22 +132,10 @@ func withAPIKey(svc *auth.Service, byokRequiresOptIn bool, serving ...*ServingAd
 		}
 		if apiKey != nil {
 			ctx = context.WithValue(ctx, proxy.APIKeyIDContextKey{}, apiKey.ID)
-			if apiKey.PaidFallbackOnSubscriptionRefusal {
-				ctx = context.WithValue(ctx, proxy.APIKeyPaidFallbackOnSubscriptionRefusalContextKey{}, true)
-			}
 			ctx = proxy.WithManagedSubscriptionUsage(ctx)
 			owner := subscriptionOwnerForRequest(c, apiKey)
 			c.Set(ctxKeySubscriptionOwner, owner)
 			ctx = proxy.WithSubscriptionOwner(ctx, owner)
-			if testPlan == nil && svc.SubscriptionAccountsEnabled() {
-				accounts, listErr := svc.ListSubscriptionCandidates(ctx, owner)
-				if listErr != nil {
-					observability.FromContext(ctx).Error("Failed to load subscription account enrollment", "err", listErr)
-					ctx = context.WithValue(ctx, proxy.ManagedSubscriptionEnrollmentUnavailableContextKey{}, true)
-				} else {
-					ctx = proxy.WithManagedSubscriptionCandidates(ctx, accounts)
-				}
-			}
 		}
 		if installation != nil {
 			if installation.ExternalID != "" {
@@ -185,12 +173,6 @@ func withAPIKey(svc *auth.Service, byokRequiresOptIn bool, serving ...*ServingAd
 				// dispersion-aware), not the uniform Alpha. See router.Overrides.
 				ctx = context.WithValue(ctx, proxy.InstallationRoutingKnobsContextKey{}, &router.Overrides{
 					QualityBias: installation.RoutingQualityWeight,
-				})
-			}
-			if installation.UsageBypassEnabled {
-				ctx = context.WithValue(ctx, proxy.InstallationUsageBypassContextKey{}, proxy.UsageBypassConfig{
-					Enabled:   true,
-					Threshold: installation.UsageBypassThreshold,
 				})
 			}
 			if installation.SubscriptionRoutingDisabled {
@@ -345,23 +327,6 @@ func SubscriptionOwnerFrom(c *gin.Context) auth.SubscriptionOwner {
 		}
 	}
 	return auth.SubscriptionOwnerForKey(APIKeyFrom(c))
-}
-
-// SubscriptionOwnerLive re-resolves the caller against the live projection,
-// for the subscription-management endpoints: their owner decides whose linked
-// account is listed, disabled or deleted, so they must not act on an identity
-// the cache still remembers after Weave withdrew it.
-func SubscriptionOwnerLive(c *gin.Context, svc *auth.Service) (auth.SubscriptionOwner, error) {
-	apiKey := APIKeyFrom(c)
-	if apiKey == nil || svc == nil {
-		return auth.SubscriptionOwner{}, nil
-	}
-	owner, err := svc.SubscriptionOwnerForRequestUncached(c.Request.Context(), apiKey)
-	if err != nil {
-		observability.FromGin(c).Error("Failed to resolve request identity for subscription management", "err", err)
-		return auth.SubscriptionOwner{}, err
-	}
-	return owner, nil
 }
 
 // subscriptionOwnerForRequest binds personal capacity to the authenticated key

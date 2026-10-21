@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"net/http"
 	"strconv"
 	"sync/atomic"
@@ -236,9 +235,6 @@ func (s *Service) dispatchWithFallback(ctx context.Context, in failoverInputs) (
 			return -1, cluster.ErrAllowlistEmptiesPool
 		}
 	}
-	if len(in.alternatives) > 0 && in.buildAlternative != nil {
-		return s.dispatchSubscriptionAlternatives(ctx, in)
-	}
 	if len(in.purpose) == 0 {
 		return -1, errDispatchWithoutPurpose
 	}
@@ -335,13 +331,6 @@ func (s *Service) resolveBindingsForDispatch(ctx context.Context, decision route
 		// Legacy "all registered" mode — fall back to single-attempt to
 		// avoid retrying on providers whose keys aren't actually wired.
 		return []catalog.ProviderBinding{primary}
-	}
-	// A linked subscription makes the selected native binding available
-	// without a deployment API key. Extend only this request's binding set;
-	// lease/funding guards still control subscription exhaustion and fallback.
-	if managedSubscriptionCanServe(ctx, decision.Provider, decision.Model) && s.supportsSubscriptionTransport(decision.Provider) {
-		available = maps.Clone(available)
-		available[decision.Provider] = struct{}{}
 	}
 	// Exclusions must hold during failover too, or a fallback binding could
 	// resurrect a provider the scorer already filtered out.
@@ -590,7 +579,6 @@ func attemptIdxLabel(i int) string {
 
 type subscriptionOnlyAttemptKey struct{}
 type subscriptionAPIOnlyKey struct{}
-type subscriptionRotationBudgetKey struct{}
 
 func subscriptionAttemptOnly(ctx context.Context) bool {
 	value, _ := ctx.Value(subscriptionOnlyAttemptKey{}).(bool)
@@ -599,60 +587,4 @@ func subscriptionAttemptOnly(ctx context.Context) bool {
 func subscriptionAPIOnly(ctx context.Context) bool {
 	value, _ := ctx.Value(subscriptionAPIOnlyKey{}).(bool)
 	return value
-}
-func (s *Service) dispatchSubscriptionAlternatives(ctx context.Context, in failoverInputs) (int, error) {
-	ctx, budget := withSubscriptionAdmissionBudget(ctx)
-	selected := in.initialDecision
-	if usage, _ := ctx.Value(ManagedSubscriptionUsageContextKey{}).(*ManagedSubscriptionUsage); usage != nil {
-		usage.IntendedModel = selected.Model
-	}
-	targets := append([]router.Decision{selected}, in.alternatives...)
-	for index, target := range targets {
-		if ctx.Err() != nil || budget.remaining <= 0 {
-			break
-		}
-		attemptIn := in
-		attemptIn.alternatives = nil
-		attemptIn.deferFlushOnExhaustion = true
-		if index > 0 {
-			attempt, buildErr := in.buildAlternative(target)
-			if buildErr != nil {
-				continue
-			}
-			attemptIn.initialDecision = target
-			attemptIn.attempt = attempt
-			attemptIn.bindings = s.resolveBindingsForDispatch(ctx, target)
-		}
-		if in.buf != nil {
-			in.buf.Discard()
-		}
-		attemptCtx := context.WithValue(ctx, subscriptionOnlyAttemptKey{}, true)
-		if target.Provider != selected.Provider {
-			// A selected provider's OAuth credential never carries to another provider.
-			attemptCtx = clearCredentials(attemptCtx)
-		}
-		attemptCtx = s.resolveCredentials(attemptCtx, target.Provider, target.Model, http.Header{})
-		winner, attemptErr := s.dispatchWithFallback(attemptCtx, attemptIn)
-		if attemptErr == nil {
-			if index > 0 && in.onAlternative != nil {
-				in.onAlternative(target)
-			}
-			return winner, nil
-		}
-		if committed(in.buf) || ctx.Err() != nil {
-			return winner, attemptErr
-		}
-	}
-	if ctx.Err() != nil {
-		return 0, ctx.Err()
-	}
-	if paidFallbackForbidden(ctx) {
-		return 0, subscriptionPoolExhausted(ctx)
-	}
-	if in.buf != nil {
-		in.buf.Discard()
-	}
-	in.alternatives = nil
-	apiCtx := s.resolveCredentials(withSuppressedClaudeSubscription(withSuppressedCodexSubscription(context.WithValue(ctx, subscriptionAPIOnlyKey{}, true))), selected.Provider, selected.Model, http.Header{})
-	return s.dispatchWithFallback(apiCtx, in)
 }

@@ -4,11 +4,11 @@ import (
 	"context"
 	"net/http"
 
+	"weave-os/router/internal/auth"
 	"weave-os/router/internal/observability"
 	"weave-os/router/internal/providers"
 	"weave-os/router/internal/proxy/usage"
 	"weave-os/router/internal/requestcontext"
-	"weave-os/router/internal/subscriptions"
 )
 
 // Inference route paths (gin FullPath templates) whose upstream cost a caller
@@ -21,6 +21,52 @@ const (
 	routePathResponses       = "/v1/responses"
 )
 
+// SubscriptionOwnerContextKey carries the linked-account owner resolved by the
+// auth middleware.
+type SubscriptionOwnerContextKey struct{}
+
+// WithSubscriptionOwner records which linked accounts this request may serve.
+func WithSubscriptionOwner(ctx context.Context, owner auth.SubscriptionOwner) context.Context {
+	return context.WithValue(ctx, SubscriptionOwnerContextKey{}, owner)
+}
+
+// subscriptionOwnerFromContext resolves request identity for primary admission.
+// Enrollment key identity never partitions serving capacity.
+func subscriptionOwnerFromContext(ctx context.Context) auth.SubscriptionOwner {
+	if _, ok := requestcontext.InternalTestIdentityFrom(ctx); ok {
+		return auth.SubscriptionOwner{}
+	}
+	if owner, ok := ctx.Value(SubscriptionOwnerContextKey{}).(auth.SubscriptionOwner); ok && owner.Valid() {
+		return owner
+	}
+	return auth.SubscriptionOwner{APIKeyID: apiKeyIDFromContext(ctx)}
+}
+
+// ManagedSubscriptionUsageContextKey carries per-request billing attribution.
+type ManagedSubscriptionUsageContextKey struct{}
+
+// ManagedSubscriptionUsage is request-local attribution shared by the auth
+// middleware context and provider-specific dispatch attempt contexts.
+type ManagedSubscriptionUsage struct {
+	Served                bool
+	SubscriptionAttempted bool
+	OverageInUse          bool
+	SubscriptionAccountID string
+	SubscriptionOwnerID   string
+	SubscriptionTier      auth.SubscriptionTier
+	IntendedModel         string
+	Finished              bool
+	WinningCredentials    *Credentials
+}
+
+// WithManagedSubscriptionUsage prepares request-local subscription attribution.
+func WithManagedSubscriptionUsage(ctx context.Context) context.Context {
+	if existing, _ := ctx.Value(ManagedSubscriptionUsageContextKey{}).(*ManagedSubscriptionUsage); existing != nil {
+		return ctx
+	}
+	return context.WithValue(ctx, ManagedSubscriptionUsageContextKey{}, &ManagedSubscriptionUsage{})
+}
+
 // CodexSubscriptionCoversModel reports whether model may receive the caller's
 // ChatGPT OAuth credential. See requestcontext.CodexSubscriptionCoversModel.
 func CodexSubscriptionCoversModel(model string) bool {
@@ -31,14 +77,24 @@ func codexSubscriptionCanAttemptModel(model string) bool {
 	return requestcontext.CodexSubscriptionCanAttemptModel(model)
 }
 
-func codexSubscriptionCoversModel(model string) bool {
-	return CodexSubscriptionCoversModel(model)
-}
-
 // WithUsageObserver wires physical-account quota observation for source selection.
 func (s *Service) WithUsageObserver(obs *usage.Observer) *Service {
 	s.usageObserver = obs
 	return s
+}
+
+// subscriptionCredentialFallbackUsed reports that the turn first tried a
+// subscription credential and then served on a non-subscription one, so the
+// failover must be attributed to the subscription path.
+func subscriptionCredentialFallbackUsed(ctx context.Context) bool {
+	state, _ := ctx.Value(ManagedSubscriptionUsageContextKey{}).(*ManagedSubscriptionUsage)
+	return state != nil && state.Finished && state.SubscriptionAttempted && (state.WinningCredentials == nil || !state.WinningCredentials.OAuth)
+}
+
+// costNeutralSubscriptionServed reports that the turn ran on the caller's own
+// subscription plan, so it costs the organization nothing.
+func (s *Service) costNeutralSubscriptionServed(ctx context.Context) bool {
+	return servedOnSubscription(ctx)
 }
 
 // presentSubscriptionTokens returns the caller's Codex and Claude subscription
@@ -56,17 +112,13 @@ func presentSubscriptionTokens(ctx context.Context, headers http.Header) (codex,
 	if subscriptionRoutingDisabledForRequest(ctx) || subscriptionFundingOutOfPlayForRequest(ctx) {
 		return "", ""
 	}
-	if codexSubscriptionFromContext(ctx) != nil {
-		codex = openaiSubscriptionFromContext(ctx)
-	} else if c := ExtractClientCredentials(providers.ProviderAIAND, headers); c != nil && c.OAuth {
-		codex = string(c.APIKey)
+	c := ExtractClientCredentials(providers.ProviderAIAND, headers)
+	if c == nil || !c.OAuth {
+		return "", ""
 	}
-	if creds := subscriptionCredsFromToken(anthropicSubscriptionFromContext(ctx)); creds != nil {
-		anthropic = string(creds.APIKey)
-	} else if c := ExtractClientCredentials(providers.ProviderAIAND, headers); c != nil && c.OAuth {
-		anthropic = string(c.APIKey)
-	}
-	return codex, anthropic
+	// One inbound bearer covers both consumer surfaces; the route decides which
+	// lane the turn may take.
+	return string(c.APIKey), string(c.APIKey)
 }
 
 // subscriptionServableProviders returns the provider lanes the caller's own
@@ -76,18 +128,18 @@ func presentSubscriptionTokens(ctx context.Context, headers http.Header) (codex,
 func subscriptionServableProviders(ctx context.Context, headers http.Header) map[string]struct{} {
 	codex, anthropic := presentSubscriptionTokens(ctx, headers)
 	out := make(map[string]struct{}, 2)
-	if codex != "" || managedSubscriptionEnrolled(ctx, subscriptions.ProviderCodex) {
+	if codex != "" {
 		out[providers.ProviderAIAND] = struct{}{}
 	}
-	if anthropic != "" || managedSubscriptionEnrolled(ctx, subscriptions.ProviderClaude) {
+	if anthropic != "" {
 		out[providers.ProviderAIAND] = struct{}{}
 	}
 	return out
 }
 
 // restrictToSubscriptionProviders intersects enabled with the providers the
-// caller's subscription can serve, so subscription-only mode routes only to the
-// caller's own plan and never a paid model.
+// caller's subscription can serve, so subscription-only mode routes only to
+// the caller's own plan and never a paid model.
 // Returns enabled unchanged when the caller presents no usable subscription
 // (defensive: the balance gate only flags subscription-only when a covering sub
 // is present, so this keeps a misconfiguration from emptying the eligible set).
@@ -121,20 +173,19 @@ func RequestPresentsCoveringSubscription(ctx context.Context, headers http.Heade
 	codex, anthropic := presentSubscriptionTokens(ctx, headers)
 	switch routePath {
 	case routePathMessages:
-		return anthropic != "" || managedSubscriptionEnrolled(ctx, subscriptions.ProviderClaude)
+		return anthropic != ""
 	case routePathChatCompletions, routePathResponses:
-		return codex != "" || managedSubscriptionEnrolled(ctx, subscriptions.ProviderCodex)
+		return codex != ""
 	default:
 		return false
 	}
 }
 
 // withUsageObserver records headers against the credential actually dispatched.
-// Managed accounts use physical identity so token refresh and shared borrowers
-// observe the same quota windows. Direct OAuth retains token-keyed observation.
+// Direct OAuth retains token-keyed observation.
 func (s *Service) withUsageObserver(ctx context.Context, headers http.Header) context.Context {
 	_, anthroTok := presentSubscriptionTokens(ctx, headers)
-	if s.usageObserver == nil && anthroTok == "" && !managedSubscriptionEnrolled(ctx, subscriptions.ProviderCodex) && !managedSubscriptionEnrolled(ctx, subscriptions.ProviderClaude) {
+	if s.usageObserver == nil && anthroTok == "" {
 		return ctx
 	}
 	ctx = withUnifiedLimitCapture(ctx)
@@ -151,12 +202,11 @@ func (s *Service) withUsageObserver(ctx context.Context, headers http.Header) co
 		if s.usageObserver == nil {
 			return
 		}
-		// Record only the call's resolved subscription credential;
-		// managed credentials use stable physical account identity. Gating on the
+		// Record only the call's resolved subscription credential. Gating on the
 		// resolved credential also skips internal calls that don't use the sub,
 		// e.g. the handover summarizer's deployment-key Anthropic call after
 		// clearCredentials. The parser follows the matched token's family, so this
-		// works whether the sub arrived through managed enrollment or the inbound bearer.
+		// works for the inbound bearer.
 		creds := CredentialsFromContext(callCtx)
 		if creds == nil || !creds.OAuth {
 			return

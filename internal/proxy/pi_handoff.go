@@ -131,7 +131,7 @@ func (s *Service) mintHandoff(claims handoffClaims) (string, error) {
 }
 
 func (s *Service) finishHandoffPreparation(ctx context.Context, w http.ResponseWriter, env *translate.RequestEnvelope, req router.Request, route turnLoopResult) error {
-	if route.UsageBypass || route.HardPinned || isUserForcedReason(route.Decision.Reason) {
+	if route.HardPinned || isUserForcedReason(route.Decision.Reason) {
 		return writePreparedHandoff(w, preparedHandoff{Bypass: true})
 	}
 	apiKeyID, _ := ctx.Value(APIKeyIDContextKey{}).(string)
