@@ -31,10 +31,6 @@ case "$method $url" in
     printf '{}' >"$out"
     printf '401'
     ;;
-  'GET https://router.example.test/v1/subscriptions/accounts'|'GET https://proxy.example.test/v1/subscriptions/accounts')
-    printf '[]' >"$out"
-    printf '200'
-    ;;
   *) exit 22 ;;
 esac
 CURL

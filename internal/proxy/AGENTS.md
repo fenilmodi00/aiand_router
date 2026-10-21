@@ -402,5 +402,3 @@ Proxy attaches a `providers.UpstreamHeaderObserver` to the request context. Prov
 - **Don't move provider-call logic into planner.** Planner must remain pure so EV math is provable. Anything network-touching goes in `proxy.Service`.
 - **Don't add a handover path that doesn't time out.** `Summarizer` contract says implementations MUST respect the context deadline. On timeout/error the proxy keeps the full prior history unchanged — do NOT reintroduce a silent trim-to-last-N fallback (it lobotomized switched-to models; see the handover-fallback fix).
 - **Don't cache streaming responses.** Streaming bypasses cache on purpose — captured bytes would be post-translation SSE frames, and lookup latency budget is hostile to first-token-time. If you think this should change, write a doc first.
-
-Subscription ownership and quota-observation limitations are documented in [`docs/SUBSCRIPTION_ROUTING.md`](../../docs/SUBSCRIPTION_ROUTING.md). Source selection owns account availability; quota snapshots never change model quality, and known paid overage is excluded.
