@@ -538,7 +538,7 @@ func TestSidecarRouterClusterOverrideSuppressesStaleDisplayMarker(t *testing.T) 
 		Provider:      providers.ProviderAIAND,
 		Score:         0.8,
 		PolicyGroup:   "maximum",
-		DisplayMarker: "✦ **Weave Router** → Delegating work with claude-opus-4-8",
+		DisplayMarker: "✦ **Weave Router** → Delegating work with moonshotai/kimi-k3",
 		RankedFallback: []policy.PreviewGroup{{
 			Group:        "maximum",
 			Probability:  0.8,
