@@ -127,8 +127,8 @@ Three concentric layers. Imports flow inward only.
 |  |  |                      <-> Gemini; pure, no I/O)        |  |  |
 |  |  |  internal/sse       (zero-alloc SSE framing helpers)  |  |  |
 |  |  |  internal/websearch (Anthropic native web-search      |  |  |
-|  |  |                      server tool: detection, result   |  |  |
-|  |  |                      synthesis, Executor iface; pure) |  |  |
+|  |  |                      server tool: detection only;      |  |  |
+|  |  |                      pure)                            |  |  |
 |  |  |  internal/timing    (Timing value type: per-request   |  |  |
 |  |  |                      latency stamps, no otel dep)     |  |  |
 |  |  |  internal/requestcontext (request-scoped creds,     |  |  |
@@ -183,7 +183,7 @@ Pick by responsibility, then read that package's `CLAUDE.md`:
 | Feedback-link token signing (no I/O) | `internal/feedback` | — |
 | Routing-decision export row shape / cursor / schema | `internal/analytics` | — |
 | Cross-format wire conversion (no I/O) | `internal/translate` | [internal/translate/CLAUDE.md](internal/translate/CLAUDE.md) |
-| Native web-search server tool (no I/O) | `internal/websearch` | — |
+| Native web-search request detection (no I/O) | `internal/websearch` | — |
 | New upstream provider | `internal/providers/<name>/` | [internal/providers/CLAUDE.md](internal/providers/CLAUDE.md) |
 | New `Router` implementation | `internal/router/<name>/` | [internal/router/CLAUDE.md](internal/router/CLAUDE.md) |
 | Cluster scorer / artifacts | `internal/router/cluster/` | [internal/router/cluster/CLAUDE.md](internal/router/cluster/CLAUDE.md) |
@@ -213,7 +213,7 @@ If new helper doesn't fit, justify new package in code comment before creating.
 
 ### Go style
 
-- **No magic strings for provider/model names.** Use named constants from `internal/providers` (`providers.ProviderAnthropic`, `providers.ProviderOpenAI`, `providers.ProviderGoogle`, `providers.ProviderOpenRouter`, `providers.ProviderFireworks`) everywhere provider names appear as values — map keys, switch cases, `router.Decision.Provider` literals, log fields, test fixtures. For new model name constants, add to appropriate package before use. Bare string literals = review-blocking.
+- **No magic strings for provider/model names.** Use named constants from `internal/providers` (`providers.ProviderAIAND`) everywhere provider names appear as values — map keys, switch cases, `router.Decision.Provider` literals, log fields, test fixtures. For new model name constants, add to appropriate package before use. Bare string literals = review-blocking.
 - Keep files small. Split distinct logic into separate files, especially when shared between multiple places.
 - Avoid unnecessary nesting — flatten conditionals with early returns + combined conditions.
 - All exported symbols carry godoc starting with symbol name (`Foo does X` or `// Foo is …`).

@@ -135,7 +135,7 @@ function parseArgs(args) {
       else options.email = value;
     } else if (arg === "install" || arg === "setup") {
       if (arg === "setup") throw new Error("'setup' is not yet available in the native Windows installer; choose one client with --claude or --codex.");
-    } else if (["off", "--off", "on", "--on", "status", "--status", "update", "--update", "models", "accounts", "login", "disable-routing"].includes(arg)) {
+    } else if (["off", "--off", "on", "--on", "status", "--status", "update", "--update", "models", "disable-routing"].includes(arg)) {
       options.mode = "unsupported";
     } else throw new Error(`Unsupported Windows installer option: ${arg}`);
   }

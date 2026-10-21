@@ -622,26 +622,6 @@ func main() {
 		AvailableProviders: availableProviders,
 		TargetOverrides:    deploymentTargets,
 	}
-	escalationJudgeEnabled, err := strconv.ParseBool(config.GetOr("ROUTER_ESCALATION_JUDGE_ENABLED", "false"))
-	if err != nil {
-		logger.Error("Invalid escalation judge enablement", "err", err)
-		panic(err)
-	}
-	escalationJudgeKey := strings.TrimSpace(os.Getenv("FIREWORKS_API_KEY"))
-	escalationJudgeActiveEnabled, err := strconv.ParseBool(config.GetOr("ROUTER_ESCALATION_JUDGE_ACTIVE_ENABLED", "false"))
-	if err != nil {
-		logger.Error("Invalid escalation judge active rollout enablement", "err", err)
-		panic(err)
-	}
-	if escalationJudgeActiveEnabled && !escalationJudgeEnabled {
-		panic("ROUTER_ESCALATION_JUDGE_ACTIVE_ENABLED requires ROUTER_ESCALATION_JUDGE_ENABLED")
-	}
-	if escalationJudgeEnabled {
-		if escalationJudgeKey == "" {
-			panic("FIREWORKS_API_KEY is required when the escalation judge is enabled")
-		}
-		inferenceDeployment.EnabledOptionalPurposes = map[policy.Purpose]bool{policy.PurposeEscalationJudge: true}
-	}
 	if err := policy.DefaultRegistry().ValidateDeployment(inferenceDeployment); err != nil {
 		logger.Error("Invalid inference policy deployment; refusing to boot", "err", err)
 		panic(err)
@@ -992,14 +972,6 @@ func main() {
 	safeGo(logger, "escalation-state-sweep", func() { runEscalationSweep(context.Background(), escalationStore) })
 	llmEscalationStore := postgres.NewLLMEscalationRepo(pool)
 	safeGo(logger, "llm-escalation-state-sweep", func() { runEscalationSweep(context.Background(), llmEscalationStore) })
-	var escalationJudge llmescalation.Judge
-	if escalationJudgeEnabled {
-		judge, judgeErr := proxy.NewEscalationJudge(inferencePlans, inferenceExecutor, escalationJudgeKey)
-		if judgeErr != nil {
-			panic(judgeErr)
-		}
-		escalationJudge = judge
-	}
 	qwenEscalationURL := strings.TrimSpace(os.Getenv("ROUTER_LLM_ESCALATION_URL"))
 	qwenEscalationKey := strings.TrimSpace(os.Getenv("ROUTER_LLM_ESCALATION_API_KEY"))
 	var qwenEscalationJudge llmescalation.Judge
@@ -1017,9 +989,9 @@ func main() {
 		WithSessionTurnClock(sessionTurnClock).
 		WithEscalation(escalationStore, escalationObserver).
 		WithEscalationDashboard(escalationDashboardStore).
-		WithLLMEscalation(llmEscalationStore, escalationJudge).
+		WithLLMEscalation(llmEscalationStore).
 		WithQwenEscalation(qwenEscalationJudge).
-		WithEscalationConfiguration(llmEscalationStore, authSvc.InvalidateInstallation, escalationJudgeActiveEnabled).
+		WithEscalationConfiguration(llmEscalationStore, authSvc.InvalidateInstallation).
 		WithTranslationCompatibilityMode(proxy.TranslationCompatibilityMode(translationCompatibilityMode)).
 		WithScopedSearchRequirement(scopedSearchRequirement, searchRequirementDecayTurns).
 		WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyRL, Router: rlRouter, Unavailable: rl.ErrPolicyUnavailable}).

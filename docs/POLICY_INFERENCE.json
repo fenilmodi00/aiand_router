@@ -1,6 +1,6 @@
 {
   "schema_version": "inference_policy_registry_v2",
-  "registry_revision": "sha256:2182c120c725a8f0da08c544e41cb5d244b2446ea99543b330d2ea80aae3e038",
+  "registry_revision": "sha256:bbd15a3aad4c64b491da0db33b9550b2bdc8531aa851593256d79091512d7efa",
   "policies": [
     {
       "purpose": "agent_shadow_evaluation",
@@ -212,40 +212,6 @@
       },
       "fallback": {
         "kind": "local_recovery"
-      },
-      "migration_status": "executor"
-    },
-    {
-      "optional": true,
-      "fixed_provider": "aiand",
-      "purpose": "escalation_judge",
-      "dispatch_class": "auxiliary_inference",
-      "policy_id": "aux-escalation-judge",
-      "policy_revision": "2",
-      "owner": "@steventohme",
-      "rationale": "Judge a completed conversation prefix asynchronously with the pinned Switchyard rubric through Fireworks; failures leave serving unchanged and inference is funded by Weave.",
-      "selection_strategy": "fixed_catalog",
-      "candidate_source": "fixed_catalog",
-      "fixed_catalog_models": [
-        "z-ai/glm-5.3-flash"
-      ],
-      "hard_constraints": [
-        "catalog_binding",
-        "context_window",
-        "model_exclusions",
-        "provider_exclusions"
-      ],
-      "override_precedence": [
-        "policy_default"
-      ],
-      "budget": {
-        "source": "policy",
-        "max_attempts": 1,
-        "timeout_millis": 20000,
-        "max_output_tokens": 4096
-      },
-      "fallback": {
-        "kind": "none"
       },
       "migration_status": "executor"
     },

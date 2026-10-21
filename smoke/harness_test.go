@@ -29,15 +29,9 @@ type Config struct {
 	BaseURL string
 	// RouterKey is the rk_... key the orchestrator seeded. Required.
 	RouterKey string
-	// PinModel is forced via x-weave-force-model so decisions land on Anthropic
-	// deterministically and cheaply (default claude-haiku-4-5).
+	// PinModel is forced via x-weave-force-model so decisions land on the one
+	// upstream (ai&) deterministically and cheaply (default z-ai/glm-5.3-flash).
 	PinModel string
-	// OpenAIPinModel is the gpt-5.x model forced for OpenAI-path scenarios
-	// (default gpt-5.4-nano — bound solely to direct OpenAI, can't drift onto OpenRouter).
-	OpenAIPinModel string
-	// OpenAIEnabled gates smoke/openai_test.go scenarios. Set SMOKE_OPENAI_ENABLED=0
-	// to skip when recording without an OPENAI_API_KEY. Defaults to true.
-	OpenAIEnabled bool
 }
 
 // cfg is populated by TestMain and read by every scenario.
@@ -64,11 +58,9 @@ var systemPrompt string
 
 func TestMain(m *testing.M) {
 	cfg = Config{
-		BaseURL:        envOr("SMOKE_BASE_URL", "http://localhost:8080"),
-		RouterKey:      os.Getenv("SMOKE_ROUTER_KEY"),
-		PinModel:       envOr("SMOKE_PIN_MODEL", "z-ai/glm-5.3-flash"),
-		OpenAIPinModel: envOr("SMOKE_OPENAI_PIN_MODEL", "gpt-5.4-nano"),
-		OpenAIEnabled:  envOr("SMOKE_OPENAI_ENABLED", "1") != "0",
+		BaseURL:   envOr("SMOKE_BASE_URL", "http://localhost:8080"),
+		RouterKey: os.Getenv("SMOKE_ROUTER_KEY"),
+		PinModel:  envOr("SMOKE_PIN_MODEL", "z-ai/glm-5.3-flash"),
 	}
 	if cfg.RouterKey == "" {
 		fmt.Fprintln(os.Stderr, "SMOKE_ROUTER_KEY is required (seed one with `docker compose run --rm seed`)")

@@ -9,7 +9,6 @@ const (
 	PurposeOpenAIChatCompletions     = inference.PurposeOpenAIChatCompletions
 	PurposeOpenAIResponses           = inference.PurposeOpenAIResponses
 	PurposeGeminiGenerateContent     = inference.PurposeGeminiGenerateContent
-	PurposeEscalationJudge           = inference.PurposeEscalationJudge
 	PurposeHandoverSummary           = inference.PurposeHandoverSummary
 	PurposePrecompactionSummary      = inference.PurposePrecompactionSummary
 	PurposeCompactionHandoverSummary = inference.PurposeCompactionHandoverSummary
@@ -35,7 +34,6 @@ var knownPurposes = []Purpose{
 	PurposeOpenAIChatCompletions,
 	PurposeOpenAIResponses,
 	PurposeGeminiGenerateContent,
-	PurposeEscalationJudge,
 	PurposeHandoverSummary,
 	PurposePrecompactionSummary,
 	PurposeCompactionHandoverSummary,

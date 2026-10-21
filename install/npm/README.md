@@ -11,9 +11,6 @@ npx @weave-os/router                       # open the hosted setup page
 npx @weave-os/router --claude              # skip the picker, target Claude Code
 npx @weave-os/router --codex               # skip the picker, target the OpenAI Codex CLI
 npx @weave-os/router setup --claude --codex # configure both native clients
-npx @weave-os/router accounts list --claude # list enrolled subscription accounts
-npx @weave-os/router login claude           # enroll Claude Pro/Max with PKCE
-npx @weave-os/router login codex            # enroll ChatGPT Pro/Plus device flow
 npx @weave-os/router status                 # connectivity, native configs, account health
 npx @weave-os/router --opencode            # skip the picker, target opencode
 npx @weave-os/router --pi                  # skip the picker, target pi + Loom UI
@@ -93,8 +90,8 @@ otherwise falls back to a native Node.js installer, so a fresh Windows machine
 does not need Git Bash, WSL, or jq for basic setup. The no-Bash path configures
 the client's router connection and supports uninstall for Claude Code, Codex,
 OpenCode, and pi. It does not yet install shell-based status displays, hooks, or
-slash-command assets; commands such as `status`, `update`, `models`,
-subscription login, and account management still require Git Bash or WSL.
+slash-command assets; commands such as `status`, `update`, and `models` still
+require Git Bash or WSL.
 
 Four install targets:
 
