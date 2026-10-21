@@ -21,14 +21,14 @@ func TestRoutingDistributionUsesLivePreferenceScorer(t *testing.T) {
 		},
 		Clusters: map[string]rosterdata.Cluster{
 			"low": {
-				Arms: []string{"openai/gpt-5.6-luna", "x-ai/grok-4.6"},
+				Arms: []string{"z-ai/glm-5.3-flash", "moonshotai/kimi-k3"},
 				ArmScores: map[string]float64{
-					"openai/gpt-5.6-luna": 30,
-					"x-ai/grok-4.6":       25,
+					"z-ai/glm-5.3-flash": 30,
+					"moonshotai/kimi-k3":       25,
 				},
 				ArmIndices: map[string]rosterdata.ArmIndices{
-					"openai/gpt-5.6-luna": {WII: 90, WPI: 10},
-					"x-ai/grok-4.6":       {WII: 55, WPI: 0},
+					"z-ai/glm-5.3-flash": {WII: 90, WPI: 10},
+					"moonshotai/kimi-k3":       {WII: 55, WPI: 0},
 				},
 			},
 		},
@@ -52,11 +52,11 @@ func TestRoutingDistributionHonorsExclusions(t *testing.T) {
 	roster := dynamicRoster()
 	// Replace test-only IDs with catalog-backed IDs so distribution can resolve them.
 	cluster := roster.Clusters["low"]
-	cluster.Arms = []string{"openai/gpt-5.6-luna", "x-ai/grok-4.6"}
-	cluster.ArmScores = map[string]float64{"openai/gpt-5.6-luna": 30, "x-ai/grok-4.6": 25}
+	cluster.Arms = []string{"z-ai/glm-5.3-flash", "moonshotai/kimi-k3"}
+	cluster.ArmScores = map[string]float64{"z-ai/glm-5.3-flash": 30, "moonshotai/kimi-k3": 25}
 	cluster.ArmIndices = map[string]rosterdata.ArmIndices{
-		"openai/gpt-5.6-luna": {WII: 90, WPI: 10},
-		"x-ai/grok-4.6":       {WII: 55, WPI: 0},
+		"z-ai/glm-5.3-flash": {WII: 90, WPI: 10},
+		"moonshotai/kimi-k3":       {WII: 55, WPI: 0},
 	}
 	roster.Clusters["low"] = cluster
 
