@@ -47,7 +47,3 @@ func providerForModel(provider, model string) string {
 	}
 	return ""
 }
-
-func providerAvoided(provider, avoidProvider string) bool {
-	return avoidProvider != "" && provider == avoidProvider
-}
