@@ -99,15 +99,15 @@ func TestForceHeaderRejections(t *testing.T) {
 }
 
 // assertServedByPin checks the x-router-model / x-router-provider decision
-// headers name the pinned model on Anthropic.
+// headers name the pinned model on the one upstream (ai&).
 func assertServedByPin(t *testing.T, r response) {
 	t.Helper()
-	assertServedByModel(t, r, cfg.PinModel, "anthropic")
+	assertServedByModel(t, r, cfg.PinModel, "aiand")
 }
 
 // assertServedByModel is assertServedByPin generalized to an arbitrary
 // model/provider pair, for scenarios that pin something other than the
-// suite-wide default (e.g. a gpt-5.x model on the direct OpenAI provider).
+// suite-wide default.
 func assertServedByModel(t *testing.T, r response, wantModel, wantProvider string) {
 	t.Helper()
 	gotModel := r.headers.Get(headerRouterModel)

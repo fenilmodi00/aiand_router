@@ -134,8 +134,9 @@ reached the client unrescued (Snowflake Cortex, prod 2026-10: hundreds of
 header-timeout 502s with the other arm never tried). `runTurnLoop` now carries
 the strikes as `SessionStrikeReadmitModels` (image-unsafe arms, and
 ToolUseLow/AgenticLow arms on tool turns, dropped), and
-`rescueWalkOrReadmitCooling` readmits them on sibling failover only, and only
-when neither the eligible walk nor cooldown readmission yields a candidate. `strikesInRescuePool` filters non-roster
+`rescueWalkOrReadmitCooling` readmits them on sibling failover only (never the
+cyber-refusal retry) and only when neither the eligible walk nor cooldown
+readmission yields a candidate. `strikesInRescuePool` filters non-roster
 strikes to the turn's scored pool; roster readmissions are separately bounded
 by `rosterRescueAdmits`. Hard and deployment-wide exclusions still hold, and
 the arm that just failed is never re-served.
@@ -174,10 +175,45 @@ and `ROUTER_EXCLUDED_MODELS` (an operator escape hatch that short-circuits
 `excludedModelsForRequest` entirely; intentional, so an operator debugging a
 deployment is not constrained by one org's config).
 
+**A BYOK gateway overrides all of it.** When the installation has its own
+gateway key (`anthropic_gateway` / `openai_gateway`),
+`enabledProvidersForRequest` returns only those gateways and
+`router.Request.GatewayProviders` puts the resolver in gateway-exclusive mode:
+vendor bindings are dropped, `excluded_providers` becomes a no-op, and the only
+routable models are the ones a gateway key's `model_aliases` names. A tenant
+that wired its own endpoint mandated it — routing around it is a compliance
+break, and excluding every vendor by hand (the old lever) is what silently
+emptied one org's candidate set. A key with no aliases therefore serves
+nothing: resolution comes back empty with `ExclusionGatewayNotServed` and
+dispatch answers `policy.ErrGatewayServesNoDeployedModel` (HTTP 400, "add
+aliases") instead of reporting the router as unavailable. Deployment-keyed
+gateways are excluded from this: a self-hosted deployment keyed for a gateway
+still serves the catalog's own gateway bindings.
+Under gateway-exclusive routing `allowed_models` bounds automatic selection
+only: a `/force-model` may pin any model a gateway key aliases
+(`forcePolicyExcludedModels`, `readmitForcedModel`), since the tenant's
+endpoint enforces model access itself. `excluded_models` still refuses it.
+
+**A gateway's `model_not_found` is remembered per (endpoint, model).** An
+alias can name a model the endpoint does not actually publish — a Snowflake
+Cortex key aliasing `grok-4.6` made every title-gen turn resolve to it, eat an
+upstream 404, and recover only through a sibling-failover hop (3.7s-43.2s added
+latency per turn, prod 2026-08-28). `rememberGatewayLacksModel` records the pair
+on that 404 and `gatewayUnservedModelsForRequest` folds it into
+`excludedModelsForRequest`, so later turns resolve around the alias instead of
+re-buying it. Scoped tightly on purpose: gateway providers only (a vendor still
+has catalog bindings to walk), and a model stays routable unless **every**
+gateway key aliasing it has refused, since a second endpoint may serve it. The
+alias itself is still the customer-side fix — this only caps the bill at one 404.
+
 **The hard-pin tier resolves against the same bindings.** Compaction and explicitly
 deployment-pinned utility turns bypass the scorer, so `hardPinResolver` gets its
-own `HardPinRequest` carrying `CustomBindings` and selects
-via `cluster.FastestModelForRequest`.
+own `HardPinRequest` carrying `CustomBindings` + `GatewayProviders` and selects
+via `cluster.FastestModelForRequest`. Without them a gateway-only installation
+resolved nothing and every such turn 503'd `ErrClusterUnavailable` ("cluster
+scorer failed") while its scored turns routed fine — prod 2026-08-26. An empty
+result under a gateway now reports `ErrGatewayServesNoDeployedModel` for the
+same reason the resolver does: the alias list is the thing to fix.
 
 **Default titles are scored independently; probes preserve their target.** Title
 generation uses `routeWithoutPin`, without consulting or updating the conversation's
@@ -244,7 +280,15 @@ the whole set today, and such a turn stays on chat/completions rather than
 silently dropping them. Reasoning targets are exempt from that check because
 they reject `stop` on chat/completions too, so it is already dropped for them.
 
-This rule sits behind `ROUTER_OPENAI_RESPONSES_BROAD` (default on, per-org
+**OpenAI-compatible gateways stay narrow** — reasoning tool turns only. Most
+mount no Responses surface at all, so the endpoint buys nothing there beyond
+the one turn the gateway would otherwise reject (Snowflake Cortex 400s a 5.6
+tool turn on chat/completions no matter what we send). A gateway that answers
+404/"API disabled" is retried once on chat/completions while pre-commit and
+memoized per effective base URL (`gatewayLacksResponses`), so the next turn
+skips the probe.
+
+Both rules sit behind `ROUTER_OPENAI_RESPONSES_BROAD` (default on, per-org
 overridable via `flags.KeyOpenAIResponsesBroad`). Turning it off restores the
 narrow rule for direct OpenAI too — the reasoning tool turn chat/completions
 rejects is still promoted, since that one is a correctness fix, not a rollout.
@@ -277,6 +321,8 @@ Multi-binding models (deepseek/qwen/moonshot with Fireworks/Makora/Bedrock prima
 
 **Same-cluster model failover ([`sibling_failover.go`](sibling_failover.go)).** Provider-level failover assumes the model has somewhere else to run; a single-binding model on an overloaded provider does not (prod's `claude-opus-5` 529 storm: three attempts, one dark Anthropic endpoint, client eats the 529). When every binding is exhausted pre-commit on a retryable/404/402 fault, `ProxyMessages` re-dispatches a *different* model drawn from `Decision.Metadata.CandidateModels` — the pool the policy already scored for this turn, so the rescue stays inside the accepted quality band — preferring a candidate on a provider other than the one that just failed. It runs last in the rescue chain (after baseline and subscription failover), rebuilds the request through `buildAttempt` for the candidate's translation family, re-resolves credentials and bindings, and attributes pricing/telemetry/pin usage to the model that actually served. Gated by `ROUTER_SIBLING_FAILOVER` (default on) and skipped for `/force-model`, shadow mode, and subscription-only balances. BYOK (`shouldFailover`) normally disables it too, with one carve-out: a BYOK-gateway turn may rescue onto a candidate that one of the request's own gateway keys aliases (`gatewaySiblingDecision`) — same credentials, so no cross-provider 401 risk.
 
+**OpenAI cyber-refusal retry ([`openai_cyber_refusal.go`](openai_cyber_refusal.go)).** OpenAI's cybersecurity classifier declines whole turns on security-tooling repos: the `/v1/responses` stream opens normally and then carries `{"type":"error","message":"This content was flagged for possible cybersecurity risk. ..."}` followed by `turn.failed`, which Codex treats as a fatal turn abort (SWE-Atlas QnA: 13/248 trials lost, `output_tokens=0`, `failover_used=false`, a 200 as far as the router was concerned). Because the refusal comes from the vendor's classifier rather than a binding, another OpenAI binding meets the same verdict — the rescue has to leave OpenAI. `cyberRefusalGate` wraps the OpenAI attempt sink and withholds the Responses preamble (`response.created`/`queued`/`in_progress`) until it knows whether real output follows; a refusal arriving before any output is swallowed, converted into `providers.CyberPolicyRefusalError()`, and re-dispatched once on a non-OpenAI model, so the client sees a single clean turn on the fallback. Detection is one matcher, `providers.ContainsCyberPolicyRefusal` (the `flagged for possible cybersecurity risk` phrase or a `cyber_policy` code), shared by the streaming gate and buffered error bodies; ordinary OpenAI errors keep today's behavior. Once output has committed the refusal passes through unchanged. Fallback selection is the pin's `PairedModel` first, else `ROUTER_CYBER_REFUSAL_FALLBACK_MODEL` (default `claude-sonnet-5`), filtered through the same rescue machinery as sibling failover (exclusions, allowlist, provider availability, context fit, gateway-exclusive mode) and forced off OpenAI. The rescue attempt is never itself gated, so a refusal from the fallback is not retried again. Gated by `ROUTER_CYBER_REFUSAL_RETRY` (default on, per-org resolvable) and skipped for `/force-model`, hard-pinned turns (probe/compaction/title-gen), subscription-only balances, and eval bypasses; the post-turn session re-pin runs independently under `ROUTER_CYBER_REFUSAL_REPIN` (reason `cyber-refusal-repin`), whether or not the turn was rescued, so turn N+1 starts off-vendor. Telemetry marks the rescued turn with `dispatch.cyber_refusal_retry` and reason `cyber-refusal-retry`, and both attempts bill through the normal failover ledger.
+
 **Subscription recovery and paid authorization ([`subscription_funding.go`](subscription_funding.go)).** Suppression of a failed direct Claude/Codex token opens recovery through remaining eligible linked seats, not permission to pay. The dispatch executor checks final credentials immediately before provider I/O against the request's original credential-free pool snapshot. Non-OAuth inference requires no compatible pool, or positive unexpired quota-exhaustion evidence for every compatible account and presented direct token. This covers deployment keys, BYOK, gateway bindings, API-only state-model walks, and buffered auxiliary calls. Enrollment/read/refresh failures, lease contention, auth errors, model denials, generic 429s, transient faults, and admission-budget expiry fail closed. Genuine Codex `usage_limit_reached`/`insufficient_quota`, observed exhausted quota, and observed paid overage (`OverageInUse` before its reported reset) may authorize rollover; request-local proof works even without a usage observer. Model denials remain account/model scoped, never whole-account exhaustion. A failed rotation preserves its original upstream error alongside the pool sentinel. Depleted credits remain an independent prohibition on paid fallback.
 
 **Claude subscription third-party refusal ([`subscription_third_party.go`](subscription_third_party.go)).** `anthropicSubscriptionThirdPartyRefused` narrowly matches Anthropic's 400 `invalid_request_error` saying third-party apps draw from extra usage, not plan limits. It triggers included-seat recovery, never paid authorization. A refused managed account is denied for that `client_app` only, for `subscriptionThirdPartyDenialTTL`; it is not cooled down, exhausted, or marked reconnect-required. Successful subscription traffic from other clients is not contradicted by this scoped refusal. Its cause must be established from matched requests, not inferred from client names or speculative missing headers. The router does not forge provider attestation headers.
@@ -300,6 +346,12 @@ Per-attempt body rebuild: each closure constructs `EmitOptions` with `TargetProv
 - BYOK and inbound-client-credential requests skip failover entirely (`shouldFailover()` returns false) — those keys bind to one provider and would 401 elsewhere.
 - Cancel/deadline classified as non-retryable: client disconnect or per-request budget elapse must not waste a second upstream call.
 - After dispatch, `actPricing` is re-resolved against the WINNING binding via `catalog.PriceFor(finalProvider, decision.Model)` so debits and OTel `cost.actual_*` reflect the actually-served provider's per-1M rate (the catalog's `PrimaryPriceFor` would otherwise always return the primary's).
+
+## Fast-tier dispatch (`fast_mode_models`)
+
+An installation opts catalog models into the provider's paid fast tier via `PUT /admin/v1/fast-mode-models` (`auth.Installation.FastModeModels`, carried in ctx under `InstallationFastModeModelsContextKey`). [`fastModeForAttempt`](fastmode.go) decides **per attempt** — against the attempt's own ctx, model, and binding — whether `EmitOptions.FastMode` is set: the model must be listed, the `(provider, model)` binding must publish a `FastPrice` (first-party OpenAI → `service_tier:"priority"`, first-party Anthropic → `speed:"fast"` + beta; gateways never), and the resolved credential must not be a subscription OAuth token (Weave does not bill those turns). Raw passthrough is untouched.
+
+**Routing never sees the fast rate.** Scorer, planner, and `Decision` pricing keep using `ProviderBinding.Price`. Only after dispatch does `servedPricing(finalProvider, model, fastServed)` swap in `catalog.FastPriceFor` for debits, cost headers, `cost.actual_*` / `cost.fast_mode` OTel attributes, and the policy-outcome `cost_usd`. Every attempt closure re-evaluates `fastServed` before it dispatches so a failover onto a gateway or subscription is billed at the tier it was actually sent on; an Anthropic-family binding hop that flips the tier goes through [`anthropicTierAttempt`](fastmode.go), which re-emits the body rather than reusing one carrying the other tier's `speed` field — the primary, baseline-failover, and subscription-failover dispatches all wrap their prepared body in it. A fast send that Anthropic refuses for lack of fast-mode allocation (429 naming "fast mode" tokens — `providers.IsAnthropicFastModeQuotaRejection`) is re-sent once at standard speed and billed at list, so an org that opts in without fast access keeps working; an ordinary 429 stays with the failover loop. The OpenAI-chat → Anthropic cross-format path does the same inline.
 
 ## Claude Code message threads (`thread` field)
 
@@ -350,5 +402,3 @@ Proxy attaches a `providers.UpstreamHeaderObserver` to the request context. Prov
 - **Don't move provider-call logic into planner.** Planner must remain pure so EV math is provable. Anything network-touching goes in `proxy.Service`.
 - **Don't add a handover path that doesn't time out.** `Summarizer` contract says implementations MUST respect the context deadline. On timeout/error the proxy keeps the full prior history unchanged — do NOT reintroduce a silent trim-to-last-N fallback (it lobotomized switched-to models; see the handover-fallback fix).
 - **Don't cache streaming responses.** Streaming bypasses cache on purpose — captured bytes would be post-translation SSE frames, and lookup latency budget is hostile to first-token-time. If you think this should change, write a doc first.
-
-Subscription ownership and quota-observation limitations are documented in [`docs/SUBSCRIPTION_ROUTING.md`](../../docs/SUBSCRIPTION_ROUTING.md). Source selection owns account availability; quota snapshots never change model quality, and known paid overage is excluded.

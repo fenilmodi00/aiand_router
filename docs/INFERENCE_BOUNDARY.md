@@ -30,7 +30,6 @@ Router PRs [#884](https://github.com/weave-os/router/pull/884) and [#792](https:
 | Policy decision/preview/outcome/feedback | `policy_sidecar_*` | control plane | `internal/policyclient` and legacy `internal/router/rl` HTTP clients | remains non-inference |
 | Initial-task domain classification | `task_domain_classification` | control plane | `internal/policyclient.TaskDomainClassifier` with bounded `proxy.TaskDomainResolver` orchestration | remains non-inference |
 | Cluster/cache embeddings | `cluster_embedding`, `semantic_cache_embedding` | local support | local embedder/cache packages | remains local-only |
-| Native/Cortex web search | `native_web_search` | web-search tool | explicit `websearch.Executor` | remains separate from generic inference |
 
 The generated static registry in [`POLICY_INFERENCE.md`](POLICY_INFERENCE.md) is the authoritative review projection for policy IDs, rationale, constraints, budgets, fallback, owner, and migration status.
 
@@ -40,7 +39,6 @@ These are the complete production `providers.Client.Proxy`/`Passthrough` call si
 
 | File / symbol | Operation |
 | --- | --- |
-| `internal/proxy/usage_bypass.go` — `Service.bypassToAnthropic` | subscription-token main inference |
 | `internal/proxy/gemini.go` — `Service.ProxyGeminiGenerateContent` | Gemini main inference |
 | `internal/proxy/service.go` — `Service.PassthroughToNamedProvider` | metadata/passthrough |
 | `internal/proxy/service.go` — `Service.anthropicNativeAttempt` | Anthropic main inference |
@@ -53,11 +51,7 @@ These are the complete production `providers.Client.Proxy`/`Passthrough` call si
 
 Real upstream HTTP is implemented only in these adapter areas:
 
-- `internal/providers/anthropic/client.go` and `list_models.go`
-- `internal/providers/openai/client.go`
-- `internal/providers/google/native_client.go`
 - `internal/providers/openaicompat/client.go` and `list_models.go`
-- `internal/providers/cortexagents/client.go` for the explicit web-search tool executor
 
 The composition root `cmd/router/main.go` is the only non-adapter package allowed to import concrete provider packages. The architecture fixtures prove that aliases and blank imports do not bypass this rule.
 
@@ -70,7 +64,6 @@ These clients are explicitly classified so they cannot be mistaken for inference
 | `internal/policyclient/client.go` | policy-sidecar health, capabilities, roster, decision, preview, outcome, and feedback control-plane I/O |
 | `internal/policyclient/task_domain.go` | admitted, digest-pinned task classifier; returns five domain bits, never a provider/model selection |
 | `internal/router/rl/client.go` | legacy policy-sidecar decision I/O |
-| `internal/subscriptions/oauth.go` | subscription OAuth token refresh |
 | `internal/entra/client_credentials.go` | Entra client-credential minting |
 | `internal/observability/otel/emitter.go` | telemetry export |
 
@@ -87,7 +80,7 @@ The migration baseline is covered by:
 - fallback and binding behavior: `internal/proxy/fallback_test.go`, `baseline_failover_integration_test.go`, `sibling_failover_integration_test.go`
 - compaction and handover: `internal/proxy/compaction_test.go`, `handover_internal_test.go`, `internal/translate/compaction_test.go`, `handover_test.go`
 - translation and streaming: `internal/proxy/conformance_*_test.go`, `internal/translate/stream_*_test.go`, `responses_to_anthropic_writer_stream_test.go`
-- subscriptions, BYOK, and gateways: `internal/proxy/subscription_*_test.go`, `managed_subscriptions_test.go`, `gateway_*_test.go`, provider credential tests
+- BYOK and gateways: `internal/proxy/gateway_*_test.go`, provider credential tests
 - telemetry: `internal/proxy/planner_telemetry_internal_test.go`, `turn_signal_telemetry_internal_test.go`, `fire_telemetry_panic_internal_test.go`
 - metadata passthrough: `internal/proxy/count_tokens_test.go`, `upstream_models_test.go`
 

@@ -67,7 +67,7 @@ non-trivial work.
   regenerated from `db/queries/` via `make generate`. Editing them
   directly will be reverted.
 - **Magic strings for provider/model names.** Use the constants in
-  `internal/providers` (`providers.ProviderAnthropic`, etc.) everywhere
+  `internal/providers` (`providers.ProviderAIAND`, etc.) everywhere
   these appear.
 - **DI containers, reflection-based wiring, or service locators.**
   Composition is plain Go function calls in `cmd/router/main.go`.

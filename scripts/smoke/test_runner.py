@@ -55,7 +55,6 @@ entry = {"tool": tool, "args": args, "credentials": {
     key: value for key, value in os.environ.items()
     if key.endswith(("_API_KEY", "_TOKEN")) or key.startswith("SMOKE_RECORD_")
 }, "test_url": os.environ.get("SMOKE_BASE_URL"),
-    "openai_enabled": os.environ.get("SMOKE_OPENAI_ENABLED"),
     "go_flags": os.environ.get("GOFLAGS"),
     "go_cache": os.environ.get("GOCACHE"),
     "pin_model": os.environ.get("SMOKE_PIN_MODEL"),
@@ -138,7 +137,7 @@ class SmokeRunnerTest(unittest.TestCase):
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(SOURCE_ROOT / relative, target)
         (self.repo / ".env.local").write_text(
-            "ANTHROPIC_API_KEY=private-local-synthetic\n"
+            "AIAND_API_KEY=private-local-synthetic\n"
         )
         self.bin = self.root / "bin"
         self.bin.mkdir()
@@ -158,8 +157,7 @@ class SmokeRunnerTest(unittest.TestCase):
             "PATH": f"{self.bin}:{os.environ['PATH']}",
             "FAKE_STATE": str(self.state),
             "TMPDIR": str(self.root),
-            "ANTHROPIC_API_KEY": "synthetic-host-anthropic-secret",
-            "OPENAI_API_KEY": "synthetic-host-openai-secret",
+            "AIAND_API_KEY": "synthetic-host-aiand-secret",
             "GOOGLE_API_KEY": "synthetic-host-google-secret",
             "COMPOSE_PROJECT_NAME": "developer-stack",
             "COMPOSE_PROFILES": "hmm",
@@ -211,7 +209,6 @@ class SmokeRunnerTest(unittest.TestCase):
         )
         go_call = next(call for call in calls if call["tool"] == "go")
         self.assertEqual(go_call["test_url"], "http://127.0.0.1:49170")
-        self.assertEqual(go_call["openai_enabled"], "1")
         self.assertFalse(Path(compose_calls[0]["override_path"]).parent.exists())
         self.assertEqual(
             (self.state / "developer-stack").read_text(),
@@ -219,7 +216,7 @@ class SmokeRunnerTest(unittest.TestCase):
         )
         self.assertEqual(
             (self.repo / ".env.local").read_text(),
-            "ANTHROPIC_API_KEY=private-local-synthetic\n",
+            "AIAND_API_KEY=private-local-synthetic\n",
         )
 
     def test_separate_invocations_never_share_projects(self) -> None:
@@ -417,24 +414,21 @@ class SmokeRunnerTest(unittest.TestCase):
         self,
     ) -> None:
         missing = self.run_smoke(
-            SMOKE_PROXY_MODE=ProxyMode.RECORD.value, ANTHROPIC_API_KEY=""
+            SMOKE_PROXY_MODE=ProxyMode.RECORD.value, AIAND_API_KEY=""
         )
         self.assertNotEqual(missing.returncode, 0)
         self.assertEqual(self.calls(), [])
-        completed = self.run_smoke(
-            SMOKE_PROXY_MODE=ProxyMode.RECORD.value, OPENAI_API_KEY=""
-        )
+        completed = self.run_smoke(SMOKE_PROXY_MODE=ProxyMode.RECORD.value)
         self.assertEqual(completed.returncode, 0, completed.stdout)
         up = next(call for call in self.calls() if "up" in call["args"])
         self.assertEqual(
-            up["credentials"]["SMOKE_RECORD_ANTHROPIC_KEY"],
-            "synthetic-host-anthropic-secret",
+            up["credentials"]["SMOKE_RECORD_AIAND_KEY"],
+            "synthetic-host-aiand-secret",
         )
-        self.assertNotIn("synthetic-host-anthropic-secret", up["override"])
+        self.assertNotIn("synthetic-host-aiand-secret", up["override"])
         self.assertIn("internal: false", up["override"])
         self.assertIn("/cassettes:rw", up["override"])
         go_call = next(call for call in self.calls() if call["tool"] == "go")
-        self.assertEqual(go_call["openai_enabled"], "0")
         self.assertEqual(go_call["credentials"], {})
 
 
@@ -500,7 +494,7 @@ class ComposeMergeTest(unittest.TestCase):
             server = config["services"]["server"]
             self.assertNotIn("env_file", server)
             self.assertEqual(
-                server["environment"]["ANTHROPIC_API_KEY"], runner.PLACEHOLDER_KEY
+                server["environment"]["AIAND_API_KEY"], runner.PLACEHOLDER_KEY
             )
             self.assertNotIn("ports", server)
             ingress = config["services"]["smoke-ingress"]

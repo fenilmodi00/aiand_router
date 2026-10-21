@@ -60,7 +60,7 @@ Copy the `rk_...` key it prints.
 
 ### 3. Choose the upstream
 
-**Real provider** — set the provider key in `.env.local` (e.g. `FIREWORKS_API_KEY=...`) and restart `docker compose up -d server`. Confirm the boot log shows `<Provider> provider enabled` with the real base_url. Use this to confirm a model genuinely produces the behavior.
+**Real provider** — set the provider key in `.env.local` (e.g. `AIAND_API_KEY=...`) and restart `docker compose up -d server`. Confirm the boot log shows `ai& provider enabled` with the real base_url. Use this to confirm a model genuinely produces the behavior.
 
 **Mock upstream** — for a deterministic, credit-free repro of a precise SSE shape. Point the provider's base URL at a local mock and restart:
 
@@ -68,8 +68,8 @@ Copy the `rk_...` key it prints.
 python3 scripts/mock_openai_upstream.py >/tmp/mock.log 2>&1 &   # serves :8099
 # In docker-compose.override.yml under `server:`, add:
 #   environment:
-#     FIREWORKS_BASE_URL: http://host.docker.internal:8099/v1
-#     FIREWORKS_API_KEY: sk-mock
+#     AIAND_BASE_URL: http://host.docker.internal:8099/v1
+#     AIAND_API_KEY: sk-mock
 #   extra_hosts: ["host.docker.internal:host-gateway"]
 docker compose up -d server
 ```
@@ -128,7 +128,7 @@ rm -f docker-compose.override.yml /tmp/local-settings.json
 For fixes to `internal/billing` + `internal/server/middleware/balance_check.go` + the usage-bypass path (`internal/proxy/usage_bypass.go`), the setup differs from the model-behavior workflow above:
 
 - **The balance gate only attaches in managed mode with billing enabled.** Set `ROUTER_DEPLOYMENT_MODE=managed` on the `server` service. Billing auto-enables when the `router` schema's billing tables exist (they do after `migrate`), logged as `Router billing enabled`. In default selfhosted mode `WithBalanceCheck` is never wired and none of this triggers.
-- **The Anthropic provider has no `ANTHROPIC_BASE_URL` override** (unlike Fireworks/Together/etc.) — `cmd/router/main.go` hardcodes `anthropic.DefaultBaseURL`. To point Anthropic at a mock, temporarily edit that line to `config.GetOr("ANTHROPIC_BASE_URL", anthropic.DefaultBaseURL)`, rebuild, and **revert it after testing** (don't ship it in the fix PR). The boot log line still prints `DefaultBaseURL` cosmetically — verify the mock is actually hit via the mock's own logs, not the boot log.
+- **The provider base URL is overridable.** `cmd/router/main.go` reads `AIAND_BASE_URL` (default `https://api.aiand.com/v1`), so pointing the router at a mock needs no code edit — set the env var and rebuild. Verify the mock is actually hit via the mock's own logs, not the boot log.
 - **Requests must be MainLoop-shaped to reach the usage-bypass decision.** Short prompts (small `max_tokens`, no tools) classify as `Probe`/`Classifier`/`TitleGen` — all **hard-pinned**, short-circuiting before the usage-bypass and scorer branches. A trivial `"say hi"` will wrongly hit the refusal path. Use a realistic turn: `tools` present + `max_tokens>=4096` + a normal user message. Confirm `turn_type=main_loop` in the `turnloop classified` log before trusting the result.
 - **Drive with raw `curl`** on the production router-key path — no `claude` binary needed, and it lets you pin the requested model (the usage-bypass path serves the *requested* model verbatim, so no `/force-model` needed here):
   ```bash

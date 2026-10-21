@@ -12,14 +12,13 @@ name: Smoke
 # deterministic. The shared agent_checks selector chooses request-path changes;
 # the workflow itself is unfiltered so new components cannot bypass selection.
 #
-# A separate nightly job (needs ANTHROPIC_API_KEY; OPENAI_API_KEY optional) re-
-# records the cassettes against the real APIs to catch upstream drift (a
-# provider changing a response shape) independent of any code change here. It
-# never runs on a fork.
+# A separate nightly job (needs AIAND_API_KEY) re-records the cassettes against
+# the real API to catch upstream drift (a provider changing a response shape)
+# independent of any code change here. It never runs on a fork.
 on:
   pull_request:
   schedule:
-    # Nightly cassette-refresh: catches Anthropic-side drift the path-gated PR
+    # Nightly cassette-refresh: catches upstream-side drift the path-gated PR
     # job (replay-only, no key) can't see. Time chosen off any round hour.
     - cron: '17 7 * * *'
   workflow_dispatch:
@@ -124,8 +123,7 @@ jobs:
           SMOKE_PROXY_MODE: ${{ github.event.inputs.proxy_mode || 'replay-only' }}
           # Only present for a manual record/replay-or-record dispatch; unused
           # (and unnecessary) for the default replay-only path.
-          ANTHROPIC_API_KEY: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.proxy_mode != 'replay-only' && secrets.ANTHROPIC_API_KEY || '' }}
-          OPENAI_API_KEY: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.proxy_mode != 'replay-only' && secrets.OPENAI_API_KEY || '' }}
+          AIAND_API_KEY: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.proxy_mode != 'replay-only' && secrets.AIAND_API_KEY || '' }}
           # Layers the server/mitmproxy Docker builds against the GitHub
           # Actions cache (type=gha) via smoke/mitmproxy/docker-compose.ci-cache.yml
           # — the ONNX/tokenizer downloads, npm build, and Go compile are what
@@ -170,12 +168,12 @@ jobs:
           go-version: '1.26.10'
           cache-dependency-path: go.sum
 
-      - name: Require Anthropic key
+      - name: Require ai& key
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          AIAND_API_KEY: ${{ secrets.AIAND_API_KEY }}
         run: |
-          if [ -z "$ANTHROPIC_API_KEY" ]; then
-            echo "::error::ANTHROPIC_API_KEY secret is not set; the nightly cassette refresh needs it."
+          if [ -z "$AIAND_API_KEY" ]; then
+            echo "::error::AIAND_API_KEY secret is not set; the nightly cassette refresh needs it."
             exit 1
           fi
 
@@ -202,8 +200,7 @@ jobs:
 
       - name: Record fresh cassettes against the real API
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          AIAND_API_KEY: ${{ secrets.AIAND_API_KEY }}
           SMOKE_PROXY_MODE: record
           SMOKE_CI_CACHE: "1"
           SMOKE_PREBUILT: "1"

@@ -10,13 +10,13 @@ import (
 const toolDeltaPinModel = "z-ai/glm-5.2"
 
 // TestToolDeltaBlocks sends mid-conversation tool-change blocks on user and
-// assistant messages, matching the client shapes that previously reached
-// Anthropic with the blocks on a non-system role.
+// assistant messages, matching the client shapes that previously reached the
+// upstream with the blocks on a non-system role.
 func TestToolDeltaBlocks(t *testing.T) {
 	body := toolDeltaRequest(t)
 	r := callModel(t, body, toolDeltaPinModel)
 	requireOKMessage(t, r)
-	assertServedByModel(t, r, toolDeltaPinModel, "anthropic")
+	assertServedByModel(t, r, toolDeltaPinModel, "aiand")
 }
 
 func toolDeltaRequest(t *testing.T) []byte {
