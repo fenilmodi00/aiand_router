@@ -3,7 +3,6 @@ package translate
 import (
 	"fmt"
 
-
 	"github.com/tidwall/sjson"
 )
 

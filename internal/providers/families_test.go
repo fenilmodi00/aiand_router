@@ -44,20 +44,6 @@ func TestValidateDispatchableRejectsUnknown(t *testing.T) {
 // mis-assignment (e.g. flipping an OpenAI-compat provider to Anthropic) fails.
 func TestFamilyForKnownProviders(t *testing.T) {
 	cases := map[string]providers.TranslationFamily{
-		providers.ProviderAIAND:      providers.FamilyOpenAICompat,
-		providers.ProviderAIAND:         providers.FamilyOpenAICompat,
-		providers.ProviderAIAND:         providers.FamilyOpenAICompat,
-		providers.ProviderAIAND:     providers.FamilyOpenAICompat,
-		providers.ProviderAIAND:      providers.FamilyOpenAICompat,
-		providers.ProviderAIAND:      providers.FamilyOpenAICompat,
-		providers.ProviderAIAND:        providers.FamilyOpenAICompat,
-		providers.ProviderAIAND:         providers.FamilyOpenAICompat,
-		providers.ProviderAIAND:        providers.FamilyOpenAICompat,
-		providers.ProviderAIAND:       providers.FamilyOpenAICompat,
-		providers.ProviderAIAND:            providers.FamilyOpenAICompat,
-		providers.ProviderAIAND:           providers.FamilyOpenAICompat,
-		providers.ProviderAIAND:          providers.FamilyOpenAICompat,
-		providers.ProviderAIAND:          providers.FamilyOpenAICompat,
 		providers.ProviderAIAND: providers.FamilyOpenAICompat,
 	}
 	for p, want := range cases {

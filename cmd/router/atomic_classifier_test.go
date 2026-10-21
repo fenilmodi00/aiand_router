@@ -30,7 +30,7 @@ func TestAtomicClassifierStartupIsOptInAndFailsClosed(t *testing.T) {
 	t.Setenv("ROUTER_SERVING_TARGET", "")
 	t.Setenv("ROUTER_LLM_CLASSIFIER_BEARER", strings.Repeat("b", 32))
 	t.Setenv("ROUTER_LLM_CLASSIFIER_SIGNING_KEY", strings.Repeat("s", 32))
-	model, found := catalog.ByID(catalog.ModelIDGPT55.String())
+	model, found := catalog.ByID(catalog.ModelIDGLM53.String())
 	require.True(t, found)
 	arm := armid.ForModel(model)
 	escalationClasses := []string{string(escalation.Low), string(escalation.Medium), string(escalation.High), string(escalation.Maximum)}

@@ -123,12 +123,10 @@ func TestProxyMessages_SiblingFailoverOntoOpenAIUsesResponses(t *testing.T) {
 		staticRouter{decision: decision},
 		map[string]providers.Client{
 			providers.ProviderAIAND: failing,
-			providers.ProviderAIAND:    rescue,
 		},
 		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
 		providers.ProviderAIAND: {},
-		providers.ProviderAIAND:    {},
 	})
 	svc.retrySleep = noopSleep
 

@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"weave-os/router/internal/providers"
-	"weave-os/router/internal/providers/openai"
+	"weave-os/router/internal/providers/openaicompat"
 	"weave-os/router/internal/router"
 )
 
@@ -30,8 +30,7 @@ func TestVerificationNativeCodexSubscriptionPreferredToPaidAPI(t *testing.T) {
 		_, _ = io.WriteString(w, "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"synthetic-response\",\"status\":\"completed\",\"output\":[],\"usage\":{\"input_tokens\":11,\"output_tokens\":7}}}\n\n")
 	}))
 	defer upstream.Close()
-	client := openai.NewClient("synthetic-api-key", upstream.URL)
-	client.SetCodexBaseURL(upstream.URL)
+	client := openaicompat.NewClient("synthetic-api-key", upstream.URL)
 	svc := NewService(staticRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: codexCoveredModel, Reason: "test"}}, map[string]providers.Client{providers.ProviderAIAND: client}, nil, false, nil, nil, false, providers.ProviderAIAND, codexCoveredModel, nil).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 	body := []byte(`{"model":"auto","stream":true,"messages":[{"role":"user","content":"inspect synthetic billing"}],"tools":[{"type":"function","function":{"name":"read_file","parameters":{"type":"object"}}}]}`)
 	recorder := httptest.NewRecorder()

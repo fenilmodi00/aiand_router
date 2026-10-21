@@ -18,7 +18,7 @@ import (
 	"weave-os/router/internal/billing"
 	"weave-os/router/internal/observability/otel"
 	"weave-os/router/internal/providers"
-	"weave-os/router/internal/providers/openai"
+	"weave-os/router/internal/providers/openaicompat"
 	"weave-os/router/internal/router"
 )
 
@@ -51,7 +51,7 @@ func TestVerificationAdmissionFailureExportsDecisionWithoutUpstream(t *testing.T
 	var requests int
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { requests++; w.WriteHeader(500) }))
 	defer upstream.Close()
-	client := openai.NewClient("synthetic-api-key", upstream.URL)
+	client := openaicompat.NewClient("synthetic-api-key", upstream.URL)
 	svc := NewService(staticRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: codexCoveredModel, Reason: "test"}}, map[string]providers.Client{providers.ProviderAIAND: client}, emitter, false, nil, nil, false, providers.ProviderAIAND, codexCoveredModel, nil).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 	ctx := billing.WithSubscriptionOnly(context.Background(), billing.SubscriptionOnlyCreditsDepleted)
 	ctx = context.WithValue(ctx, APIKeyIDContextKey{}, "10000000-0000-4000-8000-000000000003")

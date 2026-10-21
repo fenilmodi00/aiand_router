@@ -93,7 +93,7 @@ func TestUsageBypassDecision_CodexSubscriptionPreservesRequestedModel(t *testing
 	obs.Record(obs.Key([]byte(codexToken)), usage.Snapshot{
 		Primary: usage.Window{UsedPercent: 0.20, WindowMinutes: 300},
 	})
-	svc := &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: &bypassFakeProvider{}, providers.ProviderAIAND: &bypassFakeProvider{}}), usageObserver: obs}
+	svc := &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: &bypassFakeProvider{}}), usageObserver: obs}
 	ctx := context.WithValue(context.Background(), OpenAISubscriptionContextKey{}, codexToken)
 	ctx = context.WithValue(ctx, OpenAIAccountIDContextKey{}, "account-1")
 	ctx = context.WithValue(ctx, InstallationUsageBypassContextKey{}, UsageBypassConfig{
@@ -130,7 +130,7 @@ func TestUsageBypassDecision_SessionDemotionBlocks_GlobalAutomaticExclusionDoesN
 	obs.Record(obs.Key([]byte(token)), usage.Snapshot{
 		Primary: usage.Window{UsedPercent: 0.20, WindowMinutes: 300},
 	})
-	svc := &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: &bypassFakeProvider{}, providers.ProviderAIAND: &bypassFakeProvider{}}), usageObserver: obs}
+	svc := &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: &bypassFakeProvider{}}), usageObserver: obs}
 	ctx := context.WithValue(context.Background(), AnthropicSubscriptionContextKey{}, token)
 	ctx = context.WithValue(ctx, InstallationUsageBypassContextKey{}, UsageBypassConfig{
 		Enabled:   true,
@@ -191,7 +191,7 @@ func TestUsageBypassEngaged_SafetyExclusionBlocks_PolicyExclusionDoesNot(t *test
 	enabled := map[string]struct{}{providers.ProviderAIAND: {}}
 
 	t.Run("installation excluded_models does not block bypass", func(t *testing.T) {
-		svc := &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: &bypassFakeProvider{}, providers.ProviderAIAND: &bypassFakeProvider{}}), usageObserver: newObs()}
+		svc := &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: &bypassFakeProvider{}}), usageObserver: newObs()}
 		provider, ok := svc.usageBypassEngaged(baseCtx(), http.Header{}, router.Request{
 			RequestedModel:   model,
 			EnabledProviders: enabled,
@@ -202,7 +202,7 @@ func TestUsageBypassEngaged_SafetyExclusionBlocks_PolicyExclusionDoesNot(t *test
 	})
 
 	t.Run("safety exclusion blocks bypass", func(t *testing.T) {
-		svc := &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: &bypassFakeProvider{}, providers.ProviderAIAND: &bypassFakeProvider{}}), usageObserver: newObs()}
+		svc := &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: &bypassFakeProvider{}}), usageObserver: newObs()}
 		_, ok := svc.usageBypassEngaged(baseCtx(), http.Header{}, router.Request{
 			RequestedModel:       model,
 			EnabledProviders:     enabled,
@@ -212,7 +212,7 @@ func TestUsageBypassEngaged_SafetyExclusionBlocks_PolicyExclusionDoesNot(t *test
 	})
 
 	t.Run("both excluded: safety exclusion still blocks", func(t *testing.T) {
-		svc := &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: &bypassFakeProvider{}, providers.ProviderAIAND: &bypassFakeProvider{}}), usageObserver: newObs()}
+		svc := &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: &bypassFakeProvider{}}), usageObserver: newObs()}
 		_, ok := svc.usageBypassEngaged(baseCtx(), http.Header{}, router.Request{
 			RequestedModel:       model,
 			EnabledProviders:     enabled,
@@ -303,7 +303,6 @@ func TestUsageBypass_EngagesUnderAuthoritativePolicy(t *testing.T) {
 		RequestedModel: feats.Model,
 		EnabledProviders: map[string]struct{}{
 			providers.ProviderAIAND: {},
-			providers.ProviderAIAND:    {},
 		},
 	})
 

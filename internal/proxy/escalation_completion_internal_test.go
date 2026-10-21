@@ -150,11 +150,11 @@ func TestEscalationTurnsBypassPopulatedSemanticCache(t *testing.T) {
 			semanticCache := cache.New(cache.DefaultConfig())
 			embedding := []float32{1, 0}
 			const externalID = "escalation-cache-test"
-			provenance := cache.NewProvenance(cache.ProvenanceScope{CredentialSubject: "completion-test-key", Product: cache.ProductLegacy, Model: catalog.ModelIDClaudeHaiku45, Provider: providers.ProviderAIAND, UpstreamScope: "deployment"})
+			provenance := cache.NewProvenance(cache.ProvenanceScope{CredentialSubject: "completion-test-key", Product: cache.ProductLegacy, Model: catalog.ModelIDGLM53Flash, Provider: providers.ProviderAIAND, UpstreamScope: "deployment"})
 			semanticCache.Store(externalID, tc.format, embedding, 1, cache.CachedResponse{StatusCode: http.StatusOK, Body: []byte(`{"cached":true}`)}, "", 0, provenance)
 			_, hit := semanticCache.Lookup(externalID, tc.format, embedding, []int{1}, "", 0, provenance)
 			require.True(t, hit)
-			classifier := &authoritativeTestRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDClaudeHaiku45.String(), Metadata: &router.RoutingMetadata{Strategy: string(router.StrategyHMMEmbedding), Embedding: embedding, ClusterIDs: []int{1}}}}
+			classifier := &authoritativeTestRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDGLM53Flash.String(), Metadata: &router.RoutingMetadata{Strategy: string(router.StrategyHMMEmbedding), Embedding: embedding, ClusterIDs: []int{1}}}}
 			svc := NewService(nil, nil, nil, false, semanticCache, newStubPinStore(), false, providers.ProviderAIAND, "claude-opus-4-8", nil).WithEscalation(store, &escalationTestObserver{}).WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyHMMEmbedding, Router: classifier, Capabilities: policy.Capabilities{SchemaVersion: policy.SchemaVersionV1}})
 			ctx := context.WithValue(escalationCompletionContext(), ExternalIDContextKey{}, externalID)
 			recorder := httptest.NewRecorder()

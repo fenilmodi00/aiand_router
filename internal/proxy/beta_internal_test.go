@@ -707,7 +707,6 @@ func TestProxyEntrypointsStripHistoricalBetaArtifactsBeforeRouting(t *testing.T)
 				routing,
 				map[string]providers.Client{
 					providers.ProviderAIAND: embedTestProvider{},
-					providers.ProviderAIAND:    embedTestProvider{},
 				},
 				nil, false, nil, nil, false,
 				providers.ProviderAIAND, "claude-haiku-4-5", nil,
@@ -815,7 +814,6 @@ func TestBetaPreferenceSurvivesFirstMessageRewriteWithinClientSession(t *testing
 				stableRouter,
 				map[string]providers.Client{
 					providers.ProviderAIAND: embedTestProvider{},
-					providers.ProviderAIAND:    embedTestProvider{},
 				},
 				nil, false, nil, nil, false,
 				providers.ProviderAIAND, "claude-haiku-4-5", nil,

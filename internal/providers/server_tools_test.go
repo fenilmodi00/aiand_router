@@ -6,25 +6,14 @@ import (
 	"weave-os/router/internal/providers"
 )
 
-func TestSupportsAnthropicServerTools(t *testing.T) {
-	cases := map[string]bool{
-		providers.ProviderAIAND:        true,
-		providers.ProviderAIAND: false,
-		providers.ProviderAIAND:           false,
-		providers.ProviderAIAND:          false,
-	}
-	for provider, want := range cases {
-		if got := providers.SupportsAnthropicServerTools(provider); got != want {
-			t.Errorf("SupportsAnthropicServerTools(%q) = %v, want %v", provider, got, want)
+// TestEveryProviderIsOpenAICompat asserts every wired provider speaks the
+// OpenAI Chat Completions wire format — the only family the router dispatches
+// to. A provider in another family would have no emitter and 502 at request
+// time.
+func TestEveryProviderIsOpenAICompat(t *testing.T) {
+	for _, provider := range providers.AllProviders() {
+		if !providers.IsOpenAICompat(provider) {
+			t.Errorf("provider %q is not OpenAI-compatible; no emitter serves it", provider)
 		}
-	}
-}
-
-func TestAnthropicGatewayShareFamilyButNotServerTools(t *testing.T) {
-	if providers.FamilyFor(providers.ProviderAIAND) != providers.FamilyFor(providers.ProviderAIAND) {
-		t.Fatal("the gateway must stay Anthropic-family: it speaks the Messages wire format")
-	}
-	if providers.SupportsAnthropicServerTools(providers.ProviderAIAND) {
-		t.Fatal("wire-format compatibility must not imply server-tool support")
 	}
 }

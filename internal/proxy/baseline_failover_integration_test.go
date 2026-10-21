@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"weave-os/router/internal/providers"
-	"weave-os/router/internal/providers/anthropic"
 	"weave-os/router/internal/providers/openaicompat"
 	"weave-os/router/internal/proxy"
 	"weave-os/router/internal/router"
@@ -85,7 +84,7 @@ func TestProxyMessages_OSSOutageFailsOverToBaselineAnthropic(t *testing.T) {
 		map[string]providers.Client{
 			"fireworks":  openaicompat.NewClient("test-fw-key", fireworks.URL),
 			"openrouter": openaicompat.NewClient("test-or-key", openrouter.URL),
-			"anthropic":  anthropic.NewClient("test-anthropic-key", anthropicUpstream.URL),
+			"anthropic":  openaicompat.NewClient("test-anthropic-key", anthropicUpstream.URL),
 		},
 		nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", tel,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
@@ -179,9 +178,7 @@ func TestProxyMessages_AuthoritativePolicyNeverChangesModelOnFailover(t *testing
 	svc := proxy.NewService(
 		nil,
 		map[string]providers.Client{
-			providers.ProviderAIAND:  openaicompat.NewClient("test-fw-key", fireworks.URL),
-			providers.ProviderAIAND: openaicompat.NewClient("test-or-key", openrouter.URL),
-			providers.ProviderAIAND:  anthropic.NewClient("test-anthropic-key", anthropicUpstream.URL),
+			providers.ProviderAIAND: openaicompat.NewClient("test-fw-key", fireworks.URL),
 		},
 		nil,
 		false,
@@ -192,9 +189,7 @@ func TestProxyMessages_AuthoritativePolicyNeverChangesModelOnFailover(t *testing
 		"claude-haiku-4-5",
 		newCaptureTelemetry(),
 	).WithDeploymentKeyedProviders(map[string]struct{}{
-		providers.ProviderAIAND:  {},
 		providers.ProviderAIAND: {},
-		providers.ProviderAIAND:  {},
 	}).WithPolicyStrategy(policy.StrategySpec{
 		Strategy: strategy,
 		Router:   policyRouter,
@@ -229,10 +224,6 @@ func TestProxyMessages_ForcedModelUnavailableDoesNotSubstituteAnthropic(t *testi
 		anthropicCount++
 		w.WriteHeader(http.StatusOK)
 	}}
-	google := &fakeProvider{proxyResponse: func(w http.ResponseWriter) {
-		googleCount++
-		w.WriteHeader(http.StatusOK)
-	}}
 	svc := makeProxyService(
 		router.Decision{
 			Provider: providers.ProviderAIAND,
@@ -241,7 +232,6 @@ func TestProxyMessages_ForcedModelUnavailableDoesNotSubstituteAnthropic(t *testi
 		},
 		map[string]providers.Client{
 			providers.ProviderAIAND: anthropic,
-			providers.ProviderAIAND:    google,
 		},
 	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 
@@ -283,7 +273,7 @@ func TestProxyMessages_OSSOutageNoBaselineWhenRequestedModelIsOSS(t *testing.T) 
 		map[string]providers.Client{
 			"fireworks":  openaicompat.NewClient("k", fireworks.URL),
 			"openrouter": openaicompat.NewClient("k", openrouter.URL),
-			"anthropic":  anthropic.NewClient("k", anthropicUpstream.URL),
+			"anthropic":  openaicompat.NewClient("k", anthropicUpstream.URL),
 		},
 		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
@@ -325,7 +315,7 @@ func TestProxyMessages_OSSOutageNoBaselineWhenAnthropicExcluded(t *testing.T) {
 		map[string]providers.Client{
 			"fireworks":  openaicompat.NewClient("k", fireworks.URL),
 			"openrouter": openaicompat.NewClient("k", openrouter.URL),
-			"anthropic":  anthropic.NewClient("k", anthropicUpstream.URL),
+			"anthropic":  openaicompat.NewClient("k", anthropicUpstream.URL),
 		},
 		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
@@ -364,7 +354,7 @@ func TestProxyMessages_FailedBaselineReportsAnthropicProvider(t *testing.T) {
 		map[string]providers.Client{
 			"fireworks":  openaicompat.NewClient("k", fireworks.URL),
 			"openrouter": openaicompat.NewClient("k", openrouter.URL),
-			"anthropic":  anthropic.NewClient("k", anthropicUpstream.URL),
+			"anthropic":  openaicompat.NewClient("k", anthropicUpstream.URL),
 		},
 		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", tel,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
@@ -437,16 +427,12 @@ func TestProxyMessages_AuthoritativePolicyFailsOverOnCapabilityRejection(t *test
 	svc := proxy.NewService(
 		nil,
 		map[string]providers.Client{
-			providers.ProviderAIAND:  openaicompat.NewClient("test-fw-key", fireworks.URL),
-			providers.ProviderAIAND: openaicompat.NewClient("test-or-key", openrouter.URL),
-			providers.ProviderAIAND:  anthropic.NewClient("test-anthropic-key", anthropicUpstream.URL),
+			providers.ProviderAIAND: openaicompat.NewClient("test-fw-key", fireworks.URL),
 		},
 		nil, false, nil, newFakePinStore(), false,
 		providers.ProviderAIAND, "claude-haiku-4-5", newCaptureTelemetry(),
 	).WithDeploymentKeyedProviders(map[string]struct{}{
-		providers.ProviderAIAND:  {},
 		providers.ProviderAIAND: {},
-		providers.ProviderAIAND:  {},
 	}).WithPolicyStrategy(policy.StrategySpec{
 		Strategy: strategy,
 		Router:   policyRouter,

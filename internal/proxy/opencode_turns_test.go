@@ -31,7 +31,7 @@ const openCodeHardPinModel = "gpt-4o-mini"
 const openCodeScoredTitleModel = "gpt-4o"
 
 func newOpenCodeTurnSvc(fr *fakeRouter, store *fakePinStore) *proxy.Service {
-	responsesResp := func(w http.ResponseWriter) {
+	_ = func(w http.ResponseWriter) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = io.WriteString(w, `{"id":"resp_1","object":"response","output":[{"type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"ok"}]}]}`)
@@ -45,7 +45,6 @@ func newOpenCodeTurnSvc(fr *fakeRouter, store *fakePinStore) *proxy.Service {
 		fr,
 		map[string]providers.Client{
 			providers.ProviderAIAND: &fakeProvider{proxyResponse: anthropicResp},
-			providers.ProviderAIAND:    &fakeProvider{proxyResponse: responsesResp},
 		},
 		nil, false, nil, store, false,
 		providers.ProviderAIAND, openCodeHardPinModel, nil,

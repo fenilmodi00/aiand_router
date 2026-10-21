@@ -13,7 +13,7 @@ import (
 	"github.com/tidwall/gjson"
 	"weave-os/router/internal/auth"
 	"weave-os/router/internal/providers"
-	"weave-os/router/internal/providers/openai"
+	"weave-os/router/internal/providers/openaicompat"
 	"weave-os/router/internal/proxy/usage"
 	"weave-os/router/internal/router"
 	"weave-os/router/internal/subscriptions"
@@ -49,8 +49,7 @@ func TestVerificationSafeTransportDirectExhaustionUsesLinkedWithoutAPI(t *testin
 		_, _ = io.WriteString(w, "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"synthetic-response\",\"status\":\"completed\",\"output\":[],\"usage\":{\"input_tokens\":11,\"output_tokens\":7}}}\n\n")
 	}))
 	defer upstream.Close()
-	client := openai.NewClient("", upstream.URL)
-	client.SetCodexBaseURL(upstream.URL)
+	client := openaicompat.NewClient("", upstream.URL)
 	leaser := &scriptedSubscriptionLeaser{leases: []subscriptions.Lease{{AccountID: "linked-account", AccessToken: "linked-token", ProviderAccount: "linked-provider-account"}}}
 	svc := NewService(staticRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: codexCoveredModel, Reason: "test"}}, map[string]providers.Client{providers.ProviderAIAND: client}, nil, false, nil, nil, false, providers.ProviderAIAND, codexCoveredModel, nil).WithManagedSubscriptions(leaser)
 	body := []byte(`{"model":"auto","stream":true,"messages":[{"role":"user","content":"inspect synthetic input"}],"tools":[{"type":"function","function":{"name":"read_file","parameters":{"type":"object","properties":{"path":{"type":"string"}}}}}],"reasoning_effort":"medium"}`)
@@ -87,8 +86,7 @@ func TestVerificationSafeTransportManagedWinnerQuotaObservedFromHTTP(t *testing.
 		_, _ = io.WriteString(w, "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"synthetic-response\",\"status\":\"completed\",\"output\":[],\"usage\":{\"input_tokens\":11,\"output_tokens\":7}}}\n\n")
 	}))
 	defer upstream.Close()
-	client := openai.NewClient("", upstream.URL)
-	client.SetCodexBaseURL(upstream.URL)
+	client := openaicompat.NewClient("", upstream.URL)
 	leaser := &scriptedSubscriptionLeaser{leases: []subscriptions.Lease{{AccountID: "quota-account", AccessToken: "quota-token", ProviderAccount: "quota-provider-account"}}}
 	observer := usage.NewObserver([]byte("synthetic-salt"), time.Hour, time.Now)
 	svc := NewService(staticRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: codexCoveredModel, Reason: "test"}}, map[string]providers.Client{providers.ProviderAIAND: client}, nil, false, nil, nil, false, providers.ProviderAIAND, codexCoveredModel, nil).WithManagedSubscriptions(leaser).WithUsageObserver(observer)

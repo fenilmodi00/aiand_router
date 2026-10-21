@@ -132,7 +132,6 @@ func TestExcludeContextOverflowModels_UsesRoutableBinding(t *testing.T) {
 		"deepseek/deepseek-v4-pro-0813": {},
 	}
 	enabledBoth := map[string]struct{}{
-		providers.ProviderAIAND:  {},
 		providers.ProviderAIAND: {},
 	}
 	enabledFireworksOnly := map[string]struct{}{
@@ -194,13 +193,13 @@ func TestAdmitWidestOnTotalOverflow_IgnoresUnservableModels(t *testing.T) {
 	assert.ElementsMatch(t, []string{"claude-opus-5-5", "claude-haiku-5-5"},
 		admitWidestOnTotalOverflow(ruledOut, overflowed, available, anthropicOnly, cluster.RequestBindings{}))
 
-	withGoogle := map[string]struct{}{providers.ProviderAIAND: {}, providers.ProviderAIAND: {}}
+	withGoogle := map[string]struct{}{providers.ProviderAIAND: {}}
 	ruledOut, overflowed = excludeContextOverflowModels(872_297, 0, 128_000, withGoogle, nil, available)
 	assert.Nil(t, admitWidestOnTotalOverflow(ruledOut, overflowed, available, withGoogle, cluster.RequestBindings{}),
 		"a servable model that fits leaves the exclusions alone")
 
 	customGateway := map[string][]string{"gemini-3.5-flash": {providers.ProviderAIAND}}
-	withGateway := map[string]struct{}{providers.ProviderAIAND: {}, providers.ProviderAIAND: {}}
+	withGateway := map[string]struct{}{providers.ProviderAIAND: {}}
 	ruledOut, overflowed = excludeContextOverflowModels(872_297, 0, 128_000, withGateway, nil, available)
 	assert.Nil(t, admitWidestOnTotalOverflow(ruledOut, overflowed, available, withGateway, cluster.RequestBindings{Custom: customGateway}),
 		"a configuration-declared binding makes the model servable")

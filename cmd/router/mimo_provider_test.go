@@ -9,6 +9,6 @@ import (
 )
 
 func TestUpstreamIDsForProvider_MiMoV26Flash(t *testing.T) {
-	require.Equal(t, "XiaomiMiMo/MiMo-V2.6-Flash-RL", upstreamIDsForProvider(providers.ProviderAIAND)[catalog.ModelMiMoV26Flash])
-	require.Equal(t, "XiaomiMiMo/MiMo-V2.6-Flash", upstreamIDsForProvider(providers.ProviderAIAND)[catalog.ModelMiMoV26Flash])
+	require.Equal(t, "XiaomiMiMo/MiMo-V2.6-Flash-RL", upstreamIDsForProvider(providers.ProviderAIAND)[catalog.ModelIDDeepSeekV4Flash.String()])
+	require.Equal(t, "XiaomiMiMo/MiMo-V2.6-Flash", upstreamIDsForProvider(providers.ProviderAIAND)[catalog.ModelIDDeepSeekV4Flash.String()])
 }

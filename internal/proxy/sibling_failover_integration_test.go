@@ -12,7 +12,6 @@ import (
 
 	"weave-os/router/internal/dispatch"
 	"weave-os/router/internal/providers"
-	"weave-os/router/internal/providers/anthropic"
 	"weave-os/router/internal/providers/openaicompat"
 	"weave-os/router/internal/proxy"
 	"weave-os/router/internal/proxy/usage"
@@ -94,12 +93,10 @@ func TestProxyMessages_OverloadedModelDegradesToSameClusterCandidate(t *testing.
 	svc := proxy.NewService(
 		&fakeRouter{decision: siblingClusterDecision("")},
 		map[string]providers.Client{
-			providers.ProviderAIAND: anthropic.NewClient("test-anthropic-key", anthropicUpstream.URL),
-			providers.ProviderAIAND: openaicompat.NewClient("test-fw-key", fireworks.URL),
+			providers.ProviderAIAND: openaicompat.NewClient("test-anthropic-key", anthropicUpstream.URL),
 		},
 		nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", newCaptureTelemetry(),
 	).WithDeploymentKeyedProviders(map[string]struct{}{
-		providers.ProviderAIAND: {},
 		providers.ProviderAIAND: {},
 	}).WithRetrySleep(noRetrySleep)
 
@@ -187,12 +184,10 @@ func newRankedRescueFixture(t *testing.T) *rankedRescueFixture {
 	f.svc = proxy.NewService(
 		&fakeRouter{decision: decision},
 		map[string]providers.Client{
-			providers.ProviderAIAND: anthropic.NewClient("test-anthropic-key", anthropicUpstream.URL),
-			providers.ProviderAIAND: openaicompat.NewClient("test-fw-key", fireworks.URL),
+			providers.ProviderAIAND: openaicompat.NewClient("test-anthropic-key", anthropicUpstream.URL),
 		},
 		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
-		providers.ProviderAIAND: {},
 		providers.ProviderAIAND: {},
 	}).WithRetrySleep(noRetrySleep)
 	return f
@@ -268,12 +263,10 @@ func TestProxyMessages_OverloadAfterCommitKeepsServingModel(t *testing.T) {
 	svc := proxy.NewService(
 		&fakeRouter{decision: siblingClusterDecision("")},
 		map[string]providers.Client{
-			providers.ProviderAIAND: anthropic.NewClient("test-anthropic-key", anthropicUpstream.URL),
-			providers.ProviderAIAND: openaicompat.NewClient("test-fw-key", fireworks.URL),
+			providers.ProviderAIAND: openaicompat.NewClient("test-anthropic-key", anthropicUpstream.URL),
 		},
 		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
-		providers.ProviderAIAND: {},
 		providers.ProviderAIAND: {},
 	}).WithRetrySleep(noRetrySleep)
 
@@ -316,12 +309,10 @@ func TestProxyMessages_ForceModelOverloadDoesNotDegrade(t *testing.T) {
 	svc := proxy.NewService(
 		&fakeRouter{decision: siblingClusterDecision(translate.ReasonUserForceModel)},
 		map[string]providers.Client{
-			providers.ProviderAIAND: anthropic.NewClient("test-anthropic-key", anthropicUpstream.URL),
-			providers.ProviderAIAND: openaicompat.NewClient("test-fw-key", fireworks.URL),
+			providers.ProviderAIAND: openaicompat.NewClient("test-anthropic-key", anthropicUpstream.URL),
 		},
 		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
-		providers.ProviderAIAND: {},
 		providers.ProviderAIAND: {},
 	}).WithRetrySleep(noRetrySleep)
 
@@ -361,7 +352,7 @@ func TestProxyMessages_OverloadWithoutCandidatesSurfacesUpstreamError(t *testing
 			Metadata: &router.RoutingMetadata{CandidateModels: []string{"claude-opus-4-8"}},
 		}},
 		map[string]providers.Client{
-			providers.ProviderAIAND: anthropic.NewClient("test-anthropic-key", anthropicUpstream.URL),
+			providers.ProviderAIAND: openaicompat.NewClient("test-anthropic-key", anthropicUpstream.URL),
 		},
 		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}}).
@@ -425,12 +416,10 @@ func TestProxyMessages_SubscriptionOverloadSurfacesOnceAfterRetry(t *testing.T) 
 	svc := proxy.NewService(
 		&fakeRouter{decision: siblingClusterDecision("")},
 		map[string]providers.Client{
-			providers.ProviderAIAND: anthropic.NewClient("test-anthropic-key", anthropicUpstream.URL),
-			providers.ProviderAIAND: openaicompat.NewClient("test-fw-key", fireworks.URL),
+			providers.ProviderAIAND: openaicompat.NewClient("test-anthropic-key", anthropicUpstream.URL),
 		},
 		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
-		providers.ProviderAIAND: {},
 		providers.ProviderAIAND: {},
 	}).WithRetrySleep(noRetrySleep).
 		WithUsageObserver(usage.NewObserver([]byte("rollover-overload-quota-salt"), time.Hour, time.Now))

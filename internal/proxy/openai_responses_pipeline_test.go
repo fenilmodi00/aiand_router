@@ -159,7 +159,6 @@ func TestService_ProxyMessages_HandoverSwitchToOpenAIEmitsResponses(t *testing.T
 		fr,
 		map[string]providers.Client{
 			providers.ProviderAIAND: &fakeProvider{},
-			providers.ProviderAIAND:    openAI,
 		},
 		nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithSummarizer(summarizer)
@@ -198,7 +197,6 @@ func TestService_ProxyOpenAIChatCompletion_HandoverUsesResponsesEndpoint(t *test
 		fr,
 		map[string]providers.Client{
 			providers.ProviderAIAND: &fakeProvider{},
-			providers.ProviderAIAND:    openAI,
 		},
 		nil, false, nil, store, false, providers.ProviderAIAND, "gpt-5.6-sol", nil,
 	).WithSummarizer(summarizer)

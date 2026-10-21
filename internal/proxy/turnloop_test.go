@@ -562,7 +562,6 @@ func TestTurnLoop_ToolResultPinOnExcludedProviderFallsThroughToScorer(t *testing
 		fr,
 		map[string]providers.Client{
 			providers.ProviderAIAND: &fakeProvider{},
-			providers.ProviderAIAND:    &fakeProvider{},
 		},
 		nil,
 		false,

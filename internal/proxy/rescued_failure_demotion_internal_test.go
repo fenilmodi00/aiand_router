@@ -89,12 +89,10 @@ func newRescuedFailureTurnService(store sessionpin.Store, decision router.Decisi
 		staticRouter{decision: decision},
 		map[string]providers.Client{
 			providers.ProviderAIAND: primary,
-			providers.ProviderAIAND:    sibling,
 		},
 		nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
 		providers.ProviderAIAND: {},
-		providers.ProviderAIAND:    {},
 	}).WithRetrySleep(func(context.Context, time.Duration) error { return nil }).WithRescuedFailureArmDemotion(flagOn)
 }
 
@@ -226,12 +224,10 @@ func TestProxyMessages_BaselineRetryKeepsStallDemotionOnPrimary(t *testing.T) {
 		staticRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: primaryModel, Reason: "test"}},
 		map[string]providers.Client{
 			providers.ProviderAIAND: baseline,
-			providers.ProviderAIAND:    primary,
 		},
 		nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
 		providers.ProviderAIAND: {},
-		providers.ProviderAIAND:    {},
 	}).WithRescuedFailureArmDemotion(true)
 
 	body := anthropicMessagesBody()

@@ -14,44 +14,13 @@ import (
 
 func catalogRosterID(model catalog.Model) string { return model.ID }
 
-func TestManagedResolverMiMoV26FlashProviderOrder(t *testing.T) {
+// The single-provider cut left one binding per catalog model, so the resolver
+// must resolve the model to that binding and report the catalog's upstream ID
+// for it (ai& names models vendor-prefixed).
+func TestManagedResolverResolvesTheOnlyProviderBinding(t *testing.T) {
 	resolver := policy.NewResolver(
-		set(catalog.ModelMiMoV26Flash),
-		set(providers.ProviderAIAND, providers.ProviderAIAND, providers.ProviderAIAND),
-		catalogRosterID,
-		policy.ManagedProviderPolicy(),
-	)
-	cases := []struct {
-		name       string
-		enabled    map[string]struct{}
-		provider   string
-		upstreamID string
-	}{
-		{"Makora primary", set(providers.ProviderAIAND, providers.ProviderAIAND, providers.ProviderAIAND), providers.ProviderAIAND, "XiaomiMiMo/MiMo-V2.6-Flash-RL"},
-		{"DeepInfra fallback", set(providers.ProviderAIAND, providers.ProviderAIAND), providers.ProviderAIAND, "XiaomiMiMo/MiMo-V2.6-Flash"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			resolved := resolver.Resolve(router.Request{EnabledProviders: tc.enabled})
-			require.Len(t, resolved.Candidates, 1)
-			require.Equal(t, catalog.ModelMiMoV26Flash, resolved.Candidates[0].CatalogID)
-			require.Equal(t, tc.provider, resolved.Candidates[0].Provider)
-			require.Equal(t, tc.upstreamID, resolved.Candidates[0].UpstreamID)
-		})
-	}
-	resolved := resolver.Resolve(router.Request{EnabledProviders: set(providers.ProviderAIAND)})
-	require.Empty(t, resolved.Candidates)
-	require.Contains(t, resolved.Diagnostics, policy.Diagnostic{
-		CatalogID: catalog.ModelMiMoV26Flash,
-		RosterID:  catalog.ModelMiMoV26Flash,
-		Reason:    policy.ExclusionProviderPolicy,
-	})
-}
-
-func TestManagedResolverUsesCurrentProvidersAndNeverOpenRouter(t *testing.T) {
-	resolver := policy.NewResolver(
-		set("deepseek/deepseek-v4-pro", "xiaomi/mimo-v2.5-pro"),
-		set(providers.ProviderAIAND, providers.ProviderAIAND),
+		set(catalog.ModelIDDeepSeekV41Flash.String()),
+		set(providers.ProviderAIAND),
 		catalogRosterID,
 		policy.ManagedProviderPolicy(),
 	)
@@ -59,12 +28,53 @@ func TestManagedResolverUsesCurrentProvidersAndNeverOpenRouter(t *testing.T) {
 	resolved := resolver.Resolve(router.Request{})
 
 	require.Len(t, resolved.Candidates, 1)
-	assert.Equal(t, "deepseek/deepseek-v4-pro", resolved.Candidates[0].CatalogID)
+	assert.Equal(t, catalog.ModelIDDeepSeekV41Flash.String(), resolved.Candidates[0].CatalogID)
 	assert.Equal(t, providers.ProviderAIAND, resolved.Candidates[0].Provider)
-	assert.Equal(t, "accounts/fireworks/models/deepseek-v4-pro", resolved.Candidates[0].UpstreamID)
+	assert.Equal(t, "deepseek-ai/deepseek-v4.1-flash", resolved.Candidates[0].UpstreamID)
+}
+
+// The managed policy denies nothing, so every catalog row resolves through
+// ai&; the only provider that must never be offered is one the deployment
+// has no key for.
+func TestManagedResolverUsesTheOnlyRemainingProvider(t *testing.T) {
+	resolver := policy.NewResolver(
+		set("deepseek/deepseek-v4-pro", "z-ai/glm-5.3"),
+		set(providers.ProviderAIAND),
+		catalogRosterID,
+		policy.ManagedProviderPolicy(),
+	)
+
+	resolved := resolver.Resolve(router.Request{})
+
+	require.Len(t, resolved.Candidates, 2)
+	byID := map[string]policy.Candidate{}
+	for _, candidate := range resolved.Candidates {
+		byID[candidate.CatalogID] = candidate
+	}
+	require.Contains(t, byID, "deepseek/deepseek-v4-pro")
+	assert.Equal(t, providers.ProviderAIAND, byID["deepseek/deepseek-v4-pro"].Provider)
+	assert.Equal(t, "deepseek-ai/deepseek-v4-pro", byID["deepseek/deepseek-v4-pro"].UpstreamID)
+	require.Contains(t, byID, "z-ai/glm-5.3")
+	assert.Equal(t, providers.ProviderAIAND, byID["z-ai/glm-5.3"].Provider)
+	assert.Equal(t, "zai-org/glm-5.3", byID["z-ai/glm-5.3"].UpstreamID)
+}
+
+// A model whose only binding is policy-denied is reported as a provider
+// policy exclusion, not as a missing provider.
+func TestResolverExcludesModelsWhoseOnlyProviderIsPolicyDenied(t *testing.T) {
+	resolver := policy.NewResolver(
+		set("z-ai/glm-5.3"),
+		set(providers.ProviderAIAND),
+		catalogRosterID,
+		policy.ProviderPolicy{Denied: map[string]struct{}{providers.ProviderAIAND: {}}},
+	)
+
+	resolved := resolver.Resolve(router.Request{})
+
+	assert.Empty(t, resolved.Candidates)
 	assert.Contains(t, resolved.Diagnostics, policy.Diagnostic{
-		CatalogID: "xiaomi/mimo-v2.5-pro",
-		RosterID:  "xiaomi/mimo-v2.5-pro",
+		CatalogID: "z-ai/glm-5.3",
+		RosterID:  "z-ai/glm-5.3",
 		Reason:    policy.ExclusionProviderPolicy,
 	})
 }

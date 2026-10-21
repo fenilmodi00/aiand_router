@@ -21,7 +21,7 @@ type codexTitleRouter struct {
 
 func (r *codexTitleRouter) Route(context.Context, router.Request) (router.Decision, error) {
 	r.routeCalls++
-	return router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDGPT55.String(), Reason: "scored"}, nil
+	return router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDGLM53.String(), Reason: "scored"}, nil
 }
 
 type codexTitleProvider struct {
@@ -69,7 +69,7 @@ func TestCodexResponsesTitleGenerationScoresWithoutMarker(t *testing.T) {
 	require.NoError(t, svc.ProxyOpenAIResponses(ctx, body, rec, req))
 	require.Len(t, provider.endpoints, 1)
 	require.Equal(t, 1, routerSpy.routeCalls, "Codex title generation must be scored independently")
-	assert.Equal(t, []string{catalog.ModelIDGPT55.String()}, provider.models)
+	assert.Equal(t, []string{catalog.ModelIDGLM53.String()}, provider.models)
 	assert.NotContains(t, rec.Body.String(), "Weave Router", "title responses must not carry a routing marker")
 }
 
@@ -101,7 +101,7 @@ func TestCodexResponsesTitlePromptScoresWithoutMarker(t *testing.T) {
 	require.NoError(t, svc.ProxyOpenAIResponses(ctx, body, rec, req))
 	require.Len(t, provider.endpoints, 1)
 	require.Equal(t, 1, routerSpy.routeCalls, "Codex title generation must be scored independently")
-	assert.Equal(t, []string{catalog.ModelIDGPT55.String()}, provider.models)
+	assert.Equal(t, []string{catalog.ModelIDGLM53.String()}, provider.models)
 	assert.NotContains(t, rec.Body.String(), "Weave Router", "title responses must not carry a routing marker")
 }
 
@@ -133,7 +133,7 @@ func TestCodexResponsesTitlePromptAfterHarnessContextScores(t *testing.T) {
 	require.NoError(t, svc.ProxyOpenAIResponses(ctx, body, rec, req))
 	require.Len(t, provider.endpoints, 1)
 	require.Equal(t, 1, routerSpy.routeCalls, "Codex title generation must be scored independently")
-	assert.Equal(t, []string{catalog.ModelIDGPT55.String()}, provider.models)
+	assert.Equal(t, []string{catalog.ModelIDGLM53.String()}, provider.models)
 	assert.NotContains(t, rec.Body.String(), "Weave Router", "title responses must not carry a routing marker")
 }
 

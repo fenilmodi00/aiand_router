@@ -102,12 +102,10 @@ func TestService_PreviewAnthropicRouteBuildsServingCandidateContextWithoutDispat
 	}}
 	svc := proxy.NewService(&fakeRouter{}, map[string]providers.Client{
 		providers.ProviderAIAND: anthropicProvider,
-		providers.ProviderAIAND:    openAIProvider,
 	}, nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil).
 		WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyHMM, Router: previewer}).
 		WithDeploymentKeyedProviders(map[string]struct{}{
 			providers.ProviderAIAND: {},
-			providers.ProviderAIAND:    {},
 		})
 
 	ctx := router.WithStrategy(context.Background(), router.StrategyHMM)
@@ -244,11 +242,9 @@ func TestService_AgentShadowEvaluationNeverSubstitutesRequestedBaseline(t *testi
 	}}
 	svc := proxy.NewService(&fakeRouter{}, map[string]providers.Client{
 		providers.ProviderAIAND: anthropicProvider,
-		providers.ProviderAIAND:    openAIProvider,
 	}, nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil).
 		WithDeploymentKeyedProviders(map[string]struct{}{
 			providers.ProviderAIAND: {},
-			providers.ProviderAIAND:    {},
 		}).
 		WithAvailableModels(map[string]struct{}{
 			"claude-opus-4-8": {},
@@ -303,7 +299,6 @@ func TestService_ProxyOpenAIResponses_CustomToolUsesNativeOpenAIFamily(t *testin
 	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-5.5", Reason: "test"}}
 	svc := proxy.NewService(fr, map[string]providers.Client{
 		providers.ProviderAIAND: &fakeProvider{},
-		providers.ProviderAIAND:    provider,
 	}, nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil)
 
 	body := []byte(`{"model":"gpt-5.5","input":"apply a patch","reasoning":{"effort":"high"},"tools":[{"type":"custom","name":"apply_patch"}]}`)
@@ -575,7 +570,6 @@ func TestService_ProxyOpenAIResponses_OpenCodeStripsTerminalArtifactsBeforeTrans
 	}}
 	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.1", Reason: "test"}}
 	svc := proxy.NewService(fr, map[string]providers.Client{
-		providers.ProviderAIAND:  provider,
 		providers.ProviderAIAND: provider,
 	}, nil, false, nil, nil, false, providers.ProviderAIAND, "gpt-5.6-sol", nil)
 
@@ -605,9 +599,6 @@ func TestService_ProxyOpenAIResponses_TranslatedMarkerOptOutPreservesStream(t *t
 	}}
 	svc := proxy.NewService(fr, map[string]providers.Client{
 		providers.ProviderAIAND: together,
-		providers.ProviderAIAND: &fakeProvider{
-			proxyResponse: together.proxyResponse,
-		},
 	}, nil, false, nil, nil, false, providers.ProviderAIAND, "gpt-5.6-sol", nil)
 
 	ctx := context.WithValue(context.Background(), proxy.ClientIdentityContextKey{}, proxy.ClientIdentity{ClientApp: proxy.ClientAppCodex})
@@ -813,8 +804,7 @@ func TestService_ProxyOpenAIResponses_CodexPassthroughUsesChatForOpenAICompatPro
 	}}
 	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-chat", Reason: "test"}}
 	svc := proxy.NewService(fr, map[string]providers.Client{
-		providers.ProviderAIAND:     &fakeProvider{},
-		providers.ProviderAIAND: openRouter,
+		providers.ProviderAIAND: &fakeProvider{},
 	}, nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil)
 
 	ctx := context.WithValue(context.Background(), proxy.OpenAISubscriptionContextKey{}, "eyJhbGciOiJSUzI1NiJ9.codex.sig")
@@ -845,18 +835,10 @@ func TestService_ProxyOpenAIResponses_CodexPortableBridgeKeepsHMMProvidersAndRes
 		Reason:   "hmm:test",
 	}}
 	svc := proxy.NewService(fr, map[string]providers.Client{
-		providers.ProviderAIAND:    &fakeProvider{},
 		providers.ProviderAIAND: &fakeProvider{},
-		providers.ProviderAIAND: fireworks,
-		providers.ProviderAIAND:    &fakeProvider{},
-		providers.ProviderAIAND:  &fakeProvider{},
 	}, nil, false, nil, nil, false, providers.ProviderAIAND, "gpt-5.6-sol", nil).
 		WithDeploymentKeyedProviders(map[string]struct{}{
-			providers.ProviderAIAND:    {},
 			providers.ProviderAIAND: {},
-			providers.ProviderAIAND: {},
-			providers.ProviderAIAND:    {},
-			providers.ProviderAIAND:  {},
 		})
 
 	ctx := context.WithValue(context.Background(), proxy.OpenAISubscriptionContextKey{}, "eyJhbGciOiJSUzI1NiJ9.codex.sig")
@@ -951,10 +933,8 @@ func TestService_PassthroughToNamedProvider_ResolvesBYOKCredential(t *testing.T)
 // gateway-only deployment (no Anthropic credential) answers count_tokens locally.
 func TestService_PassthroughToProvider_CountTokensLocalFallback(t *testing.T) {
 	anthropicProvider := &fakeProvider{}
-	gatewayProvider := &fakeProvider{}
 	svc := makeProxyService(router.Decision{}, map[string]providers.Client{
-		providers.ProviderAIAND:        anthropicProvider,
-		providers.ProviderAIAND: gatewayProvider,
+		providers.ProviderAIAND: anthropicProvider,
 	}).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 
 	body := []byte(`{"model":"claude-sonnet-4-6","messages":[{"role":"user","content":"hello world"}]}`)
@@ -1476,7 +1456,6 @@ func TestService_CodexPassthrough_RoutesFreelyWithBothSubs(t *testing.T) {
 		_, _ = w.Write([]byte(`{"id":"msg_1","type":"message","role":"assistant","model":"claude-sonnet-4-6","content":[{"type":"text","text":"hi"}],"stop_reason":"end_turn","usage":{"input_tokens":1,"output_tokens":1}}`))
 	}
 	providerMap := map[string]providers.Client{
-		providers.ProviderAIAND:    &fakeProvider{},
 		providers.ProviderAIAND: &fakeProvider{proxyResponse: anthropicResp},
 	}
 	svc := proxy.NewService(fr, providerMap, nil, false, nil, nil, false, providers.ProviderAIAND, "claude-sonnet-4-6", nil).
@@ -1512,7 +1491,6 @@ func TestService_CodexPassthrough_RoutesFreelyWithBothSubs(t *testing.T) {
 func TestService_WithByokOnly_FiltersUnauthedProvidersFromScorer(t *testing.T) {
 	body := []byte(`{"model":"claude-opus-4-7","messages":[{"role":"user","content":"hi"}]}`)
 	providerMap := map[string]providers.Client{
-		providers.ProviderAIAND:  &fakeProvider{},
 		providers.ProviderAIAND: &fakeProvider{},
 	}
 

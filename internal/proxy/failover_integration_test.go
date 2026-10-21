@@ -13,8 +13,6 @@ import (
 	"time"
 
 	"weave-os/router/internal/providers"
-	"weave-os/router/internal/providers/anthropic"
-	"weave-os/router/internal/providers/openai"
 	"weave-os/router/internal/providers/openaicompat"
 	"weave-os/router/internal/proxy"
 	"weave-os/router/internal/router"
@@ -385,7 +383,7 @@ func TestProxyMessages_AnthropicSSEOverloadRetriesSameBinding(t *testing.T) {
 
 	svc := proxy.NewService(
 		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5"}},
-		map[string]providers.Client{providers.ProviderAIAND: anthropic.NewClient("test-key", upstream.URL)},
+		map[string]providers.Client{providers.ProviderAIAND: openaicompat.NewClient("test-key", upstream.URL)},
 		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}}).
 		WithRetrySleep(noRetrySleep)
@@ -420,7 +418,7 @@ func TestProxyMessages_AnthropicSSEOverloadExhaustionRecords529(t *testing.T) {
 	telemetry := newCaptureTelemetry()
 	svc := proxy.NewService(
 		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5"}},
-		map[string]providers.Client{providers.ProviderAIAND: anthropic.NewClient("test-key", upstream.URL)},
+		map[string]providers.Client{providers.ProviderAIAND: openaicompat.NewClient("test-key", upstream.URL)},
 		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", telemetry,
 	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}}).
 		WithRetrySleep(noRetrySleep)
@@ -471,7 +469,7 @@ func TestProxyMessages_TwoConsecutiveOverloadExhaustionsDisableProvider(t *testi
 	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", Reason: "fresh"}}
 	svc := proxy.NewService(
 		fr,
-		map[string]providers.Client{providers.ProviderAIAND: anthropic.NewClient("test-key", upstream.URL)},
+		map[string]providers.Client{providers.ProviderAIAND: openaicompat.NewClient("test-key", upstream.URL)},
 		nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}}).
 		WithPlannerEnabled(false).
@@ -541,11 +539,9 @@ func TestProxyMessages_BaselineOverloadExhaustionDoesNotDisableAnthropic(t *test
 		fr,
 		map[string]providers.Client{
 			providers.ProviderAIAND: openaicompat.NewClient("test-fw-key", ossUpstream.URL),
-			providers.ProviderAIAND: anthropic.NewClient("test-key", anthropicUpstream.URL),
 		},
 		nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
-		providers.ProviderAIAND: {},
 		providers.ProviderAIAND: {},
 	}).WithPlannerEnabled(false).
 		WithRetrySleep(noRetrySleep)
@@ -605,12 +601,10 @@ func TestProxyMessages_ResponsesFailureBeforeOutputFallsBackToBaseline(t *testin
 	svc := proxy.NewService(
 		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-5.5", Reason: "test"}},
 		map[string]providers.Client{
-			providers.ProviderAIAND:    openai.NewClient("test-key", openAIUpstream.URL),
-			providers.ProviderAIAND: baseline,
+			providers.ProviderAIAND: openaicompat.NewClient("test-key", openAIUpstream.URL),
 		},
 		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
-		providers.ProviderAIAND:    {},
 		providers.ProviderAIAND: {},
 	}).WithRetrySleep(noRetrySleep)
 
@@ -643,12 +637,10 @@ func TestProxyMessages_BaselineFailoverSkipsBaselineOverContextWindow(t *testing
 	svc := proxy.NewService(
 		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-5.5", Reason: "test"}},
 		map[string]providers.Client{
-			providers.ProviderAIAND:    openai.NewClient("test-key", openAIUpstream.URL),
-			providers.ProviderAIAND: baseline,
+			providers.ProviderAIAND: openaicompat.NewClient("test-key", openAIUpstream.URL),
 		},
 		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
-		providers.ProviderAIAND:    {},
 		providers.ProviderAIAND: {},
 	}).WithRetrySleep(noRetrySleep)
 

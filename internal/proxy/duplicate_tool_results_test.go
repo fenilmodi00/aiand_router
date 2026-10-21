@@ -42,7 +42,6 @@ func TestProxyOpenAIResponses_CodexDuplicateToolOutputsReachAnthropicOnce(t *tes
 	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-opus-5", Reason: "test"}}
 	svc := proxy.NewService(fr, map[string]providers.Client{
 		providers.ProviderAIAND: anthropic,
-		providers.ProviderAIAND:    &fakeProvider{},
 	}, nil, false, nil, nil, false, providers.ProviderAIAND, "claude-opus-5", nil)
 
 	rec := httptest.NewRecorder()

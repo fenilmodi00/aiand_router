@@ -16,8 +16,6 @@ func compatibilityService(mode TranslationCompatibilityMode) *Service {
 	return &Service{
 		clients: dispatch.NewClients(map[string]providers.Client{
 			providers.ProviderAIAND: nil,
-			providers.ProviderAIAND:    nil,
-			providers.ProviderAIAND:    nil,
 		}),
 		translationCompatibilityMode: mode,
 	}
@@ -28,7 +26,6 @@ func TestTranslationPlan_NativeResponsesFiltersToOpenAIFamilyInShadow(t *testing
 	plan := svc.planTranslation(router.Request{
 		EnabledProviders: map[string]struct{}{
 			providers.ProviderAIAND: {},
-			providers.ProviderAIAND:    {},
 		},
 		TranslationRequirements: router.TranslationRequirements{
 			SourceFormat: router.WireFormatOpenAI,
@@ -48,7 +45,6 @@ func TestTranslationPlan_GeminiIngressNeverOffersForeignFamily(t *testing.T) {
 	plan := svc.planTranslation(router.Request{
 		EnabledProviders: map[string]struct{}{
 			providers.ProviderAIAND: {},
-			providers.ProviderAIAND:    {},
 		},
 		TranslationRequirements: router.TranslationRequirements{
 			SourceFormat: router.WireFormatGemini,
@@ -76,7 +72,6 @@ func TestTranslationPlan_OffRestoresNativeFamilyEligibility(t *testing.T) {
 	plan := compatibilityService(TranslationCompatibilityOff).planTranslation(router.Request{
 		EnabledProviders: map[string]struct{}{
 			providers.ProviderAIAND: {},
-			providers.ProviderAIAND:    {},
 		},
 		TranslationRequirements: router.TranslationRequirements{
 			SourceFormat: router.WireFormatOpenAI,
@@ -87,7 +82,6 @@ func TestTranslationPlan_OffRestoresNativeFamilyEligibility(t *testing.T) {
 
 	assert.Equal(t, map[string]struct{}{
 		providers.ProviderAIAND: {},
-		providers.ProviderAIAND:    {},
 	}, plan.EnabledProviders)
 	requireExclusion(t, plan, "native_wire_family_required", providers.ProviderAIAND, false)
 }
@@ -96,7 +90,6 @@ func TestTranslationPlan_NativeResponsesRequireOpenAIResponsesAdapter(t *testing
 	svc := compatibilityService(TranslationCompatibilityShadow)
 	plan := svc.planTranslation(router.Request{
 		EnabledProviders: map[string]struct{}{
-			providers.ProviderAIAND:     {},
 			providers.ProviderAIAND: {},
 		},
 		TranslationRequirements: router.TranslationRequirements{
@@ -114,7 +107,6 @@ func TestTranslationPlan_BroadSemanticRequirementOnlyFiltersInEnforce(t *testing
 	req := router.Request{
 		EnabledProviders: map[string]struct{}{
 			providers.ProviderAIAND: {},
-			providers.ProviderAIAND:    {},
 		},
 		TranslationRequirements: router.TranslationRequirements{
 			SourceFormat:       router.WireFormatAnthropic,
@@ -141,7 +133,6 @@ func TestTranslationPlan_NativeSearchAlwaysFiltersToSourceProvider(t *testing.T)
 			plan := compatibilityService(mode).planTranslation(router.Request{
 				EnabledProviders: map[string]struct{}{
 					providers.ProviderAIAND: {},
-					providers.ProviderAIAND:    {},
 				},
 				TranslationRequirements: router.TranslationRequirements{
 					SourceFormat:      router.WireFormatAnthropic,

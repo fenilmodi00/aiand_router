@@ -8,7 +8,7 @@ import (
 
 	"weave-os/router/internal/policyregistry"
 	"weave-os/router/internal/providers"
-	"weave-os/router/internal/providers/openai"
+	"weave-os/router/internal/providers/openaicompat"
 	"weave-os/router/internal/proxy"
 	"weave-os/router/internal/requestcontext"
 	"weave-os/router/internal/router"
@@ -28,8 +28,7 @@ func TestCodexModelCatalog_UsesCallerOAuth(t *testing.T) {
 		_, _ = w.Write([]byte(`{"models":[{"slug":"gpt-6-sol","visibility":"list","supported_reasoning_levels":[{"effort":"max"}]}]}`))
 	}))
 	defer upstream.Close()
-	client := openai.NewClient("deployment-key", "https://api.openai.com")
-	client.SetCodexBaseURL(upstream.URL)
+	client := openaicompat.NewClient("deployment-key", "https://api.openai.com")
 	svc := proxy.NewService(&fakeRouter{}, map[string]providers.Client{providers.ProviderAIAND: client}, nil, false, nil, nil, false, providers.ProviderAIAND, "gpt-5.6-sol", nil)
 	headers := make(http.Header)
 	headers.Set("Authorization", "Bearer subscription-token")
@@ -53,7 +52,7 @@ func TestCodexModelCatalog_UsesCallerOAuth(t *testing.T) {
 }
 
 func TestCodexModelCatalog_RequiresPairedOAuth(t *testing.T) {
-	client := openai.NewClient("deployment-key", "https://api.openai.com")
+	client := openaicompat.NewClient("deployment-key", "https://api.openai.com")
 	svc := proxy.NewService(&fakeRouter{}, map[string]providers.Client{providers.ProviderAIAND: client}, nil, false, nil, nil, false, providers.ProviderAIAND, "gpt-5.6-sol", nil)
 	headers := make(http.Header)
 	headers.Set("Authorization", "Bearer subscription-token")

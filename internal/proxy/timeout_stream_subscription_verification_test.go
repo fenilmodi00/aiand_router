@@ -16,7 +16,7 @@ import (
 	"weave-os/router/internal/auth"
 	"weave-os/router/internal/observability"
 	"weave-os/router/internal/providers"
-	"weave-os/router/internal/providers/openai"
+	"weave-os/router/internal/providers/openaicompat"
 	"weave-os/router/internal/router"
 	"weave-os/router/internal/subscriptions"
 )
@@ -49,8 +49,7 @@ func TestVerificationSubscriptionTimeoutRefusesAPIWithoutQuotaProof(t *testing.T
 	}))
 	defer upstream.Close()
 	// A short header timeout stands in for the provider watchdog that now owns a hung subscription attempt.
-	client := openai.NewClientWithTimeouts("synthetic-api-key", upstream.URL, hungSeatHeaderTimeout, time.Minute)
-	client.SetCodexBaseURL(upstream.URL)
+	client := openaicompat.NewClientWithTimeouts("synthetic-api-key", upstream.URL, hungSeatHeaderTimeout, time.Minute)
 	leaser := &scriptedSubscriptionLeaser{leases: []subscriptions.Lease{{AccountID: "timeout-account", AccessToken: "timeout-seat", ProviderAccount: "timeout-provider"}}}
 	svc := NewService(staticRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: codexCoveredModel, Reason: "test"}}, map[string]providers.Client{providers.ProviderAIAND: client}, nil, false, nil, nil, false, providers.ProviderAIAND, codexCoveredModel, nil).WithManagedSubscriptions(leaser).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 	body := []byte(`{"model":"auto","stream":true,"messages":[{"role":"user","content":"synthetic timeout"}],"tools":[{"type":"function","function":{"name":"read_file","parameters":{"type":"object"}}}]}`)
@@ -99,8 +98,7 @@ func TestVerificationResponsesSubscriptionTimeoutRefusesAPIWithoutQuotaProof(t *
 	}))
 	defer upstream.Close()
 	// A short header timeout stands in for the provider watchdog that now owns a hung subscription attempt.
-	client := openai.NewClientWithTimeouts("synthetic-api-key", upstream.URL, hungSeatHeaderTimeout, time.Minute)
-	client.SetCodexBaseURL(upstream.URL)
+	client := openaicompat.NewClientWithTimeouts("synthetic-api-key", upstream.URL, hungSeatHeaderTimeout, time.Minute)
 	leaser := &scriptedSubscriptionLeaser{leases: []subscriptions.Lease{{AccountID: "timeout-account", AccessToken: "timeout-seat", ProviderAccount: "timeout-provider"}}}
 	svc := NewService(staticRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: codexCoveredModel, Reason: "test"}}, map[string]providers.Client{providers.ProviderAIAND: client}, nil, false, nil, nil, false, providers.ProviderAIAND, codexCoveredModel, nil).WithManagedSubscriptions(leaser).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 	body := []byte(`{"model":"auto","stream":true,"input":"synthetic timeout","tools":[{"type":"function","name":"read_file","parameters":{"type":"object"}}]}`)
@@ -139,8 +137,7 @@ func TestVerificationCommittedSubscriptionStreamNeverReplayed(t *testing.T) {
 		_, _ = io.WriteString(w, "data: {\"type\":\"response.failed\",\"response\":{\"id\":\"synthetic\",\"status\":\"failed\",\"error\":{\"code\":\"usage_limit_reached\",\"message\":\"synthetic exhaustion\"}}}\n\n")
 	}))
 	defer upstream.Close()
-	client := openai.NewClient("synthetic-api-key", upstream.URL)
-	client.SetCodexBaseURL(upstream.URL)
+	client := openaicompat.NewClient("synthetic-api-key", upstream.URL)
 	leaser := &scriptedSubscriptionLeaser{leases: []subscriptions.Lease{{AccountID: "first-account", AccessToken: "first-seat", ProviderAccount: "first-provider"}, {AccountID: "second-account", AccessToken: "second-seat", ProviderAccount: "second-provider"}}}
 	svc := NewService(staticRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: codexCoveredModel, Reason: "test"}}, map[string]providers.Client{providers.ProviderAIAND: client}, nil, false, nil, nil, false, providers.ProviderAIAND, codexCoveredModel, nil).WithManagedSubscriptions(leaser).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 	body := []byte(`{"model":"auto","stream":true,"messages":[{"role":"user","content":"synthetic stream"}],"tools":[{"type":"function","function":{"name":"read_file","parameters":{"type":"object"}}}]}`)
@@ -180,8 +177,7 @@ func TestVerificationCommittedFailureAcrossIngress(t *testing.T) {
 				_, _ = io.WriteString(w, "data: {\"type\":\"response.failed\",\"response\":{\"id\":\"synthetic\",\"status\":\"failed\",\"error\":{\"code\":\"usage_limit_reached\",\"message\":\"synthetic exhaustion\"}}}\n\n")
 			}))
 			defer server.Close()
-			client := openai.NewClient("synthetic-api-key", server.URL)
-			client.SetCodexBaseURL(server.URL)
+			client := openaicompat.NewClient("synthetic-api-key", server.URL)
 			leaser := &scriptedSubscriptionLeaser{leases: []subscriptions.Lease{{AccountID: "first-account", AccessToken: "first-seat", ProviderAccount: "first-provider"}, {AccountID: "second-account", AccessToken: "second-seat"}}}
 			svc := NewService(staticRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: codexCoveredModel, Reason: "test"}}, map[string]providers.Client{providers.ProviderAIAND: client}, nil, false, nil, nil, false, providers.ProviderAIAND, codexCoveredModel, nil).WithManagedSubscriptions(leaser).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 			ctx := context.WithValue(managedSubscriptionContext(auth.SubscriptionProviderCodex), InstallationIDContextKey{}, "11111111-1111-1111-1111-111111111111")
@@ -222,8 +218,7 @@ func TestVerificationCommittedCRLFFailureAcrossIngress(t *testing.T) {
 				_, _ = io.WriteString(w, "data: {\"type\":\"response.failed\",\"response\":{\"id\":\"synthetic\",\"status\":\"failed\",\"error\":{\"code\":\"usage_limit_reached\",\"message\":\"synthetic exhaustion\"}}}\r\n\r\n")
 			}))
 			defer server.Close()
-			client := openai.NewClient("synthetic-api-key", server.URL)
-			client.SetCodexBaseURL(server.URL)
+			client := openaicompat.NewClient("synthetic-api-key", server.URL)
 			leaser := &scriptedSubscriptionLeaser{leases: []subscriptions.Lease{{AccountID: "first-account", AccessToken: "first-seat", ProviderAccount: "first-provider"}, {AccountID: "second-account", AccessToken: "second-seat"}}}
 			svc := NewService(staticRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: codexCoveredModel, Reason: "test"}}, map[string]providers.Client{providers.ProviderAIAND: client}, nil, false, nil, nil, false, providers.ProviderAIAND, codexCoveredModel, nil).WithManagedSubscriptions(leaser).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 			ctx := context.WithValue(managedSubscriptionContext(auth.SubscriptionProviderCodex), InstallationIDContextKey{}, "11111111-1111-1111-1111-111111111111")
@@ -265,8 +260,7 @@ func TestVerificationDebugCommittedFailureAcrossIngress(t *testing.T) {
 					_, _ = io.WriteString(w, "data: {\"type\":\"response.failed\",\"response\":{\"id\":\"synthetic\",\"status\":\"failed\",\"error\":{\"code\":\"usage_limit_reached\",\"message\":\"synthetic exhaustion\"}}}"+newline)
 				}))
 				defer server.Close()
-				client := openai.NewClient("synthetic-api-key", server.URL)
-				client.SetCodexBaseURL(server.URL)
+				client := openaicompat.NewClient("synthetic-api-key", server.URL)
 				leaser := &scriptedSubscriptionLeaser{leases: []subscriptions.Lease{{AccountID: "first-account", AccessToken: "first-seat", ProviderAccount: "first-provider"}, {AccountID: "second-account", AccessToken: "second-seat"}}}
 				svc := NewService(staticRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: codexCoveredModel, Reason: "test"}}, map[string]providers.Client{providers.ProviderAIAND: client}, nil, false, nil, nil, false, providers.ProviderAIAND, codexCoveredModel, nil).WithManagedSubscriptions(leaser).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 				ctx := context.WithValue(managedSubscriptionContext(auth.SubscriptionProviderCodex), InstallationIDContextKey{}, "11111111-1111-1111-1111-111111111111")
@@ -308,8 +302,7 @@ func TestVerificationCommittedSubscriptionStreamOutlivesRotationBudget(t *testin
 		_, _ = io.WriteString(w, "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"synthetic\",\"status\":\"completed\",\"output\":[],\"usage\":{\"input_tokens\":11,\"output_tokens\":7}}}\n\n")
 	}))
 	defer upstream.Close()
-	client := openai.NewClient("synthetic-api-key", upstream.URL)
-	client.SetCodexBaseURL(upstream.URL)
+	client := openaicompat.NewClient("synthetic-api-key", upstream.URL)
 	leaser := &scriptedSubscriptionLeaser{leases: []subscriptions.Lease{{AccountID: "long-account", AccessToken: "long-seat", ProviderAccount: "long-provider"}}}
 	svc := NewService(staticRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: codexCoveredModel, Reason: "test"}}, map[string]providers.Client{providers.ProviderAIAND: client}, nil, false, nil, nil, false, providers.ProviderAIAND, codexCoveredModel, nil).WithManagedSubscriptions(leaser).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 	body := []byte(`{"model":"auto","stream":true,"messages":[{"role":"user","content":"synthetic long stream"}],"tools":[{"type":"function","function":{"name":"read_file","parameters":{"type":"object"}}}]}`)

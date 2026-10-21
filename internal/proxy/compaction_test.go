@@ -78,7 +78,7 @@ func TestCompactionHardPin_CodexKeepsNonAnthropicSessionModel(t *testing.T) {
 	var key [sessionpin.SessionKeyLen]byte
 	ctx := context.Background()
 	live := time.Now().Add(time.Hour)
-	openAIProviders := map[string]providers.Client{providers.ProviderAIAND: nil, providers.ProviderAIAND: nil}
+	openAIProviders := map[string]providers.Client{providers.ProviderAIAND: nil}
 	codex := func(req router.Request) router.Request {
 		req.ClientApp = ClientAppCodex
 		return req
@@ -246,7 +246,7 @@ func TestTurnLoop_CompactionReadsClientIdentityBeforeHardPin(t *testing.T) {
 			LastTurnEndedAt: time.Now(), PinnedUntil: time.Now().Add(time.Hour),
 		},
 	}}
-	s := NewService(nil, map[string]providers.Client{providers.ProviderAIAND: nil, providers.ProviderAIAND: nil}, nil, false, nil, store, false, providers.ProviderAIAND, policy.PrecompactionDefaultModel, nil)
+	s := NewService(nil, map[string]providers.Client{providers.ProviderAIAND: nil}, nil, false, nil, store, false, providers.ProviderAIAND, policy.PrecompactionDefaultModel, nil)
 	s.compactionHardPinEnabled = true
 	env, err := translate.ParseOpenAI([]byte(`{"model":"gpt-5.6-luna","messages":[{"role":"user","content":"You are performing a CONTEXT CHECKPOINT COMPACTION. Create a summary."}],"max_tokens":4096}`))
 	require.NoError(t, err)

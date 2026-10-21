@@ -44,7 +44,7 @@ func TestExplicitRoutingPolicyPrecedesClassifierAndPins(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			routerSpy := &blindExperimentRouterSpy{err: errors.New("scorer must not run")}
 			pins := newStubPinStore()
-			service := NewService(routerSpy, nil, nil, false, nil, pins, false, providers.ProviderAIAND, catalog.ModelIDClaudeHaiku45.String(), nil)
+			service := NewService(routerSpy, nil, nil, false, nil, pins, false, providers.ProviderAIAND, catalog.ModelIDGLM53Flash.String(), nil)
 			authService := auth.NewService(nil, nil, nil, nil, nil, nil, time.Now).WithRoutingPolicies(routingPolicyStub{mode: tc.mode, assigned: tc.assigned}, nil)
 			ctx, err := authService.WithRoutingPolicy(context.Background(), "installation")
 			require.NoError(t, err)
@@ -52,11 +52,11 @@ func TestExplicitRoutingPolicyPrecedesClassifierAndPins(t *testing.T) {
 			require.NoError(t, err)
 			envelope, err := translate.ParseAnthropic([]byte(`{"model":"claude-sonnet-4-6","messages":[{"role":"user","content":"hello"}]}`))
 			require.NoError(t, err)
-			request := router.Request{RequestedModel: catalog.ModelIDClaudeSonnet46.String(), EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}}}
+			request := router.Request{RequestedModel: catalog.ModelIDGLM53.String(), EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}}}
 			turn, err := service.runTurnLoop(ctx, envelope, envelope.RoutingFeatures(false), "api-key", uuid.New(), "", http.Header{}, request)
 			require.NoError(t, err)
 			assert.True(t, turn.CallerModelPassthrough)
-			assert.Equal(t, catalog.ModelIDClaudeSonnet46.String(), turn.Decision.Model)
+			assert.Equal(t, catalog.ModelIDGLM53.String(), turn.Decision.Model)
 			assert.Empty(t, routingMarkerFor(turn))
 			assert.Equal(t, 0, routerSpy.routeCalls)
 			assert.False(t, turn.UsageBypass)
@@ -83,12 +83,12 @@ func TestRoutingPolicyPreservesExplicitForcedModel(t *testing.T) {
 		} {
 			t.Run(string(mode)+"/"+tc.name, func(t *testing.T) {
 				pins := newStubPinStore()
-				forceModel := catalog.ModelIDClaudeHaiku45.String()
+				forceModel := catalog.ModelIDGLM53Flash.String()
 				if !tc.requestOnly {
 					forceModel = ""
 					pins.getFound = true
 					pins.getPin = sessionpin.Pin{
-						Model: catalog.ModelIDClaudeHaiku45.String(), Provider: providers.ProviderAIAND,
+						Model: catalog.ModelIDGLM53Flash.String(), Provider: providers.ProviderAIAND,
 						Reason: translate.ReasonUserForceModel, PinnedUntil: pinNeverExpires,
 					}
 					if tc.cleared {
@@ -96,19 +96,19 @@ func TestRoutingPolicyPreservesExplicitForcedModel(t *testing.T) {
 					}
 				}
 				routerSpy := &blindExperimentRouterSpy{err: errors.New("scorer must not run")}
-				service := NewService(routerSpy, nil, nil, false, nil, pins, false, providers.ProviderAIAND, catalog.ModelIDClaudeHaiku45.String(), nil)
+				service := NewService(routerSpy, nil, nil, false, nil, pins, false, providers.ProviderAIAND, catalog.ModelIDGLM53Flash.String(), nil)
 				authService := auth.NewService(nil, nil, nil, nil, nil, nil, time.Now).WithRoutingPolicies(routingPolicyStub{mode: mode}, nil)
 				ctx, err := authService.WithRoutingPolicy(context.Background(), "installation")
 				require.NoError(t, err)
 				ctx, err = authService.WithRoutingAssignment(ctx, "installation", "user")
 				require.NoError(t, err)
 				if tc.excluded {
-					ctx = context.WithValue(ctx, InstallationExcludedModelsContextKey{}, []string{catalog.ModelIDClaudeHaiku45.String()})
+					ctx = context.WithValue(ctx, InstallationExcludedModelsContextKey{}, []string{catalog.ModelIDGLM53Flash.String()})
 				}
 				envelope, err := translate.ParseAnthropic([]byte(`{"model":"claude-sonnet-4-6","messages":[{"role":"user","content":"hello"}]}`))
 				require.NoError(t, err)
 				turn, err := service.runTurnLoop(ctx, envelope, envelope.RoutingFeatures(false), "api-key", uuid.New(), "", http.Header{}, router.Request{
-					RequestedModel: catalog.ModelIDClaudeSonnet46.String(), ForceModel: forceModel, EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}},
+					RequestedModel: catalog.ModelIDGLM53.String(), ForceModel: forceModel, EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}},
 				})
 				assert.Zero(t, routerSpy.routeCalls)
 				if tc.excluded {
@@ -117,11 +117,11 @@ func TestRoutingPolicyPreservesExplicitForcedModel(t *testing.T) {
 				}
 				require.NoError(t, err)
 				if tc.cleared {
-					assert.Equal(t, catalog.ModelIDClaudeSonnet46.String(), turn.Decision.Model)
+					assert.Equal(t, catalog.ModelIDGLM53.String(), turn.Decision.Model)
 					assert.True(t, turn.CallerModelPassthrough)
 					return
 				}
-				assert.Equal(t, catalog.ModelIDClaudeHaiku45.String(), turn.Decision.Model)
+				assert.Equal(t, catalog.ModelIDGLM53Flash.String(), turn.Decision.Model)
 				assert.Equal(t, translate.ReasonUserForceModel, turn.Decision.Reason)
 				assert.False(t, turn.CallerModelPassthrough)
 			})
@@ -130,7 +130,7 @@ func TestRoutingPolicyPreservesExplicitForcedModel(t *testing.T) {
 }
 
 func TestRoutingPolicyPassthroughUnknownModelIsAttributedToPolicy(t *testing.T) {
-	service := NewService(nil, nil, nil, false, nil, nil, false, providers.ProviderAIAND, catalog.ModelIDClaudeHaiku45.String(), nil)
+	service := NewService(nil, nil, nil, false, nil, nil, false, providers.ProviderAIAND, catalog.ModelIDGLM53Flash.String(), nil)
 	authService := auth.NewService(nil, nil, nil, nil, nil, nil, time.Now).WithRoutingPolicies(routingPolicyStub{mode: auth.RoutingPolicyPassthrough}, nil)
 	ctx, err := authService.WithRoutingPolicy(context.Background(), "installation")
 	require.NoError(t, err)

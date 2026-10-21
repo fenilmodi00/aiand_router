@@ -24,18 +24,18 @@ func TestTwoModelGatewayRecoveryReadmitsStruckSibling(t *testing.T) {
 	primary := &failingClient{err: &providers.UpstreamErrorResponse{Status: http.StatusBadGateway}}
 	sibling := &fakeClient{outcomes: []fakeOutcome{{writeBytes: []byte("event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n")}}}
 	store := &rolePinStore{byRole: map[string]sessionpin.Pin{
-		hmmHistoryRole(roleForTier(catalog.TierFor(catalog.ModelGPT6Luna))): {
-			Strategy: router.StrategyCluster, DemotedModels: []string{catalog.ModelGPT6Luna, recoveryOpusModel},
+		hmmHistoryRole(roleForTier(catalog.TierFor(catalog.ModelIDDeepSeekV4Pro.String()))): {
+			Strategy: router.StrategyCluster, DemotedModels: []string{catalog.ModelIDDeepSeekV4Pro.String(), recoveryOpusModel},
 		},
 	}}
-	decision := router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelGPT6Luna, Metadata: &router.RoutingMetadata{
+	decision := router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDDeepSeekV4Pro.String(), Metadata: &router.RoutingMetadata{
 		RosterFailover:    true,
-		RescueModels:      []string{catalog.ModelGPT6Luna},
+		RescueModels:      []string{catalog.ModelIDDeepSeekV4Pro.String()},
 		SidecarRescuePool: []string{recoveryOpusModel},
-		CandidateModels:   []string{catalog.ModelGPT6Luna},
+		CandidateModels:   []string{catalog.ModelIDDeepSeekV4Pro.String()},
 	}}
 	svc := NewService(staticRouter{decision: decision}, map[string]providers.Client{
-		providers.ProviderAIAND: primary, providers.ProviderAIAND: sibling,
+		providers.ProviderAIAND: primary,
 	}, nil, false, nil, store, false, providers.ProviderAIAND, recoveryOpusModel, nil).WithRetrySleep(func(context.Context, time.Duration) error { return nil })
 	svc.now = func() time.Time { return rateLimitTestNow }
 	body := []byte(`{"model":"gpt-6-luna","stream":true,"messages":[{"role":"user","content":"synthetic exhausted pool"}]}`)
@@ -50,8 +50,8 @@ func TestTwoModelGatewayRecoveryReadmitsStruckSibling(t *testing.T) {
 
 func TestTwoModelRecoveryOnlyLeasesOneExpiredArmPerRequest(t *testing.T) {
 	cooldowns := map[string]time.Time{
-		catalog.ModelGPT6Luna: rateLimitTestNow,
-		recoveryOpusModel:     rateLimitTestNow,
+		catalog.ModelIDDeepSeekV4Pro.String(): rateLimitTestNow,
+		recoveryOpusModel:                     rateLimitTestNow,
 	}
 	store := &rolePinStore{byRole: map[string]sessionpin.Pin{
 		hmmHistoryRole(sessionpin.DefaultRole): {Strategy: router.StrategyCluster, DemotionCooldowns: cooldowns},
@@ -63,7 +63,7 @@ func TestTwoModelRecoveryOnlyLeasesOneExpiredArmPerRequest(t *testing.T) {
 	require.Len(t, result.CooldownProbeReleases, 1, "one request must not lock both allowed models while selecting its probe")
 	// Equal expiries tie-break by name, so the Opus arm is the probe.
 	assert.Equal(t, map[string]time.Time{recoveryOpusModel: rateLimitTestNow}, result.CooldownProbes)
-	assert.Equal(t, []string{catalog.ModelGPT6Luna}, result.SessionDemotedModels, "the expired arm this request did not lease stays out of the turn")
+	assert.Equal(t, []string{catalog.ModelIDDeepSeekV4Pro.String()}, result.SessionDemotedModels, "the expired arm this request did not lease stays out of the turn")
 }
 
 // An in-process lease is a safety net for stores without durable leases: a
@@ -162,8 +162,8 @@ func TestRecoveredProbeClearsCooldownFromBothRows(t *testing.T) {
 
 func TestRecoveryProbeLeaseDeniedModelsAreHardExcluded(t *testing.T) {
 	cooldowns := map[string]time.Time{
-		catalog.ModelGPT6Luna: rateLimitTestNow,
-		recoveryOpusModel:     rateLimitTestNow,
+		catalog.ModelIDDeepSeekV4Pro.String(): rateLimitTestNow,
+		recoveryOpusModel:                     rateLimitTestNow,
 	}
 	store := &recoveryLeaseStore{
 		rolePinStore: rolePinStore{byRole: map[string]sessionpin.Pin{
@@ -175,18 +175,18 @@ func TestRecoveryProbeLeaseDeniedModelsAreHardExcluded(t *testing.T) {
 	result := runDemotionTurnLoop(t, svc, context.Background())
 
 	assert.Empty(t, result.CooldownProbes)
-	assert.ElementsMatch(t, []string{catalog.ModelGPT6Luna, recoveryOpusModel}, result.CooldownProbeDeniedModels)
+	assert.ElementsMatch(t, []string{catalog.ModelIDDeepSeekV4Pro.String(), recoveryOpusModel}, result.CooldownProbeDeniedModels)
 	require.Len(t, scorer.requests, 1)
-	for _, model := range []string{catalog.ModelGPT6Luna, recoveryOpusModel} {
+	for _, model := range []string{catalog.ModelIDDeepSeekV4Pro.String(), recoveryOpusModel} {
 		assert.Contains(t, scorer.requests[0].ExcludedModels, model, "lease-denied models must not be restored by soft automatic-exclusion fallback")
 	}
 	ctx := context.WithValue(context.Background(), SessionCooldownProbeDeniedModelsContextKey{}, result.CooldownProbeDeniedModels)
-	assert.Contains(t, svc.rescueExcludedModels(ctx), catalog.ModelGPT6Luna, "rescue must not readmit a model whose probe is leased elsewhere")
+	assert.Contains(t, svc.rescueExcludedModels(ctx), catalog.ModelIDDeepSeekV4Pro.String(), "rescue must not readmit a model whose probe is leased elsewhere")
 	assert.Contains(t, svc.rescueExcludedModels(ctx), recoveryOpusModel)
 }
 
 func TestRecoveryProbeSkipsHardExcludedExpiredModel(t *testing.T) {
-	excludedModel := catalog.ModelGPT6Luna
+	excludedModel := catalog.ModelIDDeepSeekV4Pro.String()
 	eligibleModel := recoveryOpusModel
 	store := &recoveryLeaseStore{rolePinStore: rolePinStore{byRole: map[string]sessionpin.Pin{
 		hmmHistoryRole(sessionpin.DefaultRole): {Strategy: router.StrategyCluster, DemotionCooldowns: map[string]time.Time{
@@ -228,9 +228,9 @@ func TestRecoveryProbeSkipsModelWithoutEligibleProviderBinding(t *testing.T) {
 
 func twoModelGatewayContext() context.Context {
 	ctx := rescuedFailureCtx()
-	ctx = context.WithValue(ctx, InstallationAllowedModelsContextKey{}, []string{catalog.ModelGPT6Luna, recoveryOpusModel})
+	ctx = context.WithValue(ctx, InstallationAllowedModelsContextKey{}, []string{catalog.ModelIDDeepSeekV4Pro.String(), recoveryOpusModel})
 	return context.WithValue(ctx, ExternalAPIKeysContextKey{}, []*auth.ExternalAPIKey{
-		{Provider: providers.ProviderAIAND, Plaintext: []byte("synthetic-key"), ModelAliases: map[string]string{catalog.ModelGPT6Luna: catalog.ModelGPT6Luna}},
+		{Provider: providers.ProviderAIAND, Plaintext: []byte("synthetic-key"), ModelAliases: map[string]string{catalog.ModelIDDeepSeekV4Pro.String(): catalog.ModelIDDeepSeekV4Pro.String()}},
 		{Provider: providers.ProviderAIAND, Plaintext: []byte("synthetic-key"), ModelAliases: map[string]string{recoveryOpusModel: recoveryOpusModel}},
 	})
 }
@@ -251,14 +251,13 @@ func TestTwoModelGatewayRecoveryRetriesThenRecordsWithdrawal(t *testing.T) {
 			store := &cooldownStubPinStore{}
 			primary := &failingClient{err: &providers.UpstreamErrorResponse{Status: scenario.status}}
 			sibling := &fakeClient{outcomes: []fakeOutcome{{writeBytes: []byte("event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"synthetic\",\"model\":\"" + recoveryOpusModel + "\",\"usage\":{\"input_tokens\":1,\"output_tokens\":0}}}\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"}\n\n")}}}
-			decision := router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelGPT6Luna, Metadata: &router.RoutingMetadata{
+			decision := router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDDeepSeekV4Pro.String(), Metadata: &router.RoutingMetadata{
 				RosterFailover:  true,
-				RescueModels:    []string{catalog.ModelGPT6Luna, recoveryOpusModel},
-				CandidateModels: []string{catalog.ModelGPT6Luna, recoveryOpusModel},
+				RescueModels:    []string{catalog.ModelIDDeepSeekV4Pro.String(), recoveryOpusModel},
+				CandidateModels: []string{catalog.ModelIDDeepSeekV4Pro.String(), recoveryOpusModel},
 			}}
 			svc := NewService(staticRouter{decision: decision}, map[string]providers.Client{
-				providers.ProviderAIAND:    primary,
-				providers.ProviderAIAND: sibling,
+				providers.ProviderAIAND: primary,
 			}, nil, false, nil, store, false, providers.ProviderAIAND, recoveryOpusModel, nil).
 				WithRescuedFailureArmDemotion(true).WithTransientRateLimit(scenario.transient, 45)
 			now := rateLimitTestNow
@@ -282,7 +281,7 @@ func TestTwoModelGatewayRecoveryRetriesThenRecordsWithdrawal(t *testing.T) {
 				assert.Empty(t, store.demotions)
 				require.Len(t, store.cooldowns, 2)
 				for _, withdrawal := range store.cooldowns {
-					assert.Equal(t, catalog.ModelGPT6Luna, withdrawal.model)
+					assert.Equal(t, catalog.ModelIDDeepSeekV4Pro.String(), withdrawal.model)
 					assert.Equal(t, now.Add(45*time.Second), withdrawal.until)
 					assert.Equal(t, scenario.reason, withdrawal.reason)
 				}
@@ -290,7 +289,7 @@ func TestTwoModelGatewayRecoveryRetriesThenRecordsWithdrawal(t *testing.T) {
 				assert.Empty(t, store.cooldowns)
 				require.Len(t, store.demotions, 2)
 				for _, withdrawal := range store.demotions {
-					assert.Equal(t, catalog.ModelGPT6Luna, withdrawal.model)
+					assert.Equal(t, catalog.ModelIDDeepSeekV4Pro.String(), withdrawal.model)
 					assert.Equal(t, sessionpin.DemotionReasonRescuedFailure, withdrawal.reason)
 				}
 			}

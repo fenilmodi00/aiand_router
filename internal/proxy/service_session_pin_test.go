@@ -366,7 +366,6 @@ func TestService_NativeSearchResultHistoryFiltersPolicyCandidatesInGo(t *testing
 		fr,
 		map[string]providers.Client{
 			providers.ProviderAIAND: &fakeProvider{},
-			providers.ProviderAIAND:    &fakeProvider{},
 		},
 		nil,
 		false,
@@ -569,7 +568,6 @@ func TestService_HardPin_Compaction_ByokOnly_UsesRequestResolver(t *testing.T) {
 	}
 
 	providerMap := map[string]providers.Client{
-		providers.ProviderAIAND:  &fakeProvider{},
 		providers.ProviderAIAND: &fakeProvider{},
 	}
 	// Boot-time hard-pin points at OpenRouter; resolver must override to
@@ -699,7 +697,6 @@ func TestService_HardPin_TitleGen_AppliesExcludedModels(t *testing.T) {
 	}
 	providerMap := map[string]providers.Client{
 		providers.ProviderAIAND: &fakeProvider{proxyResponse: okResp},
-		providers.ProviderAIAND:    &fakeProvider{proxyResponse: okResp},
 	}
 	svc := proxy.NewService(
 		fr, providerMap, nil, false, nil, store, false,
@@ -864,7 +861,6 @@ func TestService_HardPin_SubAgentOverrideRoutesIndependentlyOfHardPin(t *testing
 	svc := proxy.NewService(
 		fr,
 		map[string]providers.Client{
-			providers.ProviderAIAND:  &fakeProvider{},
 			providers.ProviderAIAND: &fakeProvider{proxyResponse: openRouterResp},
 		},
 		nil,
@@ -897,7 +893,6 @@ func TestService_HardPin_SubAgentOverrideLeavesMainLoopUnaffected(t *testing.T) 
 	svc := proxy.NewService(
 		fr,
 		map[string]providers.Client{
-			providers.ProviderAIAND:  &fakeProvider{},
 			providers.ProviderAIAND: &fakeProvider{},
 		},
 		nil,
@@ -994,7 +989,6 @@ func TestService_HardPin_SubAgentOverrideAppliesUnderHMMStrategy(t *testing.T) {
 	svc := proxy.NewService(
 		fr,
 		map[string]providers.Client{
-			providers.ProviderAIAND:  &fakeProvider{},
 			providers.ProviderAIAND: &fakeProvider{proxyResponse: openRouterResp},
 		},
 		nil,
@@ -1094,7 +1088,6 @@ func newOpenAIPinSvc(fr *fakeRouter, store *fakePinStore) *proxy.Service {
 		fr,
 		map[string]providers.Client{
 			providers.ProviderAIAND: &fakeProvider{},
-			providers.ProviderAIAND:    &fakeProvider{},
 		},
 		nil, false, nil,
 		store,
@@ -1263,14 +1256,13 @@ func TestService_SessionPin_OpenAIResponses_OpenCodeForceModelCommandFromToolOut
 	}`
 	store := newFakePinStore()
 	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-4o", Reason: "cluster"}}
-	openAIProvider := &fakeProvider{proxyResponse: func(w http.ResponseWriter) {
+	openAIProvider := func(w http.ResponseWriter) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = io.WriteString(w, `{"id":"chatcmpl_1","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}]}`)
-	}}
+	}
 	svc := proxy.NewService(fr, map[string]providers.Client{
-		providers.ProviderAIAND: &fakeProvider{},
-		providers.ProviderAIAND:    openAIProvider,
+		providers.ProviderAIAND: &fakeProvider{proxyResponse: openAIProvider},
 	}, nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil)
 
 	ctx := context.WithValue(authedCtx(uuid.New().String()), proxy.ClientIdentityContextKey{}, proxy.ClientIdentity{ClientApp: proxy.ClientAppOpencode})
@@ -1385,7 +1377,6 @@ func newOpenAIHardPinSvc(fr *fakeRouter, store *fakePinStore, hardPinExplore boo
 		fr,
 		map[string]providers.Client{
 			providers.ProviderAIAND: &fakeProvider{},
-			providers.ProviderAIAND:    &fakeProvider{},
 		},
 		nil, false, nil,
 		store,
@@ -1661,11 +1652,9 @@ func TestService_ClaudeOAuthDoesNotRestrictForcedOpenAIPinWithoutSubscriptionOnl
 	openAI := ccTaskToolProvider()
 	svc := proxy.NewService(fr, map[string]providers.Client{
 		providers.ProviderAIAND: &fakeProvider{},
-		providers.ProviderAIAND:    openAI,
 	}, nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil).
 		WithDeploymentKeyedProviders(map[string]struct{}{
 			providers.ProviderAIAND: {},
-			providers.ProviderAIAND:    {},
 		})
 
 	ctx := authedCtx(uuid.New().String())

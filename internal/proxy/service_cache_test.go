@@ -51,7 +51,7 @@ func anthropicBody(prompt string, stream bool) []byte {
 		streamLit = "true"
 	}
 	return []byte(`{
-		"model":"` + catalog.ModelIDClaudeOpus47.String() + `",
+		"model":"` + catalog.ModelIDGLM53.String() + `",
 		"max_tokens":4096,
 		"stream":` + streamLit + `,
 		"messages":[{"role":"user","content":"` + prompt + `"}]
@@ -62,7 +62,7 @@ func anthropicBody(prompt string, stream bool) []byte {
 func decisionWithEmbedding(emb []float32, clusterIDs []int) router.Decision {
 	return router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    catalog.ModelIDClaudeHaiku45.String(),
+		Model:    catalog.ModelIDGLM53Flash.String(),
 		Reason:   "test",
 		Metadata: &router.RoutingMetadata{
 			Embedding:  emb,
@@ -91,7 +91,7 @@ func TestService_Cache_HitShortCircuitsProvider(t *testing.T) {
 	}
 	fr := &fakeRouter{decision: decisionWithEmbedding(emb, []int{0, 1, 2, 3})}
 	c := cache.New(cache.DefaultConfig())
-	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: provider}, nil, false, c, nil, false, providers.ProviderAIAND, catalog.ModelIDClaudeHaiku45.String(), nil)
+	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: provider}, nil, false, c, nil, false, providers.ProviderAIAND, catalog.ModelIDGLM53Flash.String(), nil)
 
 	ctx := proxyContextWithExternalID(t, "tenant-1")
 	body := anthropicBody("ping", false)
@@ -119,7 +119,7 @@ func TestService_Cache_StreamingBypasses(t *testing.T) {
 	}
 	fr := &fakeRouter{decision: decisionWithEmbedding(emb, []int{0})}
 	c := cache.New(cache.DefaultConfig())
-	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: provider}, nil, false, c, nil, false, providers.ProviderAIAND, catalog.ModelIDClaudeHaiku45.String(), nil)
+	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: provider}, nil, false, c, nil, false, providers.ProviderAIAND, catalog.ModelIDGLM53Flash.String(), nil)
 
 	ctx := proxyContextWithExternalID(t, "tenant-1")
 	body := anthropicBody("streaming please", true)
@@ -141,9 +141,9 @@ func TestService_Cache_HeuristicDecisionBypasses(t *testing.T) {
 		proxyResponse: func(w http.ResponseWriter) { _, _ = w.Write([]byte(`{"id":"x"}`)) },
 	}
 	// Decision with no Metadata — what the heuristic router produces.
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDClaudeHaiku45.String(), Reason: "heuristic"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDGLM53Flash.String(), Reason: "heuristic"}}
 	c := cache.New(cache.DefaultConfig())
-	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: provider}, nil, false, c, nil, false, providers.ProviderAIAND, catalog.ModelIDClaudeHaiku45.String(), nil)
+	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: provider}, nil, false, c, nil, false, providers.ProviderAIAND, catalog.ModelIDGLM53Flash.String(), nil)
 
 	ctx := proxyContextWithExternalID(t, "tenant-1")
 	body := anthropicBody("ask", false)
@@ -166,7 +166,7 @@ func TestService_Cache_MissingExternalIDBypasses(t *testing.T) {
 	}
 	fr := &fakeRouter{decision: decisionWithEmbedding(emb, []int{0})}
 	c := cache.New(cache.DefaultConfig())
-	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: provider}, nil, false, c, nil, false, providers.ProviderAIAND, catalog.ModelIDClaudeHaiku45.String(), nil)
+	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: provider}, nil, false, c, nil, false, providers.ProviderAIAND, catalog.ModelIDGLM53Flash.String(), nil)
 
 	body := anthropicBody("ask", false)
 
@@ -201,7 +201,7 @@ func TestService_Cache_HitOmitsFeedbackLink(t *testing.T) {
 	fr := &fakeRouter{decision: decisionWithEmbedding(emb, []int{0, 1, 2, 3})}
 	c := cache.New(cache.DefaultConfig())
 	signer := feedback.NewSigner("cache-secret", time.Hour)
-	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: provider}, nil, false, c, nil, false, providers.ProviderAIAND, catalog.ModelIDClaudeHaiku45.String(), nil).
+	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: provider}, nil, false, c, nil, false, providers.ProviderAIAND, catalog.ModelIDGLM53Flash.String(), nil).
 		WithFeedback(nil, signer, "https://router.example.com")
 
 	ctx := context.WithValue(proxyContextWithExternalID(t, "tenant-1"), proxy.InstallationIDContextKey{}, uuid.New().String())
@@ -225,7 +225,7 @@ func TestService_Cache_DisabledByNilCache(t *testing.T) {
 	}
 	fr := &fakeRouter{decision: decisionWithEmbedding(emb, []int{0})}
 	// nil cache equivalent to ROUTER_SEMANTIC_CACHE_ENABLED=false.
-	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: provider}, nil, false, nil, nil, false, providers.ProviderAIAND, catalog.ModelIDClaudeHaiku45.String(), nil)
+	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: provider}, nil, false, nil, nil, false, providers.ProviderAIAND, catalog.ModelIDGLM53Flash.String(), nil)
 
 	ctx := proxyContextWithExternalID(t, "tenant-1")
 	body := anthropicBody("ask", false)
@@ -265,7 +265,7 @@ func TestService_Cache_VerifiedProvenanceChangesDispatch(t *testing.T) {
 				return requestcontext.WithServingIdentity(ctx, requestcontext.ServingIdentity{ReleaseID: "release", BindingID: "binding", CredentialIdentity: "subject", Plan: string(entitlement.PlanBoost), ProfileKey: "profile", ProfileRevision: "other-revision"})
 			},
 			"model": func(ctx context.Context, router *fakeRouter) context.Context {
-				router.decision.Model = catalog.ModelIDClaudeSonnet46.String()
+				router.decision.Model = catalog.ModelIDGLM53.String()
 				return ctx
 			},
 			"provider": func(ctx context.Context, router *fakeRouter) context.Context {
@@ -279,7 +279,7 @@ func TestService_Cache_VerifiedProvenanceChangesDispatch(t *testing.T) {
 			t.Run(surface.name+"/"+name, func(t *testing.T) {
 				provider := &fakeProvider{proxyResponse: cacheUpstreamReply("provider response")}
 				fr := &fakeRouter{decision: decisionWithEmbedding(embeddingFixture(1), []int{0})}
-				svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: provider, providers.ProviderAIAND: provider}, nil, false, cache.New(cache.DefaultConfig()), nil, false, providers.ProviderAIAND, catalog.ModelIDClaudeHaiku45.String(), nil)
+				svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: provider}, nil, false, cache.New(cache.DefaultConfig()), nil, false, providers.ProviderAIAND, catalog.ModelIDGLM53Flash.String(), nil)
 				ctx := requestcontext.WithServingIdentity(proxyContextWithExternalID(t, "tenant"), requestcontext.ServingIdentity{ReleaseID: "release", BindingID: "binding", CredentialIdentity: "subject", Plan: string(entitlement.PlanBoost), ProfileKey: "profile", ProfileRevision: "revision"})
 				invoke := func(ctx context.Context) *httptest.ResponseRecorder {
 					rec := httptest.NewRecorder()
@@ -334,7 +334,7 @@ func TestService_Cache_UnsafeRequestsCannotHitOrPopulate(t *testing.T) {
 			t.Run(surface.name+"/"+name, func(t *testing.T) {
 				provider := &fakeProvider{proxyResponse: cacheUpstreamReply("provider response")}
 				fr := &fakeRouter{decision: decisionWithEmbedding(embeddingFixture(1), []int{0})}
-				svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: provider}, nil, false, cache.New(cache.DefaultConfig()), nil, false, providers.ProviderAIAND, catalog.ModelIDClaudeHaiku45.String(), nil)
+				svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: provider}, nil, false, cache.New(cache.DefaultConfig()), nil, false, providers.ProviderAIAND, catalog.ModelIDGLM53Flash.String(), nil)
 				ctx := proxyContextWithExternalID(t, "tenant")
 				unsafe, err := sjson.SetRawBytes(surface.plainBody, shape.path, []byte(shape.json))
 				require.NoError(t, err)
@@ -360,10 +360,10 @@ func TestService_Cache_RequestRestrictionsBypassPopulatedCache(t *testing.T) {
 	for _, surface := range cacheTestSurfaces() {
 		for name, restrict := range map[string]func(context.Context) context.Context{
 			"allowed": func(ctx context.Context) context.Context {
-				return context.WithValue(ctx, proxy.InstallationAllowedModelsContextKey{}, []string{catalog.ModelIDClaudeHaiku45.String()})
+				return context.WithValue(ctx, proxy.InstallationAllowedModelsContextKey{}, []string{catalog.ModelIDGLM53Flash.String()})
 			},
 			"excluded": func(ctx context.Context) context.Context {
-				return context.WithValue(ctx, proxy.InstallationExcludedModelsContextKey{}, []string{catalog.ModelIDClaudeOpus47.String()})
+				return context.WithValue(ctx, proxy.InstallationExcludedModelsContextKey{}, []string{catalog.ModelIDGLM53.String()})
 			},
 			"missing key": func(ctx context.Context) context.Context {
 				return context.WithValue(ctx, proxy.APIKeyIDContextKey{}, "")
@@ -372,7 +372,7 @@ func TestService_Cache_RequestRestrictionsBypassPopulatedCache(t *testing.T) {
 			t.Run(surface.name+"/"+name, func(t *testing.T) {
 				provider := &fakeProvider{proxyResponse: cacheUpstreamReply("response")}
 				fr := &fakeRouter{decision: decisionWithEmbedding(embeddingFixture(1), []int{0})}
-				svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: provider}, nil, false, cache.New(cache.DefaultConfig()), nil, false, providers.ProviderAIAND, catalog.ModelIDClaudeHaiku45.String(), nil)
+				svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: provider}, nil, false, cache.New(cache.DefaultConfig()), nil, false, providers.ProviderAIAND, catalog.ModelIDGLM53Flash.String(), nil)
 				ctx := proxyContextWithExternalID(t, "tenant")
 				invoke := func(ctx context.Context) {
 					require.NoError(t, surface.invoke(svc, ctx, surface.plainBody, httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/test", nil)))
@@ -393,7 +393,7 @@ func TestService_Cache_StructuredResponsesCannotHitOrPopulateChatCache(t *testin
 		t.Run(fmt.Sprint(structuredFirst), func(t *testing.T) {
 			provider := &fakeProvider{proxyResponse: responsesTextUpstream}
 			decision := decisionWithEmbedding(embeddingFixture(1), []int{0})
-			decision.Model = catalog.ModelIDGPT56Luna.String()
+			decision.Model = catalog.ModelIDDeepSeekV4Pro.String()
 			decision.Provider = providers.ProviderAIAND
 			svc := openAIChatServiceWithDecision(provider, decision, cache.New(cache.DefaultConfig()))
 			ctx := proxyContextWithExternalID(t, "tenant")
@@ -432,9 +432,9 @@ func TestService_Cache_FallbackBodyNeverStoredUnderInitialTarget(t *testing.T) {
 			primary := &fakeProvider{proxyErr: &providers.UpstreamErrorResponse{Status: 503, Body: []byte(`{"error":{"message":"unavailable"}}`)}}
 			fallback := &fakeProvider{proxyResponse: cacheUpstreamReply("fallback response")}
 			decision := decisionWithEmbedding(embeddingFixture(1), []int{0})
-			decision.Model = catalog.ModelIDClaudeSonnet46.String()
+			decision.Model = catalog.ModelIDGLM53.String()
 			fr := &fakeRouter{decision: decision}
-			svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: primary, providers.ProviderAIAND: fallback}, nil, false, cache.New(cache.DefaultConfig()), nil, false, providers.ProviderAIAND, catalog.ModelIDClaudeSonnet46.String(), nil).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}, providers.ProviderAIAND: {}})
+			svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: primary}, nil, false, cache.New(cache.DefaultConfig()), nil, false, providers.ProviderAIAND, catalog.ModelIDGLM53.String(), nil).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 			ctx := proxyContextWithExternalID(t, "tenant")
 			invoke := func() *httptest.ResponseRecorder {
 				rec := httptest.NewRecorder()

@@ -13,7 +13,7 @@ import (
 	"testing"
 	"weave-os/router/internal/auth"
 	"weave-os/router/internal/providers"
-	"weave-os/router/internal/providers/openai"
+	"weave-os/router/internal/providers/openaicompat"
 	"weave-os/router/internal/router"
 	"weave-os/router/internal/subscriptions"
 )
@@ -43,8 +43,7 @@ func TestVerificationOpaqueReasoningWireScope(t *testing.T) {
 				_, _ = io.WriteString(w, "data: {\"type\":\"response.output_text.delta\",\"output_index\":0,\"delta\":\"reasoning answer\"}\n\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"synthetic\",\"status\":\"completed\",\"output\":[],\"usage\":{\"input_tokens\":11,\"output_tokens\":7}}}\n\n")
 			}))
 			defer server.Close()
-			client := openai.NewClient("", server.URL)
-			client.SetCodexBaseURL(server.URL)
+			client := openaicompat.NewClient("", server.URL)
 			leases := []subscriptions.Lease{{AccountID: "reasoning-account", OwnerID: "reasoning-owner", AccessToken: "refreshed-reasoning-token", ProviderAccount: scenario.providerAccount}}
 			if scenario.rotated {
 				leases = []subscriptions.Lease{{AccountID: "original-account", OwnerID: "original-owner", AccessToken: "original-reasoning-token", ProviderAccount: "reasoning-provider"}, {AccountID: "new-account", OwnerID: "new-owner", AccessToken: "new-owner-token", ProviderAccount: "other-provider"}}

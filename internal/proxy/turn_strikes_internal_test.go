@@ -189,9 +189,8 @@ func TestSiblingRescueRecordsEveryFailedModel(t *testing.T) {
 	}
 	svc := NewService(staticRouter{decision: decision}, map[string]providers.Client{
 		providers.ProviderAIAND: anthropicClient,
-		providers.ProviderAIAND:    openAIClient,
 	}, nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil).
-		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}, providers.ProviderAIAND: {}})
+		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 	svc.retrySleep = noopSleep
 	ctx := withTurnFailures(context.Background())
 

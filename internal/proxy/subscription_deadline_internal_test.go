@@ -187,7 +187,7 @@ func TestStateModelsTerminalRejectionAfterBudgetIsNotRescued(t *testing.T) {
 	codex := &fakeClient{name: providers.ProviderAIAND}
 	paid := &fakeClient{name: providers.ProviderAIAND}
 	// NewService owns background cache timers outside the synthetic-time bubble.
-	svc := NewService(stateModelRouter{}, map[string]providers.Client{providers.ProviderAIAND: claude, providers.ProviderAIAND: codex, providers.ProviderAIAND: paid}, nil, false, nil, nil, false, "", "", nil).
+	svc := NewService(stateModelRouter{}, map[string]providers.Client{providers.ProviderAIAND: claude}, nil, false, nil, nil, false, "", "", nil).
 		WithManagedSubscriptions(&stateModelLeaser{activeProviders: map[subscriptions.Provider]bool{subscriptions.ProviderClaude: true, subscriptions.ProviderCodex: true}})
 	synctest.Test(t, func(t *testing.T) {
 		ctx := context.WithValue(managedSubscriptionTestContext(), ManagedSubscriptionProvidersContextKey{}, map[auth.SubscriptionProvider]struct{}{auth.SubscriptionProviderClaude: {}, auth.SubscriptionProviderCodex: {}})

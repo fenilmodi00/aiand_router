@@ -65,7 +65,7 @@ func TestSubscriptionFundingPaidDispatchRequiresQuotaProof(t *testing.T) {
 				rec := httptest.NewRecorder()
 				buf := newPreludeBuffer(rec)
 				in := plannedInputs(rec, buf, []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}}, nil)
-				in.initialDecision = router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDClaudeOpus48.String()}
+				in.initialDecision = router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDGLM52.String()}
 				_, err := svc.dispatchWithFallback(ctx, in)
 				if tc.allowed {
 					require.NoError(t, err)
@@ -87,7 +87,7 @@ func TestSubscriptionFundingFinalOAuthLeaseIsAllowed(t *testing.T) {
 	rec := httptest.NewRecorder()
 	buf := newPreludeBuffer(rec)
 	in := plannedInputs(rec, buf, []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}}, nil)
-	in.initialDecision = router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDClaudeOpus48.String()}
+	in.initialDecision = router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDGLM52.String()}
 	_, err := svc.dispatchWithFallback(ctx, in)
 	require.NoError(t, err)
 	require.Equal(t, "included answer", rec.Body.String())
@@ -96,13 +96,13 @@ func TestSubscriptionFundingFinalOAuthLeaseIsAllowed(t *testing.T) {
 func TestSubscriptionFundingUnknownEnrollmentAndGatewayBinding(t *testing.T) {
 	svc := newServiceWithProviders(t, nil)
 	unknownCtx := context.WithValue(context.Background(), ManagedSubscriptionEnrollmentUnavailableContextKey{}, true)
-	require.ErrorIs(t, svc.subscriptionAPIAuthorization(unknownCtx, providers.ProviderAIAND, catalog.ModelIDClaudeOpus48.String()), ErrSubscriptionPoolUnavailable)
+	require.ErrorIs(t, svc.subscriptionAPIAuthorization(unknownCtx, providers.ProviderAIAND, catalog.ModelIDGLM52.String()), ErrSubscriptionPoolUnavailable)
 	// Gemini has no compatible subscription pool; unrelated uncertainty cannot block it.
-	_, known := catalog.ByID(catalog.ModelIDGemini31ProPreview.String())
+	_, known := catalog.ByID(catalog.ModelIDGLM53Flash.String())
 	require.True(t, known)
-	require.NoError(t, svc.subscriptionAPIAuthorization(unknownCtx, providers.ProviderAIAND, catalog.ModelIDGemini31ProPreview.String()))
+	require.NoError(t, svc.subscriptionAPIAuthorization(unknownCtx, providers.ProviderAIAND, catalog.ModelIDGLM53Flash.String()))
 	ctx := WithManagedSubscriptionCandidates(context.Background(), []*auth.SubscriptionAccount{{ID: "seat", Provider: auth.SubscriptionProviderClaude, Enabled: true, State: auth.SubscriptionAccountStateActive}})
-	require.ErrorIs(t, svc.subscriptionAPIAuthorization(ctx, providers.ProviderAIAND, catalog.ModelIDClaudeOpus48.String()), ErrSubscriptionPoolUnavailable,
+	require.ErrorIs(t, svc.subscriptionAPIAuthorization(ctx, providers.ProviderAIAND, catalog.ModelIDGLM52.String()), ErrSubscriptionPoolUnavailable,
 		"a gateway binding must not bypass catalog-compatible pool authorization")
 }
 
@@ -113,7 +113,7 @@ func TestSubscriptionRecoveryDoesNotExpandAdmissionSnapshot(t *testing.T) {
 	rec := httptest.NewRecorder()
 	buf := newPreludeBuffer(rec)
 	in := plannedInputs(rec, buf, []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}}, nil)
-	in.initialDecision = router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDClaudeOpus48.String()}
+	in.initialDecision = router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDGLM52.String()}
 	_, err := svc.dispatchWithFallback(ctx, in)
 	require.ErrorIs(t, err, ErrSubscriptionPoolUnavailable)
 	require.Zero(t, upstream.calls)
@@ -127,7 +127,7 @@ func TestSubscriptionLeaseOutsideSnapshotFallsThroughToAdmittedSeat(t *testing.T
 	rec := httptest.NewRecorder()
 	buf := newPreludeBuffer(rec)
 	in := plannedInputs(rec, buf, []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}}, nil)
-	in.initialDecision = router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDClaudeOpus48.String()}
+	in.initialDecision = router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDGLM52.String()}
 	_, err := svc.dispatchWithFallback(ctx, in)
 	require.NoError(t, err)
 	require.Equal(t, 1, upstream.calls)
@@ -143,7 +143,7 @@ func TestSubscriptionLeaseOutsideSnapshotBlocksPaidRecovery(t *testing.T) {
 	rec := httptest.NewRecorder()
 	buf := newPreludeBuffer(rec)
 	in := plannedInputs(rec, buf, []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}}, nil)
-	in.initialDecision = router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDClaudeOpus48.String()}
+	in.initialDecision = router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDGLM52.String()}
 	_, err := svc.dispatchWithFallback(ctx, in)
 	require.ErrorIs(t, err, ErrSubscriptionPoolUnavailable)
 	require.NotErrorIs(t, err, ErrSubscriptionPoolExhausted)
@@ -184,7 +184,7 @@ func TestSubscriptionFundingOperationalFailuresNeverAuthorizeAPI(t *testing.T) {
 			rec := httptest.NewRecorder()
 			buf := newPreludeBuffer(rec)
 			in := plannedInputs(rec, buf, []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}}, nil)
-			in.initialDecision = router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDClaudeOpus48.String()}
+			in.initialDecision = router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDGLM52.String()}
 			_, err := svc.dispatchWithFallback(ctx, in)
 			require.Error(t, err)
 			require.ErrorIs(t, err, failure, "rotation must retain the actual upstream failure")
@@ -292,7 +292,7 @@ func TestSubscriptionFundingPaidOverageIsQuotaProof(t *testing.T) {
 	rec := httptest.NewRecorder()
 	buf := newPreludeBuffer(rec)
 	in := plannedInputs(rec, buf, []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}}, nil)
-	in.initialDecision = router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDClaudeOpus48.String()}
+	in.initialDecision = router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDGLM52.String()}
 	_, err := svc.dispatchWithFallback(ctx, in)
 	require.NoError(t, err)
 	require.Equal(t, 1, upstream.calls)

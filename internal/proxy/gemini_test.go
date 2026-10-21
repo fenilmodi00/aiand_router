@@ -75,13 +75,11 @@ func TestProxyGeminiGenerateContent_RoutesToGoogleProvider(t *testing.T) {
 
 func TestProxyGeminiGenerateContent_RestrictsRoutingToGeminiFamily(t *testing.T) {
 	store := newFakePinStore()
-	googleProv := &fakeProvider{}
 	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gemini-2.5-pro", Reason: "cluster"}}
 	svc := proxy.NewService(
 		fr,
 		map[string]providers.Client{
 			providers.ProviderAIAND: &fakeProvider{},
-			providers.ProviderAIAND:    googleProv,
 		},
 		nil, false, nil,
 		store,
@@ -105,7 +103,6 @@ func TestProxyGeminiGenerateContent_CrossFormatReturnsSentinel(t *testing.T) {
 		fr,
 		map[string]providers.Client{
 			providers.ProviderAIAND: &fakeProvider{},
-			providers.ProviderAIAND:    &fakeProvider{},
 		},
 		nil, false, nil,
 		store,
