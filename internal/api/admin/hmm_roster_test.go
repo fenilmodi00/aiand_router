@@ -58,7 +58,7 @@ func TestHMMRosterHandler_PreservesRosterArmsAndCatalogModels(t *testing.T) {
 		"anthropic/claude-opus-5:xhigh",
 		"x-ai/grok-4.6",
 	}, body.Clusters[0].Arms)
-	assert.Equal(t, []string{"z-ai/glm-5.2", "grok-4.6"}, body.Clusters[0].Models)
+	assert.Equal(t, []string{"z-ai/glm-5.2", "z-ai/glm-5.3"}, body.Clusters[0].Models)
 }
 
 func TestHMMRosterHandler_SelectsBetaPolicy(t *testing.T) {

@@ -102,8 +102,8 @@ func TestSelectorKeepsCrossProviderCandidatesAndAppliesBoundedPreferences(t *tes
 					"deepseek/deepseek-v4-pro-0813",
 				},
 				ArmScores: map[string]float64{
-					"z-ai/glm-5.3":         30,
-					"moonshotai/kimi-k3":              29.8,
+					"z-ai/glm-5.3":                  30,
+					"moonshotai/kimi-k3":            29.8,
 					"deepseek/deepseek-v4-pro-0813": 29.7,
 				},
 			},

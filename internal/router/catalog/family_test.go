@@ -82,7 +82,7 @@ func TestFamilyDuplicates(t *testing.T) {
 		got[d.Superseded] = d.SupersededBy
 	}
 	want := map[string]string{
-		"z-ai/glm-5.2":        "z-ai/glm-5.3",
+		"z-ai/glm-5.2":         "z-ai/glm-5.3",
 		"moonshotai/kimi-k2.7": "moonshotai/kimi-k3",
 	}
 	if len(got) != len(want) {

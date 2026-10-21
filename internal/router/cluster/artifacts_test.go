@@ -396,7 +396,7 @@ func TestFastestModel(t *testing.T) {
 			"model-c": 0.10,
 		},
 		TokPerS: map[string]map[string]float64{
-			"aiand":  {"model-a": 150.0},
+			"aiand":     {"model-a": 150.0},
 			"aiand-alt": {"model-b": 80.0, "model-c": 20.0},
 		},
 	}

@@ -43,7 +43,7 @@ type EmitOptions struct {
 	IncludeStreamUsage bool
 	// SessionAffinity is a per-conversation ID forwarded as a prompt-cache
 	// stickiness hint so a session lands on the same warm replica instead of
-	// a cold one. Knob differs per upstream — see applySessionAffinity.
+	// a cold one. Knob differs per upstream â€” see applySessionAffinity.
 	SessionAffinity string
 	// StripPromptCacheKey drops prompt_cache_key instead of injecting the
 	// affinity hint. Set when a gateway's schema trails the spec and rejected
@@ -187,7 +187,7 @@ func (e *RequestEnvelope) MetadataUserID() string {
 }
 
 // ClientSessionID returns the calling client's own session identifier for log
-// correlation — unlike the internal session_key (sha256 of apiKeyID+user_id),
+// correlation â€” unlike the internal session_key (sha256 of apiKeyID+user_id),
 // this is the value visible to the client itself (e.g. via `/status`).
 // Extracted from metadata.user_id (Anthropic/Gemini) or user (OpenAI); a
 // UUID-shaped marker is pulled out bare, otherwise the raw value is truncated
@@ -238,8 +238,8 @@ type LastUserMessageInfo struct {
 	HasToolResult   bool
 	ToolResultCount int
 	Text            string
-	// ToolResultBytes sums the trailing turn's tool_result payload size — a
-	// cheap triviality proxy for the tier-cap shadow (tiny result → likely
+	// ToolResultBytes sums the trailing turn's tool_result payload size â€” a
+	// cheap triviality proxy for the tier-cap shadow (tiny result â†’ likely
 	// trivial continuation). 0 when no tool_result is present.
 	ToolResultBytes int
 }
@@ -422,7 +422,7 @@ func requestRootRequestsCodexTitle(root gjson.Result) bool {
 }
 
 // freshCodexResponsesUserText returns the trailing user message from a new
-// Responses conversation — one with no assistant turn, tool call, or tool
+// Responses conversation â€” one with no assistant turn, tool call, or tool
 // output yet. Conductor generates titles in a separate hidden session, so
 // accepting conversation history here would make quoted title instructions in
 // a normal coding session a false positive. Earlier user items are allowed:
@@ -503,8 +503,8 @@ type EmitOverrides struct {
 	RewriteThinkingAdaptive bool
 	OutputConfigEffort      string
 	// ForceOutputConfigEffort, when set, overrides any inbound output_config.effort
-	// and the heuristic OutputConfigEffort — user knob beats request-derived default.
-	// Value is already cap-applied (xhigh→max) by resolveForceEffort upstream.
+	// and the heuristic OutputConfigEffort â€” user knob beats request-derived default.
+	// Value is already cap-applied (xhighâ†’max) by resolveForceEffort upstream.
 	ForceOutputConfigEffort string
 	// StripOutputConfigFormat drops output_config.format, pruning output_config
 	// when nothing else remains. Mirrors EmitOptions.StripOutputConfigFormat.
@@ -739,7 +739,7 @@ func clampFieldBytes(body []byte, key string, maxVal int64) []byte {
 // rewriteMessageBlocks walks messages[*].content[*], rewriting each block for
 // which needsRewrite reports true by calling rewrite with that block's raw
 // JSON. rewrite returning "" drops the block from its message's content array.
-// A message whose content array is emptied by rewriting is dropped entirely —
+// A message whose content array is emptied by rewriting is dropped entirely â€”
 // Anthropic rejects an assistant/user message with content:[] outright, so
 // leaving the shell behind would trade one 400 for another.
 // Uses two-phase reconstruction per message (cheap predicate scan, then
@@ -977,7 +977,7 @@ func encodeJSONStringNoHTMLEscape(s string) ([]byte, error) {
 	return []byte(strings.TrimSuffix(out, "\n")), nil
 }
 
-// routingMarkerPattern matches the "✦ **Weave Router** → ..." snippet
+// routingMarkerPattern matches the "âœ¦ **Weave Router** â†’ ..." snippet
 // injected in cross-format responses.
 var routingMarkerPattern = routerOwnedNoticePattern
 
@@ -1287,8 +1287,8 @@ const (
 )
 
 // ResolveForceEffort canonicalizes level and applies the per-model cap
-// (xhigh → max on non-CapXhighEffort, max → xhigh on a menu that tops out
-// there). Empty input → "".
+// (xhigh â†’ max on non-CapXhighEffort, max â†’ xhigh on a menu that tops out
+// there). Empty input â†’ "".
 func ResolveForceEffort(caps router.ModelSpec, level string) string {
 	if level == "" {
 		return ""
@@ -1317,7 +1317,7 @@ func resolveForceEffort(opts EmitOptions) string {
 }
 
 // effortForBudget maps legacy thinking.budget_tokens onto an adaptive
-// output_config.effort tier per Anthropic's guidance (≤4k low, ≤16k medium,
+// output_config.effort tier per Anthropic's guidance (â‰¤4k low, â‰¤16k medium,
 // else high). Missing/zero budget defaults to "medium".
 func effortForBudget(budgetTokens int64) string {
 	switch {

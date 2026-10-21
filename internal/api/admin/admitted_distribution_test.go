@@ -32,9 +32,9 @@ func TestAdmittedRoutingDistributionUsesEachRequestsPolicy(t *testing.T) {
 	engine := gin.New()
 	engine.GET("/v1/router/routing-distribution", admin.AdmittedRoutingDistributionHandler(policyregistry.AdmittedRosterSource{}))
 	for _, profile := range []struct{ arm, model string }{
-		{"openai/gpt-5.6-luna", "gpt-5.6-luna"},
-		{"x-ai/grok-4.6", "grok-4.6"},
-		{"openai/gpt-5.6-luna", "gpt-5.6-luna"},
+		{"deepseek/deepseek-v4-pro", "deepseek/deepseek-v4-pro"},
+		{"z-ai/glm-5.3", "z-ai/glm-5.3"},
+		{"deepseek/deepseek-v4-pro", "deepseek/deepseek-v4-pro"},
 	} {
 		for _, strategy := range []router.Strategy{"", router.StrategyHMM, router.StrategyHMMEmbedding} {
 			request := httptest.NewRequest(http.MethodGet, "/v1/router/routing-distribution?grid=2&strategy="+string(strategy), nil)
@@ -71,7 +71,7 @@ func TestAdmittedRoutingDistributionRejectsNonHMMAndAppliesExclusions(t *testing
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 	engine.GET("/v1/router/routing-distribution", admin.AdmittedRoutingDistributionHandler(policyregistry.AdmittedRosterSource{}))
-	for _, query := range []string{"strategy=" + string(router.StrategyCluster), "strategy=" + string(router.StrategyRL), "strategy=" + string(router.StrategyHMMBeta), "strategy=unknown", "excluded_models=gpt-5.6-luna", "grid=102"} {
+	for _, query := range []string{"strategy=" + string(router.StrategyCluster), "strategy=" + string(router.StrategyRL), "strategy=" + string(router.StrategyHMMBeta), "strategy=unknown", "excluded_models=deepseek/deepseek-v4-pro", "grid=102"} {
 		request := httptest.NewRequest(http.MethodGet, "/v1/router/routing-distribution?"+query, nil)
 		request = request.WithContext(policyregistry.WithServingSnapshot(request.Context(), profileDistributionSnapshot("openai/gpt-5.6-luna")))
 		recorder := httptest.NewRecorder()

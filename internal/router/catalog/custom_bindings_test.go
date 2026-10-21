@@ -44,7 +44,7 @@ func TestResolveBindingWithCustom_DirectVendorWins(t *testing.T) {
 		customModel,
 		map[string]struct{}{
 			providers.ProviderAIAND: {},
-			custom:                   {},
+			custom:                  {},
 		},
 		customFor(custom),
 	)
@@ -69,7 +69,7 @@ func TestEnumerateBindingsWithCustom_CustomRanksAfterCatalog(t *testing.T) {
 		customModel,
 		map[string]struct{}{
 			providers.ProviderAIAND: {},
-			custom:                   {},
+			custom:                  {},
 		},
 		customFor(custom),
 	)

@@ -254,8 +254,6 @@ func TestRouterOffersAndSelectsKimiK3WithoutLegacyDeployedSet(t *testing.T) {
 	assert.Contains(t, candidateRosterIDs(decider.query.Candidates), "moonshotai/kimi-k3")
 }
 
-
-
 func TestRouterDoesNotOfferTerraWithoutRegisteredOpenAIProvider(t *testing.T) {
 	r := New(&fakeDecider{}, map[string]struct{}{providers.ProviderAIAND: {}})
 

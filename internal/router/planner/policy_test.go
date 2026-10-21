@@ -14,10 +14,19 @@ import (
 )
 
 const (
-	modelOpus    = "claude-opus-4-7"   // $5.00 input / $25.00 output per 1M, cache mult 0.10
-	modelSonnet  = "claude-sonnet-4-5" // $3.00 input / $15.00 output, cache mult 0.10
-	modelHaiku   = "claude-haiku-4-5"  // $1.00 input / $5.00 output, cache mult 0.10
-	modelGPT5    = "gpt-5"             // $2.50 input / $10.00 output, cache mult 0.10 (cross-provider)
+	// modelTop is the expensive, high-tier model: $3.00 input / $12.50 output
+	// per 1M, cache-read multiplier 0.50/3.00.
+	modelTop = "moonshotai/kimi-k3"
+	// modelMid is the mid-tier model: $1.00 input / $2.50 output per 1M,
+	// cache-read multiplier 0.25.
+	modelMid = "deepseek/deepseek-v4-pro-0813"
+	// modelLow is the cheap, low-tier model: $0.30 input / $0.60 output per
+	// 1M, cache-read multiplier 0.02/0.30.
+	modelLow = "deepseek/deepseek-v4.1-flash"
+	// modelAlt is a second, differently-priced model ($1.00 input / $4.00
+	// output, cache-read multiplier 0.30) used where a case needs a model
+	// other than modelTop on the fresh side.
+	modelAlt     = "z-ai/glm-5.2"
 	modelUnknown = "fictional-foo-1.0" // intentionally absent from the pricing table
 )
 
@@ -30,10 +39,10 @@ var defaultCfg = planner.EVConfig{
 // availableAll covers every model the EV cases reference; used everywhere
 // except pin_model_missing.
 var availableAll = map[string]struct{}{
-	modelOpus:   {},
-	modelSonnet: {},
-	modelHaiku:  {},
-	modelGPT5:   {},
+	modelTop: {},
+	modelMid: {},
+	modelLow: {},
+	modelAlt: {},
 }
 
 // tierUpgradeCfg mirrors defaultCfg with the tier guard on.
@@ -52,37 +61,45 @@ func pinWithUsage(model string) sessionpin.Pin {
 	}
 }
 
+// The catalog carries a single provider (ai&), so the pin's named provider
+// must resolve to the ai& binding and nothing else. A pin naming a provider
+// the catalog does not know falls back to the model's primary binding — which
+// is that same ai& binding — and the fallback is reported explicitly.
 func TestDecide_UsesNamedProviderBindings(t *testing.T) {
 	t.Parallel()
 
 	base := planner.Inputs{
 		Pin: sessionpin.Pin{
 			Provider:        providers.ProviderAIAND,
-			Model:           "deepseek/deepseek-v4.1-flash",
+			Model:           modelLow,
 			LastTurnEndedAt: time.Date(2026, 5, 12, 12, 0, 0, 0, time.UTC),
 		},
 		Fresh: router.Decision{
 			Provider: providers.ProviderAIAND,
-			Model:    "qwen/qwen3-coder-next",
+			Model:    modelTop,
 		},
 		EstimatedInputTokens: 1_000_000,
 		AvailableModels: map[string]struct{}{
-			"deepseek/deepseek-v4.1-flash": {},
-			"qwen/qwen3-coder-next":        {},
+			modelLow: {},
+			modelTop: {},
 		},
 	}
 
-	makoraPin := planner.Decide(base, planner.EVConfig{ExpectedRemainingTurns: 3})
-	assert.InDelta(t, -0.087, makoraPin.ExpectedSavingsUSD, 1e-9)
-	assert.False(t, makoraPin.PinPriceFallback)
-	assert.False(t, makoraPin.FreshPriceFallback)
+	// modelLow cached at 0.30*0.0667=$0.02/Mtok vs modelTop at 3.00*0.1667=$0.50/Mtok:
+	//   savingsPerTurn=-$0.48 x3 turns = -$1.44, evictionCost=$2.50.
+	named := planner.Decide(base, planner.EVConfig{ExpectedRemainingTurns: 3})
+	assert.InDelta(t, -1.44, named.ExpectedSavingsUSD, 1e-9)
+	assert.InDelta(t, 2.50, named.EvictionCostUSD, 1e-9)
+	assert.False(t, named.PinPriceFallback)
+	assert.False(t, named.FreshPriceFallback)
 
-	openRouterPinInput := base
-	openRouterPinInput.Pin.Provider = providers.ProviderAIAND
-	openRouterPin := planner.Decide(openRouterPinInput, planner.EVConfig{ExpectedRemainingTurns: 3})
-	assert.InDelta(t, -0.075, openRouterPin.ExpectedSavingsUSD, 1e-9)
-	assert.NotEqual(t, makoraPin.ExpectedSavingsUSD, openRouterPin.ExpectedSavingsUSD,
-		"the pin's named provider must affect its cache economics")
+	unknownProvider := base
+	unknownProvider.Pin.Provider = "custom-provider"
+	fallback := planner.Decide(unknownProvider, planner.EVConfig{ExpectedRemainingTurns: 3})
+	assert.InDelta(t, named.ExpectedSavingsUSD, fallback.ExpectedSavingsUSD, 1e-12,
+		"the primary binding IS the ai& binding, so the fallback prices identically")
+	assert.InDelta(t, named.EvictionCostUSD, fallback.EvictionCostUSD, 1e-12)
+	assert.True(t, fallback.PinPriceFallback, "the primary-price fallback must be reported")
 }
 
 func TestDecide_PrimaryPriceFallbackIsExplicit(t *testing.T) {
@@ -91,10 +108,10 @@ func TestDecide_PrimaryPriceFallbackIsExplicit(t *testing.T) {
 	in := planner.Inputs{
 		Pin: sessionpin.Pin{
 			Provider:        "custom-provider",
-			Model:           modelHaiku,
+			Model:           modelLow,
 			LastTurnEndedAt: time.Date(2026, 5, 12, 12, 0, 0, 0, time.UTC),
 		},
-		Fresh:                router.Decision{Provider: providers.ProviderAIAND, Model: modelOpus},
+		Fresh:                router.Decision{Provider: providers.ProviderAIAND, Model: modelTop},
 		EstimatedInputTokens: 50_000,
 		AvailableModels:      availableAll,
 	}
@@ -105,7 +122,7 @@ func TestDecide_PrimaryPriceFallbackIsExplicit(t *testing.T) {
 
 	missing := in
 	missing.Fresh.Model = modelUnknown
-	missing.AvailableModels = map[string]struct{}{modelHaiku: {}, modelUnknown: {}}
+	missing.AvailableModels = map[string]struct{}{modelLow: {}, modelUnknown: {}}
 	got = planner.Decide(missing, defaultCfg)
 	require.Equal(t, planner.ReasonPricingMissing, got.Reason)
 	assert.True(t, got.PinPriceFallback, "successful fallback pricing must be retained on a missing-price decision")
@@ -116,8 +133,8 @@ func TestDecide_ShadowInclusiveCostModel(t *testing.T) {
 	t.Parallel()
 
 	in := planner.Inputs{
-		Pin:                   pinWithUsage(modelOpus),
-		Fresh:                 router.Decision{Model: modelHaiku},
+		Pin:                   pinWithUsage(modelTop),
+		Fresh:                 router.Decision{Model: modelLow},
 		EstimatedInputTokens:  100,
 		CacheablePrefixTokens: 60,
 		AvailableModels:       availableAll,
@@ -151,8 +168,8 @@ func TestDecide_ColdPinFollowFresh(t *testing.T) {
 	// Cheap pin → expensive fresh: raw-price EV is strongly negative, so only
 	// the cold-pin lever can flip it.
 	base := planner.Inputs{
-		Pin:                  pinWithUsage(modelHaiku),
-		Fresh:                router.Decision{Model: modelOpus},
+		Pin:                  pinWithUsage(modelLow),
+		Fresh:                router.Decision{Model: modelTop},
 		EstimatedInputTokens: 50_000,
 		AvailableModels:      availableAll,
 		PinCacheCold:         true,
@@ -176,8 +193,8 @@ func TestDecide_ColdPinFollowFresh(t *testing.T) {
 	// A cold pin whose switch is already EV-positive keeps the more specific
 	// ev_positive reason.
 	evPositive := planner.Inputs{
-		Pin:                  pinWithUsage(modelOpus),
-		Fresh:                router.Decision{Model: modelHaiku},
+		Pin:                  pinWithUsage(modelTop),
+		Fresh:                router.Decision{Model: modelLow},
 		EstimatedInputTokens: 50_000,
 		AvailableModels:      availableAll,
 		PinCacheCold:         true,
@@ -205,7 +222,7 @@ func TestDecide(t *testing.T) {
 			name: "no_pin: zero-value pin always switches",
 			in: planner.Inputs{
 				Pin:                  sessionpin.Pin{},
-				Fresh:                router.Decision{Model: modelHaiku},
+				Fresh:                router.Decision{Model: modelLow},
 				EstimatedInputTokens: 1000,
 				AvailableModels:      availableAll,
 			},
@@ -215,8 +232,8 @@ func TestDecide(t *testing.T) {
 		{
 			name: "same_model: fresh recommendation matches the pin",
 			in: planner.Inputs{
-				Pin:                  pinWithUsage(modelOpus),
-				Fresh:                router.Decision{Model: modelOpus},
+				Pin:                  pinWithUsage(modelTop),
+				Fresh:                router.Decision{Model: modelTop},
 				EstimatedInputTokens: 50_000,
 				AvailableModels:      availableAll,
 			},
@@ -226,11 +243,11 @@ func TestDecide(t *testing.T) {
 		{
 			name: "pin_model_missing: pin model not in availability set",
 			in: planner.Inputs{
-				Pin:                  pinWithUsage(modelOpus),
-				Fresh:                router.Decision{Model: modelHaiku},
+				Pin:                  pinWithUsage(modelTop),
+				Fresh:                router.Decision{Model: modelLow},
 				EstimatedInputTokens: 50_000,
-				// modelOpus deliberately absent — provider key was removed.
-				AvailableModels: map[string]struct{}{modelHaiku: {}, modelSonnet: {}},
+				// modelTop deliberately absent — provider key was removed.
+				AvailableModels: map[string]struct{}{modelLow: {}, modelMid: {}},
 			},
 			cfg:  defaultCfg,
 			want: planner.Decision{Outcome: planner.OutcomeSwitch, Reason: planner.ReasonPinModelMissing},
@@ -239,8 +256,8 @@ func TestDecide(t *testing.T) {
 			name: "no_prior_usage: pin populated but LastTurnEndedAt zero",
 			in: planner.Inputs{
 				// Model set but no completed turn → conservative stay.
-				Pin:                  sessionpin.Pin{Model: modelOpus},
-				Fresh:                router.Decision{Model: modelHaiku},
+				Pin:                  sessionpin.Pin{Model: modelTop},
+				Fresh:                router.Decision{Model: modelLow},
 				EstimatedInputTokens: 50_000,
 				AvailableModels:      availableAll,
 			},
@@ -251,9 +268,9 @@ func TestDecide(t *testing.T) {
 			name: "pricing_missing: pin model unknown to price table",
 			in: planner.Inputs{
 				Pin:                  pinWithUsage(modelUnknown),
-				Fresh:                router.Decision{Model: modelHaiku},
+				Fresh:                router.Decision{Model: modelLow},
 				EstimatedInputTokens: 50_000,
-				AvailableModels:      map[string]struct{}{modelUnknown: {}, modelHaiku: {}},
+				AvailableModels:      map[string]struct{}{modelUnknown: {}, modelLow: {}},
 			},
 			cfg:  defaultCfg,
 			want: planner.Decision{Outcome: planner.OutcomeStay, Reason: planner.ReasonPricingMissing},
@@ -261,153 +278,161 @@ func TestDecide(t *testing.T) {
 		{
 			name: "pricing_missing: fresh model unknown to price table",
 			in: planner.Inputs{
-				Pin:                  pinWithUsage(modelOpus),
+				Pin:                  pinWithUsage(modelTop),
 				Fresh:                router.Decision{Model: modelUnknown},
 				EstimatedInputTokens: 50_000,
-				AvailableModels:      map[string]struct{}{modelOpus: {}, modelUnknown: {}},
+				AvailableModels:      map[string]struct{}{modelTop: {}, modelUnknown: {}},
 			},
 			cfg:  defaultCfg,
 			want: planner.Decision{Outcome: planner.OutcomeStay, Reason: planner.ReasonPricingMissing},
 		},
 		{
-			// opus -> haiku, 50k tokens, 3 turns; cache-read multiplier 0.1 applies.
-			//   savingsPerTurn=$0.020 evictionCost=$0.045
-			//   expectedSavings=$0.06 -> delta=$0.015 -> Switch.
-			name: "ev_positive: opus -> haiku on a large prompt",
+			// kimi-k3 -> deepseek-v4.1-flash, 50k tokens, 3 turns.
+			//   cached pin 3.00*0.1667=$0.50/Mtok, cached fresh 0.30*0.0667=$0.02/Mtok
+			//   savingsPerTurn=$0.48 -> expectedSavings=$1.44
+			//   evictionCost=0.30*(1-0.0667)*50k=$0.014
+			//   delta=$1.426 -> Switch.
+			name: "ev_positive: kimi-k3 -> deepseek-v4.1-flash on a large prompt",
 			in: planner.Inputs{
-				Pin:                  pinWithUsage(modelOpus),
-				Fresh:                router.Decision{Model: modelHaiku},
+				Pin:                  pinWithUsage(modelTop),
+				Fresh:                router.Decision{Model: modelLow},
 				EstimatedInputTokens: 50_000,
 				AvailableModels:      availableAll,
 			},
 			cfg:                    defaultCfg,
 			want:                   planner.Decision{Outcome: planner.OutcomeSwitch, Reason: planner.ReasonEVPositive},
 			expectEVMath:           true,
-			wantExpectedSavingsUSD: 0.06,
-			wantEvictionCostUSD:    0.045,
+			wantExpectedSavingsUSD: 0.072,
+			wantEvictionCostUSD:    0.014,
 		},
 		{
-			// Symmetric flip: haiku pin, opus fresh.
-			//   expectedSavings=-$0.06 evictionCost=$0.225 -> delta=-$0.285 -> Stay.
-			name: "ev_negative: haiku -> opus is a huge net loss",
+			// Symmetric flip: deepseek-v4.1-flash pin, kimi-k3 fresh.
+			//   expectedSavings=-$0.072 evictionCost=3.00*(1-0.1667)*50k=$0.125
+			//   delta=-$0.197 -> Stay.
+			name: "ev_negative: deepseek-v4.1-flash -> kimi-k3 is a huge net loss",
 			in: planner.Inputs{
-				Pin:                  pinWithUsage(modelHaiku),
-				Fresh:                router.Decision{Model: modelOpus},
+				Pin:                  pinWithUsage(modelLow),
+				Fresh:                router.Decision{Model: modelTop},
 				EstimatedInputTokens: 50_000,
 				AvailableModels:      availableAll,
 			},
 			cfg:                    defaultCfg,
 			want:                   planner.Decision{Outcome: planner.OutcomeStay, Reason: planner.ReasonEVNegative},
 			expectEVMath:           true,
-			wantExpectedSavingsUSD: -0.06,
-			wantEvictionCostUSD:    0.225,
+			wantExpectedSavingsUSD: -0.072,
+			wantEvictionCostUSD:    0.125,
 		},
 		{
-			// opus -> haiku, tuned to land just below threshold (net $0.0009999
-			// at 3333 tokens vs $0.001 threshold, 0.01% below) -> Stay.
+			// kimi-k3 -> deepseek-v4.1-flash, tuned to land just below
+			// threshold: net=(1.44-0.28)*860/1M=$0.0009976 vs the $0.001
+			// threshold, 0.24% below -> Stay.
 			name: "ev_near_threshold: just below threshold stays stable",
 			in: planner.Inputs{
-				Pin:                  pinWithUsage(modelOpus),
-				Fresh:                router.Decision{Model: modelHaiku},
-				EstimatedInputTokens: 3333,
+				Pin:                  pinWithUsage(modelTop),
+				Fresh:                router.Decision{Model: modelLow},
+				EstimatedInputTokens: 860,
 				AvailableModels:      availableAll,
 			},
 			cfg:                    defaultCfg,
 			want:                   planner.Decision{Outcome: planner.OutcomeStay, Reason: planner.ReasonEVNegative},
 			expectEVMath:           true,
-			wantExpectedSavingsUSD: 0.0039996,
-			wantEvictionCostUSD:    0.0029997,
+			wantExpectedSavingsUSD: 0.0012384,
+			wantEvictionCostUSD:    0.0002408,
 		},
 		{
-			// Same math, two extra tokens (3335) nudges net to $0.0010005,
-			// 0.05% above threshold -> Switch.
+			// Same math, four extra tokens (864) nudges net to $0.00100224,
+			// 0.22% above threshold -> Switch.
 			name: "ev_near_threshold: just above threshold flips to switch",
 			in: planner.Inputs{
-				Pin:                  pinWithUsage(modelOpus),
-				Fresh:                router.Decision{Model: modelHaiku},
-				EstimatedInputTokens: 3335,
+				Pin:                  pinWithUsage(modelTop),
+				Fresh:                router.Decision{Model: modelLow},
+				EstimatedInputTokens: 864,
 				AvailableModels:      availableAll,
 			},
 			cfg:                    defaultCfg,
 			want:                   planner.Decision{Outcome: planner.OutcomeSwitch, Reason: planner.ReasonEVPositive},
 			expectEVMath:           true,
-			wantExpectedSavingsUSD: 0.004002,
-			wantEvictionCostUSD:    0.0030015,
+			wantExpectedSavingsUSD: 0.00124416,
+			wantEvictionCostUSD:    0.00024192,
 		},
 		{
-			// Cross-provider: opus -> gpt-5, 50k prompt. gpt-5 is cheaper
-			// per-token in cache steady-state (expectedSavings=$0.0375), but
-			// evicting opus's warm cache to refill gpt-5's cold one costs more
-			// (evictionCost=$0.1125) -> Stay.
-			name: "ev_cross_provider: opus -> gpt-5 stays under per-model math",
+			// Second price class: kimi-k3 -> glm-5.2, 50k prompt. glm-5.2 is
+			// cheaper per-token in cache steady-state (cached $0.30 vs $0.50,
+			// expectedSavings=$0.03), but evicting kimi-k3's warm cache to
+			// refill glm-5.2's cold one costs more (evictionCost=$0.035) -> Stay.
+			name: "ev_cross_provider: kimi-k3 -> glm-5.2 stays under per-model math",
 			in: planner.Inputs{
-				Pin:                  pinWithUsage(modelOpus),
-				Fresh:                router.Decision{Model: modelGPT5},
+				Pin:                  pinWithUsage(modelTop),
+				Fresh:                router.Decision{Model: modelAlt},
 				EstimatedInputTokens: 50_000,
 				AvailableModels:      availableAll,
 			},
 			cfg:                    defaultCfg,
 			want:                   planner.Decision{Outcome: planner.OutcomeStay, Reason: planner.ReasonEVNegative},
 			expectEVMath:           true,
-			wantExpectedSavingsUSD: 0.0375,
-			wantEvictionCostUSD:    0.1125,
+			wantExpectedSavingsUSD: 0.03,
+			wantEvictionCostUSD:    0.035,
 		},
 		{
 			// Mirror of ev_negative; pinned here so the next case can show
 			// the tier knob is what flips the verdict.
 			name: "tier_upgrade_disabled: low -> high still stays",
 			in: planner.Inputs{
-				Pin:                  pinWithUsage(modelHaiku),
-				Fresh:                router.Decision{Model: modelOpus},
+				Pin:                  pinWithUsage(modelLow),
+				Fresh:                router.Decision{Model: modelTop},
 				EstimatedInputTokens: 50_000,
 				AvailableModels:      availableAll,
 			},
 			cfg:                    defaultCfg, // TierUpgradeEnabled = false
 			want:                   planner.Decision{Outcome: planner.OutcomeStay, Reason: planner.ReasonEVNegative},
 			expectEVMath:           true,
-			wantExpectedSavingsUSD: -0.06,
-			wantEvictionCostUSD:    0.225,
+			wantExpectedSavingsUSD: -0.072,
+			wantEvictionCostUSD:    0.125,
 		},
 		{
-			// Same EV-loss as above; tier guard flips it since opus outranks haiku.
+			// Same EV-loss as above; tier guard flips it since kimi-k3 (High)
+			// outranks deepseek-v4.1-flash (Low).
 			name: "tier_upgrade: low -> high flips stay into switch",
 			in: planner.Inputs{
-				Pin:                  pinWithUsage(modelHaiku),
-				Fresh:                router.Decision{Model: modelOpus},
+				Pin:                  pinWithUsage(modelLow),
+				Fresh:                router.Decision{Model: modelTop},
 				EstimatedInputTokens: 50_000,
 				AvailableModels:      availableAll,
 			},
 			cfg:                    tierUpgradeCfg,
 			want:                   planner.Decision{Outcome: planner.OutcomeSwitch, Reason: planner.ReasonTierUpgrade},
 			expectEVMath:           true,
-			wantExpectedSavingsUSD: -0.06,
-			wantEvictionCostUSD:    0.225,
+			wantExpectedSavingsUSD: -0.072,
+			wantEvictionCostUSD:    0.125,
 		},
 		{
-			// Sonnet (Mid) -> haiku (Low) is a downgrade; guard must
-			// not fire, EV math governs.
+			// deepseek-v4-pro-0813 (Mid) -> deepseek-v4.1-flash (Low) is a
+			// downgrade; guard must not fire, EV math governs.
 			name: "tier_upgrade: downgrade does not trigger guard",
 			in: planner.Inputs{
-				Pin:                  pinWithUsage(modelSonnet),
-				Fresh:                router.Decision{Model: modelHaiku},
+				Pin:                  pinWithUsage(modelMid),
+				Fresh:                router.Decision{Model: modelLow},
 				EstimatedInputTokens: 1000,
 				AvailableModels:      availableAll,
 			},
 			cfg:          tierUpgradeCfg,
 			want:         planner.Decision{Outcome: planner.OutcomeStay, Reason: planner.ReasonEVNegative},
 			expectEVMath: true,
-			// expectedSavings=$0.0006 evictionCost=$0.0009
-			wantExpectedSavingsUSD: 0.0006,
-			wantEvictionCostUSD:    0.0009,
+			// cached pin 1.00*0.25=$0.25/Mtok, cached fresh $0.02/Mtok
+			//   expectedSavings=(0.25-0.02)*1000*3=$0.00069
+			//   evictionCost=0.30*(1-0.0667)*1000=$0.00028
+			wantExpectedSavingsUSD: 0.00069,
+			wantEvictionCostUSD:    0.00028,
 		},
 		{
 			// Cold pin: cache TTL lapsed, both sides price uncached, so this
 			// switches on raw input price rather than the cache-read delta.
-			// expectedSavings=$0.60 evictionCost=$0 (nothing warm to evict).
-			name: "cold_ev_positive: opus -> haiku prices uncached",
+			// expectedSavings=(3.00-0.30)*50k*3=$0.405, evictionCost=$0
+			// (nothing warm to evict).
+			name: "cold_ev_positive: kimi-k3 -> deepseek-v4.1-flash prices uncached",
 			in: planner.Inputs{
-				Pin:                  pinWithUsage(modelOpus),
-				Fresh:                router.Decision{Model: modelHaiku},
+				Pin:                  pinWithUsage(modelTop),
+				Fresh:                router.Decision{Model: modelLow},
 				EstimatedInputTokens: 50_000,
 				AvailableModels:      availableAll,
 				PinCacheCold:         true,
@@ -415,16 +440,16 @@ func TestDecide(t *testing.T) {
 			cfg:                    defaultCfg,
 			want:                   planner.Decision{Outcome: planner.OutcomeSwitch, Reason: planner.ReasonEVPositive},
 			expectEVMath:           true,
-			wantExpectedSavingsUSD: 0.60,
+			wantExpectedSavingsUSD: 0.405,
 			wantEvictionCostUSD:    0,
 		},
 		{
 			// Cold twin of ev_cross_provider (which STAYS): with no warm cache
-			// to preserve, raw $2.50 vs $5.00 input price wins and it switches.
-			name: "cold_cross_provider: opus -> gpt-5 switches once cache is cold",
+			// to preserve, raw $3.00 vs $1.00 input price wins and it switches.
+			name: "cold_cross_provider: kimi-k3 -> glm-5.2 switches once cache is cold",
 			in: planner.Inputs{
-				Pin:                  pinWithUsage(modelOpus),
-				Fresh:                router.Decision{Model: modelGPT5},
+				Pin:                  pinWithUsage(modelTop),
+				Fresh:                router.Decision{Model: modelAlt},
 				EstimatedInputTokens: 50_000,
 				AvailableModels:      availableAll,
 				PinCacheCold:         true,
@@ -432,16 +457,16 @@ func TestDecide(t *testing.T) {
 			cfg:                    defaultCfg,
 			want:                   planner.Decision{Outcome: planner.OutcomeSwitch, Reason: planner.ReasonEVPositive},
 			expectEVMath:           true,
-			wantExpectedSavingsUSD: 0.375,
+			wantExpectedSavingsUSD: 0.30,
 			wantEvictionCostUSD:    0,
 		},
 		{
 			// Cold pin on the cheaper model: no cache to preserve, but switching
 			// to the pricier fresh model is still a raw-price loss -> Stay.
-			name: "cold_ev_negative: haiku -> opus stays on raw price",
+			name: "cold_ev_negative: deepseek-v4.1-flash -> kimi-k3 stays on raw price",
 			in: planner.Inputs{
-				Pin:                  pinWithUsage(modelHaiku),
-				Fresh:                router.Decision{Model: modelOpus},
+				Pin:                  pinWithUsage(modelLow),
+				Fresh:                router.Decision{Model: modelTop},
 				EstimatedInputTokens: 50_000,
 				AvailableModels:      availableAll,
 				PinCacheCold:         true,
@@ -449,16 +474,17 @@ func TestDecide(t *testing.T) {
 			cfg:                    defaultCfg,
 			want:                   planner.Decision{Outcome: planner.OutcomeStay, Reason: planner.ReasonEVNegative},
 			expectEVMath:           true,
-			wantExpectedSavingsUSD: -0.60,
+			wantExpectedSavingsUSD: -0.405,
 			wantEvictionCostUSD:    0,
 		},
 		{
 			// Cold pin does not disable the tier-upgrade guard: EV alone would
-			// stay, but opus outranks haiku so it still switches.
+			// stay, but kimi-k3 (High) outranks deepseek-v4.1-flash (Low) so
+			// it still switches.
 			name: "cold_tier_upgrade: guard still fires when cache is cold",
 			in: planner.Inputs{
-				Pin:                  pinWithUsage(modelHaiku),
-				Fresh:                router.Decision{Model: modelOpus},
+				Pin:                  pinWithUsage(modelLow),
+				Fresh:                router.Decision{Model: modelTop},
 				EstimatedInputTokens: 50_000,
 				AvailableModels:      availableAll,
 				PinCacheCold:         true,
@@ -466,7 +492,7 @@ func TestDecide(t *testing.T) {
 			cfg:                    tierUpgradeCfg,
 			want:                   planner.Decision{Outcome: planner.OutcomeSwitch, Reason: planner.ReasonTierUpgrade},
 			expectEVMath:           true,
-			wantExpectedSavingsUSD: -0.60,
+			wantExpectedSavingsUSD: -0.405,
 			wantEvictionCostUSD:    0,
 		},
 	}

@@ -19,8 +19,8 @@ import (
 )
 
 const (
-	shadowPinnedModel = "z-ai/glm-5.2"
-	shadowFreshModel  = "z-ai/glm-5.2"
+	shadowPinnedModel = "deepseek/deepseek-v4-pro"
+	shadowFreshModel  = "deepseek/deepseek-v4.1-flash"
 	shadowPinReason   = "hmm_policy(classifier 'high' (p=0.32))"
 )
 
@@ -96,7 +96,7 @@ func runAuthorityShadowTurnWithPin(
 		})
 
 	env, err := translate.ParseAnthropic(
-		[]byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"continue"}]}`),
+		[]byte(`{"model":"deepseek/deepseek-v4-pro-0813","messages":[{"role":"user","content":"continue"}]}`),
 	)
 	require.NoError(t, err)
 	features := env.RoutingFeatures(false)
@@ -224,8 +224,8 @@ func TestAuthorityCacheShadowCandidateScoreCoverage(t *testing.T) {
 	t.Run("AA sidecar arm scores", func(t *testing.T) {
 		result := runAuthorityShadowTurn(t, true, hmmFreshDecisionWithArmScores(
 			shadowFreshModel, nil, map[string]float32{
-				"anthropic/" + shadowPinnedModel: 0.62,
-				"anthropic/" + shadowFreshModel:  0.71,
+				shadowPinnedModel: 0.62,
+				shadowFreshModel:  0.71,
 			},
 		))
 		shadow := result.AuthorityShadow
@@ -238,8 +238,8 @@ func TestAuthorityCacheShadowCandidateScoreCoverage(t *testing.T) {
 	t.Run("effort-qualified AA sidecar arm scores", func(t *testing.T) {
 		const effort = "high"
 		dec := hmmFreshDecisionWithArmScores(shadowFreshModel, nil, map[string]float32{
-			"anthropic/" + shadowPinnedModel + ":" + effort: 0.62,
-			"anthropic/" + shadowFreshModel + ":" + effort:  0.71,
+			shadowPinnedModel + ":" + effort: 0.62,
+			shadowFreshModel + ":" + effort:  0.71,
 		})
 		stay := candidateScoreForWithProvider(dec, shadowPinnedModel+":"+effort, providers.ProviderAIAND)
 		fresh := candidateScoreForWithProvider(dec, shadowFreshModel+":"+effort, providers.ProviderAIAND)
@@ -335,7 +335,7 @@ func TestAuthorityCacheShadowEffortBearingPinIsNotAStayCandidate(t *testing.T) {
 func TestCandidateScoreFor(t *testing.T) {
 	dec := hmmFreshDecisionWithArmScores(shadowFreshModel,
 		map[string]float32{shadowPinnedModel: 0.40, shadowFreshModel: 0.71},
-		map[string]float32{"anthropic/" + shadowPinnedModel + ":high": 0.66},
+		map[string]float32{shadowPinnedModel + ":high": 0.66},
 	)
 
 	t.Run("bare catalog id", func(t *testing.T) {
@@ -346,7 +346,7 @@ func TestCandidateScoreFor(t *testing.T) {
 
 	t.Run("AA arm score fallback", func(t *testing.T) {
 		dec := hmmFreshDecisionWithArmScores(shadowFreshModel, nil, map[string]float32{
-			"anthropic/" + shadowFreshModel: 0.71,
+			shadowFreshModel: 0.71,
 		})
 		got := candidateScoreFor(dec, shadowFreshModel)
 		require.NotNil(t, got)
@@ -365,12 +365,12 @@ func TestCandidateScoreFor(t *testing.T) {
 
 	t.Run("stay score uses re-resolved provider", func(t *testing.T) {
 		dec := hmmFreshDecisionWithArmScores(shadowFreshModel, nil, map[string]float32{
-			"anthropic/" + shadowPinnedModel: 0.62,
-			"openai/" + shadowPinnedModel:    0.91,
+			shadowPinnedModel: 0.62,
+			shadowFreshModel:  0.91,
 		})
 		dec.Metadata.CandidateArmProviders = map[string]string{
-			"anthropic/" + shadowPinnedModel: providers.ProviderAIAND,
-			"openai/" + shadowPinnedModel:    providers.ProviderAIAND,
+			shadowPinnedModel: providers.ProviderAIAND,
+			shadowFreshModel:  providers.ProviderAIAND,
 		}
 		got := candidateScoreForWithProvider(dec, shadowPinnedModel, providers.ProviderAIAND)
 		require.NotNil(t, got)
@@ -379,7 +379,7 @@ func TestCandidateScoreFor(t *testing.T) {
 
 	t.Run("gateway provider falls back to roster namespace", func(t *testing.T) {
 		dec := hmmFreshDecisionWithArmScores(shadowFreshModel, nil, map[string]float32{
-			"anthropic/" + shadowFreshModel: 0.71,
+			shadowFreshModel: 0.71,
 		})
 		got := candidateScoreForWithProvider(dec, shadowFreshModel, "anthropic_gateway")
 		require.NotNil(t, got)
