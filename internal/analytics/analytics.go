@@ -75,14 +75,7 @@ type Decision struct {
 	Speed           *string `json:"speed"`
 	InferenceGeo    *string `json:"inference_geo"`
 
-	// SubscriptionServed turns use included personal or shared quota; Actual* export as $0 while token counts stay real.
-	SubscriptionServed    bool                   `json:"subscription_served"`
-	CredentialSource      *string                `json:"credential_source"`
-	SubscriptionAccountID *string                `json:"subscription_account_id"`
-	SubscriptionOwnerID   *string                `json:"subscription_owner_id"`
-	SubscriptionTier      *auth.SubscriptionTier `json:"subscription_tier"`
-	IntendedModelFamily   *string                `json:"intended_model_family"`
-	FinalModelFamily      *string                `json:"final_model_family"`
+	CredentialSource *string `json:"credential_source"`
 	// Actual* price the served turn; counterfactual not exported — consumers reprice via RequestedModel + /v1/analytics/models.
 	ActualInputCostUSD  *float64 `json:"actual_input_cost_usd"`
 	ActualOutputCostUSD *float64 `json:"actual_output_cost_usd"`
@@ -101,7 +94,6 @@ type Decision struct {
 	CapacitySource           *string `json:"capacity_source"`
 	RetailUsageUSDMicros     *int64  `json:"retail_usage_usd_micros"`
 	IncludedUsageUSDMicros   *int64  `json:"included_usage_usd_micros"`
-	LinkedUsageUSDMicros     *int64  `json:"linked_usage_usd_micros"`
 	PrepaidUsageUSDMicros    *int64  `json:"prepaid_usage_usd_micros"`
 	SettlementFailed         *bool   `json:"settlement_failed"`
 	ServingProfileID         *string `json:"serving_profile_id"`

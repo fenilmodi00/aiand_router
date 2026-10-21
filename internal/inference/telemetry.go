@@ -7,8 +7,6 @@ import "time"
 type AccountingOutcome string
 
 const (
-	AccountingOutcomeBilled       AccountingOutcome = "billed"
-	AccountingOutcomeUnbilled     AccountingOutcome = "unbilled"
 	AccountingOutcomeUsageUnknown AccountingOutcome = "usage_unknown"
 	AccountingOutcomeFailed       AccountingOutcome = "failed"
 )

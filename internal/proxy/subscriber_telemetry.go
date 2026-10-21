@@ -52,8 +52,6 @@ func applySubscriberTelemetry(ctx context.Context, telemetry *InsertTelemetryPar
 	switch source {
 	case entitlement.CapacitySourceIncludedRouter:
 		telemetry.IncludedUsageMicros = &retail
-	case entitlement.CapacitySourceLinkedClaude, entitlement.CapacitySourceLinkedCodex:
-		telemetry.LinkedUsageMicros = &retail
 	case entitlement.CapacitySourcePrepaid:
 		telemetry.PrepaidUsageMicros = &retail
 	}
@@ -97,12 +95,7 @@ func telemetryCapacitySource(ctx context.Context, credentialSource string) entit
 	if billing.HasOverrideFromContext(ctx) {
 		return entitlement.CapacitySourceBillingOverride
 	}
-	switch credentialSource {
-	case credSourceSubscription, credSourceSubscriptionOverage:
-		return entitlement.CapacitySourceLinkedClaude
-	case credSourceCodexSubscription:
-		return entitlement.CapacitySourceLinkedCodex
-	case credSourceBYOK:
+	if credentialSource == credSourceBYOK {
 		return ""
 	}
 	if _, ok := billing.PrepaidAuthorizationFromContext(ctx); ok {

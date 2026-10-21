@@ -250,7 +250,6 @@ func (r *TelemetryRepo) InsertRequestTelemetry(ctx context.Context, p proxy.Inse
 		CapacitySource:                           stringPtrOrNil(p.CapacitySource),
 		RetailUsageUsdMicros:                     p.RetailUsageMicros,
 		IncludedUsageUsdMicros:                   p.IncludedUsageMicros,
-		LinkedUsageUsdMicros:                     p.LinkedUsageMicros,
 		PrepaidUsageUsdMicros:                    p.PrepaidUsageMicros,
 		SettlementFailed:                         p.SettlementFailed,
 		ServingProfileID:                         stringPtrOrNil(p.ServingProfileID),

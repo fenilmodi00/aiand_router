@@ -128,7 +128,7 @@ func TestTimestampValidationRequiresCanonicalUTC(t *testing.T) {
 					ActionID:        reservation.ActionID,
 					ServedModel:     finalizedAction.ServedModel,
 					RetailUsdMicros: finalizedAction.RetailUsdMicros,
-					CapacitySource:  entitlement.CapacitySourceLinkedClaude,
+					CapacitySource:  entitlement.CapacitySourcePrepaid,
 					FinalizedAt:     value,
 				}
 				return finalization.Validate()
@@ -220,7 +220,7 @@ func TestFinalizationAndReleaseValidateLifecycleInputs(t *testing.T) {
 		ActionID:        "request_1_main",
 		ServedModel:     "deepseek/deepseek-v4.1-flash",
 		RetailUsdMicros: 98_000,
-		CapacitySource:  entitlement.CapacitySourceLinkedClaude,
+		CapacitySource:  entitlement.CapacitySourcePrepaid,
 		FinalizedAt:     now,
 	}
 	require.NoError(t, finalization.Validate())

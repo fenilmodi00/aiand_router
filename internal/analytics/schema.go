@@ -2,7 +2,7 @@ package analytics
 
 // SchemaVersion identifies the export contract. Additive field changes keep
 // the version; a removal or a semantic change bumps it.
-const SchemaVersion = "3"
+const SchemaVersion = "4"
 
 // Field documents one exported column so a consumer can generate warehouse DDL
 // without reading prose docs.
@@ -66,13 +66,7 @@ func Schema() []Field {
 		{"reasoning_tokens", "integer", true, "Share of output_tokens spent on reasoning; already included in output_tokens and priced at the output rate. Null when the upstream does not break reasoning out (Anthropic) or the row predates the column."},
 		{"speed", "string", true, "Serving speed the upstream reported (e.g. fast); fast turns are priced at the binding's fast rate. Null when not reported."},
 		{"inference_geo", "string", true, "Inference geography the upstream reported; \"us\" applies us_inference_geo_multiplier to every token category. Null when not reported."},
-		{"subscription_served", "boolean", false, "True when the turn used included Claude/Codex subscription quota. Paid Claude overage is false, even if the OAuth credential served the turn."},
 		{"credential_source", "string", true, "Winning credential source; null when attribution was not recorded."},
-		{"subscription_account_id", "string", true, "Stable physical subscription account that served the request; null for request-local OAuth and API capacity."},
-		{"subscription_owner_id", "string", true, "Verified subscription owner; distinct from the requesting subscriber for shared capacity."},
-		{"subscription_tier", "string", true, "Winning subscription tier: personal or shared."},
-		{"intended_model_family", "string", true, "Canonical family selected before subscription alternatives."},
-		{"final_model_family", "string", true, "Canonical family that served the request."},
 		{"actual_input_cost_usd", "float", true, "Input cost of the model that actually served the turn. 0 when subscription_served."},
 		{"actual_output_cost_usd", "float", true, "Output cost of the model that actually served the turn. 0 when subscription_served."},
 		{"route_latency_ms", "integer", true, "Time spent choosing a model."},
@@ -86,10 +80,9 @@ func Schema() []Field {
 		{"invalid_tool_args_blocks", "integer", true, "Count of tool-use blocks whose arguments failed to parse."},
 		{"subscriber_plan", "string", true, "Router subscription plan that admitted the turn."},
 		{"entitlement_version", "integer", true, "Monotonic subscriber entitlement version used for admission."},
-		{"capacity_source", "string", true, "Capacity that funded the turn: included_router, linked_claude, linked_codex, prepaid, or billing_override."},
+		{"capacity_source", "string", true, "Capacity that funded the turn: included_router, prepaid, or billing_override."},
 		{"retail_usage_usd_micros", "integer", true, "Retail value of the served model usage in USD micros, independent of funding source."},
 		{"included_usage_usd_micros", "integer", true, "Retail usage funded by included Router allowance; null for other capacity sources."},
-		{"linked_usage_usd_micros", "integer", true, "Retail usage served by a linked Claude or Codex subscription; null for other capacity sources."},
 		{"prepaid_usage_usd_micros", "integer", true, "Retail usage funded by subscriber prepaid balance; null for other capacity sources."},
 		{"settlement_failed", "boolean", true, "Whether included-allowance or prepaid settlement failed after serving. Null when no Router settlement applies."},
 		{"serving_profile_id", "string", true, "Server-owned Router profile used to serve the turn."},
