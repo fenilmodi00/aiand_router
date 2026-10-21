@@ -65,6 +65,8 @@ Claude Code keep using the user's logged-in plan.
 | `OPENAI_GATEWAY_TOKEN`       | *(none)*                                           | Token for that gateway, sent as `Authorization: Bearer`. Only used when `OPENAI_GATEWAY_BASE_URL` is also set. |
 | `WAFER_API_KEY`   | *(none)*                                                  | Enables Wafer Serverless (both its OpenAI-compatible `wafer` and Anthropic-compatible `wafer_anthropic` surfaces; one key covers both). |
 | `WAFER_BASE_URL`  | `https://pass.wafer.ai/v1`                                | Override for the Wafer OpenAI-compatible endpoint (`wafer_anthropic` uses the fixed `/v1/messages` endpoint). |
+| `AIAND_API_KEY`   | *(none)*                                                  | Enables the ai& provider through its OpenAI-compatible Chat Completions API. |
+| `AIAND_BASE_URL`  | `https://api.aiand.com/v1`                                | Override for the ai& endpoint. |
 
 **Anthropic-compatible gateway.** Some enterprises front Claude with their own
 gateway that speaks the Anthropic Messages spec but authenticates with a bearer

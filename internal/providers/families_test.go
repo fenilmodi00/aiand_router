@@ -56,6 +56,7 @@ func TestFamilyForKnownProviders(t *testing.T) {
 		providers.ProviderTogether:       providers.FamilyOpenAICompat,
 		providers.ProviderXAI:            providers.FamilyOpenAICompat,
 		providers.ProviderMeta:           providers.FamilyOpenAICompat,
+		providers.ProviderAIAND:          providers.FamilyOpenAICompat,
 		providers.ProviderWafer:          providers.FamilyOpenAICompat,
 		providers.ProviderWaferAnthropic: providers.FamilyAnthropic,
 	}

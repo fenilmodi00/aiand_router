@@ -52,6 +52,7 @@ var defaultMechanismProviders = map[string]struct{}{
 	providers.ProviderMiniMax:   {},
 	providers.ProviderTogether:  {},
 	providers.ProviderMeta:      {},
+	providers.ProviderAIAND:     {},
 	providers.ProviderWafer:     {},
 }
 
