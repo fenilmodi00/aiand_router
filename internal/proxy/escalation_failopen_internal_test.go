@@ -23,7 +23,7 @@ func TestEscalationCommitFailurePreservesEligibilityAndTurnEvidence(t *testing.T
 	pins := &rolePinStore{byRole: map[string]sessionpin.Pin{
 		role: {Provider: providers.ProviderAIAND, Model: "gemini-3-pro-preview", Strategy: router.StrategyHMMEmbedding, PinnedUntil: time.Now().Add(time.Hour)},
 	}}
-	clients := map[string]providers.Client{providers.ProviderAIAND: &stripFailureProvider{}, providers.ProviderAIAND: &stripFailureProvider{}}
+	clients := map[string]providers.Client{providers.ProviderAIAND: &stripFailureProvider{}}
 	svc := NewService(nil, clients, nil, false, nil, pins, false, providers.ProviderAIAND, "claude-haiku-4-5", nil).
 		WithEscalation(store, observer).
 		WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyHMMEmbedding, Router: escalationDispatchRouter{}, Capabilities: policy.Capabilities{SchemaVersion: policy.SchemaVersionV1}})

@@ -42,13 +42,11 @@ func TestProxyOpenAIChatCompletion_ManagedPoolFailureIsRenderedOnce(t *testing.T
 			Metadata: &router.RoutingMetadata{CandidateModels: []string{"gpt-5.6-sol"}},
 		}},
 		map[string]providers.Client{
-			providers.ProviderAIAND:    openAI,
-			providers.ProviderAIAND: &fakeClient{name: providers.ProviderAIAND},
+			providers.ProviderAIAND: openAI,
 		},
 		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithManagedSubscriptions(leaser).
 		WithDeploymentKeyedProviders(map[string]struct{}{
-			providers.ProviderAIAND:    {},
 			providers.ProviderAIAND: {},
 		})
 

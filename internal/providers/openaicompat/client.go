@@ -88,6 +88,14 @@ func NewClientWithModelIDMap(apiKey, baseURL string, modelIDMap map[string]strin
 	return newClient(apiKey, baseURL, modelIDMap, opts...)
 }
 
+// NewGatewayClient builds a client for a customer-supplied OpenAI-spec
+// endpoint. Unlike NewClient, no default base URL is applied: an unconfigured
+// BYOK endpoint must fail rather than silently dispatch the tenant's token to
+// the deployment's upstream.
+func NewGatewayClient(apiKey, baseURL string, opts ...Option) *Client {
+	return newClient(apiKey, baseURL, nil, opts...)
+}
+
 func newClient(apiKey, baseURL string, modelIDMap map[string]string, opts ...Option) *Client {
 	client := &Client{
 		apiKey:     apiKey,
@@ -154,6 +162,25 @@ func NewClientWithStallTimeouts(apiKey, baseURL string, sseIdleTimeout, outputSt
 	c := NewClient(apiKey, baseURL)
 	c.sseIdleTimeout = sseIdleTimeout
 	c.outputStall = outputStall
+	return c
+}
+
+// NewClientWithHeaderAndStallTimeouts is NewClient with injected
+// header-timeout, byte-idle and output-stall budgets, so a test can exercise
+// every upstream watchdog at once.
+func NewClientWithHeaderAndStallTimeouts(apiKey, baseURL string, headerTimeout, sseIdleTimeout, outputStall time.Duration) *Client {
+	c := NewClientWithHeaderTimeouts(apiKey, baseURL, headerTimeout)
+	c.sseIdleTimeout = sseIdleTimeout
+	c.outputStall = outputStall
+	return c
+}
+
+// NewClientWithTimeouts is NewClient with injected header-timeout and
+// byte-idle budgets, so a test can exercise the upstream watchdog without
+// real-latency waits.
+func NewClientWithTimeouts(apiKey, baseURL string, headerTimeout, sseIdleTimeout time.Duration) *Client {
+	c := NewClientWithHeaderTimeouts(apiKey, baseURL, headerTimeout)
+	c.sseIdleTimeout = sseIdleTimeout
 	return c
 }
 

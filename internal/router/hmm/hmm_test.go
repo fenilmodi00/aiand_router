@@ -179,15 +179,7 @@ func TestRouterDoesNotOfferOpenRouterFallbackCandidates(t *testing.T) {
 
 func TestCatalogRoutingTargetsResolveCurrentHMMRosterArmsToProviders(t *testing.T) {
 	available := map[string]struct{}{
-		providers.ProviderAIAND:  {},
-		providers.ProviderAIAND:     {},
-		providers.ProviderAIAND:     {},
 		providers.ProviderAIAND: {},
-		providers.ProviderAIAND:  {},
-		providers.ProviderAIAND:    {},
-		providers.ProviderAIAND:     {},
-		providers.ProviderAIAND:   {},
-		providers.ProviderAIAND:        {},
 	}
 	r := New(&fakeDecider{}, available)
 

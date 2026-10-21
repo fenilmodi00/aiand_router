@@ -107,7 +107,7 @@ func check(dsn string) (checkErr error) {
 		Role:           sessionpin.DefaultRole,
 		InstallationID: uuid.MustParse(installation.ID),
 		Provider:       string(providers.ProviderAIAND),
-		Model:          string(catalog.ModelIDGLM53),
+		Model:          string(catalog.ModelIDGLM53.String()),
 		PinnedUntil:    time.Now().Add(time.Hour),
 	}
 	type pinWriteResult struct {

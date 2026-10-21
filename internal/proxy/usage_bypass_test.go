@@ -488,8 +488,7 @@ func TestProxyMessages_BypassWeeklyLimit_FallsBackToRoutedDispatch(t *testing.T)
 		Primary: usage.Window{UsedPercent: 0.20, WindowMinutes: 300},
 	})
 	svc := proxy.NewService(fr, map[string]providers.Client{
-		providers.ProviderAIAND:  wrappedP,
-		providers.ProviderAIAND: &fakeProvider{},
+		providers.ProviderAIAND: wrappedP,
 	}, nil, false, nil, nil, false, providers.ProviderAIAND, bypassScorerPickMdl, nil).
 		WithUsageObserver(obs).
 		WithTranslationCompatibilityMode(proxy.TranslationCompatibilityEnforce)

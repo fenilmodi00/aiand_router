@@ -19,7 +19,7 @@ import (
 	"weave-os/router/internal/auth"
 	"weave-os/router/internal/observability/otel"
 	"weave-os/router/internal/providers"
-	"weave-os/router/internal/providers/openai"
+	"weave-os/router/internal/providers/openaicompat"
 	"weave-os/router/internal/router"
 	"weave-os/router/internal/subscriptions"
 )
@@ -97,8 +97,7 @@ func TestVerificationSafeSubscriptionIngressConformance(t *testing.T) {
 					}
 				}))
 				defer server.Close()
-				client := openai.NewClient("", server.URL)
-				client.SetCodexBaseURL(server.URL)
+				client := openaicompat.NewClient("", server.URL)
 				leaser := &scriptedSubscriptionLeaser{leases: []subscriptions.Lease{{AccountID: "10000000-0000-4000-8000-000000000001", OwnerID: "10000000-0000-4000-8000-000000000002", Tier: auth.SubscriptionTierShared, AccessToken: "synthetic-included-token", ProviderAccount: "synthetic-provider-account"}}}
 				svc := NewService(staticRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: codexCoveredModel, Reason: "test"}}, map[string]providers.Client{providers.ProviderAIAND: client}, emitter, false, nil, nil, false, providers.ProviderAIAND, codexCoveredModel, nil).WithManagedSubscriptions(leaser)
 				body := fixture.body[:len(fixture.body)-1] + `,"stream":` + map[bool]string{false: "false", true: "true"}[stream] + `}`

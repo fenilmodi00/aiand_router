@@ -101,10 +101,11 @@ func attemptWith(body []byte) dispatch.AttemptFunc {
 }
 
 func TestRunFailsOverToAlternativeAndRecordsOrderedAttempts(t *testing.T) {
-	fw := &fakeUpstream{name: providers.ProviderAIAND, errs: []error{&providers.UpstreamErrorResponse{Status: http.StatusServiceUnavailable}}}
-	or := &fakeUpstream{name: providers.ProviderAIAND}
+	// One upstream serves both bindings, so the first attempt fails and the
+	// second (the alternative binding) is served by the same client.
+	up := &fakeUpstream{name: providers.ProviderAIAND, errs: []error{&providers.UpstreamErrorResponse{Status: http.StatusServiceUnavailable}}}
 	rec := &recorder{}
-	exec := newExecutor(t, map[string]providers.Client{providers.ProviderAIAND: fw, providers.ProviderAIAND: or}, rec)
+	exec := newExecutor(t, map[string]providers.Client{providers.ProviderAIAND: up}, rec)
 
 	resets := 0
 	result, err := exec.Run(context.Background(),
@@ -120,8 +121,7 @@ func TestRunFailsOverToAlternativeAndRecordsOrderedAttempts(t *testing.T) {
 	assert.Equal(t, 1, resets)
 	assert.Equal(t, dispatch.FailureReasonUpstreamStatus, result.Summary.FallbackReason)
 	assert.Equal(t, inference.AccountingOutcomeUsageUnknown, result.Summary.AccountingOutcome)
-	assert.Equal(t, []string{"kimi-k2.5"}, fw.models)
-	assert.Equal(t, []string{"kimi-k2.5"}, or.models)
+	assert.Equal(t, []string{"kimi-k2.5", "kimi-k2.5"}, up.models)
 
 	require.Len(t, rec.events, 2)
 	assert.Equal(t, 0, rec.events[0].AttemptIndex)
@@ -157,7 +157,7 @@ func TestRunRejectsWireTargetMismatchBeforeIO(t *testing.T) {
 func TestRunDoesNotFailOverAfterCommit(t *testing.T) {
 	fw := &fakeUpstream{errs: []error{&providers.UpstreamStatusError{Status: http.StatusBadGateway}}}
 	or := &fakeUpstream{}
-	exec := newExecutor(t, map[string]providers.Client{providers.ProviderAIAND: fw, providers.ProviderAIAND: or}, &recorder{})
+	exec := newExecutor(t, map[string]providers.Client{providers.ProviderAIAND: fw}, &recorder{})
 
 	result, err := exec.Run(context.Background(), inference.InvocationRequest{},
 		fakePlan{selected: primary, alternatives: []inference.Target{backup}},
@@ -196,7 +196,7 @@ func TestRunFailsOverOnModelNotFoundButNotOnBadRequest(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			fw := &fakeUpstream{errs: []error{&providers.UpstreamErrorResponse{Status: tc.status}}}
 			or := &fakeUpstream{}
-			exec := newExecutor(t, map[string]providers.Client{providers.ProviderAIAND: fw, providers.ProviderAIAND: or}, &recorder{})
+			exec := newExecutor(t, map[string]providers.Client{providers.ProviderAIAND: fw}, &recorder{})
 			_, err := exec.Run(context.Background(), inference.InvocationRequest{},
 				fakePlan{selected: primary, alternatives: []inference.Target{backup}},
 				dispatch.Transport{Attempt: attemptWith([]byte(`{"model":"kimi-k2.5"}`))},
@@ -346,7 +346,7 @@ func TestValidateWireModelAcceptsCatalogOrUpstreamID(t *testing.T) {
 }
 
 func TestClientsRegistryIsDetachedFromSource(t *testing.T) {
-	src := map[string]providers.Client{providers.ProviderAIAND: &fakeUpstream{}, providers.ProviderAIAND: nil}
+	src := map[string]providers.Client{providers.ProviderAIAND: &fakeUpstream{}}
 	clients := dispatch.NewClients(src)
 	delete(src, providers.ProviderAIAND)
 	assert.True(t, clients.Has(providers.ProviderAIAND))
@@ -405,7 +405,7 @@ func TestRunTerminalStopsSameTargetRetryAndFailover(t *testing.T) {
 			or := &fakeUpstream{}
 			slept := 0
 			exec, err := dispatch.NewExecutor(dispatch.NewClients(map[string]providers.Client{
-				providers.ProviderAIAND: fw, providers.ProviderAIAND: or,
+				providers.ProviderAIAND: fw,
 			}), dispatch.WithSleep(func(context.Context, time.Duration) error { slept++; return nil }))
 			require.NoError(t, err)
 
@@ -448,7 +448,7 @@ func TestRunBoundRetriesSameTargetButNeverFailsOver(t *testing.T) {
 		fw := &fakeUpstream{errs: []error{transient, transient, transient}}
 		or := &fakeUpstream{}
 		exec, err := dispatch.NewExecutor(dispatch.NewClients(map[string]providers.Client{
-			providers.ProviderAIAND: fw, providers.ProviderAIAND: or,
+			providers.ProviderAIAND: fw,
 		}), dispatch.WithSleep(sleep))
 		require.NoError(t, err)
 

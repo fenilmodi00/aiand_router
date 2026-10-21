@@ -25,11 +25,11 @@ import (
 func TestRecoveryAcceptanceRescued502HasBoundedWithdrawal(t *testing.T) {
 	store := &cooldownStubPinStore{}
 	svc := newRateLimitTestService(store, true, 45)
-	primary := router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelGPT6Luna}
+	primary := router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDDeepSeekV4Pro.String()}
 	model, _ := svc.maybeStrikeArmAfterRescuedFailure(context.Background(), true, false,
 		&providers.UpstreamErrorResponse{Status: http.StatusBadGateway}, primary,
 		uuid.New(), nonZeroSessionKey(), sessionpin.DefaultRole, sessionpin.DefaultRole)
-	require.Equal(t, catalog.ModelGPT6Luna, model)
+	require.Equal(t, catalog.ModelIDDeepSeekV4Pro.String(), model)
 	assert.Empty(t, store.demotions, "a single transient 502 must not create session-lifetime withdrawal")
 	require.Len(t, store.cooldowns, 2, "temporary withdrawal must cover base and history roles")
 	for _, withdrawal := range store.cooldowns {
@@ -136,10 +136,10 @@ type recoveryObservedRouter struct {
 
 func (r *recoveryObservedRouter) Route(_ context.Context, req router.Request) (router.Decision, error) {
 	r.requests <- req
-	if _, excluded := req.AutomaticExcludedModels[catalog.ModelGPT6Luna]; excluded {
+	if _, excluded := req.AutomaticExcludedModels[catalog.ModelIDDeepSeekV4Pro.String()]; excluded {
 		return router.Decision{Provider: providers.ProviderAIAND, Model: recoveryOpusModel}, nil
 	}
-	return router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelGPT6Luna}, nil
+	return router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDDeepSeekV4Pro.String()}, nil
 }
 
 func TestRecoveryAcceptanceCooldownExpiryAdmitsOneConcurrentProbe(t *testing.T) {
@@ -147,10 +147,10 @@ func TestRecoveryAcceptanceCooldownExpiryAdmitsOneConcurrentProbe(t *testing.T) 
 	provider := &blockingRecoveryClient{entered: make(chan struct{}, callers), release: make(chan struct{})}
 	scorer := &recoveryObservedRouter{requests: make(chan router.Request, callers+1)}
 	store := &recoveryObservedStore{rolePinStore: rolePinStore{byRole: map[string]sessionpin.Pin{
-		hmmHistoryRole(roleForTier(catalog.TierFor(catalog.ModelGPT6Luna))): {Strategy: router.StrategyCluster, DemotionCooldowns: map[string]time.Time{catalog.ModelGPT6Luna: rateLimitTestNow}},
+		hmmHistoryRole(roleForTier(catalog.TierFor(catalog.ModelIDDeepSeekV4Pro.String()))): {Strategy: router.StrategyCluster, DemotionCooldowns: map[string]time.Time{catalog.ModelIDDeepSeekV4Pro.String(): rateLimitTestNow}},
 	}}, reads: make(chan recoveryBucketRead, 128)}
 	sibling := &recoveryAlternativeClient{}
-	svc := NewService(scorer, map[string]providers.Client{providers.ProviderAIAND: provider, providers.ProviderAIAND: sibling},
+	svc := NewService(scorer, map[string]providers.Client{providers.ProviderAIAND: provider},
 		nil, false, nil, store, false, providers.ProviderAIAND, recoveryOpusModel, nil).WithTransientRateLimit(true, 45)
 	now := rateLimitTestNow.Add(-time.Nanosecond)
 	svc.now = func() time.Time { return now }
@@ -160,7 +160,7 @@ func TestRecoveryAcceptanceCooldownExpiryAdmitsOneConcurrentProbe(t *testing.T) 
 	rec := httptest.NewRecorder()
 	require.NoError(t, svc.ProxyMessages(ctx, body, rec, httptest.NewRequest(http.MethodPost, "/v1/messages", nil)))
 	require.Equal(t, recoveryOpusModel, rec.Header().Get(HeaderRouterModel))
-	require.Contains(t, (<-scorer.requests).AutomaticExcludedModels, catalog.ModelGPT6Luna, "before expiry the real turn loop must load the history cooldown")
+	require.Contains(t, (<-scorer.requests).AutomaticExcludedModels, catalog.ModelIDDeepSeekV4Pro.String(), "before expiry the real turn loop must load the history cooldown")
 	require.Empty(t, provider.entered)
 	now = rateLimitTestNow
 	var callersDone sync.WaitGroup
@@ -178,7 +178,7 @@ func TestRecoveryAcceptanceCooldownExpiryAdmitsOneConcurrentProbe(t *testing.T) 
 	for range callers {
 		select {
 		case req := <-scorer.requests:
-			if _, excluded := req.AutomaticExcludedModels[catalog.ModelGPT6Luna]; !excluded {
+			if _, excluded := req.AutomaticExcludedModels[catalog.ModelIDDeepSeekV4Pro.String()]; !excluded {
 				probeEligible++
 			}
 		case <-ctx.Done():
@@ -209,14 +209,14 @@ observe:
 	var bucket [sessionpin.SessionKeyLen]byte
 	historyReads := 0
 	for read := range store.reads {
-		if read.role != hmmHistoryRole(roleForTier(catalog.TierFor(catalog.ModelGPT6Luna))) {
+		if read.role != hmmHistoryRole(roleForTier(catalog.TierFor(catalog.ModelIDDeepSeekV4Pro.String()))) {
 			continue
 		}
 		if bucket == ([sessionpin.SessionKeyLen]byte{}) {
 			bucket = read.key
 		}
 		require.Equal(t, bucket, read.key, "all callers must address the same full session key")
-		if read.role == hmmHistoryRole(roleForTier(catalog.TierFor(catalog.ModelGPT6Luna))) {
+		if read.role == hmmHistoryRole(roleForTier(catalog.TierFor(catalog.ModelIDDeepSeekV4Pro.String()))) {
 			historyReads++
 		}
 	}

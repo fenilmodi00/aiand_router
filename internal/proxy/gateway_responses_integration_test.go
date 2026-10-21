@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"weave-os/router/internal/providers"
-	"weave-os/router/internal/providers/openai"
 	"weave-os/router/internal/providers/openaicompat"
 	"weave-os/router/internal/proxy"
 	"weave-os/router/internal/router"
@@ -181,7 +180,7 @@ func directOpenAIService(t *testing.T, baseURL string, broad bool) *proxy.Servic
 	return proxy.NewService(
 		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-5.4-mini"}},
 		map[string]providers.Client{
-			providers.ProviderAIAND: openai.NewClient("test-key", baseURL),
+			providers.ProviderAIAND: openaicompat.NewClient("test-key", baseURL),
 		},
 		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}}).
@@ -249,7 +248,7 @@ func TestProxyMessages_DirectOpenAIStopSequencesStayOnChat(t *testing.T) {
 	svc := proxy.NewService(
 		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-4.1"}},
 		map[string]providers.Client{
-			providers.ProviderAIAND: openai.NewClient("test-key", upstream.URL),
+			providers.ProviderAIAND: openaicompat.NewClient("test-key", upstream.URL),
 		},
 		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})

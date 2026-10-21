@@ -1459,9 +1459,9 @@ var modelMaxOutputTokens = map[string]int{
 	"deepseek/deepseek-v4.1-flash":  131072,
 	"deepseek/deepseek-v4-pro":      131072,
 	"deepseek/deepseek-v4-pro-0813": 131072,
-	"z-ai/glm-5.2":         131072,
-	"z-ai/glm-5.3":         131072, // Both 5.3 arms document a 128K max output (docs.z.ai/guides/llm/glm-5.3)
-	"z-ai/glm-5.3-flash":   131072,
+	"z-ai/glm-5.2":                  131072,
+	"z-ai/glm-5.3":                  131072, // Both 5.3 arms document a 128K max output (docs.z.ai/guides/llm/glm-5.3)
+	"z-ai/glm-5.3-flash":            131072,
 }
 
 const defaultMaxOutputTokenCap = 8192

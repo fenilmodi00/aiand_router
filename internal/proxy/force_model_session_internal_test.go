@@ -242,7 +242,7 @@ func TestRunTurnLoop_DroppedSessionForcePreservesThreadPin(t *testing.T) {
 		SessionKey: threadKey,
 		Role:       hmmHistoryRole(role),
 		DemotionCooldowns: map[string]time.Time{
-			catalog.ModelGPT6Luna: time.Now().Add(-time.Minute),
+			catalog.ModelIDDeepSeekV4Pro.String(): time.Now().Add(-time.Minute),
 		},
 	}
 	freshRouter := &tierProbeRouter{available: map[string]struct{}{"claude-haiku-4-5": {}}}
@@ -262,7 +262,7 @@ func TestRunTurnLoop_DroppedSessionForcePreservesThreadPin(t *testing.T) {
 	assert.True(t, result.StickyHit)
 	assert.True(t, result.ForcedPinDropped)
 	assert.Equal(t, "provider_not_enabled", result.ForcedPinDropReason)
-	assert.Equal(t, []string{catalog.ModelGPT6Luna}, store.attempted,
+	assert.Equal(t, []string{catalog.ModelIDDeepSeekV4Pro.String()}, store.attempted,
 		"a forced pin dropped for this request must not suppress a recovery probe for an eligible model")
 }
 

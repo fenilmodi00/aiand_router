@@ -56,15 +56,15 @@ func TestClassifierDispatchAcrossProtocols(t *testing.T) {
 			`{"role":"assistant","content":[{"type":"tool_use","id":"c1","name":"test","input":{}}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"c1","is_error":true,"content":"failed"}]}`,
 			`{"role":"user","content":"third"}`,
 			(*Service).ProxyMessages},
-		{"chat", providers.ProviderAIAND, catalog.ModelIDGPT55.String(), "/v1/chat/completions",
-			fmt.Sprintf(`{"model":%q,"stream":true,"messages":[{"role":"user","content":"first"}]}`, catalog.ModelIDGPT55.String()),
-			fmt.Sprintf(`{"model":%q,"stream":true,"messages":[{"role":"user","content":"first"},{"role":"assistant","content":[{"type":"text","text":""},{"type":"text","text":"answer"}]},{"role":"user","content":"next"}]}`, catalog.ModelIDGPT55.String()),
+		{"chat", providers.ProviderAIAND, catalog.ModelIDGLM53.String(), "/v1/chat/completions",
+			fmt.Sprintf(`{"model":%q,"stream":true,"messages":[{"role":"user","content":"first"}]}`, catalog.ModelIDGLM53.String()),
+			fmt.Sprintf(`{"model":%q,"stream":true,"messages":[{"role":"user","content":"first"},{"role":"assistant","content":[{"type":"text","text":""},{"type":"text","text":"answer"}]},{"role":"user","content":"next"}]}`, catalog.ModelIDGLM53.String()),
 			`{"role":"assistant","content":null,"tool_calls":[{"id":"c1","type":"function","function":{"name":"test","arguments":"{}"}}]},{"role":"tool","tool_call_id":"c1","is_error":true,"content":"failed"}`,
 			`{"role":"user","content":"third"}`,
 			(*Service).ProxyOpenAIChatCompletion},
-		{"responses", providers.ProviderAIAND, catalog.ModelIDGPT55.String(), "/v1/responses",
-			fmt.Sprintf(`{"model":%q,"stream":true,"input":[{"role":"user","content":"first"}]}`, catalog.ModelIDGPT55.String()),
-			fmt.Sprintf(`{"model":%q,"stream":true,"input":[{"role":"user","content":"first"},{"role":"assistant","content":[{"type":"output_text","text":""},{"type":"output_text","text":"answer"}]},{"role":"user","content":"next"}]}`, catalog.ModelIDGPT55.String()),
+		{"responses", providers.ProviderAIAND, catalog.ModelIDGLM53.String(), "/v1/responses",
+			fmt.Sprintf(`{"model":%q,"stream":true,"input":[{"role":"user","content":"first"}]}`, catalog.ModelIDGLM53.String()),
+			fmt.Sprintf(`{"model":%q,"stream":true,"input":[{"role":"user","content":"first"},{"role":"assistant","content":[{"type":"output_text","text":""},{"type":"output_text","text":"answer"}]},{"role":"user","content":"next"}]}`, catalog.ModelIDGLM53.String()),
 			`{"type":"function_call","call_id":"c1","name":"test","arguments":"{}"},{"type":"function_call_output","call_id":"c1","status":"failed","output":"failed"}`,
 			`{"role":"user","content":"third"}`,
 			(*Service).ProxyOpenAIResponses},
@@ -250,7 +250,7 @@ func TestClassifierInputRejectsControlBypasses(t *testing.T) {
 		require.Error(t, err, command)
 	}
 	for _, override := range []context.Context{
-		context.WithValue(ctx, AgentShadowEvalContextKey{}, AgentShadowEvaluation{Model: catalog.ModelIDGPT55.String(), RolloutID: "fixture", StateID: "fixture"}),
+		context.WithValue(ctx, AgentShadowEvalContextKey{}, AgentShadowEvaluation{Model: catalog.ModelIDGLM53.String(), RolloutID: "fixture", StateID: "fixture"}),
 		router.WithPolicyPinRequest(ctx, router.PolicyPinRequest{Authorized: true, Pin: router.PolicyPin{ArtifactSHA256: strings.Repeat("a", 64), RosterSHA256: strings.Repeat("b", 64)}}),
 	} {
 		_, err := svc.withClassifierInput(override, []byte(`{"messages":[{"role":"user","content":"first"}]}`), router.EndpointAnthropicMessages)

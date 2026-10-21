@@ -61,7 +61,7 @@ func (f *fakeClient) Passthrough(context.Context, providers.PreparedRequest, htt
 func newServiceWithProviders(t *testing.T, providerMap map[string]providers.Client) *Service {
 	t.Helper()
 	if providerMap == nil {
-		providerMap = map[string]providers.Client{providers.ProviderAIAND: &fakeClient{}, providers.ProviderAIAND: &fakeClient{}}
+		providerMap = map[string]providers.Client{providers.ProviderAIAND: &fakeClient{}}
 	}
 	s := &Service{clients: dispatch.NewClients(providerMap)}
 	return s
@@ -316,8 +316,7 @@ func TestDispatchWithFallback_RetriesOnResponseHeaderTimeout(t *testing.T) {
 	}
 
 	s := newServiceWithProviders(t, map[string]providers.Client{
-		providers.ProviderAIAND:     primary,
-		providers.ProviderAIAND: fallback,
+		providers.ProviderAIAND: primary,
 	})
 
 	rec := httptest.NewRecorder()
@@ -361,8 +360,7 @@ func TestDispatchWithFallback_RetriesOnUpstreamIdleTimeout(t *testing.T) {
 	}
 
 	s := newServiceWithProviders(t, map[string]providers.Client{
-		providers.ProviderAIAND:     primary,
-		providers.ProviderAIAND: fallback,
+		providers.ProviderAIAND: primary,
 	})
 
 	rec := httptest.NewRecorder()
@@ -1209,7 +1207,7 @@ func TestResolveBindingsForDispatch_LinkedSubscriptionWithoutAPIKey(t *testing.T
 }
 
 func TestResolveBindingsForDispatch_LinkedSubscriptionPreservesFundedBindings(t *testing.T) {
-	svc := &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: &fakeClient{}}), deploymentKeyedProviders: map[string]struct{}{providers.ProviderAIAND: {}, providers.ProviderAIAND: {}}}
+	svc := &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: &fakeClient{}}), deploymentKeyedProviders: map[string]struct{}{providers.ProviderAIAND: {}}}
 	decision := router.Decision{Provider: providers.ProviderAIAND, Model: "claude-opus-5"}
 	before := svc.resolveBindingsForDispatch(context.Background(), decision)
 	require.Len(t, before, 2)

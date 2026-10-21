@@ -11,10 +11,11 @@ import (
 	"testing"
 	"weave-os/router/internal/auth"
 	"weave-os/router/internal/providers"
-	"weave-os/router/internal/providers/openai"
+	"weave-os/router/internal/providers/openaicompat"
 	"weave-os/router/internal/router"
 	"weave-os/router/internal/router/catalog"
 	"weave-os/router/internal/router/policy"
+	"weave-os/router/internal/subscriptions"
 )
 
 const verificationWeakToolModel = "qwen/qwen3-235b-a22b-2507"
@@ -34,8 +35,22 @@ func (r *verificationToolResolverRouter) Route(_ context.Context, request router
 	}
 	return router.Decision{Provider: providers.ProviderAIAND, Model: codexCoveredModel, Reason: "test", Metadata: &router.RoutingMetadata{CandidateModels: r.resolved.CandidateModels(), SelectionTrace: trace}}, nil
 }
+
+// verificationAlternativeLeaser hands out a synthetic second subscription
+// account so a turn can fail over to it.
+type verificationAlternativeLeaser struct{ scriptedSubscriptionLeaser }
+
+func (l *verificationAlternativeLeaser) Lease(_ context.Context, owner auth.SubscriptionOwner, _ subscriptions.Provider, _ string) (subscriptions.Lease, bool, error) {
+	for _, id := range owner.ExcludedAccountIDs {
+		if id == "alternative-account" {
+			return subscriptions.Lease{}, true, subscriptions.ErrNoAvailableAccount
+		}
+	}
+	return subscriptions.Lease{AccountID: "alternative-account", OwnerID: "synthetic-owner", Tier: auth.SubscriptionTierPersonal, AccessToken: "alternative-seat", ProviderAccount: "synthetic-provider"}, true, nil
+}
+
 func TestVerificationRealResolverWeakToolExclusionPreventsHTTP(t *testing.T) {
-	resolver := policy.NewResolver(map[string]struct{}{codexCoveredModel: {}, verificationWeakToolModel: {}}, map[string]struct{}{providers.ProviderAIAND: {}, providers.ProviderAIAND: {}}, func(model catalog.Model) string { return model.ID }, policy.ManagedProviderPolicy())
+	resolver := policy.NewResolver(map[string]struct{}{codexCoveredModel: {}, verificationWeakToolModel: {}}, map[string]struct{}{providers.ProviderAIAND: {}}, func(model catalog.Model) string { return model.ID }, policy.ManagedProviderPolicy())
 	require.Contains(t, resolver.Resolve(router.Request{}).CandidateModels(), verificationWeakToolModel, "fixture weak model must be otherwise eligible")
 	var models, bearers []string
 	var incompatibleRequests int
@@ -59,11 +74,10 @@ func TestVerificationRealResolverWeakToolExclusionPreventsHTTP(t *testing.T) {
 		_, _ = io.WriteString(w, "data: {\"type\":\"response.output_text.delta\",\"output_index\":0,\"delta\":\"compatible tool answer\"}\n\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"synthetic\",\"status\":\"completed\",\"output\":[],\"usage\":{\"input_tokens\":11,\"output_tokens\":7}}}\n\n")
 	}))
 	defer server.Close()
-	client := openai.NewClient("synthetic-api-key", server.URL)
-	client.SetCodexBaseURL(server.URL)
+	client := openaicompat.NewClient("synthetic-api-key", server.URL)
 	routed := &verificationToolResolverRouter{resolver: resolver}
 	// Both providers have a real HTTP transport available; rejected candidates must never reach either.
-	svc := NewService(routed, map[string]providers.Client{providers.ProviderAIAND: client, providers.ProviderAIAND: client}, nil, false, nil, nil, false, providers.ProviderAIAND, codexCoveredModel, nil).WithManagedSubscriptions(&verificationAlternativeLeaser{}).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}, providers.ProviderAIAND: {}})
+	svc := NewService(routed, map[string]providers.Client{providers.ProviderAIAND: client}, nil, false, nil, nil, false, providers.ProviderAIAND, codexCoveredModel, nil).WithManagedSubscriptions(&verificationAlternativeLeaser{}).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 	ctx := context.WithValue(managedSubscriptionContext(auth.SubscriptionProviderCodex), InstallationIDContextKey{}, "11111111-1111-1111-1111-111111111111")
 	body := `{"model":"auto","stream":true,"messages":[{"role":"user","content":"synthetic tools"}],"tools":[{"type":"function","function":{"name":"read_file","parameters":{"type":"object"}}}]}`
 	rec := httptest.NewRecorder()

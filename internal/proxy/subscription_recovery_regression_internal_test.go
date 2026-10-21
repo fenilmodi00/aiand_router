@@ -28,7 +28,7 @@ func TestSubscriptionRecoverySlowFailureUsesSecondSeat(t *testing.T) {
 		rec := httptest.NewRecorder()
 		buf := newPreludeBuffer(rec)
 		in := plannedInputs(rec, buf, []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}}, nil)
-		in.initialDecision = router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDClaudeOpus48.String()}
+		in.initialDecision = router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDGLM52.String()}
 		var seats []string
 		in.attempt = func(ctx context.Context, decision router.Decision, client providers.Client) error {
 			creds := CredentialsFromContext(ctx)
@@ -57,7 +57,7 @@ func TestSubscriptionRecoveryUnavailablePoolNeverBuysAPI(t *testing.T) {
 	rec := httptest.NewRecorder()
 	buf := newPreludeBuffer(rec)
 	in := plannedInputs(rec, buf, []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}}, nil)
-	in.initialDecision = router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDClaudeOpus48.String()}
+	in.initialDecision = router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDGLM52.String()}
 	_, err := svc.dispatchWithFallback(managedSubscriptionTestContext(), in)
 	require.Error(t, err)
 	require.Zero(t, provider.calls)

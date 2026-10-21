@@ -12,7 +12,7 @@ import (
 	"weave-os/router/internal/auth"
 	"weave-os/router/internal/billing"
 	"weave-os/router/internal/providers"
-	"weave-os/router/internal/providers/openai"
+	"weave-os/router/internal/providers/openaicompat"
 	"weave-os/router/internal/router"
 	"weave-os/router/internal/subscriptions"
 )
@@ -38,8 +38,7 @@ func TestNativeCodexSubscriptionWithDepletedCredits(t *testing.T) {
 				_, _ = io.WriteString(w, "data: {\"type\":\"response.output_text.delta\",\"output_index\":0,\"delta\":\"subscription answer\"}\n\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"synthetic\",\"status\":\"completed\",\"output\":[],\"usage\":{\"input_tokens\":11,\"output_tokens\":7}}}\n\n")
 			}))
 			defer upstream.Close()
-			client := openai.NewClient("synthetic-paid-key", upstream.URL)
-			client.SetCodexBaseURL(upstream.URL)
+			client := openaicompat.NewClient("synthetic-paid-key", upstream.URL)
 			svc := NewService(staticRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: codexCoveredModel, Reason: "test"}}, map[string]providers.Client{providers.ProviderAIAND: client}, nil, false, nil, nil, false, providers.ProviderAIAND, codexCoveredModel, nil).
 				WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 			ctx := codexSubscriptionTestCtx()

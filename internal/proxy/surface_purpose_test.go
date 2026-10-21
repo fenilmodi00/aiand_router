@@ -212,9 +212,9 @@ func TestAutomaticProbesServeUnderIngressPolicyWithoutConversationState(t *testi
 			sink := &purposeSink{}
 			executor, err := dispatch.NewExecutor(dispatch.NewClients(clients), dispatch.WithAttemptSink(sink))
 			require.NoError(t, err)
-			scorer := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDClaudeSonnet46.String()}}
+			scorer := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDGLM53.String()}}
 			pins := newFakePinStore()
-			svc := proxy.NewService(scorer, clients, nil, false, nil, pins, false, providers.ProviderAIAND, catalog.ModelIDClaudeHaiku45.String(), nil).WithInferenceExecutor(executor)
+			svc := proxy.NewService(scorer, clients, nil, false, nil, pins, false, providers.ProviderAIAND, catalog.ModelIDGLM53Flash.String(), nil).WithInferenceExecutor(executor)
 			body := []byte(`{"model":"` + model + `","max_tokens":1,"messages":[{"role":"user","content":"ping"}]}`)
 			rec := httptest.NewRecorder()
 			require.NoError(t, svc.ProxyMessages(authedCtx("00000000-0000-0000-0000-000000000001"), body, rec,
@@ -222,7 +222,7 @@ func TestAutomaticProbesServeUnderIngressPolicyWithoutConversationState(t *testi
 			assert.Equal(t, http.StatusOK, rec.Code)
 			assert.Equal(t, "pong", gjson.Get(rec.Body.String(), "content.0.text").String())
 			require.Len(t, provider.proxyBodies, 1)
-			assert.Equal(t, catalog.ModelIDClaudeSonnet46.String(), gjson.GetBytes(provider.proxyBodies[0], "model").String())
+			assert.Equal(t, catalog.ModelIDGLM53.String(), gjson.GetBytes(provider.proxyBodies[0], "model").String())
 			require.Len(t, sink.events, 1)
 			assert.Equal(t, inference.PurposeAnthropicMessages, sink.events[0].Purpose)
 			assert.Equal(t, inference.PolicyID("main-anthropic-messages"), sink.events[0].PolicyID)
@@ -237,16 +237,16 @@ func TestAutomaticProbesServeUnderIngressPolicyWithoutConversationState(t *testi
 func TestConcreteProbeFailureNeverRescuesAnotherModel(t *testing.T) {
 	primary := &fakeProvider{proxyErr: &providers.UpstreamErrorResponse{Status: http.StatusServiceUnavailable, Body: []byte(`{"error":"unavailable"}`)}}
 	alternate := &fakeProvider{}
-	clients := map[string]providers.Client{providers.ProviderAIAND: primary, providers.ProviderAIAND: alternate}
+	clients := map[string]providers.Client{providers.ProviderAIAND: primary}
 	scorer := &fakeRouter{decision: siblingClusterDecision("")}
 	sink := &purposeSink{}
 	executor, err := dispatch.NewExecutor(dispatch.NewClients(clients), dispatch.WithAttemptSink(sink))
 	require.NoError(t, err)
 	pins := newFakePinStore()
-	svc := proxy.NewService(scorer, clients, nil, false, nil, pins, false, providers.ProviderAIAND, catalog.ModelIDClaudeHaiku45.String(), nil).
+	svc := proxy.NewService(scorer, clients, nil, false, nil, pins, false, providers.ProviderAIAND, catalog.ModelIDGLM53Flash.String(), nil).
 		WithInferenceExecutor(executor).WithRetrySleep(noRetrySleep).WithSiblingFailover(true).
-		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}, providers.ProviderAIAND: {}})
-	requestedModel := catalog.ModelIDClaudeOpus48.String()
+		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
+	requestedModel := catalog.ModelIDGLM52.String()
 	body := []byte(`{"model":"` + requestedModel + `","max_tokens":1,"messages":[{"role":"user","content":"ping"}]}`)
 	err = svc.ProxyMessages(authedCtx("00000000-0000-0000-0000-000000000001"), body, httptest.NewRecorder(),
 		httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader("")))

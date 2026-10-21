@@ -12,7 +12,7 @@ import (
 	"testing"
 	"weave-os/router/internal/auth"
 	"weave-os/router/internal/providers"
-	"weave-os/router/internal/providers/openai"
+	"weave-os/router/internal/providers/openaicompat"
 	"weave-os/router/internal/router"
 	"weave-os/router/internal/subscriptions"
 )
@@ -43,8 +43,7 @@ func TestVerificationNonstreamFailedJSONCannotWin(t *testing.T) {
 				_, _ = io.WriteString(w, `{"id":"synthetic-failure","object":"response","status":"failed","error":{"code":"usage_limit_reached","message":"synthetic included exhaustion"},"output":[],"usage":{"input_tokens":11,"output_tokens":0}}`)
 			}))
 			defer upstream.Close()
-			client := openai.NewClient("synthetic-api-key", upstream.URL)
-			client.SetCodexBaseURL(upstream.URL)
+			client := openaicompat.NewClient("synthetic-api-key", upstream.URL)
 			leaser := &scriptedSubscriptionLeaser{leases: []subscriptions.Lease{{AccountID: "first-account", OwnerID: "first-owner", Tier: auth.SubscriptionTierPersonal, AccessToken: "first-seat", ProviderAccount: "first-provider"}, {AccountID: "second-account", OwnerID: "second-owner", Tier: auth.SubscriptionTierShared, AccessToken: "second-seat"}}}
 			svc := NewService(staticRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: codexCoveredModel, Reason: "test"}}, map[string]providers.Client{providers.ProviderAIAND: client}, nil, false, nil, nil, false, providers.ProviderAIAND, codexCoveredModel, nil).WithManagedSubscriptions(leaser).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 			ctx := context.WithValue(managedSubscriptionContext(auth.SubscriptionProviderCodex), InstallationIDContextKey{}, "11111111-1111-1111-1111-111111111111")

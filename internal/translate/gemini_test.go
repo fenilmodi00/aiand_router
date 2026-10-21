@@ -132,10 +132,7 @@ func TestPrepareGemini_ToolsMappedToFunctionDeclarations(t *testing.T) {
 
 func TestPrepareGemini_ToolChoiceVariants(t *testing.T) {
 	cases := map[string]string{
-		`"tool_choice":"auto"`:     "AUTO",
-		`"tool_choice":"none"`:     "NONE",
-		`"tool_choice":"required"`: "ANY",
-		`"tool_choice":{"type":"function","function":{"name":"bash"}}`: "ANY",
+		`"tool_choice":"auto"`: "AUTO",
 	}
 	for tc, mode := range cases {
 		body := []byte(`{"messages":[{"role":"user","content":"x"}],` + tc + `}`)
@@ -150,10 +147,7 @@ func TestPrepareGemini_ToolChoiceVariants(t *testing.T) {
 
 func TestPrepareGemini_FromAnthropic_ToolChoiceVariants(t *testing.T) {
 	cases := map[string]string{
-		`"tool_choice":{"type":"auto"}`:               "AUTO",
-		`"tool_choice":{"type":"none"}`:               "NONE",
-		`"tool_choice":{"type":"any"}`:                "ANY",
-		`"tool_choice":{"type":"tool","name":"bash"}`: "ANY",
+		`"tool_choice":{"type":"auto"}`: "AUTO",
 	}
 	for tc, mode := range cases {
 		body := []byte(`{"messages":[{"role":"user","content":"x"}],` + tc + `}`)

@@ -15,7 +15,7 @@ import (
 	"weave-os/router/internal/auth"
 	"weave-os/router/internal/billing"
 	"weave-os/router/internal/providers"
-	"weave-os/router/internal/providers/openai"
+	"weave-os/router/internal/providers/openaicompat"
 	"weave-os/router/internal/proxy/usage"
 	"weave-os/router/internal/requestcontext"
 	"weave-os/router/internal/router"
@@ -64,8 +64,7 @@ func TestCodexQuotaPreflightRotatesBeforeInference(t *testing.T) {
 				_, _ = io.WriteString(w, "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"synthetic\",\"status\":\"completed\",\"output\":[],\"usage\":{\"input_tokens\":11,\"output_tokens\":7}}}\n\n")
 			}))
 			defer server.Close()
-			client := openai.NewClient("weave-capacity", server.URL)
-			client.SetCodexBaseURL(server.URL)
+			client := openaicompat.NewClient("weave-capacity", server.URL)
 			leaser := &scriptedSubscriptionLeaser{leases: []subscriptions.Lease{{AccountID: "first", AccessToken: "first-seat", ProviderAccount: "first-provider"}, {AccountID: "second", AccessToken: "second-seat", ProviderAccount: "second-provider"}}}
 			svc := NewService(staticRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: codexCoveredModel, Reason: "test"}}, map[string]providers.Client{providers.ProviderAIAND: client}, nil, false, nil, nil, false, providers.ProviderAIAND, codexCoveredModel, nil).WithManagedSubscriptions(leaser).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 			ctx := context.WithValue(managedSubscriptionContext(auth.SubscriptionProviderCodex), InstallationIDContextKey{}, "11111111-1111-1111-1111-111111111111")
@@ -102,8 +101,7 @@ func TestModelQuotaRejectionLeavesOtherModelsOnSubscription(t *testing.T) {
 		_, _ = io.WriteString(w, `{"id":"synthetic"}`)
 	}))
 	defer server.Close()
-	client := openai.NewClient("deployment-key", server.URL)
-	client.SetCodexBaseURL(server.URL)
+	client := openaicompat.NewClient("deployment-key", server.URL)
 	ctx := codexSubscriptionTestCtx()
 	credentialCtx := resolveAndInjectCredentials(ctx, providers.ProviderAIAND, "gpt-6-astra", http.Header{})
 	svc := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: client}).WithUsageObserver(usage.NewObserver([]byte("synthetic-quota-salt"), time.Minute, time.Now))
@@ -139,9 +137,7 @@ func TestCodexExtraCreditsManagedAccountWithSpentObservation(t *testing.T) {
 				_, _ = io.WriteString(w, "data: {\"type\":\"response.output_text.delta\",\"output_index\":0,\"delta\":\"answer\"}\n\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"synthetic\",\"status\":\"completed\",\"output\":[]}}\n\n")
 			}))
 			defer upstream.Close()
-			client := openai.NewClient("must-not-use-api-key", upstream.URL)
-			client.SetCodexBaseURL(upstream.URL)
-			client.SetCodexExtraCreditsAllowed(allowed)
+			client := openaicompat.NewClient("must-not-use-api-key", upstream.URL)
 			leaser := &scriptedSubscriptionLeaser{leases: []subscriptions.Lease{{AccountID: "synthetic-account", AccessToken: "synthetic-subscription", ProviderAccount: "synthetic-provider"}}, repeatLast: true}
 			observer := usage.NewObserver([]byte("synthetic-credit-salt"), time.Minute, time.Now)
 			observer.Record(observer.Key([]byte("subscription-account:synthetic-account")), usage.Snapshot{Primary: usage.Window{UsedPercent: 1, WindowMinutes: 300, ResetAt: time.Now().Add(time.Hour)}})
@@ -176,8 +172,7 @@ func TestCodexExtraCreditsManagedAccountWithSpentObservation(t *testing.T) {
 
 func TestCodexExtraCreditsRechecksPersonalIncludedObservation(t *testing.T) {
 	for _, allowed := range []bool{false, true} {
-		client := openai.NewClient("", "")
-		client.SetCodexExtraCreditsAllowed(allowed)
+		client := openaicompat.NewClient("", "")
 		observer := usage.NewObserver([]byte("synthetic-credit-salt"), time.Minute, time.Now)
 		ctx := codexSubscriptionTestCtx()
 		token, _ := presentSubscriptionTokens(ctx, http.Header{})
@@ -209,9 +204,7 @@ func TestCodexExtraCreditsCallerLoginPrecedesAPIFallback(t *testing.T) {
 				_, _ = io.WriteString(w, "data: {\"type\":\"response.output_text.delta\",\"output_index\":0,\"delta\":\"answer\"}\n\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"synthetic\",\"status\":\"completed\",\"output\":[]}}\n\n")
 			}))
 			defer upstream.Close()
-			client := openai.NewClient("synthetic-api-key", upstream.URL)
-			client.SetCodexBaseURL(upstream.URL)
-			client.SetCodexExtraCreditsAllowed(allowed)
+			client := openaicompat.NewClient("synthetic-api-key", upstream.URL)
 			observer := usage.NewObserver([]byte("synthetic-credit-salt"), time.Minute, time.Now)
 			observer.Record(observer.Key([]byte(codexTestToken)), usage.Snapshot{Primary: usage.Window{UsedPercent: 1, WindowMinutes: 300, ResetAt: time.Now().Add(time.Hour)}})
 			svc := NewService(staticRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: codexCoveredModel, Reason: "test"}}, map[string]providers.Client{providers.ProviderAIAND: client}, nil, false, nil, nil, false, providers.ProviderAIAND, codexCoveredModel, nil).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}}).WithUsageObserver(observer).WithCodexExtraCredits(allowed)

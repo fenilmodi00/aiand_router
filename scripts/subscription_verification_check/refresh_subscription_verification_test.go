@@ -16,7 +16,7 @@ import (
 	"time"
 	"weave-os/router/internal/billing"
 	"weave-os/router/internal/providers"
-	"weave-os/router/internal/providers/openai"
+	"weave-os/router/internal/providers/openaicompat"
 	"weave-os/router/internal/proxy"
 	"weave-os/router/internal/router"
 
@@ -174,7 +174,7 @@ func (verificationBillingRouter) Route(context.Context, router.Request) (router.
 	return router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-5.6-sol", Reason: "test"}, nil
 }
 
-type verificationIncludedClient struct{ *openai.Client }
+type verificationIncludedClient struct{ *openaicompat.Client }
 
 func (*verificationIncludedClient) IncludedOnlySubscriptions() bool { return true }
 func verifyDispatchBilling(t *testing.T, pool *pgxpool.Pool, authService *auth.Service, refresher subscriptions.TokenRefresher, requester auth.SubscriptionOwner, owner, org, key uuid.UUID) {
@@ -217,8 +217,7 @@ func verifyDispatchBilling(t *testing.T, pool *pgxpool.Pool, authService *auth.S
 			_, _ = io.WriteString(w, "data: {\"type\":\"response.output_text.delta\",\"output_index\":0,\"delta\":\"billing answer\"}\n\n")
 			_, _ = io.WriteString(w, "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"synthetic\",\"status\":\"completed\",\"output\":[],\"usage\":{\"input_tokens\":11000,\"output_tokens\":7000}}}\n\n")
 		}))
-		client := &verificationIncludedClient{openai.NewClient("synthetic-api-key", server.URL)}
-		client.SetCodexBaseURL(server.URL)
+		client := &verificationIncludedClient{openaicompat.NewClient("synthetic-api-key", server.URL)}
 		svc := proxy.NewService(verificationBillingRouter{}, map[string]providers.Client{providers.ProviderAIAND: client}, nil, false, nil, nil, false, providers.ProviderAIAND, "gpt-5.6-sol", nil).WithManagedSubscriptions(runtime).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}}).WithBillingService(billingService)
 		actionID, requestID := uuid.NewString(), uuid.NewString()
 		authorization, err := billingService.AuthorizeSubscriberPrepaid(ctx, billing.PrepaidAuthorizationRequest{Owner: billing.SubscriberOwner(requester.SubscriberID), ActionID: actionID, RouterRequestID: requestID, APIKeyID: key.String(), RequestedModel: "auto", UpperBoundUsdMicros: 1000000})

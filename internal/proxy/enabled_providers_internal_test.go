@@ -23,12 +23,10 @@ func TestEnabledProvidersForRequest_PassthroughIsSurfaceScoped(t *testing.T) {
 		// Mimic selfhosted with no env keys, both passthrough-eligible.
 		clients: dispatch.NewClients(map[string]providers.Client{
 			providers.ProviderAIAND: nil,
-			providers.ProviderAIAND:    nil,
 		}),
 		deploymentKeyedProviders: map[string]struct{}{},
 		passthroughEligibleProviders: map[string]struct{}{
 			providers.ProviderAIAND: {},
-			providers.ProviderAIAND:    {},
 		},
 	}
 
@@ -62,11 +60,9 @@ func TestEnabledProvidersForRequest_ExcludedProvidersSubtracted(t *testing.T) {
 		return &Service{
 			clients: dispatch.NewClients(map[string]providers.Client{
 				providers.ProviderAIAND: nil,
-				providers.ProviderAIAND:    nil,
 			}),
 			deploymentKeyedProviders: map[string]struct{}{
 				providers.ProviderAIAND: {},
-				providers.ProviderAIAND:    {},
 			},
 			passthroughEligibleProviders: map[string]struct{}{},
 		}
@@ -109,7 +105,6 @@ func TestEnabledProvidersForRequest_SubscriptionEnrollsAnthropic(t *testing.T) {
 			byokOnly: true,
 			clients: dispatch.NewClients(map[string]providers.Client{
 				providers.ProviderAIAND: nil,
-				providers.ProviderAIAND:    nil,
 			}),
 			deploymentKeyedProviders:     map[string]struct{}{},
 			passthroughEligibleProviders: map[string]struct{}{},
@@ -173,7 +168,6 @@ func TestEnabledProvidersForRequest_CodexSubscriptionEnrollsOpenAI(t *testing.T)
 			byokOnly: true,
 			clients: dispatch.NewClients(map[string]providers.Client{
 				providers.ProviderAIAND: nil,
-				providers.ProviderAIAND:    nil,
 			}),
 			deploymentKeyedProviders:     map[string]struct{}{},
 			passthroughEligibleProviders: map[string]struct{}{},
@@ -303,11 +297,9 @@ func TestEnabledProvidersForRequest_DeploymentKeyedStillCrossSurface(t *testing.
 	s := &Service{
 		clients: dispatch.NewClients(map[string]providers.Client{
 			providers.ProviderAIAND: nil,
-			providers.ProviderAIAND:    nil,
 		}),
 		deploymentKeyedProviders: map[string]struct{}{
 			providers.ProviderAIAND: {},
-			providers.ProviderAIAND:    {},
 		},
 		passthroughEligibleProviders: map[string]struct{}{},
 	}
@@ -323,13 +315,10 @@ func TestEnabledProvidersForRequest_DeploymentKeyedStillCrossSurface(t *testing.
 func TestEnabledProvidersForRequest_GatewayKeyDisplacesVendors(t *testing.T) {
 	s := &Service{
 		clients: dispatch.NewClients(map[string]providers.Client{
-			providers.ProviderAIAND:        nil,
-			providers.ProviderAIAND:           nil,
 			providers.ProviderAIAND: nil,
 		}),
 		deploymentKeyedProviders: map[string]struct{}{
 			providers.ProviderAIAND: {},
-			providers.ProviderAIAND:    {},
 		},
 		passthroughEligibleProviders: map[string]struct{}{},
 	}
@@ -346,11 +335,9 @@ func TestEnabledProvidersForRequest_VendorByokKeyDoesNotDisplaceVendors(t *testi
 	s := &Service{
 		clients: dispatch.NewClients(map[string]providers.Client{
 			providers.ProviderAIAND: nil,
-			providers.ProviderAIAND:    nil,
 		}),
 		deploymentKeyedProviders: map[string]struct{}{
 			providers.ProviderAIAND: {},
-			providers.ProviderAIAND:    {},
 		},
 		passthroughEligibleProviders: map[string]struct{}{},
 	}
@@ -367,13 +354,13 @@ func TestEnabledProvidersForRequest_VendorByokKeyDoesNotDisplaceVendors(t *testi
 // Linked accounts must be eligible across harness surfaces without an API key.
 func TestEnabledProvidersForRequest_LinkedSubscriptions(t *testing.T) {
 	s := &Service{clients: dispatch.NewClients(map[string]providers.Client{
-		providers.ProviderAIAND: &fakeClient{}, providers.ProviderAIAND: &fakeClient{},
+		providers.ProviderAIAND: &fakeClient{},
 	}), deploymentKeyedProviders: map[string]struct{}{}, byokOnly: true}
 	ctx := context.WithValue(routerKeyedCtx(), ManagedSubscriptionProvidersContextKey{}, map[auth.SubscriptionProvider]struct{}{
 		auth.SubscriptionProviderClaude: {}, auth.SubscriptionProviderCodex: {},
 	})
 	t.Run("Claude harness can route to linked Codex", func(t *testing.T) {
-		assert.Equal(t, map[string]struct{}{providers.ProviderAIAND: {}, providers.ProviderAIAND: {}}, s.enabledProvidersForRequest(ctx, providers.ProviderAIAND, http.Header{}))
+		assert.Equal(t, map[string]struct{}{providers.ProviderAIAND: {}}, s.enabledProvidersForRequest(ctx, providers.ProviderAIAND, http.Header{}))
 	})
 	t.Run("API-only funding does not enroll linked accounts", func(t *testing.T) {
 		paid := context.WithValue(ctx, subscriptionAPIOnlyKey{}, true)
@@ -384,7 +371,7 @@ func TestEnabledProvidersForRequest_LinkedSubscriptions(t *testing.T) {
 		assert.Empty(t, s.enabledProvidersForRequest(disabled, providers.ProviderAIAND, http.Header{}))
 	})
 	t.Run("unsupported subscription transports stay unavailable", func(t *testing.T) {
-		unsupported := &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: nil, providers.ProviderAIAND: nil}), deploymentKeyedProviders: map[string]struct{}{}, byokOnly: true}
+		unsupported := &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: nil}), deploymentKeyedProviders: map[string]struct{}{}, byokOnly: true}
 		assert.Empty(t, unsupported.enabledProvidersForRequest(ctx, providers.ProviderAIAND, http.Header{}))
 	})
 	t.Run("Max funding cannot enroll subscriptions", func(t *testing.T) {

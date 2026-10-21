@@ -23,13 +23,12 @@ const inspectionToken = "internal-secret"
 func inferencePoliciesEngine(t *testing.T) *gin.Engine {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
-	available := map[string]struct{}{providers.ProviderAIAND: {}, providers.ProviderAIAND: {}}
+	available := map[string]struct{}{providers.ProviderAIAND: {}}
 	plans, err := policy.NewPlanResolver(policy.DefaultRegistry(), policy.NewResolver(
 		catalog.RoutingTargetSet(available), available, func(model catalog.Model) string { return model.ID }, policy.ProviderPolicy{}))
 	require.NoError(t, err)
 	proxySvc := upstreamModelsProxyService(map[string]providers.Client{
 		providers.ProviderAIAND: &modelListingClient{},
-		providers.ProviderAIAND:    &modelListingClient{},
 	}).WithInferencePlans(plans).WithInferenceDeployment(policy.DeploymentPolicyConfig{
 		AvailableProviders: available,
 		TargetOverrides: []policy.PurposeTargetOverride{{

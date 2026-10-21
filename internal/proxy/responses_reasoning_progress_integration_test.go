@@ -13,10 +13,8 @@ import (
 	"time"
 
 	"weave-os/router/internal/providers"
-	"weave-os/router/internal/providers/openai"
 	"weave-os/router/internal/providers/openaicompat"
 	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/catalog"
 	"weave-os/router/internal/timing"
 
 	"github.com/stretchr/testify/assert"
@@ -24,7 +22,7 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-const reasoningProgressModel = string(catalog.ModelIDGPT55)
+const reasoningProgressModel = "z-ai/glm-5.3"
 
 func completedReasoningFrame(index int) string {
 	return fmt.Sprintf(`{"type":"response.output_item.done","output_index":%d,"item":{"type":"reasoning","id":"rs_%d","encrypted_content":"opaque_%d","summary":[]}}`, index, index, index)
@@ -95,7 +93,7 @@ func TestResponsesReasoningProgress_LongReasoningCompletes(t *testing.T) {
 			defer cancel()
 
 			provider := providers.ProviderAIAND
-			var client providers.Client = openai.NewClientWithStallTimeouts("test-key", upstream.URL, time.Second, 2*time.Second, 300*time.Millisecond)
+			var client providers.Client = openaicompat.NewClientWithHeaderAndStallTimeouts("test-key", upstream.URL, time.Second, 2*time.Second, 300*time.Millisecond)
 			if tc.gateway {
 				provider = providers.ProviderAIAND
 				client = openaicompat.NewClientWithStallTimeouts("test-key", upstream.URL+"/v1", 2*time.Second, 300*time.Millisecond)
@@ -246,7 +244,7 @@ func TestResponsesReasoningProgress_StallAndCancellation(t *testing.T) {
 			if tc.silence {
 				idle, stall = 250*time.Millisecond, 2*time.Second
 			}
-			client := openai.NewClientWithStallTimeouts("test-key", upstream.URL, time.Second, idle, stall)
+			client := openaicompat.NewClientWithHeaderAndStallTimeouts("test-key", upstream.URL, time.Second, idle, stall)
 			svc := makeProxyService(router.Decision{Provider: providers.ProviderAIAND, Model: reasoningProgressModel}, map[string]providers.Client{providers.ProviderAIAND: client})
 			rec := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(gatewayToolTurn))

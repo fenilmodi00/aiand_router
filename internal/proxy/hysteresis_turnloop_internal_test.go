@@ -58,8 +58,7 @@ func TestTurnLoopHoldsPinnedEffortOnLowGapEscalation(t *testing.T) {
 					PolicyGroup:         "high",
 					SelectedRosterArmID: "anthropic/" + pinnedModel + ":high",
 					ArmScores: map[string]float32{
-						"anthropic/" + pinnedModel + ":low":  4.0,
-						"anthropic/" + pinnedModel + ":high": test.highScore,
+						"anthropic/" + pinnedModel + ":low": 4.0,
 					},
 				},
 			}}

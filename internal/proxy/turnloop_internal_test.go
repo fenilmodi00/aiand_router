@@ -450,7 +450,7 @@ func TestRecordHMMTurnHistory_ZeroUsagePreservesPriorProvider(t *testing.T) {
 	store.getPin = sessionpin.Pin{Provider: providers.ProviderAIAND}
 	svc := NewService(
 		nil,
-		map[string]providers.Client{providers.ProviderAIAND: nil, providers.ProviderAIAND: nil},
+		map[string]providers.Client{providers.ProviderAIAND: nil},
 		nil,
 		false,
 		nil,
@@ -489,7 +489,7 @@ func TestRecordHMMTurnHistory_ZeroUsagePreservesPriorProvider(t *testing.T) {
 func TestNormalizeHMMStayPin_RepairsMismatchedProvider(t *testing.T) {
 	svc := NewService(
 		nil,
-		map[string]providers.Client{providers.ProviderAIAND: nil, providers.ProviderAIAND: nil},
+		map[string]providers.Client{providers.ProviderAIAND: nil},
 		nil,
 		false,
 		nil,
@@ -515,7 +515,7 @@ func TestNormalizeHMMStayPin_RepairsMismatchedProvider(t *testing.T) {
 func TestNormalizeHMMStayPin_ReResolvesDisabledProvider(t *testing.T) {
 	svc := NewService(
 		nil,
-		map[string]providers.Client{providers.ProviderAIAND: nil, providers.ProviderAIAND: nil},
+		map[string]providers.Client{providers.ProviderAIAND: nil},
 		nil,
 		false,
 		nil,
@@ -638,7 +638,7 @@ func TestStickyStateRole_DefaultsToActivePinRole(t *testing.T) {
 func TestHMMCostGate_StaysOnWarmCacheWhenCheaperFreshDoesNotClearEV(t *testing.T) {
 	svc := NewService(
 		nil,
-		map[string]providers.Client{providers.ProviderAIAND: nil, providers.ProviderAIAND: nil},
+		map[string]providers.Client{providers.ProviderAIAND: nil},
 		nil,
 		false,
 		nil,
@@ -683,7 +683,7 @@ func TestHMMCostGate_StaysOnWarmCacheWhenCheaperFreshDoesNotClearEV(t *testing.T
 func TestHMMCostGate_SwitchesCheaperFreshWhenEVPositive(t *testing.T) {
 	svc := NewService(
 		nil,
-		map[string]providers.Client{providers.ProviderAIAND: nil, providers.ProviderAIAND: nil},
+		map[string]providers.Client{providers.ProviderAIAND: nil},
 		nil,
 		false,
 		nil,
@@ -727,7 +727,7 @@ func TestHMMCostGate_SwitchesCheaperFreshWhenEVPositive(t *testing.T) {
 func TestHMMCostGate_SameTierPinSuppressesLateralSwitchWhenEnabled(t *testing.T) {
 	svc := NewService(
 		nil,
-		map[string]providers.Client{providers.ProviderAIAND: nil, providers.ProviderAIAND: nil},
+		map[string]providers.Client{providers.ProviderAIAND: nil},
 		nil,
 		false,
 		nil,
@@ -791,7 +791,7 @@ func TestHMMCostGate_SameTierPinSuppressesLateralSwitchWhenEnabled(t *testing.T)
 func TestHMMCostGate_SameTierPinDoesNotBlockCrossTierSwitch(t *testing.T) {
 	svc := NewService(
 		nil,
-		map[string]providers.Client{providers.ProviderAIAND: nil, providers.ProviderAIAND: nil},
+		map[string]providers.Client{providers.ProviderAIAND: nil},
 		nil,
 		false,
 		nil,
@@ -836,7 +836,7 @@ func TestHMMCostGate_SameTierPinDoesNotBlockCrossTierSwitch(t *testing.T) {
 func TestHMMCostGate_SameTierPinDoesNotBlockConfidentUpgrade(t *testing.T) {
 	svc := NewService(
 		nil,
-		map[string]providers.Client{providers.ProviderAIAND: nil, providers.ProviderAIAND: nil},
+		map[string]providers.Client{providers.ProviderAIAND: nil},
 		nil,
 		false,
 		nil,
@@ -881,7 +881,7 @@ func TestHMMCostGate_SameTierPinDoesNotBlockConfidentUpgrade(t *testing.T) {
 func TestHMMCostGate_SameTierPinIgnoresUnknownTierModels(t *testing.T) {
 	svc := NewService(
 		nil,
-		map[string]providers.Client{providers.ProviderAIAND: nil, providers.ProviderAIAND: nil},
+		map[string]providers.Client{providers.ProviderAIAND: nil},
 		nil,
 		false,
 		nil,
@@ -926,7 +926,7 @@ func TestHMMCostGate_SameTierPinIgnoresUnknownTierModels(t *testing.T) {
 func TestHMMCostGate_PhaseChangeFollowsFreshDecision(t *testing.T) {
 	svc := NewService(
 		nil,
-		map[string]providers.Client{providers.ProviderAIAND: nil, providers.ProviderAIAND: nil},
+		map[string]providers.Client{providers.ProviderAIAND: nil},
 		nil,
 		false,
 		nil,
@@ -973,7 +973,7 @@ func TestHMMCostGate_PhaseChangeFollowsFreshDecision(t *testing.T) {
 func TestHMMCostGate_HistoryPhaseChangeFollowsFreshDecision(t *testing.T) {
 	svc := NewService(
 		nil,
-		map[string]providers.Client{providers.ProviderAIAND: nil, providers.ProviderAIAND: nil},
+		map[string]providers.Client{providers.ProviderAIAND: nil},
 		nil,
 		false,
 		nil,
@@ -1019,7 +1019,7 @@ func TestHMMCostGate_HistoryPhaseChangeFollowsFreshDecision(t *testing.T) {
 func TestHMMCostGate_ExpensiveUpgradeRequiresHighConfidence(t *testing.T) {
 	svc := NewService(
 		nil,
-		map[string]providers.Client{providers.ProviderAIAND: nil, providers.ProviderAIAND: nil},
+		map[string]providers.Client{providers.ProviderAIAND: nil},
 		nil,
 		false,
 		nil,
@@ -1079,7 +1079,7 @@ func TestHMMCostGate_ExpensiveUpgradeRequiresHighConfidence(t *testing.T) {
 func TestHMMCostGate_LowConfidenceUpgradeKeepsIndependentPlannerSwitch(t *testing.T) {
 	svc := NewService(
 		nil,
-		map[string]providers.Client{providers.ProviderAIAND: nil, providers.ProviderAIAND: nil},
+		map[string]providers.Client{providers.ProviderAIAND: nil},
 		nil,
 		false,
 		nil,
@@ -1128,7 +1128,7 @@ func TestHMMCostGate_LowConfidenceUpgradeKeepsIndependentPlannerSwitch(t *testin
 func TestHMMCostGate_IgnoresExpiredActivePin(t *testing.T) {
 	svc := NewService(
 		nil,
-		map[string]providers.Client{providers.ProviderAIAND: nil, providers.ProviderAIAND: nil},
+		map[string]providers.Client{providers.ProviderAIAND: nil},
 		nil,
 		false,
 		nil,
@@ -1174,7 +1174,7 @@ func TestHMMCostGate_IgnoresExpiredActivePin(t *testing.T) {
 func TestHMMCostGate_IgnoresNonHMMActivePin(t *testing.T) {
 	svc := NewService(
 		nil,
-		map[string]providers.Client{providers.ProviderAIAND: nil, providers.ProviderAIAND: nil},
+		map[string]providers.Client{providers.ProviderAIAND: nil},
 		nil,
 		false,
 		nil,
@@ -1223,7 +1223,7 @@ func TestHMMCostGate_IgnoresNonHMMActivePin(t *testing.T) {
 func TestHMMCostGate_HonorsHMMReasonedActivePin(t *testing.T) {
 	svc := NewService(
 		nil,
-		map[string]providers.Client{providers.ProviderAIAND: nil, providers.ProviderAIAND: nil},
+		map[string]providers.Client{providers.ProviderAIAND: nil},
 		nil,
 		false,
 		nil,
@@ -1273,7 +1273,7 @@ func TestHMMCostGate_IgnoresMaxedHistory(t *testing.T) {
 	endedAt := time.Now().Add(-30 * time.Second)
 	svc := NewService(
 		nil,
-		map[string]providers.Client{providers.ProviderAIAND: nil, providers.ProviderAIAND: nil},
+		map[string]providers.Client{providers.ProviderAIAND: nil},
 		nil,
 		false,
 		nil,
@@ -1558,7 +1558,7 @@ func TestService_WithHMMUpgradeConfidenceThreshold(t *testing.T) {
 func TestHMMCostGate_UpgradeThresholdConfigurable(t *testing.T) {
 	svc := NewService(
 		nil,
-		map[string]providers.Client{providers.ProviderAIAND: nil, providers.ProviderAIAND: nil},
+		map[string]providers.Client{providers.ProviderAIAND: nil},
 		nil,
 		false,
 		nil,

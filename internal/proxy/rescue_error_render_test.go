@@ -11,7 +11,7 @@ import (
 
 	"weave-os/router/internal/dispatch"
 	"weave-os/router/internal/providers"
-	"weave-os/router/internal/providers/anthropic"
+	"weave-os/router/internal/providers/openaicompat"
 	"weave-os/router/internal/proxy"
 	"weave-os/router/internal/proxy/usage"
 	"weave-os/router/internal/router"
@@ -45,7 +45,7 @@ func TestProxyMessages_SubscriptionRescueFailurePreservesHTTPError(t *testing.T)
 			Metadata: &router.RoutingMetadata{CandidateModels: []string{"claude-opus-4-8"}},
 		}},
 		map[string]providers.Client{
-			providers.ProviderAIAND: anthropic.NewClient("test-anthropic-key", upstream.URL),
+			providers.ProviderAIAND: openaicompat.NewClient("test-anthropic-key", upstream.URL),
 		},
 		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}}).

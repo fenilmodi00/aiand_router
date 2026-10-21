@@ -644,52 +644,27 @@ func TestUsageExtractor_AnthropicResponse_NilReceiver(t *testing.T) {
 
 func TestUsageExtractor_OutputLimitEvidence(t *testing.T) {
 	tests := []struct {
-		name     string
-		provider string
-		reason   string
-		output   int
-		wantCap  bool
+		name    string
+		reason  string
+		output  int
+		wantCap bool
 	}{
-		{"anthropic small cap", providers.ProviderAIAND, "max_tokens", 128, true},
-		{"anthropic old cap", providers.ProviderAIAND, "max_tokens", 8192, true},
-		{"anthropic large cap", providers.ProviderAIAND, "max_tokens", 64000, true},
-		{"anthropic long tool handoff", providers.ProviderAIAND, "tool_use", 32000, false},
-		{"anthropic long answer", providers.ProviderAIAND, "end_turn", 32000, false},
-		{"anthropic missing terminal", providers.ProviderAIAND, "", 16000, false},
-		{"anthropic gateway cap", providers.ProviderAIAND, "max_tokens", 512, true},
-		{"chat cap", providers.ProviderAIAND, "length", 8192, true},
-		{"chat long tool handoff", providers.ProviderAIAND, "tool_calls", 32000, false},
-		{"chat long answer", providers.ProviderAIAND, "stop", 32000, false},
-		{"chat missing terminal", providers.ProviderAIAND, "", 16000, false},
-		{"openrouter cap", providers.ProviderAIAND, "length", 512, true},
-		{"gemini cap", providers.ProviderAIAND, "MAX_TOKENS", 512, true},
-		{"gemini long answer", providers.ProviderAIAND, "STOP", 32000, false},
-		{"gemini missing terminal", providers.ProviderAIAND, "", 16000, false},
+		{"small cap", "length", 128, true},
+		{"old cap", "length", 8192, true},
+		{"large cap", "length", 64000, true},
+		{"long tool handoff", "tool_calls", 32000, false},
+		{"long answer", "stop", 32000, false},
+		{"missing terminal", "", 16000, false},
 	}
 	for _, tc := range tests {
 		for _, stream := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/stream=%t", tc.name, stream), func(t *testing.T) {
-				var body string
-				switch providers.FamilyFor(tc.provider) {
-				case providers.FamilyOpenAICompat:
-					if stream {
-						body = fmt.Sprintf("event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":%q},\"usage\":{\"output_tokens\":%d}}\n\n", tc.reason, tc.output)
-					} else {
-						body = fmt.Sprintf(`{"type":"message","content":[{"type":"tool_use","id":"call_1","name":"Read","input":{}}],"stop_reason":%q,"usage":{"input_tokens":100,"output_tokens":%d}}`, tc.reason, tc.output)
-					}
-				case providers.FamilyOpenAICompat:
-					body = fmt.Sprintf(`{"choices":[{"index":0,"message":{"content":"answer"},"delta":{"content":"answer"},"finish_reason":%q}],"usage":{"prompt_tokens":100,"completion_tokens":%d}}`, tc.reason, tc.output)
-					if stream {
-						body = "data: " + body + "\n\ndata: [DONE]\n\n"
-					}
-				case providers.FamilyOpenAICompat:
-					body = fmt.Sprintf(`{"candidates":[{"content":{"parts":[{"text":"answer"}]},"finishReason":%q}],"usageMetadata":{"promptTokenCount":100,"candidatesTokenCount":%d}}`, tc.reason, tc.output)
-					if stream {
-						body = "data: " + body + "\n\n"
-					}
+				body := fmt.Sprintf(`{"choices":[{"index":0,"message":{"content":"answer"},"delta":{"content":"answer"},"finish_reason":%q}],"usage":{"prompt_tokens":100,"completion_tokens":%d}}`, tc.reason, tc.output)
+				if stream {
+					body = "data: " + body + "\n\ndata: [DONE]\n\n"
 				}
 				rec := httptest.NewRecorder()
-				ext := otel.NewUsageExtractor(rec, tc.provider)
+				ext := otel.NewUsageExtractor(rec, providers.ProviderAIAND)
 				for start := 0; start < len(body); start += 7 {
 					_, err := ext.Write([]byte(body[start:min(start+7, len(body))]))
 					require.NoError(t, err)

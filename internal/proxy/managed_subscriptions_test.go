@@ -651,7 +651,7 @@ func TestDispatchWithFallbackNeverUsesPaidBindingAfterManagedExhaustion(t *testi
 	paidFallback := &fakeClient{name: "paid"}
 	svc := newServiceWithProviders(t, map[string]providers.Client{
 		providers.ProviderAIAND: primary,
-		"paid":                      paidFallback,
+		"paid":                  paidFallback,
 	}).WithManagedSubscriptions(leaser)
 	recorder := httptest.NewRecorder()
 	buffer := newPreludeBuffer(recorder)

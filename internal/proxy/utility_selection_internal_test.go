@@ -33,12 +33,12 @@ func TestAutomaticUtilitySelectionDoesNotUseDeploymentShortcut(t *testing.T) {
 				t.Run(string(fixture.turnType), func(t *testing.T) {
 					scorer := &blindExperimentRouterSpy{decision: router.Decision{
 						Provider: providers.ProviderAIAND,
-						Model:    catalog.ModelIDClaudeSonnet46.String(),
+						Model:    catalog.ModelIDGLM53.String(),
 						Metadata: &router.RoutingMetadata{PolicyPinHonoured: true},
 					}}
 					pins := newStubPinStore()
 					service := NewService(scorer, nil, nil, false, nil, pins, false,
-						providers.ProviderAIAND, catalog.ModelIDClaudeHaiku45.String(), nil)
+						providers.ProviderAIAND, catalog.ModelIDGLM53Flash.String(), nil)
 					envelope, err := translate.ParseAnthropic([]byte(fixture.body))
 					require.NoError(t, err)
 					features := envelope.RoutingFeatures(false)
@@ -52,12 +52,12 @@ func TestAutomaticUtilitySelectionDoesNotUseDeploymentShortcut(t *testing.T) {
 					assert.Empty(t, routingMarkerFor(turn))
 					if fixture.turnType == turntype.TitleGen {
 						assert.Equal(t, 1, scorer.routeCalls)
-						assert.Equal(t, catalog.ModelIDClaudeSonnet46.String(), turn.Decision.Model)
+						assert.Equal(t, catalog.ModelIDGLM53.String(), turn.Decision.Model)
 						assert.Equal(t, providers.ProviderAIAND, turn.Decision.Provider)
 						assert.False(t, turn.CallerModelPassthrough)
 					} else {
 						assert.Zero(t, scorer.routeCalls)
-						assert.Equal(t, catalog.ModelIDClaudeOpus48.String(), turn.Decision.Model)
+						assert.Equal(t, catalog.ModelIDGLM52.String(), turn.Decision.Model)
 						assert.Equal(t, providers.ProviderAIAND, turn.Decision.Provider)
 						assert.True(t, turn.CallerModelPassthrough)
 						assert.Equal(t, policy.OverrideSourceRequest, turn.Origin)
@@ -82,9 +82,9 @@ func TestAutomaticUtilitySelectionDoesNotUseDeploymentShortcut(t *testing.T) {
 func TestTitleNeverEmitsDroppedForceDiagnostic(t *testing.T) {
 	assert.Empty(t, routingMarkerFor(turnLoopResult{
 		TurnType:         turntype.TitleGen,
-		Decision:         router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDClaudeSonnet46.String()},
+		Decision:         router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDGLM53.String()},
 		ForcedPinDropped: true,
-		ForcedPinModel:   catalog.ModelIDClaudeOpus48.String(),
+		ForcedPinModel:   catalog.ModelIDGLM52.String(),
 	}))
 }
 
@@ -93,8 +93,8 @@ func TestBaselineMarkerNeverPrefixesMachineConsumedTurns(t *testing.T) {
 		t.Run(string(turnType), func(t *testing.T) {
 			assert.Empty(t, baselineRoutingMarkerFor(turnLoopResult{
 				TurnType:         turnType,
-				PriorServedModel: catalog.ModelIDGPT55.String(),
-			}, catalog.ModelIDClaudeSonnet46.String()))
+				PriorServedModel: catalog.ModelIDGLM53.String(),
+			}, catalog.ModelIDGLM53.String()))
 		})
 	}
 }
@@ -103,12 +103,12 @@ func TestAutomaticProbeWithoutConcreteTargetScoresWithoutPinning(t *testing.T) {
 	for _, requestedModel := range []string{automaticProbeModel, ""} {
 		t.Run(requestedModel, func(t *testing.T) {
 			scorer := &blindExperimentRouterSpy{decision: router.Decision{
-				Provider: providers.ProviderAIAND, Model: catalog.ModelIDClaudeSonnet46.String(),
+				Provider: providers.ProviderAIAND, Model: catalog.ModelIDGLM53.String(),
 			}}
 			pins := newStubPinStore()
 			service := NewService(scorer, nil, nil, false, nil, pins, false,
-				providers.ProviderAIAND, catalog.ModelIDClaudeHaiku45.String(), nil)
-			body := strings.Replace(blindExperimentUtilityTurnBodies()[0].body, catalog.ModelIDClaudeOpus48.String(), requestedModel, 1)
+				providers.ProviderAIAND, catalog.ModelIDGLM53Flash.String(), nil)
+			body := strings.Replace(blindExperimentUtilityTurnBodies()[0].body, catalog.ModelIDGLM52.String(), requestedModel, 1)
 			envelope, err := translate.ParseAnthropic([]byte(body))
 			require.NoError(t, err)
 			features := envelope.RoutingFeatures(false)
@@ -117,7 +117,7 @@ func TestAutomaticProbeWithoutConcreteTargetScoresWithoutPinning(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.Equal(t, turntype.Probe, turn.TurnType)
-			assert.Equal(t, catalog.ModelIDClaudeSonnet46.String(), turn.Decision.Model)
+			assert.Equal(t, catalog.ModelIDGLM53.String(), turn.Decision.Model)
 			assert.Equal(t, providers.ProviderAIAND, turn.Decision.Provider)
 			assert.Equal(t, 1, scorer.routeCalls)
 			assert.False(t, turn.CallerModelPassthrough)
@@ -131,21 +131,21 @@ func TestAutomaticProbeWithoutConcreteTargetScoresWithoutPinning(t *testing.T) {
 }
 
 func TestDefaultProbeDroppedForceDoesNotAttachConversationState(t *testing.T) {
-	for _, requestedModel := range []string{automaticProbeModel, catalog.ModelIDClaudeSonnet46.String()} {
+	for _, requestedModel := range []string{automaticProbeModel, catalog.ModelIDGLM53.String()} {
 		t.Run(requestedModel, func(t *testing.T) {
 			scorer := &blindExperimentRouterSpy{decision: router.Decision{
-				Provider: providers.ProviderAIAND, Model: catalog.ModelIDClaudeSonnet46.String(),
+				Provider: providers.ProviderAIAND, Model: catalog.ModelIDGLM53.String(),
 			}}
 			pins := newStubPinStore()
 			service := NewService(scorer, nil, nil, false, nil, pins, false,
-				providers.ProviderAIAND, catalog.ModelIDClaudeHaiku45.String(), nil)
-			body := strings.Replace(blindExperimentUtilityTurnBodies()[0].body, catalog.ModelIDClaudeOpus48.String(), requestedModel, 1)
+				providers.ProviderAIAND, catalog.ModelIDGLM53Flash.String(), nil)
+			body := strings.Replace(blindExperimentUtilityTurnBodies()[0].body, catalog.ModelIDGLM52.String(), requestedModel, 1)
 			envelope, err := translate.ParseAnthropic([]byte(body))
 			require.NoError(t, err)
 			features := envelope.RoutingFeatures(false)
 			turn, err := service.runTurnLoop(context.Background(), envelope, features, "utility-key", uuid.New(), "", http.Header{}, router.Request{
 				RequestedModel:   features.Model,
-				ForceModel:       catalog.ModelIDGPT55.String(),
+				ForceModel:       catalog.ModelIDGLM53.String(),
 				EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}},
 			})
 			require.NoError(t, err)

@@ -137,7 +137,7 @@ func (r *countingPinnedRouter) Route(context.Context, router.Request) (router.De
 
 func pinnedTurnLoopService(t *testing.T, rt router.Router, store sessionpin.Store) *Service {
 	t.Helper()
-	clients := map[string]providers.Client{providers.ProviderAIAND: nil, providers.ProviderAIAND: nil}
+	clients := map[string]providers.Client{providers.ProviderAIAND: nil}
 	return NewService(rt, clients, nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil)
 }
 
@@ -247,13 +247,13 @@ func TestRunTurnLoop_HonouredPinBypassesForceModel(t *testing.T) {
 
 func TestRunTurnLoop_HonouredPinScoresAutomaticProbesWithoutConversationState(t *testing.T) {
 	for _, model := range []string{automaticProbeModel, ""} {
-		for _, forceModel := range []string{"", catalog.ModelIDClaudeSonnet46.String()} {
+		for _, forceModel := range []string{"", catalog.ModelIDGLM53.String()} {
 			t.Run(model+"/"+forceModel, func(t *testing.T) {
 				env, err := translate.ParseAnthropic([]byte(`{"model":"` + model + `","max_tokens":1,"messages":[{"role":"user","content":"ping"}]}`))
 				require.NoError(t, err)
 				feats := env.RoutingFeatures(false)
 				rt := &countingPinnedRouter{decision: router.Decision{
-					Provider: providers.ProviderAIAND, Model: catalog.ModelIDGPT55.String(),
+					Provider: providers.ProviderAIAND, Model: catalog.ModelIDGLM53.String(),
 					Metadata: &router.RoutingMetadata{PolicyPinHonoured: true},
 				}}
 				store := newStubPinStore()
@@ -262,7 +262,7 @@ func TestRunTurnLoop_HonouredPinScoresAutomaticProbesWithoutConversationState(t 
 					router.Request{RequestedModel: model, ForceModel: forceModel})
 				require.NoError(t, err)
 				assert.Equal(t, 1, rt.calls)
-				assert.Equal(t, catalog.ModelIDGPT55.String(), res.Decision.Model)
+				assert.Equal(t, catalog.ModelIDGLM53.String(), res.Decision.Model)
 				assert.Equal(t, policyPinTier, res.PinTier)
 				assert.Empty(t, res.Purpose)
 				assert.Zero(t, res.SessionKey)

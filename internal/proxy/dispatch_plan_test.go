@@ -41,7 +41,7 @@ func plannedInputs(rec *httptest.ResponseRecorder, buf *preludeBuffer, bindings 
 func TestDispatchPlanned_PrimarySucceeds(t *testing.T) {
 	primary := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{writeBytes: []byte("ok")}}}
 	fallback := &fakeClient{name: providers.ProviderAIAND}
-	s := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: primary, providers.ProviderAIAND: fallback})
+	s := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: primary})
 
 	rec := httptest.NewRecorder()
 	buf := newPreludeBuffer(rec)
@@ -60,7 +60,7 @@ func TestDispatchPlanned_PrimarySucceeds(t *testing.T) {
 func TestDispatchPlanned_FailsOverBeforeCommit(t *testing.T) {
 	primary := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{err: &providers.UpstreamErrorResponse{Status: 503, Body: []byte(`down`)}}}}
 	fallback := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{writeBytes: []byte("rescued")}}}
-	s := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: primary, providers.ProviderAIAND: fallback})
+	s := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: primary})
 
 	rec := httptest.NewRecorder()
 	buf := newPreludeBuffer(rec)
@@ -82,7 +82,7 @@ func TestDispatchPlanned_NoFailoverAfterCommit(t *testing.T) {
 		err:        &providers.UpstreamErrorResponse{Status: 503, Body: []byte(`mid-stream`)},
 	}}}
 	fallback := &fakeClient{name: providers.ProviderAIAND}
-	s := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: primary, providers.ProviderAIAND: fallback})
+	s := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: primary})
 
 	rec := httptest.NewRecorder()
 	buf := newPreludeBuffer(rec)
@@ -97,7 +97,7 @@ func TestDispatchPlanned_NoFailoverAfterCommit(t *testing.T) {
 func TestDispatchPlanned_WireModelMismatchNeverReachesProvider(t *testing.T) {
 	primary := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{writeBytes: []byte("ok")}}}
 	fallback := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{writeBytes: []byte("ok")}}}
-	s := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: primary, providers.ProviderAIAND: fallback})
+	s := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: primary})
 
 	rec := httptest.NewRecorder()
 	buf := newPreludeBuffer(rec)
@@ -195,10 +195,9 @@ func TestDispatchPlanned_ProviderMissingAtRuntimeSkipsToNext(t *testing.T) {
 
 func TestDispatchPlanned_RecordsAttemptProvenance(t *testing.T) {
 	primary := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{err: &providers.UpstreamErrorResponse{Status: 503, Body: []byte(`down`)}}}}
-	fallback := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{writeBytes: []byte("ok")}}}
 	sink := &recordingAttemptSink{}
 	executor, err := dispatch.NewExecutor(dispatch.NewClients(map[string]providers.Client{
-		providers.ProviderAIAND: primary, providers.ProviderAIAND: fallback,
+		providers.ProviderAIAND: primary,
 	}), dispatch.WithAttemptSink(sink))
 	require.NoError(t, err)
 	s := (&Service{}).WithInferenceExecutor(executor)
@@ -248,9 +247,7 @@ func (r *recordingAttemptSink) RecordAttempt(_ context.Context, event inference.
 func TestDispatchPlanned_LeaseFailureIsTerminal(t *testing.T) {
 	primary := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{writeBytes: []byte("ok")}}}
 	fallback := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{writeBytes: []byte("paid")}}}
-	s := newServiceWithProviders(t, map[string]providers.Client{
-		providers.ProviderAIAND: primary, providers.ProviderAIAND: fallback,
-	}).WithManagedSubscriptions(&scriptedSubscriptionLeaser{})
+	s := newServiceWithProviders(t, map[string]providers.Client{}).WithManagedSubscriptions(&scriptedSubscriptionLeaser{})
 	slept := 0
 	s.retrySleep = func(context.Context, time.Duration) error { slept++; return nil }
 	ctx := context.WithValue(context.Background(), ManagedSubscriptionEnrollmentUnavailableContextKey{}, true)

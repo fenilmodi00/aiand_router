@@ -33,8 +33,6 @@ func fastModeCtx(models ...string) context.Context {
 func newFastModeService(decision router.Decision, upstream providers.Client) (*Service, *bypassCaptureTelemetry) {
 	telemetry := newBypassCaptureTelemetry()
 	svc := NewService(staticRouter{decision: decision}, map[string]providers.Client{
-		providers.ProviderAIAND:  upstream,
-		providers.ProviderAIAND:     upstream,
 		providers.ProviderAIAND: upstream,
 	}, nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", telemetry)
 	return svc, telemetry

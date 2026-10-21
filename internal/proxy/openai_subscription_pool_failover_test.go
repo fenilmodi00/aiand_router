@@ -49,13 +49,11 @@ func TestProxyOpenAIChatCompletion_SubscriptionPoolExhaustionRescuesSibling(t *t
 		staticRouter{decision: claudeOpusPinnedDecision()},
 		map[string]providers.Client{
 			providers.ProviderAIAND: &fakeClient{name: providers.ProviderAIAND},
-			providers.ProviderAIAND:    rescue,
 		},
 		nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithManagedSubscriptions(leaser).
 		WithDeploymentKeyedProviders(map[string]struct{}{
 			providers.ProviderAIAND: {},
-			providers.ProviderAIAND:    {},
 		})
 
 	installationID := uuid.MustParse("33333333-3333-3333-3333-333333333333")
@@ -79,13 +77,11 @@ func TestProxyOpenAIChatCompletion_SubscriptionOnlyKeepsPoolUnavailability(t *te
 		staticRouter{decision: claudeOpusPinnedDecision()},
 		map[string]providers.Client{
 			providers.ProviderAIAND: &fakeClient{name: providers.ProviderAIAND},
-			providers.ProviderAIAND:    rescue,
 		},
 		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithManagedSubscriptions(leaser).
 		WithDeploymentKeyedProviders(map[string]struct{}{
 			providers.ProviderAIAND: {},
-			providers.ProviderAIAND:    {},
 		})
 
 	ctx := billing.WithSubscriptionOnly(managedSubscriptionContext(auth.SubscriptionProviderClaude), billing.SubscriptionOnlyCreditsDepleted)
@@ -106,13 +102,11 @@ func TestProxyMessages_SubscriptionPoolExhaustionRescuesSibling(t *testing.T) {
 		staticRouter{decision: claudeOpusPinnedDecision()},
 		map[string]providers.Client{
 			providers.ProviderAIAND: &fakeClient{name: providers.ProviderAIAND},
-			providers.ProviderAIAND:    rescue,
 		},
 		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithManagedSubscriptions(leaser).
 		WithDeploymentKeyedProviders(map[string]struct{}{
 			providers.ProviderAIAND: {},
-			providers.ProviderAIAND:    {},
 		})
 
 	ctx := context.WithValue(managedSubscriptionContext(auth.SubscriptionProviderClaude),

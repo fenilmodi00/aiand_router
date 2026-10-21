@@ -120,7 +120,6 @@ func TestCallerModelPassthroughUsesGatewayAlias(t *testing.T) {
 		router.Request{
 			RequestedModel: "gpt-5.4",
 			EnabledProviders: map[string]struct{}{
-				providers.ProviderAIAND:    {},
 				providers.ProviderAIAND: {},
 			},
 			GatewayProviders: map[string]struct{}{
@@ -243,7 +242,6 @@ func runBlindExperimentUtilityTurn(t *testing.T, ctx context.Context, body strin
 			RequestedModel: features.Model,
 			EnabledProviders: map[string]struct{}{
 				providers.ProviderAIAND: {},
-				providers.ProviderAIAND:    {},
 			},
 		},
 	)
@@ -283,7 +281,7 @@ func TestBlindExperimentRouterOnKeepsExplicitUtilityHardPins(t *testing.T) {
 			case turntype.SubAgentDispatch:
 				assert.Equal(t, experimentSubAgentOverrideModel, loopResult.Decision.Model)
 			default:
-				assert.NotEqual(t, catalog.ModelIDClaudeOpus48.String(), loopResult.Decision.Model)
+				assert.NotEqual(t, catalog.ModelIDGLM52.String(), loopResult.Decision.Model)
 			}
 		})
 	}
@@ -311,7 +309,7 @@ func TestBlindExperimentPassthroughKeepsUtilityHardPinsUnderPolicyPin(t *testing
 			case turntype.SubAgentDispatch:
 				assert.Equal(t, experimentSubAgentOverrideModel, loopResult.Decision.Model)
 			default:
-				assert.NotEqual(t, catalog.ModelIDClaudeOpus48.String(), loopResult.Decision.Model)
+				assert.NotEqual(t, catalog.ModelIDGLM52.String(), loopResult.Decision.Model)
 			}
 		})
 	}

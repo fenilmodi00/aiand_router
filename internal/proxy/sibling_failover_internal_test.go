@@ -411,18 +411,18 @@ func TestSiblingFailover_RosterOrderBeatsProviderPreferenceAndExcludesUnlistedMo
 func TestGatewayRescueDecisions_AllArmsStruckOutReadmitsDemotedSibling(t *testing.T) {
 	s := &Service{}
 	ctx := context.WithValue(context.Background(), ExternalAPIKeysContextKey{}, []*auth.ExternalAPIKey{
-		{Provider: providers.ProviderAIAND, Plaintext: []byte("pat"), ModelAliases: map[string]string{catalog.ModelGPT6Luna: catalog.ModelGPT6Luna}},
+		{Provider: providers.ProviderAIAND, Plaintext: []byte("pat"), ModelAliases: map[string]string{catalog.ModelIDDeepSeekV4Pro.String(): catalog.ModelIDDeepSeekV4Pro.String()}},
 		{Provider: providers.ProviderAIAND, Plaintext: []byte("pat"), ModelAliases: map[string]string{"claude-opus-5-5": "claude-opus-5-5"}},
 	})
-	struck := []string{catalog.ModelGPT6Luna, "claude-opus-5-5"}
+	struck := []string{catalog.ModelIDDeepSeekV4Pro.String(), "claude-opus-5-5"}
 	ctx = context.WithValue(ctx, SessionDemotedModelsContextKey{}, struck)
 	ctx = context.WithValue(ctx, SessionStrikeReadmitModelsContextKey{}, struck)
 	failed := router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    catalog.ModelGPT6Luna,
+		Model:    catalog.ModelIDDeepSeekV4Pro.String(),
 		Metadata: &router.RoutingMetadata{
 			RosterFailover:    true,
-			RescueModels:      []string{catalog.ModelGPT6Luna},
+			RescueModels:      []string{catalog.ModelIDDeepSeekV4Pro.String()},
 			SidecarRescuePool: []string{"claude-opus-5-5"},
 		},
 	}
