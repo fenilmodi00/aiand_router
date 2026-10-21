@@ -74,7 +74,7 @@ A 401 mid-session usually means the stack was torn down and reseeded (new instal
 
 ### 3. Choose the upstream
 
-**Real provider** — set the provider key in `.env.local` (e.g. `OPENAI_API_KEY=...`, `FIREWORKS_API_KEY=...`) and restart `docker compose up -d server`. Confirm the boot log shows `<Provider> provider enabled` with the real base_url. Use this to confirm a model genuinely produces the behavior.
+**Real provider** — set the provider key in `.env.local` (e.g. `AIAND_API_KEY=...`) and restart `docker compose up -d server`. Confirm the boot log shows `ai& provider enabled` with the real base_url. Use this to confirm a model genuinely produces the behavior.
 
 For an actual Codex subscription response, do not set `ROUTER_CODEX_BASE_URL`
 and do not run either mock. Remove that environment entry from
@@ -98,8 +98,8 @@ repeatable tests when that endpoint is unavailable or too expensive.
 python3 .claude/skills/test-claude-locally/scripts/mock_openai_upstream.py >/tmp/mock.log 2>&1 &   # serves :8099
 # In docker-compose.override.yml under `server:`, add:
 #   environment:
-#     FIREWORKS_BASE_URL: http://host.docker.internal:8099/v1
-#     FIREWORKS_API_KEY: sk-mock
+#     AIAND_BASE_URL: http://host.docker.internal:8099/v1
+#     AIAND_API_KEY: sk-mock
 #   extra_hosts: ["host.docker.internal:host-gateway"]
 docker compose up -d server
 ```
