@@ -428,7 +428,7 @@ grep -Fq '[hooks.state."/Users/a/.codex/config.toml:stop:0:0"]' "$config" \
 grep -Fq '[projects."/Users/a/Code/weave"]' "$config" \
   || fail "install over a Codex-rewritten config dropped Codex project trust"
 
-# The endpoint reader backs `login`/`status`. Reading only between the markers
+# The endpoint reader backs `status`. Reading only between the markers
 # reported "No Weave Router install found for codex in this scope" on a
 # perfectly good install, which sent users through a reinstall to fix it.
 seed_codex_normalized_config
@@ -447,14 +447,6 @@ printf '%s' "$router_status" | grep -q 'Codex: points at Router' \
 printf '%s' "$router_status" | grep -q 'Codex: off' \
   || fail "status did not report Codex as off after off --codex"
 HOME="$home" PATH="$test_path" NO_COLOR=1 bash "$installer" on --codex --scope user >/dev/null 2>&1
-
-# `login codex` is where users hit this first: it refused to enroll a
-# subscription against a working install and told them to run the installer
-# again. The offline validation failure confirms that the install was found.
-login_out="$(HOME="$home" PATH="$test_path" NO_COLOR=1 \
-  bash "$installer" login codex --scope user 2>&1 || true)"
-printf '%s' "$login_out" | grep -Fq 'Could not reach the router at https://router.workweave.ai' \
-  || fail "login codex did not validate an install whose markers Codex had dropped"
 
 # The key reader has to accept both spellings of the header name: our writer
 # emits one quoted inline table, Codex re-emits it as a bare key in a subtable.

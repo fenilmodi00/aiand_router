@@ -1113,8 +1113,7 @@ write_opencode_config() {
 
   # Surface one Auto choice in opencode's picker. The router chooses the
   # upstream model for every request, so presenting pinned model names would
-  # imply a choice that the router intentionally does not honor. Whichever
-  # model serves a turn uses its matching subscription when one is connected.
+  # imply a choice that the router intentionally does not honor.
   # OpenCode interprets omitted custom-model limits as zero, which disables its
   # overflow compaction. 500K matches the smallest Auto-roster window
   # (grok-4.6); the old 128K cap left ~96K for input and compacted too early.
@@ -1675,15 +1674,10 @@ if [ "$disable_routing_alias" = "true" ]; then
   target_explicit="true"
 fi
 
-# Account management is router-scoped. A provider operand chooses the most
-# natural installed config to read; otherwise prefer Claude and fall back to
-# Codex below. No explicit client selector is required for this UX.
-if [ "$mode" = "login" ]; then
-  login_provider="$(printf '%s' "$models_args" | head -n 1)"
-  case "$login_provider" in
-    claude|codex) target="$login_provider"; target_explicit="true" ;;
-  esac
-elif [ "$mode" = "accounts" ] || [ "$mode" = "status" ]; then
+# Status reports on the router and the native clients' own configs. It reads
+# the installed endpoint, so the client selector is implicit: prefer Claude and
+# fall back to Codex when Claude has no install.
+if [ "$mode" = "status" ]; then
   target_explicit="true"
 fi
 
@@ -1693,7 +1687,7 @@ fi
 # local config, but it still reads the endpoint and key out of one install, so
 # it needs the same explicit choice.
 if [ "$mode" != "install" ] && [ "$mode" != "update" ]; then
-  [ "$mode" = "login" ] || non_interactive="true"
+  non_interactive="true"
   if [ "$target_explicit" != "true" ]; then
     if [ "$mode" = "models" ]; then
       err "'models' requires an explicit client: --claude or --codex."
@@ -3397,46 +3391,6 @@ run_models() {
   esac
 }
 
-run_accounts() {
-  local verb operands id
-  verb="$(printf '%s' "$models_args" | head -n 1)"
-  operands="$(printf '%s' "$models_args" | tail -n +2)"
-  case "$verb" in
-    ""|list)
-      [ -z "$operands" ] || { err "'accounts list' takes no arguments."; exit 2; }
-      models_api GET "/v1/subscriptions/accounts" || models_fail "listing subscription accounts"
-      if [ "$models_json" = "true" ]; then
-        printf '%s\n' "$models_http_body"
-      else
-        printf '%s\n' "$models_http_body" | jq -r '.[] | "\(.id)\t\(.provider)\t\(.external_account_id)" + (if (.display_name // "") != "" then "\t" + .display_name else "" end) + "\t" + (if .enabled then "enabled" else "disabled" end) + "\t" + (if .cooldown_until then "cooldown until " + .cooldown_until else "ready" end)'
-      fi
-      ;;
-    disable|remove)
-      [ -n "$operands" ] || { err "'accounts $verb' needs at least one account id."; exit 2; }
-      while IFS= read -r id; do
-        [ -n "$id" ] || continue
-        if [ "$verb" = "disable" ]; then
-          models_api PATCH "/v1/subscriptions/accounts/$id" '{"enabled":false}' || models_fail "disabling account '$id'"
-        else
-          models_api DELETE "/v1/subscriptions/accounts/$id" || models_fail "removing account '$id'"
-        fi
-        printf '%s\n' "Account $id $verb'd."
-      done <<<"$operands"
-      ;;
-    *)
-      err "Unknown accounts sub-command: '$verb'."
-      exit 2
-      ;;
-  esac
-}
-
-oauth_base64url() {
-  openssl base64 -A | tr '+/' '-_' | tr -d '='
-}
-
-# open_url_in_browser asks the operating system to open a URL with the user's
-# default browser. Keep this best-effort: a successful install must not be
-# rolled back just because a headless shell has no browser opener available.
 open_url_in_browser() {
   local url="$1" os
   os="$(uname -s 2>/dev/null || printf '')"
@@ -3472,176 +3426,6 @@ open_return_url_if_verified() {
   fi
 }
 
-open_oauth_url() {
-  local url="$1"
-  if command -v open >/dev/null 2>&1; then
-    open "$url" >/dev/null 2>&1 || true
-  elif command -v xdg-open >/dev/null 2>&1; then
-    xdg-open "$url" >/dev/null 2>&1 || true
-  fi
-  printf '%s\n' "Open this URL to continue:" "$url"
-}
-
-jwt_account_id() {
-  local token="$1" payload padding decoded
-  payload="$(printf '%s' "$token" | cut -d. -f2 | tr '_-' '/+')"
-  padding=$(( (4 - ${#payload} % 4) % 4 ))
-  while [ "$padding" -gt 0 ]; do payload="${payload}="; padding=$((padding - 1)); done
-  decoded="$(printf '%s' "$payload" | base64 --decode 2>/dev/null || printf '%s' "$payload" | base64 -D 2>/dev/null || true)"
-  printf '%s' "$decoded" | jq -r '.chatgpt_account_id // .["https://api.openai.com/auth"].chatgpt_account_id // .organizations[0].id // empty' 2>/dev/null || true
-}
-
-jwt_account_label() {
-  local token="$1" payload padding decoded
-  payload="$(printf '%s' "$token" | cut -d. -f2 | tr '_-' '/+')"
-  padding=$(( (4 - ${#payload} % 4) % 4 ))
-  while [ "$padding" -gt 0 ]; do payload="${payload}="; padding=$((padding - 1)); done
-  decoded="$(printf '%s' "$payload" | base64 --decode 2>/dev/null || printf '%s' "$payload" | base64 -D 2>/dev/null || true)"
-  printf '%s' "$decoded" | jq -r '
-    def clean: if type == "string" then gsub("[[:cntrl:]]"; " ") | gsub("[[:space:]]+"; " ") | sub("^ +"; "") | sub(" +$"; "") else "" end;
-    (.organizations[0].name // .organizations[0].display_name // .organization.name // "" | clean) as $organization |
-    (.email // .email_address // .["https://api.openai.com/profile"].email // .["https://api.openai.com/auth"].email // "" | clean) as $email |
-    (.name // .preferred_username // "" | clean) as $name |
-    if $organization != "" and $email != "" then ($organization + ": " + $email)
-    elif $email != "" then $email
-    elif $organization != "" then $organization
-    else $name end
-  ' 2>/dev/null || true
-}
-
-# OAuth issuers rate-limit curl's default user agent, which fails the token
-# exchange (and every later refresh) with a 429 before the request is even
-# read, so identify the installer explicitly.
-oauth_user_agent='weave-router-installer/1.0'
-
-oauth_post_json() {
-  local url="$1" body="$2" request_body
-  request_body="$(mktemp)" || return 1
-  chmod 600 "$request_body"
-  printf '%s' "$body" >"$request_body"
-  curl -fsS --max-time 30 -A "$oauth_user_agent" -H 'Content-Type: application/json' --data-binary "@$request_body" "$url"
-  local curl_status=$?
-  rm -f "$request_body"
-  return "$curl_status"
-}
-
-oauth_post_form() {
-  local url="$1" body="$2" request_body
-  request_body="$(mktemp)" || return 1
-  chmod 600 "$request_body"
-  printf '%s' "$body" >"$request_body"
-  curl -fsS --max-time 30 -A "$oauth_user_agent" -H 'Content-Type: application/x-www-form-urlencoded' --data-binary "@$request_body" "$url"
-  local curl_status=$?
-  rm -f "$request_body"
-  return "$curl_status"
-}
-
-run_login_claude() {
-  local verifier challenge expected_state authorize_endpoint authorize_url pasted_code auth_code returned_state token_response refresh_token account_uuid organization_uuid account_email organization_name display_name external_account_id body
-  verifier="$(openssl rand 32 | oauth_base64url)"
-  challenge="$(printf '%s' "$verifier" | openssl dgst -sha256 -binary | oauth_base64url)"
-  expected_state="$(openssl rand 32 | oauth_base64url)"
-  authorize_endpoint="${WEAVE_ANTHROPIC_OAUTH_AUTHORIZE:-https://claude.ai/oauth/authorize}"
-  authorize_url="$authorize_endpoint?code=true&client_id=9d1c250a-e61b-44d9-88ed-5944d1962f5e&response_type=code&redirect_uri=$(jq -nr '"https://console.anthropic.com/oauth/code/callback"|@uri')&scope=$(jq -nr '"org:create_api_key user:profile user:inference"|@uri')&code_challenge=$challenge&code_challenge_method=S256&state=$expected_state"
-  open_oauth_url "$authorize_url"
-  if [ "$non_interactive" = "true" ] || [ ! -r /dev/tty ]; then
-    err "Claude login requires an interactive terminal to paste the authorization code."
-    exit 1
-  fi
-  printf 'Paste the Claude authorization code: ' >/dev/tty
-  read -r pasted_code </dev/tty
-  auth_code="${pasted_code%%#*}"
-  returned_state="${pasted_code#*#}"
-  [ "$auth_code" != "$pasted_code" ] || { err "Expected Claude's code#state value."; exit 1; }
-  [ "$returned_state" = "$expected_state" ] || { err "Claude authorization state did not match this login attempt."; exit 1; }
-  token_response="$(oauth_post_json "${WEAVE_ANTHROPIC_OAUTH_TOKEN:-https://console.anthropic.com/v1/oauth/token}" \
-    "$(jq -nc --arg code "$auth_code" --arg state "$returned_state" --arg verifier "$verifier" '{grant_type:"authorization_code",code:$code,state:$state,client_id:"9d1c250a-e61b-44d9-88ed-5944d1962f5e",redirect_uri:"https://console.anthropic.com/oauth/code/callback",code_verifier:$verifier}')")" \
-    || { err "Claude token exchange failed."; exit 1; }
-  refresh_token="$(printf '%s' "$token_response" | jq -r '.refresh_token // empty')"
-  [ -n "$refresh_token" ] || { err "Claude token exchange returned no refresh token."; exit 1; }
-  account_uuid="$(printf '%s' "$token_response" | jq -er '.account.uuid | select(type == "string" and test("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")) | ascii_downcase' 2>/dev/null)" \
-    || { err "Claude token exchange returned no valid account UUID; subscription was not enrolled. Update the installer and try again."; exit 1; }
-  organization_uuid="$(printf '%s' "$token_response" | jq -er '.organization.uuid | select(type == "string" and test("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")) | ascii_downcase' 2>/dev/null)" \
-    || { err "Claude token exchange returned no valid organization UUID; subscription was not enrolled. Update the installer and try again."; exit 1; }
-  account_email="$(printf '%s' "$token_response" | jq -r '.account.email_address // .account.email // empty' 2>/dev/null || true)"
-  organization_name="$(printf '%s' "$token_response" | jq -r '.organization.name // .organization.display_name // empty' 2>/dev/null || true)"
-  display_name="$(jq -nr --arg organization "$organization_name" --arg email "$account_email" '
-    def clean: gsub("[[:cntrl:]]"; " ") | gsub("[[:space:]]+"; " ") | sub("^ +"; "") | sub(" +$"; "");
-    ($organization | clean) as $organization | ($email | clean) as $email |
-    if $organization != "" and $email != "" then ($organization + ": " + $email)
-    elif $email != "" then $email
-    else $organization end
-  ')"
-  external_account_id="${account_uuid}:${organization_uuid}"
-  body="$(jq -nc --arg provider claude --arg account "$external_account_id" --arg token "$refresh_token" --arg label "$display_name" '{provider:$provider,external_account_id:$account,refresh_token:$token} | if $label != "" then .display_name = $label else . end')"
-  models_api POST "/v1/subscriptions/accounts" "$body" || models_fail "enrolling Claude subscription"
-  ok "Claude subscription enrolled."
-}
-
-run_login_codex() {
-  local issuer device_response device_auth_id user_code interval authorization_response authorization_code verifier token_response refresh_token account_id display_name identity_token body attempts token_form
-  issuer="${WEAVE_CODEX_OAUTH_ISSUER:-https://auth.openai.com}"
-  device_response="$(oauth_post_json "$issuer/api/accounts/deviceauth/usercode" '{"client_id":"app_EMoamEEZ73f0CkXaXp7hrann"}')" \
-    || { err "Could not start Codex device authorization."; exit 1; }
-  device_auth_id="$(printf '%s' "$device_response" | jq -r '.device_auth_id // empty')"
-  user_code="$(printf '%s' "$device_response" | jq -r '.user_code // empty')"
-  interval="$(printf '%s' "$device_response" | jq -r '.interval // 5')"
-  case "$interval" in *[!0-9]*|"") interval=5 ;; esac
-  [ "$interval" -ge 1 ] || interval=1
-  [ "$interval" -le 30 ] || interval=5
-  if [ -z "$device_auth_id" ] || [ -z "$user_code" ]; then
-    err "Codex device authorization returned an invalid response."
-    exit 1
-  fi
-  open_oauth_url "$issuer/codex/device"
-  printf '%s\n' "Enter code: $user_code"
-  attempts=0
-  while [ "$attempts" -lt 60 ]; do
-    authorization_response="$(oauth_post_json "$issuer/api/accounts/deviceauth/token" \
-      "$(jq -nc --arg device "$device_auth_id" --arg code "$user_code" '{device_auth_id:$device,user_code:$code}')" 2>/dev/null)" && break
-    attempts=$((attempts + 1))
-    sleep $((interval + 3))
-  done
-  authorization_code="$(printf '%s' "$authorization_response" | jq -r '.authorization_code // empty')"
-  verifier="$(printf '%s' "$authorization_response" | jq -r '.code_verifier // empty')"
-  if [ -z "$authorization_code" ] || [ -z "$verifier" ]; then
-    err "Codex authorization returned an invalid response."
-    exit 1
-  fi
-  token_form="grant_type=authorization_code&code=$(jq -nr --arg value "$authorization_code" '$value|@uri')&redirect_uri=$(jq -nr --arg value "$issuer/deviceauth/callback" '$value|@uri')&client_id=app_EMoamEEZ73f0CkXaXp7hrann&code_verifier=$(jq -nr --arg value "$verifier" '$value|@uri')"
-  token_response="$(oauth_post_form "$issuer/oauth/token" "$token_form")" \
-    || { err "Codex token exchange failed."; exit 1; }
-  refresh_token="$(printf '%s' "$token_response" | jq -r '.refresh_token // empty')"
-  identity_token="$(printf '%s' "$token_response" | jq -r '.id_token // .access_token // empty')"
-  account_id="$(jwt_account_id "$identity_token")"
-  display_name="$(jwt_account_label "$identity_token")"
-  if [ -z "$refresh_token" ] || [ -z "$account_id" ]; then
-    err "Codex token exchange omitted account identity or refresh credentials."
-    exit 1
-  fi
-  body="$(jq -nc --arg provider codex --arg account "$account_id" --arg token "$refresh_token" --arg label "$display_name" '{provider:$provider,external_account_id:$account,refresh_token:$token} | if $label != "" then .display_name = $label else . end')"
-  models_api POST "/v1/subscriptions/accounts" "$body" || models_fail "enrolling Codex subscription"
-  ok "Codex subscription enrolled."
-}
-
-run_login() {
-  local provider extra
-  provider="$(printf '%s' "$models_args" | head -n 1)"
-  extra="$(printf '%s\n' "$models_args" | tail -n +2)"
-  [ -n "$provider" ] || { err "Use 'login claude' or 'login codex'."; exit 2; }
-  [ -z "$extra" ] || { err "Login accepts exactly one provider."; exit 2; }
-  ensure_jq
-  case "$provider" in
-    claude|codex) models_api GET "/validate" || models_fail "checking Router setup" ;;
-    *) err "Unknown subscription provider: $provider."; exit 2 ;;
-  esac
-  require_cmd openssl "Install OpenSSL to enroll a subscription account."
-  case "$provider" in
-    claude) run_login_claude ;;
-    codex) run_login_codex ;;
-  esac
-}
-
 run_router_status() {
   local saved_target codex_endpoint redacted_key
   saved_target="$target"
@@ -3671,21 +3455,9 @@ run_router_status() {
   toggle_claude
   printf 'Status describes this scope only, not a running session; other scopes or runtime overrides may differ. Restart Claude Code after on/off changes.\n'
   printf 'Codex: %s\n' "$(if [ "$(codex_routing_state)" = "off" ]; then printf "off (default provider). Run 'on --codex' to re-enable."; elif [ "${codex_endpoint%/}" = "${base_url%/}" ]; then printf 'points at Router'; elif [ -n "$codex_endpoint" ]; then printf 'different endpoint (%s)' "$codex_endpoint"; else printf 'not configured'; fi)"
-  if models_api GET "/v1/subscriptions/accounts"; then
-    printf 'Subscription accounts:\n'
-    if [ "$(printf '%s' "$models_http_body" | jq 'length')" -eq 0 ]; then
-      printf '  none enrolled\n'
-    else
-      printf '%s\n' "$models_http_body" | jq -r '.[] | "  " + .provider + "  " + .external_account_id + (if (.display_name // "") != "" then "  [" + .display_name + "]" else "" end) + "  " + (if .enabled then "enabled" else "disabled" end) + (if .cooldown_until then "  cooldown until " + .cooldown_until else "  ready" end)'
-    fi
-  elif [ "$models_http_status" = "404" ]; then
-    printf 'Subscription accounts: server-side pools disabled\n'
-  else
-    printf 'Subscription accounts: unavailable (HTTP %s)\n' "${models_http_status:-network error}"
-  fi
 }
 
-if [ "$mode" = "models" ] || [ "$mode" = "accounts" ] || [ "$mode" = "login" ] || [ "$mode" = "status" ]; then
+if [ "$mode" = "models" ] || [ "$mode" = "status" ]; then
   # Which file supplied the endpoint / the key. Empty means "not from a settings
   # file" — an explicit --base-url, or WEAVE_ROUTER_KEY. Initialized before the
   # branches below so `set -u` holds on every path.
@@ -3700,30 +3472,9 @@ if [ "$mode" = "models" ] || [ "$mode" = "accounts" ] || [ "$mode" = "login" ] |
   # Editing model selection needs the endpoint and key of one specific install,
   # never the hosted defaults: a self-hosted user pointing at their own router
   # would otherwise silently edit the hosted one's installation.
-  # Login enrollment is client-independent. When no Claude/Codex endpoint is
-  # configured, prefer the managed OpenCode config as the source for the
-  # router endpoint; the provider operand still selects the account to enroll.
-  if [ "$mode" = "login" ] && [ "$target" != "opencode" ] && [ "$base_url_explicit" != "true" ]; then
-    login_target="$target"
-    login_target_base="$(resolve_installed_endpoint)"
-    if [ -z "$login_target_base" ]; then
-      target="opencode"
-      if [ -n "$install_dir" ]; then
-        opencode_dir="$install_dir"
-      elif [ "$scope" = "project" ]; then
-        opencode_dir="$settings_base"
-      else
-        opencode_dir="${XDG_CONFIG_HOME:-$settings_base/.config}/opencode"
-      fi
-      opencode_config_file="$opencode_dir/opencode.json"
-      if [ -z "$(resolve_installed_endpoint)" ]; then
-        target="$login_target"
-      fi
-    fi
-  fi
   if [ "$base_url_explicit" != "true" ]; then
     models_base="$(resolve_installed_endpoint)"
-    if [ -z "$models_base" ] && { [ "$mode" = "accounts" ] || [ "$mode" = "status" ]; } && [ "$target" = "claude" ]; then
+    if [ -z "$models_base" ] && [ "$mode" = "status" ] && [ "$target" = "claude" ]; then
       target="codex"
       models_base="$(resolve_installed_endpoint)"
     fi
@@ -3759,33 +3510,6 @@ if [ "$mode" = "models" ] || [ "$mode" = "accounts" ] || [ "$mode" = "login" ] |
       models_key_source="$(models_config_file_for_target)"
     fi
   fi
-  # Managed enrollment is client-independent. If an OpenCode-only install is
-  # the first router config on the machine, login claude|codex still needs to
-  # find its endpoint and key even though the provider operand initially makes
-  # the lookup target Claude or Codex. Reuse the OpenCode key in that case, but
-  # only when it pairs with the endpoint already resolved above: the endpoint
-  # is either an explicit --base-url or the selected client's own install, and
-  # a key from one router must never be sent to another.
-  if [ "$mode" = "login" ] && [ "$target" != "opencode" ] && [ -z "$api_key" ]; then
-    login_target="$target"
-    target="opencode"
-    if [ -n "$install_dir" ]; then
-      opencode_dir="$install_dir"
-    elif [ "$scope" = "project" ]; then
-      opencode_dir="$settings_base"
-    else
-      opencode_dir="${XDG_CONFIG_HOME:-$settings_base/.config}/opencode"
-    fi
-    opencode_config_file="$opencode_dir/opencode.json"
-    opencode_key="$(read_installed_key)"
-    opencode_base="$(resolve_installed_endpoint)"
-    if [ -n "$opencode_key" ] && { [ "$base_url_explicit" = "true" ] || [ "$(strip_trailing_slashes "$opencode_base")" = "$(strip_trailing_slashes "$base_url")" ]; }; then
-      api_key="$opencode_key"
-      models_key_source="$opencode_config_file"
-    fi
-    target="$login_target"
-  fi
-
   if [ -z "$api_key" ]; then
     err "No router key found for $target in this scope. Re-run 'npx $npm_package_name --$target', or export WEAVE_ROUTER_KEY."
     exit 1
@@ -3805,11 +3529,7 @@ if [ "$mode" = "models" ] || [ "$mode" = "accounts" ] || [ "$mode" = "login" ] |
       "$C_DIM" "$C_RESET" >&2
     exit 1
   fi
-  if [ "$mode" = "accounts" ]; then
-    run_accounts
-  elif [ "$mode" = "login" ]; then
-    run_login
-  elif [ "$mode" = "status" ]; then
+  if [ "$mode" = "status" ]; then
     run_router_status
   else
     run_models
@@ -5451,13 +5171,6 @@ if [ "$target" = "opencode" ]; then
   verify_install
 
   announce_done "opencode"
-  enrollment_args=""
-  if [ -n "$install_dir" ]; then
-    enrollment_args=" --dir $(printf '%q' "$install_dir")"
-  elif [ "$scope" = "project" ]; then
-    enrollment_args=" --scope project"
-  fi
-  info "To enroll managed subscriptions, run ${C_BOLD}npx $npm_package_name login claude${enrollment_args}${C_RESET} and/or ${C_BOLD}npx $npm_package_name login codex${enrollment_args}${C_RESET}."
   if [ -n "$install_dir" ]; then
     # --dir installs land outside opencode's discovery roots, so the caller
     # has to point opencode at the file explicitly.
