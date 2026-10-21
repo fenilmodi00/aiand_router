@@ -64,7 +64,7 @@ func TestServingTargetReachesTelemetryInsertAndAnalyticsExport(t *testing.T) {
 	assert.Equal(t, target, exported["serving_target"])
 }
 
-func TestSubscriptionWinnerAttributionSurvivesInsertAndExport(t *testing.T) {
+func TestSubscriptionWinnerAttributionSurvivesInsert(t *testing.T) {
 	accountID := uuid.MustParse("00000000-0000-0000-0000-000000000101")
 	ownerID := uuid.MustParse("00000000-0000-0000-0000-000000000102")
 	tier := string(auth.SubscriptionTierShared)
@@ -94,28 +94,13 @@ func TestSubscriptionWinnerAttributionSurvivesInsertAndExport(t *testing.T) {
 	assert.Equal(t, &credentialSource, arguments["credential_source"])
 
 	decision := decisionFromExportRow(sqlc.GetRoutingDecisionsForExportRow{
-		SubscriptionAccountID: pgtype.UUID{Bytes: accountID, Valid: true},
-		SubscriptionOwnerID:   pgtype.UUID{Bytes: ownerID, Valid: true},
-		SubscriptionTier:      &tier,
-		IntendedModelFamily:   &intendedFamily,
-		FinalModelFamily:      &finalFamily,
-		CredentialSource:      &credentialSource,
+		CredentialSource: &credentialSource,
 	})
 	payload, err := json.Marshal(decision)
 	require.NoError(t, err)
 	var exported map[string]any
 	require.NoError(t, json.Unmarshal(payload, &exported))
-	assert.Equal(t, accountID.String(), exported["subscription_account_id"])
-	assert.Equal(t, ownerID.String(), exported["subscription_owner_id"])
-	assert.Equal(t, "shared", exported["subscription_tier"])
-	assert.Equal(t, "claude-sonnet", exported["intended_model_family"])
-	assert.Equal(t, "gpt", exported["final_model_family"])
 	assert.Equal(t, "codex_subscription", exported["credential_source"])
-
-	unattributed := decisionFromExportRow(sqlc.GetRoutingDecisionsForExportRow{})
-	assert.Nil(t, unattributed.SubscriptionAccountID)
-	assert.Nil(t, unattributed.SubscriptionOwnerID)
-	assert.Nil(t, unattributed.SubscriptionTier)
 }
 
 func TestDecisionFromExportRowMapsServedCosts(t *testing.T) {
@@ -146,7 +131,6 @@ func TestDecisionFromExportRowSubscriptionServedCostsAreZero(t *testing.T) {
 		InputTokens:         &inputTokens,
 	})
 
-	assert.True(t, got.SubscriptionServed)
 	require.NotNil(t, got.ActualInputCostUSD)
 	require.NotNil(t, got.ActualOutputCostUSD)
 	assert.Zero(t, *got.ActualInputCostUSD)
@@ -167,7 +151,6 @@ func TestDecisionFromExportRowFailoverOffSubscriptionKeepsCost(t *testing.T) {
 		ActualInputCostUsd: &actualIn,
 	})
 
-	assert.False(t, got.SubscriptionServed)
 	require.NotNil(t, got.ActualInputCostUSD)
 	assert.InDelta(t, 1.0, *got.ActualInputCostUSD, 1e-9)
 }
@@ -289,11 +272,10 @@ func TestDecisionFromExportRowMapsCohortAttribution(t *testing.T) {
 
 func TestDecisionFromExportRowMapsBenchmarkAttribution(t *testing.T) {
 	plan := "boost"
-	capacitySource := "linked_claude"
+	capacitySource := "included_router"
 	rolloutID := "benchmark-run-1"
 	routeID := "route-1"
 	retailUsage := int64(900)
-	linkedUsage := int64(900)
 	settlementFailed := false
 	entitlementVersion := int64(12)
 
@@ -304,7 +286,6 @@ func TestDecisionFromExportRowMapsBenchmarkAttribution(t *testing.T) {
 		EntitlementVersion:   &entitlementVersion,
 		CapacitySource:       &capacitySource,
 		RetailUsageUsdMicros: &retailUsage,
-		LinkedUsageUsdMicros: &linkedUsage,
 		SettlementFailed:     &settlementFailed,
 	})
 
@@ -314,7 +295,6 @@ func TestDecisionFromExportRowMapsBenchmarkAttribution(t *testing.T) {
 	assert.Equal(t, &entitlementVersion, got.EntitlementVersion)
 	assert.Equal(t, &capacitySource, got.CapacitySource)
 	assert.Equal(t, &retailUsage, got.RetailUsageUSDMicros)
-	assert.Equal(t, &linkedUsage, got.LinkedUsageUSDMicros)
 	assert.Equal(t, &settlementFailed, got.SettlementFailed)
 	assert.Nil(t, got.IncludedUsageUSDMicros)
 	assert.Nil(t, got.PrepaidUsageUSDMicros)

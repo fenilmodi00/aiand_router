@@ -59,7 +59,7 @@ func (s *Service) siblingFailoverDecisions(ctx context.Context, failed router.De
 			md = &ordered
 		}
 	}
-	return s.rescueDecisions(ctx, failed, siblingCandidateOrder(md), ReasonSiblingFailover, est, sigSavings, outputReserve)
+	return s.rescueDecisions(ctx, failed, siblingCandidateOrder(md), est, sigSavings, outputReserve)
 }
 
 func tierRescueModels(selected string, candidates []string, scores map[string]float32) []string {
@@ -84,8 +84,8 @@ func tierRescueModels(selected string, candidates []string, scores map[string]fl
 }
 
 // rescueDecision resolves the first candidate the request is allowed to reach.
-func (s *Service) rescueDecision(ctx context.Context, failed router.Decision, candidates []string, reason string, est, sigSavings, outputReserve int) (router.Decision, bool) {
-	decisions := s.rescueDecisions(ctx, failed, candidates, reason, est, sigSavings, outputReserve)
+func (s *Service) rescueDecision(ctx context.Context, failed router.Decision, candidates []string, est, sigSavings, outputReserve int) (router.Decision, bool) {
+	decisions := s.rescueDecisions(ctx, failed, candidates, est, sigSavings, outputReserve)
 	if len(decisions) == 0 {
 		return router.Decision{}, false
 	}
@@ -96,10 +96,7 @@ func (s *Service) rescueDecision(ctx context.Context, failed router.Decision, ca
 // try order, under the same availability, exclusion, context-fit and
 // BYOK-gateway rules for every in-turn rescue (sibling failover,
 // safety-refusal retry).
-func (s *Service) rescueDecisions(ctx context.Context, failed router.Decision, candidates []string, reason string, est, sigSavings, outputReserve int) []router.Decision {
-	if gw := s.gatewayProvidersForRequest(ctx); len(gw) > 0 {
-		return s.gatewayRescueDecisions(ctx, failed, candidates, reason, gw, est, sigSavings, outputReserve)
-	}
+func (s *Service) rescueDecisions(ctx context.Context, failed router.Decision, candidates []string, est, sigSavings, outputReserve int) []router.Decision {
 	if s.deploymentKeyedProviders == nil {
 		return nil
 	}
@@ -115,7 +112,7 @@ func (s *Service) rescueDecisions(ctx context.Context, failed router.Decision, c
 	providerFor := func(id string) (string, bool) {
 		return siblingProvider(id, candidateProviders, available)
 	}
-	return s.rescueWalkOrReadmitCooling(ctx, failed, candidates, reason, excludedModels, automaticExcluded, est, sigSavings, outputReserve, providerFor)
+	return s.rescueWalkOrReadmitCooling(ctx, failed, candidates, excludedModels, automaticExcluded, est, sigSavings, outputReserve, providerFor)
 }
 
 // rescueWalkOrReadmitCooling walks the candidates honouring every exclusion,
@@ -137,25 +134,23 @@ func (s *Service) rescueWalkOrReadmitCooling(
 	ctx context.Context,
 	failed router.Decision,
 	candidates []string,
-	reason string,
 	excludedModels, automaticExcluded map[string]struct{},
 	est, sigSavings, outputReserve int,
 	providerFor func(id string) (string, bool),
 ) []router.Decision {
-	decisions := walkRescueCandidates(failed, candidates, reason, excludedModels, automaticExcluded, est, sigSavings, outputReserve, providerFor)
-	decisions = append(decisions, s.readmitCoolingRescueCandidates(ctx, failed, candidates, reason, excludedModels, est, sigSavings, outputReserve, providerFor)...)
+	decisions := walkRescueCandidates(failed, candidates, excludedModels, automaticExcluded, est, sigSavings, outputReserve, providerFor)
+	decisions = append(decisions, s.readmitCoolingRescueCandidates(ctx, failed, candidates, excludedModels, est, sigSavings, outputReserve, providerFor)...)
 	struck := strikesInRescuePool(failed, candidates, sessionStrikeReadmitModelsFromContext(ctx))
-	if len(decisions) > 0 || len(struck) == 0 || reason != ReasonSiblingFailover {
+	if len(decisions) > 0 || len(struck) == 0 {
 		return decisions
 	}
-	return s.readmissionWalk(ctx, failed, candidates, struck, reason, excludedModels, est, sigSavings, outputReserve, providerFor)
+	return s.readmissionWalk(ctx, failed, candidates, struck, excludedModels, est, sigSavings, outputReserve, providerFor)
 }
 
 func (s *Service) readmitCoolingRescueCandidates(
 	ctx context.Context,
 	failed router.Decision,
 	candidates []string,
-	reason string,
 	excludedModels map[string]struct{},
 	est, sigSavings, outputReserve int,
 	providerFor func(id string) (string, bool),
@@ -164,7 +159,7 @@ func (s *Service) readmitCoolingRescueCandidates(
 	if len(cooling) == 0 {
 		return nil
 	}
-	readmitted := s.readmissionWalk(ctx, failed, candidates, cooldownsByExpiry(cooling), reason, excludedModels, est, sigSavings, outputReserve, providerFor)
+	readmitted := s.readmissionWalk(ctx, failed, candidates, cooldownsByExpiry(cooling), excludedModels, est, sigSavings, outputReserve, providerFor)
 	sort.SliceStable(readmitted, func(i, j int) bool {
 		return cooling[readmitted[i].Model].Before(cooling[readmitted[j].Model])
 	})
@@ -178,7 +173,6 @@ func (s *Service) readmissionWalk(
 	ctx context.Context,
 	failed router.Decision,
 	candidates, readmit []string,
-	reason string,
 	excludedModels map[string]struct{},
 	est, sigSavings, outputReserve int,
 	providerFor func(id string) (string, bool),
@@ -197,7 +191,7 @@ func (s *Service) readmissionWalk(
 		}
 	}
 	readmitExcluded = mergeExcludedModels(readmitExcluded, s.globalAutomaticExcludedModels(ctx))
-	return walkRescueCandidates(failed, pool, reason, excludedModels, readmitExcluded, est, sigSavings, outputReserve, providerFor)
+	return walkRescueCandidates(failed, pool, excludedModels, readmitExcluded, est, sigSavings, outputReserve, providerFor)
 }
 
 // rosterRescueAdmits bounds readmission on a roster-failover turn to the
@@ -260,7 +254,6 @@ func (s *Service) noteRescueReadmission(ctx context.Context, failed, rescuer rou
 func walkRescueCandidates(
 	failed router.Decision,
 	candidates []string,
-	reason string,
 	excludedModels, automaticExcluded map[string]struct{},
 	est, sigSavings, outputReserve int,
 	providerFor func(id string) (string, bool),
@@ -283,7 +276,7 @@ func walkRescueCandidates(
 		if !siblingFitsContext(id, provider, est, sigSavings, outputReserve) {
 			continue
 		}
-		candidate := rescueDecisionFor(failed, id, provider, reason)
+		candidate := rescueDecisionFor(failed, id, provider)
 		ordered = append(ordered, candidate)
 		if provider == failed.Provider {
 			sameProvider = append(sameProvider, candidate)
@@ -291,7 +284,7 @@ func walkRescueCandidates(
 		}
 		crossProvider = append(crossProvider, candidate)
 	}
-	if reason == ReasonSiblingFailover && failed.Metadata != nil && failed.Metadata.RosterFailover {
+	if failed.Metadata != nil && failed.Metadata.RosterFailover {
 		return ordered
 	}
 	return append(crossProvider, sameProvider...)
@@ -313,39 +306,6 @@ func (s *Service) rescueExcludedModels(ctx context.Context) map[string]struct{} 
 		session[model] = struct{}{}
 	}
 	return mergeExcludedModels(session, s.globalAutomaticExcludedModels(ctx))
-}
-
-// gatewayRescueDecisions rescues a BYOK-gateway turn onto candidates reachable
-// through a gateway key the request already holds. BYOK disables cross-provider
-// failover (foreign provider would 401); gateway candidates re-use the same
-// credentials so the restriction doesn't apply. Candidates behind a different
-// gateway binding rank before those on the same gateway.
-func (s *Service) gatewayRescueDecisions(ctx context.Context, failed router.Decision, candidates []string, reason string, gw map[string]struct{}, est, sigSavings, outputReserve int) []router.Decision {
-	custom := s.customBindingsForRequest(ctx)
-	excludedModels := s.excludedModelsForRequest(ctx)
-	automaticExcluded := s.rescueExcludedModels(ctx)
-	providerFor := func(id string) (string, bool) {
-		return gatewayProviderFor(id, custom, gw)
-	}
-	return s.rescueWalkOrReadmitCooling(ctx, failed, candidates, reason, excludedModels, automaticExcluded, est, sigSavings, outputReserve, providerFor)
-}
-
-// gatewaySiblingAllowed reports whether sibling rescue is permitted despite
-// BYOK disabling generic failover: the sibling must be served by a held gateway key.
-func (s *Service) gatewaySiblingAllowed(ctx context.Context, sibling router.Decision) bool {
-	_, held := s.gatewayProvidersForRequest(ctx)[sibling.Provider]
-	return held
-}
-
-// gatewayProviderFor resolves the gateway binding serving a candidate: the
-// first alias-declared provider whose key the request holds.
-func gatewayProviderFor(model string, custom map[string][]string, gw map[string]struct{}) (string, bool) {
-	for _, p := range custom[model] {
-		if _, held := gw[p]; held {
-			return p, true
-		}
-	}
-	return "", false
 }
 
 // siblingFitsContext mirrors excludeContextOverflowModels for one candidate.
@@ -401,12 +361,12 @@ func siblingProvider(model string, resolved map[string]string, available map[str
 // carrying it would make binding resolution prioritize a binding the candidate
 // doesn't have. Effort goes with it — it was chosen against the failed model's
 // menu, and keeping it would persist an identity the candidate never served.
-func rescueDecisionFor(failed router.Decision, model, provider, reason string) router.Decision {
+func rescueDecisionFor(failed router.Decision, model, provider string) router.Decision {
 	out := failed
 	out.Model = model
 	out.Provider = provider
 	out.Effort = ""
-	out.Reason = reason
+	out.Reason = ReasonSiblingFailover
 	if failed.Metadata != nil {
 		md := *failed.Metadata
 		md.SelectedArmID = ""

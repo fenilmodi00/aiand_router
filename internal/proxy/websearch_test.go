@@ -6,7 +6,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"weave-os/router/internal/auth"
 	"weave-os/router/internal/providers"
 	"weave-os/router/internal/websearch"
 )

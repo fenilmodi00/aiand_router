@@ -35,7 +35,7 @@ func TestRescueDecisionFor_DropsEffort(t *testing.T) {
 		Metadata: &router.RoutingMetadata{SelectedArmID: "gpt-5.6-luna:xhigh"},
 	}
 
-	out := rescueDecisionFor(failed, "gpt-5.6-sol", providers.ProviderAIAND, ReasonSiblingFailover)
+	out := rescueDecisionFor(failed, "gpt-5.6-sol", providers.ProviderAIAND)
 
 	assert.Empty(t, out.Effort)
 	assert.Equal(t, "gpt-5.6-sol", out.ServedIdentity())

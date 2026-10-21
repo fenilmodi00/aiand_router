@@ -44,7 +44,6 @@ func TestModelSelectionReasoningOnlyForNewlyServedModel(t *testing.T) {
 	assert.Contains(t, modelSelectionMarkerForRequest(ctx, turn, marker, turn.Decision.Model, ""), "REASONING:")
 	assert.Contains(t, modelSelectionMarkerForRequest(ctx, turn, siblingRoutingMarkerFor(turn, "rescue-model"), "rescue-model", markerReasonSibling), "REASONING: "+markerReasonSibling)
 	assert.Contains(t, modelSelectionMarkerForRequest(ctx, turn, baselineRoutingMarkerFor(turn, "baseline-model"), "baseline-model", markerReasonBaseline), "REASONING: "+markerReasonBaseline)
-	assert.Contains(t, modelSelectionMarkerForRequest(ctx, turn, cyberRefusalRoutingMarkerFor(turn, "retry-model"), "retry-model", markerReasonCyberRefusal), "REASONING: "+markerReasonCyberRefusal)
 
 	turn.PriorServedModel = "new-model"
 	assert.NotContains(t, modelSelectionMarkerForRequest(ctx, turn, "✦ **Weave Router** → new-model\n\n", turn.Decision.Model, ""), "REASONING:")

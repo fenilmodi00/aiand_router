@@ -349,8 +349,8 @@ func armStrikeLogFieldsWithPrimaryReason(primaryDemoted string, primaryReason se
 // retryable, not-found, billing-blocked, pool and cross-binding failures, so
 // this narrows that set to the arm-owned ones:
 //
-//   - a 404 is the gateway lacking the model, remembered per endpoint by
-//     rememberGatewayLacksModel, so striking the arm would double-count it;
+//   - a 404 is the upstream lacking the model, so striking the arm would
+//     double-count the provider-side miss;
 //   - a 529 is provider capacity, owned by maybeDisableProviderAfterOverload;
 //   - a managed-subscription pool error has no upstream at all and is owned by
 //     maybeExpireSubscriptionArmPin;

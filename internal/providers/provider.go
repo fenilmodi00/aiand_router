@@ -88,13 +88,6 @@ func IsOpenAICompat(provider string) bool {
 	return FamilyFor(provider) == FamilyOpenAICompat
 }
 
-// IsGateway reports whether the provider is a customer-hosted gateway rather
-// than a vendor API. A gateway serves only the models its key's aliases name,
-// so routing treats it as the installation's exclusive upstream.
-func IsGateway(provider string) bool {
-	return false
-}
-
 // AllProviders returns every known Provider* constant (every ProviderFamilies
 // key), sorted for deterministic iteration and display order.
 func AllProviders() []string {

@@ -137,15 +137,9 @@ func (s *Service) ProxyGeminiGenerateContent(ctx context.Context, body []byte, w
 	if feats.MaxTokens > outputReserve {
 		outputReserve = feats.MaxTokens
 	}
-	excluded, geminiUnsigned := excludeGemini3xOnUnsignedHistory(env, excluded, s.availableModels)
-	if len(geminiUnsigned) > 0 {
-		log.Info("gemini pre-filter: excluded gemini-3.x for unsigned tool-call history",
-			"excluded_models", strings.Join(geminiUnsigned, ","),
-		)
-	}
 	overflowEstimate := env.ContextOverflowTokenEstimate()
 	excluded, ctxOverflowed := excludeContextOverflowModels(overflowEstimate, env.SignatureTokenSavings(), outputReserve, enabledProviders, excluded, s.availableModels)
-	overflowAdmitted := admitWidestOnTotalOverflow(excluded, ctxOverflowed, s.availableModels, enabledProviders, cluster.RequestBindings{Custom: s.customBindingsForRequest(ctx), Gateways: s.gatewayProvidersForRequest(ctx)})
+	overflowAdmitted := admitWidestOnTotalOverflow(excluded, ctxOverflowed, s.availableModels, enabledProviders, cluster.RequestBindings{Custom: s.customBindingsForRequest(ctx)})
 	excluded = withoutModels(excluded, overflowAdmitted)
 	if len(ctxOverflowed) > 0 {
 		log.Info("context window pre-filter: excluded over-capacity models",
@@ -158,32 +152,30 @@ func (s *Service) ProxyGeminiGenerateContent(ctx context.Context, body []byte, w
 	}
 
 	routeRequest := router.Request{
-		RequestedModel:                feats.Model,
-		ForceCluster:                  forceCluster,
-		EstimatedInputTokens:          feats.Tokens,
-		HasTools:                      feats.HasTools,
-		HasImages:                     feats.HasImages,
-		TranslationRequirements:       env.TranslationRequirements(router.EndpointGeminiGenerate),
-		ReasoningConfigurationSHA256:  env.ReasoningConfigurationSHA256(),
-		ToolConfigurationSHA256:       env.ToolConfigurationSHA256(),
-		PromptText:                    promptText,
-		ConversationMessages:          conversationMessagesForRouting(env),
-		AvailableTools:                availableToolsForRouting(env),
-		Tools:                         toolsForRouting(env),
-		ClientSessionID:               clientSessionIDForRequest(ctx, env),
-		EnabledProviders:              enabledProviders,
-		CustomBindings:                s.customBindingsForRequest(ctx),
-		GatewayProviders:              s.gatewayProvidersForRequest(ctx),
-		ExcludedModels:                excluded,
-		AllowedModels:                 allowedModelsForRequest(ctx),
-		SafetyExcludedModels:          withoutModelsKeep(s.safetyExcludedModels(env, outputReserve, enabledProviders), overflowAdmitted, geminiUnsigned),
-		ContextWindowExcludedModels:   contextWindowOnlyExclusions(ctxOverflowed, overflowAdmitted, geminiUnsigned),
-		UnsignedHistoryExcludedModels: modelSet(geminiUnsigned),
-		OverflowAdmittedModels:        modelSet(overflowAdmitted),
-		PreferredModels:               s.preferredModelsForRequest(ctx),
-		RoutingKnobs:                  router.RoutingKnobsFromContext(ctx),
-		ClusterArmOverrides:           clusterArmOverridesForRequest(ctx),
-		ProductEligibility:            entitlement.ModelBoundaryFromContext(ctx),
+		RequestedModel:               feats.Model,
+		ForceCluster:                 forceCluster,
+		EstimatedInputTokens:         feats.Tokens,
+		HasTools:                     feats.HasTools,
+		HasImages:                    feats.HasImages,
+		TranslationRequirements:      env.TranslationRequirements(router.EndpointGeminiGenerate),
+		ReasoningConfigurationSHA256: env.ReasoningConfigurationSHA256(),
+		ToolConfigurationSHA256:      env.ToolConfigurationSHA256(),
+		PromptText:                   promptText,
+		ConversationMessages:         conversationMessagesForRouting(env),
+		AvailableTools:               availableToolsForRouting(env),
+		Tools:                        toolsForRouting(env),
+		ClientSessionID:              clientSessionIDForRequest(ctx, env),
+		EnabledProviders:             enabledProviders,
+		CustomBindings:               s.customBindingsForRequest(ctx),
+		ExcludedModels:               excluded,
+		AllowedModels:                allowedModelsForRequest(ctx),
+		SafetyExcludedModels:         withoutModelsKeep(s.safetyExcludedModels(env, outputReserve, enabledProviders), overflowAdmitted, nil),
+		ContextWindowExcludedModels:  contextWindowOnlyExclusions(ctxOverflowed, overflowAdmitted, nil),
+		OverflowAdmittedModels:       modelSet(overflowAdmitted),
+		PreferredModels:              s.preferredModelsForRequest(ctx),
+		RoutingKnobs:                 router.RoutingKnobsFromContext(ctx),
+		ClusterArmOverrides:          clusterArmOverridesForRequest(ctx),
+		ProductEligibility:           entitlement.ModelBoundaryFromContext(ctx),
 	}
 	routeStart := time.Now()
 	routeCtx, routeSpan := startRoutingSpan(ctx, routeRequest)

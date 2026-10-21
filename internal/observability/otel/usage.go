@@ -18,24 +18,7 @@ var (
 	_ usage.Sink          = (*UsageExtractor)(nil)
 )
 
-// Anthropic event names used for terminal and tool observations.
-type anthropicSSEEvent string
-
-const (
-	anthropicEventMessageStart      anthropicSSEEvent = "message_start"
-	anthropicEventMessageDelta      anthropicSSEEvent = "message_delta"
-	anthropicEventContentBlockStart anthropicSSEEvent = "content_block_start"
-)
-
-type anthropicBlockType string
-
-const anthropicBlockToolUse anthropicBlockType = "tool_use"
-
-const (
-	anthropicStopMaxTokens = "max_tokens"
-	openAIFinishLength     = "length"
-	geminiFinishMaxTokens  = "MAX_TOKENS"
-)
+const openAIFinishLength = "length"
 
 // UsageExtractor wraps an http.ResponseWriter and sniffs token usage (SSE or
 // JSON) as bytes flow through. Only the unconsumed tail is retained between writes.
@@ -46,9 +29,6 @@ type UsageExtractor struct {
 	facts              usage.Facts
 	outputLimitReached bool
 	requestCacheTTL1h  func() bool
-
-	stopReason    string
-	toolUseBlocks int
 
 	// finishReason and toolCallIdxs hold the chat-shaped signals. A streaming
 	// turn announces one tool call across many argument fragments, so calls are
@@ -221,17 +201,6 @@ func (u *UsageExtractor) ReasoningTokens() int {
 	return u.facts.Reasoning.Value
 }
 
-// AnthropicResponse returns the turn-ending signals sniffed from an
-// Anthropic-format response: the upstream stop_reason and how many tool_use
-// content blocks it carried. observed is false until a stop_reason is seen, so
-// a stream that ends early is never reported as a measured zero-tool turn.
-func (u *UsageExtractor) AnthropicResponse() (stopReason string, toolUseBlocks int, observed bool) {
-	if u == nil {
-		return "", 0, false
-	}
-	return u.stopReason, u.toolUseBlocks, u.stopReason != ""
-}
-
 // OpenAIChatResponse returns the turn-ending signals sniffed from a
 // chat/completions-format response: the upstream finish_reason and how many
 // tool calls it carried. observed is false until a finish_reason is seen, so a
@@ -277,32 +246,6 @@ func (u *UsageExtractor) extractFromSSEEvent(eventType []byte, data []byte) {
 	}
 }
 
-// message_start carries input_tokens + cache tokens; message_delta carries
-// output_tokens and the stop_reason; content_block_start announces each
-// tool_use block.
-func (u *UsageExtractor) extractAnthropicSSE(eventType []byte, data []byte) {
-	if bytes.Equal(eventType, []byte(anthropicEventContentBlockStart)) {
-		if gjson.GetBytes(data, "content_block.type").String() == string(anthropicBlockToolUse) {
-			u.toolUseBlocks++
-		}
-		return
-	}
-	if !bytes.Equal(eventType, []byte(anthropicEventMessageStart)) && !bytes.Equal(eventType, []byte(anthropicEventMessageDelta)) {
-		return
-	}
-
-	if bytes.Equal(eventType, []byte(anthropicEventMessageDelta)) {
-		if stop := gjson.GetBytes(data, "delta.stop_reason").String(); stop != "" {
-			u.stopReason = stop
-			if stop == anthropicStopMaxTokens {
-				u.RecordOutputLimitReached()
-			}
-		}
-	}
-
-	u.RecordProviderUsage(usage.ParseAnthropic(anthropicUsage(data)))
-}
-
 // Final chunk with stream_options.include_usage=true carries the counts.
 func (u *UsageExtractor) extractOpenAISSE(data []byte) {
 	trimmed := bytes.TrimSpace(data)
@@ -334,25 +277,6 @@ func (u *UsageExtractor) tryExtractFromJSON() {
 	}
 
 	u.RecordProviderUsage(facts)
-}
-
-// A non-streaming Anthropic body carries stop_reason at the top level and one
-// content entry per emitted block.
-func (u *UsageExtractor) extractAnthropicJSONResponse(data []byte) {
-	stop := gjson.GetBytes(data, "stop_reason").String()
-	if stop == "" {
-		return
-	}
-	u.stopReason = stop
-	if stop == anthropicStopMaxTokens {
-		u.RecordOutputLimitReached()
-	}
-	u.toolUseBlocks = 0
-	for _, block := range gjson.GetBytes(data, "content").Array() {
-		if block.Get("type").String() == string(anthropicBlockToolUse) {
-			u.toolUseBlocks++
-		}
-	}
 }
 
 // A chat/completions chunk states the turn's end on the choice's finish_reason
@@ -411,11 +335,4 @@ func (u *UsageExtractor) parseUsage(body []byte) usage.Facts {
 		object = gjson.GetBytes(body, "response.usage")
 	}
 	return usage.ParseOpenAI(object)
-}
-
-func anthropicUsage(body []byte) gjson.Result {
-	if object := gjson.GetBytes(body, "usage"); object.IsObject() {
-		return object
-	}
-	return gjson.GetBytes(body, "message.usage")
 }

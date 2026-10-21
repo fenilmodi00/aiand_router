@@ -93,7 +93,6 @@ func (s *Service) anthropicRoutingRequest(
 		excluded,
 		s.availableModels,
 	)
-	excluded, _ = excludeGemini3xOnUnsignedHistory(env, excluded, s.availableModels)
 	excluded, _ = excludeAdvisorOutrankingModels(env, excluded, s.routableUniverse())
 
 	organizationID, _ := ctx.Value(ExternalIDContextKey{}).(string)
@@ -119,7 +118,6 @@ func (s *Service) anthropicRoutingRequest(
 		ClientSessionID:              clientSessionIDForRequest(ctx, env),
 		EnabledProviders:             enabledProviders,
 		CustomBindings:               s.customBindingsForRequest(ctx),
-		GatewayProviders:             s.gatewayProvidersForRequest(ctx),
 		ExcludedModels:               excluded,
 		AllowedModels:                allowedModelsForRequest(ctx),
 		PreferredModels:              s.preferredModelsForRequest(ctx),

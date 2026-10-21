@@ -158,7 +158,6 @@ type InsertTelemetryParams struct {
 	CapacitySource        string
 	RetailUsageMicros     *int64
 	IncludedUsageMicros   *int64
-	LinkedUsageMicros     *int64
 	PrepaidUsageMicros    *int64
 	SettlementFailed      *bool
 	ServingProfileID      string

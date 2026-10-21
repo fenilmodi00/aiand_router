@@ -1022,7 +1022,6 @@ func (s *Service) runTurnLoop(
 				EnabledProviders: req.EnabledProviders,
 				ExcludedModels:   req.ExcludedModels,
 				CustomBindings:   req.CustomBindings,
-				GatewayProviders: req.GatewayProviders,
 			}
 			p, m, ok := s.hardPinResolver(withAutomaticExclusions(hardPinReq, req.AutomaticExcludedModels))
 			if !ok {
@@ -1041,11 +1040,8 @@ func (s *Service) runTurnLoop(
 			if !ok {
 				// Gateway empty result = no aliases configured (customer fix), not a router fault.
 				hardPinErr := cluster.ErrClusterUnavailable
-				switch {
-				case s.hardPinBlockedByContextWindow(ctx, threadSessionKey, res, hardPinReq, req):
+				if s.hardPinBlockedByContextWindow(ctx, threadSessionKey, res, hardPinReq, req) {
 					hardPinErr = policy.ErrContextWindowExceeded
-				case len(req.GatewayProviders) > 0:
-					hardPinErr = policy.ErrGatewayServesNoDeployedModel
 				}
 				log.Warn(
 					"Hard-pin: no eligible provider for request",
@@ -2260,11 +2256,7 @@ func modelExcludedForRecoveryProbe(req router.Request, model string) bool {
 	if _, excluded := req.ExcludedModels[model]; excluded || automaticallyDisabled(req, model) {
 		return true
 	}
-	if len(req.GatewayProviders) > 0 {
-		if _, available := gatewayProviderFor(model, req.CustomBindings, req.GatewayProviders); !available {
-			return true
-		}
-	} else if req.EnabledProviders != nil && len(catalog.EnumerateBindingsWithCustom(model, req.EnabledProviders, req.CustomBindings)) == 0 {
+	if req.EnabledProviders != nil && len(catalog.EnumerateBindingsWithCustom(model, req.EnabledProviders, req.CustomBindings)) == 0 {
 		return true
 	}
 	return req.HasImages && !catalog.AcceptsImages(model)

@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"context"
 	"net/http"
 	"testing"
 	"time"
@@ -10,6 +11,12 @@ import (
 	"weave-os/router/internal/providers/openaicompat"
 	"weave-os/router/internal/proxy/usage"
 )
+
+// codexSubscriptionTestCtx returns a ctx carrying the installation id the
+// subscription-aware credential resolution keys on.
+func codexSubscriptionTestCtx() context.Context {
+	return context.WithValue(context.Background(), InstallationIDContextKey{}, "11111111-1111-1111-1111-111111111111")
+}
 
 func TestCodexExtraCreditsRechecksPersonalIncludedObservation(t *testing.T) {
 	for _, allowed := range []bool{false, true} {

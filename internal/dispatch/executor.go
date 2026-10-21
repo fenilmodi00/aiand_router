@@ -142,22 +142,6 @@ func NewExecutor(clients *Clients, opts ...Option) (*Executor, error) {
 // only need provider presence (eligibility filters, admin views).
 func (e *Executor) Clients() *Clients { return e.clients }
 
-// Bind returns an inference.Executor whose Execute drives transport for every
-// attempt. The bound value is per operation and must not be reused.
-func (e *Executor) Bind(transport Transport) inference.Executor {
-	return boundExecutor{executor: e, transport: transport}
-}
-
-type boundExecutor struct {
-	executor  *Executor
-	transport Transport
-}
-
-func (b boundExecutor) Execute(ctx context.Context, req inference.InvocationRequest, plan inference.ResolvedPlan) (inference.ExecutionOutcome, error) {
-	result, err := b.executor.Run(ctx, req, plan, b.transport)
-	return result.Outcome, err
-}
-
 // Run executes plan for req: the selected target first, then each policy
 // alternative in order. A target is retried in place only when it is the sole
 // target and the error is transient; otherwise a retryable, model-not-found,

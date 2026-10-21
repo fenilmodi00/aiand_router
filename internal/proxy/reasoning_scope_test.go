@@ -92,7 +92,6 @@ func TestReasoningReplayScope_SurvivesWorkloadIdentityTokenRefresh(t *testing.T)
 			APIKey:      []byte(bearer),
 			Source:      requestcontext.SourceBYOK,
 			BaseURL:     cortexBaseURL,
-			AuthType:    "workload_identity_federation",
 			PrincipalID: "external-key:key-a",
 		}), decision)
 	}

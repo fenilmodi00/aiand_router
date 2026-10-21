@@ -79,7 +79,7 @@ func (s *Service) beginLLMEscalation(ctx context.Context, env *translate.Request
 	if (!active && !shadow) || s.llmEscalationStore == nil || judge == nil || (active && res.Strategy != router.StrategyHMMEmbedding) || req.ShadowMode || req.ForceModel != "" || req.ForceCluster != "" || res.InstallationID == uuid.Nil || (res.TurnType != turntype.MainLoop && res.TurnType != turntype.ToolResult) {
 		return nil
 	}
-	if len(req.GatewayProviders) > 0 || (classifier == flags.EscalationClassifierSwitchyard && slices.Contains(installationExcludedProvidersFromContext(ctx), providers.ProviderAIAND)) {
+	if classifier == flags.EscalationClassifierSwitchyard && slices.Contains(installationExcludedProvidersFromContext(ctx), providers.ProviderAIAND) {
 		observability.FromContext(ctx).Info("LLM escalation skipped", "reason", "provider_restricted")
 		return nil
 	}
