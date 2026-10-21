@@ -60,7 +60,7 @@ Copy the `rk_...` key it prints.
 
 ### 3. Choose the upstream
 
-**Real provider** — set the provider key in `.env.local` (e.g. `FIREWORKS_API_KEY=...`) and restart `docker compose up -d server`. Confirm the boot log shows `<Provider> provider enabled` with the real base_url. Use this to confirm a model genuinely produces the behavior.
+**Real provider** — set the provider key in `.env.local` (e.g. `AIAND_API_KEY=...`) and restart `docker compose up -d server`. Confirm the boot log shows `ai& provider enabled` with the real base_url. Use this to confirm a model genuinely produces the behavior.
 
 **Mock upstream** — for a deterministic, credit-free repro of a precise SSE shape. Point the provider's base URL at a local mock and restart:
 
@@ -68,8 +68,8 @@ Copy the `rk_...` key it prints.
 python3 scripts/mock_openai_upstream.py >/tmp/mock.log 2>&1 &   # serves :8099
 # In docker-compose.override.yml under `server:`, add:
 #   environment:
-#     FIREWORKS_BASE_URL: http://host.docker.internal:8099/v1
-#     FIREWORKS_API_KEY: sk-mock
+#     AIAND_BASE_URL: http://host.docker.internal:8099/v1
+#     AIAND_API_KEY: sk-mock
 #   extra_hosts: ["host.docker.internal:host-gateway"]
 docker compose up -d server
 ```
