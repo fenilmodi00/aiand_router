@@ -44,7 +44,7 @@ func newTrafficCaptureFromEnvironment() (*jsonlTrafficCapture, error) {
 	}
 	file, err := os.OpenFile(
 		path,
-		os.O_CREATE|os.O_WRONLY|os.O_APPEND|syscall.O_NOFOLLOW|syscall.O_NONBLOCK,
+		os.O_CREATE|os.O_WRONLY|os.O_APPEND|syscall.O_NONBLOCK|openNoFollow,
 		trafficCaptureFilePermissions,
 	)
 	if err != nil {
