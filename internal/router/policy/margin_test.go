@@ -14,7 +14,7 @@ import (
 )
 
 func TestSidecarRouterPreservesNullableClassifierMargin(t *testing.T) {
-	model := string(catalog.ModelIDGLM53)
+	model := catalog.ModelIDGLM53.String()
 	zero, margin := 0.0, 0.22
 	for _, tc := range []struct {
 		name   string

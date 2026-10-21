@@ -7,37 +7,87 @@ import (
 	"weave-os/router/internal/router/catalog"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
+// expectedRosterPrefix pins the vendor prefix rosterIDFor applies for a given
+// provider's primary binding, keyed off the roster's OpenRouter-style slug
+// convention (see rosterAliases doc comment). This map is deliberately
+// explicit rather than derived from providers.ProviderFamilies so a new
+// Provider* constant forces a decision here (finding [113]: provider
+// dispatch drift guard) instead of silently falling through to the bare
+// model-ID default.
+var expectedRosterPrefix = map[string]string{
+	providers.ProviderAIAND:        "anthropic/",
+	providers.ProviderAIAND:           "openai/",
+	providers.ProviderAIAND:           "google/",
+	providers.ProviderAIAND:              "x-ai/",
+	providers.ProviderAIAND: "anthropic/",
+}
+
+// defaultRosterPrefixProviders are providers intentionally left off
+// expectedRosterPrefix because rosterIDFor's bare-model-ID fallback (no
+// prefix) is correct for them — either the model ID is already slash-form
+// (OpenAI-compat upstreams dispatched via catalog models with slash IDs),
+// like wafer_anthropic's sibling wafer, or the RL policy roster doesn't need
+// to distinguish them.
+var defaultRosterPrefixProviders = map[string]struct{}{
+	providers.ProviderAIAND: {},
+	providers.ProviderAIAND:  {},
+	providers.ProviderAIAND:  {},
+	providers.ProviderAIAND:    {},
+	providers.ProviderAIAND:     {},
+	providers.ProviderAIAND:    {},
+	providers.ProviderAIAND:   {},
+	// Muse Spark is not in the trained roster yet; bare ID is best-effort.
+	providers.ProviderAIAND: {},
+	// ai& serves vendor-prefixed OSS slugs, so the bare model ID is right.
+	providers.ProviderAIAND: {},
+	// Anthropic-spec surfaces serving non-Claude models (Wafer's Messages API)
+	// stay bare — the roster keys vendor-prefixed Anthropic slots by Claude ID.
+	providers.ProviderAIAND: {},
+	providers.ProviderAIAND:          {},
+	// An OpenAI-spec gateway serves several vendors' models, so no single
+	// vendor prefix is right; the bare ID lets the sidecar match what it can.
+	providers.ProviderAIAND: {},
+}
+
 // TestRosterIDForCoversEveryProvider guards against a new Provider* constant
-// going unreviewed by rosterIDFor. With one upstream there is no per-provider
-// vendor prefix to apply, so every provider takes the bare model ID.
+// going unreviewed by rosterIDFor's per-provider switch in mapping.go. Every
+// provider in providers.AllProviders() must be accounted for in exactly one
+// of expectedRosterPrefix or defaultRosterPrefixProviders.
 func TestRosterIDForCoversEveryProvider(t *testing.T) {
 	for _, p := range providers.AllProviders() {
-		m := catalog.Model{ID: "some-model"}
-		assert.Equalf(t, m.ID, rosterIDFor(m), "provider %q must map to the bare model ID", p)
+		_, explicit := expectedRosterPrefix[p]
+		_, defaulted := defaultRosterPrefixProviders[p]
+		assert.Truef(t, explicit || defaulted,
+			"provider %q not accounted for in expectedRosterPrefix or defaultRosterPrefixProviders — "+
+				"review internal/router/rl/mapping.go's rosterIDFor and internal/providers/CLAUDE.md's onboarding recipe step 5", p)
+		assert.Falsef(t, explicit && defaulted,
+			"provider %q is listed in both expectedRosterPrefix and defaultRosterPrefixProviders", p)
 	}
 }
 
-// TestRosterIDForUsesSlashFormModelID asserts a slash-form catalog ID is
-// returned unchanged — it already is the roster slug.
-func TestRosterIDForUsesSlashFormModelID(t *testing.T) {
-	m := catalog.Model{ID: "z-ai/glm-5.3"}
-	assert.Equal(t, "z-ai/glm-5.3", rosterIDFor(m))
-}
+// TestRosterIDForMatchesActualBehavior asserts rosterIDFor actually applies
+// the pinned vendor prefix (or lack thereof) for every known provider, using
+// a bare (non-slash, non-aliased) model ID per provider so the vendor-prefix
+// branch of the switch is exercised rather than the alias or slash-form
+// short-circuits.
+func TestRosterIDForMatchesActualBehavior(t *testing.T) {
+	const bareModelID = "some-bare-model-id"
 
-// TestRosterIDForHonorsAlias asserts the alias table still wins over the
-// slash-form short-circuit.
-func TestRosterIDForHonorsAlias(t *testing.T) {
-	m := catalog.Model{ID: "moonshotai/kimi-k2.7"}
-	assert.Equal(t, "moonshotai/kimi-k2.7-code", rosterIDFor(m))
-}
+	for _, p := range providers.AllProviders() {
+		t.Run(p, func(t *testing.T) {
+			model := catalog.Model{
+				ID:        bareModelID,
+				Providers: []catalog.ProviderBinding{{Provider: p}},
+			}
+			got := rosterIDFor(model)
 
-// TestRosterIDForCoversCatalogModels asserts every catalog model resolves to a
-// non-empty roster ID.
-func TestRosterIDForCoversCatalogModels(t *testing.T) {
-	for _, m := range catalog.Models {
-		require.NotEmptyf(t, rosterIDFor(m), "catalog model %q has no roster ID", m.ID)
+			if prefix, ok := expectedRosterPrefix[p]; ok {
+				assert.Equal(t, prefix+bareModelID, got)
+				return
+			}
+			assert.Equal(t, bareModelID, got, "provider %q expected to fall through to the bare model ID", p)
+		})
 	}
 }

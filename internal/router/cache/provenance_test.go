@@ -12,7 +12,7 @@ import (
 )
 
 func provenanceScope() cache.ProvenanceScope {
-	return cache.ProvenanceScope{CredentialSubject: "subject", Product: cache.ProductLegacy, Profile: "profile", ProfileRevision: "revision", Release: "release", Binding: "binding", Model: catalog.ModelIDGLM53, Provider: providers.ProviderAIAND, UpstreamScope: "account"}
+	return cache.ProvenanceScope{CredentialSubject: "subject", Product: cache.ProductLegacy, Profile: "profile", ProfileRevision: "revision", Release: "release", Binding: "binding", Model: catalog.ModelIDGLM53Flash, Provider: providers.ProviderAIAND, UpstreamScope: "account"}
 }
 
 func TestCache_ProvenanceIsolation(t *testing.T) {
@@ -32,7 +32,7 @@ func TestCache_ProvenanceIsolation(t *testing.T) {
 		"release":          func(s *cache.ProvenanceScope) { s.Release = "other" },
 		"binding":          func(s *cache.ProvenanceScope) { s.Binding = "other" },
 		"model":            func(s *cache.ProvenanceScope) { s.Model = catalog.ModelIDKimiK3 },
-		"provider":         func(s *cache.ProvenanceScope) { s.Provider = providers.ProviderAIAND },
+		"provider":         func(s *cache.ProvenanceScope) { s.Provider = "other-provider" },
 		"upstream account": func(s *cache.ProvenanceScope) { s.UpstreamScope = "other" },
 	} {
 		t.Run(name, func(t *testing.T) {

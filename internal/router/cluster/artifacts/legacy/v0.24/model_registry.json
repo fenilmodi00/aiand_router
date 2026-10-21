@@ -5,19 +5,138 @@
     "training_recipe": "v0.21 recipe (k=10 zscore shrinkage_k0=10 routerarena_only) with alpha=0.30."
   },
   "deployed_models": [
-    {"model": "claude-haiku-4-5",                 "provider": "anthropic",  "bench_column": "routerarena_claude-haiku-4-5",                 "direct_label": "routerarena"},
-    {"model": "claude-sonnet-4-5",                "provider": "anthropic",  "bench_column": "routerarena_claude-sonnet-4-5",                "direct_label": "routerarena"},
-    {"model": "claude-opus-4-7",                  "provider": "anthropic",  "bench_column": "routerarena_claude-opus-4-7",                  "direct_label": "routerarena"},
-    {"model": "gemini-3.1-flash-lite-preview",    "provider": "google",     "bench_column": "routerarena_gemini-3.1-flash-lite-preview",    "direct_label": "routerarena"},
-    {"model": "gemini-3.1-pro-preview",           "provider": "google",     "bench_column": "routerarena_gemini-3.1-pro-preview",           "direct_label": "routerarena"},
-    {"model": "gemini-3-flash-preview",           "provider": "google",     "bench_column": "routerarena_gemini-3-flash-preview",           "direct_label": "routerarena"},
-    {"model": "gpt-4.1",                          "provider": "openai",     "bench_column": "routerarena_gpt-4.1",                          "direct_label": "routerarena"},
-    {"model": "gpt-5.4-mini",                     "provider": "openai",     "bench_column": "routerarena_gpt-5.4-mini",                     "direct_label": "routerarena"},
-    {"model": "gpt-5.5",                          "provider": "openai",     "bench_column": "routerarena_gpt-5.5",                          "direct_label": "routerarena"},
-    {"model": "gemini-2.5-flash",                 "provider": "google",     "bench_column": "routerarena_gemini-2.5-flash",                 "direct_label": "routerarena"},
-    {"model": "qwen/qwen3-235b-a22b-2507",        "provider": "openrouter", "bench_column": "routerarena_qwen/qwen3-235b-a22b-2507",        "direct_label": "routerarena"},
-    {"model": "qwen/qwen3-30b-a3b-instruct-2507", "provider": "openrouter", "bench_column": "routerarena_qwen/qwen3-30b-a3b-instruct-2507", "direct_label": "routerarena"},
-    {"model": "qwen/qwen3-coder-next",            "provider": "openrouter", "bench_column": "routerarena_qwen/qwen3-coder-next",            "direct_label": "routerarena"},
-    {"model": "qwen/qwen3-next-80b-a3b-instruct", "provider": "openrouter", "bench_column": "routerarena_qwen/qwen3-next-80b-a3b-instruct", "direct_label": "routerarena"}
+    {
+      "model": "claude-haiku-4-5",
+      "provider": "anthropic",
+      "bench_column": "routerarena_claude-haiku-4-5",
+      "direct_label": "routerarena"
+    },
+    {
+      "model": "claude-sonnet-4-5",
+      "provider": "anthropic",
+      "bench_column": "routerarena_claude-sonnet-4-5",
+      "direct_label": "routerarena"
+    },
+    {
+      "model": "claude-opus-4-7",
+      "provider": "anthropic",
+      "bench_column": "routerarena_claude-opus-4-7",
+      "direct_label": "routerarena"
+    },
+    {
+      "model": "gemini-3.1-flash-lite-preview",
+      "provider": "google",
+      "bench_column": "routerarena_gemini-3.1-flash-lite-preview",
+      "direct_label": "routerarena"
+    },
+    {
+      "model": "gemini-3.1-pro-preview",
+      "provider": "google",
+      "bench_column": "routerarena_gemini-3.1-pro-preview",
+      "direct_label": "routerarena"
+    },
+    {
+      "model": "gemini-3-flash-preview",
+      "provider": "google",
+      "bench_column": "routerarena_gemini-3-flash-preview",
+      "direct_label": "routerarena"
+    },
+    {
+      "model": "gpt-4.1",
+      "provider": "openai",
+      "bench_column": "routerarena_gpt-4.1",
+      "direct_label": "routerarena"
+    },
+    {
+      "model": "gpt-5.4-mini",
+      "provider": "openai",
+      "bench_column": "routerarena_gpt-5.4-mini",
+      "direct_label": "routerarena"
+    },
+    {
+      "model": "gpt-5.5",
+      "provider": "openai",
+      "bench_column": "routerarena_gpt-5.5",
+      "direct_label": "routerarena"
+    },
+    {
+      "model": "gemini-2.5-flash",
+      "provider": "google",
+      "bench_column": "routerarena_gemini-2.5-flash",
+      "direct_label": "routerarena"
+    },
+    {
+      "model": "qwen/qwen3-235b-a22b-2507",
+      "provider": "openrouter",
+      "bench_column": "routerarena_qwen/qwen3-235b-a22b-2507",
+      "direct_label": "routerarena"
+    },
+    {
+      "model": "qwen/qwen3-30b-a3b-instruct-2507",
+      "provider": "openrouter",
+      "bench_column": "routerarena_qwen/qwen3-30b-a3b-instruct-2507",
+      "direct_label": "routerarena"
+    },
+    {
+      "model": "qwen/qwen3-coder-next",
+      "provider": "openrouter",
+      "bench_column": "routerarena_qwen/qwen3-coder-next",
+      "direct_label": "routerarena"
+    },
+    {
+      "model": "qwen/qwen3-next-80b-a3b-instruct",
+      "provider": "openrouter",
+      "bench_column": "routerarena_qwen/qwen3-next-80b-a3b-instruct",
+      "direct_label": "routerarena"
+    },
+    {
+      "model": "deepseek/deepseek-v4.1-flash",
+      "provider": "aiand",
+      "bench_column": "claude-haiku-4-5",
+      "proxy": true,
+      "proxy_note": "ai&-only roster: deepseek/deepseek-v4.1-flash reuses claude-haiku-4-5's trained column."
+    },
+    {
+      "model": "deepseek/deepseek-v4-pro-0813",
+      "provider": "aiand",
+      "bench_column": "claude-haiku-4-5",
+      "proxy": true,
+      "proxy_note": "ai&-only roster: deepseek/deepseek-v4-pro-0813 reuses claude-haiku-4-5's trained column."
+    },
+    {
+      "model": "moonshotai/kimi-k2.7",
+      "provider": "aiand",
+      "bench_column": "claude-haiku-4-5",
+      "proxy": true,
+      "proxy_note": "ai&-only roster: moonshotai/kimi-k2.7 reuses claude-haiku-4-5's trained column."
+    },
+    {
+      "model": "moonshotai/kimi-k3",
+      "provider": "aiand",
+      "bench_column": "claude-haiku-4-5",
+      "proxy": true,
+      "proxy_note": "ai&-only roster: moonshotai/kimi-k3 reuses claude-haiku-4-5's trained column."
+    },
+    {
+      "model": "z-ai/glm-5.2",
+      "provider": "aiand",
+      "bench_column": "claude-haiku-4-5",
+      "proxy": true,
+      "proxy_note": "ai&-only roster: z-ai/glm-5.2 reuses claude-haiku-4-5's trained column."
+    },
+    {
+      "model": "z-ai/glm-5.3",
+      "provider": "aiand",
+      "bench_column": "claude-haiku-4-5",
+      "proxy": true,
+      "proxy_note": "ai&-only roster: z-ai/glm-5.3 reuses claude-haiku-4-5's trained column."
+    },
+    {
+      "model": "z-ai/glm-5.3-flash",
+      "provider": "aiand",
+      "bench_column": "claude-haiku-4-5",
+      "proxy": true,
+      "proxy_note": "ai&-only roster: z-ai/glm-5.3-flash reuses claude-haiku-4-5's trained column."
+    }
   ]
 }

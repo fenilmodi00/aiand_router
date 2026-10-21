@@ -1,47 +1,4 @@
 {
-  "meta": {
-    "alpha": 0.55,
-    "cost_per_1k_input_usd": {
-      "claude-haiku-4-5": 0.0008,
-      "claude-opus-4-7": 0.015,
-      "claude-sonnet-4-5": 0.003,
-      "deepseek/deepseek-v4-flash": 0.00014,
-      "deepseek/deepseek-v4-pro": 0.000435,
-      "gemini-2.5-flash": 0.0003,
-      "gemini-3-flash-preview": 0.0005,
-      "gemini-3.1-flash-lite-preview": 0.0001,
-      "gemini-3.1-pro-preview": 0.002,
-      "gpt-4.1": 0.002,
-      "gpt-5.4-mini": 0.0004,
-      "gpt-5.5": 0.005,
-      "mistralai/mistral-small-2603": 0.00015,
-      "moonshotai/kimi-k2.5": 0.00044,
-      "qwen/qwen3-235b-a22b-2507": 7.1e-05,
-      "qwen/qwen3-30b-a3b-instruct-2507": 8e-05,
-      "qwen/qwen3-coder": 0.00022,
-      "qwen/qwen3-coder-next": 7e-05,
-      "qwen/qwen3-next-80b-a3b-instruct": 9e-05,
-      "qwen/qwen3.5-flash-02-23": 6.5e-05
-    },
-    "embedder_model": "jina-v2-base-code-int8",
-    "exclude_prompts": null,
-    "include_routerarena_labels": "routerarena_plus_shortprompts.jsonl",
-    "k": 16,
-    "n_excluded_prompts": 0,
-    "n_prompts": 8416,
-    "per_model_zscore": false,
-    "router_version": "weave-router-v0.1-bootstrap",
-    "routerarena_only": true,
-    "score_normalization": "per_prompt_minmax_across_bench_columns",
-    "seed": 42,
-    "shrinkage_k0": 10.0,
-    "top_p": 4,
-    "training_data_mix": {
-      "d1": 1.0,
-      "d2": 0.0,
-      "d3": 0.0
-    }
-  },
   "rankings": {
     "0": {
       "claude-haiku-4-5": 0.5430239569900165,
@@ -63,7 +20,14 @@
       "qwen/qwen3-coder": 0.4868405679051714,
       "qwen/qwen3-coder-next": 0.47545287805846337,
       "qwen/qwen3-next-80b-a3b-instruct": 0.5352035973253614,
-      "qwen/qwen3.5-flash-02-23": 0.5741790086838318
+      "qwen/qwen3.5-flash-02-23": 0.5741790086838318,
+      "deepseek/deepseek-v4.1-flash": 0.6592215720648336,
+      "deepseek/deepseek-v4-pro-0813": 0.9277772900179222,
+      "moonshotai/kimi-k2.7": 0.5430239569900165,
+      "moonshotai/kimi-k3": 0.5430239569900165,
+      "z-ai/glm-5.2": 0.5430239569900165,
+      "z-ai/glm-5.3": 0.5430239569900165,
+      "z-ai/glm-5.3-flash": 0.5430239569900165
     },
     "1": {
       "claude-haiku-4-5": 0.6426515144545178,
@@ -85,7 +49,14 @@
       "qwen/qwen3-coder": 0.6435032443297835,
       "qwen/qwen3-coder-next": 0.582533613906438,
       "qwen/qwen3-next-80b-a3b-instruct": 0.6340550889861988,
-      "qwen/qwen3.5-flash-02-23": 0.7427139149384586
+      "qwen/qwen3.5-flash-02-23": 0.7427139149384586,
+      "deepseek/deepseek-v4.1-flash": 0.8019756278072261,
+      "deepseek/deepseek-v4-pro-0813": 0.9061679209434774,
+      "moonshotai/kimi-k2.7": 0.6426515144545178,
+      "moonshotai/kimi-k3": 0.6426515144545178,
+      "z-ai/glm-5.2": 0.6426515144545178,
+      "z-ai/glm-5.3": 0.6426515144545178,
+      "z-ai/glm-5.3-flash": 0.6426515144545178
     },
     "10": {
       "claude-haiku-4-5": 0.6104567479294869,
@@ -107,7 +78,14 @@
       "qwen/qwen3-coder": 0.6525591009868636,
       "qwen/qwen3-coder-next": 0.6603081170297952,
       "qwen/qwen3-next-80b-a3b-instruct": 0.6597741131459677,
-      "qwen/qwen3.5-flash-02-23": 0.9181855207648766
+      "qwen/qwen3.5-flash-02-23": 0.9181855207648766,
+      "deepseek/deepseek-v4.1-flash": 0.8091502606387491,
+      "deepseek/deepseek-v4-pro-0813": 0.9416748121494443,
+      "moonshotai/kimi-k2.7": 0.6104567479294869,
+      "moonshotai/kimi-k3": 0.6104567479294869,
+      "z-ai/glm-5.2": 0.6104567479294869,
+      "z-ai/glm-5.3": 0.6104567479294869,
+      "z-ai/glm-5.3-flash": 0.6104567479294869
     },
     "11": {
       "claude-haiku-4-5": 0.5832543837524983,
@@ -129,7 +107,14 @@
       "qwen/qwen3-coder": 0.7092889826631991,
       "qwen/qwen3-coder-next": 0.7562333944936369,
       "qwen/qwen3-next-80b-a3b-instruct": 0.8151435895899135,
-      "qwen/qwen3.5-flash-02-23": 0.7123303691883562
+      "qwen/qwen3.5-flash-02-23": 0.7123303691883562,
+      "deepseek/deepseek-v4.1-flash": 0.782517959913956,
+      "deepseek/deepseek-v4-pro-0813": 0.9161209415743921,
+      "moonshotai/kimi-k2.7": 0.5832543837524983,
+      "moonshotai/kimi-k3": 0.5832543837524983,
+      "z-ai/glm-5.2": 0.5832543837524983,
+      "z-ai/glm-5.3": 0.5832543837524983,
+      "z-ai/glm-5.3-flash": 0.5832543837524983
     },
     "12": {
       "claude-haiku-4-5": 0.6597361875860317,
@@ -151,7 +136,14 @@
       "qwen/qwen3-coder": 0.6305326319310961,
       "qwen/qwen3-coder-next": 0.5632816000770066,
       "qwen/qwen3-next-80b-a3b-instruct": 0.6167867555027216,
-      "qwen/qwen3.5-flash-02-23": 0.7793396901460197
+      "qwen/qwen3.5-flash-02-23": 0.7793396901460197,
+      "deepseek/deepseek-v4.1-flash": 0.7753903849356519,
+      "deepseek/deepseek-v4-pro-0813": 0.7812031969115047,
+      "moonshotai/kimi-k2.7": 0.6597361875860317,
+      "moonshotai/kimi-k3": 0.6597361875860317,
+      "z-ai/glm-5.2": 0.6597361875860317,
+      "z-ai/glm-5.3": 0.6597361875860317,
+      "z-ai/glm-5.3-flash": 0.6597361875860317
     },
     "13": {
       "claude-haiku-4-5": 0.786981070843257,
@@ -173,7 +165,14 @@
       "qwen/qwen3-coder": 0.7833038216815138,
       "qwen/qwen3-coder-next": 0.8291113397295651,
       "qwen/qwen3-next-80b-a3b-instruct": 0.7736583561524891,
-      "qwen/qwen3.5-flash-02-23": 0.9806353570741714
+      "qwen/qwen3.5-flash-02-23": 0.9806353570741714,
+      "deepseek/deepseek-v4.1-flash": 0.8842665579196552,
+      "deepseek/deepseek-v4-pro-0813": 0.947771183036643,
+      "moonshotai/kimi-k2.7": 0.786981070843257,
+      "moonshotai/kimi-k3": 0.786981070843257,
+      "z-ai/glm-5.2": 0.786981070843257,
+      "z-ai/glm-5.3": 0.786981070843257,
+      "z-ai/glm-5.3-flash": 0.786981070843257
     },
     "14": {
       "claude-haiku-4-5": 0.7252926425379596,
@@ -195,7 +194,14 @@
       "qwen/qwen3-coder": 0.8688437090674755,
       "qwen/qwen3-coder-next": 0.7676859305617973,
       "qwen/qwen3-next-80b-a3b-instruct": 0.7251100253628913,
-      "qwen/qwen3.5-flash-02-23": 0.9545422357645449
+      "qwen/qwen3.5-flash-02-23": 0.9545422357645449,
+      "deepseek/deepseek-v4.1-flash": 0.8848360567393909,
+      "deepseek/deepseek-v4-pro-0813": 0.8929082996788618,
+      "moonshotai/kimi-k2.7": 0.7252926425379596,
+      "moonshotai/kimi-k3": 0.7252926425379596,
+      "z-ai/glm-5.2": 0.7252926425379596,
+      "z-ai/glm-5.3": 0.7252926425379596,
+      "z-ai/glm-5.3-flash": 0.7252926425379596
     },
     "15": {
       "claude-haiku-4-5": 0.8032013730401687,
@@ -217,7 +223,14 @@
       "qwen/qwen3-coder": 0.7789404613385775,
       "qwen/qwen3-coder-next": 0.7870182209474673,
       "qwen/qwen3-next-80b-a3b-instruct": 0.7444746533257547,
-      "qwen/qwen3.5-flash-02-23": 0.9757762345282578
+      "qwen/qwen3.5-flash-02-23": 0.9757762345282578,
+      "deepseek/deepseek-v4.1-flash": 0.9226450554309507,
+      "deepseek/deepseek-v4-pro-0813": 0.9888516906595246,
+      "moonshotai/kimi-k2.7": 0.8032013730401687,
+      "moonshotai/kimi-k3": 0.8032013730401687,
+      "z-ai/glm-5.2": 0.8032013730401687,
+      "z-ai/glm-5.3": 0.8032013730401687,
+      "z-ai/glm-5.3-flash": 0.8032013730401687
     },
     "2": {
       "claude-haiku-4-5": 0.720589835400623,
@@ -239,7 +252,14 @@
       "qwen/qwen3-coder": 0.7207078421492851,
       "qwen/qwen3-coder-next": 0.568565670972593,
       "qwen/qwen3-next-80b-a3b-instruct": 0.5513488109077526,
-      "qwen/qwen3.5-flash-02-23": 0.7438003804924804
+      "qwen/qwen3.5-flash-02-23": 0.7438003804924804,
+      "deepseek/deepseek-v4.1-flash": 0.9255449938743403,
+      "deepseek/deepseek-v4-pro-0813": 0.8997631503937283,
+      "moonshotai/kimi-k2.7": 0.720589835400623,
+      "moonshotai/kimi-k3": 0.720589835400623,
+      "z-ai/glm-5.2": 0.720589835400623,
+      "z-ai/glm-5.3": 0.720589835400623,
+      "z-ai/glm-5.3-flash": 0.720589835400623
     },
     "3": {
       "claude-haiku-4-5": 0.6352109575786825,
@@ -261,7 +281,14 @@
       "qwen/qwen3-coder": 0.6418002811444902,
       "qwen/qwen3-coder-next": 0.60361843461064,
       "qwen/qwen3-next-80b-a3b-instruct": 0.6243258255688074,
-      "qwen/qwen3.5-flash-02-23": 0.8284053922861678
+      "qwen/qwen3.5-flash-02-23": 0.8284053922861678,
+      "deepseek/deepseek-v4.1-flash": 0.8296252945405913,
+      "deepseek/deepseek-v4-pro-0813": 0.9625303270089998,
+      "moonshotai/kimi-k2.7": 0.6352109575786825,
+      "moonshotai/kimi-k3": 0.6352109575786825,
+      "z-ai/glm-5.2": 0.6352109575786825,
+      "z-ai/glm-5.3": 0.6352109575786825,
+      "z-ai/glm-5.3-flash": 0.6352109575786825
     },
     "4": {
       "claude-haiku-4-5": 0.5226725723285354,
@@ -283,7 +310,14 @@
       "qwen/qwen3-coder": 0.5097897136169927,
       "qwen/qwen3-coder-next": 0.5251170025988441,
       "qwen/qwen3-next-80b-a3b-instruct": 0.5574780730792848,
-      "qwen/qwen3.5-flash-02-23": 0.8740338736328532
+      "qwen/qwen3.5-flash-02-23": 0.8740338736328532,
+      "deepseek/deepseek-v4.1-flash": 0.7003006165417374,
+      "deepseek/deepseek-v4-pro-0813": 0.8223103057188765,
+      "moonshotai/kimi-k2.7": 0.5226725723285354,
+      "moonshotai/kimi-k3": 0.5226725723285354,
+      "z-ai/glm-5.2": 0.5226725723285354,
+      "z-ai/glm-5.3": 0.5226725723285354,
+      "z-ai/glm-5.3-flash": 0.5226725723285354
     },
     "5": {
       "claude-haiku-4-5": 0.6735648918614106,
@@ -305,7 +339,14 @@
       "qwen/qwen3-coder": 0.7221808877470267,
       "qwen/qwen3-coder-next": 0.5737717314195115,
       "qwen/qwen3-next-80b-a3b-instruct": 0.6938941580097139,
-      "qwen/qwen3.5-flash-02-23": 0.8602572155762597
+      "qwen/qwen3.5-flash-02-23": 0.8602572155762597,
+      "deepseek/deepseek-v4.1-flash": 0.8146972180463037,
+      "deepseek/deepseek-v4-pro-0813": 0.9608489552142021,
+      "moonshotai/kimi-k2.7": 0.6735648918614106,
+      "moonshotai/kimi-k3": 0.6735648918614106,
+      "z-ai/glm-5.2": 0.6735648918614106,
+      "z-ai/glm-5.3": 0.6735648918614106,
+      "z-ai/glm-5.3-flash": 0.6735648918614106
     },
     "6": {
       "claude-haiku-4-5": 0.6423212673270011,
@@ -327,7 +368,14 @@
       "qwen/qwen3-coder": 0.7423970914665851,
       "qwen/qwen3-coder-next": 0.6278354358063845,
       "qwen/qwen3-next-80b-a3b-instruct": 0.6453716228555992,
-      "qwen/qwen3.5-flash-02-23": 0.8722591310724883
+      "qwen/qwen3.5-flash-02-23": 0.8722591310724883,
+      "deepseek/deepseek-v4.1-flash": 0.9026838448562376,
+      "deepseek/deepseek-v4-pro-0813": 0.9888516906595246,
+      "moonshotai/kimi-k2.7": 0.6423212673270011,
+      "moonshotai/kimi-k3": 0.6423212673270011,
+      "z-ai/glm-5.2": 0.6423212673270011,
+      "z-ai/glm-5.3": 0.6423212673270011,
+      "z-ai/glm-5.3-flash": 0.6423212673270011
     },
     "7": {
       "claude-haiku-4-5": 0.6981466963157291,
@@ -349,7 +397,14 @@
       "qwen/qwen3-coder": 0.6324431714940161,
       "qwen/qwen3-coder-next": 0.6310114459827559,
       "qwen/qwen3-next-80b-a3b-instruct": 0.6634661805012187,
-      "qwen/qwen3.5-flash-02-23": 0.9159701174561048
+      "qwen/qwen3.5-flash-02-23": 0.9159701174561048,
+      "deepseek/deepseek-v4.1-flash": 0.8178947063132209,
+      "deepseek/deepseek-v4-pro-0813": 0.9274785101511944,
+      "moonshotai/kimi-k2.7": 0.6981466963157291,
+      "moonshotai/kimi-k3": 0.6981466963157291,
+      "z-ai/glm-5.2": 0.6981466963157291,
+      "z-ai/glm-5.3": 0.6981466963157291,
+      "z-ai/glm-5.3-flash": 0.6981466963157291
     },
     "8": {
       "claude-haiku-4-5": 0.7458956044651472,
@@ -371,7 +426,14 @@
       "qwen/qwen3-coder": 0.7473588012237117,
       "qwen/qwen3-coder-next": 0.5949675996194382,
       "qwen/qwen3-next-80b-a3b-instruct": 0.7347528540831723,
-      "qwen/qwen3.5-flash-02-23": 0.7685310141809631
+      "qwen/qwen3.5-flash-02-23": 0.7685310141809631,
+      "deepseek/deepseek-v4.1-flash": 0.8175234791480772,
+      "deepseek/deepseek-v4-pro-0813": 0.8124426652067309,
+      "moonshotai/kimi-k2.7": 0.7458956044651472,
+      "moonshotai/kimi-k3": 0.7458956044651472,
+      "z-ai/glm-5.2": 0.7458956044651472,
+      "z-ai/glm-5.3": 0.7458956044651472,
+      "z-ai/glm-5.3-flash": 0.7458956044651472
     },
     "9": {
       "claude-haiku-4-5": 0.8170469669902051,
@@ -393,7 +455,14 @@
       "qwen/qwen3-coder": 0.7834786059072745,
       "qwen/qwen3-coder-next": 0.8968341741918395,
       "qwen/qwen3-next-80b-a3b-instruct": 0.7360726484042547,
-      "qwen/qwen3.5-flash-02-23": 0.99599855811797
+      "qwen/qwen3.5-flash-02-23": 0.99599855811797,
+      "deepseek/deepseek-v4.1-flash": 0.9430760053240639,
+      "deepseek/deepseek-v4-pro-0813": 0.9444869173144947,
+      "moonshotai/kimi-k2.7": 0.8170469669902051,
+      "moonshotai/kimi-k3": 0.8170469669902051,
+      "z-ai/glm-5.2": 0.8170469669902051,
+      "z-ai/glm-5.3": 0.8170469669902051,
+      "z-ai/glm-5.3-flash": 0.8170469669902051
     }
   }
 }

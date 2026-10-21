@@ -107,7 +107,7 @@ func TestMultiversion_DefaultDeployedModels_ReadsDefaultVersionOnly(t *testing.T
 	for _, e := range got {
 		models = append(models, e.Model)
 	}
-	assert.ElementsMatch(t, []string{"claude-opus-4-7", "gpt-5"}, models,
+	assert.ElementsMatch(t, []string{"moonshotai/kimi-k3", "z-ai/glm-5.2"}, models,
 		"DefaultDeployedModels must return the default version's (v0.2) candidates, not v0.1's opus+haiku pair")
 }
 

@@ -1,71 +1,4 @@
 {
-  "meta": {
-    "aa_evidence_scale": 3.0,
-    "aa_label_residuals": {
-      "fraction_under_threshold": 0.5708502024291497,
-      "max": 0.2429133312756644,
-      "mean": 0.059625521958409304,
-      "median": 0.038888469407191734,
-      "n_cells": 247,
-      "p90": 0.14313290790179495
-    },
-    "aa_label_tier_weights": {
-      "GPQA_DIAMOND": 0.3,
-      "IFBENCH": 0.3,
-      "LIVECODEBENCH": 1.0,
-      "MATH_500": 0.3,
-      "MMLU_PRO": 0.3,
-      "SCICODE": 1.0,
-      "SWE_BENCH_VERIFIED": 1.0,
-      "TAU2_BENCH_TELECOM": 0.3,
-      "TERMINAL_BENCH_HARD": 1.0
-    },
-    "alpha": 0.7,
-    "cost_per_1k_input_usd": {
-      "claude-haiku-4-5": 0.0018,
-      "claude-opus-4-7": 0.03375,
-      "claude-sonnet-4-6": 0.00675,
-      "deepseek/deepseek-v4-flash": 0.00020999999999999998,
-      "deepseek/deepseek-v4-pro": 0.00261,
-      "gemini-3.1-flash-lite-preview": 0.0002,
-      "gemini-3.1-pro-preview": 0.004,
-      "gemini-3.5-flash": 0.00375,
-      "gpt-5.4-mini": 0.0008,
-      "gpt-5.5": 0.015,
-      "minimax/minimax-m2.7": 0.0006,
-      "moonshotai/kimi-k2.6": 0.00195,
-      "qwen/qwen3-235b-a22b-2507": 0.00018675,
-      "qwen/qwen3-coder-next": 0.0007999999999999999,
-      "qwen/qwen3-next-80b-a3b-instruct": 0.00045,
-      "qwen/qwen3.6-35b-a3b": 0.0003875,
-      "xiaomi/mimo-v2.5-pro": 0.00175,
-      "z-ai/glm-5": 0.00112
-    },
-    "embedder_model": "jina-v2-base-code-int8",
-    "exclude_prompts": null,
-    "expected_output_tokens": 2000,
-    "include_aa_labels": "aa_quality_priors.json",
-    "include_routerarena_labels": "routerarena_labels_combined.jsonl",
-    "k": 16,
-    "n_excluded_prompts": 0,
-    "n_prompts": 8013,
-    "no_native_scores": false,
-    "output_cost_ratio": 0.25,
-    "per_model_verbosity": true,
-    "per_model_zscore": false,
-    "router_version": "weave-router-v0.1-bootstrap",
-    "routerarena_only": true,
-    "score_normalization": "per_prompt_minmax_across_bench_columns",
-    "seed": 42,
-    "shrinkage_k0": 10.0,
-    "speed_weight": 0.08,
-    "top_p": 4,
-    "training_data_mix": {
-      "d1": 1.0,
-      "d2": 0.0,
-      "d3": 0.0
-    }
-  },
   "rankings": {
     "0": {
       "claude-haiku-4-5": 0.3955400323126372,
@@ -85,7 +18,14 @@
       "qwen/qwen3-next-80b-a3b-instruct": 0.37593978545138135,
       "qwen/qwen3.6-35b-a3b": 0.5704998158649766,
       "xiaomi/mimo-v2.5-pro": 0.7822343185810811,
-      "z-ai/glm-5": 0.8936817261928024
+      "z-ai/glm-5": 0.8936817261928024,
+      "deepseek/deepseek-v4.1-flash": 0.696280121390491,
+      "deepseek/deepseek-v4-pro-0813": 0.8667802909779662,
+      "moonshotai/kimi-k2.7": 0.7782809796509023,
+      "moonshotai/kimi-k3": 0.7782809796509023,
+      "z-ai/glm-5.2": 0.8936817261928024,
+      "z-ai/glm-5.3": 0.8936817261928024,
+      "z-ai/glm-5.3-flash": 0.8936817261928024
     },
     "1": {
       "claude-haiku-4-5": 0.4398412463478469,
@@ -105,7 +45,14 @@
       "qwen/qwen3-next-80b-a3b-instruct": 0.42240257260235514,
       "qwen/qwen3.6-35b-a3b": 0.4905244729395958,
       "xiaomi/mimo-v2.5-pro": 0.5310162250661231,
-      "z-ai/glm-5": 0.7692704909670776
+      "z-ai/glm-5": 0.7692704909670776,
+      "deepseek/deepseek-v4.1-flash": 0.5751352067779624,
+      "deepseek/deepseek-v4-pro-0813": 0.8258266129830333,
+      "moonshotai/kimi-k2.7": 0.6445601580487235,
+      "moonshotai/kimi-k3": 0.6445601580487235,
+      "z-ai/glm-5.2": 0.7692704909670776,
+      "z-ai/glm-5.3": 0.7692704909670776,
+      "z-ai/glm-5.3-flash": 0.7692704909670776
     },
     "10": {
       "claude-haiku-4-5": 0.8013366601098012,
@@ -125,7 +72,14 @@
       "qwen/qwen3-next-80b-a3b-instruct": 0.29527455009899717,
       "qwen/qwen3.6-35b-a3b": 0.97352930032908,
       "xiaomi/mimo-v2.5-pro": 0.898422057660986,
-      "z-ai/glm-5": 0.8543263834343885
+      "z-ai/glm-5": 0.8543263834343885,
+      "deepseek/deepseek-v4.1-flash": 0.8919653002285043,
+      "deepseek/deepseek-v4-pro-0813": 0.8360646841459048,
+      "moonshotai/kimi-k2.7": 0.8883602934815207,
+      "moonshotai/kimi-k3": 0.8883602934815207,
+      "z-ai/glm-5.2": 0.8543263834343885,
+      "z-ai/glm-5.3": 0.8543263834343885,
+      "z-ai/glm-5.3-flash": 0.8543263834343885
     },
     "11": {
       "claude-haiku-4-5": 0.7261021551508275,
@@ -145,7 +99,14 @@
       "qwen/qwen3-next-80b-a3b-instruct": 0.5688388326478295,
       "qwen/qwen3.6-35b-a3b": 0.4047185691810727,
       "xiaomi/mimo-v2.5-pro": 0.7577365907431335,
-      "z-ai/glm-5": 0.8130924993515677
+      "z-ai/glm-5": 0.8130924993515677,
+      "deepseek/deepseek-v4.1-flash": 0.9438248313061516,
+      "deepseek/deepseek-v4-pro-0813": 0.8330525231801151,
+      "moonshotai/kimi-k2.7": 0.27627292158215194,
+      "moonshotai/kimi-k3": 0.27627292158215194,
+      "z-ai/glm-5.2": 0.8130924993515677,
+      "z-ai/glm-5.3": 0.8130924993515677,
+      "z-ai/glm-5.3-flash": 0.8130924993515677
     },
     "12": {
       "claude-haiku-4-5": 0.3995082674070393,
@@ -165,7 +126,14 @@
       "qwen/qwen3-next-80b-a3b-instruct": 0.3369767523674063,
       "qwen/qwen3.6-35b-a3b": 0.5218330264405713,
       "xiaomi/mimo-v2.5-pro": 0.4884898664807283,
-      "z-ai/glm-5": 0.49126319254996126
+      "z-ai/glm-5": 0.49126319254996126,
+      "deepseek/deepseek-v4.1-flash": 0.5643544904223259,
+      "deepseek/deepseek-v4-pro-0813": 0.6568748206139196,
+      "moonshotai/kimi-k2.7": 0.411050050023098,
+      "moonshotai/kimi-k3": 0.411050050023098,
+      "z-ai/glm-5.2": 0.49126319254996126,
+      "z-ai/glm-5.3": 0.49126319254996126,
+      "z-ai/glm-5.3-flash": 0.49126319254996126
     },
     "13": {
       "claude-haiku-4-5": 0.41297321462122416,
@@ -185,7 +153,14 @@
       "qwen/qwen3-next-80b-a3b-instruct": 0.29527455009899717,
       "qwen/qwen3.6-35b-a3b": 0.9847013088540844,
       "xiaomi/mimo-v2.5-pro": 0.9188632524122177,
-      "z-ai/glm-5": 0.9727426939902845
+      "z-ai/glm-5": 0.9727426939902845,
+      "deepseek/deepseek-v4.1-flash": 0.9491866073561339,
+      "deepseek/deepseek-v4-pro-0813": 0.9058281833115981,
+      "moonshotai/kimi-k2.7": 0.931891221928542,
+      "moonshotai/kimi-k3": 0.931891221928542,
+      "z-ai/glm-5.2": 0.9727426939902845,
+      "z-ai/glm-5.3": 0.9727426939902845,
+      "z-ai/glm-5.3-flash": 0.9727426939902845
     },
     "14": {
       "claude-haiku-4-5": 0.3486772928432998,
@@ -205,7 +180,14 @@
       "qwen/qwen3-next-80b-a3b-instruct": 0.29527455009899717,
       "qwen/qwen3.6-35b-a3b": 0.5029869621889194,
       "xiaomi/mimo-v2.5-pro": 0.7204654322406285,
-      "z-ai/glm-5": 0.784582814779983
+      "z-ai/glm-5": 0.784582814779983,
+      "deepseek/deepseek-v4.1-flash": 0.707663472880491,
+      "deepseek/deepseek-v4-pro-0813": 0.8009271269990742,
+      "moonshotai/kimi-k2.7": 0.5551840183317954,
+      "moonshotai/kimi-k3": 0.5551840183317954,
+      "z-ai/glm-5.2": 0.784582814779983,
+      "z-ai/glm-5.3": 0.784582814779983,
+      "z-ai/glm-5.3-flash": 0.784582814779983
     },
     "15": {
       "claude-haiku-4-5": 0.27922742474422074,
@@ -225,7 +207,14 @@
       "qwen/qwen3-next-80b-a3b-instruct": 0.5291476257097094,
       "qwen/qwen3.6-35b-a3b": 0.6573975646056172,
       "xiaomi/mimo-v2.5-pro": 0.6887643391203133,
-      "z-ai/glm-5": 0.8038528117526952
+      "z-ai/glm-5": 0.8038528117526952,
+      "deepseek/deepseek-v4.1-flash": 0.7145791547410429,
+      "deepseek/deepseek-v4-pro-0813": 0.6475116631991085,
+      "moonshotai/kimi-k2.7": 0.6138200037744199,
+      "moonshotai/kimi-k3": 0.6138200037744199,
+      "z-ai/glm-5.2": 0.8038528117526952,
+      "z-ai/glm-5.3": 0.8038528117526952,
+      "z-ai/glm-5.3-flash": 0.8038528117526952
     },
     "2": {
       "claude-haiku-4-5": 0.39104869912683465,
@@ -245,7 +234,14 @@
       "qwen/qwen3-next-80b-a3b-instruct": 0.7168949889507442,
       "qwen/qwen3.6-35b-a3b": 0.7204080508288612,
       "xiaomi/mimo-v2.5-pro": 0.626004353605694,
-      "z-ai/glm-5": 0.6406989233955681
+      "z-ai/glm-5": 0.6406989233955681,
+      "deepseek/deepseek-v4.1-flash": 0.6709703772814483,
+      "deepseek/deepseek-v4-pro-0813": 0.8065850377543625,
+      "moonshotai/kimi-k2.7": 0.6890702047916952,
+      "moonshotai/kimi-k3": 0.6890702047916952,
+      "z-ai/glm-5.2": 0.6406989233955681,
+      "z-ai/glm-5.3": 0.6406989233955681,
+      "z-ai/glm-5.3-flash": 0.6406989233955681
     },
     "3": {
       "claude-haiku-4-5": 0.567600452042275,
@@ -265,7 +261,14 @@
       "qwen/qwen3-next-80b-a3b-instruct": 0.5134326445417199,
       "qwen/qwen3.6-35b-a3b": 0.4988053973423508,
       "xiaomi/mimo-v2.5-pro": 0.6449771556860636,
-      "z-ai/glm-5": 0.27274269399028456
+      "z-ai/glm-5": 0.27274269399028456,
+      "deepseek/deepseek-v4.1-flash": 0.5920403375727848,
+      "deepseek/deepseek-v4-pro-0813": 0.6730095257920465,
+      "moonshotai/kimi-k2.7": 0.5037997691575301,
+      "moonshotai/kimi-k3": 0.5037997691575301,
+      "z-ai/glm-5.2": 0.27274269399028456,
+      "z-ai/glm-5.3": 0.27274269399028456,
+      "z-ai/glm-5.3-flash": 0.27274269399028456
     },
     "4": {
       "claude-haiku-4-5": 0.9792274247442208,
@@ -285,7 +288,14 @@
       "qwen/qwen3-next-80b-a3b-instruct": 0.9914629330935297,
       "qwen/qwen3.6-35b-a3b": 0.7327111086864792,
       "xiaomi/mimo-v2.5-pro": 0.8535239030044864,
-      "z-ai/glm-5": 0.895228933823757
+      "z-ai/glm-5": 0.895228933823757,
+      "deepseek/deepseek-v4.1-flash": 0.8663425225784921,
+      "deepseek/deepseek-v4-pro-0813": 0.7967236924582178,
+      "moonshotai/kimi-k2.7": 0.810827820886376,
+      "moonshotai/kimi-k3": 0.810827820886376,
+      "z-ai/glm-5.2": 0.895228933823757,
+      "z-ai/glm-5.3": 0.895228933823757,
+      "z-ai/glm-5.3-flash": 0.895228933823757
     },
     "5": {
       "claude-haiku-4-5": 0.8365128666489937,
@@ -305,7 +315,14 @@
       "qwen/qwen3-next-80b-a3b-instruct": 0.8054432885252819,
       "qwen/qwen3.6-35b-a3b": 0.8381628495835487,
       "xiaomi/mimo-v2.5-pro": 0.8473606727202195,
-      "z-ai/glm-5": 0.9227715961664212
+      "z-ai/glm-5": 0.9227715961664212,
+      "deepseek/deepseek-v4.1-flash": 0.8757941568929157,
+      "deepseek/deepseek-v4-pro-0813": 0.9163251936304312,
+      "moonshotai/kimi-k2.7": 0.6495322492929101,
+      "moonshotai/kimi-k3": 0.6495322492929101,
+      "z-ai/glm-5.2": 0.9227715961664212,
+      "z-ai/glm-5.3": 0.9227715961664212,
+      "z-ai/glm-5.3-flash": 0.9227715961664212
     },
     "6": {
       "claude-haiku-4-5": 0.4719633391367182,
@@ -325,7 +342,14 @@
       "qwen/qwen3-next-80b-a3b-instruct": 0.41417866664250885,
       "qwen/qwen3.6-35b-a3b": 0.7003028878997436,
       "xiaomi/mimo-v2.5-pro": 0.6407768659233108,
-      "z-ai/glm-5": 0.8121838910160394
+      "z-ai/glm-5": 0.8121838910160394,
+      "deepseek/deepseek-v4.1-flash": 0.6654810031276998,
+      "deepseek/deepseek-v4-pro-0813": 0.747975171533634,
+      "moonshotai/kimi-k2.7": 0.5369597690995976,
+      "moonshotai/kimi-k3": 0.5369597690995976,
+      "z-ai/glm-5.2": 0.8121838910160394,
+      "z-ai/glm-5.3": 0.8121838910160394,
+      "z-ai/glm-5.3-flash": 0.8121838910160394
     },
     "7": {
       "claude-haiku-4-5": 0.9715697517934464,
@@ -345,7 +369,14 @@
       "qwen/qwen3-next-80b-a3b-instruct": 0.9952745500989971,
       "qwen/qwen3.6-35b-a3b": 0.8856227817389298,
       "xiaomi/mimo-v2.5-pro": 0.7873941505851532,
-      "z-ai/glm-5": 0.8469062576875247
+      "z-ai/glm-5": 0.8469062576875247,
+      "deepseek/deepseek-v4.1-flash": 0.8039917142567093,
+      "deepseek/deepseek-v4-pro-0813": 0.8009906762254356,
+      "moonshotai/kimi-k2.7": 0.607033229050514,
+      "moonshotai/kimi-k3": 0.607033229050514,
+      "z-ai/glm-5.2": 0.8469062576875247,
+      "z-ai/glm-5.3": 0.8469062576875247,
+      "z-ai/glm-5.3-flash": 0.8469062576875247
     },
     "8": {
       "claude-haiku-4-5": 0.6091396678483697,
@@ -365,7 +396,14 @@
       "qwen/qwen3-next-80b-a3b-instruct": 0.6112087595925136,
       "qwen/qwen3.6-35b-a3b": 0.5090673888168192,
       "xiaomi/mimo-v2.5-pro": 0.6327603982195331,
-      "z-ai/glm-5": 0.5363457193921402
+      "z-ai/glm-5": 0.5363457193921402,
+      "deepseek/deepseek-v4.1-flash": 0.7326900788361479,
+      "deepseek/deepseek-v4-pro-0813": 0.7705286716804941,
+      "moonshotai/kimi-k2.7": 0.2926120767808476,
+      "moonshotai/kimi-k3": 0.2926120767808476,
+      "z-ai/glm-5.2": 0.5363457193921402,
+      "z-ai/glm-5.3": 0.5363457193921402,
+      "z-ai/glm-5.3-flash": 0.5363457193921402
     },
     "9": {
       "claude-haiku-4-5": 0.36046941935500243,
@@ -385,7 +423,14 @@
       "qwen/qwen3-next-80b-a3b-instruct": 0.3675373524949058,
       "qwen/qwen3.6-35b-a3b": 0.5809110808330457,
       "xiaomi/mimo-v2.5-pro": 0.6144709064654685,
-      "z-ai/glm-5": 0.7981470614378917
+      "z-ai/glm-5": 0.7981470614378917,
+      "deepseek/deepseek-v4.1-flash": 0.6332641385122724,
+      "deepseek/deepseek-v4-pro-0813": 0.5882725881468446,
+      "moonshotai/kimi-k2.7": 0.4936830291133334,
+      "moonshotai/kimi-k3": 0.4936830291133334,
+      "z-ai/glm-5.2": 0.7981470614378917,
+      "z-ai/glm-5.3": 0.7981470614378917,
+      "z-ai/glm-5.3-flash": 0.7981470614378917
     }
   }
 }
