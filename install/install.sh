@@ -40,9 +40,6 @@
 #   npx @weave-os/router --claude                         # skip the picker, target Claude Code
 #   npx @weave-os/router --codex                          # skip the picker, target Codex
 #   npx @weave-os/router setup --claude --codex            # configure both native clients
-#   npx @weave-os/router login claude                      # enroll Claude Pro/Max
-#   npx @weave-os/router login codex                       # enroll ChatGPT Pro/Plus
-#   npx @weave-os/router accounts list                     # inspect enrolled accounts
 #   npx @weave-os/router status                            # router + native client status
 #   npx @weave-os/router --opencode                       # skip the picker, target opencode
 #   npx @weave-os/router --pi                              # skip the picker, target pi
@@ -1591,12 +1588,6 @@ while [ $# -gt 0 ]; do
       # instead of only after every operand has been consumed.
       mode="models"; shift
       ;;
-    accounts|--accounts)
-      mode="accounts"; shift
-      ;;
-    login|--login)
-      mode="login"; shift
-      ;;
     --json)
       models_json="true"; shift
       ;;
@@ -1609,7 +1600,7 @@ while [ $# -gt 0 ]; do
       # between them (`models --claude enable x` and `models enable x --claude`
       # both work). A dashed token nothing above matched is still an error,
       # models mode or not.
-      if { [ "$mode" = "models" ] || [ "$mode" = "accounts" ] || [ "$mode" = "login" ]; } && [ "${1#-}" = "$1" ]; then
+      if [ "$mode" = "models" ] && [ "${1#-}" = "$1" ]; then
         models_args="${models_args}${models_args:+$'\n'}$1"; shift
       else
         err "Unknown flag: $1."; usage 2
