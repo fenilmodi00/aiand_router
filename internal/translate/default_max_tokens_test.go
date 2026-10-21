@@ -37,7 +37,7 @@ func TestOpenAISameFormat_DefaultMaxCompletionTokensInjectedForReasoningTarget(t
 	body := []byte(`{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}]}`)
 	opts := translate.EmitOptions{
 		TargetModel:  "o3",
-		Capabilities: router.Lookup("o3"),
+		Capabilities: reasoningSpec,
 	}
 	out := parseAndEmit(t, body, "openai", opts)
 	assert.Equal(t, float64(8192), out["max_completion_tokens"])

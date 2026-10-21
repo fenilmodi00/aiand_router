@@ -188,7 +188,7 @@ func TestOpenAISameFormat_MaxTokensRenamedForReasoning(t *testing.T) {
 	body := []byte(`{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}],"max_tokens":500}`)
 	opts := translate.EmitOptions{
 		TargetModel:  "o3",
-		Capabilities: router.Lookup("o3"),
+		Capabilities: reasoningSpec,
 	}
 	out := parseAndEmit(t, body, "openai", opts)
 	assert.NotContains(t, out, "max_tokens")
@@ -199,7 +199,7 @@ func TestOpenAISameFormat_MaxTokensNotRenamedWhenCompTokensAlreadySet(t *testing
 	body := []byte(`{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}],"max_tokens":500,"max_completion_tokens":1000}`)
 	opts := translate.EmitOptions{
 		TargetModel:  "o3",
-		Capabilities: router.Lookup("o3"),
+		Capabilities: reasoningSpec,
 	}
 	out := parseAndEmit(t, body, "openai", opts)
 	assert.NotContains(t, out, "max_tokens")
@@ -220,7 +220,7 @@ func TestOpenAISameFormat_ReasoningEffortKeptForReasoning(t *testing.T) {
 	body := []byte(`{"model":"o3","messages":[{"role":"user","content":"hi"}],"reasoning_effort":"high"}`)
 	opts := translate.EmitOptions{
 		TargetModel:  "o3-mini",
-		Capabilities: router.Lookup("o3-mini"),
+		Capabilities: reasoningSpec,
 	}
 	out := parseAndEmit(t, body, "openai", opts)
 	assert.Equal(t, "high", out["reasoning_effort"])

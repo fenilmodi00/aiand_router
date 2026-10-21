@@ -323,7 +323,7 @@ func TestPrepareGemini_ThinkingBudgetToThinkingConfig(t *testing.T) {
 			require.NoError(t, err)
 			prep, err := env.PrepareGemini(nil, translate.EmitOptions{
 				TargetModel:  "gemini-3.7-flash",
-				Capabilities: router.Lookup("gemini-3.7-flash"),
+				Capabilities: alwaysOnSpec,
 			})
 			require.NoError(t, err)
 
@@ -344,7 +344,10 @@ func TestPrepareGemini_ThinkingBudget_Legacy25(t *testing.T) {
 	body := []byte(`{"model":"z-ai/glm-5.2","max_tokens":1024,"messages":[{"role":"user","content":"hi"}],"thinking":{"type":"enabled","budget_tokens":31999}}`)
 	env, err := translate.ParseAnthropic(body)
 	require.NoError(t, err)
-	prep, err := env.PrepareGemini(nil, translate.EmitOptions{TargetModel: "gemini-2.5-pro"})
+	prep, err := env.PrepareGemini(nil, translate.EmitOptions{
+		TargetModel:  "gemini-2.5-pro",
+		Capabilities: reasoningSpec,
+	})
 	require.NoError(t, err)
 	var out map[string]any
 	require.NoError(t, json.Unmarshal(prep.Body, &out))
@@ -458,14 +461,15 @@ func TestPrepareOpenAIResponses_Samplers(t *testing.T) {
 	for _, tc := range []struct {
 		model    string
 		wantTemp bool
+		spec     router.ModelSpec
 	}{
-		{model: "deepseek/deepseek-v4-flash", wantTemp: true},
-		{model: "gpt-5.4-mini", wantTemp: false},
+		{model: "deepseek/deepseek-v4-flash", wantTemp: true, spec: router.Lookup("deepseek/deepseek-v4-flash")},
+		{model: "gpt-5.4-mini", wantTemp: false, spec: reasoningSpec},
 	} {
 		t.Run(tc.model, func(t *testing.T) {
 			prep, err := env.PrepareOpenAIResponses(http.Header{}, translate.EmitOptions{
 				TargetModel:  tc.model,
-				Capabilities: router.Lookup(tc.model),
+				Capabilities: tc.spec,
 			})
 			require.NoError(t, err)
 			var out map[string]any
@@ -488,7 +492,7 @@ func TestPrepareOpenAIResponses_Samplers(t *testing.T) {
 // chat/completions projection rather than losing them.
 func TestRequiresChatCompletionsParams(t *testing.T) {
 	nonReasoning := router.Lookup("deepseek/deepseek-v4-flash")
-	reasoning := router.Lookup("gpt-5.4-mini")
+	reasoning := reasoningSpec
 
 	withStops, err := translate.ParseAnthropic([]byte(
 		`{"model":"z-ai/glm-5.2","max_tokens":16,"stop_sequences":["\n\n"],"messages":[{"role":"user","content":"hi"}]}`))

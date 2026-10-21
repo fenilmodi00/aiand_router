@@ -338,7 +338,10 @@ func TestAdaptiveReasoningDelegatesToCrossFormatTargetDefault(t *testing.T) {
 	})
 
 	t.Run("Gemini", func(t *testing.T) {
-		prep, err := env.PrepareGemini(http.Header{}, translate.EmitOptions{TargetModel: "gemini-3.1-pro-preview"})
+		prep, err := env.PrepareGemini(http.Header{}, translate.EmitOptions{
+			TargetModel:  "gemini-3.1-pro-preview",
+			Capabilities: alwaysOnSpec,
+		})
 		require.NoError(t, err)
 		var out map[string]any
 		require.NoError(t, json.Unmarshal(prep.Body, &out))
@@ -359,8 +362,12 @@ func TestApplyReasoningIntent_ClampsAndRejectsUnsupportedSemantics(t *testing.T)
 	require.ErrorIs(t, err, translate.ErrReasoningIncompatible)
 }
 
-func TestApplyReasoningIntent_MuseSparkAcceptsEveryLevelAndNeverDisables(t *testing.T) {
-	spec := router.Lookup("muse-spark-1.3")
+// A target whose menu covers every level passes each one through untouched,
+// and a disable clamps to its floor level because it always reasons.
+func TestApplyReasoningIntent_AcceptsEveryLevelOnTheMenuAndNeverDisables(t *testing.T) {
+	spec := router.NewSpecWithReasoning(
+		router.ReasoningCapabilities{Levels: []string{"low", "medium", "high", "xhigh"}, AlwaysOn: true},
+		router.CapReasoning, router.CapXhighEffort)
 	for _, level := range []string{"low", "medium", "high", "xhigh"} {
 		got, err := translate.ApplyReasoningIntent(translate.ReasoningIntent{Kind: translate.ReasoningLevel, Level: level, Explicit: true}, spec, "")
 		require.NoError(t, err, level)

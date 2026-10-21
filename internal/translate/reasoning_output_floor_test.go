@@ -28,7 +28,7 @@ func geminiGenConfig(t *testing.T, target string) map[string]any {
 	require.NoError(t, err)
 	prep, err := env.PrepareGemini(http.Header{}, translate.EmitOptions{
 		TargetModel:  target,
-		Capabilities: router.Lookup(target),
+		Capabilities: reasoningSpec,
 	})
 	require.NoError(t, err)
 	out := mustUnmarshal(t, prep.Body)
@@ -50,7 +50,7 @@ func TestPrepareOpenAI_FromAnthropic_TinyBudgetKeptWhenEffortNone(t *testing.T) 
 	require.NoError(t, err)
 	prep, err := env.PrepareOpenAI(http.Header{}, translate.EmitOptions{
 		TargetModel:          "o3",
-		Capabilities:         router.Lookup("o3"),
+		Capabilities:         reasoningSpec,
 		ForceReasoningEffort: "none",
 	})
 	require.NoError(t, err)
