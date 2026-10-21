@@ -185,7 +185,7 @@ func TestPolicyShadowComparisonCollectsUsageBypassRoute(t *testing.T) {
 
 	row := telem.firstShadowRow(t)
 	assert.Equal(t, installID, row.InstallationID)
-	assert.Equal(t, bypassRequestedMdl, row.ServingModel)
+	assert.Equal(t, bypassScorerPickMdl, row.ServingModel, "the shadow compares against the model that served")
 	assert.Equal(t, "gpt-5.5", row.ShadowModel)
 	assert.False(t, row.ModelsAgree)
 }

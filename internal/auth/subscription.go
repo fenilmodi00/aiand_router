@@ -1,15 +1,5 @@
 package auth
 
-// SubscriptionProvider identifies a provider-specific account pool.
-type SubscriptionProvider string
-
-const (
-	// SubscriptionProviderClaude is a Claude subscription account.
-	SubscriptionProviderClaude SubscriptionProvider = "claude"
-	// SubscriptionProviderCodex is a Codex subscription account.
-	SubscriptionProviderCodex SubscriptionProvider = "codex"
-)
-
 // SubscriptionTier names the sharing tier of a linked subscription account.
 type SubscriptionTier string
 

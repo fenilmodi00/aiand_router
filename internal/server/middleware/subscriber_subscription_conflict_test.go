@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"weave-os/router/internal/auth"
 	"weave-os/router/internal/billing"
 	"weave-os/router/internal/proxy"
 	"weave-os/router/internal/server/middleware"
@@ -20,13 +19,12 @@ import (
 
 func TestWithSubscriberAllowance_MaxIgnoresLinkedSubscriptionAndUsesAllowance(t *testing.T) {
 	for _, route := range []struct {
-		path     string
-		provider auth.SubscriptionProvider
-		bearer   string
+		path   string
+		bearer string
 	}{
-		{"/v1/messages", auth.SubscriptionProviderClaude, "sk-ant-oat-test"},
-		{"/v1/chat/completions", auth.SubscriptionProviderCodex, "eyJhbGciOi.test.signature"},
-		{"/v1/responses", auth.SubscriptionProviderCodex, "eyJhbGciOi.test.signature"},
+		{"/v1/messages", "sk-ant-oat-test"},
+		{"/v1/chat/completions", "eyJhbGciOi.test.signature"},
+		{"/v1/responses", "eyJhbGciOi.test.signature"},
 	} {
 		for _, enrolled := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/enrolled=%t", route.path, enrolled), func(t *testing.T) {
@@ -55,9 +53,6 @@ func TestWithSubscriberAllowance_MaxIgnoresLinkedSubscriptionAndUsesAllowance(t 
 
 				request := httptest.NewRequest(http.MethodPost, route.path, nil)
 				request.Header.Set("Authorization", "Bearer "+route.bearer)
-				if route.provider == auth.SubscriptionProviderCodex {
-					request.Header.Set("ChatGPT-Account-ID", "test-account")
-				}
 				response := httptest.NewRecorder()
 				engine.ServeHTTP(response, request)
 
