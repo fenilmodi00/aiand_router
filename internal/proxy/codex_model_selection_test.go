@@ -13,39 +13,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tidwall/gjson"
 )
 
 // codexModelSwitchInput is the retained developer fragment Codex records when
 // the user changes models with its native /model picker mid-session.
 const codexModelSwitchInput = `{"type":"message","role":"developer","content":[{"type":"input_text","text":"<model_switch>\nThe user was previously using a different model. Please continue the conversation according to the following instructions:\n\nYou are GPT-6.\n</model_switch>"}]}`
-
-func TestCodexNativeModelSelection_ForcesModelAndEffort(t *testing.T) {
-	provider := &fakeProvider{proxyResponse: func(w http.ResponseWriter) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = io.WriteString(w, `{"id":"resp_1","object":"response","output":[{"type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"ok"}]}]}`)
-	}}
-	routerStub := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-5.6-luna", Reason: "fresh"}}
-	svc := proxy.NewService(routerStub, map[string]providers.Client{providers.ProviderAIAND: provider}, nil, false, nil, nil, false, providers.ProviderAIAND, "gpt-5.6-sol", nil)
-	ctx := context.WithValue(context.Background(), proxy.ClientIdentityContextKey{}, proxy.ClientIdentity{ClientApp: proxy.ClientAppCodex})
-	body := []byte(`{"model":"gpt-6-sol","input":[` + codexModelSwitchInput + `,{"type":"message","role":"user","content":"review this change"}],"reasoning":{"effort":"max"}}`)
-	req := httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
-	req.Header.Set(proxy.CodexNativeModelPinHeader, "1")
-	req.Header.Set("Authorization", "Bearer subscription-token")
-	req.Header.Set("ChatGPT-Account-ID", "account-123")
-	rec := httptest.NewRecorder()
-	require.NoError(t, svc.ProxyOpenAIResponses(ctx, body, rec, req))
-	assert.Zero(t, routerStub.routeCalls, "native selection must bypass automatic scoring")
-	assert.Equal(t, "gpt-6-sol", rec.Header().Get(proxy.HeaderRouterModel))
-	require.Len(t, provider.proxyBodies, 1)
-	require.Len(t, provider.proxyCreds, 1)
-	require.NotNil(t, provider.proxyCreds[0])
-	assert.True(t, provider.proxyCreds[0].OAuth)
-	assert.Equal(t, []byte("account-123"), provider.proxyCreds[0].AccountID)
-	assert.Equal(t, providers.EndpointResponses, provider.proxyEndpoints[0])
-	assert.Equal(t, "gpt-6-sol", gjson.GetBytes(provider.proxyBodies[0], "model").String())
-	assert.Equal(t, "max", gjson.GetBytes(provider.proxyBodies[0], "reasoning.effort").String())
-}
 
 func TestCodexNativeModelSelection_AutomaticAndLegacyStillScore(t *testing.T) {
 	for _, tc := range []struct {

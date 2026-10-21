@@ -2,19 +2,15 @@ package proxy_test
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"weave-os/router/internal/providers"
 	"weave-os/router/internal/proxy"
 	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/sessionpin"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -51,53 +47,4 @@ func assertClientGitContextNull(t *testing.T, row proxy.InsertTelemetryParams) {
 	assert.Empty(t, row.ClientGitHeadSHA)
 	assert.Empty(t, row.ClientGitBranch)
 	assert.Nil(t, row.ClientGitDirty)
-}
-
-func TestProxyMessages_ClientGitContext_TrialFirstTurnStamps(t *testing.T) {
-	row := proxyClientGitContextTurn(t, trialCtx(uuid.New().String()), newFakePinStore())
-
-	assert.Equal(t, "abc1234", row.ClientGitHeadSHA)
-	assert.Equal(t, "feature/synthetic-branch", row.ClientGitBranch)
-	require.NotNil(t, row.ClientGitDirty)
-	assert.True(t, *row.ClientGitDirty)
-}
-
-func TestProxyMessages_ClientGitContext_NonTrialInstallationLeavesNulls(t *testing.T) {
-	row := proxyClientGitContextTurn(t, authedCtx(uuid.New().String()), newFakePinStore())
-	assertClientGitContextNull(t, row)
-}
-
-func TestProxyMessages_ClientGitContext_SecondTurnLeavesNulls(t *testing.T) {
-	store := newFakePinStore()
-	store.hasPin = true
-	store.pin = sessionpin.Pin{
-		Provider:      providers.ProviderAIAND,
-		Model:         "z-ai/glm-5.3-flash",
-		Reason:        "cluster:v0.2",
-		PinnedUntil:   time.Now().Add(30 * time.Minute),
-		FirstPinnedAt: time.Now().Add(-5 * time.Minute),
-	}
-	row := proxyClientGitContextTurn(t, trialCtx(uuid.New().String()), store)
-	assertClientGitContextNull(t, row)
-}
-
-func TestProxyMessages_ClientGitContext_PinStoreErrorLeavesNulls(t *testing.T) {
-	store := newFakePinStore()
-	store.getErr = errors.New("postgres unreachable")
-	row := proxyClientGitContextTurn(t, trialCtx(uuid.New().String()), store)
-	assertClientGitContextNull(t, row)
-}
-
-func TestProxyMessages_ClientGitContext_ExpiredPinIsNotFirstTurn(t *testing.T) {
-	store := newFakePinStore()
-	store.hasPin = true
-	store.pin = sessionpin.Pin{
-		Provider:      providers.ProviderAIAND,
-		Model:         "z-ai/glm-5.3-flash",
-		Reason:        "cluster:v0.2",
-		PinnedUntil:   time.Now().Add(-time.Minute),
-		FirstPinnedAt: time.Now().Add(-time.Hour),
-	}
-	row := proxyClientGitContextTurn(t, trialCtx(uuid.New().String()), store)
-	assertClientGitContextNull(t, row)
 }

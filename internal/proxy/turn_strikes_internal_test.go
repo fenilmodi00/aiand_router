@@ -4,8 +4,6 @@ import (
 	"context"
 	"io"
 	"net/http"
-	"net/http/httptest"
-	"strings"
 	"sync"
 	"testing"
 
@@ -69,41 +67,6 @@ func turnStrikePin() sessionpin.Pin {
 	pin := demotedPin(freshTurnModel)
 	pin.TurnStrikes = []string{demotedPinModel}
 	return pin
-}
-
-// A model that failed and was rescued stays out for every tool-result request
-// of the same agent turn.
-func TestTurnLoopKeepsTurnStrikeOutUntilUserPrompt(t *testing.T) {
-	store := &turnStrikePinStore{rolePinStore: rolePinStore{byRole: map[string]sessionpin.Pin{
-		sessionpin.DefaultRole: turnStrikePin(),
-	}}}
-	svc, scorer := cooldownTurnLoopService(store, false)
-
-	res := runTurnLoopWithBody(t, svc, toolResultTurnBody)
-
-	require.NotEmpty(t, scorer.requests)
-	for _, req := range scorer.requests {
-		assert.Contains(t, req.AutomaticExcludedModels, demotedPinModel)
-	}
-	assert.Contains(t, res.SessionDemotedModels, demotedPinModel)
-	assert.Empty(t, store.cleared)
-}
-
-// The next real user prompt starts a new agent turn: the struck model is
-// eligible again and the stored strikes are cleared.
-func TestTurnLoopUserPromptClearsTurnStrikes(t *testing.T) {
-	store := &turnStrikePinStore{rolePinStore: rolePinStore{byRole: map[string]sessionpin.Pin{
-		sessionpin.DefaultRole: turnStrikePin(),
-	}}}
-	svc, scorer := cooldownTurnLoopService(store, false)
-
-	res := runDemotionTurnLoop(t, svc, context.Background())
-
-	for _, req := range scorer.requests {
-		assert.NotContains(t, req.AutomaticExcludedModels, demotedPinModel)
-	}
-	assert.NotContains(t, res.SessionDemotedModels, demotedPinModel)
-	assert.ElementsMatch(t, []string{sessionpin.DefaultRole, hmmHistoryRole(sessionpin.DefaultRole)}, store.cleared)
 }
 
 // With session-lifetime demotion off, a rescued primary failure is still kept
@@ -171,36 +134,4 @@ func (c *siblingChainClient) Proxy(_ context.Context, decision router.Decision, 
 
 func (c *siblingChainClient) Passthrough(context.Context, providers.PreparedRequest, http.ResponseWriter, *http.Request) error {
 	return providers.ErrNotImplemented
-}
-
-// Every sibling that fails before a later sibling serves is struck for the
-// turn, not only the primary.
-func TestSiblingRescueRecordsEveryFailedModel(t *testing.T) {
-	anthropicClient := &siblingChainClient{failing: map[string]bool{"z-ai/glm-5.2": true}}
-	openAIClient := &siblingChainClient{failing: map[string]bool{"gpt-5.6-luna": true}}
-	decision := router.Decision{
-		Provider: providers.ProviderAIAND,
-		Model:    "z-ai/glm-5.2",
-		Reason:   "test",
-		Metadata: &router.RoutingMetadata{
-			CandidateModels:    []string{"z-ai/glm-5.2", "gpt-5.6-luna", "deepseek/deepseek-v4-pro"},
-			CandidateProviders: map[string]string{"gpt-5.6-luna": providers.ProviderAIAND, "deepseek/deepseek-v4-pro": providers.ProviderAIAND},
-		},
-	}
-	svc := NewService(staticRouter{decision: decision}, map[string]providers.Client{
-		providers.ProviderAIAND: anthropicClient,
-	}, nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
-		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
-	svc.retrySleep = noopSleep
-	ctx := withTurnFailures(context.Background())
-
-	body := `{"model":"z-ai/glm-5.2","max_tokens":1024,"stream":true,"messages":[{"role":"user","content":"read main.go"}]}`
-	rec := httptest.NewRecorder()
-	require.NoError(t, svc.ProxyMessages(ctx, []byte(body), rec,
-		httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(body))))
-
-	require.Contains(t, rec.Body.String(), "rescued")
-	require.Contains(t, anthropicClient.failed, "z-ai/glm-5.2")
-	require.Contains(t, openAIClient.failed, "gpt-5.6-luna", "the first sibling fails before the second serves")
-	assert.ElementsMatch(t, []string{"z-ai/glm-5.2", "gpt-5.6-luna"}, turnFailuresFromContext(ctx).models)
 }

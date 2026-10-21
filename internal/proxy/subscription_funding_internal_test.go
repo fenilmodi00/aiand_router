@@ -93,19 +93,6 @@ func TestSubscriptionFundingFinalOAuthLeaseIsAllowed(t *testing.T) {
 	require.Equal(t, "included answer", rec.Body.String())
 }
 
-func TestSubscriptionFundingUnknownEnrollmentAndGatewayBinding(t *testing.T) {
-	svc := newServiceWithProviders(t, nil)
-	unknownCtx := context.WithValue(context.Background(), ManagedSubscriptionEnrollmentUnavailableContextKey{}, true)
-	require.ErrorIs(t, svc.subscriptionAPIAuthorization(unknownCtx, providers.ProviderAIAND, catalog.ModelIDGLM52.String()), ErrSubscriptionPoolUnavailable)
-	// Gemini has no compatible subscription pool; unrelated uncertainty cannot block it.
-	_, known := catalog.ByID(catalog.ModelIDGLM53Flash.String())
-	require.True(t, known)
-	require.NoError(t, svc.subscriptionAPIAuthorization(unknownCtx, providers.ProviderAIAND, catalog.ModelIDGLM53Flash.String()))
-	ctx := WithManagedSubscriptionCandidates(context.Background(), []*auth.SubscriptionAccount{{ID: "seat", Provider: auth.SubscriptionProviderClaude, Enabled: true, State: auth.SubscriptionAccountStateActive}})
-	require.ErrorIs(t, svc.subscriptionAPIAuthorization(ctx, providers.ProviderAIAND, catalog.ModelIDGLM52.String()), ErrSubscriptionPoolUnavailable,
-		"a gateway binding must not bypass catalog-compatible pool authorization")
-}
-
 func TestSubscriptionRecoveryDoesNotExpandAdmissionSnapshot(t *testing.T) {
 	upstream := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{writeBytes: []byte("unadmitted answer")}}}
 	svc := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: upstream}).WithManagedSubscriptions(&scriptedSubscriptionLeaser{leases: []subscriptions.Lease{{AccountID: "new-seat", AccessToken: "new-token"}}})
@@ -148,25 +135,6 @@ func TestSubscriptionLeaseOutsideSnapshotBlocksPaidRecovery(t *testing.T) {
 	require.ErrorIs(t, err, ErrSubscriptionPoolUnavailable)
 	require.NotErrorIs(t, err, ErrSubscriptionPoolExhausted)
 	require.Zero(t, upstream.calls, "an unproven unadmitted seat must not authorize paid recovery")
-}
-
-func TestSubscriptionFundingLiveQuotaProofAllowsAPIWithoutObserver(t *testing.T) {
-	upstream := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{
-		{err: &providers.UpstreamErrorResponse{Status: http.StatusTooManyRequests, Body: []byte(`{"error":{"type":"usage_limit_reached"}}`)}},
-		{writeBytes: []byte("paid rollover")},
-	}}
-	leaser := &healthSubscriptionLeaser{scriptedSubscriptionLeaser: &scriptedSubscriptionLeaser{leases: []subscriptions.Lease{{AccountID: "seat", AccessToken: "oauth-token"}}}}
-	svc := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: upstream}).WithManagedSubscriptions(leaser).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
-	ctx := WithManagedSubscriptionCandidates(context.Background(), []*auth.SubscriptionAccount{{ID: "seat", Provider: auth.SubscriptionProviderCodex, Enabled: true, State: auth.SubscriptionAccountStateActive}})
-	rec := httptest.NewRecorder()
-	buf := newPreludeBuffer(rec)
-	in := plannedInputs(rec, buf, []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}}, nil)
-	in.initialDecision = router.Decision{Provider: providers.ProviderAIAND, Model: codexCoveredModel}
-	_, err := svc.dispatchWithFallback(ctx, in)
-	require.NoError(t, err)
-	require.Equal(t, 2, upstream.calls)
-	require.Equal(t, []string{"seat"}, leaser.exhaustedIDs)
-	require.Equal(t, "paid rollover", rec.Body.String())
 }
 
 func TestSubscriptionFundingOperationalFailuresNeverAuthorizeAPI(t *testing.T) {

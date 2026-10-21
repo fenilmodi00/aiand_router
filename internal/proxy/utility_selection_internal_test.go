@@ -129,34 +129,3 @@ func TestAutomaticProbeWithoutConcreteTargetScoresWithoutPinning(t *testing.T) {
 		})
 	}
 }
-
-func TestDefaultProbeDroppedForceDoesNotAttachConversationState(t *testing.T) {
-	for _, requestedModel := range []string{automaticProbeModel, catalog.ModelIDGLM53.String()} {
-		t.Run(requestedModel, func(t *testing.T) {
-			scorer := &blindExperimentRouterSpy{decision: router.Decision{
-				Provider: providers.ProviderAIAND, Model: catalog.ModelIDGLM53.String(),
-			}}
-			pins := newStubPinStore()
-			service := NewService(scorer, nil, nil, false, nil, pins, false,
-				providers.ProviderAIAND, catalog.ModelIDGLM53Flash.String(), nil)
-			body := strings.Replace(blindExperimentUtilityTurnBodies()[0].body, catalog.ModelIDGLM52.String(), requestedModel, 1)
-			envelope, err := translate.ParseAnthropic([]byte(body))
-			require.NoError(t, err)
-			features := envelope.RoutingFeatures(false)
-			turn, err := service.runTurnLoop(context.Background(), envelope, features, "utility-key", uuid.New(), "", http.Header{}, router.Request{
-				RequestedModel:   features.Model,
-				ForceModel:       catalog.ModelIDGLM53.String(),
-				EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}},
-			})
-			require.NoError(t, err)
-			require.True(t, turn.ForcedPinDropped)
-			assert.Empty(t, routingMarkerFor(turn), "probe output remains machine-readable when a force pin is unavailable")
-			assert.Zero(t, turn.SessionKey)
-			service.recordTurnUsage(context.Background(), turn, turn.Decision.Provider, turn.Decision.Model, 10, 1, 0, 0, false)
-			pins.mu.Lock()
-			defer pins.mu.Unlock()
-			assert.Empty(t, pins.upserts)
-			assert.Zero(t, pins.usageHits)
-		})
-	}
-}

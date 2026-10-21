@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -13,13 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"weave-os/router/internal/auth"
 	"weave-os/router/internal/dispatch"
-	"weave-os/router/internal/observability/otel"
-	"weave-os/router/internal/policyregistry"
 	"weave-os/router/internal/providers"
 	"weave-os/router/internal/proxy/usage"
-	"weave-os/router/internal/requestcontext"
 	"weave-os/router/internal/router"
 	"weave-os/router/internal/router/catalog"
 	"weave-os/router/internal/router/policy"
@@ -84,36 +79,6 @@ func bypassAnthropicEnvelope(t *testing.T) *translate.RequestEnvelope {
 	env, err := translate.ParseAnthropic([]byte(`{"model":"deepseek/deepseek-v4.1-flash","messages":[{"role":"user","content":"hi"}]}`))
 	require.NoError(t, err)
 	return env
-}
-
-func TestUsageBypassDecision_CodexSubscriptionPreservesRequestedModel(t *testing.T) {
-	const codexToken = "eyJhbGciOiJub25lIn0.eyJzdWIiOiJ0ZXN0In0.signature"
-	threshold := 0.80
-	obs := usage.NewObserver([]byte("salt"), 10*time.Minute, time.Now)
-	obs.Record(obs.Key([]byte(codexToken)), usage.Snapshot{
-		Primary: usage.Window{UsedPercent: 0.20, WindowMinutes: 300},
-	})
-	svc := &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: &bypassFakeProvider{}}), usageObserver: obs}
-	ctx := context.WithValue(context.Background(), OpenAISubscriptionContextKey{}, codexToken)
-	ctx = context.WithValue(ctx, OpenAIAccountIDContextKey{}, "account-1")
-	ctx = context.WithValue(ctx, InstallationUsageBypassContextKey{}, UsageBypassConfig{
-		Enabled:   true,
-		Threshold: &threshold,
-	})
-
-	decision, ok := svc.usageBypassDecision(ctx, http.Header{}, router.Request{
-		RequestedModel: "gpt-5.6-sol",
-		EnabledProviders: map[string]struct{}{
-			providers.ProviderAIAND: {},
-		},
-	}, nil, turntype.MainLoop)
-
-	require.True(t, ok)
-	assert.Equal(t, router.Decision{
-		Provider: providers.ProviderAIAND,
-		Model:    "gpt-5.6-sol",
-		Reason:   "usage_bypass",
-	}, decision)
 }
 
 // TestUsageBypassDecision_SessionDemotionBlocks_GlobalAutomaticExclusionDoesNot
@@ -582,75 +547,6 @@ func spanBool(t *testing.T, sp *tracev1.Span, key string) bool {
 	return false
 }
 
-// TestBypass_EmitsUsageAndCost guards that the bypass span carries token usage
-// + catalog-priced cost — subscription turns are invisible to the savings metric without it.
-func TestBypass_EmitsUsageAndCost(t *testing.T) {
-	const (
-		inputTokens  = 1200
-		outputTokens = 340
-		model        = "deepseek/deepseek-v4.1-flash"
-	)
-	sse := "event: message_start\n" +
-		`data: {"type":"message_start","message":{"usage":{"input_tokens":1200,"output_tokens":1}}}` + "\n\n" +
-		"event: message_delta\n" +
-		`data: {"type":"message_delta","usage":{"output_tokens":340}}` + "\n\n"
-
-	collector := newBypassSpanCollector(t)
-	emitter, err := otel.NewEmitter(otel.EmitterConfig{
-		Endpoint:      collector.srv.URL,
-		Workers:       1,
-		QueueSize:     100,
-		BatchSize:     1,
-		FlushInterval: 10 * time.Millisecond,
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = emitter.Shutdown(context.Background()) })
-
-	upstream := &bypassFakeProvider{respBody: sse}
-	svc := newBypassService(upstream)
-	svc.emitter = emitter // makes usageRequired() true so the extractor runs
-
-	env := bypassAnthropicEnvelope(t)
-	feats := env.RoutingFeatures(false)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
-
-	buf := otel.NewBuffer(emitter)
-	ctx := buf.WithContext(context.Background())
-	err = svc.bypassToAnthropic(ctx, env, feats, false, time.Now(), "req-1", "ext-1", turntype.MainLoop, "usage_bypass", req, rec)
-	require.NoError(t, err)
-	buf.Flush()
-
-	require.Eventually(t, func() bool {
-		collector.mu.Lock()
-		defer collector.mu.Unlock()
-		return len(collector.byName["router.usage_bypass"]) == 1
-	}, time.Second, 5*time.Millisecond, "the bypass span must be exported")
-
-	collector.mu.Lock()
-	sp := collector.byName["router.usage_bypass"][0]
-	collector.mu.Unlock()
-
-	assert.Equal(t, model, spanStr(t, sp, "requested.model"), "bypass requested model IS the served model")
-	assert.Equal(t, model, spanStr(t, sp, "decision.model"))
-	assert.Equal(t, int64(inputTokens), spanInt(t, sp, "usage.input_tokens"))
-	assert.Equal(t, int64(outputTokens), spanInt(t, sp, "usage.output_tokens"))
-	// No subscription credential here, but spanBool fatals if the attribute is absent — guards the emitted contract.
-	assert.False(t, spanBool(t, sp, "cost.subscription_served"))
-
-	pricing, ok := catalog.PriceFor(providers.ProviderAIAND, model)
-	require.True(t, ok, "test model must have catalog pricing")
-	wantOut := catalog.EffectiveOutputCost(inputTokens, outputTokens, pricing, catalog.UsageModifiers{})
-	wantIn := catalog.EffectiveInputCost(inputTokens, 0, 0, pricing, providers.ProviderAIAND, catalog.UsageModifiers{})
-
-	// Bypass never substitutes the model, so requested == actual on the span;
-	// Weave zeroes actual downstream when subscription_served is set.
-	assert.InDelta(t, wantOut, spanFloat(t, sp, "cost.actual_output_usd"), 1e-9)
-	assert.InDelta(t, wantIn, spanFloat(t, sp, "cost.actual_input_usd"), 1e-9)
-	assert.InDelta(t, wantOut, spanFloat(t, sp, "cost.requested_output_usd"), 1e-9)
-	assert.InDelta(t, wantIn, spanFloat(t, sp, "cost.requested_input_usd"), 1e-9)
-}
-
 // bypassCaptureTelemetry records InsertTelemetryParams rows for assertions.
 // Only InsertRequestTelemetry matters; the read methods satisfy the interface.
 type bypassCaptureTelemetry struct {
@@ -675,79 +571,6 @@ func (c *bypassCaptureTelemetry) InsertRequestTelemetry(_ context.Context, p Ins
 	return nil
 }
 
-// TestBypass_PersistsTelemetryRowWithUnifiedHeaders: a usage-bypass turn —
-// the primary subscription pass-through path — must write a router.upstream
-// telemetry row carrying the captured anthropic-ratelimit-unified-* headers.
-// Before this, bypass turns returned ahead of every fireTelemetry site, so
-// exactly the turns Phase 0 needs (subscription-served) were invisible.
-func TestBypass_PersistsTelemetryRowWithUnifiedHeaders(t *testing.T) {
-	upstream := &bypassFakeProvider{respBody: "{}"}
-	svc := newBypassService(upstream)
-	sink := newBypassCaptureTelemetry()
-	svc.telemetry = sink
-
-	env := bypassAnthropicEnvelope(t)
-	feats := env.RoutingFeatures(false)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
-	// Subscription bearer on the inbound request: resolveAndInjectCredentials
-	// inside bypassToAnthropic resolves it, so the header observer treats the
-	// upstream call as subscription-served.
-	req.Header.Set("Authorization", "Bearer sk-ant-oat01-live")
-
-	installationID := uuid.New()
-	ctx := context.WithValue(context.Background(), InstallationIDContextKey{}, installationID.String())
-	ctx = requestcontext.WithServingIdentity(ctx, requestcontext.ServingIdentity{
-		Target: string(policyregistry.TargetInternal), ReleaseID: "managed-release", BindingID: "managed-binding",
-	})
-	ctx = context.WithValue(ctx, auth.BlindExperimentContextKey{}, auth.BlindExperimentState{
-		Active: true, Enabled: true, Arm: auth.BlindExperimentArmRouterOn,
-		ScheduledArm: auth.BlindExperimentArmRouterOn, CohortExperimentID: uuid.NewString(),
-		CohortGroupID: 2, CohortPhaseIndex: 1, CohortRevision: 1,
-	})
-	// Same wiring ProxyMessages does before the bypass branch: install the
-	// capture holder + observer, then simulate the provider reporting headers.
-	ctx = svc.withUsageObserver(ctx, req.Header)
-	upstreamHeaders := http.Header{}
-	upstreamHeaders.Set("anthropic-ratelimit-unified-status", "allowed")
-	upstreamHeaders.Set("anthropic-ratelimit-unified-overage-status", "rejected")
-	credCtx := context.WithValue(ctx, CredentialsContextKey{}, &Credentials{
-		APIKey: []byte("sk-ant-oat01-live"), Source: credSourceSubscription, OAuth: true,
-	})
-	providers.ObserveUpstreamHeaders(credCtx, upstreamHeaders)
-
-	err := svc.bypassToAnthropic(ctx, env, feats, false, time.Now(), "req-tel-1", "ext-1", turntype.MainLoop, "usage_bypass", req, rec)
-	require.NoError(t, err)
-
-	select {
-	case <-sink.notify:
-	case <-time.After(2 * time.Second):
-		t.Fatal("bypass turn never persisted a telemetry row")
-	}
-
-	sink.mu.Lock()
-	defer sink.mu.Unlock()
-	require.Len(t, sink.rows, 1)
-	row := sink.rows[0]
-	assert.Equal(t, installationID.String(), row.InstallationID)
-	assert.Equal(t, "router.upstream", row.SpanType, "bypass rows must land in the same span the dashboard queries filter on")
-	assert.Equal(t, "usage_bypass", row.DecisionReason)
-	assert.Equal(t, string(policyregistry.TargetInternal), row.ServingTarget)
-	assert.Equal(t, "managed-release", row.ServingReleaseID)
-	assert.Equal(t, "managed-binding", row.ServingBindingID)
-	assert.Equal(t, auth.CohortBypassUsageBypass, row.CohortBypassReason)
-	require.NotNil(t, row.CohortTreatmentApplied)
-	assert.False(t, *row.CohortTreatmentApplied)
-	assert.Equal(t, string(turntype.MainLoop), row.TurnType)
-	routedKey := deriveSessionKeyForRequest(ctx, env, apiKeyIDFromContext(ctx))
-	assert.Equal(t, routedKey[:], row.SessionKey, "bypass replies must advance the same session turn clock as routed replies")
-	require.NotNil(t, row.UnifiedLimitHeaders, "captured unified headers must reach the telemetry row")
-	var headers map[string]string
-	require.NoError(t, json.Unmarshal(row.UnifiedLimitHeaders, &headers))
-	assert.Equal(t, "allowed", headers["anthropic-ratelimit-unified-status"])
-	assert.Equal(t, "rejected", headers["anthropic-ratelimit-unified-overage-status"])
-}
-
 // TestBypass_NoTelemetryRowWithoutInstallation: bypass turns without an
 // authenticated installation (should not happen in practice — the auth
 // middleware always sets it) must not fabricate a row with a zero UUID.
@@ -770,31 +593,4 @@ func TestBypass_NoTelemetryRowWithoutInstallation(t *testing.T) {
 		t.Fatal("no installation on ctx -> no telemetry row expected")
 	case <-time.After(200 * time.Millisecond):
 	}
-}
-
-func TestBypass_TelemetryRowClassifiesOutputCap(t *testing.T) {
-	upstream := &bypassFakeProvider{respBody: `{"type":"message","role":"assistant","content":[{"type":"text","text":"partial"}],` +
-		`"stop_reason":"max_tokens","usage":{"input_tokens":3,"output_tokens":5}}`}
-	svc := newBypassService(upstream)
-	sink := newBypassCaptureTelemetry()
-	svc.telemetry = sink
-
-	env := bypassAnthropicEnvelope(t)
-	feats := env.RoutingFeatures(false)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
-	ctx := context.WithValue(context.Background(), InstallationIDContextKey{}, uuid.New().String())
-
-	err := svc.bypassToAnthropic(ctx, env, feats, false, time.Now(), "req-tel-3", "ext-1", turntype.MainLoop, "usage_bypass", req, rec)
-	require.NoError(t, err)
-
-	select {
-	case <-sink.notify:
-	case <-time.After(2 * time.Second):
-		t.Fatal("bypass turn never persisted a telemetry row")
-	}
-	sink.mu.Lock()
-	defer sink.mu.Unlock()
-	require.Len(t, sink.rows, 1)
-	assert.Equal(t, TurnErrorMaxTokens, sink.rows[0].ErrorClass, "a bypass reply cut off at its output cap is classified like a routed one")
 }

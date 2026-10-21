@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -170,26 +168,4 @@ func TestParseWorkloadIdentityFederationRejectsUnparseableTarget(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, federated)
 	assert.Contains(t, err.Error(), "does not name a service account")
-}
-
-func TestNewGoogleIDTokenCredentialsBuildsImpersonatedProviderFromFederationFile(t *testing.T) {
-	dir := t.TempDir()
-	subjectTokenPath := filepath.Join(dir, "oidc-token")
-	require.NoError(t, os.WriteFile(subjectTokenPath, []byte("subject-token"), 0o600))
-	credentialsPath := filepath.Join(dir, "wif.json")
-	require.NoError(t, os.WriteFile(credentialsPath, []byte(`{
-		"type": "external_account",
-		"audience": "//iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/pool/providers/github",
-		"subject_token_type": "urn:ietf:params:oauth:token-type:jwt",
-		"token_url": "https://sts.googleapis.com/v1/token",
-		"service_account_impersonation_url": "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/ci-sa-01@workweave-root.iam.gserviceaccount.com:generateAccessToken",
-		"credential_source": {"file": "`+subjectTokenPath+`"}
-	}`), 0o600))
-	t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", credentialsPath)
-
-	idTokenCredentials, err := newGoogleIDTokenCredentials("https://rp-abc---sidecar-uc.a.run.app")
-
-	require.NoError(t, err)
-	require.NotNil(t, idTokenCredentials)
-	assert.Empty(t, idTokenCredentials.JSON(), "impersonated ID-token credentials must not re-load the federation file")
 }

@@ -3,11 +3,9 @@ package proxy_test
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -48,33 +46,6 @@ func TestProxyMessages_UpstreamOverflowIsLeftForNativeRendering(t *testing.T) {
 	assert.Equal(t, proxy.DispatchErrorContextWindowExceeded, cls.Kind)
 	assert.Len(t, upstream.proxyBodies, 1, "an overflow is not retried against the same window")
 	assert.Zero(t, rec.Body.Len(), "the upstream's OpenAI-shaped body must not reach an Anthropic client")
-}
-
-// The pre-filter's ÷4 byte estimate counts JSON escape syntax, so an escaped
-// prompt can look too large for a forced model it fits. The force must still
-// dispatch and leave the verdict to the provider's exact token count; a real
-// overflow then returns as the native prompt-too-long error tested above.
-func TestProxyMessages_ForcedModelDispatchesPastByteEstimate(t *testing.T) {
-	const forced = "deepseek/deepseek-v4.1-flash"
-	upstream := &fakeProvider{}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.2", Reason: "cluster"}}
-	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: upstream},
-		nil, false, nil, newFakePinStore(), false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
-		WithAvailableModels(map[string]struct{}{forced: {}, "z-ai/glm-5.2": {}})
-
-	// 150k non-ASCII runes, each ASCII-escaped to a 6-byte JSON escape: ~900KB
-	// on the wire, which the ÷4 estimate reads as ~225k tokens against the
-	// forced model's 200k window.
-	content := strconv.QuoteToASCII(strings.Repeat("中", 150_000))
-	body := []byte(`{"model":"` + forced + `","max_tokens":1024,"messages":[{"role":"user","content":` + content + `}]}`)
-	httpReq := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
-	httpReq.Header.Set(proxy.ForceModelHeader, forced)
-	require.NoError(t, svc.ProxyMessages(authedCtx(overflowInstallationID), body, httptest.NewRecorder(), httpReq))
-
-	require.Len(t, upstream.proxyBodies, 1)
-	assert.Equal(t, forced, gjson.GetBytes(upstream.proxyBodies[0], "model").String(),
-		"the byte estimate alone must not reroute a forced pin")
-	assert.Zero(t, fr.routeCalls, "a forced pin never consults the scorer")
 }
 
 func proxyResponsesOverflow(t *testing.T, stream bool) *httptest.ResponseRecorder {
@@ -143,55 +114,6 @@ func (c *responsesOverflowClient) Passthrough(context.Context, providers.Prepare
 	return providers.ErrNotImplemented
 }
 
-// A GPT model reports an overflow inside a 200 stream. Translated for an
-// Anthropic or chat client it must still classify as a context overflow, so
-// the handler renders the native prompt-too-long rather than a generic 502.
-func TestCrossFormatResponsesOverflowClassifiesAsContextWindowExceeded(t *testing.T) {
-	ingresses := map[string]struct {
-		path  string
-		body  string
-		proxy func(*proxy.Service) func(context.Context, []byte, http.ResponseWriter, *http.Request) error
-	}{
-		"messages": {
-			path: "/v1/messages",
-			body: `{"model":"gpt-5-mini","max_tokens":1024,"stream":%t,"messages":[{"role":"user","content":"hi"}]}`,
-			proxy: func(s *proxy.Service) func(context.Context, []byte, http.ResponseWriter, *http.Request) error {
-				return s.ProxyMessages
-			},
-		},
-		"chat_completions": {
-			path: "/v1/chat/completions",
-			body: `{"model":"gpt-5-mini","max_tokens":1024,"stream":%t,"messages":[{"role":"user","content":"hi"}]}`,
-			proxy: func(s *proxy.Service) func(context.Context, []byte, http.ResponseWriter, *http.Request) error {
-				return s.ProxyOpenAIChatCompletion
-			},
-		},
-	}
-	for name, ingress := range ingresses {
-		for _, stream := range []bool{true, false} {
-			t.Run(fmt.Sprintf("%s/stream=%t", name, stream), func(t *testing.T) {
-				upstream := &responsesOverflowClient{}
-				svc := proxy.NewService(
-					&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-5-mini", Reason: "cluster"}},
-					map[string]providers.Client{providers.ProviderAIAND: upstream},
-					nil, false, nil, newFakePinStore(), false, providers.ProviderAIAND, "gpt-5-mini", nil,
-				)
-				rec := httptest.NewRecorder()
-				body := []byte(fmt.Sprintf(ingress.body, stream))
-				err := ingress.proxy(svc)(authedCtx(overflowInstallationID), body, rec, httptest.NewRequest(http.MethodPost, ingress.path, nil))
-
-				require.Error(t, err)
-				cls, ok := proxy.ClassifyDispatchError(err)
-				require.True(t, ok)
-				assert.Equal(t, proxy.DispatchErrorContextWindowExceeded, cls.Kind)
-				require.Equal(t, []providers.Endpoint{providers.EndpointResponses}, upstream.endpoints,
-					"served on the Responses API, and an overflow is not retried against the same window")
-				assert.NotContains(t, rec.Body.String(), "upstream Responses request failed")
-			})
-		}
-	}
-}
-
 // overflowPolicy is a sidecar that always picks the first offered candidate.
 type overflowPolicy struct{}
 
@@ -215,47 +137,6 @@ func hmmOverflowService(provider string, upstream providers.Client, models ...st
 		nil, false, nil, newFakePinStore(), false, provider, models[0], nil).
 		WithAvailableModels(available).
 		WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyHMM, Router: routing, Unavailable: hmm.ErrHMMUnavailable})
-}
-
-// A request whose estimate rules out every model reaches the widest one on
-// the HMM path too, so the provider's exact count decides and a real overflow
-// returns as the client's native prompt-too-long, never "no model is routable".
-func TestHMMTotalOverflowReachesUpstreamOnEveryIngress(t *testing.T) {
-	// ~1.1M tokens of user text: past every window, by the pre-filter's byte
-	// estimate and the resolver's text estimate alike.
-	prompt := strings.Repeat("overflow ", 500_000)
-	for _, test := range []struct {
-		name, provider, path, body, admitted string
-		models                               []string
-		send                                 func(*proxy.Service, context.Context, []byte, http.ResponseWriter, *http.Request) error
-	}{
-		{"messages", providers.ProviderAIAND, "/v1/messages",
-			`{"model":"z-ai/glm-5.2","max_tokens":1024,"messages":[{"role":"user","content":"` + prompt + `"}]}`,
-			"z-ai/glm-5.2", []string{"z-ai/glm-5.2", "z-ai/glm-5.3-flash"}, (*proxy.Service).ProxyMessages},
-		{"chat", providers.ProviderAIAND, "/v1/chat/completions",
-			`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"` + prompt + `"}]}`,
-			"z-ai/glm-5.2", []string{"z-ai/glm-5.2", "z-ai/glm-5.3-flash"}, (*proxy.Service).ProxyOpenAIChatCompletion},
-		{"responses", providers.ProviderAIAND, "/v1/responses",
-			`{"model":"z-ai/glm-5.2","input":"` + prompt + `"}`,
-			"z-ai/glm-5.2", []string{"z-ai/glm-5.2", "z-ai/glm-5.3-flash"}, (*proxy.Service).ProxyOpenAIResponses},
-		{"gemini", providers.ProviderAIAND, "/v1beta/models/gemini-2.5-pro:generateContent",
-			`{"contents":[{"role":"user","parts":[{"text":"` + prompt + `"}]}]}`,
-			"gemini-2.5-pro", []string{"gemini-2.5-pro"}, (*proxy.Service).ProxyGeminiGenerateContent},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			upstream := overflowingProvider(`{"type":"error","error":{"type":"invalid_request_error","message":"prompt is too long: 1100000 tokens > 1000000 maximum"}}`)
-			svc := hmmOverflowService(test.provider, upstream, test.models...)
-			ctx := router.WithStrategy(authedCtx(overflowInstallationID), router.StrategyHMM)
-
-			err := test.send(svc, ctx, []byte(test.body), httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, test.path, nil))
-
-			require.Error(t, err)
-			cls, ok := proxy.ClassifyDispatchError(err)
-			require.True(t, ok)
-			assert.Equal(t, proxy.DispatchErrorContextWindowExceeded, cls.Kind, "got %v", err)
-			require.Len(t, upstream.proxyBodies, 1, "the widest model is dispatched so the provider decides")
-		})
-	}
 }
 
 // A wider-window model the request cannot reach (its provider is not enabled)

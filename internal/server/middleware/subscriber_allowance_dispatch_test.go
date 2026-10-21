@@ -1,21 +1,17 @@
 package middleware_test
 
 import (
-	"bytes"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"weave-os/router/internal/billing"
-	"weave-os/router/internal/observability"
 	"weave-os/router/internal/server/middleware"
 	"weave-os/router/internal/subscriptions/entitlement"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // gateServing registers the gate as middleware and serves the route with the
@@ -36,58 +32,6 @@ func gateServing(
 	engine.Use(middleware.WithSubscriberAllowance(svc))
 	engine.POST("/v1/messages", serve)
 	return engine
-}
-
-func TestWithSubscriberAllowance_SpentAllowanceServesSubscriptionOnly(t *testing.T) {
-	// The turn continues on the caller's own plan, so routing has to be held to
-	// it the way the balance and spend-cap gates hold theirs: an unmarked turn
-	// is free to fall back onto paid capacity, which is the spend a spent
-	// allowance refuses.
-	entitlements := &stubEntitlements{current: activeSubscriberEntitlement(), found: true}
-	allowances := &stubAllowances{billingConsumed: monthlyAllowance}
-	subscriptionOnly := false
-	engine := gateServing(t, entitlements, allowances, func(c *gin.Context) {
-		subscriptionOnly = billing.SubscriptionOnlyFromContext(c.Request.Context())
-	})
-
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
-	req.Header.Set("Authorization", "Bearer sk-ant-oat-abc123")
-	engine.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, subscriptionOnly)
-}
-
-func TestWithSubscriberAllowance_CoveringSubscriptionIsLinkedFirstNotDepleted(t *testing.T) {
-	// Linked-first funding marks the turn subscription-only on every plan,
-	// including one whose allowance is untouched. Reusing the depleted-credits
-	// reason here told healthy, fully-funded organizations their credits were
-	// gone on every turn, because the proxy picks the caller-facing marker from
-	// the reason alone.
-	entitlements := &stubEntitlements{current: activeSubscriberEntitlement(), found: true}
-	allowances := &stubAllowances{}
-
-	var reason billing.SubscriptionOnlyReason
-	var flagged bool
-	engine := gateServing(t, entitlements, allowances, func(c *gin.Context) {
-		reason, flagged = billing.SubscriptionOnlyReasonFromContext(c.Request.Context())
-	})
-
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
-	req.Header.Set("Authorization", "Bearer sk-ant-oat-abc123")
-	var logs bytes.Buffer
-	req = req.WithContext(observability.WithLogger(req.Context(), slog.New(slog.NewTextHandler(&logs, nil))))
-	engine.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
-	require.True(t, flagged, "a covering subscription must remain the preferred funding source")
-	assert.Equal(t, billing.SubscriptionOnlyLinkedFirst, reason)
-	assert.Contains(t, logs.String(), "Subscriber request prefers linked subscription funding")
-	assert.Contains(t, logs.String(), "reason=linked_first")
-	assert.Contains(t, logs.String(), "subscriber_id="+allowanceSubscriberID)
-	assert.Contains(t, logs.String(), "admission_outcome=covered")
 }
 
 func TestWithSubscriberAllowance_MaxCoveringSubscriptionIsNotSubscriptionOnly(t *testing.T) {

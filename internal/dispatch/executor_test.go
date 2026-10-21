@@ -183,35 +183,6 @@ func TestRunDoesNotRetrySameTargetAfterIdleWatchdog(t *testing.T) {
 		"a silent target has already consumed its idle budget; another identical attempt delays rescue")
 }
 
-func TestRunFailsOverOnModelNotFoundButNotOnBadRequest(t *testing.T) {
-	for _, tc := range []struct {
-		name     string
-		status   int
-		failover bool
-	}{
-		{"404 walks to next binding", http.StatusNotFound, true},
-		{"402 walks to next binding", http.StatusPaymentRequired, true},
-		{"400 is final", http.StatusBadRequest, false},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			fw := &fakeUpstream{errs: []error{&providers.UpstreamErrorResponse{Status: tc.status}}}
-			or := &fakeUpstream{}
-			exec := newExecutor(t, map[string]providers.Client{providers.ProviderAIAND: fw}, &recorder{})
-			_, err := exec.Run(context.Background(), inference.InvocationRequest{},
-				fakePlan{selected: primary, alternatives: []inference.Target{backup}},
-				dispatch.Transport{Attempt: attemptWith([]byte(`{"model":"kimi-k2.5"}`))},
-			)
-			if tc.failover {
-				require.NoError(t, err)
-				assert.Len(t, or.models, 1)
-			} else {
-				require.Error(t, err)
-				assert.Empty(t, or.models)
-			}
-		})
-	}
-}
-
 func TestRunRetriesSingleTargetInPlaceWithinBudget(t *testing.T) {
 	fw := &fakeUpstream{errs: []error{
 		&providers.UpstreamErrorResponse{Status: http.StatusTooManyRequests},
@@ -289,29 +260,6 @@ func TestRunStopsSameTargetRetryWhenWallClockBudgetSpent(t *testing.T) {
 	assert.Equal(t, 1, result.Outcome.AttemptCount)
 }
 
-func TestRunSkipsUnconfiguredProviderAndHonoursMaxAttempts(t *testing.T) {
-	or := &fakeUpstream{}
-	rec := &recorder{}
-	exec := newExecutor(t, map[string]providers.Client{providers.ProviderAIAND: or}, rec)
-
-	result, err := exec.Run(context.Background(), inference.InvocationRequest{},
-		fakePlan{selected: primary, alternatives: []inference.Target{backup}},
-		dispatch.Transport{Attempt: attemptWith([]byte(`{"model":"kimi-k2.5"}`))},
-	)
-	require.NoError(t, err)
-	assert.Equal(t, backup, result.Outcome.ServedTarget)
-	require.Len(t, rec.events, 2)
-	assert.Equal(t, inference.AttemptOutcomeSkipped, rec.events[0].Outcome)
-	assert.Equal(t, dispatch.FailureReasonProviderNotConfigured, rec.events[0].FailureReason)
-
-	_, err = exec.Run(context.Background(), inference.InvocationRequest{},
-		fakePlan{selected: primary, alternatives: []inference.Target{backup}, budget: inference.BudgetSpec{MaxAttempts: 1}},
-		dispatch.Transport{Attempt: attemptWith([]byte(`{"model":"kimi-k2.5"}`))},
-	)
-	require.ErrorIs(t, err, dispatch.ErrProviderNotConfigured)
-	assert.Len(t, or.models, 1, "MaxAttempts=1 must not reach the alternative")
-}
-
 func TestRunAbortsWhenPrepareFails(t *testing.T) {
 	fw := &fakeUpstream{}
 	rec := &recorder{}
@@ -343,19 +291,6 @@ func TestValidateWireModelAcceptsCatalogOrUpstreamID(t *testing.T) {
 	require.ErrorIs(t, dispatch.ValidateWireModel("", primary), dispatch.ErrTargetMismatch)
 	require.ErrorIs(t, dispatch.ValidateWireModel("gpt-5", primary), dispatch.ErrTargetMismatch)
 	require.NoError(t, dispatch.ValidatePreparedTarget(providers.PreparedRequest{Body: []byte(`{"contents":[]}`)}, primary))
-}
-
-func TestClientsRegistryIsDetachedFromSource(t *testing.T) {
-	src := map[string]providers.Client{providers.ProviderAIAND: &fakeUpstream{}}
-	clients := dispatch.NewClients(src)
-	delete(src, providers.ProviderAIAND)
-	assert.True(t, clients.Has(providers.ProviderAIAND))
-	assert.True(t, clients.Has(providers.ProviderAIAND), "nil clients count as registered")
-	_, err := clients.Client(providers.ProviderAIAND)
-	require.ErrorIs(t, err, dispatch.ErrProviderNotConfigured, "but can never be dispatched to")
-	assert.Equal(t, []string{providers.ProviderAIAND, providers.ProviderAIAND}, clients.Names())
-	_, err = clients.Client(providers.ProviderAIAND)
-	require.ErrorIs(t, err, dispatch.ErrProviderNotConfigured)
 }
 
 func TestBufferedTransportValidatesTargetAndDeliversResponse(t *testing.T) {

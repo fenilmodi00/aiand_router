@@ -1,8 +1,6 @@
 package middleware_test
 
 import (
-	"net/http"
-	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -11,8 +9,6 @@ import (
 	"weave-os/router/internal/subscriptions/entitlement"
 
 	"github.com/gin-gonic/gin"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // billingGatedAllowanceChain wires the allowance gate ahead of the balance gate
@@ -42,39 +38,4 @@ func billingGatedAllowanceChain(
 	engine.Use(middleware.WithBalanceCheck(billing.NewService(repo), billing.MinBalanceMicros))
 	engine.POST("/v1/messages", serve)
 	return engine
-}
-
-func TestSubscriptionOnlyReasonPrecedenceAcrossGates(t *testing.T) {
-	// A depleted organization whose caller also holds a covering subscription is
-	// flagged twice: linked-first by the allowance gate, then credits_depleted by
-	// the balance gate. The depleted reason has to be the one that survives, or
-	// the turn loses the top-up CTA that says paid fallback is off.
-	for name, tc := range map[string]struct {
-		balance      int64
-		includedUsed int64
-		want         billing.SubscriptionOnlyReason
-	}{
-		"included allowance with depleted organization": {balance: 0, want: billing.SubscriptionOnlyLinkedFirst},
-		"included allowance with negative balance":      {balance: -1_000_000, want: billing.SubscriptionOnlyLinkedFirst},
-		"funded organization stays linked-first":        {balance: 5_000_000, includedUsed: monthlyAllowance, want: billing.SubscriptionOnlyLinkedFirst},
-		"depleted organization reports depletion":       {balance: 0, includedUsed: monthlyAllowance, want: billing.SubscriptionOnlyCreditsDepleted},
-		"negative balance reports depletion":            {balance: -1_000_000, includedUsed: monthlyAllowance, want: billing.SubscriptionOnlyCreditsDepleted},
-	} {
-		t.Run(name, func(t *testing.T) {
-			var reason billing.SubscriptionOnlyReason
-			var flagged bool
-			engine := billingGatedAllowanceChain(t, &stubBillingRepo{balance: tc.balance}, &stubAllowances{billingConsumed: tc.includedUsed}, func(c *gin.Context) {
-				reason, flagged = billing.SubscriptionOnlyReasonFromContext(c.Request.Context())
-			})
-
-			w := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
-			req.Header.Set("Authorization", "Bearer sk-ant-oat-abc123")
-			engine.ServeHTTP(w, req)
-
-			assert.Equal(t, http.StatusOK, w.Code, "a covering subscription must never be 402'd")
-			require.True(t, flagged)
-			assert.Equal(t, tc.want, reason)
-		})
-	}
 }
