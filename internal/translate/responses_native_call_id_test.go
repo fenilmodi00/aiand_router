@@ -17,7 +17,7 @@ func TestClampResponsesInputCallIDs_ClampsSignatureCarryingIDs(t *testing.T) {
 	longID := "call_abc123__thought__" + sig
 	require.Greater(t, len(longID), 64)
 
-	body := []byte(`{"model":"gpt-6-astra","input":[` +
+	body := []byte(`{"model":"deepseek/deepseek-v4.1-flash","input":[` +
 		`{"type":"message","role":"user","content":"hi"},` +
 		`{"type":"function_call","id":"fc_1","call_id":"` + longID + `","name":"shell","arguments":"{}"},` +
 		`{"type":"function_call_output","call_id":"` + longID + `","output":"ok"},` +
@@ -34,17 +34,17 @@ func TestClampResponsesInputCallIDs_ClampsSignatureCarryingIDs(t *testing.T) {
 	assert.Equal(t, call, output, "function_call and function_call_output must stay correlated")
 	assert.Equal(t, "call_short", gjson.GetBytes(out, "input.3.call_id").Str)
 	assert.Equal(t, "fc_1", gjson.GetBytes(out, "input.1.id").Str)
-	assert.Equal(t, "gpt-6-astra", gjson.GetBytes(out, "model").Str)
+	assert.Equal(t, "deepseek/deepseek-v4.1-flash", gjson.GetBytes(out, "model").Str)
 	assert.True(t, gjson.GetBytes(out, "stream").Bool())
 }
 
 func TestClampResponsesInputCallIDs_NoChangeWithoutLongIDs(t *testing.T) {
-	body := []byte(`{"model":"gpt-6-astra","input":[{"type":"function_call","call_id":"call_1","name":"x","arguments":"{}"},{"type":"function_call_output","call_id":"call_1","output":"y"}]}`)
+	body := []byte(`{"model":"deepseek/deepseek-v4.1-flash","input":[{"type":"function_call","call_id":"call_1","name":"x","arguments":"{}"},{"type":"function_call_output","call_id":"call_1","output":"y"}]}`)
 	out, err := translate.ClampResponsesInputCallIDs(body)
 	require.NoError(t, err)
 	assert.Equal(t, string(body), string(out))
 
-	noInput := []byte(`{"model":"gpt-6-astra","input":"plain prompt"}`)
+	noInput := []byte(`{"model":"deepseek/deepseek-v4.1-flash","input":"plain prompt"}`)
 	out, err = translate.ClampResponsesInputCallIDs(noInput)
 	require.NoError(t, err)
 	assert.Equal(t, string(noInput), string(out))

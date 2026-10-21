@@ -33,8 +33,8 @@ func TestPrepareOpenAIResponses_StrictTools(t *testing.T) {
 	env, err := translate.ParseAnthropic([]byte(anthropicToolsRequest))
 	require.NoError(t, err)
 	prep, err := env.PrepareOpenAIResponses(http.Header{}, translate.EmitOptions{
-		TargetModel:  "gpt-5.5",
-		Capabilities: router.Lookup("gpt-5.5"),
+		TargetModel:  "z-ai/glm-5.3",
+		Capabilities: router.Lookup("z-ai/glm-5.3"),
 	})
 	require.NoError(t, err)
 
@@ -71,8 +71,8 @@ func TestPrepareOpenAIResponses_NonStrictifiableFallsBack(t *testing.T) {
 	env, err := translate.ParseAnthropic([]byte(body))
 	require.NoError(t, err)
 	prep, err := env.PrepareOpenAIResponses(http.Header{}, translate.EmitOptions{
-		TargetModel:  "gpt-5.5",
-		Capabilities: router.Lookup("gpt-5.5"),
+		TargetModel:  "z-ai/glm-5.3",
+		Capabilities: router.Lookup("z-ai/glm-5.3"),
 	})
 	require.NoError(t, err)
 
@@ -111,7 +111,7 @@ func TestPrepareOpenAIResponses_FallbackClosesNestedObjectsSafely(t *testing.T) 
 	env, err := translate.ParseAnthropic([]byte(body))
 	require.NoError(t, err)
 	prep, err := env.PrepareOpenAIResponses(http.Header{}, translate.EmitOptions{
-		TargetModel: "gpt-5.5", Capabilities: router.Lookup("gpt-5.5"),
+		TargetModel: "z-ai/glm-5.3", Capabilities: router.Lookup("z-ai/glm-5.3"),
 	})
 	require.NoError(t, err)
 

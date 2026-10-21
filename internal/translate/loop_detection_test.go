@@ -379,7 +379,7 @@ func TestAssistantToolCallSignatures_UserTextResetsLoop_OpenAI(t *testing.T) {
 	// OpenAI-format parallel of the Anthropic reset test: a genuine user text
 	// message clears tool_calls accumulated before it.
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "gpt-5.5",
+		"model": "z-ai/glm-5.3",
 		"messages": []any{
 			map[string]any{"role": "user", "content": "do stuff"},
 			map[string]any{"role": "assistant", "tool_calls": []any{

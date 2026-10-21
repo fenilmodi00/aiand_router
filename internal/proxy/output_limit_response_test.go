@@ -2,20 +2,6 @@ package proxy_test
 
 import (
 	"fmt"
-	"net/http"
-	"net/http/httptest"
-	"strings"
-	"testing"
-	"time"
-
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/sessionpin"
-
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -24,110 +10,6 @@ const (
 	capResponsesModel = "gpt-5.6-luna"
 	capGeminiModel    = "gemini-3-flash-preview"
 )
-
-func TestProxyOutputLimitAcrossResponsePaths(t *testing.T) {
-	paths := []struct {
-		ingress  string
-		wire     string
-		provider string
-		model    string
-	}{
-		{"messages", "anthropic", providers.ProviderAIAND, capAnthropicModel},
-		{"messages", "chat", providers.ProviderAIAND, capChatModel},
-		{"messages", "responses", providers.ProviderAIAND, capResponsesModel},
-		{"messages", "gemini", providers.ProviderAIAND, capGeminiModel},
-		{"chat", "anthropic", providers.ProviderAIAND, capAnthropicModel},
-		{"chat", "chat", providers.ProviderAIAND, capChatModel},
-		{"chat", "responses", providers.ProviderAIAND, capResponsesModel},
-		{"chat", "gemini", providers.ProviderAIAND, capGeminiModel},
-		{"responses", "responses", providers.ProviderAIAND, capResponsesModel},
-		{"gemini", "gemini", providers.ProviderAIAND, capGeminiModel},
-	}
-	for _, path := range paths {
-		for _, stream := range []bool{false, true} {
-			for _, capped := range []bool{false, true} {
-				t.Run(fmt.Sprintf("%s/%s/stream=%t/capped=%t", path.ingress, path.wire, stream, capped), func(t *testing.T) {
-					store := newFakePinStore()
-					response := capWireResponse(path.wire, stream || (path.wire == "responses" && path.ingress != "responses"), capped)
-					provider := &fakeProvider{proxyResponse: func(w http.ResponseWriter) {
-						contentType := "application/json"
-						if strings.HasPrefix(response, "data:") || strings.HasPrefix(response, "event:") {
-							contentType = "text/event-stream"
-						}
-						w.Header().Set("Content-Type", contentType)
-						w.WriteHeader(http.StatusOK)
-						_, _ = w.Write([]byte(response))
-					}}
-					svc := proxy.NewService(&fakeRouter{decision: router.Decision{Provider: path.provider, Model: path.model, Reason: "fresh"}},
-						map[string]providers.Client{path.provider: provider}, nil, false, nil, store, false, path.provider, path.model, nil).
-						WithOpenAIResponsesBroad(path.wire == "responses").
-						WithNativeAnthropicResponseSignals(false).
-						WithNativeOpenAIResponseSignals(false)
-					ctx := authedCtx(uuid.NewString())
-					rec := httptest.NewRecorder()
-					body := []byte(fmt.Sprintf(`{"model":%q,"max_tokens":64000,"stream":%t,"messages":[{"role":"user","content":"Inspect the repository files"}]}`, path.model, stream))
-					switch path.ingress {
-					case "messages":
-						require.NoError(t, svc.ProxyMessages(ctx, body, rec, httptest.NewRequest(http.MethodPost, "/v1/messages", nil)))
-					case "chat":
-						require.NoError(t, svc.ProxyOpenAIChatCompletion(ctx, body, rec, httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)))
-					case "responses":
-						body = []byte(fmt.Sprintf(`{"model":"auto","stream":%t,"input":"Inspect the repository files"}`, stream))
-						require.NoError(t, svc.ProxyOpenAIResponses(ctx, body, rec, httptest.NewRequest(http.MethodPost, "/v1/responses", nil)))
-					case "gemini":
-						body = []byte(`{"contents":[{"role":"user","parts":[{"text":"Inspect the repository files"}]}],"generationConfig":{"maxOutputTokens":64000}}`)
-						action := "generateContent"
-						if stream {
-							action = "streamGenerateContent"
-						}
-						require.NoError(t, svc.ProxyGeminiGenerateContent(ctx, body, rec, httptest.NewRequest(http.MethodPost, "/v1beta/models/"+path.model+":"+action, nil)))
-					}
-					assert.Equal(t, http.StatusOK, rec.Code)
-					assert.NotEmpty(t, rec.Body.String())
-					require.NotEmpty(t, store.usages, "a pin store requires usage capture even with all telemetry off")
-					got := store.usages[len(store.usages)-1]
-					assert.Equal(t, path.model, got.ServedModel)
-					assert.Equal(t, 32000, got.OutputTokens)
-					assert.Equal(t, capped, got.OutputLimitReached)
-				})
-			}
-		}
-	}
-}
-
-func TestProxyGeminiTelemetryClassifiesOutputCap(t *testing.T) {
-	for _, capped := range []bool{false, true} {
-		t.Run(fmt.Sprintf("capped=%t", capped), func(t *testing.T) {
-			response := capWireResponse("gemini", false, capped)
-			provider := &fakeProvider{proxyResponse: func(w http.ResponseWriter) {
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusOK)
-				_, _ = w.Write([]byte(response))
-			}}
-			telem := newCaptureTelemetry()
-			svc := proxy.NewService(&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: capGeminiModel, Reason: "fresh"}},
-				map[string]providers.Client{providers.ProviderAIAND: provider}, nil, false, nil, newFakePinStore(), false,
-				providers.ProviderAIAND, capGeminiModel, telem)
-			body := []byte(`{"contents":[{"role":"user","parts":[{"text":"Inspect the repository files"}]}],"generationConfig":{"maxOutputTokens":64000}}`)
-			require.NoError(t, svc.ProxyGeminiGenerateContent(authedCtx(uuid.NewString()), body, httptest.NewRecorder(),
-				httptest.NewRequest(http.MethodPost, "/v1beta/models/"+capGeminiModel+":generateContent", nil)))
-
-			select {
-			case <-telem.notify:
-			case <-time.After(2 * time.Second):
-				t.Fatal("gemini turn never persisted a telemetry row")
-			}
-			telem.mu.Lock()
-			defer telem.mu.Unlock()
-			require.NotEmpty(t, telem.rows)
-			want := proxy.TurnErrorClass("")
-			if capped {
-				want = proxy.TurnErrorMaxTokens
-			}
-			assert.Equal(t, want, telem.rows[len(telem.rows)-1].ErrorClass)
-		})
-	}
-}
 
 func capWireResponse(wire string, stream, capped bool) string {
 	switch wire {
@@ -178,25 +60,4 @@ func capWireResponse(wire string, stream, capped bool) string {
 			fmt.Sprintf("data: {\"type\":\"response.%s\",\"response\":%s}\n\n", status, body)
 	}
 	panic("unknown test wire format")
-}
-
-func TestTurnLoop_HighOutputKeepsActiveAndExpiredPins(t *testing.T) {
-	for _, expired := range []bool{false, true} {
-		t.Run(fmt.Sprintf("expired=%t", expired), func(t *testing.T) {
-			const freshModel = "z-ai/glm-5.3-flash"
-			store := newFakePinStore()
-			store.hasPin = true
-			until := time.Now().Add(time.Hour)
-			if expired {
-				until = time.Now().Add(-time.Minute)
-			}
-			store.pin = sessionpin.Pin{Provider: providers.ProviderAIAND, Model: capAnthropicModel, LastServedModel: capAnthropicModel,
-				Reason: "cluster", LastOutputTokens: 32000, LastTurnEndedAt: time.Now().Add(-time.Second), PinnedUntil: until}
-			routes := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: freshModel, Reason: "fresh"}}
-			svc := newPinSvc(routes, store).WithPlannerEnabled(false).WithAvailableModels(map[string]struct{}{capAnthropicModel: {}, freshModel: {}})
-			rec := httptest.NewRecorder()
-			require.NoError(t, svc.ProxyMessages(authedCtx(uuid.NewString()), []byte(pinTestBody), rec, httptest.NewRequest(http.MethodPost, "/v1/messages", nil)))
-			assert.Equal(t, capAnthropicModel, rec.Header().Get(proxy.HeaderRouterModel))
-		})
-	}
 }

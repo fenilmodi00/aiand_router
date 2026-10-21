@@ -62,7 +62,7 @@ func prepareOpenAIFast(t *testing.T, opts translate.EmitOptions) (chat, response
 
 func TestFastMode_OpenAISetsPriorityServiceTierOnBothSurfaces(t *testing.T) {
 	chat, responses := prepareOpenAIFast(t, translate.EmitOptions{
-		TargetModel:    "gpt-5.6-luna",
+		TargetModel:    "moonshotai/kimi-k2.7",
 		TargetProvider: providers.ProviderAIAND,
 		FastMode:       true,
 	})
@@ -73,7 +73,7 @@ func TestFastMode_OpenAISetsPriorityServiceTierOnBothSurfaces(t *testing.T) {
 
 func TestFastMode_OpenAIOffLeavesServiceTierUnset(t *testing.T) {
 	chat, responses := prepareOpenAIFast(t, translate.EmitOptions{
-		TargetModel:    "gpt-5.6-luna",
+		TargetModel:    "moonshotai/kimi-k2.7",
 		TargetProvider: providers.ProviderAIAND,
 	})
 

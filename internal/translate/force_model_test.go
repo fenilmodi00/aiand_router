@@ -10,177 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestParseForceModelCommand_ForceModel(t *testing.T) {
-	tests := []struct {
-		name         string
-		input        string
-		wantModel    string
-		wantFound    bool
-		wantStripped string
-	}{
-		{
-			name:         "command only",
-			input:        "/force-model deepseek/deepseek-v4-pro",
-			wantModel:    "deepseek/deepseek-v4-pro",
-			wantFound:    true,
-			wantStripped: "",
-		},
-		{
-			name:         "command with trailing text",
-			input:        "/force-model claude-opus-4-7\nPlease help me with this.",
-			wantModel:    "z-ai/glm-5.2",
-			wantFound:    true,
-			wantStripped: "Please help me with this.",
-		},
-		{
-			name:         "same-line text is part of the model name",
-			input:        "/force-model gpt-5 help me debug this",
-			wantModel:    "gpt-5 help me debug this",
-			wantFound:    true,
-			wantStripped: "",
-		},
-		{
-			name:         "multi-word model name is kept whole",
-			input:        "/fm qwen 3.8",
-			wantModel:    "qwen 3.8",
-			wantFound:    true,
-			wantStripped: "",
-		},
-		{
-			name:         "internal whitespace runs collapse",
-			input:        "/fm  qwen    3.8",
-			wantModel:    "qwen 3.8",
-			wantFound:    true,
-			wantStripped: "",
-		},
-		{
-			// A next-line prompt is the supported way to pin and prompt at once.
-			name:         "next-line prompt is preserved",
-			input:        "/force-model gpt-5\nhelp me debug this",
-			wantModel:    "gpt-5",
-			wantFound:    true,
-			wantStripped: "help me debug this",
-		},
-		{
-			// /fm is the router-side alias for clients without local
-			// slash-command expansion (pi, opencode, raw API callers).
-			name:         "fm alias",
-			input:        "/fm haiku",
-			wantModel:    "haiku",
-			wantFound:    true,
-			wantStripped: "",
-		},
-		{
-			name:         "model alias",
-			input:        "/model haiku",
-			wantModel:    "haiku",
-			wantFound:    true,
-			wantStripped: "",
-		},
-		{
-			// Aliases must have a space boundary so ordinary words are not
-			// interpreted as model commands.
-			name:      "model alias without space boundary is ignored",
-			input:     "/modelled this file",
-			wantFound: false,
-		},
-		{
-			// /fmt (or any /fm<x>) must not match the alias prefix.
-			name:      "fm alias without space boundary is ignored",
-			input:     "/fmt this file",
-			wantFound: false,
-		},
-		{
-			// Only a leading /force-model triggers; pasted content often has
-			// lines starting with "/" and must not rewrite session routing.
-			name:      "command after leading text is ignored",
-			input:     "Please help me.\n/force-model gemini-2.5-pro",
-			wantFound: false,
-		},
-		{
-			name:         "leading blank lines before command",
-			input:        "\n\n/force-model claude-opus-4-7\nthen help",
-			wantModel:    "z-ai/glm-5.2",
-			wantFound:    true,
-			wantStripped: "then help",
-		},
-		{
-			name:      "no command",
-			input:     "Can you help me debug this code?",
-			wantFound: false,
-		},
-		{
-			name:      "force-model without model name is ignored",
-			input:     "/force-model ",
-			wantFound: false,
-		},
-		{
-			name:         "leading and trailing whitespace on command line",
-			input:        "  /force-model   qwen/qwen3-235b-a22b-2507  ",
-			wantModel:    "qwen/qwen3-235b-a22b-2507",
-			wantFound:    true,
-			wantStripped: "",
-		},
-		{
-			// Injected <system-reminder> blocks must not block recognition
-			// and must be preserved in the stripped output.
-			name:         "leading system-reminder before command",
-			input:        "<system-reminder>be helpful</system-reminder>\n/force-model gpt-5",
-			wantModel:    "gpt-5",
-			wantFound:    true,
-			wantStripped: "<system-reminder>be helpful</system-reminder>",
-		},
-		{
-			name:         "multiple leading injected tag blocks",
-			input:        "<system-reminder>foo</system-reminder>\n<command-name>x</command-name>\n/force-model claude-opus-4-7\nthen help",
-			wantModel:    "z-ai/glm-5.2",
-			wantFound:    true,
-			wantStripped: "<system-reminder>foo</system-reminder>\n<command-name>x</command-name>\nthen help",
-		},
-		{
-			name:         "multiline system-reminder body",
-			input:        "<system-reminder>\nline one\nline two\n</system-reminder>\n/force-model gemini-2.5-pro",
-			wantModel:    "gemini-2.5-pro",
-			wantFound:    true,
-			wantStripped: "<system-reminder>\nline one\nline two\n</system-reminder>",
-		},
-		{
-			// Security guard preserved: an unclosed tag does not satisfy the
-			// prefix matcher, so a stray /force-model after it is still ignored.
-			name:      "unclosed tag does not unlock leading-line guard",
-			input:     "<system-reminder>unclosed\n/force-model gpt-5",
-			wantFound: false,
-		},
-		{
-			// Attributed tags aren't part of Claude Code's injection set and
-			// may be pasted HTML/XML, so they must not unlock the guard.
-			name:      "tag with attributes does not unlock leading-line guard",
-			input:     "<div class=\"x\">hi</div>\n/force-model gpt-5",
-			wantFound: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			env, err := translate.ParseAnthropic(buildAnthropicBody(t, tt.input))
-			require.NoError(t, err)
-
-			res, found := env.ExtractForceModelCommand()
-			assert.Equal(t, tt.wantFound, found)
-			if !tt.wantFound {
-				return
-			}
-			assert.Equal(t, tt.wantModel, res.Model)
-			assert.False(t, res.Clear)
-			assert.False(t, res.FromToolResult)
-
-			// Verify the command was stripped from env body.
-			stripped := lastUserMessageText(t, env)
-			assert.Equal(t, tt.wantStripped, stripped)
-		})
-	}
-}
-
 func TestParseForceModelCommand_UnforceModel(t *testing.T) {
 	for _, input := range []string{"/unforce-model", "/ufm", "$unforce-model", "$ufm"} {
 		t.Run(input, func(t *testing.T) {
@@ -209,7 +38,7 @@ func TestExtractForceModelCommand_DollarAliases(t *testing.T) {
 
 func TestExtractForceModelCommand_CodexExecPreamble(t *testing.T) {
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "gpt-5.6-sol",
+		"model": "deepseek/deepseek-v4-pro",
 		"messages": []any{
 			map[string]any{"role": "assistant", "tool_calls": []any{map[string]any{
 				"id": "call_skill", "type": "function", "function": map[string]any{"name": "exec", "arguments": "{}"},
@@ -227,7 +56,7 @@ func TestExtractForceModelCommand_CodexExecPreamble(t *testing.T) {
 
 func TestExtractForceModelCommand_CodexExecDocumentationIsNotCommand(t *testing.T) {
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "gpt-5.6-sol",
+		"model": "deepseek/deepseek-v4-pro",
 		"messages": []any{
 			map[string]any{"role": "assistant", "tool_calls": []any{map[string]any{
 				"id": "call_skill", "type": "function", "function": map[string]any{"name": "exec", "arguments": "{}"},

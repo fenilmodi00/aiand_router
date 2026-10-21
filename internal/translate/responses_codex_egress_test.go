@@ -15,7 +15,7 @@ import (
 
 func TestResponsesWriter_RestoresCodexCustomToolFromSplitChatArguments(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesWriter(rec, "gpt-5.6-sol")
+	w := translate.NewResponsesWriter(rec, "deepseek/deepseek-v4-pro")
 	w.SetToolMappings(map[string]translate.ResponsesToolMapping{
 		"ww_custom_exec": {Alias: "ww_custom_exec", Name: "exec", Custom: true},
 	})
@@ -75,7 +75,7 @@ func TestResponsesWriter_RestoresCodexCustomToolFromSplitChatArguments(t *testin
 
 func TestResponsesWriter_RestoresCodexFunctionNamespace(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesWriter(rec, "gpt-5.6-sol")
+	w := translate.NewResponsesWriter(rec, "deepseek/deepseek-v4-pro")
 	w.SetToolMappings(map[string]translate.ResponsesToolMapping{
 		"ww_fn_collaboration_send_message": {
 			Alias: "ww_fn_collaboration_send_message", Name: "send_message", Namespace: "collaboration",
@@ -107,7 +107,7 @@ func TestResponsesWriter_RestoresCodexFunctionNamespace(t *testing.T) {
 
 func TestResponsesWriter_NonStreamingRestoresCodexCustomTool(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesWriter(rec, "gpt-5.6-sol")
+	w := translate.NewResponsesWriter(rec, "deepseek/deepseek-v4-pro")
 	w.SetToolMappings(map[string]translate.ResponsesToolMapping{
 		"ww_custom_exec": {Alias: "ww_custom_exec", Name: "exec", Custom: true},
 	})
@@ -139,7 +139,7 @@ func TestResponsesWriter_NonStreamingRestoresCodexCustomTool(t *testing.T) {
 
 func TestResponsesWriter_RejectsMalformedCodexCustomWrapperAndTerminatesFailed(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesWriter(rec, "gpt-5.6-sol")
+	w := translate.NewResponsesWriter(rec, "deepseek/deepseek-v4-pro")
 	w.SetToolMappings(map[string]translate.ResponsesToolMapping{
 		"exec": {Alias: "exec", Name: "exec", Custom: true},
 	})
@@ -163,7 +163,7 @@ func TestResponsesWriter_RejectsMalformedCodexCustomWrapperAndTerminatesFailed(t
 
 func TestResponsesWriter_PortableCodexBuffersUntilLateCustomToolName(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesWriter(rec, "gpt-5.6-sol")
+	w := translate.NewResponsesWriter(rec, "deepseek/deepseek-v4-pro")
 	w.SetToolMappings(map[string]translate.ResponsesToolMapping{
 		"exec": {Alias: "exec", Name: "exec", Custom: true},
 	})
@@ -202,7 +202,7 @@ func TestResponsesWriter_PortableCodexBuffersUntilLateCustomToolName(t *testing.
 
 func TestResponsesWriter_PortableCodexSuppressesNamelessToolCall(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesWriter(rec, "gpt-5.6-sol")
+	w := translate.NewResponsesWriter(rec, "deepseek/deepseek-v4-pro")
 	w.SetToolMappings(map[string]translate.ResponsesToolMapping{
 		"exec": {Alias: "exec", Name: "exec", Custom: true},
 	})
@@ -219,7 +219,7 @@ func TestResponsesWriter_PortableCodexSuppressesNamelessToolCall(t *testing.T) {
 
 func TestResponsesWriter_WithoutCodexMappingsPreservesLegacyFunctionShape(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesWriter(rec, "gpt-5.6-sol")
+	w := translate.NewResponsesWriter(rec, "deepseek/deepseek-v4-pro")
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.WriteHeader(200)
 	_, err := w.Write([]byte(`data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_lookup","type":"function","function":{"name":"lookup","arguments":"{}"}}]},"finish_reason":"tool_calls"}]}` + "\n\n"))

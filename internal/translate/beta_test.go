@@ -48,7 +48,7 @@ func TestExtractBetaCommand(t *testing.T) {
 
 func TestExtractBetaCommandOpenAI(t *testing.T) {
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "gpt-5.6-sol",
+		"model": "deepseek/deepseek-v4-pro",
 		"messages": []any{
 			map[string]any{"role": "user", "content": "/beta"},
 		},
@@ -113,7 +113,7 @@ func TestStripBetaArtifactsAnthropicPreservesCurrentToggle(t *testing.T) {
 
 func TestStripBetaArtifactsOpenAI(t *testing.T) {
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "gpt-5.6-sol",
+		"model": "deepseek/deepseek-v4-pro",
 		"messages": []any{
 			map[string]any{"role": "user", "content": "inspect this repository"},
 			map[string]any{"role": "assistant", "content": "I will inspect it."},
@@ -126,7 +126,7 @@ func TestStripBetaArtifactsOpenAI(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, 2, env.StripBetaArtifacts())
-	prepared, err := env.PrepareOpenAI(nil, translate.EmitOptions{TargetModel: "gpt-5.6-sol"})
+	prepared, err := env.PrepareOpenAI(nil, translate.EmitOptions{TargetModel: "deepseek/deepseek-v4-pro"})
 	require.NoError(t, err)
 	assert.Equal(t, int64(3), gjson.GetBytes(prepared.Body, "messages.#").Int())
 	assert.Equal(t, "continue with the implementation", gjson.GetBytes(prepared.Body, "messages.2.content").String())

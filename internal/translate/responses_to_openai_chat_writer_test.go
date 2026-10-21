@@ -65,7 +65,7 @@ func concatDelta(chunks []gjson.Result, field string) string {
 // [DONE] — the full translated Responses stream as chat chunks.
 func TestResponsesToOpenAIChatWriter_StreamingClient(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToOpenAIChatWriter(rec, "gpt-5.6-luna", nil)
+	w := translate.NewResponsesToOpenAIChatWriter(rec, "moonshotai/kimi-k2.7", nil)
 
 	require.NoError(t, w.Prelude(true))
 	_, err := w.Write([]byte(responsesStreamFixture))
@@ -111,7 +111,7 @@ func TestResponsesToOpenAIChatWriter_StreamingClient(t *testing.T) {
 // cache-aware clients see a full-price prompt.
 func TestResponsesToOpenAIChatWriter_StreamingUsageDetails(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToOpenAIChatWriter(rec, "gpt-5.6-luna", nil)
+	w := translate.NewResponsesToOpenAIChatWriter(rec, "moonshotai/kimi-k2.7", nil)
 	require.NoError(t, w.Prelude(true))
 	_, err := w.Write([]byte(`data: {"type":"response.output_text.delta","output_index":0,"delta":"hi"}
 
@@ -133,7 +133,7 @@ data: {"type":"response.completed","response":{"id":"resp_1","status":"completed
 // event — no SSE frames.
 func TestResponsesToOpenAIChatWriter_NonStreamingClient(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToOpenAIChatWriter(rec, "gpt-5.6-luna", nil)
+	w := translate.NewResponsesToOpenAIChatWriter(rec, "moonshotai/kimi-k2.7", nil)
 
 	require.NoError(t, w.Prelude(false))
 	_, err := w.Write([]byte(responsesStreamFixture))
@@ -147,7 +147,7 @@ func TestResponsesToOpenAIChatWriter_NonStreamingClient(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body), "the body must be valid chat/completions JSON")
 	root := gjson.ParseBytes(rec.Body.Bytes())
 	assert.Equal(t, "chat.completion", root.Get("object").String())
-	assert.Equal(t, "gpt-5.6-luna", root.Get("model").String())
+	assert.Equal(t, "moonshotai/kimi-k2.7", root.Get("model").String())
 	assert.Equal(t, "assistant", root.Get("choices.0.message.role").String())
 	assert.Equal(t, "Let me check the weather.", root.Get("choices.0.message.content").String())
 	assert.Equal(t, "Checking the weather tool.", root.Get("choices.0.message.reasoning_content").String())
@@ -164,7 +164,7 @@ func TestResponsesToOpenAIChatWriter_NonStreamingClient(t *testing.T) {
 func TestResponsesToOpenAIChatResponse_LengthFinishReason(t *testing.T) {
 	out, err := translate.ResponsesToOpenAIChatResponse([]byte(`{"id":"resp_1","status":"incomplete",
       "incomplete_details":{"reason":"max_output_tokens"},
-      "output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"partial"}]}]}`), "gpt-5.6-luna")
+      "output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"partial"}]}]}`), "moonshotai/kimi-k2.7")
 	require.NoError(t, err)
 	root := gjson.ParseBytes(out)
 	assert.Equal(t, "length", root.Get("choices.0.finish_reason").String())
@@ -175,7 +175,7 @@ func TestResponsesToOpenAIChatResponse_LengthFinishReason(t *testing.T) {
 // {} rather than panic on the nil validator.
 func TestResponsesToOpenAIChatResponse_NilValidatorMalformedArgs(t *testing.T) {
 	out, err := translate.ResponsesToOpenAIChatResponse([]byte(`{"id":"resp_1","status":"completed",
-      "output":[{"type":"function_call","call_id":"call_1","name":"bash","arguments":"{not json"}]}`), "gpt-5.6-luna")
+      "output":[{"type":"function_call","call_id":"call_1","name":"bash","arguments":"{not json"}]}`), "moonshotai/kimi-k2.7")
 	require.NoError(t, err)
 	root := gjson.ParseBytes(out)
 	assert.Equal(t, "{}", root.Get("choices.0.message.tool_calls.0.function.arguments").String())
@@ -188,7 +188,7 @@ func TestResponsesToOpenAIChatWriter_ValidatesToolArgsAgainstRequestSchema(t *te
 	v := toolcheck.Compile([]byte(`[{"name":"get_weather","input_schema":{"type":"object","properties":{"location":{"type":"string"}},"required":["location"],"additionalProperties":false}}]`))
 	require.NotNil(t, v)
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToOpenAIChatWriter(rec, "gpt-5.6-luna", nil).WithToolValidator(v)
+	w := translate.NewResponsesToOpenAIChatWriter(rec, "moonshotai/kimi-k2.7", nil).WithToolValidator(v)
 
 	require.NoError(t, w.Prelude(true))
 	_, err := w.Write([]byte(`data: {"type":"response.output_item.added","output_index":0,"item":{"type":"function_call","call_id":"call_1","name":"get_weather"}}
@@ -226,7 +226,7 @@ func TestResponsesToOpenAIChatWriter_CountsUnrepairableToolArgs(t *testing.T) {
 			v := toolcheck.Compile([]byte(`[{"name":"get_weather","input_schema":{"type":"object","properties":{"location":{"type":"string"}},"required":["location"]}}]`))
 			require.NotNil(t, v)
 			rec := httptest.NewRecorder()
-			w := translate.NewResponsesToOpenAIChatWriter(rec, "gpt-5.6-luna", nil).WithToolValidator(v)
+			w := translate.NewResponsesToOpenAIChatWriter(rec, "moonshotai/kimi-k2.7", nil).WithToolValidator(v)
 
 			require.NoError(t, w.Prelude(true))
 			_, err := w.Write([]byte(`data: {"type":"response.output_item.added","output_index":0,"item":{"type":"function_call","call_id":"call_1","name":"get_weather"}}
@@ -251,7 +251,7 @@ data: {"type":"response.completed","response":{"id":"resp_1","status":"completed
 // invoke tool "" in a loop.
 func TestResponsesToOpenAIChatWriter_DropsNamelessToolCall(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToOpenAIChatWriter(rec, "gpt-5.6-luna", nil)
+	w := translate.NewResponsesToOpenAIChatWriter(rec, "moonshotai/kimi-k2.7", nil)
 	require.NoError(t, w.Prelude(true))
 	_, err := w.Write([]byte(`data: {"type":"response.output_item.added","output_index":0,"item":{"type":"function_call","call_id":"call_1","name":""}}
 
@@ -278,7 +278,7 @@ data: {"type":"response.completed","response":{"id":"resp_1","status":"completed
 // UpstreamErrorResponse so the proxy can still fall back to chat/completions.
 func TestResponsesToOpenAIChatWriter_PreOutputFailureIsRetryable(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToOpenAIChatWriter(rec, "gpt-5.6-luna", nil)
+	w := translate.NewResponsesToOpenAIChatWriter(rec, "moonshotai/kimi-k2.7", nil)
 	require.NoError(t, w.Prelude(true))
 	_, err := w.Write([]byte(`data: {"type":"response.failed","response":{"id":"resp_1","status":"failed","error":{"code":"upstream_error","message":"Upstream call failed."}}}
 
@@ -293,7 +293,7 @@ func TestResponsesToOpenAIChatWriter_PreOutputFailureIsRetryable(t *testing.T) {
 // be rendered in-stream and the stream closed properly.
 func TestResponsesToOpenAIChatWriter_PostOutputFailureIsInStream(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToOpenAIChatWriter(rec, "gpt-5.6-luna", nil)
+	w := translate.NewResponsesToOpenAIChatWriter(rec, "moonshotai/kimi-k2.7", nil)
 	require.NoError(t, w.Prelude(true))
 	_, err := w.Write([]byte(`data: {"type":"response.output_text.delta","output_index":0,"delta":"partial"}
 
@@ -312,7 +312,7 @@ data: {"type":"response.failed","response":{"id":"resp_1","status":"failed","err
 // than the [DONE] success terminator.
 func TestResponsesToOpenAIChatWriter_TruncatedStream(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToOpenAIChatWriter(rec, "gpt-5.6-luna", nil)
+	w := translate.NewResponsesToOpenAIChatWriter(rec, "moonshotai/kimi-k2.7", nil)
 	require.NoError(t, w.Prelude(true))
 	_, err := w.Write([]byte(`data: {"type":"response.output_text.delta","output_index":0,"delta":"half"}
 
@@ -328,7 +328,7 @@ func TestResponsesToOpenAIChatWriter_TruncatedStream(t *testing.T) {
 // retryable, exactly like an upstream failure event.
 func TestResponsesToOpenAIChatWriter_MalformedFrameIsRetryablePreOutput(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToOpenAIChatWriter(rec, "gpt-5.6-luna", nil)
+	w := translate.NewResponsesToOpenAIChatWriter(rec, "moonshotai/kimi-k2.7", nil)
 	require.NoError(t, w.Prelude(true))
 	_, err := w.Write([]byte("data: {\"type\":\"response.output_text.del\n\n"))
 
@@ -342,7 +342,7 @@ func TestResponsesToOpenAIChatWriter_MalformedFrameIsRetryablePreOutput(t *testi
 // error frame instead of a finish_reason that claims the turn completed.
 func TestResponsesToOpenAIChatWriter_MalformedFrameIsReportedPostOutput(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToOpenAIChatWriter(rec, "gpt-5.6-luna", nil)
+	w := translate.NewResponsesToOpenAIChatWriter(rec, "moonshotai/kimi-k2.7", nil)
 	require.NoError(t, w.Prelude(true))
 	_, err := w.Write([]byte(`data: {"type":"response.output_text.delta","output_index":0,"delta":"partial"}
 
@@ -368,7 +368,7 @@ data: {"type":"response.completed","response":{"id":"resp_1","status":"completed
 // not be mistaken for corruption.
 func TestResponsesToOpenAIChatWriter_DoneSentinelIsNotMalformed(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToOpenAIChatWriter(rec, "gpt-5.6-luna", nil)
+	w := translate.NewResponsesToOpenAIChatWriter(rec, "moonshotai/kimi-k2.7", nil)
 	require.NoError(t, w.Prelude(true))
 	_, err := w.Write([]byte(`data: {"type":"response.output_text.delta","output_index":0,"delta":"hi"}
 
@@ -389,7 +389,7 @@ data: [DONE]
 // rather than a 200 with an empty completion.
 func TestResponsesToOpenAIChatWriter_NonStreamingFailure(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToOpenAIChatWriter(rec, "gpt-5.6-luna", nil)
+	w := translate.NewResponsesToOpenAIChatWriter(rec, "moonshotai/kimi-k2.7", nil)
 	require.NoError(t, w.Prelude(false))
 	_, err := w.Write([]byte(`data: {"type":"response.failed","response":{"id":"resp_1","status":"failed","error":{"code":"upstream_error","message":"Upstream call failed."}}}
 
@@ -406,7 +406,7 @@ func TestResponsesToOpenAIChatWriter_NonStreamingFailure(t *testing.T) {
 // Reasoning keeps the stall watchdog alive without becoming answer output.
 func TestResponsesToOpenAIChatWriter_SeparatesReasoningProgress(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToOpenAIChatWriter(rec, "gpt-5.6-luna", nil)
+	w := translate.NewResponsesToOpenAIChatWriter(rec, "moonshotai/kimi-k2.7", nil)
 	require.NoError(t, w.Prelude(true))
 	marks := 0
 	require.True(t, w.ArmOutputProgress(func() { marks++ }))

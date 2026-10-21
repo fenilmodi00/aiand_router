@@ -22,7 +22,7 @@ func TestResponsesTerminal(t *testing.T) {
 	}{
 		{
 			name:          "tool call turn",
-			payload:       `{"type":"response.completed","sequence_number":9,"response":{"id":"resp_1","status":"completed","model":"gpt-5.6-sol","output":[{"id":"rs_1","type":"reasoning","summary":[]},{"id":"fc_1","type":"function_call","call_id":"call_1","name":"shell","arguments":"{\"command\":\"ls\"}","status":"completed"}],"usage":{"input_tokens":120,"output_tokens":34}}}`,
+			payload:       `{"type":"response.completed","sequence_number":9,"response":{"id":"resp_1","status":"completed","model":"deepseek/deepseek-v4-pro","output":[{"id":"rs_1","type":"reasoning","summary":[]},{"id":"fc_1","type":"function_call","call_id":"call_1","name":"shell","arguments":"{\"command\":\"ls\"}","status":"completed"}],"usage":{"input_tokens":120,"output_tokens":34}}}`,
 			want:          "tool_calls",
 			wantToolCalls: 1,
 			wantOK:        true,
@@ -36,14 +36,14 @@ func TestResponsesTerminal(t *testing.T) {
 		},
 		{
 			name:          "completed answer",
-			payload:       `{"type":"response.completed","sequence_number":7,"response":{"id":"resp_1","status":"completed","model":"gpt-5.6-sol","output":[{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"output_text","text":"done"}]}],"usage":{"input_tokens":120,"output_tokens":8}}}`,
+			payload:       `{"type":"response.completed","sequence_number":7,"response":{"id":"resp_1","status":"completed","model":"deepseek/deepseek-v4-pro","output":[{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"output_text","text":"done"}]}],"usage":{"input_tokens":120,"output_tokens":8}}}`,
 			want:          "stop",
 			wantToolCalls: 0,
 			wantOK:        true,
 		},
 		{
 			name:          "output cap reached",
-			payload:       `{"type":"response.incomplete","sequence_number":5,"response":{"id":"resp_1","status":"incomplete","model":"gpt-5.6-sol","incomplete_details":{"reason":"max_output_tokens"},"output":[{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"output_text","text":"partial"}]}]}}`,
+			payload:       `{"type":"response.incomplete","sequence_number":5,"response":{"id":"resp_1","status":"incomplete","model":"deepseek/deepseek-v4-pro","incomplete_details":{"reason":"max_output_tokens"},"output":[{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"output_text","text":"partial"}]}]}}`,
 			want:          "length",
 			wantToolCalls: 0,
 			wantOK:        true,

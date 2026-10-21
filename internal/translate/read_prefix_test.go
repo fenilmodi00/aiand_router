@@ -41,7 +41,7 @@ func TestReadPrefixes_NonAnthropicTargetsGetUnambiguousSeparator(t *testing.T) {
 
 	for name, prepare := range map[string]func() ([]byte, error){
 		"responses": func() ([]byte, error) {
-			p, err := env.PrepareOpenAIResponses(http.Header{}, translate.EmitOptions{TargetModel: "gpt-5.6-luna"})
+			p, err := env.PrepareOpenAIResponses(http.Header{}, translate.EmitOptions{TargetModel: "moonshotai/kimi-k2.7"})
 			return p.Body, err
 		},
 		"chat": func() ([]byte, error) {

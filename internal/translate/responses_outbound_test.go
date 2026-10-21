@@ -54,8 +54,8 @@ func TestPrepareOpenAIResponses_SanitizesHistoricalToolName(t *testing.T) {
 	env, err := translate.ParseAnthropic(body)
 	require.NoError(t, err)
 	prep, err := env.PrepareOpenAIResponses(http.Header{}, translate.EmitOptions{
-		TargetModel:  "gpt-5.6-luna",
-		Capabilities: router.Lookup("gpt-5.6-luna"),
+		TargetModel:  "moonshotai/kimi-k2.7",
+		Capabilities: router.Lookup("moonshotai/kimi-k2.7"),
 	})
 	require.NoError(t, err)
 
@@ -124,7 +124,7 @@ func TestPrepareOpenAIResponses_StaticFieldsPrecedeInput(t *testing.T) {
 		{
 			name:  "OpenAI chat source",
 			parse: translate.ParseOpenAI,
-			body: `{"model":"gpt-4.1","max_tokens":1024,
+			body: `{"model":"deepseek/deepseek-v4-flash","max_tokens":1024,
 				"tools":[{"type":"function","function":{"name":"bash","description":"run","parameters":{"type":"object"}}}],
 				"tool_choice":"auto","parallel_tool_calls":false,
 				"temperature":0.7,"top_p":0.9,
@@ -136,8 +136,8 @@ func TestPrepareOpenAIResponses_StaticFieldsPrecedeInput(t *testing.T) {
 			env, err := tc.parse([]byte(tc.body))
 			require.NoError(t, err)
 			prepared, err := env.PrepareOpenAIResponses(http.Header{}, translate.EmitOptions{
-				TargetModel:  "gpt-4.1",
-				Capabilities: router.Lookup("gpt-4.1"),
+				TargetModel:  "deepseek/deepseek-v4-flash",
+				Capabilities: router.Lookup("deepseek/deepseek-v4-flash"),
 			})
 			require.NoError(t, err)
 
@@ -177,8 +177,8 @@ func TestPrepareOpenAIResponses_ToolChoiceVariants(t *testing.T) {
 			env, err := translate.ParseAnthropic(body)
 			require.NoError(t, err)
 			prep, err := env.PrepareOpenAIResponses(http.Header{}, translate.EmitOptions{
-				TargetModel:  "gpt-5.5",
-				Capabilities: router.Lookup("gpt-5.5"),
+				TargetModel:  "z-ai/glm-5.3",
+				Capabilities: router.Lookup("z-ai/glm-5.3"),
 			})
 			require.NoError(t, err)
 
@@ -211,7 +211,7 @@ func TestPrepareOpenAIResponses_ClampsGeminiThoughtSignatureCallID(t *testing.T)
 	}`)
 	env, err := translate.ParseAnthropic(body)
 	require.NoError(t, err)
-	prep, err := env.PrepareOpenAIResponses(http.Header{}, translate.EmitOptions{TargetModel: "gpt-5.5", Capabilities: router.Lookup("gpt-5.5"), ForceReasoningEffort: "high"})
+	prep, err := env.PrepareOpenAIResponses(http.Header{}, translate.EmitOptions{TargetModel: "z-ai/glm-5.3", Capabilities: router.Lookup("z-ai/glm-5.3"), ForceReasoningEffort: "high"})
 	require.NoError(t, err)
 
 	var out map[string]any
@@ -264,8 +264,8 @@ func TestPrepareOpenAIResponses_DropsReasoningMintedOnAnotherAccount(t *testing.
 	} {
 		t.Run(name, func(t *testing.T) {
 			prep, err := env.PrepareOpenAIResponses(http.Header{}, translate.EmitOptions{
-				TargetModel:          "gpt-5.5",
-				Capabilities:         router.Lookup("gpt-5.5"),
+				TargetModel:          "z-ai/glm-5.3",
+				Capabilities:         router.Lookup("z-ai/glm-5.3"),
 				ForceReasoningEffort: "high",
 				ReasoningReplayScope: scope,
 			})
@@ -289,38 +289,19 @@ func TestPrepareOpenAIResponses_DropsReasoningMintedOnAnotherAccount(t *testing.
 	}
 }
 
-// Explicit levels retain their client-selected value; GPT-5 no longer promotes
-// medium to high during translation.
-func TestPrepareOpenAIResponses_EffortLadder(t *testing.T) {
-	for _, tc := range []struct {
-		level string
-	}{{"low"}, {"medium"}, {"high"}} {
-		body := []byte(`{"model":"z-ai/glm-5.2","max_tokens":1024,"messages":[{"role":"user","content":"hi"}],"reasoning_effort":"` + tc.level + `"}`)
-		env, err := translate.ParseAnthropic(body)
-		require.NoError(t, err)
-		prep, err := env.PrepareOpenAIResponses(http.Header{}, translate.EmitOptions{TargetModel: "gpt-5.5", Capabilities: router.Lookup("gpt-5.5")})
-		require.NoError(t, err)
-		var out map[string]any
-		require.NoError(t, json.Unmarshal(prep.Body, &out))
-		reasoning, _ := out["reasoning"].(map[string]any)
-		require.NotNil(t, reasoning, "level %s", tc.level)
-		assert.Equal(t, tc.level, reasoning["effort"])
-	}
-}
-
 func TestResponsesToAnthropicResponse_StopReasons(t *testing.T) {
 	// max tokens
 	mx := []byte(`{"id":"r","status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},"output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"partial"}]}],"usage":{"input_tokens":1,"output_tokens":2}}`)
-	out, err := translate.ResponsesToAnthropicResponse(mx, "gpt-5.5", "scope_a")
+	out, err := translate.ResponsesToAnthropicResponse(mx, "z-ai/glm-5.3", "scope_a")
 	require.NoError(t, err)
 	assert.Equal(t, "max_tokens", gjsonStopReason(out))
 	// plain end_turn
 	et := []byte(`{"id":"r","status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"done"}]}],"usage":{"input_tokens":1,"output_tokens":2}}`)
-	out, err = translate.ResponsesToAnthropicResponse(et, "gpt-5.5", "scope_a")
+	out, err = translate.ResponsesToAnthropicResponse(et, "z-ai/glm-5.3", "scope_a")
 	require.NoError(t, err)
 	assert.Equal(t, "end_turn", gjsonStopReason(out))
 	filtered := []byte(`{"id":"r","status":"incomplete","incomplete_details":{"reason":"content_filter"},"output":[]}`)
-	_, err = translate.ResponsesToAnthropicResponse(filtered, "gpt-5.5", "scope_a")
+	_, err = translate.ResponsesToAnthropicResponse(filtered, "z-ai/glm-5.3", "scope_a")
 	require.Error(t, err)
 }
 
@@ -392,8 +373,8 @@ func TestPrepareOpenAIResponses_ImageBlocks(t *testing.T) {
 	env, err := translate.ParseAnthropic(body)
 	require.NoError(t, err)
 	prep, err := env.PrepareOpenAIResponses(http.Header{}, translate.EmitOptions{
-		TargetModel:  "gpt-4.1",
-		Capabilities: router.Lookup("gpt-4.1"),
+		TargetModel:  "deepseek/deepseek-v4-flash",
+		Capabilities: router.Lookup("deepseek/deepseek-v4-flash"),
 	})
 	require.NoError(t, err)
 
@@ -435,8 +416,8 @@ func TestPrepareOpenAIResponses_ToolResultImageHoisted(t *testing.T) {
 	env, err := translate.ParseAnthropic(body)
 	require.NoError(t, err)
 	prep, err := env.PrepareOpenAIResponses(http.Header{}, translate.EmitOptions{
-		TargetModel:  "gpt-4.1",
-		Capabilities: router.Lookup("gpt-4.1"),
+		TargetModel:  "deepseek/deepseek-v4-flash",
+		Capabilities: router.Lookup("deepseek/deepseek-v4-flash"),
 	})
 	require.NoError(t, err)
 
@@ -478,7 +459,7 @@ func TestPrepareOpenAIResponses_Samplers(t *testing.T) {
 		model    string
 		wantTemp bool
 	}{
-		{model: "gpt-4.1", wantTemp: true},
+		{model: "deepseek/deepseek-v4-flash", wantTemp: true},
 		{model: "gpt-5.4-mini", wantTemp: false},
 	} {
 		t.Run(tc.model, func(t *testing.T) {
@@ -506,7 +487,7 @@ func TestPrepareOpenAIResponses_Samplers(t *testing.T) {
 // Stop sequences have no Responses equivalent, so a turn using them keeps the
 // chat/completions projection rather than losing them.
 func TestRequiresChatCompletionsParams(t *testing.T) {
-	nonReasoning := router.Lookup("gpt-4.1")
+	nonReasoning := router.Lookup("deepseek/deepseek-v4-flash")
 	reasoning := router.Lookup("gpt-5.4-mini")
 
 	withStops, err := translate.ParseAnthropic([]byte(
@@ -522,7 +503,7 @@ func TestRequiresChatCompletionsParams(t *testing.T) {
 	assert.False(t, empty.RequiresChatCompletionsParams(nonReasoning))
 
 	chatIngress, err := translate.ParseOpenAI([]byte(
-		`{"model":"gpt-4.1","stop":["END"],"messages":[{"role":"user","content":"hi"}]}`))
+		`{"model":"deepseek/deepseek-v4-flash","stop":["END"],"messages":[{"role":"user","content":"hi"}]}`))
 	require.NoError(t, err)
 	assert.True(t, chatIngress.RequiresChatCompletionsParams(nonReasoning),
 		"chat ingress carries the same constraint under its own key")

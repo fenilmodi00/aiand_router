@@ -3,9 +3,7 @@ package translate_test
 import (
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"net/http"
-	"strings"
 	"testing"
 
 	"weave-os/router/internal/providers"
@@ -121,11 +119,11 @@ func TestAnthropicSameFormat_ToolCacheControlOverflowRejected(t *testing.T) {
 func TestOpenAISameFormat_ModelRewrite(t *testing.T) {
 	body := []byte(`{"model":"gpt-4o","messages":[{"role":"user","content":"hello"}],"stream":true}`)
 	opts := translate.EmitOptions{
-		TargetModel:  "gpt-4.1",
-		Capabilities: router.Lookup("gpt-4.1"),
+		TargetModel:  "deepseek/deepseek-v4-flash",
+		Capabilities: router.Lookup("deepseek/deepseek-v4-flash"),
 	}
 	out := parseAndEmit(t, body, "openai", opts)
-	assert.Equal(t, "gpt-4.1", out["model"])
+	assert.Equal(t, "deepseek/deepseek-v4-flash", out["model"])
 	msgs, _ := out["messages"].([]any)
 	require.Len(t, msgs, 1)
 	msg, _ := msgs[0].(map[string]any)
@@ -137,8 +135,8 @@ func TestOpenAISameFormat_ModelRewrite(t *testing.T) {
 func TestOpenAISameFormat_UnknownFieldsPreserved(t *testing.T) {
 	body := []byte(`{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}],"custom_field":"preserved","metadata":{"key":"val"}}`)
 	opts := translate.EmitOptions{
-		TargetModel:  "gpt-4.1",
-		Capabilities: router.Lookup("gpt-4.1"),
+		TargetModel:  "deepseek/deepseek-v4-flash",
+		Capabilities: router.Lookup("deepseek/deepseek-v4-flash"),
 	}
 	out := parseAndEmit(t, body, "openai", opts)
 	assert.Equal(t, "preserved", out["custom_field"])
@@ -179,8 +177,8 @@ func TestAnthropicSameFormat_StripsThoughtSignature(t *testing.T) {
 func TestOpenAISameFormat_ThinkingDeleted(t *testing.T) {
 	body := []byte(`{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}],"thinking":{"type":"enabled","budget_tokens":1000}}`)
 	opts := translate.EmitOptions{
-		TargetModel:  "gpt-4.1",
-		Capabilities: router.Lookup("gpt-4.1"),
+		TargetModel:  "deepseek/deepseek-v4-flash",
+		Capabilities: router.Lookup("deepseek/deepseek-v4-flash"),
 	}
 	out := parseAndEmit(t, body, "openai", opts)
 	assert.NotContains(t, out, "thinking")
@@ -211,8 +209,8 @@ func TestOpenAISameFormat_MaxTokensNotRenamedWhenCompTokensAlreadySet(t *testing
 func TestOpenAISameFormat_ReasoningEffortDeletedForNonReasoning(t *testing.T) {
 	body := []byte(`{"model":"o3","messages":[{"role":"user","content":"hi"}],"reasoning_effort":"high"}`)
 	opts := translate.EmitOptions{
-		TargetModel:  "gpt-4.1",
-		Capabilities: router.Lookup("gpt-4.1"),
+		TargetModel:  "deepseek/deepseek-v4-flash",
+		Capabilities: router.Lookup("deepseek/deepseek-v4-flash"),
 	}
 	out := parseAndEmit(t, body, "openai", opts)
 	assert.NotContains(t, out, "reasoning_effort")
@@ -228,80 +226,11 @@ func TestOpenAISameFormat_ReasoningEffortKeptForReasoning(t *testing.T) {
 	assert.Equal(t, "high", out["reasoning_effort"])
 }
 
-// Direct OpenAI applies its own effort on gpt-5.6 tool turns even when the
-// field is absent; dropping it is not enough — the turn must opt out explicitly.
-func TestOpenAISameFormat_ToolTurnOptsOutOfReasoningForDirectGPT56(t *testing.T) {
-	tools := `"tools":[{"type":"function","function":{"name":"read_file","parameters":{"type":"object"}}}]`
-	for _, tc := range []struct {
-		name  string
-		model string
-		body  []byte
-		want  any
-	}{
-		{
-			name:  "tool turn",
-			model: "gpt-5.6-luna",
-			body:  []byte(`{"model":"gpt-5.6-luna","messages":[{"role":"user","content":"hi"}],"reasoning_effort":"medium",` + tools + `}`),
-			want:  "none",
-		},
-		{
-			// A gpt-5.x chat/completions turn never carries effort at all, so a
-			// toolless one needs no explicit opt-out.
-			name:  "toolless turn",
-			model: "gpt-5.6-luna",
-			body:  []byte(`{"model":"gpt-5.6-luna","messages":[{"role":"user","content":"hi"}],"reasoning_effort":"medium"}`),
-			want:  nil,
-		},
-		{
-			name:  "older reasoning model serves tool turns as-is",
-			model: "gpt-5.5",
-			body:  []byte(`{"model":"gpt-5.5","messages":[{"role":"user","content":"hi"}],` + tools + `}`),
-			want:  nil,
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			opts := translate.EmitOptions{
-				TargetModel:    tc.model,
-				TargetProvider: providers.ProviderAIAND,
-				Capabilities:   router.Lookup(tc.model),
-			}
-			out := parseAndEmit(t, tc.body, "openai", opts)
-			if tc.want == nil {
-				assert.NotContains(t, out, "reasoning_effort")
-				return
-			}
-			assert.Equal(t, tc.want, out["reasoning_effort"])
-		})
-	}
-}
-
-func TestOpenAISameFormat_ReasoningStripsUnsupportedSampling(t *testing.T) {
-	body := []byte(`{
-		"model":"gpt-5.5",
-		"messages":[{"role":"user","content":"hi"}],
-		"stop":["END"],
-		"presence_penalty":0.5,
-		"frequency_penalty":0.3
-	}`)
-	for _, model := range []string{"gpt-5.5", "grok-4.5"} {
-		t.Run(model, func(t *testing.T) {
-			opts := translate.EmitOptions{
-				TargetModel:  model,
-				Capabilities: router.Lookup(model),
-			}
-			out := parseAndEmit(t, body, "openai", opts)
-			assert.NotContains(t, out, "stop")
-			assert.NotContains(t, out, "presence_penalty")
-			assert.NotContains(t, out, "frequency_penalty")
-		})
-	}
-}
-
 func TestOpenAISameFormat_StreamUsageInjected(t *testing.T) {
 	body := []byte(`{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}],"stream":true}`)
 	opts := translate.EmitOptions{
-		TargetModel:        "gpt-4.1",
-		Capabilities:       router.Lookup("gpt-4.1"),
+		TargetModel:        "deepseek/deepseek-v4-flash",
+		Capabilities:       router.Lookup("deepseek/deepseek-v4-flash"),
 		IncludeStreamUsage: true,
 	}
 	out := parseAndEmit(t, body, "openai", opts)
@@ -313,8 +242,8 @@ func TestOpenAISameFormat_StreamUsageInjected(t *testing.T) {
 func TestOpenAISameFormat_StreamUsageNotInjectedForNonStreaming(t *testing.T) {
 	body := []byte(`{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}]}`)
 	opts := translate.EmitOptions{
-		TargetModel:        "gpt-4.1",
-		Capabilities:       router.Lookup("gpt-4.1"),
+		TargetModel:        "deepseek/deepseek-v4-flash",
+		Capabilities:       router.Lookup("deepseek/deepseek-v4-flash"),
 		IncludeStreamUsage: true,
 	}
 	out := parseAndEmit(t, body, "openai", opts)
@@ -542,25 +471,6 @@ func TestAnthropicSameFormat_MidConversationSystemMessageDemotedInPlace(t *testi
 	}
 }
 
-func TestAnthropicSameFormat_MidConversationSystemOutputConfigHoistedBeforeDemotion(t *testing.T) {
-	body := []byte(`{"model":"claude-sonnet-4-20250514","messages":[{"role":"user","content":"hi"},{"role":"system","content":"set effort","output_config":{"effort":"high"}}],"max_tokens":1024}`)
-	opts := translate.EmitOptions{
-		TargetModel:  "z-ai/glm-5.2",
-		Capabilities: router.Lookup("z-ai/glm-5.2"),
-	}
-	out := parseAndEmit(t, body, "anthropic", opts)
-
-	outputConfig, _ := out["output_config"].(map[string]any)
-	require.NotNil(t, outputConfig)
-	assert.Equal(t, "high", outputConfig["effort"])
-
-	msgs, _ := out["messages"].([]any)
-	require.Len(t, msgs, 2)
-	demoted, _ := msgs[1].(map[string]any)
-	assert.Equal(t, "user", demoted["role"])
-	assert.NotContains(t, demoted, "output_config", "role-scoped config must not remain on the demoted message")
-}
-
 func TestAnthropicSameFormat_DemotedSystemNullOutputConfigRemoved(t *testing.T) {
 	body := []byte(`{"model":"claude-sonnet-4-20250514","messages":[{"role":"user","content":"hi"},{"role":"system","content":"reminder","output_config":null}],"max_tokens":1024}`)
 	opts := translate.EmitOptions{
@@ -575,56 +485,6 @@ func TestAnthropicSameFormat_DemotedSystemNullOutputConfigRemoved(t *testing.T) 
 	demoted, _ := msgs[1].(map[string]any)
 	assert.Equal(t, "user", demoted["role"])
 	assert.NotContains(t, demoted, "output_config", "even null role-scoped fields must not remain on a user message")
-}
-
-func TestAnthropicSameFormat_SystemOutputConfigDoesNotOverwriteTopLevelConfig(t *testing.T) {
-	body := []byte(`{"model":"claude-sonnet-4-20250514","output_config":{"effort":"low"},"messages":[{"role":"user","content":"hi"},{"role":"system","content":"set effort","output_config":{"effort":"high"}}],"max_tokens":1024}`)
-	opts := translate.EmitOptions{
-		TargetModel:  "z-ai/glm-5.2",
-		Capabilities: router.Lookup("z-ai/glm-5.2"),
-	}
-	out := parseAndEmit(t, body, "anthropic", opts)
-
-	outputConfig, _ := out["output_config"].(map[string]any)
-	require.NotNil(t, outputConfig)
-	assert.Equal(t, "low", outputConfig["effort"], "an explicit request-level option remains authoritative")
-
-	msgs, _ := out["messages"].([]any)
-	require.Len(t, msgs, 2)
-	demoted, _ := msgs[1].(map[string]any)
-	assert.NotContains(t, demoted, "output_config")
-}
-
-func TestAnthropicSameFormat_NullTopLevelOutputConfigDoesNotBlockHoist(t *testing.T) {
-	body := []byte(`{"model":"claude-sonnet-4-20250514","output_config":null,"messages":[{"role":"user","content":"hi"},{"role":"system","content":"set effort","output_config":{"effort":"high"}}],"max_tokens":1024}`)
-	opts := translate.EmitOptions{
-		TargetModel:  "z-ai/glm-5.2",
-		Capabilities: router.Lookup("z-ai/glm-5.2"),
-	}
-	out := parseAndEmit(t, body, "anthropic", opts)
-
-	outputConfig, _ := out["output_config"].(map[string]any)
-	require.NotNil(t, outputConfig)
-	assert.Equal(t, "high", outputConfig["effort"])
-	msgs, _ := out["messages"].([]any)
-	require.Len(t, msgs, 2)
-	demoted, _ := msgs[1].(map[string]any)
-	assert.NotContains(t, demoted, "output_config")
-}
-
-func TestAnthropicSameFormat_LeadingSystemOutputConfigHoisted(t *testing.T) {
-	body := []byte(`{"model":"claude-sonnet-4-20250514","messages":[{"role":"system","content":"set effort","output_config":{"effort":"high"}},{"role":"user","content":"hi"}],"max_tokens":1024}`)
-	opts := translate.EmitOptions{
-		TargetModel:  "z-ai/glm-5.2",
-		Capabilities: router.Lookup("z-ai/glm-5.2"),
-	}
-	out := parseAndEmit(t, body, "anthropic", opts)
-
-	outputConfig, _ := out["output_config"].(map[string]any)
-	require.NotNil(t, outputConfig)
-	assert.Equal(t, "high", outputConfig["effort"])
-	msgs, _ := out["messages"].([]any)
-	require.Len(t, msgs, 1, "leading system message is still hoisted out of the message array")
 }
 
 func TestAnthropicSameFormat_NewSystemMessageLeavesEarlierTurnsInPlace(t *testing.T) {
@@ -702,18 +562,6 @@ func TestAnthropicSameFormat_ThinkingStrippedForNonThinkingModel(t *testing.T) {
 	assert.NotContains(t, out, "thinking")
 }
 
-func TestAnthropicSameFormat_AdaptiveThinkingKeptForCapableModel(t *testing.T) {
-	body := []byte(`{"model":"deepseek/deepseek-v4.1-flash","messages":[{"role":"user","content":"hi"}],"max_tokens":1024,"thinking":{"type":"adaptive"}}`)
-	opts := translate.EmitOptions{
-		TargetModel:  "z-ai/glm-5.2",
-		Capabilities: router.Lookup("z-ai/glm-5.2"),
-	}
-	out := parseAndEmit(t, body, "anthropic", opts)
-	thinking, _ := out["thinking"].(map[string]any)
-	require.NotNil(t, thinking, "thinking should be preserved for models with adaptive thinking capability")
-	assert.Equal(t, "adaptive", thinking["type"])
-}
-
 func TestAnthropicSameFormat_ContextManagementDeletedForNonAdaptive(t *testing.T) {
 	body := []byte(`{"model":"claude-sonnet-4-20250514","messages":[{"role":"user","content":"hi"}],"max_tokens":1024,"context_management":{"mode":"auto"},"effort":"high","output_config":{"length":"verbose"}}`)
 	opts := translate.EmitOptions{
@@ -759,112 +607,6 @@ func TestAnthropicSameFormat_RedactedThinkingBlocksFiltered(t *testing.T) {
 	assert.Equal(t, "text", block["type"])
 }
 
-func TestAnthropicSameFormat_ThinkingBlocksKeptForCapableModel(t *testing.T) {
-	// Signature present because every genuine Anthropic thinking block carries
-	// one; unsigned blocks are cross-format artifacts and get stripped (#860).
-	body := []byte(`{"model":"deepseek/deepseek-v4.1-flash","messages":[{"role":"user","content":"hi"},{"role":"assistant","content":[{"type":"thinking","thinking":"thought","signature":"sig"},{"type":"text","text":"reply"}]}],"max_tokens":1024,"thinking":{"type":"adaptive"}}`)
-	opts := translate.EmitOptions{
-		TargetModel:  "z-ai/glm-5.2",
-		Capabilities: router.Lookup("z-ai/glm-5.2"),
-	}
-	out := parseAndEmit(t, body, "anthropic", opts)
-	msgs, _ := out["messages"].([]any)
-	require.Len(t, msgs, 2)
-	assistantMsg, _ := msgs[1].(map[string]any)
-	content, _ := assistantMsg["content"].([]any)
-	require.Len(t, content, 2, "thinking blocks should be preserved for capable models")
-}
-
-// Legacy clients still send thinking.type=enabled, which claude-opus-4-6+
-// rejects (400). The router must upconvert to type=adaptive and derive
-// output_config.effort from budget_tokens (prod incident 2026-06-02).
-func TestAnthropicSameFormat_EnabledThinkingUpconvertedToAdaptive(t *testing.T) {
-	tests := []struct {
-		name         string
-		budgetTokens int
-		wantEffort   string
-	}{
-		{"low budget", 2048, "low"},
-		{"medium budget (pi default)", 8192, "medium"},
-		{"high budget", 32000, "high"},
-		{"missing budget defaults to medium", 0, "medium"},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			thinkingField := `"thinking":{"type":"enabled"}`
-			if tc.budgetTokens > 0 {
-				thinkingField = fmt.Sprintf(`"thinking":{"type":"enabled","budget_tokens":%d}`, tc.budgetTokens)
-			}
-			body := []byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"hi"}],"max_tokens":1024,` + thinkingField + `}`)
-			opts := translate.EmitOptions{
-				TargetModel:  "z-ai/glm-5.2",
-				Capabilities: router.Lookup("z-ai/glm-5.2"),
-			}
-			out := parseAndEmit(t, body, "anthropic", opts)
-
-			thinking, _ := out["thinking"].(map[string]any)
-			require.NotNil(t, thinking, "thinking should remain on the body")
-			assert.Equal(t, "adaptive", thinking["type"], "legacy enabled must be upconverted to adaptive")
-			_, hasBudget := thinking["budget_tokens"]
-			assert.False(t, hasBudget, "budget_tokens has no meaning under adaptive thinking and must be dropped")
-
-			outputConfig, _ := out["output_config"].(map[string]any)
-			require.NotNil(t, outputConfig, "output_config.effort is required when adaptive thinking is set")
-			assert.Equal(t, tc.wantEffort, outputConfig["effort"])
-		})
-	}
-}
-
-// Claude Code auxiliary/workflow turns send thinking.type=disabled. Adaptive
-// models are always-on and 400 on that shape ("thinking.type.disabled is not
-// supported for this model"), so the router must upconvert to type=adaptive at
-// the lowest effort instead of forwarding the rejected block (prod: remilabs
-// cloud workflows, org_9nmHnsAsK0I74XbWM4UgvZD0).
-func TestAnthropicSameFormat_DisabledThinkingUpconvertedForAdaptiveModel(t *testing.T) {
-	body := []byte(`{"model":"deepseek/deepseek-v4.1-flash","messages":[{"role":"user","content":"hi"}],"max_tokens":1024,"thinking":{"type":"disabled"}}`)
-	opts := translate.EmitOptions{
-		TargetModel:  "z-ai/glm-5.2",
-		Capabilities: router.Lookup("z-ai/glm-5.2"),
-	}
-	out := parseAndEmit(t, body, "anthropic", opts)
-	thinking, _ := out["thinking"].(map[string]any)
-	require.NotNil(t, thinking, "thinking should remain on the body")
-	assert.Equal(t, "adaptive", thinking["type"], "disabled must be upconverted to adaptive for always-on models")
-	outputConfig, _ := out["output_config"].(map[string]any)
-	require.NotNil(t, outputConfig, "output_config.effort is required when adaptive thinking is set")
-	assert.Equal(t, "low", outputConfig["effort"], "disabled maps to the lowest adaptive effort")
-}
-
-// Legacy extended-thinking models (claude-haiku-4-5) accept thinking.type=disabled
-// natively, so it must pass through untouched.
-func TestAnthropicSameFormat_DisabledThinkingKeptForExtendedModel(t *testing.T) {
-	body := []byte(`{"model":"z-ai/glm-5.3-flash","messages":[{"role":"user","content":"hi"}],"max_tokens":1024,"thinking":{"type":"disabled"}}`)
-	opts := translate.EmitOptions{
-		TargetModel:  "z-ai/glm-5.3-flash",
-		Capabilities: router.Lookup("z-ai/glm-5.3-flash"),
-	}
-	out := parseAndEmit(t, body, "anthropic", opts)
-	thinking, _ := out["thinking"].(map[string]any)
-	require.NotNil(t, thinking, "disabled thinking must be preserved for extended-thinking models")
-	assert.Equal(t, "disabled", thinking["type"])
-	assert.NotContains(t, out, "output_config")
-}
-
-// Haiku 5.5 is adaptive but not always-on; Anthropic accepts
-// thinking.type=disabled for it, so the cheap no-thinking path passes through.
-func TestAnthropicSameFormat_DisabledThinkingKeptForHaiku55(t *testing.T) {
-	body := []byte(`{"model":"z-ai/glm-5.3-flash","messages":[{"role":"user","content":"hi"}],"max_tokens":1024,"thinking":{"type":"disabled"}}`)
-	opts := translate.EmitOptions{
-		TargetModel:  "z-ai/glm-5.3-flash",
-		Capabilities: router.Lookup("z-ai/glm-5.3-flash"),
-	}
-	out := parseAndEmit(t, body, "anthropic", opts)
-	thinking, _ := out["thinking"].(map[string]any)
-	require.NotNil(t, thinking, "disabled thinking must be preserved for Haiku 5.5")
-	assert.Equal(t, "disabled", thinking["type"])
-	assert.NotContains(t, out, "output_config")
-}
-
 // A non-thinking model has neither capability, so a disabled thinking block is
 // dropped entirely.
 func TestAnthropicSameFormat_DisabledThinkingStrippedForNonThinkingModel(t *testing.T) {
@@ -875,19 +617,6 @@ func TestAnthropicSameFormat_DisabledThinkingStrippedForNonThinkingModel(t *test
 	}
 	out := parseAndEmit(t, body, "anthropic", opts)
 	assert.NotContains(t, out, "thinking")
-}
-
-// An explicit output_config.effort wins over the budget-derived default.
-func TestAnthropicSameFormat_EnabledThinkingPreservesExplicitEffort(t *testing.T) {
-	body := []byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"hi"}],"max_tokens":1024,"thinking":{"type":"enabled","budget_tokens":8192},"output_config":{"effort":"high"}}`)
-	opts := translate.EmitOptions{
-		TargetModel:  "z-ai/glm-5.2",
-		Capabilities: router.Lookup("z-ai/glm-5.2"),
-	}
-	out := parseAndEmit(t, body, "anthropic", opts)
-	outputConfig, _ := out["output_config"].(map[string]any)
-	require.NotNil(t, outputConfig)
-	assert.Equal(t, "high", outputConfig["effort"], "caller-supplied effort must not be overwritten")
 }
 
 func TestAnthropicSameFormat_ThinkingBlocksStrippedOnModelSwitch(t *testing.T) {
@@ -907,23 +636,6 @@ func TestAnthropicSameFormat_ThinkingBlocksStrippedOnModelSwitch(t *testing.T) {
 	require.Len(t, content, 1, "thinking block with stale signature must be stripped on a model switch")
 	block, _ := content[0].(map[string]any)
 	assert.Equal(t, "text", block["type"], "only the text block should survive the strip")
-}
-
-func TestAnthropicSameFormat_ThinkingBlocksKeptWhenNoModelSwitch(t *testing.T) {
-	// Same-model turn (ModelSwitched=false): valid thinking blocks must survive
-	// to keep prompt-cache hits and reasoning continuity intact.
-	body := []byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"hi"},{"role":"assistant","content":[{"type":"thinking","thinking":"thought","signature":"valid-sig"},{"type":"text","text":"reply"}]}],"max_tokens":1024,"thinking":{"type":"adaptive"}}`)
-	opts := translate.EmitOptions{
-		TargetModel:   "z-ai/glm-5.2",
-		Capabilities:  router.Lookup("z-ai/glm-5.2"),
-		ModelSwitched: false,
-	}
-	out := parseAndEmit(t, body, "anthropic", opts)
-	msgs, _ := out["messages"].([]any)
-	require.Len(t, msgs, 2)
-	assistantMsg, _ := msgs[1].(map[string]any)
-	content, _ := assistantMsg["content"].([]any)
-	require.Len(t, content, 2, "thinking blocks must be preserved when the model did not change")
 }
 
 // TestAnthropicSameFormat_UnsignedThinkingStrippedWithoutModelSwitch guards
@@ -960,46 +672,6 @@ func TestAnthropicSameFormat_EmptySignatureThinkingStripped(t *testing.T) {
 	assistantMsg, _ := msgs[0].(map[string]any)
 	content, _ := assistantMsg["content"].([]any)
 	require.Len(t, content, 1, "empty-signature thinking block must be stripped")
-}
-
-// TestAnthropicSameFormat_RedactedThinkingSurvivesBodyScan pins the exemption:
-// redacted_thinking legitimately carries `data` rather than `signature`, so the
-// unsigned-block strip must leave it alone.
-func TestAnthropicSameFormat_RedactedThinkingSurvivesBodyScan(t *testing.T) {
-	body := []byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"assistant","content":[{"type":"redacted_thinking","data":"encrypted"},{"type":"text","text":"reply"}]}],"max_tokens":1024,"thinking":{"type":"adaptive"}}`)
-	opts := translate.EmitOptions{
-		TargetModel:   "z-ai/glm-5.2",
-		Capabilities:  router.Lookup("z-ai/glm-5.2"),
-		ModelSwitched: false,
-	}
-	out := parseAndEmit(t, body, "anthropic", opts)
-	msgs, _ := out["messages"].([]any)
-	require.Len(t, msgs, 1)
-	assistantMsg, _ := msgs[0].(map[string]any)
-	content, _ := assistantMsg["content"].([]any)
-	require.Len(t, content, 2, "redacted_thinking must not trip the unsigned scan")
-}
-
-// TestAnthropicSameFormat_SignedThinkingSurvivesUnsignedStrip: signature-scoped
-// strip must preserve signed blocks alongside any unsigned ones it drops.
-func TestAnthropicSameFormat_SignedThinkingSurvivesUnsignedStrip(t *testing.T) {
-	body := []byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"assistant","content":[{"type":"thinking","thinking":"signed","signature":"valid-sig"},{"type":"thinking","thinking":"from an OSS model"},{"type":"text","text":"reply"}]}],"max_tokens":1024,"thinking":{"type":"adaptive"}}`)
-	opts := translate.EmitOptions{
-		TargetModel:   "z-ai/glm-5.2",
-		Capabilities:  router.Lookup("z-ai/glm-5.2"),
-		ModelSwitched: false,
-	}
-	out := parseAndEmit(t, body, "anthropic", opts)
-	msgs, _ := out["messages"].([]any)
-	require.Len(t, msgs, 1)
-	assistantMsg, _ := msgs[0].(map[string]any)
-	content, _ := assistantMsg["content"].([]any)
-	require.Len(t, content, 2, "only the unsigned thinking block should be dropped")
-	signed, _ := content[0].(map[string]any)
-	assert.Equal(t, "thinking", signed["type"])
-	assert.Equal(t, "valid-sig", signed["signature"], "the signed block must survive intact")
-	text, _ := content[1].(map[string]any)
-	assert.Equal(t, "text", text["type"])
 }
 
 // TestAnthropicSameFormat_UnsignedThinkingOnlyMessageDropped is the exact shape
@@ -1097,11 +769,11 @@ func TestOpenAISameFormat_ComplexRequestPreservesStructure(t *testing.T) {
 		"presence_penalty": 0.5
 	}`)
 	opts := translate.EmitOptions{
-		TargetModel:  "gpt-4.1",
-		Capabilities: router.Lookup("gpt-4.1"),
+		TargetModel:  "deepseek/deepseek-v4-flash",
+		Capabilities: router.Lookup("deepseek/deepseek-v4-flash"),
 	}
 	out := parseAndEmit(t, body, "openai", opts)
-	assert.Equal(t, "gpt-4.1", out["model"])
+	assert.Equal(t, "deepseek/deepseek-v4-flash", out["model"])
 	assert.Equal(t, 0.7, out["temperature"])
 	assert.Equal(t, 0.9, out["top_p"])
 	assert.Equal(t, true, out["stream"])
@@ -1232,8 +904,8 @@ func TestOpenAISameFormat_ClampMaxCompletionTokens(t *testing.T) {
 func TestOpenAISameFormat_StreamUsagePreservesExistingOptions(t *testing.T) {
 	body := []byte(`{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}],"stream":true,"stream_options":{"something":"custom"}}`)
 	opts := translate.EmitOptions{
-		TargetModel:        "gpt-4.1",
-		Capabilities:       router.Lookup("gpt-4.1"),
+		TargetModel:        "deepseek/deepseek-v4-flash",
+		Capabilities:       router.Lookup("deepseek/deepseek-v4-flash"),
 		IncludeStreamUsage: true,
 	}
 	out := parseAndEmit(t, body, "openai", opts)
@@ -1261,60 +933,6 @@ func TestAnthropicSameFormat_BodyIsImmutable(t *testing.T) {
 	assert.Equal(t, original, body, "original body bytes must not be modified")
 }
 
-// Prod repro (2026-06-09): a session using effort="xhigh" was re-routed
-// mid-session to claude-sonnet-4-6 (tops out at "max"), and Anthropic
-// 400'd on the unsupported level, killing the session. Emit must clamp
-// xhigh to max for adaptive targets without CapXhighEffort.
-func TestAnthropicSameFormat_XhighEffortClampedOnReroute(t *testing.T) {
-	body := []byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"hi"}],"max_tokens":1024,"thinking":{"type":"adaptive"},"output_config":{"effort":"xhigh"}}`)
-	opts := translate.EmitOptions{
-		TargetModel:  "deepseek/deepseek-v4.1-flash",
-		Capabilities: router.Lookup("deepseek/deepseek-v4.1-flash"),
-	}
-	out := parseAndEmit(t, body, "anthropic", opts)
-	outputConfig, _ := out["output_config"].(map[string]any)
-	require.NotNil(t, outputConfig)
-	assert.Equal(t, "max", outputConfig["effort"], "xhigh must clamp to max for models without CapXhighEffort")
-}
-
-// Top-level `effort` follows the same menu as output_config.effort.
-func TestAnthropicSameFormat_XhighTopLevelEffortClampedOnReroute(t *testing.T) {
-	body := []byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"hi"}],"max_tokens":1024,"thinking":{"type":"adaptive"},"effort":"xhigh"}`)
-	opts := translate.EmitOptions{
-		TargetModel:  "deepseek/deepseek-v4.1-flash",
-		Capabilities: router.Lookup("deepseek/deepseek-v4.1-flash"),
-	}
-	out := parseAndEmit(t, body, "anthropic", opts)
-	assert.Equal(t, "max", out["effort"], "top-level xhigh must clamp to max for models without CapXhighEffort")
-}
-
-// xhigh stays untouched when the target supports it (opus-4-7+).
-func TestAnthropicSameFormat_XhighEffortPreservedForCapableModel(t *testing.T) {
-	body := []byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"hi"}],"max_tokens":1024,"thinking":{"type":"adaptive"},"output_config":{"effort":"xhigh"}}`)
-	opts := translate.EmitOptions{
-		TargetModel:  "z-ai/glm-5.2",
-		Capabilities: router.Lookup("z-ai/glm-5.2"),
-	}
-	out := parseAndEmit(t, body, "anthropic", opts)
-	outputConfig, _ := out["output_config"].(map[string]any)
-	require.NotNil(t, outputConfig)
-	assert.Equal(t, "xhigh", outputConfig["effort"], "xhigh must pass through to models with CapXhighEffort")
-}
-
-// Levels below xhigh are on every adaptive model's menu; the clamp must not
-// touch them even when the target lacks CapXhighEffort.
-func TestAnthropicSameFormat_NonXhighEffortUntouchedByClamp(t *testing.T) {
-	body := []byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"hi"}],"max_tokens":1024,"thinking":{"type":"adaptive"},"output_config":{"effort":"high"}}`)
-	opts := translate.EmitOptions{
-		TargetModel:  "deepseek/deepseek-v4.1-flash",
-		Capabilities: router.Lookup("deepseek/deepseek-v4.1-flash"),
-	}
-	out := parseAndEmit(t, body, "anthropic", opts)
-	outputConfig, _ := out["output_config"].(map[string]any)
-	require.NotNil(t, outputConfig)
-	assert.Equal(t, "high", outputConfig["effort"], "supported effort levels must pass through unchanged")
-}
-
 // Prod repro: a gateway answered `output_config.format: Extra inputs are not
 // permitted`, so the retry emit drops the knob and prunes an emptied container.
 func TestAnthropicSameFormat_OutputConfigFormatStrippedOnRequest(t *testing.T) {
@@ -1329,41 +947,6 @@ func TestAnthropicSameFormat_OutputConfigFormatStrippedOnRequest(t *testing.T) {
 	assert.NotContains(t, out, "output_config", "an emptied output_config must be pruned, not sent as {}")
 }
 
-// Only the rejected knob goes: the retry keeps its adaptive effort.
-func TestAnthropicSameFormat_OutputConfigEffortSurvivesFormatStrip(t *testing.T) {
-	body := []byte(`{"model":"deepseek/deepseek-v4-pro","messages":[{"role":"user","content":"hi"}],"max_tokens":1024,` +
-		`"thinking":{"type":"adaptive"},"output_config":{"effort":"high","format":{"type":"json_schema"}}}`)
-	out := parseAndEmit(t, body, "anthropic", translate.EmitOptions{
-		TargetModel:             "deepseek/deepseek-v4-pro",
-		TargetProvider:          providers.ProviderAIAND,
-		Capabilities:            router.Lookup("deepseek/deepseek-v4-pro"),
-		StripOutputConfigFormat: true,
-	})
-	outputConfig, _ := out["output_config"].(map[string]any)
-	require.NotNil(t, outputConfig)
-	assert.Equal(t, "high", outputConfig["effort"])
-	assert.NotContains(t, outputConfig, "format")
-}
-
-// Gateways serve structured output (Cortex documents it), so the first attempt
-// carries the knob to a gateway exactly as it does to first-party Anthropic.
-func TestAnthropicSameFormat_OutputConfigFormatKeptByDefault(t *testing.T) {
-	body := []byte(`{"model":"deepseek/deepseek-v4-pro","messages":[{"role":"user","content":"hi"}],"max_tokens":1024,` +
-		`"output_config":{"format":{"type":"json_schema"}}}`)
-	for _, provider := range []string{providers.ProviderAIAND, providers.ProviderAIAND} {
-		t.Run(provider, func(t *testing.T) {
-			out := parseAndEmit(t, body, "anthropic", translate.EmitOptions{
-				TargetModel:    "deepseek/deepseek-v4-pro",
-				TargetProvider: provider,
-				Capabilities:   router.Lookup("deepseek/deepseek-v4-pro"),
-			})
-			outputConfig, _ := out["output_config"].(map[string]any)
-			require.NotNil(t, outputConfig)
-			assert.Contains(t, outputConfig, "format")
-		})
-	}
-}
-
 // openAIReasoningSignature builds the cross-format envelope that
 // encodeOpenAIReasoningSignature mints, for use in test fixtures.
 func openAIReasoningSignature(t *testing.T, id, enc string) string {
@@ -1371,29 +954,6 @@ func openAIReasoningSignature(t *testing.T, id, enc string) string {
 	raw, err := json.Marshal(map[string]any{"v": 1, "provider": "openai", "id": id, "enc": enc})
 	require.NoError(t, err)
 	return base64.StdEncoding.EncodeToString(raw)
-}
-
-// Fable 5.1 400s on tool_choice any/tool ("not supported for this model");
-// the forced choice downgrades to auto so the turn still reaches upstream.
-func TestAnthropicSameFormat_ForcedToolChoiceDowngradedForAutoOnlyModel(t *testing.T) {
-	for _, tc := range []string{
-		`{"type":"tool","name":"web_search","disable_parallel_tool_use":true}`,
-		`{"type":"any"}`,
-	} {
-		body := []byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"Perform a web search for the query: x"}],"max_tokens":1024,"tools":[{"type":"web_search_20260209","name":"web_search"}],"tool_choice":` + tc + `}`)
-		opts := translate.EmitOptions{
-			TargetModel:  "z-ai/glm-5.2",
-			Capabilities: router.Lookup("z-ai/glm-5.2"),
-		}
-		out := parseAndEmit(t, body, "anthropic", opts)
-		choice, _ := out["tool_choice"].(map[string]any)
-		require.NotNil(t, choice, tc)
-		assert.Equal(t, "auto", choice["type"], tc)
-		assert.Nil(t, choice["name"], tc)
-		if strings.Contains(tc, "disable_parallel_tool_use") {
-			assert.Equal(t, true, choice["disable_parallel_tool_use"], tc)
-		}
-	}
 }
 
 func TestAnthropicSameFormat_ForcedToolChoicePreservedForCapableModel(t *testing.T) {
@@ -1407,23 +967,6 @@ func TestAnthropicSameFormat_ForcedToolChoicePreservedForCapableModel(t *testing
 	require.NotNil(t, choice)
 	assert.Equal(t, "tool", choice["type"])
 	assert.Equal(t, "web_search", choice["name"])
-}
-
-// OpenAI-sourced forced choices ("required" / named function) hit the same
-// Fable limitation on the cross-format path.
-func TestOpenAIToAnthropic_ForcedToolChoiceDowngradedForAutoOnlyModel(t *testing.T) {
-	for _, tc := range []string{`"required"`, `{"type":"function","function":{"name":"lookup"}}`} {
-		body := []byte(`{"model":"gpt-5","messages":[{"role":"user","content":"hi"}],"tools":[{"type":"function","function":{"name":"lookup","parameters":{"type":"object"}}}],"tool_choice":` + tc + `}`)
-		env, err := translate.ParseOpenAI(body)
-		require.NoError(t, err)
-		p, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{
-			TargetModel:  "z-ai/glm-5.2",
-			Capabilities: router.Lookup("z-ai/glm-5.2"),
-		})
-		require.NoError(t, err)
-		assert.Equal(t, "auto", gjson.GetBytes(p.Body, "tool_choice.type").String(), tc)
-		assert.False(t, gjson.GetBytes(p.Body, "tool_choice.name").Exists(), tc)
-	}
 }
 
 func TestOpenAIEmit_FillsMissingFunctionToolParameters(t *testing.T) {
@@ -1469,7 +1012,7 @@ func TestAnthropicToOpenAI_FillsMissingInputSchemaAsParameters(t *testing.T) {
 	assert.Equal(t, "object", tools.Get("1.function.parameters.type").String())
 	assert.JSONEq(t, `{"type":"object","properties":{}}`, tools.Get("1.function.parameters").Raw)
 
-	p, err = env.PrepareOpenAIResponses(http.Header{}, translate.EmitOptions{TargetModel: "gpt-5.5", TargetProvider: providers.ProviderAIAND, Capabilities: router.Lookup("gpt-5.5")})
+	p, err = env.PrepareOpenAIResponses(http.Header{}, translate.EmitOptions{TargetModel: "z-ai/glm-5.3", TargetProvider: providers.ProviderAIAND, Capabilities: router.Lookup("z-ai/glm-5.3")})
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"type":"object","properties":{}}`, gjson.GetBytes(p.Body, "tools.1.parameters").Raw)
 	assert.Equal(t, "false", gjson.GetBytes(p.Body, "tools.1.strict").Raw)

@@ -13,7 +13,7 @@ import (
 
 func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexTitleGenerationShape(t *testing.T) {
 	body := []byte(`{
-		"model":"gpt-5.6-sol",
+		"model":"deepseek/deepseek-v4-pro",
 		"tools":[{"type":"function","name":"shell","parameters":{"type":"object"}}],
 		"text":{"format":{"type":"json_schema","schema":{
 			"type":"object","properties":{"title":{"type":"string"}},"required":["title"],"additionalProperties":false
@@ -36,7 +36,7 @@ func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexTitleGenerati
 			{"type":"message","role":"developer","content":[{"type":"input_text","text":"Base instructions."}]},
 			{"type":"message","role":"user","content":[{"type":"input_text","text":"Respond directly to the user's prompt.\n\nYou are generating a short conversation title. Keep it concise."}]}
 		],
-		"model":"gpt-5.6-sol",
+		"model":"deepseek/deepseek-v4-pro",
 		"parallel_tool_calls":true,
 		"prompt_cache_key":"title-session",
 		"reasoning":{"effort":"medium","summary":"auto"},
@@ -77,7 +77,7 @@ func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexTitlePromptIs
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			body := []byte(`{"model":"gpt-5.6-sol","text":{"verbosity":"low"},"input":` + tt.input + `}`)
+			body := []byte(`{"model":"deepseek/deepseek-v4-pro","text":{"verbosity":"low"},"input":` + tt.input + `}`)
 			converted, err := translate.ConvertResponsesToChatCompletionsWithOptions(body, translate.ResponsesConversionOptions{PortableCodex: true})
 			require.NoError(t, err)
 			assert.False(t, converted.TitleGeneration)
@@ -87,7 +87,7 @@ func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexTitlePromptIs
 
 func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexTitleShapeIsStrict(t *testing.T) {
 	body := []byte(`{
-		"model":"gpt-5.6-sol",
+		"model":"deepseek/deepseek-v4-pro",
 		"text":{"format":{"type":"json_schema","schema":{
 			"type":"object",
 			"properties":{"title":{"type":"string"},"summary":{"type":"string"}},
@@ -104,7 +104,7 @@ func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexTitleShapeIsS
 
 func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexTools(t *testing.T) {
 	body := []byte(`{
-		"model":"gpt-5.6-sol",
+		"model":"deepseek/deepseek-v4-pro",
 		"stream":true,
 		"input":[
 			{"type":"additional_tools","role":"developer","tools":[
@@ -205,7 +205,7 @@ func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexHistory(t *te
 
 func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexUnknownMessagePhaseFailsClosed(t *testing.T) {
 	body := []byte(`{
-		"model":"gpt-5.6-sol",
+		"model":"deepseek/deepseek-v4-pro",
 		"input":[{"type":"message","role":"assistant","phase":"future_phase","content":[{"type":"output_text","text":"hello"}]}]
 	}`)
 
@@ -250,7 +250,7 @@ func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexReasoningFail
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			body := []byte(`{"model":"gpt-5.6-sol","input":[` + test.item + `]}`)
+			body := []byte(`{"model":"deepseek/deepseek-v4-pro","input":[` + test.item + `]}`)
 			converted, err := translate.ConvertResponsesToChatCompletionsWithOptions(body, translate.ResponsesConversionOptions{PortableCodex: true})
 			require.NoError(t, err)
 			assert.True(t, converted.Requirements.NativeOnly)
@@ -282,7 +282,7 @@ func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexReasoningSumm
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			body := []byte(`{
-		"model":"gpt-6.1-sol",
+		"model":"deepseek/deepseek-v4-pro-0813",
 		"input":[
 			{"type":"message","role":"user","content":[{"type":"input_text","text":"investigate"}]},
 			` + test.item + `,
@@ -305,7 +305,7 @@ func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexReasoningSumm
 
 func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexToolOutputImageHoisted(t *testing.T) {
 	body := []byte(`{
-		"model":"gpt-6.1-sol",
+		"model":"deepseek/deepseek-v4-pro-0813",
 		"input":[
 			{"type":"custom_tool_call","call_id":"call_1","name":"exec","input":"shot();"},
 			{"type":"custom_tool_call","call_id":"call_2","name":"exec","input":"ls();"},
@@ -342,7 +342,7 @@ func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexToolOutputIma
 
 func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexRepeatedCallImagesShareLabel(t *testing.T) {
 	body := []byte(`{
-		"model":"gpt-6.1-sol",
+		"model":"deepseek/deepseek-v4-pro-0813",
 		"input":[
 			{"type":"custom_tool_call","call_id":"call_1","name":"exec","input":"notify(a); notify(b);"},
 			{"type":"custom_tool_call_output","call_id":"call_1","output":[{"type":"input_image","image_url":"data:image/png;base64,QQ=="}]},
@@ -365,7 +365,7 @@ func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexRepeatedCallI
 
 func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexToolOutputFileFailsClosed(t *testing.T) {
 	body := []byte(`{
-		"model":"gpt-6.1-sol",
+		"model":"deepseek/deepseek-v4-pro-0813",
 		"input":[
 			{"type":"custom_tool_call","call_id":"call_1","name":"exec","input":"shot();"},
 			{"type":"custom_tool_call_output","call_id":"call_1","output":[{"type":"input_image","file_id":"file_1"}]}
@@ -380,7 +380,7 @@ func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexToolOutputFil
 
 func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexEncryptedOnlyAgentMessageFailsClosed(t *testing.T) {
 	body := []byte(`{
-		"model":"gpt-5.6-sol",
+		"model":"deepseek/deepseek-v4-pro",
 		"input":[{"type":"agent_message","author":"child","recipient":"parent","content":[{"type":"encrypted_content","encrypted_content":"opaque"}]}]
 	}`)
 
@@ -394,7 +394,7 @@ func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexEncryptedOnly
 
 func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexCustomStructuredOutputIsString(t *testing.T) {
 	body := []byte(`{
-		"model":"gpt-5.6-sol",
+		"model":"deepseek/deepseek-v4-pro",
 		"input":[
 			{"type":"custom_tool_call","call_id":"call_1","name":"exec","input":"text(true);"},
 			{"type":"custom_tool_call_output","call_id":"call_1","name":"exec","output":[{"type":"input_text","text":"first"},{"type":"input_text","text":"second"}]}
@@ -410,7 +410,7 @@ func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexCustomStructu
 
 func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexStructuredTextFormat(t *testing.T) {
 	body := []byte(`{
-			"model":"gpt-5.6-sol",
+			"model":"deepseek/deepseek-v4-pro",
 			"input":"answer",
 			"service_tier":"priority",
 			"prompt_cache_key":"caller-key",
@@ -436,7 +436,7 @@ func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexStructuredTex
 }
 
 func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexUnsupportedVerbosityStaysNative(t *testing.T) {
-	body := []byte(`{"model":"gpt-5.6-sol","input":"answer","text":{"verbosity":"future"}}`)
+	body := []byte(`{"model":"deepseek/deepseek-v4-pro","input":"answer","text":{"verbosity":"future"}}`)
 
 	converted, err := translate.ConvertResponsesToChatCompletionsWithOptions(body, translate.ResponsesConversionOptions{PortableCodex: true})
 	require.NoError(t, err)
@@ -445,7 +445,7 @@ func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexUnsupportedVe
 }
 
 func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexUnresolvedToolRefStaysNative(t *testing.T) {
-	body := []byte(`{"model":"gpt-5.6-sol","input":"answer","tools":[{"type":"function","name":"lookup","parameters":{"type":"object","properties":{"q":{"$ref":"https://example.com/query.json"}}}}]}`)
+	body := []byte(`{"model":"deepseek/deepseek-v4-pro","input":"answer","tools":[{"type":"function","name":"lookup","parameters":{"type":"object","properties":{"q":{"$ref":"https://example.com/query.json"}}}}]}`)
 
 	converted, err := translate.ConvertResponsesToChatCompletionsWithOptions(body, translate.ResponsesConversionOptions{PortableCodex: true})
 	require.NoError(t, err)
@@ -466,7 +466,7 @@ func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexBadgeNeedsPro
 		t.Run(tc.name, func(t *testing.T) {
 			encoded, err := json.Marshal(tc.text)
 			require.NoError(t, err)
-			body := []byte(`{"model":"gpt-5.6-sol","input":[{"type":"message","role":"assistant","content":` + string(encoded) + `}]}`)
+			body := []byte(`{"model":"deepseek/deepseek-v4-pro","input":[{"type":"message","role":"assistant","content":` + string(encoded) + `}]}`)
 			converted, err := translate.ConvertResponsesToChatCompletionsWithOptions(body, translate.ResponsesConversionOptions{PortableCodex: true})
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, gjson.GetBytes(converted.Body, "messages.0.content").Str)
@@ -476,7 +476,7 @@ func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexBadgeNeedsPro
 
 func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexDropsMarkerOnlyAssistantBeforeToolCall(t *testing.T) {
 	body := []byte(`{
-		"model":"gpt-5.6-sol",
+		"model":"deepseek/deepseek-v4-pro",
 		"input":[
 			{"type":"message","role":"user","content":"run it"},
 			{"type":"message","role":"assistant","content":[{"type":"output_text","text":"` + codexResponsesBadgeSentinelForTest + `**Weave Router** — claude-sonnet-4-6 ← gpt-5.4\n\n\n_Weave Router feedback:_ $rf + good experience"}]},
@@ -503,7 +503,7 @@ func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexDropsMarkerOn
 
 func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexUnknownStaysNative(t *testing.T) {
 	body := []byte(`{
-		"model":"gpt-5.6-sol",
+		"model":"deepseek/deepseek-v4-pro",
 		"input":[{"type":"computer_call","id":"comp_1","action":{"type":"click"}}],
 		"tools":[{"type":"web_search","search_context_size":"medium"}]
 	}`)

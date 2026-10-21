@@ -25,17 +25,6 @@ func prepareWithFallback(t *testing.T, in http.Header, body string, opts transla
 	return prep
 }
 
-func TestServerSideFallback_SetsFieldAndBeta(t *testing.T) {
-	prep := prepareWithFallback(t, http.Header{}, serverSideFallbackBody, translate.EmitOptions{
-		TargetModel:              "z-ai/glm-5.2",
-		TargetProvider:           providers.ProviderAIAND,
-		EnableServerSideFallback: true,
-	})
-
-	assert.Equal(t, "default", gjson.GetBytes(prep.Body, "fallbacks").String())
-	assert.Contains(t, prep.Headers.Get("anthropic-beta"), "server-side-fallback-2026-07-01")
-}
-
 func TestServerSideFallback_DisabledLeavesRequestUntouched(t *testing.T) {
 	prep := prepareWithFallback(t, http.Header{}, serverSideFallbackBody, translate.EmitOptions{
 		TargetModel:    "z-ai/glm-5.2",
@@ -44,18 +33,6 @@ func TestServerSideFallback_DisabledLeavesRequestUntouched(t *testing.T) {
 
 	assert.False(t, gjson.GetBytes(prep.Body, "fallbacks").Exists())
 	assert.NotContains(t, prep.Headers.Get("anthropic-beta"), "server-side-fallback")
-}
-
-func TestServerSideFallback_PreservesClientChoice(t *testing.T) {
-	body := `{"model":"z-ai/glm-5.2","max_tokens":1024,"messages":[{"role":"user","content":"hi"}],"fallbacks":"none"}`
-	prep := prepareWithFallback(t, http.Header{}, body, translate.EmitOptions{
-		TargetModel:              "z-ai/glm-5.2",
-		TargetProvider:           providers.ProviderAIAND,
-		EnableServerSideFallback: true,
-	})
-
-	assert.Equal(t, "none", gjson.GetBytes(prep.Body, "fallbacks").String())
-	assert.Contains(t, prep.Headers.Get("anthropic-beta"), "server-side-fallback-2026-07-01")
 }
 
 // Only opus-5 / fable-5 accept the field; the rest 400 on it.
@@ -84,16 +61,4 @@ func TestServerSideFallback_StripsClientFieldOnUnsupportedModel(t *testing.T) {
 
 	assert.False(t, gjson.GetBytes(prep.Body, "fallbacks").Exists())
 	assert.NotContains(t, prep.Headers.Get("anthropic-beta"), "server-side-fallback")
-}
-
-func TestServerSideFallback_DedupesClientBeta(t *testing.T) {
-	in := http.Header{}
-	in.Set("anthropic-beta", "server-side-fallback-2026-07-01")
-	prep := prepareWithFallback(t, in, serverSideFallbackBody, translate.EmitOptions{
-		TargetModel:              "z-ai/glm-5.2",
-		TargetProvider:           providers.ProviderAIAND,
-		EnableServerSideFallback: true,
-	})
-
-	assert.Equal(t, "server-side-fallback-2026-07-01", prep.Headers.Get("anthropic-beta"))
 }

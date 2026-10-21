@@ -42,7 +42,7 @@ func buildAnthropicSSETranslator(b *testing.B, rec *httptest.ResponseRecorder) (
 
 func buildResponsesToAnthropicWriter(b *testing.B, rec *httptest.ResponseRecorder) (http.ResponseWriter, func() error) {
 	b.Helper()
-	w := translate.NewResponsesToAnthropicWriter(rec, "gpt-5.5", nil)
+	w := translate.NewResponsesToAnthropicWriter(rec, "z-ai/glm-5.3", nil)
 	err := w.Prelude(true)
 	if err != nil {
 		b.Fatal(err)

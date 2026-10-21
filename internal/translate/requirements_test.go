@@ -84,7 +84,7 @@ func TestTranslationRequirements_NativeServerToolsAreStructural(t *testing.T) {
 
 func TestTranslationRequirements_DetectsOpenAIMediaAndSearch(t *testing.T) {
 	env, err := ParseOpenAI([]byte(`{
-        "model":"gpt-5.5",
+        "model":"z-ai/glm-5.3",
         "messages":[{"role":"user","content":[
           {"type":"input_audio","input_audio":{"data":"AA==","format":"wav"}},
           {"type":"input_file","file_id":"file_123"}

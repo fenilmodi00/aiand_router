@@ -18,7 +18,7 @@ import (
 func codexNotifyHistory(t *testing.T) *translate.RequestEnvelope {
 	t.Helper()
 	body, err := json.Marshal(map[string]any{
-		"model": "gpt-5.6-sol",
+		"model": "deepseek/deepseek-v4-pro",
 		"input": []any{
 			codexUserItem("poll the build until it finishes"),
 			map[string]any{"type": "custom_tool_call", "call_id": "toolu_dup_1", "name": "exec", "input": "while (!done) { notify(status) }"},

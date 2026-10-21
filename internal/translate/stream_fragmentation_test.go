@@ -355,7 +355,7 @@ func responsesEvent(eventType, data string) string {
 // deltas, then response.completed.
 func largeResponsesStream() string {
 	var body strings.Builder
-	body.WriteString(responsesEvent("response.created", `{"type":"response.created","response":{"id":"resp_large","status":"in_progress","model":"gpt-5.5","output":[]}}`))
+	body.WriteString(responsesEvent("response.created", `{"type":"response.created","response":{"id":"resp_large","status":"in_progress","model":"z-ai/glm-5.3","output":[]}}`))
 	body.WriteString(responsesEvent("response.output_item.added", `{"type":"response.output_item.added","output_index":0,"item":{"id":"msg_large","type":"message","role":"assistant","status":"in_progress","content":[]}}`))
 	body.WriteString(responsesEvent("response.output_text.delta", `{"type":"response.output_text.delta","item_id":"msg_large","output_index":0,"content_index":0,"delta":"`+largeText(largeFrameBytes)+`"}`))
 	for i := 0; i < largeFixtureSmallFrames; i++ {
@@ -372,7 +372,7 @@ func largeResponsesStream() string {
 		body.WriteString(responsesEvent("response.function_call_arguments.delta", `{"type":"response.function_call_arguments.delta","item_id":"fc_large","output_index":1,"delta":`+strconv.Quote(piece)+`}`))
 	}
 	body.WriteString(responsesEvent("response.output_item.done", `{"type":"response.output_item.done","output_index":1,"item":{"id":"fc_large","type":"function_call","call_id":"call_large","name":"write_file","arguments":`+strconv.Quote(arguments)+`,"status":"completed"}}`))
-	body.WriteString(responsesEvent("response.completed", `{"type":"response.completed","response":{"id":"resp_large","status":"completed","model":"gpt-5.5","incomplete_details":null,"output":[],"usage":{"input_tokens":150,"input_tokens_details":{"cached_tokens":0},"output_tokens":4321}}}`))
+	body.WriteString(responsesEvent("response.completed", `{"type":"response.completed","response":{"id":"resp_large","status":"completed","model":"z-ai/glm-5.3","incomplete_details":null,"output":[],"usage":{"input_tokens":150,"input_tokens_details":{"cached_tokens":0},"output_tokens":4321}}}`))
 	return body.String()
 }
 
@@ -494,7 +494,7 @@ func streamFamilies() []streamFamily {
 			run: func(t *testing.T, fixture streamFixture, chunks [][]byte) streamObservation {
 				rec := httptest.NewRecorder()
 				sink := &fakeUsageSink{}
-				w := translate.NewResponsesToAnthropicWriter(rec, "gpt-5.5", sink)
+				w := translate.NewResponsesToAnthropicWriter(rec, "z-ai/glm-5.3", sink)
 				preludeOrCommit(t, w, fixture.streaming)
 				marks := armProgress(t, w, fixture.streaming)
 				observation := runFinalizing(w, rec, chunks)
@@ -525,7 +525,7 @@ func streamFamilies() []streamFamily {
 			run: func(t *testing.T, fixture streamFixture, chunks [][]byte) streamObservation {
 				rec := httptest.NewRecorder()
 				sink := &fakeUsageSink{}
-				w := translate.NewResponsesToOpenAIChatWriter(rec, "gpt-5.5", sink)
+				w := translate.NewResponsesToOpenAIChatWriter(rec, "z-ai/glm-5.3", sink)
 				preludeOrCommit(t, w, fixture.streaming)
 				marks := armProgress(t, w, fixture.streaming)
 				observation := runFinalizing(w, rec, chunks)

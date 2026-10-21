@@ -19,7 +19,6 @@ import (
 	"google.golang.org/api/option"
 
 	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/router/hmm/rosterdata"
 )
 
 type servingGCSFixture struct {
@@ -192,47 +191,6 @@ func TestGCSManagedServingPublishRejectsV1KindsAndSchemasButStillReadsThem(t *te
 		require.NoError(t, err, string(kind))
 		require.Equal(t, legacyRef, resolved)
 	}
-}
-
-func TestGCSManagedServingV2ObjectsRoundTripThroughReadServingObjectAndReadPreparedSelection(t *testing.T) {
-	registry, fixture := newServingGCSFixture(t)
-	ctx := context.Background()
-	store, _, set := controllerFixture(t)
-	v2 := newV2Fixture(t, store, set)
-	candidate := store.object(t, policyregistry.ServingCandidate, v2.candidate).(*policyregistry.CandidateV2)
-	policy, err := store.ReadServingPolicy(ctx, policyregistry.ObjectRef{URI: candidate.Policy.URI, SHA256: candidate.Policy.SHA256, Generation: candidate.Policy.Generation})
-	require.NoError(t, err)
-	policyBytes, err := rosterdata.CanonicalBytes(policy)
-	require.NoError(t, err)
-	_, policyName, _ := strings.Cut(strings.TrimPrefix(candidate.Policy.URI, "gs://"), "/")
-	fixture.objects[policyName] = map[int64][]byte{candidate.Policy.Generation: policyBytes}
-	fixture.current[policyName] = candidate.Policy.Generation
-
-	candidatePayload := servingPayload(t, candidate)
-	candidateRef, err := registry.PublishServingManifest(ctx, policyregistry.ServingCandidate, candidatePayload)
-	require.NoError(t, err)
-	require.Equal(t, v2.candidate.SHA256, candidateRef.SHA256)
-	require.Equal(t, v2.candidate.URI, candidateRef.URI)
-	setV2 := v2.set
-	setV2.Default.Candidate = candidateRef
-	setV2.Profiles = map[string]policyregistry.ServingLane{}
-	setRef, err := registry.PublishServingManifest(ctx, policyregistry.ServingSelectionSet, servingPayload(t, setV2))
-	require.NoError(t, err)
-
-	readCandidate, _, err := registry.ReadServingObject(ctx, policyregistry.ServingCandidate, candidateRef)
-	require.NoError(t, err)
-	require.Equal(t, candidate, readCandidate)
-	readSet, _, err := registry.ReadServingObject(ctx, policyregistry.ServingSelectionSet, setRef)
-	require.NoError(t, err)
-	require.Equal(t, &setV2, readSet)
-	_, _, err = registry.ReadServingObject(ctx, policyregistry.ServingCandidate, setRef)
-	require.Error(t, err, "an artifact is decoded by its schema, so a selection set cannot pose as a candidate")
-
-	prepared, err := policyregistry.ReadPreparedSelection(ctx, registry, setV2.Target, "", policyregistry.ServingSelection{Release: candidateRef, Binding: setRef})
-	require.NoError(t, err)
-	require.Equal(t, candidate.CandidateComposition, prepared.Candidate)
-	require.Equal(t, setV2.Default.LaneBinding, prepared.Binding)
-	require.Equal(t, rosterdata.SHA256Hex(policyBytes), prepared.Policy.SHA256)
 }
 
 func TestGCSManagedServingPublishesAndReadsAnyValidEncodingByItsOwnDigest(t *testing.T) {

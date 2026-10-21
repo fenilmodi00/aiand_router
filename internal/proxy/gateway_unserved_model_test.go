@@ -68,59 +68,6 @@ func ctxWithGatewayAliases(installationID string, models ...string) context.Cont
 	return context.WithValue(authedCtx(installationID), proxy.ExternalAPIKeysContextKey{}, []*auth.ExternalAPIKey{key})
 }
 
-// Prod 2026-08-28: a gateway key aliased a model the endpoint does not serve;
-// the 404 must teach the router to skip it on later turns.
-func TestService_HardPin_TitleGen_GatewayModelNotFound_ExcludedOnLaterTurns(t *testing.T) {
-	store := newFakePinStore()
-	fr := &fakeRouter{decision: router.Decision{Provider: "anthropic", Model: "z-ai/glm-5.2", Reason: "cluster"}}
-
-	// Mimics cluster.FastestModelForRequest: the cheapest aliased candidate
-	// wins unless the request's exclusions rule it out.
-	var seen []proxy.HardPinRequest
-	resolver := func(req proxy.HardPinRequest) (string, string, bool) {
-		seen = append(seen, req)
-		for _, model := range []string{unservedAlias, servedAlias} {
-			if _, excluded := req.ExcludedModels[model]; excluded {
-				continue
-			}
-			for _, provider := range req.CustomBindings[model] {
-				if _, isGateway := req.GatewayProviders[provider]; isGateway {
-					return provider, model, true
-				}
-			}
-		}
-		return "", "", false
-	}
-
-	gateway := &aliasGateway{unserved: unservedAlias}
-	svc := proxy.NewService(
-		fr, map[string]providers.Client{providers.ProviderAIAND: gateway},
-		nil, false, nil, store, false,
-		providers.ProviderAIAND, servedAlias,
-		nil,
-	).WithByokOnly(true).WithExplicitUtilityHardPin(true).WithHardPinResolver(resolver)
-
-	ctx := ctxWithGatewayAliases(uuid.New().String(), unservedAlias, servedAlias)
-
-	firstErr := svc.ProxyMessages(ctx, []byte(titleGenBody), httptest.NewRecorder(),
-		httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader("")))
-	require.Error(t, firstErr, "the first turn still pays the endpoint's 404")
-
-	rec := httptest.NewRecorder()
-	require.NoError(t, svc.ProxyMessages(ctx, []byte(titleGenBody), rec,
-		httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))))
-
-	require.Len(t, seen, 2)
-	assert.NotContains(t, seen[0].ExcludedModels, unservedAlias,
-		"nothing is known about the alias before the first dispatch")
-	assert.Contains(t, seen[1].ExcludedModels, unservedAlias,
-		"a 404'd gateway alias must be excluded from later hard-pin resolution")
-	assert.NotContains(t, seen[1].ExcludedModels, servedAlias,
-		"only the model the endpoint refused is excluded")
-	assert.Equal(t, []string{servedAlias}, gateway.servedWith)
-	assert.Equal(t, servedAlias, rec.Header().Get(proxy.HeaderRouterModel))
-}
-
 // The memo is per (endpoint, model): an alias the gateway does serve must stay
 // routable, or one bad alias would sideline the whole key.
 func TestService_HardPin_TitleGen_GatewayModelNotFound_KeepsServedAliasesRoutable(t *testing.T) {

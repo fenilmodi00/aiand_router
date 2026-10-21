@@ -215,7 +215,7 @@ func TestResponsesToChatCompletions_LeavesUserContentAlone(t *testing.T) {
 
 func TestStripRoutingBadgeFromResponsesInput_PreservesNativeFields(t *testing.T) {
 	body := []byte(`{
-		"model":"gpt-5.6-sol",
+		"model":"deepseek/deepseek-v4-pro",
 		"input":[
 			{"type":"message","role":"user","content":[{"type":"input_text","text":"**WEAVE ROUTER** — quoted\n\ndo not strip"}]},
 			{"type":"reasoning","id":"rs_1","encrypted_content":"opaque"},
@@ -250,7 +250,7 @@ func TestStripRoutingBadgeFromResponsesInput_RemovesSelectionReasoning(t *testin
 }
 
 func TestStripRouterCommandsFromResponsesInput_RemovesAgentToolCommand(t *testing.T) {
-	body := []byte(`{"model":"gpt-5.6-sol","input":[{"type":"custom_tool_call_output","call_id":"call_skill","output":" /router-feedback too slow"},{"type":"function_call_output","call_id":"call_fm","output":[{"type":"input_text","text":" /force-model gpt-5"}]}]}`)
+	body := []byte(`{"model":"deepseek/deepseek-v4-pro","input":[{"type":"custom_tool_call_output","call_id":"call_skill","output":" /router-feedback too slow"},{"type":"function_call_output","call_id":"call_fm","output":[{"type":"input_text","text":" /force-model gpt-5"}]}]}`)
 	out, err := translate.StripRouterCommandsFromResponsesInput(body)
 	require.NoError(t, err)
 	assert.Equal(t, "", gjson.GetBytes(out, "input.0.output").String())
@@ -277,7 +277,7 @@ func TestStripRouterCommandsFromResponsesInput_PreservesModelAliasInToolOutput(t
 func TestStripRoutingBadgeFromResponsesInput_DropsBadgeOnlyAssistantItem(t *testing.T) {
 	badge := `\u2063\u2060\u2063\u2060**Weave Router** — gpt-5.6-terra ← gpt-5.6-sol\n\n`
 	body := []byte(`{
-		"model":"gpt-5.6-sol",
+		"model":"deepseek/deepseek-v4-pro",
 		"input":[
 			{"type":"message","role":"user","content":"go"},
 			{"type":"message","role":"assistant","content":"` + badge + `"},
@@ -312,7 +312,7 @@ func TestStripRoutingBadgeFromResponsesInput_DropsAlreadyEmptyAssistantShell(t *
 // Only the badge part is empty here — the item still carries content, so it stays.
 func TestStripRoutingBadgeFromResponsesInput_KeepsItemWithRemainingContent(t *testing.T) {
 	body := []byte(`{
-		"model":"gpt-5.6-sol",
+		"model":"deepseek/deepseek-v4-pro",
 		"input":[
 			{"type":"message","role":"assistant","content":[
 				{"type":"output_text","text":"\u2063\u2060\u2063\u2060**Weave Router** — gpt-5.6-terra\n\n"},
@@ -354,7 +354,7 @@ func TestStripRoutingBadgeFromResponsesInput_RebuildsEachChangedArrayOnce(t *tes
 // Defense in depth for clients that echo an already-emptied assistant message.
 func TestResponsesToChatCompletions_DropsEmptyAssistantShell(t *testing.T) {
 	body := []byte(`{
-		"model":"gpt-5.6-sol",
+		"model":"deepseek/deepseek-v4-pro",
 		"input":[
 			{"type":"message","role":"user","content":"go"},
 			{"type":"message","role":"assistant","content":""},
@@ -411,7 +411,7 @@ func TestResponsesToChatCompletions_MaxOutputAndDropsReasoning(t *testing.T) {
 // No effort value may leak into the translated chat body.
 func TestResponsesToChatCompletions_DropsReasoningEffort(t *testing.T) {
 	for _, effort := range []string{"none", "minimal", "low", "medium", "high"} {
-		body := []byte(`{"model":"gpt-5.5","input":"hi","reasoning":{"effort":"` + effort + `"},"include":["reasoning.encrypted_content"]}`)
+		body := []byte(`{"model":"z-ai/glm-5.3","input":"hi","reasoning":{"effort":"` + effort + `"},"include":["reasoning.encrypted_content"]}`)
 		out, _, _, err := translate.ResponsesToChatCompletions(body)
 		require.NoError(t, err)
 		assert.Falsef(t, gjson.GetBytes(out, "reasoning_effort").Exists(),
@@ -444,7 +444,7 @@ func TestResponsesWriter_FinalizeErrorEmitsFailed(t *testing.T) {
 
 func TestResponsesWriter_EmitRoutingBadgeAfterPrelude(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesWriter(rec, "gpt-5.6-sol")
+	w := translate.NewResponsesWriter(rec, "deepseek/deepseek-v4-pro")
 	w.SetBadgeText("initial decision")
 
 	require.NoError(t, w.Prelude(true))
@@ -464,7 +464,7 @@ func TestResponsesWriter_EmitRoutingBadgeAfterPrelude(t *testing.T) {
 
 func TestResponsesWriter_NativePreludeFallbackAndFailureStaySequenced(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesWriter(rec, "gpt-5.6-sol")
+	w := translate.NewResponsesWriter(rec, "deepseek/deepseek-v4-pro")
 	w.SetBadgeText("initial decision")
 	w.SetPassthroughBadge()
 
@@ -497,15 +497,15 @@ func TestResponsesWriter_NativePreludeFallbackAndFailureStaySequenced(t *testing
 
 func TestResponsesWriter_NativePreludeRewritesFinalServingModel(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesWriter(rec, "gpt-5.6-sol")
+	w := translate.NewResponsesWriter(rec, "deepseek/deepseek-v4-pro")
 	w.SetBadgeText("initial decision")
 	w.SetPassthroughBadge()
 
 	require.NoError(t, w.Prelude(true))
-	w.SetRoutedModel("gpt-5.6-luna")
+	w.SetRoutedModel("moonshotai/kimi-k2.7")
 	require.NoError(t, w.EmitRoutingBadge("fallback decision"))
 	_, err := w.Write([]byte("event: response.completed\n" +
-		`data: {"type":"response.completed","sequence_number":1,"response":{"id":"resp_upstream","model":"gpt-5.6-sol","status":"completed","output":[{"id":"msg_upstream","type":"message","role":"assistant","content":[{"type":"output_text","text":"ok"}]}]}}` +
+		`data: {"type":"response.completed","sequence_number":1,"response":{"id":"resp_upstream","model":"deepseek/deepseek-v4-pro","status":"completed","output":[{"id":"msg_upstream","type":"message","role":"assistant","content":[{"type":"output_text","text":"ok"}]}]}}` +
 		"\n\n"))
 	require.NoError(t, err)
 
@@ -513,12 +513,12 @@ func TestResponsesWriter_NativePreludeRewritesFinalServingModel(t *testing.T) {
 	completed := events[len(events)-1]
 	require.Equal(t, "response.completed", completed["type"])
 	response := completed["response"].(map[string]any)
-	assert.Equal(t, "gpt-5.6-luna", response["model"])
+	assert.Equal(t, "moonshotai/kimi-k2.7", response["model"])
 }
 
 func TestResponsesWriter_ClearPassthroughContinuesVisiblePrelude(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesWriter(rec, "gpt-5.6-sol")
+	w := translate.NewResponsesWriter(rec, "deepseek/deepseek-v4-pro")
 	w.SetBadgeText("initial decision")
 	w.SetPassthroughBadge()
 
@@ -746,7 +746,7 @@ func TestResponsesWriter_ClearPassthroughResetsFramingMode(t *testing.T) {
 // bytes unchanged and skip its own response.created prelude.
 func TestResponsesWriter_PassthroughForwardsVerbatim(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesWriter(rec, "gpt-5.5")
+	w := translate.NewResponsesWriter(rec, "z-ai/glm-5.3")
 	w.SetPassthrough()
 
 	// Prelude is a no-op in passthrough — the upstream emits response.created.
@@ -770,7 +770,7 @@ func TestResponsesWriter_PassthroughForwardsVerbatim(t *testing.T) {
 
 func TestResponsesWriter_PassthroughForwardsUndelimitedFinalEvent(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesWriter(rec, "gpt-5.5")
+	w := translate.NewResponsesWriter(rec, "z-ai/glm-5.3")
 	w.SetPassthrough()
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.WriteHeader(http.StatusOK)
@@ -786,7 +786,7 @@ func TestResponsesWriter_PassthroughForwardsUndelimitedFinalEvent(t *testing.T) 
 
 func TestResponsesWriter_PassthroughRejectsUndelimitedEmptyTerminal(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesWriter(rec, "gpt-5.5")
+	w := translate.NewResponsesWriter(rec, "z-ai/glm-5.3")
 	w.SetPassthrough()
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.WriteHeader(http.StatusOK)
@@ -805,8 +805,8 @@ func TestResponsesWriter_PassthroughBadgePreservesNativeStream(t *testing.T) {
 	for _, terminalType := range []string{"response.completed", "response.incomplete"} {
 		t.Run(terminalType, func(t *testing.T) {
 			payloads := []string{
-				`{"type":"response.created","sequence_number":0,"response":{"id":"resp_native","model":"gpt-5.6-terra","status":"in_progress","output":[]}}`,
-				`{"type":"response.in_progress","sequence_number":1,"response":{"id":"resp_native","model":"gpt-5.6-terra","status":"in_progress","output":[]}}`,
+				`{"type":"response.created","sequence_number":0,"response":{"id":"resp_native","model":"z-ai/glm-5.2","status":"in_progress","output":[]}}`,
+				`{"type":"response.in_progress","sequence_number":1,"response":{"id":"resp_native","model":"z-ai/glm-5.2","status":"in_progress","output":[]}}`,
 				`{"type":"response.output_item.added","sequence_number":2,"output_index":0,"item":{"id":"msg_native","type":"message","role":"assistant","status":"in_progress","content":[]}}`,
 				`{"type":"response.content_part.added","sequence_number":3,"item_id":"msg_native","output_index":0,"content_index":0,"part":{"type":"output_text","text":"","annotations":[]}}`,
 				`{"type":"response.output_text.delta","sequence_number":4,"item_id":"msg_native","output_index":0,"content_index":0,"delta":"o"}`,
@@ -818,7 +818,7 @@ func TestResponsesWriter_PassthroughBadgePreservesNativeStream(t *testing.T) {
 				`{"type":"response.function_call_arguments.delta","sequence_number":10,"item_id":"fc_native","output_index":1,"delta":"{\"x\":1}"}`,
 				`{"type":"response.function_call_arguments.done","sequence_number":11,"item_id":"fc_native","output_index":1,"arguments":"{\"x\":1}"}`,
 				`{"type":"response.output_item.done","sequence_number":12,"output_index":1,"item":{"id":"fc_native","type":"function_call","call_id":"call_native","name":"lookup","arguments":"{\"x\":1}","status":"completed"}}`,
-				`{"type":"` + terminalType + `","sequence_number":13,"response":{"id":"resp_native","model":"gpt-5.6-terra","status":"completed","output":[{"id":"msg_native","type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"ok","annotations":[]}]},{"id":"fc_native","type":"function_call","call_id":"call_native","name":"lookup","arguments":"{\"x\":1}","status":"completed"}]}}`,
+				`{"type":"` + terminalType + `","sequence_number":13,"response":{"id":"resp_native","model":"z-ai/glm-5.2","status":"completed","output":[{"id":"msg_native","type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"ok","annotations":[]}]},{"id":"fc_native","type":"function_call","call_id":"call_native","name":"lookup","arguments":"{\"x\":1}","status":"completed"}]}}`,
 			}
 			var native strings.Builder
 			for _, payload := range payloads {
@@ -827,11 +827,11 @@ func TestResponsesWriter_PassthroughBadgePreservesNativeStream(t *testing.T) {
 			}
 
 			rec := httptest.NewRecorder()
-			w := translate.NewResponsesWriter(rec, "gpt-5.6-sol")
+			w := translate.NewResponsesWriter(rec, "deepseek/deepseek-v4-pro")
 			w.SetBadgeText(passthroughTestMarker)
 			w.SetPassthroughBadge()
 			w.Header().Set("Content-Type", "text/event-stream")
-			w.Header().Set("x-router-model", "gpt-5.6-terra")
+			w.Header().Set("x-router-model", "z-ai/glm-5.2")
 			w.WriteHeader(200)
 
 			raw := []byte(native.String())
@@ -857,7 +857,7 @@ func TestResponsesWriter_PassthroughBadgePreservesNativeStream(t *testing.T) {
 			assert.Equal(t, badge+"ok", events[8]["item"].(map[string]any)["content"].([]any)[0].(map[string]any)["text"])
 			response := events[13]["response"].(map[string]any)
 			assert.Equal(t, "resp_native", response["id"])
-			assert.Equal(t, "gpt-5.6-terra", response["model"])
+			assert.Equal(t, "z-ai/glm-5.2", response["model"])
 			output := response["output"].([]any)
 			assert.Equal(t, badge+"ok", output[0].(map[string]any)["content"].([]any)[0].(map[string]any)["text"])
 
@@ -877,12 +877,12 @@ func TestResponsesWriter_PassthroughBadgePreservesNativeStream(t *testing.T) {
 
 func TestResponsesWriter_PassthroughBadgeCanGrowPastOriginalEventCapacity(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesWriter(rec, "gpt-5.6-sol")
+	w := translate.NewResponsesWriter(rec, "deepseek/deepseek-v4-pro")
 	badge := strings.Repeat("routed-model ", 511) + "routed-model"
 	w.SetBadgeText(badge)
 	w.SetPassthroughBadge()
 	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("x-router-model", "gpt-5.6-terra")
+	w.Header().Set("x-router-model", "z-ai/glm-5.2")
 	w.WriteHeader(200)
 
 	native := `event: response.output_text.delta
@@ -900,7 +900,7 @@ data: {"type":"response.output_text.delta","item_id":"msg_native","output_index"
 
 func TestResponsesWriter_PassthroughBadgeEmitsNativeItemForToolOnlyTurn(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesWriter(rec, "gpt-5.6-sol")
+	w := translate.NewResponsesWriter(rec, "deepseek/deepseek-v4-pro")
 	w.SetBadgeText(passthroughTestMarker)
 	w.SetPassthroughBadge()
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -943,7 +943,7 @@ func TestResponsesWriter_PassthroughBadgeEmitsNativeItemForToolOnlyTurn(t *testi
 
 func TestResponsesWriter_PassthroughBadgeRewritesNonStreamingBody(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesWriter(rec, "gpt-5.6-sol")
+	w := translate.NewResponsesWriter(rec, "deepseek/deepseek-v4-pro")
 	w.SetBadgeText(passthroughTestMarker)
 	w.SetPassthroughBadge()
 	w.Header().Set("Content-Type", "application/json")
@@ -960,7 +960,7 @@ func TestResponsesWriter_PassthroughBadgeRewritesNonStreamingBody(t *testing.T) 
 
 func TestResponsesWriter_PrependsRoutingMarkerBadge(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesWriter(rec, "gpt-5.5")
+	w := translate.NewResponsesWriter(rec, "z-ai/glm-5.3")
 	w.SetBadgeText(passthroughTestMarker)
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("x-router-model", "z-ai/glm-5.2")
@@ -1004,7 +1004,7 @@ func TestResponsesWriter_PrependsRoutingMarkerBadge(t *testing.T) {
 // no marker supplied → no badge emitted.
 func TestResponsesWriter_WithoutMarkerEmitsNoBadge(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesWriter(rec, "gpt-5.5")
+	w := translate.NewResponsesWriter(rec, "z-ai/glm-5.3")
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("x-router-model", "z-ai/glm-5.2")
 	w.WriteHeader(200)
@@ -1029,7 +1029,7 @@ func TestResponsesWriter_WithoutMarkerEmitsNoBadge(t *testing.T) {
 // so the badge has to open its own message item or it never renders.
 func TestResponsesWriter_EmitsBadgeOnToolCallOnlyTurn(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesWriter(rec, "gpt-5.6-luna")
+	w := translate.NewResponsesWriter(rec, "moonshotai/kimi-k2.7")
 	w.SetBadgeText(passthroughTestMarker)
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("x-router-model", "z-ai/glm-5.2")
@@ -1080,7 +1080,7 @@ func TestResponsesWriter_RejectsReasoningOnlyTurn(t *testing.T) {
 	for _, field := range []string{"reasoning", "reasoning_content"} {
 		t.Run(field, func(t *testing.T) {
 			rec := httptest.NewRecorder()
-			w := translate.NewResponsesWriter(rec, "gpt-5.6-luna")
+			w := translate.NewResponsesWriter(rec, "moonshotai/kimi-k2.7")
 			w.SetBadgeText(passthroughTestMarker)
 			w.Header().Set("Content-Type", "text/event-stream")
 			w.WriteHeader(200)
@@ -1306,7 +1306,7 @@ func TestResponsesWriter_PassthroughAppendsFeedbackFooter(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesWriter(rec, "gpt-5.6-sol")
+	w := translate.NewResponsesWriter(rec, "deepseek/deepseek-v4-pro")
 	w.SetFooterText(footer)
 	w.SetPassthroughBadge()
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -1344,7 +1344,7 @@ func TestResponsesWriter_PassthroughReasoningThenTextKeepsBadgeAndFooter(t *test
 	}
 
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesWriter(rec, "gpt-5.6-sol")
+	w := translate.NewResponsesWriter(rec, "deepseek/deepseek-v4-pro")
 	w.SetBadgeText(passthroughTestMarker)
 	w.SetFooterText(footer)
 	w.SetPassthroughBadge()
@@ -1393,7 +1393,7 @@ func TestResponsesWriter_PassthroughFooterSkippedOnToolCall(t *testing.T) {
 		native.WriteString("data: " + payload + "\n\n")
 	}
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesWriter(rec, "gpt-5.6-sol")
+	w := translate.NewResponsesWriter(rec, "deepseek/deepseek-v4-pro")
 	w.SetFooterText(footer)
 	w.SetPassthroughBadge()
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -1410,7 +1410,7 @@ func TestResponsesWriter_PassthroughFooterSkippedOnToolCall(t *testing.T) {
 func TestResponsesWriter_TranslatedStreamAppendsFeedbackFooter(t *testing.T) {
 	const footer = "\n\n_Weave Router feedback:_ `$rf +` good"
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesWriter(rec, "gpt-5.5")
+	w := translate.NewResponsesWriter(rec, "z-ai/glm-5.3")
 	w.SetFooterText(footer)
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.WriteHeader(200)
@@ -1462,32 +1462,6 @@ func TestStripFeedbackFooterFromResponsesInput_StripsAllMatchingTextParts(t *tes
 	assert.Equal(t, "user"+footer, gjson.GetBytes(out, "input.1.content.0.text").Str)
 }
 
-// Strip operates on passthrough bytes; extraction runs on the chat projection (conv.OriginalBody vs conv.Body). Ordered as ProxyOpenAIResponses does, so aliasing surfaces here.
-func TestStripRouterCommandsFromResponsesInput_LeavesChatProjectionIntact(t *testing.T) {
-	const body = `{"model":"gpt-5.6-terra","input":[
-{"type":"message","role":"user","content":[{"type":"input_text","text":"invoke fm"}]},
-{"type":"custom_tool_call","call_id":"call_a","name":"exec","input":"x"},
-{"type":"custom_tool_call_output","call_id":"call_a","output":[
-{"type":"input_text","text":"Script completed\nWall time 0.3 seconds\nOutput:\n"},
-{"type":"input_text","text":" /force-model gpt-5.6-terra\n"}]}]}`
-
-	conv, err := translate.ConvertResponsesToChatCompletionsWithOptions(
-		[]byte(body), translate.ResponsesConversionOptions{PortableCodex: true})
-	require.NoError(t, err)
-
-	native, err := translate.StripRouterCommandsFromResponsesInput(conv.OriginalBody)
-	require.NoError(t, err)
-	assert.NotContains(t, string(native), "/force-model gpt-5.6-terra",
-		"the directive must not reach the upstream verbatim")
-
-	env, err := translate.ParseOpenAI(conv.Body)
-	require.NoError(t, err)
-	res, found := env.ExtractForceModelCommand()
-	require.True(t, found, "the chat projection must still carry the directive")
-	assert.Equal(t, "gpt-5.6-terra", res.Model)
-	assert.True(t, res.FromToolResult, "agent-issued, so the turn continues")
-}
-
 func TestConvertResponsesToChatCompletions_RejectsChatCompletionsBody(t *testing.T) {
 	// Without this rejection the body reaches the upstream Responses endpoint verbatim as a 400.
 	body := []byte(`{"model":"z-ai/glm-5.3-flash","messages":[{"role":"user","content":"hi"}]}`)
@@ -1499,7 +1473,7 @@ func TestConvertResponsesToChatCompletions_RejectsChatCompletionsBody(t *testing
 }
 
 func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexRejectsChatCompletionsBody(t *testing.T) {
-	body := []byte(`{"model":"gpt-5.6-luna","messages":[{"role":"user","content":"hi"}]}`)
+	body := []byte(`{"model":"moonshotai/kimi-k2.7","messages":[{"role":"user","content":"hi"}]}`)
 
 	_, err := translate.ConvertResponsesToChatCompletionsWithOptions(body, translate.ResponsesConversionOptions{PortableCodex: true})
 
@@ -1508,7 +1482,7 @@ func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexRejectsChatCo
 }
 
 func TestConvertResponsesToChatCompletions_AcceptsInputOnlyBody(t *testing.T) {
-	body := []byte(`{"model":"gpt-5.6-luna","input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"hi"}]}]}`)
+	body := []byte(`{"model":"moonshotai/kimi-k2.7","input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"hi"}]}]}`)
 
 	conv, err := translate.ConvertResponsesToChatCompletions(body)
 

@@ -31,7 +31,7 @@ func TestPrepareOpenAIAliasesLongToolNamesReversibly(t *testing.T) {
 	}{
 		"chat": {
 			prepare: func(env *translate.RequestEnvelope) (providers.PreparedRequest, error) {
-				return env.PrepareOpenAI(http.Header{}, translate.EmitOptions{TargetModel: "gpt-5.5"})
+				return env.PrepareOpenAI(http.Header{}, translate.EmitOptions{TargetModel: "z-ai/glm-5.3"})
 			},
 			declared: "tools.#.function.name",
 			history:  "messages.#.tool_calls.0.function.name|@flatten",
@@ -39,7 +39,7 @@ func TestPrepareOpenAIAliasesLongToolNamesReversibly(t *testing.T) {
 		},
 		"responses": {
 			prepare: func(env *translate.RequestEnvelope) (providers.PreparedRequest, error) {
-				return env.PrepareOpenAIResponses(http.Header{}, translate.EmitOptions{TargetModel: "gpt-5.5"})
+				return env.PrepareOpenAIResponses(http.Header{}, translate.EmitOptions{TargetModel: "z-ai/glm-5.3"})
 			},
 			declared: "tools.#.name",
 			history:  `input.#(type=="function_call")#.name`,

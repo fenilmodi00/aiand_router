@@ -43,14 +43,14 @@ data: {"type":"response.function_call_arguments.delta","item_id":"fc_1","output_
 
 `
 	evCompleted = `event: response.completed
-data: {"type":"response.completed","response":{"id":"resp_abc","status":"completed","model":"gpt-5.5","incomplete_details":null,"output":[],"usage":{"input_tokens":1,"output_tokens":1}}}
+data: {"type":"response.completed","response":{"id":"resp_abc","status":"completed","model":"z-ai/glm-5.3","incomplete_details":null,"output":[],"usage":{"input_tokens":1,"output_tokens":1}}}
 
 `
 )
 
 func newStreamingWriter(t *testing.T) (*translate.ResponsesToAnthropicWriter, *int) {
 	t.Helper()
-	w := translate.NewResponsesToAnthropicWriter(httptest.NewRecorder(), "gpt-5.5", nil)
+	w := translate.NewResponsesToAnthropicWriter(httptest.NewRecorder(), "z-ai/glm-5.3", nil)
 	require.NoError(t, w.Prelude(true))
 	count := 0
 	require.True(t, w.ArmOutputProgress(func() { count++ }),
@@ -68,10 +68,10 @@ type responsesProgressWriter interface {
 func TestResponsesReasoningProgress_Classification(t *testing.T) {
 	constructors := map[string]func() responsesProgressWriter{
 		"anthropic": func() responsesProgressWriter {
-			return translate.NewResponsesToAnthropicWriter(httptest.NewRecorder(), "gpt-5.5", nil)
+			return translate.NewResponsesToAnthropicWriter(httptest.NewRecorder(), "z-ai/glm-5.3", nil)
 		},
 		"chat": func() responsesProgressWriter {
-			return translate.NewResponsesToOpenAIChatWriter(httptest.NewRecorder(), "gpt-5.5", nil)
+			return translate.NewResponsesToOpenAIChatWriter(httptest.NewRecorder(), "z-ai/glm-5.3", nil)
 		},
 	}
 	cases := []struct {
@@ -162,7 +162,7 @@ func TestResponsesOutputProgress_OutputEventsCount(t *testing.T) {
 func TestResponsesOutputProgress_NotArmedWhenNotStreaming(t *testing.T) {
 	// The buffered (non-streaming) path parses events only at Finalize, so it has
 	// nothing to mark mid-stream; arming there would guarantee a false trip.
-	w := translate.NewResponsesToAnthropicWriter(httptest.NewRecorder(), "gpt-5.5", nil)
+	w := translate.NewResponsesToAnthropicWriter(httptest.NewRecorder(), "z-ai/glm-5.3", nil)
 	require.NoError(t, w.Prelude(false))
 	assert.False(t, w.ArmOutputProgress(func() {}),
 		"ArmOutputProgress must report not-armed for a non-streaming client")

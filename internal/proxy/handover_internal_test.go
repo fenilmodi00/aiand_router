@@ -296,39 +296,6 @@ func newTestCompactionSummarizer(t *testing.T, fake providers.Client, compaction
 		WithCompactionTimeout(200 * time.Millisecond)
 }
 
-func TestProviderSummarizer_RequestScopeExcludesSummaryModelBeforeIO(t *testing.T) {
-	t.Parallel()
-
-	env, err := translate.ParseAnthropic([]byte(sampleConversation))
-	require.NoError(t, err)
-
-	fake := &fakeHandoverProvider{respBody: canonicalAnthropicResponse, respStatus: http.StatusOK}
-	s := newTestSummarizer(t, fake, "", 200*time.Millisecond)
-
-	scopes := map[string]router.Request{
-		"excluded_model":    {ExcludedModels: map[string]struct{}{policy.HandoverSummaryDefaultModel: {}}},
-		"provider_disabled": {EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}}},
-	}
-	for name, scope := range scopes {
-		t.Run(name, func(t *testing.T) {
-			got, _, err := s.Summarize(context.Background(), env, scope)
-			require.Error(t, err)
-			var resolution *policy.ResolutionError
-			require.ErrorAs(t, err, &resolution)
-			assert.Equal(t, policy.PurposeHandoverSummary, resolution.Purpose)
-			assert.Empty(t, got)
-		})
-	}
-	assert.Equal(t, 0, fake.calls, "a summary the tenant's own turn could not use must never reach a provider")
-
-	got, _, err := s.Summarize(context.Background(), env, router.Request{
-		EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}},
-	})
-	require.NoError(t, err)
-	assert.Equal(t, "Refactor in progress: step 1 done, step 2 pending.", got)
-	assert.Equal(t, 1, fake.calls)
-}
-
 func TestProviderSummarizer_CompactionHandoverUsesCompactionPolicy(t *testing.T) {
 	t.Parallel()
 

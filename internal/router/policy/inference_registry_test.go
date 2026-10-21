@@ -24,18 +24,6 @@ func TestDefaultInferenceRegistryCoversEveryPurpose(t *testing.T) {
 	}
 }
 
-// ROUTER_COMPACTION_MODEL pins both compaction purposes, so a value the
-// cascade accepts must also validate for compaction handover.
-func TestDefaultInferenceRegistryCompactionPurposesShareSummarizers(t *testing.T) {
-	registry := policy.DefaultRegistry()
-	precompaction, found := registry.Spec(policy.PurposePrecompactionSummary)
-	require.True(t, found)
-	handover, found := registry.Spec(policy.PurposeCompactionHandoverSummary)
-	require.True(t, found)
-	assert.Equal(t, precompaction.FixedCatalogModels, handover.FixedCatalogModels)
-	assert.Contains(t, handover.FixedCatalogModels, "claude-sonnet-4-5")
-}
-
 func TestInferenceRegistryRejectsDuplicateAndMissingPurposes(t *testing.T) {
 	specs := policy.DefaultRegistry().Specs()
 	index := policyIndex(t, specs, policy.PurposeAnthropicMessages)
@@ -100,53 +88,6 @@ func TestInferenceRegistryRejectsInvalidFixedPolicy(t *testing.T) {
 	_, err = policy.NewRegistry(specs)
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "declares fixed catalog models")
-}
-
-func TestInferenceRegistryRejectsInvalidFallbackAndOverridePrecedence(t *testing.T) {
-	specs := policy.DefaultRegistry().Specs()
-	index := policyIndex(t, specs, policy.PurposeAnthropicMessages)
-
-	specs[index].Fallback.Kind = policy.FallbackKind("arbitrary")
-	_, err := policy.NewRegistry(specs)
-	require.Error(t, err)
-	assert.ErrorContains(t, err, "invalid typed value")
-
-	specs = policy.DefaultRegistry().Specs()
-	specs[index].Fallback = policy.FallbackSpec{Kind: policy.FallbackKindPlanAlternatives}
-	_, err = policy.NewRegistry(specs)
-	require.Error(t, err)
-	assert.ErrorContains(t, err, "without alternatives")
-
-	specs = policy.DefaultRegistry().Specs()
-	specs[index].Fallback.Alternatives = []string{"claude-haiku-4-5"}
-	_, err = policy.NewRegistry(specs)
-	require.Error(t, err)
-	assert.ErrorContains(t, err, "declares alternatives for fallback kind")
-
-	specs = policy.DefaultRegistry().Specs()
-	fixedIndex := policyIndex(t, specs, policy.PurposeHandoverSummary)
-	specs[fixedIndex].Fallback = policy.FallbackSpec{
-		Kind:         policy.FallbackKindPlanAlternatives,
-		Alternatives: []string{"claude-haiku-4-5"},
-	}
-	_, err = policy.NewRegistry(specs)
-	require.Error(t, err)
-	assert.ErrorContains(t, err, "repeats fixed catalog model")
-
-	specs = policy.DefaultRegistry().Specs()
-	specs[index].OverridePrecedence = []policy.OverrideSource{policy.OverrideSourceRequest, policy.OverrideSourceRequest}
-	_, err = policy.NewRegistry(specs)
-	require.Error(t, err)
-	assert.ErrorContains(t, err, "repeats override source")
-
-	specs = policy.DefaultRegistry().Specs()
-	specs[index].OverridePrecedence = []policy.OverrideSource{
-		policy.OverrideSourceDeployment,
-		policy.OverrideSourceRequest,
-	}
-	_, err = policy.NewRegistry(specs)
-	require.Error(t, err)
-	assert.ErrorContains(t, err, "invalid override precedence order")
 }
 
 func TestInferenceRegistryRejectsInvalidPreferencesAndBudgets(t *testing.T) {

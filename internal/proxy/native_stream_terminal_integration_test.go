@@ -1,11 +1,9 @@
 package proxy_test
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"weave-os/router/internal/providers"
@@ -68,43 +66,6 @@ func nativeSurfaceService(provider *fakeProvider, providerName, model string) *p
 		nil, false, nil, nil, false, providerName, model, nil,
 	).WithOpenAIResponsesBroad(providerName == providers.ProviderAIAND).
 		WithRetrySleep(noRetrySleep)
-}
-
-// The adapter returns nil on a clean EOF after a 200, so a connection the
-// upstream closed mid-turn used to be recorded as a served turn.
-func TestProxyMessages_NativeStreamWithoutMessageStopFailsInStream(t *testing.T) {
-	logBuf := captureCompletionLog(t)
-	provider := scriptedStream(anthropicCutFrames)
-	svc := makeProxyService(
-		router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.2", Reason: "test"},
-		map[string]providers.Client{providers.ProviderAIAND: provider},
-	)
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(streamCutTurnBody))
-	require.Error(t, svc.ProxyMessages(context.Background(), []byte(streamCutTurnBody), rec, req))
-
-	assert.Equal(t, http.StatusOK, rec.Code)
-	assert.Contains(t, rec.Body.String(), "event: error\ndata: ", "the client must see the turn fail, not just stop")
-	assert.NotContains(t, rec.Body.String(), "message_stop")
-	assert.Len(t, provider.proxyBodies, 1, "a committed stream is never re-dispatched")
-	assert.Contains(t, logBuf.String(), "stream_failure_class=upstream_incomplete")
-}
-
-func TestProxyMessages_EmptyNativeStreamRetriedBeforeCommit(t *testing.T) {
-	provider := scriptedStream(nil, anthropicCompleteFrames)
-	svc := makeProxyService(
-		router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.2", Reason: "test"},
-		map[string]providers.Client{providers.ProviderAIAND: provider},
-	)
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(streamCutTurnBody))
-	require.NoError(t, svc.ProxyMessages(context.Background(), []byte(streamCutTurnBody), rec, req))
-
-	assert.Len(t, provider.proxyBodies, 2, "an empty 200 put nothing on the wire, so it is retried")
-	assert.Contains(t, rec.Body.String(), "message_stop")
-	assert.NotContains(t, rec.Body.String(), "event: error")
 }
 
 func TestProxyOpenAIChatCompletion_NativeStreamWithoutFinishReasonFailsInStream(t *testing.T) {

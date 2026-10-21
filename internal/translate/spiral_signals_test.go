@@ -422,7 +422,7 @@ func TestEndsWithUserPrompt(t *testing.T) {
 
 func TestEndsWithUserPrompt_OpenAIToolMessageIsNotAPrompt(t *testing.T) {
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "gpt-5.5",
+		"model": "z-ai/glm-5.3",
 		"messages": []any{
 			map[string]any{"role": "user", "content": "list files"},
 			map[string]any{"role": "assistant", "tool_calls": []any{
@@ -436,7 +436,7 @@ func TestEndsWithUserPrompt_OpenAIToolMessageIsNotAPrompt(t *testing.T) {
 	assert.False(t, env.EndsWithUserPrompt())
 
 	typedBody := mustMarshalJSON(t, map[string]any{
-		"model": "gpt-5.5",
+		"model": "z-ai/glm-5.3",
 		"messages": []any{
 			map[string]any{"role": "user", "content": "list files"},
 			map[string]any{"role": "assistant", "content": "a.go"},

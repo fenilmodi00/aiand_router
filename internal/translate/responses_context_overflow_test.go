@@ -23,7 +23,7 @@ func TestResponsesWriter_FailContextOverflow(t *testing.T) {
 		"passthrough started": func(w *translate.ResponsesWriter) { w.SetPassthroughBadge(); require.NoError(t, w.Prelude(true)) },
 	} {
 		rec := httptest.NewRecorder()
-		w := translate.NewResponsesWriter(rec, "gpt-5.6-luna")
+		w := translate.NewResponsesWriter(rec, "moonshotai/kimi-k2.7")
 		setup(w)
 		require.NoError(t, w.FailContextOverflow(true, "context_length_exceeded", "prompt is too long"), name)
 
@@ -38,7 +38,7 @@ func TestResponsesWriter_FailContextOverflow(t *testing.T) {
 
 func TestResponsesWriter_FailContextOverflowNonStreaming(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesWriter(rec, "gpt-5.6-luna")
+	w := translate.NewResponsesWriter(rec, "moonshotai/kimi-k2.7")
 	require.NoError(t, w.FailContextOverflow(false, "context_length_exceeded", "prompt is too long"))
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 	assert.JSONEq(t, `{"error":{"message":"prompt is too long","type":"invalid_request_error","param":null,"code":"context_length_exceeded"}}`, rec.Body.String())

@@ -87,13 +87,13 @@ func TestAutonomyAppend_CrossFormatEmitsCarryTheText(t *testing.T) {
 	})
 
 	t.Run("openai responses instructions", func(t *testing.T) {
-		out, err := env.PrepareOpenAIResponses(nil, translate.EmitOptions{TargetModel: "gpt-6-astra", AppendAutonomySystem: true})
+		out, err := env.PrepareOpenAIResponses(nil, translate.EmitOptions{TargetModel: "deepseek/deepseek-v4.1-flash", AppendAutonomySystem: true})
 		require.NoError(t, err)
 		instructions := gjson.GetBytes(out.Body, "instructions").String()
 		assert.Contains(t, instructions, translate.AutonomySystemText)
 		assert.Less(t, strings.Index(instructions, "ask for confirmation before proceeding"), strings.Index(instructions, "operating autonomously"), "append follows the client prompt")
 
-		off, err := env.PrepareOpenAIResponses(nil, translate.EmitOptions{TargetModel: "gpt-6-astra"})
+		off, err := env.PrepareOpenAIResponses(nil, translate.EmitOptions{TargetModel: "deepseek/deepseek-v4.1-flash"})
 		require.NoError(t, err)
 		assert.NotContains(t, gjson.GetBytes(off.Body, "instructions").String(), "operating autonomously")
 	})

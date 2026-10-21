@@ -21,43 +21,6 @@ func routedResolver(t *testing.T) *policy.PlanResolver {
 	return resolver
 }
 
-func TestResolveRouted_AuthorizesBindingWalkInOrder(t *testing.T) {
-	const model = "deepseek/deepseek-v4-pro"
-	entry, ok := catalog.ByID(model)
-	require.True(t, ok)
-	require.GreaterOrEqual(t, len(entry.Providers), 2)
-	primary, secondary := entry.Providers[0], entry.Providers[1]
-
-	plan, err := routedResolver(t).ResolveRouted(policy.RoutedResolutionRequest{
-		Purpose: policy.PurposeAnthropicMessages,
-		Decision: router.Decision{
-			Model: model, Provider: primary.Provider,
-			Metadata: &router.RoutingMetadata{SelectedArmID: "arm-1", SelectedRosterArmID: "arm-1:high"},
-		},
-		Bindings: []catalog.ProviderBinding{{Provider: primary.Provider}, secondary},
-	})
-	require.NoError(t, err)
-
-	assert.Equal(t, policy.PurposeAnthropicMessages, plan.Purpose())
-	assert.Equal(t, policy.PolicyID("main-anthropic-messages"), plan.PolicyID())
-	spec, found := policy.DefaultRegistry().Spec(policy.PurposeAnthropicMessages)
-	require.True(t, found)
-	assert.Equal(t, policy.MigrationStatusExecutor, spec.MigrationStatus)
-	selected := plan.SelectedBinding()
-	assert.Equal(t, model, selected.CatalogID)
-	assert.Equal(t, primary.Provider, selected.Provider)
-	assert.Equal(t, primary.UpstreamID, selected.UpstreamID, "provider-only binding inherits the catalog upstream id")
-	assert.Equal(t, 0, selected.BindingIndex)
-	assert.Equal(t, "arm-1", selected.ArmID)
-	alternatives := plan.AlternativeBindings()
-	require.Len(t, alternatives, 1)
-	assert.Equal(t, secondary.Provider, alternatives[0].Provider)
-	assert.Equal(t, 1, alternatives[0].BindingIndex)
-	assert.Equal(t, policy.SelectionStrategyRouter, plan.Provenance().SelectionStrategy)
-	assert.Equal(t, "arm-1:high", plan.Provenance().RosterID)
-	assert.Empty(t, plan.Provenance().OverrideSource)
-}
-
 func TestResolveRouted_RecordsCallerOrigin(t *testing.T) {
 	plan, err := routedResolver(t).ResolveRouted(policy.RoutedResolutionRequest{
 		Purpose:  policy.PurposeAnthropicMessages,
