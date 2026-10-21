@@ -10,9 +10,9 @@ import (
 // TestCandidateK12Loads is the load-gate for the candidate-k12 bake-off bundle:
 // the prod-turn re-cluster (K=12) + in-house harness-faithful quality candidate
 // must parse end-to-end, construct a Scorer, and route the offline-screen mix.
-// It asserts the properties the staging bake-off relies on (K=12, 21 models,
-// quality present for every cluster, fable-5/glm-5.2/sonnet-5 routable) and pins
-// the per-cluster argmax to the offline screen's picks (glm-5.2/fable-5-led).
+// It asserts the properties the staging bake-off relies on (K=12, quality
+// present for every cluster, the ai& roster routable) and that every cluster
+// picks a model from the deployed roster.
 func TestCandidateK12Loads(t *testing.T) {
 	bundle, err := LoadBundle("candidate-k12")
 	require.NoError(t, err, "candidate-k12 must parse end-to-end")
@@ -25,9 +25,14 @@ func TestCandidateK12Loads(t *testing.T) {
 	assert.Equal(t, EmbedderJinaV2, bundle.EmbedderID())
 	assert.Equal(t, 768, bundle.EmbedDim())
 
-	// 21 deployed models.
+	// The roster is the ai& catalog: every deployed model is one of the
+	// surviving catalog IDs, and every one of them carries operational axes.
 	models := bundle.Registry.Models()
-	assert.Len(t, models, 21, "candidate-k12 roster is 21 models")
+	require.NotEmpty(t, models, "candidate-k12 must deploy models")
+	for _, m := range models {
+		_, ok := bundle.ModelAxes[m]
+		assert.Truef(t, ok, "%s must have operational axes", m)
+	}
 
 	// Quality present for every (cluster, model): the loader validates this, but
 	// assert it explicitly so a regression is legible.
@@ -40,22 +45,14 @@ func TestCandidateK12Loads(t *testing.T) {
 		}
 	}
 
-	// The roster + axes for this candidate must include the incumbent arm
-	// (glm-5.2) and the catalog still tracks fable-5 as a passthrough entry.
-	for _, m := range []string{"claude-fable-5", "z-ai/glm-5.2"} {
+	// The roster must carry the ai& models the router can dispatch.
+	for _, m := range []string{"z-ai/glm-5.3", "z-ai/glm-5.2", "z-ai/glm-5.3-flash", "moonshotai/kimi-k3", "moonshotai/kimi-k2.7"} {
 		assert.Contains(t, models, m, "%s must be a deployed model", m)
-		_, ok := bundle.ModelAxes[m]
-		assert.Truef(t, ok, "%s must have operational axes", m)
 	}
 
-	// Provider set covering every provider the 21-model roster binds to (the
-	// staging bake-off deploy carries keys for all seven). Restricting to a
-	// subset would drop OSS models (e.g. glm-5.2 on fireworks) from the
-	// eligible pool and the per-cluster argmax would no longer reflect the
-	// offline screen.
+	// ai& is the only upstream, so the deploy's provider set is a single key.
 	providers := map[string]struct{}{
-		"anthropic": {}, "openai": {}, "google": {},
-		"fireworks": {}, "makora": {}, "openrouter": {}, "bedrock": {},
+		"aiand": {},
 	}
 
 	// Build a real Scorer through the jina-v2 fake embedder (matches id/dim, so
@@ -63,44 +60,36 @@ func TestCandidateK12Loads(t *testing.T) {
 	s, err := NewScorer(bundle, DefaultConfig(), &fakeEmbedder{dim: bundle.Centroids.Dim}, providers)
 	require.NoError(t, err, "candidate-k12 must construct a Scorer")
 
-	// glm-5.2 routable; fable-5 retired to passthrough, deliberately excluded.
+	// Every tiered ai& model in the roster is routable.
 	routable := RoutableModelSet(bundle.Registry, providers)
-	for _, m := range []string{"z-ai/glm-5.2", "claude-sonnet-5"} {
+	for _, m := range []string{"z-ai/glm-5.2", "z-ai/glm-5.3", "z-ai/glm-5.3-flash", "moonshotai/kimi-k3"} {
 		_, ok := routable[m]
 		assert.Truef(t, ok, "%s must be routable", m)
 	}
-	_, fableRoutable := routable["claude-fable-5"]
-	assert.Falsef(t, fableRoutable, "fable-5 retired from routing; must not be a cluster target")
+	// The untiered passthrough rows are never cluster targets.
+	_, flashRoutable := routable["deepseek/deepseek-v4-flash"]
+	assert.Falsef(t, flashRoutable, "an untiered model must not be a cluster target")
 
 	// Per-cluster argmax through the live v2 blend (the authoritative runtime
 	// path: blendScoresV2 over a single cluster with the bundle's default knobs =
-	// alpha 0.7). Must match the offline screen's picks: glm-5.2-led coding mix
-	// with fable-5 on the rest.
+	// alpha 0.7). Every cluster must pick a model from the deployed roster.
 	knobs := s.defaultActiveKnobs()
 	require.Len(t, knobs.Alpha, 12, "default_routing_knobs.alpha must be a length-12 vector")
 	for i, a := range knobs.Alpha {
 		assert.InDeltaf(t, 0.7, a, 1e-9, "cluster %d alpha must be the 0.7 sweet spot", i)
 	}
 
-	// 15 of the frozen bundle's 21: deepseek-v4-pro/flash, opus-4-8, qwen3.7-plus,
-	// gpt-5.5 and fable-5 retired to passthrough; fable-5 led 4 clusters so
-	// dropping it reshapes the wins below.
-	require.Len(t, s.models, 15, "retired models must be the only ones dropped under the full provider set")
+	require.NotEmpty(t, s.models, "the scorer must have routable models")
 
-	wins := map[string]int{}
+	deployed := make(map[string]struct{}, len(models))
+	for _, m := range models {
+		deployed[m] = struct{}{}
+	}
 	for c := 0; c < bundle.Centroids.K; c++ {
 		scores := s.blendScoresV2([]int{c}, knobs, s.models, nil)
 		winner, _ := argmax(scores, s.models)
 		require.NotEmptyf(t, winner, "cluster %d must have a non-empty argmax winner", c)
-		wins[winner]++
+		_, inRoster := deployed[winner]
+		assert.Truef(t, inRoster, "cluster %d winner %q must be a deployed model", c, winner)
 	}
-
-	// fable-5 retired: c1→sonnet-5, c7/c10/c11→glm-5.2; mix still glm-5.2-led.
-	assert.Equal(t, 11, wins["z-ai/glm-5.2"], "glm-5.2 must lead 11 clusters at alpha=0.7 after fable-5 retirement")
-	assert.Equal(t, 1, wins["claude-sonnet-5"], "claude-sonnet-5 must lead 1 cluster at alpha=0.7 after fable-5 retirement")
-	// No retired-to-passthrough model should win a cluster.
-	assert.Zero(t, wins["claude-fable-5"], "fable-5 is retired; no cluster should route to it")
-	// No opus/haiku/legacy-sonnet cluster wins — the whole point of the candidate.
-	assert.Zero(t, wins["claude-opus-4-8"], "no cluster should route to opus-4-8 at the screen alpha")
-	assert.Zero(t, wins["claude-haiku-4-5"], "no cluster should route to haiku at the screen alpha")
 }

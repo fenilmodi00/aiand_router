@@ -130,17 +130,17 @@ func TestLoadCentroids_SizeMismatch(t *testing.T) {
 
 func TestLoadRankings_Roundtrip(t *testing.T) {
 	raw := []byte(`{
-		"meta": {"router_version": "weave-router-v0.1-bootstrap"},
+		"aiand": {"router_version": "weave-router-v0.1-bootstrap"},
 		"rankings": {
-			"0": {"claude-opus-4-7": 0.8, "claude-sonnet-4-5": 0.5},
-			"1": {"claude-opus-4-7": 0.3, "claude-sonnet-4-5": 0.6}
+			"0": {"moonshotai/kimi-k3": 0.8, "z-ai/glm-5.2": 0.5},
+			"1": {"moonshotai/kimi-k3": 0.3, "z-ai/glm-5.2": 0.6}
 		}
 	}`)
 	got, err := loadRankings(raw)
 	require.NoError(t, err)
 	assert.Len(t, got, 2)
-	assert.InDelta(t, 0.8, got[0]["claude-opus-4-7"], 1e-6)
-	assert.InDelta(t, 0.6, got[1]["claude-sonnet-4-5"], 1e-6)
+	assert.InDelta(t, 0.8, got[0]["moonshotai/kimi-k3"], 1e-6)
+	assert.InDelta(t, 0.6, got[1]["z-ai/glm-5.2"], 1e-6)
 }
 
 func TestLoadRankings_NonIntegerKey(t *testing.T) {
@@ -165,18 +165,18 @@ func TestLoadRankings_EmptyClusterRow(t *testing.T) {
 func TestLoadRegistry_Roundtrip(t *testing.T) {
 	raw, _ := json.Marshal(map[string]any{
 		"deployed_models": []any{
-			map[string]any{"model": "claude-opus-4-7", "provider": "anthropic", "bench_column": "gpt-5", "proxy": true},
-			map[string]any{"model": "gemini-2.5-flash", "provider": "google", "bench_column": "gemini-2.5-flash"},
+			map[string]any{"model": "moonshotai/kimi-k3", "provider": "aiand", "bench_column": "z-ai/glm-5.2", "proxy": true},
+			map[string]any{"model": "z-ai/glm-5.3-flash", "provider": "aiand", "bench_column": "z-ai/glm-5.3-flash"},
 		},
 	})
 	got, err := loadRegistry(raw)
 	require.NoError(t, err)
 	require.Len(t, got.DeployedModels, 2)
-	assert.Equal(t, "anthropic", got.DeployedModels[0].Provider)
-	assert.Equal(t, "gpt-5", got.DeployedModels[0].BenchColumn)
+	assert.Equal(t, "aiand", got.DeployedModels[0].Provider)
+	assert.Equal(t, "z-ai/glm-5.2", got.DeployedModels[0].BenchColumn)
 	assert.True(t, got.DeployedModels[0].Proxy)
-	assert.Equal(t, "google", got.DeployedModels[1].Provider)
-	assert.ElementsMatch(t, []string{"claude-opus-4-7", "gemini-2.5-flash"}, got.Models())
+	assert.Equal(t, "aiand", got.DeployedModels[1].Provider)
+	assert.ElementsMatch(t, []string{"moonshotai/kimi-k3", "z-ai/glm-5.3-flash"}, got.Models())
 }
 
 func TestLoadRegistry_EmptyMapping(t *testing.T) {
@@ -193,7 +193,7 @@ func TestLoadRegistry_MissingProvider(t *testing.T) {
 }
 
 func TestLoadRegistry_MissingBenchColumn(t *testing.T) {
-	raw := []byte(`{"deployed_models": [{"model": "x", "provider": "anthropic"}]}`)
+	raw := []byte(`{"deployed_models": [{"model": "x", "provider": "aiand"}]}`)
 	_, err := loadRegistry(raw)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "missing bench_column")
@@ -291,30 +291,30 @@ func TestCheapestModel(t *testing.T) {
 	}
 	registry := &ModelRegistry{
 		DeployedModels: []DeployedEntry{
-			{Model: "model-a", Provider: "anthropic", BenchColumn: "col-a"},
-			{Model: "model-b", Provider: "google", BenchColumn: "col-b"},
-			{Model: "model-c", Provider: "google", BenchColumn: "col-c"},
+			{Model: "model-a", Provider: "aiand", BenchColumn: "col-a"},
+			{Model: "model-b", Provider: "aiand-alt", BenchColumn: "col-b"},
+			{Model: "model-c", Provider: "aiand-alt", BenchColumn: "col-c"},
 		},
 	}
 
 	t.Run("picks cheapest across providers", func(t *testing.T) {
-		available := map[string]struct{}{"anthropic": {}, "google": {}}
+		available := map[string]struct{}{"aiand": {}, "aiand-alt": {}}
 		p, m, ok := CheapestModel(meta, registry, available)
 		require.True(t, ok)
-		assert.Equal(t, "google", p)
+		assert.Equal(t, "aiand-alt", p)
 		assert.Equal(t, "model-c", m)
 	})
 
 	t.Run("filters by available providers", func(t *testing.T) {
-		available := map[string]struct{}{"anthropic": {}}
+		available := map[string]struct{}{"aiand": {}}
 		p, m, ok := CheapestModel(meta, registry, available)
 		require.True(t, ok)
-		assert.Equal(t, "anthropic", p)
+		assert.Equal(t, "aiand", p)
 		assert.Equal(t, "model-a", m)
 	})
 
 	t.Run("returns false when no provider matches", func(t *testing.T) {
-		available := map[string]struct{}{"openai": {}}
+		available := map[string]struct{}{"other": {}}
 		_, _, ok := CheapestModel(meta, registry, available)
 		assert.False(t, ok)
 	})
@@ -323,10 +323,10 @@ func TestCheapestModel(t *testing.T) {
 		metaNoCost := &ArtifactMetadata{
 			CostPer1KInputUSD: map[string]float64{"model-a": 1.00},
 		}
-		available := map[string]struct{}{"anthropic": {}, "google": {}}
+		available := map[string]struct{}{"aiand": {}}
 		p, m, ok := CheapestModel(metaNoCost, registry, available)
 		require.True(t, ok)
-		assert.Equal(t, "anthropic", p)
+		assert.Equal(t, "aiand", p)
 		assert.Equal(t, "model-a", m)
 	})
 }
@@ -341,18 +341,18 @@ func TestCheapestModelInSet(t *testing.T) {
 	}
 	registry := &ModelRegistry{
 		DeployedModels: []DeployedEntry{
-			{Model: "model-a", Provider: "anthropic", BenchColumn: "col-a"},
-			{Model: "model-b", Provider: "google", BenchColumn: "col-b"},
-			{Model: "model-c", Provider: "google", BenchColumn: "col-c"},
+			{Model: "model-a", Provider: "aiand", BenchColumn: "col-a"},
+			{Model: "model-b", Provider: "aiand", BenchColumn: "col-b"},
+			{Model: "model-c", Provider: "aiand", BenchColumn: "col-c"},
 		},
 	}
-	available := map[string]struct{}{"anthropic": {}, "google": {}}
+	available := map[string]struct{}{"aiand": {}}
 
 	t.Run("respects allowSet — cheapest within allow", func(t *testing.T) {
 		allow := map[string]struct{}{"model-a": {}, "model-b": {}}
 		p, m, ok := CheapestModelInSet(meta, registry, available, nil, allow)
 		require.True(t, ok)
-		assert.Equal(t, "google", p)
+		assert.Equal(t, "aiand", p)
 		assert.Equal(t, "model-b", m, "model-c is cheaper but excluded by allowSet")
 	})
 
@@ -365,7 +365,7 @@ func TestCheapestModelInSet(t *testing.T) {
 	t.Run("nil allowSet behaves like CheapestModel", func(t *testing.T) {
 		p, m, ok := CheapestModelInSet(meta, registry, available, nil, nil)
 		require.True(t, ok)
-		assert.Equal(t, "google", p)
+		assert.Equal(t, "aiand", p)
 		assert.Equal(t, "model-c", m)
 	})
 
@@ -375,7 +375,7 @@ func TestCheapestModelInSet(t *testing.T) {
 		deny := map[string]struct{}{"model-c": {}}
 		p, m, ok := CheapestModelInSet(meta, registry, available, deny, allow)
 		require.True(t, ok)
-		assert.Equal(t, "google", p)
+		assert.Equal(t, "aiand", p)
 		assert.Equal(t, "model-b", m, "model-c is cheaper but denylisted")
 	})
 
@@ -396,47 +396,47 @@ func TestFastestModel(t *testing.T) {
 			"model-c": 0.10,
 		},
 		TokPerS: map[string]map[string]float64{
-			"anthropic": {"model-a": 150.0},
-			"google":    {"model-b": 80.0, "model-c": 20.0},
+			"aiand":  {"model-a": 150.0},
+			"aiand-alt": {"model-b": 80.0, "model-c": 20.0},
 		},
 	}
 	registry := &ModelRegistry{
 		DeployedModels: []DeployedEntry{
-			{Model: "model-a", Provider: "anthropic", BenchColumn: "col-a"},
-			{Model: "model-b", Provider: "google", BenchColumn: "col-b"},
-			{Model: "model-c", Provider: "google", BenchColumn: "col-c"},
+			{Model: "model-a", Provider: "aiand", BenchColumn: "col-a"},
+			{Model: "model-b", Provider: "aiand-alt", BenchColumn: "col-b"},
+			{Model: "model-c", Provider: "aiand-alt", BenchColumn: "col-c"},
 		},
 	}
 
 	t.Run("picks fastest across providers, not cheapest", func(t *testing.T) {
-		available := map[string]struct{}{"anthropic": {}, "google": {}}
+		available := map[string]struct{}{"aiand": {}, "aiand-alt": {}}
 		p, m, ok := FastestModel(meta, registry, available)
 		require.True(t, ok)
-		assert.Equal(t, "anthropic", p)
+		assert.Equal(t, "aiand", p)
 		assert.Equal(t, "model-a", m, "model-c is cheapest but slowest")
 	})
 
 	t.Run("speed is provider-keyed", func(t *testing.T) {
-		// Only google available: model-a's anthropic speed is unreachable,
-		// so the fastest reachable model is model-b (80) over model-c (20).
-		available := map[string]struct{}{"google": {}}
+		// Only "aiand" is wired: model-a's speed is unreachable, so the
+		// fastest reachable model is model-b (80) over model-c (20).
+		available := map[string]struct{}{"aiand": {}}
 		p, m, ok := FastestModel(meta, registry, available)
 		require.True(t, ok)
-		assert.Equal(t, "google", p)
-		assert.Equal(t, "model-b", m)
+		assert.Equal(t, "aiand", p)
+		assert.Equal(t, "model-a", m)
 	})
 
 	t.Run("falls back to cheapest when bundle has no tok_per_s", func(t *testing.T) {
 		metaNoSpeed := &ArtifactMetadata{CostPer1KInputUSD: meta.CostPer1KInputUSD}
-		available := map[string]struct{}{"anthropic": {}, "google": {}}
+		available := map[string]struct{}{"aiand": {}, "aiand-alt": {}}
 		p, m, ok := FastestModel(metaNoSpeed, registry, available)
 		require.True(t, ok)
-		assert.Equal(t, "google", p)
+		assert.Equal(t, "aiand-alt", p)
 		assert.Equal(t, "model-c", m, "no speed data → cost-only cheapest")
 	})
 
 	t.Run("ok=false when no provider matches", func(t *testing.T) {
-		available := map[string]struct{}{"openai": {}}
+		available := map[string]struct{}{"other-provider": {}}
 		_, _, ok := FastestModel(meta, registry, available)
 		assert.False(t, ok)
 	})
@@ -450,25 +450,25 @@ func TestFastestModelInSet(t *testing.T) {
 			"mid-model":  1.00,
 		},
 		TokPerS: map[string]map[string]float64{
-			"google": {"flash-lite": 158.0, "mid-model": 35.0},
-			"makora": {"v4-flash": 24.0},
+			"aiand":     {"flash-lite": 158.0, "mid-model": 35.0},
+			"aiand-alt": {"v4-flash": 24.0},
 		},
 	}
 	registry := &ModelRegistry{
 		DeployedModels: []DeployedEntry{
-			{Model: "flash-lite", Provider: "google", BenchColumn: "col-fl"},
-			{Model: "v4-flash", Provider: "makora", BenchColumn: "col-vf"},
-			{Model: "mid-model", Provider: "google", BenchColumn: "col-mid"},
+			{Model: "flash-lite", Provider: "aiand", BenchColumn: "col-fl"},
+			{Model: "v4-flash", Provider: "aiand", BenchColumn: "col-vf"},
+			{Model: "mid-model", Provider: "aiand", BenchColumn: "col-mid"},
 		},
 	}
-	available := map[string]struct{}{"google": {}, "makora": {}}
+	available := map[string]struct{}{"aiand": {}}
 
 	t.Run("low-tier clamp prefers fast flash-lite over cheap v4-flash", func(t *testing.T) {
 		// Mirrors the real haiku-tier clamp, where cost-only picks the slow v4-flash.
 		allow := map[string]struct{}{"flash-lite": {}, "v4-flash": {}}
 		p, m, ok := FastestModelInSet(meta, registry, available, nil, allow)
 		require.True(t, ok)
-		assert.Equal(t, "google", p)
+		assert.Equal(t, "aiand", p)
 		assert.Equal(t, "flash-lite", m)
 	})
 
@@ -477,7 +477,7 @@ func TestFastestModelInSet(t *testing.T) {
 		allow := map[string]struct{}{"flash-lite": {}, "v4-flash": {}}
 		p, m, ok := FastestModelInSet(metaNoSpeed, registry, available, nil, allow)
 		require.True(t, ok)
-		assert.Equal(t, "makora", p)
+		assert.Equal(t, "aiand", p)
 		assert.Equal(t, "v4-flash", m, "no speed → cheapest in allowSet")
 	})
 
@@ -486,7 +486,7 @@ func TestFastestModelInSet(t *testing.T) {
 		deny := map[string]struct{}{"flash-lite": {}}
 		p, m, ok := FastestModelInSet(meta, registry, available, deny, allow)
 		require.True(t, ok)
-		assert.Equal(t, "google", p)
+		assert.Equal(t, "aiand", p)
 		assert.Equal(t, "mid-model", m, "flash-lite faster but denylisted")
 	})
 
@@ -518,8 +518,8 @@ func TestFastestModel_RealLatestBundle_LowTierPrefersFastFlash(t *testing.T) {
 	_, cheapM, ok := CheapestModelInSet(bundle.Metadata, bundle.Registry, available, nil, allow)
 	require.True(t, ok)
 
-	assert.Equal(t, "gemini-3.1-flash-lite-preview", fastM, "fastest low-tier model")
-	assert.Equal(t, "google", fastP)
+	assert.Equal(t, "z-ai/glm-5.3-flash", fastM, "fastest low-tier model")
+	assert.Equal(t, "aiand", fastP)
 	assert.Equal(t, "deepseek/deepseek-v4-flash", cheapM, "cheapest low-tier model (the slow incumbent)")
 	assert.NotEqual(t, cheapM, fastM, "fastest must diverge from cheapest on the low-tier clamp")
 }
@@ -527,8 +527,8 @@ func TestFastestModel_RealLatestBundle_LowTierPrefersFastFlash(t *testing.T) {
 // Prod 2026-08-26: gateway-only keys 503'd because hard-pin walked only
 // catalog bindings, which such a key can never reach.
 func TestFastestModelForRequest_GatewayExclusive(t *testing.T) {
-	const aliased = "claude-haiku-4-5"
-	const unaliased = "claude-sonnet-5"
+	const aliased = "z-ai/glm-5.3-flash"
+	const unaliased = "z-ai/glm-5.2"
 	meta := &ArtifactMetadata{
 		CostPer1KInputUSD: map[string]float64{aliased: 0.80, unaliased: 3.00},
 		TokPerS: map[string]map[string]float64{
@@ -564,7 +564,7 @@ func TestFastestModelForRequest_GatewayExclusive(t *testing.T) {
 	// Prod 2026-08-26: an Azure key aliasing only gpt-5.6-* 400'd because none
 	// of those models are on the bundle's roster, though the gateway serves them.
 	t.Run("aliased catalog model off the bundle roster is routable", func(t *testing.T) {
-		const offRoster = "gpt-5.6-luna"
+		const offRoster = "z-ai/glm-5.2"
 		p, m, ok := FastestModelForRequest(meta, registry, available, nil, nil, RequestBindings{
 			Custom:   map[string][]string{offRoster: {providers.ProviderAIAND}},
 			Gateways: gateways,
@@ -585,7 +585,7 @@ func TestFastestModelForRequest_GatewayExclusive(t *testing.T) {
 	t.Run("non-gateway requests keep the bundle roster", func(t *testing.T) {
 		_, m, ok := FastestModelForRequest(meta, registry,
 			map[string]struct{}{providers.ProviderAIAND: {}}, nil, nil, RequestBindings{
-				Custom: map[string][]string{"gpt-5.6-luna": {providers.ProviderAIAND}},
+				Custom: map[string][]string{"z-ai/glm-5.2": {providers.ProviderAIAND}},
 			})
 		require.True(t, ok)
 		assert.Equal(t, aliased, m, "custom bindings must not widen the roster for direct-vendor keys")
