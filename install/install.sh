@@ -1082,8 +1082,7 @@ EOF
 }
 
 # write_opencode_config merges the managed Weave provider into opencode's
-# opencode.json. Subscription enrollment is handled by the router's login
-# command, so opencode only needs this provider and its router key:
+# opencode.json, so opencode only needs this provider and its router key:
 #   - provider.weave        : OpenAI/Responses-shaped (@ai-sdk/openai → /v1/responses).
 #                             The single request provider. The router routes every
 #                             turn across the models the router can serve. The default.
@@ -2508,7 +2507,7 @@ resolve_installed_endpoint() {
       # not only from between the managed markers. Codex drops our comment
       # markers when it rewrites config.toml (see write_codex_config) while
       # keeping the table, and a marker-scoped read then reported a live
-      # install as absent -- `login codex` and `status` claimed Codex was not
+      # install as absent -- `status` claimed Codex was not
       # configured until the user re-installed to restore the markers.
       if key_source_is_own "$codex_config_file"; then
         found="$(awk '
