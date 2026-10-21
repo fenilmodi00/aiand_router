@@ -126,22 +126,33 @@ func TestRoutingDistribution_DefaultGridAndV1Guard(t *testing.T) {
 }
 
 func TestRoutingDistribution_NoDeadZone(t *testing.T) {
-	// Regression guard: a run of identical mixes across adjacent dial steps is
-	// what made "50% look like 20%" — the calibration must keep steps live.
+	// Regression guard: an unchanging mix across the dial is what made "50%
+	// look like 20%" — the calibration must keep steps live. The ai&-only
+	// roster has fewer distinct quality vectors than the old multi-vendor
+	// one, so the guard is on the number of DISTINCT mixes the sweep visits,
+	// not on how many adjacent steps happen to repeat.
 	s := loadV0_67(t)
 	points, err := s.RoutingDistribution(21, nil, nil)
 	require.NoError(t, err)
 
-	identicalRuns := 0
-	for i := 1; i < len(points); i++ {
-		samMix := mixSignatureOf(points[i].Models) == mixSignatureOf(points[i-1].Models)
-		if samMix {
-			identicalRuns++
-		}
+	distinct := make(map[string]struct{}, len(points))
+	for _, p := range points {
+		distinct[mixSignatureOf(p.Models)] = struct{}{}
 	}
-	// A few coincidental repeats are fine; a dead zone repeats many in a row.
-	assert.LessOrEqual(t, identicalRuns, 3,
-		"too many adjacent dial positions route an identical mix (%d) — dial has a dead zone", identicalRuns)
+	assert.GreaterOrEqual(t, len(distinct), 3,
+		"the dial must reach several distinct mixes, got %d", len(distinct))
+
+	// No single mix may cover more than half the sweep: a mix that pins the
+	// whole range is the dead zone this guard exists to catch.
+	counts := make(map[string]int, len(points))
+	for _, p := range points {
+		counts[mixSignatureOf(p.Models)]++
+	}
+	for sig, n := range counts {
+		assert.LessOrEqualf(t, n, len(points)/2,
+			"one mix covers %d of %d dial positions — dial has a dead zone", n, len(points))
+		_ = sig
+	}
 }
 
 func TestRoutingDistribution_MidDialIsPricierThanLowDial(t *testing.T) {
@@ -220,6 +231,11 @@ func TestApplyDialAlpha_AgenticStaysOnCapableModelAtLowDial(t *testing.T) {
 	// weight (old 0.88 floor pinned Opus, killing the dial) and onto the
 	// candidate pool: has_tools turns drop catalog.AgenticLowSet, so a low dial
 	// demotes to the cheapest harness-capable model instead of an incapable one.
+	//
+	// In the ai&-only roster the one AgenticLow catalog row
+	// (deepseek/deepseek-v4-flash) is untiered, so it is never a cluster
+	// candidate: the gate has nothing to drop and the price extreme must land
+	// on a harness-capable model either way.
 	s := loadV0_70(t)
 
 	// Realized agentic alpha at the price extreme = the declared floor.
@@ -229,15 +245,20 @@ func TestApplyDialAlpha_AgenticStaysOnCapableModelAtLowDial(t *testing.T) {
 
 	low := catalog.AgenticLowSet()
 
-	// Precondition: without the gate, the price extreme falls through to an
-	// agentic-incapable model — the bug the gate exists to fix.
-	full, _ := argmax(s.blendScoresV2(top, knobs, s.models, nil), s.models)
-	_, fullIncapable := low[full]
-	require.Truef(t, fullIncapable,
-		"precondition: without the gate the price-extreme dial must fall through to an AgenticLow model, got %s", full)
+	// Precondition: no AgenticLow model is a cluster candidate, so the gate
+	// cannot change the realized winner on this roster.
+	for _, m := range s.models {
+		_, incapable := low[m]
+		assert.Falsef(t, incapable, "%s must not be a cluster candidate", m)
+	}
 
-	// WITH the gate the realized winner is harness-capable, and the gate changed
-	// the routed model.
+	full, _ := argmax(s.blendScoresV2(top, knobs, s.models, nil), s.models)
+	require.NotEmpty(t, full)
+	_, fullIncapable := low[full]
+	assert.Falsef(t, fullIncapable,
+		"the price-extreme winner must be harness-capable, got %s", full)
+
+	// WITH the gate the realized winner is still harness-capable.
 	gated := make([]string, 0, len(s.models))
 	for _, m := range s.models {
 		if _, drop := low[m]; drop {
@@ -249,7 +270,6 @@ func TestApplyDialAlpha_AgenticStaysOnCapableModelAtLowDial(t *testing.T) {
 	_, withIncapable := low[with]
 	assert.Falsef(t, withIncapable,
 		"with the agentic-harness gate the price-extreme winner must be harness-capable, got %s", with)
-	assert.NotEqual(t, full, with, "the gate must change the realized agentic winner at the price extreme")
 }
 
 func TestRoutingDistribution_ExcludedModelNeverAppears(t *testing.T) {
@@ -304,8 +324,9 @@ func TestRoutingDistribution_EmptyPoolErrors(t *testing.T) {
 }
 
 func TestRoutingDistribution_ExcludedProviderDropsSingleBindingModels(t *testing.T) {
-	// Excluding a provider must drop every model whose only binding is that
-	// provider, mirroring Route's EnabledProviders gate.
+	// Excluding the only wired provider must drop every model, mirroring
+	// Route's EnabledProviders gate: ai& is the sole upstream, so excluding
+	// it empties the pool.
 	s := loadV0_70(t)
 
 	full, err := s.RoutingDistribution(21, nil, nil)
@@ -317,26 +338,18 @@ func TestRoutingDistribution_ExcludedProviderDropsSingleBindingModels(t *testing
 			appeared[m.Model] = struct{}{}
 		}
 	}
+	require.NotEmpty(t, appeared, "expected at least one model in the unfiltered mix")
 
-	var model, provider string
 	for m := range appeared {
 		c, ok := catalog.ByID(m)
-		if !ok || len(c.Providers) != 1 {
-			continue
-		}
-		model, provider = m, c.Providers[0].Provider
-		break
+		require.Truef(t, ok, "mix model %q must be a catalog model", m)
+		require.Lenf(t, c.Providers, 1, "mix model %q must have exactly one binding", m)
+		require.Equal(t, "aiand", c.Providers[0].Provider)
 	}
-	require.NotEmpty(t, model, "expected at least one single-binding model in the unfiltered mix")
 
-	filtered, err := s.RoutingDistribution(21, nil, map[string]struct{}{provider: {}})
-	require.NoError(t, err)
-	for _, p := range filtered {
-		for _, m := range p.Models {
-			assert.NotEqual(t, model, m.Model,
-				"single-binding model %s must vanish when its provider %s is excluded (quality_bias=%v)", model, provider, p.QualityBias)
-		}
-	}
+	_, err = s.RoutingDistribution(21, nil, map[string]struct{}{"aiand": {}})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrNoEligibleProvider)
 }
 
 // mixSignatureOf renders a DistributionPoint's model shares as a stable key for
