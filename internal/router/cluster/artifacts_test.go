@@ -562,10 +562,11 @@ func TestFastestModelForRequest_CustomBindingsDoNotWidenRoster(t *testing.T) {
 	})
 
 	t.Run("excluded_models still applies", func(t *testing.T) {
-		_, _, ok := FastestModelForRequest(meta, registry, available,
+		_, m, ok := FastestModelForRequest(meta, registry, available,
 			map[string]struct{}{aliased: {}}, nil, RequestBindings{
 				Custom: map[string][]string{aliased: {providers.ProviderAIAND}},
 			})
-		assert.False(t, ok, "the only aliased model is excluded")
+		require.True(t, ok, "the remaining roster model is still pickable")
+		assert.Equal(t, unaliased, m, "the excluded model must not be picked")
 	})
 }
