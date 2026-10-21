@@ -55,24 +55,10 @@ without deployment-level credentials.
 **Native web search on a gateway.** An Anthropic-spec gateway relays to a
 backend that implements function tools only, so Claude Code's WebSearch turn
 comes back as `tool type 'web_search_20250305' is not supported for this
-model`. For Snowflake Cortex the capability exists on a different endpoint —
-`POST /api/v2/cortex/agent:run` with a `web_search` tool spec — so the router
-executes the search there, on the tenant's own credential, and returns the
-`server_tool_use` / `web_search_tool_result` blocks the client expects. The
-base URL and token come from the request's gateway key (WIF included), so no
-extra deployment config is needed.
-
-The turn is intercepted on capability — a native `web_search_*` tool, an
-isolated one-shot search turn, and no enabled provider that runs Anthropic
-server tools natively — which also describes an Anthropic-spec gateway that is
-not Cortex. The executor therefore refuses any gateway whose host is not
-Snowflake's, and such turns stay on normal routing.
-
-Snowflake-side prerequisites: an ACCOUNTADMIN must enable web search at the
-account level, and the authenticating user needs a role with agent privileges
-plus a default warehouse it can USAGE. Cortex's web search is served from
-Brave's index, so queries and results leave Snowflake's perimeter under
-Snowflake's vendor agreement.
+model`. The router has no execution path for native web search: it detects
+the turn and strips the server tools so the request can still be served, but
+the search itself is not run on the tenant's behalf. Such turns stay on normal
+routing to the configured upstream.
 
 **OpenAI-compatible gateway.** `openai_gateway` is the same arrangement one
 wire family over: a customer endpoint speaking OpenAI Chat Completions, bearer
@@ -103,8 +89,7 @@ A Cortex AI Gateway is configured the same way, with its endpoint
 (`https://<account-host>/api/v2/aigateways/<name>`) as the base URL. The router
 appends `/v1` like it does for the Cortex REST root. The gateway has no
 `/v1/responses` yet, so reasoning tool turns fall back to Chat Completions after
-the first probe, and native web search still runs on the account's
-`/api/v2/cortex/agent:run`.
+the first probe.
 
 Both keys carry the same PAT; per model, the catalog's binding order decides
 which surface serves it, so Claude prefers the Anthropic one (it carries
