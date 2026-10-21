@@ -167,8 +167,6 @@ type Request struct {
 	// (from a key's model_aliases). They rank after catalog bindings, so a
 	// wired direct vendor still wins.
 	CustomBindings map[string][]string
-	// SubscriptionProviders holds the providers whose subscription credential can serve this request.
-	SubscriptionProviders map[string]struct{}
 	// Per-request model exclusion — nil or empty means no exclusion.
 	// If filtering empties eligible set, scorer returns ErrNoEligibleProvider.
 	// Full union: installation excluded_models plus request-time safety filters.
