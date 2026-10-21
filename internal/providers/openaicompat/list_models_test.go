@@ -36,7 +36,7 @@ func TestListModels_ReturnsSortedDedupedIDs(t *testing.T) {
 	c := openaicompat.NewGatewayClient("deploy-token", srv.URL, openaicompat.WithModelListHTTPClient(openAICompatibleDiscoveryClient(t, srv.URL)))
 	models, err := c.ListModels(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, []string{"z-ai/glm-5.2", "llama3.1-70b"}, models)
+	assert.Equal(t, []string{"llama3.1-70b", "z-ai/glm-5.2"}, models)
 	assert.Equal(t, "/models", gotPath)
 	assert.Equal(t, "Bearer deploy-token", gotAuth)
 }
@@ -106,7 +106,7 @@ func TestListModels_FallsBackAboveV1On404(t *testing.T) {
 	c := openaicompat.NewGatewayClient("gw-token", srv.URL+"/api/v2/cortex/v1", openaicompat.WithModelListHTTPClient(openAICompatibleDiscoveryClient(t, srv.URL)))
 	models, err := c.ListModels(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, []string{"z-ai/glm-5.2", "openai-gpt-5.2"}, models)
+	assert.Equal(t, []string{"openai-gpt-5.2", "z-ai/glm-5.2"}, models)
 	assert.Equal(t, []string{"/api/v2/cortex/v1/models", "/api/v2/cortex/models"}, gotPaths)
 }
 
