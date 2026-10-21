@@ -276,7 +276,7 @@ func rejectDuplicates[T comparable](policyID PolicyID, field string, values []T)
 
 func validDispatchClass(value DispatchClass) bool {
 	switch value {
-	case DispatchClassMainInference, DispatchClassAuxiliaryInference, DispatchClassClientAuthoritative, DispatchClassMetadataPassthrough, DispatchClassControlPlane, DispatchClassLocalSupport, DispatchClassWebSearchTool:
+	case DispatchClassMainInference, DispatchClassAuxiliaryInference, DispatchClassClientAuthoritative, DispatchClassMetadataPassthrough, DispatchClassControlPlane, DispatchClassLocalSupport:
 		return true
 	default:
 		return false
@@ -691,19 +691,6 @@ func defaultPolicySpecs() []PolicySpec {
 			CandidateSource:   CandidateSourceLocal,
 			Budget:            BudgetSpec{Source: BudgetSourceLocal},
 			Fallback:          FallbackSpec{Kind: FallbackKindNone},
-			MigrationStatus:   MigrationStatusNonInference,
-		},
-		{
-			Purpose:           PurposeNativeWebSearch,
-			DispatchClass:     DispatchClassWebSearchTool,
-			PolicyID:          "tool-native-web-search",
-			PolicyRevision:    "1",
-			Owner:             inferencePolicyOwner,
-			Rationale:         "Execute the explicit native web-search tool without exposing it as generic model inference.",
-			SelectionStrategy: SelectionStrategyNone,
-			CandidateSource:   CandidateSourceDeployment,
-			Budget:            BudgetSpec{Source: BudgetSourceDeployment},
-			Fallback:          FallbackSpec{Kind: FallbackKindRoutedDispatch},
 			MigrationStatus:   MigrationStatusNonInference,
 		},
 	}
