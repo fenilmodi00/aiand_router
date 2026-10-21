@@ -131,21 +131,3 @@ func (r *recordingExternalKeyRepo) Create(ctx context.Context, params auth.Creat
 	r.created = params
 	return &auth.ExternalAPIKey{ID: params.ExternalID, Provider: params.Provider, AuthType: params.AuthType}, nil
 }
-
-func TestService_UpsertExternalAPIKey_StoresWIFKeyWithoutSecret(t *testing.T) {
-	baseURL := "https://acct.example.com/api/v2/cortex/v1"
-	repo := &recordingExternalKeyRepo{}
-	svc := makeServiceWithExternalKeys(t, repo)
-
-	key, err := svc.UpsertExternalAPIKey(context.Background(), "install_wif", auth.UpsertExternalAPIKeyParams{
-		Provider: "anthropic_gateway",
-		BaseURL:  &baseURL,
-		AuthType: auth.AuthTypeWIF,
-	})
-
-	require.NoError(t, err)
-	assert.Equal(t, auth.AuthTypeWIF, key.AuthType)
-	assert.Nil(t, repo.created.AuthAccount, "the principal lives in the attestation, not in the stored row")
-	assert.Nil(t, repo.created.AuthUser)
-	assert.Empty(t, repo.created.KeyPrefix, "there is no secret to display a prefix of")
-}

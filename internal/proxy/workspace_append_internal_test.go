@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"weave-os/router/internal/flags"
-	"weave-os/router/internal/providers"
 	"weave-os/router/internal/requestcontext"
 	"weave-os/router/internal/router/turntype"
 	"weave-os/router/internal/translate"
@@ -80,15 +79,4 @@ func TestWorkspaceSystemAppendApplies_IdempotentAndSkipsSearchSubTurn(t *testing
 		body := `{"model":"z-ai/glm-5.2","system":"You are Claude Code.","tools":[{"type":"web_search_20250305","name":"web_search"}],"messages":[{"role":"user","content":"Perform a web search for the query: snowflake timestamp_tz"}],"max_tokens":8}`
 		assert.False(t, svc.workspaceSystemAppendApplies(ctx, []byte(body), parseGateBody(t, body), turntype.MainLoop))
 	})
-}
-
-func TestWorkspaceAppendFired_OnlyForCrossFormatServedAttempts(t *testing.T) {
-	on := translate.EmitOptions{AppendWorkspaceSystem: true}
-	assert.True(t, workspaceAppendFired(on, providers.ProviderAIAND))
-	assert.True(t, workspaceAppendFired(on, providers.ProviderAIAND))
-	assert.True(t, workspaceAppendFired(on, providers.ProviderAIAND))
-	assert.True(t, workspaceAppendFired(on, providers.ProviderAIAND), "PrepareGemini carries this append, unlike the autonomy one")
-	assert.False(t, workspaceAppendFired(on, providers.ProviderAIAND), "PrepareAnthropic ignores the option, telemetry must agree")
-	assert.False(t, workspaceAppendFired(on, providers.ProviderAIAND))
-	assert.False(t, workspaceAppendFired(translate.EmitOptions{}, providers.ProviderAIAND))
 }

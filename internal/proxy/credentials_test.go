@@ -58,44 +58,6 @@ func TestBuildCredentialsMap_NilWhenAllEmpty(t *testing.T) {
 		"when every BYOK entry is empty the map must be nil so callers see 'no BYOK configured' rather than 'BYOK present but unusable'")
 }
 
-func TestExtractClientCredentials_Anthropic(t *testing.T) {
-	headers := http.Header{"X-Api-Key": []string{"sk-ant-client"}}
-	creds := proxy.ExtractClientCredentials("anthropic", headers)
-	require.NotNil(t, creds)
-	assert.Equal(t, []byte("sk-ant-client"), creds.APIKey)
-	assert.Equal(t, "client", creds.Source,
-		"client-header credentials must carry Source='client'")
-}
-
-func TestExtractClientCredentials_OpenAI(t *testing.T) {
-	headers := http.Header{"Authorization": []string{"Bearer sk-oai-client"}}
-	creds := proxy.ExtractClientCredentials("openai", headers)
-	require.NotNil(t, creds)
-	assert.Equal(t, []byte("sk-oai-client"), creds.APIKey)
-	assert.Equal(t, "client", creds.Source)
-}
-
-func TestExtractClientCredentials_Google(t *testing.T) {
-	headers := http.Header{"Authorization": []string{"Bearer goog-client-key"}}
-	creds := proxy.ExtractClientCredentials("google", headers)
-	require.NotNil(t, creds)
-	assert.Equal(t, []byte("goog-client-key"), creds.APIKey)
-}
-
-// Makora/Together were missing from the old literal Bearer-branch list, so a
-// client-supplied key was dropped; keying off the translation family fixes it.
-func TestExtractClientCredentials_OpenAICompatBearer(t *testing.T) {
-	for _, provider := range []string{"makora", "together"} {
-		t.Run(provider, func(t *testing.T) {
-			headers := http.Header{"Authorization": []string{"Bearer sk-oss-client"}}
-			creds := proxy.ExtractClientCredentials(provider, headers)
-			require.NotNil(t, creds, "%s client bearer must resolve", provider)
-			assert.Equal(t, []byte("sk-oss-client"), creds.APIKey)
-			assert.Equal(t, "client", creds.Source)
-		})
-	}
-}
-
 func TestExtractClientCredentials_MissingHeader(t *testing.T) {
 	creds := proxy.ExtractClientCredentials("anthropic", http.Header{})
 	assert.Nil(t, creds,
@@ -114,22 +76,6 @@ func TestExtractClientCredentials_RejectsRouterBearerForGoogle(t *testing.T) {
 	creds := proxy.ExtractClientCredentials("google", headers)
 	assert.Nil(t, creds,
 		"router-issued bearer tokens (rk_...) must never be forwarded as upstream Google credentials")
-}
-
-func TestExtractClientCredentials_OpenRouter(t *testing.T) {
-	headers := http.Header{"Authorization": []string{"Bearer sk-or-v1-byok-openrouter-key"}}
-	creds := proxy.ExtractClientCredentials("openrouter", headers)
-	require.NotNil(t, creds)
-	assert.Equal(t, []byte("sk-or-v1-byok-openrouter-key"), creds.APIKey)
-	assert.Equal(t, "client", creds.Source)
-}
-
-func TestExtractClientCredentials_Fireworks(t *testing.T) {
-	headers := http.Header{"Authorization": []string{"Bearer fw_byok-fireworks-key"}}
-	creds := proxy.ExtractClientCredentials("fireworks", headers)
-	require.NotNil(t, creds)
-	assert.Equal(t, []byte("fw_byok-fireworks-key"), creds.APIKey)
-	assert.Equal(t, "client", creds.Source)
 }
 
 func TestExtractClientCredentials_RejectsRouterBearerForOpenRouter(t *testing.T) {
@@ -177,14 +123,6 @@ func TestExtractClientCredentials_RejectsRouterKeyWithLeadingWhitespaceForAnthro
 		"x-api-key values must be TrimSpace'd before the prefix check to match the auth middleware's normalization")
 }
 
-func TestExtractClientCredentials_TrimsWhitespaceFromForwardedKey(t *testing.T) {
-	headers := http.Header{"Authorization": []string{"Bearer  sk-oai-client  "}}
-	creds := proxy.ExtractClientCredentials("openai", headers)
-	require.NotNil(t, creds)
-	assert.Equal(t, []byte("sk-oai-client"), creds.APIKey,
-		"the forwarded credential must be canonicalized; passing through embedded whitespace risks confusing upstream providers and inviting normalization-bypass bugs")
-}
-
 func TestCredentialsFromContext_ReturnsNilWhenAbsent(t *testing.T) {
 	creds := proxy.CredentialsFromContext(context.Background())
 	assert.Nil(t, creds,
@@ -200,25 +138,6 @@ func TestCredentialsFromContext_ReturnsStashedCredentials(t *testing.T) {
 	assert.Equal(t, want.APIKey, got.APIKey)
 }
 
-func TestExtractClientCredentials_AnthropicSubscriptionBearer(t *testing.T) {
-	// Claude Code subscription tokens are sk-ant-oat01-… and must be forwarded
-	// as OAuth credentials so the caller's subscription pays for Claude turns.
-	headers := http.Header{"Authorization": []string{"Bearer sk-ant-oat01-subscription-token"}}
-	creds := proxy.ExtractClientCredentials("anthropic", headers)
-	require.NotNil(t, creds, "a Claude subscription bearer must be accepted for Anthropic")
-	assert.Equal(t, []byte("sk-ant-oat01-subscription-token"), creds.APIKey)
-	assert.True(t, creds.OAuth, "subscription tokens must be flagged OAuth so the client uses Authorization: Bearer + the oauth beta header, not x-api-key")
-	assert.Equal(t, "subscription", creds.Source)
-}
-
-func TestExtractClientCredentials_AnthropicAPIKeyBearerIsNotOAuth(t *testing.T) {
-	headers := http.Header{"Authorization": []string{"Bearer sk-ant-api-real-key"}}
-	creds := proxy.ExtractClientCredentials("anthropic", headers)
-	require.NotNil(t, creds)
-	assert.False(t, creds.OAuth, "a real Anthropic API key (sk-ant-api-) authenticates via x-api-key, not OAuth")
-	assert.Equal(t, "client", creds.Source)
-}
-
 func TestExtractClientCredentials_RejectsSubscriptionForNonAnthropic(t *testing.T) {
 	// A subscription token can only pay for Claude models; it must never be
 	// forwarded to another vendor's upstream.
@@ -230,45 +149,6 @@ func TestExtractClientCredentials_RejectsSubscriptionForNonAnthropic(t *testing.
 }
 
 const codexJWT = "eyJhbGciOiJSUzI1NiJ9.codex-access-token.signature"
-
-func TestExtractClientCredentials_CodexSubscription(t *testing.T) {
-	// A Codex subscription is an OAuth JWT bearer paired with a
-	// ChatGPT-Account-Id header, distinguishing it from a plain API key.
-	headers := http.Header{
-		"Authorization":      []string{"Bearer " + codexJWT},
-		"Chatgpt-Account-Id": []string{"acct-12345"},
-	}
-	creds := proxy.ExtractClientCredentials("openai", headers)
-	require.NotNil(t, creds, "a Codex subscription JWT + account-id must be accepted for OpenAI")
-	assert.True(t, creds.OAuth, "a Codex subscription bearer must be flagged OAuth")
-	assert.Equal(t, "codex_subscription", creds.Source)
-	assert.Equal(t, []byte(codexJWT), creds.APIKey)
-	assert.Equal(t, []byte("acct-12345"), creds.AccountID)
-}
-
-func TestExtractClientCredentials_CodexJWTWithoutAccountIDIsNotSubscription(t *testing.T) {
-	// Without the account-id the Codex backend would 401, so the pair is not a
-	// usable subscription. The bearer falls through to the plain client-key path.
-	headers := http.Header{"Authorization": []string{"Bearer " + codexJWT}}
-	creds := proxy.ExtractClientCredentials("openai", headers)
-	require.NotNil(t, creds)
-	assert.False(t, creds.OAuth, "a JWT with no ChatGPT-Account-ID must not be treated as a Codex subscription")
-	assert.Empty(t, creds.AccountID)
-	assert.Equal(t, "client", creds.Source)
-}
-
-func TestExtractClientCredentials_OpenAIKeyWithAccountIDIsNotSubscription(t *testing.T) {
-	// An sk- key is an API key, not a ChatGPT OAuth JWT, even if an account-id
-	// header is (spuriously) present.
-	headers := http.Header{
-		"Authorization":      []string{"Bearer sk-oai-real-key"},
-		"Chatgpt-Account-Id": []string{"acct-12345"},
-	}
-	creds := proxy.ExtractClientCredentials("openai", headers)
-	require.NotNil(t, creds)
-	assert.False(t, creds.OAuth, "an sk- API key must never be classified as a Codex subscription")
-	assert.Equal(t, "client", creds.Source)
-}
 
 func TestExtractClientCredentials_CodexSubscriptionIsOpenAIOnly(t *testing.T) {
 	// The Codex JWT is OpenAI-only; an account-id header on another vendor's

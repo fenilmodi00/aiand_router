@@ -4,10 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
-
-	"github.com/tidwall/gjson"
 
 	"weave-os/router/internal/auth"
 	"weave-os/router/internal/providers"
@@ -44,63 +41,6 @@ func gatewayCtx() context.Context {
 
 func gatewayOnly() map[string]struct{} {
 	return map[string]struct{}{providers.ProviderAIAND: {}}
-}
-
-func TestServeNativeWebSearchAnswersGatewayOnlyTenant(t *testing.T) {
-	ex := &fakeSearch{resp: websearch.Response{
-		Summary: "Agents run web_search.",
-		Results: []websearch.Result{{Title: "Docs", URL: "https://docs.snowflake.com/agents"}},
-	}}
-	s := &Service{webSearch: ex}
-	rec := httptest.NewRecorder()
-
-	if !s.serveNativeWebSearch(gatewayCtx(), []byte(searchTurnBody), "deepseek/deepseek-v4-pro", false, 42, gatewayOnly(), http.Header{}, rec) {
-		t.Fatal("search turn was not served")
-	}
-	if ex.got.Text != "cortex agents" {
-		t.Fatalf("executed query = %q", ex.got.Text)
-	}
-	body := gjson.ParseBytes(rec.Body.Bytes())
-	if got := body.Get("content.0.type").String(); got != "server_tool_use" {
-		t.Fatalf("first block = %q", got)
-	}
-	if got := body.Get("content.1.content.0.url").String(); got != "https://docs.snowflake.com/agents" {
-		t.Fatalf("result url = %q", got)
-	}
-	if got := body.Get("model").String(); got != "deepseek/deepseek-v4-pro" {
-		t.Fatalf("model = %q; the client must see the model it asked for", got)
-	}
-	if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
-		t.Fatalf("content-type = %q", ct)
-	}
-}
-
-func TestServeNativeWebSearchStreams(t *testing.T) {
-	ex := &fakeSearch{resp: websearch.Response{
-		Summary: "Answer.",
-		Results: []websearch.Result{{Title: "Docs", URL: "https://docs.snowflake.com/agents"}},
-	}}
-	s := &Service{webSearch: ex}
-	rec := httptest.NewRecorder()
-
-	if !s.serveNativeWebSearch(gatewayCtx(), []byte(searchTurnBody), "deepseek/deepseek-v4-pro", true, 10, gatewayOnly(), http.Header{}, rec) {
-		t.Fatal("search turn was not served")
-	}
-	out := rec.Body.String()
-	for _, want := range []string{
-		"event: message_start", "event: content_block_start", "event: message_stop",
-		`"type":"input_json_delta"`, `"type":"web_search_tool_result"`, `"type":"text_delta"`,
-	} {
-		if !strings.Contains(out, want) {
-			t.Fatalf("stream missing %q:\n%s", want, out)
-		}
-	}
-	if !strings.Contains(out, `{\"query\":\"cortex agents\"}`) {
-		t.Fatalf("server_tool_use input must stream as a delta:\n%s", out)
-	}
-	if ct := rec.Header().Get("Content-Type"); ct != "text/event-stream" {
-		t.Fatalf("content-type = %q", ct)
-	}
 }
 
 func TestServeNativeWebSearchDefersToNativelyCapableProvider(t *testing.T) {

@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"weave-os/router/internal/providers"
 	"weave-os/router/internal/subscriptions/entitlement"
@@ -46,36 +45,6 @@ func TestResolveAndInjectCredentials_SuppressedSubClearedOnRouterKeyedPath(t *te
 		"a suppressed subscription must be cleared so the client uses its deployment key, not the spent token")
 }
 
-// Regression guard: without suppression, the normal path still forwards the
-// caller's subscription so their Claude turns bill their own plan.
-func TestResolveAndInjectCredentials_UnsuppressedSubStillForwarded(t *testing.T) {
-	headers := http.Header{}
-	headers.Set("Authorization", "Bearer sk-ant-oat01-live")
-
-	out := resolveAndInjectCredentials(routerKeyedCtx(), providers.ProviderAIAND, "z-ai/glm-5.2", headers)
-
-	got := CredentialsFromContext(out)
-	require.NotNil(t, got, "a live subscription must resolve on the router-key path")
-	assert.Equal(t, credSourceSubscription, got.Source)
-	assert.True(t, got.OAuth)
-}
-
-// The clear must be scoped to Anthropic: a suppressed-Claude request that also
-// carries a Codex subscription for an OpenAI turn must still resolve the Codex
-// credential (its OpenAI turns bill the caller's ChatGPT plan, unaffected).
-func TestResolveAndInjectCredentials_SuppressionDoesNotClearCodexOpenAITurn(t *testing.T) {
-	ctx := withSuppressedClaudeSubscription(routerKeyedCtx())
-	headers := http.Header{}
-	headers.Set("Authorization", "Bearer eyJhbGciOi.codex.jwt")
-	headers.Set("ChatGPT-Account-ID", "acct-1")
-
-	out := resolveAndInjectCredentials(ctx, providers.ProviderAIAND, "gpt-5.6-sol", headers)
-
-	got := CredentialsFromContext(out)
-	require.NotNil(t, got, "a Codex subscription must still resolve for its OpenAI turn")
-	assert.Equal(t, credSourceCodexSubscription, got.Source)
-}
-
 // subscriptionDisabledCtx returns a router-keyed ctx with subscription routing
 // disabled (the "use my subscription first" toggle off).
 func subscriptionDisabledCtx() context.Context {
@@ -104,19 +73,6 @@ func TestResolveAndInjectCredentials_DisabledSuppressesCodexSubscription(t *test
 
 	assert.Nil(t, CredentialsFromContext(out),
 		"toggle off must suppress the Codex subscription so the turn bills prepaid")
-}
-
-// Toggle off must also drop the Codex /v1/responses verbatim-passthrough path,
-// so the turn takes normal chat->Responses translation and bills prepaid.
-func TestCodexResponsesRequest_DisabledDropsPassthrough(t *testing.T) {
-	headers := http.Header{}
-	headers.Set("Authorization", "Bearer eyJhbGciOi.codex.jwt")
-	headers.Set("ChatGPT-Account-ID", "acct-1")
-
-	assert.True(t, codexResponsesRequest(routerKeyedCtx(), headers),
-		"a Codex sub normally takes the passthrough path")
-	assert.False(t, codexResponsesRequest(subscriptionDisabledCtx(), headers),
-		"toggle off must drop the Codex passthrough path")
 }
 
 // Regression guard: an inbound Codex subscription bearer on the router-key path

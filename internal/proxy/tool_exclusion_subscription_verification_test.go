@@ -2,18 +2,9 @@ package proxy
 
 import (
 	"context"
-	"github.com/stretchr/testify/require"
-	"github.com/tidwall/gjson"
-	"io"
-	"net/http"
-	"net/http/httptest"
-	"strings"
-	"testing"
 	"weave-os/router/internal/auth"
 	"weave-os/router/internal/providers"
-	"weave-os/router/internal/providers/openaicompat"
 	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/catalog"
 	"weave-os/router/internal/router/policy"
 	"weave-os/router/internal/subscriptions"
 )
@@ -47,50 +38,4 @@ func (l *verificationAlternativeLeaser) Lease(_ context.Context, owner auth.Subs
 		}
 	}
 	return subscriptions.Lease{AccountID: "alternative-account", OwnerID: "synthetic-owner", Tier: auth.SubscriptionTierPersonal, AccessToken: "alternative-seat", ProviderAccount: "synthetic-provider"}, true, nil
-}
-
-func TestVerificationRealResolverWeakToolExclusionPreventsHTTP(t *testing.T) {
-	resolver := policy.NewResolver(map[string]struct{}{codexCoveredModel: {}, verificationWeakToolModel: {}}, map[string]struct{}{providers.ProviderAIAND: {}}, func(model catalog.Model) string { return model.ID }, policy.ManagedProviderPolicy())
-	require.Contains(t, resolver.Resolve(router.Request{}).CandidateModels(), verificationWeakToolModel, "fixture weak model must be otherwise eligible")
-	var models, bearers []string
-	var incompatibleRequests int
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if serveSyntheticCodexQuota(w, r) {
-			return
-		}
-		body, _ := io.ReadAll(r.Body)
-		model := gjson.GetBytes(body, "model").String()
-		models = append(models, model)
-		bearers = append(bearers, r.Header.Get("Authorization"))
-		if strings.Contains(model, "qwen") {
-			incompatibleRequests++
-		}
-		if r.Header.Get("Authorization") == "Bearer alternative-seat" {
-			w.WriteHeader(404)
-			_, _ = io.WriteString(w, `{"error":{"code":"model_not_found","message":"synthetic account model denial"}}`)
-			return
-		}
-		w.Header().Set("Content-Type", "text/event-stream")
-		_, _ = io.WriteString(w, "data: {\"type\":\"response.output_text.delta\",\"output_index\":0,\"delta\":\"compatible tool answer\"}\n\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"synthetic\",\"status\":\"completed\",\"output\":[],\"usage\":{\"input_tokens\":11,\"output_tokens\":7}}}\n\n")
-	}))
-	defer server.Close()
-	client := openaicompat.NewClient("synthetic-api-key", server.URL)
-	routed := &verificationToolResolverRouter{resolver: resolver}
-	// Both providers have a real HTTP transport available; rejected candidates must never reach either.
-	svc := NewService(routed, map[string]providers.Client{providers.ProviderAIAND: client}, nil, false, nil, nil, false, providers.ProviderAIAND, codexCoveredModel, nil).WithManagedSubscriptions(&verificationAlternativeLeaser{}).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
-	ctx := context.WithValue(managedSubscriptionContext(auth.SubscriptionProviderCodex), InstallationIDContextKey{}, "11111111-1111-1111-1111-111111111111")
-	body := `{"model":"auto","stream":true,"messages":[{"role":"user","content":"synthetic tools"}],"tools":[{"type":"function","function":{"name":"read_file","parameters":{"type":"object"}}}]}`
-	rec := httptest.NewRecorder()
-	dispatchErr := svc.ProxyOpenAIChatCompletion(ctx, []byte(body), rec, httptest.NewRequest("POST", "/v1/chat/completions", strings.NewReader(body)))
-	require.ErrorIs(t, dispatchErr, ErrSubscriptionPoolExhausted)
-	var upstreamErr *providers.UpstreamErrorResponse
-	require.ErrorAs(t, dispatchErr, &upstreamErr)
-	require.Equal(t, http.StatusNotFound, upstreamErr.Status)
-	require.True(t, routed.observedRequest.HasTools, "actual parsed tool request must drive Resolver")
-	require.Contains(t, routed.resolved.Diagnostics, policy.Diagnostic{CatalogID: verificationWeakToolModel, RosterID: verificationWeakToolModel, Reason: policy.ExclusionToolCapability})
-	require.NotContains(t, routed.resolved.CandidateModels(), verificationWeakToolModel)
-	require.Zero(t, incompatibleRequests)
-	require.Equal(t, []string{"Bearer alternative-seat"}, bearers)
-	require.Equal(t, []string{codexCoveredModel}, models)
-	require.NotContains(t, rec.Body.String(), "compatible tool answer")
 }

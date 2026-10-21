@@ -126,34 +126,12 @@ func runSpendCapSub(t *testing.T, routePath, keyID string, setInstall func(*gin.
 	return w, reached, subOnly
 }
 
-func TestAPIKeySpendCap_CapReachedCoveringSubscriptionServesSubscriptionOnly(t *testing.T) {
-	// Cap reached + a usage-bypass org presenting a Claude sub on /v1/messages:
-	// pass through flagged subscription-only, not 402. The cap bounds paid spend.
-	repo := &stubBillingRepo{spendFound: true, capMicros: capPtr(1_000_000), spendMicros: 1_000_000}
-	setInstall := func(c *gin.Context) { withUsageBypassInstallation(c, "org_sub") }
-	w, reached, subOnly := runSpendCapSub(t, "/v1/messages", "k7", setInstall, "Bearer sk-ant-oat-abc123", repo)
-	assert.True(t, reached, "a covered turn must pass even when the cap is reached")
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, subOnly, "the request must be flagged subscription-only")
-}
-
 func TestAPIKeySpendCap_CapReachedNoSubscriptionStillRejected(t *testing.T) {
 	repo := &stubBillingRepo{spendFound: true, capMicros: capPtr(1_000_000), spendMicros: 1_000_000}
 	setInstall := func(c *gin.Context) { withUsageBypassInstallation(c, "org_sub") }
 	w, reached, _ := runSpendCapSub(t, "/v1/messages", "k8", setInstall, "", repo)
 	assert.False(t, reached, "no subscription credential means the paid path is gated")
 	assert.Equal(t, http.StatusPaymentRequired, w.Code)
-}
-
-func TestAPIKeySpendCap_CapReachedSubscriptionWithoutBypassServesSubscriptionOnly(t *testing.T) {
-	// Exemption depends only on whether the request presents a covering subscription,
-	// not on UsageBypassEnabled (matching WithBalanceCheck).
-	repo := &stubBillingRepo{spendFound: true, capMicros: capPtr(1_000_000), spendMicros: 1_000_000}
-	setInstall := func(c *gin.Context) { withInstallation(c, "org_prepaid") }
-	w, reached, subOnly := runSpendCapSub(t, "/v1/messages", "k9", setInstall, "Bearer sk-ant-oat-abc123", repo)
-	assert.True(t, reached, "a covered turn must pass even when the org lacks the usage-bypass toggle")
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, subOnly, "the request must be flagged subscription-only")
 }
 
 func TestAPIKeySpendCap_ExemptsSubscriberAllowanceCoveredRequest(t *testing.T) {

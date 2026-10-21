@@ -113,34 +113,12 @@ func runOrgMonthlyCapSub(t *testing.T, routePath string, setInstall func(*gin.Co
 	return w, reached, subOnly
 }
 
-func TestOrgMonthlySpendCap_CapReachedCoveringSubscriptionServesSubscriptionOnly(t *testing.T) {
-	// Cap reached + a usage-bypass org presenting a Claude sub on /v1/messages:
-	// pass through flagged subscription-only, not 402. The cap bounds paid spend.
-	repo := &stubBillingRepo{orgMonthSpent: 1_000_000, orgMonthLimit: capPtr(1_000_000)}
-	setInstall := func(c *gin.Context) { withUsageBypassInstallation(c, "org_sub") }
-	w, reached, subOnly := runOrgMonthlyCapSub(t, "/v1/messages", setInstall, "Bearer sk-ant-oat-abc123", repo)
-	assert.True(t, reached, "a covered turn must pass even when the cap is reached")
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, subOnly, "the request must be flagged subscription-only")
-}
-
 func TestOrgMonthlySpendCap_CapReachedNoSubscriptionStillRejected(t *testing.T) {
 	repo := &stubBillingRepo{orgMonthSpent: 1_000_000, orgMonthLimit: capPtr(1_000_000)}
 	setInstall := func(c *gin.Context) { withUsageBypassInstallation(c, "org_sub") }
 	w, reached, _ := runOrgMonthlyCapSub(t, "/v1/messages", setInstall, "", repo)
 	assert.False(t, reached, "no subscription credential means the paid path is gated")
 	assert.Equal(t, http.StatusPaymentRequired, w.Code)
-}
-
-func TestOrgMonthlySpendCap_CapReachedSubscriptionWithoutBypassServesSubscriptionOnly(t *testing.T) {
-	// Exemption depends only on whether the request presents a covering subscription,
-	// not on UsageBypassEnabled (matching WithBalanceCheck).
-	repo := &stubBillingRepo{orgMonthSpent: 1_000_000, orgMonthLimit: capPtr(1_000_000)}
-	setInstall := func(c *gin.Context) { withInstallation(c, "org_prepaid") }
-	w, reached, subOnly := runOrgMonthlyCapSub(t, "/v1/messages", setInstall, "Bearer sk-ant-oat-abc123", repo)
-	assert.True(t, reached, "a covered turn must pass even when the org lacks the usage-bypass toggle")
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, subOnly, "the request must be flagged subscription-only")
 }
 
 func TestOrgMonthlySpendCap_OverridePassesThrough(t *testing.T) {

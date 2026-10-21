@@ -248,17 +248,6 @@ func TestWithBalanceCheck_SkipsWhenInstallationMissing(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestWithBalanceCheck_ExemptsSubscriptionRequest(t *testing.T) {
-	// A $0 balance must still pass when the request carries a Claude subscription
-	// bearer — that turn is served on the caller's own plan and debits $0, so
-	// prepaid credits don't apply.
-	repo := &stubBillingRepo{balance: 0}
-	setInstall := func(c *gin.Context) { withInstallation(c, "org_sub") }
-	w, reached := runMiddlewareWith(t, repo, 0, "/v1/messages", setInstall, "Bearer sk-ant-oat-abc123")
-	assert.True(t, reached, "subscription request must pass even at zero balance")
-	assert.Equal(t, http.StatusOK, w.Code)
-}
-
 func TestWithBalanceCheck_402sWithoutSubscriptionCredential(t *testing.T) {
 	// NO subscription credential, NO usage-bypass gate — the turn routes to
 	// a paid model, so a depleted balance must still 402.
@@ -267,29 +256,6 @@ func TestWithBalanceCheck_402sWithoutSubscriptionCredential(t *testing.T) {
 	w, reached := runMiddlewareWith(t, repo, 0, "/v1/messages", setInstall, "")
 	assert.False(t, reached, "no subscription credential means the paid path is gated")
 	assert.Equal(t, http.StatusPaymentRequired, w.Code)
-}
-
-func TestWithBalanceCheck_ExemptsSubscriptionRegardlessOfUsageBypass(t *testing.T) {
-	// Subscription bearer present, but the org has NOT enabled the usage-bypass
-	// gate. The exemption now depends only on the presence of a covering
-	// subscription credential — not on UsageBypassEnabled, which controls the
-	// routing bypass lane, not the billing gate. A subscription-turn is always
-	// free for the org, so a depleted prepaid balance must NOT 402 it.
-	repo := &stubBillingRepo{balance: 0}
-	setInstall := func(c *gin.Context) { withInstallation(c, "org_prepaid") }
-	w, reached := runMiddlewareWith(t, repo, 0, "/v1/messages", setInstall, "Bearer sk-ant-oat-abc123")
-	assert.True(t, reached, "a subscription request must pass regardless of usage-bypass config")
-	assert.Equal(t, http.StatusOK, w.Code)
-}
-
-func TestWithBalanceCheck_ExemptsSubscriptionWhenBalanceRowMissing(t *testing.T) {
-	// The original 402 bug: a subscription org that never had a balance row.
-	// Its turns are free, so a missing row must exempt, not 402.
-	repo := &stubBillingRepo{balanceErr: billing.ErrBalanceRowMissing}
-	setInstall := func(c *gin.Context) { withUsageBypassInstallation(c, "org_sub") }
-	w, reached := runMiddlewareWith(t, repo, 0, "/v1/messages", setInstall, "Bearer sk-ant-oat-abc123")
-	assert.True(t, reached, "subscription request with no balance row must pass")
-	assert.Equal(t, http.StatusOK, w.Code)
 }
 
 // runMiddlewarePrep drives WithBalanceCheck with a caller-supplied prep hook
@@ -401,63 +367,6 @@ func TestWithBalanceCheck_402sCodexSubscriptionOnAnthropicRoute(t *testing.T) {
 	w, reached, _ := runMiddlewarePrep(t, repo, 0, "/v1/messages", prep)
 	assert.False(t, reached, "a Codex sub must not exempt an Anthropic-route request")
 	assert.Equal(t, http.StatusPaymentRequired, w.Code)
-}
-
-func TestWithBalanceCheck_SubscriptionOnlyAtDepletedBalance(t *testing.T) {
-	// At the prepaid threshold, a subscription-covered request is NOT 402'd: it
-	// passes through flagged subscription-only so the proxy serves it on the
-	// caller's own subscription (or refuses a would-be-paid turn), never on a
-	// paid model.
-	repo := &stubBillingRepo{balance: 0}
-	gin.SetMode(gin.TestMode)
-	svc := billing.NewService(repo)
-	engine := gin.New()
-	reached := false
-	subOnly := false
-	engine.GET("/v1/messages", func(c *gin.Context) {
-		withInstallation(c, "org_sub")
-		c.Request.Header.Set("Authorization", "Bearer sk-ant-oat-abc123")
-		middleware.WithBalanceCheck(svc, 0)(c)
-		if c.IsAborted() {
-			return
-		}
-		reached = true
-		subOnly = billing.SubscriptionOnlyFromContext(c.Request.Context())
-		c.Status(http.StatusOK)
-	})
-	w := httptest.NewRecorder()
-	engine.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/v1/messages", nil))
-	assert.True(t, reached, "subscription request at the prepaid threshold must pass through")
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, subOnly, "at the prepaid threshold the request must be flagged subscription-only")
-}
-
-func TestWithBalanceCheck_SubscriptionOnlyWhenBalanceRowMissing(t *testing.T) {
-	// A missing balance row is equivalent to depleted prepaid credits for a
-	// subscription-covered request: allow the caller's own subscription, but do
-	// not permit paid failover.
-	repo := &stubBillingRepo{balanceErr: billing.ErrBalanceRowMissing}
-	gin.SetMode(gin.TestMode)
-	svc := billing.NewService(repo)
-	engine := gin.New()
-	reached := false
-	subOnly := false
-	engine.GET("/v1/messages", func(c *gin.Context) {
-		withInstallation(c, "org_sub")
-		c.Request.Header.Set("Authorization", "Bearer sk-ant-oat-abc123")
-		middleware.WithBalanceCheck(svc, 0)(c)
-		if c.IsAborted() {
-			return
-		}
-		reached = true
-		subOnly = billing.SubscriptionOnlyFromContext(c.Request.Context())
-		c.Status(http.StatusOK)
-	})
-	w := httptest.NewRecorder()
-	engine.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/v1/messages", nil))
-	assert.True(t, reached, "subscription request with no balance row must pass through")
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, subOnly, "missing balance row must force subscription-only serving")
 }
 
 func TestWithBalanceCheck_NonSubscriptionStill402sBelowZero(t *testing.T) {

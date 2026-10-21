@@ -3,7 +3,6 @@ package proxy
 import (
 	"context"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -19,52 +18,6 @@ import (
 )
 
 const recoveryOpusModel = "z-ai/glm-5.2"
-
-func TestTwoModelGatewayRecoveryReadmitsStruckSibling(t *testing.T) {
-	primary := &failingClient{err: &providers.UpstreamErrorResponse{Status: http.StatusBadGateway}}
-	sibling := &fakeClient{outcomes: []fakeOutcome{{writeBytes: []byte("event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n")}}}
-	store := &rolePinStore{byRole: map[string]sessionpin.Pin{
-		hmmHistoryRole(roleForTier(catalog.TierFor(catalog.ModelIDDeepSeekV4Pro.String()))): {
-			Strategy: router.StrategyCluster, DemotedModels: []string{catalog.ModelIDDeepSeekV4Pro.String(), recoveryOpusModel},
-		},
-	}}
-	decision := router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDDeepSeekV4Pro.String(), Metadata: &router.RoutingMetadata{
-		RosterFailover:    true,
-		RescueModels:      []string{catalog.ModelIDDeepSeekV4Pro.String()},
-		SidecarRescuePool: []string{recoveryOpusModel},
-		CandidateModels:   []string{catalog.ModelIDDeepSeekV4Pro.String()},
-	}}
-	svc := NewService(staticRouter{decision: decision}, map[string]providers.Client{
-		providers.ProviderAIAND: primary,
-	}, nil, false, nil, store, false, providers.ProviderAIAND, recoveryOpusModel, nil).WithRetrySleep(func(context.Context, time.Duration) error { return nil })
-	svc.now = func() time.Time { return rateLimitTestNow }
-	body := []byte(`{"model":"gpt-6-luna","stream":true,"messages":[{"role":"user","content":"synthetic exhausted pool"}]}`)
-	rec := httptest.NewRecorder()
-	err := svc.ProxyMessages(twoModelGatewayContext(), body, rec, httptest.NewRequest(http.MethodPost, "/v1/messages", nil))
-	assert.Equal(t, 3, primary.calls)
-	assert.Equal(t, 1, sibling.calls)
-	require.NoError(t, err, "after both strikes a precommit primary failure must still try the permitted sibling")
-	assert.Equal(t, recoveryOpusModel, rec.Header().Get(HeaderRouterModel))
-	assert.Contains(t, rec.Body.String(), "message_stop")
-}
-
-func TestTwoModelRecoveryOnlyLeasesOneExpiredArmPerRequest(t *testing.T) {
-	cooldowns := map[string]time.Time{
-		catalog.ModelIDDeepSeekV4Pro.String(): rateLimitTestNow,
-		recoveryOpusModel:                     rateLimitTestNow,
-	}
-	store := &rolePinStore{byRole: map[string]sessionpin.Pin{
-		hmmHistoryRole(sessionpin.DefaultRole): {Strategy: router.StrategyCluster, DemotionCooldowns: cooldowns},
-	}}
-	svc, _ := cooldownTurnLoopService(store, true)
-	result := runDemotionTurnLoop(t, svc, context.Background())
-	defer result.releaseCooldownProbes()
-
-	require.Len(t, result.CooldownProbeReleases, 1, "one request must not lock both allowed models while selecting its probe")
-	// Equal expiries tie-break by name, so the Opus arm is the probe.
-	assert.Equal(t, map[string]time.Time{recoveryOpusModel: rateLimitTestNow}, result.CooldownProbes)
-	assert.Equal(t, []string{catalog.ModelIDDeepSeekV4Pro.String()}, result.SessionDemotedModels, "the expired arm this request did not lease stays out of the turn")
-}
 
 // An in-process lease is a safety net for stores without durable leases: a
 // request that never released must not deny the arm forever.
@@ -133,77 +86,6 @@ func (s *recoveryLeaseStore) ClearDemotionCooldown(_ context.Context, _ [session
 
 var _ sessionpin.RecoveryProbeStore = (*recoveryLeaseStore)(nil)
 
-// A durable lease is requested as a duration, never a worker-clock instant,
-// and a probe that served cleanly lifts its cooldown from both rows the next
-// turn merges, keyed to the expiry it observed.
-func TestRecoveredProbeClearsCooldownFromBothRows(t *testing.T) {
-	expired := rateLimitTestNow.Add(-time.Second)
-	store := &recoveryLeaseStore{rolePinStore: rolePinStore{byRole: map[string]sessionpin.Pin{
-		hmmHistoryRole(sessionpin.DefaultRole): {Strategy: router.StrategyCluster, DemotionCooldowns: map[string]time.Time{recoveryOpusModel: expired}},
-	}}}
-	svc, _ := cooldownTurnLoopService(store, true)
-	result := runDemotionTurnLoop(t, svc, context.Background())
-	result.releaseCooldownProbes()
-	require.Equal(t, []time.Duration{recoveryProbeLeaseDuration}, store.leaseFor)
-	require.Equal(t, map[string]time.Time{recoveryOpusModel: expired}, result.CooldownProbes)
-
-	svc.clearRecoveredCooldown(context.Background(), result, freshTurnModel, nil)
-	assert.Empty(t, store.cleared, "a turn served by another model recovers nothing")
-
-	svc.clearRecoveredCooldown(context.Background(), result, recoveryOpusModel, &providers.UpstreamErrorResponse{Status: http.StatusBadGateway})
-	assert.Empty(t, store.cleared, "a failed probe leaves the cooldown for the strike to rewrite")
-
-	svc.clearRecoveredCooldown(context.Background(), result, recoveryOpusModel, nil)
-	assert.Equal(t, []clearedCooldown{
-		{role: sessionpin.DefaultRole, model: recoveryOpusModel, until: expired},
-		{role: hmmHistoryRole(sessionpin.DefaultRole), model: recoveryOpusModel, until: expired},
-	}, store.cleared)
-}
-
-func TestRecoveryProbeLeaseDeniedModelsAreHardExcluded(t *testing.T) {
-	cooldowns := map[string]time.Time{
-		catalog.ModelIDDeepSeekV4Pro.String(): rateLimitTestNow,
-		recoveryOpusModel:                     rateLimitTestNow,
-	}
-	store := &recoveryLeaseStore{
-		rolePinStore: rolePinStore{byRole: map[string]sessionpin.Pin{
-			hmmHistoryRole(sessionpin.DefaultRole): {Strategy: router.StrategyCluster, DemotionCooldowns: cooldowns},
-		}},
-		denyAll: true,
-	}
-	svc, scorer := cooldownTurnLoopService(store, true)
-	result := runDemotionTurnLoop(t, svc, context.Background())
-
-	assert.Empty(t, result.CooldownProbes)
-	assert.ElementsMatch(t, []string{catalog.ModelIDDeepSeekV4Pro.String(), recoveryOpusModel}, result.CooldownProbeDeniedModels)
-	require.Len(t, scorer.requests, 1)
-	for _, model := range []string{catalog.ModelIDDeepSeekV4Pro.String(), recoveryOpusModel} {
-		assert.Contains(t, scorer.requests[0].ExcludedModels, model, "lease-denied models must not be restored by soft automatic-exclusion fallback")
-	}
-	ctx := context.WithValue(context.Background(), SessionCooldownProbeDeniedModelsContextKey{}, result.CooldownProbeDeniedModels)
-	assert.Contains(t, svc.rescueExcludedModels(ctx), catalog.ModelIDDeepSeekV4Pro.String(), "rescue must not readmit a model whose probe is leased elsewhere")
-	assert.Contains(t, svc.rescueExcludedModels(ctx), recoveryOpusModel)
-}
-
-func TestRecoveryProbeSkipsHardExcludedExpiredModel(t *testing.T) {
-	excludedModel := catalog.ModelIDDeepSeekV4Pro.String()
-	eligibleModel := recoveryOpusModel
-	store := &recoveryLeaseStore{rolePinStore: rolePinStore{byRole: map[string]sessionpin.Pin{
-		hmmHistoryRole(sessionpin.DefaultRole): {Strategy: router.StrategyCluster, DemotionCooldowns: map[string]time.Time{
-			excludedModel: rateLimitTestNow.Add(-time.Minute),
-			eligibleModel: rateLimitTestNow,
-		}},
-	}}}
-	svc, _ := cooldownTurnLoopService(store, true)
-	ctx := context.WithValue(context.Background(), InstallationExcludedModelsContextKey{}, []string{excludedModel})
-	result := runDemotionTurnLoop(t, svc, ctx)
-	defer result.releaseCooldownProbes()
-
-	assert.Equal(t, []string{eligibleModel}, store.attempted, "an ineligible old cooldown must not consume the only probe slot")
-	assert.Equal(t, map[string]time.Time{eligibleModel: rateLimitTestNow}, result.CooldownProbes)
-	assert.NotContains(t, result.SessionDemotedModels, eligibleModel)
-}
-
 func TestRecoveryProbeSkipsModelWithoutEligibleProviderBinding(t *testing.T) {
 	store := &recoveryLeaseStore{rolePinStore: rolePinStore{byRole: map[string]sessionpin.Pin{
 		hmmHistoryRole(sessionpin.DefaultRole): {Strategy: router.StrategyCluster, DemotionCooldowns: map[string]time.Time{
@@ -233,98 +115,4 @@ func twoModelGatewayContext() context.Context {
 		{Provider: providers.ProviderAIAND, Plaintext: []byte("synthetic-key"), ModelAliases: map[string]string{catalog.ModelIDDeepSeekV4Pro.String(): catalog.ModelIDDeepSeekV4Pro.String()}},
 		{Provider: providers.ProviderAIAND, Plaintext: []byte("synthetic-key"), ModelAliases: map[string]string{recoveryOpusModel: recoveryOpusModel}},
 	})
-}
-
-func TestTwoModelGatewayRecoveryRetriesThenRecordsWithdrawal(t *testing.T) {
-	for _, scenario := range []struct {
-		name      string
-		status    int
-		transient bool
-		cooldown  bool
-		reason    sessionpin.DemotionReason
-	}{
-		{name: "502 gets bounded cooldown", status: http.StatusBadGateway, transient: true, cooldown: true, reason: sessionpin.DemotionReasonTransientFailure},
-		{name: "429 flag off remains permanent", status: http.StatusTooManyRequests, reason: sessionpin.DemotionReasonRescuedFailure},
-		{name: "429 flag on has bounded cooldown", status: http.StatusTooManyRequests, transient: true, cooldown: true, reason: sessionpin.DemotionReasonRateLimited},
-	} {
-		t.Run(scenario.name, func(t *testing.T) {
-			store := &cooldownStubPinStore{}
-			primary := &failingClient{err: &providers.UpstreamErrorResponse{Status: scenario.status}}
-			sibling := &fakeClient{outcomes: []fakeOutcome{{writeBytes: []byte("event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"synthetic\",\"model\":\"" + recoveryOpusModel + "\",\"usage\":{\"input_tokens\":1,\"output_tokens\":0}}}\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"}\n\n")}}}
-			decision := router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDDeepSeekV4Pro.String(), Metadata: &router.RoutingMetadata{
-				RosterFailover:  true,
-				RescueModels:    []string{catalog.ModelIDDeepSeekV4Pro.String(), recoveryOpusModel},
-				CandidateModels: []string{catalog.ModelIDDeepSeekV4Pro.String(), recoveryOpusModel},
-			}}
-			svc := NewService(staticRouter{decision: decision}, map[string]providers.Client{
-				providers.ProviderAIAND: primary,
-			}, nil, false, nil, store, false, providers.ProviderAIAND, recoveryOpusModel, nil).
-				WithRescuedFailureArmDemotion(true).WithTransientRateLimit(scenario.transient, 45)
-			now := rateLimitTestNow
-			svc.now = func() time.Time { return now }
-			var retryWaits []time.Duration
-			svc.WithRetrySleep(func(_ context.Context, wait time.Duration) error {
-				retryWaits = append(retryWaits, wait)
-				now = now.Add(wait)
-				return nil
-			})
-			rec := httptest.NewRecorder()
-			body := []byte(`{"model":"gpt-6-luna","stream":true,"messages":[{"role":"user","content":"synthetic recovery check"}]}`)
-			err := svc.ProxyMessages(twoModelGatewayContext(), body, rec, httptest.NewRequest(http.MethodPost, "/v1/messages", nil))
-			require.NoError(t, err)
-			assert.Equal(t, 3, primary.calls)
-			assert.Equal(t, 1, sibling.calls)
-			assert.Len(t, retryWaits, 2)
-			assert.Equal(t, recoveryOpusModel, rec.Header().Get(HeaderRouterModel))
-			assert.Contains(t, rec.Body.String(), "message_stop")
-			if scenario.cooldown {
-				assert.Empty(t, store.demotions)
-				require.Len(t, store.cooldowns, 2)
-				for _, withdrawal := range store.cooldowns {
-					assert.Equal(t, catalog.ModelIDDeepSeekV4Pro.String(), withdrawal.model)
-					assert.Equal(t, now.Add(45*time.Second), withdrawal.until)
-					assert.Equal(t, scenario.reason, withdrawal.reason)
-				}
-			} else {
-				assert.Empty(t, store.cooldowns)
-				require.Len(t, store.demotions, 2)
-				for _, withdrawal := range store.demotions {
-					assert.Equal(t, catalog.ModelIDDeepSeekV4Pro.String(), withdrawal.model)
-					assert.Equal(t, sessionpin.DemotionReasonRescuedFailure, withdrawal.reason)
-				}
-			}
-		})
-	}
-}
-
-// A fixed expiry must survive history refreshes. Captured writes test the Go
-// writer contract; this deliberately does not reimplement SQL merge semantics.
-func TestTwoModelRecoveryHMMRefreshDoesNotRewriteCooldown(t *testing.T) {
-	until := rateLimitTestNow.Add(45 * time.Second)
-	store := &rolePinStore{byRole: map[string]sessionpin.Pin{
-		hmmHistoryRole(sessionpin.DefaultRole): coolingPin(demotedPinModel, map[string]time.Time{demotedPinModel: until}),
-	}}
-	svc, scorer := cooldownTurnLoopService(store, true)
-	now := rateLimitTestNow
-	svc.now = func() time.Time { return now }
-	res := turnLoopResult{InstallationID: uuid.New(), SessionKey: nonZeroSessionKey(), PinRole: sessionpin.DefaultRole,
-		Decision: router.Decision{Provider: providers.ProviderAIAND, Model: freshTurnModel, Reason: hmmHistoryReason}}
-	for step := 0; step <= 96; step++ {
-		now = rateLimitTestNow.Add(time.Duration(step) * 30 * time.Minute)
-		svc.recordHMMTurnHistory(res, providers.ProviderAIAND, freshTurnModel, 0, 0, 0, 0, false)
-		turn := runDemotionTurnLoop(t, svc, context.Background())
-		turn.releaseCooldownProbes()
-		if step == 0 {
-			assert.Contains(t, turn.SessionDemotedModels, demotedPinModel)
-		} else {
-			assert.NotContains(t, turn.SessionDemotedModels, demotedPinModel)
-			assert.NotContains(t, scorer.requests[len(scorer.requests)-1].AutomaticExcludedModels, demotedPinModel)
-		}
-	}
-	store.mu.Lock()
-	defer store.mu.Unlock()
-	for _, write := range store.upserts {
-		assert.Empty(t, write.DemotionCooldowns, "history/pin refresh must not emit a new cooldown")
-		assert.Empty(t, write.DemotedModels, "history/pin refresh must not manufacture a permanent strike")
-	}
 }

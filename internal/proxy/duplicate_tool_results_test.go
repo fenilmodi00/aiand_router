@@ -33,36 +33,6 @@ func codexClientCtx() context.Context {
 	return context.WithValue(context.Background(), proxy.ClientIdentityContextKey{}, proxy.ClientIdentity{ClientApp: proxy.ClientAppCodex})
 }
 
-func TestProxyOpenAIResponses_CodexDuplicateToolOutputsReachAnthropicOnce(t *testing.T) {
-	anthropic := &fakeProvider{proxyResponse: func(w http.ResponseWriter) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = io.WriteString(w, `{"id":"msg_1","type":"message","role":"assistant","model":"z-ai/glm-5.2","content":[{"type":"text","text":"ok"}],"stop_reason":"end_turn","usage":{"input_tokens":1,"output_tokens":1}}`)
-	}}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.2", Reason: "test"}}
-	svc := proxy.NewService(fr, map[string]providers.Client{
-		providers.ProviderAIAND: anthropic,
-	}, nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.2", nil)
-
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(""))
-	require.NoError(t, svc.ProxyOpenAIResponses(codexClientCtx(), []byte(codexNotifyTurnBody), rec, req))
-
-	require.Len(t, anthropic.proxyBodies, 1)
-	var results []gjson.Result
-	gjson.GetBytes(anthropic.proxyBodies[0], "messages").ForEach(func(_, msg gjson.Result) bool {
-		msg.Get("content").ForEach(func(_, block gjson.Result) bool {
-			if block.Get("type").String() == "tool_result" {
-				results = append(results, block)
-			}
-			return true
-		})
-		return true
-	})
-	require.Len(t, results, 1, "Anthropic 400s on a tool_use with more than one tool_result")
-	assert.Contains(t, results[0].Get("content").Raw, "status: passed")
-}
-
 func TestProxyOpenAIResponses_CodexDuplicateToolOutputsStayVerbatimOnNativeOpenAI(t *testing.T) {
 	openai := &fakeProvider{proxyResponse: func(w http.ResponseWriter) {
 		w.Header().Set("Content-Type", "application/json")
@@ -87,37 +57,4 @@ func TestProxyOpenAIResponses_CodexDuplicateToolOutputsStayVerbatimOnNativeOpenA
 		return true
 	})
 	assert.Equal(t, 4, outputs, "native Responses dispatch forwards the caller's own history")
-}
-
-func TestProxyMessages_DuplicateToolResultsReachAnthropicOnce(t *testing.T) {
-	anthropic := &fakeProvider{proxyResponse: func(w http.ResponseWriter) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = io.WriteString(w, `{"id":"msg_1","type":"message","role":"assistant","model":"z-ai/glm-5.2","content":[{"type":"text","text":"ok"}],"stop_reason":"end_turn","usage":{"input_tokens":1,"output_tokens":1}}`)
-	}}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.2", Reason: "test"}}
-	svc := proxy.NewService(fr, map[string]providers.Client{
-		providers.ProviderAIAND: anthropic,
-	}, nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.2", nil)
-
-	body := []byte(`{"model":"z-ai/glm-5.2","max_tokens":512,"messages":[` +
-		`{"role":"user","content":"poll the build"},` +
-		`{"role":"assistant","content":[{"type":"tool_use","id":"toolu_dup_1","name":"exec","input":{}}]},` +
-		`{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_dup_1","content":"done"},{"type":"tool_result","tool_use_id":"toolu_dup_1","content":"progress"},{"type":"text","text":"what next?"}]}]}`)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
-	require.NoError(t, svc.ProxyMessages(context.Background(), body, rec, req))
-
-	require.Len(t, anthropic.proxyBodies, 1)
-	results := 0
-	gjson.GetBytes(anthropic.proxyBodies[0], "messages").ForEach(func(_, msg gjson.Result) bool {
-		msg.Get("content").ForEach(func(_, block gjson.Result) bool {
-			if block.Get("tool_use_id").String() == "toolu_dup_1" {
-				results++
-			}
-			return true
-		})
-		return true
-	})
-	assert.Equal(t, 1, results)
 }

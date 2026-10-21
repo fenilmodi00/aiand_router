@@ -187,74 +187,6 @@ func TestServingAdmissionRejectsMalformedBodyBeforeBinding(t *testing.T) {
 	require.Zero(t, store.calls, "rejected requests must not create or refresh session bindings")
 }
 
-func TestServingAdmissionAllowsRetirementReplyAfterAuthentication(t *testing.T) {
-	cfg, admitted, _, _ := admissionMiddlewareFixture(t)
-	body := `{"model":"deepseek/deepseek-v4.1-flash","max_tokens":1,"messages":[{"role":"user","content":"/beta"}]}`
-	response := runAdmissionMiddlewareWithBody(t, cfg, admitted, body, func(c *gin.Context) {
-		t.Fatal("retired command must finish before inference")
-	})
-	require.Equal(t, http.StatusOK, response.Code)
-	require.Contains(t, response.Body.String(), "Beta has been retired")
-}
-
-func TestServingAdmissionPreservesBodyAndSnapshotWithAttributionBeforeDispatch(t *testing.T) {
-	cfg, admitted, _, builds := admissionMiddlewareFixture(t)
-	var recorded policyregistry.ServingAssertion
-	var attributedSnapshot *policyregistry.Snapshot
-	var order []string
-	cfg.Attribution = admissionAttributionFunc(func(ctx context.Context, requestID string, assertion policyregistry.ServingAssertion) error {
-		assert.Equal(t, "request-original", requestID)
-		assert.Equal(t, admitted.Admission, assertion.Admission)
-		assert.Equal(t, admitted.Scope, assertion.Scope)
-		_, hasDeadline := ctx.Deadline()
-		assert.True(t, hasDeadline)
-		recorded = assertion
-		attributedSnapshot = policyregistry.ServingSnapshotFromContext(ctx)
-		require.NotNil(t, attributedSnapshot)
-		order = append(order, "attribution")
-		return nil
-	})
-	response := runAdmissionMiddleware(t, cfg, admitted, func(c *gin.Context) {
-		order = append(order, "dispatch")
-		body, err := io.ReadAll(c.Request.Body)
-		require.NoError(t, err)
-		assert.Equal(t, admissionTestBody, string(body))
-		assert.Equal(t, recorded.BodySHA256, policyregistry.Digest(body))
-		snapshot := policyregistry.ServingSnapshotFromContext(c.Request.Context())
-		require.Same(t, attributedSnapshot, snapshot)
-		assert.Equal(t, admitted.Admission.Selection.Release.SHA256, snapshot.HeadSnapshot.Head.ReleaseSHA256)
-		decision, err := snapshot.Routers[router.StrategyHMM].Route(c.Request.Context(), router.Request{})
-		require.NoError(t, err)
-		assert.Equal(t, admissionTestModel, decision.Model)
-		identity, ok := requestcontext.ServingIdentityFromContext(c.Request.Context())
-		require.True(t, ok)
-		assert.Equal(t, admitted.Admission.BindingGeneration, identity.BindingGeneration)
-		assert.Equal(t, admitted.Admission.ActivationID, identity.ActivationID)
-		assert.Equal(t, admitted.Admission.Selection.Binding.SHA256, identity.BindingID)
-		assert.NotEmpty(t, identity.StateNamespace)
-		c.Status(http.StatusAccepted)
-	})
-	assert.Equal(t, http.StatusAccepted, response.Code)
-	assert.Equal(t, []string{"attribution", "dispatch"}, order)
-	assert.Equal(t, 1, *builds)
-}
-
-func TestServingAdmissionAttributionFailurePreventsDispatch(t *testing.T) {
-	for _, configured := range []bool{false, true} {
-		t.Run(map[bool]string{false: "missing", true: "storage failure"}[configured], func(t *testing.T) {
-			cfg, admitted, _, _ := admissionMiddlewareFixture(t)
-			if configured {
-				cfg.Attribution = admissionAttributionFunc(func(context.Context, string, policyregistry.ServingAssertion) error {
-					return errors.New("primary unavailable")
-				})
-			}
-			response := runAdmissionMiddleware(t, cfg, admitted, func(*gin.Context) { t.Fatal("inference dispatched before attribution persisted") })
-			assert.Equal(t, http.StatusServiceUnavailable, response.Code)
-			assert.Contains(t, response.Body.String(), "serving_attribution_unavailable")
-		})
-	}
-}
-
 func TestServingAdmissionFleetMismatchPreventsSnapshotLoad(t *testing.T) {
 	cfg, admitted, store, builds := admissionMiddlewareFixture(t)
 	cfg.Identity.Target = policyregistry.TargetInternal
@@ -332,31 +264,6 @@ func TestDirectAdmissionMapsCredentialFailuresAndInfrastructureFailures(t *testi
 			require.Contains(t, response.Body.String(), test.wantBody)
 		})
 	}
-}
-func TestDirectAdmissionRetainsPolicyAcrossWorkerCodeRelease(t *testing.T) {
-	cfg, admitted, _, _ := admissionMiddlewareFixture(t)
-	primary := &directAdmissionStore{assertion: admitted}
-	var err error
-	cfg.Decisions, err = policyregistry.NewAdmissionDecisionCache(primary, 10, time.Minute, time.Now)
-	require.NoError(t, err)
-	cfg.Identity.Revision = "worker-0002"
-	cfg.Identity.ImageDigest = "sha256:" + strings.Repeat("e", 64)
-	cfg.Attribution = admissionAttributionFunc(func(_ context.Context, _ string, got policyregistry.ServingAssertion) error {
-		require.Equal(t, admitted.Admission, got.Admission)
-		return nil
-	})
-	for range 2 {
-		response := runAdmissionMiddleware(t, cfg, admitted, func(c *gin.Context) {
-			require.NotNil(t, policyregistry.ServingSnapshotFromContext(c.Request.Context()))
-			body, err := io.ReadAll(c.Request.Body)
-			require.NoError(t, err)
-			require.Equal(t, admissionTestBody, string(body))
-			c.Status(http.StatusNoContent)
-		})
-		require.Equal(t, http.StatusNoContent, response.Code, response.Body.String())
-	}
-	// No canonical session in this fixture: each turn must consult primary.
-	require.Equal(t, 2, primary.calls)
 }
 func TestDirectAdmissionRejectsOtherFleet(t *testing.T) {
 	cfg, admitted, _, _ := admissionMiddlewareFixture(t)

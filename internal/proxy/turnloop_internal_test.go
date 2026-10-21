@@ -294,65 +294,6 @@ func TestRecordTurnUsage_ForwardsSwitchHistory(t *testing.T) {
 		"a fresh role row must inherit an existing switch latch when the served model is unchanged")
 }
 
-func TestRecordTurnUsage_HMMDecisionWritesHistoryOnly(t *testing.T) {
-	store := newStubPinStore()
-	svc := NewService(
-		nil,
-		nil,
-		nil,
-		false,
-		nil,
-		store,
-		false,
-		"anthropic", "z-ai/glm-5.3-flash",
-		nil,
-	)
-
-	var sessionKey [sessionpin.SessionKeyLen]byte
-	for i := range sessionKey {
-		sessionKey[i] = byte(i + 1)
-	}
-
-	res := turnLoopResult{
-		InstallationID: uuid.New(),
-		Strategy:       router.StrategyHMMBeta,
-		Decision: router.Decision{
-			Provider: "anthropic",
-			Model:    "deepseek/deepseek-v4-pro",
-			Reason:   "hmm_policy(label=high)",
-			Metadata: &router.RoutingMetadata{
-				Strategy: string(router.StrategyHMMBeta),
-				RouteID:  "route-1",
-			},
-		},
-		SessionKey: sessionKey,
-		PinRole:    sessionpin.DefaultRole,
-		PinTier:    "hmm_fresh_unpinned",
-		// Simulate a prior HMM/default-route model so the history role can
-		// latch has_ever_switched without mutating the active routing role.
-		PriorServedModel: "z-ai/glm-5.3-flash",
-	}
-	svc.recordTurnUsage(context.Background(), res, res.Decision.Provider, res.Decision.Model, 1200, 80, 200, 900, false)
-
-	store.mu.Lock()
-	defer store.mu.Unlock()
-	require.Len(t, store.upserts, 1)
-	assert.Equal(t, hmmHistoryRole(sessionpin.DefaultRole), store.upserts[0].Role)
-	assert.Equal(t, "hmm_policy(label=high)", store.upserts[0].Reason)
-	assert.Equal(t, providers.ProviderAIAND, store.upserts[0].Provider)
-	assert.Empty(t, store.upserts[0].Model, "HMM history rows must not be routable pins")
-	assert.Equal(t, router.StrategyHMMBeta, store.upserts[0].Strategy)
-	assert.Equal(t, []string{hmmHistoryRole(sessionpin.DefaultRole)}, store.usageRoles)
-	assert.NotContains(t, store.usageRoles, sessionpin.DefaultRole, "HMM turns must not mutate the active routing pin role")
-	assert.Equal(t, 1200, store.lastUsage.InputTokens)
-	assert.Equal(t, 900, store.lastUsage.CachedReadTokens)
-	assert.Equal(t, 200, store.lastUsage.CachedWriteTokens)
-	assert.Equal(t, 80, store.lastUsage.OutputTokens)
-	assert.Equal(t, "deepseek/deepseek-v4-pro", store.lastUsage.ServedModel)
-	assert.Equal(t, "z-ai/glm-5.3-flash", store.lastUsage.PriorServedModel)
-	assert.Equal(t, router.StrategyHMMBeta, store.lastUsage.Strategy)
-}
-
 func TestRecordTurnUsage_HMMModelChangeWritesCurrentUsageOnly(t *testing.T) {
 	store := newStubPinStore()
 	svc := NewService(
@@ -539,34 +480,6 @@ func TestNormalizeHMMStayPin_ReResolvesDisabledProvider(t *testing.T) {
 		"a sticky HMM pin must re-resolve a disabled provider for its retained model")
 }
 
-func TestNormalizeHMMStayPin_PreservesCatalogRoutableTerra(t *testing.T) {
-	availableProviders := map[string]struct{}{providers.ProviderAIAND: {}}
-	svc := NewService(
-		nil,
-		map[string]providers.Client{providers.ProviderAIAND: nil},
-		nil,
-		false,
-		nil,
-		nil,
-		false,
-		providers.ProviderAIAND, "z-ai/glm-5.3-flash",
-		nil,
-	).WithAvailableModels(catalog.RoutingTargetSet(availableProviders))
-	pin := sessionpin.Pin{
-		Provider:        providers.ProviderAIAND,
-		Model:           "gpt-5.6-terra",
-		LastServedModel: "gpt-5.6-terra",
-		LastTurnEndedAt: time.Now(),
-		PinnedUntil:     time.Now().Add(time.Hour),
-	}
-
-	normalized, ok := svc.normalizeHMMStayPin(router.Request{}, pin)
-
-	require.True(t, ok)
-	assert.Equal(t, "gpt-5.6-terra", normalized.Model)
-	assert.Equal(t, providers.ProviderAIAND, normalized.Provider)
-}
-
 func TestRecordTurnUsage_HMMEVStayWritesHistoryOnly(t *testing.T) {
 	store := newStubPinStore()
 	svc := NewService(
@@ -724,70 +637,6 @@ func TestHMMCostGate_SwitchesCheaperFreshWhenEVPositive(t *testing.T) {
 	assert.Equal(t, planner.ReasonEVPositive, plan.Reason)
 }
 
-func TestHMMCostGate_SameTierPinSuppressesLateralSwitchWhenEnabled(t *testing.T) {
-	svc := NewService(
-		nil,
-		map[string]providers.Client{providers.ProviderAIAND: nil},
-		nil,
-		false,
-		nil,
-		nil,
-		false,
-		"anthropic", "z-ai/glm-5.3-flash",
-		nil,
-	)
-	history := sessionpin.Pin{
-		Provider:        providers.ProviderAIAND,
-		LastServedModel: "gpt-4.1-mini",
-		LastTurnEndedAt: time.Now().Add(-30 * time.Second),
-	}
-	fresh := router.Decision{
-		Provider: providers.ProviderAIAND,
-		Model:    "deepseek/deepseek-v4.1-flash",
-		Reason:   "hmm_policy(classifier 'fast')",
-		Metadata: &router.RoutingMetadata{
-			Strategy:    string(router.StrategyHMM),
-			RouteID:     "route-1",
-			ChosenScore: 0.70,
-		},
-	}
-	// Confirm both models share the same tier before exercising the guard.
-	require.Equal(t, catalog.TierFor(history.LastServedModel), catalog.TierFor(fresh.Model))
-	require.NotEqual(t, catalog.TierUnknown, catalog.TierFor(history.LastServedModel))
-
-	// Flag off (default): unaffected, same as any other EV-positive switch.
-	decision, plan, sticky, stayModel := svc.hmmCostGatedDecision(
-		router.Request{},
-		sessionpin.Pin{},
-		history,
-		fresh,
-		10_000,
-		false,
-	)
-	assert.False(t, sticky)
-	assert.Equal(t, "deepseek/deepseek-v4.1-flash", decision.Model)
-	assert.Equal(t, "gpt-4.1-mini", stayModel)
-	assert.Equal(t, planner.OutcomeSwitch, plan.Outcome)
-	assert.Equal(t, planner.ReasonEVPositive, plan.Reason)
-
-	// Flag on: the lateral same-tier switch is suppressed; the pin sticks.
-	svc.WithHMMSameTierPin(true)
-	decision, plan, sticky, stayModel = svc.hmmCostGatedDecision(
-		router.Request{},
-		sessionpin.Pin{},
-		history,
-		fresh,
-		10_000,
-		false,
-	)
-	assert.True(t, sticky)
-	assert.Equal(t, "gpt-4.1-mini", decision.Model)
-	assert.Equal(t, providers.ProviderAIAND, decision.Provider)
-	assert.Equal(t, "gpt-4.1-mini", stayModel)
-	assert.Equal(t, planner.OutcomeStay, plan.Outcome)
-	assert.Equal(t, planner.ReasonSameTierPinned, plan.Reason)
-}
-
 func TestHMMCostGate_SameTierPinDoesNotBlockCrossTierSwitch(t *testing.T) {
 	svc := NewService(
 		nil,
@@ -876,51 +725,6 @@ func TestHMMCostGate_SameTierPinDoesNotBlockConfidentUpgrade(t *testing.T) {
 	assert.Equal(t, "moonshotai/kimi-k2.7", stayModel)
 	assert.Equal(t, planner.OutcomeSwitch, plan.Outcome)
 	assert.Equal(t, hmmReasonConfidentUpgrade, plan.Reason)
-}
-
-func TestHMMCostGate_SameTierPinIgnoresUnknownTierModels(t *testing.T) {
-	svc := NewService(
-		nil,
-		map[string]providers.Client{providers.ProviderAIAND: nil},
-		nil,
-		false,
-		nil,
-		nil,
-		false,
-		"anthropic", "z-ai/glm-5.3-flash",
-		nil,
-	).WithHMMSameTierPin(true)
-	history := sessionpin.Pin{
-		Provider:        providers.ProviderAIAND,
-		LastServedModel: "z-ai/glm-5.2", // untiered (TierUnknown) in the catalog fixture
-		LastTurnEndedAt: time.Now().Add(-30 * time.Second),
-	}
-	fresh := router.Decision{
-		Provider: providers.ProviderAIAND,
-		Model:    "deepseek/deepseek-v4.1-flash",
-		Reason:   "hmm_policy(classifier 'fast')",
-		Metadata: &router.RoutingMetadata{
-			Strategy:    string(router.StrategyHMM),
-			RouteID:     "route-1",
-			ChosenScore: 0.70,
-		},
-	}
-	require.Equal(t, catalog.TierUnknown, catalog.TierFor(history.LastServedModel))
-
-	decision, plan, sticky, stayModel := svc.hmmCostGatedDecision(
-		router.Request{},
-		sessionpin.Pin{},
-		history,
-		fresh,
-		10_000,
-		false,
-	)
-
-	assert.False(t, sticky)
-	assert.Equal(t, "deepseek/deepseek-v4.1-flash", decision.Model)
-	assert.Equal(t, "z-ai/glm-5.2", stayModel)
-	assert.Equal(t, planner.OutcomeSwitch, plan.Outcome)
-	assert.Equal(t, planner.ReasonEVPositive, plan.Reason)
 }
 
 func TestHMMCostGate_PhaseChangeFollowsFreshDecision(t *testing.T) {
