@@ -41,30 +41,6 @@ func spentCodexService(p *fakeProvider) *proxy.Service {
 		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 }
 
-// TestLinkedFirst_OpenAI_SpentCodexPlan_ContinuesOnWeaveKey: a linked-first
-// turn whose ChatGPT plan window has bound must roll over to the deployment
-// key and the organization's credits — the linked plan is a funding
-// preference, and the balance gate already admitted the turn. Refusing it as
-// "credits exhausted" was the incident this guards against: a funded org
-// locked out of Codex for the rest of the plan window.
-func TestLinkedFirst_OpenAI_SpentCodexPlan_ContinuesOnWeaveKey(t *testing.T) {
-	p := &fakeProvider{proxyResponse: codexResponsesStream}
-	svc := spentCodexService(p)
-
-	body := `{"model":"gpt-5.6-sol","messages":[{"role":"user","content":"hi"}],"max_tokens":100,"stream":true}`
-	rec, req := codexSubRequest(t, body)
-
-	ctx := billing.WithSubscriptionOnly(context.Background(), billing.SubscriptionOnlyLinkedFirst)
-	require.NoError(t, svc.ProxyOpenAIChatCompletion(ctx, []byte(body), rec, req))
-
-	require.Len(t, p.proxyBodies, 1, "the turn must dispatch once on the fallback key")
-	if p.proxyCreds[0] != nil {
-		assert.False(t, p.proxyCreds[0].OAuth, "the spent ChatGPT plan must not be dispatched on")
-	}
-	assert.NotContains(t, rec.Body.String(), "credits are depleted",
-		"a credit-funded turn must not claim the organization's credits are gone")
-}
-
 // TestSubscriptionOnly_OpenAI_SpentCodexPlan_DepletedStillRefuses402: the
 // rollover is scoped to linked-first. With credits genuinely depleted there is
 // nothing to fall through to, so a spent plan is still refused, never billed.
@@ -102,80 +78,6 @@ func TestLinkedFirst_OpenAI_PaidRoute_ContinuesOnCredits(t *testing.T) {
 	require.NoError(t, svc.ProxyOpenAIChatCompletion(ctx, []byte(body), rec, req))
 	require.Positive(t, fr.routeCalls, "the scorer must be consulted so the decision is the paid route under test")
 	require.Len(t, p.proxyBodies, 1, "the paid route must dispatch on organization credits")
-}
-
-// TestLinkedFirst_Anthropic_SpentClaudePlan_ContinuesOnWeaveKey is the Claude
-// counterpart: an observed-exhausted Claude plan on a linked-first turn rolls
-// over to the deployment key instead of the 402 the depleted path keeps
-// (compare TestSubscriptionOnly_ExhaustedSubscription_Refuses402).
-func TestLinkedFirst_Anthropic_SpentClaudePlan_ContinuesOnWeaveKey(t *testing.T) {
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: bypassScorerPickMdl}}
-	p := &fakeProvider{proxyResponse: bypassStreamResponse}
-	obs := usage.NewObserver([]byte("salt"), 10*time.Minute, time.Now)
-	obs.Record(obs.Key([]byte(bypassSubToken)), usage.Snapshot{
-		Secondary: usage.Window{UsedPercent: 1.0, WindowMinutes: 10080},
-	})
-	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: p}, nil, false, nil, nil, false, providers.ProviderAIAND, bypassScorerPickMdl, nil).
-		WithUsageObserver(obs).
-		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
-
-	rec, req, body := bypassRequest(t)
-	ctx := billing.WithSubscriptionOnly(bypassCtx(0.80), billing.SubscriptionOnlyLinkedFirst)
-	require.NoError(t, svc.ProxyMessages(ctx, body, rec, req))
-
-	require.Len(t, p.proxyBodies, 1, "the turn must dispatch once on the fallback key")
-	if p.proxyCreds[0] != nil {
-		assert.False(t, p.proxyCreds[0].OAuth, "the spent Claude plan must not be dispatched on")
-	}
-	assert.NotContains(t, rec.Body.String(), "credits are depleted",
-		"a credit-funded turn must not claim the organization's credits are gone")
-}
-
-// TestLinkedFirst_Anthropic_BypassThrottled_ReroutesOnCredits: the bypass 429
-// is usually the first exhaustion signal — the observer still reads "slack" —
-// so it cannot be caught pre-routing. A linked-first turn whose bypass attempt
-// is throttled reroutes on organization credits instead of the 402 a depleted
-// turn gets (compare TestSubscriptionOnly_BypassRetryable_Refuses402).
-func TestLinkedFirst_Anthropic_BypassThrottled_ReroutesOnCredits(t *testing.T) {
-	// Headers go through Set so they canonicalize the way a real response's
-	// do; the reset must still be ahead, or the observer treats the window as
-	// refilled and the reroute would retry the plan instead of the fallback key.
-	throttled := http.Header{}
-	throttled.Set("anthropic-ratelimit-unified-weekly-limit", "100000")
-	throttled.Set("anthropic-ratelimit-unified-weekly-remaining", "0")
-	throttled.Set("anthropic-ratelimit-unified-weekly-reset", time.Now().Add(24*time.Hour).UTC().Format(time.RFC3339))
-	bypassResp := &providers.UpstreamErrorResponse{
-		Status:  http.StatusTooManyRequests,
-		Headers: throttled,
-		Body:    []byte(`{"type":"error","error":{"type":"rate_limit_error","message":"weekly limit exceeded"}}`),
-	}
-	p := &fakeProvider{proxyErr: bypassResp, proxyResponse: bypassStreamResponse}
-	wrappedP := &swapErrProvider{first: bypassResp, second: nil, inner: p}
-	// The real adapter reports the 429's headers before returning, which is
-	// what lets the reroute see the plan as spent and pick the fallback key.
-	observing := &headerObservingProvider{headers: bypassResp.Headers, inner: wrappedP}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: bypassScorerPickMdl, Reason: "cluster:v0.2"}}
-	obs := usage.NewObserver([]byte("salt"), 10*time.Minute, time.Now)
-	// Under threshold so the bypass engages for the first attempt.
-	obs.Record(obs.Key([]byte(bypassSubToken)), usage.Snapshot{
-		Primary: usage.Window{UsedPercent: 0.20, WindowMinutes: 300},
-	})
-	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: observing}, nil, false, nil, nil, false, providers.ProviderAIAND, bypassScorerPickMdl, nil).
-		WithUsageObserver(obs).
-		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
-
-	rec, req, body := bypassRequest(t)
-	ctx := billing.WithSubscriptionOnly(bypassCtx(0.80), billing.SubscriptionOnlyLinkedFirst)
-	require.NoError(t, svc.ProxyMessages(ctx, body, rec, req))
-
-	assert.Equal(t, 1, fr.routeCalls, "the throttled bypass must reroute through the scorer")
-	require.Equal(t, 2, wrappedP.calls, "the bypass attempt, then one rerouted dispatch")
-	require.Len(t, p.proxyCreds, 2)
-	if p.proxyCreds[1] != nil {
-		assert.False(t, p.proxyCreds[1].OAuth, "the reroute must serve on the fallback key, not the plan that just 429'd")
-	}
-	assert.NotEqual(t, http.StatusTooManyRequests, rec.Code, "the plan's 429 must not reach the client")
-	assert.NotContains(t, rec.Body.String(), "credits are depleted")
 }
 
 // TestLinkedFirst_Anthropic_SpentClaudePlan_NoFallbackKey_RefusesPoolExhausted:

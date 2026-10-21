@@ -13,7 +13,7 @@ func TestDeferredSendMessageSchemaSurvivesCrossVendorEmit(t *testing.T) {
 	body := []byte(`{"model":"deepseek/deepseek-v4-pro","max_tokens":32000,"messages":[{"role":"user","content":"Load the messaging tool."},{"role":"assistant","content":[{"type":"tool_use","id":"load_message","name":"ToolSearch","input":{"query":"select:SendMessage"}}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"load_message","content":[{"type":"tool_reference","tool_name":"SendMessage"}]}]}],"tools":[{"name":"ToolSearch","input_schema":{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}},{"name":"SendMessage","defer_loading":true,"description":"Send a message to an existing peer session.","input_schema":{"type":"object","properties":{"to":{"type":"string"},"message":{"type":"string"}},"required":["to","message"]}}]}`)
 	env, err := translate.ParseAnthropic(body)
 	require.NoError(t, err)
-	opts := translate.EmitOptions{TargetModel: "gpt-6.1-sol", KeepCrossVendorOrchestrationTools: true}
+	opts := translate.EmitOptions{TargetModel: "deepseek/deepseek-v4-pro-0813", KeepCrossVendorOrchestrationTools: true}
 	t.Run("Responses", func(t *testing.T) {
 		out, err := env.PrepareOpenAIResponses(nil, opts)
 		require.NoError(t, err)

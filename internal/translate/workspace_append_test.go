@@ -49,7 +49,7 @@ func TestWorkspaceAppend_OpenAIResponsesInstructions(t *testing.T) {
 	env, err := translate.ParseAnthropic([]byte(claudeCodeCachedSystemBody))
 	require.NoError(t, err)
 
-	on, err := env.PrepareOpenAIResponses(nil, translate.EmitOptions{TargetModel: "gpt-5.6-luna", AppendWorkspaceSystem: true})
+	on, err := env.PrepareOpenAIResponses(nil, translate.EmitOptions{TargetModel: "moonshotai/kimi-k2.7", AppendWorkspaceSystem: true})
 	require.NoError(t, err)
 	instructions := gjson.GetBytes(on.Body, "instructions").String()
 	assert.Contains(t, instructions, translate.WorkspaceSystemText)
@@ -57,7 +57,7 @@ func TestWorkspaceAppend_OpenAIResponsesInstructions(t *testing.T) {
 	assert.Equal(t, 1, strings.Count(instructions, workspaceMarker))
 	assert.NotContains(t, string(on.Body), "cache_control")
 
-	off, err := env.PrepareOpenAIResponses(nil, translate.EmitOptions{TargetModel: "gpt-5.6-luna"})
+	off, err := env.PrepareOpenAIResponses(nil, translate.EmitOptions{TargetModel: "moonshotai/kimi-k2.7"})
 	require.NoError(t, err)
 	assert.NotContains(t, gjson.GetBytes(off.Body, "instructions").String(), workspaceMarker)
 }
@@ -66,7 +66,7 @@ func TestWorkspaceAppend_BothAppendsKeepOrder(t *testing.T) {
 	env, err := translate.ParseAnthropic([]byte(claudeCodeCachedSystemBody))
 	require.NoError(t, err)
 
-	out, err := env.PrepareOpenAIResponses(nil, translate.EmitOptions{TargetModel: "gpt-5.6-luna", AppendAutonomySystem: true, AppendWorkspaceSystem: true})
+	out, err := env.PrepareOpenAIResponses(nil, translate.EmitOptions{TargetModel: "moonshotai/kimi-k2.7", AppendAutonomySystem: true, AppendWorkspaceSystem: true})
 	require.NoError(t, err)
 	instructions := gjson.GetBytes(out.Body, "instructions").String()
 	client := strings.Index(instructions, "ask for confirmation before proceeding")

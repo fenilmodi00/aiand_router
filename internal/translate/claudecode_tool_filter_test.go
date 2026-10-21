@@ -302,7 +302,7 @@ func TestDeferredMCPToolSearchSurvivesCrossVendorEmit(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("OpenAI chat", func(t *testing.T) {
-		out, err := env.PrepareOpenAI(nil, translate.EmitOptions{TargetModel: "gpt-5.6-luna"})
+		out, err := env.PrepareOpenAI(nil, translate.EmitOptions{TargetModel: "moonshotai/kimi-k2.7"})
 		require.NoError(t, err)
 		assert.ElementsMatch(t, []string{"Read", "Bash", "ToolSearch"}, emittedToolNames(t, out.Body))
 		assert.Equal(t, 1, out.Stats.CCOnlyToolsStripped, "Skill is stripped but ToolSearch is not counted")
@@ -325,7 +325,7 @@ func TestDeferredMCPToolSearchSurvivesCrossVendorEmit(t *testing.T) {
 	})
 
 	t.Run("OpenAI Responses", func(t *testing.T) {
-		out, err := env.PrepareOpenAIResponses(nil, translate.EmitOptions{TargetModel: "gpt-5.6-luna"})
+		out, err := env.PrepareOpenAIResponses(nil, translate.EmitOptions{TargetModel: "moonshotai/kimi-k2.7"})
 		require.NoError(t, err)
 		assert.ElementsMatch(t, []string{"Read", "Bash", "ToolSearch"}, emittedResponsesToolNames(t, out.Body))
 		assert.Equal(t, 1, out.Stats.CCOnlyToolsStripped, "Skill is stripped but ToolSearch is not counted")

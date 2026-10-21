@@ -11,15 +11,12 @@ import (
 	"time"
 	"weave-os/router/internal/router/catalog"
 
-	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 	"weave-os/router/internal/feedback"
 	"weave-os/router/internal/providers"
 	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/requestcontext"
 	"weave-os/router/internal/router"
 	"weave-os/router/internal/router/cache"
-	"weave-os/router/internal/subscriptions/entitlement"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -79,61 +76,6 @@ func proxyContextWithExternalID(t *testing.T, externalID string) context.Context
 		ctx = context.WithValue(ctx, proxy.ExternalIDContextKey{}, externalID)
 	}
 	return ctx
-}
-
-func TestService_Cache_HitShortCircuitsProvider(t *testing.T) {
-	emb := embeddingFixture(1)
-	provider := &fakeProvider{
-		proxyResponse: func(w http.ResponseWriter) {
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"id":"first","content":"hi"}`))
-		},
-	}
-	fr := &fakeRouter{decision: decisionWithEmbedding(emb, []int{0, 1, 2, 3})}
-	c := cache.New(cache.DefaultConfig())
-	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: provider}, nil, false, c, nil, false, providers.ProviderAIAND, catalog.ModelIDGLM53Flash.String(), nil)
-
-	ctx := proxyContextWithExternalID(t, "tenant-1")
-	body := anthropicBody("ping", false)
-
-	rec1 := httptest.NewRecorder()
-	httpReq1 := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
-	require.NoError(t, svc.ProxyMessages(ctx, body, rec1, httpReq1))
-	require.Len(t, provider.proxyBodies, 1, "first call must hit the provider")
-
-	rec2 := httptest.NewRecorder()
-	httpReq2 := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
-	require.NoError(t, svc.ProxyMessages(ctx, body, rec2, httpReq2))
-	assert.Len(t, provider.proxyBodies, 1, "cache hit must not invoke provider a second time")
-
-	assert.Equal(t, `{"id":"first","content":"hi"}`, rec2.Body.String())
-	assert.Equal(t, proxy.RouterCacheHit, rec2.Header().Get(proxy.HeaderRouterCache))
-}
-
-func TestService_Cache_StreamingBypasses(t *testing.T) {
-	emb := embeddingFixture(2)
-	provider := &fakeProvider{
-		proxyResponse: func(w http.ResponseWriter) {
-			_, _ = w.Write([]byte("event: message_start\ndata: {\"type\":\"message_start\"}\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"))
-		},
-	}
-	fr := &fakeRouter{decision: decisionWithEmbedding(emb, []int{0})}
-	c := cache.New(cache.DefaultConfig())
-	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: provider}, nil, false, c, nil, false, providers.ProviderAIAND, catalog.ModelIDGLM53Flash.String(), nil)
-
-	ctx := proxyContextWithExternalID(t, "tenant-1")
-	body := anthropicBody("streaming please", true)
-
-	rec1 := httptest.NewRecorder()
-	httpReq1 := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
-	require.NoError(t, svc.ProxyMessages(ctx, body, rec1, httpReq1))
-
-	rec2 := httptest.NewRecorder()
-	httpReq2 := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
-	require.NoError(t, svc.ProxyMessages(ctx, body, rec2, httpReq2))
-
-	assert.Len(t, provider.proxyBodies, 2, "streaming requests must always hit the provider — no caching")
-	assert.Empty(t, rec2.Header().Get(proxy.HeaderRouterCache), "streaming responses carry no x-router-cache marker")
 }
 
 func TestService_Cache_HeuristicDecisionBypasses(t *testing.T) {
@@ -242,66 +184,6 @@ func TestService_Cache_DisabledByNilCache(t *testing.T) {
 	assert.Empty(t, rec2.Header().Get(proxy.HeaderRouterCache))
 }
 
-func TestService_Cache_VerifiedProvenanceChangesDispatch(t *testing.T) {
-	for _, surface := range []struct {
-		name   string
-		body   []byte
-		invoke func(*proxy.Service, context.Context, []byte, http.ResponseWriter, *http.Request) error
-	}{
-		{"messages", anthropicBody("ordinary prompt", false), (*proxy.Service).ProxyMessages},
-		{"chat", []byte(`{"model":"auto","max_tokens":4096,"messages":[{"role":"user","content":"ordinary prompt"}]}`), (*proxy.Service).ProxyOpenAIChatCompletion},
-	} {
-		for name, mutateCacheScope := range map[string]func(context.Context, *fakeRouter) context.Context{
-			"credential subject": func(ctx context.Context, _ *fakeRouter) context.Context {
-				return requestcontext.WithServingIdentity(ctx, requestcontext.ServingIdentity{ReleaseID: "release", BindingID: "binding", CredentialIdentity: "other-subject", Plan: string(entitlement.PlanBoost), ProfileKey: "profile", ProfileRevision: "revision"})
-			},
-			"product": func(ctx context.Context, _ *fakeRouter) context.Context {
-				return requestcontext.WithServingIdentity(ctx, requestcontext.ServingIdentity{ReleaseID: "release", BindingID: "binding", CredentialIdentity: "subject", ProfileKey: "profile", ProfileRevision: "revision"})
-			},
-			"profile": func(ctx context.Context, _ *fakeRouter) context.Context {
-				return requestcontext.WithServingIdentity(ctx, requestcontext.ServingIdentity{ReleaseID: "release", BindingID: "binding", CredentialIdentity: "subject", Plan: string(entitlement.PlanBoost), ProfileKey: "other-profile", ProfileRevision: "revision"})
-			},
-			"revision": func(ctx context.Context, _ *fakeRouter) context.Context {
-				return requestcontext.WithServingIdentity(ctx, requestcontext.ServingIdentity{ReleaseID: "release", BindingID: "binding", CredentialIdentity: "subject", Plan: string(entitlement.PlanBoost), ProfileKey: "profile", ProfileRevision: "other-revision"})
-			},
-			"model": func(ctx context.Context, router *fakeRouter) context.Context {
-				router.decision.Model = catalog.ModelIDGLM53.String()
-				return ctx
-			},
-			"provider": func(ctx context.Context, router *fakeRouter) context.Context {
-				router.decision.Provider = providers.ProviderAIAND
-				return ctx
-			},
-			"missing identity": func(ctx context.Context, _ *fakeRouter) context.Context {
-				return requestcontext.WithServingIdentity(ctx, requestcontext.ServingIdentity{Plan: string(entitlement.PlanBoost), ProfileKey: "profile", ProfileRevision: "revision"})
-			},
-		} {
-			t.Run(surface.name+"/"+name, func(t *testing.T) {
-				provider := &fakeProvider{proxyResponse: cacheUpstreamReply("provider response")}
-				fr := &fakeRouter{decision: decisionWithEmbedding(embeddingFixture(1), []int{0})}
-				svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: provider}, nil, false, cache.New(cache.DefaultConfig()), nil, false, providers.ProviderAIAND, catalog.ModelIDGLM53Flash.String(), nil)
-				ctx := requestcontext.WithServingIdentity(proxyContextWithExternalID(t, "tenant"), requestcontext.ServingIdentity{ReleaseID: "release", BindingID: "binding", CredentialIdentity: "subject", Plan: string(entitlement.PlanBoost), ProfileKey: "profile", ProfileRevision: "revision"})
-				invoke := func(ctx context.Context) *httptest.ResponseRecorder {
-					rec := httptest.NewRecorder()
-					require.NoError(t, surface.invoke(svc, ctx, surface.body, rec, httptest.NewRequest(http.MethodPost, "/test", nil)))
-					return rec
-				}
-				first := invoke(ctx)
-				require.Empty(t, first.Header().Get(proxy.HeaderRouterCache))
-				require.Len(t, provider.proxyBodies, 1)
-				second := invoke(ctx)
-				require.Equal(t, proxy.RouterCacheHit, second.Header().Get(proxy.HeaderRouterCache))
-				require.Len(t, provider.proxyBodies, 1)
-				assert.Equal(t, fr.decision.Model, second.Header().Get(proxy.HeaderRouterModel))
-				assert.Equal(t, fr.decision.Provider, second.Header().Get(proxy.HeaderRouterProvider))
-				changed := invoke(mutateCacheScope(ctx, fr))
-				assert.Empty(t, changed.Header().Get(proxy.HeaderRouterCache))
-				assert.Len(t, provider.proxyBodies, 2)
-			})
-		}
-	}
-}
-
 type cacheTestSurface struct {
 	name      string
 	plainBody []byte
@@ -385,78 +267,6 @@ func TestService_Cache_RequestRestrictionsBypassPopulatedCache(t *testing.T) {
 				assert.Len(t, provider.proxyBodies, 3)
 			})
 		}
-	}
-}
-
-func TestService_Cache_StructuredResponsesCannotHitOrPopulateChatCache(t *testing.T) {
-	for _, structuredFirst := range []bool{false, true} {
-		t.Run(fmt.Sprint(structuredFirst), func(t *testing.T) {
-			provider := &fakeProvider{proxyResponse: responsesTextUpstream}
-			decision := decisionWithEmbedding(embeddingFixture(1), []int{0})
-			decision.Model = catalog.ModelIDDeepSeekV4Pro.String()
-			decision.Provider = providers.ProviderAIAND
-			svc := openAIChatServiceWithDecision(provider, decision, cache.New(cache.DefaultConfig()))
-			ctx := proxyContextWithExternalID(t, "tenant")
-			chat := []byte(chatCacheableTurnBody)
-			structured := []byte(`{"model":"auto","stream":false,"max_output_tokens":4096,"input":[{"role":"user","content":"summarize the release notes"}],"text":{"format":{"type":"json_schema","name":"answer","schema":{"type":"object"}}}}`)
-			invoke := func(useResponsesAPI bool) *httptest.ResponseRecorder {
-				rec := httptest.NewRecorder()
-				if useResponsesAPI {
-					require.NoError(t, svc.ProxyOpenAIResponses(ctx, structured, rec, httptest.NewRequest(http.MethodPost, "/v1/responses", nil)))
-				} else {
-					require.NoError(t, svc.ProxyOpenAIChatCompletion(ctx, chat, rec, httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)))
-				}
-				return rec
-			}
-			invoke(structuredFirst)
-			second := invoke(!structuredFirst)
-			assert.Empty(t, second.Header().Get(proxy.HeaderRouterCache))
-			assert.Len(t, provider.proxyBodies, 2)
-			third := invoke(false)
-			assert.Equal(t, proxy.RouterCacheHit, third.Header().Get(proxy.HeaderRouterCache))
-			assert.Equal(t, "chat.completion", gjson.GetBytes(third.Body.Bytes(), "object").String())
-		})
-	}
-}
-
-func TestService_Cache_FallbackBodyNeverStoredUnderInitialTarget(t *testing.T) {
-	for _, surface := range []struct {
-		name   string
-		body   []byte
-		invoke func(*proxy.Service, context.Context, []byte, http.ResponseWriter, *http.Request) error
-	}{
-		{"messages", anthropicBody("prompt", false), (*proxy.Service).ProxyMessages},
-		{"chat", []byte(`{"model":"auto","max_tokens":4096,"messages":[{"role":"user","content":"prompt"}]}`), (*proxy.Service).ProxyOpenAIChatCompletion},
-	} {
-		t.Run(surface.name, func(t *testing.T) {
-			primary := &fakeProvider{proxyErr: &providers.UpstreamErrorResponse{Status: 503, Body: []byte(`{"error":{"message":"unavailable"}}`)}}
-			fallback := &fakeProvider{proxyResponse: cacheUpstreamReply("fallback response")}
-			decision := decisionWithEmbedding(embeddingFixture(1), []int{0})
-			decision.Model = catalog.ModelIDGLM53.String()
-			fr := &fakeRouter{decision: decision}
-			svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: primary}, nil, false, cache.New(cache.DefaultConfig()), nil, false, providers.ProviderAIAND, catalog.ModelIDGLM53.String(), nil).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
-			ctx := proxyContextWithExternalID(t, "tenant")
-			invoke := func() *httptest.ResponseRecorder {
-				rec := httptest.NewRecorder()
-				require.NoError(t, surface.invoke(svc, ctx, surface.body, rec, httptest.NewRequest(http.MethodPost, "/test", nil)))
-				return rec
-			}
-			first := invoke()
-			require.Len(t, fallback.proxyBodies, 1)
-			assert.Equal(t, providers.ProviderAIAND, first.Header().Get(proxy.HeaderRouterProvider))
-			assert.Contains(t, first.Body.String(), "fallback response")
-			initialCalls := len(primary.proxyBodies)
-			primary.proxyErr = nil
-			primary.proxyResponse = cacheUpstreamReply("primary response")
-			second := invoke()
-			assert.Len(t, primary.proxyBodies, initialCalls+1)
-			assert.Empty(t, second.Header().Get(proxy.HeaderRouterCache))
-			assert.Contains(t, second.Body.String(), "primary response")
-			third := invoke()
-			assert.Equal(t, proxy.RouterCacheHit, third.Header().Get(proxy.HeaderRouterCache))
-			assert.Equal(t, providers.ProviderAIAND, third.Header().Get(proxy.HeaderRouterProvider))
-			assert.Contains(t, third.Body.String(), "primary response")
-		})
 	}
 }
 

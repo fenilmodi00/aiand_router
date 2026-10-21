@@ -28,7 +28,7 @@ func codexUserItem(text string) any {
 // than a hand-built message array.
 func codexEnvelope(t *testing.T, items ...any) *translate.RequestEnvelope {
 	t.Helper()
-	body, err := json.Marshal(map[string]any{"model": "gpt-5.6-sol", "input": items})
+	body, err := json.Marshal(map[string]any{"model": "deepseek/deepseek-v4-pro", "input": items})
 	require.NoError(t, err)
 	conv, err := translate.ConvertResponsesToChatCompletionsWithOptions(
 		body, translate.ResponsesConversionOptions{})
@@ -61,7 +61,7 @@ func TestExtractForceModelCommand_SkillBlobDoesNotRevivePriorTurn(t *testing.T) 
 	// The directive belongs to an older turn that the assistant already answered.
 	// Skipping the blob must not reach back past a real conversational turn.
 	body, err := json.Marshal(map[string]any{
-		"model": "gpt-5.6-sol",
+		"model": "deepseek/deepseek-v4-pro",
 		"messages": []any{
 			map[string]any{"role": "user", "content": "$fm astra"},
 			map[string]any{"role": "assistant", "content": "pinned"},
@@ -143,7 +143,7 @@ func TestStripThenExtract_PriorFeedbackTurnStillStripped(t *testing.T) {
 // second time.
 func TestStripThenExtract_SkillBlobAfterAnAckDoesNotRevivePriorFeedback(t *testing.T) {
 	body, err := json.Marshal(map[string]any{
-		"model": "gpt-5.6-sol",
+		"model": "deepseek/deepseek-v4-pro",
 		"messages": []any{
 			map[string]any{"role": "user", "content": "$rf - an older complaint"},
 			map[string]any{"role": "assistant", "content": "Weave Router: Feedback recorded 👎. Thank you."},

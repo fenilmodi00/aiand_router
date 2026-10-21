@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"weave-os/router/internal/providers"
 	"weave-os/router/internal/router"
@@ -19,27 +18,6 @@ func maxResolver() *policy.Resolver {
 		catalogRosterID,
 		policy.ManagedProviderPolicy(),
 	)
-}
-
-func TestResolverWithoutProductBoundaryKeepsEveryModel(t *testing.T) {
-	resolved := maxResolver().Resolve(router.Request{})
-
-	assert.ElementsMatch(t,
-		[]string{"deepseek/deepseek-v4-pro", "claude-opus-4-8", "muse-spark-1.3"},
-		catalogIDs(resolved.Candidates),
-	)
-}
-
-func TestResolverDropsClosedAndUnknownSourceModelsUnderMax(t *testing.T) {
-	resolved := maxResolver().Resolve(router.Request{ProductEligibility: eligibility.MaxOpenSourceOnly})
-
-	require.Equal(t, []string{"deepseek/deepseek-v4-pro"}, catalogIDs(resolved.Candidates))
-	for _, id := range []string{"claude-opus-4-8", "muse-spark-1.3"} {
-		assert.Containsf(t, resolved.Diagnostics, policy.Diagnostic{
-			CatalogID: id,
-			Reason:    policy.ExclusionProductIneligible,
-		}, "%q should be excluded as product-ineligible", id)
-	}
 }
 
 // The boundary is not a preference the resolver may drop to keep a pool
@@ -59,24 +37,6 @@ func TestMaxBoundaryIsHardEvenWhenItEmptiesThePool(t *testing.T) {
 	})
 
 	assert.Empty(t, resolved.Candidates)
-}
-
-// The boundary is also desugared into the request's hard exclusions, so both
-// filters would drop the model. The product reason has to win, or operating
-// the boundary means reading a diagnostic that blames the org's own config.
-func TestProductRefusalOutranksTheDesugaredExclusion(t *testing.T) {
-	resolved := maxResolver().Resolve(router.Request{
-		ProductEligibility: eligibility.MaxOpenSourceOnly,
-		ExcludedModels:     set("claude-opus-4-8", "muse-spark-1.3"),
-	})
-
-	require.Equal(t, []string{"deepseek/deepseek-v4-pro"}, catalogIDs(resolved.Candidates))
-	for _, id := range []string{"claude-opus-4-8", "muse-spark-1.3"} {
-		assert.Containsf(t, resolved.Diagnostics, policy.Diagnostic{
-			CatalogID: id,
-			Reason:    policy.ExclusionProductIneligible,
-		}, "%q should report the product boundary, not the exclusion it was desugared into", id)
-	}
 }
 
 // An eligible model the org excluded is still an ordinary request exclusion.

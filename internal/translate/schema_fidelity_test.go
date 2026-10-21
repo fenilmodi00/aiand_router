@@ -13,7 +13,7 @@ func TestResponsesFreeformSchemaPreservesJSON(t *testing.T) {
 			body := []byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"Update configuration"}],"tools":[{"name":"configuration","input_schema":{"type":"object","properties":{"requestBody":{"type":"object","properties":{"definition":` + definition + `},"required":["definition"]}},"required":["requestBody"]}}]}`)
 			envelope, err := ParseAnthropic(body)
 			require.NoError(t, err)
-			prepared, err := envelope.PrepareOpenAIResponses(nil, EmitOptions{TargetModel: "gpt-5.6-luna"})
+			prepared, err := envelope.PrepareOpenAIResponses(nil, EmitOptions{TargetModel: "moonshotai/kimi-k2.7"})
 			require.NoError(t, err)
 			require.False(t, gjson.GetBytes(prepared.Body, "tools.0.strict").Bool())
 			expectedDefinition := definition

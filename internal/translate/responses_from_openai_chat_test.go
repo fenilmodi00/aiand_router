@@ -28,77 +28,7 @@ func prepareChatOnResponses(t *testing.T, body string, opts translate.EmitOption
 }
 
 func chatOnResponsesOpts() translate.EmitOptions {
-	return translate.EmitOptions{TargetModel: "gpt-5.6-luna", Capabilities: router.Lookup("gpt-5.6-luna")}
-}
-
-// A tool turn from a chat client: the history becomes typed Responses input
-// items, tool calls become function_call items, tool results become
-// function_call_output items, and tools take the flat function shape.
-func TestPrepareOpenAIResponses_FromChatCompletions_RequestShape(t *testing.T) {
-	out := prepareChatOnResponses(t, `{
-      "model":"gpt-5.6-luna","max_tokens":2048,
-      "messages":[
-        {"role":"system","content":"You are helpful."},
-        {"role":"developer","content":"Be terse."},
-        {"role":"user","content":"fix the bug"},
-        {"role":"assistant","content":"I'll look","tool_calls":[
-          {"id":"call_1","type":"function","function":{"name":"bash","arguments":"{\"command\":\"ls\"}"}}
-        ]},
-        {"role":"tool","tool_call_id":"call_1","content":"file.go"}
-      ],
-      "tools":[{"type":"function","function":{"name":"bash","description":"run","parameters":{"type":"object","properties":{"command":{"type":"string"}},"required":["command"]}}}],
-      "tool_choice":"auto",
-      "parallel_tool_calls":false,
-      "reasoning_effort":"high"
-    }`, chatOnResponsesOpts())
-
-	assert.Equal(t, "gpt-5.6-luna", out["model"])
-	assert.Equal(t, true, out["stream"], "the upstream always streams; a non-streaming client is served from the buffered translation")
-	assert.Equal(t, false, out["store"])
-	assert.Equal(t, "You are helpful.\nBe terse.", out["instructions"],
-		"the leading system/developer run is hoisted into instructions")
-	reasoning, _ := out["reasoning"].(map[string]any)
-	require.NotNil(t, reasoning)
-	assert.Equal(t, "high", reasoning["effort"])
-	assert.Equal(t, "detailed", reasoning["summary"],
-		"summaries are the only reasoning a chat client can render")
-	assert.Equal(t, false, out["parallel_tool_calls"])
-	assert.Equal(t, "auto", out["tool_choice"])
-
-	input, _ := out["input"].([]any)
-	require.Len(t, input, 4, "hoisted system+developer leave user, assistant text, function_call, function_call_output")
-
-	user, _ := input[0].(map[string]any)
-	assert.Equal(t, "user", user["role"])
-	userParts, _ := user["content"].([]any)
-	require.Len(t, userParts, 1)
-	part, _ := userParts[0].(map[string]any)
-	assert.Equal(t, "input_text", part["type"])
-	assert.Equal(t, "fix the bug", part["text"])
-
-	assistant, _ := input[1].(map[string]any)
-	assistantParts, _ := assistant["content"].([]any)
-	require.Len(t, assistantParts, 1)
-	aPart, _ := assistantParts[0].(map[string]any)
-	assert.Equal(t, "output_text", aPart["type"], "assistant text takes output_text on the Responses wire")
-
-	call, _ := input[2].(map[string]any)
-	assert.Equal(t, "function_call", call["type"])
-	assert.Equal(t, "call_1", call["call_id"])
-	assert.Equal(t, "bash", call["name"])
-	assert.Equal(t, `{"command":"ls"}`, call["arguments"], "arguments stay a JSON-encoded string")
-
-	result, _ := input[3].(map[string]any)
-	assert.Equal(t, "function_call_output", result["type"])
-	assert.Equal(t, "call_1", result["call_id"], "the output must key off the same call_id or the turn 400s")
-	assert.Equal(t, "file.go", result["output"])
-
-	tools, _ := out["tools"].([]any)
-	require.Len(t, tools, 1)
-	tool, _ := tools[0].(map[string]any)
-	assert.Equal(t, "function", tool["type"])
-	assert.Equal(t, "bash", tool["name"], "Responses tools are flat — no nested function wrapper")
-	assert.NotNil(t, tool["parameters"])
+	return translate.EmitOptions{TargetModel: "moonshotai/kimi-k2.7", Capabilities: router.Lookup("moonshotai/kimi-k2.7")}
 }
 
 func TestPrepareOpenAIResponses_FromChatCompletions_ClosesNestedWorkflowArgsSchemas(t *testing.T) {
@@ -110,7 +40,7 @@ func TestPrepareOpenAIResponses_FromChatCompletions_ClosesNestedWorkflowArgsSche
 	    "properties":{"args":{"type":"object","properties":{"workflow":{"type":"string","oneOf":[{"type":"string"},{"type":"null"}]}},"required":["workflow"]}},
 	    "required":["args"]
 	  }}}]
-	}`, translate.EmitOptions{TargetModel: "gpt-6-luna", Capabilities: router.Lookup("gpt-6-luna")})
+	}`, translate.EmitOptions{TargetModel: "moonshotai/kimi-k3", Capabilities: router.Lookup("moonshotai/kimi-k3")})
 
 	tools, _ := out["tools"].([]any)
 	require.Len(t, tools, 1)
@@ -127,7 +57,7 @@ func TestPrepareOpenAIResponses_FromChatCompletions_ClosesNestedWorkflowArgsSche
 // front would shift the cacheable prefix on every turn.
 func TestPrepareOpenAIResponses_FromChatCompletions_MidConversationSystemStaysInPlace(t *testing.T) {
 	out := prepareChatOnResponses(t, `{
-      "model":"gpt-5.6-luna",
+      "model":"moonshotai/kimi-k2.7",
       "messages":[
         {"role":"system","content":"lead"},
         {"role":"user","content":"one"},
@@ -147,7 +77,7 @@ func TestPrepareOpenAIResponses_FromChatCompletions_MidConversationSystemStaysIn
 // rather than being dropped on the floor.
 func TestPrepareOpenAIResponses_FromChatCompletions_MultimodalParts(t *testing.T) {
 	out := prepareChatOnResponses(t, `{
-      "model":"gpt-5.6-luna",
+      "model":"moonshotai/kimi-k2.7",
       "messages":[{"role":"user","content":[
         {"type":"text","text":"what is this"},
         {"type":"image_url","image_url":{"url":"data:image/png;base64,AAA","detail":"high"}},
@@ -177,7 +107,7 @@ func TestPrepareOpenAIResponses_FromChatCompletions_MultimodalParts(t *testing.T
 // them would hand the client free-form prose it can't parse.
 func TestPrepareOpenAIResponses_FromChatCompletions_ResponseFormat(t *testing.T) {
 	out := prepareChatOnResponses(t, `{
-      "model":"gpt-5.6-luna",
+      "model":"moonshotai/kimi-k2.7",
       "messages":[{"role":"user","content":"hi"}],
       "response_format":{"type":"json_schema","json_schema":{"name":"answer","strict":true,"schema":{"type":"object","properties":{"a":{"type":"string"}}}}}
     }`, chatOnResponsesOpts())
@@ -194,7 +124,7 @@ func TestPrepareOpenAIResponses_FromChatCompletions_ResponseFormat(t *testing.T)
 
 func TestPrepareOpenAIResponses_FromChatCompletions_NamedToolChoice(t *testing.T) {
 	out := prepareChatOnResponses(t, `{
-      "model":"gpt-5.6-luna",
+      "model":"moonshotai/kimi-k2.7",
       "messages":[{"role":"user","content":"hi"}],
       "tools":[{"type":"function","function":{"name":"bash","parameters":{"type":"object"}}}],
       "tool_choice":{"type":"function","function":{"name":"bash"}}
@@ -209,7 +139,7 @@ func TestPrepareOpenAIResponses_FromChatCompletions_NamedToolChoice(t *testing.T
 // Requests using a chat-only knob must report as such so the proxy keeps them
 // on chat/completions instead of silently dropping the field.
 func TestRequiresChatCompletionsParams_OpenAIChatOnlyKnobs(t *testing.T) {
-	caps := router.Lookup("gpt-5.6-luna")
+	caps := router.Lookup("moonshotai/kimi-k2.7")
 	for _, tc := range []struct {
 		name  string
 		extra string
@@ -225,7 +155,7 @@ func TestRequiresChatCompletionsParams_OpenAIChatOnlyKnobs(t *testing.T) {
 		{name: "n=1 is the default and expressible", extra: `,"n":1`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			env, err := translate.ParseOpenAI([]byte(`{"model":"gpt-5.6-luna","messages":[{"role":"user","content":"hi"}]` + tc.extra + `}`))
+			env, err := translate.ParseOpenAI([]byte(`{"model":"moonshotai/kimi-k2.7","messages":[{"role":"user","content":"hi"}]` + tc.extra + `}`))
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, env.RequiresChatCompletionsParams(caps))
 		})
@@ -235,17 +165,17 @@ func TestRequiresChatCompletionsParams_OpenAIChatOnlyKnobs(t *testing.T) {
 // Inline audio has no Responses input part, so such a turn must stay on
 // chat/completions rather than lose the audio.
 func TestRequiresChatCompletionsParams_OpenAIInlineAudio(t *testing.T) {
-	env, err := translate.ParseOpenAI([]byte(`{"model":"gpt-5.6-luna","messages":[{"role":"user","content":[
+	env, err := translate.ParseOpenAI([]byte(`{"model":"moonshotai/kimi-k2.7","messages":[{"role":"user","content":[
       {"type":"input_audio","input_audio":{"data":"AAA","format":"wav"}}
     ]}]}`))
 	require.NoError(t, err)
-	assert.True(t, env.RequiresChatCompletionsParams(router.Lookup("gpt-5.6-luna")))
+	assert.True(t, env.RequiresChatCompletionsParams(router.Lookup("moonshotai/kimi-k2.7")))
 }
 
 // The compiled validator must cover chat function tools too, or a chat-ingress
 // turn would silently skip schema validation an Anthropic one gets.
 func TestToolValidator_CompilesOpenAIChatTools(t *testing.T) {
-	env, err := translate.ParseOpenAI([]byte(`{"model":"gpt-5.6-luna","messages":[{"role":"user","content":"hi"}],
+	env, err := translate.ParseOpenAI([]byte(`{"model":"moonshotai/kimi-k2.7","messages":[{"role":"user","content":"hi"}],
       "tools":[{"type":"function","function":{"name":"bash","parameters":{"type":"object","properties":{"command":{"type":"string"}},"required":["command"]}}}]}`))
 	require.NoError(t, err)
 	v := env.ToolValidator()

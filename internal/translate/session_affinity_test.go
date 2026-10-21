@@ -161,12 +161,12 @@ func TestSessionAffinity_EmptyIsNoOp(t *testing.T) {
 // clobber a deliberate caller key on the keyless fallback path.
 func TestSessionAffinity_OpenAIPreservesCallerPromptCacheKey(t *testing.T) {
 	const callerKey = "caller-partition-key"
-	src := []byte(`{"model":"gpt-5.5","prompt_cache_key":"` + callerKey + `","messages":[{"role":"system","content":"sys"},{"role":"user","content":"hi"}]}`)
+	src := []byte(`{"model":"z-ai/glm-5.3","prompt_cache_key":"` + callerKey + `","messages":[{"role":"system","content":"sys"},{"role":"user","content":"hi"}]}`)
 	env, err := translate.ParseOpenAI(src)
 	require.NoError(t, err)
 
 	out, err := env.PrepareOpenAI(nil, translate.EmitOptions{
-		TargetModel:    "gpt-5.5",
+		TargetModel:    "z-ai/glm-5.3",
 		TargetProvider: providers.ProviderAIAND,
 	})
 	require.NoError(t, err)
@@ -180,12 +180,12 @@ func TestSessionAffinity_OpenAIPreservesCallerPromptCacheKey(t *testing.T) {
 // unhinted: hashing the empty prefix would herd every such conversation onto
 // one synthetic cache key.
 func TestSessionAffinity_OpenAIEmptyPrefixStaysUnhinted(t *testing.T) {
-	src := []byte(`{"model":"gpt-5.5","messages":[{"role":"user","content":"hi"}]}`)
+	src := []byte(`{"model":"z-ai/glm-5.3","messages":[{"role":"user","content":"hi"}]}`)
 	env, err := translate.ParseOpenAI(src)
 	require.NoError(t, err)
 
 	out, err := env.PrepareOpenAI(nil, translate.EmitOptions{
-		TargetModel:    "gpt-5.5",
+		TargetModel:    "z-ai/glm-5.3",
 		TargetProvider: providers.ProviderAIAND,
 	})
 	require.NoError(t, err)
@@ -199,12 +199,12 @@ func TestSessionAffinity_OpenAIEmptyPrefixStaysUnhinted(t *testing.T) {
 // would herd every such keyless request onto one synthetic key. It must stay
 // unhinted just like a request with no tools field at all.
 func TestSessionAffinity_OpenAIEmptyToolsArrayStaysUnhinted(t *testing.T) {
-	src := []byte(`{"model":"gpt-5.5","messages":[{"role":"user","content":"hi"}],"tools":[]}`)
+	src := []byte(`{"model":"z-ai/glm-5.3","messages":[{"role":"user","content":"hi"}],"tools":[]}`)
 	env, err := translate.ParseOpenAI(src)
 	require.NoError(t, err)
 
 	out, err := env.PrepareOpenAI(nil, translate.EmitOptions{
-		TargetModel:    "gpt-5.5",
+		TargetModel:    "z-ai/glm-5.3",
 		TargetProvider: providers.ProviderAIAND,
 	})
 	require.NoError(t, err)
@@ -238,7 +238,7 @@ func TestSessionAffinity_ResponsesCarriesPromptCacheKey(t *testing.T) {
 		require.NoError(t, err)
 
 		out, err := env.PrepareOpenAIResponses(nil, translate.EmitOptions{
-			TargetModel:     "gpt-5.5",
+			TargetModel:     "z-ai/glm-5.3",
 			TargetProvider:  provider,
 			SessionAffinity: affinityKey,
 		})
@@ -276,7 +276,7 @@ func TestSessionAffinity_ResponsesFallbackPrefixHashStable(t *testing.T) {
 		env, err := translate.ParseAnthropic(src)
 		require.NoError(t, err)
 		out, err := env.PrepareOpenAIResponses(nil, translate.EmitOptions{
-			TargetModel:    "gpt-5.5",
+			TargetModel:    "z-ai/glm-5.3",
 			TargetProvider: providers.ProviderAIAND,
 		})
 		require.NoError(t, err)

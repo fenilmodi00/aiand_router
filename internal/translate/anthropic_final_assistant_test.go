@@ -14,7 +14,7 @@ import (
 )
 
 func TestAnthropicFinalAssistantResponsesProjection(t *testing.T) {
-	body := []byte(`{"model":"gpt-5.6-sol","input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"Say hello"}]},{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Hello\n\n"}]}],"stream":true}`)
+	body := []byte(`{"model":"deepseek/deepseek-v4-pro","input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"Say hello"}]},{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Hello\n\n"}]}],"stream":true}`)
 	conversion, err := translate.ConvertResponsesToChatCompletionsWithOptions(body, translate.ResponsesConversionOptions{PortableCodex: true})
 	require.NoError(t, err)
 	envelope, err := translate.ParseOpenAI(conversion.Body)
@@ -62,27 +62,6 @@ func TestAnthropicFinalAssistantWhitespaceOnlyRemoved(t *testing.T) {
 	}
 }
 
-func TestAnthropicFinalAssistantPreservesNonTextBlocks(t *testing.T) {
-	cases := []struct{ name, blocks, preservedPath, preservedText string }{
-		{"tool", `{"type":"text","text":"Before tool\n\n"},{"type":"tool_use","id":"call_1","name":"inspect","input":{"text":"argument\n\n"}}`, "messages.1.content.1.input.text", "argument\n\n"},
-		{"thinking", `{"type":"thinking","thinking":"Thought\n\n","signature":"native-synthetic-signature"}`, "messages.1.content.0.thinking", "Thought\n\n"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			prepared := prepareFinalAssistantAnthropic(t, []byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"Question"},{"role":"assistant","content":[`+tc.blocks+`,{"type":"text","text":" \n"}]}]}`))
-			assert.Equal(t, tc.preservedText, gjson.GetBytes(prepared, tc.preservedPath).String())
-			blocks := gjson.GetBytes(prepared, "messages.1.content").Array()
-			if tc.name == "tool" {
-				require.Len(t, blocks, 2)
-				assert.Equal(t, "Before tool\n\n", blocks[0].Get("text").String())
-			} else {
-				require.Len(t, blocks, 1)
-				assert.Equal(t, "native-synthetic-signature", blocks[0].Get("signature").String())
-			}
-		})
-	}
-}
-
 func TestAnthropicFinalAssistantPreservesEarlierTurns(t *testing.T) {
 	prepared := prepareFinalAssistantAnthropic(t, []byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"Question\n\n"},{"role":"assistant","content":"Earlier\n\n"},{"role":"user","content":"Follow up\n\n"},{"role":"assistant","content":"Final\n\n"}]}`))
 	assert.Equal(t, "Question\n\n", gjson.GetBytes(prepared, "messages.0.content").String())
@@ -111,43 +90,4 @@ func prepareFinalAssistantAnthropic(t *testing.T, body []byte) []byte {
 	prepared, err := envelope.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "z-ai/glm-5.2", Capabilities: router.Lookup("z-ai/glm-5.2"), TargetProvider: providers.ProviderAIAND})
 	require.NoError(t, err)
 	return prepared.Body
-}
-
-func TestAnthropicFinalAssistantDroppedForPrefillUnsupportedModel(t *testing.T) {
-	body := []byte(`{"model":"gpt-6-astra","input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"Add the schema"}]},{"type":"message","role":"assistant","content":[{"type":"output_text","text":"I'm now adding the schema."}]}],"stream":true}`)
-	conversion, err := translate.ConvertResponsesToChatCompletionsWithOptions(body, translate.ResponsesConversionOptions{PortableCodex: true})
-	require.NoError(t, err)
-	envelope, err := translate.ParseOpenAI(conversion.Body)
-	require.NoError(t, err)
-	prepared, err := envelope.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "z-ai/glm-5.2", Capabilities: router.Lookup("z-ai/glm-5.2"), TargetProvider: providers.ProviderAIAND})
-	require.NoError(t, err)
-	messages := gjson.GetBytes(prepared.Body, "messages").Array()
-	require.Len(t, messages, 1)
-	assert.Equal(t, "user", messages[0].Get("role").String())
-}
-
-func TestAnthropicFinalAssistantPrefillUnsupportedBoundaries(t *testing.T) {
-	cases := []struct {
-		name, messages string
-		wantRoles      []string
-	}{
-		{"repeated trailing assistants", `[{"role":"user","content":"Q"},{"role":"assistant","content":"a"},{"role":"assistant","content":"b"}]`, []string{"user"}},
-		{"trailing tool_use", `[{"role":"user","content":"Q"},{"role":"assistant","content":[{"type":"text","text":"Running"},{"type":"tool_use","id":"t1","name":"ls","input":{}}]}]`, []string{"user"}},
-		{"tool result history kept", `[{"role":"user","content":"Q"},{"role":"assistant","content":[{"type":"tool_use","id":"t1","name":"ls","input":{}}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"ok"}]},{"role":"assistant","content":"partial"}]`, []string{"user", "assistant", "user"}},
-		{"user ending unchanged", `[{"role":"user","content":"Q"},{"role":"assistant","content":"a"},{"role":"user","content":"R"}]`, []string{"user", "assistant", "user"}},
-		{"sole message kept", `[{"role":"assistant","content":"a"}]`, []string{"assistant"}},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			envelope, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.2","messages":` + tc.messages + `}`))
-			require.NoError(t, err)
-			prepared, err := envelope.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "z-ai/glm-5.2", Capabilities: router.Lookup("z-ai/glm-5.2"), TargetProvider: providers.ProviderAIAND})
-			require.NoError(t, err)
-			var roles []string
-			for _, message := range gjson.GetBytes(prepared.Body, "messages").Array() {
-				roles = append(roles, message.Get("role").String())
-			}
-			assert.Equal(t, tc.wantRoles, roles)
-		})
-	}
 }

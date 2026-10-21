@@ -57,7 +57,7 @@ func TestTaskReminderStripped_OpenAIChat(t *testing.T) {
 	env, err := translate.ParseAnthropic([]byte(taskReminderBody))
 	require.NoError(t, err)
 
-	out, err := env.PrepareOpenAI(nil, translate.EmitOptions{TargetModel: "gpt-5.6-luna", KeepCrossVendorOrchestrationTools: true})
+	out, err := env.PrepareOpenAI(nil, translate.EmitOptions{TargetModel: "moonshotai/kimi-k2.7", KeepCrossVendorOrchestrationTools: true})
 	require.NoError(t, err)
 
 	assertTaskReminderStripped(t, out.Body)
@@ -70,7 +70,7 @@ func TestTaskReminderStripped_OpenAIResponses(t *testing.T) {
 	env, err := translate.ParseAnthropic([]byte(taskReminderBody))
 	require.NoError(t, err)
 
-	out, err := env.PrepareOpenAIResponses(nil, translate.EmitOptions{TargetModel: "gpt-5.6-sol", KeepCrossVendorOrchestrationTools: true})
+	out, err := env.PrepareOpenAIResponses(nil, translate.EmitOptions{TargetModel: "deepseek/deepseek-v4-pro", KeepCrossVendorOrchestrationTools: true})
 	require.NoError(t, err)
 
 	assertTaskReminderStripped(t, out.Body)
@@ -115,7 +115,7 @@ func TestTaskReminderKept_WhenNoTaskToolsToStrip(t *testing.T) {
 	env, err := translate.ParseAnthropic([]byte(body))
 	require.NoError(t, err)
 
-	out, err := env.PrepareOpenAI(nil, translate.EmitOptions{TargetModel: "gpt-5.6-luna"})
+	out, err := env.PrepareOpenAI(nil, translate.EmitOptions{TargetModel: "moonshotai/kimi-k2.7"})
 	require.NoError(t, err)
 
 	assert.Equal(t, 1, out.Stats.CCOnlyToolsStripped, "Skill is stripped")
@@ -157,10 +157,10 @@ func TestTaskReminderStripped_InsideToolResultContent(t *testing.T) {
 
 	for name, prepare := range map[string]func() (providers.PreparedRequest, error){
 		"OpenAI chat": func() (providers.PreparedRequest, error) {
-			return env.PrepareOpenAI(nil, translate.EmitOptions{TargetModel: "gpt-5.6-luna"})
+			return env.PrepareOpenAI(nil, translate.EmitOptions{TargetModel: "moonshotai/kimi-k2.7"})
 		},
 		"OpenAI Responses": func() (providers.PreparedRequest, error) {
-			return env.PrepareOpenAIResponses(nil, translate.EmitOptions{TargetModel: "gpt-5.6-sol"})
+			return env.PrepareOpenAIResponses(nil, translate.EmitOptions{TargetModel: "deepseek/deepseek-v4-pro"})
 		},
 		"Gemini": func() (providers.PreparedRequest, error) {
 			return env.PrepareGemini(http.Header{}, translate.EmitOptions{TargetModel: "gemini-2.5-pro"})
@@ -212,10 +212,10 @@ func TestTaskReminderStripped_WhenItIsTheWholeToolResult(t *testing.T) {
 
 	for name, prepare := range map[string]func() (providers.PreparedRequest, error){
 		"OpenAI chat": func() (providers.PreparedRequest, error) {
-			return env.PrepareOpenAI(nil, translate.EmitOptions{TargetModel: "gpt-5.6-luna"})
+			return env.PrepareOpenAI(nil, translate.EmitOptions{TargetModel: "moonshotai/kimi-k2.7"})
 		},
 		"OpenAI Responses": func() (providers.PreparedRequest, error) {
-			return env.PrepareOpenAIResponses(nil, translate.EmitOptions{TargetModel: "gpt-5.6-sol"})
+			return env.PrepareOpenAIResponses(nil, translate.EmitOptions{TargetModel: "deepseek/deepseek-v4-pro"})
 		},
 		"Gemini": func() (providers.PreparedRequest, error) {
 			return env.PrepareGemini(http.Header{}, translate.EmitOptions{TargetModel: "gemini-2.5-pro"})
@@ -270,10 +270,10 @@ func TestTaskReminderStripped_AsSystemMessage(t *testing.T) {
 
 	for name, prepare := range map[string]func() (providers.PreparedRequest, error){
 		"OpenAI chat": func() (providers.PreparedRequest, error) {
-			return env.PrepareOpenAI(nil, translate.EmitOptions{TargetModel: "gpt-5.6-luna"})
+			return env.PrepareOpenAI(nil, translate.EmitOptions{TargetModel: "moonshotai/kimi-k2.7"})
 		},
 		"OpenAI Responses": func() (providers.PreparedRequest, error) {
-			return env.PrepareOpenAIResponses(nil, translate.EmitOptions{TargetModel: "gpt-5.6-sol"})
+			return env.PrepareOpenAIResponses(nil, translate.EmitOptions{TargetModel: "deepseek/deepseek-v4-pro"})
 		},
 		"Gemini": func() (providers.PreparedRequest, error) {
 			return env.PrepareGemini(http.Header{}, translate.EmitOptions{TargetModel: "gemini-2.5-pro"})
@@ -311,7 +311,7 @@ func TestTaskReminderKept_WhenItIsTheWholeUserMessage(t *testing.T) {
 	env, err := translate.ParseAnthropic([]byte(body))
 	require.NoError(t, err)
 
-	out, err := env.PrepareOpenAI(nil, translate.EmitOptions{TargetModel: "gpt-5.6-luna"})
+	out, err := env.PrepareOpenAI(nil, translate.EmitOptions{TargetModel: "moonshotai/kimi-k2.7"})
 	require.NoError(t, err)
 
 	assert.Equal(t, 0, out.Stats.CCTaskRemindersStripped)

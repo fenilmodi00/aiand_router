@@ -2,4 +2,4 @@ package translate_test
 
 import ()
 
-const chatEffortModel = "gpt-5.6-luna"
+const chatEffortModel = "moonshotai/kimi-k2.7"

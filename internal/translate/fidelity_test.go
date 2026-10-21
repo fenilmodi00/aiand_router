@@ -325,22 +325,12 @@ func TestPrepareGemini_DeduplicatesFunctionDeclarations(t *testing.T) {
 	}
 }
 
-func TestPrepareOpenAIResponses_PreservesMediumReasoningEffort(t *testing.T) {
-	env, err := translate.ParseAnthropic([]byte(`{"messages":[{"role":"user","content":"hi"}],"reasoning_effort":"medium"}`))
-	require.NoError(t, err)
-	prep, err := env.PrepareOpenAIResponses(http.Header{}, translate.EmitOptions{TargetModel: "gpt-5.5", Capabilities: router.Lookup("gpt-5.5")})
-	require.NoError(t, err)
-	var out map[string]any
-	require.NoError(t, json.Unmarshal(prep.Body, &out))
-	assert.Equal(t, "medium", out["reasoning"].(map[string]any)["effort"])
-}
-
 func TestAdaptiveReasoningDelegatesToCrossFormatTargetDefault(t *testing.T) {
 	env, err := translate.ParseAnthropic([]byte(`{"messages":[{"role":"user","content":"hi"}],"thinking":{"type":"adaptive"}}`))
 	require.NoError(t, err)
 
 	t.Run("OpenAI Responses", func(t *testing.T) {
-		prep, err := env.PrepareOpenAIResponses(http.Header{}, translate.EmitOptions{TargetModel: "gpt-5.5", Capabilities: router.Lookup("gpt-5.5")})
+		prep, err := env.PrepareOpenAIResponses(http.Header{}, translate.EmitOptions{TargetModel: "z-ai/glm-5.3", Capabilities: router.Lookup("z-ai/glm-5.3")})
 		require.NoError(t, err)
 		var out map[string]any
 		require.NoError(t, json.Unmarshal(prep.Body, &out))

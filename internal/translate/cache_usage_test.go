@@ -237,7 +237,7 @@ func TestSSETranslator_SinkAccumulatesInputAndOutputAcrossStream(t *testing.T) {
 func TestAnthropicSSETranslator_ForwardsOpenAICacheWriteTokens(t *testing.T) {
 	rec := httptest.NewRecorder()
 	sink := &fakeUsageSink{}
-	translator := translate.NewAnthropicSSETranslator(rec, "gpt-5.6-sol", sink)
+	translator := translate.NewAnthropicSSETranslator(rec, "deepseek/deepseek-v4-pro", sink)
 
 	translator.Header().Set("Content-Type", "text/event-stream")
 	translator.WriteHeader(http.StatusOK)
@@ -260,12 +260,12 @@ func TestAnthropicSSETranslator_ForwardsOpenAICacheWriteTokens(t *testing.T) {
 
 func TestResponsesToAnthropicWriter_ForwardsCacheWriteTokens(t *testing.T) {
 	const fixture = `event: response.completed
-data: {"type":"response.completed","response":{"id":"r","status":"completed","model":"gpt-5.6-sol","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"done"}]}],"usage":{"input_tokens":1200,"input_tokens_details":{"cached_tokens":800,"cache_write_tokens":256},"output_tokens":340}}}
+data: {"type":"response.completed","response":{"id":"r","status":"completed","model":"deepseek/deepseek-v4-pro","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"done"}]}],"usage":{"input_tokens":1200,"input_tokens_details":{"cached_tokens":800,"cache_write_tokens":256},"output_tokens":340}}}
 
 `
 	rec := httptest.NewRecorder()
 	sink := &fakeUsageSink{}
-	w := translate.NewResponsesToAnthropicWriter(rec, "gpt-5.6-sol", sink)
+	w := translate.NewResponsesToAnthropicWriter(rec, "deepseek/deepseek-v4-pro", sink)
 	require.NoError(t, w.Prelude(true))
 	_, err := w.Write([]byte(fixture))
 	require.NoError(t, err)
@@ -303,12 +303,12 @@ func gjsonMust(raw string) gjson.Result {
 
 func TestResponsesToAnthropicWriter_NonStreamingSinkKeepsInclusiveInput(t *testing.T) {
 	const fixture = `event: response.completed
-data: {"type":"response.completed","response":{"id":"r","status":"completed","model":"gpt-5.6-sol","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"done"}]}],"usage":{"input_tokens":1200,"input_tokens_details":{"cached_tokens":800,"cache_write_tokens":256},"output_tokens":340}}}
+data: {"type":"response.completed","response":{"id":"r","status":"completed","model":"deepseek/deepseek-v4-pro","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"done"}]}],"usage":{"input_tokens":1200,"input_tokens_details":{"cached_tokens":800,"cache_write_tokens":256},"output_tokens":340}}}
 
 `
 	rec := httptest.NewRecorder()
 	sink := &fakeUsageSink{}
-	w := translate.NewResponsesToAnthropicWriter(rec, "gpt-5.6-sol", sink)
+	w := translate.NewResponsesToAnthropicWriter(rec, "deepseek/deepseek-v4-pro", sink)
 	require.NoError(t, w.Prelude(false))
 	_, err := w.Write([]byte(fixture))
 	require.NoError(t, err)
@@ -323,12 +323,12 @@ data: {"type":"response.completed","response":{"id":"r","status":"completed","mo
 
 func TestResponsesToAnthropicWriter_ForwardsReasoningTokens(t *testing.T) {
 	const fixture = `event: response.completed
-data: {"type":"response.completed","response":{"id":"r","status":"completed","model":"gpt-6-luna","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"done"}]}],"usage":{"input_tokens":1200,"output_tokens":340,"output_tokens_details":{"reasoning_tokens":300}}}}
+data: {"type":"response.completed","response":{"id":"r","status":"completed","model":"moonshotai/kimi-k3","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"done"}]}],"usage":{"input_tokens":1200,"output_tokens":340,"output_tokens_details":{"reasoning_tokens":300}}}}
 
 `
 	for _, stream := range []bool{true, false} {
 		sink := &fakeUsageSink{}
-		w := translate.NewResponsesToAnthropicWriter(httptest.NewRecorder(), "gpt-6-luna", sink)
+		w := translate.NewResponsesToAnthropicWriter(httptest.NewRecorder(), "moonshotai/kimi-k3", sink)
 		require.NoError(t, w.Prelude(stream))
 		_, err := w.Write([]byte(fixture))
 		require.NoError(t, err)

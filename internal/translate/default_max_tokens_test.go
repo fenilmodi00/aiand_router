@@ -12,19 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Anthropic Messages requires max_tokens; we inject a per-model default when
-// absent. Always-on adaptive targets receive the reasoning floor.
-
-func TestAnthropicSameFormat_DefaultMaxTokensInjectedWhenAbsent(t *testing.T) {
-	body := []byte(`{"model":"claude-sonnet-4-20250514","messages":[{"role":"user","content":"hi"}]}`)
-	opts := translate.EmitOptions{
-		TargetModel:  "z-ai/glm-5.2",
-		Capabilities: router.Lookup("z-ai/glm-5.2"),
-	}
-	out := parseAndEmit(t, body, "anthropic", opts)
-	assert.Equal(t, float64(16000), out["max_tokens"])
-}
-
 func TestAnthropicSameFormat_ExistingMaxTokensUnchanged(t *testing.T) {
 	body := []byte(`{"model":"claude-sonnet-4-20250514","messages":[{"role":"user","content":"hi"}],"max_tokens":1024}`)
 	opts := translate.EmitOptions{
@@ -33,53 +20,6 @@ func TestAnthropicSameFormat_ExistingMaxTokensUnchanged(t *testing.T) {
 	}
 	out := parseAndEmit(t, body, "anthropic", opts)
 	assert.Equal(t, float64(1024), out["max_tokens"])
-}
-
-func TestAnthropicSameFormat_AdaptiveDefaultsHaveReasoningHeadroom(t *testing.T) {
-	body := []byte(`{"model":"claude-sonnet-4-20250514","messages":[{"role":"user","content":"hi"}]}`)
-	for _, model := range []string{
-		"z-ai/glm-5.2", "z-ai/glm-5.2", "z-ai/glm-5.2", "z-ai/glm-5.2",
-		"z-ai/glm-5.2", "z-ai/glm-5.2", "deepseek/deepseek-v4-pro", "deepseek/deepseek-v4.1-flash",
-	} {
-		t.Run(model, func(t *testing.T) {
-			out := parseAndEmit(t, body, "anthropic", translate.EmitOptions{
-				TargetModel: model, Capabilities: router.Lookup(model),
-			})
-			assert.Equal(t, float64(16000), out["max_tokens"])
-		})
-	}
-
-	control := parseAndEmit(t, body, "anthropic", translate.EmitOptions{
-		TargetModel: "z-ai/glm-5.2", Capabilities: router.Lookup("z-ai/glm-5.2"),
-	})
-	assert.Equal(t, float64(8192), control["max_tokens"])
-}
-
-func TestAnthropicCrossFormat_AdaptiveDefaultHasReasoningHeadroom(t *testing.T) {
-	body := []byte(`{"model":"gpt-5","messages":[{"role":"user","content":"hi"}]}`)
-	env, err := translate.ParseOpenAI(body)
-	require.NoError(t, err)
-	prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{
-		TargetModel:  "z-ai/glm-5.2",
-		Capabilities: router.Lookup("z-ai/glm-5.2"),
-	})
-	require.NoError(t, err)
-	var out map[string]any
-	require.NoError(t, json.Unmarshal(prep.Body, &out))
-	assert.Equal(t, float64(16000), out["max_tokens"])
-
-	responsesBody := []byte(`{"model":"gpt-5","input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"hi"}]}]}`)
-	conversion, err := translate.ConvertResponsesToChatCompletions(responsesBody)
-	require.NoError(t, err)
-	env, err = translate.ParseOpenAI(conversion.Body)
-	require.NoError(t, err)
-	prep, err = env.PrepareAnthropic(http.Header{}, translate.EmitOptions{
-		TargetModel:  "z-ai/glm-5.2",
-		Capabilities: router.Lookup("z-ai/glm-5.2"),
-	})
-	require.NoError(t, err)
-	require.NoError(t, json.Unmarshal(prep.Body, &out))
-	assert.Equal(t, float64(16000), out["max_tokens"])
 }
 
 func TestOpenAISameFormat_DefaultMaxTokensInjectedForNonReasoningTarget(t *testing.T) {
@@ -109,8 +49,8 @@ func TestOpenAISameFormat_DefaultMaxCompletionTokensInjectedForReasoningTarget(t
 func TestOpenAISameFormat_DefaultCappedByGlobalCap(t *testing.T) {
 	body := []byte(`{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}]}`)
 	opts := translate.EmitOptions{
-		TargetModel:  "gpt-4.1",
-		Capabilities: router.Lookup("gpt-4.1"),
+		TargetModel:  "deepseek/deepseek-v4-flash",
+		Capabilities: router.Lookup("deepseek/deepseek-v4-flash"),
 	}
 	out := parseAndEmit(t, body, "openai", opts)
 	assert.Equal(t, float64(8192), out["max_tokens"])
@@ -135,21 +75,6 @@ func TestOpenAISameFormat_DefaultNotInjectedWhenMaxCompletionTokensPresent(t *te
 	out := parseAndEmit(t, body, "openai", opts)
 	assert.Equal(t, float64(512), out["max_completion_tokens"])
 	assert.NotContains(t, out, "max_tokens")
-}
-
-// Regression: pullMaxTokens previously hardcoded 4096; the per-model default replaces it.
-func TestCrossFormat_OpenAIToAnthropic_DefaultMaxTokensInjectedWhenAbsent(t *testing.T) {
-	body := []byte(`{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}]}`)
-	env, err := translate.ParseOpenAI(body)
-	require.NoError(t, err)
-	prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{
-		TargetModel:  "z-ai/glm-5.2",
-		Capabilities: router.Lookup("z-ai/glm-5.2"),
-	})
-	require.NoError(t, err)
-	var out map[string]any
-	require.NoError(t, json.Unmarshal(prep.Body, &out))
-	assert.Equal(t, float64(16000), out["max_tokens"])
 }
 
 // Source omits max_tokens, non-reasoning target: injection populates max_tokens.

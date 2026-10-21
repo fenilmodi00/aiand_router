@@ -29,7 +29,7 @@ func nativeStreamFrame(payload string) string {
 
 func newNativeStreamWriter(display bool) (*translate.ResponsesWriter, *httptest.ResponseRecorder) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesWriter(rec, "gpt-5.6-luna")
+	w := translate.NewResponsesWriter(rec, "moonshotai/kimi-k2.7")
 	if display {
 		w.SetPassthroughBadge()
 	} else {

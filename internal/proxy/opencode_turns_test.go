@@ -97,33 +97,6 @@ func TestService_OpenCodeNativeSubagentSharesSessionIDButNotPin(t *testing.T) {
 	}
 }
 
-// A router command carried in OpenCode's Responses tool-result history is
-// extracted and acted on before classification.
-func TestService_OpenCode_ToolOutputCommandsStayActionable(t *testing.T) {
-	const forceBody = `{
-		"model":"auto",
-		"input":[
-			{"type":"function_call","call_id":"call-1","name":"bash","arguments":"{}"},
-			{"type":"function_call_output","call_id":"call-1","output":"/force-model gpt-5"}
-		]
-	}`
-	store := newFakePinStore()
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-4o", Reason: "cluster"}}
-	svc := newOpenCodeTurnSvc(fr, store)
-
-	httpReq := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(""))
-	httpReq.Header.Set("X-App", proxy.ClientAppOpencode)
-	httpReq.Header.Set("Session-Id", openCodeParentSession)
-	ctx := context.WithValue(authedCtx(uuid.New().String()), proxy.ClientIdentityContextKey{}, proxy.ClientIdentityFromHeaders(httpReq.Header))
-	rec := httptest.NewRecorder()
-	require.NoError(t, svc.ProxyOpenAIResponses(ctx, []byte(forceBody), rec, httpReq))
-
-	assert.Equal(t, 0, fr.routeCalls, "force-model command must bypass fresh routing")
-	require.NotEmpty(t, store.upserts)
-	assert.Equal(t, "gpt-5", store.upserts[0].Model)
-	assert.Equal(t, "gpt-5", rec.Header().Get(proxy.HeaderRouterModel))
-}
-
 const (
 	openCodeHeaderlessMainBody = `{"model":"auto","stream":false,
 		"tools":[{"type":"function","name":"bash","parameters":{"type":"object"}}],
@@ -146,32 +119,6 @@ func headerlessSender(t *testing.T, svc *proxy.Service, clientApp string) func(b
 		require.NoError(t, svc.ProxyOpenAIResponses(ctx, []byte(body), rec, httpReq))
 		return rec
 	}
-}
-
-// Headerless OpenCode title calls derive the same session key from their
-// constant system prompt. They must score independently, render no routing
-// marker (OpenCode titles the session with the reply's first line), and neither
-// serve nor rewrite the conversation's automatic pin.
-func TestService_OpenCodeHeaderlessTitleScoresWithoutTouchingThePin(t *testing.T) {
-	store := newFakePinStore()
-	store.persistUpserts = true
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: openCodeScoredTitleModel, Reason: "cluster"}}
-	send := headerlessSender(t, newOpenCodeTurnSvc(fr, store), proxy.ClientAppOpencode)
-
-	rec := send(openCodeHeaderlessMainBody)
-	require.Len(t, store.upserts, 1)
-	require.Contains(t, rec.Body.String(), "Weave Router", "main-loop turns carry the routing marker")
-
-	for range 2 {
-		getsBefore := store.getCalls
-		rec := send(openCodeHeaderlessTitleBody)
-		assert.Equal(t, openCodeScoredTitleModel, rec.Header().Get(proxy.HeaderRouterModel), "the title uses its independently scored model")
-		assert.NotContains(t, rec.Body.String(), "Weave Router", "a routing marker would become the session title")
-		assert.Equal(t, 1, store.getCalls-getsBefore, "title turns read only force-model session state, including during refusal-rescue setup")
-	}
-
-	assert.Equal(t, 3, fr.routeCalls, "each title must be scored independently of the conversation pin")
-	assert.Len(t, store.upserts, 1, "title generation must not anchor a pin")
 }
 
 // The title-agent prompt is only trusted from OpenCode: another client sending

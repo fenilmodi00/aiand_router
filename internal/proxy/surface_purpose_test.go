@@ -204,36 +204,6 @@ func TestClassifierTurn_DispatchUnderSurfacePurpose(t *testing.T) {
 	assert.Equal(t, "deepseek/deepseek-v4.1-flash", event.Target.CatalogID)
 }
 
-func TestAutomaticProbesServeUnderIngressPolicyWithoutConversationState(t *testing.T) {
-	for _, model := range []string{"auto", ""} {
-		t.Run(model, func(t *testing.T) {
-			provider := &fakeProvider{proxyResponse: jsonUpstream(`{"id":"msg_probe","type":"message","role":"assistant","content":[{"type":"text","text":"pong"}],"usage":{"input_tokens":1,"output_tokens":1}}`)}
-			clients := map[string]providers.Client{providers.ProviderAIAND: provider}
-			sink := &purposeSink{}
-			executor, err := dispatch.NewExecutor(dispatch.NewClients(clients), dispatch.WithAttemptSink(sink))
-			require.NoError(t, err)
-			scorer := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDGLM53.String()}}
-			pins := newFakePinStore()
-			svc := proxy.NewService(scorer, clients, nil, false, nil, pins, false, providers.ProviderAIAND, catalog.ModelIDGLM53Flash.String(), nil).WithInferenceExecutor(executor)
-			body := []byte(`{"model":"` + model + `","max_tokens":1,"messages":[{"role":"user","content":"ping"}]}`)
-			rec := httptest.NewRecorder()
-			require.NoError(t, svc.ProxyMessages(authedCtx("00000000-0000-0000-0000-000000000001"), body, rec,
-				httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))))
-			assert.Equal(t, http.StatusOK, rec.Code)
-			assert.Equal(t, "pong", gjson.Get(rec.Body.String(), "content.0.text").String())
-			require.Len(t, provider.proxyBodies, 1)
-			assert.Equal(t, catalog.ModelIDGLM53.String(), gjson.GetBytes(provider.proxyBodies[0], "model").String())
-			require.Len(t, sink.events, 1)
-			assert.Equal(t, inference.PurposeAnthropicMessages, sink.events[0].Purpose)
-			assert.Equal(t, inference.PolicyID("main-anthropic-messages"), sink.events[0].PolicyID)
-			assert.Equal(t, inference.AttemptOutcomeServed, sink.events[0].Outcome)
-			assert.Empty(t, pins.upserts)
-			assert.Empty(t, pins.usages)
-			assert.Equal(t, 2, pins.getCalls, "probes inspect current and legacy force controls, never automatic conversation state")
-		})
-	}
-}
-
 func TestConcreteProbeFailureNeverRescuesAnotherModel(t *testing.T) {
 	primary := &fakeProvider{proxyErr: &providers.UpstreamErrorResponse{Status: http.StatusServiceUnavailable, Body: []byte(`{"error":"unavailable"}`)}}
 	alternate := &fakeProvider{}

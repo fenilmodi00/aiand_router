@@ -37,7 +37,7 @@ func firstSignatureDelta(t *testing.T, body string) string {
 // responsesStreamFixture: reasoning summary + output_text message + one
 // function_call with args split across two deltas, then response.completed.
 const responsesStreamFixture = `event: response.created
-data: {"type":"response.created","response":{"id":"resp_abc","status":"in_progress","model":"gpt-5.5","output":[]}}
+data: {"type":"response.created","response":{"id":"resp_abc","status":"in_progress","model":"z-ai/glm-5.3","output":[]}}
 
 event: response.output_item.added
 data: {"type":"response.output_item.added","output_index":0,"item":{"id":"rs_1","type":"reasoning","encrypted_content":"enc_stream","summary":[],"status":"in_progress"}}
@@ -76,7 +76,7 @@ event: response.output_item.done
 data: {"type":"response.output_item.done","output_index":2,"item":{"id":"fc_1","type":"function_call","call_id":"call_xyz","name":"get_weather","arguments":"{\"location\":\"NYC\"}","status":"completed"}}
 
 event: response.completed
-data: {"type":"response.completed","response":{"id":"resp_abc","status":"completed","model":"gpt-5.5","incomplete_details":null,"output":[{"id":"rs_1","type":"reasoning","encrypted_content":"enc_stream","summary":[{"type":"summary_text","text":"Checking the weather tool."}]},{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"output_text","text":"Let me check the weather."}]},{"id":"fc_1","type":"function_call","call_id":"call_xyz","name":"get_weather","arguments":"{\"location\":\"NYC\"}"}],"usage":{"input_tokens":150,"input_tokens_details":{"cached_tokens":0},"output_tokens":45}}}
+data: {"type":"response.completed","response":{"id":"resp_abc","status":"completed","model":"z-ai/glm-5.3","incomplete_details":null,"output":[{"id":"rs_1","type":"reasoning","encrypted_content":"enc_stream","summary":[{"type":"summary_text","text":"Checking the weather tool."}]},{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"output_text","text":"Let me check the weather."}]},{"id":"fc_1","type":"function_call","call_id":"call_xyz","name":"get_weather","arguments":"{\"location\":\"NYC\"}"}],"usage":{"input_tokens":150,"input_tokens_details":{"cached_tokens":0},"output_tokens":45}}}
 
 `
 
@@ -84,7 +84,7 @@ data: {"type":"response.completed","response":{"id":"resp_abc","status":"complet
 // with stop_reason=tool_use and upstream usage.
 func TestResponsesToAnthropicWriter_StreamingClient(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToAnthropicWriter(rec, "gpt-5.5", nil)
+	w := translate.NewResponsesToAnthropicWriter(rec, "z-ai/glm-5.3", nil)
 
 	require.NoError(t, w.Prelude(true))
 	_, err := w.Write([]byte(responsesStreamFixture))
@@ -146,7 +146,7 @@ func TestResponsesToAnthropicWriter_StreamingClient(t *testing.T) {
 func TestResponsesToAnthropicWriter_MessageStartIDUniquePerResponse(t *testing.T) {
 	startID := func() string {
 		rec := httptest.NewRecorder()
-		w := translate.NewResponsesToAnthropicWriter(rec, "gpt-5.5", nil)
+		w := translate.NewResponsesToAnthropicWriter(rec, "z-ai/glm-5.3", nil)
 		require.NoError(t, w.Prelude(true))
 		_, err := w.Write([]byte(responsesStreamFixture))
 		require.NoError(t, err)
@@ -175,7 +175,7 @@ func TestResponsesToAnthropicWriter_MessageStartIDUniquePerResponse(t *testing.T
 // Non-streaming: one-shot Anthropic JSON reconstructed from response.completed.
 func TestResponsesToAnthropicWriter_NonStreamingClient(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToAnthropicWriter(rec, "gpt-5.5", nil)
+	w := translate.NewResponsesToAnthropicWriter(rec, "z-ai/glm-5.3", nil)
 
 	// Prelude(false): client did not request streaming, so the writer buffers.
 	require.NoError(t, w.Prelude(false))
@@ -203,11 +203,11 @@ func TestResponsesToAnthropicWriter_NonStreamingClient(t *testing.T) {
 
 func TestResponsesToAnthropicWriter_NonStreamingSummaryCarriesUsageCounts(t *testing.T) {
 	const fixture = `event: response.completed
-data: {"type":"response.completed","response":{"id":"r","status":"completed","model":"gpt-5.5","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"done"}]}],"usage":{"input_tokens":1200,"input_tokens_details":{"cached_tokens":800},"output_tokens":340}}}
+data: {"type":"response.completed","response":{"id":"r","status":"completed","model":"z-ai/glm-5.3","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"done"}]}],"usage":{"input_tokens":1200,"input_tokens_details":{"cached_tokens":800},"output_tokens":340}}}
 
 `
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToAnthropicWriter(rec, "gpt-5.5", nil)
+	w := translate.NewResponsesToAnthropicWriter(rec, "z-ai/glm-5.3", nil)
 	require.NoError(t, w.Prelude(false))
 	_, err := w.Write([]byte(fixture))
 	require.NoError(t, err)
@@ -233,7 +233,7 @@ data: {"type":"response.completed","response":{"id":"r","status":"completed","ou
 
 `
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToAnthropicWriter(rec, "gpt-5.5", nil)
+	w := translate.NewResponsesToAnthropicWriter(rec, "z-ai/glm-5.3", nil)
 	require.NoError(t, w.Prelude(true))
 	_, err := w.Write([]byte(fixture))
 	require.NoError(t, err)
@@ -279,7 +279,7 @@ data: {"type":"response.completed","response":{"id":"r","status":"completed","ou
 
 `
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToAnthropicWriter(rec, "gpt-5.5", nil).
+	w := translate.NewResponsesToAnthropicWriter(rec, "z-ai/glm-5.3", nil).
 		WithToolValidator(readToolValidator(t))
 	require.NoError(t, w.Prelude(true))
 	_, err := w.Write([]byte(fixture))
@@ -305,7 +305,7 @@ data: {"type":"response.completed","response":{"id":"r","status":"completed","ou
 
 `
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToAnthropicWriter(rec, "gpt-5.5", nil).
+	w := translate.NewResponsesToAnthropicWriter(rec, "z-ai/glm-5.3", nil).
 		WithToolValidator(readToolValidator(t))
 	require.NoError(t, w.Prelude(false))
 	_, err := w.Write([]byte(fixture))
@@ -335,7 +335,7 @@ data: {"type":"response.completed","response":{"id":"r","status":"completed","ou
 
 `
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToAnthropicWriter(rec, "gpt-5.5", nil).
+	w := translate.NewResponsesToAnthropicWriter(rec, "z-ai/glm-5.3", nil).
 		WithToolValidator(writeToolValidator(t))
 	require.NoError(t, w.Prelude(false))
 	_, err := w.Write([]byte(fixture))
@@ -363,7 +363,7 @@ data: {"type":"response.output_item.done","output_index":0,"item":{"id":"fc_1","
 
 `
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToAnthropicWriter(rec, "gpt-5.5", nil)
+	w := translate.NewResponsesToAnthropicWriter(rec, "z-ai/glm-5.3", nil)
 	require.NoError(t, w.Prelude(true))
 	_, err := w.Write([]byte(fixture))
 	require.NoError(t, err)
@@ -384,7 +384,7 @@ data: {"type":"response.output_item.done","output_index":0,"item":{"id":"fc_1","
 
 `
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToAnthropicWriter(rec, "gpt-5.5", nil).
+	w := translate.NewResponsesToAnthropicWriter(rec, "z-ai/glm-5.3", nil).
 		WithToolValidator(writeToolValidator(t))
 	require.NoError(t, w.Prelude(true))
 	_, err := w.Write([]byte(fixture))
@@ -411,7 +411,7 @@ data: {"type":"response.function_call_arguments.delta","item_id":"fc_1","output_
 
 `
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToAnthropicWriter(rec, "gpt-5.5", nil)
+	w := translate.NewResponsesToAnthropicWriter(rec, "z-ai/glm-5.3", nil)
 	require.NoError(t, w.Prelude(true))
 	_, err := w.Write([]byte(fixture))
 	require.NoError(t, err)
@@ -443,7 +443,7 @@ data: {"type":"response.completed","response":{"id":"r","status":"completed","ou
 
 `
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToAnthropicWriter(rec, "gpt-5.5", nil)
+	w := translate.NewResponsesToAnthropicWriter(rec, "z-ai/glm-5.3", nil)
 	require.NoError(t, w.Prelude(true))
 	_, err := w.Write([]byte(fixture))
 	require.NoError(t, err)
@@ -474,7 +474,7 @@ data: {"type":"response.completed","response":{"id":"r","status":"completed","ou
 
 `
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToAnthropicWriter(rec, "gpt-5.5", nil)
+	w := translate.NewResponsesToAnthropicWriter(rec, "z-ai/glm-5.3", nil)
 	require.NoError(t, w.Prelude(true))
 	_, err := w.Write([]byte(fixture))
 	require.ErrorIs(t, err, providers.ErrUpstreamEmptyCompletion)
@@ -494,7 +494,7 @@ data: {"type":"error","code":"server_error","message":"upstream exploded"}
 
 `
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToAnthropicWriter(rec, "gpt-5.5", nil)
+	w := translate.NewResponsesToAnthropicWriter(rec, "z-ai/glm-5.3", nil)
 	require.NoError(t, w.Prelude(false)) // non-streaming client → buffered
 	_, err := w.Write([]byte(fixture))
 	require.NoError(t, err)
@@ -524,7 +524,7 @@ data: {"type":"response.failed","response":{"id":"r","status":"failed","error":{
 
 `
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToAnthropicWriter(rec, "gpt-5.5", nil)
+	w := translate.NewResponsesToAnthropicWriter(rec, "z-ai/glm-5.3", nil)
 	require.NoError(t, w.Prelude(true))
 	_, err := w.Write([]byte(fixture))
 	require.NoError(t, err)
@@ -553,7 +553,7 @@ data: {"type":"response.completed","response":{"id":"r","status":"completed","ou
 
 `
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToAnthropicWriter(rec, "gpt-5.5", nil)
+	w := translate.NewResponsesToAnthropicWriter(rec, "z-ai/glm-5.3", nil)
 	require.NoError(t, w.Prelude(true))
 	_, err := w.Write([]byte(fixture))
 	require.NoError(t, err)
@@ -568,7 +568,7 @@ data: {"type":"response.completed","response":{"id":"r","status":"completed","ou
 // Pre-output the same corruption stays retryable so the proxy can fail over.
 func TestResponsesToAnthropicWriter_MalformedFrameRetryablePreOutput(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToAnthropicWriter(rec, "gpt-5.5", nil)
+	w := translate.NewResponsesToAnthropicWriter(rec, "z-ai/glm-5.3", nil)
 	require.NoError(t, w.Prelude(true))
 	_, err := w.Write([]byte("data: {\"type\":\"response.output_te\n\n"))
 
@@ -585,7 +585,7 @@ data: {"type":"response.failed","response":{"id":"r","status":"failed","output":
 
 `
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToAnthropicWriter(rec, "gpt-5.5", nil)
+	w := translate.NewResponsesToAnthropicWriter(rec, "z-ai/glm-5.3", nil)
 	require.NoError(t, w.Prelude(true))
 	_, err := w.Write([]byte(fixture))
 	require.Error(t, err)
@@ -610,7 +610,7 @@ data: {"type":"response.completed","response":{"id":"r","status":"completed","ou
 
 `
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToAnthropicWriter(rec, "gpt-5.5", nil)
+	w := translate.NewResponsesToAnthropicWriter(rec, "z-ai/glm-5.3", nil)
 	require.NoError(t, w.Prelude(true))
 	_, err := w.Write([]byte(fixture))
 	require.NoError(t, err)
@@ -630,7 +630,7 @@ data: {"type":"response.failed","response":{"id":"r","status":"failed","error":{
 
 `
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToAnthropicWriter(rec, "gpt-5.5", nil)
+	w := translate.NewResponsesToAnthropicWriter(rec, "z-ai/glm-5.3", nil)
 	require.NoError(t, w.Prelude(false))
 	_, err := w.Write([]byte(fixture))
 	require.NoError(t, err)
@@ -652,7 +652,7 @@ data: {"type":"response.incomplete","response":{"id":"r","status":"incomplete","
 
 `
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToAnthropicWriter(rec, "gpt-5.5", nil)
+	w := translate.NewResponsesToAnthropicWriter(rec, "z-ai/glm-5.3", nil)
 	require.NoError(t, w.Prelude(false))
 	_, err := w.Write([]byte(fixture))
 	require.NoError(t, err)
@@ -674,7 +674,7 @@ data: {"type":"response.incomplete","response":{"id":"r","status":"incomplete","
 	for _, streaming := range []bool{true, false} {
 		t.Run(strconv.FormatBool(streaming), func(t *testing.T) {
 			rec := httptest.NewRecorder()
-			w := translate.NewResponsesToAnthropicWriter(rec, "gpt-5.5", nil)
+			w := translate.NewResponsesToAnthropicWriter(rec, "z-ai/glm-5.3", nil)
 			require.NoError(t, w.Prelude(streaming))
 			_, err := w.Write([]byte(fixture))
 			body := rec.Body.String()
@@ -702,7 +702,7 @@ data: {"type":"response.failed","response":{"id":"r","status":"failed","error":{
 
 `
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToAnthropicWriter(rec, "gpt-5.5", nil)
+	w := translate.NewResponsesToAnthropicWriter(rec, "z-ai/glm-5.3", nil)
 	require.NoError(t, w.Prelude(false))
 	_, err := w.Write([]byte(fixture))
 	require.NoError(t, err)
@@ -723,7 +723,7 @@ data: {"type":"response.failed","response":{"id":"r","status":"failed","output":
 
 `
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToAnthropicWriter(rec, "gpt-5.5", nil)
+	w := translate.NewResponsesToAnthropicWriter(rec, "z-ai/glm-5.3", nil)
 	require.NoError(t, w.Prelude(false))
 	_, err := w.Write([]byte(fixture))
 	require.NoError(t, err)
@@ -742,9 +742,9 @@ data: {"type":"response.failed","response":{"id":"r","status":"failed","output":
 func TestResponsesToAnthropicWriter_RoutingMarker(t *testing.T) {
 	rec := httptest.NewRecorder()
 	delivery := noticeDelivery(context.Background(), rec, translate.FormatAnthropic)
-	_, noticeErr := delivery.Deliver(translate.NewRouterNotice(translate.NoticeModelSelection, "[routed: gpt-5.5]", "gpt-5.5", ""))
+	_, noticeErr := delivery.Deliver(translate.NewRouterNotice(translate.NoticeModelSelection, "[routed: gpt-5.5]", "z-ai/glm-5.3", ""))
 	require.NoError(t, noticeErr)
-	w := translate.NewResponsesToAnthropicWriter(delivery, "gpt-5.5", nil)
+	w := translate.NewResponsesToAnthropicWriter(delivery, "z-ai/glm-5.3", nil)
 
 	require.NoError(t, w.Prelude(true))
 	_, err := w.Write([]byte(responsesStreamFixture))

@@ -45,7 +45,7 @@ func TestWithWorkspaceSystemAppended_OffOrNonAnthropicSourceIsIdentity(t *testin
 	require.NoError(t, err)
 	assert.Same(t, env, off)
 
-	openai, err := ParseOpenAI([]byte(`{"model":"gpt-5.6-luna","messages":[{"role":"system","content":"You are Claude Code."},{"role":"user","content":"hi"}]}`))
+	openai, err := ParseOpenAI([]byte(`{"model":"moonshotai/kimi-k2.7","messages":[{"role":"system","content":"You are Claude Code."},{"role":"user","content":"hi"}]}`))
 	require.NoError(t, err)
 	same, err := openai.withWorkspaceSystemAppended(EmitOptions{AppendWorkspaceSystem: true})
 	require.NoError(t, err)
