@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"weave-os/router/internal/billing"
-	"weave-os/router/internal/subscriptions"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -60,12 +59,12 @@ func TestSuppressMarkerIfRequestedHiddenByInstallation(t *testing.T) {
 func TestSubscriptionOnlyWarningHonorsTerminalSurfaceOptOut(t *testing.T) {
 	ctx := billing.WithSubscriptionOnly(context.Background(), billing.SubscriptionOnlyCreditsDepleted)
 
-	assert.Equal(t, subscriptionOnlyWarningMarker, routerNoticeForRequest(ctx, http.Header{}, subscriptions.ProviderClaude, "model", "").Text)
+	assert.Equal(t, subscriptionOnlyWarningMarker, routerNoticeForRequest(ctx, http.Header{}, subscriptionSourceClaude, "model", "").Text)
 
 	off := http.Header{}
 	off.Set(routingMarkerHeader, "off")
-	assert.Empty(t, routerNoticeForRequest(ctx, off, subscriptions.ProviderClaude, "model", "").Text)
+	assert.Empty(t, routerNoticeForRequest(ctx, off, subscriptionSourceClaude, "model", "").Text)
 
 	hidden := context.WithValue(ctx, InstallationHideTerminalSurfacesContextKey{}, true)
-	assert.Empty(t, routerNoticeForRequest(hidden, http.Header{}, subscriptions.ProviderClaude, "model", "").Text)
+	assert.Empty(t, routerNoticeForRequest(hidden, http.Header{}, subscriptionSourceClaude, "model", "").Text)
 }

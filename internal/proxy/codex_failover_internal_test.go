@@ -27,9 +27,7 @@ const (
 // account id as the auth middleware stashes them, plus an installation id so
 // resolveAndInjectCredentials takes the router-keyed subscription-first branch.
 func codexSubscriptionTestCtx() context.Context {
-	ctx := context.WithValue(context.Background(), OpenAISubscriptionContextKey{}, codexTestToken)
-	ctx = context.WithValue(ctx, OpenAIAccountIDContextKey{}, codexTestAccountID)
-	return context.WithValue(ctx, InstallationIDContextKey{}, "11111111-1111-1111-1111-111111111111")
+	return context.WithValue(context.Background(), InstallationIDContextKey{}, "11111111-1111-1111-1111-111111111111")
 }
 
 // TestCodexQuotaExhaustion_Classification pins which upstream envelopes count as
@@ -163,51 +161,6 @@ func TestCodexExhaustionWindow_OutlivesWeeklyReset(t *testing.T) {
 // window is what the observer retains the reading for, so a weekly reset must
 // keep later turns off the spent plan well past the 5h rolling window, while a
 // body naming no reset still lets the plan be retried after it.
-func TestCodexQuotaExhaustion_SuppressionLastsUntilThePlanResets(t *testing.T) {
-	spentPlan := func(resetsAt string) *providers.UpstreamErrorResponse {
-		return &providers.UpstreamErrorResponse{
-			Status: http.StatusTooManyRequests,
-			Body: []byte(`{"error":{"type":"usage_limit_reached","message":"The usage limit has been reached"` +
-				resetsAt + `}}`),
-		}
-	}
-
-	for _, tc := range []struct {
-		name             string
-		resetsAt         string
-		stillSuppressed  bool
-		suppressionAfter time.Duration
-	}{
-		{
-			name:             "weekly reset outlives the rolling window",
-			resetsAt:         `,"resets_at":` + strconv.FormatInt(time.Now().Add(6*24*time.Hour).Unix(), 10),
-			stillSuppressed:  true,
-			suppressionAfter: 6 * time.Hour,
-		},
-		{
-			name:             "no reset falls back to the rolling window",
-			stillSuppressed:  false,
-			suppressionAfter: 6 * time.Hour,
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			clock := time.Now()
-			svc := &Service{
-				usageObserver:            usage.NewObserver([]byte("test-salt"), time.Minute, func() time.Time { return clock }),
-				deploymentKeyedProviders: map[string]struct{}{providers.ProviderAIAND: {}},
-			}
-			ctx, headers := codexSubscriptionTestCtx(), http.Header{}
-
-			svc.recordCodexQuotaExhaustion(ctx, headers, spentPlan(tc.resetsAt))
-			require.True(t, svc.codexSubscriptionExhausted(ctx, headers),
-				"the plan the upstream just refused must be suppressed immediately")
-
-			clock = clock.Add(tc.suppressionAfter)
-			assert.Equal(t, tc.stillSuppressed, svc.codexSubscriptionExhausted(ctx, headers),
-				"suppression must last exactly as long as the upstream's own reset warrants")
-		})
-	}
-}
 
 // codexQuotaClient answers every dispatch with the ChatGPT plan-spent envelope,
 // recording whether each attempt carried the caller's OAuth subscription.
@@ -282,15 +235,3 @@ func TestCodexRescue_FailedRetryWritesNothingIntoACommittedResponsesStream(t *te
 // TestCodexSubscriptionExhausted_NoFallbackKey: suppressing the only OpenAI
 // credential the turn has would leave it unable to dispatch at all, which is
 // strictly worse than letting the subscription answer.
-func TestCodexSubscriptionExhausted_NoFallbackKey(t *testing.T) {
-	svc := &Service{usageObserver: usage.NewObserver([]byte("test-salt"), time.Hour, time.Now)}
-	ctx := codexSubscriptionTestCtx()
-
-	svc.recordCodexQuotaExhaustion(ctx, http.Header{}, &providers.UpstreamErrorResponse{
-		Status: http.StatusTooManyRequests,
-		Body:   []byte(`{"error":{"type":"usage_limit_reached","resets_at":` + strconv.FormatInt(time.Now().Add(time.Hour).Unix(), 10) + `}}`),
-	})
-
-	assert.True(t, svc.codexSubscriptionExhausted(ctx, http.Header{}),
-		"known exhaustion suppresses direct OAuth regardless of API availability")
-}

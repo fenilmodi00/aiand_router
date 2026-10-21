@@ -4559,7 +4559,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 			subscriptionStateRequest:        &req,
 			subscriptionStateHeaders:        r.Header,
 			subscriptionStateWinnerProvider: &subscriptionStateWinnerProvider,
-			alternatives: nil,
+			alternatives:                    nil,
 			buildAlternative: func(target router.Decision) (dispatchAttempt, error) {
 				alternativeOpts := opts
 				alternativeOpts.TargetModel = target.Model
@@ -7484,7 +7484,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		subscriptionStateRequest:        &routeRequest,
 		subscriptionStateHeaders:        r.Header,
 		subscriptionStateWinnerProvider: &subscriptionStateWinnerProvider,
-		alternatives: nil,
+		alternatives:                    nil,
 		buildAlternative: func(target router.Decision) (dispatchAttempt, error) {
 			alternativeOpts := opts
 			alternativeOpts.TargetModel = target.Model

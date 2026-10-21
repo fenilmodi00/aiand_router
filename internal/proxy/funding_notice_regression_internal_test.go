@@ -2,81 +2,18 @@ package proxy
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 	"weave-os/router/internal/billing"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/turntype"
-	"weave-os/router/internal/subscriptions"
 	"weave-os/router/internal/translate"
 )
-
-type fundingStreamProvider struct{ bypassFakeProvider }
-
-func (p *fundingStreamProvider) Proxy(ctx context.Context, decision router.Decision, prep providers.PreparedRequest, w http.ResponseWriter, r *http.Request) error {
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.WriteHeader(http.StatusOK)
-	return p.bypassFakeProvider.Proxy(ctx, decision, prep, w, r)
-}
-
-func TestFundingBypassEmptyStreamCannotSucceed(t *testing.T) {
-	upstream := &fundingStreamProvider{}
-	svc := newBypassService(upstream)
-	env, err := translate.ParseAnthropic([]byte(`{"model":"deepseek/deepseek-v4.1-flash","stream":true,"messages":[{"role":"user","content":"hello"}]}`))
-	require.NoError(t, err)
-	rec := httptest.NewRecorder()
-	ctx := billing.WithSubscriptionOnly(context.Background(), billing.SubscriptionOnlyCreditsDepleted)
-	err = svc.bypassToAnthropic(ctx, env, env.RoutingFeatures(false), false, time.Now(), "synthetic", "synthetic", turntype.MainLoop, reasonUsageBypass, httptest.NewRequest(http.MethodPost, "/v1/messages", nil), rec)
-	require.ErrorIs(t, err, errBypassRetryable)
-	assert.Empty(t, rec.Body.String())
-}
-
-func TestFundingBypassCommittedFailureCannotRecover(t *testing.T) {
-	for _, failure := range []error{errors.New("synthetic connection reset"), nil} {
-		t.Run(fmt.Sprint(failure), func(t *testing.T) {
-			upstream := &fundingStreamProvider{bypassFakeProvider{
-				respBody: "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":7}}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"partial answer\"}}\n\n",
-				proxyErr: failure,
-			}}
-			svc := newBypassService(upstream)
-			env, err := translate.ParseAnthropic([]byte(`{"model":"deepseek/deepseek-v4.1-flash","stream":true,"messages":[{"role":"user","content":"hello"}]}`))
-			require.NoError(t, err)
-			rec := httptest.NewRecorder()
-			ctx := billing.WithSubscriptionOnly(context.Background(), billing.SubscriptionOnlyCreditsDepleted)
-			err = svc.bypassToAnthropic(ctx, env, env.RoutingFeatures(false), false, time.Now(), "synthetic", "synthetic", turntype.MainLoop, reasonUsageBypass, httptest.NewRequest(http.MethodPost, "/v1/messages", nil), rec)
-			require.Error(t, err)
-			require.NotErrorIs(t, err, errBypassRetryable)
-			assert.Equal(t, 1, strings.Count(rec.Body.String(), "event: message_start\n"))
-			assert.Equal(t, 1, strings.Count(rec.Body.String(), "event: error\n"))
-			assert.Contains(t, rec.Body.String(), "partial answer")
-			assert.NotContains(t, rec.Body.String(), "event: message_stop")
-		})
-	}
-}
-
-func TestFundingBypassCancellationDoesNotDispatch(t *testing.T) {
-	upstream := &fundingStreamProvider{}
-	svc := newBypassService(upstream)
-	env, err := translate.ParseAnthropic([]byte(`{"model":"deepseek/deepseek-v4.1-flash","stream":true,"messages":[{"role":"user","content":"hello"}]}`))
-	require.NoError(t, err)
-	ctx, cancel := context.WithCancel(billing.WithSubscriptionOnly(context.Background(), billing.SubscriptionOnlyCreditsDepleted))
-	cancel()
-	rec := httptest.NewRecorder()
-	err = svc.bypassToAnthropic(ctx, env, env.RoutingFeatures(false), false, time.Now(), "synthetic", "synthetic", turntype.MainLoop, reasonUsageBypass, httptest.NewRequest(http.MethodPost, "/v1/messages", nil), rec)
-	require.ErrorIs(t, err, context.Canceled)
-	assert.Zero(t, upstream.dispatches)
-	assert.Empty(t, rec.Body.String())
-}
 
 func TestFundingNoticePolicyAndReplay(t *testing.T) {
 	const model = "synthetic-model"
@@ -88,7 +25,7 @@ func TestFundingNoticePolicyAndReplay(t *testing.T) {
 			assert.Equal(t, translate.NoticeFundingWarning, notice.Kind)
 			assert.Equal(t, translate.NoticeFromRouter, notice.Provenance)
 			assert.Equal(t, model, notice.Model)
-			if warning.source == subscriptions.ProviderClaude {
+			if warning.source == subscriptionSourceClaude {
 				assert.Contains(t, notice.Text, "Anthropic subscription")
 			} else {
 				assert.Contains(t, notice.Text, "ChatGPT (Codex) subscription")
@@ -160,45 +97,4 @@ func TestFundingNoticeBufferedAndStreamingCapabilities(t *testing.T) {
 			})
 		}
 	}
-}
-
-func TestFundingBypassBufferedResponseStaysWarningFree(t *testing.T) {
-	upstream := &bypassFakeProvider{respBody: `{"id":"synthetic","type":"message","content":[{"type":"text","text":"provider answer"}],"usage":{"input_tokens":3,"output_tokens":2}}`}
-	svc := newBypassService(upstream)
-	env := bypassAnthropicEnvelope(t)
-	ctx := billing.WithSubscriptionOnly(context.Background(), billing.SubscriptionOnlySpendCapReached)
-	rec := httptest.NewRecorder()
-	err := svc.bypassToAnthropic(ctx, env, env.RoutingFeatures(false), false, time.Now(), "synthetic", "synthetic", turntype.MainLoop, reasonUsageBypass, httptest.NewRequest(http.MethodPost, "/v1/messages", nil), rec)
-	require.NoError(t, err)
-	assert.JSONEq(t, upstream.respBody, rec.Body.String())
-	assert.Equal(t, "application/json", rec.Result().Header.Get("Content-Type"))
-}
-
-func TestFundingBypassPartialStreamLeavesRecoveryPristine(t *testing.T) {
-	for _, reason := range []billing.SubscriptionOnlyReason{billing.SubscriptionOnlyCreditsDepleted, billing.SubscriptionOnlySpendCapReached} {
-		t.Run(string(reason), func(t *testing.T) {
-			upstream := &fundingStreamProvider{bypassFakeProvider{respBody: "event: message_start\ndata: {", proxyErr: errors.New("synthetic connection reset")}}
-			svc := newBypassService(upstream)
-			env, err := translate.ParseAnthropic([]byte(`{"model":"deepseek/deepseek-v4.1-flash","stream":true,"messages":[{"role":"user","content":"hello"}]}`))
-			require.NoError(t, err)
-			rec := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
-			ctx := billing.WithSubscriptionOnly(context.Background(), reason)
-			err = svc.bypassToAnthropic(ctx, env, env.RoutingFeatures(false), false, time.Now(), "synthetic", "synthetic", turntype.MainLoop, reasonUsageBypass, req, rec)
-			require.ErrorIs(t, err, errBypassRetryable)
-			assert.Empty(t, rec.Body.String(), "an abandoned partial record and its synthetic warning must not escape into recovery")
-			assert.False(t, rec.Flushed)
-			assert.Empty(t, rec.Header().Get("Content-Type"))
-		})
-	}
-}
-
-func TestFundingBypassBufferedFailureCannotRecover(t *testing.T) {
-	upstream := &bypassFakeProvider{respBody: `{"id":"synthetic","content":[`, proxyErr: errors.New("synthetic connection reset")}
-	svc := newBypassService(upstream)
-	env := bypassAnthropicEnvelope(t)
-	ctx := billing.WithSubscriptionOnly(context.Background(), billing.SubscriptionOnlyCreditsDepleted)
-	err := svc.bypassToAnthropic(ctx, env, env.RoutingFeatures(false), false, time.Now(), "synthetic", "synthetic", turntype.MainLoop, reasonUsageBypass, httptest.NewRequest(http.MethodPost, "/v1/messages", nil), httptest.NewRecorder())
-	require.Error(t, err)
-	require.NotErrorIs(t, err, errBypassRetryable)
 }

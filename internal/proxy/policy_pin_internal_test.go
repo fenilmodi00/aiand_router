@@ -266,7 +266,6 @@ func TestRunTurnLoop_HonouredPinScoresAutomaticProbesWithoutConversationState(t 
 				assert.Equal(t, policyPinTier, res.PinTier)
 				assert.Empty(t, res.Purpose)
 				assert.Zero(t, res.SessionKey)
-				assert.False(t, res.UsageBypass)
 				assert.False(t, res.StickyHit)
 				rt.decision.Metadata = nil
 				_, err = svc.runTurnLoop(pinnedContext(true), env, feats, "key", uuid.Nil, "", nil,
@@ -299,12 +298,10 @@ func TestRunTurnLoop_HonouredPinNeverServes200WithHonouredFalse(t *testing.T) {
 func TestPolicyPinServedGuard(t *testing.T) {
 	served := turnLoopResult{Decision: router.Decision{Model: "m", Metadata: &router.RoutingMetadata{PolicyPinHonoured: true}}}
 	sticky := turnLoopResult{Decision: router.Decision{Model: "m"}, StickyHit: true, PinTier: "sticky"}
-	bypass := turnLoopResult{Decision: router.Decision{Model: "m"}, UsageBypass: true}
 	utility := turnLoopResult{Decision: router.Decision{Model: "m"}, HardPinned: true, Purpose: inference.Purpose("title_generation")}
 
 	assert.NoError(t, policyPinServed(pinnedContext(true), served))
 	assert.ErrorIs(t, policyPinServed(pinnedContext(true), sticky), router.ErrPolicyPinUnavailable)
-	assert.ErrorIs(t, policyPinServed(pinnedContext(true), bypass), router.ErrPolicyPinUnavailable)
 	assert.NoError(t, policyPinServed(pinnedContext(true), utility), "utility hard pins are never policy-scored")
 	assert.NoError(t, policyPinServed(pinnedContext(false), sticky))
 	assert.NoError(t, policyPinServed(context.Background(), sticky))

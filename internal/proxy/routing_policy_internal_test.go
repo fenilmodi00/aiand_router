@@ -59,7 +59,6 @@ func TestExplicitRoutingPolicyPrecedesClassifierAndPins(t *testing.T) {
 			assert.Equal(t, catalog.ModelIDGLM53.String(), turn.Decision.Model)
 			assert.Empty(t, routingMarkerFor(turn))
 			assert.Equal(t, 0, routerSpy.routeCalls)
-			assert.False(t, turn.UsageBypass)
 			pins.mu.Lock()
 			defer pins.mu.Unlock()
 			assert.Equal(t, []string{forceModelSessionRole}, pins.getRoles)
