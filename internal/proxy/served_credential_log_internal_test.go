@@ -25,11 +25,10 @@ func TestServedCredentialLogValues(t *testing.T) {
 	pooled := context.WithValue(context.Background(), ManagedSubscriptionUsageContextKey{}, &ManagedSubscriptionUsage{
 		Served:                true,
 		Finished:              true,
-		CredentialSource:      credSourceCodexSubscription,
 		SubscriptionAccountID: "account",
 		SubscriptionTier:      auth.SubscriptionTierShared,
 	})
 	source, tier = service.servedCredentialLogValues(pooled)
-	assert.Equal(t, credSourceCodexSubscription, source)
+	assert.Empty(t, source, "a pooled subscription carries no per-request credential to display")
 	assert.Equal(t, string(auth.SubscriptionTierShared), tier)
 }

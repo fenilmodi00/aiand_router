@@ -100,7 +100,6 @@ func TestService_AgentShadowEvaluationNeverRetriesSubscriptionOnDeploymentKey(t 
 		Model: "z-ai/glm-5.2", RolloutID: "pilot-1", StateID: "state-1",
 	})
 	ctx = context.WithValue(ctx, proxy.InstallationIDContextKey{}, "1791da5d-d0db-494c-8574-859a4cb20d97")
-	ctx = context.WithValue(ctx, proxy.AnthropicSubscriptionContextKey{}, "sk-ant-oat01-subscription-token")
 	body := []byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"inspect this repository"}],"max_tokens":512}`)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
@@ -226,9 +225,7 @@ func TestService_ProxyOpenAIResponses_NativeBadgeForTerminalClientsHonorsSuppres
 				providers.ProviderAIAND: provider,
 			}, nil, false, nil, nil, false, providers.ProviderAIAND, "gpt-5.6-sol", nil)
 
-			ctx := context.WithValue(context.Background(), proxy.OpenAISubscriptionContextKey{}, "eyJhbGciOiJSUzI1NiJ9.codex.sig")
-			ctx = context.WithValue(ctx, proxy.OpenAIAccountIDContextKey{}, "acct-123")
-			ctx = context.WithValue(ctx, proxy.ClientIdentityContextKey{}, proxy.ClientIdentity{ClientApp: tc.clientApp})
+			ctx := context.WithValue(context.Background(), proxy.ClientIdentityContextKey{}, proxy.ClientIdentity{ClientApp: tc.clientApp})
 			body := []byte(`{"model":"gpt-5.6-sol","stream":true,"input":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"\u2063\u2060\u2063\u2060**Weave Router** — gpt-5.6-sol\n\nold answer\n\n_Weave Router feedback:_ /rf + good experience"}]},{"type":"message","role":"user","content":"continue"},{"type":"message","role":"assistant","content":[{"type":"output_text","text":""}]},{"type":"function_call","call_id":"call_shell","name":"shell","arguments":"{}"}]}`)
 			rec := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(""))
@@ -324,13 +321,11 @@ func TestService_CodexRequestRoutesInfrastructureOpenAIModelWithoutOAuth(t *test
 	}, nil, false, nil, nil, false, providers.ProviderAIAND, "gpt-5.6-sol", nil).
 		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 
-	ctx := context.WithValue(context.Background(), proxy.OpenAISubscriptionContextKey{}, "eyJhbGciOiJSUzI1NiJ9.codex.sig")
-	ctx = context.WithValue(ctx, proxy.OpenAIAccountIDContextKey{}, "acct-123")
 	body := []byte(`{"model":"gpt-5.6-sol","input":"route this turn"}`)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(""))
 
-	require.NoError(t, svc.ProxyOpenAIResponses(ctx, body, rec, req))
+	require.NoError(t, svc.ProxyOpenAIResponses(context.Background(), body, rec, req))
 	require.Len(t, provider.proxyBodies, 1)
 	assert.Equal(t, providers.EndpointResponses, provider.proxyEndpoints[0])
 	assert.Contains(t, string(provider.proxyBodies[0]), `"model":"gpt-5.4-nano"`)

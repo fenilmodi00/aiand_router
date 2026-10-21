@@ -68,7 +68,6 @@ func TestCallerModelPassthroughSkipsAutomaticPinsAndScorer(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 0, routerSpy.routeCalls)
 	assert.True(t, loopResult.CallerModelPassthrough)
-	assert.False(t, loopResult.UsageBypass)
 	assert.Equal(t, "deepseek/deepseek-v4.1-flash", loopResult.Decision.Model)
 	assert.Equal(t, providers.ProviderAIAND, loopResult.Decision.Provider)
 	assert.Equal(t, blindExperimentPublicDecisionReason, loopResult.Decision.Reason)
@@ -421,7 +420,6 @@ func TestCohortTelemetryExplainsBypassedTreatment(t *testing.T) {
 	}{
 		{name: "force model", routed: &turnLoopResult{Decision: router.Decision{Model: "model", Reason: translate.ReasonUserForceModel}}, reason: auth.CohortBypassForceModel},
 		{name: "hard pin", routed: &turnLoopResult{HardPinned: true, Decision: router.Decision{Model: "model"}}, reason: auth.CohortBypassHardPin},
-		{name: "usage bypass", routed: &turnLoopResult{UsageBypass: true, Decision: router.Decision{Model: "model"}}, reason: auth.CohortBypassUsageBypass},
 		{name: "not dispatched", routed: nil, reason: auth.CohortBypassNotDispatched},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
