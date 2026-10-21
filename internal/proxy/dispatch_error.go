@@ -11,6 +11,7 @@ import (
 	"weave-os/router/internal/router"
 	"weave-os/router/internal/router/bandit"
 	"weave-os/router/internal/router/cluster"
+	"weave-os/router/internal/router/decisionmodel"
 	"weave-os/router/internal/router/eligibility"
 	"weave-os/router/internal/router/hmm"
 	"weave-os/router/internal/router/policy"
@@ -70,6 +71,7 @@ const (
 	DispatchErrorClassifierUnavailable
 	DispatchErrorSpendCapReached
 	DispatchErrorSubscriptionClientAppRefused
+	DispatchErrorDecisionModelUnavailable
 )
 
 // DispatchErrorClass is the format-agnostic classification of a dispatch
@@ -400,6 +402,15 @@ func ClassifyDispatchError(err error) (DispatchErrorClass, bool) {
 			RetryAfter: true,
 			LogLevel:   "error",
 			LogMessage: "Bandit routing unavailable",
+		}, true
+	case errors.Is(err, decisionmodel.ErrUnavailable):
+		return DispatchErrorClass{
+			Kind:       DispatchErrorDecisionModelUnavailable,
+			Status:     http.StatusServiceUnavailable,
+			Message:    "Router unavailable: decision model routing failed and no fallback is configured.",
+			RetryAfter: true,
+			LogLevel:   "error",
+			LogMessage: "decision model routing unavailable",
 		}, true
 	case errors.Is(err, hmm.ErrHMMUnavailable):
 		return DispatchErrorClass{

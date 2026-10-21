@@ -12,6 +12,7 @@ import (
 	"weave-os/router/internal/proxy"
 	"weave-os/router/internal/router/bandit"
 	"weave-os/router/internal/router/cluster"
+	"weave-os/router/internal/router/decisionmodel"
 	"weave-os/router/internal/router/hmm"
 	"weave-os/router/internal/router/policy"
 	"weave-os/router/internal/router/rl"
@@ -153,7 +154,7 @@ func TestClassifyDispatchError_AllowlistEmptiesPoolPrecedesNoEligibleProvider(t 
 }
 
 func TestClassifyDispatchError_BanditRLandHMMUnavailableRetry(t *testing.T) {
-	for _, err := range []error{bandit.ErrBanditUnavailable, rl.ErrPolicyUnavailable, hmm.ErrHMMUnavailable} {
+	for _, err := range []error{bandit.ErrBanditUnavailable, rl.ErrPolicyUnavailable, hmm.ErrHMMUnavailable, decisionmodel.ErrUnavailable} {
 		cls, ok := proxy.ClassifyDispatchError(err)
 		require.True(t, ok, "expected %v to be classified", err)
 		assert.Equal(t, http.StatusServiceUnavailable, cls.Status)

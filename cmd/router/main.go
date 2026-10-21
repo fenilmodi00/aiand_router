@@ -54,6 +54,7 @@ import (
 	"weave-os/router/internal/router/cache"
 	"weave-os/router/internal/router/catalog"
 	"weave-os/router/internal/router/cluster"
+	"weave-os/router/internal/router/decisionmodel"
 	"weave-os/router/internal/router/escalation"
 	"weave-os/router/internal/router/handover"
 	"weave-os/router/internal/router/hmm"
@@ -1355,6 +1356,10 @@ func main() {
 		WithPolicyStrategy(policy.StrategySpec{
 			Strategy: router.StrategyHMMQwen, Router: hmmQwenRouter, Unavailable: hmm.ErrHMMUnavailable,
 			Capabilities: hmmCapabilities,
+		}).
+		WithPolicyStrategy(policy.StrategySpec{
+			Strategy: router.StrategyDecisionModel, Router: buildDecisionModelRouter(logger), Unavailable: decisionmodel.ErrUnavailable,
+			Capabilities: policy.Capabilities{AuthoritativePerTurnSelection: true},
 		}).
 		WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyBandit, Router: banditRouter, Unavailable: bandit.ErrBanditUnavailable}).
 		WithContentCapture(captureMode, captureMaxBytes, nil).
