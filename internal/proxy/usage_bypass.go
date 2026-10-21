@@ -482,8 +482,6 @@ func (s *Service) bypassToAnthropic(
 		TargetProvider:           decision.Provider,
 		Capabilities:             router.Lookup(decision.Model),
 		IncludeStreamUsage:       s.usageRequired(),
-		EnableExtendedContext:    shouldEnableExtendedContext(env.FullTokenEstimate(), outputReserve),
-		EnableServerSideFallback: s.ResolveAnthropicServerSideFallback(ctx),
 		// When the session previously served a different model, strip thinking
 		// blocks whose signatures the requested model would reject (else
 		// Anthropic 400s on the stale signature).
