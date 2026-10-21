@@ -58,7 +58,6 @@ const (
 	DispatchErrorForcedClusterUnsupportedStrategy
 	DispatchErrorForcedClusterUnservable
 	DispatchErrorRoutedModelIncompatible
-	DispatchErrorGatewayServesNoModel
 	DispatchErrorNoRoutableModels
 	DispatchErrorPlanTargetMismatch
 	DispatchErrorPlanOverrideRejected
@@ -348,16 +347,8 @@ func ClassifyDispatchError(err error) (DispatchErrorClass, bool) {
 			LogLevel:   "warn",
 			LogMessage: "Policy pin unavailable",
 		}, true
-	// Must precede every policy-unavailable case: ErrGatewayServesNoDeployedModel
+	// Must precede every policy-unavailable case: ErrNoRoutableModels
 	// also wraps ErrHMMUnavailable, and the more-specific sentinel wins.
-	case errors.Is(err, policy.ErrGatewayServesNoDeployedModel):
-		return DispatchErrorClass{
-			Kind:       DispatchErrorGatewayServesNoModel,
-			Status:     http.StatusBadRequest,
-			Message:    "No model can be routed through your gateway: your gateway keys don't alias any available model. Add model aliases on the key mapping each model you want routed to the name your gateway serves it under.",
-			LogLevel:   "warn",
-			LogMessage: "Gateway-exclusive routing has no aliased model",
-		}, true
 	case errors.Is(err, policy.ErrNoRoutableModels):
 		return DispatchErrorClass{
 			Kind:       DispatchErrorNoRoutableModels,
@@ -485,7 +476,7 @@ func (k DispatchErrorKind) IsClientError() bool {
 	switch k {
 	case DispatchErrorClassifierHistory, DispatchErrorClassifierInputTooLong:
 		return true
-	case DispatchErrorRequestNotJSONObject, DispatchErrorResponsesChatCompletionsBody, DispatchErrorNoEligibleProvider, DispatchErrorAllowlistEmptiesPool, DispatchErrorContextWindowExceeded, DispatchErrorInvalidRoutingKnobs, DispatchErrorTranslationIntrinsicallyIncompatible, DispatchErrorAnthropicCacheControlInvalid, DispatchErrorForcedModelExcluded, DispatchErrorForcedModelUnknown, DispatchErrorPassthroughModelUnknown, DispatchErrorForcedClusterUnsupportedStrategy, DispatchErrorForcedClusterUnservable, DispatchErrorGatewayServesNoModel, DispatchErrorNoRoutableModels, DispatchErrorPlanOverrideRejected, DispatchErrorProductIneligible:
+	case DispatchErrorRequestNotJSONObject, DispatchErrorResponsesChatCompletionsBody, DispatchErrorNoEligibleProvider, DispatchErrorAllowlistEmptiesPool, DispatchErrorContextWindowExceeded, DispatchErrorInvalidRoutingKnobs, DispatchErrorTranslationIntrinsicallyIncompatible, DispatchErrorAnthropicCacheControlInvalid, DispatchErrorForcedModelExcluded, DispatchErrorForcedModelUnknown, DispatchErrorPassthroughModelUnknown, DispatchErrorForcedClusterUnsupportedStrategy, DispatchErrorForcedClusterUnservable, DispatchErrorNoRoutableModels, DispatchErrorPlanOverrideRejected, DispatchErrorProductIneligible:
 		return true
 	default:
 		return false

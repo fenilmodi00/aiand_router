@@ -12,10 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/providers"
 	"weave-os/router/internal/router"
 	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/router/policy"
 )
 
 // fakeEmbedder returns a fixed vector or error; captures last text for
@@ -805,20 +803,6 @@ func TestScorer_EnabledProvidersGatesArgmax(t *testing.T) {
 	})
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, ErrNoEligibleProvider))
-}
-
-func TestScorer_GatewayWithoutAliasesReturnsErrGatewayServesNoDeployedModel(t *testing.T) {
-	emb := &fakeEmbedder{vec: makeOpusVec()}
-	s := newTwoProviderScorer(t, emb)
-
-	_, err := s.Route(context.Background(), router.Request{
-		PromptText:       strings.Repeat("x", 100),
-		EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}},
-		GatewayProviders: map[string]struct{}{providers.ProviderAIAND: {}},
-	})
-	require.Error(t, err)
-	assert.True(t, errors.Is(err, policy.ErrGatewayServesNoDeployedModel))
-	assert.False(t, errors.Is(err, ErrClusterUnavailable))
 }
 
 // Installation with no resolvable provider keys must surface a

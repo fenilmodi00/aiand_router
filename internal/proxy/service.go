@@ -1333,18 +1333,9 @@ func admitWidestOnTotalOverflow(ruledOut map[string]struct{}, overflowed []strin
 }
 
 // servableUnder reports whether an enabled provider serves model through a
-// catalog or configuration-declared binding; a gateway-exclusive request is
-// served only through its gateways' aliases. No enabled set, or a model
+// catalog or configuration-declared binding. No enabled set, or a model
 // without catalog bindings, counts as servable.
 func servableUnder(model string, enabledProviders map[string]struct{}, bindings cluster.RequestBindings) bool {
-	if len(bindings.Gateways) > 0 {
-		for _, provider := range bindings.Custom[model] {
-			if _, gateway := bindings.Gateways[provider]; gateway {
-				return true
-			}
-		}
-		return false
-	}
 	if len(enabledProviders) == 0 {
 		return true
 	}

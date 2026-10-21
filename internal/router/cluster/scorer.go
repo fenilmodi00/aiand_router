@@ -12,7 +12,6 @@ import (
 	"weave-os/router/internal/observability"
 	"weave-os/router/internal/router"
 	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/router/policy"
 )
 
 // ErrClusterUnavailable is returned when the cluster scorer cannot produce
@@ -378,25 +377,6 @@ func resolveProviderWithCustom(modelID, registryProvider string, available map[s
 	return catalog.CustomProviderFor(modelID, available, custom)
 }
 
-// resolveGatewayProvider routes only via the key's aliased gateway providers;
-// catalog vendor bindings are not consulted.
-func resolveGatewayProvider(modelID string, available map[string]struct{}, custom map[string][]string, gateways map[string]struct{}) string {
-	m, known := catalog.ByID(modelID)
-	if !known || m.Tier == catalog.TierUnknown {
-		return ""
-	}
-	for _, provider := range custom[m.ID] {
-		if _, isGateway := gateways[provider]; !isGateway {
-			continue
-		}
-		if _, enabled := available[provider]; !enabled {
-			continue
-		}
-		return provider
-	}
-	return ""
-}
-
 // filterByProviders drops entries with no ProviderBinding resolvable under
 // available, and rewrites each surviving entry's Provider to the resolved
 // binding. For multi-binding rows (e.g. fireworks primary, openrouter
@@ -523,7 +503,7 @@ func (s *Scorer) Route(ctx context.Context, req router.Request) (router.Decision
 	eligibleModels := s.models
 	resolvedProvider := make(map[string]string, len(s.candidates))
 	if req.EnabledProviders != nil {
-		bindings := RequestBindings{Custom: req.CustomBindings, Gateways: req.GatewayProviders}
+		bindings := RequestBindings{Custom: req.CustomBindings}
 		eligibleModels = eligibleModels[:0:0]
 		for _, c := range s.candidates {
 			r := bindings.resolve(c.Model, c.Provider, req.EnabledProviders)
@@ -532,14 +512,6 @@ func (s *Scorer) Route(ctx context.Context, req router.Request) (router.Decision
 			}
 			resolvedProvider[c.Model] = r
 			eligibleModels = append(eligibleModels, c.Model)
-		}
-		if len(eligibleModels) == 0 && len(req.GatewayProviders) > 0 {
-			log.Warn(
-				"Cluster scorer: gateway keys alias no deployed model; returning ErrGatewayServesNoDeployedModel",
-				"gateway_providers", sortedKeys(req.GatewayProviders),
-				"requested_model", req.RequestedModel,
-			)
-			return router.Decision{}, fmt.Errorf("gateway providers %v alias no deployed model: %w", sortedKeys(req.GatewayProviders), policy.ErrGatewayServesNoDeployedModel)
 		}
 		if len(eligibleModels) == 0 {
 			log.Warn(

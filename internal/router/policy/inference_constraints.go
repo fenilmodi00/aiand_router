@@ -109,11 +109,6 @@ func constraintViolation(constraint Constraint, request router.Request, budget B
 				return fmt.Sprintf("provider %q is not enabled for the request", binding.Provider)
 			}
 		}
-		if len(request.GatewayProviders) > 0 {
-			if _, gateway := request.GatewayProviders[binding.Provider]; !gateway {
-				return fmt.Sprintf("provider %q is not one of the request gateways", binding.Provider)
-			}
-		}
 	case ConstraintSpend:
 		if exceedsSpendBudget(binding.estimatedCostUSD, budget.MaxSpendUSD) {
 			return "estimated cost exceeds the spend cap"

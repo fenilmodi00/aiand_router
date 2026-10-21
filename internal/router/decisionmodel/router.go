@@ -142,7 +142,7 @@ func resolve(req router.Request, model string, lineup Lineup) (router.Decision, 
 }
 
 // dispatchProvider returns the first provider that can serve model for req,
-// honoring exclusions, allowlists, image support, custom bindings and gateways.
+// honoring exclusions, allowlists, image support and custom bindings.
 func dispatchProvider(req router.Request, model string) (string, bool) {
 	for _, excluded := range []map[string]struct{}{req.ExcludedModels, req.SafetyExcludedModels, req.ContextWindowExcludedModels, req.UnsignedHistoryExcludedModels} {
 		if _, found := excluded[model]; found {
@@ -162,18 +162,8 @@ func dispatchProvider(req router.Request, model string) (string, bool) {
 	return bindings[0].Provider, true
 }
 
-// availableProviders limits gateway installations to their aliased gateways
-// and treats a nil EnabledProviders as every catalog provider.
+// availableProviders treats a nil EnabledProviders as every catalog provider.
 func availableProviders(req router.Request, model string) map[string]struct{} {
-	if len(req.GatewayProviders) > 0 {
-		gateways := map[string]struct{}{}
-		for _, provider := range req.CustomBindings[model] {
-			if _, gateway := req.GatewayProviders[provider]; gateway {
-				gateways[provider] = struct{}{}
-			}
-		}
-		return gateways
-	}
 	if req.EnabledProviders != nil {
 		return req.EnabledProviders
 	}

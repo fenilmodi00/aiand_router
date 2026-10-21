@@ -354,22 +354,6 @@ func TestClassifyDispatchError_ReasoningIncompatibleClassifiesAsRoutedModelIncom
 	assert.Equal(t, http.StatusBadGateway, cls.Status)
 }
 
-// TestClassifyDispatchError_GatewayServesNoModel: sidecar wraps both sentinels;
-// the specific one must win over the generic "router unavailable" shape.
-func TestClassifyDispatchError_GatewayServesNoModel(t *testing.T) {
-	err := fmt.Errorf("hmm_embedding: no eligible candidate: %w: %w",
-		policy.ErrGatewayServesNoDeployedModel, hmm.ErrHMMUnavailable)
-
-	cls, ok := proxy.ClassifyDispatchError(err)
-
-	require.True(t, ok)
-	assert.Equal(t, proxy.DispatchErrorGatewayServesNoModel, cls.Kind)
-	assert.Equal(t, http.StatusBadRequest, cls.Status)
-	assert.Contains(t, cls.Message, "model aliases")
-	assert.False(t, cls.RetryAfter, "retrying cannot fix a configuration that routes nowhere")
-	assert.True(t, cls.Kind.IsClientError())
-}
-
 func TestClassifyDispatchError_NoRoutableModels(t *testing.T) {
 	err := fmt.Errorf("hmm_embedding: no eligible candidate: %w: %w",
 		policy.ErrNoRoutableModels, hmm.ErrHMMUnavailable)
