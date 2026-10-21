@@ -50,7 +50,7 @@ func TestVerificationSQLWinningAttributionAndPaidExclusion(t *testing.T) {
 		{"api-fallback", "", "{}", 200, false},
 	}
 	for _, tc := range cases {
-		arg := sqlc.InsertRequestTelemetryParams{InstallationID: org, RequestID: tc.id, SpanType: "router.upstream", TraceID: "synthetic-trace", Timestamp: pgtype.Timestamptz{Time: now, Valid: true}, RequestedModel: "auto", DecisionModel: "gpt-5.6-sol", DecisionProvider: providers.ProviderAIAND, DecisionReason: "synthetic", EmbedInput: "concatenated_stream", UpstreamStatusCode: tc.status, SubscriptionAccountID: pgtype.UUID{Bytes: account, Valid: true}, SubscriptionOwnerID: pgtype.UUID{Bytes: owner, Valid: true}, SubscriptionTier: stringPtr("shared"), IntendedModelFamily: stringPtr("claude-opus-5"), FinalModelFamily: stringPtr("gpt-5.6-sol"), UnifiedLimitHeaders: []byte(tc.headers)}
+		arg := sqlc.InsertRequestTelemetryParams{InstallationID: org, RequestID: tc.id, SpanType: "router.upstream", TraceID: "synthetic-trace", Timestamp: pgtype.Timestamptz{Time: now, Valid: true}, RequestedModel: "auto", DecisionModel: "gpt-5.6-sol", DecisionProvider: providers.ProviderAIAND, DecisionReason: "synthetic", EmbedInput: "concatenated_stream", UpstreamStatusCode: tc.status, SubscriptionAccountID: pgtype.UUID{Bytes: account, Valid: true}, SubscriptionOwnerID: pgtype.UUID{Bytes: owner, Valid: true}, SubscriptionTier: stringPtr("shared"), IntendedModelFamily: stringPtr("z-ai/glm-5.2"), FinalModelFamily: stringPtr("gpt-5.6-sol"), UnifiedLimitHeaders: []byte(tc.headers)}
 		if tc.source != "" {
 			arg.CredentialSource = stringPtr(tc.source)
 		}
@@ -69,7 +69,7 @@ func TestVerificationSQLWinningAttributionAndPaidExclusion(t *testing.T) {
 		require.Equal(t, account, uuid.UUID(row.SubscriptionAccountID.Bytes))
 		require.Equal(t, owner, uuid.UUID(row.SubscriptionOwnerID.Bytes))
 		require.Equal(t, "shared", *row.SubscriptionTier)
-		require.Equal(t, "claude-opus-5", *row.IntendedModelFamily)
+		require.Equal(t, "z-ai/glm-5.2", *row.IntendedModelFamily)
 		require.Equal(t, "gpt-5.6-sol", *row.FinalModelFamily)
 	}
 }

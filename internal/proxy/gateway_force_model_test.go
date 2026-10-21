@@ -51,43 +51,43 @@ func anthropicOKProvider() *fakeProvider {
 // The tenant's gateway is the access boundary, so its allowlist shapes only
 // what the router picks; an explicit force reaches any model the gateway aliases.
 func TestService_GatewayForcedPinOutsideAllowlistServes(t *testing.T) {
-	const body = `{"model":"claude-opus-4-7","messages":[{"role":"user","content":"analyze usage"}]}`
+	const body = `{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"analyze usage"}]}`
 	store := newFakePinStore()
 	store.hasPin = true
 	store.pin = sessionpin.Pin{
 		Provider:    providers.ProviderAIAND,
-		Model:       "claude-opus-5",
+		Model:       "z-ai/glm-5.2",
 		Reason:      translate.ReasonUserForceModel,
 		PinnedUntil: time.Now().Add(time.Hour),
 	}
 	fr := &fakeRouter{decision: router.Decision{
-		Provider: providers.ProviderAIAND, Model: "claude-opus-5-5", Reason: "cluster:v0.2",
+		Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.2", Reason: "cluster:v0.2",
 	}}
 	svc := proxy.NewService(fr,
 		map[string]providers.Client{providers.ProviderAIAND: anthropicOKProvider()},
-		nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil)
+		nil, false, nil, store, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil)
 
-	ctx := gatewayAllowlistCtx([]string{"claude-opus-5-5"}, "claude-opus-5", "claude-opus-5-5")
+	ctx := gatewayAllowlistCtx([]string{"z-ai/glm-5.2"}, "z-ai/glm-5.2", "z-ai/glm-5.2")
 	rec := httptest.NewRecorder()
 	require.NoError(t, svc.ProxyMessages(ctx, []byte(body), rec,
 		httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))))
 
 	assert.Equal(t, 0, fr.routeCalls, "the force must not fall through to automatic routing")
-	assert.Equal(t, "claude-opus-5", rec.Header().Get(proxy.HeaderRouterModel))
+	assert.Equal(t, "z-ai/glm-5.2", rec.Header().Get(proxy.HeaderRouterModel))
 	assert.NotContains(t, rec.Body.String(), "could not be served")
 }
 
 func TestService_GatewayForceCommandOutsideAllowlistApplies(t *testing.T) {
-	const body = `{"model":"claude-opus-4-7","messages":[{"role":"user","content":"/force-model claude-opus-5"}]}`
+	const body = `{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"/force-model claude-opus-5"}]}`
 	store := newFakePinStore()
 	fr := &fakeRouter{decision: router.Decision{
-		Provider: providers.ProviderAIAND, Model: "claude-opus-5-5", Reason: "cluster:v0.2",
+		Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.2", Reason: "cluster:v0.2",
 	}}
 	svc := proxy.NewService(fr,
 		map[string]providers.Client{providers.ProviderAIAND: anthropicOKProvider()},
-		nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil)
+		nil, false, nil, store, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil)
 
-	ctx := gatewayAllowlistCtx([]string{"claude-opus-5-5"}, "claude-opus-5", "claude-opus-5-5")
+	ctx := gatewayAllowlistCtx([]string{"z-ai/glm-5.2"}, "z-ai/glm-5.2", "z-ai/glm-5.2")
 	rec := httptest.NewRecorder()
 	require.NoError(t, svc.ProxyMessages(ctx, []byte(body), rec,
 		httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))))
@@ -95,23 +95,23 @@ func TestService_GatewayForceCommandOutsideAllowlistApplies(t *testing.T) {
 	assert.NotContains(t, rec.Body.String(), "force-model rejected")
 	waitForUpsert(t, store)
 	require.NotEmpty(t, store.upserts)
-	assert.Equal(t, "claude-opus-5", store.upserts[0].Model)
+	assert.Equal(t, "z-ai/glm-5.2", store.upserts[0].Model)
 	assert.Equal(t, providers.ProviderAIAND, store.upserts[0].Provider)
 }
 
 // The gateway bypass covers only the positive allowlist: a model the gateway
 // does not alias is still refused.
 func TestService_GatewayForceCommandUnaliasedModelStillRejected(t *testing.T) {
-	const body = `{"model":"claude-opus-4-7","messages":[{"role":"user","content":"/force-model claude-sonnet-5-5"}]}`
+	const body = `{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"/force-model claude-sonnet-5-5"}]}`
 	store := newFakePinStore()
 	fr := &fakeRouter{decision: router.Decision{
-		Provider: providers.ProviderAIAND, Model: "claude-opus-5-5", Reason: "cluster:v0.2",
+		Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.2", Reason: "cluster:v0.2",
 	}}
 	svc := proxy.NewService(fr,
 		map[string]providers.Client{providers.ProviderAIAND: anthropicOKProvider()},
-		nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil)
+		nil, false, nil, store, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil)
 
-	ctx := gatewayAllowlistCtx([]string{"claude-opus-5-5"}, "claude-opus-5", "claude-opus-5-5")
+	ctx := gatewayAllowlistCtx([]string{"z-ai/glm-5.2"}, "z-ai/glm-5.2", "z-ai/glm-5.2")
 	rec := httptest.NewRecorder()
 	require.NoError(t, svc.ProxyMessages(ctx, []byte(body), rec,
 		httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))))

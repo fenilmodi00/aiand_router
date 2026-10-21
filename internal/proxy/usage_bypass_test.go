@@ -24,8 +24,8 @@ import (
 
 const (
 	bypassSubToken      = "sk-ant-oat01-subscription-token"
-	bypassRequestedMdl  = "claude-sonnet-4-6"
-	bypassScorerPickMdl = "claude-haiku-4-5"
+	bypassRequestedMdl  = "deepseek/deepseek-v4.1-flash"
+	bypassScorerPickMdl = "z-ai/glm-5.3-flash"
 )
 
 // bypassFixture builds a service whose fake scorer would route to
@@ -95,7 +95,7 @@ func TestUsageBypass_NativeWebSearchSubTurnUsesSubscription(t *testing.T) {
 
 	assert.Zero(t, fr.routeCalls, "an isolated search sub-turn must bypass policy scoring")
 	require.Len(t, p.proxyBodies, 1, "the subscription request must dispatch exactly once")
-	assert.Equal(t, "claude-opus-4-8", rec.Header().Get(proxy.HeaderRouterModel))
+	assert.Equal(t, "z-ai/glm-5.2", rec.Header().Get(proxy.HeaderRouterModel))
 	assert.Equal(t, "usage_bypass", rec.Header().Get(proxy.HeaderRouterDecision))
 }
 

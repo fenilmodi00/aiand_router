@@ -17,10 +17,10 @@ func TestCanonicalModel(t *testing.T) {
 		canonical string
 		hadTag    bool
 	}{
-		{"opus 1m variant", "claude-opus-4-8[1m]", "claude-opus-4-8", true},
-		{"sonnet 1m variant", "claude-sonnet-4-6[1m]", "claude-sonnet-4-6", true},
-		{"fable 1m variant", "claude-fable-5[1m]", "claude-fable-5", true},
-		{"no tag", "claude-opus-4-8", "claude-opus-4-8", false},
+		{"opus 1m variant", "claude-opus-4-8[1m]", "z-ai/glm-5.2", true},
+		{"sonnet 1m variant", "claude-sonnet-4-6[1m]", "deepseek/deepseek-v4.1-flash", true},
+		{"fable 1m variant", "claude-fable-5[1m]", "z-ai/glm-5.2", true},
+		{"no tag", "z-ai/glm-5.2", "z-ai/glm-5.2", false},
 		{"oss model untouched", "deepseek/deepseek-v4-pro", "deepseek/deepseek-v4-pro", false},
 		{"empty", "", "", false},
 		{"tag only at end", "claude[1m]-opus", "claude[1m]-opus", false},
@@ -40,13 +40,13 @@ func TestCanonicalizeModelInBody(t *testing.T) {
 		out, had, err := translate.CanonicalizeModelInBody(body)
 		require.NoError(t, err)
 		assert.True(t, had)
-		assert.Equal(t, "claude-opus-4-8", gjson.GetBytes(out, "model").String())
+		assert.Equal(t, "z-ai/glm-5.2", gjson.GetBytes(out, "model").String())
 		assert.Equal(t, int64(1024), gjson.GetBytes(out, "max_tokens").Int())
 		assert.True(t, gjson.GetBytes(out, "stream").Bool())
 	})
 
 	t.Run("untagged body returned unchanged", func(t *testing.T) {
-		body := []byte(`{"model":"claude-opus-4-8","max_tokens":1024}`)
+		body := []byte(`{"model":"z-ai/glm-5.2","max_tokens":1024}`)
 		out, had, err := translate.CanonicalizeModelInBody(body)
 		require.NoError(t, err)
 		assert.False(t, had)
@@ -70,8 +70,8 @@ func TestStripProviderPrefix(t *testing.T) {
 		stripped string
 		had      bool
 	}{
-		{"anthropic qualified", "anthropic/claude-opus-4-8", "anthropic", "claude-opus-4-8", true},
-		{"already bare", "claude-opus-4-8", "anthropic", "claude-opus-4-8", false},
+		{"anthropic qualified", "anthropic/claude-opus-4-8", "anthropic", "z-ai/glm-5.2", true},
+		{"already bare", "z-ai/glm-5.2", "anthropic", "z-ai/glm-5.2", false},
 		{"other provider left alone", "openai/gpt-5.6-luna", "anthropic", "openai/gpt-5.6-luna", false},
 		{"prefix not at start", "x-anthropic/claude-opus-4-8", "anthropic", "x-anthropic/claude-opus-4-8", false},
 		{"empty provider is a no-op", "anthropic/claude-opus-4-8", "", "anthropic/claude-opus-4-8", false},
@@ -95,12 +95,12 @@ func TestStripProviderPrefixInBody(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.True(t, had)
-		assert.Equal(t, "claude-opus-4-8", gjson.GetBytes(out, "model").String())
+		assert.Equal(t, "z-ai/glm-5.2", gjson.GetBytes(out, "model").String())
 		assert.Equal(t, "hi", gjson.GetBytes(out, "messages.0.content").String())
 	})
 
 	t.Run("leaves a bare id untouched", func(t *testing.T) {
-		body := []byte(`{"model":"claude-opus-4-8"}`)
+		body := []byte(`{"model":"z-ai/glm-5.2"}`)
 
 		out, had, err := translate.StripProviderPrefixInBody(body, "anthropic")
 
@@ -131,6 +131,6 @@ func TestStripProviderPrefixInBody(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, hadPrefix)
 
-		assert.Equal(t, "claude-opus-4-8", gjson.GetBytes(out, "model").String())
+		assert.Equal(t, "z-ai/glm-5.2", gjson.GetBytes(out, "model").String())
 	})
 }

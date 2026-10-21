@@ -57,7 +57,7 @@ func TestCompactionHardPin(t *testing.T) {
 	_, _, _, ok = s.compactionHardPin(ctx, key, "", router.Request{ExcludedModels: map[string]struct{}{policy.PrecompactionDefaultModel: {}}})
 	assert.False(t, ok, "excluded default with no pin → fall back to generic hard-pin")
 
-	unavailable := &Service{compactionHardPinEnabled: true, availableModels: map[string]struct{}{"claude-haiku-4-5": {}}}
+	unavailable := &Service{compactionHardPinEnabled: true, availableModels: map[string]struct{}{"z-ai/glm-5.3-flash": {}}}
 	_, _, _, ok = unavailable.compactionHardPin(ctx, key, "", router.Request{})
 	assert.False(t, ok, "default not routable in this deployment → fall back to generic hard-pin")
 }
@@ -152,13 +152,13 @@ func TestCompactionHardPin_CodexKeepsNonAnthropicSessionModel(t *testing.T) {
 
 	// An Anthropic-served Codex session keeps its own model, as before.
 	anthropicServed := &rolePinStore{byRole: map[string]sessionpin.Pin{
-		sessionpin.DefaultRole: {Provider: providers.ProviderAIAND, Model: "claude-opus-4-8", LastServedModel: "claude-opus-4-8", LastTurnEndedAt: time.Now(), PinnedUntil: live},
+		sessionpin.DefaultRole: {Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.2", LastServedModel: "z-ai/glm-5.2", LastTurnEndedAt: time.Now(), PinnedUntil: live},
 	}}
 	s = &Service{compactionHardPinEnabled: true, pinStore: anthropicServed, clients: dispatch.NewClients(openAIProviders)}
 	p, m, _, ok = s.compactionHardPin(ctx, key, sessionpin.DefaultRole, codex(router.Request{}))
 	require.True(t, ok)
 	assert.Equal(t, providers.ProviderAIAND, p)
-	assert.Equal(t, "claude-opus-5-5", m)
+	assert.Equal(t, "z-ai/glm-5.2", m)
 }
 
 func TestCompactionHardPin_CodexEffortQualifiedSessionModel(t *testing.T) {
@@ -263,7 +263,7 @@ func TestTurnLoop_CompactionReadsClientIdentityBeforeHardPin(t *testing.T) {
 // estimate must surface the native prompt-too-long error. A retryable 503
 // "cluster scorer failed" kept Claude Code retrying the same compaction.
 func TestTurnLoop_CompactionHardPinContextOverflowIsNotRoutingOutage(t *testing.T) {
-	const summarizer = "claude-haiku-5-5"
+	const summarizer = "z-ai/glm-5.3-flash"
 	resolver := func(req HardPinRequest) (string, string, bool) {
 		if _, excluded := req.ExcludedModels[summarizer]; excluded {
 			return "", "", false
@@ -275,7 +275,7 @@ func TestTurnLoop_CompactionHardPinContextOverflowIsNotRoutingOutage(t *testing.
 			WithHardPinResolver(resolver)
 		s.compactionHardPinEnabled = true
 		s.availableModels = map[string]struct{}{summarizer: {}, policy.PrecompactionDefaultModel: {}}
-		env, err := translate.ParseAnthropic([]byte(`{"model":"claude-opus-5-5","max_tokens":1024,"system":"Your task is to create a detailed summary of the conversation so far.","messages":[{"role":"user","content":"summarize"}]}`))
+		env, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.2","max_tokens":1024,"system":"Your task is to create a detailed summary of the conversation so far.","messages":[{"role":"user","content":"summarize"}]}`))
 		require.NoError(t, err)
 		features := env.RoutingFeatures(false)
 		_, err = s.runTurnLoop(context.Background(), env, features, "test-key", uuid.Nil, "", nil, router.Request{

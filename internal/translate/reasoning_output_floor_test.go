@@ -14,7 +14,7 @@ import (
 // Claude Code's security-monitor Stage 1: severity-only verdict, tiny budget,
 // thinking disabled, stop on the closing tag.
 const classifierStage1Body = `{
-	"model":"claude-sonnet-5",
+	"model":"deepseek/deepseek-v4-pro",
 	"max_tokens":64,
 	"stop_sequences":["</severity>"],
 	"thinking":{"type":"disabled"},

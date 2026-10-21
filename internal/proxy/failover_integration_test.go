@@ -122,7 +122,7 @@ func TestProxyMessages_FireworksFailureFallbackToOpenRouter(t *testing.T) {
 			"fireworks":  openaicompat.NewClient("test-fw-key", fireworks.URL),
 			"openrouter": openaicompat.NewClient("test-or-key", openrouter.URL),
 		},
-		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+		nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
 		"fireworks":  {},
 		"openrouter": {},
@@ -194,7 +194,7 @@ func TestProxyMessages_BothBindingsFail(t *testing.T) {
 			"fireworks":  openaicompat.NewClient("test-fw-key", fireworks.URL),
 			"openrouter": openaicompat.NewClient("test-or-key", openrouter.URL),
 		},
-		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+		nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
 		"fireworks":  {},
 		"openrouter": {},
@@ -242,7 +242,7 @@ func TestProxyMessages_SingleBindingPreservesEagerPrelude(t *testing.T) {
 
 	// claude-haiku-4-5 is single-binding (Anthropic only).
 	svc := makeProxyService(
-		router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5"},
+		router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash"},
 		map[string]providers.Client{
 			providers.ProviderAIAND: &fakeProvider{
 				proxyResponse: func(w http.ResponseWriter) {
@@ -258,7 +258,7 @@ func TestProxyMessages_SingleBindingPreservesEagerPrelude(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
-	body := []byte(`{"model":"claude-haiku-4-5","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
+	body := []byte(`{"model":"z-ai/glm-5.3-flash","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
 
 	require.NoError(t, svc.ProxyMessages(context.Background(), body, rec, req))
 	assert.Equal(t, http.StatusOK, rec.Code)
@@ -280,7 +280,7 @@ func TestProxyMessages_RoutingMarkerWaitsForProviderOutput(t *testing.T) {
 		}
 	}()
 	svc := makeProxyService(
-		router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5"},
+		router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash"},
 		map[string]providers.Client{
 			providers.ProviderAIAND: &fakeProvider{
 				proxyResponse: func(w http.ResponseWriter) {
@@ -294,7 +294,7 @@ func TestProxyMessages_RoutingMarkerWaitsForProviderOutput(t *testing.T) {
 
 	writer := newObservedResponseWriter()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
-	body := []byte(`{"model":"claude-haiku-4-5","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
+	body := []byte(`{"model":"z-ai/glm-5.3-flash","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
 	done := make(chan error, 1)
 	go func() {
 		done <- svc.ProxyMessages(context.Background(), body, writer, req)
@@ -337,7 +337,7 @@ func TestProxyMessages_SingleBindingStreamingPreCommitError(t *testing.T) {
 		map[string]providers.Client{
 			providers.ProviderAIAND: openaicompat.NewClient("test-key", stub.URL),
 		},
-		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+		nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}}).
 		WithRetrySleep(noRetrySleep)
 
@@ -382,14 +382,14 @@ func TestProxyMessages_AnthropicSSEOverloadRetriesSameBinding(t *testing.T) {
 	defer upstream.Close()
 
 	svc := proxy.NewService(
-		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5"}},
+		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash"}},
 		map[string]providers.Client{providers.ProviderAIAND: openaicompat.NewClient("test-key", upstream.URL)},
-		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+		nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}}).
 		WithRetrySleep(noRetrySleep)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
-	body := []byte(`{"model":"claude-haiku-4-5","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
+	body := []byte(`{"model":"z-ai/glm-5.3-flash","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
 
 	require.NoError(t, svc.ProxyMessages(context.Background(), body, rec, req))
 	mu.Lock()
@@ -417,16 +417,16 @@ func TestProxyMessages_AnthropicSSEOverloadExhaustionRecords529(t *testing.T) {
 
 	telemetry := newCaptureTelemetry()
 	svc := proxy.NewService(
-		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5"}},
+		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash"}},
 		map[string]providers.Client{providers.ProviderAIAND: openaicompat.NewClient("test-key", upstream.URL)},
-		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", telemetry,
+		nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", telemetry,
 	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}}).
 		WithRetrySleep(noRetrySleep)
 	ctx := context.WithValue(context.Background(), proxy.InstallationIDContextKey{}, "11111111-1111-1111-1111-111111111111")
 	ctx = context.WithValue(ctx, proxy.ExternalIDContextKey{}, "org-test")
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
-	body := []byte(`{"model":"claude-haiku-4-5","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
+	body := []byte(`{"model":"z-ai/glm-5.3-flash","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
 
 	err := svc.ProxyMessages(ctx, body, rec, req)
 
@@ -461,22 +461,22 @@ func TestProxyMessages_TwoConsecutiveOverloadExhaustionsDisableProvider(t *testi
 	store.hasPin = true
 	store.pin = sessionpin.Pin{
 		Provider:      providers.ProviderAIAND,
-		Model:         "claude-haiku-4-5",
+		Model:         "z-ai/glm-5.3-flash",
 		Reason:        "fresh",
 		PinnedUntil:   time.Now().Add(30 * time.Minute),
 		FirstPinnedAt: time.Now().Add(-5 * time.Minute),
 	}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", Reason: "fresh"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash", Reason: "fresh"}}
 	svc := proxy.NewService(
 		fr,
 		map[string]providers.Client{providers.ProviderAIAND: openaicompat.NewClient("test-key", upstream.URL)},
-		nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+		nil, false, nil, store, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}}).
 		WithPlannerEnabled(false).
 		WithRetrySleep(noRetrySleep) // first-decision-wins: a pin hit serves straight through without scorer-vs-planner EV noise.
 
 	ctx := authedCtx(uuid.New().String())
-	body := []byte(`{"model":"claude-haiku-4-5","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
+	body := []byte(`{"model":"z-ai/glm-5.3-flash","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
 
 	// Turn 1: exhausts on 529, one strike recorded, not yet disabled.
 	rec1 := httptest.NewRecorder()
@@ -540,7 +540,7 @@ func TestProxyMessages_BaselineOverloadExhaustionDoesNotDisableAnthropic(t *test
 		map[string]providers.Client{
 			providers.ProviderAIAND: openaicompat.NewClient("test-fw-key", ossUpstream.URL),
 		},
-		nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+		nil, false, nil, store, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
 		providers.ProviderAIAND: {},
 	}).WithPlannerEnabled(false).
@@ -549,7 +549,7 @@ func TestProxyMessages_BaselineOverloadExhaustionDoesNotDisableAnthropic(t *test
 	ctx := authedCtx(uuid.New().String())
 	// "model" resolves baselineFor to claude-haiku-4-5 (a known Anthropic
 	// catalog model), so a retryable OSS exhaustion rescues onto Anthropic.
-	body := []byte(`{"model":"claude-haiku-4-5","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
+	body := []byte(`{"model":"z-ai/glm-5.3-flash","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
 
 	// Turn 1: OSS primary 503s (retryable), baseline rescues onto Anthropic,
 	// which itself exhausts on 529. First Anthropic strike, not yet disabled.
@@ -603,14 +603,14 @@ func TestProxyMessages_ResponsesFailureBeforeOutputFallsBackToBaseline(t *testin
 		map[string]providers.Client{
 			providers.ProviderAIAND: openaicompat.NewClient("test-key", openAIUpstream.URL),
 		},
-		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+		nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
 		providers.ProviderAIAND: {},
 	}).WithRetrySleep(noRetrySleep)
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
-	body := []byte(`{"model":"claude-opus-4-8","stream":true,"tools":[{"name":"Read","input_schema":{"type":"object","properties":{"file_path":{"type":"string"}},"required":["file_path"]}}],"messages":[{"role":"user","content":"inspect this"}]}`)
+	body := []byte(`{"model":"z-ai/glm-5.2","stream":true,"tools":[{"name":"Read","input_schema":{"type":"object","properties":{"file_path":{"type":"string"}},"required":["file_path"]}}],"messages":[{"role":"user","content":"inspect this"}]}`)
 
 	require.NoError(t, svc.ProxyMessages(context.Background(), body, rec, req))
 	mu.Lock()
@@ -639,14 +639,14 @@ func TestProxyMessages_BaselineFailoverSkipsBaselineOverContextWindow(t *testing
 		map[string]providers.Client{
 			providers.ProviderAIAND: openaicompat.NewClient("test-key", openAIUpstream.URL),
 		},
-		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+		nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
 		providers.ProviderAIAND: {},
 	}).WithRetrySleep(noRetrySleep)
 
 	// ~230K estimated tokens: fits gpt-5.5 (1.05M) but not claude-haiku-4-5 (200K).
 	filler := strings.Repeat("tool output line ", 230_000*4/len("tool output line "))
-	body := []byte(`{"model":"claude-haiku-4-5","stream":true,"messages":[{"role":"user","content":"` + filler + `"}]}`)
+	body := []byte(`{"model":"z-ai/glm-5.3-flash","stream":true,"messages":[{"role":"user","content":"` + filler + `"}]}`)
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
@@ -710,7 +710,7 @@ func TestProxyMessages_GeminiValidated400RetriesWithAuto(t *testing.T) {
 	svc := proxy.NewService(
 		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gemini-3.1-pro-preview"}},
 		map[string]providers.Client{providers.ProviderAIAND: client},
-		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+		nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 
 	rec := httptest.NewRecorder()
@@ -748,7 +748,7 @@ func TestProxyMessages_GeminiNon400NotRetried(t *testing.T) {
 	svc := proxy.NewService(
 		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gemini-3.1-pro-preview"}},
 		map[string]providers.Client{providers.ProviderAIAND: client},
-		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+		nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 
 	rec := httptest.NewRecorder()
@@ -767,7 +767,7 @@ func TestProxyMessages_GeminiNon400NotRetried(t *testing.T) {
 // written; only a rejection licenses one re-emit without it).
 func TestProxyMessages_OutputConfigFormat400RetriesWithoutIt(t *testing.T) {
 	anthropicSSE := "event: message_start\n" +
-		`data: {"type":"message_start","message":{"id":"msg_1","type":"message","role":"assistant","model":"claude-sonnet-5","content":[],"stop_reason":null,"usage":{"input_tokens":5,"output_tokens":0}}}` + "\n\n" +
+		`data: {"type":"message_start","message":{"id":"msg_1","type":"message","role":"assistant","model":"deepseek/deepseek-v4-pro","content":[],"stop_reason":null,"usage":{"input_tokens":5,"output_tokens":0}}}` + "\n\n" +
 		"event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"
 
 	client := &sequencedClient{
@@ -788,14 +788,14 @@ func TestProxyMessages_OutputConfigFormat400RetriesWithoutIt(t *testing.T) {
 	}
 
 	svc := proxy.NewService(
-		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-5"}},
+		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4-pro"}},
 		map[string]providers.Client{providers.ProviderAIAND: client},
-		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+		nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
-	body := []byte(`{"model":"claude-sonnet-5","stream":true,"max_tokens":1024,` +
+	body := []byte(`{"model":"deepseek/deepseek-v4-pro","stream":true,"max_tokens":1024,` +
 		`"output_config":{"format":{"type":"json_schema","schema":{"type":"object","properties":{"title":{"type":"string"}}}}},` +
 		`"tools":[{"name":"Read","input_schema":{"type":"object","properties":{"file_path":{"type":"string"}},"required":["file_path"]}}],` +
 		`"messages":[{"role":"user","content":"who are you"}]}`)
@@ -823,14 +823,14 @@ func TestProxyMessages_UnrelatedAnthropic400NotRetried(t *testing.T) {
 	}
 
 	svc := proxy.NewService(
-		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-5"}},
+		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4-pro"}},
 		map[string]providers.Client{providers.ProviderAIAND: client},
-		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+		nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
-	body := []byte(`{"model":"claude-sonnet-5","stream":true,"max_tokens":1024,` +
+	body := []byte(`{"model":"deepseek/deepseek-v4-pro","stream":true,"max_tokens":1024,` +
 		`"output_config":{"format":{"type":"json_schema"}},"messages":[{"role":"user","content":"hi"}]}`)
 
 	_ = svc.ProxyMessages(context.Background(), body, rec, req)

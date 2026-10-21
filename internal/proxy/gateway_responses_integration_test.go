@@ -60,7 +60,7 @@ func gatewayService(t *testing.T, baseURL string) *proxy.Service {
 		map[string]providers.Client{
 			providers.ProviderAIAND: openaicompat.NewGatewayClient("test-key", baseURL),
 		},
-		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+		nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 }
 
@@ -182,7 +182,7 @@ func directOpenAIService(t *testing.T, baseURL string, broad bool) *proxy.Servic
 		map[string]providers.Client{
 			providers.ProviderAIAND: openaicompat.NewClient("test-key", baseURL),
 		},
-		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+		nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}}).
 		WithOpenAIResponsesBroad(broad)
 }
@@ -250,7 +250,7 @@ func TestProxyMessages_DirectOpenAIStopSequencesStayOnChat(t *testing.T) {
 		map[string]providers.Client{
 			providers.ProviderAIAND: openaicompat.NewClient("test-key", upstream.URL),
 		},
-		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+		nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 
 	rec := httptest.NewRecorder()

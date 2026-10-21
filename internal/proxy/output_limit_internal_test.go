@@ -23,8 +23,8 @@ import (
 )
 
 const (
-	outputLimitFirstModel  = "claude-sonnet-5"
-	outputLimitSecondModel = "claude-opus-5"
+	outputLimitFirstModel  = "deepseek/deepseek-v4-pro"
+	outputLimitSecondModel = "z-ai/glm-5.2"
 )
 
 func TestMaxedOutServedModel_RequiresMatchingTerminalEvidence(t *testing.T) {

@@ -81,7 +81,7 @@ func newBypassService(p providers.Client) *Service {
 
 func bypassAnthropicEnvelope(t *testing.T) *translate.RequestEnvelope {
 	t.Helper()
-	env, err := translate.ParseAnthropic([]byte(`{"model":"claude-sonnet-4-6","messages":[{"role":"user","content":"hi"}]}`))
+	env, err := translate.ParseAnthropic([]byte(`{"model":"deepseek/deepseek-v4.1-flash","messages":[{"role":"user","content":"hi"}]}`))
 	require.NoError(t, err)
 	return env
 }
@@ -124,7 +124,7 @@ func TestUsageBypassDecision_CodexSubscriptionPreservesRequestedModel(t *testing
 // the strike is what keeps the next turn off it.
 func TestUsageBypassDecision_SessionDemotionBlocks_GlobalAutomaticExclusionDoesNot(t *testing.T) {
 	const token = "sk-ant-oat01-test-subscription-token"
-	const model = "claude-sonnet-4-6"
+	const model = "deepseek/deepseek-v4.1-flash"
 	threshold := 0.80
 	obs := usage.NewObserver([]byte("salt"), 10*time.Minute, time.Now)
 	obs.Record(obs.Key([]byte(token)), usage.Snapshot{
@@ -148,7 +148,7 @@ func TestUsageBypassDecision_SessionDemotionBlocks_GlobalAutomaticExclusionDoesN
 		{name: "deployment-wide automatic exclusion only", automaticExcl: map[string]struct{}{model: {}}, wantEngaged: true},
 		{name: "session demotion only", sessionDemoted: []string{model}, wantEngaged: false},
 		{name: "session demotion and automatic exclusion", automaticExcl: map[string]struct{}{model: {}}, sessionDemoted: []string{model}, wantEngaged: false},
-		{name: "session demotion of another model", sessionDemoted: []string{"claude-opus-4-7"}, wantEngaged: true},
+		{name: "session demotion of another model", sessionDemoted: []string{"z-ai/glm-5.2"}, wantEngaged: true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -172,7 +172,7 @@ func TestUsageBypassDecision_SessionDemotionBlocks_GlobalAutomaticExclusionDoesN
 // both-excluded subcase is load-bearing: context overflow stays blocked even when also policy-excluded.
 func TestUsageBypassEngaged_SafetyExclusionBlocks_PolicyExclusionDoesNot(t *testing.T) {
 	const token = "sk-ant-oat01-test-subscription-token"
-	const model = "claude-sonnet-4-6"
+	const model = "deepseek/deepseek-v4.1-flash"
 	threshold := 0.80
 	newObs := func() *usage.Observer {
 		obs := usage.NewObserver([]byte("salt"), 10*time.Minute, time.Now)
@@ -233,10 +233,10 @@ func TestUsageBypass_PreservesSwitchHistory(t *testing.T) {
 	store := newStubPinStore()
 	store.getFound = true
 	store.getPin = sessionpin.Pin{
-		LastServedModel: "claude-haiku-4-5",
+		LastServedModel: "z-ai/glm-5.3-flash",
 		HasEverSwitched: true,
 	}
-	svc := NewService(nil, map[string]providers.Client{providers.ProviderAIAND: &bypassFakeProvider{}}, nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil).
+	svc := NewService(nil, map[string]providers.Client{providers.ProviderAIAND: &bypassFakeProvider{}}, nil, false, nil, store, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 		WithUsageObserver(obs)
 	ctx := context.WithValue(context.Background(), AnthropicSubscriptionContextKey{}, token)
 	ctx = context.WithValue(ctx, InstallationUsageBypassContextKey{}, UsageBypassConfig{
@@ -255,7 +255,7 @@ func TestUsageBypass_PreservesSwitchHistory(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.True(t, res.UsageBypass)
-	assert.Equal(t, "claude-haiku-4-5", res.PriorServedModel)
+	assert.Equal(t, "z-ai/glm-5.3-flash", res.PriorServedModel)
 	assert.True(t, res.SessionEverSwitched)
 	assert.True(t, res.modelSwitched(), "bypass must retain switch history for Anthropic thinking-block stripping")
 	bucketKey, ok := noProgressBucketKey(res.SessionKey, uuid.Nil, res.PinRole)
@@ -280,7 +280,7 @@ func TestUsageBypass_EngagesUnderAuthoritativePolicy(t *testing.T) {
 		Model:    "gpt-5.6-luna",
 		Reason:   "authoritative-bypass-test_policy",
 	}}
-	svc := NewService(nil, map[string]providers.Client{providers.ProviderAIAND: &bypassFakeProvider{}}, nil, false, nil, newStubPinStore(), false, providers.ProviderAIAND, "claude-haiku-4-5", nil).
+	svc := NewService(nil, map[string]providers.Client{providers.ProviderAIAND: &bypassFakeProvider{}}, nil, false, nil, newStubPinStore(), false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 		WithUsageObserver(obs).
 		WithPolicyStrategy(policy.StrategySpec{
 			Strategy: strategy,
@@ -470,7 +470,7 @@ func subscriptionCtx() context.Context {
 // subscription flips credential resolution onto the deployment key.
 func TestSubscriptionFailover_EligibilityAndSuppression(t *testing.T) {
 	// A request whose Anthropic credential resolves to the caller's subscription.
-	ctx := resolveAndInjectCredentials(subscriptionCtx(), providers.ProviderAIAND, "claude-opus-4-8", http.Header{})
+	ctx := resolveAndInjectCredentials(subscriptionCtx(), providers.ProviderAIAND, "z-ai/glm-5.2", http.Header{})
 	require.True(t, servedOnSubscription(ctx), "a resolved subscription token must report servedOnSubscription")
 
 	t.Run("no fallback key: not eligible", func(t *testing.T) {
@@ -490,7 +490,7 @@ func TestSubscriptionFailover_EligibilityAndSuppression(t *testing.T) {
 		// subscription token — so the retry dispatches on the deployment key and
 		// servedOnSubscription reports false (billed at full cost, not sub rate).
 		suppressed := withSuppressedClaudeSubscription(subscriptionCtx())
-		suppressed = resolveAndInjectCredentials(suppressed, providers.ProviderAIAND, "claude-opus-4-8", http.Header{})
+		suppressed = resolveAndInjectCredentials(suppressed, providers.ProviderAIAND, "z-ai/glm-5.2", http.Header{})
 		assert.False(t, servedOnSubscription(suppressed),
 			"a suppressed subscription must not resolve back as the served credential")
 	})
@@ -588,7 +588,7 @@ func TestBypass_EmitsUsageAndCost(t *testing.T) {
 	const (
 		inputTokens  = 1200
 		outputTokens = 340
-		model        = "claude-sonnet-4-6"
+		model        = "deepseek/deepseek-v4.1-flash"
 	)
 	sse := "event: message_start\n" +
 		`data: {"type":"message_start","message":{"usage":{"input_tokens":1200,"output_tokens":1}}}` + "\n\n" +

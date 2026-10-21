@@ -57,11 +57,11 @@ func TestBoostServingAllowsForceModelHeader(t *testing.T) {
 
 	request, err := http.NewRequestWithContext(boostPlanOwnedContext(), http.MethodPost, "http://router.test/v1/messages", nil)
 	require.NoError(t, err)
-	request.Header.Set(ForceModelHeader, "claude-opus-5")
+	request.Header.Set(ForceModelHeader, "z-ai/glm-5.2")
 
 	ctx, forced, err := (&Service{}).applyForceModelHeader(request.Context(), request, uuid.Nil, [sessionpin.SessionKeyLen]byte{})
 	require.NoError(t, err)
-	assert.Equal(t, "claude-opus-5", forced)
+	assert.Equal(t, "z-ai/glm-5.2", forced)
 	assert.True(t, planOwnedServingRequest(ctx))
 }
 
@@ -97,7 +97,7 @@ func TestBoostServingKeepsLegacyForceModelPinActive(t *testing.T) {
 	store.pins[forceModelMapKey(sessionKey, role)] = sessionpin.Pin{
 		SessionKey:  sessionKey,
 		Role:        role,
-		Model:       "claude-opus-5",
+		Model:       "z-ai/glm-5.2",
 		Provider:    providers.ProviderAIAND,
 		Reason:      translate.ReasonUserForceModel,
 		PinnedUntil: pinNeverExpires,
@@ -106,7 +106,7 @@ func TestBoostServingKeepsLegacyForceModelPinActive(t *testing.T) {
 
 	pin, active, noStoredState := svc.loadPinWithStoreState(boostPlanOwnedContext(), sessionKey, role)
 
-	assert.Equal(t, "claude-opus-5", pin.Model)
+	assert.Equal(t, "z-ai/glm-5.2", pin.Model)
 	assert.True(t, active)
 	assert.False(t, noStoredState)
 }

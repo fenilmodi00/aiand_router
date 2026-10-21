@@ -196,7 +196,7 @@ func TestStripRoutingMarker_PreservesAdjacentFields(t *testing.T) {
 		{"role": "assistant", "content": []any{textBlock(marker + "kept")}},
 	})
 	withExtras, err := json.Marshal(map[string]any{
-		"model":       "claude-opus-4-7",
+		"model":       "z-ai/glm-5.2",
 		"max_tokens":  64000,
 		"system":      "you are helpful",
 		"temperature": 0.7,
@@ -206,7 +206,7 @@ func TestStripRoutingMarker_PreservesAdjacentFields(t *testing.T) {
 
 	out, err := translate.StripRoutingMarkerFromMessages(withExtras)
 	require.NoError(t, err)
-	assert.Equal(t, "claude-opus-4-7", gjson.GetBytes(out, "model").String())
+	assert.Equal(t, "z-ai/glm-5.2", gjson.GetBytes(out, "model").String())
 	assert.Equal(t, int64(64000), gjson.GetBytes(out, "max_tokens").Int())
 	assert.Equal(t, "you are helpful", gjson.GetBytes(out, "system").String())
 	assert.InDelta(t, 0.7, gjson.GetBytes(out, "temperature").Float(), 1e-9)
@@ -220,7 +220,7 @@ func textBlock(text string) map[string]any {
 func buildBody(t *testing.T, messages []map[string]any) []byte {
 	t.Helper()
 	body, err := json.Marshal(map[string]any{
-		"model":    "claude-opus-4-7",
+		"model":    "z-ai/glm-5.2",
 		"messages": messages,
 	})
 	require.NoError(t, err)

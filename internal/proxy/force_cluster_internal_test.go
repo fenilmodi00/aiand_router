@@ -78,9 +78,9 @@ func TestProxyMessages_ForceClusterOnNonSidecarStrategyRejects(t *testing.T) {
 	fr := &stripFailureRouter{}
 	fp := &stripFailureProvider{}
 	svc := NewService(fr, map[string]providers.Client{providers.ProviderAIAND: fp}, nil, false, nil, nil, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil)
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil)
 
-	body := `{"model":"claude-opus-4-8","max_tokens":64,"messages":[{"role":"user","content":"hi"}]}`
+	body := `{"model":"z-ai/glm-5.2","max_tokens":64,"messages":[{"role":"user","content":"hi"}]}`
 	rec := httptest.NewRecorder()
 
 	err := svc.ProxyMessages(context.Background(), []byte(body), rec, forceClusterRequest(t, "maximum"))
@@ -108,17 +108,17 @@ func TestProxyMessages_ForceClusterReachesRouterRequest(t *testing.T) {
 	strategy := router.StrategyHMM
 	fr := &forceClusterCapturingRouter{decision: router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "claude-haiku-4-5",
+		Model:    "z-ai/glm-5.3-flash",
 		Reason:   "hmm_policy:force_cluster",
 	}}
 	fp := &stripFailureProvider{}
 	svc := NewService(nil, map[string]providers.Client{providers.ProviderAIAND: fp}, nil, false, nil, nil, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil).
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 		WithPolicyStrategy(policy.StrategySpec{Strategy: strategy, Router: fr})
 
 	// Tools + a real max_tokens keep the turn off the classifier/probe hard-pin
 	// fast paths, which would never reach the router at all.
-	body := `{"model":"claude-opus-4-8","max_tokens":4096,` +
+	body := `{"model":"z-ai/glm-5.2","max_tokens":4096,` +
 		`"tools":[{"name":"Bash","input_schema":{"type":"object"}}],` +
 		`"messages":[{"role":"user","content":"hi"}]}`
 	ctx := router.WithStrategy(context.Background(), strategy)

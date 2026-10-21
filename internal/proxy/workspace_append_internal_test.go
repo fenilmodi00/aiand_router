@@ -69,15 +69,15 @@ func TestWorkspaceSystemAppendApplies_IdempotentAndSkipsSearchSubTurn(t *testing
 	ctx := workspaceGateCtx(true, ClientAppClaudeCode)
 
 	t.Run("request already carrying the instruction is left alone", func(t *testing.T) {
-		body := `{"model":"claude-opus-5","system":[{"type":"text","text":"You are Claude Code."},{"type":"text","text":"` + translate.WorkspaceSystemText + `"}],"messages":[{"role":"user","content":"go"}],"max_tokens":8}`
+		body := `{"model":"z-ai/glm-5.2","system":[{"type":"text","text":"You are Claude Code."},{"type":"text","text":"` + translate.WorkspaceSystemText + `"}],"messages":[{"role":"user","content":"go"}],"max_tokens":8}`
 		assert.False(t, svc.workspaceSystemAppendApplies(ctx, []byte(body), parseGateBody(t, body), turntype.MainLoop))
 	})
 	t.Run("request carrying only the autonomy text still gets the workspace append", func(t *testing.T) {
-		body := `{"model":"claude-opus-5","system":[{"type":"text","text":"You are Claude Code."},{"type":"text","text":"` + translate.AutonomySystemText + `"}],"messages":[{"role":"user","content":"go"}],"max_tokens":8}`
+		body := `{"model":"z-ai/glm-5.2","system":[{"type":"text","text":"You are Claude Code."},{"type":"text","text":"` + translate.AutonomySystemText + `"}],"messages":[{"role":"user","content":"go"}],"max_tokens":8}`
 		assert.True(t, svc.workspaceSystemAppendApplies(ctx, []byte(body), parseGateBody(t, body), turntype.MainLoop))
 	})
 	t.Run("native web-search sub-turn is skipped", func(t *testing.T) {
-		body := `{"model":"claude-opus-5","system":"You are Claude Code.","tools":[{"type":"web_search_20250305","name":"web_search"}],"messages":[{"role":"user","content":"Perform a web search for the query: snowflake timestamp_tz"}],"max_tokens":8}`
+		body := `{"model":"z-ai/glm-5.2","system":"You are Claude Code.","tools":[{"type":"web_search_20250305","name":"web_search"}],"messages":[{"role":"user","content":"Perform a web search for the query: snowflake timestamp_tz"}],"max_tokens":8}`
 		assert.False(t, svc.workspaceSystemAppendApplies(ctx, []byte(body), parseGateBody(t, body), turntype.MainLoop))
 	})
 }

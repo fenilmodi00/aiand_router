@@ -21,10 +21,10 @@ func TestResolveCompactionModelFailsClosed(t *testing.T) {
 	})
 
 	t.Run("valid Anthropic binding", func(t *testing.T) {
-		t.Setenv("ROUTER_COMPACTION_MODEL", "claude-fable-5")
+		t.Setenv("ROUTER_COMPACTION_MODEL", "z-ai/glm-5.2")
 		model, err := resolveCompactionModel(providers.ProviderAIAND)
 		require.NoError(t, err)
-		assert.Equal(t, "claude-fable-5", model)
+		assert.Equal(t, "z-ai/glm-5.2", model)
 	})
 
 	t.Run("invalid binding", func(t *testing.T) {
@@ -34,7 +34,7 @@ func TestResolveCompactionModelFailsClosed(t *testing.T) {
 	})
 
 	t.Run("binding on the configured summarizer provider", func(t *testing.T) {
-		t.Setenv("ROUTER_COMPACTION_MODEL", "claude-fable-5")
+		t.Setenv("ROUTER_COMPACTION_MODEL", "z-ai/glm-5.2")
 		_, err := resolveCompactionModel(providers.ProviderAIAND)
 		assert.ErrorContains(t, err, "has no openai catalog binding")
 	})
@@ -49,11 +49,11 @@ func TestResolveHardPinModelRejectsProviderWithoutModel(t *testing.T) {
 }
 
 func TestResolveHardPinModelUsesDefaultProviderForExplicitModel(t *testing.T) {
-	t.Setenv("ROUTER_HARD_PIN_MODEL", "claude-haiku-4-5")
+	t.Setenv("ROUTER_HARD_PIN_MODEL", "z-ai/glm-5.3-flash")
 	t.Setenv("ROUTER_HARD_PIN_PROVIDER", "")
 
 	provider, model, err := resolveHardPinModel(nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	require.NoError(t, err)
 	assert.Equal(t, providers.ProviderAIAND, provider)
-	assert.Equal(t, "claude-haiku-4-5", model)
+	assert.Equal(t, "z-ai/glm-5.3-flash", model)
 }

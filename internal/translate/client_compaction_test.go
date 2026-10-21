@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	clientCompactionTestOpus  = "claude-opus-5"
+	clientCompactionTestOpus  = "z-ai/glm-5.2"
 	clientCompactionTestSol   = "gpt-5.6-sol"
 	clientCompactionTestTools = `"tools":[{"name":"Read","input_schema":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}}]`
 )

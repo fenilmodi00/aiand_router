@@ -182,7 +182,7 @@ func checkWorker(ctx context.Context, binary, dsn, pubsubAddress, token string, 
 			return err
 		}
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/v1/route", bytes.NewBufferString(`{"model":"claude-sonnet-4-5","max_tokens":32,"messages":[{"role":"user","content":"Explain a binary search."}]}`))
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/v1/route", bytes.NewBufferString(`{"model":"deepseek/deepseek-v4.1-flash","max_tokens":32,"messages":[{"role":"user","content":"Explain a binary search."}]}`))
 	if err != nil {
 		return err
 	}

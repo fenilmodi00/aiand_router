@@ -24,7 +24,7 @@ import (
 	"weave-os/router/internal/translate"
 )
 
-const handoffTestBody = `{"model":"claude-sonnet-4-6","max_tokens":1024,"stream":false,"metadata":{"user_id":"pi:handoff-test"},"messages":[{"role":"user","content":"Implement the parser and verify its behavior."}]}`
+const handoffTestBody = `{"model":"deepseek/deepseek-v4.1-flash","max_tokens":1024,"stream":false,"metadata":{"user_id":"pi:handoff-test"},"messages":[{"role":"user","content":"Implement the parser and verify its behavior."}]}`
 
 type handoffResponseProvider struct{ betaCaptureProvider }
 
@@ -39,11 +39,11 @@ func (p *handoffResponseProvider) Proxy(ctx context.Context, decision router.Dec
 
 func handoffTestService() (*Service, *betaTestRouter, *betaCaptureProvider, context.Context) {
 	classifier := &betaTestRouter{decision: router.Decision{
-		Model: "claude-opus-4-7", Provider: providers.ProviderAIAND,
+		Model: "z-ai/glm-5.2", Provider: providers.ProviderAIAND,
 		Metadata: &router.RoutingMetadata{PolicyGroup: "high", AuthoritativePerTurnSelection: true},
 	}}
 	upstream := &betaCaptureProvider{}
-	svc := NewService(nil, map[string]providers.Client{providers.ProviderAIAND: upstream}, nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil).
+	svc := NewService(nil, map[string]providers.Client{providers.ProviderAIAND: upstream}, nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 		WithPiHandoffSecret(strings.Repeat("test-secret-", 4)).
 		WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyHMM, Router: classifier, Capabilities: policy.Capabilities{AuthoritativePerTurnSelection: true}})
 	ctx := context.WithValue(context.Background(), APIKeyIDContextKey{}, "handoff-test-key")
@@ -68,7 +68,7 @@ func TestPiHandoffPreparationDoesNotDispatchAndContinuationDoesNotReclassify(t *
 	require.Empty(t, upstream.body)
 	require.Equal(t, 1, classifier.calls)
 	require.Equal(t, "high", prepared.Complexity)
-	classifier.decision.Model = "claude-haiku-4-5"
+	classifier.decision.Model = "z-ai/glm-5.3-flash"
 	body, err := sjson.Set(handoffTestBody, "messages.0.content", "Compacted parser context; implement the remaining checks.")
 	require.NoError(t, err)
 	body, err = sjson.Set(body, piHandoffField, prepared.Token)
@@ -134,7 +134,7 @@ func TestPiHandoffRevalidatesSessionConfigurationAndEligibility(t *testing.T) {
 	}{
 		{"tools", func(r *router.Request) { r.ToolConfigurationSHA256 = "changed" }},
 		{"reasoning", func(r *router.Request) { r.ReasoningConfigurationSHA256 = "changed" }},
-		{"model", func(r *router.Request) { r.RequestedModel = "claude-haiku-4-5" }},
+		{"model", func(r *router.Request) { r.RequestedModel = "z-ai/glm-5.3-flash" }},
 		{"excluded", func(r *router.Request) { r.ExcludedModels = map[string]struct{}{prepared.Model: {}} }},
 		{"provider", func(r *router.Request) { r.EnabledProviders = map[string]struct{}{} }},
 	} {
@@ -172,7 +172,7 @@ func TestPiHandoffSummaryUsesPreviousModelWithoutReclassifyingOrWritingUsageToIt
 	store := newStubPinStore()
 	store.getFound = true
 	store.getPin = sessionpin.Pin{
-		Model: "claude-sonnet-4-6", Provider: providers.ProviderAIAND,
+		Model: "deepseek/deepseek-v4.1-flash", Provider: providers.ProviderAIAND,
 		Reason: "hmm_policy", PolicyGroup: "low", PinnedUntil: time.Now().Add(time.Hour),
 		LastServedModel: "claude-sonnet-4-6:high", LastTurnEndedAt: time.Now().Add(-time.Minute),
 	}
@@ -187,7 +187,7 @@ func TestPiHandoffSummaryUsesPreviousModelWithoutReclassifyingOrWritingUsageToIt
 	require.Equal(t, inference.PurposeClientCompaction, handoffFromContext(parsed).Route.Purpose)
 	require.Equal(t, policy.OverrideSourceSession, handoffFromContext(parsed).Route.Origin)
 	require.NoError(t, svc.ProxyMessages(ctx, []byte(body), httptest.NewRecorder(), httptest.NewRequest("POST", "/v1/messages", nil)))
-	require.Equal(t, "claude-sonnet-4-6", gjson.GetBytes(upstream.body, "model").String())
+	require.Equal(t, "deepseek/deepseek-v4.1-flash", gjson.GetBytes(upstream.body, "model").String())
 	require.Equal(t, 1, classifier.calls)
 	require.Equal(t, pinWrites, len(store.upserts))
 	require.Zero(t, store.usageHits)
@@ -224,7 +224,7 @@ func TestPiHandoffRejectsConcurrentForceAndCrossSessionCommandsBeforeMutation(t 
 	require.NoError(t, err)
 	store := newStubPinStore()
 	store.getFound = true
-	store.getPin = sessionpin.Pin{Model: "claude-haiku-4-5", Provider: providers.ProviderAIAND, Reason: translate.ReasonUserForceModel, PinnedUntil: time.Now().Add(time.Hour)}
+	store.getPin = sessionpin.Pin{Model: "z-ai/glm-5.3-flash", Provider: providers.ProviderAIAND, Reason: translate.ReasonUserForceModel, PinnedUntil: time.Now().Add(time.Hour)}
 	svc.pinStore = store
 	err = svc.ProxyMessages(ctx, []byte(body), httptest.NewRecorder(), httptest.NewRequest("POST", "/v1/messages", nil))
 	require.ErrorIs(t, err, ErrHandoffInvalid)

@@ -47,7 +47,7 @@ func TestAllowlistLosesRoutability_PartialOverlapPasses(t *testing.T) {
 // A wholly non-routable allowlist would 400 every routed request.
 func TestAllowlistLosesRoutability_DisjointAllowlistFails(t *testing.T) {
 	assert.True(t, allowlistLosesRoutability(
-		[]string{"claude-opus-4-8"}, known("claude-opus-4-8", "claude-opus-4-7"), routable("claude-opus-4-7")))
+		[]string{"z-ai/glm-5.2"}, known("z-ai/glm-5.2", "z-ai/glm-5.2"), routable("z-ai/glm-5.2")))
 	assert.True(t, allowlistLosesRoutability(
 		[]string{"x", "y"}, known("x", "y", "a"), routable("a", "b")))
 }

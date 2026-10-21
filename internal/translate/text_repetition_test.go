@@ -11,7 +11,7 @@ import (
 
 func TestTrailingAssistantTexts_ExtractsNarrationInOrder(t *testing.T) {
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{"role": "user", "content": "do stuff"},
 			// text + tool_use in one message: only the text is narration.
@@ -47,7 +47,7 @@ func TestTrailingAssistantTexts_ResetsAtLastRealUserTurn(t *testing.T) {
 	// break clears the pin and the user sends a follow-up, the stale loop
 	// narration must NOT count against the fresh model (Cursor Bugbot #665).
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{"role": "assistant", "content": "stale narration from the looping model"},
 			map[string]any{"role": "assistant", "content": "more stale narration from the loop"},
@@ -68,7 +68,7 @@ func TestTrailingAssistantTexts_SystemReminderToolResultTurnIsNotABoundary(t *te
 	// payloads. That turn must NOT reset the window (else the scan collects
 	// nothing on tool-result turns) — only genuine human text is a boundary.
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{"role": "assistant", "content": "narration one from the loop"},
 			map[string]any{"role": "user", "content": []any{
@@ -90,7 +90,7 @@ func TestTrailingAssistantTexts_CommandInjectionIsNotABoundary(t *testing.T) {
 	// CC injects wrapper blocks beyond <system-reminder> (e.g. <command-name>);
 	// those turns must not reset the repetition window.
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{"role": "assistant", "content": "narration one from the loop"},
 			map[string]any{"role": "user", "content": []any{
@@ -109,7 +109,7 @@ func TestTrailingAssistantTexts_CommandInjectionIsNotABoundary(t *testing.T) {
 
 func TestTrailingAssistantTexts_PlainStringContent(t *testing.T) {
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{"role": "assistant", "content": "a plain string reply"},
 			map[string]any{"role": "assistant", "content": ""},

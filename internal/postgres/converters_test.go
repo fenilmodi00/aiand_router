@@ -80,18 +80,18 @@ func TestToAuthInstallationSubscriptionStateModelsIncludeNewCatalogModels(t *tes
 		ID:                                     uuid.New(),
 		ExternalID:                             "org-subscription-state",
 		SubscriptionStateModelsEnabled:         true,
-		ModelsWhenSubscriptionActive:           []string{"gpt-6-luna", "claude-opus-5-5"},
-		ModelsWhenSubscriptionInactive:         []string{"gpt-6-luna", "claude-opus-5-5"},
-		ModelsExcludedWhenSubscriptionActive:   []string{"claude-opus-5-5"},
+		ModelsWhenSubscriptionActive:           []string{"gpt-6-luna", "z-ai/glm-5.2"},
+		ModelsWhenSubscriptionInactive:         []string{"gpt-6-luna", "z-ai/glm-5.2"},
+		ModelsExcludedWhenSubscriptionActive:   []string{"z-ai/glm-5.2"},
 		ModelsExcludedWhenSubscriptionInactive: []string{"gpt-6-luna"},
 	})
 
 	assert.True(t, inst.SubscriptionStateModelsEnabled)
 	assert.Contains(t, inst.ModelsWhenSubscriptionActive, "gpt-6.1-sol")
 	assert.Contains(t, inst.ModelsWhenSubscriptionActive, "gpt-6-luna")
-	assert.NotContains(t, inst.ModelsWhenSubscriptionActive, "claude-opus-5-5")
+	assert.NotContains(t, inst.ModelsWhenSubscriptionActive, "z-ai/glm-5.2")
 	assert.Contains(t, inst.ModelsWhenSubscriptionInactive, "gpt-6.1-sol")
-	assert.Contains(t, inst.ModelsWhenSubscriptionInactive, "claude-opus-5-5")
+	assert.Contains(t, inst.ModelsWhenSubscriptionInactive, "z-ai/glm-5.2")
 	assert.NotContains(t, inst.ModelsWhenSubscriptionInactive, "gpt-6-luna")
 }
 

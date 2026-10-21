@@ -34,12 +34,12 @@ func overflowingProvider(body string) *fakeProvider {
 func TestProxyMessages_UpstreamOverflowIsLeftForNativeRendering(t *testing.T) {
 	upstream := overflowingProvider(`{"error":{"message":"Your input exceeds the context window of this model.","code":"context_length_exceeded"}}`)
 	svc := proxy.NewService(
-		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", Reason: "cluster"}},
+		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash", Reason: "cluster"}},
 		map[string]providers.Client{providers.ProviderAIAND: upstream},
-		nil, false, nil, newFakePinStore(), false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+		nil, false, nil, newFakePinStore(), false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
 	)
 	rec := httptest.NewRecorder()
-	body := []byte(`{"model":"claude-haiku-4-5","max_tokens":64,"messages":[{"role":"user","content":"hi"}]}`)
+	body := []byte(`{"model":"z-ai/glm-5.3-flash","max_tokens":64,"messages":[{"role":"user","content":"hi"}]}`)
 	err := svc.ProxyMessages(authedCtx(overflowInstallationID), body, rec, httptest.NewRequest(http.MethodPost, "/v1/messages", nil))
 
 	require.Error(t, err)
@@ -55,12 +55,12 @@ func TestProxyMessages_UpstreamOverflowIsLeftForNativeRendering(t *testing.T) {
 // dispatch and leave the verdict to the provider's exact token count; a real
 // overflow then returns as the native prompt-too-long error tested above.
 func TestProxyMessages_ForcedModelDispatchesPastByteEstimate(t *testing.T) {
-	const forced = "claude-sonnet-4-5"
+	const forced = "deepseek/deepseek-v4.1-flash"
 	upstream := &fakeProvider{}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-opus-5", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.2", Reason: "cluster"}}
 	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: upstream},
-		nil, false, nil, newFakePinStore(), false, providers.ProviderAIAND, "claude-haiku-4-5", nil).
-		WithAvailableModels(map[string]struct{}{forced: {}, "claude-opus-5": {}})
+		nil, false, nil, newFakePinStore(), false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
+		WithAvailableModels(map[string]struct{}{forced: {}, "z-ai/glm-5.2": {}})
 
 	// 150k non-ASCII runes, each ASCII-escaped to a 6-byte JSON escape: ~900KB
 	// on the wire, which the ÷4 estimate reads as ~225k tokens against the
@@ -81,14 +81,14 @@ func proxyResponsesOverflow(t *testing.T, stream bool) *httptest.ResponseRecorde
 	t.Helper()
 	upstream := overflowingProvider(`{"type":"error","error":{"type":"invalid_request_error","message":"prompt is too long: 1050000 tokens > 1000000 maximum"}}`)
 	svc := proxy.NewService(
-		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", Reason: "cluster"}},
+		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash", Reason: "cluster"}},
 		map[string]providers.Client{providers.ProviderAIAND: upstream},
-		nil, false, nil, newFakePinStore(), false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+		nil, false, nil, newFakePinStore(), false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
 	)
 	rec := httptest.NewRecorder()
-	body := `{"model":"claude-haiku-4-5","input":"hi","stream":false}`
+	body := `{"model":"z-ai/glm-5.3-flash","input":"hi","stream":false}`
 	if stream {
-		body = `{"model":"claude-haiku-4-5","input":"hi","stream":true}`
+		body = `{"model":"z-ai/glm-5.3-flash","input":"hi","stream":true}`
 	}
 	err := svc.ProxyOpenAIResponses(authedCtx(overflowInstallationID), []byte(body), rec, httptest.NewRequest(http.MethodPost, "/v1/responses", nil))
 	require.Error(t, err)
@@ -230,14 +230,14 @@ func TestHMMTotalOverflowReachesUpstreamOnEveryIngress(t *testing.T) {
 		send                                 func(*proxy.Service, context.Context, []byte, http.ResponseWriter, *http.Request) error
 	}{
 		{"messages", providers.ProviderAIAND, "/v1/messages",
-			`{"model":"claude-opus-4-8","max_tokens":1024,"messages":[{"role":"user","content":"` + prompt + `"}]}`,
-			"claude-opus-4-8", []string{"claude-opus-4-8", "claude-haiku-4-5"}, (*proxy.Service).ProxyMessages},
+			`{"model":"z-ai/glm-5.2","max_tokens":1024,"messages":[{"role":"user","content":"` + prompt + `"}]}`,
+			"z-ai/glm-5.2", []string{"z-ai/glm-5.2", "z-ai/glm-5.3-flash"}, (*proxy.Service).ProxyMessages},
 		{"chat", providers.ProviderAIAND, "/v1/chat/completions",
-			`{"model":"claude-opus-4-8","messages":[{"role":"user","content":"` + prompt + `"}]}`,
-			"claude-opus-4-8", []string{"claude-opus-4-8", "claude-haiku-4-5"}, (*proxy.Service).ProxyOpenAIChatCompletion},
+			`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"` + prompt + `"}]}`,
+			"z-ai/glm-5.2", []string{"z-ai/glm-5.2", "z-ai/glm-5.3-flash"}, (*proxy.Service).ProxyOpenAIChatCompletion},
 		{"responses", providers.ProviderAIAND, "/v1/responses",
-			`{"model":"claude-opus-4-8","input":"` + prompt + `"}`,
-			"claude-opus-4-8", []string{"claude-opus-4-8", "claude-haiku-4-5"}, (*proxy.Service).ProxyOpenAIResponses},
+			`{"model":"z-ai/glm-5.2","input":"` + prompt + `"}`,
+			"z-ai/glm-5.2", []string{"z-ai/glm-5.2", "z-ai/glm-5.3-flash"}, (*proxy.Service).ProxyOpenAIResponses},
 		{"gemini", providers.ProviderAIAND, "/v1beta/models/gemini-2.5-pro:generateContent",
 			`{"contents":[{"role":"user","parts":[{"text":"` + prompt + `"}]}]}`,
 			"gemini-2.5-pro", []string{"gemini-2.5-pro"}, (*proxy.Service).ProxyGeminiGenerateContent},
@@ -265,9 +265,9 @@ func TestTotalOverflowIgnoresWiderUnservableModel(t *testing.T) {
 	// ~900k-token estimate plus a 128k output reserve: past a 1M window, inside
 	// Gemini's 1,048,576 one.
 	prompt := strings.Repeat("overflow ", 400_000)
-	body := `{"model":"claude-opus-4-8","max_tokens":128000,"messages":[{"role":"user","content":"` + prompt + `"}]}`
+	body := `{"model":"z-ai/glm-5.2","max_tokens":128000,"messages":[{"role":"user","content":"` + prompt + `"}]}`
 	upstream := overflowingProvider(`{"type":"error","error":{"type":"invalid_request_error","message":"prompt is too long: 1100000 tokens > 1000000 maximum"}}`)
-	svc := hmmOverflowService(providers.ProviderAIAND, upstream, "claude-opus-4-8", "gemini-3.5-flash")
+	svc := hmmOverflowService(providers.ProviderAIAND, upstream, "z-ai/glm-5.2", "gemini-3.5-flash")
 	ctx := router.WithStrategy(authedCtx(overflowInstallationID), router.StrategyHMM)
 
 	err := svc.ProxyMessages(ctx, []byte(body), httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/v1/messages", nil))
@@ -283,10 +283,10 @@ func TestTotalOverflowIgnoresWiderUnservableModel(t *testing.T) {
 // its model selection to widen.
 func TestHMMPolicyEmptiedPoolStaysNoRoutableModels(t *testing.T) {
 	upstream := &fakeProvider{}
-	svc := hmmOverflowService(providers.ProviderAIAND, upstream, "claude-opus-4-8", "claude-haiku-4-5")
+	svc := hmmOverflowService(providers.ProviderAIAND, upstream, "z-ai/glm-5.2", "z-ai/glm-5.3-flash")
 	ctx := context.WithValue(router.WithStrategy(authedCtx(overflowInstallationID), router.StrategyHMM),
-		proxy.InstallationExcludedModelsContextKey{}, []string{"claude-opus-4-8", "claude-haiku-4-5"})
-	body := []byte(`{"model":"claude-opus-4-8","max_tokens":1024,"messages":[{"role":"user","content":"hi"}]}`)
+		proxy.InstallationExcludedModelsContextKey{}, []string{"z-ai/glm-5.2", "z-ai/glm-5.3-flash"})
+	body := []byte(`{"model":"z-ai/glm-5.2","max_tokens":1024,"messages":[{"role":"user","content":"hi"}]}`)
 
 	err := svc.ProxyMessages(ctx, body, httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/v1/messages", nil))
 

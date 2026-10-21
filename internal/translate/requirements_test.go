@@ -11,7 +11,7 @@ import (
 
 func TestTranslationRequirements_DetectsAnthropicPreservationSemantics(t *testing.T) {
 	env, err := ParseAnthropic([]byte(`{
-        "model":"claude-sonnet-4-5",
+        "model":"deepseek/deepseek-v4.1-flash",
         "thinking":{"type":"enabled"},
         "output_config":{"format":{"type":"json_schema"}},
         "messages":[{"role":"user","content":[

@@ -119,7 +119,7 @@ func (f *fakeProviderClient) Passthrough(_ context.Context, _ providers.Prepared
 }
 
 // max_tokens > 256 so DetectFromEnvelope treats this as a MainLoop turn, not a probe/classifier.
-const validAnthropicBody = `{"model":"claude-sonnet-4-5","messages":[{"role":"user","content":"hi"}],"max_tokens":4096}`
+const validAnthropicBody = `{"model":"deepseek/deepseek-v4.1-flash","messages":[{"role":"user","content":"hi"}],"max_tokens":4096}`
 
 // newTestService wires a proxy.Service with a fake router and optional fake provider, no real I/O.
 func newTestService(r router.Router, clientName string, client providers.Client) *proxy.Service {
@@ -172,7 +172,7 @@ func TestMessagesHandler_BodyOverLegacyTenMegabyteCapIsAccepted(t *testing.T) {
 
 	padding := bytes.Repeat([]byte("a"), 12*1024*1024)
 	body, err := json.Marshal(map[string]any{
-		"model":    "claude-fable-5",
+		"model":    "z-ai/glm-5.2",
 		"messages": []map[string]string{{"role": "user", "content": string(padding)}},
 	})
 	require.NoError(t, err)
@@ -231,7 +231,7 @@ func TestMessagesHandler_ClusterUnavailableReturns503WithRetryAfter(t *testing.T
 
 func TestMessagesHandler_RLPolicyUnavailableReturns503(t *testing.T) {
 	// No RL router wired — strategy fails closed rather than falling back to cluster scorer.
-	svc := newTestService(&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-5"}}, "", nil)
+	svc := newTestService(&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4.1-flash"}}, "", nil)
 	engine := messagesEngine(svc)
 
 	rec := httptest.NewRecorder()
@@ -248,7 +248,7 @@ func TestMessagesHandler_RLPolicyUnavailableReturns503(t *testing.T) {
 
 func TestMessagesHandler_BanditUnavailableReturns503(t *testing.T) {
 	// No bandit router wired, mirroring the RL case above.
-	svc := newTestService(&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-5"}}, "", nil)
+	svc := newTestService(&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4.1-flash"}}, "", nil)
 	engine := messagesEngine(svc)
 
 	rec := httptest.NewRecorder()
@@ -271,7 +271,7 @@ func TestMessagesHandler_BanditUnavailableReturns503(t *testing.T) {
 // no known translation family. openai and gemini already special-cased this
 // sentinel; anthropic was missing it before the shared proxy.ClassifyDispatchError.
 func TestMessagesHandler_ProviderNotConfiguredReturns502(t *testing.T) {
-	svc := newTestService(&fakeRouter{decision: router.Decision{Provider: "not-a-real-provider", Model: "claude-sonnet-4-5"}}, "", nil)
+	svc := newTestService(&fakeRouter{decision: router.Decision{Provider: "not-a-real-provider", Model: "deepseek/deepseek-v4.1-flash"}}, "", nil)
 	engine := messagesEngine(svc)
 
 	rec := postMessages(engine, []byte(validAnthropicBody))
@@ -285,7 +285,7 @@ func TestMessagesHandler_ProviderNotConfiguredReturns502(t *testing.T) {
 func TestMessagesHandler_UpstreamStatusErrorPassesThroughStatus(t *testing.T) {
 	client := &fakeProviderClient{proxyErr: &providers.UpstreamStatusError{Status: http.StatusTooManyRequests}}
 	svc := newTestService(
-		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-5", Reason: "test"}},
+		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4.1-flash", Reason: "test"}},
 		providers.ProviderAIAND, client,
 	)
 	engine := messagesEngine(svc)
@@ -298,32 +298,28 @@ func TestMessagesHandler_UpstreamStatusErrorPassesThroughStatus(t *testing.T) {
 }
 
 func TestMessagesHandler_CrossFormatOverflowReturnsNativeError(t *testing.T) {
-	const responsesOverflow = `event: response.created
-data: {"type":"response.created","response":{"id":"resp_1","status":"in_progress","output":[]}}
-
-event: error
-data: {"type":"error","error":{"type":"invalid_request_error","code":"context_length_exceeded","message":"Your input exceeds the context window of this model."}}
-
-event: response.failed
-data: {"type":"response.failed","response":{"id":"resp_1","status":"failed","error":{"code":"context_length_exceeded","message":"Your input exceeds the context window of this model."},"output":[]}}
-
-`
+	// The upstream rejects the over-window prompt with a buffered 4xx whose
+	// body names the overflow code; the router turns that into the client's
+	// native prompt-too-long error.
+	const chatOverflow = `{"error":{"message":"Your input exceeds the context window of this model.","type":"invalid_request_error","code":"context_length_exceeded"}}`
 	for _, stream := range []bool{false, true} {
 		t.Run(fmt.Sprintf("stream=%t", stream), func(t *testing.T) {
-			client := &fakeProviderClient{proxyStatus: http.StatusOK, proxyBody: responsesOverflow, flushProxyBody: true, propagateProxyWriteErr: true}
+			client := &fakeProviderClient{proxyErr: &providers.UpstreamErrorResponse{
+				Status: http.StatusBadRequest,
+				Body:   []byte(chatOverflow),
+			}}
 			svc := proxy.NewService(
-				&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-5-mini", Reason: "test"}},
+				&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4.1-flash", Reason: "test"}},
 				map[string]providers.Client{providers.ProviderAIAND: client},
-				nil, false, nil, nil, false, providers.ProviderAIAND, "gpt-5-mini", nil,
+				nil, false, nil, nil, false, providers.ProviderAIAND, "deepseek/deepseek-v4.1-flash", nil,
 			)
-			reqBody := fmt.Sprintf(`{"model":"gpt-5-mini","max_tokens":1024,"stream":%t,"messages":[{"role":"user","content":"hi"}]}`, stream)
+			reqBody := fmt.Sprintf(`{"model":"deepseek/deepseek-v4.1-flash","max_tokens":1024,"stream":%t,"messages":[{"role":"user","content":"hi"}]}`, stream)
 			rec := postMessages(messagesEngine(svc), []byte(reqBody))
 
 			require.Equal(t, http.StatusBadRequest, rec.Code)
 			errObj := errorEnvelope(t, rec.Body.Bytes())
 			assert.Equal(t, "invalid_request_error", errObj["type"])
 			assert.Contains(t, errObj["message"], "prompt is too long")
-			assert.NotContains(t, rec.Body.String(), "upstream Responses request failed")
 		})
 	}
 }
@@ -331,7 +327,7 @@ data: {"type":"response.failed","response":{"id":"resp_1","status":"failed","err
 func TestMessagesHandler_UnknownErrorReturns502(t *testing.T) {
 	client := &fakeProviderClient{proxyErr: errors.New("boom: transport exploded")}
 	svc := newTestService(
-		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-5", Reason: "test"}},
+		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4.1-flash", Reason: "test"}},
 		providers.ProviderAIAND, client,
 	)
 	engine := messagesEngine(svc)
@@ -344,9 +340,9 @@ func TestMessagesHandler_UnknownErrorReturns502(t *testing.T) {
 }
 
 func TestMessagesHandler_HappyPathServesUpstreamResponse(t *testing.T) {
-	client := &fakeProviderClient{proxyStatus: http.StatusOK, proxyBody: `{"id":"msg_1","type":"message"}`}
+	client := &fakeProviderClient{proxyStatus: http.StatusOK, proxyBody: `{"id":"chatcmpl_1","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}]}`}
 	svc := newTestService(
-		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-5", Reason: "test_reason"}},
+		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4.1-flash", Reason: "test_reason"}},
 		providers.ProviderAIAND, client,
 	)
 	engine := messagesEngine(svc)
@@ -354,8 +350,8 @@ func TestMessagesHandler_HappyPathServesUpstreamResponse(t *testing.T) {
 	rec := postMessages(engine, []byte(validAnthropicBody))
 
 	require.Equal(t, http.StatusOK, rec.Code)
-	assert.Equal(t, `{"id":"msg_1","type":"message"}`, rec.Body.String())
-	assert.Equal(t, "claude-sonnet-4-5", rec.Header().Get("x-router-model"))
+	assert.JSONEq(t, `{"id":"chatcmpl_1","type":"message","role":"assistant","model":"deepseek/deepseek-v4.1-flash","content":[{"type":"text","text":"ok"}],"stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":0,"output_tokens":0}}`, rec.Body.String())
+	assert.Equal(t, "deepseek/deepseek-v4.1-flash", rec.Header().Get("x-router-model"))
 	assert.Equal(t, providers.ProviderAIAND, rec.Header().Get("x-router-provider"))
 	assert.Equal(t, "test_reason", rec.Header().Get("x-router-decision"))
 }
@@ -363,7 +359,7 @@ func TestMessagesHandler_HappyPathServesUpstreamResponse(t *testing.T) {
 func TestMessagesHandler_AgentShadowDoesNotUpsertRouterUser(t *testing.T) {
 	users := &countingUserRepository{}
 	authSvc := auth.NewService(nil, nil, nil, users, nil, nil, nil)
-	provider := &fakeProviderClient{proxyBody: `{"id":"msg_eval","type":"message","role":"assistant","model":"claude-opus-4-8","content":[{"type":"text","text":"done"}],"stop_reason":"end_turn","usage":{"input_tokens":12,"output_tokens":3}}`}
+	provider := &fakeProviderClient{proxyBody: `{"id":"chatcmpl_eval","object":"chat.completion","model":"z-ai/glm-5.2","choices":[{"index":0,"message":{"role":"assistant","content":"done"},"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":3}}`}
 	svc := newTestService(&fakeRouter{}, providers.ProviderAIAND, provider)
 
 	gin.SetMode(gin.TestMode)
@@ -371,13 +367,13 @@ func TestMessagesHandler_AgentShadowDoesNotUpsertRouterUser(t *testing.T) {
 	engine.Use(func(c *gin.Context) {
 		c.Set("router_installation", &auth.Installation{ID: uuid.NewString()})
 		ctx := context.WithValue(c.Request.Context(), proxy.AgentShadowEvalContextKey{}, proxy.AgentShadowEvaluation{
-			Model: "claude-opus-4-8", RolloutID: "pilot-1", StateID: "state-1",
+			Model: "z-ai/glm-5.2", RolloutID: "pilot-1", StateID: "state-1",
 		})
 		c.Request = c.Request.WithContext(ctx)
 		c.Next()
 	})
 	engine.POST("/v1/messages", anthropicapi.MessagesHandler(svc, authSvc))
-	body := []byte(`{"model":"claude-sonnet-4-5","messages":[{"role":"user","content":"hi"}],"metadata":{"user_id":"{\"account_uuid\":\"real-account\",\"email\":\"person@example.com\"}"},"max_tokens":4096}`)
+	body := []byte(`{"model":"deepseek/deepseek-v4.1-flash","messages":[{"role":"user","content":"hi"}],"metadata":{"user_id":"{\"account_uuid\":\"real-account\",\"email\":\"person@example.com\"}"},"max_tokens":4096}`)
 
 	recorder := postMessages(engine, body)
 
@@ -443,7 +439,7 @@ func TestRouteHandler_RequestTooLarge(t *testing.T) {
 }
 
 func TestRouteHandler_HappyPathReturnsDecision(t *testing.T) {
-	decision := router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", Reason: "cheap_and_cheerful"}
+	decision := router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash", Reason: "cheap_and_cheerful"}
 	svc := newTestService(&fakeRouter{decision: decision}, "", nil)
 	engine := routeEngine(svc)
 
@@ -453,19 +449,19 @@ func TestRouteHandler_HappyPathReturnsDecision(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
-	assert.Equal(t, "claude-haiku-4-5", got["model"])
+	assert.Equal(t, "z-ai/glm-5.3-flash", got["model"])
 	assert.Equal(t, providers.ProviderAIAND, got["provider"])
 	assert.Equal(t, "cheap_and_cheerful", got["reason"])
 }
 
 func TestRouteHandler_ForwardsAuthorizationForProviderEligibility(t *testing.T) {
-	decision := router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5"}
+	decision := router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash"}
 	var got router.Request
 	svc := newTestService(&fakeRouter{decision: decision, got: &got}, providers.ProviderAIAND, &fakeProviderClient{}).
 		WithByokOnly(true)
 	engine := routeEngine(svc)
 	req := httptest.NewRequest(http.MethodPost, "/v1/route", bytes.NewReader([]byte(validAnthropicBody)))
-	req.Header.Set("Authorization", "Bearer sk-ant-oat01-claude-code-token")
+	req.Header.Set("Authorization", "Bearer sk-test-client-key")
 	rec := httptest.NewRecorder()
 
 	engine.ServeHTTP(rec, req)
@@ -532,7 +528,7 @@ func TestPreviewRouteHandler_ReturnsFrozenPolicyPlan(t *testing.T) {
 
 func TestRouteAnthropicRequest_ForwardsValidInstallationIDUUIDVerbatim(t *testing.T) {
 	installID := uuid.New()
-	decision := router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5"}
+	decision := router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash"}
 	var got router.Request
 	svc := newTestService(&fakeRouter{decision: decision, got: &got}, "", nil)
 
@@ -544,7 +540,7 @@ func TestRouteAnthropicRequest_ForwardsValidInstallationIDUUIDVerbatim(t *testin
 }
 
 func TestRouteAnthropicRequest_DropsMalformedInstallationIDInsteadOfForwardingRaw(t *testing.T) {
-	decision := router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5"}
+	decision := router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash"}
 	var got router.Request
 	svc := newTestService(&fakeRouter{decision: decision, got: &got}, "", nil)
 
@@ -559,7 +555,7 @@ func TestRouteAnthropicRequest_DropsMalformedInstallationIDInsteadOfForwardingRa
 }
 
 func TestRouteAnthropicRequest_DropsEmptyInstallationIDInsteadOfForwardingRaw(t *testing.T) {
-	decision := router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5"}
+	decision := router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash"}
 	var got router.Request
 	svc := newTestService(&fakeRouter{decision: decision, got: &got}, "", nil)
 
@@ -571,7 +567,7 @@ func TestRouteAnthropicRequest_DropsEmptyInstallationIDInsteadOfForwardingRaw(t 
 }
 
 func TestRouteAnthropicRequest_DropsMissingInstallationIDInsteadOfForwardingRaw(t *testing.T) {
-	decision := router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5"}
+	decision := router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash"}
 	var got router.Request
 	svc := newTestService(&fakeRouter{decision: decision, got: &got}, "", nil)
 
@@ -617,7 +613,7 @@ func TestPassthroughHandler_RequestTooLarge(t *testing.T) {
 }
 
 func TestPassthroughHandler_HappyPath(t *testing.T) {
-	client := &fakeProviderClient{proxyBody: `{"input_tokens":42}`}
+	client := &fakeProviderClient{proxyBody: `{"input_tokens":42,"output_tokens":0}`}
 	svc := newTestService(&fakeRouter{}, providers.ProviderAIAND, client)
 	engine := passthroughEngine(svc)
 
@@ -625,5 +621,5 @@ func TestPassthroughHandler_HappyPath(t *testing.T) {
 	engine.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/v1/messages/count_tokens", bytes.NewReader([]byte(validAnthropicBody))))
 
 	require.Equal(t, http.StatusOK, rec.Code)
-	assert.Equal(t, `{"input_tokens":42}`, rec.Body.String())
+	assert.JSONEq(t, `{"input_tokens":42,"output_tokens":0}`, rec.Body.String())
 }

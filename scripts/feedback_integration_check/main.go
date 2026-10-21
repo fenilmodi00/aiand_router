@@ -121,7 +121,7 @@ func checkFeedbackLinkEndToEnd(ctx context.Context, pool *pgxpool.Pool) error {
 	if err := requireEqual("request_id", requestID, ctxResp["request_id"]); err != nil {
 		return err
 	}
-	if err := requireEqual("chosen_model", "claude-haiku-4-5", ctxResp["chosen_model"]); err != nil {
+	if err := requireEqual("chosen_model", "z-ai/glm-5.3-flash", ctxResp["chosen_model"]); err != nil {
 		return err
 	}
 	if err := requireEqual("chosen_provider", "anthropic", ctxResp["chosen_provider"]); err != nil {

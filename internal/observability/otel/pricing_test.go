@@ -16,18 +16,18 @@ func TestLookup(t *testing.T) {
 		wantOutput float64
 	}{
 		// ── Anthropic ──────────────────────────────────────────
-		{name: "claude-fable-5-1", model: "claude-fable-5-1", wantInput: 10.00, wantOutput: 50.00},
-		{name: "claude-fable-5", model: "claude-fable-5", wantInput: 10.00, wantOutput: 50.00},
-		{name: "claude-opus-5-5", model: "claude-opus-5-5", wantInput: 4.00, wantOutput: 20.00},
-		{name: "claude-opus-5", model: "claude-opus-5", wantInput: 5.00, wantOutput: 25.00},
-		{name: "claude-opus-4-8", model: "claude-opus-4-8", wantInput: 5.00, wantOutput: 25.00},
-		{name: "claude-opus-4-7", model: "claude-opus-4-7", wantInput: 5.00, wantOutput: 25.00},
-		{name: "claude-opus-4-6", model: "claude-opus-4-6", wantInput: 5.00, wantOutput: 25.00},
-		{name: "claude-sonnet-5-5", model: "claude-sonnet-5-5", wantInput: 2.00, wantOutput: 10.00},
-		{name: "claude-haiku-5-5", model: "claude-haiku-5-5", wantInput: 0.10, wantOutput: 0.50},
-		{name: "claude-sonnet-5", model: "claude-sonnet-5", wantInput: 2.00, wantOutput: 10.00},
-		{name: "claude-sonnet-4-5", model: "claude-sonnet-4-5", wantInput: 3.00, wantOutput: 15.00},
-		{name: "claude-haiku-4-5", model: "claude-haiku-4-5", wantInput: 1.00, wantOutput: 5.00},
+		{name: "z-ai/glm-5.2", model: "z-ai/glm-5.2", wantInput: 10.00, wantOutput: 50.00},
+		{name: "z-ai/glm-5.2", model: "z-ai/glm-5.2", wantInput: 10.00, wantOutput: 50.00},
+		{name: "z-ai/glm-5.2", model: "z-ai/glm-5.2", wantInput: 4.00, wantOutput: 20.00},
+		{name: "z-ai/glm-5.2", model: "z-ai/glm-5.2", wantInput: 5.00, wantOutput: 25.00},
+		{name: "z-ai/glm-5.2", model: "z-ai/glm-5.2", wantInput: 5.00, wantOutput: 25.00},
+		{name: "z-ai/glm-5.2", model: "z-ai/glm-5.2", wantInput: 5.00, wantOutput: 25.00},
+		{name: "z-ai/glm-5.2", model: "z-ai/glm-5.2", wantInput: 5.00, wantOutput: 25.00},
+		{name: "deepseek/deepseek-v4-pro", model: "deepseek/deepseek-v4-pro", wantInput: 2.00, wantOutput: 10.00},
+		{name: "z-ai/glm-5.3-flash", model: "z-ai/glm-5.3-flash", wantInput: 0.10, wantOutput: 0.50},
+		{name: "deepseek/deepseek-v4-pro", model: "deepseek/deepseek-v4-pro", wantInput: 2.00, wantOutput: 10.00},
+		{name: "deepseek/deepseek-v4.1-flash", model: "deepseek/deepseek-v4.1-flash", wantInput: 3.00, wantOutput: 15.00},
+		{name: "z-ai/glm-5.3-flash", model: "z-ai/glm-5.3-flash", wantInput: 1.00, wantOutput: 5.00},
 
 		// ── OpenAI GPT-5.5 ─────────────────────────────────────
 		{name: "gpt-6-astra", model: "gpt-6-astra", wantInput: 10.00, wantOutput: 50.00},

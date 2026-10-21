@@ -111,7 +111,7 @@ func TestResponsesToOpenAIChatWriter_EmptyTerminalRecordsUsage(t *testing.T) {
 func TestResponsesToAnthropicWriter_EmptyTerminalRecordsUsage(t *testing.T) {
 	rec := httptest.NewRecorder()
 	sink := &recordingUsageSink{}
-	w := translate.NewResponsesToAnthropicWriter(rec, "claude-opus-5", sink)
+	w := translate.NewResponsesToAnthropicWriter(rec, "z-ai/glm-5.2", sink)
 	require.NoError(t, w.Prelude(true))
 	_, err := w.Write([]byte("event: response.incomplete\ndata: {\"type\":\"response.incomplete\",\"response\":{\"id\":\"resp_empty\",\"status\":\"incomplete\",\"incomplete_details\":{\"reason\":\"max_output_tokens\"},\"output\":[],\"usage\":{\"input_tokens\":100,\"output_tokens\":8192}}}\n\n"))
 	require.ErrorIs(t, err, providers.ErrUpstreamEmptyCompletion)

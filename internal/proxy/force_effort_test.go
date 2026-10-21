@@ -20,8 +20,8 @@ func TestForcedReasoningEffort(t *testing.T) {
 		{"grok-4.6", false, "low"},              // unconditional: bare pin must not fall to xAI's non-disableable high default
 		{"grok-4.6", true, "low"},               // floor ignores escalation
 		{"grok-4.5", false, "low"},
-		{"claude-opus-4-8", false, ""}, // adaptive path untouched
-		{"claude-opus-4-8", true, ""},
+		{"z-ai/glm-5.2", false, ""}, // adaptive path untouched
+		{"z-ai/glm-5.2", true, ""},
 		{"deepseek/deepseek-v4-pro", true, ""},
 		{"gemini-2.5-flash", true, ""}, // only gemini-3.x is pinned
 	}

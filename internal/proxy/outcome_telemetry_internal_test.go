@@ -29,7 +29,7 @@ func TestServedGroupTelemetryKeepsFreshRecommendationSeparate(t *testing.T) {
 }
 
 func TestLatestToolOutcomeCoverageDistinguishesEmptyAndUnsupported(t *testing.T) {
-	anthropic, err := translate.ParseAnthropic([]byte(`{"model":"claude-sonnet-4-6","messages":[{"role":"user","content":"hello"}]}`))
+	anthropic, err := translate.ParseAnthropic([]byte(`{"model":"deepseek/deepseek-v4.1-flash","messages":[{"role":"user","content":"hello"}]}`))
 	require.NoError(t, err)
 	require.JSONEq(t, `{}`, string(latestToolCallCountsJSON(anthropic)))
 

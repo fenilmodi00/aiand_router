@@ -20,7 +20,7 @@ import (
 const authoritativeDowngradeStrategy = router.Strategy("authoritative-downgrade-test")
 
 var authoritativeDowngradeBody = []byte(
-	`{"model":"claude-opus-4-8","messages":[{"role":"user","content":"fix the failing test"}]}`,
+	`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"fix the failing test"}]}`,
 )
 
 // authoritativeDowngradeService wires an authoritative policy whose fresh pick
@@ -35,7 +35,7 @@ func authoritativeDowngradeService(store *stubPinStore, fresh router.Decision) *
 		store,
 		false,
 		providers.ProviderAIAND,
-		"claude-haiku-4-5",
+		"z-ai/glm-5.3-flash",
 		nil,
 	).WithPolicyStrategy(policy.StrategySpec{
 		Strategy: authoritativeDowngradeStrategy,
@@ -84,19 +84,19 @@ func authoritativeDowngradePin(model string, votes int) sessionpin.Pin {
 func TestAuthoritativeDowngradeGuards(t *testing.T) {
 	cheapFresh := router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "claude-haiku-4-5",
+		Model:    "z-ai/glm-5.3-flash",
 		Reason:   "hmm_policy(classifier 'fast' (p=0.50))",
 		Metadata: &router.RoutingMetadata{ChosenScore: 0.5},
 	}
 	confidentCheapFresh := router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "claude-haiku-4-5",
+		Model:    "z-ai/glm-5.3-flash",
 		Reason:   "hmm_policy(classifier 'fast' (p=0.90))",
 		Metadata: &router.RoutingMetadata{ChosenScore: 0.9},
 	}
 	cheapUpgradeFresh := router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "claude-opus-4-8",
+		Model:    "z-ai/glm-5.2",
 		Reason:   "hmm_policy(classifier 'maximum' (p=0.95))",
 		Metadata: &router.RoutingMetadata{ChosenScore: 0.95},
 	}
@@ -116,84 +116,84 @@ func TestAuthoritativeDowngradeGuards(t *testing.T) {
 	}{
 		{
 			name:       "both levers off downgrades on the first vote",
-			pinModel:   "claude-opus-4-8",
+			pinModel:   "z-ai/glm-5.2",
 			fresh:      cheapFresh,
-			wantModel:  "claude-haiku-4-5",
+			wantModel:  "z-ai/glm-5.3-flash",
 			wantTier:   "authoritative_per_turn",
 			wantVotes:  0,
 			wantShadow: downgradeGuardShadow{Served: true, Votes: 1, HysteresisWouldHold: true, ConfidenceWouldHold: true},
 		},
 		{
 			name:            "first vote under hysteresis keeps the pin",
-			pinModel:        "claude-opus-4-8",
+			pinModel:        "z-ai/glm-5.2",
 			hysteresisTurns: 3,
 			fresh:           cheapFresh,
-			wantModel:       "claude-opus-4-8",
+			wantModel:       "z-ai/glm-5.2",
 			wantSticky:      true,
 			wantTier:        "authoritative_hmm_downgrade_hysteresis",
 			wantVotes:       1,
 		},
 		{
 			name:            "final vote under hysteresis serves fresh and clears the run",
-			pinModel:        "claude-opus-4-8",
+			pinModel:        "z-ai/glm-5.2",
 			priorVotes:      2,
 			hysteresisTurns: 3,
 			fresh:           cheapFresh,
-			wantModel:       "claude-haiku-4-5",
+			wantModel:       "z-ai/glm-5.3-flash",
 			wantTier:        "authoritative_per_turn",
 			wantVotes:       0,
 			wantShadow:      downgradeGuardShadow{Served: true, Votes: 3, ConfidenceWouldHold: true},
 		},
 		{
 			name:            "upgrade proposal ignores hysteresis and clears the run",
-			pinModel:        "claude-haiku-4-5",
+			pinModel:        "z-ai/glm-5.3-flash",
 			priorVotes:      2,
 			hysteresisTurns: 3,
 			fresh:           cheapUpgradeFresh,
-			wantModel:       "claude-opus-4-8",
+			wantModel:       "z-ai/glm-5.2",
 			wantTier:        "authoritative_per_turn",
 			wantVotes:       0,
 		},
 		{
 			name:          "low-confidence downgrade keeps the pin without voting",
-			pinModel:      "claude-opus-4-8",
+			pinModel:      "z-ai/glm-5.2",
 			priorVotes:    1,
 			downgradeGate: true,
 			fresh:         cheapFresh,
-			wantModel:     "claude-opus-4-8",
+			wantModel:     "z-ai/glm-5.2",
 			wantSticky:    true,
 			wantTier:      "authoritative_hmm_downgrade_confidence_low",
 			wantVotes:     1,
 		},
 		{
 			name:            "low-confidence downgrade is dropped before hysteresis counts it",
-			pinModel:        "claude-opus-4-8",
+			pinModel:        "z-ai/glm-5.2",
 			priorVotes:      2,
 			hysteresisTurns: 3,
 			downgradeGate:   true,
 			fresh:           cheapFresh,
-			wantModel:       "claude-opus-4-8",
+			wantModel:       "z-ai/glm-5.2",
 			wantSticky:      true,
 			wantTier:        "authoritative_hmm_downgrade_confidence_low",
 			wantVotes:       2,
 		},
 		{
 			name:          "confident downgrade clears the gate",
-			pinModel:      "claude-opus-4-8",
+			pinModel:      "z-ai/glm-5.2",
 			downgradeGate: true,
 			fresh:         confidentCheapFresh,
-			wantModel:     "claude-haiku-4-5",
+			wantModel:     "z-ai/glm-5.3-flash",
 			wantTier:      "authoritative_per_turn",
 			wantVotes:     0,
 			wantShadow:    downgradeGuardShadow{Served: true, Votes: 1, HysteresisWouldHold: true},
 		},
 		{
 			name:            "confident downgrade still serves its hysteresis sentence",
-			pinModel:        "claude-opus-4-8",
+			pinModel:        "z-ai/glm-5.2",
 			hysteresisTurns: 3,
 			downgradeGate:   true,
 			fresh:           confidentCheapFresh,
-			wantModel:       "claude-opus-4-8",
+			wantModel:       "z-ai/glm-5.2",
 			wantSticky:      true,
 			wantTier:        "authoritative_hmm_downgrade_hysteresis",
 			wantVotes:       1,
@@ -229,24 +229,24 @@ func TestAuthoritativeDowngradeGuards(t *testing.T) {
 func TestAuthoritativeDowngradeShadow(t *testing.T) {
 	cheapFresh := router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "claude-haiku-4-5",
+		Model:    "z-ai/glm-5.3-flash",
 		Reason:   "hmm_policy(classifier 'fast' (p=0.50))",
 		Metadata: &router.RoutingMetadata{ChosenScore: 0.5},
 	}
 	confidentCheapFresh := router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "claude-haiku-4-5",
+		Model:    "z-ai/glm-5.3-flash",
 		Reason:   "hmm_policy(classifier 'fast' (p=0.90))",
 		Metadata: &router.RoutingMetadata{ChosenScore: 0.9},
 	}
 	unscoredCheapFresh := router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "claude-haiku-4-5",
+		Model:    "z-ai/glm-5.3-flash",
 		Reason:   "hmm_policy(classifier 'fast')",
 	}
 	upgradeFresh := router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "claude-opus-4-8",
+		Model:    "z-ai/glm-5.2",
 		Reason:   "hmm_policy(classifier 'maximum' (p=0.95))",
 		Metadata: &router.RoutingMetadata{ChosenScore: 0.95},
 	}
@@ -260,47 +260,47 @@ func TestAuthoritativeDowngradeShadow(t *testing.T) {
 	}{
 		{
 			name:        "unconfident first vote would be held by both guards",
-			pinModel:    "claude-opus-4-8",
+			pinModel:    "z-ai/glm-5.2",
 			shadowTurns: 2,
 			fresh:       cheapFresh,
 			wantShadow:  downgradeGuardShadow{Served: true, Votes: 1, HysteresisWouldHold: true, ConfidenceWouldHold: true},
 		},
 		{
 			name:        "confident first vote would be held by hysteresis only",
-			pinModel:    "claude-opus-4-8",
+			pinModel:    "z-ai/glm-5.2",
 			shadowTurns: 2,
 			fresh:       confidentCheapFresh,
 			wantShadow:  downgradeGuardShadow{Served: true, Votes: 1, HysteresisWouldHold: true},
 		},
 		{
 			name:        "unscored downgrade is not confidence-gated",
-			pinModel:    "claude-opus-4-8",
+			pinModel:    "z-ai/glm-5.2",
 			shadowTurns: 2,
 			fresh:       unscoredCheapFresh,
 			wantShadow:  downgradeGuardShadow{Served: true, Votes: 1, HysteresisWouldHold: true},
 		},
 		{
 			name:        "shadow threshold of one never holds",
-			pinModel:    "claude-opus-4-8",
+			pinModel:    "z-ai/glm-5.2",
 			shadowTurns: 1,
 			fresh:       confidentCheapFresh,
 			wantShadow:  downgradeGuardShadow{Served: true, Votes: 1},
 		},
 		{
 			name:       "shadow disabled still marks the served downgrade",
-			pinModel:   "claude-opus-4-8",
+			pinModel:   "z-ai/glm-5.2",
 			fresh:      cheapFresh,
 			wantShadow: downgradeGuardShadow{Served: true, Votes: 1, ConfidenceWouldHold: true},
 		},
 		{
 			name:        "upgrade is not a downgrade",
-			pinModel:    "claude-haiku-4-5",
+			pinModel:    "z-ai/glm-5.3-flash",
 			shadowTurns: 2,
 			fresh:       upgradeFresh,
 		},
 		{
 			name:        "same model is not a downgrade",
-			pinModel:    "claude-haiku-4-5",
+			pinModel:    "z-ai/glm-5.3-flash",
 			shadowTurns: 2,
 			fresh:       cheapFresh,
 		},
@@ -351,13 +351,13 @@ func TestDowngradeShadowLogFields(t *testing.T) {
 func TestAuthoritativeDowngradeHysteresisAcrossTurns(t *testing.T) {
 	cheaper := router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "claude-haiku-4-5",
+		Model:    "z-ai/glm-5.3-flash",
 		Reason:   "hmm_policy(classifier 'fast' (p=0.50))",
 		Metadata: &router.RoutingMetadata{ChosenScore: 0.5},
 	}
 	confirming := router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "claude-opus-4-8",
+		Model:    "z-ai/glm-5.2",
 		Reason:   "hmm_policy(classifier 'maximum' (p=0.95))",
 		Metadata: &router.RoutingMetadata{ChosenScore: 0.95},
 	}
@@ -368,15 +368,15 @@ func TestAuthoritativeDowngradeHysteresisAcrossTurns(t *testing.T) {
 		wantTier  string
 		wantVotes int
 	}{
-		{fresh: cheaper, wantModel: "claude-opus-4-8", wantTier: "authoritative_hmm_downgrade_hysteresis", wantVotes: 1},
-		{fresh: cheaper, wantModel: "claude-opus-4-8", wantTier: "authoritative_hmm_downgrade_hysteresis", wantVotes: 2},
-		{fresh: confirming, wantModel: "claude-opus-4-8", wantTier: "authoritative_per_turn", wantVotes: 0},
-		{fresh: cheaper, wantModel: "claude-opus-4-8", wantTier: "authoritative_hmm_downgrade_hysteresis", wantVotes: 1},
-		{fresh: cheaper, wantModel: "claude-opus-4-8", wantTier: "authoritative_hmm_downgrade_hysteresis", wantVotes: 2},
-		{fresh: cheaper, wantModel: "claude-haiku-4-5", wantTier: "authoritative_per_turn", wantVotes: 0},
+		{fresh: cheaper, wantModel: "z-ai/glm-5.2", wantTier: "authoritative_hmm_downgrade_hysteresis", wantVotes: 1},
+		{fresh: cheaper, wantModel: "z-ai/glm-5.2", wantTier: "authoritative_hmm_downgrade_hysteresis", wantVotes: 2},
+		{fresh: confirming, wantModel: "z-ai/glm-5.2", wantTier: "authoritative_per_turn", wantVotes: 0},
+		{fresh: cheaper, wantModel: "z-ai/glm-5.2", wantTier: "authoritative_hmm_downgrade_hysteresis", wantVotes: 1},
+		{fresh: cheaper, wantModel: "z-ai/glm-5.2", wantTier: "authoritative_hmm_downgrade_hysteresis", wantVotes: 2},
+		{fresh: cheaper, wantModel: "z-ai/glm-5.3-flash", wantTier: "authoritative_per_turn", wantVotes: 0},
 	}
 
-	pin := authoritativeDowngradePin("claude-opus-4-8", 0)
+	pin := authoritativeDowngradePin("z-ai/glm-5.2", 0)
 	for i, turn := range turns {
 		store := newStubPinStore()
 		store.getFound = true

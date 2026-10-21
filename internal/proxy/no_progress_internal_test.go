@@ -29,20 +29,20 @@ func TestHandleNoProgressBreak_PreservesUserForcedPin(t *testing.T) {
 	store := &overwritingPinStore{
 		pin: sessionpin.Pin{
 			Provider:    "anthropic",
-			Model:       "claude-opus-4-8",
+			Model:       "z-ai/glm-5.2",
 			Reason:      translate.ReasonUserForceModel,
 			PinnedUntil: time.Now().Add(time.Hour),
 		},
 		found: true,
 	}
 	svc := &Service{pinStore: store}
-	env, err := translate.ParseAnthropic([]byte(`{"model":"claude-opus-4-8","messages":[{"role":"user","content":"retry"}]}`))
+	env, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"retry"}]}`))
 	require.NoError(t, err)
 	rec := httptest.NewRecorder()
 
 	err = svc.handleNoProgressBreak(
 		context.Background(), rec, env, noProgressMatchThreshold, uuid.New(), key,
-		"default_high", "claude-opus-4-8", "anthropic", 10,
+		"default_high", "z-ai/glm-5.2", "anthropic", 10,
 	)
 	require.NoError(t, err)
 
@@ -226,12 +226,12 @@ func TestNoProgressTracker_TripsWhenMessageCountAndToolProgressFlat(t *testing.T
 
 func TestToolProgressMarker_AdvancesWithToolCalls(t *testing.T) {
 	// Second turn appends a distinct tool call; the marker must change.
-	turn1 := []byte(`{"model":"claude-haiku-4-5","max_tokens":256,"messages":[` +
+	turn1 := []byte(`{"model":"z-ai/glm-5.3-flash","max_tokens":256,"messages":[` +
 		`{"role":"user","content":"find the bug"},` +
 		`{"role":"assistant","content":[{"type":"tool_use","id":"1","name":"Grep","input":{"pattern":"scim","path":"/a"}}]},` +
 		`{"role":"user","content":[{"type":"tool_result","tool_use_id":"1","content":"x"}]}` +
 		`]}`)
-	turn2 := []byte(`{"model":"claude-haiku-4-5","max_tokens":256,"messages":[` +
+	turn2 := []byte(`{"model":"z-ai/glm-5.3-flash","max_tokens":256,"messages":[` +
 		`{"role":"user","content":"find the bug"},` +
 		`{"role":"assistant","content":[{"type":"tool_use","id":"1","name":"Grep","input":{"pattern":"scim","path":"/a"}}]},` +
 		`{"role":"user","content":[{"type":"tool_result","tool_use_id":"1","content":"x"}]},` +
@@ -251,7 +251,7 @@ func TestToolProgressMarker_AdvancesWithToolCalls(t *testing.T) {
 }
 
 func TestToolProgressMarker_EmptyWithoutToolCalls(t *testing.T) {
-	body := []byte(`{"model":"claude-haiku-4-5","max_tokens":256,"messages":[{"role":"user","content":"hi"}]}`)
+	body := []byte(`{"model":"z-ai/glm-5.3-flash","max_tokens":256,"messages":[{"role":"user","content":"hi"}]}`)
 	env, err := translate.ParseAnthropic(body)
 	require.NoError(t, err)
 	assert.Equal(t, "", toolProgressMarker(env), "a tool-free turn has no tool-progress marker")

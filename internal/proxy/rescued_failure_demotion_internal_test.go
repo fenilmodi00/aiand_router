@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	rescuedPrimaryModel = "claude-opus-5"
+	rescuedPrimaryModel = "z-ai/glm-5.2"
 	rescuerModel        = "gpt-5.6-luna"
 )
 
@@ -90,7 +90,7 @@ func newRescuedFailureTurnService(store sessionpin.Store, decision router.Decisi
 		map[string]providers.Client{
 			providers.ProviderAIAND: primary,
 		},
-		nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+		nil, false, nil, store, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
 		providers.ProviderAIAND: {},
 	}).WithRetrySleep(func(context.Context, time.Duration) error { return nil }).WithRescuedFailureArmDemotion(flagOn)
@@ -225,7 +225,7 @@ func TestProxyMessages_BaselineRetryKeepsStallDemotionOnPrimary(t *testing.T) {
 		map[string]providers.Client{
 			providers.ProviderAIAND: baseline,
 		},
-		nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+		nil, false, nil, store, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
 		providers.ProviderAIAND: {},
 	}).WithRescuedFailureArmDemotion(true)

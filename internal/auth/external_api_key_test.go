@@ -120,7 +120,7 @@ func TestNormalizeModelAliases(t *testing.T) {
 		for name, in := range map[string]map[string]string{
 			"nil":         nil,
 			"empty":       {},
-			"blank alias": {"claude-fable-5": "   "},
+			"blank alias": {"z-ai/glm-5.2": "   "},
 			"blank model": {"  ": "gateway-model"},
 		} {
 			got, err := auth.NormalizeModelAliases(in, nil)
@@ -132,12 +132,12 @@ func TestNormalizeModelAliases(t *testing.T) {
 	t.Run("trims both sides", func(t *testing.T) {
 		got, err := auth.NormalizeModelAliases(map[string]string{"  claude-fable-5 ": "  gw-fable  "}, nil)
 		require.NoError(t, err)
-		assert.Equal(t, map[string]string{"claude-fable-5": "gw-fable"}, got,
+		assert.Equal(t, map[string]string{"z-ai/glm-5.2": "gw-fable"}, got,
 			"an untrimmed key would never match the routed model id, silently disabling the alias")
 	})
 
 	t.Run("rejects a model outside the allowed set", func(t *testing.T) {
-		allowed := map[string]struct{}{"claude-fable-5": {}}
+		allowed := map[string]struct{}{"z-ai/glm-5.2": {}}
 		_, err := auth.NormalizeModelAliases(map[string]string{"claude-fabel-5": "gw-fable"}, allowed)
 		require.ErrorIs(t, err, auth.ErrUnknownModel)
 	})
@@ -152,7 +152,7 @@ func TestNormalizeModelAliases(t *testing.T) {
 	})
 
 	t.Run("rejects an overlong alias", func(t *testing.T) {
-		_, err := auth.NormalizeModelAliases(map[string]string{"claude-fable-5": strings.Repeat("m", 256)}, nil)
+		_, err := auth.NormalizeModelAliases(map[string]string{"z-ai/glm-5.2": strings.Repeat("m", 256)}, nil)
 		require.ErrorIs(t, err, auth.ErrInvalidModelAlias)
 	})
 }

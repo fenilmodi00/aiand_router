@@ -58,12 +58,12 @@ func TestGatewayUnservedModelsForRequest_ExcludesRefusedAliasOnly(t *testing.T) 
 	s.unservedGatewayModels.Store(gatewayModelKey(endpoint, providers.ProviderAIAND, "grok-4.6"), struct{}{})
 
 	got := s.gatewayUnservedModelsForRequest(ctxWithKeys(
-		gatewayKey(providers.ProviderAIAND, endpoint, "grok-4.6", "claude-haiku-4-5"),
+		gatewayKey(providers.ProviderAIAND, endpoint, "grok-4.6", "z-ai/glm-5.3-flash"),
 	))
 
 	require.NotNil(t, got)
 	assert.Contains(t, got, "grok-4.6")
-	assert.NotContains(t, got, "claude-haiku-4-5")
+	assert.NotContains(t, got, "z-ai/glm-5.3-flash")
 }
 
 // Another endpoint aliasing the same model may still serve it; excluding the
@@ -91,7 +91,7 @@ func TestRememberGatewayLacksModel_MemoizesPerEndpointAndModel(t *testing.T) {
 	s.rememberGatewayLacksModel(ctx, providers.ProviderAIAND, "grok-4.6")
 
 	assert.True(t, s.gatewayLacksModel(gatewayModelKey(endpoint, providers.ProviderAIAND, "grok-4.6")))
-	assert.False(t, s.gatewayLacksModel(gatewayModelKey(endpoint, providers.ProviderAIAND, "claude-haiku-4-5")))
+	assert.False(t, s.gatewayLacksModel(gatewayModelKey(endpoint, providers.ProviderAIAND, "z-ai/glm-5.3-flash")))
 	assert.False(t, s.gatewayLacksModel(gatewayModelKey("https://other.example.com", providers.ProviderAIAND, "grok-4.6")))
 }
 

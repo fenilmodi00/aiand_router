@@ -9,14 +9,14 @@ import (
 
 func TestToolConfigurationSHA256ChangesWithSchema(t *testing.T) {
 	first, err := ParseAnthropic([]byte(`{
-		"model":"claude-sonnet-4-5",
+		"model":"deepseek/deepseek-v4.1-flash",
 		"max_tokens":32,
 		"messages":[{"role":"user","content":"hi"}],
 		"tools":[{"name":"Read","input_schema":{"type":"object","properties":{"path":{"type":"string"}}}}]
 	}`))
 	require.NoError(t, err)
 	second, err := ParseAnthropic([]byte(`{
-		"model":"claude-sonnet-4-5",
+		"model":"deepseek/deepseek-v4.1-flash",
 		"max_tokens":32,
 		"messages":[{"role":"user","content":"hi"}],
 		"tools":[{"name":"Read","input_schema":{"type":"object","properties":{"path":{"type":"integer"}}}}]
@@ -29,14 +29,14 @@ func TestToolConfigurationSHA256ChangesWithSchema(t *testing.T) {
 
 func TestToolConfigurationSHA256NormalizesJSONKeyOrder(t *testing.T) {
 	first, err := ParseAnthropic([]byte(`{
-		"model":"claude-sonnet-4-5",
+		"model":"deepseek/deepseek-v4.1-flash",
 		"max_tokens":32,
 		"messages":[{"role":"user","content":"hi"}],
 		"tools":[{"name":"Read","input_schema":{"type":"object","properties":{"path":{"type":"string"}}}}]
 	}`))
 	require.NoError(t, err)
 	second, err := ParseAnthropic([]byte(`{
-		"model":"claude-sonnet-4-5",
+		"model":"deepseek/deepseek-v4.1-flash",
 		"max_tokens":32,
 		"messages":[{"role":"user","content":"hi"}],
 		"tools":[{"input_schema":{"properties":{"path":{"type":"string"}},"type":"object"},"name":"Read"}]

@@ -22,7 +22,7 @@ func TestApplyPlannerTelemetry_SkippedWhenPlannerDidNotRun(t *testing.T) {
 func TestApplyPlannerTelemetry_StayPopulatesPinAndEV(t *testing.T) {
 	p := InsertTelemetryParams{}
 	applyPlannerTelemetry(&p, turnLoopResult{
-		PinModel:    "claude-sonnet-5",
+		PinModel:    "deepseek/deepseek-v4-pro",
 		PinProvider: "anthropic",
 		PlannerDecision: planner.Decision{
 			Outcome:            planner.OutcomeStay,
@@ -34,7 +34,7 @@ func TestApplyPlannerTelemetry_StayPopulatesPinAndEV(t *testing.T) {
 	})
 	assert.Equal(t, "stay", p.PlannerOutcome)
 	assert.Equal(t, planner.ReasonEVNegative, p.PlannerReason)
-	assert.Equal(t, "claude-sonnet-5", p.PlannerPinModel)
+	assert.Equal(t, "deepseek/deepseek-v4-pro", p.PlannerPinModel)
 	assert.Equal(t, "anthropic", p.PlannerPinProvider)
 	require.NotNil(t, p.PlannerExpectedSavingsUSD)
 	assert.InDelta(t, 0.01, *p.PlannerExpectedSavingsUSD, 1e-12)
@@ -49,7 +49,7 @@ func TestApplyPlannerTelemetry_StayPopulatesPinAndEV(t *testing.T) {
 func TestApplyPlannerTelemetry_SwitchRecordsAbandonedPin(t *testing.T) {
 	p := InsertTelemetryParams{}
 	applyPlannerTelemetry(&p, turnLoopResult{
-		PinModel:    "claude-opus-5",
+		PinModel:    "z-ai/glm-5.2",
 		PinProvider: "anthropic",
 		PlannerDecision: planner.Decision{
 			Outcome:                  planner.OutcomeSwitch,
@@ -63,7 +63,7 @@ func TestApplyPlannerTelemetry_SwitchRecordsAbandonedPin(t *testing.T) {
 		},
 	})
 	assert.Equal(t, "switch", p.PlannerOutcome)
-	assert.Equal(t, "claude-opus-5", p.PlannerPinModel)
+	assert.Equal(t, "z-ai/glm-5.2", p.PlannerPinModel)
 	require.NotNil(t, p.PlannerPinCacheCold)
 	assert.True(t, *p.PlannerPinCacheCold)
 	assert.Equal(t, "stay", p.PlannerShadowOutcome)

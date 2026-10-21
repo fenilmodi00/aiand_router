@@ -28,7 +28,7 @@ func TestParseForceModelCommand_ForceModel(t *testing.T) {
 		{
 			name:         "command with trailing text",
 			input:        "/force-model claude-opus-4-7\nPlease help me with this.",
-			wantModel:    "claude-opus-4-7",
+			wantModel:    "z-ai/glm-5.2",
 			wantFound:    true,
 			wantStripped: "Please help me with this.",
 		},
@@ -100,7 +100,7 @@ func TestParseForceModelCommand_ForceModel(t *testing.T) {
 		{
 			name:         "leading blank lines before command",
 			input:        "\n\n/force-model claude-opus-4-7\nthen help",
-			wantModel:    "claude-opus-4-7",
+			wantModel:    "z-ai/glm-5.2",
 			wantFound:    true,
 			wantStripped: "then help",
 		},
@@ -133,7 +133,7 @@ func TestParseForceModelCommand_ForceModel(t *testing.T) {
 		{
 			name:         "multiple leading injected tag blocks",
 			input:        "<system-reminder>foo</system-reminder>\n<command-name>x</command-name>\n/force-model claude-opus-4-7\nthen help",
-			wantModel:    "claude-opus-4-7",
+			wantModel:    "z-ai/glm-5.2",
 			wantFound:    true,
 			wantStripped: "<system-reminder>foo</system-reminder>\n<command-name>x</command-name>\nthen help",
 		},
@@ -260,7 +260,7 @@ func TestExtractForceModelCommand_OpenAIFormat(t *testing.T) {
 
 func TestExtractForceModelCommand_ArrayContent(t *testing.T) {
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{
 				"role": "user",
@@ -286,7 +286,7 @@ func TestExtractForceModelCommand_ArrayContentMultipleTextBlocks(t *testing.T) {
 	// The directive can land in a non-first text block (e.g. after an
 	// injected <command-name> block), so the parser must scan all of them.
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{
 				"role": "user",
@@ -306,7 +306,7 @@ func TestExtractForceModelCommand_ArrayContentMultipleTextBlocks(t *testing.T) {
 	assert.Equal(t, "qwen/qwen3.6-35b-a3b", res.Model)
 
 	// The directive block should be empty (or stripped) after extraction.
-	raw, _ := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "claude-sonnet-4-6"})
+	raw, _ := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "deepseek/deepseek-v4.1-flash"})
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(raw.Body, &got))
 	msgs, _ := got["messages"].([]any)
@@ -319,7 +319,7 @@ func TestExtractForceModelCommand_ArrayContentMultipleTextBlocks(t *testing.T) {
 
 func TestExtractForceModelCommand_AgentToolResultString(t *testing.T) {
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{
 				"role": "assistant",
@@ -343,7 +343,7 @@ func TestExtractForceModelCommand_AgentToolResultString(t *testing.T) {
 
 func TestExtractForceModelCommand_AgentToolResultBlock(t *testing.T) {
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{
 				"role": "assistant",
@@ -371,7 +371,7 @@ func TestExtractForceModelCommand_AgentToolResultBlock(t *testing.T) {
 
 func TestExtractForceModelCommand_ModelAliasInUserTextAfterAnthropicToolUse(t *testing.T) {
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{
 				"role": "assistant",
@@ -394,7 +394,7 @@ func TestExtractForceModelCommand_ModelAliasInUserTextAfterAnthropicToolUse(t *t
 
 func TestExtractForceModelCommand_ModelAliasInAnthropicToolResultIsIgnored(t *testing.T) {
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{
 				"role": "assistant",
@@ -420,7 +420,7 @@ func TestExtractForceModelCommand_ModelAliasInAnthropicToolResultIsIgnored(t *te
 
 func TestExtractForceModelCommand_AgentSoleTextBlockDropsWholeMessage(t *testing.T) {
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{"role": "user", "content": "analyze usage"},
 			map[string]any{
@@ -455,7 +455,7 @@ func TestExtractForceModelCommand_AgentSoleTextBlockDropsWholeMessage(t *testing
 
 func TestExtractForceModelCommand_AgentToolResultSiblingBlockSurvives(t *testing.T) {
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{
 				"role": "assistant",
@@ -573,7 +573,7 @@ func TestExtractForceModelCommand_TrailingSystemNoticeAfterUserTurn(t *testing.T
 	// Claude Code appends a role:"system" deferred-tools notice after the user
 	// turn; it must not make the user's command look historical.
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{
 				"role": "user",
@@ -597,7 +597,7 @@ func TestExtractForceModelCommand_TrailingSystemNoticeAfterUserTurn(t *testing.T
 
 func TestExtractForceModelCommand_AgentToolResultWithTrailingSystemNotice(t *testing.T) {
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{"role": "user", "content": "do the thing"},
 			map[string]any{"role": "system", "content": "deferred tools notice"},
@@ -628,7 +628,7 @@ func TestExtractForceModelCommand_AgentToolResultWithTrailingSystemNotice(t *tes
 
 func TestExtractForceModelCommand_IgnoresHistoricalCommand(t *testing.T) {
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{"role": "user", "content": "/force-model opus"},
 			map[string]any{"role": "assistant", "content": "Acknowledged."},
@@ -644,7 +644,7 @@ func TestExtractForceModelCommand_IgnoresHistoricalCommand(t *testing.T) {
 
 func TestExtractForceModelCommand_NoUserMessage(t *testing.T) {
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{"role": "assistant", "content": "Hello!"},
 		},
@@ -675,7 +675,7 @@ func TestExtractForceModelCommand_GeminiFormatIgnored(t *testing.T) {
 func buildAnthropicBody(t *testing.T, text string) []byte {
 	t.Helper()
 	return mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{"role": "user", "content": text},
 		},
@@ -686,7 +686,7 @@ func buildAnthropicBody(t *testing.T, text string) []byte {
 func lastUserMessageText(t *testing.T, env *translate.RequestEnvelope) string {
 	t.Helper()
 	var body map[string]any
-	raw, _ := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "claude-sonnet-4-6"})
+	raw, _ := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "deepseek/deepseek-v4.1-flash"})
 	require.NoError(t, json.Unmarshal(raw.Body, &body))
 	msgs, _ := body["messages"].([]any)
 	for i := len(msgs) - 1; i >= 0; i-- {
@@ -710,7 +710,7 @@ func lastUserMessageText(t *testing.T, env *translate.RequestEnvelope) string {
 func lastUserMessageArrayText(t *testing.T, env *translate.RequestEnvelope) string {
 	t.Helper()
 	var body map[string]any
-	raw, _ := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "claude-sonnet-4-6"})
+	raw, _ := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "deepseek/deepseek-v4.1-flash"})
 	require.NoError(t, json.Unmarshal(raw.Body, &body))
 	msgs, _ := body["messages"].([]any)
 	for i := len(msgs) - 1; i >= 0; i-- {
@@ -732,7 +732,7 @@ func lastUserMessageArrayText(t *testing.T, env *translate.RequestEnvelope) stri
 func anthropicMessages(t *testing.T, env *translate.RequestEnvelope) []map[string]any {
 	t.Helper()
 	var body map[string]any
-	raw, _ := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "claude-sonnet-4-6"})
+	raw, _ := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "deepseek/deepseek-v4.1-flash"})
 	require.NoError(t, json.Unmarshal(raw.Body, &body))
 	raws, _ := body["messages"].([]any)
 	msgs := make([]map[string]any, 0, len(raws))

@@ -61,7 +61,7 @@ func (p *routingModelCaptureProvider) Proxy(ctx context.Context, _ router.Decisi
 func (p *routingModelCaptureProvider) Passthrough(_ context.Context, prepared providers.PreparedRequest, w http.ResponseWriter, _ *http.Request) error {
 	p.body = append([]byte(nil), prepared.Body...)
 	w.Header().Set("Content-Type", "application/json")
-	_, err := w.Write([]byte(`{"id":"synthetic-reply","type":"message","role":"assistant","model":"claude-haiku-4-5","content":[{"type":"text","text":"selected policy reply"}],"stop_reason":"end_turn","usage":{"input_tokens":1,"output_tokens":1}}`))
+	_, err := w.Write([]byte(`{"id":"synthetic-reply","type":"message","role":"assistant","model":"z-ai/glm-5.3-flash","content":[{"type":"text","text":"selected policy reply"}],"stop_reason":"end_turn","usage":{"input_tokens":1,"output_tokens":1}}`))
 	return err
 }
 
@@ -83,7 +83,7 @@ func TestRoutingModelDispatchesConcreteModelAcrossClientProtocols(t *testing.T) 
 			{path: "/v1/responses", body: `{"model":"` + string(choice.model) + `","input":[{"role":"user","content":"hello"}]}`, call: (*Service).ProxyOpenAIResponses},
 		} {
 			t.Run(string(choice.model)+tc.path, func(t *testing.T) {
-				const completionModel = "claude-haiku-4-5"
+				const completionModel = "z-ai/glm-5.3-flash"
 				defaultRouter := &betaTestRouter{}
 				hmmRouter := &betaTestRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: completionModel}}
 				provider := &routingModelCaptureProvider{}

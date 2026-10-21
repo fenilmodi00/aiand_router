@@ -182,7 +182,7 @@ func TestDebitForInference_MatchesExportedCostMath(t *testing.T) {
 	balance, err := svc.DebitForInference(context.Background(), billing.DebitInferenceParams{
 		OrganizationID:  "org_x",
 		RouterRequestID: "req_abc",
-		Model:           "claude-sonnet-4-5",
+		Model:           "deepseek/deepseek-v4.1-flash",
 		Provider:        providers.ProviderAIAND,
 		InputTokens:     1_000_000,
 		OutputTokens:    250_000,
@@ -198,7 +198,7 @@ func TestDebitForInference_MatchesExportedCostMath(t *testing.T) {
 	assert.Equal(t, expectedMicros, repo.ledgerCalls[0].NotionalCostMicros, "notional matches the charge")
 	assert.Equal(t, billing.EntryTypeInference, repo.ledgerCalls[0].EntryType)
 	assert.Equal(t, "req_abc", repo.ledgerCalls[0].RouterRequestID)
-	assert.Equal(t, "claude-sonnet-4-5", repo.ledgerCalls[0].RouterModel)
+	assert.Equal(t, "deepseek/deepseek-v4.1-flash", repo.ledgerCalls[0].RouterModel)
 }
 
 func TestDebitForInference_ByokChargesFeeOnlyNotUpstreamCost(t *testing.T) {
@@ -211,7 +211,7 @@ func TestDebitForInference_ByokChargesFeeOnlyNotUpstreamCost(t *testing.T) {
 	balance, err := svc.DebitForInference(context.Background(), billing.DebitInferenceParams{
 		OrganizationID:  "org_byok",
 		RouterRequestID: "req_byok",
-		Model:           "claude-sonnet-4-5",
+		Model:           "deepseek/deepseek-v4.1-flash",
 		Provider:        providers.ProviderAIAND,
 		InputTokens:     1_000_000,
 		OutputTokens:    250_000,
@@ -373,7 +373,7 @@ func TestDebitForInference_NoWarnOnKnownPricing(t *testing.T) {
 	p := catalog.Pricing{InputUSDPer1M: 3.00, OutputUSDPer1M: 15.00, CacheReadMultiplier: 0.10}
 	_, err := svc.DebitForInference(context.Background(), billing.DebitInferenceParams{
 		OrganizationID: "org_x",
-		Model:          "claude-sonnet-4-5",
+		Model:          "deepseek/deepseek-v4.1-flash",
 		Provider:       providers.ProviderAIAND,
 		InputTokens:    1_000_000,
 		OutputTokens:   250_000,
@@ -426,7 +426,7 @@ func TestDebitForInference_OverrideWritesZeroDeltaWithNotional(t *testing.T) {
 	p := catalog.Pricing{InputUSDPer1M: 3.00, OutputUSDPer1M: 15.00, CacheReadMultiplier: 0.10}
 	balance, err := svc.DebitForInference(context.Background(), billing.DebitInferenceParams{
 		OrganizationID: "org_internal",
-		Model:          "claude-sonnet-4-5",
+		Model:          "deepseek/deepseek-v4.1-flash",
 		Provider:       providers.ProviderAIAND,
 		InputTokens:    1_000_000,
 		OutputTokens:   250_000,
@@ -449,7 +449,7 @@ func TestDebitForInference_SubscriptionDebitsNothing(t *testing.T) {
 	balance, err := svc.DebitForInference(context.Background(), billing.DebitInferenceParams{
 		OrganizationID:     "org_sub",
 		RouterRequestID:    "req_sub",
-		Model:              "claude-opus-4-8",
+		Model:              "z-ai/glm-5.2",
 		Provider:           providers.ProviderAIAND,
 		InputTokens:        1_000_000,
 		OutputTokens:       250_000,
@@ -472,7 +472,7 @@ func TestDebitForInference_OverrideBeatsSubscription(t *testing.T) {
 	p := catalog.Pricing{InputUSDPer1M: 3.00, OutputUSDPer1M: 15.00, CacheReadMultiplier: 0.10}
 	balance, err := svc.DebitForInference(context.Background(), billing.DebitInferenceParams{
 		OrganizationID:     "org_internal",
-		Model:              "claude-opus-4-8",
+		Model:              "z-ai/glm-5.2",
 		Provider:           providers.ProviderAIAND,
 		InputTokens:        1_000_000,
 		OutputTokens:       250_000,
@@ -546,7 +546,7 @@ func TestDebitForInference_AttributesAPIKey(t *testing.T) {
 	_, err := svc.DebitForInference(context.Background(), billing.DebitInferenceParams{
 		OrganizationID:  "org_x",
 		RouterRequestID: "req_key",
-		Model:           "claude-sonnet-4-5",
+		Model:           "deepseek/deepseek-v4.1-flash",
 		Provider:        providers.ProviderAIAND,
 		InputTokens:     1_000_000,
 		OutputTokens:    250_000,
@@ -569,7 +569,7 @@ func TestDebitForInference_SubscriptionLeavesKeySpendFlat(t *testing.T) {
 	p := catalog.Pricing{InputUSDPer1M: 3.00, OutputUSDPer1M: 15.00, CacheReadMultiplier: 0.10}
 	_, err := svc.DebitForInference(context.Background(), billing.DebitInferenceParams{
 		OrganizationID:     "org_sub",
-		Model:              "claude-opus-4-8",
+		Model:              "z-ai/glm-5.2",
 		Provider:           providers.ProviderAIAND,
 		InputTokens:        1_000_000,
 		OutputTokens:       250_000,

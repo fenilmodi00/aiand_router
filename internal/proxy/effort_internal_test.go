@@ -13,7 +13,7 @@ import (
 
 func TestResolveEffort_SourcesAndClamping(t *testing.T) {
 	svc := NewService(nil, nil, nil, false, nil, nil, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil).WithEffortEscalation(true)
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).WithEffortEscalation(true)
 
 	for _, tc := range []struct {
 		name         string
@@ -35,11 +35,11 @@ func TestResolveEffort_SourcesAndClamping(t *testing.T) {
 		},
 		{
 			name:  "no arm, no knob, no per-model default",
-			model: "claude-opus-5",
+			model: "z-ai/glm-5.2",
 		},
 		{
 			name:         "arm level the target accepts",
-			model:        "claude-opus-5",
+			model:        "z-ai/glm-5.2",
 			armEffort:    "xhigh",
 			wantSelected: "xhigh",
 			wantSent:     "xhigh",
@@ -64,7 +64,7 @@ func TestResolveEffort_SourcesAndClamping(t *testing.T) {
 		},
 		{
 			name:         "user knob outranks the arm",
-			model:        "claude-opus-5",
+			model:        "z-ai/glm-5.2",
 			armEffort:    "xhigh",
 			knob:         "low",
 			wantSelected: "low",

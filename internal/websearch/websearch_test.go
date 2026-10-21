@@ -72,7 +72,7 @@ func TestStripServerToolsDropsToolChoiceWhenNothingIsLeft(t *testing.T) {
 
 func TestDetectSearchTurnClaudeCodeSubTurn(t *testing.T) {
 	body := []byte(`{
-		"model":"claude-sonnet-5",
+		"model":"deepseek/deepseek-v4-pro",
 		"tools":[{"type":"web_search_20250305","name":"web_search"}],
 		"messages":[{"role":"user","content":[{"type":"text","text":"Perform a web search for the query: snowflake cortex agents web_search\nUse the results to answer."}]}]
 	}`)
@@ -140,7 +140,7 @@ func TestSynthesizeMessagePreservesClientToolName(t *testing.T) {
 			{URL: "https://docs.snowflake.com/agents-manage"},
 		},
 	}
-	msg := websearch.SynthesizeMessage("msg_1", "claude-sonnet-5", "web_search_custom",
+	msg := websearch.SynthesizeMessage("msg_1", "deepseek/deepseek-v4-pro", "web_search_custom",
 		websearch.Query{Text: "cortex agents"}, resp, 120)
 
 	raw, err := json.Marshal(msg)
@@ -182,7 +182,7 @@ func TestSynthesizeMessagePreservesClientToolName(t *testing.T) {
 }
 
 func TestSynthesizeMessageWithoutResults(t *testing.T) {
-	msg := websearch.SynthesizeMessage("msg_2", "claude-sonnet-5", "",
+	msg := websearch.SynthesizeMessage("msg_2", "deepseek/deepseek-v4-pro", "",
 		websearch.Query{Text: "nothing"}, websearch.Response{}, 0)
 	if got := msg.Content[0].Name; got != "web_search" {
 		t.Fatalf("default tool name = %q", got)

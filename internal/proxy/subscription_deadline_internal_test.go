@@ -45,7 +45,7 @@ func TestLinkedClaudeSubscriptionSurvivesSlowFirstOutput(t *testing.T) {
 		rec := httptest.NewRecorder()
 		buf := newPreludeBuffer(rec)
 		in := plannedInputs(rec, buf, []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}}, nil)
-		in.initialDecision = router.Decision{Provider: providers.ProviderAIAND, Model: "claude-opus-4-8"}
+		in.initialDecision = router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.2"}
 		var seen []*Credentials
 		in.attempt = slowAttempt(buf, slowFirstOutput, "slow answer", &seen)
 
@@ -65,7 +65,7 @@ func TestManagedSubscriptionSurvivesSlowFirstOutput(t *testing.T) {
 		upstream string
 		model    string
 	}{
-		{"claude", auth.SubscriptionProviderClaude, providers.ProviderAIAND, "claude-opus-4-8"},
+		{"claude", auth.SubscriptionProviderClaude, providers.ProviderAIAND, "z-ai/glm-5.2"},
 		{"codex", auth.SubscriptionProviderCodex, providers.ProviderAIAND, codexCoveredModel},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -103,7 +103,7 @@ func TestSecondAccountAdmittedBeforeBudgetMayFinishAfterIt(t *testing.T) {
 		rec := httptest.NewRecorder()
 		buf := newPreludeBuffer(rec)
 		in := plannedInputs(rec, buf, []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}}, nil)
-		in.initialDecision = router.Decision{Provider: providers.ProviderAIAND, Model: "claude-opus-4-8"}
+		in.initialDecision = router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.2"}
 		var seen []string
 		in.attempt = func(ctx context.Context, _ router.Decision, _ providers.Client) error {
 			seen = append(seen, CredentialsFromContext(ctx).SubscriptionAccountID)
@@ -137,7 +137,7 @@ func TestSlowFailedAttemptsRemainBoundedByDistinctSeats(t *testing.T) {
 		rec := httptest.NewRecorder()
 		buf := newPreludeBuffer(rec)
 		in := plannedInputs(rec, buf, []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}}, nil)
-		in.initialDecision = router.Decision{Provider: providers.ProviderAIAND, Model: "claude-opus-4-8"}
+		in.initialDecision = router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.2"}
 		calls := 0
 		in.attempt = func(ctx context.Context, _ router.Decision, _ providers.Client) error {
 			calls++
@@ -165,7 +165,7 @@ func TestCallerCancellationDuringSubscriptionAttemptIsTerminal(t *testing.T) {
 		rec := httptest.NewRecorder()
 		buf := newPreludeBuffer(rec)
 		in := plannedInputs(rec, buf, []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}}, nil)
-		in.initialDecision = router.Decision{Provider: providers.ProviderAIAND, Model: "claude-opus-4-8"}
+		in.initialDecision = router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.2"}
 		calls := 0
 		in.attempt = func(ctx context.Context, _ router.Decision, _ providers.Client) error {
 			calls++

@@ -13,7 +13,7 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-const serverSideFallbackBody = `{"model":"claude-opus-5","max_tokens":1024,"messages":[{"role":"user","content":"hi"}]}`
+const serverSideFallbackBody = `{"model":"z-ai/glm-5.2","max_tokens":1024,"messages":[{"role":"user","content":"hi"}]}`
 
 func prepareWithFallback(t *testing.T, in http.Header, body string, opts translate.EmitOptions) providers.PreparedRequest {
 	t.Helper()
@@ -27,7 +27,7 @@ func prepareWithFallback(t *testing.T, in http.Header, body string, opts transla
 
 func TestServerSideFallback_SetsFieldAndBeta(t *testing.T) {
 	prep := prepareWithFallback(t, http.Header{}, serverSideFallbackBody, translate.EmitOptions{
-		TargetModel:              "claude-opus-5",
+		TargetModel:              "z-ai/glm-5.2",
 		TargetProvider:           providers.ProviderAIAND,
 		EnableServerSideFallback: true,
 	})
@@ -38,7 +38,7 @@ func TestServerSideFallback_SetsFieldAndBeta(t *testing.T) {
 
 func TestServerSideFallback_DisabledLeavesRequestUntouched(t *testing.T) {
 	prep := prepareWithFallback(t, http.Header{}, serverSideFallbackBody, translate.EmitOptions{
-		TargetModel:    "claude-opus-5",
+		TargetModel:    "z-ai/glm-5.2",
 		TargetProvider: providers.ProviderAIAND,
 	})
 
@@ -47,9 +47,9 @@ func TestServerSideFallback_DisabledLeavesRequestUntouched(t *testing.T) {
 }
 
 func TestServerSideFallback_PreservesClientChoice(t *testing.T) {
-	body := `{"model":"claude-opus-5","max_tokens":1024,"messages":[{"role":"user","content":"hi"}],"fallbacks":"none"}`
+	body := `{"model":"z-ai/glm-5.2","max_tokens":1024,"messages":[{"role":"user","content":"hi"}],"fallbacks":"none"}`
 	prep := prepareWithFallback(t, http.Header{}, body, translate.EmitOptions{
-		TargetModel:              "claude-opus-5",
+		TargetModel:              "z-ai/glm-5.2",
 		TargetProvider:           providers.ProviderAIAND,
 		EnableServerSideFallback: true,
 	})
@@ -61,7 +61,7 @@ func TestServerSideFallback_PreservesClientChoice(t *testing.T) {
 // Only opus-5 / fable-5 accept the field; the rest 400 on it.
 func TestServerSideFallback_SkippedForUnsupportedModel(t *testing.T) {
 	prep := prepareWithFallback(t, http.Header{}, serverSideFallbackBody, translate.EmitOptions{
-		TargetModel:              "claude-haiku-4-5",
+		TargetModel:              "z-ai/glm-5.3-flash",
 		TargetProvider:           providers.ProviderAIAND,
 		EnableServerSideFallback: true,
 	})
@@ -75,9 +75,9 @@ func TestServerSideFallback_SkippedForUnsupportedModel(t *testing.T) {
 func TestServerSideFallback_StripsClientFieldOnUnsupportedModel(t *testing.T) {
 	in := http.Header{}
 	in.Set("anthropic-beta", "server-side-fallback-2026-07-01")
-	body := `{"model":"claude-haiku-4-5","max_tokens":1024,"messages":[{"role":"user","content":"hi"}],"fallbacks":"default"}`
+	body := `{"model":"z-ai/glm-5.3-flash","max_tokens":1024,"messages":[{"role":"user","content":"hi"}],"fallbacks":"default"}`
 	prep := prepareWithFallback(t, in, body, translate.EmitOptions{
-		TargetModel:              "claude-haiku-4-5",
+		TargetModel:              "z-ai/glm-5.3-flash",
 		TargetProvider:           providers.ProviderAIAND,
 		EnableServerSideFallback: true,
 	})
@@ -90,7 +90,7 @@ func TestServerSideFallback_DedupesClientBeta(t *testing.T) {
 	in := http.Header{}
 	in.Set("anthropic-beta", "server-side-fallback-2026-07-01")
 	prep := prepareWithFallback(t, in, serverSideFallbackBody, translate.EmitOptions{
-		TargetModel:              "claude-opus-5",
+		TargetModel:              "z-ai/glm-5.2",
 		TargetProvider:           providers.ProviderAIAND,
 		EnableServerSideFallback: true,
 	})

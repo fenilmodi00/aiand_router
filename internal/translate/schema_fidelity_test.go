@@ -10,7 +10,7 @@ import (
 func TestResponsesFreeformSchemaPreservesJSON(t *testing.T) {
 	for _, definition := range []string{`{}`, `{"description":"Arbitrary JSON"}`, `{"type":"object"}`, `{"type":"object","properties":{}}`, `{"type":"object","additionalProperties":true}`, `{"type":"object","additionalProperties":{"type":"string"}}`} {
 		t.Run(definition, func(t *testing.T) {
-			body := []byte(`{"model":"claude-opus-4-7","messages":[{"role":"user","content":"Update configuration"}],"tools":[{"name":"configuration","input_schema":{"type":"object","properties":{"requestBody":{"type":"object","properties":{"definition":` + definition + `},"required":["definition"]}},"required":["requestBody"]}}]}`)
+			body := []byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"Update configuration"}],"tools":[{"name":"configuration","input_schema":{"type":"object","properties":{"requestBody":{"type":"object","properties":{"definition":` + definition + `},"required":["definition"]}},"required":["requestBody"]}}]}`)
 			envelope, err := ParseAnthropic(body)
 			require.NoError(t, err)
 			prepared, err := envelope.PrepareOpenAIResponses(nil, EmitOptions{TargetModel: "gpt-5.6-luna"})

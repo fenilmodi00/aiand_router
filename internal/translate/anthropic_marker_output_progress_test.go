@@ -15,7 +15,7 @@ import (
 
 func newAnthropicMarkerStreamingWriter(t *testing.T) (*translate.AnthropicRoutingMarkerWriter, *int) {
 	t.Helper()
-	w := translate.NewAnthropicRoutingMarkerWriter(httptest.NewRecorder(), "claude-sonnet-5", "[routed]")
+	w := translate.NewAnthropicRoutingMarkerWriter(httptest.NewRecorder(), "deepseek/deepseek-v4-pro", "[routed]")
 	require.NoError(t, w.Prelude(true))
 	count := 0
 	require.True(t, w.ArmOutputProgress(func() { count++ }),
@@ -52,7 +52,7 @@ func TestAnthropicMarkerOutputProgress_StructuralFramesDoNotCount(t *testing.T) 
 }
 
 func TestAnthropicMarkerOutputProgress_NotArmedWhenNotStreaming(t *testing.T) {
-	w := translate.NewAnthropicRoutingMarkerWriter(httptest.NewRecorder(), "claude-sonnet-5", "[routed]")
+	w := translate.NewAnthropicRoutingMarkerWriter(httptest.NewRecorder(), "deepseek/deepseek-v4-pro", "[routed]")
 	require.NoError(t, w.Prelude(false))
 	assert.False(t, w.ArmOutputProgress(func() {}),
 		"ArmOutputProgress must report not-armed for a non-streaming client")
@@ -61,7 +61,7 @@ func TestAnthropicMarkerOutputProgress_NotArmedWhenNotStreaming(t *testing.T) {
 func TestAnthropicMarkerOutputProgress_NotArmedWithoutMarker(t *testing.T) {
 	// With no marker the writer is a transparent passthrough — it never parses
 	// frames, so it cannot mark and must decline arming.
-	w := translate.NewAnthropicRoutingMarkerWriter(httptest.NewRecorder(), "claude-sonnet-5", "")
+	w := translate.NewAnthropicRoutingMarkerWriter(httptest.NewRecorder(), "deepseek/deepseek-v4-pro", "")
 	require.NoError(t, w.Prelude(true))
 	assert.False(t, w.ArmOutputProgress(func() {}),
 		"ArmOutputProgress must report not-armed when no marker is configured")

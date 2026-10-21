@@ -20,7 +20,7 @@ import (
 const taskReminderText = "<system-reminder>\nThe task tools haven't been used recently. Consider updating task status or creating tasks.\nHere are the existing tasks:\n- #1 [in_progress] Fix the bug\n</system-reminder>"
 
 const taskReminderBody = `{
-	"model":"claude-sonnet-5",
+	"model":"deepseek/deepseek-v4-pro",
 	"system":"You are Claude Code.",
 	"messages":[
 		{"role":"user","content":[{"type":"text","text":"fix the failing test"}]},
@@ -95,7 +95,7 @@ func TestTaskReminderKept_AnthropicPassthrough(t *testing.T) {
 	env, err := translate.ParseAnthropic([]byte(taskReminderBody))
 	require.NoError(t, err)
 
-	out, err := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "claude-sonnet-5"})
+	out, err := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "deepseek/deepseek-v4-pro"})
 	require.NoError(t, err)
 
 	assert.Equal(t, 2, strings.Count(string(out.Body), "Consider updating task status"),
@@ -126,7 +126,7 @@ func TestTaskReminderKept_WhenNoTaskToolsToStrip(t *testing.T) {
 // Claude Code 2.1.x appends the reminder to the trailing tool_result's
 // content rather than emitting a separate text block.
 const taskReminderInToolResultBody = `{
-	"model":"claude-sonnet-5",
+	"model":"deepseek/deepseek-v4-pro",
 	"messages":[
 		{"role":"user","content":"check the go version"},
 		{"role":"assistant","content":[{"type":"tool_use","id":"toolu_1","name":"Bash","input":{"command":"go version"}}]},
@@ -185,7 +185,7 @@ func TestTaskReminderStripped_InsideToolResultContent(t *testing.T) {
 // the tool_result's entire content. Empty tool output is valid on every
 // cross-vendor emit, so the reminder is still cut rather than kept.
 const taskReminderIsWholeToolResultBody = `{
-	"model":"claude-sonnet-5",
+	"model":"deepseek/deepseek-v4-pro",
 	"messages":[
 		{"role":"user","content":"write the file"},
 		{"role":"assistant","content":[{"type":"tool_use","id":"toolu_1","name":"Bash","input":{"command":"touch a"}}]},
@@ -239,7 +239,7 @@ func TestTaskReminderStripped_WhenItIsTheWholeToolResult(t *testing.T) {
 // that is nothing but the reminder is dropped; one that also carries other
 // instructions keeps them.
 const taskReminderAsSystemMessageBody = `{
-	"model":"claude-sonnet-5",
+	"model":"deepseek/deepseek-v4-pro",
 	"system":"You are Claude Code.",
 	"messages":[
 		{"role":"user","content":[{"type":"text","text":"check the go version"}]},
@@ -299,7 +299,7 @@ func TestTaskReminderStripped_AsSystemMessage(t *testing.T) {
 func TestTaskReminderKept_WhenItIsTheWholeUserMessage(t *testing.T) {
 	// Never leave a user message with empty content.
 	body := `{
-		"model":"claude-sonnet-5",
+		"model":"deepseek/deepseek-v4-pro",
 		"messages":[
 			{"role":"user","content":[{"type":"text","text":"hi"}]},
 			{"role":"assistant","content":[{"type":"text","text":"hello"}]},

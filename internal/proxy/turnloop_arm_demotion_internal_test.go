@@ -18,14 +18,14 @@ import (
 )
 
 const (
-	demotedPinModel = "claude-opus-4-7"
-	freshTurnModel  = "claude-sonnet-5"
+	demotedPinModel = "z-ai/glm-5.2"
+	freshTurnModel  = "deepseek/deepseek-v4-pro"
 )
 
 func demotionTurnLoopEnv(t *testing.T) (*translate.RequestEnvelope, translate.RoutingFeatures) {
 	t.Helper()
 	env, err := translate.ParseAnthropic(
-		[]byte(`{"model":"claude-opus-4-8","messages":[{"role":"user","content":"continue"}]}`),
+		[]byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"continue"}]}`),
 	)
 	require.NoError(t, err)
 	return env, env.RoutingFeatures(false)
@@ -80,7 +80,7 @@ func TestTurnLoopExcludesDemotedModelUnderAuthoritativePolicy(t *testing.T) {
 		Reason:   "arm-demotion-authoritative-test_policy",
 	}}
 	svc := NewService(nil, nil, nil, false, nil, store, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil).
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 		WithPolicyStrategy(policy.StrategySpec{
 			Strategy: strategy,
 			Router:   policyRouter,
@@ -110,7 +110,7 @@ func TestTurnLoopDropsDemotedPinOnScorerPath(t *testing.T) {
 		Reason:   "cluster:v0.2",
 	}}
 	svc := NewService(scorer, nil, nil, false, nil, store, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil)
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil)
 
 	res := runDemotionTurnLoop(t, svc, context.Background())
 
@@ -133,7 +133,7 @@ func TestTurnLoopHonoursDemotionRecordedOnHMMHistory(t *testing.T) {
 		Reason:   "cluster:v0.2",
 	}}
 	svc := NewService(scorer, nil, nil, false, nil, store, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil)
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil)
 
 	res := runDemotionTurnLoop(t, svc, context.Background())
 
@@ -154,7 +154,7 @@ func TestTurnLoopKeepsForcedModelDespiteDemotion(t *testing.T) {
 		Reason:   "cluster:v0.2",
 	}}
 	svc := NewService(scorer, nil, nil, false, nil, store, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil)
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil)
 
 	res := runDemotionTurnLoop(t, svc, context.Background())
 

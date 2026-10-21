@@ -77,7 +77,7 @@ func TestQwenBetaToggleUsesAdmittedClassifierAndInternalIdentity(t *testing.T) {
 }
 
 func TestWriteRetiredBetaRequestKeepsProtocolReplyAvailableBeforeAdmission(t *testing.T) {
-	body := []byte(`{"model":"claude-sonnet-4-5","max_tokens":1,"messages":[{"role":"user","content":"/beta"}]}`)
+	body := []byte(`{"model":"deepseek/deepseek-v4.1-flash","max_tokens":1,"messages":[{"role":"user","content":"/beta"}]}`)
 	for _, path := range []string{"/v1/messages", "/v1/route/handoff"} {
 		t.Run(path, func(t *testing.T) {
 			request := httptest.NewRequest(http.MethodPost, path, nil)
@@ -249,7 +249,7 @@ func betaTestEnvelope(t *testing.T, text string, withSession bool) *translate.Re
 		metadata = `,"metadata":{"user_id":"user_account__session_4dbee464-ebf7-437f-9f20-db5a6f7fe3b4"}`
 	}
 	env, err := translate.ParseAnthropic([]byte(
-		`{"model":"claude-sonnet-5","messages":[{"role":"user","content":` +
+		`{"model":"deepseek/deepseek-v4-pro","messages":[{"role":"user","content":` +
 			mustJSONQuote(t, text) + `}],"max_tokens":128` + metadata + `}`,
 	))
 	require.NoError(t, err)
@@ -607,7 +607,7 @@ func TestProxyEntrypointsInterceptBetaWithoutRoutingUpstream(t *testing.T) {
 				WithSessionStrategyStore(store)
 			ctx := context.WithValue(context.Background(), APIKeyIDContextKey{}, "beta-test-key")
 			ctx = context.WithValue(ctx, InstallationIDContextKey{}, uuid.NewString())
-			body := []byte(`{"model":"claude-sonnet-5","messages":[{"role":"user","content":"/beta"}],"max_tokens":128,"metadata":{"user_id":"user_account__session_4dbee464-ebf7-437f-9f20-db5a6f7fe3b4"}}`)
+			body := []byte(`{"model":"deepseek/deepseek-v4-pro","messages":[{"role":"user","content":"/beta"}],"max_tokens":128,"metadata":{"user_id":"user_account__session_4dbee464-ebf7-437f-9f20-db5a6f7fe3b4"}}`)
 			request := httptest.NewRequest("POST", "/v1/messages", nil)
 			response := httptest.NewRecorder()
 
@@ -693,7 +693,7 @@ func TestProxyEntrypointsStripHistoricalBetaArtifactsBeforeRouting(t *testing.T)
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			decisionProvider := providers.ProviderAIAND
-			decisionModel := "claude-haiku-4-5"
+			decisionModel := "z-ai/glm-5.3-flash"
 			if tt.openAI {
 				decisionProvider = providers.ProviderAIAND
 				decisionModel = "gpt-5.5"
@@ -709,10 +709,10 @@ func TestProxyEntrypointsStripHistoricalBetaArtifactsBeforeRouting(t *testing.T)
 					providers.ProviderAIAND: embedTestProvider{},
 				},
 				nil, false, nil, nil, false,
-				providers.ProviderAIAND, "claude-haiku-4-5", nil,
+				providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
 			)
 			body, err := json.Marshal(map[string]any{
-				"model": "claude-opus-4-8",
+				"model": "z-ai/glm-5.2",
 				"messages": []any{
 					map[string]any{"role": "user", "content": "inspect this repository"},
 					map[string]any{"role": "assistant", "content": "I will inspect it."},
@@ -754,7 +754,7 @@ func TestHistoricalBetaArtifactsStripStaleThinkingSignatures(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			routing := &betaTestRouter{decision: router.Decision{
 				Provider: providers.ProviderAIAND,
-				Model:    "claude-opus-4-7",
+				Model:    "z-ai/glm-5.2",
 				Reason:   "test",
 			}}
 			provider := &betaCaptureProvider{}
@@ -762,10 +762,10 @@ func TestHistoricalBetaArtifactsStripStaleThinkingSignatures(t *testing.T) {
 				routing,
 				map[string]providers.Client{providers.ProviderAIAND: provider},
 				nil, false, nil, nil, false,
-				providers.ProviderAIAND, "claude-opus-4-7", nil,
+				providers.ProviderAIAND, "z-ai/glm-5.2", nil,
 			)
 			body := []byte(`{
-				"model":"claude-opus-4-7",
+				"model":"z-ai/glm-5.2",
 				"messages":[
 					{"role":"user","content":"inspect this repository"},
 					{"role":"assistant","content":[
@@ -802,7 +802,7 @@ func TestBetaPreferenceSurvivesFirstMessageRewriteWithinClientSession(t *testing
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			decisionProvider := providers.ProviderAIAND
-			decisionModel := "claude-haiku-4-5"
+			decisionModel := "z-ai/glm-5.3-flash"
 			if tt.openAI {
 				decisionProvider = providers.ProviderAIAND
 				decisionModel = "gpt-5.5"
@@ -816,7 +816,7 @@ func TestBetaPreferenceSurvivesFirstMessageRewriteWithinClientSession(t *testing
 					providers.ProviderAIAND: embedTestProvider{},
 				},
 				nil, false, nil, nil, false,
-				providers.ProviderAIAND, "claude-haiku-4-5", nil,
+				providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
 			).
 				WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyHMMBeta, Router: betaRouter}).
 				WithSessionStrategyStore(&betaTestPreferenceStore{})
@@ -834,7 +834,7 @@ func TestBetaPreferenceSurvivesFirstMessageRewriteWithinClientSession(t *testing
 			}
 			send := func(firstUserMessage string) {
 				body, err := json.Marshal(map[string]any{
-					"model":      "claude-sonnet-5",
+					"model":      "deepseek/deepseek-v4-pro",
 					"messages":   []any{map[string]any{"role": "user", "content": firstUserMessage}},
 					"tools":      tools,
 					"max_tokens": 4096,

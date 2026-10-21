@@ -24,8 +24,8 @@ import (
 
 const (
 	classifierPassthroughReason = "classifier_subscription_passthrough"
-	classifierRequestedMdl      = "claude-haiku-4-5"
-	classifierScorerPickMdl     = "claude-opus-4-7"
+	classifierRequestedMdl      = "z-ai/glm-5.3-flash"
+	classifierScorerPickMdl     = "z-ai/glm-5.2"
 )
 
 // classifierPassthroughFixture wires a scorer that would substitute

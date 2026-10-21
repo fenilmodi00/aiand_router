@@ -190,7 +190,7 @@ func TestRoutingMarkerFor_PlannerPaths(t *testing.T) {
 		{
 			name: "tool-result but model switched: marker shown despite sticky hit",
 			res: turnLoopResult{
-				Decision:         router.Decision{Model: "claude-haiku-4-5", Provider: "anthropic"},
+				Decision:         router.Decision{Model: "z-ai/glm-5.3-flash", Provider: "anthropic"},
 				StickyHit:        true,
 				PriorServedModel: "deepseek/deepseek-v4-pro",
 			},
@@ -204,7 +204,7 @@ func TestRoutingMarkerFor_PlannerPaths(t *testing.T) {
 		{
 			name: "recovery code with model switch: marker shown without reason",
 			res: turnLoopResult{
-				Decision:         router.Decision{Model: "claude-haiku-4-5", Provider: "anthropic"},
+				Decision:         router.Decision{Model: "z-ai/glm-5.3-flash", Provider: "anthropic"},
 				StickyHit:        true,
 				PriorServedModel: "deepseek/deepseek-v4-pro",
 				PlannerDecision:  planner.Decision{Reason: "pin_model_missing"},
@@ -236,7 +236,7 @@ func TestRoutingMarkerFor_PlannerPaths(t *testing.T) {
 		{
 			name: "loop escalation: distinct marker, not best-pick",
 			res: turnLoopResult{
-				Decision:         router.Decision{Model: "claude-opus-4-8", Provider: "anthropic", Reason: translate.ReasonLoopEscalation},
+				Decision:         router.Decision{Model: "z-ai/glm-5.2", Provider: "anthropic", Reason: translate.ReasonLoopEscalation},
 				StickyHit:        true,
 				PriorServedModel: "deepseek/deepseek-v4-flash",
 			},
@@ -265,9 +265,9 @@ func TestRoutingMarkerFor_PlannerPaths(t *testing.T) {
 		{
 			name: "loop-escalated same model on a sticky follow-up: marker suppressed",
 			res: turnLoopResult{
-				Decision:         router.Decision{Model: "claude-opus-4-8", Provider: "anthropic", Reason: translate.ReasonLoopEscalation},
+				Decision:         router.Decision{Model: "z-ai/glm-5.2", Provider: "anthropic", Reason: translate.ReasonLoopEscalation},
 				StickyHit:        true,
-				PriorServedModel: "claude-opus-4-8", // pin already serving the escalated model
+				PriorServedModel: "z-ai/glm-5.2", // pin already serving the escalated model
 			},
 			wantEmpty: true,
 		},
@@ -281,12 +281,12 @@ func TestRoutingMarkerFor_PlannerPaths(t *testing.T) {
 				PriorServedModel:    "gpt-5.5",
 				ForcedPinDropped:    true,
 				ForcedPinDropReason: "provider_not_enabled",
-				ForcedPinModel:      "claude-opus-5",
+				ForcedPinModel:      "z-ai/glm-5.2",
 			},
 			wantContains: []string{
 				"✦ **Weave Router** → gpt-5.5",
 				markerReasonForcedPinDropped,
-				"claude-opus-5",
+				"z-ai/glm-5.2",
 			},
 			wantNotContain: []string{
 				markerReasonUserForced,
@@ -299,7 +299,7 @@ func TestRoutingMarkerFor_PlannerPaths(t *testing.T) {
 				Decision:         router.Decision{Model: "gpt-5.5", Provider: "openai"},
 				SuggestionMode:   true,
 				ForcedPinDropped: true,
-				ForcedPinModel:   "claude-opus-5",
+				ForcedPinModel:   "z-ai/glm-5.2",
 			},
 			wantEmpty: true,
 		},
@@ -343,7 +343,7 @@ func TestRoutingMarkerFor_SuggestionModeSuppressed(t *testing.T) {
 
 func TestRoutingMarkerFor_CallerModelPassthroughSuppressed(t *testing.T) {
 	res := turnLoopResult{
-		Decision:               router.Decision{Model: "claude-sonnet-4-6", Provider: "anthropic"},
+		Decision:               router.Decision{Model: "deepseek/deepseek-v4.1-flash", Provider: "anthropic"},
 		CallerModelPassthrough: true,
 	}
 	assert.Empty(t, routingMarkerFor(res), "caller-model passthrough must preserve the stock client experience")
@@ -363,7 +363,7 @@ func TestRoutingMarkerFor_RecapSuppressed(t *testing.T) {
 
 func TestRoutingMarkerFor_DropsProviderEvenWhenSet(t *testing.T) {
 	got := routingMarkerFor(turnLoopResult{
-		Decision: router.Decision{Model: "claude-haiku-4-5", Provider: "anthropic"},
+		Decision: router.Decision{Model: "z-ai/glm-5.3-flash", Provider: "anthropic"},
 		PlannerDecision: planner.Decision{
 			Reason: planner.ReasonNoPin,
 		},
@@ -470,22 +470,22 @@ func TestRoutingMarkerFor_SidecarDisplayMarkerShownOnGenuineSwitch(t *testing.T)
 				DisplayMarker: "✦ **Weave Router** → deepseek/deepseek-v4-flash · fast route for this turn",
 			},
 		},
-		PriorServedModel: "claude-sonnet-5",
+		PriorServedModel: "deepseek/deepseek-v4-pro",
 	})
 	assert.Equal(t, "✦ **Weave Router** → deepseek/deepseek-v4-flash · fast route for this turn\n\n", got)
 }
 
 func TestBaselineRoutingMarkerFor_SuppressedWhenBaselineAlreadyServing(t *testing.T) {
 	got := baselineRoutingMarkerFor(turnLoopResult{
-		PriorServedModel: "claude-opus-4-8",
-	}, "claude-opus-4-8")
+		PriorServedModel: "z-ai/glm-5.2",
+	}, "z-ai/glm-5.2")
 	assert.Empty(t, got, "a failover that lands back on the model already serving must stay quiet")
 }
 
 func TestBaselineRoutingMarkerFor_ShowsOnGenuineSwitch(t *testing.T) {
 	got := baselineRoutingMarkerFor(turnLoopResult{
 		PriorServedModel: "deepseek/deepseek-v4-pro",
-	}, "claude-opus-4-8")
+	}, "z-ai/glm-5.2")
 	assert.Equal(t, "✦ **Weave Router** → claude-opus-4-8 · "+markerReasonBaseline+"\n\n", got)
 }
 
@@ -514,7 +514,7 @@ func TestRoutingMarkerFor_SuppressesEffortOnlyChange(t *testing.T) {
 }
 
 func TestRoutingMarkerFor_ShadowEscalationShowsWithoutModelSwitchAndStripsOnEcho(t *testing.T) {
-	decision := router.Decision{Model: "claude-haiku-4-5"}
+	decision := router.Decision{Model: "z-ai/glm-5.3-flash"}
 	turn := turnLoopResult{Decision: decision, PriorServedModel: decision.Model, EscalationShadowMarked: true}
 	marker := routingMarkerFor(turn)
 	require.Equal(t, routingMarkerPrefix+decision.Model+" · "+markerReasonShadowEscalation+"\n\n", marker)

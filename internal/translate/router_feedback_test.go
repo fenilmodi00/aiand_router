@@ -447,7 +447,7 @@ func TestExtractRouterFeedbackCommand_ArrayContentMultipleTextBlocks(t *testing.
 	// Claude Code splits slash-command turns into an injected-tags block plus
 	// the typed directive; the parser must scan every text block.
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{
 				"role": "user",
@@ -466,7 +466,7 @@ func TestExtractRouterFeedbackCommand_ArrayContentMultipleTextBlocks(t *testing.
 	require.True(t, found, "directive in a non-first text block must still be recognized")
 	assert.Equal(t, "stuck on haiku", res.Feedback)
 
-	raw, _ := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "claude-sonnet-4-6"})
+	raw, _ := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "deepseek/deepseek-v4.1-flash"})
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(raw.Body, &got))
 	msgs, _ := got["messages"].([]any)

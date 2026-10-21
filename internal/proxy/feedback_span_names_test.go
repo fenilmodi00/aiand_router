@@ -111,9 +111,9 @@ func TestFeedbackSpans_UseDistinctNamesAndSchemas(t *testing.T) {
 	// --- Pipeline B: /router-feedback slash command ---
 	store := newFakePinStore()
 	store.hasPin = true
-	store.pin = sessionpin.Pin{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", LastServedModel: "claude-haiku-4-5"}
+	store.pin = sessionpin.Pin{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash", LastServedModel: "z-ai/glm-5.3-flash"}
 	feedbackStore := &fakeFeedbackStore{}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-6", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4.1-flash", Reason: "cluster"}}
 	cmdSvc := proxy.NewService(
 		fr,
 		map[string]providers.Client{providers.ProviderAIAND: &fakeProvider{}},
@@ -123,12 +123,12 @@ func TestFeedbackSpans_UseDistinctNamesAndSchemas(t *testing.T) {
 		store,
 		false,
 		providers.ProviderAIAND,
-		"claude-haiku-4-5",
+		"z-ai/glm-5.3-flash",
 		nil,
 	).WithRouterFeedbackStore(feedbackStore)
 
 	const body = `{
-		"model":"claude-sonnet-4-6",
+		"model":"deepseek/deepseek-v4.1-flash",
 		"max_tokens":1024,
 		"messages":[
 			{"role":"user","content":"/router-feedback got stuck on Haiku for too long"}

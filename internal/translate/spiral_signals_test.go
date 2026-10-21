@@ -11,7 +11,7 @@ import (
 
 func TestToolResultErrors_FlagsIsErrorAndCountsStreak(t *testing.T) {
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{"role": "assistant", "content": []any{
 				map[string]any{"type": "tool_use", "id": "1", "name": "Bash", "input": map[string]any{"command": "run"}},
@@ -41,7 +41,7 @@ func TestToolResultErrors_DetectsMarkerTextWithoutIsErrorFlag(t *testing.T) {
 	// A test suite can exit non-zero without the client setting is_error;
 	// the marker-text scan is the fallback.
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{"role": "user", "content": []any{
 				map[string]any{"type": "tool_result", "tool_use_id": "1", "content": "Traceback (most recent call last):\n  boom"},
@@ -62,7 +62,7 @@ func TestToolResultErrors_MarkerTextInArrayContent(t *testing.T) {
 	// tool_result content can be an array of text blocks rather than a plain
 	// string; the marker scan must walk into it.
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{"role": "user", "content": []any{
 				map[string]any{"type": "tool_result", "tool_use_id": "1", "content": []any{
@@ -81,7 +81,7 @@ func TestToolResultErrors_MarkerTextInArrayContent(t *testing.T) {
 
 func TestToolResultErrors_TrailingStreakResetsOnSuccess(t *testing.T) {
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{"role": "user", "content": []any{
 				map[string]any{"type": "tool_result", "tool_use_id": "1", "content": "boom", "is_error": true},
@@ -113,7 +113,7 @@ func TestToolResultErrors_ScanLimitCapsMarkerSearch(t *testing.T) {
 	}
 	content := string(padding) + "Traceback (most recent call last):"
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{"role": "user", "content": []any{
 				map[string]any{"type": "tool_result", "tool_use_id": "1", "content": content},
@@ -144,7 +144,7 @@ func TestToolResultErrors_NonAnthropicFormatReturnsZeroStats(t *testing.T) {
 
 func TestAssistantToolCallFilePaths_ExtractsFilePathAndNotebookPath(t *testing.T) {
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{"role": "assistant", "content": []any{
 				map[string]any{"type": "tool_use", "id": "1", "name": "Read", "input": map[string]any{"file_path": "/foo.go"}},
@@ -167,7 +167,7 @@ func TestAssistantToolCallFilePaths_SkipsNudgeAndPathlessCalls(t *testing.T) {
 	// command/description args, never file_path/notebook_path, so they must
 	// never surface as a file touch in the same-file-thrash detector.
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{"role": "assistant", "content": []any{
 				map[string]any{"type": "tool_use", "id": "toolu_router_nudge_msg1", "name": "Bash", "input": map[string]any{
@@ -204,7 +204,7 @@ func TestAssistantToolCallFilePaths_NonAnthropicFormatReturnsNil(t *testing.T) {
 
 func TestTrailingAssistantMonologue_StopsAtRealToolUse(t *testing.T) {
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{"role": "assistant", "content": []any{
 				map[string]any{"type": "tool_use", "id": "1", "name": "Bash", "input": map[string]any{"command": "ls"}},
@@ -229,7 +229,7 @@ func TestTrailingAssistantMonologue_StopsAtRealToolUse(t *testing.T) {
 
 func TestTrailingAssistantMonologue_StopsAtUserRealContent(t *testing.T) {
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{"role": "user", "content": "keep going"},
 			map[string]any{"role": "assistant", "content": []any{
@@ -254,7 +254,7 @@ func TestTrailingAssistantMonologue_ToolResultOnlyUserDoesNotStopStreak(t *testi
 	// A user turn carrying only a tool_result (no real content) must NOT
 	// count as "real input" that stops the monologue streak.
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{"role": "assistant", "content": []any{
 				map[string]any{"type": "tool_use", "id": "1", "name": "Bash", "input": map[string]any{"command": "ls"}},
@@ -278,7 +278,7 @@ func TestTrailingAssistantMonologue_NudgeCountsAsRealToolUse(t *testing.T) {
 	// A router-synthesized nudge tool_use still counts as tool activity, per
 	// assistantHasRealToolUse's contract, so it must stop the streak too.
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{"role": "assistant", "content": []any{
 				map[string]any{"type": "text", "text": "prose before nudge"},
@@ -314,7 +314,7 @@ func TestAssistantToolCallOutcomes_PairsResultsByToolUseID(t *testing.T) {
 	// Results arrive out of order relative to the calls (parallel tool use),
 	// so pairing must key off tool_use_id, not position.
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{"role": "assistant", "content": []any{
 				map[string]any{"type": "tool_use", "id": "a", "name": "Edit", "input": map[string]any{"file_path": "/x.go"}},
@@ -342,7 +342,7 @@ func TestAssistantToolCallOutcomes_PairsResultsByToolUseID(t *testing.T) {
 
 func TestLatestToolCallOutcomes_CountsOnlyCallsAnsweredThisRequest(t *testing.T) {
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{"role": "assistant", "content": []any{
 				map[string]any{"type": "tool_use", "id": "a", "name": "Bash", "input": map[string]any{"command": "make"}},
@@ -412,7 +412,7 @@ func TestEndsWithUserPrompt(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			env, err := translate.ParseAnthropic(mustMarshalJSON(t, map[string]any{
-				"model": "claude-sonnet-4-6", "messages": tc.messages, "max_tokens": 256,
+				"model": "deepseek/deepseek-v4.1-flash", "messages": tc.messages, "max_tokens": 256,
 			}))
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, env.EndsWithUserPrompt())

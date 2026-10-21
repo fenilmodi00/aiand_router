@@ -18,7 +18,7 @@ func TestUsageExtractor_AnthropicNonStreaming(t *testing.T) {
 	rec := httptest.NewRecorder()
 	ext := otel.NewUsageExtractor(rec, "anthropic")
 
-	body := `{"id":"msg_123","type":"message","role":"assistant","content":[{"type":"text","text":"Hello!"}],"model":"claude-sonnet-4-5","stop_reason":"end_turn","usage":{"input_tokens":42,"output_tokens":17}}`
+	body := `{"id":"msg_123","type":"message","role":"assistant","content":[{"type":"text","text":"Hello!"}],"model":"deepseek/deepseek-v4.1-flash","stop_reason":"end_turn","usage":{"input_tokens":42,"output_tokens":17}}`
 	_, err := ext.Write([]byte(body))
 	require.NoError(t, err)
 
@@ -227,7 +227,7 @@ func TestUsageExtractor_AnthropicCacheTokens_NonStreaming(t *testing.T) {
 	rec := httptest.NewRecorder()
 	ext := otel.NewUsageExtractor(rec, "anthropic")
 
-	body := `{"id":"msg_456","type":"message","role":"assistant","content":[{"type":"text","text":"OK"}],"model":"claude-sonnet-4-5","stop_reason":"end_turn","usage":{"input_tokens":42,"output_tokens":17,"cache_creation_input_tokens":256,"cache_read_input_tokens":1024}}`
+	body := `{"id":"msg_456","type":"message","role":"assistant","content":[{"type":"text","text":"OK"}],"model":"deepseek/deepseek-v4.1-flash","stop_reason":"end_turn","usage":{"input_tokens":42,"output_tokens":17,"cache_creation_input_tokens":256,"cache_read_input_tokens":1024}}`
 	_, err := ext.Write([]byte(body))
 	require.NoError(t, err)
 

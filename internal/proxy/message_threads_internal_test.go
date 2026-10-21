@@ -20,7 +20,7 @@ func TestProxyMessages_ThreadContinueBouncedBeforeClassifierHistory(t *testing.T
 	ctx := router.WithStrategy(context.Background(), router.StrategyLLMClassifier)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
-	body := []byte(`{"model":"claude-sonnet-4-6","messages":[{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","content":"ok"}]}],"thread":{"type":"continue","previous_message_id":"msg_1"}}`)
+	body := []byte(`{"model":"deepseek/deepseek-v4.1-flash","messages":[{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","content":"ok"}]}],"thread":{"type":"continue","previous_message_id":"msg_1"}}`)
 
 	require.NoError(t, svc.ProxyMessages(ctx, body, rec, req))
 

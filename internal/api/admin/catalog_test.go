@@ -28,8 +28,8 @@ func TestCatalogModelsHandler_SortsByProviderThenModel(t *testing.T) {
 
 	src := fakeDeployedModels{entries: []cluster.DeployedEntry{
 		{Model: "gpt-5.5", Provider: providers.ProviderAIAND},
-		{Model: "claude-opus-4-7", Provider: providers.ProviderAIAND},
-		{Model: "claude-haiku-4-5", Provider: providers.ProviderAIAND},
+		{Model: "z-ai/glm-5.2", Provider: providers.ProviderAIAND},
+		{Model: "z-ai/glm-5.3-flash", Provider: providers.ProviderAIAND},
 		{Model: "gpt-5.4-mini", Provider: providers.ProviderAIAND},
 	}}
 
@@ -47,9 +47,9 @@ func TestCatalogModelsHandler_SortsByProviderThenModel(t *testing.T) {
 
 	require.Len(t, got.Models, 4)
 	assert.Equal(t, providers.ProviderAIAND, got.Models[0].Provider)
-	assert.Equal(t, "claude-haiku-4-5", got.Models[0].Model)
+	assert.Equal(t, "z-ai/glm-5.3-flash", got.Models[0].Model)
 	assert.Equal(t, providers.ProviderAIAND, got.Models[1].Provider)
-	assert.Equal(t, "claude-opus-4-7", got.Models[1].Model)
+	assert.Equal(t, "z-ai/glm-5.2", got.Models[1].Model)
 	assert.Equal(t, providers.ProviderAIAND, got.Models[2].Provider)
 	assert.Equal(t, "gpt-5.4-mini", got.Models[2].Model)
 	assert.Equal(t, providers.ProviderAIAND, got.Models[3].Provider)
@@ -94,7 +94,7 @@ func TestCatalogModelsHandler_HMMStrategyReturnsRosterNotCluster(t *testing.T) {
 	}}
 	hmmSrc := &fakeHMMRoster{entries: []cluster.DeployedEntry{
 		{Model: "gpt-5.6-sol", Provider: providers.ProviderAIAND},
-		{Model: "claude-opus-4-8", Provider: providers.ProviderAIAND},
+		{Model: "z-ai/glm-5.2", Provider: providers.ProviderAIAND},
 	}}
 
 	engine := gin.New()
@@ -112,7 +112,7 @@ func TestCatalogModelsHandler_HMMStrategyReturnsRosterNotCluster(t *testing.T) {
 	require.Len(t, got.Models, 2)
 	// Sorted provider-then-model: anthropic first, then openai's 5.6 — and
 	// crucially the cluster's gpt-5.5 does NOT appear.
-	assert.Equal(t, "claude-opus-4-8", got.Models[0].Model)
+	assert.Equal(t, "z-ai/glm-5.2", got.Models[0].Model)
 	assert.Equal(t, "gpt-5.6-sol", got.Models[1].Model)
 }
 
@@ -184,6 +184,6 @@ func TestCatalogModelsHandler_ScopeCatalogReturnsFullCatalog(t *testing.T) {
 		require.False(t, dup, "duplicate catalog id %s", m.Model)
 		seen[m.Model] = struct{}{}
 	}
-	_, hasOpus := seen["claude-opus-5"]
+	_, hasOpus := seen["z-ai/glm-5.2"]
 	require.True(t, hasOpus, "catalog must include a known Models row")
 }

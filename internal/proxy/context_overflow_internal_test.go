@@ -22,9 +22,9 @@ import (
 // proxy injects the context-1m beta when it dispatches), while a 200K-only
 // model reports its catalog window.
 func TestContextWindowForRequest_ExtendedContextModelsReport1M(t *testing.T) {
-	assert.Equal(t, 1_000_000, contextWindowForRequest("claude-opus-4-8"))
-	assert.Equal(t, 1_000_000, contextWindowForRequest("claude-sonnet-4-6"))
-	assert.Equal(t, 200_000, contextWindowForRequest("claude-haiku-4-5"))
+	assert.Equal(t, 1_000_000, contextWindowForRequest("z-ai/glm-5.2"))
+	assert.Equal(t, 1_000_000, contextWindowForRequest("deepseek/deepseek-v4.1-flash"))
+	assert.Equal(t, 200_000, contextWindowForRequest("z-ai/glm-5.3-flash"))
 }
 
 // TestExcludeContextOverflowModels_KeepsExtendedContextModel is the regression
@@ -33,15 +33,15 @@ func TestContextWindowForRequest_ExtendedContextModelsReport1M(t *testing.T) {
 // pre-filter (it serves at 1M) while a true 200K-only model is excluded.
 func TestExcludeContextOverflowModels_KeepsExtendedContextModel(t *testing.T) {
 	available := map[string]struct{}{
-		"claude-opus-4-8":  {},
-		"claude-haiku-4-5": {},
+		"z-ai/glm-5.2":       {},
+		"z-ai/glm-5.3-flash": {},
 	}
 
 	out, overflowed := excludeContextOverflowModels(250_000, 0, 8_000, nil, nil, available)
 
-	assert.Contains(t, overflowed, "claude-haiku-4-5", "200K-only model overflows a 258K request")
-	assert.NotContains(t, overflowed, "claude-opus-4-8", "extended-context model fits at 1M and must stay eligible")
-	_, opusExcluded := out["claude-opus-4-8"]
+	assert.Contains(t, overflowed, "z-ai/glm-5.3-flash", "200K-only model overflows a 258K request")
+	assert.NotContains(t, overflowed, "z-ai/glm-5.2", "extended-context model fits at 1M and must stay eligible")
+	_, opusExcluded := out["z-ai/glm-5.2"]
 	assert.False(t, opusExcluded, "Opus must not be added to the denylist")
 }
 
@@ -49,8 +49,8 @@ func TestExcludeContextOverflowModels_KeepsExtendedContextModel(t *testing.T) {
 // untouched when every model fits.
 func TestExcludeContextOverflowModels_NoOverflowUnderWindow(t *testing.T) {
 	available := map[string]struct{}{
-		"claude-opus-4-8":  {},
-		"claude-haiku-4-5": {},
+		"z-ai/glm-5.2":       {},
+		"z-ai/glm-5.3-flash": {},
 	}
 
 	out, overflowed := excludeContextOverflowModels(10_000, 0, 8_000, nil, nil, available)
@@ -70,14 +70,14 @@ func TestExcludeContextOverflowModels_NoOverflowUnderWindow(t *testing.T) {
 func TestExcludeContextOverflowModels_SignatureSavingsOnlyForStrippingTargets(t *testing.T) {
 	available := map[string]struct{}{
 		"moonshotai/kimi-k2.7": {}, // fireworks → OpenAI-compat, strips signatures, 262144 window
-		"claude-haiku-4-5":     {}, // anthropic → keeps signatures, 200K window
+		"z-ai/glm-5.3-flash":   {}, // anthropic → keeps signatures, 200K window
 	}
 
 	// est+reserve = 268K overflows kimi's 262144 without savings; -20K savings = 248K fits.
 	out, overflowed := excludeContextOverflowModels(260_000, 20_000, 8_000, nil, nil, available)
 
 	assert.NotContains(t, overflowed, "moonshotai/kimi-k2.7", "OSS target strips signatures, so the savings keep it under its 256K window")
-	assert.Contains(t, overflowed, "claude-haiku-4-5", "Anthropic target keeps signatures, so the savings do not apply and it overflows 200K")
+	assert.Contains(t, overflowed, "z-ai/glm-5.3-flash", "Anthropic target keeps signatures, so the savings do not apply and it overflows 200K")
 	_, kimiExcluded := out["moonshotai/kimi-k2.7"]
 	assert.False(t, kimiExcluded, "stripping target must not be denylisted")
 }
@@ -90,26 +90,26 @@ func TestSafetyExcludedModels_CatchesPolicyExcludedOverflow(t *testing.T) {
 	// A body large enough that ContextOverflowTokenEstimate (len/6) plus the
 	// output reserve exceeds haiku's 200K window. ~1.3MB / 6 ≈ 217K > 200K.
 	big := strings.Repeat("x", 1_300_000)
-	env, err := translate.ParseAnthropic([]byte(`{"model":"claude-haiku-4-5","messages":[{"role":"user","content":"` + big + `"}]}`))
+	env, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.3-flash","messages":[{"role":"user","content":"` + big + `"}]}`))
 	require.NoError(t, err)
 
 	// haiku-4-5 is a 200K-only model (no extended-context beta), so the big body
 	// overflows it. It is also the requested model AND policy-excluded here.
-	s := &Service{availableModels: map[string]struct{}{"claude-haiku-4-5": {}}}
+	s := &Service{availableModels: map[string]struct{}{"z-ai/glm-5.3-flash": {}}}
 
 	// The routing-path filter, seeded with the policy exclusion, skips haiku (it
 	// is already excluded) — so the overflow denylist it returns is empty.
 	_, routingOverflowed := excludeContextOverflowModels(
 		env.ContextOverflowTokenEstimate(), env.SignatureTokenSavings(), 8_000,
-		nil, map[string]struct{}{"claude-haiku-4-5": {}}, s.availableModels,
+		nil, map[string]struct{}{"z-ai/glm-5.3-flash": {}}, s.availableModels,
 	)
-	assert.NotContains(t, routingOverflowed, "claude-haiku-4-5",
+	assert.NotContains(t, routingOverflowed, "z-ai/glm-5.3-flash",
 		"the routing filter skips a policy-excluded model — this is the gap safetyExcludedModels must close")
 
 	// safetyExcludedModels re-runs against an empty base, so it DOES catch the
 	// overflow regardless of policy exclusion.
 	safety := s.safetyExcludedModels(env, 8_000, nil)
-	_, blocked := safety["claude-haiku-4-5"]
+	_, blocked := safety["z-ai/glm-5.3-flash"]
 	assert.True(t, blocked, "a policy-excluded model that also overflows must land in the safety set so bypass blocks it")
 }
 
@@ -159,21 +159,21 @@ func TestExcludeContextOverflowModels_UsesRoutableBinding(t *testing.T) {
 // the upstream, not the ÷4 estimate, decides whether the request overflows.
 func TestAdmitWidestOnTotalOverflow(t *testing.T) {
 	available := map[string]struct{}{
-		"claude-opus-4-8":  {},
-		"claude-haiku-4-5": {},
+		"z-ai/glm-5.2":       {},
+		"z-ai/glm-5.3-flash": {},
 	}
 	ruledOut, overflowed := excludeContextOverflowModels(2_000_000, 0, 8_000, nil, nil, available)
-	require.ElementsMatch(t, []string{"claude-opus-4-8", "claude-haiku-4-5"}, overflowed)
-	assert.Equal(t, []string{"claude-opus-4-8"}, admitWidestOnTotalOverflow(ruledOut, overflowed, available, nil, cluster.RequestBindings{}),
+	require.ElementsMatch(t, []string{"z-ai/glm-5.2", "z-ai/glm-5.3-flash"}, overflowed)
+	assert.Equal(t, []string{"z-ai/glm-5.2"}, admitWidestOnTotalOverflow(ruledOut, overflowed, available, nil, cluster.RequestBindings{}),
 		"only the widest model is re-admitted")
 
 	ruledOut, overflowed = excludeContextOverflowModels(250_000, 0, 8_000, nil, nil, available)
 	assert.Nil(t, admitWidestOnTotalOverflow(ruledOut, overflowed, available, nil, cluster.RequestBindings{}),
 		"a request some model fits leaves the pre-filter's exclusions alone")
 
-	policyExcluded := map[string]struct{}{"claude-opus-4-8": {}}
+	policyExcluded := map[string]struct{}{"z-ai/glm-5.2": {}}
 	ruledOut, overflowed = excludeContextOverflowModels(2_000_000, 0, 8_000, nil, policyExcluded, available)
-	assert.Equal(t, []string{"claude-haiku-4-5"}, admitWidestOnTotalOverflow(ruledOut, overflowed, available, nil, cluster.RequestBindings{}),
+	assert.Equal(t, []string{"z-ai/glm-5.3-flash"}, admitWidestOnTotalOverflow(ruledOut, overflowed, available, nil, cluster.RequestBindings{}),
 		"a policy-excluded model is never re-admitted; the widest allowed one is")
 }
 
@@ -182,15 +182,15 @@ func TestAdmitWidestOnTotalOverflow(t *testing.T) {
 // overflow, and the servable widest go to the upstream.
 func TestAdmitWidestOnTotalOverflow_IgnoresUnservableModels(t *testing.T) {
 	available := map[string]struct{}{
-		"claude-opus-5-5":  {},
-		"claude-haiku-5-5": {},
-		"gemini-3.5-flash": {},
+		"z-ai/glm-5.2":       {},
+		"z-ai/glm-5.3-flash": {},
+		"gemini-3.5-flash":   {},
 	}
 	anthropicOnly := map[string]struct{}{providers.ProviderAIAND: {}}
 	ruledOut, overflowed := excludeContextOverflowModels(872_297, 0, 128_000, anthropicOnly, nil, available)
-	require.ElementsMatch(t, []string{"claude-opus-5-5", "claude-haiku-5-5"}, overflowed,
+	require.ElementsMatch(t, []string{"z-ai/glm-5.2", "z-ai/glm-5.3-flash"}, overflowed,
 		"the 1.05M Gemini window still fits the estimate")
-	assert.ElementsMatch(t, []string{"claude-opus-5-5", "claude-haiku-5-5"},
+	assert.ElementsMatch(t, []string{"z-ai/glm-5.2", "z-ai/glm-5.3-flash"},
 		admitWidestOnTotalOverflow(ruledOut, overflowed, available, anthropicOnly, cluster.RequestBindings{}))
 
 	withGoogle := map[string]struct{}{providers.ProviderAIAND: {}}
@@ -205,11 +205,11 @@ func TestAdmitWidestOnTotalOverflow_IgnoresUnservableModels(t *testing.T) {
 		"a configuration-declared binding makes the model servable")
 
 	gatewayOnly := cluster.RequestBindings{
-		Custom:   map[string][]string{"claude-opus-5-5": {providers.ProviderAIAND}},
+		Custom:   map[string][]string{"z-ai/glm-5.2": {providers.ProviderAIAND}},
 		Gateways: map[string]struct{}{providers.ProviderAIAND: {}},
 	}
 	ruledOut, overflowed = excludeContextOverflowModels(872_297, 0, 128_000, withGateway, nil, available)
-	assert.Equal(t, []string{"claude-opus-5-5"}, admitWidestOnTotalOverflow(ruledOut, overflowed, available, withGateway, gatewayOnly),
+	assert.Equal(t, []string{"z-ai/glm-5.2"}, admitWidestOnTotalOverflow(ruledOut, overflowed, available, withGateway, gatewayOnly),
 		"a gateway-exclusive request reaches only its aliases, so vendor-only models never count as fitting")
 }
 
@@ -222,20 +222,20 @@ func TestWithoutModels(t *testing.T) {
 }
 
 func TestWithoutModelsKeep_PreservesIndependentExclusions(t *testing.T) {
-	set := map[string]struct{}{"gemini-3.1-pro-preview": {}, "claude-haiku-4-5": {}}
+	set := map[string]struct{}{"gemini-3.1-pro-preview": {}, "z-ai/glm-5.3-flash": {}}
 	admitted := []string{"gemini-3.1-pro-preview"}
 	unsigned := []string{"gemini-3.1-pro-preview"}
 	out := withoutModelsKeep(set, admitted, unsigned)
-	assert.Equal(t, map[string]struct{}{"gemini-3.1-pro-preview": {}, "claude-haiku-4-5": {}}, out,
+	assert.Equal(t, map[string]struct{}{"gemini-3.1-pro-preview": {}, "z-ai/glm-5.3-flash": {}}, out,
 		"unsigned-history exclusion survives overflow readmission")
-	assert.Equal(t, map[string]struct{}{"claude-haiku-4-5": {}}, withoutModelsKeep(set, admitted, nil),
+	assert.Equal(t, map[string]struct{}{"z-ai/glm-5.3-flash": {}}, withoutModelsKeep(set, admitted, nil),
 		"with no keep list, overflow readmission still drops the overflowed model")
 }
 
 func TestContextWindowOnlyExclusions_DropsAdmittedAndUnsigned(t *testing.T) {
-	overflowed := []string{"claude-sonnet-4-5", "claude-opus-5", "gemini-3.1-pro-preview"}
-	out := contextWindowOnlyExclusions(overflowed, []string{"claude-opus-5"}, []string{"gemini-3.1-pro-preview"})
-	assert.Equal(t, map[string]struct{}{"claude-sonnet-4-5": {}}, out,
+	overflowed := []string{"deepseek/deepseek-v4.1-flash", "z-ai/glm-5.2", "gemini-3.1-pro-preview"}
+	out := contextWindowOnlyExclusions(overflowed, []string{"z-ai/glm-5.2"}, []string{"gemini-3.1-pro-preview"})
+	assert.Equal(t, map[string]struct{}{"deepseek/deepseek-v4.1-flash": {}}, out,
 		"admitted models already serve and unsigned-history models stay out for their own reason")
 	assert.Nil(t, contextWindowOnlyExclusions(nil, nil, nil))
 }

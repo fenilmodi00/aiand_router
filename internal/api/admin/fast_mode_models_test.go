@@ -109,7 +109,7 @@ func putFastModeModels(t *testing.T, engine *gin.Engine, models []string) *httpt
 }
 
 func TestGetFastModeModelsHandler_ListsOnlyFastCapableCatalog(t *testing.T) {
-	engine := fastModeEngine(&fastModeInstallationRepo{}, &auth.Installation{ID: "inst-1", FastModeModels: []string{"gpt-5.6-luna", "claude-opus-5"}})
+	engine := fastModeEngine(&fastModeInstallationRepo{}, &auth.Installation{ID: "inst-1", FastModeModels: []string{"gpt-5.6-luna", "z-ai/glm-5.2"}})
 
 	rec := httptest.NewRecorder()
 	engine.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/admin/v1/fast-mode-models", nil))
@@ -117,7 +117,7 @@ func TestGetFastModeModelsHandler_ListsOnlyFastCapableCatalog(t *testing.T) {
 
 	var got fastModeModelsBody
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
-	assert.Equal(t, []string{"claude-opus-5", "gpt-5.6-luna"}, got.FastMode, "sorted for stable UI rendering")
+	assert.Equal(t, []string{"z-ai/glm-5.2", "gpt-5.6-luna"}, got.FastMode, "sorted for stable UI rendering")
 	require.NotEmpty(t, got.Available)
 	ids := make(map[string]struct{}, len(got.Available))
 	for _, e := range got.Available {
@@ -125,35 +125,35 @@ func TestGetFastModeModelsHandler_ListsOnlyFastCapableCatalog(t *testing.T) {
 		ids[e.Model] = struct{}{}
 	}
 	assert.Contains(t, ids, "gpt-5.6-luna")
-	assert.Contains(t, ids, "claude-opus-5")
-	assert.NotContains(t, ids, "claude-sonnet-4-6")
+	assert.Contains(t, ids, "z-ai/glm-5.2")
+	assert.NotContains(t, ids, "deepseek/deepseek-v4.1-flash")
 }
 
 func TestUpdateFastModeModelsHandler_PersistsFastCapableModels(t *testing.T) {
 	repo := &fastModeInstallationRepo{}
 	engine := fastModeEngine(repo, &auth.Installation{ID: "inst-1", ExternalID: "org-1"})
 
-	rec := putFastModeModels(t, engine, []string{"gpt-5.6-luna", "gpt-5.6-luna", "claude-opus-5"})
+	rec := putFastModeModels(t, engine, []string{"gpt-5.6-luna", "gpt-5.6-luna", "z-ai/glm-5.2"})
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	assert.Equal(t, []string{"gpt-5.6-luna", "claude-opus-5"}, repo.stored)
+	assert.Equal(t, []string{"gpt-5.6-luna", "z-ai/glm-5.2"}, repo.stored)
 	assert.Equal(t, "org-1", repo.externalID)
 	var got fastModeModelsBody
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
-	assert.Equal(t, []string{"claude-opus-5", "gpt-5.6-luna"}, got.FastMode)
+	assert.Equal(t, []string{"z-ai/glm-5.2", "gpt-5.6-luna"}, got.FastMode)
 }
 
 func TestUpdateFastModeModelsHandler_RejectsModelWithoutFastTier(t *testing.T) {
 	repo := &fastModeInstallationRepo{}
 	engine := fastModeEngine(repo, &auth.Installation{ID: "inst-1", ExternalID: "org-1"})
 
-	rec := putFastModeModels(t, engine, []string{"claude-sonnet-4-6"})
+	rec := putFastModeModels(t, engine, []string{"deepseek/deepseek-v4.1-flash"})
 	require.Equal(t, http.StatusBadRequest, rec.Code)
 	assert.Nil(t, repo.stored, "nothing persisted on validation failure")
 
 	var body map[string]string
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
-	assert.Contains(t, body["error"], "claude-sonnet-4-6")
+	assert.Contains(t, body["error"], "deepseek/deepseek-v4.1-flash")
 }
 
 func TestUpdateFastModeModelsHandler_EmptyListClears(t *testing.T) {

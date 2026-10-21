@@ -13,11 +13,11 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-const fastModeAnthropicBody = `{"model":"claude-opus-5","max_tokens":1024,"messages":[{"role":"user","content":"hi"}]}`
+const fastModeAnthropicBody = `{"model":"z-ai/glm-5.2","max_tokens":1024,"messages":[{"role":"user","content":"hi"}]}`
 
 func TestFastMode_AnthropicSetsSpeedAndBeta(t *testing.T) {
 	prep := prepareWithFallback(t, http.Header{}, fastModeAnthropicBody, translate.EmitOptions{
-		TargetModel:    "claude-opus-5",
+		TargetModel:    "z-ai/glm-5.2",
 		TargetProvider: providers.ProviderAIAND,
 		FastMode:       true,
 	})
@@ -28,7 +28,7 @@ func TestFastMode_AnthropicSetsSpeedAndBeta(t *testing.T) {
 
 func TestFastMode_AnthropicOffLeavesRequestUntouched(t *testing.T) {
 	prep := prepareWithFallback(t, http.Header{}, fastModeAnthropicBody, translate.EmitOptions{
-		TargetModel:    "claude-opus-5",
+		TargetModel:    "z-ai/glm-5.2",
 		TargetProvider: providers.ProviderAIAND,
 	})
 
@@ -40,7 +40,7 @@ func TestFastMode_AnthropicDedupesClientBeta(t *testing.T) {
 	in := http.Header{}
 	in.Set("anthropic-beta", "fast-mode-2026-02-01")
 	prep := prepareWithFallback(t, in, fastModeAnthropicBody, translate.EmitOptions{
-		TargetModel:    "claude-opus-5",
+		TargetModel:    "z-ai/glm-5.2",
 		TargetProvider: providers.ProviderAIAND,
 		FastMode:       true,
 	})

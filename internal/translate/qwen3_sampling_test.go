@@ -49,7 +49,7 @@ func TestQwen3Samplers_OpenAISameFormat_InjectedForQwen3(t *testing.T) {
 
 func TestQwen3Samplers_AnthropicCrossFormat_InjectedForQwen3(t *testing.T) {
 	body := []byte(`{
-		"model": "claude-opus-4-7",
+		"model": "z-ai/glm-5.2",
 		"max_tokens": 256,
 		"messages": [{"role":"user","content":"hi"}]
 	}`)
@@ -69,7 +69,7 @@ func TestQwen3Samplers_AppliedOnBedrockTarget(t *testing.T) {
 	// sampler block because the targetIsOpenRouter gate excluded it. With
 	// the model-keyed application, samplers now reach Bedrock too.
 	body := []byte(`{
-		"model": "claude-opus-4-7",
+		"model": "z-ai/glm-5.2",
 		"max_tokens": 256,
 		"messages": [{"role":"user","content":"hi"}]
 	}`)
@@ -131,7 +131,7 @@ func TestQwen3Samplers_PartialClientOverridesFillRest(t *testing.T) {
 	// Client sets only temperature; the router should still fill the other
 	// three defaults but leave temperature alone.
 	body := []byte(`{
-		"model": "claude-opus-4-7",
+		"model": "z-ai/glm-5.2",
 		"max_tokens": 256,
 		"messages": [{"role":"user","content":"hi"}],
 		"temperature": 0.3

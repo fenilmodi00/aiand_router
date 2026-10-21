@@ -92,7 +92,7 @@ func emittedResponsesToolNames(t *testing.T, body []byte) []string {
 // claudeCodeMixedToolBody is a representative Anthropic request body carrying
 // coding + scheduling tools interleaved with CC-only control-plane tools.
 const claudeCodeMixedToolBody = `{
-	"model":"claude-opus-4-7",
+	"model":"z-ai/glm-5.2",
 	"system":"You are a helpful coding assistant.",
 	"messages":[{"role":"user","content":"fix the bug"}],
 	"tools":[
@@ -186,7 +186,7 @@ func TestStripCCTools_AnthropicSourceAnthropicTarget_KeepsCCOnly(t *testing.T) {
 	env, err := translate.ParseAnthropic([]byte(claudeCodeMixedToolBody))
 	require.NoError(t, err)
 
-	out, err := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "claude-opus-4-7"})
+	out, err := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "z-ai/glm-5.2"})
 	require.NoError(t, err)
 
 	var doc map[string]any
@@ -245,7 +245,7 @@ func TestKeepOrchestrationTools_OpenAITarget_KeepsOrchestrationDropsRest(t *test
 
 func TestKeepOrchestrationTools_OpenAITarget_NormalizesTypelessAnyOf(t *testing.T) {
 	body := `{
-		"model":"claude-opus-4-7",
+		"model":"z-ai/glm-5.2",
 		"messages":[{"role":"user","content":"run a workflow"}],
 		"tools":[{
 			"name":"Workflow",
@@ -361,7 +361,7 @@ func TestStripCCTools_NoCCToolsNoRewrite(t *testing.T) {
 	// When the request carries no CC-only tools, the filter must not
 	// re-serialize the body (cheap fast path).
 	src := []byte(`{
-		"model":"claude-opus-4-7",
+		"model":"z-ai/glm-5.2",
 		"system":"sys",
 		"messages":[{"role":"user","content":"hi"}],
 		"tools":[
@@ -383,7 +383,7 @@ func TestStripCCTools_NoToolsAtAll(t *testing.T) {
 	// Requests without a tools field must pass through unchanged — the
 	// filter is a no-op on the most common shape.
 	src := []byte(`{
-		"model":"claude-opus-4-7",
+		"model":"z-ai/glm-5.2",
 		"messages":[{"role":"user","content":"hi"}],
 		"max_tokens":256
 	}`)
@@ -404,7 +404,7 @@ func TestStripCCTools_AllToolsCCOnly_DropsToEmpty(t *testing.T) {
 	// tools array. Downstream emit must treat this as no-tools (the
 	// reminder gate uses hasNonEmptyTools which checks length).
 	src := []byte(`{
-		"model":"claude-opus-4-7",
+		"model":"z-ai/glm-5.2",
 		"messages":[{"role":"user","content":"hi"}],
 		"tools":[
 			{"name":"Task","input_schema":{"type":"object"}},

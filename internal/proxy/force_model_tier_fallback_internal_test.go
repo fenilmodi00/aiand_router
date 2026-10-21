@@ -136,13 +136,13 @@ func (s *overwritingPinStore) SweepExpired(context.Context) error { return nil }
 func TestRunTurnLoop_ForcedModelContextOverflow_StaysInTier(t *testing.T) {
 	const forced = "z-ai/glm-5.2"
 	require.Equal(t, catalog.TierHigh, catalog.TierFor(forced), "test premise: forced model is high-tier")
-	require.Equal(t, catalog.TierLow, catalog.TierFor("claude-haiku-4-5"), "test premise: haiku is low-tier")
-	require.Equal(t, catalog.TierHigh, catalog.TierFor("claude-opus-5"), "test premise: opus is high-tier")
+	require.Equal(t, catalog.TierLow, catalog.TierFor("z-ai/glm-5.3-flash"), "test premise: haiku is low-tier")
+	require.Equal(t, catalog.TierHigh, catalog.TierFor("z-ai/glm-5.2"), "test premise: opus is high-tier")
 
 	fr := &tierProbeRouter{available: map[string]struct{}{
-		forced:             {},
-		"claude-opus-5":    {},
-		"claude-haiku-4-5": {},
+		forced:               {},
+		"z-ai/glm-5.2":       {},
+		"z-ai/glm-5.3-flash": {},
 	}}
 	store := &forcedPinStore{pin: sessionpin.Pin{
 		Provider:    providers.ProviderAIAND,
@@ -151,11 +151,11 @@ func TestRunTurnLoop_ForcedModelContextOverflow_StaysInTier(t *testing.T) {
 		PinnedUntil: time.Now().Add(time.Hour),
 	}}
 	svc := NewService(fr, nil, nil, false, nil, store, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil).
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 		WithAvailableModels(fr.available).
 		WithPlannerEnabled(false)
 
-	env, err := translate.ParseAnthropic([]byte(`{"model":"claude-opus-5","messages":[{"role":"user","content":"hello"}]}`))
+	env, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"hello"}]}`))
 	require.NoError(t, err)
 	feats := env.RoutingFeatures(false)
 
@@ -167,7 +167,7 @@ func TestRunTurnLoop_ForcedModelContextOverflow_StaysInTier(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	assert.Equal(t, "claude-opus-5", res.Decision.Model,
+	assert.Equal(t, "z-ai/glm-5.2", res.Decision.Model,
 		"evicted high-tier force-model must reroute to the next-best same-tier model, not collapse to low-tier")
 	assert.Equal(t, catalog.TierHigh, catalog.TierFor(res.Decision.Model),
 		"replacement must share the forced model's tier")
@@ -175,20 +175,20 @@ func TestRunTurnLoop_ForcedModelContextOverflow_StaysInTier(t *testing.T) {
 	// The scorer must have been handed a tier-constrained denylist: the
 	// low-tier candidate is excluded so it can never be chosen.
 	require.Len(t, fr.captured, 1, "exactly one (constrained) scorer call")
-	_, haikuExcluded := fr.captured[0].ExcludedModels["claude-haiku-4-5"]
+	_, haikuExcluded := fr.captured[0].ExcludedModels["z-ai/glm-5.3-flash"]
 	assert.True(t, haikuExcluded, "tier constraint must exclude the low-tier model from the scorer pool")
-	_, opusExcluded := fr.captured[0].ExcludedModels["claude-opus-5"]
+	_, opusExcluded := fr.captured[0].ExcludedModels["z-ai/glm-5.2"]
 	assert.False(t, opusExcluded, "the same-tier replacement must remain eligible")
 }
 
 func TestRunTurnLoop_ForcedModelOverridesHardPin(t *testing.T) {
 	store := &forcedPinStore{pin: sessionpin.Pin{
 		Provider:    providers.ProviderAIAND,
-		Model:       "claude-opus-4-8",
+		Model:       "z-ai/glm-5.2",
 		Reason:      translate.ReasonUserForceModel,
 		PinnedUntil: time.Now().Add(time.Hour),
 	}}
-	fr := &tierProbeRouter{available: map[string]struct{}{"claude-haiku-4-5": {}}}
+	fr := &tierProbeRouter{available: map[string]struct{}{"z-ai/glm-5.3-flash": {}}}
 	svc := NewService(
 		fr,
 		nil,
@@ -198,12 +198,12 @@ func TestRunTurnLoop_ForcedModelOverridesHardPin(t *testing.T) {
 		store,
 		false,
 		providers.ProviderAIAND,
-		"claude-haiku-4-5",
+		"z-ai/glm-5.3-flash",
 		nil,
 	)
 
 	env, err := translate.ParseAnthropic([]byte(`{
-		"model":"claude-opus-4-8",
+		"model":"z-ai/glm-5.2",
 		"system":"Your task is to create a detailed summary of the conversation so far.",
 		"messages":[{"role":"user","content":"summarize"}]
 	}`))
@@ -215,7 +215,7 @@ func TestRunTurnLoop_ForcedModelOverridesHardPin(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	assert.Equal(t, "claude-opus-4-8", res.Decision.Model,
+	assert.Equal(t, "z-ai/glm-5.2", res.Decision.Model,
 		"an explicit force-model pin must outrank the automatic compaction hard-pin")
 	assert.Equal(t, translate.ReasonUserForceModel, res.Decision.Reason)
 	assert.True(t, res.StickyHit)
@@ -229,12 +229,12 @@ func TestRunTurnLoop_ForcedModelOverridesHardPin(t *testing.T) {
 func TestRunTurnLoop_ForcedModelServesDespiteDisabledProvider(t *testing.T) {
 	store := &forcedPinStore{pin: sessionpin.Pin{
 		Provider:          providers.ProviderAIAND,
-		Model:             "claude-opus-4-8",
+		Model:             "z-ai/glm-5.2",
 		Reason:            translate.ReasonUserForceModel,
 		PinnedUntil:       time.Now().Add(time.Hour),
 		DisabledProviders: []string{providers.ProviderAIAND},
 	}}
-	fr := &tierProbeRouter{available: map[string]struct{}{"claude-haiku-4-5": {}}}
+	fr := &tierProbeRouter{available: map[string]struct{}{"z-ai/glm-5.3-flash": {}}}
 	svc := NewService(
 		fr,
 		nil,
@@ -244,12 +244,12 @@ func TestRunTurnLoop_ForcedModelServesDespiteDisabledProvider(t *testing.T) {
 		store,
 		false,
 		providers.ProviderAIAND,
-		"claude-haiku-4-5",
+		"z-ai/glm-5.3-flash",
 		nil,
 	)
 
 	env, err := translate.ParseAnthropic([]byte(`{
-		"model":"claude-opus-4-8",
+		"model":"z-ai/glm-5.2",
 		"messages":[{"role":"user","content":"hello"}]
 	}`))
 	require.NoError(t, err)
@@ -261,7 +261,7 @@ func TestRunTurnLoop_ForcedModelServesDespiteDisabledProvider(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	assert.Equal(t, "claude-opus-4-8", res.Decision.Model,
+	assert.Equal(t, "z-ai/glm-5.2", res.Decision.Model,
 		"force-model must serve through the pinned provider despite the session-level disable")
 	assert.Equal(t, providers.ProviderAIAND, res.Decision.Provider)
 	assert.Equal(t, translate.ReasonUserForceModel, res.Decision.Reason)
@@ -272,11 +272,11 @@ func TestRunTurnLoop_ForcedModelServesDespiteDisabledProvider(t *testing.T) {
 func TestForceModelHeader_OverridesHardPin(t *testing.T) {
 	store := &overwritingPinStore{pin: sessionpin.Pin{
 		Provider:    providers.ProviderAIAND,
-		Model:       "claude-haiku-4-5",
+		Model:       "z-ai/glm-5.3-flash",
 		Reason:      "cluster:v0.2",
 		PinnedUntil: time.Now().Add(time.Hour),
 	}, found: true}
-	fr := &tierProbeRouter{available: map[string]struct{}{"claude-haiku-4-5": {}}}
+	fr := &tierProbeRouter{available: map[string]struct{}{"z-ai/glm-5.3-flash": {}}}
 	svc := NewService(
 		fr,
 		nil,
@@ -286,12 +286,12 @@ func TestForceModelHeader_OverridesHardPin(t *testing.T) {
 		store,
 		false,
 		providers.ProviderAIAND,
-		"claude-haiku-4-5",
+		"z-ai/glm-5.3-flash",
 		nil,
 	)
 
 	env, err := translate.ParseAnthropic([]byte(`{
-		"model":"claude-opus-4-8",
+		"model":"z-ai/glm-5.2",
 		"system":"Your task is to create a detailed summary of the conversation so far.",
 		"messages":[{"role":"user","content":"summarize"}]
 	}`))
@@ -309,7 +309,7 @@ func TestForceModelHeader_OverridesHardPin(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	assert.Equal(t, "claude-opus-5-5", res.Decision.Model,
+	assert.Equal(t, "z-ai/glm-5.2", res.Decision.Model,
 		"the x-weave-force-model pin must outrank the automatic compaction hard-pin")
 	assert.Equal(t, translate.ReasonUserForceModel, res.Decision.Reason)
 	assert.False(t, res.HardPinned)
@@ -319,8 +319,8 @@ func TestForceModelHeader_OverridesHardPin(t *testing.T) {
 // must return ok=false rather than hand the scorer an empty pool.
 func TestRestrictToTier_FallsBackWhenNoInTierCandidate(t *testing.T) {
 	svc := NewService(nil, nil, nil, false, nil, nil, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil).
-		WithAvailableModels(map[string]struct{}{"claude-haiku-4-5": {}})
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
+		WithAvailableModels(map[string]struct{}{"z-ai/glm-5.3-flash": {}})
 
 	excluded := map[string]struct{}{"deepseek/deepseek-v4-pro": {}}
 	out, ok := svc.restrictToTier(excluded, catalog.TierHigh)
@@ -332,18 +332,18 @@ func TestRestrictToTier_FallsBackWhenNoInTierCandidate(t *testing.T) {
 // models stay eligible.
 func TestRestrictToTier_ExcludesOtherTiers(t *testing.T) {
 	svc := NewService(nil, nil, nil, false, nil, nil, false,
-		providers.ProviderAIAND, "claude-haiku-4-5", nil).
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 		WithAvailableModels(map[string]struct{}{
-			"claude-opus-5":     {}, // high
-			"claude-haiku-4-5":  {}, // low
-			"claude-sonnet-4-6": {}, // mid
+			"z-ai/glm-5.2":                 {}, // high
+			"z-ai/glm-5.3-flash":           {}, // low
+			"deepseek/deepseek-v4.1-flash": {}, // mid
 		})
 
 	out, ok := svc.restrictToTier(nil, catalog.TierHigh)
 	require.True(t, ok)
-	_, haikuExcluded := out["claude-haiku-4-5"]
-	_, sonnetExcluded := out["claude-sonnet-4-6"]
-	_, opusExcluded := out["claude-opus-5"]
+	_, haikuExcluded := out["z-ai/glm-5.3-flash"]
+	_, sonnetExcluded := out["deepseek/deepseek-v4.1-flash"]
+	_, opusExcluded := out["z-ai/glm-5.2"]
 	assert.True(t, haikuExcluded, "low-tier excluded")
 	assert.True(t, sonnetExcluded, "mid-tier excluded")
 	assert.False(t, opusExcluded, "high-tier stays eligible")

@@ -15,7 +15,7 @@ import (
 )
 
 const autonomyGateBody = `{
-	"model":"claude-opus-5",
+	"model":"z-ai/glm-5.2",
 	"system":[{"type":"text","text":"You are a Claude agent, built on Anthropic's Claude Agent SDK.","cache_control":{"type":"ephemeral"}}],
 	"messages":[{"role":"user","content":"why is revenue too high in fct_orders?"}],
 	"tools":[{"name":"Read","description":"r","input_schema":{"type":"object"}}],
@@ -24,7 +24,7 @@ const autonomyGateBody = `{
 
 func newAutonomyGateService() *Service {
 	return NewService(nil, map[string]providers.Client{}, nil, false, nil, nil,
-		false, providers.ProviderAIAND, "claude-haiku-4-5", nil)
+		false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil)
 }
 
 func autonomyGateCtx(flagOn bool, clientApp string) context.Context {
@@ -86,16 +86,16 @@ func TestAutonomySystemAppendApplies_IdempotentAndSkipsSearchSubTurn(t *testing.
 	ctx := autonomyGateCtx(true, ClientAppClaudeCode)
 
 	t.Run("request already carrying the instruction is left alone", func(t *testing.T) {
-		body := `{"model":"claude-opus-5","system":[{"type":"text","text":"You are Claude Code."},{"type":"text","text":"You are operating autonomously. The user is not watching in real time."}],"messages":[{"role":"user","content":"go"}],"max_tokens":8}`
+		body := `{"model":"z-ai/glm-5.2","system":[{"type":"text","text":"You are Claude Code."},{"type":"text","text":"You are operating autonomously. The user is not watching in real time."}],"messages":[{"role":"user","content":"go"}],"max_tokens":8}`
 		assert.False(t, svc.autonomySystemAppendApplies(ctx, []byte(body), parseGateBody(t, body), turntype.MainLoop))
 	})
 	t.Run("native web-search sub-turn is skipped even though it detects as main loop", func(t *testing.T) {
-		body := `{"model":"claude-opus-5","system":"You are Claude Code.","tools":[{"type":"web_search_20250305","name":"web_search"}],"messages":[{"role":"user","content":"Perform a web search for the query: dbt incremental strategies"}],"max_tokens":8}`
+		body := `{"model":"z-ai/glm-5.2","system":"You are Claude Code.","tools":[{"type":"web_search_20250305","name":"web_search"}],"messages":[{"role":"user","content":"Perform a web search for the query: dbt incremental strategies"}],"max_tokens":8}`
 		env := parseGateBody(t, body)
 		assert.False(t, svc.autonomySystemAppendApplies(ctx, []byte(body), env, turntype.MainLoop))
 	})
 	t.Run("an ordinary turn that merely declares web_search still fires", func(t *testing.T) {
-		body := `{"model":"claude-opus-5","system":"You are Claude Code.","tools":[{"type":"web_search_20250305","name":"web_search"},{"name":"Read","input_schema":{"type":"object"}}],"messages":[{"role":"user","content":"why is revenue too high in fct_orders?"}],"max_tokens":8}`
+		body := `{"model":"z-ai/glm-5.2","system":"You are Claude Code.","tools":[{"type":"web_search_20250305","name":"web_search"},{"name":"Read","input_schema":{"type":"object"}}],"messages":[{"role":"user","content":"why is revenue too high in fct_orders?"}],"max_tokens":8}`
 		assert.True(t, svc.autonomySystemAppendApplies(ctx, []byte(body), parseGateBody(t, body), turntype.MainLoop))
 	})
 }

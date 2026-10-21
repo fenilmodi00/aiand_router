@@ -22,7 +22,7 @@ import (
 // Synthetic Claude Code system prompt: a plain instruction block followed by
 // the gitStatus block as a separate content block, the shape Claude Code sends.
 const clientGitContextBody = `{
-	"model":"claude-opus-4-7",
+	"model":"z-ai/glm-5.2",
 	"system":[
 		{"type":"text","text":"You are Claude Code."},
 		{"type":"text","text":"gitStatus: This is the git status at the start of the conversation. Note that this status is a snapshot in time, and will not update during the conversation.\nCurrent branch: feature/synthetic-branch\n\nMain branch (you will usually use this for PRs): main\n\nGit user: Synthetic User\n\nStatus:\n M internal/example.go\n?? notes.txt\n\nRecent commits:\nabc1234 synthetic subject one\ndef5678 synthetic subject two"}
@@ -37,7 +37,7 @@ func trialCtx(installationID string) context.Context {
 func proxyClientGitContextTurn(t *testing.T, ctx context.Context, store *fakePinStore) proxy.InsertTelemetryParams {
 	t.Helper()
 	telem := newCaptureTelemetry()
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", Reason: "cluster:v0.2"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash", Reason: "cluster:v0.2"}}
 	svc := newPinSvcWithTelemetry(fr, store, telem)
 
 	rec := httptest.NewRecorder()
@@ -72,7 +72,7 @@ func TestProxyMessages_ClientGitContext_SecondTurnLeavesNulls(t *testing.T) {
 	store.hasPin = true
 	store.pin = sessionpin.Pin{
 		Provider:      providers.ProviderAIAND,
-		Model:         "claude-haiku-4-5",
+		Model:         "z-ai/glm-5.3-flash",
 		Reason:        "cluster:v0.2",
 		PinnedUntil:   time.Now().Add(30 * time.Minute),
 		FirstPinnedAt: time.Now().Add(-5 * time.Minute),
@@ -93,7 +93,7 @@ func TestProxyMessages_ClientGitContext_ExpiredPinIsNotFirstTurn(t *testing.T) {
 	store.hasPin = true
 	store.pin = sessionpin.Pin{
 		Provider:      providers.ProviderAIAND,
-		Model:         "claude-haiku-4-5",
+		Model:         "z-ai/glm-5.3-flash",
 		Reason:        "cluster:v0.2",
 		PinnedUntil:   time.Now().Add(-time.Minute),
 		FirstPinnedAt: time.Now().Add(-time.Hour),

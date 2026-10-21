@@ -63,7 +63,7 @@ func (r pinnedStubRouter) Route(context.Context, router.Request) (router.Decisio
 }
 
 func TestRouteWithStrategyRefusesDecisionsThatDidNotServeThePin(t *testing.T) {
-	unpinned := pinnedStubRouter{decision: router.Decision{Provider: "anthropic", Model: "claude-sonnet-5"}}
+	unpinned := pinnedStubRouter{decision: router.Decision{Provider: "anthropic", Model: "deepseek/deepseek-v4-pro"}}
 	svc := &Service{router: unpinned}
 
 	_, err := svc.routeWithStrategy(pinnedContext(true), router.StrategyCluster, router.Request{})
@@ -71,7 +71,7 @@ func TestRouteWithStrategyRefusesDecisionsThatDidNotServeThePin(t *testing.T) {
 
 	decision, err := svc.routeWithStrategy(pinnedContext(false), router.StrategyCluster, router.Request{})
 	require.NoError(t, err, "an unauthorized pin must not affect routing")
-	assert.Equal(t, "claude-sonnet-5", decision.Model)
+	assert.Equal(t, "deepseek/deepseek-v4-pro", decision.Model)
 
 	svc.router = pinnedStubRouter{decision: router.Decision{Model: "m", Metadata: &router.RoutingMetadata{PolicyPinHonoured: true}}}
 	_, err = svc.routeWithStrategy(pinnedContext(true), router.StrategyCluster, router.Request{})
@@ -93,7 +93,7 @@ func TestRecordPolicyPinRouteFailureWritesHonouredFalseRow(t *testing.T) {
 	installationID := uuid.New()
 	ctx := context.WithValue(pinnedContext(true), InstallationIDContextKey{}, installationID.String())
 
-	svc.recordPolicyPinRouteFailure(ctx, "req-pin", time.Now(), "claude-sonnet-5", turntype.TurnType("interactive"), true, router.ErrPolicyPinUnavailable)
+	svc.recordPolicyPinRouteFailure(ctx, "req-pin", time.Now(), "deepseek/deepseek-v4-pro", turntype.TurnType("interactive"), true, router.ErrPolicyPinUnavailable)
 
 	select {
 	case <-sink.notify:
@@ -116,7 +116,7 @@ func TestRecordPolicyPinRouteFailureIsSilentWithoutAPin(t *testing.T) {
 	svc := &Service{telemetry: sink}
 	ctx := context.WithValue(context.Background(), InstallationIDContextKey{}, uuid.New().String())
 
-	svc.recordPolicyPinRouteFailure(ctx, "req-plain", time.Now(), "claude-sonnet-5", turntype.TurnType("interactive"), false, errors.New("routing failed"))
+	svc.recordPolicyPinRouteFailure(ctx, "req-plain", time.Now(), "deepseek/deepseek-v4-pro", turntype.TurnType("interactive"), false, errors.New("routing failed"))
 
 	select {
 	case <-sink.notify:
@@ -138,18 +138,18 @@ func (r *countingPinnedRouter) Route(context.Context, router.Request) (router.De
 func pinnedTurnLoopService(t *testing.T, rt router.Router, store sessionpin.Store) *Service {
 	t.Helper()
 	clients := map[string]providers.Client{providers.ProviderAIAND: nil}
-	return NewService(rt, clients, nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil)
+	return NewService(rt, clients, nil, false, nil, store, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil)
 }
 
 func pinnedTurnLoopEnvelope(t *testing.T) (*translate.RequestEnvelope, translate.RoutingFeatures) {
 	t.Helper()
-	env, err := translate.ParseAnthropic([]byte(`{"model":"claude-opus-4-7","system":"sys","messages":[{"role":"user","content":"original prompt"}],"max_tokens":8192}`))
+	env, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.2","system":"sys","messages":[{"role":"user","content":"original prompt"}],"max_tokens":8192}`))
 	require.NoError(t, err)
 	return env, env.RoutingFeatures(false)
 }
 
 func TestRunTurnLoop_HonouredPinBypassesStickyPinAndScoresFresh(t *testing.T) {
-	stickyModel := "claude-sonnet-5"
+	stickyModel := "deepseek/deepseek-v4-pro"
 	store := &rolePinStore{byRole: map[string]sessionpin.Pin{}}
 	env, feats := pinnedTurnLoopEnvelope(t)
 	role := roleForTier(catalog.TierFor(feats.Model))
@@ -190,7 +190,7 @@ func TestRunTurnLoop_HonouredPinKeepsSessionIdentity(t *testing.T) {
 	assert.NotEqual(t, zeroKey, first.SessionKey, "a pinned turn must keep the thread session key for telemetry and history writeback")
 	assert.True(t, first.SessionFirstTurn, "no stored pin state is the session's first turn")
 
-	store.byRole[role] = sessionpin.Pin{Provider: providers.ProviderAIAND, Model: "claude-sonnet-5", Reason: "hmm_policy", PinnedUntil: time.Now().Add(time.Hour)}
+	store.byRole[role] = sessionpin.Pin{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4-pro", Reason: "hmm_policy", PinnedUntil: time.Now().Add(time.Hour)}
 	later, err := svc.runTurnLoop(pinnedContext(true), env, feats, "key", uuid.Nil, "", nil, router.Request{RequestedModel: feats.Model})
 	require.NoError(t, err)
 	assert.Equal(t, first.SessionKey, later.SessionKey)
@@ -204,7 +204,7 @@ func TestRunTurnLoop_HonouredPinKeepsSessionIdentity(t *testing.T) {
 }
 
 func TestRunTurnLoop_HonouredPinClassifierKeepsSessionKeyZero(t *testing.T) {
-	env, err := translate.ParseAnthropic([]byte(`{"model":"claude-haiku-4-5","max_tokens":5,"messages":[{"role":"user","content":"hello"}]}`))
+	env, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.3-flash","max_tokens":5,"messages":[{"role":"user","content":"hello"}]}`))
 	require.NoError(t, err)
 	feats := env.RoutingFeatures(false)
 	rt := &countingPinnedRouter{decision: router.Decision{
@@ -232,7 +232,7 @@ func TestRunTurnLoop_HonouredPinBypassesForceModel(t *testing.T) {
 		Metadata: &router.RoutingMetadata{PolicyPinHonoured: true},
 	}}
 	svc := pinnedTurnLoopService(t, rt, &rolePinStore{byRole: map[string]sessionpin.Pin{}})
-	req := router.Request{RequestedModel: feats.Model, ForceModel: "claude-sonnet-5"}
+	req := router.Request{RequestedModel: feats.Model, ForceModel: "deepseek/deepseek-v4-pro"}
 
 	res, err := svc.runTurnLoop(pinnedContext(true), env, feats, "key", uuid.Nil, "", nil, req)
 	require.NoError(t, err)
@@ -241,7 +241,7 @@ func TestRunTurnLoop_HonouredPinBypassesForceModel(t *testing.T) {
 
 	forced, err := svc.runTurnLoop(context.Background(), env, feats, "key", uuid.Nil, "", nil, req)
 	require.NoError(t, err)
-	assert.Equal(t, "claude-sonnet-5", forced.Decision.Model)
+	assert.Equal(t, "deepseek/deepseek-v4-pro", forced.Decision.Model)
 	assert.Equal(t, 1, rt.calls)
 }
 
@@ -286,7 +286,7 @@ func TestRunTurnLoop_HonouredPinScoresAutomaticProbesWithoutConversationState(t 
 
 func TestRunTurnLoop_HonouredPinNeverServes200WithHonouredFalse(t *testing.T) {
 	env, feats := pinnedTurnLoopEnvelope(t)
-	rt := &countingPinnedRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-5"}}
+	rt := &countingPinnedRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4-pro"}}
 	svc := pinnedTurnLoopService(t, rt, &rolePinStore{byRole: map[string]sessionpin.Pin{}})
 
 	_, err := svc.runTurnLoop(pinnedContext(true), env, feats, "key", uuid.Nil, "", nil, router.Request{RequestedModel: feats.Model})

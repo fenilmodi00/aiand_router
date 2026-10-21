@@ -19,7 +19,7 @@ func TestContextEstimateHeadersProtocols(t *testing.T) {
 		parse func([]byte) (*translate.RequestEnvelope, error)
 		body  string
 	}{
-		{"anthropic", translate.ParseAnthropic, `{"model":"claude-sonnet-5","max_tokens":16000,"messages":[{"role":"user","content":"inspect the build failure"}]}`},
+		{"anthropic", translate.ParseAnthropic, `{"model":"deepseek/deepseek-v4-pro","max_tokens":16000,"messages":[{"role":"user","content":"inspect the build failure"}]}`},
 		{"openai", translate.ParseOpenAI, `{"model":"gpt-5.6-sol","max_tokens":16000,"messages":[{"role":"user","content":"inspect the build failure"}]}`},
 		{"gemini", translate.ParseGemini, `{"contents":[{"role":"user","parts":[{"text":"inspect the build failure"}]}],"generationConfig":{"maxOutputTokens":16000}}`},
 	}
@@ -39,7 +39,7 @@ func TestContextEstimateHeadersProtocols(t *testing.T) {
 }
 
 func TestCachedContextEstimateUsesLiveRequest(t *testing.T) {
-	env, err := translate.ParseAnthropic([]byte(`{"model":"claude-sonnet-5","max_tokens":32,"messages":[{"role":"user","content":"a fresh request"}]}`))
+	env, err := translate.ParseAnthropic([]byte(`{"model":"deepseek/deepseek-v4-pro","max_tokens":32,"messages":[{"role":"user","content":"a fresh request"}]}`))
 	require.NoError(t, err)
 	rec := httptest.NewRecorder()
 	setContextEstimateHeaders(rec.Header(), env.ContextOverflowTokenEstimate(), 8000)
@@ -49,7 +49,7 @@ func TestCachedContextEstimateUsesLiveRequest(t *testing.T) {
 	stale.Set(HeaderRouterContextReserve, "1")
 	stale.Set(HeaderRouterContextEstimateKind, "exact")
 	stale.Set(HeaderRouterContextWindow, "1")
-	(&Service{}).writeCachedResponse(rec, cache.CachedResponse{Headers: stale, Body: []byte(`{"ok":true}`)}, router.Decision{Model: "claude-sonnet-5", Provider: providers.ProviderAIAND})
+	(&Service{}).writeCachedResponse(rec, cache.CachedResponse{Headers: stale, Body: []byte(`{"ok":true}`)}, router.Decision{Model: "deepseek/deepseek-v4-pro", Provider: providers.ProviderAIAND})
 	require.Equal(t, estimate, rec.Result().Header.Get(HeaderRouterContextEstimate))
 	require.Equal(t, "8000", rec.Result().Header.Get(HeaderRouterContextReserve))
 	require.Equal(t, "approximate", rec.Result().Header.Get(HeaderRouterContextEstimateKind))
@@ -77,9 +77,9 @@ func TestContextSnapshotUsesFinalServedModel(t *testing.T) {
 	setContextEstimateHeaders(headers, 72000, 8000)
 	headers.Set(HeaderRouterContextWindow, "1048576")
 	headers.Set(HeaderRouterModel, "deepseek/deepseek-v4-pro")
-	snapshot := contextSnapshotJSONForDecision(headers, "request-final", "claude-opus-4-8", "claude-opus-4-8", providers.ProviderAIAND, now, now)
+	snapshot := contextSnapshotJSONForDecision(headers, "request-final", "z-ai/glm-5.2", "z-ai/glm-5.2", providers.ProviderAIAND, now, now)
 	parsed := ParseContextSnapshot(snapshot)
 	require.NotNil(t, parsed)
-	require.Equal(t, "claude-opus-4-8", parsed.ServedModel)
+	require.Equal(t, "z-ai/glm-5.2", parsed.ServedModel)
 	require.Equal(t, 1_000_000, parsed.ContextWindow)
 }

@@ -22,7 +22,7 @@ import (
 
 const (
 	heldPinLunaModel   = "gpt-6-luna"
-	heldPinClaudeModel = "claude-opus-5-5"
+	heldPinClaudeModel = "z-ai/glm-5.2"
 )
 
 type heldPinGatewayClient struct {
@@ -38,8 +38,8 @@ func (c *heldPinGatewayClient) Proxy(_ context.Context, decision router.Decision
 		}
 		return providers.ErrUpstreamIdleTimeout
 	}
-	_, _ = io.WriteString(w, `data: {"id":"chatcmpl-rescue","object":"chat.completion.chunk","created":1,"model":"claude-opus-5-5","choices":[{"index":0,"delta":{"role":"assistant","content":"recovered"},"finish_reason":null}]}`+"\n\n")
-	_, _ = io.WriteString(w, `data: {"id":"chatcmpl-rescue","object":"chat.completion.chunk","created":1,"model":"claude-opus-5-5","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":5,"completion_tokens":1}}`+"\n\n")
+	_, _ = io.WriteString(w, `data: {"id":"chatcmpl-rescue","object":"chat.completion.chunk","created":1,"model":"z-ai/glm-5.2","choices":[{"index":0,"delta":{"role":"assistant","content":"recovered"},"finish_reason":null}]}`+"\n\n")
+	_, _ = io.WriteString(w, `data: {"id":"chatcmpl-rescue","object":"chat.completion.chunk","created":1,"model":"z-ai/glm-5.2","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":5,"completion_tokens":1}}`+"\n\n")
 	_, _ = io.WriteString(w, "data: [DONE]\n\n")
 	return nil
 }
@@ -49,7 +49,7 @@ func TestHeldAutomaticPinCannotRescueOutsideHeldGatewayAliases(t *testing.T) {
 	ctx = context.WithValue(ctx, ExternalAPIKeysContextKey{}, []*auth.ExternalAPIKey{
 		gatewayKey(providers.ProviderAIAND, "https://gateway.example.com/v1", heldPinLunaModel),
 	})
-	body := []byte(`{"model":"claude-opus-4-8","stream":true,"messages":[{"role":"user","content":"continue"}]}`)
+	body := []byte(`{"model":"z-ai/glm-5.2","stream":true,"messages":[{"role":"user","content":"continue"}]}`)
 
 	err := svc.ProxyMessages(ctx, body, httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(string(body))))
 
@@ -63,7 +63,7 @@ func TestHeldAutomaticPinCannotRescueOutsideHeldGatewayAliases(t *testing.T) {
 func TestHeldAutomaticPinDoesNotReplayAfterOutputCommit(t *testing.T) {
 	svc, ctx, upstream := heldPinRescueFixture()
 	upstream.commitBeforeLunaFailure = true
-	body := []byte(`{"model":"claude-opus-4-8","stream":true,"messages":[{"role":"user","content":"continue"}]}`)
+	body := []byte(`{"model":"z-ai/glm-5.2","stream":true,"messages":[{"role":"user","content":"continue"}]}`)
 	rec := httptest.NewRecorder()
 
 	err := svc.ProxyMessages(ctx, body, rec, httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(string(body))))
@@ -105,7 +105,7 @@ func heldPinRescueFixture() (*Service, context.Context, *heldPinGatewayClient) {
 	upstream := &heldPinGatewayClient{}
 	svc := NewService(nil, map[string]providers.Client{
 		providers.ProviderAIAND: upstream,
-	}, nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil).
+	}, nil, false, nil, store, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 		WithPolicyStrategy(policy.StrategySpec{
 			Strategy: strategy,
 			Router:   policyRouter,
@@ -135,7 +135,7 @@ func TestHeldAutomaticGatewayPinRescuesToClaudeBeforeCommit(t *testing.T) {
 	} {
 		t.Run(ingress.name, func(t *testing.T) {
 			svc, ctx, upstream := heldPinRescueFixture()
-			body := []byte(`{"model":"claude-opus-4-8","stream":true,"messages":[{"role":"user","content":"continue"}],"metadata":{"user_id":"user_account__session_4dbee464-ebf7-437f-9f20-db5a6f7fe3b4"}}`)
+			body := []byte(`{"model":"z-ai/glm-5.2","stream":true,"messages":[{"role":"user","content":"continue"}],"metadata":{"user_id":"user_account__session_4dbee464-ebf7-437f-9f20-db5a6f7fe3b4"}}`)
 			rec := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, ingress.path, strings.NewReader(string(body)))
 			var err error

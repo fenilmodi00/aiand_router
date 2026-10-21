@@ -18,7 +18,7 @@ import (
 	"weave-os/router/internal/router/sessionpin"
 )
 
-const recoveryOpusModel = "claude-opus-5-5"
+const recoveryOpusModel = "z-ai/glm-5.2"
 
 func TestTwoModelGatewayRecoveryReadmitsStruckSibling(t *testing.T) {
 	primary := &failingClient{err: &providers.UpstreamErrorResponse{Status: http.StatusBadGateway}}

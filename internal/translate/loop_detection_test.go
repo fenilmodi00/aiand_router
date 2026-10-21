@@ -14,7 +14,7 @@ import (
 
 func TestAssistantToolCallSignatures_Anthropic(t *testing.T) {
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{"role": "user", "content": "do stuff"},
 			map[string]any{"role": "assistant", "content": []any{
@@ -49,7 +49,7 @@ func TestAssistantToolCallSignatures_SkipsEmptyNameEntries(t *testing.T) {
 	// every nameless entry to the same map key and false-positive loop signals.
 	// They must be ignored.
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{"role": "assistant", "content": []any{
 				map[string]any{"type": "tool_use", "id": "1", "name": "Read", "input": map[string]any{"path": "a"}},
@@ -78,7 +78,7 @@ func TestAssistantToolCallSignatures_SkipsEmptyInputEntries(t *testing.T) {
 	// each have distinct file paths. This is the bug
 	// observed against xiaomi/mimo-v2.5 on deepinfra in dev.
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{"role": "assistant", "content": []any{
 				map[string]any{"type": "tool_use", "id": "1", "name": "Read", "input": map[string]any{"file_path": "/a"}},
@@ -126,7 +126,7 @@ func TestAssistantToolCallSignatures_OpenAI_SkipsEmptyNameEntries(t *testing.T) 
 
 func TestAssistantToolCallSignatures_Anthropic_KeyOrderInvariant(t *testing.T) {
 	bodyA := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{"role": "assistant", "content": []any{
 				map[string]any{"type": "tool_use", "id": "1", "name": "x", "input": map[string]any{"a": 1, "b": 2}},
@@ -136,7 +136,7 @@ func TestAssistantToolCallSignatures_Anthropic_KeyOrderInvariant(t *testing.T) {
 	})
 	// Build the alternate form with the same keys in opposite order. We
 	// can't rely on json.Marshal ordering, so write the raw JSON directly.
-	bodyB := []byte(`{"model":"claude-sonnet-4-6","max_tokens":256,"messages":[{"role":"assistant","content":[{"type":"tool_use","id":"1","name":"x","input":{"b":2,"a":1}}]}]}`)
+	bodyB := []byte(`{"model":"deepseek/deepseek-v4.1-flash","max_tokens":256,"messages":[{"role":"assistant","content":[{"type":"tool_use","id":"1","name":"x","input":{"b":2,"a":1}}]}]}`)
 
 	envA, err := translate.ParseAnthropic(bodyA)
 	require.NoError(t, err)
@@ -185,7 +185,7 @@ func TestAssistantToolCallSignatures_OpenAI(t *testing.T) {
 
 func TestAssistantToolCallSignatures_EmptyAndNonAssistant(t *testing.T) {
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{"role": "user", "content": "hi"},
 			map[string]any{"role": "user", "content": []any{
@@ -204,7 +204,7 @@ func TestAssistantToolCallSignatures_IncludesRouterNudgeEntries(t *testing.T) {
 	// nudges retain the same signature for observability and cross-envelope
 	// progress tracking.
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{"role": "assistant", "content": []any{
 				map[string]any{"type": "tool_use", "id": "toolu_router_nudge_msg1", "name": "Bash", "input": map[string]any{
@@ -272,7 +272,7 @@ func TestAssistantToolCallArgsPreview_AlignsWithSignatures_Anthropic(t *testing.
 		)
 	}
 	body := mustMarshalJSON(t, map[string]any{
-		"model":      "claude-sonnet-4-6",
+		"model":      "deepseek/deepseek-v4.1-flash",
 		"messages":   []any{map[string]any{"role": "assistant", "content": content}},
 		"max_tokens": 256,
 	})
@@ -321,7 +321,7 @@ func TestAssistantToolCallSignatures_UserTextResetsLoop(t *testing.T) {
 	// If the user explicitly sends a text message, it breaks loop-signal
 	// tracking by resetting the tool call history.
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6",
+		"model": "deepseek/deepseek-v4.1-flash",
 		"messages": []any{
 			map[string]any{"role": "user", "content": "do stuff"},
 			map[string]any{"role": "assistant", "content": []any{
@@ -366,7 +366,7 @@ func TestAssistantToolCallSignatures_InjectedTextDoesNotResetLoop(t *testing.T) 
 		)
 	}
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "claude-sonnet-4-6", "messages": msgs, "max_tokens": 256,
+		"model": "deepseek/deepseek-v4.1-flash", "messages": msgs, "max_tokens": 256,
 	})
 	env, err := translate.ParseAnthropic(body)
 	require.NoError(t, err)

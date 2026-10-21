@@ -87,9 +87,9 @@ func TestForceParentDoesNotOverrideChildCompaction(t *testing.T) {
 	const apiKeyID = "parent-compaction-key"
 	installationID := uuid.New()
 	ctx := context.WithValue(context.Background(), ClientIdentityContextKey{}, ClientIdentity{SessionID: "parent-compaction-session"})
-	parent, err := translate.ParseAnthropic([]byte(`{"model":"claude-sonnet-4-6","max_tokens":4096,"messages":[{"role":"user","content":"Implement the parser"}]}`))
+	parent, err := translate.ParseAnthropic([]byte(`{"model":"deepseek/deepseek-v4.1-flash","max_tokens":4096,"messages":[{"role":"user","content":"Implement the parser"}]}`))
 	require.NoError(t, err)
-	compaction, err := translate.ParseAnthropic([]byte(`{"model":"claude-sonnet-4-6","max_tokens":4096,"messages":[{"role":"user","content":"Implement the parser"},{"role":"assistant","content":"Inspecting the source"},{"role":"user","content":"Your task is to create a detailed summary. Do not call any tools."}]}`))
+	compaction, err := translate.ParseAnthropic([]byte(`{"model":"deepseek/deepseek-v4.1-flash","max_tokens":4096,"messages":[{"role":"user","content":"Implement the parser"},{"role":"assistant","content":"Inspecting the source"},{"role":"user","content":"Your task is to create a detailed summary. Do not call any tools."}]}`))
 	require.NoError(t, err)
 	store := newForceModelMapStore()
 	svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAIAND, catalog.ModelIDGLM53.String(), nil).WithCompactionHardPin(true)

@@ -49,18 +49,18 @@ func TestCustomBindingsFromKeys_ProvidersAreOrdered(t *testing.T) {
 		{
 			Provider:     providers.ProviderAIAND,
 			Plaintext:    []byte("pat"),
-			ModelAliases: map[string]string{"claude-sonnet-4-5": "claude-sonnet-4-5"},
+			ModelAliases: map[string]string{"deepseek/deepseek-v4.1-flash": "deepseek/deepseek-v4.1-flash"},
 		},
 		{
 			Provider:     providers.ProviderAIAND,
 			Plaintext:    []byte("pat"),
-			ModelAliases: map[string]string{"claude-sonnet-4-5": "claude-sonnet-4-5"},
+			ModelAliases: map[string]string{"deepseek/deepseek-v4.1-flash": "deepseek/deepseek-v4.1-flash"},
 		},
 	}
 
 	assert.Equal(t,
 		[]string{providers.ProviderAIAND, providers.ProviderAIAND},
-		customBindingsFromKeys(keys)["claude-sonnet-4-5"])
+		customBindingsFromKeys(keys)["deepseek/deepseek-v4.1-flash"])
 }
 
 // TestGatewayProvidersFromKeys_OnlyUsableGateways: the gateway set switches the

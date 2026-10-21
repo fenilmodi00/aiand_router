@@ -64,10 +64,10 @@ func TestAnthropicToolNameWriterProgressArmingFallsBackWhenUnsupported(t *testin
 
 func TestAnthropicToolNameRoundTrip(t *testing.T) {
 	name := strings.Repeat("x", 129)
-	body := []byte(fmt.Sprintf(`{"model":"claude-sonnet-5-5","max_tokens":1024,"tools":[{"name":%q,"input_schema":{"type":"object"}}],"messages":[{"role":"user","content":"hello"}]}`, name))
+	body := []byte(fmt.Sprintf(`{"model":"deepseek/deepseek-v4-pro","max_tokens":1024,"tools":[{"name":%q,"input_schema":{"type":"object"}}],"messages":[{"role":"user","content":"hello"}]}`, name))
 	env, err := translate.ParseAnthropic(body)
 	require.NoError(t, err)
-	prep, err := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "claude-sonnet-5-5"})
+	prep, err := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "deepseek/deepseek-v4-pro"})
 	require.NoError(t, err)
 	alias := gjson.GetBytes(prep.Body, "tools.0.name").String()
 	require.NotEqual(t, name, alias)

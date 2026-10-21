@@ -12,10 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const contextManagementBody = `{"model":"claude-sonnet-5","max_tokens":1024,"messages":[{"role":"user","content":"hi"}],"context_management":{"edits":[{"type":"clear_thinking_20251015","keep":"all"}]}}`
+const contextManagementBody = `{"model":"deepseek/deepseek-v4-pro","max_tokens":1024,"messages":[{"role":"user","content":"hi"}],"context_management":{"edits":[{"type":"clear_thinking_20251015","keep":"all"}]}}`
 
 func TestContextManagement_InjectsRequiredBeta(t *testing.T) {
-	for _, target := range []string{"claude-fable-5", "claude-opus-4-8"} {
+	for _, target := range []string{"z-ai/glm-5.2", "z-ai/glm-5.2"} {
 		t.Run(target, func(t *testing.T) {
 			env, err := translate.ParseAnthropic([]byte(contextManagementBody))
 			require.NoError(t, err)
@@ -43,8 +43,8 @@ func TestContextManagement_DedupesClientBeta(t *testing.T) {
 	in.Set("anthropic-beta", "context-management-2025-06-27")
 
 	prep, err := env.PrepareAnthropic(in, translate.EmitOptions{
-		TargetModel:  "claude-opus-4-8",
-		Capabilities: router.Lookup("claude-opus-4-8"),
+		TargetModel:  "z-ai/glm-5.2",
+		Capabilities: router.Lookup("z-ai/glm-5.2"),
 	})
 
 	require.NoError(t, err)
@@ -52,12 +52,12 @@ func TestContextManagement_DedupesClientBeta(t *testing.T) {
 }
 
 func TestContextManagement_AbsentDoesNotInjectBeta(t *testing.T) {
-	env, err := translate.ParseAnthropic([]byte(`{"model":"claude-opus-4-8","max_tokens":1024,"messages":[{"role":"user","content":"hi"}]}`))
+	env, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.2","max_tokens":1024,"messages":[{"role":"user","content":"hi"}]}`))
 	require.NoError(t, err)
 
 	prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{
-		TargetModel:  "claude-opus-4-8",
-		Capabilities: router.Lookup("claude-opus-4-8"),
+		TargetModel:  "z-ai/glm-5.2",
+		Capabilities: router.Lookup("z-ai/glm-5.2"),
 	})
 
 	require.NoError(t, err)

@@ -25,7 +25,7 @@ import (
 const classifierTestSubToken = "sk-ant-oat01-classifier-subscription-token"
 
 func TestClassifierPassthroughEngaged(t *testing.T) {
-	const claude = "claude-sonnet-4-6"
+	const claude = "deepseek/deepseek-v4.1-flash"
 	subCtx := context.WithValue(context.Background(), AnthropicSubscriptionContextKey{}, classifierTestSubToken)
 	observerAt := func(snap usage.Snapshot) *usage.Observer {
 		obs := usage.NewObserver([]byte("salt"), 10*time.Minute, time.Now)
@@ -126,7 +126,7 @@ func TestClassifierPassthroughEngaged(t *testing.T) {
 // satisfies the opt-in usage-bypass gate is still attributed to the classifier
 // lane (checked first) so telemetry can tell the two apart.
 func TestUsageBypassDecision_ClassifierLaneOutranksUsageBypass(t *testing.T) {
-	const model = "claude-sonnet-4-6"
+	const model = "deepseek/deepseek-v4.1-flash"
 	threshold := 0.80
 	obs := usage.NewObserver([]byte("salt"), 10*time.Minute, time.Now)
 	obs.Record(obs.Key([]byte(classifierTestSubToken)), usage.Snapshot{
@@ -154,16 +154,16 @@ func TestUsageBypassDecision_ClassifierLaneOutranksUsageBypass(t *testing.T) {
 }
 
 func TestRunTurnLoop_ClassifierPassthrough_NoSessionState(t *testing.T) {
-	env, err := translate.ParseAnthropic([]byte(`{"model":"claude-haiku-4-5","max_tokens":5,"messages":[{"role":"user","content":"hello"}]}`))
+	env, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.3-flash","max_tokens":5,"messages":[{"role":"user","content":"hello"}]}`))
 	require.NoError(t, err)
 	feats := env.RoutingFeatures(false)
 	store := newStubPinStore()
 	store.getFound = true
 	store.getPin = sessionpin.Pin{Provider: providers.ProviderAIAND, Model: "gpt-5.5", Reason: "cluster", PinnedUntil: time.Now().Add(time.Hour)}
-	svc := NewService(&betaTestRouter{}, map[string]providers.Client{providers.ProviderAIAND: &bypassFakeProvider{}}, nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil).
+	svc := NewService(&betaTestRouter{}, map[string]providers.Client{providers.ProviderAIAND: &bypassFakeProvider{}}, nil, false, nil, store, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 		WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyLLMClassifier, Router: &betaTestRouter{}})
 	ctx := context.WithValue(context.Background(), AnthropicSubscriptionContextKey{}, classifierTestSubToken)
-	ctx = context.WithValue(ctx, InstallationSubscriptionModelsWhenActiveContextKey{}, []string{"claude-sonnet-4-6"})
+	ctx = context.WithValue(ctx, InstallationSubscriptionModelsWhenActiveContextKey{}, []string{"deepseek/deepseek-v4.1-flash"})
 	var zeroKey [sessionpin.SessionKeyLen]byte
 
 	res, err := svc.runTurnLoop(ctx, env, feats, "api-key", uuid.New(), "", http.Header{}, router.Request{RequestedModel: feats.Model})
@@ -178,18 +178,18 @@ func TestRunTurnLoop_ClassifierPassthrough_NoSessionState(t *testing.T) {
 }
 
 func TestRunTurnLoop_ClassifierForceModel_OutranksPassthrough(t *testing.T) {
-	env, err := translate.ParseAnthropic([]byte(`{"model":"claude-haiku-4-5","max_tokens":5,"messages":[{"role":"user","content":"hello"}]}`))
+	env, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.3-flash","max_tokens":5,"messages":[{"role":"user","content":"hello"}]}`))
 	require.NoError(t, err)
 	feats := env.RoutingFeatures(false)
-	svc := NewService(nil, map[string]providers.Client{providers.ProviderAIAND: &bypassFakeProvider{}}, nil, false, nil, newStubPinStore(), false, providers.ProviderAIAND, "claude-haiku-4-5", nil)
+	svc := NewService(nil, map[string]providers.Client{providers.ProviderAIAND: &bypassFakeProvider{}}, nil, false, nil, newStubPinStore(), false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil)
 	ctx := context.WithValue(context.Background(), AnthropicSubscriptionContextKey{}, classifierTestSubToken)
 
-	res, err := svc.runTurnLoop(ctx, env, feats, "api-key", uuid.New(), "", http.Header{}, router.Request{RequestedModel: feats.Model, ForceModel: "claude-sonnet-5"})
+	res, err := svc.runTurnLoop(ctx, env, feats, "api-key", uuid.New(), "", http.Header{}, router.Request{RequestedModel: feats.Model, ForceModel: "deepseek/deepseek-v4-pro"})
 
 	require.NoError(t, err)
 	assert.False(t, res.UsageBypass)
 	assert.Equal(t, translate.ReasonUserForceModel, res.Decision.Reason)
-	assert.Equal(t, "claude-sonnet-5", res.Decision.Model)
+	assert.Equal(t, "deepseek/deepseek-v4-pro", res.Decision.Model)
 }
 
 // The telemetry row for a passthrough classifier carries the lane's own
@@ -202,7 +202,7 @@ func TestBypass_ClassifierPassthrough_TelemetryReason(t *testing.T) {
 	sink := newBypassCaptureTelemetry()
 	svc.telemetry = sink
 
-	env, err := translate.ParseAnthropic([]byte(`{"model":"claude-haiku-4-5","max_tokens":5,"messages":[{"role":"user","content":"hello"}]}`))
+	env, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.3-flash","max_tokens":5,"messages":[{"role":"user","content":"hello"}]}`))
 	require.NoError(t, err)
 	feats := env.RoutingFeatures(false)
 	rec := httptest.NewRecorder()

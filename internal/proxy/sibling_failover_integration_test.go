@@ -33,13 +33,13 @@ const overloadedSSE = "event: error\ndata: {\"type\":\"error\",\"error\":{\"type
 func siblingClusterDecision(reason string) router.Decision {
 	return router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "claude-opus-4-8",
+		Model:    "z-ai/glm-5.2",
 		Reason:   reason,
 		Metadata: &router.RoutingMetadata{
 			PolicyGroup:     "cluster-7",
-			CandidateModels: []string{"claude-opus-4-8", "deepseek/deepseek-v4-pro"},
+			CandidateModels: []string{"z-ai/glm-5.2", "deepseek/deepseek-v4-pro"},
 			CandidateProviders: map[string]string{
-				"claude-opus-4-8":          providers.ProviderAIAND,
+				"z-ai/glm-5.2":             providers.ProviderAIAND,
 				"deepseek/deepseek-v4-pro": providers.ProviderAIAND,
 			},
 		},
@@ -95,14 +95,14 @@ func TestProxyMessages_OverloadedModelDegradesToSameClusterCandidate(t *testing.
 		map[string]providers.Client{
 			providers.ProviderAIAND: openaicompat.NewClient("test-anthropic-key", anthropicUpstream.URL),
 		},
-		nil, false, nil, store, false, providers.ProviderAIAND, "claude-haiku-4-5", newCaptureTelemetry(),
+		nil, false, nil, store, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", newCaptureTelemetry(),
 	).WithDeploymentKeyedProviders(map[string]struct{}{
 		providers.ProviderAIAND: {},
 	}).WithRetrySleep(noRetrySleep)
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
-	body := []byte(`{"model":"claude-opus-4-8","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
+	body := []byte(`{"model":"z-ai/glm-5.2","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
 
 	err := svc.ProxyMessages(authedCtx("11111111-1111-1111-1111-111111111111"), body, rec, req)
 	require.NoError(t, err, "ProxyMessages should succeed via the same-cluster candidate")
@@ -167,15 +167,15 @@ func newRankedRescueFixture(t *testing.T) *rankedRescueFixture {
 
 	decision := router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "claude-opus-4-8",
+		Model:    "z-ai/glm-5.2",
 		Metadata: &router.RoutingMetadata{
 			PolicyGroup:    "medium",
 			RosterFailover: true,
 			// The scored pool lists deepseek first; the ranked fallback puts kimi ahead of it.
-			CandidateModels: []string{"deepseek/deepseek-v4-pro", "moonshotai/kimi-k2.6", "claude-opus-4-8"},
-			RescueModels:    []string{"claude-opus-4-8", "moonshotai/kimi-k2.6", "deepseek/deepseek-v4-pro"},
+			CandidateModels: []string{"deepseek/deepseek-v4-pro", "moonshotai/kimi-k2.6", "z-ai/glm-5.2"},
+			RescueModels:    []string{"z-ai/glm-5.2", "moonshotai/kimi-k2.6", "deepseek/deepseek-v4-pro"},
 			CandidateProviders: map[string]string{
-				"claude-opus-4-8":          providers.ProviderAIAND,
+				"z-ai/glm-5.2":             providers.ProviderAIAND,
 				"moonshotai/kimi-k2.6":     providers.ProviderAIAND,
 				"deepseek/deepseek-v4-pro": providers.ProviderAIAND,
 			},
@@ -186,7 +186,7 @@ func newRankedRescueFixture(t *testing.T) *rankedRescueFixture {
 		map[string]providers.Client{
 			providers.ProviderAIAND: openaicompat.NewClient("test-anthropic-key", anthropicUpstream.URL),
 		},
-		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+		nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
 		providers.ProviderAIAND: {},
 	}).WithRetrySleep(noRetrySleep)
@@ -213,7 +213,7 @@ func TestProxyMessages_FailedRescuerHandsOffToNextRankedCandidate(t *testing.T) 
 	f := newRankedRescueFixture(t)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
-	body := []byte(`{"model":"claude-opus-4-8","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
+	body := []byte(`{"model":"z-ai/glm-5.2","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
 
 	err := f.svc.ProxyMessages(authedCtx("11111111-1111-1111-1111-111111111111"), body, rec, req)
 	require.NoError(t, err, "the second ranked candidate serves the turn")
@@ -225,7 +225,7 @@ func TestProxyMessages_FailedRescuerHandsOffToNextRankedCandidate(t *testing.T) 
 func TestProxyOpenAIChatCompletion_FailedRescuerHandsOffToNextRankedCandidate(t *testing.T) {
 	f := newRankedRescueFixture(t)
 	rec := httptest.NewRecorder()
-	body := []byte(`{"model":"claude-opus-4-8","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
+	body := []byte(`{"model":"z-ai/glm-5.2","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
 	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(string(body)))
 
 	err := f.svc.ProxyOpenAIChatCompletion(authedCtx("11111111-1111-1111-1111-111111111111"), body, rec, req)
@@ -265,14 +265,14 @@ func TestProxyMessages_OverloadAfterCommitKeepsServingModel(t *testing.T) {
 		map[string]providers.Client{
 			providers.ProviderAIAND: openaicompat.NewClient("test-anthropic-key", anthropicUpstream.URL),
 		},
-		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+		nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
 		providers.ProviderAIAND: {},
 	}).WithRetrySleep(noRetrySleep)
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
-	body := []byte(`{"model":"claude-opus-4-8","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
+	body := []byte(`{"model":"z-ai/glm-5.2","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
 
 	_ = svc.ProxyMessages(authedCtx("11111111-1111-1111-1111-111111111111"), body, rec, req)
 
@@ -280,7 +280,7 @@ func TestProxyMessages_OverloadAfterCommitKeepsServingModel(t *testing.T) {
 	defer mu.Unlock()
 	assert.Zero(t, fireworksCount, "no model switch once the response is committed")
 	assert.Contains(t, rec.Body.String(), "partial", "the committed stream is preserved")
-	assert.Equal(t, "claude-opus-4-8", rec.Header().Get(proxy.HeaderRouterModel))
+	assert.Equal(t, "z-ai/glm-5.2", rec.Header().Get(proxy.HeaderRouterModel))
 }
 
 // TestProxyMessages_ForceModelOverloadDoesNotDegrade: an explicit /force-model
@@ -311,14 +311,14 @@ func TestProxyMessages_ForceModelOverloadDoesNotDegrade(t *testing.T) {
 		map[string]providers.Client{
 			providers.ProviderAIAND: openaicompat.NewClient("test-anthropic-key", anthropicUpstream.URL),
 		},
-		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+		nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
 		providers.ProviderAIAND: {},
 	}).WithRetrySleep(noRetrySleep)
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
-	body := []byte(`{"model":"claude-opus-4-8","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
+	body := []byte(`{"model":"z-ai/glm-5.2","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
 
 	err := svc.ProxyMessages(authedCtx("11111111-1111-1111-1111-111111111111"), body, rec, req)
 
@@ -348,19 +348,19 @@ func TestProxyMessages_OverloadWithoutCandidatesSurfacesUpstreamError(t *testing
 	svc := proxy.NewService(
 		&fakeRouter{decision: router.Decision{
 			Provider: providers.ProviderAIAND,
-			Model:    "claude-opus-4-8",
-			Metadata: &router.RoutingMetadata{CandidateModels: []string{"claude-opus-4-8"}},
+			Model:    "z-ai/glm-5.2",
+			Metadata: &router.RoutingMetadata{CandidateModels: []string{"z-ai/glm-5.2"}},
 		}},
 		map[string]providers.Client{
 			providers.ProviderAIAND: openaicompat.NewClient("test-anthropic-key", anthropicUpstream.URL),
 		},
-		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+		nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}}).
 		WithRetrySleep(noRetrySleep)
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
-	body := []byte(`{"model":"claude-opus-4-8","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
+	body := []byte(`{"model":"z-ai/glm-5.2","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
 
 	err := svc.ProxyMessages(authedCtx("11111111-1111-1111-1111-111111111111"), body, rec, req)
 	require.Error(t, err, "no candidate to degrade to, so the overload surfaces")
@@ -418,7 +418,7 @@ func TestProxyMessages_SubscriptionOverloadSurfacesOnceAfterRetry(t *testing.T) 
 		map[string]providers.Client{
 			providers.ProviderAIAND: openaicompat.NewClient("test-anthropic-key", anthropicUpstream.URL),
 		},
-		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+		nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{
 		providers.ProviderAIAND: {},
 	}).WithRetrySleep(noRetrySleep).
@@ -431,7 +431,7 @@ func TestProxyMessages_SubscriptionOverloadSurfacesOnceAfterRetry(t *testing.T) 
 	)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
-	body := []byte(`{"model":"claude-opus-4-8","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
+	body := []byte(`{"model":"z-ai/glm-5.2","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
 
 	err := svc.ProxyMessages(ctx, body, rec, req)
 	require.Error(t, err, "a customer-credentialed turn has nowhere to degrade to")

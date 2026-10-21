@@ -69,7 +69,7 @@ func TestRequestKeyDistinguishesScenarios(t *testing.T) {
 // TestNormalizeRequestBodyLeavesOtherBodiesUntouched keeps the Anthropic
 // cassettes valid: a body with no volatile field must hash its exact bytes.
 func TestNormalizeRequestBodyLeavesOtherBodiesUntouched(t *testing.T) {
-	body := []byte(`{"model":"claude-sonnet-4-5","metadata":{"user_id":"smoke-basic"}}`)
+	body := []byte(`{"model":"deepseek/deepseek-v4.1-flash","metadata":{"user_id":"smoke-basic"}}`)
 	if got := string(normalizeRequestBody(body)); got != string(body) {
 		t.Errorf("body rewritten: %s", got)
 	}

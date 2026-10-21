@@ -31,7 +31,7 @@ func (r *flowSpanRouter) Route(ctx context.Context, _ router.Request) (router.De
 	}
 	return router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "claude-haiku-4-5",
+		Model:    "z-ai/glm-5.3-flash",
 		Reason:   "cluster",
 	}, nil
 }
@@ -69,13 +69,13 @@ func TestProxyMessagesEmitsHighLevelFlowSpans(t *testing.T) {
 		nil,
 		false,
 		providers.ProviderAIAND,
-		"claude-haiku-4-5",
+		"z-ai/glm-5.3-flash",
 		nil,
 	)
 
 	ctx, requestSpan := provider.Tracer("test").Start(context.Background(), "request")
 	ctx = context.WithValue(ctx, ClientIdentityContextKey{}, ClientIdentity{SessionID: "client-session-abc"})
-	body := []byte(`{"model":"claude-opus-4-8","max_tokens":4096,"tools":[{"name":"Read","input_schema":{"type":"object"}}],"messages":[{"role":"user","content":"inspect the repository"}]}`)
+	body := []byte(`{"model":"z-ai/glm-5.2","max_tokens":4096,"tools":[{"name":"Read","input_schema":{"type":"object"}}],"messages":[{"role":"user","content":"inspect the repository"}]}`)
 	err := svc.ProxyMessages(ctx, body, httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/v1/messages", nil))
 	requestSpan.End()
 	require.NoError(t, err)
@@ -90,8 +90,8 @@ func TestProxyMessagesEmitsHighLevelFlowSpans(t *testing.T) {
 	assert.Equal(t, codes.Ok, inference.Status().Code)
 	assert.Equal(t, "client-session-abc", proxySpanAttribute(t, routing.Attributes(), "client.session_id").AsString())
 	assert.Equal(t, "client-session-abc", proxySpanAttribute(t, inference.Attributes(), "client.session_id").AsString())
-	assert.Equal(t, "claude-opus-4-8", proxySpanAttribute(t, routing.Attributes(), "requested.model").AsString())
-	assert.Equal(t, "claude-haiku-4-5", proxySpanAttribute(t, routing.Attributes(), "decision.model").AsString())
+	assert.Equal(t, "z-ai/glm-5.2", proxySpanAttribute(t, routing.Attributes(), "requested.model").AsString())
+	assert.Equal(t, "z-ai/glm-5.3-flash", proxySpanAttribute(t, routing.Attributes(), "decision.model").AsString())
 	assert.Equal(t, providers.ProviderAIAND, proxySpanAttribute(t, inference.Attributes(), "served.provider").AsString())
 }
 

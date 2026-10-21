@@ -21,7 +21,7 @@ func TestProxyMessages_AnthropicToolAliasRoundTrip(t *testing.T) {
 	for _, stream := range []bool{false, true} {
 		t.Run(fmt.Sprint(stream), func(t *testing.T) {
 			upstream := &fakeProvider{proxyResponse: func(w http.ResponseWriter) {
-				response := fmt.Sprintf(`{"id":"msg_1","type":"message","role":"assistant","model":"claude-sonnet-5-5","content":[{"type":"tool_use","id":"call_next","name":%q,"input":{}}],"stop_reason":"tool_use","usage":{"input_tokens":100,"output_tokens":20}}`, alias)
+				response := fmt.Sprintf(`{"id":"msg_1","type":"message","role":"assistant","model":"deepseek/deepseek-v4-pro","content":[{"type":"tool_use","id":"call_next","name":%q,"input":{}}],"stop_reason":"tool_use","usage":{"input_tokens":100,"output_tokens":20}}`, alias)
 				if stream {
 					w.Header().Set("Content-Type", "text/event-stream")
 					response = "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\",\"role\":\"assistant\",\"model\":\"claude-sonnet-5-5\",\"content\":[],\"usage\":{\"input_tokens\":100}}}\n\n" +
@@ -35,9 +35,9 @@ func TestProxyMessages_AnthropicToolAliasRoundTrip(t *testing.T) {
 					_, _ = w.Write([]byte{b})
 				}
 			}}
-			decision := router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-5-5"}
-			svc := proxy.NewService(&fakeRouter{decision: decision}, map[string]providers.Client{providers.ProviderAIAND: upstream}, nil, false, nil, nil, false, providers.ProviderAIAND, "claude-sonnet-5-5", nil)
-			body := []byte(fmt.Sprintf(`{"model":"claude-sonnet-5-5","stream":%t,"max_tokens":1024,"tools":[{"name":"ToolSearch","input_schema":{"type":"object"}},{"name":%q,"defer_loading":true,"input_schema":{"type":"object"}}],"messages":[{"role":"user","content":"find a tool"},{"role":"assistant","content":[{"type":"tool_use","id":"search","name":"ToolSearch","input":{}}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"search","content":[{"type":"tool_reference","name":%q}]}]}]}`, stream, name, name))
+			decision := router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4-pro"}
+			svc := proxy.NewService(&fakeRouter{decision: decision}, map[string]providers.Client{providers.ProviderAIAND: upstream}, nil, false, nil, nil, false, providers.ProviderAIAND, "deepseek/deepseek-v4-pro", nil)
+			body := []byte(fmt.Sprintf(`{"model":"deepseek/deepseek-v4-pro","stream":%t,"max_tokens":1024,"tools":[{"name":"ToolSearch","input_schema":{"type":"object"}},{"name":%q,"defer_loading":true,"input_schema":{"type":"object"}}],"messages":[{"role":"user","content":"find a tool"},{"role":"assistant","content":[{"type":"tool_use","id":"search","name":"ToolSearch","input":{}}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"search","content":[{"type":"tool_reference","name":%q}]}]}]}`, stream, name, name))
 			sink := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 			require.NoError(t, svc.ProxyMessages(context.Background(), body, sink, req))

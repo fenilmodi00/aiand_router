@@ -50,7 +50,7 @@ func TestExplicitRoutingPolicyPrecedesClassifierAndPins(t *testing.T) {
 			require.NoError(t, err)
 			ctx, err = authService.WithRoutingAssignment(ctx, "installation", "user")
 			require.NoError(t, err)
-			envelope, err := translate.ParseAnthropic([]byte(`{"model":"claude-sonnet-4-6","messages":[{"role":"user","content":"hello"}]}`))
+			envelope, err := translate.ParseAnthropic([]byte(`{"model":"deepseek/deepseek-v4.1-flash","messages":[{"role":"user","content":"hello"}]}`))
 			require.NoError(t, err)
 			request := router.Request{RequestedModel: catalog.ModelIDGLM53.String(), EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}}}
 			turn, err := service.runTurnLoop(ctx, envelope, envelope.RoutingFeatures(false), "api-key", uuid.New(), "", http.Header{}, request)
@@ -105,7 +105,7 @@ func TestRoutingPolicyPreservesExplicitForcedModel(t *testing.T) {
 				if tc.excluded {
 					ctx = context.WithValue(ctx, InstallationExcludedModelsContextKey{}, []string{catalog.ModelIDGLM53Flash.String()})
 				}
-				envelope, err := translate.ParseAnthropic([]byte(`{"model":"claude-sonnet-4-6","messages":[{"role":"user","content":"hello"}]}`))
+				envelope, err := translate.ParseAnthropic([]byte(`{"model":"deepseek/deepseek-v4.1-flash","messages":[{"role":"user","content":"hello"}]}`))
 				require.NoError(t, err)
 				turn, err := service.runTurnLoop(ctx, envelope, envelope.RoutingFeatures(false), "api-key", uuid.New(), "", http.Header{}, router.Request{
 					RequestedModel: catalog.ModelIDGLM53.String(), ForceModel: forceModel, EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}},

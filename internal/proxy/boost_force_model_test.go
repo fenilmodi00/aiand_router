@@ -21,7 +21,7 @@ import (
 
 func TestBoostLinkedFirstHonorsForcedModel(t *testing.T) {
 	const astraModel = "gpt-6-astra"
-	const opusModel = "claude-opus-5"
+	const opusModel = "z-ai/glm-5.2"
 	for _, tc := range []struct {
 		name      string
 		model     string
@@ -58,7 +58,7 @@ func TestBoostLinkedFirstHonorsForcedModel(t *testing.T) {
 			if tc.responses {
 				body = `{"model":"gpt-6.1-sol","input":[{"role":"user","content":"Review this change."}],"stream":true}`
 			} else if tc.messages {
-				body = `{"model":"claude-opus-5","messages":[{"role":"user","content":"Review this change."}],"max_tokens":4096,"stream":true}`
+				body = `{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"Review this change."}],"max_tokens":4096,"stream":true}`
 			}
 			recorder, request := codexSubRequest(t, body)
 			if !tc.stored {

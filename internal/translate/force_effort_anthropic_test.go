@@ -25,37 +25,37 @@ func TestForceEffort_AnthropicOverrides(t *testing.T) {
 		{
 			name:    "low_overrides_high_on_opus_xhigh",
 			level:   "low",
-			target:  "claude-opus-4-8",
+			target:  "z-ai/glm-5.2",
 			wantEff: "low",
 		},
 		{
 			name:    "max_overrides_high_on_opus_xhigh",
 			level:   "max",
-			target:  "claude-opus-4-8",
+			target:  "z-ai/glm-5.2",
 			wantEff: "max",
 		},
 		{
 			name:    "xhigh_passes_on_capable",
 			level:   "xhigh",
-			target:  "claude-opus-4-8",
+			target:  "z-ai/glm-5.2",
 			wantEff: "xhigh",
 		},
 		{
 			name:    "xhigh_clamps_on_sonnet",
 			level:   "xhigh",
-			target:  "claude-sonnet-4-6",
+			target:  "deepseek/deepseek-v4.1-flash",
 			wantEff: "max",
 		},
 		{
 			name:    "ultra_alias_resolves_to_xhigh_pass",
 			level:   "ultra",
-			target:  "claude-opus-4-8",
+			target:  "z-ai/glm-5.2",
 			wantEff: "xhigh",
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			body := []byte(`{"model":"claude-opus-4-8","max_tokens":1024,"messages":[{"role":"user","content":"hi"}],"thinking":{"type":"enabled","budget_tokens":31999},"output_config":{"effort":"high"}}`)
+			body := []byte(`{"model":"z-ai/glm-5.2","max_tokens":1024,"messages":[{"role":"user","content":"hi"}],"thinking":{"type":"enabled","budget_tokens":31999},"output_config":{"effort":"high"}}`)
 			env, err := translate.ParseAnthropic(body)
 			require.NoError(t, err)
 			prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{
@@ -75,12 +75,12 @@ func TestForceEffort_AnthropicOverrides(t *testing.T) {
 }
 
 func TestForceEffort_AnthropicRemovesInboundTopLevelEffort(t *testing.T) {
-	body := []byte(`{"model":"claude-opus-5","max_tokens":1024,"messages":[{"role":"user","content":"hi"}],"thinking":{"type":"adaptive"},"effort":"high"}`)
+	body := []byte(`{"model":"z-ai/glm-5.2","max_tokens":1024,"messages":[{"role":"user","content":"hi"}],"thinking":{"type":"adaptive"},"effort":"high"}`)
 	env, err := translate.ParseAnthropic(body)
 	require.NoError(t, err)
 	prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{
-		TargetModel:  "claude-opus-5",
-		Capabilities: router.Lookup("claude-opus-5"),
+		TargetModel:  "z-ai/glm-5.2",
+		Capabilities: router.Lookup("z-ai/glm-5.2"),
 		ForceEffort:  "low",
 	})
 	require.NoError(t, err)
@@ -95,12 +95,12 @@ func TestForceEffort_AnthropicRemovesInboundTopLevelEffort(t *testing.T) {
 // TestForceEffort_AnthropicPassesThroughAlias verifies alias forms (e.g. ultra)
 // flow end-to-end from ForceEffort into the wire output_config.effort.
 func TestForceEffort_AnthropicPassesThroughAlias(t *testing.T) {
-	body := []byte(`{"model":"claude-opus-4-7","max_tokens":1024,"messages":[{"role":"user","content":"hi"}]}`)
+	body := []byte(`{"model":"z-ai/glm-5.2","max_tokens":1024,"messages":[{"role":"user","content":"hi"}]}`)
 	env, err := translate.ParseAnthropic(body)
 	require.NoError(t, err)
 	prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{
-		TargetModel:  "claude-opus-4-7",
-		Capabilities: router.Lookup("claude-opus-4-7"),
+		TargetModel:  "z-ai/glm-5.2",
+		Capabilities: router.Lookup("z-ai/glm-5.2"),
 		ForceEffort:  "ultra", // aliases via CanonicalizeEffort to xhigh
 	})
 	require.NoError(t, err)
@@ -114,12 +114,12 @@ func TestForceEffort_AnthropicPassesThroughAlias(t *testing.T) {
 // TestForceEffort_NonAdaptiveTargetNoOp verifies ForceEffort is a no-op on
 // legacy extended-thinking targets (no output_config.effort knob).
 func TestForceEffort_NonAdaptiveTargetNoOp(t *testing.T) {
-	body := []byte(`{"model":"claude-sonnet-4-5","max_tokens":1024,"messages":[{"role":"user","content":"hi"}],"thinking":{"type":"enabled","budget_tokens":16384}}`)
+	body := []byte(`{"model":"deepseek/deepseek-v4.1-flash","max_tokens":1024,"messages":[{"role":"user","content":"hi"}],"thinking":{"type":"enabled","budget_tokens":16384}}`)
 	env, err := translate.ParseAnthropic(body)
 	require.NoError(t, err)
 	prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{
-		TargetModel:  "claude-sonnet-4-5",
-		Capabilities: router.Lookup("claude-sonnet-4-5"),
+		TargetModel:  "deepseek/deepseek-v4.1-flash",
+		Capabilities: router.Lookup("deepseek/deepseek-v4.1-flash"),
 		ForceEffort:  "low",
 	})
 	require.NoError(t, err)

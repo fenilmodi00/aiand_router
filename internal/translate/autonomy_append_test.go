@@ -14,7 +14,7 @@ import (
 // claudeCodeCachedSystemBody is the Claude Code system shape: billing header
 // block, then the big prompt block carrying the client's cache_control.
 const claudeCodeCachedSystemBody = `{
-	"model":"claude-opus-5",
+	"model":"z-ai/glm-5.2",
 	"system":[
 		{"type":"text","text":"x-anthropic-billing-header: cc_version=2.1.232; cc_entrypoint=sdk-cli"},
 		{"type":"text","text":"You are a Claude agent, built on Anthropic's Claude Agent SDK. By default transparently communicate the action and ask for confirmation before proceeding.","cache_control":{"type":"ephemeral"}}
@@ -28,9 +28,9 @@ func TestAutonomyAppend_AnthropicAppendsUncachedBlockAfterClientCacheControl(t *
 	env, err := translate.ParseAnthropic([]byte(claudeCodeCachedSystemBody))
 	require.NoError(t, err)
 
-	off, err := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "claude-opus-5"})
+	off, err := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "z-ai/glm-5.2"})
 	require.NoError(t, err)
-	on, err := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "claude-opus-5", AppendAutonomySystem: true})
+	on, err := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "z-ai/glm-5.2", AppendAutonomySystem: true})
 	require.NoError(t, err)
 
 	assert.False(t, strings.Contains(string(off.Body), "operating autonomously"), "flag off must not touch the prompt")
@@ -53,16 +53,16 @@ func TestAutonomyAppend_AnthropicAppendsUncachedBlockAfterClientCacheControl(t *
 
 func TestAutonomyAppend_AnthropicStringSystemAndAbsentSystem(t *testing.T) {
 	t.Run("string system is extended", func(t *testing.T) {
-		env, err := translate.ParseAnthropic([]byte(`{"model":"claude-opus-5","system":"You are Claude Code.","messages":[{"role":"user","content":"hi"}],"max_tokens":8}`))
+		env, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.2","system":"You are Claude Code.","messages":[{"role":"user","content":"hi"}],"max_tokens":8}`))
 		require.NoError(t, err)
-		on, err := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "claude-opus-5", AppendAutonomySystem: true})
+		on, err := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "z-ai/glm-5.2", AppendAutonomySystem: true})
 		require.NoError(t, err)
 		assert.Equal(t, "You are Claude Code.\n\n"+translate.AutonomySystemText, gjson.GetBytes(on.Body, "system").String())
 	})
 	t.Run("absent system is created", func(t *testing.T) {
-		env, err := translate.ParseAnthropic([]byte(`{"model":"claude-opus-5","messages":[{"role":"user","content":"hi"}],"max_tokens":8}`))
+		env, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"hi"}],"max_tokens":8}`))
 		require.NoError(t, err)
-		on, err := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "claude-opus-5", AppendAutonomySystem: true})
+		on, err := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "z-ai/glm-5.2", AppendAutonomySystem: true})
 		require.NoError(t, err)
 		assert.Equal(t, translate.AutonomySystemText, gjson.GetBytes(on.Body, "system").String())
 	})
@@ -115,11 +115,11 @@ func TestAutonomyAppend_HasAutonomySystemText(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, plain.HasAutonomySystemText())
 
-	ccInjected, err := translate.ParseAnthropic([]byte(`{"model":"claude-opus-5","system":[{"type":"text","text":"You are Claude Code."},{"type":"text","text":"You are Operating Autonomously. The user is not watching."}],"messages":[{"role":"user","content":"hi"}],"max_tokens":8}`))
+	ccInjected, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.2","system":[{"type":"text","text":"You are Claude Code."},{"type":"text","text":"You are Operating Autonomously. The user is not watching."}],"messages":[{"role":"user","content":"hi"}],"max_tokens":8}`))
 	require.NoError(t, err)
 	assert.True(t, ccInjected.HasAutonomySystemText(), "match is case-insensitive on the marker phrase")
 
-	appended, err := plain.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "claude-opus-5", AppendAutonomySystem: true})
+	appended, err := plain.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "z-ai/glm-5.2", AppendAutonomySystem: true})
 	require.NoError(t, err)
 	reparsed, err := translate.ParseAnthropic(appended.Body)
 	require.NoError(t, err)

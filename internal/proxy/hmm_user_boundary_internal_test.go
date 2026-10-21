@@ -42,12 +42,12 @@ func unscorableHMMService(store sessionpin.Store, sidecarFailure error) *Service
 		map[string]struct{}{providers.ProviderAIAND: {}})
 	policyRouter.WithArmSelector(selection.Selector(roster))
 	return NewService(nil, map[string]providers.Client{providers.ProviderAIAND: nil}, nil, false, nil,
-		store, false, providers.ProviderAIAND, "claude-haiku-4-5", nil).
+		store, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 		WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyHMMEmbedding, Router: policyRouter})
 }
 
 func TestHMMCommandOnlyTurnUsesEligibleRosterFallback(t *testing.T) {
-	const request = `{"model":"claude-opus-4-8","messages":[{"role":"user","content":[{"type":"text","text":"<system-reminder>injected context</system-reminder>"},{"type":"text","text":"<command-name>local command</command-name>"},{"type":"text","text":"<local-command-stdout>local output</local-command-stdout>"}]}]}`
+	const request = `{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":[{"type":"text","text":"<system-reminder>injected context</system-reminder>"},{"type":"text","text":"<command-name>local command</command-name>"},{"type":"text","text":"<local-command-stdout>local output</local-command-stdout>"}]}]}`
 	env, err := translate.ParseAnthropic([]byte(request))
 	require.NoError(t, err)
 	features := env.RoutingFeatures(false)
@@ -63,7 +63,7 @@ func TestHMMCommandOnlyTurnUsesEligibleRosterFallback(t *testing.T) {
 	}
 	turn, err := svc.runTurnLoop(ctx, env, features, "api-key", uuid.New(), "", http.Header{}, requestForRouting)
 	require.NoError(t, err)
-	assert.Equal(t, "claude-haiku-4-5", turn.Decision.Model)
+	assert.Equal(t, "z-ai/glm-5.3-flash", turn.Decision.Model)
 	assert.Equal(t, providers.ProviderAIAND, turn.Decision.Provider)
 	assert.Equal(t, policy.UnscorableHMMDecisionReason, turn.Decision.Reason)
 	assert.Equal(t, turn.Decision, turn.Fresh)
@@ -76,7 +76,7 @@ func TestHMMCommandOnlyTurnUsesEligibleRosterFallback(t *testing.T) {
 }
 
 func TestHMMCommandOnlyTurnUsesAdmittedRuntimeFallback(t *testing.T) {
-	const requestBody = `{"model":"claude-opus-4-8","messages":[{"role":"user","content":[{"type":"text","text":"<command-name>local command</command-name>"}]}]}`
+	const requestBody = `{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":[{"type":"text","text":"<command-name>local command</command-name>"}]}]}`
 	env, err := translate.ParseAnthropic([]byte(requestBody))
 	require.NoError(t, err)
 	features := env.RoutingFeatures(false)
@@ -89,7 +89,7 @@ func TestHMMCommandOnlyTurnUsesAdmittedRuntimeFallback(t *testing.T) {
 	}}
 	admittedRouter := policyregistry.NewAdmittedRouter(router.StrategyHMMEmbedding, snapshot)
 	service := NewService(nil, map[string]providers.Client{providers.ProviderAIAND: nil}, nil, false, nil,
-		nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil).
+		nil, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 		WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyHMMEmbedding, Router: admittedRouter})
 	ctx := policyregistry.WithServingSnapshot(
 		router.WithStrategy(context.Background(), router.StrategyHMMEmbedding),
@@ -103,19 +103,19 @@ func TestHMMCommandOnlyTurnUsesAdmittedRuntimeFallback(t *testing.T) {
 
 	decision, err := service.routeWithStrategy(ctx, router.StrategyHMMEmbedding, requestForRouting)
 	require.NoError(t, err)
-	assert.Equal(t, "claude-haiku-4-5", decision.Model)
+	assert.Equal(t, "z-ai/glm-5.3-flash", decision.Model)
 	assert.Equal(t, policy.UnscorableHMMDecisionReason, decision.Reason)
 }
 
 func TestHMMCommandOnlyTurnHonorsEligibilityAndPolicyPin(t *testing.T) {
 	svc := unscorableHMMService(nil, errors.New("sidecar unavailable"))
 	ctx := router.WithStrategy(context.Background(), router.StrategyHMMEmbedding)
-	request := router.Request{RequestedModel: "claude-opus-5-5", ConversationMessages: []router.ConversationMessage{}}
+	request := router.Request{RequestedModel: "z-ai/glm-5.2", ConversationMessages: []router.ConversationMessage{}}
 
-	request.ExcludedModels = map[string]struct{}{"claude-opus-5-5": {}}
+	request.ExcludedModels = map[string]struct{}{"z-ai/glm-5.2": {}}
 	decision, err := svc.routeWithStrategy(ctx, router.StrategyHMMEmbedding, request)
 	require.NoError(t, err)
-	assert.Equal(t, "claude-haiku-4-5", decision.Model)
+	assert.Equal(t, "z-ai/glm-5.3-flash", decision.Model)
 
 	request.ExcludedModels = nil
 	request.EnabledProviders = map[string]struct{}{providers.ProviderAIAND: {}}
@@ -132,33 +132,33 @@ func TestHMMCommandOnlyTurnHonorsEligibilityAndPolicyPin(t *testing.T) {
 func TestHMMCommandOnlyTurnUsesPromotedRosterAndAutomaticExclusions(t *testing.T) {
 	svc := unscorableHMMService(nil, errors.New("must not call sidecar"))
 	ctx := router.WithStrategy(context.Background(), router.StrategyHMMEmbedding)
-	req := router.Request{RequestedModel: "claude-opus-4-8", ConversationMessages: []router.ConversationMessage{}}
+	req := router.Request{RequestedModel: "z-ai/glm-5.2", ConversationMessages: []router.ConversationMessage{}}
 	decision, err := svc.routeWithStrategy(ctx, router.StrategyHMMEmbedding, req)
 	require.NoError(t, err)
-	assert.Equal(t, "claude-haiku-4-5", decision.Model, "a catalog price does not admit a retired model to the serving roster")
+	assert.Equal(t, "z-ai/glm-5.3-flash", decision.Model, "a catalog price does not admit a retired model to the serving roster")
 
-	req.RequestedModel = "claude-opus-5-5"
-	req.AutomaticExcludedModels = map[string]struct{}{"claude-opus-5-5": {}}
+	req.RequestedModel = "z-ai/glm-5.2"
+	req.AutomaticExcludedModels = map[string]struct{}{"z-ai/glm-5.2": {}}
 	decision, err = svc.routeWithStrategy(ctx, router.StrategyHMMEmbedding, req)
 	require.NoError(t, err)
-	assert.NotEqual(t, "claude-opus-5-5", decision.Model)
+	assert.NotEqual(t, "z-ai/glm-5.2", decision.Model)
 }
 
 func TestHMMCommandOnlyEscalationRespectsSessionFloor(t *testing.T) {
 	svc := unscorableHMMService(nil, errors.New("must not call sidecar"))
 	ctx := router.WithStrategy(context.Background(), router.StrategyHMMEmbedding)
 	req := router.Request{
-		RequestedModel:       "claude-haiku-4-5",
+		RequestedModel:       "z-ai/glm-5.3-flash",
 		ConversationMessages: []router.ConversationMessage{},
 		PreviousPolicyGroup:  escalation.High,
 		Escalation:           &escalation.Constraint{Floor: escalation.Medium},
 	}
 	decision, err := svc.routeWithStrategy(ctx, router.StrategyHMMEmbedding, req)
 	require.NoError(t, err)
-	assert.Equal(t, "claude-opus-5-5", decision.Model)
+	assert.Equal(t, "z-ai/glm-5.2", decision.Model)
 	assert.Equal(t, "maximum", decision.Metadata.PolicyGroup)
 
-	req.ExcludedModels = map[string]struct{}{"claude-opus-5-5": {}}
+	req.ExcludedModels = map[string]struct{}{"z-ai/glm-5.2": {}}
 	_, err = svc.routeWithStrategy(ctx, router.StrategyHMMEmbedding, req)
 	require.ErrorIs(t, err, policy.ErrNoEligibleArm)
 	require.ErrorIs(t, err, hmm.ErrHMMUnavailable)
@@ -177,16 +177,16 @@ func TestHMMCommandOnlyTurnHonorsForcedClusterAndKeyList(t *testing.T) {
 	svc := unscorableHMMService(nil, errors.New("must not call sidecar"))
 	ctx := router.WithStrategy(context.Background(), router.StrategyHMMEmbedding)
 	req := router.Request{
-		RequestedModel:       "claude-haiku-4-5",
+		RequestedModel:       "z-ai/glm-5.3-flash",
 		ConversationMessages: []router.ConversationMessage{},
 		ForceCluster:         "maximum",
-		ClusterArmOverrides:  map[string][]string{"maximum": {"claude-opus-5-5"}},
+		ClusterArmOverrides:  map[string][]string{"maximum": {"z-ai/glm-5.2"}},
 	}
 	decision, err := svc.routeWithStrategy(ctx, router.StrategyHMMEmbedding, req)
 	require.NoError(t, err)
-	assert.Equal(t, "claude-opus-5-5", decision.Model)
+	assert.Equal(t, "z-ai/glm-5.2", decision.Model)
 
-	req.ClusterArmOverrides["maximum"] = []string{"claude-opus-4-8"}
+	req.ClusterArmOverrides["maximum"] = []string{"z-ai/glm-5.2"}
 	_, err = svc.routeWithStrategy(ctx, router.StrategyHMMEmbedding, req)
 	require.ErrorIs(t, err, policy.ErrForcedClusterUnservable)
 	classified, matched := ClassifyDispatchError(err)
@@ -202,8 +202,8 @@ func TestHMMCommandOnlyTurnHonorsForcedClusterAndKeyList(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, classified.Status)
 
 	req.ForceCluster = "maximum"
-	req.ClusterArmOverrides = map[string][]string{"maximum": {"claude-opus-5-5"}}
-	req.ExcludedModels = map[string]struct{}{"claude-haiku-4-5": {}, "claude-sonnet-4-6": {}, "claude-opus-5-5": {}}
+	req.ClusterArmOverrides = map[string][]string{"maximum": {"z-ai/glm-5.2"}}
+	req.ExcludedModels = map[string]struct{}{"z-ai/glm-5.3-flash": {}, "deepseek/deepseek-v4.1-flash": {}, "z-ai/glm-5.2": {}}
 	_, err = svc.routeWithStrategy(ctx, router.StrategyHMMEmbedding, req)
 	require.ErrorIs(t, err, hmm.ErrHMMUnavailable)
 	require.NotErrorIs(t, err, policy.ErrForcedClusterUnservable)
@@ -213,14 +213,14 @@ func TestHMMCommandOnlyTurnHonorsForcedClusterAndKeyList(t *testing.T) {
 }
 
 func TestHMMCommandOnlyTurnKeepsEligibleSessionPin(t *testing.T) {
-	env, err := translate.ParseAnthropic([]byte(`{"model":"claude-opus-4-8","messages":[{"role":"user","content":[{"type":"text","text":"<command-name>local command</command-name>"}]}]}`))
+	env, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":[{"type":"text","text":"<command-name>local command</command-name>"}]}]}`))
 	require.NoError(t, err)
 	features := env.RoutingFeatures(false)
 	store := newStubPinStore()
 	store.getFound = true
 	store.getPin = sessionpin.Pin{
 		Provider:    providers.ProviderAIAND,
-		Model:       "claude-sonnet-4-6",
+		Model:       "deepseek/deepseek-v4.1-flash",
 		Reason:      "hmm_policy",
 		PinnedUntil: time.Now().Add(time.Hour),
 	}
@@ -229,7 +229,7 @@ func TestHMMCommandOnlyTurnKeepsEligibleSessionPin(t *testing.T) {
 	request := router.Request{RequestedModel: features.Model, ConversationMessages: conversationMessagesForRouting(env)}
 	turn, err := svc.runTurnLoop(ctx, env, features, "api-key", uuid.New(), "", http.Header{}, request)
 	require.NoError(t, err)
-	assert.Equal(t, "claude-sonnet-4-6", turn.Decision.Model)
+	assert.Equal(t, "deepseek/deepseek-v4.1-flash", turn.Decision.Model)
 	assert.Equal(t, unscorableHMMStickyReason, turn.Decision.Reason)
 	assert.True(t, turn.StickyHit)
 	store.mu.Lock()

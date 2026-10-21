@@ -255,7 +255,7 @@ func TestDispatchPlanned_LeaseFailureIsTerminal(t *testing.T) {
 	rec := httptest.NewRecorder()
 	buf := newPreludeBuffer(rec)
 	in := plannedInputs(rec, buf, []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}, {Provider: providers.ProviderAIAND}}, nil)
-	in.initialDecision.Model = "claude-opus-4-8"
+	in.initialDecision.Model = "z-ai/glm-5.2"
 	_, err := s.dispatchWithFallback(ctx, in)
 
 	require.ErrorIs(t, err, ErrSubscriptionPoolUnavailable)

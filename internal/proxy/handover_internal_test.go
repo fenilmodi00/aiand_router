@@ -86,7 +86,7 @@ func newTestSummarizer(t *testing.T, fake providers.Client, model string, timeou
 // system and a couple of message turns so buildHandoverRequestBody has
 // real content to flatten.
 const sampleConversation = `{
-  "model": "claude-opus-4-7",
+  "model": "z-ai/glm-5.2",
   "system": "You are a helpful assistant.",
   "messages": [
     {"role": "user", "content": "Step 1?"},
@@ -102,7 +102,7 @@ const canonicalAnthropicResponse = `{
   "id": "msg_test_001",
   "type": "message",
   "role": "assistant",
-  "model": "claude-haiku-4-5",
+  "model": "z-ai/glm-5.3-flash",
   "stop_reason": "end_turn",
   "content": [
     {"type": "text", "text": "Refactor in progress: step 1 done, step 2 pending."}
@@ -223,7 +223,7 @@ func TestProviderSummarizer_UnreviewedModelFailsBeforeIO(t *testing.T) {
 
 	fake := &fakeHandoverProvider{respBody: canonicalAnthropicResponse, respStatus: http.StatusOK}
 	// claude-opus-4-7 is deployed but not in the handover policy's reviewed set.
-	s := newTestSummarizer(t, fake, "claude-opus-4-7", 200*time.Millisecond)
+	s := newTestSummarizer(t, fake, "z-ai/glm-5.2", 200*time.Millisecond)
 
 	got, _, err := s.Summarize(context.Background(), env, router.Request{})
 	require.Error(t, err)

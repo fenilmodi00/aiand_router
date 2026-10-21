@@ -495,7 +495,7 @@ func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexDropsMarkerOn
 
 	env, err := translate.ParseOpenAI(converted.Body)
 	require.NoError(t, err)
-	prepared, err := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "claude-sonnet-4-6"})
+	prepared, err := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "deepseek/deepseek-v4.1-flash"})
 	require.NoError(t, err)
 	assert.NotContains(t, string(prepared.Body), `"type":"text","text":""`,
 		"Anthropic must not receive empty text content blocks")

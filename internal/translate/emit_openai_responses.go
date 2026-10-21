@@ -148,16 +148,16 @@ type ResponsesRoute struct {
 }
 
 // UseOpenAIResponsesAPI reports whether a dispatch should use POST
-// /v1/responses instead of /v1/chat/completions. Direct OpenAI uses Responses
-// for every turn it can express (chat/completions 400s reasoning + tools from
-// gpt-5.4 on; only Responses carries encrypted reasoning across turns).
-// Gateways keep the narrow rule — reasoning tool turns only — because most
-// mount no Responses surface; one without it is downgraded by the caller.
+// /v1/responses instead of /v1/chat/completions. The single upstream is an
+// OpenAI-compatible serverless surface, not the first-party OpenAI API: it
+// mounts /v1/responses only for the reasoning tool turn chat/completions
+// outright rejects, so the narrow rule applies. One without a Responses
+// surface is downgraded to chat/completions by the caller.
 func UseOpenAIResponsesAPI(rt ResponsesRoute) bool {
 	if rt.ChatOnlyParams {
 		return false
 	}
-	return rt.Broad || (rt.Capabilities.Supports(router.CapReasoning) && rt.HasTools)
+	return rt.Capabilities.Supports(router.CapReasoning) && rt.HasTools
 }
 
 // RequiresChatCompletionsParams reports whether the request asks for something

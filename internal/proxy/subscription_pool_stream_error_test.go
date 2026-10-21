@@ -31,11 +31,11 @@ func TestProxyMessages_ManagedPoolStreamingFailureLeavesRenderingToHandler(t *te
 	svc := NewService(
 		fixedRouter{decision: router.Decision{
 			Provider: providers.ProviderAIAND,
-			Model:    "claude-opus-4-8",
-			Metadata: &router.RoutingMetadata{CandidateModels: []string{"claude-opus-4-8"}},
+			Model:    "z-ai/glm-5.2",
+			Metadata: &router.RoutingMetadata{CandidateModels: []string{"z-ai/glm-5.2"}},
 		}},
 		map[string]providers.Client{providers.ProviderAIAND: anthropic},
-		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+		nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
 	).WithManagedSubscriptions(leaser).
 		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 
@@ -44,7 +44,7 @@ func TestProxyMessages_ManagedPoolStreamingFailureLeavesRenderingToHandler(t *te
 	ctx = billing.WithSubscriptionOnly(ctx, billing.SubscriptionOnlyCreditsDepleted)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
-	body := []byte(`{"model":"claude-opus-4-8","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
+	body := []byte(`{"model":"z-ai/glm-5.2","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
 
 	err := svc.ProxyMessages(ctx, body, rec, req)
 
@@ -72,11 +72,11 @@ func TestProxyMessages_ManagedPoolFailureBeforeAnyBytesLeavesRenderingToHandler(
 	svc := NewService(
 		fixedRouter{decision: router.Decision{
 			Provider: providers.ProviderAIAND,
-			Model:    "claude-opus-4-8",
-			Metadata: &router.RoutingMetadata{CandidateModels: []string{"claude-opus-4-8"}},
+			Model:    "z-ai/glm-5.2",
+			Metadata: &router.RoutingMetadata{CandidateModels: []string{"z-ai/glm-5.2"}},
 		}},
 		map[string]providers.Client{providers.ProviderAIAND: anthropic},
-		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
+		nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
 	).WithManagedSubscriptions(leaser).
 		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 
@@ -85,7 +85,7 @@ func TestProxyMessages_ManagedPoolFailureBeforeAnyBytesLeavesRenderingToHandler(
 	ctx = billing.WithSubscriptionOnly(ctx, billing.SubscriptionOnlyCreditsDepleted)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
-	body := []byte(`{"model":"claude-opus-4-8","messages":[{"role":"user","content":"hi"}]}`)
+	body := []byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"hi"}]}`)
 
 	err := svc.ProxyMessages(ctx, body, rec, req)
 

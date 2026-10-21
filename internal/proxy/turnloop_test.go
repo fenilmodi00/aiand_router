@@ -96,7 +96,7 @@ func largeBody(t *testing.T) []byte {
 	t.Helper()
 	prompt := strings.Repeat("aaaa ", 8000) // ~10k tokens
 	return []byte(`{
-		"model":"claude-opus-4-7",
+		"model":"z-ai/glm-5.2",
 		"system":"sys",
 		"messages":[{"role":"user","content":"` + prompt + `"}]
 	}`)
@@ -116,7 +116,7 @@ func largeMultiTurnBody(t *testing.T) []byte {
 		`{"role":"user","content":"` + chunk + `"}`,
 		`{"role":"user","content":"latest question"}`,
 	}
-	return []byte(`{"model":"claude-opus-4-7","system":"sys","messages":[` + strings.Join(msgs, ",") + `]}`)
+	return []byte(`{"model":"z-ai/glm-5.2","system":"sys","messages":[` + strings.Join(msgs, ",") + `]}`)
 }
 
 // forwardedMessageCount returns the number of messages in the body the
@@ -140,14 +140,14 @@ func newPinSvcCapturing(fr *fakeRouter, store *fakePinStore) (*proxy.Service, *f
 		store,
 		false,
 		providers.ProviderAIAND,
-		"claude-haiku-4-5",
+		"z-ai/glm-5.3-flash",
 		nil,
 	)
 	return svc, p
 }
 
 const toolResultPinnedBody = `{
-	"model":"claude-opus-4-7",
+	"model":"z-ai/glm-5.2",
 	"system":"sys",
 	"messages":[
 		{"role":"user","content":"plan"},
@@ -163,7 +163,7 @@ func TestTurnLoop_ToolResultScoringDisabledSkipsScorer(t *testing.T) {
 	store.hasPin = true
 	store.pin = sessionpin.Pin{
 		Provider:    providers.ProviderAIAND,
-		Model:       "claude-haiku-4-5",
+		Model:       "z-ai/glm-5.3-flash",
 		Reason:      "cluster:v0.2",
 		PinnedUntil: time.Now().Add(time.Hour),
 	}
@@ -178,7 +178,7 @@ func TestTurnLoop_ToolResultScoringDisabledSkipsScorer(t *testing.T) {
 	require.NoError(t, svc.ProxyMessages(ctx, []byte(toolResultPinnedBody), rec, httpReq))
 
 	assert.Equal(t, 0, fr.routeCalls, "disabled tool-result scoring must not invoke the scorer")
-	assert.Equal(t, "claude-haiku-4-5", rec.Header().Get(proxy.HeaderRouterModel))
+	assert.Equal(t, "z-ai/glm-5.3-flash", rec.Header().Get(proxy.HeaderRouterModel))
 }
 
 // TestTurnLoop_ToolResultScoringEnabledRunsScorerAndStays verifies the default path:
@@ -188,13 +188,13 @@ func TestTurnLoop_ToolResultScoringEnabledRunsScorerAndStays(t *testing.T) {
 	store.hasPin = true
 	store.pin = sessionpin.Pin{
 		Provider:    providers.ProviderAIAND,
-		Model:       "claude-haiku-4-5",
+		Model:       "z-ai/glm-5.3-flash",
 		Reason:      "cluster:v0.2",
 		PinnedUntil: time.Now().Add(time.Hour),
 	}
 	// Scorer agrees with the pin, so the planner STAYs and the served model
 	// is the pin's — but the scorer MUST have been consulted (routeCalls==1).
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", Reason: "cluster:v0.2"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash", Reason: "cluster:v0.2"}}
 	svc := newPinSvc(fr, store) // default: scoreToolResultTurns == true
 
 	ctx := authedCtx(uuid.New().String())
@@ -203,7 +203,7 @@ func TestTurnLoop_ToolResultScoringEnabledRunsScorerAndStays(t *testing.T) {
 	require.NoError(t, svc.ProxyMessages(ctx, []byte(toolResultPinnedBody), rec, httpReq))
 
 	assert.Equal(t, 1, fr.routeCalls, "tool_result must run the scorer under MainLoop parity")
-	assert.Equal(t, "claude-haiku-4-5", rec.Header().Get(proxy.HeaderRouterModel), "planner agreement STAYs on the pinned model")
+	assert.Equal(t, "z-ai/glm-5.3-flash", rec.Header().Get(proxy.HeaderRouterModel), "planner agreement STAYs on the pinned model")
 }
 
 // TestTurnLoop_ToolResultScoringEnabledSwitchesSafely verifies a positive-EV switch
@@ -211,7 +211,7 @@ func TestTurnLoop_ToolResultScoringEnabledRunsScorerAndStays(t *testing.T) {
 func TestTurnLoop_ToolResultScoringEnabledSwitchesSafely(t *testing.T) {
 	chunk := strings.Repeat("aaaa ", 4000) // ~5k tokens each, positive EV
 	toolResultLargeBody := []byte(`{
-		"model":"claude-opus-4-7",
+		"model":"z-ai/glm-5.2",
 		"system":"sys",
 		"messages":[
 			{"role":"user","content":"` + chunk + `"},
@@ -223,13 +223,13 @@ func TestTurnLoop_ToolResultScoringEnabledSwitchesSafely(t *testing.T) {
 	store.hasPin = true
 	store.pin = sessionpin.Pin{
 		Provider:        providers.ProviderAIAND,
-		Model:           "claude-opus-4-7",
+		Model:           "z-ai/glm-5.2",
 		Reason:          "cluster:v0.2",
 		PinnedUntil:     time.Now().Add(time.Hour),
 		LastInputTokens: 5000,
 		LastTurnEndedAt: time.Now().Add(-30 * time.Second),
 	}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", Reason: "cluster:v0.2"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash", Reason: "cluster:v0.2"}}
 	sz := &fakeSummarizer{summary: "Prior conversation summary."}
 	svc, up := newPinSvcCapturing(fr, store)
 	svc = svc.WithSummarizer(sz)
@@ -240,7 +240,7 @@ func TestTurnLoop_ToolResultScoringEnabledSwitchesSafely(t *testing.T) {
 	require.NoError(t, svc.ProxyMessages(ctx, toolResultLargeBody, rec, httpReq))
 
 	assert.Equal(t, 1, fr.routeCalls, "tool_result must run the scorer under MainLoop parity")
-	assert.Equal(t, "claude-haiku-4-5", rec.Header().Get(proxy.HeaderRouterModel), "positive-EV switch must move off the pinned model")
+	assert.Equal(t, "z-ai/glm-5.3-flash", rec.Header().Get(proxy.HeaderRouterModel), "positive-EV switch must move off the pinned model")
 	assert.Equal(t, int32(1), sz.calls.Load(), "summarizer must be invoked on a tool_result switch")
 
 	// The forwarded body must not contain the orphaned tool_result: handover
@@ -255,13 +255,13 @@ func TestTurnLoop_HMMToolResultCommunicationFollowsFreshDecision(t *testing.T) {
 	store.hasPin = true
 	store.pin = sessionpin.Pin{
 		Provider:    providers.ProviderAIAND,
-		Model:       "claude-haiku-4-5",
+		Model:       "z-ai/glm-5.3-flash",
 		Reason:      "hmm_policy:tool_execution(label=explore)",
 		PinnedUntil: time.Now().Add(time.Hour),
 	}
 	fr := &fakeRouter{decision: router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "claude-sonnet-4-5",
+		Model:    "deepseek/deepseek-v4.1-flash",
 		Reason:   "hmm_policy(label=balanced)",
 		Metadata: &router.RoutingMetadata{
 			Strategy: string(router.StrategyHMM),
@@ -276,7 +276,7 @@ func TestTurnLoop_HMMToolResultCommunicationFollowsFreshDecision(t *testing.T) {
 	require.NoError(t, svc.ProxyMessages(ctx, []byte(toolResultPinnedBody), rec, httpReq))
 
 	assert.Equal(t, 1, fr.routeCalls, "tool_result must ask HMM for a fresh communication decision")
-	assert.Equal(t, "claude-sonnet-4-5", rec.Header().Get(proxy.HeaderRouterModel),
+	assert.Equal(t, "deepseek/deepseek-v4.1-flash", rec.Header().Get(proxy.HeaderRouterModel),
 		"a completed tool result must not stay pinned to the tool-execution model")
 	store.mu.Lock()
 	assertOnlyHMMHistoryUpserts(t, store)
@@ -288,13 +288,13 @@ func TestTurnLoop_HMMToolResultToolExecutionUsesFreshDecision(t *testing.T) {
 	store.hasPin = true
 	store.pin = sessionpin.Pin{
 		Provider:    providers.ProviderAIAND,
-		Model:       "claude-haiku-4-5",
+		Model:       "z-ai/glm-5.3-flash",
 		Reason:      "hmm_policy:tool_execution(label=explore)",
 		PinnedUntil: time.Now().Add(time.Hour),
 	}
 	fr := &fakeRouter{decision: router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "claude-sonnet-4-5",
+		Model:    "deepseek/deepseek-v4.1-flash",
 		Reason:   "hmm_policy:tool_execution(label=explore)",
 		Metadata: &router.RoutingMetadata{
 			Strategy: string(router.StrategyHMM),
@@ -309,7 +309,7 @@ func TestTurnLoop_HMMToolResultToolExecutionUsesFreshDecision(t *testing.T) {
 	require.NoError(t, svc.ProxyMessages(ctx, []byte(toolResultPinnedBody), rec, httpReq))
 
 	assert.Equal(t, 1, fr.routeCalls, "tool_result still scores so HMM can decide whether execution continues")
-	assert.Equal(t, "claude-sonnet-4-5", rec.Header().Get(proxy.HeaderRouterModel),
+	assert.Equal(t, "deepseek/deepseek-v4.1-flash", rec.Header().Get(proxy.HeaderRouterModel),
 		"HMM tool execution must follow the fresh sidecar decision instead of an existing session pin")
 	store.mu.Lock()
 	assertOnlyHMMHistoryUpserts(t, store)
@@ -321,7 +321,7 @@ func TestTurnLoop_HMMToolExecutionStaysWhenWarmCacheEVBeatsCheapFresh(t *testing
 	store.hasPin = true
 	store.pin = sessionpin.Pin{
 		Provider:        providers.ProviderAIAND,
-		Model:           "claude-sonnet-5",
+		Model:           "deepseek/deepseek-v4-pro",
 		Reason:          "hmm_policy:tool_execution(label=explore)",
 		PinnedUntil:     time.Now().Add(time.Hour),
 		LastInputTokens: 5000,
@@ -329,7 +329,7 @@ func TestTurnLoop_HMMToolExecutionStaysWhenWarmCacheEVBeatsCheapFresh(t *testing
 	}
 	fr := &fakeRouter{decision: router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "claude-haiku-4-5",
+		Model:    "z-ai/glm-5.3-flash",
 		Reason:   "hmm_policy:tool_execution(label=explore)",
 		Metadata: &router.RoutingMetadata{
 			Strategy: string(router.StrategyHMM),
@@ -344,7 +344,7 @@ func TestTurnLoop_HMMToolExecutionStaysWhenWarmCacheEVBeatsCheapFresh(t *testing
 	require.NoError(t, svc.ProxyMessages(ctx, []byte(pinTestBody), rec, httpReq))
 
 	assert.Equal(t, 1, fr.routeCalls, "ongoing HMM execution still scores to see if execution continues")
-	assert.Equal(t, "claude-sonnet-5", rec.Header().Get(proxy.HeaderRouterModel),
+	assert.Equal(t, "deepseek/deepseek-v4-pro", rec.Header().Get(proxy.HeaderRouterModel),
 		"HMM should stay when switching to a cheaper tool model would not beat warm-cache eviction cost")
 	store.mu.Lock()
 	assertOnlyHMMHistoryUpserts(t, store)
@@ -357,7 +357,7 @@ func TestTurnLoop_HMMHistoryMaxedOutExcludesServedModelBeforeRouting(t *testing.
 	store.hasHMMHistory = true
 	store.hmmHistory = sessionpin.Pin{
 		Provider:          providers.ProviderAIAND,
-		LastServedModel:   "claude-sonnet-5",
+		LastServedModel:   "deepseek/deepseek-v4-pro",
 		LastOutputTokens:  8192,
 		LastTurnEndedAt:   endedAt,
 		LastOutputLimitAt: endedAt,
@@ -365,7 +365,7 @@ func TestTurnLoop_HMMHistoryMaxedOutExcludesServedModelBeforeRouting(t *testing.
 	}
 	fr := &fakeRouter{decision: router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "claude-haiku-4-5",
+		Model:    "z-ai/glm-5.3-flash",
 		Reason:   "hmm_policy(classifier 'fast')",
 		Metadata: &router.RoutingMetadata{
 			Strategy: string(router.StrategyHMM),
@@ -380,9 +380,9 @@ func TestTurnLoop_HMMHistoryMaxedOutExcludesServedModelBeforeRouting(t *testing.
 	require.NoError(t, svc.ProxyMessages(ctx, []byte(pinTestBody), rec, httpReq))
 
 	require.NotNil(t, fr.capturedReq)
-	assert.Contains(t, fr.capturedReq.ExcludedModels, "claude-sonnet-5",
+	assert.Contains(t, fr.capturedReq.ExcludedModels, "deepseek/deepseek-v4-pro",
 		"HMM history saturation must exclude the prior served model before sidecar routing")
-	assert.Equal(t, "claude-haiku-4-5", rec.Header().Get(proxy.HeaderRouterModel))
+	assert.Equal(t, "z-ai/glm-5.3-flash", rec.Header().Get(proxy.HeaderRouterModel))
 	store.mu.Lock()
 	assertOnlyHMMHistoryUpserts(t, store)
 	store.mu.Unlock()
@@ -396,7 +396,7 @@ func TestTurnLoop_HMMExpiredHistoryMaxedOutStillExcludesServedModel(t *testing.T
 	// cap: the maxed model must still be excluded, matching the active-pin path.
 	store.hmmHistory = sessionpin.Pin{
 		Provider:          providers.ProviderAIAND,
-		LastServedModel:   "claude-sonnet-5",
+		LastServedModel:   "deepseek/deepseek-v4-pro",
 		LastOutputTokens:  8192,
 		LastTurnEndedAt:   endedAt,
 		LastOutputLimitAt: endedAt,
@@ -404,7 +404,7 @@ func TestTurnLoop_HMMExpiredHistoryMaxedOutStillExcludesServedModel(t *testing.T
 	}
 	fr := &fakeRouter{decision: router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "claude-haiku-4-5",
+		Model:    "z-ai/glm-5.3-flash",
 		Reason:   "hmm_policy(classifier 'fast')",
 		Metadata: &router.RoutingMetadata{
 			Strategy: string(router.StrategyHMM),
@@ -419,7 +419,7 @@ func TestTurnLoop_HMMExpiredHistoryMaxedOutStillExcludesServedModel(t *testing.T
 	require.NoError(t, svc.ProxyMessages(ctx, []byte(pinTestBody), rec, httpReq))
 
 	require.NotNil(t, fr.capturedReq)
-	assert.Contains(t, fr.capturedReq.ExcludedModels, "claude-sonnet-5",
+	assert.Contains(t, fr.capturedReq.ExcludedModels, "deepseek/deepseek-v4-pro",
 		"a maxed-out model must stay excluded even after the history row's TTL lapses")
 	store.mu.Lock()
 	assertOnlyHMMHistoryUpserts(t, store)
@@ -431,7 +431,7 @@ func TestTurnLoop_HMMConversationFollowsFreshDecision(t *testing.T) {
 	store.hasPin = true
 	store.pin = sessionpin.Pin{
 		Provider:        providers.ProviderAIAND,
-		Model:           "claude-haiku-4-5",
+		Model:           "z-ai/glm-5.3-flash",
 		Reason:          "hmm_policy(label=balanced)",
 		PinnedUntil:     time.Now().Add(time.Hour),
 		LastInputTokens: 5000,
@@ -439,7 +439,7 @@ func TestTurnLoop_HMMConversationFollowsFreshDecision(t *testing.T) {
 	}
 	fr := &fakeRouter{decision: router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "claude-sonnet-5",
+		Model:    "deepseek/deepseek-v4-pro",
 		Reason:   "hmm_policy(label=maximum)",
 		Metadata: &router.RoutingMetadata{
 			Strategy:    string(router.StrategyHMM),
@@ -455,7 +455,7 @@ func TestTurnLoop_HMMConversationFollowsFreshDecision(t *testing.T) {
 	require.NoError(t, svc.ProxyMessages(ctx, []byte(pinTestBody), rec, httpReq))
 
 	assert.Equal(t, 1, fr.routeCalls, "HMM conversation turns must score fresh")
-	assert.Equal(t, "claude-sonnet-5", rec.Header().Get(proxy.HeaderRouterModel),
+	assert.Equal(t, "deepseek/deepseek-v4-pro", rec.Header().Get(proxy.HeaderRouterModel),
 		"HMM normal conversation routing must follow the fresh sidecar decision instead of EV-staying on the old pin")
 	store.mu.Lock()
 	assertOnlyHMMHistoryUpserts(t, store)
@@ -467,7 +467,7 @@ func TestTurnLoop_HMMToolExecutionPhaseChangeUsesFreshDecision(t *testing.T) {
 	store.hasPin = true
 	store.pin = sessionpin.Pin{
 		Provider:        providers.ProviderAIAND,
-		Model:           "claude-sonnet-4-5",
+		Model:           "deepseek/deepseek-v4.1-flash",
 		Reason:          "hmm_policy(label=high)",
 		PinnedUntil:     time.Now().Add(time.Hour),
 		LastInputTokens: 5000,
@@ -475,7 +475,7 @@ func TestTurnLoop_HMMToolExecutionPhaseChangeUsesFreshDecision(t *testing.T) {
 	}
 	fr := &fakeRouter{decision: router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "claude-sonnet-5",
+		Model:    "deepseek/deepseek-v4-pro",
 		Reason:   "hmm_policy:tool_execution(label=explore)",
 		Metadata: &router.RoutingMetadata{
 			Strategy: string(router.StrategyHMM),
@@ -490,7 +490,7 @@ func TestTurnLoop_HMMToolExecutionPhaseChangeUsesFreshDecision(t *testing.T) {
 	require.NoError(t, svc.ProxyMessages(ctx, []byte(pinTestBody), rec, httpReq))
 
 	assert.Equal(t, 1, fr.routeCalls, "main-loop HMM turn must ask for a fresh decision")
-	assert.Equal(t, "claude-sonnet-5", rec.Header().Get(proxy.HeaderRouterModel),
+	assert.Equal(t, "deepseek/deepseek-v4-pro", rec.Header().Get(proxy.HeaderRouterModel),
 		"HMM tool/explore phase changes should follow the fresh sidecar decision")
 
 	store.mu.Lock()
@@ -503,7 +503,7 @@ func TestTurnLoop_HMMToolExecutionSameModelDoesNotRewritePin(t *testing.T) {
 	store.hasPin = true
 	store.pin = sessionpin.Pin{
 		Provider:        providers.ProviderAIAND,
-		Model:           "claude-sonnet-4-5",
+		Model:           "deepseek/deepseek-v4.1-flash",
 		Reason:          "hmm_policy(label=high)",
 		PinnedUntil:     time.Now().Add(time.Hour),
 		LastInputTokens: 5000,
@@ -511,7 +511,7 @@ func TestTurnLoop_HMMToolExecutionSameModelDoesNotRewritePin(t *testing.T) {
 	}
 	fr := &fakeRouter{decision: router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "claude-sonnet-4-5",
+		Model:    "deepseek/deepseek-v4.1-flash",
 		Reason:   "hmm_policy:tool_execution(label=explore)",
 		Metadata: &router.RoutingMetadata{
 			Strategy: string(router.StrategyHMM),
@@ -526,7 +526,7 @@ func TestTurnLoop_HMMToolExecutionSameModelDoesNotRewritePin(t *testing.T) {
 	require.NoError(t, svc.ProxyMessages(ctx, []byte(pinTestBody), rec, httpReq))
 
 	assert.Equal(t, 1, fr.routeCalls, "main-loop HMM turn must ask for a fresh decision")
-	assert.Equal(t, "claude-sonnet-4-5", rec.Header().Get(proxy.HeaderRouterModel))
+	assert.Equal(t, "deepseek/deepseek-v4.1-flash", rec.Header().Get(proxy.HeaderRouterModel))
 
 	store.mu.Lock()
 	assertOnlyHMMHistoryUpserts(t, store)
@@ -537,7 +537,7 @@ func TestTurnLoop_HMMToolExecutionSameModelDoesNotRewritePin(t *testing.T) {
 // on an excluded provider falls through to the scorer rather than being served sticky.
 func TestTurnLoop_ToolResultPinOnExcludedProviderFallsThroughToScorer(t *testing.T) {
 	const toolResultBody = `{
-		"model":"claude-opus-4-7",
+		"model":"z-ai/glm-5.2",
 		"system":"sys",
 		"messages":[
 			{"role":"user","content":"plan"},
@@ -555,7 +555,7 @@ func TestTurnLoop_ToolResultPinOnExcludedProviderFallsThroughToScorer(t *testing
 	}
 	fr := &fakeRouter{decision: router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "claude-haiku-4-5",
+		Model:    "z-ai/glm-5.3-flash",
 		Reason:   "cluster:v0.2",
 	}}
 	svc := proxy.NewService(
@@ -569,7 +569,7 @@ func TestTurnLoop_ToolResultPinOnExcludedProviderFallsThroughToScorer(t *testing
 		store,
 		false,
 		providers.ProviderAIAND,
-		"claude-haiku-4-5",
+		"z-ai/glm-5.3-flash",
 		nil,
 	)
 
@@ -581,7 +581,7 @@ func TestTurnLoop_ToolResultPinOnExcludedProviderFallsThroughToScorer(t *testing
 
 	assert.Equal(t, 1, fr.routeCalls,
 		"pin on an excluded provider must fall through to the scorer instead of being served sticky")
-	assert.Equal(t, "claude-haiku-4-5", rec.Header().Get(proxy.HeaderRouterModel),
+	assert.Equal(t, "z-ai/glm-5.3-flash", rec.Header().Get(proxy.HeaderRouterModel),
 		"the turn must be served on the scorer's fresh decision, not the excluded pin")
 }
 
@@ -591,12 +591,12 @@ func TestTurnLoop_PlannerStaysWhenScorerAgrees(t *testing.T) {
 	store.hasPin = true
 	store.pin = sessionpin.Pin{
 		Provider:        providers.ProviderAIAND,
-		Model:           "claude-haiku-4-5",
+		Model:           "z-ai/glm-5.3-flash",
 		Reason:          "cluster:v0.2",
 		PinnedUntil:     time.Now().Add(time.Hour),
 		LastTurnEndedAt: time.Now().Add(-1 * time.Minute),
 	}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", Reason: "cluster:v0.2"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash", Reason: "cluster:v0.2"}}
 	svc := newPinSvc(fr, store)
 
 	ctx := authedCtx(uuid.New().String())
@@ -605,7 +605,7 @@ func TestTurnLoop_PlannerStaysWhenScorerAgrees(t *testing.T) {
 	require.NoError(t, svc.ProxyMessages(ctx, []byte(pinTestBody), rec, httpReq))
 
 	assert.Equal(t, 1, fr.routeCalls, "planner re-eval still runs the scorer")
-	assert.Equal(t, "claude-haiku-4-5", rec.Header().Get(proxy.HeaderRouterModel))
+	assert.Equal(t, "z-ai/glm-5.3-flash", rec.Header().Get(proxy.HeaderRouterModel))
 }
 
 // Pinning expensive opus against a cheap haiku recommendation makes EV
@@ -615,13 +615,13 @@ func TestTurnLoop_PlannerSwitchesOnPositiveEV(t *testing.T) {
 	store.hasPin = true
 	store.pin = sessionpin.Pin{
 		Provider:        providers.ProviderAIAND,
-		Model:           "claude-opus-4-7",
+		Model:           "z-ai/glm-5.2",
 		Reason:          "cluster:v0.2",
 		PinnedUntil:     time.Now().Add(time.Hour),
 		LastInputTokens: 5000,
 		LastTurnEndedAt: time.Now().Add(-30 * time.Second),
 	}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", Reason: "cluster:v0.2"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash", Reason: "cluster:v0.2"}}
 	sz := &fakeSummarizer{summary: "Prior conversation summary."}
 	svc := newPinSvc(fr, store).WithSummarizer(sz)
 
@@ -631,13 +631,13 @@ func TestTurnLoop_PlannerSwitchesOnPositiveEV(t *testing.T) {
 	require.NoError(t, svc.ProxyMessages(ctx, largeBody(t), rec, httpReq))
 
 	assert.Equal(t, 1, fr.routeCalls)
-	assert.Equal(t, "claude-haiku-4-5", rec.Header().Get(proxy.HeaderRouterModel), "planner must switch to fresh model")
+	assert.Equal(t, "z-ai/glm-5.3-flash", rec.Header().Get(proxy.HeaderRouterModel), "planner must switch to fresh model")
 	assert.Equal(t, int32(1), sz.calls.Load(), "summarizer must be invoked on switch")
 
 	waitForUpsert(t, store)
 	require.NotEmpty(t, store.upserts)
 	last := store.upserts[len(store.upserts)-1]
-	assert.Equal(t, "claude-haiku-4-5", last.Model, "switch must persist the new model on the pin")
+	assert.Equal(t, "z-ai/glm-5.3-flash", last.Model, "switch must persist the new model on the pin")
 }
 
 // A summarizer error must not abort the request or trim history — the
@@ -648,13 +648,13 @@ func TestTurnLoop_SummarizerErrorPreservesFullHistory(t *testing.T) {
 	store.hasPin = true
 	store.pin = sessionpin.Pin{
 		Provider:        providers.ProviderAIAND,
-		Model:           "claude-opus-4-7",
+		Model:           "z-ai/glm-5.2",
 		Reason:          "cluster:v0.2",
 		PinnedUntil:     time.Now().Add(time.Hour),
 		LastInputTokens: 5000,
 		LastTurnEndedAt: time.Now().Add(-30 * time.Second),
 	}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", Reason: "cluster:v0.2"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash", Reason: "cluster:v0.2"}}
 	sz := &fakeSummarizer{errOnCall: errors.New("upstream haiku 500")}
 	svc, provider := newPinSvcCapturing(fr, store)
 	svc.WithSummarizer(sz)
@@ -665,7 +665,7 @@ func TestTurnLoop_SummarizerErrorPreservesFullHistory(t *testing.T) {
 	require.NoError(t, svc.ProxyMessages(ctx, largeMultiTurnBody(t), rec, httpReq))
 
 	assert.Equal(t, int32(1), sz.calls.Load(), "summarizer must be tried before the fallback")
-	assert.Equal(t, "claude-haiku-4-5", rec.Header().Get(proxy.HeaderRouterModel), "switch must still happen on summarizer error")
+	assert.Equal(t, "z-ai/glm-5.3-flash", rec.Header().Get(proxy.HeaderRouterModel), "switch must still happen on summarizer error")
 	assert.Equal(t, 6, forwardedMessageCount(t, provider), "all 6 messages must be forwarded — the failure path must not trim history")
 	assert.Contains(t, string(provider.proxyBodies[0]), "FIRST-USER-MARKER", "the earliest user turn must survive (trim-to-last-N would drop it)")
 }
@@ -677,13 +677,13 @@ func TestTurnLoop_HandoverPreservesFullHistoryWhenSummarizerNotWired(t *testing.
 	store.hasPin = true
 	store.pin = sessionpin.Pin{
 		Provider:        providers.ProviderAIAND,
-		Model:           "claude-opus-4-7",
+		Model:           "z-ai/glm-5.2",
 		Reason:          "cluster:v0.2",
 		PinnedUntil:     time.Now().Add(time.Hour),
 		LastInputTokens: 5000,
 		LastTurnEndedAt: time.Now().Add(-30 * time.Second),
 	}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", Reason: "cluster:v0.2"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash", Reason: "cluster:v0.2"}}
 	// No WithSummarizer call — Service.summarizer stays nil.
 	svc, provider := newPinSvcCapturing(fr, store)
 
@@ -692,7 +692,7 @@ func TestTurnLoop_HandoverPreservesFullHistoryWhenSummarizerNotWired(t *testing.
 	httpReq := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
 	require.NoError(t, svc.ProxyMessages(ctx, largeMultiTurnBody(t), rec, httpReq))
 
-	assert.Equal(t, "claude-haiku-4-5", rec.Header().Get(proxy.HeaderRouterModel), "switch must proceed even without a summarizer")
+	assert.Equal(t, "z-ai/glm-5.3-flash", rec.Header().Get(proxy.HeaderRouterModel), "switch must proceed even without a summarizer")
 	assert.Equal(t, 6, forwardedMessageCount(t, provider), "all 6 messages must be forwarded when no summarizer is wired — no trimming")
 }
 
@@ -704,13 +704,13 @@ func TestTurnLoop_HandoverUsesClientCredsForSummarizerProvider(t *testing.T) {
 	store.hasPin = true
 	store.pin = sessionpin.Pin{
 		Provider:        providers.ProviderAIAND,
-		Model:           "claude-opus-4-7",
+		Model:           "z-ai/glm-5.2",
 		Reason:          "cluster:v0.2",
 		PinnedUntil:     time.Now().Add(time.Hour),
 		LastInputTokens: 5000,
 		LastTurnEndedAt: time.Now().Add(-30 * time.Second),
 	}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", Reason: "cluster:v0.2"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash", Reason: "cluster:v0.2"}}
 	sz := &fakeSummarizer{summary: "Prior conversation summary."}
 	svc := newPinSvc(fr, store).WithSummarizer(sz)
 
@@ -721,7 +721,7 @@ func TestTurnLoop_HandoverUsesClientCredsForSummarizerProvider(t *testing.T) {
 	require.NoError(t, svc.ProxyMessages(ctx, largeBody(t), rec, httpReq))
 
 	assert.Equal(t, int32(1), sz.calls.Load(), "summarizer must run with the caller's own Anthropic key (no tenant boundary crossed)")
-	assert.Equal(t, "claude-haiku-4-5", rec.Header().Get(proxy.HeaderRouterModel))
+	assert.Equal(t, "z-ai/glm-5.3-flash", rec.Header().Get(proxy.HeaderRouterModel))
 }
 
 // If the request is BYOK for a different provider than the summarizer's,
@@ -738,7 +738,7 @@ func TestTurnLoop_HandoverSkippedWhenClientCredsCrossProvider(t *testing.T) {
 		LastInputTokens: 5000,
 		LastTurnEndedAt: time.Now().Add(-30 * time.Second),
 	}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", Reason: "cluster:v0.2"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash", Reason: "cluster:v0.2"}}
 	sz := &fakeSummarizer{summary: "Should not be invoked."}
 	svc := newPinSvc(fr, store).WithSummarizer(sz)
 
@@ -750,7 +750,7 @@ func TestTurnLoop_HandoverSkippedWhenClientCredsCrossProvider(t *testing.T) {
 	require.NoError(t, svc.ProxyMessages(ctx, largeBody(t), rec, httpReq))
 
 	assert.Equal(t, int32(0), sz.calls.Load(), "summarizer must NOT run when client creds are for a different provider than the summarizer")
-	assert.Equal(t, "claude-haiku-4-5", rec.Header().Get(proxy.HeaderRouterModel), "switch must still happen with full history passed through")
+	assert.Equal(t, "z-ai/glm-5.3-flash", rec.Header().Get(proxy.HeaderRouterModel), "switch must still happen with full history passed through")
 }
 
 // ROUTER_PLANNER_ENABLED kill switch: an existing pin wins outright without
@@ -760,11 +760,11 @@ func TestTurnLoop_PlannerDisabledPreservesFirstDecisionWins(t *testing.T) {
 	store.hasPin = true
 	store.pin = sessionpin.Pin{
 		Provider:    providers.ProviderAIAND,
-		Model:       "claude-haiku-4-5",
+		Model:       "z-ai/glm-5.3-flash",
 		Reason:      "cluster:v0.2",
 		PinnedUntil: time.Now().Add(time.Hour),
 	}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-opus-4-7", Reason: "fresh"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.2", Reason: "fresh"}}
 	svc := newPinSvc(fr, store).WithPlannerEnabled(false)
 
 	ctx := authedCtx(uuid.New().String())
@@ -773,13 +773,13 @@ func TestTurnLoop_PlannerDisabledPreservesFirstDecisionWins(t *testing.T) {
 	require.NoError(t, svc.ProxyMessages(ctx, []byte(pinTestBody), rec, httpReq))
 
 	assert.Equal(t, 0, fr.routeCalls, "planner-disabled with pin must skip the scorer")
-	assert.Equal(t, "claude-haiku-4-5", rec.Header().Get(proxy.HeaderRouterModel))
+	assert.Equal(t, "z-ai/glm-5.3-flash", rec.Header().Get(proxy.HeaderRouterModel))
 }
 
 // Asserts the orchestrator writes upstream usage back to the pin row.
 func TestTurnLoop_UsageWritebackPersistsCacheStats(t *testing.T) {
 	store := newFakePinStore()
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", Reason: "fresh"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash", Reason: "fresh"}}
 	provider := &usageProvider{in: 1200, out: 80, cacheIn: 900, cacheOut: 200}
 	// Pin storage and telemetry both require upstream usage capture.
 	svc := proxy.NewService(
@@ -790,7 +790,7 @@ func TestTurnLoop_UsageWritebackPersistsCacheStats(t *testing.T) {
 		nil,
 		store,
 		false,
-		providers.ProviderAIAND, "claude-haiku-4-5",
+		providers.ProviderAIAND, "z-ai/glm-5.3-flash",
 		recordingTelemetry{},
 	)
 
@@ -827,7 +827,7 @@ func trimSessionTurn(t *testing.T, msgCount int) []byte {
 		msgs = append(msgs, `{"role":"`+role+`","content":"TRIM-SESSION turn `+itoa(i)+`"}`)
 	}
 	msgs[0] = `{"role":"user","content":"TRIM-SESSION refactor the dispatch loop"}`
-	return []byte(`{"model":"claude-opus-4-7","system":"sys","messages":[` + strings.Join(msgs, ",") + `]}`)
+	return []byte(`{"model":"z-ai/glm-5.2","system":"sys","messages":[` + strings.Join(msgs, ",") + `]}`)
 }
 
 // warmOpusPin's prior turn billed 1.5k input tokens seconds ago (warm), so an
@@ -836,7 +836,7 @@ func trimSessionTurn(t *testing.T, msgCount int) []byte {
 func warmOpusPin() sessionpin.Pin {
 	return sessionpin.Pin{
 		Provider:        providers.ProviderAIAND,
-		Model:           "claude-opus-4-7",
+		Model:           "z-ai/glm-5.2",
 		Reason:          "cluster:v0.2",
 		PinnedUntil:     time.Now().Add(time.Hour),
 		LastInputTokens: 1500,
@@ -851,7 +851,7 @@ func TestTurnLoop_PrefixTrimPricesPinColdAndSkipsSummarizer(t *testing.T) {
 	store := newFakePinStore()
 	store.hasPin = true
 	store.pin = warmOpusPin()
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", Reason: "cluster:v0.2"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash", Reason: "cluster:v0.2"}}
 	sz := &fakeSummarizer{summary: "Prior conversation summary."}
 	svc := newPinSvc(fr, store).WithSummarizer(sz).WithPlanner(planner.EVConfig{
 		ThresholdUSD:           0.001,
@@ -864,14 +864,14 @@ func TestTurnLoop_PrefixTrimPricesPinColdAndSkipsSummarizer(t *testing.T) {
 	rec1 := httptest.NewRecorder()
 	req1 := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
 	require.NoError(t, svc.ProxyMessages(ctx, trimSessionTurn(t, 9), rec1, req1))
-	require.Equal(t, "claude-opus-4-7", rec1.Header().Get(proxy.HeaderRouterModel),
+	require.Equal(t, "z-ai/glm-5.2", rec1.Header().Get(proxy.HeaderRouterModel),
 		"warm pin must stay on turn 1 (cold lever must not fire on a warm cache)")
 
 	// Turn 2 drops to 3 messages: a full-compaction trim.
 	rec2 := httptest.NewRecorder()
 	req2 := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
 	require.NoError(t, svc.ProxyMessages(ctx, trimSessionTurn(t, 3), rec2, req2))
-	assert.Equal(t, "claude-haiku-4-5", rec2.Header().Get(proxy.HeaderRouterModel),
+	assert.Equal(t, "z-ai/glm-5.3-flash", rec2.Header().Get(proxy.HeaderRouterModel),
 		"trim turn must price the pin cold and switch to the fresh pick")
 	assert.Equal(t, int32(0), sz.calls.Load(),
 		"switch on a trim turn must skip the summarizer — the client's compaction summary already bounds the body")
@@ -883,7 +883,7 @@ func TestTurnLoop_PrefixTrimKillSwitchPreservesWarmStay(t *testing.T) {
 	store := newFakePinStore()
 	store.hasPin = true
 	store.pin = warmOpusPin()
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", Reason: "cluster:v0.2"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash", Reason: "cluster:v0.2"}}
 	sz := &fakeSummarizer{summary: "Prior conversation summary."}
 	svc := newPinSvc(fr, store).WithSummarizer(sz).WithPrefixTrimFreeSwitch(false).WithPlanner(planner.EVConfig{
 		ThresholdUSD:           0.001,
@@ -895,12 +895,12 @@ func TestTurnLoop_PrefixTrimKillSwitchPreservesWarmStay(t *testing.T) {
 	rec1 := httptest.NewRecorder()
 	req1 := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
 	require.NoError(t, svc.ProxyMessages(ctx, trimSessionTurn(t, 9), rec1, req1))
-	require.Equal(t, "claude-opus-4-7", rec1.Header().Get(proxy.HeaderRouterModel))
+	require.Equal(t, "z-ai/glm-5.2", rec1.Header().Get(proxy.HeaderRouterModel))
 
 	rec2 := httptest.NewRecorder()
 	req2 := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
 	require.NoError(t, svc.ProxyMessages(ctx, trimSessionTurn(t, 3), rec2, req2))
-	assert.Equal(t, "claude-opus-4-7", rec2.Header().Get(proxy.HeaderRouterModel),
+	assert.Equal(t, "z-ai/glm-5.2", rec2.Header().Get(proxy.HeaderRouterModel),
 		"kill switch off must preserve the warm-priced EV stay on the trim turn")
 	assert.Equal(t, int32(0), sz.calls.Load())
 }
@@ -913,10 +913,10 @@ func TestTurnLoop_PrefixTrimSkipsExpiredPinReAnchor(t *testing.T) {
 	expired := warmOpusPin()
 	expired.PinnedUntil = time.Now().Add(-time.Minute)
 	store.pin = expired
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", Reason: "cluster:v0.2"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash", Reason: "cluster:v0.2"}}
 	svc := newPinSvc(fr, store).WithAvailableModels(map[string]struct{}{
-		"claude-opus-4-7":  {},
-		"claude-haiku-4-5": {},
+		"z-ai/glm-5.2":       {},
+		"z-ai/glm-5.3-flash": {},
 	})
 	ctx := authedCtx(uuid.New().String())
 
@@ -925,13 +925,13 @@ func TestTurnLoop_PrefixTrimSkipsExpiredPinReAnchor(t *testing.T) {
 	rec1 := httptest.NewRecorder()
 	req1 := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
 	require.NoError(t, svc.ProxyMessages(ctx, trimSessionTurn(t, 9), rec1, req1))
-	require.Equal(t, "claude-opus-4-7", rec1.Header().Get(proxy.HeaderRouterModel),
+	require.Equal(t, "z-ai/glm-5.2", rec1.Header().Get(proxy.HeaderRouterModel),
 		"expired pin must re-anchor on a normal turn (guard baseline)")
 
 	rec2 := httptest.NewRecorder()
 	req2 := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
 	require.NoError(t, svc.ProxyMessages(ctx, trimSessionTurn(t, 3), rec2, req2))
-	assert.Equal(t, "claude-haiku-4-5", rec2.Header().Get(proxy.HeaderRouterModel),
+	assert.Equal(t, "z-ai/glm-5.3-flash", rec2.Header().Get(proxy.HeaderRouterModel),
 		"trim turn must skip the expired-pin re-anchor and follow the fresh pick")
 }
 
@@ -941,7 +941,7 @@ func TestTurnLoop_SubAgentDoesNotInheritMainLoopTrimBaseline(t *testing.T) {
 	store := newFakePinStore()
 	store.hasPin = true
 	store.pin = warmOpusPin()
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", Reason: "cluster:v0.2"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash", Reason: "cluster:v0.2"}}
 	sz := &fakeSummarizer{summary: "Prior conversation summary."}
 	svc := newPinSvc(fr, store).WithSummarizer(sz)
 	ctx := authedCtx(uuid.New().String())
@@ -949,9 +949,9 @@ func TestTurnLoop_SubAgentDoesNotInheritMainLoopTrimBaseline(t *testing.T) {
 	rec1 := httptest.NewRecorder()
 	req1 := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
 	require.NoError(t, svc.ProxyMessages(ctx, trimSessionTurn(t, 9), rec1, req1))
-	require.Equal(t, "claude-opus-4-7", rec1.Header().Get(proxy.HeaderRouterModel))
+	require.Equal(t, "z-ai/glm-5.2", rec1.Header().Get(proxy.HeaderRouterModel))
 
-	subAgentBody := []byte(`{"model":"claude-opus-4-7","system":"sys","messages":[
+	subAgentBody := []byte(`{"model":"z-ai/glm-5.2","system":"sys","messages":[
 		{"role":"user","content":"SUB-AGENT find every .go file under internal/"},
 		{"role":"assistant","content":"searching"},
 		{"role":"user","content":"narrow to the proxy package"}
@@ -959,7 +959,7 @@ func TestTurnLoop_SubAgentDoesNotInheritMainLoopTrimBaseline(t *testing.T) {
 	rec2 := httptest.NewRecorder()
 	req2 := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
 	require.NoError(t, svc.ProxyMessages(ctx, subAgentBody, rec2, req2))
-	assert.Equal(t, "claude-opus-4-7", rec2.Header().Get(proxy.HeaderRouterModel),
+	assert.Equal(t, "z-ai/glm-5.2", rec2.Header().Get(proxy.HeaderRouterModel),
 		"a sub-agent's small opening turn must not read as a trim of the main loop's baseline")
 	assert.Equal(t, int32(0), sz.calls.Load())
 }
@@ -981,7 +981,7 @@ func TestTurnLoop_MaxedOutPinExcludedFromCandidates(t *testing.T) {
 		LastTurnEndedAt:   endedAt,
 		LastOutputLimitAt: endedAt,
 	}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", Reason: "fresh"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash", Reason: "fresh"}}
 	svc := newPinSvc(fr, store)
 
 	ctx := authedCtx(uuid.New().String())
@@ -992,7 +992,7 @@ func TestTurnLoop_MaxedOutPinExcludedFromCandidates(t *testing.T) {
 	require.NotNil(t, fr.capturedReq, "scorer must run after a maxed-out pin is dropped")
 	assert.Contains(t, fr.capturedReq.ExcludedModels, "moonshotai/kimi-k2.6",
 		"pinned model must be excluded from candidates after a maxed-out turn")
-	assert.Equal(t, "claude-haiku-4-5", rec.Header().Get(proxy.HeaderRouterModel),
+	assert.Equal(t, "z-ai/glm-5.3-flash", rec.Header().Get(proxy.HeaderRouterModel),
 		"router must serve the fresh decision, not the broken pin")
 }
 
@@ -1005,7 +1005,7 @@ func TestTurnLoop_MaxedOutExcludesLastServedModelNotAnchor(t *testing.T) {
 	store.hasPin = true
 	store.pin = sessionpin.Pin{
 		Provider:          providers.ProviderAIAND,
-		Model:             "claude-haiku-4-5",     // anchor, healthy
+		Model:             "z-ai/glm-5.3-flash",   // anchor, healthy
 		LastServedModel:   "moonshotai/kimi-k2.6", // swapped-to paired model that saturated the cap
 		Reason:            "cluster:v0.52",
 		PinnedUntil:       time.Now().Add(time.Hour),
@@ -1013,7 +1013,7 @@ func TestTurnLoop_MaxedOutExcludesLastServedModelNotAnchor(t *testing.T) {
 		LastTurnEndedAt:   endedAt,
 		LastOutputLimitAt: endedAt,
 	}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-sonnet-4-5", Reason: "fresh"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4.1-flash", Reason: "fresh"}}
 	svc := newPinSvc(fr, store)
 
 	ctx := authedCtx(uuid.New().String())
@@ -1024,7 +1024,7 @@ func TestTurnLoop_MaxedOutExcludesLastServedModelNotAnchor(t *testing.T) {
 	require.NotNil(t, fr.capturedReq, "scorer must run after a maxed-out pin is dropped")
 	assert.Contains(t, fr.capturedReq.ExcludedModels, "moonshotai/kimi-k2.6",
 		"the model that actually maxed out (LastServedModel) must be excluded")
-	assert.NotContains(t, fr.capturedReq.ExcludedModels, "claude-haiku-4-5",
+	assert.NotContains(t, fr.capturedReq.ExcludedModels, "z-ai/glm-5.3-flash",
 		"the healthy anchor must not be excluded when the paired model maxed out")
 }
 
@@ -1034,13 +1034,13 @@ func TestTurnLoop_UnconfirmedHighOutputKeepsPin(t *testing.T) {
 	store.hasPin = true
 	store.pin = sessionpin.Pin{
 		Provider:         providers.ProviderAIAND,
-		Model:            "claude-haiku-4-5",
+		Model:            "z-ai/glm-5.3-flash",
 		Reason:           "cluster:v0.52",
 		PinnedUntil:      time.Now().Add(time.Hour),
 		LastOutputTokens: 32000, // no output-limit evidence
 		LastTurnEndedAt:  time.Now().Add(-10 * time.Second),
 	}
-	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "claude-haiku-4-5", Reason: "fresh"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash", Reason: "fresh"}}
 	svc := newPinSvc(fr, store)
 
 	ctx := authedCtx(uuid.New().String())
@@ -1049,9 +1049,9 @@ func TestTurnLoop_UnconfirmedHighOutputKeepsPin(t *testing.T) {
 	require.NoError(t, svc.ProxyMessages(ctx, []byte(pinTestBody), rec, httpReq))
 
 	require.NotNil(t, fr.capturedReq)
-	assert.NotContains(t, fr.capturedReq.ExcludedModels, "claude-haiku-4-5",
+	assert.NotContains(t, fr.capturedReq.ExcludedModels, "z-ai/glm-5.3-flash",
 		"healthy pin must not be excluded from candidates")
-	assert.Equal(t, "claude-haiku-4-5", rec.Header().Get(proxy.HeaderRouterModel))
+	assert.Equal(t, "z-ai/glm-5.3-flash", rec.Header().Get(proxy.HeaderRouterModel))
 }
 
 // recordingTelemetry is a no-op repo that flips usageRequired() on; we

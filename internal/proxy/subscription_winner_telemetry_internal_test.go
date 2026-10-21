@@ -18,7 +18,7 @@ func TestSubscriptionWinnerTelemetryPreservesOwnerAndAlternative(t *testing.T) {
 	winner.SubscriptionAccountID = "00000000-0000-0000-0000-000000000101"
 	winner.SubscriptionOwnerID = "00000000-0000-0000-0000-000000000102"
 	winner.SubscriptionTier = auth.SubscriptionTierShared
-	winner.IntendedModel = "claude-sonnet-4-6"
+	winner.IntendedModel = "deepseek/deepseek-v4.1-flash"
 	telemetry := InsertTelemetryParams{RequestedModel: "auto", DecisionModel: "gpt-5.4"}
 	applySubscriberTelemetry(ctx, &telemetry)
 	assert.Equal(t, "claude-sonnet", telemetry.IntendedModelFamily)
@@ -62,7 +62,7 @@ func TestFailedAPIFallbackReplacesInboundSubscriptionAttribution(t *testing.T) {
 	require.Equal(t, []byte("api-sentinel"), winner.APIKey)
 	require.False(t, winner.OAuth)
 	assert.False(t, (&Service{}).costNeutralSubscriptionServed(ctx))
-	telemetry := InsertTelemetryParams{RequestedModel: "claude-sonnet-5", DecisionModel: "claude-sonnet-5"}
+	telemetry := InsertTelemetryParams{RequestedModel: "deepseek/deepseek-v4-pro", DecisionModel: "deepseek/deepseek-v4-pro"}
 	applySubscriberTelemetry(ctx, &telemetry)
 	assert.Empty(t, telemetry.SubscriptionAccountID)
 	assert.Empty(t, telemetry.SubscriptionOwnerID)

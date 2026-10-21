@@ -21,7 +21,7 @@ func classifierOnlyClient(t *testing.T, body string) (policy.Result, error) {
 	defer server.Close()
 
 	return New(server.URL, server.Client(), 0).Decide(context.Background(), policy.Query{
-		Candidates: []policy.Candidate{{RosterID: "anthropic/claude-opus-4-8", CatalogID: "claude-opus-4-8", Provider: providers.ProviderAIAND}},
+		Candidates: []policy.Candidate{{RosterID: "anthropic/claude-opus-4-8", CatalogID: "z-ai/glm-5.2", Provider: providers.ProviderAIAND}},
 	})
 }
 

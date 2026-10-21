@@ -42,7 +42,7 @@ data: {"type":"response.completed","response":{"id":"resp_empty","status":"compl
 
 func TestResponsesToAnthropicWriter_EmptyTerminalIsRetryable(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToAnthropicWriter(rec, "claude-opus-5", nil)
+	w := translate.NewResponsesToAnthropicWriter(rec, "z-ai/glm-5.2", nil)
 	require.NoError(t, w.Prelude(true))
 	_, err := w.Write([]byte(`event: response.incomplete
 data: {"type":"response.incomplete","response":{"id":"resp_empty","status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},"output":[]}}
@@ -130,7 +130,7 @@ func TestResponsesWriter_ReasoningOnlyTerminalIsRetryable(t *testing.T) {
 
 func TestResponsesToAnthropicWriter_EmptyCompletionUsesAnthropicEnvelope(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToAnthropicWriter(rec, "claude-opus-5", nil)
+	w := translate.NewResponsesToAnthropicWriter(rec, "z-ai/glm-5.2", nil)
 	require.NoError(t, w.Prelude(false))
 	_, err := w.Write([]byte(`event: response.completed
 data: {"type":"response.completed","response":{"id":"resp_empty","status":"completed","output":[]}}

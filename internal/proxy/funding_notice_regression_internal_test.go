@@ -33,7 +33,7 @@ func (p *fundingStreamProvider) Proxy(ctx context.Context, decision router.Decis
 func TestFundingBypassEmptyStreamCannotSucceed(t *testing.T) {
 	upstream := &fundingStreamProvider{}
 	svc := newBypassService(upstream)
-	env, err := translate.ParseAnthropic([]byte(`{"model":"claude-sonnet-4-6","stream":true,"messages":[{"role":"user","content":"hello"}]}`))
+	env, err := translate.ParseAnthropic([]byte(`{"model":"deepseek/deepseek-v4.1-flash","stream":true,"messages":[{"role":"user","content":"hello"}]}`))
 	require.NoError(t, err)
 	rec := httptest.NewRecorder()
 	ctx := billing.WithSubscriptionOnly(context.Background(), billing.SubscriptionOnlyCreditsDepleted)
@@ -50,7 +50,7 @@ func TestFundingBypassCommittedFailureCannotRecover(t *testing.T) {
 				proxyErr: failure,
 			}}
 			svc := newBypassService(upstream)
-			env, err := translate.ParseAnthropic([]byte(`{"model":"claude-sonnet-4-6","stream":true,"messages":[{"role":"user","content":"hello"}]}`))
+			env, err := translate.ParseAnthropic([]byte(`{"model":"deepseek/deepseek-v4.1-flash","stream":true,"messages":[{"role":"user","content":"hello"}]}`))
 			require.NoError(t, err)
 			rec := httptest.NewRecorder()
 			ctx := billing.WithSubscriptionOnly(context.Background(), billing.SubscriptionOnlyCreditsDepleted)
@@ -68,7 +68,7 @@ func TestFundingBypassCommittedFailureCannotRecover(t *testing.T) {
 func TestFundingBypassCancellationDoesNotDispatch(t *testing.T) {
 	upstream := &fundingStreamProvider{}
 	svc := newBypassService(upstream)
-	env, err := translate.ParseAnthropic([]byte(`{"model":"claude-sonnet-4-6","stream":true,"messages":[{"role":"user","content":"hello"}]}`))
+	env, err := translate.ParseAnthropic([]byte(`{"model":"deepseek/deepseek-v4.1-flash","stream":true,"messages":[{"role":"user","content":"hello"}]}`))
 	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(billing.WithSubscriptionOnly(context.Background(), billing.SubscriptionOnlyCreditsDepleted))
 	cancel()
@@ -213,7 +213,7 @@ func TestFundingBypassPartialStreamLeavesRecoveryPristine(t *testing.T) {
 		t.Run(string(reason), func(t *testing.T) {
 			upstream := &fundingStreamProvider{bypassFakeProvider{respBody: "event: message_start\ndata: {", proxyErr: errors.New("synthetic connection reset")}}
 			svc := newBypassService(upstream)
-			env, err := translate.ParseAnthropic([]byte(`{"model":"claude-sonnet-4-6","stream":true,"messages":[{"role":"user","content":"hello"}]}`))
+			env, err := translate.ParseAnthropic([]byte(`{"model":"deepseek/deepseek-v4.1-flash","stream":true,"messages":[{"role":"user","content":"hello"}]}`))
 			require.NoError(t, err)
 			rec := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)

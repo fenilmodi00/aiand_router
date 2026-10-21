@@ -76,7 +76,7 @@ func TestProxyMessages_NativeStreamWithoutMessageStopFailsInStream(t *testing.T)
 	logBuf := captureCompletionLog(t)
 	provider := scriptedStream(anthropicCutFrames)
 	svc := makeProxyService(
-		router.Decision{Provider: providers.ProviderAIAND, Model: "claude-opus-4-8", Reason: "test"},
+		router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.2", Reason: "test"},
 		map[string]providers.Client{providers.ProviderAIAND: provider},
 	)
 
@@ -94,7 +94,7 @@ func TestProxyMessages_NativeStreamWithoutMessageStopFailsInStream(t *testing.T)
 func TestProxyMessages_EmptyNativeStreamRetriedBeforeCommit(t *testing.T) {
 	provider := scriptedStream(nil, anthropicCompleteFrames)
 	svc := makeProxyService(
-		router.Decision{Provider: providers.ProviderAIAND, Model: "claude-opus-4-8", Reason: "test"},
+		router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.2", Reason: "test"},
 		map[string]providers.Client{providers.ProviderAIAND: provider},
 	)
 
