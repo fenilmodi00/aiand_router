@@ -35,7 +35,7 @@ func newPinnedAdapter(t *testing.T, servedArtifactSHA string) (*policy.SidecarRo
 	result.RosterVersion = "sidecar-roster"
 	decider := &recordingPolicy{result: result}
 	resolver := policy.NewResolver(
-		set("claude-opus-4-8", "claude-sonnet-5"),
+		set("moonshotai/kimi-k3", "z-ai/glm-5.2"),
 		set(providers.ProviderAIAND),
 		func(model catalog.Model) string { return "anthropic/" + model.ID },
 		policy.ManagedProviderPolicy(),
@@ -53,7 +53,7 @@ func rosterSelector(loaded ...string) policy.ArmSelector {
 	return func(_ context.Context, input policy.SelectionInput) (policy.SelectionPick, error) {
 		for _, sha := range loaded {
 			if sha == input.RosterSHA256 || input.RosterSHA256 == "" {
-				return policy.SelectionPick{Group: "maximum", Arm: "anthropic/claude-sonnet-5", RosterSHA256: sha}, nil
+				return policy.SelectionPick{Group: "maximum", Arm: "anthropic/z-ai/glm-5.2", RosterSHA256: sha}, nil
 			}
 		}
 		return policy.SelectionPick{}, router.ErrPolicyPinUnavailable
