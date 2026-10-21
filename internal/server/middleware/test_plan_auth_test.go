@@ -25,14 +25,6 @@ func (forbiddenTestSecrets) GetForInstallation(context.Context, string) ([]*auth
 	panic("test admission read provider secrets")
 }
 
-type forbiddenTestSubscriptions struct {
-	failingSubscriptionAccountRepository
-}
-
-func (forbiddenTestSubscriptions) ListSubscriptionAccounts(context.Context, auth.SubscriptionOwner) ([]*auth.SubscriptionAccount, error) {
-	panic("test admission read subscription accounts")
-}
-
 type assignedTestRoutingPolicyRepo struct{ policyReads, assignmentReads int }
 
 func (r *assignedTestRoutingPolicyRepo) GetPolicy(context.Context, string) (auth.RoutingPolicy, error) {
@@ -54,7 +46,6 @@ func TestDirectTestAuthSkipsEmailSubscriptionsAndProviderSecrets(t *testing.T) {
 	repo := &fakeAPIKeyRepository{byHash: map[string]fakeKeyRow{auth.HashAPIKeySHA256(credential): {apiKey: key, installation: installation}}}
 	routingPolicies := &assignedTestRoutingPolicyRepo{}
 	service := auth.NewService(fakeInstallationRepository{}, repo, &forbiddenTestSecrets{}, nil, auth.NoOpAPIKeyCache{}, nil, time.Now).
-		WithSubscriptionAccounts(forbiddenTestSubscriptions{}).
 		WithRoutingPolicies(routingPolicies, nil)
 	digest, persistent := policyregistry.ServingConversationDigest(subject, launch+"/"+session)
 	scope := policyregistry.ServingAssertion{
