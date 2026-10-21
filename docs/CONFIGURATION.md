@@ -50,8 +50,7 @@ token instead of `x-api-key`. The router serves the Claude family through it on
 the same translation path as direct Anthropic. There is no default endpoint: an
 unconfigured gateway does *not* fall back to `api.anthropic.com`. The provider
 is always registered so BYOK installations can point at their own gateway
-without deployment-level credentials; the env vars above are only for a
-deployment that has a gateway of its own.
+without deployment-level credentials.
 
 **Native web search on a gateway.** An Anthropic-spec gateway relays to a
 backend that implements function tools only, so Claude Code's WebSearch turn
@@ -69,18 +68,11 @@ server tools natively — which also describes an Anthropic-spec gateway that is
 not Cortex. The executor therefore refuses any gateway whose host is not
 Snowflake's, and such turns stay on normal routing.
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `ROUTER_CORTEX_WEB_SEARCH` | `true` | Kill switch. `false` leaves native web-search turns on normal routing (they fail upstream on gateways that reject the tool). |
-| `SNOWFLAKE_AGENT_ROLE` | *(none)* | Sent as `X-Snowflake-Role` on `agent:run`. Leave unset to use the service user's default role. |
-| `SNOWFLAKE_AGENT_HOST_SUFFIX` | `snowflakecomputing.com` | Host suffix a gateway base URL must match before `agent:run` is attempted. Only for pointing at a local stub in tests. |
-| `SNOWFLAKE_AGENT_TIMEOUT_MS` | `90000` | Budget for one agent run, applied both as the request deadline and as the time-to-first-byte guard (`agent:run` buffers the whole run). Observed runs are 15–30s; expiring early costs the turn the upstream 400 this path exists to avoid. |
-
 Snowflake-side prerequisites: an ACCOUNTADMIN must enable web search at the
 account level, and the authenticating user needs a role with agent privileges
-plus a default warehouse it can USAGE (or an explicit `SNOWFLAKE_AGENT_ROLE`
-that has one). Cortex's web search is served from Brave's index, so queries
-and results leave Snowflake's perimeter under Snowflake's vendor agreement.
+plus a default warehouse it can USAGE. Cortex's web search is served from
+Brave's index, so queries and results leave Snowflake's perimeter under
+Snowflake's vendor agreement.
 
 **OpenAI-compatible gateway.** `openai_gateway` is the same arrangement one
 wire family over: a customer endpoint speaking OpenAI Chat Completions, bearer
@@ -462,14 +454,14 @@ the admission caches using the same Pub/Sub project and topic.
 | `ROUTER_HARD_PIN_MODEL`           | *(none)*                     | Force every request to a specific model, bypassing the cluster scorer. Debugging only. Without this explicit override, titles and probes with auto/empty models are scored independently, while provider/quota probes with concrete models preserve their requested target; none anchors an automatic conversation pin. |
 | `ROUTER_HARD_PIN_PROVIDER`        | *(none)*                     | Pair with `ROUTER_HARD_PIN_MODEL`. |
 | `ROUTER_HARD_PIN_EXPLORE`         | `true`                       | Pin Claude Code Task-tool sub-agent turns to `ROUTER_HARD_PIN_MODEL`/`ROUTER_HARD_PIN_PROVIDER` (or the cheapest deployed model, if those are unset). Set `false` to route sub-agents through the scorer like any other turn. Ignored under the HMM strategy, whose classifier selects sub-agent turns like any other turn. |
-| `ROUTER_SUBAGENT_MODEL`           | *(none)*                     | Route Claude Code Task-tool sub-agent turns to a distinct model, independent of `ROUTER_HARD_PIN_MODEL` — e.g. a local/self-hosted OpenAI-compatible model (point `OPENROUTER_BASE_URL` at your local server) while the main loop keeps using Anthropic/whatever the scorer picks. Requires `ROUTER_SUBAGENT_PROVIDER`; either alone is ignored. Takes effect regardless of `ROUTER_HARD_PIN_EXPLORE` and under every strategy, including HMM. |
+| `ROUTER_SUBAGENT_MODEL`           | *(none)*                     | Route Claude Code Task-tool sub-agent turns to a distinct model, independent of `ROUTER_HARD_PIN_MODEL` — e.g. a BYOK catalog model while the main loop keeps using whatever the scorer picks. Requires `ROUTER_SUBAGENT_PROVIDER`; either alone is ignored. Takes effect regardless of `ROUTER_HARD_PIN_EXPLORE` and under every strategy, including HMM. |
 | `ROUTER_SUBAGENT_PROVIDER`        | *(none)*                     | Pair with `ROUTER_SUBAGENT_MODEL`. |
 | `ROUTER_TRANSLATION_COMPATIBILITY_MODE` | `shadow` | Translation representability rollout: `off` disables broad filtering, `shadow` records candidate exclusions without changing routes, and `enforce` makes declared semantic requirements hard routing constraints. Native search remains enforced in every mode because another provider family cannot preserve its tool/result blocks; advertised-only search tools are scoped out separately. Other native-only safety paths (such as unsupported Responses tool unions and native Gemini ingress) remain protected unless mode is `off`. |
 | `ROUTER_SCOPED_SEARCH_REQUIREMENT` | `true` | Scopes the citations/search native-capability requirement to sessions that actually used a web-search tool this turn or recently, instead of every turn that merely advertises one. Advertised-only turns return to normal policy routing. |
 | `ROUTER_SEARCH_REQUIREMENT_DECAY_TURNS` | `3` | With `ROUTER_SCOPED_SEARCH_REQUIREMENT`, how many routed turns after the last actual search-tool use keep the requirement before it decays. |
-| `ROUTER_HANDOVER_PROVIDER`        | `anthropic`                  | Provider whose registered client runs handover and compaction summaries. Must have a catalog binding for `ROUTER_HANDOVER_MODEL` and `ROUTER_COMPACTION_MODEL`; otherwise boot fails. |
-| `ROUTER_HANDOVER_MODEL`           | `claude-haiku-4-5`           | Model for switch-turn handover summaries. Must be one of the `handover_summary` policy's fixed catalog models in [`POLICY_INFERENCE.md`](POLICY_INFERENCE.md); any other value fails boot rather than substituting a default. |
-| `ROUTER_COMPACTION_MODEL`         | `claude-sonnet-5`            | Fallback Anthropic family for compaction when no eligible session model is available. Selection upgrades to the newest eligible catalog version in that family, including session-derived choices. The configured model must bind on `ROUTER_HANDOVER_PROVIDER` and belong to the compaction policies' reviewed catalog set in [`POLICY_INFERENCE.md`](POLICY_INFERENCE.md); otherwise boot fails. Claude Code's client-side compaction still requires direct Anthropic; Codex checkpoint compaction can reuse other providers. Explicit `ROUTER_HARD_PIN_MODEL` overrides remain exact. |
+| `ROUTER_HANDOVER_PROVIDER`        | `aiand`                      | Provider whose registered client runs handover and compaction summaries. Must have a catalog binding for `ROUTER_HANDOVER_MODEL` and `ROUTER_COMPACTION_MODEL`; otherwise boot fails. |
+| `ROUTER_HANDOVER_MODEL`           | `z-ai/glm-5.3-flash`         | Model for switch-turn handover summaries. Must be one of the `handover_summary` policy's fixed catalog models in [`POLICY_INFERENCE.md`](POLICY_INFERENCE.md); any other value fails boot rather than substituting a default. |
+| `ROUTER_COMPACTION_MODEL`         | `z-ai/glm-5.2`               | Model used for compaction when no eligible session model is available. The configured model must bind on `ROUTER_HANDOVER_PROVIDER` and belong to the compaction policies' reviewed catalog set in [`POLICY_INFERENCE.md`](POLICY_INFERENCE.md); otherwise boot fails. Explicit `ROUTER_HARD_PIN_MODEL` overrides remain exact. |
 | `ROUTER_COMPACTION_TIMEOUT_MS`    | `90000`                      | Hard timeout for one compaction-handover summary call (separate from `ROUTER_HANDOVER_TIMEOUT_MS`; a Sonnet-class summary of a near-full window is slow). On timeout the full history is kept. |
 | `ROUTER_ONNX_ASSETS_DIR`          | `/opt/router/assets`         | Directory containing `model.onnx` + `tokenizer.json`. |
 | `ROUTER_ONNX_LIBRARY_DIR`         | *(system default)*           | Path to `libonnxruntime` (e.g. `/opt/homebrew/lib` on Apple Silicon). |
@@ -641,8 +633,8 @@ and any list configured for that cluster still orders the arm that serves.
 Out-of-process policy routers use the versioned contract in
 [Policy router harness](POLICY_ROUTER_HARNESS.md). The router remains the
 authority for candidate eligibility, provider binding, dispatch, retries,
-privacy context, and telemetry. `ROUTER_HMM_ROSTER_PATH` and the rollback story
-for Go-owned deterministic selection are documented in
+privacy context, and telemetry. The HMM strategy's roster ownership and the
+rollback story for Go-owned deterministic selection are documented in
 [HMM deterministic selection in Go](HMM_GO_SELECTION.md).
 
 | Variable                           | Default | Purpose |
@@ -650,15 +642,10 @@ for Go-owned deterministic selection are documented in
 | `ROUTER_POLICY_SIDECARS`           | *(none)* | JSON object mapping a new strategy ID to its sidecar origin, for example `{"quality-v2":"https://quality-v2.internal"}`. IDs must match `[a-z][a-z0-9_-]{0,63}`. At most 16 may be configured. `cluster`, `rl`, `hmm`, and `bandit` are reserved. |
 | `ROUTER_POLICY_SIDECAR_AUTH`       | *(none)* | JSON object mapping configured generic strategy IDs to `none` or `google-id-token`, for example `{"quality-v2":"google-id-token"}`. Google ID-token mode uses the exact sidecar origin as token audience and fails router startup when application default credentials cannot build the client. |
 | `ROUTER_POLICY_SIDECAR_TIMEOUT_MS` | `3000`  | Total timeout for each generic policy decision, including transient retries. Also bounds startup capability discovery. |
-| `ROUTER_HMM_SIDECAR_URL`           | *(none)* | Legacy built-in HMM registration. Prefer the generic map for new strategies. |
 | `ROUTER_HMM_SIDECAR_TIMEOUT_MS`    | `3000`  | Total HMM decision timeout. |
 | `ROUTER_HMM_SIDECAR_ATTEMPT_TIMEOUT_MS` | 60% of the decision timeout | Bounds a single HMM attempt so one stalled sidecar instance cannot spend the whole decision budget before the retries run. Set it equal to `ROUTER_HMM_SIDECAR_TIMEOUT_MS`, or to `0`, to let one attempt use the full budget. |
 | `ROUTER_HMM_SIDECAR_AUTH`          | `none`  | Authentication for the HMM sidecar. Use `google-id-token` for managed Cloud Run; the exact sidecar origin is used as the token audience. |
-| `ROUTER_HMM_ROSTER_PATH`           | *(none; required with `ROUTER_HMM_SIDECAR_URL`)* | Path to a generated declarative roster JSON (`hmm_router_cluster_roster_v6`). The roster is loaded and validated against the model catalog at startup (boot fails on any invalid arm) and drives the router's authoritative deterministic within-cluster arm selection: the sidecar's classifier label/confidence is kept, its arm is not. Explicit force-cluster and per-key cluster overrides still take precedence when they actually constrain the pick; selection fails open to the sidecar's pick when no ranked group holds an eligible arm. Pin-sticky eligibility is neutralized on any Go pick so a session pin cannot veto it. Leaving it unset while an HMM sidecar is configured fails boot. |
-| `ROUTER_HMM_ROSTER_PINNABLE_PATHS` | *(none)* | Comma-separated paths of additional roster JSON files loaded and validated at boot alongside `ROUTER_HMM_ROSTER_PATH`. Every loaded roster is indexed by the sha256 of its file bytes so an `x-weave-policy-pin` may select it; nothing is read from disk on a live request. Only meaningful with `ROUTER_POLICY_PIN_ENABLED=true`. |
 | `ROUTER_POLICY_PIN_ENABLED`        | `false` | Registers the `x-weave-policy-pin: <policy_artifact_sha256>@<roster_sha256>` header on `/v1/messages`, `/v1/chat/completions`, `/v1/route` and `/v1/route/preview`. Off (default) the middleware is not registered, so the header has no effect and the telemetry columns `policy_pin_requested` / `policy_pin_honoured` stay NULL. On, the header value is only parsed for installations with `policy_header_overrides_enabled`: for every other installation the value (valid or not) is never inspected, the response is identical to a request without the header, and telemetry records `requested=true, honoured=false`. For an authorized installation a malformed value is HTTP 400 (`policy_pin_malformed`); a well-formed pin is honoured on policy-scored turns, which are scored fresh by the HMM sidecar with exactly that artifact (`HMM_PACKAGE_REGISTRY`) and select the arm from exactly that roster — session-sticky pins, `/force-model`, usage-bypass, blind-experiment passthrough and planner stays are not consulted. Auto/empty-model probes are independently scored without conversation state, including under an authorized policy pin. Non-scored utility exceptions retain their own path: probes with concrete models preserve the requested target unless explicitly overridden, compaction keeps its safeguard, and explicitly deployment-pinned titles keep their override. These exceptions may succeed with `policy_pin_honoured=false`. On policy-scored turns, if the artifact or roster is not loaded, or any path would serve a model the pinned policy did not pick, the turn fails HTTP 503 with typed reason `policy_pin_unavailable` and the telemetry row is written with `policy_pin_honoured=false` — an authorized pin never yields a 2xx with `policy_pin_honoured=false` on these turns, and the router never falls through to the current artifact or roster. |
-| `ROUTER_HMM_BETA_SIDECAR_URL`      | *(none)* | Second HMM sidecar serving the candidate package that sessions opt into with `/beta`. Unset leaves `/beta` answering "unavailable" and never touches stable routing. `ROUTER_HMM_BETA_SIDECAR_AUTH`, `ROUTER_HMM_BETA_SIDECAR_TIMEOUT_MS`, and `ROUTER_HMM_BETA_SIDECAR_ATTEMPT_TIMEOUT_MS` mirror the stable variables. |
-| `ROUTER_HMM_BETA_ROSTER_PATH`      | *(none; required with `ROUTER_HMM_BETA_SIDECAR_URL`)* | Declarative roster the beta strategy's Go-side selection reads. It must be the roster embedded in the pinned beta package, which may carry a different cluster taxonomy from stable's. Unlike the stable pair, a missing or invalid beta roster disables beta with an error log instead of failing boot, so a broken candidate cannot take stable routing down. |
 | `ROUTER_RL_SIDECAR_URL`            | *(none)* | Legacy built-in RL registration. Prefer the generic map for new strategies. |
 | `ROUTER_RL_SIDECAR_TIMEOUT_MS`     | `3000`  | Total RL decision timeout. |
 | `ROUTER_RL_SIDECAR_MODAL_KEY`      | *(none)* | Optional Modal proxy token id (`Modal-Key`) when the RL sidecar is a Modal ASGI app with `requires_proxy_auth`. |
