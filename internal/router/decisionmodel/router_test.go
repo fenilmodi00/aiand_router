@@ -5,7 +5,6 @@ import (
 	"errors"
 	"testing"
 
-	"weave-os/router/internal/providers"
 	"weave-os/router/internal/router"
 	"weave-os/router/internal/router/decisionmodel"
 
@@ -66,16 +65,6 @@ func TestRoutePicksLineupModel(t *testing.T) {
 			require.Equal(t, [][]decisionmodel.QuestionID{{decisionmodel.QuestionCallComplexity, decisionmodel.QuestionTaskComplexity}}, classifier.asked)
 		})
 	}
-}
-
-func TestSubscriptionSkipsTaskDecision(t *testing.T) {
-	classifier := &scriptedClassifier{answers: map[decisionmodel.QuestionID]decisionmodel.Choice{decisionmodel.QuestionCallComplexity: decisionmodel.ChoiceHigh}}
-	req := request("", 1)
-	req.SubscriptionProviders = map[string]struct{}{providers.ProviderAIAND: {}}
-	decision, err := decisionmodel.New(classifier).Route(context.Background(), req)
-	require.NoError(t, err)
-	require.Equal(t, "moonshotai/kimi-k3", decision.Model)
-	require.Equal(t, [][]decisionmodel.QuestionID{{decisionmodel.QuestionCallComplexity}}, classifier.asked)
 }
 
 func TestTaskComplexityIsAskedOncePerSession(t *testing.T) {

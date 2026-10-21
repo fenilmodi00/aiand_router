@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"sync"
 
-	"weave-os/router/internal/providers"
 	"weave-os/router/internal/router"
 	"weave-os/router/internal/router/catalog"
 )
@@ -17,21 +16,18 @@ const maxTrackedSessions = 10_000
 
 // Lineup is one harness's models: Top for high-task judgment and escalation,
 // Fast for defined work, LowTaskJudgment for judgment calls on low tasks.
-// SubscriptionProvider is the provider whose subscription skips task judgment.
 type Lineup struct {
-	Top                  string
-	Fast                 string
-	LowTaskJudgment      string
-	SubscriptionProvider string
+	Top             string
+	Fast            string
+	LowTaskJudgment string
 }
 
 // DefaultLineup serves every client: the single wired upstream serves the
 // whole lineup, so Codex and Claude Code route identically.
 var DefaultLineup = Lineup{
-	Top:                  string(catalog.ModelIDKimiK3),
-	Fast:                 string(catalog.ModelIDGLM53Flash),
-	LowTaskJudgment:      string(catalog.ModelIDGLM53),
-	SubscriptionProvider: providers.ProviderAIAND,
+	Top:             string(catalog.ModelIDKimiK3),
+	Fast:            string(catalog.ModelIDGLM53Flash),
+	LowTaskJudgment: string(catalog.ModelIDGLM53),
 }
 
 // sessionState is what the router remembers per session between calls.
@@ -63,10 +59,6 @@ func (r *Router) Route(ctx context.Context, req router.Request) (router.Decision
 		sessionID = req.ClientSessionID
 	}
 	session := r.load(sessionID)
-	_, subscribed := req.SubscriptionProviders[lineup.SubscriptionProvider]
-	if subscribed {
-		session.taskComplexity = ChoiceHigh
-	}
 	callIndex := AgentCallIndex(req.ConversationMessages)
 	// Escalation is checked before calls 4, 7, 10, ...
 	checkpoint := callIndex > 1 && (callIndex-1)%EscalationCadence == 0
@@ -107,7 +99,7 @@ func (r *Router) Route(ctx context.Context, req router.Request) (router.Decision
 		session.fastSinceCheckpoint = true
 	}
 	r.store(sessionID, session)
-	decision.Reason = fmt.Sprintf("decision_model task=%s call=%s escalated=%t subscription=%t call_index=%d", session.taskComplexity, callComplexity, session.escalated, subscribed, callIndex)
+	decision.Reason = fmt.Sprintf("decision_model task=%s call=%s escalated=%t call_index=%d", session.taskComplexity, callComplexity, session.escalated, callIndex)
 	return decision, nil
 }
 
