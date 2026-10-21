@@ -265,20 +265,6 @@ func TestSwitchyardEscalationReadinessReflectsDisabledRollout(t *testing.T) {
 	require.Equal(t, "active rollout is disabled", selection.UnavailableReason)
 }
 
-func TestQwenEscalationSkipsGatewayOnlyInstallation(t *testing.T) {
-	service := (&Service{}).
-		WithLLMEscalation(&llmEscalationStoreStub{}, nil).
-		WithQwenEscalation(&blockingEscalationJudge{}).
-		WithEscalationConfiguration(nil, nil, false)
-	overrides := flags.Overrides{Strings: map[flags.Key]string{
-		flags.KeyEscalationActiveClassifier: string(flags.EscalationClassifierLLM),
-	}}
-	ctx := flags.WithOverrides(router.WithStrategy(context.Background(), router.StrategyHMMEmbedding), overrides)
-	requestResult := turnLoopResult{Strategy: router.StrategyHMMEmbedding, InstallationID: uuid.New(), TurnType: turntype.MainLoop}
-	request := router.Request{GatewayProviders: map[string]struct{}{providers.ProviderAIAND: {}}}
-	require.Nil(t, service.beginLLMEscalation(ctx, escalationTestEnvelope(t, 1), request, &requestResult, "test-key"))
-}
-
 func TestQwenEscalationRecordsUnavailableIntervalSeparatelyFromCapacity(t *testing.T) {
 	store := &llmEscalationStoreStub{}
 	service := (&Service{}).WithLLMEscalation(store, nil).WithQwenEscalation(&blockingEscalationJudge{})

@@ -38,7 +38,6 @@ func TestInternalTestDebitNeverSettlesSubscriberAllowanceOrCustomerPrepaid(t *te
 	require.Equal(t, billing.OwnerKindInternalTest, book.debits[0].Owner.Kind)
 	require.Equal(t, "test-subject", book.debits[0].Owner.TestSubjectID)
 	require.Empty(t, book.debits[0].Owner.OrganizationID)
-	require.Empty(t, book.debits[0].Owner.SubscriberID)
 	require.Empty(t, organization.ledgerCalls)
 	for _, override := range []billing.DebitInferenceParams{{HasOverride: true}, {SubscriptionServed: true}, {ByokServed: true}} {
 		_, err = service.DebitForInference(ctx, override)

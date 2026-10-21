@@ -173,6 +173,7 @@ func (s *Service) dispatchPlanned(ctx context.Context, in failoverInputs, plan i
 			if !committed(in.buf) {
 				s.recordSubscriptionModelRejection(bookkeepingCtx, decision.Provider, decision.Model, attemptErr)
 			}
+
 		}
 		if attemptErr == nil {
 			if usage, _ := ctx.Value(ManagedSubscriptionUsageContextKey{}).(*ManagedSubscriptionUsage); usage != nil {
@@ -193,9 +194,6 @@ func (s *Service) dispatchPlanned(ctx context.Context, in failoverInputs, plan i
 		}
 		if committed(in.buf) {
 			return attemptErr
-		}
-		if providers.IsUpstreamModelNotFound(attemptErr) {
-			s.rememberGatewayLacksModel(attemptCtx, decision.Provider, decision.Model)
 		}
 		return attemptErr
 	}

@@ -100,15 +100,9 @@ func decisionFromExportRow(row sqlc.GetRoutingDecisionsForExportRow) analytics.D
 		Speed:                 row.Speed,
 		InferenceGeo:          row.InferenceGeo,
 
-		SubscriptionServed:    row.SubscriptionServed,
-		CredentialSource:      row.CredentialSource,
-		SubscriptionAccountID: uuidStringPtr(row.SubscriptionAccountID),
-		SubscriptionOwnerID:   uuidStringPtr(row.SubscriptionOwnerID),
-		SubscriptionTier:      subscriptionTierPtr(row.SubscriptionTier),
-		IntendedModelFamily:   row.IntendedModelFamily,
-		FinalModelFamily:      row.FinalModelFamily,
-		ActualInputCostUSD:    servedCostUSD(row.ActualInputCostUsd, row.SubscriptionServed),
-		ActualOutputCostUSD:   servedCostUSD(row.ActualOutputCostUsd, row.SubscriptionServed),
+		CredentialSource:    row.CredentialSource,
+		ActualInputCostUSD:  servedCostUSD(row.ActualInputCostUsd, row.SubscriptionServed),
+		ActualOutputCostUSD: servedCostUSD(row.ActualOutputCostUsd, row.SubscriptionServed),
 
 		RouteLatencyMs:           row.RouteLatencyMs,
 		UpstreamLatencyMs:        row.UpstreamLatencyMs,
@@ -124,7 +118,6 @@ func decisionFromExportRow(row sqlc.GetRoutingDecisionsForExportRow) analytics.D
 		CapacitySource:           row.CapacitySource,
 		RetailUsageUSDMicros:     row.RetailUsageUsdMicros,
 		IncludedUsageUSDMicros:   row.IncludedUsageUsdMicros,
-		LinkedUsageUSDMicros:     row.LinkedUsageUsdMicros,
 		PrepaidUsageUSDMicros:    row.PrepaidUsageUsdMicros,
 		SettlementFailed:         row.SettlementFailed,
 		ServingProfileID:         row.ServingProfileID,
@@ -213,12 +206,4 @@ func uuidStringPtr(u pgtype.UUID) *string {
 	}
 	s := uuid.UUID(u.Bytes).String()
 	return &s
-}
-
-func subscriptionTierPtr(value *string) *auth.SubscriptionTier {
-	if value == nil {
-		return nil
-	}
-	tier := auth.SubscriptionTier(*value)
-	return &tier
 }

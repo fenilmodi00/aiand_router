@@ -86,10 +86,6 @@ type CapacitySource string
 const (
 	// CapacitySourceIncludedRouter uses the subscriber's included Router allowance.
 	CapacitySourceIncludedRouter CapacitySource = "included_router"
-	// CapacitySourceLinkedClaude uses a linked Claude subscription.
-	CapacitySourceLinkedClaude CapacitySource = "linked_claude"
-	// CapacitySourceLinkedCodex uses a linked Codex subscription.
-	CapacitySourceLinkedCodex CapacitySource = "linked_codex"
 	// CapacitySourcePrepaid uses subscriber-owned prepaid Router funds.
 	CapacitySourcePrepaid CapacitySource = "prepaid"
 	// CapacitySourceBillingOverride uses an explicit billing override.
@@ -99,7 +95,7 @@ const (
 // Valid reports whether the capacity source is recognized.
 func (s CapacitySource) Valid() bool {
 	switch s {
-	case CapacitySourceIncludedRouter, CapacitySourceLinkedClaude, CapacitySourceLinkedCodex, CapacitySourcePrepaid, CapacitySourceBillingOverride:
+	case CapacitySourceIncludedRouter, CapacitySourcePrepaid, CapacitySourceBillingOverride:
 		return true
 	default:
 		return false

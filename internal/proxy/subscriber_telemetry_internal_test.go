@@ -40,7 +40,6 @@ func TestApplySubscriberTelemetryIncludedUsage(t *testing.T) {
 	assert.Equal(t, int64(4), *telemetry.RetailUsageMicros)
 	require.NotNil(t, telemetry.IncludedUsageMicros)
 	assert.Equal(t, int64(4), *telemetry.IncludedUsageMicros)
-	assert.Nil(t, telemetry.LinkedUsageMicros)
 	assert.Nil(t, telemetry.PrepaidUsageMicros)
 	assert.Equal(t, "boost-default", telemetry.ServingProfileID)
 	assert.Equal(t, "profile-sha", telemetry.ServingProfileVersion)
@@ -50,7 +49,6 @@ func TestApplySubscriberTelemetryIncludedUsage(t *testing.T) {
 }
 
 func TestApplySubscriberTelemetryCapacitySources(t *testing.T) {
-	prepaid := billing.PrepaidAuthorization{CapacitySource: entitlement.CapacitySourcePrepaid}
 	tests := []struct {
 		name             string
 		ctx              context.Context
@@ -58,21 +56,14 @@ func TestApplySubscriberTelemetryCapacitySources(t *testing.T) {
 		want             entitlement.CapacitySource
 	}{
 		{
-			name:             "linked claude",
+			name:             "subscription credential is not a capacity source",
 			ctx:              entitlement.WithProductScope(context.Background(), entitlement.PlanBoost),
 			credentialSource: credSourceSubscription,
-			want:             entitlement.CapacitySourceLinkedClaude,
 		},
 		{
-			name:             "linked codex",
+			name:             "codex subscription credential is not a capacity source",
 			ctx:              entitlement.WithProductScope(context.Background(), entitlement.PlanBoost),
 			credentialSource: credSourceCodexSubscription,
-			want:             entitlement.CapacitySourceLinkedCodex,
-		},
-		{
-			name: "prepaid",
-			ctx:  billing.WithPrepaidAuthorization(context.Background(), prepaid),
-			want: entitlement.CapacitySourcePrepaid,
 		},
 		{
 			name: "organization-paid subscriber",
@@ -101,22 +92,17 @@ func TestApplySubscriberTelemetryCapacitySources(t *testing.T) {
 				assert.Equal(t, string(entitlement.PlanBoost), telemetry.SubscriberPlan)
 				assert.Nil(t, telemetry.RetailUsageMicros)
 				assert.Nil(t, telemetry.IncludedUsageMicros)
-				assert.Nil(t, telemetry.LinkedUsageMicros)
 				assert.Nil(t, telemetry.PrepaidUsageMicros)
 				return
 			}
 			require.NotNil(t, telemetry.RetailUsageMicros)
 			assert.Equal(t, int64(1_000_000), *telemetry.RetailUsageMicros)
 			switch tt.want {
-			case entitlement.CapacitySourceLinkedClaude, entitlement.CapacitySourceLinkedCodex:
-				require.NotNil(t, telemetry.LinkedUsageMicros)
-				assert.Equal(t, int64(1_000_000), *telemetry.LinkedUsageMicros)
 			case entitlement.CapacitySourcePrepaid:
 				require.NotNil(t, telemetry.PrepaidUsageMicros)
 				assert.Equal(t, int64(1_000_000), *telemetry.PrepaidUsageMicros)
 			default:
 				assert.Nil(t, telemetry.IncludedUsageMicros)
-				assert.Nil(t, telemetry.LinkedUsageMicros)
 				assert.Nil(t, telemetry.PrepaidUsageMicros)
 			}
 		})
@@ -131,14 +117,7 @@ func TestApplySubscriberSettlementTelemetry(t *testing.T) {
 	require.NotNil(t, included.SettlementFailed)
 	assert.True(t, *included.SettlementFailed)
 
-	prepaidContext := billing.WithPrepaidAuthorization(context.Background(), billing.PrepaidAuthorization{})
-	billing.MarkPrepaidSettlementFailed(prepaidContext)
-	prepaid := InsertTelemetryParams{CapacitySource: string(entitlement.CapacitySourcePrepaid)}
-	applySubscriberSettlementTelemetry(captureSubscriberSettlementState(prepaidContext), &prepaid)
-	require.NotNil(t, prepaid.SettlementFailed)
-	assert.True(t, *prepaid.SettlementFailed)
-
-	linked := InsertTelemetryParams{CapacitySource: string(entitlement.CapacitySourceLinkedClaude)}
+	linked := InsertTelemetryParams{CapacitySource: string(entitlement.CapacitySourcePrepaid)}
 	applySubscriberSettlementTelemetry(subscriberSettlementState{}, &linked)
 	assert.Nil(t, linked.SettlementFailed)
 }
@@ -189,7 +168,6 @@ func TestApplySubscriberTelemetryLeavesUsageEmptyWithoutCapacitySource(t *testin
 	assert.Empty(t, telemetry.CapacitySource)
 	assert.Nil(t, telemetry.RetailUsageMicros)
 	assert.Nil(t, telemetry.IncludedUsageMicros)
-	assert.Nil(t, telemetry.LinkedUsageMicros)
 	assert.Nil(t, telemetry.PrepaidUsageMicros)
 }
 
