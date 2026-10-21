@@ -68,7 +68,7 @@
       "file": "internal/proxy/loop_detection.go",
       "line": 19,
       "symbol": "proxy.package",
-      "detail": "escalateModel=claude-opus-5",
+      "detail": "escalateModel=z-ai/glm-5.2",
       "owner": "@steventohme",
       "rationale": "Existing loop-rescue target remains feature-owned until public-surface fallback becomes a typed policy transition.",
       "operation_class": "main_inference",
@@ -123,18 +123,6 @@
       "removal_phase": "8"
     },
     {
-      "id": "direct_provider_call|internal/proxy/service.go|Service.ProxyMessages|weave-os/router/internal/providers.Proxy|2",
-      "kind": "direct_provider_call",
-      "file": "internal/proxy/service.go",
-      "line": 3883,
-      "symbol": "Service.ProxyMessages",
-      "detail": "weave-os/router/internal/providers.Proxy",
-      "owner": "@steventohme",
-      "rationale": "Existing Gemini attempt for the Messages surface remains until executor migration preserves the two-stage translation path.",
-      "operation_class": "main_inference",
-      "removal_phase": "8"
-    },
-    {
       "id": "target_construction|internal/proxy/service.go|pinDecision|router.Decision|1",
       "kind": "target_construction",
       "file": "internal/proxy/service.go",
@@ -183,30 +171,6 @@
       "removal_phase": "8"
     },
     {
-      "id": "direct_provider_call|internal/proxy/service.go|Service.ProxyOpenAIChatCompletion|weave-os/router/internal/providers.Proxy|2",
-      "kind": "direct_provider_call",
-      "file": "internal/proxy/service.go",
-      "line": 6550,
-      "symbol": "Service.ProxyOpenAIChatCompletion",
-      "detail": "weave-os/router/internal/providers.Proxy",
-      "owner": "@steventohme",
-      "rationale": "Existing Anthropic translation dispatch remains until the OpenAI public surface migrates through the executor.",
-      "operation_class": "main_inference",
-      "removal_phase": "8"
-    },
-    {
-      "id": "direct_provider_call|internal/proxy/service.go|Service.ProxyOpenAIChatCompletion|weave-os/router/internal/providers.Proxy|3",
-      "kind": "direct_provider_call",
-      "file": "internal/proxy/service.go",
-      "line": 6614,
-      "symbol": "Service.ProxyOpenAIChatCompletion",
-      "detail": "weave-os/router/internal/providers.Proxy",
-      "owner": "@steventohme",
-      "rationale": "Existing Gemini translation dispatch remains until the OpenAI public surface migrates through the executor.",
-      "operation_class": "main_inference",
-      "removal_phase": "8"
-    },
-    {
       "id": "target_construction|internal/proxy/turnloop.go|Service.runTurnLoop|router.Decision|1",
       "kind": "target_construction",
       "file": "internal/proxy/turnloop.go",
@@ -246,11 +210,11 @@
       "id": "target_construction|internal/proxy/usage_bypass.go|Service.bypassToAnthropic|router.Decision|1",
       "kind": "target_construction",
       "file": "internal/proxy/usage_bypass.go",
-      "line": 260,
+      "line": 448,
       "symbol": "Service.bypassToAnthropic",
-      "detail": "provider=anthropic model=<dynamic>",
+      "detail": "provider=aiand model=<dynamic>",
       "owner": "@steventohme",
-      "rationale": "Existing Anthropic subscription bypass constructs its dispatch DTO directly until public-surface migration.",
+      "rationale": "Existing subscription bypass constructs its dispatch DTO directly until public-surface migration.",
       "operation_class": "main_inference",
       "removal_phase": "8"
     },
