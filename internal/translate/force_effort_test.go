@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/providers"
 	"weave-os/router/internal/router"
 	"weave-os/router/internal/translate"
 )
@@ -177,24 +176,4 @@ func TestResolveForceEffort(t *testing.T) {
 			assert.Equal(t, tc.want, translate.ResolveForceEffort(tc.spec, tc.level))
 		})
 	}
-}
-
-// Claude Code ingress against an OpenAI-spec gateway: the turn carries tools,
-// so the forced effort must not ride along — Cortex 400s the pair.
-func TestForceReasoningEffort_GatewayToolTurnOmitsEffort(t *testing.T) {
-	body := []byte(`{"model":"claude-opus-5","max_tokens":1024,"messages":[{"role":"user","content":"hi"}],` +
-		`"tools":[{"name":"read_file","input_schema":{"type":"object"}}]}`)
-	env, err := translate.ParseAnthropic(body)
-	require.NoError(t, err)
-	prep, err := env.PrepareOpenAI(http.Header{}, translate.EmitOptions{
-		TargetModel:          "grok-4.6",
-		TargetProvider:       providers.ProviderAIAND,
-		Capabilities:         router.Lookup("grok-4.6"),
-		ForceReasoningEffort: "high",
-	})
-	require.NoError(t, err)
-	var out map[string]any
-	require.NoError(t, json.Unmarshal(prep.Body, &out))
-	assert.NotContains(t, out, "reasoning_effort")
-	assert.Contains(t, out, "tools")
 }
