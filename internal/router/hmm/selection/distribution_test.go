@@ -24,11 +24,11 @@ func TestRoutingDistributionUsesLivePreferenceScorer(t *testing.T) {
 				Arms: []string{"z-ai/glm-5.3-flash", "moonshotai/kimi-k3"},
 				ArmScores: map[string]float64{
 					"z-ai/glm-5.3-flash": 30,
-					"moonshotai/kimi-k3": 25,
+					"moonshotai/kimi-k3":       25,
 				},
 				ArmIndices: map[string]rosterdata.ArmIndices{
 					"z-ai/glm-5.3-flash": {WII: 90, WPI: 10},
-					"moonshotai/kimi-k3": {WII: 55, WPI: 0},
+					"moonshotai/kimi-k3":       {WII: 55, WPI: 0},
 				},
 			},
 		},
@@ -56,7 +56,7 @@ func TestRoutingDistributionHonorsExclusions(t *testing.T) {
 	cluster.ArmScores = map[string]float64{"z-ai/glm-5.3-flash": 30, "moonshotai/kimi-k3": 25}
 	cluster.ArmIndices = map[string]rosterdata.ArmIndices{
 		"z-ai/glm-5.3-flash": {WII: 90, WPI: 10},
-		"moonshotai/kimi-k3": {WII: 55, WPI: 0},
+		"moonshotai/kimi-k3":       {WII: 55, WPI: 0},
 	}
 	roster.Clusters["low"] = cluster
 
