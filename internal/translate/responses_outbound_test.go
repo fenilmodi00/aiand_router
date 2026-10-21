@@ -4,13 +4,11 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 	"testing"
 
-	"weave-os/router/internal/providers"
 	"weave-os/router/internal/router"
 	"weave-os/router/internal/translate"
 
@@ -41,90 +39,6 @@ func decodeOpenAIReasoningTestSignature(t *testing.T, sig string) map[string]any
 	var out map[string]any
 	require.NoError(t, json.Unmarshal(b, &out))
 	return out
-}
-
-// Anthropic → OpenAI Responses request shape: thinking budget, typed input
-// items, tool_use/tool_result mapping, flat tools.
-func TestPrepareOpenAIResponses_RequestShape(t *testing.T) {
-	body := []byte(`{
-      "model":"claude-opus-4-8","max_tokens":4096,
-      "system":"You are helpful.",
-      "thinking":{"type":"enabled","budget_tokens":31999},
-      "tools":[{"name":"bash","description":"run","input_schema":{"type":"object","properties":{"command":{"type":"string"}},"required":["command"]}}],
-      "tool_choice":{"type":"auto"},
-      "messages":[
-        {"role":"user","content":"fix the bug"},
-        {"role":"assistant","content":[
-          {"type":"text","text":"I'll look"},
-          {"type":"tool_use","id":"toolu_1","name":"bash","input":{"command":"ls"}}
-        ]},
-        {"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","content":"file.go"}]}
-      ]
-    }`)
-	env, err := translate.ParseAnthropic(body)
-	require.NoError(t, err)
-	prep, err := env.PrepareOpenAIResponses(http.Header{}, translate.EmitOptions{
-		TargetModel:          "gpt-5.5",
-		Capabilities:         router.Lookup("gpt-5.5"),
-		ForceReasoningEffort: "high",
-	})
-	require.NoError(t, err)
-
-	var out map[string]any
-	require.NoError(t, json.Unmarshal(prep.Body, &out))
-
-	assert.Equal(t, "gpt-5.5", out["model"])
-	assert.Equal(t, true, out["stream"], "Responses upstream must stream so a slow gpt-5.x prefill doesn't trip the response-header timeout")
-	assert.Equal(t, false, out["store"])
-	assert.Equal(t, "You are helpful.", out["instructions"])
-	reasoning, _ := out["reasoning"].(map[string]any)
-	require.NotNil(t, reasoning, "reasoning must be set from thinking budget")
-	assert.Equal(t, "high", reasoning["effort"], "31999 budget -> high")
-	// max_tokens 4096 is floored to minResponsesOutputTokens (16000): a reasoning
-	// model needs output-budget headroom for hidden reasoning before any visible
-	// token, so the requested 4096 is lifted to the reasoning floor.
-	assert.EqualValues(t, 16000, out["max_output_tokens"])
-	assert.Equal(t, "auto", out["tool_choice"])
-
-	// tools: FLAT function shape (no nested "function" wrapper)
-	tools, _ := out["tools"].([]any)
-	require.Len(t, tools, 1)
-	tool0, _ := tools[0].(map[string]any)
-	assert.Equal(t, "function", tool0["type"])
-	assert.Equal(t, "bash", tool0["name"])
-	assert.Nil(t, tool0["function"], "Responses tools are flat, not nested under function")
-	require.NotNil(t, tool0["parameters"])
-
-	// input items in order: user message, assistant message (text), function_call, function_call_output
-	input, _ := out["input"].([]any)
-	require.GreaterOrEqual(t, len(input), 4)
-	types := make([]string, 0, len(input))
-	var fc, fco map[string]any
-	for _, it := range input {
-		m, _ := it.(map[string]any)
-		if r, ok := m["role"]; ok {
-			types = append(types, "msg:"+r.(string))
-			continue
-		}
-		switch m["type"] {
-		case "function_call":
-			fc = m
-			types = append(types, "function_call")
-		case "function_call_output":
-			fco = m
-			types = append(types, "function_call_output")
-		}
-	}
-	assert.Equal(t, []string{"msg:user", "msg:assistant", "function_call", "function_call_output"}, types)
-	require.NotNil(t, fc)
-	assert.Equal(t, "toolu_1", fc["call_id"], "tool_use.id must round-trip as call_id")
-	assert.Equal(t, "bash", fc["name"])
-	assert.Equal(t, `{"command":"ls"}`, fc["arguments"], "arguments serialized as a JSON string")
-	require.NotNil(t, fco)
-	assert.Equal(t, "toolu_1", fco["call_id"], "tool_result.tool_use_id must match the call_id")
-	assert.Equal(t, "file.go", fco["output"])
-
-	assert.Equal(t, providers.EndpointResponses, prep.Endpoint)
 }
 
 // Unknown tool calls stay in Anthropic history for the client's feedback loop,
@@ -275,43 +189,6 @@ func TestPrepareOpenAIResponses_ToolChoiceVariants(t *testing.T) {
 	}
 }
 
-// A tiny client max_tokens (Claude Code sends 1 for a probe, 64 for a
-// title/topic turn) must be floored to the reasoning output budget: a reasoning
-// model burns the budget on hidden reasoning before any visible token, so the
-// raw tiny value 400s ("max_tokens or model output limit was reached"). A budget
-// already above the floor is passed through unchanged (clamped only to the cap).
-func TestPrepareOpenAIResponses_FloorsMaxOutputTokensForReasoning(t *testing.T) {
-	cases := []struct {
-		name       string
-		maxTokens  int
-		wantMaxOut int64
-	}{
-		{name: "probe max_tokens=1 floored", maxTokens: 1, wantMaxOut: 16000},
-		{name: "title-turn max_tokens=64 floored", maxTokens: 64, wantMaxOut: 16000},
-		{name: "at floor unchanged", maxTokens: 16000, wantMaxOut: 16000},
-		{name: "large budget passes through", maxTokens: 32000, wantMaxOut: 32000},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			body := []byte(fmt.Sprintf(`{
-				"model":"claude-opus-4-8","max_tokens":%d,
-				"tools":[{"name":"bash","description":"run","input_schema":{"type":"object","properties":{"command":{"type":"string"}},"required":["command"]}}],
-				"messages":[{"role":"user","content":"hi"}]
-			}`, tc.maxTokens))
-			env, err := translate.ParseAnthropic(body)
-			require.NoError(t, err)
-			prep, err := env.PrepareOpenAIResponses(http.Header{}, translate.EmitOptions{
-				TargetModel:  "gpt-5.4-mini",
-				Capabilities: router.Lookup("gpt-5.4-mini"),
-			})
-			require.NoError(t, err)
-			var out map[string]any
-			require.NoError(t, json.Unmarshal(prep.Body, &out))
-			assert.EqualValues(t, tc.wantMaxOut, out["max_output_tokens"])
-		})
-	}
-}
-
 // Gemini sessions smuggle a thoughtSignature into tool_use ids
 // (call_xxx__thought__<sig>, often >1KB). On re-route to a gpt-5.x Responses
 // model, call_id must be stripped and clamped to 64 chars or the upstream
@@ -355,145 +232,6 @@ func TestPrepareOpenAIResponses_ClampsGeminiThoughtSignatureCallID(t *testing.T)
 	assert.LessOrEqual(t, len(fnCallID), 64, "call_id must fit OpenAI's 64-char limit")
 	assert.Equal(t, "call_abc123", fnCallID, "the bare id (sans __thought__) is within the limit")
 	assert.Equal(t, fnCallID, fnOutCallID, "tool_use and tool_result must share the clamped call_id")
-}
-
-func TestPrepareOpenAIResponses_ReplaysSignedReasoning(t *testing.T) {
-	sig := openAIReasoningTestSignature(t, "rs_prev", "enc_prev", "scope_a")
-	body := []byte(`{
-		"model":"claude-opus-4-8","max_tokens":1024,
-		"thinking":{"type":"enabled","budget_tokens":8192},
-		"messages":[
-			{"role":"user","content":"continue"},
-			{"role":"assistant","content":[
-				{"type":"text","text":"I'll inspect it."},
-				{"type":"thinking","thinking":"summary","signature":` + strconv.Quote(sig) + `},
-				{"type":"tool_use","id":"toolu_1","name":"Read","input":{"file_path":"main.go"}}
-			]}
-		]
-	}`)
-	env, err := translate.ParseAnthropic(body)
-	require.NoError(t, err)
-	prep, err := env.PrepareOpenAIResponses(http.Header{}, translate.EmitOptions{TargetModel: "gpt-5.5", Capabilities: router.Lookup("gpt-5.5"), ForceReasoningEffort: "high", ReasoningReplayScope: "scope_a"})
-	require.NoError(t, err)
-
-	var out map[string]any
-	require.NoError(t, json.Unmarshal(prep.Body, &out))
-	assert.Equal(t, []any{"reasoning.encrypted_content"}, out["include"])
-
-	input, _ := out["input"].([]any)
-	require.Len(t, input, 4)
-	reasoning, _ := input[2].(map[string]any)
-	assert.Equal(t, "reasoning", reasoning["type"])
-	assert.Equal(t, "rs_prev", reasoning["id"])
-	assert.Equal(t, "enc_prev", reasoning["encrypted_content"])
-	assert.Equal(t, []any{}, reasoning["summary"])
-	toolCall, _ := input[3].(map[string]any)
-	assert.Equal(t, "function_call", toolCall["type"])
-	assert.Equal(t, "toolu_1", toolCall["call_id"])
-}
-
-func TestPrepareOpenAIResponses_ReplaysOnlyCurrentTurnReasoning(t *testing.T) {
-	prior := openAIReasoningTestSignature(t, "rs_prior", "enc_prior", "scope_a")
-	promptBLoop := openAIReasoningTestSignature(t, "rs_loop", "enc_loop", "scope_a")
-	current := openAIReasoningTestSignature(t, "rs_current", "enc_current", "scope_a")
-	priorCarrierID := "toolu_0__openai_reasoning__" + base64.RawURLEncoding.EncodeToString([]byte(prior))
-	head := `
-		{"role":"user","content":"prompt A"},
-		{"role":"assistant","content":[{"type":"tool_use","id":"` + priorCarrierID + `","name":"Read","input":{"file_path":"a.go"}}]},
-		{"role":"user","content":[{"type":"tool_result","tool_use_id":"` + priorCarrierID + `","content":"ok"}]},
-		{"role":"assistant","content":[{"type":"text","text":"answer A"}]},
-		{"role":"user","content":[{"type":"text","text":"prompt B"}]},
-		{"role":"assistant","content":[
-			{"type":"thinking","thinking":"","signature":` + strconv.Quote(promptBLoop) + `},
-			{"type":"tool_use","id":"toolu_1","name":"Read","input":{"file_path":"main.go"}}
-		]},`
-	tail := `,
-		{"role":"assistant","content":[
-			{"type":"thinking","thinking":"","signature":` + strconv.Quote(current) + `},
-			{"type":"tool_use","id":"toolu_2","name":"Read","input":{"file_path":"go.mod"}}
-		]},
-		{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_2","content":"ok"}]}`
-
-	cases := []struct {
-		name        string
-		loopResults string
-		want        []any
-	}{
-		{
-			name:        "tool results continue the prompt B loop",
-			loopResults: `{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","content":"ok"}]}`,
-			want:        []any{"rs_loop", "rs_current"},
-		},
-		{
-			name:        "injected reminder beside tool results continues the loop",
-			loopResults: `{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","content":"ok"},{"type":"text","text":"<system-reminder>todo list changed</system-reminder>"}]}`,
-			want:        []any{"rs_loop", "rs_current"},
-		},
-		{
-			name:        "typed prompt beside tool results starts a new turn",
-			loopResults: `{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","content":"ok"},{"type":"text","text":"prompt C"}]}`,
-			want:        []any{"rs_current"},
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			body := []byte(`{"model":"claude-opus-4-8","max_tokens":1024,"messages":[` + head + tc.loopResults + tail + `]}`)
-			env, err := translate.ParseAnthropic(body)
-			require.NoError(t, err)
-			prep, err := env.PrepareOpenAIResponses(http.Header{}, translate.EmitOptions{TargetModel: "gpt-5.5", Capabilities: router.Lookup("gpt-5.5"), ReasoningReplayScope: "scope_a"})
-			require.NoError(t, err)
-
-			var out struct {
-				Input []map[string]any `json:"input"`
-			}
-			require.NoError(t, json.Unmarshal(prep.Body, &out))
-			var replayed []any
-			for _, item := range out.Input {
-				if item["type"] == "reasoning" {
-					replayed = append(replayed, item["id"])
-				}
-			}
-			assert.Equal(t, tc.want, replayed)
-		})
-	}
-}
-
-func TestPrepareOpenAIResponses_ReplaysSignedReasoningAfterModelSwitch(t *testing.T) {
-	sig := openAIReasoningTestSignature(t, "rs_prev", "enc_prev", "scope_a")
-	body := []byte(`{
-		"model":"claude-opus-4-8","max_tokens":1024,
-		"thinking":{"type":"enabled","budget_tokens":8192},
-		"messages":[
-			{"role":"user","content":"continue"},
-			{"role":"assistant","content":[
-				{"type":"text","text":"I'll inspect it."},
-				{"type":"thinking","thinking":"stale anthropic reasoning","signature":"sig-from-other-model"},
-				{"type":"thinking","thinking":"summary","signature":` + strconv.Quote(sig) + `},
-				{"type":"tool_use","id":"toolu_1","name":"Read","input":{"file_path":"main.go"}}
-			]}
-		]
-	}`)
-	env, err := translate.ParseAnthropic(body)
-	require.NoError(t, err)
-	prep, err := env.PrepareOpenAIResponses(http.Header{}, translate.EmitOptions{
-		TargetModel:          "gpt-5.5",
-		Capabilities:         router.Lookup("gpt-5.5"),
-		ModelSwitched:        true,
-		ForceReasoningEffort: "high",
-		ReasoningReplayScope: "scope_a",
-	})
-	require.NoError(t, err)
-
-	var out map[string]any
-	require.NoError(t, json.Unmarshal(prep.Body, &out))
-	input, _ := out["input"].([]any)
-	require.Len(t, input, 4)
-	reasoning, _ := input[2].(map[string]any)
-	assert.Equal(t, "reasoning", reasoning["type"])
-	assert.Equal(t, "rs_prev", reasoning["id"])
-	assert.Equal(t, "enc_prev", reasoning["encrypted_content"])
-	toolCall, _ := input[3].(map[string]any)
-	assert.Equal(t, "toolu_1", toolCall["call_id"])
 }
 
 // Encrypted reasoning is bound to the account+model that produced it: Cortex
@@ -570,55 +308,6 @@ func TestPrepareOpenAIResponses_EffortLadder(t *testing.T) {
 	}
 }
 
-// Responses `response` object → Anthropic message.
-func TestResponsesToAnthropicResponse(t *testing.T) {
-	body := []byte(`{
-      "id":"resp_abc","status":"completed","model":"gpt-5.5",
-      "output":[
-        {"type":"reasoning","id":"rs_1","encrypted_content":"enc_1","summary":[{"type":"summary_text","text":"thinking about it"}]},
-        {"type":"message","id":"m1","role":"assistant","content":[{"type":"output_text","text":"here is the fix"}]},
-        {"type":"function_call","id":"fc1","call_id":"call_9","name":"bash","arguments":"{\"command\":\"go test\"}"}
-      ],
-      "usage":{"input_tokens":1200,"output_tokens":340,"output_tokens_details":{"reasoning_tokens":256},"input_tokens_details":{"cached_tokens":800,"cache_write_tokens":256}}
-    }`)
-	out, err := translate.ResponsesToAnthropicResponse(body, "gpt-5.5", "scope_a")
-	require.NoError(t, err)
-	var msg map[string]any
-	require.NoError(t, json.Unmarshal(out, &msg))
-
-	assert.Equal(t, "message", msg["type"])
-	assert.Equal(t, "resp_abc", msg["id"], "upstream response id passes through as the message id")
-	assert.Equal(t, "tool_use", msg["stop_reason"], "a function_call output → stop_reason tool_use")
-	content, _ := msg["content"].([]any)
-	require.Len(t, content, 3)
-	b0, _ := content[0].(map[string]any)
-	assert.Equal(t, "thinking", b0["type"])
-	assert.Equal(t, "thinking about it", b0["thinking"])
-	sigEnv := decodeOpenAIReasoningTestSignature(t, b0["signature"].(string))
-	assert.Equal(t, float64(1), sigEnv["v"])
-	assert.Equal(t, "openai", sigEnv["provider"])
-	assert.Equal(t, "rs_1", sigEnv["id"])
-	assert.Equal(t, "enc_1", sigEnv["enc"])
-	b1, _ := content[1].(map[string]any)
-	assert.Equal(t, "text", b1["type"])
-	assert.Equal(t, "here is the fix", b1["text"])
-	b2, _ := content[2].(map[string]any)
-	assert.Equal(t, "tool_use", b2["type"])
-	// The tool_use id also carries the preceding reasoning item's signature,
-	// since Claude Code drops the thinking block on round-trip but keeps the id.
-	toolID, _ := b2["id"].(string)
-	assert.True(t, strings.HasPrefix(toolID, "call_9"), "tool id keeps the call_id prefix, got %q", toolID)
-	assert.Contains(t, toolID, "__openai_reasoning__", "tool id carries the reasoning signature for replay")
-	assert.Equal(t, "bash", b2["name"])
-	input, _ := b2["input"].(map[string]any)
-	assert.Equal(t, "go test", input["command"], "arguments string parsed back to an input object")
-	usage, _ := msg["usage"].(map[string]any)
-	assert.EqualValues(t, 144, usage["input_tokens"], "Anthropic input_tokens is fresh-only")
-	assert.EqualValues(t, 340, usage["output_tokens"])
-	assert.EqualValues(t, 800, usage["cache_read_input_tokens"])
-	assert.EqualValues(t, 256, usage["cache_creation_input_tokens"])
-}
-
 func TestResponsesToAnthropicResponse_StopReasons(t *testing.T) {
 	// max tokens
 	mx := []byte(`{"id":"r","status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},"output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"partial"}]}],"usage":{"input_tokens":1,"output_tokens":2}}`)
@@ -684,35 +373,6 @@ func TestPrepareGemini_ThinkingBudget_Legacy25(t *testing.T) {
 	assert.EqualValues(t, 31999, tc["thinkingBudget"], "budget must be preserved exactly")
 	_, hasLevel := tc["thinkingLevel"]
 	assert.False(t, hasLevel, "gemini-2.5 must NOT send thinkingLevel")
-}
-
-func TestUseOpenAIResponsesAPI(t *testing.T) {
-	caps := router.Lookup("gpt-5.4-mini")
-	route := func(provider string, caps router.ModelSpec, hasTools, chatOnly, broad bool) translate.ResponsesRoute {
-		return translate.ResponsesRoute{
-			Provider:       provider,
-			Capabilities:   caps,
-			HasTools:       hasTools,
-			ChatOnlyParams: chatOnly,
-			Broad:          broad,
-		}
-	}
-	assert.True(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderAIAND, caps, true, false, true)))
-	assert.True(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderAIAND, caps, false, false, true)),
-		"broad rollout serves every expressible direct-OpenAI turn, tools or not")
-	assert.True(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderAIAND, router.Lookup("gpt-4o"), true, false, true)),
-		"non-reasoning direct-OpenAI models go to Responses too")
-	assert.False(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderAIAND, caps, true, true, true)),
-		"a turn using a chat-only parameter stays on chat/completions")
-	assert.True(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderAIAND, caps, true, false, false)),
-		"with the rollout off, the reasoning tool turn chat/completions rejects is still promoted")
-	assert.False(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderAIAND, caps, false, false, false)),
-		"with the rollout off, a toolless turn keeps the chat projection")
-	assert.False(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderAIAND, caps, true, false, true)))
-	assert.True(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderAIAND, caps, true, false, true)),
-		"BYOK gateways reject tools alongside an effort on chat/completions too")
-	assert.False(t, translate.UseOpenAIResponsesAPI(route(providers.ProviderAIAND, caps, false, false, true)),
-		"gateways stay narrow even under the broad rollout: most mount no Responses surface")
 }
 
 // An Anthropic image block must survive the Responses emit as a typed

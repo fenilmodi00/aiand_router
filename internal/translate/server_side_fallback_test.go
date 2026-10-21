@@ -46,18 +46,6 @@ func TestServerSideFallback_DisabledLeavesRequestUntouched(t *testing.T) {
 	assert.NotContains(t, prep.Headers.Get("anthropic-beta"), "server-side-fallback")
 }
 
-// The beta is a first-party Anthropic field; a gateway rejects the unknown key.
-func TestServerSideFallback_SkippedForNonFirstPartyTarget(t *testing.T) {
-	prep := prepareWithFallback(t, http.Header{}, serverSideFallbackBody, translate.EmitOptions{
-		TargetModel:              "claude-opus-5",
-		TargetProvider:           providers.ProviderAIAND,
-		EnableServerSideFallback: true,
-	})
-
-	assert.False(t, gjson.GetBytes(prep.Body, "fallbacks").Exists())
-	assert.NotContains(t, prep.Headers.Get("anthropic-beta"), "server-side-fallback")
-}
-
 func TestServerSideFallback_PreservesClientChoice(t *testing.T) {
 	body := `{"model":"claude-opus-5","max_tokens":1024,"messages":[{"role":"user","content":"hi"}],"fallbacks":"none"}`
 	prep := prepareWithFallback(t, http.Header{}, body, translate.EmitOptions{

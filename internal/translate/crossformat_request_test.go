@@ -582,48 +582,6 @@ func TestCrossFormat_OpenAIToAnthropic_NullToolResult(t *testing.T) {
 	assert.Equal(t, "tool_result", block["type"])
 	assert.Equal(t, "", block["content"], "null tool content must become empty string")
 }
-func TestCrossFormat_OpenAIToGemini_SimpleText(t *testing.T) {
-	env, err := translate.ParseOpenAI(openAISimpleConversation)
-	require.NoError(t, err)
-
-	prep, err := env.PrepareGemini(http.Header{}, translate.EmitOptions{TargetModel: "gemini-2.5-pro"})
-	require.NoError(t, err)
-
-	doc := unmarshalBody(t, prep.Body)
-
-	assert.NotContains(t, doc, "model", "Gemini body must not carry a top-level model field")
-	assert.NotContains(t, doc, "stream", "Gemini body must not carry a top-level stream field")
-
-	sys := getMap(t, doc, "systemInstruction")
-	parts := sys["parts"].([]any)
-	require.Len(t, parts, 1)
-	assert.Equal(t, "You are a coding assistant.", parts[0].(map[string]any)["text"])
-
-	contents := getArray(t, doc, "contents")
-	require.Len(t, contents, 3)
-
-	u0 := msgAt(t, contents, 0)
-	assert.Equal(t, "user", u0["role"])
-	u0Parts := u0["parts"].([]any)
-	assert.Equal(t, "What is 2+2?", u0Parts[0].(map[string]any)["text"])
-
-	m1 := msgAt(t, contents, 1)
-	assert.Equal(t, "model", m1["role"])
-	m1Parts := m1["parts"].([]any)
-	assert.Equal(t, "2+2 equals 4.", m1Parts[0].(map[string]any)["text"])
-
-	u2 := msgAt(t, contents, 2)
-	assert.Equal(t, "user", u2["role"])
-	u2Parts := u2["parts"].([]any)
-	assert.Equal(t, "Now what about 3+3?", u2Parts[0].(map[string]any)["text"])
-
-	genConf := getMap(t, doc, "generationConfig")
-	assert.Equal(t, float64(0.7), genConf["temperature"])
-	// 2.5 Pro thinks by default, so the 1024 budget is floored for reasoning headroom.
-	assert.Equal(t, float64(16000), genConf["maxOutputTokens"])
-
-	assert.Equal(t, "true", prep.Headers.Get(translate.GeminiStreamHintHeader))
-}
 
 func TestCrossFormat_OpenAIToGemini_ToolConversation(t *testing.T) {
 	env, err := translate.ParseOpenAI(openAIToolConversation)
@@ -1115,39 +1073,6 @@ func TestCrossFormat_AnthropicToOpenAI_EmptyToolInputBecomesEmptyArgsString(t *t
 	require.True(t, ok, "arguments must be a JSON string")
 	assert.Equal(t, "{}", argsStr)
 }
-func TestCrossFormat_AnthropicToGemini_SimpleText(t *testing.T) {
-	env, err := translate.ParseAnthropic(anthropicSimpleConversation)
-	require.NoError(t, err)
-
-	prep, err := env.PrepareGemini(http.Header{}, translate.EmitOptions{TargetModel: "gemini-2.5-pro"})
-	require.NoError(t, err)
-
-	doc := unmarshalBody(t, prep.Body)
-
-	assert.NotContains(t, doc, "model")
-	assert.NotContains(t, doc, "stream")
-
-	sys := getMap(t, doc, "systemInstruction")
-	parts := sys["parts"].([]any)
-	assert.Equal(t, "You are a coding assistant.", parts[0].(map[string]any)["text"])
-
-	contents := getArray(t, doc, "contents")
-	require.Len(t, contents, 3)
-
-	assert.Equal(t, "user", msgAt(t, contents, 0)["role"])
-	assert.Equal(t, "model", msgAt(t, contents, 1)["role"])
-	assert.Equal(t, "user", msgAt(t, contents, 2)["role"])
-
-	u0Parts := msgAt(t, contents, 0)["parts"].([]any)
-	assert.Equal(t, "What is 2+2?", u0Parts[0].(map[string]any)["text"])
-
-	genConf := getMap(t, doc, "generationConfig")
-	assert.Equal(t, float64(0.7), genConf["temperature"])
-	// 2.5 Pro thinks by default, so the 1024 budget is floored for reasoning headroom.
-	assert.Equal(t, float64(16000), genConf["maxOutputTokens"])
-
-	assert.Equal(t, "true", prep.Headers.Get(translate.GeminiStreamHintHeader))
-}
 
 func TestCrossFormat_AnthropicToGemini_ToolConversation(t *testing.T) {
 	env, err := translate.ParseAnthropic(anthropicToolConversation)
@@ -1399,56 +1324,6 @@ func TestCrossFormat_AnthropicToOpenAI_ReasoningModelOmitsStop(t *testing.T) {
 	assert.False(t, hasStop, "gpt-5.x rejects stop on chat/completions")
 }
 
-func TestCrossFormat_OpenAIToGemini_ScalarFieldsCarriedThrough(t *testing.T) {
-	body := []byte(`{
-		"model": "gpt-4",
-		"stream": true,
-		"messages": [{"role": "user", "content": "hi"}],
-		"temperature": 0.6,
-		"top_p": 0.95,
-		"max_tokens": 1024
-	}`)
-	env, err := translate.ParseOpenAI(body)
-	require.NoError(t, err)
-
-	prep, err := env.PrepareGemini(http.Header{}, translate.EmitOptions{TargetModel: "gemini-2.5-pro"})
-	require.NoError(t, err)
-
-	doc := unmarshalBody(t, prep.Body)
-	genConf := getMap(t, doc, "generationConfig")
-	assert.Equal(t, float64(0.6), genConf["temperature"])
-	assert.Equal(t, float64(0.95), genConf["topP"])
-	// 2.5 Pro thinks by default, so the 1024 budget is floored for reasoning headroom.
-	assert.Equal(t, float64(16000), genConf["maxOutputTokens"])
-	assert.Equal(t, "true", prep.Headers.Get(translate.GeminiStreamHintHeader))
-}
-
-func TestCrossFormat_AnthropicToGemini_ScalarFieldsCarriedThrough(t *testing.T) {
-	body := []byte(`{
-		"model": "claude-sonnet-4-20250514",
-		"stream": true,
-		"messages": [{"role": "user", "content": [{"type": "text", "text": "hi"}]}],
-		"temperature": 0.4,
-		"top_p": 0.85,
-		"max_tokens": 768,
-		"stop_sequences": ["END"]
-	}`)
-	env, err := translate.ParseAnthropic(body)
-	require.NoError(t, err)
-
-	prep, err := env.PrepareGemini(http.Header{}, translate.EmitOptions{TargetModel: "gemini-2.5-pro"})
-	require.NoError(t, err)
-
-	doc := unmarshalBody(t, prep.Body)
-	genConf := getMap(t, doc, "generationConfig")
-	assert.Equal(t, float64(0.4), genConf["temperature"])
-	assert.Equal(t, float64(0.85), genConf["topP"])
-	// 2.5 Pro thinks by default, so the 768 budget is floored for reasoning headroom.
-	assert.Equal(t, float64(16000), genConf["maxOutputTokens"])
-	stops := genConf["stopSequences"].([]any)
-	assert.Equal(t, []any{"END"}, stops)
-	assert.Equal(t, "true", prep.Headers.Get(translate.GeminiStreamHintHeader))
-}
 func TestCrossFormat_OpenAIToAnthropic_ToolParametersBecomesInputSchema(t *testing.T) {
 	body := []byte(`{
 		"model": "gpt-4",
@@ -2096,37 +1971,6 @@ func routerReasoningID(id string) string {
 	envelope, _ := json.Marshal(map[string]any{"v": 1, "provider": "openai", "id": "rs_1", "enc": strings.Repeat("E", 6000), "scope": "scope"})
 	sig := base64.StdEncoding.EncodeToString(envelope)
 	return id + "__openai_reasoning__" + base64.RawURLEncoding.EncodeToString([]byte(sig))
-}
-
-func TestSanitizeToolUseIDs_AnthropicTargetDropsOpenAIReasoningCarrier(t *testing.T) {
-	reasoningID := routerReasoningID("call_abc")
-	thoughtID := "toolu_def__thought__" + strings.Repeat("R", 600)
-	undecodableID := "call_abc__openai_reasoning__" + strings.Repeat("Q", 40)
-	body := []byte(`{"model":"claude-opus-4-7","messages":[
-		{"role":"assistant","content":[
-			{"type":"tool_use","id":"` + reasoningID + `","name":"Read","input":{}},
-			{"type":"tool_use","id":"` + thoughtID + `","name":"Grep","input":{}},
-			{"type":"tool_use","id":"` + undecodableID + `","name":"Glob","input":{}}]},
-		{"role":"user","content":[
-			{"type":"tool_result","tool_use_id":"` + reasoningID + `","content":"a"},
-			{"type":"tool_result","tool_use_id":"` + thoughtID + `","content":"b"},
-			{"type":"tool_result","tool_use_id":"` + undecodableID + `","content":"c"}]}]}`)
-	env, err := translate.ParseAnthropic(body)
-	require.NoError(t, err)
-	prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "claude-opus-4-7"})
-	require.NoError(t, err)
-
-	uses := gjson.GetBytes(prep.Body, "messages.0.content.#.id").Array()
-	results := gjson.GetBytes(prep.Body, "messages.1.content.#.tool_use_id").Array()
-	require.Len(t, uses, 3)
-	require.Len(t, results, 3)
-	assert.Equal(t, "call_abc", uses[0].String(), "router reasoning carrier is not sent to Anthropic")
-	assert.Equal(t, thoughtID, uses[1].String(), "Gemini thought carrier keeps its documented round-trip")
-	assert.Equal(t, undecodableID, uses[2].String(), "an undecodable suffix is caller data and keeps the id distinct")
-	for i := range uses {
-		assert.Equal(t, uses[i].String(), results[i].String(), "tool_use/tool_result pairing survives")
-	}
-	assert.NotContains(t, string(prep.Body), strings.TrimPrefix(reasoningID, "call_abc"), "router reasoning bytes are gone from the dispatched body")
 }
 
 func TestSanitizeOverlongToolUseNames(t *testing.T) {

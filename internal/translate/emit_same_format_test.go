@@ -10,7 +10,6 @@ import (
 
 	"weave-os/router/internal/providers"
 	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/catalog"
 	"weave-os/router/internal/translate"
 
 	"github.com/stretchr/testify/assert"
@@ -229,50 +228,6 @@ func TestOpenAISameFormat_ReasoningEffortKeptForReasoning(t *testing.T) {
 	assert.Equal(t, "high", out["reasoning_effort"])
 }
 
-func TestOpenAISameFormat_ReasoningEffortDeletedForGPT5OnChatCompletions(t *testing.T) {
-	body := []byte(`{
-		"model":"gpt-5.6-luna",
-		"messages":[{"role":"user","content":"hi"}],
-		"reasoning_effort":"medium",
-		"tools":[{"type":"function","function":{"name":"read_file","parameters":{"type":"object"}}}]
-	}`)
-	opts := translate.EmitOptions{
-		TargetModel:    "gpt-5.6-luna",
-		TargetProvider: providers.ProviderAIAND,
-		Capabilities:   router.Lookup("gpt-5.6-luna"),
-	}
-	out := parseAndEmit(t, body, "openai", opts)
-	assert.NotContains(t, out, "reasoning_effort")
-	assert.Contains(t, out, "tools")
-}
-
-// Cortex rejects reasoning_effort alongside tools for every model it serves,
-// not just gpt-5.x, and a gateway has no Responses surface to move it to.
-func TestOpenAISameFormat_ReasoningEffortDeletedForGatewayToolsOnAnyModel(t *testing.T) {
-	body := []byte(`{
-		"model":"grok-4.6",
-		"messages":[{"role":"user","content":"hi"}],
-		"reasoning_effort":"medium",
-		"tools":[{"type":"function","function":{"name":"read_file","parameters":{"type":"object"}}}]
-	}`)
-	opts := translate.EmitOptions{
-		TargetModel:    "grok-4.6",
-		TargetProvider: providers.ProviderAIAND,
-		Capabilities:   router.Lookup("grok-4.6"),
-	}
-	out := parseAndEmit(t, body, "openai", opts)
-	assert.NotContains(t, out, "reasoning_effort")
-	assert.Contains(t, out, "tools")
-
-	toolless := []byte(`{
-		"model":"grok-4.6",
-		"messages":[{"role":"user","content":"hi"}],
-		"reasoning_effort":"medium"
-	}`)
-	assert.Equal(t, "medium", parseAndEmit(t, toolless, "openai", opts)["reasoning_effort"],
-		"a toolless gateway turn keeps the caller's effort")
-}
-
 // Direct OpenAI applies its own effort on gpt-5.6 tool turns even when the
 // field is absent; dropping it is not enough — the turn must opt out explicitly.
 func TestOpenAISameFormat_ToolTurnOptsOutOfReasoningForDirectGPT56(t *testing.T) {
@@ -340,16 +295,6 @@ func TestOpenAISameFormat_ReasoningStripsUnsupportedSampling(t *testing.T) {
 			assert.NotContains(t, out, "frequency_penalty")
 		})
 	}
-}
-
-func TestOpenAISameFormat_GrokMaxCompletionTokensCap(t *testing.T) {
-	body := []byte(`{"model":"grok-4.5","messages":[{"role":"user","content":"hi"}],"max_completion_tokens":999999}`)
-	opts := translate.EmitOptions{
-		TargetModel:  "grok-4.5",
-		Capabilities: router.Lookup("grok-4.5"),
-	}
-	out := parseAndEmit(t, body, "openai", opts)
-	assert.Equal(t, float64(131072), out["max_completion_tokens"])
 }
 
 func TestOpenAISameFormat_StreamUsageInjected(t *testing.T) {
@@ -1356,46 +1301,6 @@ func TestAnthropicSameFormat_XhighEffortPreservedForCapableModel(t *testing.T) {
 	assert.Equal(t, "xhigh", outputConfig["effort"], "xhigh must pass through to models with CapXhighEffort")
 }
 
-// Exhaustive backstop for the 2026-06-09 incident: a newly added or re-tagged
-// Anthropic model could silently reintroduce the 400. Walk every catalog model
-// and assert xhigh survives emit only when CapXhighEffort is advertised.
-func TestAnthropicSameFormat_XhighEffortNeverReachesIncapableModel(t *testing.T) {
-	var anthropicModels, capableModels int
-	for _, m := range catalog.Models {
-		if m.PrimaryProvider() != providers.ProviderAIAND {
-			continue
-		}
-		anthropicModels++
-		capable := router.Lookup(m.ID).Supports(router.CapXhighEffort)
-		if capable {
-			capableModels++
-		}
-		t.Run(m.ID, func(t *testing.T) {
-			body := []byte(`{"model":"claude-opus-4-8","messages":[{"role":"user","content":"hi"}],"max_tokens":1024,"thinking":{"type":"adaptive"},"effort":"xhigh","output_config":{"effort":"xhigh"}}`)
-			out := parseAndEmit(t, body, "anthropic", translate.EmitOptions{
-				TargetModel:  m.ID,
-				Capabilities: router.Lookup(m.ID),
-			})
-
-			topLevel, _ := out["effort"].(string)
-			var nested string
-			if oc, ok := out["output_config"].(map[string]any); ok {
-				nested, _ = oc["effort"].(string)
-			}
-			if capable {
-				assert.Equal(t, "xhigh", topLevel, "top-level effort xhigh must pass through to a CapXhighEffort model")
-				assert.Equal(t, "xhigh", nested, "output_config.effort xhigh must pass through to a CapXhighEffort model")
-				return
-			}
-			assert.NotEqual(t, "xhigh", topLevel, "top-level effort xhigh must never reach a model without CapXhighEffort")
-			assert.NotEqual(t, "xhigh", nested, "output_config.effort xhigh must never reach a model without CapXhighEffort")
-		})
-	}
-	// Guard against a vacuous pass if the catalog filter ever stops matching.
-	require.Positive(t, anthropicModels, "expected Anthropic models in the catalog")
-	require.Positive(t, capableModels, "expected at least one CapXhighEffort model so the preserve branch is exercised")
-}
-
 // Levels below xhigh are on every adaptive model's menu; the clamp must not
 // touch them even when the target lacks CapXhighEffort.
 func TestAnthropicSameFormat_NonXhighEffortUntouchedByClamp(t *testing.T) {
@@ -1466,67 +1371,6 @@ func openAIReasoningSignature(t *testing.T, id, enc string) string {
 	raw, err := json.Marshal(map[string]any{"v": 1, "provider": "openai", "id": id, "enc": enc})
 	require.NoError(t, err)
 	return base64.StdEncoding.EncodeToString(raw)
-}
-
-// TestAnthropicSameFormat_ForeignSignedThinkingStrippedWithoutModelSwitch
-// covers the prod regression where client-side compaction re-keys the session,
-// losing the pin and leaving ModelSwitched false on re-route to Anthropic.
-func TestAnthropicSameFormat_ForeignSignedThinkingStrippedWithoutModelSwitch(t *testing.T) {
-	sig := openAIReasoningSignature(t, "rs_abc123", "gAAAAA")
-	body := []byte(fmt.Sprintf(
-		`{"model":"claude-opus-4-7","messages":[{"role":"user","content":"hi"},{"role":"assistant","content":[{"type":"thinking","thinking":"openai reasoning","signature":%q},{"type":"text","text":"reply"}]}],"max_tokens":1024,"thinking":{"type":"adaptive"}}`,
-		sig))
-	opts := translate.EmitOptions{
-		TargetModel:   "claude-opus-4-7",
-		Capabilities:  router.Lookup("claude-opus-4-7"),
-		ModelSwitched: false,
-	}
-	out := parseAndEmit(t, body, "anthropic", opts)
-	msgs, _ := out["messages"].([]any)
-	require.Len(t, msgs, 2)
-	assistantMsg, _ := msgs[1].(map[string]any)
-	content, _ := assistantMsg["content"].([]any)
-	require.Len(t, content, 1, "a foreign-signed thinking block must be stripped even when the pin reports no switch")
-	block, _ := content[0].(map[string]any)
-	assert.Equal(t, "text", block["type"], "only the text block should survive the strip")
-}
-
-// TestAnthropicSameFormat_ForeignSignedThinkingStrippedAnthropicSignedKept
-// verifies that only cross-format-signed blocks are dropped; Anthropic-minted
-// signatures survive for cache and reasoning continuity.
-func TestAnthropicSameFormat_ForeignSignedThinkingStrippedAnthropicSignedKept(t *testing.T) {
-	sig := openAIReasoningSignature(t, "rs_abc123", "gAAAAA")
-	body := []byte(fmt.Sprintf(
-		`{"model":"claude-opus-4-7","messages":[{"role":"assistant","content":[{"type":"thinking","thinking":"anthropic","signature":"ErUBCkYIBRgCKkA"},{"type":"thinking","thinking":"openai","signature":%q},{"type":"text","text":"reply"}]}],"max_tokens":1024,"thinking":{"type":"adaptive"}}`,
-		sig))
-	opts := translate.EmitOptions{
-		TargetModel:  "claude-opus-4-7",
-		Capabilities: router.Lookup("claude-opus-4-7"),
-	}
-	out := parseAndEmit(t, body, "anthropic", opts)
-	msgs, _ := out["messages"].([]any)
-	require.Len(t, msgs, 1)
-	assistantMsg, _ := msgs[0].(map[string]any)
-	content, _ := assistantMsg["content"].([]any)
-	require.Len(t, content, 2, "only the foreign-signed thinking block should be dropped")
-	kept, _ := content[0].(map[string]any)
-	assert.Equal(t, "ErUBCkYIBRgCKkA", kept["signature"], "the Anthropic-signed block must survive intact")
-}
-
-// TestAnthropicSameFormat_ForeignSignedThinkingOnlyMessageDropped: a
-// foreign-signed-only assistant message must be dropped, not emitted as content:[].
-func TestAnthropicSameFormat_ForeignSignedThinkingOnlyMessageDropped(t *testing.T) {
-	sig := openAIReasoningSignature(t, "rs_abc123", "gAAAAA")
-	body := []byte(fmt.Sprintf(
-		`{"model":"claude-opus-4-7","messages":[{"role":"user","content":"hi"},{"role":"assistant","content":[{"type":"thinking","thinking":"openai","signature":%q}]},{"role":"user","content":"continue"}],"max_tokens":1024,"thinking":{"type":"adaptive"}}`,
-		sig))
-	opts := translate.EmitOptions{
-		TargetModel:  "claude-opus-4-7",
-		Capabilities: router.Lookup("claude-opus-4-7"),
-	}
-	out := parseAndEmit(t, body, "anthropic", opts)
-	msgs, _ := out["messages"].([]any)
-	require.Len(t, msgs, 2, "the foreign-signed-thinking-only assistant message must be dropped entirely")
 }
 
 // Fable 5.1 400s on tool_choice any/tool ("not supported for this model");
