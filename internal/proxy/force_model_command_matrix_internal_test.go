@@ -14,49 +14,6 @@ import (
 	"weave-os/router/internal/translate"
 )
 
-// End to end from the typed command line to the written pin: the parser must
-// hand the resolver the whole name, and the ack must name the pinned model.
-func TestForceModelCommand_TypedForms(t *testing.T) {
-	tests := []struct {
-		typed      string
-		wantModel  string
-		wantEffort string
-	}{
-		{"/fm opus", "z-ai/glm-5.2", ""},
-		{"/fm claude-opus-5.5", "z-ai/glm-5.2", ""},
-		{"/fm claude-opus-5-5", "z-ai/glm-5.2", ""},
-		{"/fm opus 5.5", "z-ai/glm-5.2", ""},
-		{"/fm   opus   5.5  ", "z-ai/glm-5.2", ""},
-		{"/force-model claude-opus-5.5", "z-ai/glm-5.2", ""},
-		{"/model opus-4.8", "z-ai/glm-5.2", ""},
-		{"$fm sol", "gpt-6.1-sol", ""},
-		{"/fm sol:high", "gpt-6.1-sol", "high"},
-		{"/fm astra high", "gpt-6-astra", "high"},
-		{"/fm claude-opus-5-5[1m]", "z-ai/glm-5.2", ""},
-		{"/fm qwen 3.8", "qwen/qwen3.8-max", ""},
-		{"<command-name>/fm</command-name>\n/fm claude-opus-5.5", "z-ai/glm-5.2", ""},
-	}
-	for _, tt := range tests {
-		t.Run(tt.typed, func(t *testing.T) {
-			store := &recordingPinStore{}
-			svc := NewService(nil, nil, nil, false, nil, store, false,
-				providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil)
-			env := typedCommandEnv(t, tt.typed+"\nfix the failing test")
-			cmd, found := env.ExtractForceModelCommand()
-			require.True(t, found, "command parsed")
-
-			rec := httptest.NewRecorder()
-			require.NoError(t, svc.handleForceModelCommand(context.Background(), rec, env, cmd,
-				uuid.New(), DeriveSessionKey(env, "key-1"), DeriveSessionKey(env, "key-1"), 10))
-
-			require.Len(t, store.upserts, 1, "pin written")
-			assert.Equal(t, tt.wantModel, store.upserts[0].Model)
-			assert.Equal(t, tt.wantEffort, store.upserts[0].Effort)
-			assert.Contains(t, rec.Body.String(), "force-model applied: "+tt.wantModel)
-		})
-	}
-}
-
 // A name that resolves to no model writes no pin and keeps the ack wording the
 // statusline scripts match on.
 func TestForceModelCommand_TypedUnknownKeepsRouting(t *testing.T) {

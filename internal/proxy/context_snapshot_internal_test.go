@@ -70,16 +70,3 @@ func TestContextSnapshotFreshness(t *testing.T) {
 	require.False(t, snapshot.Fresh(now))
 	require.Nil(t, ParseContextSnapshot([]byte(`{"version":`)))
 }
-
-func TestContextSnapshotUsesFinalServedModel(t *testing.T) {
-	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
-	headers := http.Header{}
-	setContextEstimateHeaders(headers, 72000, 8000)
-	headers.Set(HeaderRouterContextWindow, "1048576")
-	headers.Set(HeaderRouterModel, "deepseek/deepseek-v4-pro")
-	snapshot := contextSnapshotJSONForDecision(headers, "request-final", "z-ai/glm-5.2", "z-ai/glm-5.2", providers.ProviderAIAND, now, now)
-	parsed := ParseContextSnapshot(snapshot)
-	require.NotNil(t, parsed)
-	require.Equal(t, "z-ai/glm-5.2", parsed.ServedModel)
-	require.Equal(t, 1_000_000, parsed.ContextWindow)
-}

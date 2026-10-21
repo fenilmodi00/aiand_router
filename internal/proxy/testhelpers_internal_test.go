@@ -1,13 +1,32 @@
 package proxy
 
 import (
+	"context"
 	"errors"
 	"io"
+	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"weave-os/router/internal/router"
 )
+
+const (
+	budgetTestFable     = "z-ai/glm-5.3-flash"
+	budgetTestHaiku     = "z-ai/glm-5.2"
+	budgetTestUserAgent = "claude-cli/2.1.257 (external, sdk-ts)"
+	budgetTestBeta      = "context-1m-2025-08-07"
+)
+
+// noRetrySleep replaces the retry backoff so a test does not wait it out.
+func noRetrySleep(context.Context, time.Duration) error { return nil }
+
+func smallClientBudget() router.ClientBudget {
+	return resolveClientBudget(ClientIdentity{ClientApp: ClientAppClaudeCode, UserAgent: budgetTestUserAgent}, nil, budgetTestFable, false)
+}
 
 // Chunk sizes every buffered SSE consumer is exercised at: one byte, odd sizes
 // that land boundaries mid-line and mid-delimiter, and the provider adapters'
@@ -62,4 +81,13 @@ func (r *failingRecorder) Write(p []byte) (int, error) {
 		return 0, errSinkClosed
 	}
 	return r.ResponseRecorder.Write(p)
+}
+
+// serveSyntheticCodexQuota answers the subscription-pool quota probe.
+func serveSyntheticCodexQuota(w http.ResponseWriter, r *http.Request) bool {
+	if r.URL.Path != "/wham/usage" {
+		return false
+	}
+	_, _ = io.WriteString(w, `{"rate_limit":{"allowed":true,"limit_reached":false,"primary_window":{"used_percent":10}}}`)
+	return true
 }

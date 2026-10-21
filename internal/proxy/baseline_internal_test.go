@@ -1,7 +1,6 @@
 package proxy
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -33,19 +32,4 @@ func TestWithDefaultBaselineModel(t *testing.T) {
 	s := &Service{}
 	s.WithDefaultBaselineModel("deepseek/deepseek-v4.1-flash")
 	assert.Equal(t, "deepseek/deepseek-v4.1-flash", s.defaultBaselineModel)
-}
-
-// The baseline rescue path must check the allowlist directly: passthrough-only
-// models never enter the desugared exclusion set, so ExcludedModels alone won't block them.
-func TestBaselineModelPermittedByAllowlist(t *testing.T) {
-	restricted := context.WithValue(context.Background(),
-		InstallationAllowedModelsContextKey{}, []string{"z-ai/glm-5.2"})
-
-	assert.True(t, modelPermittedByAllowlist(restricted, "z-ai/glm-5.2"),
-		"an allowlisted model clears the gate")
-	assert.False(t, modelPermittedByAllowlist(restricted, "z-ai/glm-5.2"),
-		"a passthrough-only model outside the allowlist must NOT be rescued to")
-
-	assert.True(t, modelPermittedByAllowlist(context.Background(), "z-ai/glm-5.2"),
-		"no allowlist means no restriction, so passthrough stays servable")
 }

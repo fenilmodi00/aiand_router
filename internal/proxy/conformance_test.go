@@ -68,7 +68,7 @@ func runConformanceCase(t *testing.T, c conformanceCase) {
 	svc := proxy.NewService(
 		&fakeRouter{decision: router.Decision{Provider: c.provider, Model: c.model}},
 		map[string]providers.Client{c.provider: c.newClient(srv.URL)},
-		nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
+		nil, false, nil, nil, false, providers.ProviderAIAND, "claude-haiku-4-5", nil,
 	).WithDeploymentKeyedProviders(map[string]struct{}{c.provider: {}})
 
 	rec := httptest.NewRecorder()

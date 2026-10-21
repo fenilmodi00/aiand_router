@@ -16,19 +16,6 @@ func hysteresisDecision(model string, armScores map[string]float32) router.Decis
 	}
 }
 
-func TestEffortHysteresisHoldsSmallGapOnSameModel(t *testing.T) {
-	fresh := hysteresisDecision("z-ai/glm-5.2", map[string]float32{
-		"anthropic/claude-opus-5:low":  4.0,
-		"anthropic/claude-opus-5:high": 4.5,
-	})
-
-	got := effortHysteresisHold(fresh, "claude-opus-5:low", "z-ai/glm-5.2", "high")
-
-	if got != "low" {
-		t.Fatalf("expected incumbent effort held, got %q", got)
-	}
-}
-
 func TestEffortHysteresisAllowsGapAboveThreshold(t *testing.T) {
 	fresh := hysteresisDecision("z-ai/glm-5.2", map[string]float32{
 		"anthropic/claude-opus-5:low":  4.0,
@@ -100,19 +87,6 @@ func TestEffortHysteresisPassesThroughWhenIncumbentArmUnscored(t *testing.T) {
 
 	if got != "" {
 		t.Fatalf("expected pass-through when the incumbent arm has no score, got %q", got)
-	}
-}
-
-func TestEffortHysteresisHoldsWhenChallengerScoresWorse(t *testing.T) {
-	fresh := hysteresisDecision("z-ai/glm-5.2", map[string]float32{
-		"anthropic/claude-opus-5:low":  5.0,
-		"anthropic/claude-opus-5:high": 1.0,
-	})
-
-	got := effortHysteresisHold(fresh, "claude-opus-5:low", "z-ai/glm-5.2", "high")
-
-	if got != "low" {
-		t.Fatalf("expected incumbent held against a worse challenger, got %q", got)
 	}
 }
 

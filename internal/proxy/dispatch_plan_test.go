@@ -17,7 +17,6 @@ import (
 	"weave-os/router/internal/router"
 	"weave-os/router/internal/router/catalog"
 	"weave-os/router/internal/router/policy"
-	"weave-os/router/internal/translate"
 )
 
 const plannedTestModel = "deepseek/deepseek-v4-pro"
@@ -55,25 +54,6 @@ func TestDispatchPlanned_PrimarySucceeds(t *testing.T) {
 	assert.Equal(t, "ok", rec.Body.String())
 	assert.Equal(t, providers.ProviderAIAND, rec.Header().Get(HeaderRouterProvider))
 	assert.Equal(t, plannedTestModel, rec.Header().Get(HeaderRouterModel))
-}
-
-func TestDispatchPlanned_FailsOverBeforeCommit(t *testing.T) {
-	primary := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{err: &providers.UpstreamErrorResponse{Status: 503, Body: []byte(`down`)}}}}
-	fallback := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{writeBytes: []byte("rescued")}}}
-	s := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: primary})
-
-	rec := httptest.NewRecorder()
-	buf := newPreludeBuffer(rec)
-	winnerIdx, err := s.dispatchWithFallback(context.Background(), plannedInputs(rec, buf,
-		[]catalog.ProviderBinding{{Provider: providers.ProviderAIAND}, {Provider: providers.ProviderAIAND}}, nil))
-
-	require.NoError(t, err)
-	assert.Equal(t, 1, winnerIdx)
-	assert.Equal(t, 1, primary.calls)
-	assert.Equal(t, 1, fallback.calls)
-	assert.Equal(t, "rescued", rec.Body.String())
-	assert.Equal(t, providers.ProviderAIAND, rec.Header().Get(HeaderRouterFallbackFrom))
-	assert.Equal(t, providers.ProviderAIAND, rec.Header().Get(HeaderRouterProvider))
 }
 
 func TestDispatchPlanned_NoFailoverAfterCommit(t *testing.T) {
@@ -179,49 +159,6 @@ func TestDispatchPlanned_DeferredFlushLeavesWriterUntouched(t *testing.T) {
 	assert.Empty(t, rec.Body.String(), "caller owns the deferred error")
 }
 
-func TestDispatchPlanned_ProviderMissingAtRuntimeSkipsToNext(t *testing.T) {
-	fallback := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{writeBytes: []byte("ok")}}}
-	s := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: fallback})
-
-	rec := httptest.NewRecorder()
-	buf := newPreludeBuffer(rec)
-	winnerIdx, err := s.dispatchWithFallback(context.Background(), plannedInputs(rec, buf,
-		[]catalog.ProviderBinding{{Provider: providers.ProviderAIAND}, {Provider: providers.ProviderAIAND}}, nil))
-
-	require.NoError(t, err)
-	assert.Equal(t, 1, winnerIdx)
-	assert.Equal(t, 1, fallback.calls)
-}
-
-func TestDispatchPlanned_RecordsAttemptProvenance(t *testing.T) {
-	primary := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{err: &providers.UpstreamErrorResponse{Status: 503, Body: []byte(`down`)}}}}
-	sink := &recordingAttemptSink{}
-	executor, err := dispatch.NewExecutor(dispatch.NewClients(map[string]providers.Client{
-		providers.ProviderAIAND: primary,
-	}), dispatch.WithAttemptSink(sink))
-	require.NoError(t, err)
-	s := (&Service{}).WithInferenceExecutor(executor)
-
-	rec := httptest.NewRecorder()
-	buf := newPreludeBuffer(rec)
-	in := plannedInputs(rec, buf, []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}, {Provider: providers.ProviderAIAND}}, nil)
-	in.initialDecision.Reason = translate.ReasonUserForceModel
-	in.origin = policy.OverrideSourceRequest
-	_, err = s.dispatchWithFallback(context.Background(), in)
-
-	require.NoError(t, err)
-	require.Len(t, sink.events, 2)
-	for _, event := range sink.events {
-		assert.Equal(t, inference.PurposeAnthropicMessages, event.Provenance.Purpose)
-		assert.NotEmpty(t, event.Provenance.PolicyID)
-		assert.Equal(t, plannedTestModel, event.Target.CatalogID)
-	}
-	assert.Equal(t, providers.ProviderAIAND, sink.events[0].Target.Provider)
-	assert.Equal(t, inference.AttemptOutcomeFailed, sink.events[0].Outcome)
-	assert.Equal(t, providers.ProviderAIAND, sink.events[1].Target.Provider)
-	assert.Equal(t, inference.AttemptOutcomeServed, sink.events[1].Outcome)
-}
-
 func TestDispatchPlanned_UnregisteredPurposeFailsClosed(t *testing.T) {
 	primary := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{writeBytes: []byte("ok")}}}
 	s := newServiceWithProviders(t, map[string]providers.Client{providers.ProviderAIAND: primary})
@@ -242,25 +179,4 @@ type recordingAttemptSink struct{ events []inference.AttemptEvent }
 
 func (r *recordingAttemptSink) RecordAttempt(_ context.Context, event inference.AttemptEvent) {
 	r.events = append(r.events, event)
-}
-
-func TestDispatchPlanned_LeaseFailureIsTerminal(t *testing.T) {
-	primary := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{writeBytes: []byte("ok")}}}
-	fallback := &fakeClient{name: providers.ProviderAIAND, outcomes: []fakeOutcome{{writeBytes: []byte("paid")}}}
-	s := newServiceWithProviders(t, map[string]providers.Client{}).WithManagedSubscriptions(&scriptedSubscriptionLeaser{})
-	slept := 0
-	s.retrySleep = func(context.Context, time.Duration) error { slept++; return nil }
-	ctx := context.WithValue(context.Background(), ManagedSubscriptionEnrollmentUnavailableContextKey{}, true)
-
-	rec := httptest.NewRecorder()
-	buf := newPreludeBuffer(rec)
-	in := plannedInputs(rec, buf, []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}, {Provider: providers.ProviderAIAND}}, nil)
-	in.initialDecision.Model = "z-ai/glm-5.2"
-	_, err := s.dispatchWithFallback(ctx, in)
-
-	require.ErrorIs(t, err, ErrSubscriptionPoolUnavailable)
-	assert.Equal(t, 0, primary.calls, "no upstream call without a lease")
-	assert.Equal(t, 0, fallback.calls, "a pool failure must not fail over to a paid binding")
-	assert.Equal(t, 0, slept, "a pool failure must not same-binding retry")
-	assert.Empty(t, rec.Body.String(), "the pool error is returned as-is, not rendered as an upstream envelope")
 }

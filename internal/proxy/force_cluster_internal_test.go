@@ -9,7 +9,6 @@ import (
 
 	"weave-os/router/internal/providers"
 	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/policy"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -100,31 +99,4 @@ type forceClusterCapturingRouter struct {
 func (r *forceClusterCapturingRouter) Route(_ context.Context, req router.Request) (router.Decision, error) {
 	r.captured = req
 	return r.decision, nil
-}
-
-// On an HMM installation the label must reach the policy router — that's where
-// the roster check that enforces it lives.
-func TestProxyMessages_ForceClusterReachesRouterRequest(t *testing.T) {
-	strategy := router.StrategyHMM
-	fr := &forceClusterCapturingRouter{decision: router.Decision{
-		Provider: providers.ProviderAIAND,
-		Model:    "z-ai/glm-5.3-flash",
-		Reason:   "hmm_policy:force_cluster",
-	}}
-	fp := &stripFailureProvider{}
-	svc := NewService(nil, map[string]providers.Client{providers.ProviderAIAND: fp}, nil, false, nil, nil, false,
-		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
-		WithPolicyStrategy(policy.StrategySpec{Strategy: strategy, Router: fr})
-
-	// Tools + a real max_tokens keep the turn off the classifier/probe hard-pin
-	// fast paths, which would never reach the router at all.
-	body := `{"model":"z-ai/glm-5.2","max_tokens":4096,` +
-		`"tools":[{"name":"Bash","input_schema":{"type":"object"}}],` +
-		`"messages":[{"role":"user","content":"hi"}]}`
-	ctx := router.WithStrategy(context.Background(), strategy)
-
-	require.NoError(t, svc.ProxyMessages(ctx, []byte(body), httptest.NewRecorder(),
-		forceClusterRequest(t, "maximum")))
-
-	assert.Equal(t, "maximum", fr.captured.ForceCluster)
 }

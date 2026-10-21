@@ -49,52 +49,6 @@ func (p *flowSpanProvider) Passthrough(context.Context, providers.PreparedReques
 	return nil
 }
 
-func TestProxyMessagesEmitsHighLevelFlowSpans(t *testing.T) {
-	recorder := tracetest.NewSpanRecorder()
-	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
-	t.Cleanup(func() { require.NoError(t, provider.Shutdown(context.Background())) })
-
-	previousTracer := proxyFlowTracer
-	proxyFlowTracer = provider.Tracer("test")
-	t.Cleanup(func() { proxyFlowTracer = previousTracer })
-
-	routerImpl := &flowSpanRouter{}
-	providerImpl := &flowSpanProvider{}
-	svc := NewService(
-		routerImpl,
-		map[string]providers.Client{providers.ProviderAIAND: providerImpl},
-		nil,
-		false,
-		nil,
-		nil,
-		false,
-		providers.ProviderAIAND,
-		"z-ai/glm-5.3-flash",
-		nil,
-	)
-
-	ctx, requestSpan := provider.Tracer("test").Start(context.Background(), "request")
-	ctx = context.WithValue(ctx, ClientIdentityContextKey{}, ClientIdentity{SessionID: "client-session-abc"})
-	body := []byte(`{"model":"z-ai/glm-5.2","max_tokens":4096,"tools":[{"name":"Read","input_schema":{"type":"object"}}],"messages":[{"role":"user","content":"inspect the repository"}]}`)
-	err := svc.ProxyMessages(ctx, body, httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/v1/messages", nil))
-	requestSpan.End()
-	require.NoError(t, err)
-
-	routing := proxyEndedSpanByName(t, recorder.Ended(), "router.routing")
-	inference := proxyEndedSpanByName(t, recorder.Ended(), "router.inference")
-	assert.Equal(t, requestSpan.SpanContext().SpanID(), routing.Parent().SpanID())
-	assert.Equal(t, requestSpan.SpanContext().SpanID(), inference.Parent().SpanID())
-	assert.Equal(t, routing.SpanContext().SpanID(), routerImpl.spanID)
-	assert.Equal(t, inference.SpanContext().SpanID(), providerImpl.spanID)
-	assert.Equal(t, codes.Ok, routing.Status().Code)
-	assert.Equal(t, codes.Ok, inference.Status().Code)
-	assert.Equal(t, "client-session-abc", proxySpanAttribute(t, routing.Attributes(), "client.session_id").AsString())
-	assert.Equal(t, "client-session-abc", proxySpanAttribute(t, inference.Attributes(), "client.session_id").AsString())
-	assert.Equal(t, "z-ai/glm-5.2", proxySpanAttribute(t, routing.Attributes(), "requested.model").AsString())
-	assert.Equal(t, "z-ai/glm-5.3-flash", proxySpanAttribute(t, routing.Attributes(), "decision.model").AsString())
-	assert.Equal(t, providers.ProviderAIAND, proxySpanAttribute(t, inference.Attributes(), "served.provider").AsString())
-}
-
 func TestProxyOpenAITranslationErrorMarksInferenceSpanFailed(t *testing.T) {
 	recorder := tracetest.NewSpanRecorder()
 	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))

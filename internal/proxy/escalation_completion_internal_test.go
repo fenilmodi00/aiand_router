@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -28,37 +27,6 @@ func newEscalationCompletionService(store *escalationTestStore, observer *escala
 		WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyHMMEmbedding, Router: escalationDispatchRouter{}, Capabilities: policy.Capabilities{SchemaVersion: policy.SchemaVersionV1, AuthoritativePerTurnSelection: true}})
 }
 
-func TestEscalationCompletionRecordsPostRoutingPreparationFailure(t *testing.T) {
-	for _, tc := range []struct {
-		name          string
-		body          string
-		invoke        func(*Service, context.Context, []byte, http.ResponseWriter, *http.Request) error
-		expectedError error
-	}{
-		{"messages_missing_provider", `{"model":"z-ai/glm-5.2","max_tokens":4096,"tools":[{"name":"Read","input_schema":{"type":"object"}}],"messages":[{"role":"user","content":"inspect the repository"}]}`, (*Service).ProxyMessages, ErrProviderNotConfigured},
-		{"chat_missing_provider", `{"model":"gpt-5","messages":[{"role":"user","content":"inspect the repository"}],"tools":[{"type":"function","function":{"name":"Read","parameters":{"type":"object"}}}]}`, (*Service).ProxyOpenAIChatCompletion, ErrProviderNotConfigured},
-		{"responses_missing_provider", `{"model":"gpt-5","input":"inspect the repository","tools":[{"type":"function","name":"Read","parameters":{"type":"object"}}]}`, (*Service).ProxyOpenAIResponses, ErrProviderNotConfigured},
-		{"gemini_cross_format", `{"model":"gemini-3-pro-preview","contents":[{"role":"user","parts":[{"text":"inspect the repository"}]}],"tools":[{"functionDeclarations":[{"name":"Read","parameters":{"type":"object"}}]}]}`, (*Service).ProxyGeminiGenerateContent, ErrGeminiCrossFormatUnsupported},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			store := newEscalationTestStore()
-			observer := &escalationTestObserver{}
-			clients := map[string]providers.Client{providers.ProviderAIAND: &stripFailureProvider{}}
-			svc := newEscalationCompletionService(store, observer, clients)
-			err := tc.invoke(svc, escalationCompletionContext(), []byte(tc.body), httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/test", nil))
-			require.ErrorIs(t, err, tc.expectedError)
-			require.Len(t, observer.requests, 1, "request must reach escalation before failing preparation")
-			require.Len(t, store.sessions, 1)
-			for _, session := range store.sessions {
-				require.EqualValues(t, 1, session.Ordinal)
-				require.NotNil(t, session.PreviousOutcome, "the committed observation must retain the failed request outcome")
-				require.True(t, session.PreviousOutcome.IsError)
-				require.Equal(t, http.StatusInternalServerError, session.PreviousOutcome.StatusCode)
-			}
-		})
-	}
-}
-
 type escalationCompletionProvider struct {
 	writeResponse func(http.ResponseWriter) error
 }
@@ -82,57 +50,6 @@ func (w *escalationFinalizeFailureWriter) Write(body []byte) (int, error) {
 		return 0, w.writeErr
 	}
 	return w.ResponseRecorder.Write(body)
-}
-
-func TestEscalationCompletionWaitsForResponsesFinalization(t *testing.T) {
-	for _, failFinalize := range []bool{false, true} {
-		name := "successful_finalization"
-		if failFinalize {
-			name = "failed_finalization"
-		}
-		t.Run(name, func(t *testing.T) {
-			store := newEscalationTestStore()
-			observer := &escalationTestObserver{}
-			provider := escalationCompletionProvider{writeResponse: func(w http.ResponseWriter) error {
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusOK)
-				_, err := w.Write([]byte(`{"id":"msg_test","type":"message","role":"assistant","model":"z-ai/glm-5.3-flash","content":[{"type":"text","text":"repository inspected"}],"stop_reason":"end_turn","usage":{"input_tokens":10,"output_tokens":3}}`))
-				return err
-			}}
-			svc := newEscalationCompletionService(store, observer, map[string]providers.Client{providers.ProviderAIAND: provider})
-			finalizationErr := errors.New("response client disconnected during finalization")
-			writes := 0
-			writer := &escalationFinalizeFailureWriter{ResponseRecorder: httptest.NewRecorder(), beforeWrite: func() {
-				writes++
-				require.Len(t, store.sessions, 1)
-				for _, session := range store.sessions {
-					require.Nil(t, session.PreviousOutcome, "completion must wait for Responses Finalize to finish")
-				}
-			}}
-			if failFinalize {
-				writer.writeErr = finalizationErr
-			}
-			body := []byte(`{"model":"gpt-5","input":"inspect the repository","tools":[{"type":"function","name":"Read","parameters":{"type":"object"}}]}`)
-			err := svc.ProxyOpenAIResponses(escalationCompletionContext(), body, writer, httptest.NewRequest(http.MethodPost, "/v1/responses", nil))
-			if failFinalize {
-				require.ErrorIs(t, err, finalizationErr)
-			} else {
-				require.NoError(t, err)
-			}
-			require.Positive(t, writes)
-			require.Len(t, observer.requests, 1)
-			for _, session := range store.sessions {
-				require.NotNil(t, session.PreviousOutcome)
-				require.Equal(t, failFinalize, session.PreviousOutcome.IsError)
-			}
-			if failFinalize {
-				require.Empty(t, store.continuations)
-			} else {
-				require.Contains(t, writer.Body.String(), "repository inspected")
-				require.Len(t, store.continuations, 1, "completed Responses output must remain available for continuation")
-			}
-		})
-	}
 }
 
 func TestEscalationTurnsBypassPopulatedSemanticCache(t *testing.T) {

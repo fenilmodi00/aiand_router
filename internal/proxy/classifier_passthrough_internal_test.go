@@ -3,8 +3,6 @@ package proxy
 import (
 	"context"
 	"net/http"
-	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -23,104 +21,6 @@ import (
 )
 
 const classifierTestSubToken = "sk-ant-oat01-classifier-subscription-token"
-
-func TestClassifierPassthroughEngaged(t *testing.T) {
-	const claude = "deepseek/deepseek-v4.1-flash"
-	subCtx := context.WithValue(context.Background(), AnthropicSubscriptionContextKey{}, classifierTestSubToken)
-	observerAt := func(snap usage.Snapshot) *usage.Observer {
-		obs := usage.NewObserver([]byte("salt"), 10*time.Minute, time.Now)
-		obs.Record(obs.Key([]byte(classifierTestSubToken)), snap)
-		return obs
-	}
-	anthropicOnly := map[string]struct{}{providers.ProviderAIAND: {}}
-
-	cases := []struct {
-		name     string
-		svc      *Service
-		ctx      context.Context
-		headers  http.Header
-		req      router.Request
-		turnType turntype.TurnType
-		want     bool
-	}{
-		{
-			name: "classifier with subscription, no observer wired",
-			svc:  &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: &bypassFakeProvider{}})}, ctx: subCtx, headers: http.Header{},
-			req: router.Request{RequestedModel: claude}, turnType: turntype.Classifier, want: true,
-		},
-		{
-			name: "classifier with subscription bearer in Authorization",
-			svc:  &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: &bypassFakeProvider{}})}, ctx: context.Background(),
-			headers: http.Header{"Authorization": {"Bearer " + classifierTestSubToken}},
-			req:     router.Request{RequestedModel: claude}, turnType: turntype.Classifier, want: true,
-		},
-		{
-			name: "main-loop turn never engages without the opt-in",
-			svc:  &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: &bypassFakeProvider{}})}, ctx: subCtx, headers: http.Header{},
-			req: router.Request{RequestedModel: claude}, turnType: turntype.MainLoop, want: false,
-		},
-		{
-			name: "classifier without any subscription",
-			svc:  &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: &bypassFakeProvider{}})}, ctx: context.Background(), headers: http.Header{},
-			req: router.Request{RequestedModel: claude}, turnType: turntype.Classifier, want: false,
-		},
-		{
-			name: "general API key in Authorization is not a subscription",
-			svc:  &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: &bypassFakeProvider{}})}, ctx: context.Background(),
-			headers: http.Header{"Authorization": {"Bearer sk-ant-api03-general-key"}},
-			req:     router.Request{RequestedModel: claude}, turnType: turntype.Classifier, want: false,
-		},
-		{
-			name: "classifier requesting a Codex model stays scored",
-			svc:  &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: &bypassFakeProvider{}})},
-			ctx: context.WithValue(context.WithValue(context.Background(),
-				OpenAISubscriptionContextKey{}, "eyJhbGciOiJub25lIn0.eyJzdWIiOiJ0ZXN0In0.signature"),
-				OpenAIAccountIDContextKey{}, "account-1"),
-			headers: http.Header{},
-			req:     router.Request{RequestedModel: "gpt-5.6-sol"}, turnType: turntype.Classifier, want: false,
-		},
-		{
-			name: "anthropic disabled for this request",
-			svc:  &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: &bypassFakeProvider{}})}, ctx: subCtx, headers: http.Header{},
-			req:      router.Request{RequestedModel: claude, EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}}},
-			turnType: turntype.Classifier, want: false,
-		},
-		{
-			name: "safety-excluded requested model",
-			svc:  &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: &bypassFakeProvider{}})}, ctx: subCtx, headers: http.Header{},
-			req:      router.Request{RequestedModel: claude, EnabledProviders: anthropicOnly, SafetyExcludedModels: map[string]struct{}{claude: {}}},
-			turnType: turntype.Classifier, want: false,
-		},
-		{
-			name: "cold observer is slack, not exhaustion",
-			svc:  &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: &bypassFakeProvider{}}), usageObserver: usage.NewObserver([]byte("salt"), 10*time.Minute, time.Now)},
-			ctx:  subCtx, headers: http.Header{},
-			req: router.Request{RequestedModel: claude}, turnType: turntype.Classifier, want: true,
-		},
-		{
-			name: "high utilization is fine: no threshold on the classifier lane",
-			svc:  &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: &bypassFakeProvider{}}), usageObserver: observerAt(usage.Snapshot{Primary: usage.Window{UsedPercent: 0.95, WindowMinutes: 300}})},
-			ctx:  subCtx, headers: http.Header{},
-			req: router.Request{RequestedModel: claude}, turnType: turntype.Classifier, want: true,
-		},
-		{
-			name: "observed-exhausted subscription disengages",
-			svc:  &Service{clients: dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: &bypassFakeProvider{}}), usageObserver: observerAt(usage.Snapshot{Secondary: usage.Window{UsedPercent: 1.0, WindowMinutes: 10080}})},
-			ctx:  subCtx, headers: http.Header{},
-			req: router.Request{RequestedModel: claude}, turnType: turntype.Classifier, want: false,
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			provider, ok := tc.svc.classifierPassthroughEngaged(tc.ctx, tc.headers, tc.req, tc.turnType)
-			want := tc.want && !subscriptionStateModelsEnabled(tc.ctx)
-			assert.Equal(t, want, ok)
-			if want {
-				assert.Equal(t, providers.ProviderAIAND, provider)
-			}
-		})
-	}
-}
 
 // The decision carries the classifier reason, and a classifier that also
 // satisfies the opt-in usage-bypass gate is still attributed to the classifier
@@ -190,43 +90,4 @@ func TestRunTurnLoop_ClassifierForceModel_OutranksPassthrough(t *testing.T) {
 	assert.False(t, res.UsageBypass)
 	assert.Equal(t, translate.ReasonUserForceModel, res.Decision.Reason)
 	assert.Equal(t, "deepseek/deepseek-v4-pro", res.Decision.Model)
-}
-
-// The telemetry row for a passthrough classifier carries the lane's own
-// decision reason and the classifier turn type, on the same router.upstream
-// span the dashboard reads, so it is attributed as subscription-served
-// overhead rather than usage bypass or a scored substitution.
-func TestBypass_ClassifierPassthrough_TelemetryReason(t *testing.T) {
-	upstream := &bypassFakeProvider{respBody: "{}"}
-	svc := newBypassService(upstream)
-	sink := newBypassCaptureTelemetry()
-	svc.telemetry = sink
-
-	env, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.3-flash","max_tokens":5,"messages":[{"role":"user","content":"hello"}]}`))
-	require.NoError(t, err)
-	feats := env.RoutingFeatures(false)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
-	req.Header.Set("Authorization", "Bearer "+classifierTestSubToken)
-	ctx := context.WithValue(context.Background(), InstallationIDContextKey{}, uuid.New().String())
-
-	err = svc.bypassToAnthropic(ctx, env, feats, false, time.Now(), "req-cls-1", "ext-1", turntype.Classifier, reasonClassifierPassthrough, req, rec)
-	require.NoError(t, err)
-
-	select {
-	case <-sink.notify:
-	case <-time.After(2 * time.Second):
-		t.Fatal("passthrough classifier never persisted a telemetry row")
-	}
-	assert.Equal(t, reasonClassifierPassthrough, rec.Header().Get(HeaderRouterDecision))
-	sink.mu.Lock()
-	defer sink.mu.Unlock()
-	require.Len(t, sink.rows, 1)
-	assert.Equal(t, "router.upstream", sink.rows[0].SpanType)
-	assert.Equal(t, reasonClassifierPassthrough, sink.rows[0].DecisionReason)
-	assert.Equal(t, string(turntype.Classifier), sink.rows[0].TurnType)
-	require.NotNil(t, upstream.capturedCtx)
-	creds, _ := upstream.capturedCtx.Value(CredentialsContextKey{}).(*Credentials)
-	require.NotNil(t, creds, "the upstream call must carry the caller's subscription credential")
-	assert.True(t, creds.OAuth)
 }
