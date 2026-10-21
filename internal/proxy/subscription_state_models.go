@@ -116,9 +116,6 @@ func (s *Service) dispatchSubscriptionStateModels(ctx context.Context, in failov
 
 func (s *Service) subscriptionStatePaidTargetAvailable(ctx context.Context, headers http.Header, target router.Decision) bool {
 	resolvedCredentials := s.resolveCredentials(clearCredentials(ctx), target.Provider, target.Model, headers)
-	if servedOnSubscription(resolvedCredentials) || servedOnCodexSubscription(resolvedCredentials) {
-		return false
-	}
 	if s.subscriptionAPIAuthorization(s.withSubscriptionFundingAuthorization(ctx, headers), target.Provider, target.Model) != nil {
 		return false
 	}

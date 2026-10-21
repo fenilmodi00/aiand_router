@@ -84,17 +84,8 @@ func anthropicSubscriptionThirdPartyRefused(err error) bool {
 }
 
 func (s *Service) recordSubscriptionModelRejection(ctx context.Context, provider, model string, err error) {
-	creds := CredentialsFromContext(ctx)
-	if creds == nil || !creds.OAuth || len(creds.APIKey) == 0 {
-		return
-	}
-	until := s.clockNow().Add(subscriptionModelDenialTTL)
-	switch provider {
-	case providers.ProviderAIAND:
-		if anthropicSubscriptionModelRejected(err) {
-			s.subscriptionModels.cache().Add(s.subscriptionModels.key(creds.APIKey, model), until)
-		}
-	}
+	// A model rejection is only remembered per subscription credential, and no
+	// credential is ever a subscription bearer.
 }
 
 type suppressClaudeModelContextKey struct{}
@@ -106,22 +97,5 @@ func claudeModelSuppressed(ctx context.Context, model string) bool {
 }
 
 func (s *Service) resolveCredentials(ctx context.Context, provider, model string, headers http.Header) context.Context {
-	resolved := resolveAndInjectCredentials(ctx, provider, model, headers)
-	creds := CredentialsFromContext(resolved)
-	if provider == providers.ProviderAIAND && creds != nil && creds.OAuth && len(creds.AccountID) > 0 &&
-
-		s.subscriptionModels.deniedForProvider(creds.APIKey, provider, model, s.clockNow()) {
-		return resolveAndInjectCredentials(withSuppressedCodexModel(resolved, model), provider, model, headers)
-	}
-	if provider != providers.ProviderAIAND || creds == nil || !creds.OAuth ||
-		!s.subscriptionModels.denied(creds.APIKey, model, s.clockNow()) {
-		return resolved
-	}
-	previous, _ := ctx.Value(suppressClaudeModelContextKey{}).(map[string]struct{})
-	models := make(map[string]struct{}, len(previous)+1)
-	for id := range previous {
-		models[id] = struct{}{}
-	}
-	models[router.StripDateSuffix(model)] = struct{}{}
-	return resolveAndInjectCredentials(context.WithValue(ctx, suppressClaudeModelContextKey{}, models), provider, model, headers)
+	return resolveAndInjectCredentials(ctx, provider, model, headers)
 }

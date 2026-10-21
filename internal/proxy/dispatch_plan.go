@@ -149,22 +149,10 @@ func (s *Service) dispatchPlanned(ctx context.Context, in failoverInputs, plan i
 			}
 		}
 		credentialCtx := attemptCtx
-		// A caller's own subscription credential cannot be served by this
-		// upstream: drop it and serve the turn on the paid key instead. With
-		// paid fallback forbidden there is nothing left to serve it.
-		if current := CredentialsFromContext(attemptCtx); current != nil && current.OAuth {
-			if subscriptionAttemptOnly(ctx) || paidFallbackForbidden(ctx) || !s.anthropicFallbackKeyAvailable(ctx) {
-				return dispatchAbort{err: ErrSubscriptionPoolUnavailable}
-			}
-			credentialCtx = resolveAndInjectCredentials(ctx, decision.Provider, decision.Model, http.Header{})
-		}
-		if creds := CredentialsFromContext(credentialCtx); paidFallbackForbidden(ctx) && (creds == nil || !creds.OAuth) {
+		// No credential is a subscription bearer, so a subscription-only turn
+		// has nothing to serve it and is refused.
+		if paidFallbackForbidden(ctx) {
 			return dispatchAbort{err: subscriptionOnlyUnavailable(ctx)}
-		}
-		if creds := CredentialsFromContext(credentialCtx); creds != nil && creds.OAuth {
-			if state, _ := ctx.Value(ManagedSubscriptionUsageContextKey{}).(*ManagedSubscriptionUsage); state != nil {
-				state.SubscriptionAttempted = true
-			}
 		}
 		attemptErr := in.attempt(credentialCtx, decision, guarded)
 		if attemptErr != nil {

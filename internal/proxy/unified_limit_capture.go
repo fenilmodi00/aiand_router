@@ -31,15 +31,11 @@ func withUnifiedLimitCapture(ctx context.Context) context.Context {
 }
 
 // captureUnifiedLimitHeaders records the raw anthropic-ratelimit-unified-*
-// headers on ctx's holder when the resolved credential is OAuth (subscription).
-// Skipped for BYOK/deployment calls — those headers describe a different account.
+// headers on ctx's holder. The headers describe the subscription account, so
+// only a subscription-served call carries them.
 func captureUnifiedLimitHeaders(ctx context.Context, h http.Header) {
 	c, ok := ctx.Value(unifiedLimitCaptureKey{}).(*unifiedLimitCapture)
 	if !ok || c == nil {
-		return
-	}
-	creds := CredentialsFromContext(ctx)
-	if creds == nil || !creds.OAuth {
 		return
 	}
 	raw := usage.RawAnthropicUnifiedHeaders(h)

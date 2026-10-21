@@ -56,16 +56,6 @@ func TestApplySubscriberTelemetryCapacitySources(t *testing.T) {
 		want             entitlement.CapacitySource
 	}{
 		{
-			name:             "subscription credential is not a capacity source",
-			ctx:              entitlement.WithProductScope(context.Background(), entitlement.PlanBoost),
-			credentialSource: credSourceSubscription,
-		},
-		{
-			name:             "codex subscription credential is not a capacity source",
-			ctx:              entitlement.WithProductScope(context.Background(), entitlement.PlanBoost),
-			credentialSource: credSourceCodexSubscription,
-		},
-		{
 			name: "organization-paid subscriber",
 			ctx:  entitlement.WithProductScope(context.Background(), entitlement.PlanBoost),
 		},
@@ -160,7 +150,7 @@ func TestApplySubscriberTelemetryLeavesUsageEmptyWithoutCapacitySource(t *testin
 	telemetry := InsertTelemetryParams{
 		ActualInputCostUSD:  0.25,
 		ActualOutputCostUSD: 0.75,
-		CredentialSource:    credSourceSubscription,
+		CredentialSource:    credSourceClient,
 	}
 
 	applySubscriberTelemetry(context.Background(), &telemetry)

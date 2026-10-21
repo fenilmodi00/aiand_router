@@ -31,24 +31,6 @@ func (o *OnboardingObserver) APIKeyFirstUsed(event auth.APIKeyFirstUsedEvent) {
 	buf.Flush()
 }
 
-// SubscriptionConnected records the enrollment or adoption of an account.
-func (o *OnboardingObserver) SubscriptionConnected(event auth.SubscriptionConnectedEvent) {
-	buf := o.emitter.NewBuffer()
-	if buf == nil {
-		return
-	}
-	attrs := NewAttrBuilder(5).
-		String("external_id", event.InstallationExternalID).
-		String("router_api_key_id", event.APIKeyID).
-		String("subscription_account_id", event.AccountID).
-		String("provider", string(event.Provider))
-	if event.CredentialSubjectID != "" {
-		attrs = attrs.String("credential_subject_id", event.CredentialSubjectID)
-	}
-	buf.Record(Span{Name: "router.subscription_connected", Start: event.OccurredAt, End: event.OccurredAt, Attrs: attrs.Build()})
-	buf.Flush()
-}
-
 // HarnessLifecycle records a client-reported off/on/uninstall of a harness.
 func (o *OnboardingObserver) HarnessLifecycle(event auth.HarnessLifecycleEvent) {
 	buf := o.emitter.NewBuffer()
