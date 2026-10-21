@@ -73,22 +73,30 @@ type routerResponseCost struct {
 	CacheCreationTokens int     `json:"cache_creation_tokens"`
 }
 
-type routerCostCalculator func(inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens int, speed catalog.Speed, mods catalog.UsageModifiers) routerResponseCost
+type routerCostCalculator func(inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens int, mods catalog.UsageModifiers) routerResponseCost
 
-// routerCostCalculatorFor binds the attempt's rate; a reported fast speed
-// reprices at the fast rate even when the router did not dispatch fast.
-func routerCostCalculatorFor(model, provider string, fast bool) routerCostCalculator {
-	pricing, ok := servedPricing(provider, model, fast)
+// routerCostCalculatorFor binds the attempt's rate: the binding's list price,
+// else the primary binding's list price without its first-party geography
+// premium.
+func routerCostCalculatorFor(model, provider string) routerCostCalculator {
+	pricing, ok := servedPricing(provider, model)
 	if !ok {
 		return nil
 	}
-	return func(inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens int, speed catalog.Speed, mods catalog.UsageModifiers) routerResponseCost {
-		served := pricing
-		if speed == catalog.SpeedFast && !fast {
-			served, _ = servedPricing(provider, model, true)
-		}
-		return routerResponseCostFromPricing(served, provider, inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens, mods)
+	return func(inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens int, mods catalog.UsageModifiers) routerResponseCost {
+		return routerResponseCostFromPricing(pricing, provider, inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens, mods)
 	}
+}
+
+// servedPricing returns the rate the winning attempt is billed at: the
+// binding's list price, else the primary binding's list price without its
+// first-party geography premium.
+func servedPricing(provider, model string) (catalog.Pricing, bool) {
+	if price, ok := catalog.PriceFor(provider, model); ok {
+		return price, true
+	}
+	price, ok := catalog.PrimaryPriceFor(model)
+	return price.WithoutInferenceGeoPremium(), ok
 }
 
 func routerResponseCostFromPricing(pricing catalog.Pricing, provider string, inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens int, mods catalog.UsageModifiers) routerResponseCost {
@@ -212,7 +220,7 @@ func (w *streamCostWriter) annotateEvent(event []byte) []byte {
 	if !facts.CacheSplitReported() && cacheCreation > 0 && w.requestCacheTTL1h != nil && w.requestCacheTTL1h() {
 		mods.CacheCreation1h = cacheCreation
 	}
-	cost, err := json.Marshal(w.calculate(inputTokens, facts.BilledOutputTokens(), cacheCreation, cacheRead, facts.Speed, mods))
+	cost, err := json.Marshal(w.calculate(inputTokens, facts.BilledOutputTokens(), cacheCreation, cacheRead, mods))
 	if err != nil {
 		return event
 	}

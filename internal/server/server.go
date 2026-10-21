@@ -316,8 +316,6 @@ func RegisterWithFeatures(engine *gin.Engine, authSvc *auth.Service, proxySvc *p
 		mgmt.PUT("/routing-preferences", admin.UpdateRoutingPreferencesHandler(authSvc))
 		mgmt.GET("/content-capture", admin.GetContentCaptureHandler(authSvc, proxySvc))
 		mgmt.PUT("/content-capture", admin.UpdateContentCaptureHandler(authSvc, proxySvc))
-		mgmt.GET("/fast-mode-models", admin.GetFastModeModelsHandler(authSvc))
-		mgmt.PUT("/fast-mode-models", admin.UpdateFastModeModelsHandler(authSvc))
 		if deployedModels != nil {
 			mgmt.GET("/excluded-models", admin.GetExcludedModelsHandler(authSvc, deployedModels, proxySvc))
 			mgmt.PUT("/excluded-models", admin.UpdateExcludedModelsHandler(authSvc, deployedModels, proxySvc))

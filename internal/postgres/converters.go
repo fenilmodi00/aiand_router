@@ -50,10 +50,6 @@ func toAuthInstallation(row sqlc.RouterModelRouterInstallation) *auth.Installati
 		modelsWhenSubscriptionActive = catalogModelsExcept(row.ModelsExcludedWhenSubscriptionActive)
 		modelsWhenSubscriptionInactive = catalogModelsExcept(row.ModelsExcludedWhenSubscriptionInactive)
 	}
-	fastModeModels := row.FastModeModels
-	if fastModeModels == nil {
-		fastModeModels = []string{}
-	}
 	// Parsed once per API-key cache fill, not per request. A malformed or
 	// retired-key payload degrades to "no overrides" rather than failing the
 	// request — a stored row must not be able to take an org's traffic down.
@@ -82,7 +78,6 @@ func toAuthInstallation(row sqlc.RouterModelRouterInstallation) *auth.Installati
 		SubscriptionStateModelsEnabled: row.SubscriptionStateModelsEnabled,
 		ExcludedProviders:              excludedProviders,
 		PreferredModels:                preferred,
-		FastModeModels:                 fastModeModels,
 		RoutingQualityWeight:           row.RoutingQualityWeight,
 		UsageBypassEnabled:             row.UsageBypassEnabled,
 		UsageBypassThreshold:           row.UsageBypassThreshold,

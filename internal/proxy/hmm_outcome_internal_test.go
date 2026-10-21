@@ -61,7 +61,7 @@ func TestReportPolicyOutcome_UsesFreshMetadataForStickyServedDecision(t *testing
 		inputTokens  = 90
 		outputTokens = 10
 	)
-	s.reportPolicyOutcome(ctx, routeRes, served, effortResolution{}, providers.ProviderAIAND, false, 100, inputTokens, outputTokens, 0, 0, catalog.UsageModifiers{}, 12, 34, nil, &policyOutcomeResponse{
+	s.reportPolicyOutcome(ctx, routeRes, served, effortResolution{}, providers.ProviderAIAND, 100, inputTokens, outputTokens, 0, 0, catalog.UsageModifiers{}, 12, 34, nil, &policyOutcomeResponse{
 		Body: []byte(`{"content":[{"type":"text","text":"done"}]}`),
 	})
 
@@ -107,7 +107,7 @@ func TestReportPolicyOutcome_OmitsResponseBodyWhenTrainingIsNotAllowed(t *testin
 		Metadata: &router.RoutingMetadata{RouteID: "route-1", Strategy: string(router.StrategyHMM)},
 	}}
 
-	s.reportPolicyOutcome(context.Background(), routeRes, routeRes.Fresh, effortResolution{}, providers.ProviderAIAND, false, 1, 1, 1, 0, 0, catalog.UsageModifiers{}, 1, 1, nil, &policyOutcomeResponse{Body: []byte("private response")})
+	s.reportPolicyOutcome(context.Background(), routeRes, routeRes.Fresh, effortResolution{}, providers.ProviderAIAND, 1, 1, 1, 0, 0, catalog.UsageModifiers{}, 1, 1, nil, &policyOutcomeResponse{Body: []byte("private response")})
 
 	select {
 	case payload := <-reporter.ch:
@@ -147,7 +147,6 @@ func TestReportPolicyOutcome_AuthoritativeMismatchFailsClosedForTraining(t *test
 		served,
 		effortResolution{},
 		providers.ProviderAIAND,
-		false,
 		100,
 		90,
 		10,
@@ -200,7 +199,7 @@ func TestReportPolicyOutcome_EffortMismatchExcludedFromTraining(t *testing.T) {
 		decision,
 		effort,
 		providers.ProviderAIAND,
-		false, 100, 90, 10, 0, 0, catalog.UsageModifiers{}, 12, 34, nil,
+		100, 90, 10, 0, 0, catalog.UsageModifiers{}, 12, 34, nil,
 		&policyOutcomeResponse{Body: []byte("must not train")},
 	)
 
