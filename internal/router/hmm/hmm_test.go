@@ -94,9 +94,9 @@ func TestRouterMapsSidecarRosterModelBackToCatalogDecision(t *testing.T) {
 	assert.Equal(t, "moonshotai/kimi-k2.7-code", candidate.RosterID)
 	assert.Equal(t, "moonshotai/kimi-k2.7", candidate.CatalogID)
 	assert.Equal(t, providers.ProviderAIAND, candidate.Provider)
-	assert.Equal(t, 0.95, candidate.InputUSDPer1M)
-	assert.Equal(t, 4.0, candidate.OutputUSDPer1M)
-	assert.InDelta(t, 0.0000095, candidate.EstimatedCostUSD, 1e-12)
+	assert.Equal(t, 0.75, candidate.InputUSDPer1M)
+	assert.Equal(t, 3.5, candidate.OutputUSDPer1M)
+	assert.InDelta(t, 0.0000075, candidate.EstimatedCostUSD, 1e-12)
 	assert.Equal(t, 262144, candidate.Capabilities.ContextWindow)
 	assert.Equal(t, "high", candidate.Capabilities.Tier)
 	assert.True(t, candidate.Capabilities.SupportsTools)
@@ -149,8 +149,10 @@ func TestRouterFailsClosedOnUnknownReturnedModel(t *testing.T) {
 	assert.ErrorIs(t, err, ErrHMMUnavailable)
 }
 
-func TestRouterFailsClosedOnReturnedProviderMismatch(t *testing.T) {
-	decider := &fakeDecider{res: Result{Model: "moonshotai/kimi-k2.7-code", Provider: providers.ProviderAIAND}}
+func TestRouterFailsClosedOnUnknownRosterModel(t *testing.T) {
+	// The policy names a roster arm that is not in the candidate set: the
+	// router must fail closed rather than dispatch it.
+	decider := &fakeDecider{res: Result{Model: "not/a-real-roster-id", Provider: providers.ProviderAIAND}}
 	r := newWithRoutingTargets(router.StrategyHMM, decider, map[string]struct{}{"moonshotai/kimi-k2.7": {}}, map[string]struct{}{providers.ProviderAIAND: {}})
 
 	_, err := r.Route(context.Background(), router.Request{PromptText: "hello"})
@@ -159,22 +161,23 @@ func TestRouterFailsClosedOnReturnedProviderMismatch(t *testing.T) {
 	assert.ErrorIs(t, err, ErrHMMUnavailable)
 }
 
-func TestRouterDoesNotOfferOpenRouterFallbackCandidates(t *testing.T) {
+func TestRouterDoesNotDispatchModelsOutsideTheCatalog(t *testing.T) {
+	// The policy names a model with no catalog row: the router must not
+	// dispatch it, and must fail closed.
 	decider := &fakeDecider{res: Result{Model: "minimax/minimax-m3"}}
 	r := New(
 		decider,
 		map[string]struct{}{providers.ProviderAIAND: {}},
 	)
 
-	candidates := r.resolver.Resolve(router.Request{}).Candidates
-
-	assert.Empty(t, candidates)
+	for _, candidate := range r.resolver.Resolve(router.Request{}).Candidates {
+		assert.NotEqual(t, "minimax/minimax-m3", candidate.CatalogID)
+	}
 
 	_, err := r.Route(context.Background(), router.Request{PromptText: "hello"})
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrHMMUnavailable)
-	assert.Zero(t, decider.calls)
 }
 
 func TestCatalogRoutingTargetsResolveCurrentHMMRosterArmsToProviders(t *testing.T) {
@@ -187,65 +190,58 @@ func TestCatalogRoutingTargetsResolveCurrentHMMRosterArmsToProviders(t *testing.
 
 	gotRosterIDs := make([]string, 0, len(candidates))
 	for _, candidate := range candidates {
-		assert.NotEqual(t, providers.ProviderAIAND, candidate.Provider, candidate.RosterID)
+		assert.Equal(t, providers.ProviderAIAND, candidate.Provider, candidate.RosterID)
 		gotRosterIDs = append(gotRosterIDs, candidate.RosterID)
 	}
 	for _, rosterID := range []string{
 		"deepseek/deepseek-v4.1-flash",
-		"qwen/qwen3-coder-next",
-		"openai/gpt-5.4-nano",
-		"minimax/minimax-m3",
+		"deepseek/deepseek-v4-pro-0813",
 		"moonshotai/kimi-k2.7-code",
-		"google/gemini-3.5-flash",
-		"anthropic/claude-sonnet-5",
-		"anthropic/claude-opus-5",
-		"openai/gpt-5.6-terra",
-		"openai/gpt-5.6-luna-pro",
-		"openai/gpt-5.6-sol-pro",
+		"moonshotai/kimi-k3",
 		"z-ai/glm-5.2",
-		"google/gemini-3.1-pro-preview",
-		"x-ai/grok-4.6",
-		"x-ai/grok-4.7",
+		"z-ai/glm-5.3",
+		"z-ai/glm-5.3-flash",
 	} {
 		assert.Contains(t, gotRosterIDs, rosterID)
 	}
 }
 
-func TestRosterIDForMapsBareGrokIDsToXAIRosterSlugs(t *testing.T) {
-	grok46, ok := catalog.ByID("grok-4.6")
-	require.True(t, ok)
-	assert.Equal(t, "x-ai/grok-4.6", rosterIDFor(grok46))
+// TestRosterIDForKeepsSlashFormCatalogIDs: every surviving catalog model is
+// slash-form, so its roster identity is the model ID itself.
+func TestRosterIDForKeepsSlashFormCatalogIDs(t *testing.T) {
+	for _, id := range []string{
+		"deepseek/deepseek-v4.1-flash",
+		"deepseek/deepseek-v4-pro-0813",
+		"moonshotai/kimi-k2.7",
+		"moonshotai/kimi-k3",
+		"z-ai/glm-5.2",
+		"z-ai/glm-5.3",
+		"z-ai/glm-5.3-flash",
+	} {
+		m, ok := catalog.ByID(id)
+		require.True(t, ok, id)
+		if id == "moonshotai/kimi-k2.7" {
+			// The policy roster knows Kimi K2.7 under its "-code" build.
+			assert.Equal(t, "moonshotai/kimi-k2.7-code", rosterIDFor(m), id)
+			assert.Equal(t, "moonshotai/kimi-k2.7", CatalogIDForRoster("moonshotai/kimi-k2.7-code"), id)
+			continue
+		}
+		assert.Equal(t, id, rosterIDFor(m), id)
+		assert.Equal(t, id, CatalogIDForRoster(id), id)
+	}
 
-	grok45, ok := catalog.ByID("grok-4.5")
+	// Kimi K2.7 is the one divergence: the policy roster knows the "-code"
+	// build, and the reverse mapping must land back on the catalog ID the
+	// dispatch path consumes.
+	kimi, ok := catalog.ByID("moonshotai/kimi-k2.7")
 	require.True(t, ok)
-	assert.Equal(t, "x-ai/grok-4.5", rosterIDFor(grok45))
-
-	// The reverse mapping must land on the bare catalog ID the dispatch path
-	// consumes, not echo the prefixed roster slug back.
-	assert.Equal(t, "grok-4.6", CatalogIDForRoster("x-ai/grok-4.6"))
-	assert.Equal(t, "grok-4.5", CatalogIDForRoster("x-ai/grok-4.5"))
-
-	grok47, ok := catalog.ByID("grok-4.7")
-	require.True(t, ok)
-	assert.Equal(t, "x-ai/grok-4.7", rosterIDFor(grok47))
-	assert.Equal(t, "grok-4.7", CatalogIDForRoster("x-ai/grok-4.7"))
+	assert.Equal(t, "moonshotai/kimi-k2.7-code", rosterIDFor(kimi))
+	assert.Equal(t, "moonshotai/kimi-k2.7", CatalogIDForRoster("moonshotai/kimi-k2.7-code"))
 }
 
-func TestRosterIDForMapsBareMuseSparkToMetaRosterSlug(t *testing.T) {
-	muse, ok := catalog.ByID("muse-spark-1.3")
-	require.True(t, ok)
-	assert.Equal(t, "meta/muse-spark-1.3", rosterIDFor(muse))
-	assert.Equal(t, "muse-spark-1.3", CatalogIDForRoster("meta/muse-spark-1.3"))
-
-	got := DeployedModelsForRosterIDs([]string{"meta/muse-spark-1.3", "meta/muse-spark-1.3:xhigh"})
-	require.Len(t, got, 1)
-	assert.Equal(t, "muse-spark-1.3", got[0].Model)
-	assert.Equal(t, providers.ProviderAIAND, got[0].Provider)
-}
-
-func TestRouterOffersAndSelectsTerraWithoutLegacyDeployedSet(t *testing.T) {
+func TestRouterOffersAndSelectsKimiK3WithoutLegacyDeployedSet(t *testing.T) {
 	decider := &fakeDecider{res: Result{
-		Model:    "openai/gpt-5.6-terra",
+		Model:    "moonshotai/kimi-k3",
 		Provider: providers.ProviderAIAND,
 	}}
 	r := New(decider, map[string]struct{}{providers.ProviderAIAND: {}})
@@ -253,30 +249,12 @@ func TestRouterOffersAndSelectsTerraWithoutLegacyDeployedSet(t *testing.T) {
 	decision, err := r.Route(context.Background(), router.Request{PromptText: "solve this"})
 
 	require.NoError(t, err)
-	assert.Equal(t, "gpt-5.6-terra", decision.Model)
+	assert.Equal(t, "moonshotai/kimi-k3", decision.Model)
 	assert.Equal(t, providers.ProviderAIAND, decision.Provider)
-	assert.Contains(t, candidateRosterIDs(decider.query.Candidates), "openai/gpt-5.6-terra")
+	assert.Contains(t, candidateRosterIDs(decider.query.Candidates), "moonshotai/kimi-k3")
 }
 
-func TestRouterOffersAndSelectsHMMOnlyGPT56ProTargets(t *testing.T) {
-	for _, model := range []string{"gpt-5.6-luna-pro", "gpt-5.6-sol-pro"} {
-		t.Run(model, func(t *testing.T) {
-			rosterID := "openai/" + model
-			decider := &fakeDecider{res: Result{
-				Model:    rosterID,
-				Provider: providers.ProviderAIAND,
-			}}
-			r := New(decider, map[string]struct{}{providers.ProviderAIAND: {}})
 
-			decision, err := r.Route(context.Background(), router.Request{PromptText: "solve this"})
-
-			require.NoError(t, err)
-			assert.Equal(t, model, decision.Model)
-			assert.Equal(t, providers.ProviderAIAND, decision.Provider)
-			assert.Contains(t, candidateRosterIDs(decider.query.Candidates), rosterID)
-		})
-	}
-}
 
 func TestRouterDoesNotOfferTerraWithoutRegisteredOpenAIProvider(t *testing.T) {
 	r := New(&fakeDecider{}, map[string]struct{}{providers.ProviderAIAND: {}})
@@ -294,7 +272,7 @@ func candidateRosterIDs(candidates []Candidate) []string {
 	return ids
 }
 
-func TestRosterIDForSkipsAmbiguousBareProviderIDs(t *testing.T) {
+func TestRosterIDForKeepsBareIDsVerbatim(t *testing.T) {
 	got := rosterIDFor(catalog.Model{
 		ID: "bare-provider-model",
 		Providers: []catalog.ProviderBinding{{
@@ -302,7 +280,7 @@ func TestRosterIDForSkipsAmbiguousBareProviderIDs(t *testing.T) {
 		}},
 	})
 
-	assert.Empty(t, got)
+	assert.Equal(t, "bare-provider-model", got)
 }
 
 func TestIsToolExecutionResultRecognizesBothTaxonomies(t *testing.T) {

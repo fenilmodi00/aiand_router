@@ -97,14 +97,14 @@ func TestSelectorKeepsCrossProviderCandidatesAndAppliesBoundedPreferences(t *tes
 		Clusters: map[string]rosterdata.Cluster{
 			"high": {
 				Arms: []string{
-					"openai/gpt-5.6-sol",
-					"x-ai/grok-4.6",
-					"anthropic/claude-fable-5.1",
+					"z-ai/glm-5.3",
+					"moonshotai/kimi-k3",
+					"deepseek/deepseek-v4-pro-0813",
 				},
 				ArmScores: map[string]float64{
-					"openai/gpt-5.6-sol":         30,
-					"x-ai/grok-4.6":              29.8,
-					"anthropic/claude-fable-5.1": 29.7,
+					"z-ai/glm-5.3":         30,
+					"moonshotai/kimi-k3":              29.8,
+					"deepseek/deepseek-v4-pro-0813": 29.7,
 				},
 			},
 		},
@@ -114,24 +114,24 @@ func TestSelectorKeepsCrossProviderCandidatesAndAppliesBoundedPreferences(t *tes
 		ClassOrder:         []string{"high"},
 		ClassProbabilities: map[string]float64{"high": 1},
 		CandidateRosterIDs: []string{
-			"openai/gpt-5.6-sol",
-			"x-ai/grok-4.6",
-			"anthropic/claude-fable-5.1",
+			"z-ai/glm-5.3",
+			"moonshotai/kimi-k3",
+			"deepseek/deepseek-v4-pro-0813",
 		},
-		PreferredModels: []string{"grok-4.6"},
+		PreferredModels: []string{"z-ai/glm-5.3"},
 	}
 
 	pick, err := selector(context.Background(), input)
 	require.NoError(t, err)
-	assert.Equal(t, "x-ai/grok-4.6", pick.Arm)
+	assert.Equal(t, "z-ai/glm-5.3", pick.Arm)
 	assert.Equal(t, input.CandidateRosterIDs, pick.Trace.CandidateRosterIDs)
-	assert.Equal(t, []string{"grok-4.6"}, pick.Trace.PreferredModels)
-	assert.InDelta(t, 0.5, pick.Trace.ScoreComponentsByGroup["high"]["x-ai/grok-4.6"].PreferredModelBonus, 1e-6)
+	assert.Equal(t, []string{"z-ai/glm-5.3"}, pick.Trace.PreferredModels)
+	assert.InDelta(t, 0.5, pick.Trace.ScoreComponentsByGroup["high"]["z-ai/glm-5.3"].PreferredModelBonus, 1e-6)
 
 	cluster := roster.Clusters["high"]
-	cluster.ArmScores["openai/gpt-5.6-sol"] = 31
+	cluster.ArmScores["z-ai/glm-5.3"] = 31
 	roster.Clusters["high"] = cluster
 	pick, err = selector(context.Background(), input)
 	require.NoError(t, err)
-	assert.Equal(t, "openai/gpt-5.6-sol", pick.Arm, "bounded model preference must not erase a clear score gap")
+	assert.Equal(t, "z-ai/glm-5.3", pick.Arm, "bounded model preference must not erase a clear score gap")
 }

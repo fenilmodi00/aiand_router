@@ -21,14 +21,14 @@ func TestLoadValidRoster(t *testing.T) {
 
 	low := roster.Clusters["low"]
 	assert.Equal(t, "low", low.ComplexityLabel)
-	assert.Equal(t, []string{"openai/gpt-5.6-luna", "anthropic/claude-haiku-4.5"}, low.Arms)
-	assert.Equal(t, []string{"openai/gpt-5.6-luna"}, low.ArmsByHarness["pi"])
+	assert.Equal(t, []string{"z-ai/glm-5.3-flash", "deepseek/deepseek-v4.1-flash"}, low.Arms)
+	assert.Equal(t, []string{"z-ai/glm-5.3-flash"}, low.ArmsByHarness["pi"])
 	assert.InDelta(t, 0.02, low.CostRefUSD, 1e-9)
 	assert.InDelta(t, 8000, low.LatencyRefMS, 1e-9)
-	assert.InDelta(t, 20.11744, low.ArmScores["openai/gpt-5.6-luna"], 1e-9)
+	assert.InDelta(t, 20.11744, low.ArmScores["z-ai/glm-5.3-flash"], 1e-9)
 
 	maximum := roster.Clusters["maximum"]
-	assert.Equal(t, []string{"anthropic/claude-opus-4.8", "openai/gpt-5.6-sol:high", "x-ai/grok-4.5"}, maximum.MembershipByHarness["claude_code"])
+	assert.Equal(t, []string{"moonshotai/kimi-k3", "z-ai/glm-5.3:high", "deepseek/deepseek-v4-pro-0813"}, maximum.MembershipByHarness["claude_code"])
 
 	assert.InDelta(t, 0.4, roster.Ranking.Alpha["low"], 1e-9)
 	assert.InDelta(t, 0.95, roster.Ranking.Alpha["maximum"], 1e-9)
@@ -52,11 +52,11 @@ func TestAllArmsUnionsClusterHarnessAndMembership(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, []string{
-		"anthropic/claude-haiku-4.5",
-		"anthropic/claude-opus-4.8",
-		"openai/gpt-5.6-luna",
-		"openai/gpt-5.6-sol:high",
-		"x-ai/grok-4.5",
+		"deepseek/deepseek-v4-pro-0813",
+		"deepseek/deepseek-v4.1-flash",
+		"moonshotai/kimi-k3",
+		"z-ai/glm-5.3-flash",
+		"z-ai/glm-5.3:high",
 	}, roster.AllArms())
 }
 
@@ -104,8 +104,8 @@ func TestParseSchemaErrors(t *testing.T) {
 		},
 		{
 			name: "empty arms",
-			mutate: replaceJSON(`"openai/gpt-5.6-luna",
-        "anthropic/claude-haiku-4.5"
+			mutate: replaceJSON(`"z-ai/glm-5.3-flash",
+        "deepseek/deepseek-v4.1-flash"
       ],
       "arms_by_harness"`, `],
       "arms_by_harness"`),
@@ -123,7 +123,7 @@ func TestParseSchemaErrors(t *testing.T) {
 		},
 		{
 			name:    "arm without score",
-			mutate:  replaceJSON(`"anthropic/claude-haiku-4.5": 12.5`, `"unrelated/model": 12.5`),
+			mutate:  replaceJSON(`"deepseek/deepseek-v4.1-flash": 12.5`, `"unrelated/model": 12.5`),
 			wantErr: "no arm_scores entry",
 		},
 		{

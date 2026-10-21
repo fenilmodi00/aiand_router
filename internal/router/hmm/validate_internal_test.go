@@ -25,14 +25,12 @@ func TestValidateRosterIDs_AmbiguousMappingReported(t *testing.T) {
 	assert.Equal(t, "acme/model-a", diags[0].RosterID)
 }
 
-func TestValidateRosterIDs_OpenRouterOnlyBindingReported(t *testing.T) {
+func TestValidateRosterIDs_ValidArmIsNotReported(t *testing.T) {
 	models := []catalog.Model{
 		{ID: "acme/model-b", Providers: []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}}},
 	}
 
 	diags := validateRosterIDs([]string{"acme/model-b"}, models, policy.ManagedProviderPolicy())
 
-	require.Len(t, diags, 1)
-	assert.Equal(t, policy.ExclusionProviderPolicy, diags[0].Reason)
-	assert.Equal(t, "acme/model-b", diags[0].CatalogID)
+	assert.Empty(t, diags)
 }

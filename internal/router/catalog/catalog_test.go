@@ -61,7 +61,7 @@ func TestByID_DeepSeekV4Pro0813Resolves(t *testing.T) {
 
 func TestPriceFor_UnknownProviderForKnownModel(t *testing.T) {
 	// Only ai& serves the catalog, so another provider must miss.
-	_, ok := PriceFor(providers.ProviderAIAND, "deepseek/deepseek-v4-pro")
+	_, ok := PriceFor("other-provider", "deepseek/deepseek-v4-pro")
 	assert.False(t, ok)
 }
 
@@ -84,7 +84,7 @@ func TestResolveBinding_PicksFirstAvailable(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, providers.ProviderAIAND, b.Provider)
 
-	_, ok = ResolveBinding("deepseek/deepseek-v4.1-flash", map[string]struct{}{providers.ProviderAIAND: {}})
+	_, ok = ResolveBinding("deepseek/deepseek-v4.1-flash", map[string]struct{}{"other-provider": {}})
 	assert.False(t, ok)
 }
 
@@ -97,7 +97,7 @@ func TestRoutingTargetSet_FiltersByTierAndRegisteredProviders(t *testing.T) {
 }
 
 func TestRoutingTargetSet_ExcludesUnregisteredProviders(t *testing.T) {
-	targets := RoutingTargetSet(map[string]struct{}{providers.ProviderAIAND: {}})
+	targets := RoutingTargetSet(map[string]struct{}{"other-provider": {}})
 	assert.Empty(t, targets, "no aiand key means no dispatchable catalog model")
 }
 
