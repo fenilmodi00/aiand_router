@@ -39,18 +39,6 @@
       "removal_phase": "8"
     },
     {
-      "id": "target_construction|internal/proxy/blind_experiment.go|Service.callerModelPassthroughDecision|router.Decision|3",
-      "kind": "target_construction",
-      "file": "internal/proxy/blind_experiment.go",
-      "line": 87,
-      "symbol": "Service.callerModelPassthroughDecision",
-      "detail": "provider=<dynamic> model=<dynamic>",
-      "owner": "@steventohme",
-      "rationale": "Request-scoped passthrough preserves the caller-selected model for explicit installation policies and legacy blind-experiment treatment until dispatch becomes a typed policy transition.",
-      "operation_class": "main_inference",
-      "removal_phase": "8"
-    },
-    {
       "id": "direct_provider_call|internal/proxy/gemini.go|Service.ProxyGeminiGenerateContent|weave-os/router/internal/providers.Proxy|1",
       "kind": "direct_provider_call",
       "file": "internal/proxy/gemini.go",
@@ -192,54 +180,6 @@
       "owner": "@steventohme",
       "rationale": "Existing native web-search sub-turn passthrough preserves the resolved Anthropic binding until the public web-search path is represented as a typed policy operation.",
       "operation_class": "web_search_tool",
-      "removal_phase": "8"
-    },
-    {
-      "id": "target_construction|internal/proxy/usage_bypass.go|Service.usageBypassDecision|router.Decision|1",
-      "kind": "target_construction",
-      "file": "internal/proxy/usage_bypass.go",
-      "line": 32,
-      "symbol": "Service.usageBypassDecision",
-      "detail": "provider=<dynamic> model=<dynamic>",
-      "owner": "@steventohme",
-      "rationale": "Existing subscription bypass target remains a compatibility decision until credentials and pins become typed policy inputs.",
-      "operation_class": "main_inference",
-      "removal_phase": "8"
-    },
-    {
-      "id": "target_construction|internal/proxy/usage_bypass.go|Service.bypassToAnthropic|router.Decision|1",
-      "kind": "target_construction",
-      "file": "internal/proxy/usage_bypass.go",
-      "line": 448,
-      "symbol": "Service.bypassToAnthropic",
-      "detail": "provider=aiand model=<dynamic>",
-      "owner": "@steventohme",
-      "rationale": "Existing subscription bypass constructs its dispatch DTO directly until public-surface migration.",
-      "operation_class": "main_inference",
-      "removal_phase": "8"
-    },
-    {
-      "id": "direct_provider_call|internal/proxy/usage_bypass.go|Service.bypassToAnthropic|weave-os/router/internal/providers.Proxy|1",
-      "kind": "direct_provider_call",
-      "file": "internal/proxy/usage_bypass.go",
-      "line": 340,
-      "symbol": "Service.bypassToAnthropic",
-      "detail": "weave-os/router/internal/providers.Proxy",
-      "owner": "@steventohme",
-      "rationale": "Existing subscription bypass dispatch remains direct until the public Messages surface migrates through the executor.",
-      "operation_class": "main_inference",
-      "removal_phase": "8"
-    },
-    {
-      "id": "target_construction|internal/proxy/managed_subscriptions.go|Service.subscriptionAlternativeDecisions|router.Decision|1",
-      "kind": "target_construction",
-      "file": "internal/proxy/managed_subscriptions.go",
-      "line": 490,
-      "symbol": "Service.subscriptionAlternativeDecisions",
-      "detail": "provider=<dynamic> model=<dynamic>",
-      "owner": "@steventohme",
-      "rationale": "Approved subscription-sharing plan permits automatic included-capacity alternatives only from the existing request-eligible policy ordering, with quality/tool/context constraints and explicit targets preserved. Every alternative is prepared and dispatched through the existing inference resolver and executor; this creates no provider call bypass.",
-      "operation_class": "main_inference",
       "removal_phase": "8"
     }
   ]
