@@ -343,6 +343,85 @@ func replayCorpusWith(t *testing.T, bundle *Bundle, labels []corpusLabel, order 
 	return res
 }
 
+// replayCorpusWithCap is replayCorpusWith with an explicit deployment cost
+// cap, so the cap can be swept through the production scorer rather than
+// re-implemented.
+func replayCorpusWithCap(t *testing.T, bundle *Bundle, labels []corpusLabel, order []string, embedder *corpusEmbedder, held map[string]map[string]float64, capMultiple float64) corpusReplayResult {
+	t.Helper()
+	cfg := DefaultConfig()
+	cfg.CostCapMultiple = capMultiple
+	scorer, err := NewScorer(bundle, cfg, embedder, allProviders())
+	require.NoError(t, err)
+
+	byPrompt := map[string]map[string]corpusCell{}
+	for _, l := range labels {
+		if byPrompt[l.GlobalIndex] == nil {
+			byPrompt[l.GlobalIndex] = map[string]corpusCell{}
+		}
+		byPrompt[l.GlobalIndex][l.Model] = corpusCell{score: l.Score, cost: l.Cost}
+	}
+	costsByModel := map[string][]float64{}
+	for _, l := range labels {
+		if l.Cost != nil {
+			costsByModel[l.Model] = append(costsByModel[l.Model], *l.Cost)
+		}
+	}
+	medianCost := map[string]float64{}
+	for m, cs := range costsByModel {
+		sort.Float64s(cs)
+		medianCost[m] = cs[len(cs)/2]
+	}
+	promptTexts := map[string]string{}
+	for _, l := range labels {
+		if _, ok := promptTexts[l.GlobalIndex]; !ok {
+			promptTexts[l.GlobalIndex] = l.Question
+		}
+	}
+
+	res := corpusReplayResult{Version: bundle.Version, Mix: map[string]int{},
+		PerPromptModel: map[string]string{}, PerPromptScore: map[string]float64{}}
+	for _, idx := range order {
+		dec, err := scorer.Route(context.Background(), router.Request{PromptText: promptTexts[idx]})
+		require.NoError(t, err, "prompt %s must route", idx)
+		res.Routed++
+		res.Mix[dec.Model]++
+		res.PerPromptModel[idx] = dec.Model
+
+		c := byPrompt[idx][dec.Model]
+		if c.score != nil {
+			res.Scored++
+			res.Accuracy += *c.score
+			res.PerPromptScore[idx] = *c.score
+		}
+		switch {
+		case c.cost != nil:
+			res.HonestCostTotal += *c.cost
+		case medianCost[dec.Model] > 0:
+			res.HonestCostTotal += medianCost[dec.Model]
+		}
+	}
+	if res.Scored > 0 {
+		res.Accuracy /= float64(res.Scored)
+	}
+	res.HonestCostPer = res.HonestCostTotal / float64(res.Routed)
+	res.ModelsReached = len(res.Mix)
+
+	subset, _ := heldOutSubset(held)
+	sum := 0.0
+	n := 0
+	for _, idx := range subset {
+		if s, ok := held[idx][res.PerPromptModel[idx]]; ok {
+			sum += s
+			n++
+		}
+	}
+	if n > 0 {
+		res.HeldOutAccuracy = sum / float64(n)
+		res.HeldOutScored = n
+	}
+	return res
+}
+
 // corpusCell is one labelled cell's measured score and cost.
 type corpusCell struct {
 	score *float64
