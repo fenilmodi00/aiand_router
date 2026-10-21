@@ -57,11 +57,6 @@ func ApplyModelAlias(ctx context.Context, body []byte, model string) []byte {
 	return requestcontext.ApplyModelAlias(ctx, body, model)
 }
 
-// ApplyWIFTokenType marks the bearer as a workload attestation, not an upstream-issued token.
-func ApplyWIFTokenType(ctx context.Context, upstream *http.Request) {
-	requestcontext.ApplyWIFTokenType(ctx, upstream)
-}
-
 // ApplyIdentityHeader sets the caller-identity header the BYOK endpoint configured.
 func ApplyIdentityHeader(ctx context.Context, upstream *http.Request) {
 	requestcontext.ApplyIdentityHeader(ctx, upstream)
