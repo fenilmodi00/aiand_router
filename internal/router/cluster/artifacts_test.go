@@ -268,17 +268,17 @@ func TestListVersions_FlattensLegacyAndOmitsPseudoName(t *testing.T) {
 		assert.NotEqual(t, "legacy", v, "the legacy subdirectory must not appear as a version")
 	}
 	// Sanity: at least one known legacy version is reachable.
-	assert.Contains(t, versions, "v0.21", "legacy v0.21 must remain reachable after the move")
+	assert.Contains(t, versions, "v0.25", "legacy v0.25 must remain reachable after the move")
 }
 
 // bundleDirForVersion must resolve legacy bundles transparently.
 func TestResolveVersion_LegacyBundleIsReachable(t *testing.T) {
-	resolved, err := ResolveVersion("v0.21")
+	resolved, err := ResolveVersion("v0.25")
 	require.NoError(t, err)
-	assert.Equal(t, "v0.21", resolved)
+	assert.Equal(t, "v0.25", resolved)
 	bundle, err := LoadBundle(resolved)
 	require.NoError(t, err)
-	assert.False(t, bundle.IsV2, "v0.21 is v1 format")
+	assert.False(t, bundle.IsV2, "v0.25 is v1 format")
 }
 
 // Selector tests run against the real catalog: the bundle no longer carries
