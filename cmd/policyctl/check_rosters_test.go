@@ -48,7 +48,7 @@ func v7RosterSource(arm string, manualPins string) string {
 }`, strings.Join(clusters, ",\n    "), manualPins)
 }
 
-const retiredSchemaRoster = `{"schema_version": "hmm_router_cluster_roster_v5_5c", "clusters": {"low": {"arms": ["openai/gpt-5.6-sol"]}}}`
+const retiredSchemaRoster = `{"schema_version": "hmm_router_cluster_roster_v5_5c", "clusters": {"low": {"arms": ["z-ai/glm-5.3"]}}}`
 
 // A v6 roster parses under the serving loader but carries no WPI provenance,
 // so it can never become a Go policy and must be skipped rather than failed.
@@ -58,10 +58,10 @@ const v6SchemaRoster = `{
   "clusters": {
     "low": {
       "complexity_label": "low",
-      "arms": ["openai/gpt-5.6-sol"],
+      "arms": ["z-ai/glm-5.3"],
       "cost_ref_usd": 0.02,
       "latency_ref_ms": 8000,
-      "arm_scores": {"openai/gpt-5.6-sol": 10}
+      "arm_scores": {"z-ai/glm-5.3": 10}
     }
   }
 }`
@@ -75,7 +75,7 @@ func TestCheckRosterDirCompilesV7SourceAndSkipsPreGoSchemas(t *testing.T) {
 	dir := t.TempDir()
 	// Legacy top-level "pooled" pins are the exact shape production served
 	// before the Go-owned cutover; they must keep compiling.
-	writeRoster(t, dir, "roster_pooled.json", v7RosterSource("openai/gpt-5.6-sol", `{"pooled": {"low": ["x-ai/grok-4.6"]}}`))
+	writeRoster(t, dir, "roster_pooled.json", v7RosterSource("z-ai/glm-5.3", `{"pooled": {"low": ["moonshotai/kimi-k3"]}}`))
 	writeRoster(t, dir, "roster_retired.json", retiredSchemaRoster)
 	writeRoster(t, dir, "roster_v6.json", v6SchemaRoster)
 
@@ -110,7 +110,7 @@ func TestCheckRosterDirFailsCompilableSourceWithUnknownArm(t *testing.T) {
 
 func TestCheckRosterDirFailsUnparseableRoster(t *testing.T) {
 	dir := t.TempDir()
-	writeRoster(t, dir, "roster_ok.json", v7RosterSource("openai/gpt-5.6-sol", `{}`))
+	writeRoster(t, dir, "roster_ok.json", v7RosterSource("z-ai/glm-5.3", `{}`))
 	writeRoster(t, dir, "roster_truncated.json", `{"schema_version": "v7", "clusters": {`)
 	writeRoster(t, dir, "roster_unversioned.json", `{"clusters": {}}`)
 
