@@ -53,11 +53,3 @@ INSERT INTO router.model_router_inference_attempts (
 )
 ON CONFLICT (installation_id, request_id, operation_id, attempt_index) DO NOTHING;
 
--- Returns every attempt of one request in attempt order, grouped by operation,
--- for diagnostics and the runtime inspection API.
--- name: GetInferenceAttempts :many
-SELECT *
-FROM router.model_router_inference_attempts
-WHERE installation_id = @installation_id::uuid
-  AND request_id = @request_id::varchar
-ORDER BY operation_id, attempt_index;

@@ -50,30 +50,6 @@ func (q *Queries) GetOrgMonthlySpendAndLimit(ctx context.Context, organizationID
 	return i, err
 }
 
-const getOrgSpendLimits = `-- name: GetOrgSpendLimits :one
-SELECT user_monthly_limit_usd_micros, org_monthly_limit_usd_micros
-FROM router.organization_spend_limits
-WHERE organization_id = $1::varchar
-`
-
-type GetOrgSpendLimitsRow struct {
-	UserMonthlyLimitUsdMicros *int64
-	OrgMonthlyLimitUsdMicros  *int64
-}
-
-// Reads the org's spend-limit configuration. Both limits are nullable:
-// NULL means that limit kind is not configured. No row means neither is.
-//
-//	SELECT user_monthly_limit_usd_micros, org_monthly_limit_usd_micros
-//	FROM router.organization_spend_limits
-//	WHERE organization_id = $1::varchar
-func (q *Queries) GetOrgSpendLimits(ctx context.Context, organizationID string) (GetOrgSpendLimitsRow, error) {
-	row := q.db.QueryRow(ctx, getOrgSpendLimits, organizationID)
-	var i GetOrgSpendLimitsRow
-	err := row.Scan(&i.UserMonthlyLimitUsdMicros, &i.OrgMonthlyLimitUsdMicros)
-	return i, err
-}
-
 const getUserMonthlySpendAndLimit = `-- name: GetUserMonthlySpendAndLimit :one
 SELECT
     (EXISTS (
