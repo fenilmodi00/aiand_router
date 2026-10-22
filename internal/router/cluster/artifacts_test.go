@@ -173,8 +173,7 @@ func TestLoadRegistry_Roundtrip(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, got.DeployedModels, 2)
 	assert.Equal(t, "aiand", got.DeployedModels[0].Provider)
-	assert.Equal(t, "z-ai/glm-5.2", got.DeployedModels[0].BenchColumn)
-	assert.True(t, got.DeployedModels[0].Proxy)
+	assert.Equal(t, "moonshotai/kimi-k3", got.DeployedModels[0].Model)
 	assert.Equal(t, "aiand", got.DeployedModels[1].Provider)
 	assert.ElementsMatch(t, []string{"moonshotai/kimi-k3", "z-ai/glm-5.3-flash"}, got.Models())
 }
@@ -288,9 +287,9 @@ func TestResolveVersion_LegacyBundleIsReachable(t *testing.T) {
 func TestCheapestModel(t *testing.T) {
 	registry := &ModelRegistry{
 		DeployedModels: []DeployedEntry{
-			{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND, BenchColumn: "col-a"},
-			{Model: "deepseek/deepseek-v4.1-flash", Provider: providers.ProviderAIAND, BenchColumn: "col-b"},
-			{Model: "moonshotai/kimi-k3", Provider: providers.ProviderAIAND, BenchColumn: "col-c"},
+			{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND},
+			{Model: "deepseek/deepseek-v4.1-flash", Provider: providers.ProviderAIAND},
+			{Model: "moonshotai/kimi-k3", Provider: providers.ProviderAIAND},
 		},
 	}
 	available := map[string]struct{}{providers.ProviderAIAND: {}}
@@ -310,8 +309,8 @@ func TestCheapestModel(t *testing.T) {
 	t.Run("skips entries the catalog does not price", func(t *testing.T) {
 		unpriced := &ModelRegistry{
 			DeployedModels: []DeployedEntry{
-				{Model: "not-in-catalog", Provider: providers.ProviderAIAND, BenchColumn: "col-x"},
-				{Model: "deepseek/deepseek-v4.1-flash", Provider: providers.ProviderAIAND, BenchColumn: "col-b"},
+				{Model: "not-in-catalog", Provider: providers.ProviderAIAND},
+				{Model: "deepseek/deepseek-v4.1-flash", Provider: providers.ProviderAIAND},
 			},
 		}
 		p, m, ok := CheapestModel(unpriced, available)
@@ -324,9 +323,9 @@ func TestCheapestModel(t *testing.T) {
 func TestCheapestModelInSet(t *testing.T) {
 	registry := &ModelRegistry{
 		DeployedModels: []DeployedEntry{
-			{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND, BenchColumn: "col-a"},
-			{Model: "deepseek/deepseek-v4.1-flash", Provider: providers.ProviderAIAND, BenchColumn: "col-b"},
-			{Model: "moonshotai/kimi-k3", Provider: providers.ProviderAIAND, BenchColumn: "col-c"},
+			{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND},
+			{Model: "deepseek/deepseek-v4.1-flash", Provider: providers.ProviderAIAND},
+			{Model: "moonshotai/kimi-k3", Provider: providers.ProviderAIAND},
 		},
 	}
 	available := map[string]struct{}{providers.ProviderAIAND: {}}
@@ -374,8 +373,8 @@ func TestCheapestModelInSet(t *testing.T) {
 func TestFastestModel(t *testing.T) {
 	registry := &ModelRegistry{
 		DeployedModels: []DeployedEntry{
-			{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND, BenchColumn: "col-a"},
-			{Model: "deepseek/deepseek-v4.1-flash", Provider: providers.ProviderAIAND, BenchColumn: "col-b"},
+			{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND},
+			{Model: "deepseek/deepseek-v4.1-flash", Provider: providers.ProviderAIAND},
 		},
 	}
 
@@ -396,9 +395,9 @@ func TestFastestModel(t *testing.T) {
 func TestFastestModelInSet(t *testing.T) {
 	registry := &ModelRegistry{
 		DeployedModels: []DeployedEntry{
-			{Model: "deepseek/deepseek-v4.1-flash", Provider: providers.ProviderAIAND, BenchColumn: "col-vf"},
-			{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND, BenchColumn: "col-a"},
-			{Model: "moonshotai/kimi-k3", Provider: providers.ProviderAIAND, BenchColumn: "col-c"},
+			{Model: "deepseek/deepseek-v4.1-flash", Provider: providers.ProviderAIAND},
+			{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND},
+			{Model: "moonshotai/kimi-k3", Provider: providers.ProviderAIAND},
 		},
 	}
 	available := map[string]struct{}{providers.ProviderAIAND: {}}

@@ -76,14 +76,13 @@ type rankingsFile struct {
 	Rankings map[string]map[string]float32 `json:"rankings"`
 }
 
-// DeployedEntry is one routable target. Direct columns are 1:1
-// (Model == BenchColumn); proxy entries reuse another column's scores.
+// DeployedEntry is one routable target: the model and the provider that
+// serves it. The registry's bench_column / proxy / proxy_note keys are
+// training-time provenance (which trained column a row's scores come from);
+// the runtime scores by model name, so they are parsed for validation only.
 type DeployedEntry struct {
-	Model       string `json:"model"`
-	Provider    string `json:"provider"`
-	BenchColumn string `json:"bench_column"`
-	Proxy       bool   `json:"proxy,omitempty"`
-	ProxyNote   string `json:"proxy_note,omitempty"`
+	Model    string `json:"model"`
+	Provider string `json:"provider"`
 }
 
 // ModelRegistry is the deserialized model_registry.json.
@@ -738,6 +737,17 @@ func loadRegistry(raw []byte) (*ModelRegistry, error) {
 	if len(r.DeployedModels) == 0 {
 		return nil, fmt.Errorf("model_registry.json: deployed_models is empty")
 	}
+	// bench_column is training-time provenance the runtime does not read, but
+	// an empty one means the row was never trained — refuse the bundle.
+	var provenance struct {
+		DeployedModels []struct {
+			Model       string `json:"model"`
+			BenchColumn string `json:"bench_column"`
+		} `json:"deployed_models"`
+	}
+	if err := json.Unmarshal(raw, &provenance); err != nil {
+		return nil, fmt.Errorf("model_registry.json parse: %w", err)
+	}
 	for i, e := range r.DeployedModels {
 		if e.Model == "" {
 			return nil, fmt.Errorf("model_registry.json: deployed_models[%d] missing model", i)
@@ -745,7 +755,7 @@ func loadRegistry(raw []byte) (*ModelRegistry, error) {
 		if e.Provider == "" {
 			return nil, fmt.Errorf("model_registry.json: deployed_models[%d] (%s) missing provider", i, e.Model)
 		}
-		if e.BenchColumn == "" {
+		if provenance.DeployedModels[i].BenchColumn == "" {
 			return nil, fmt.Errorf("model_registry.json: deployed_models[%d] (%s) missing bench_column", i, e.Model)
 		}
 	}
