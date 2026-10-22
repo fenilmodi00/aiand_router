@@ -116,7 +116,6 @@ func toAuthAPIKey(row sqlc.RouterModelRouterAPIKey) *auth.APIKey {
 		CreatedAt:                         timestampOrZero(row.CreatedAt),
 		DeletedAt:                         timestampPtr(row.DeletedAt),
 		CreatedBy:                         row.CreatedBy,
-		PaidFallbackOnSubscriptionRefusal: row.PaidFallbackOnSubscriptionRefusal,
 	}
 }
 
