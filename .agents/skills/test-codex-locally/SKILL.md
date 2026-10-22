@@ -26,7 +26,7 @@ The sibling skill [test-claude-locally](../test-claude-locally/SKILL.md) is the 
 - **Native Responses + tool-only emits a synthetic badge item.** `SetPassthroughBadge` rewrites existing `response.output_text.*` events and, when a tool-only turn has no assistant text, inserts a leading assistant message item before native tool/reasoning output. Verify the badge in the Responses SSE/JSON; the Codex TUI can bury the first-turn line under tool chatter.
 - **`GET /v1/models` 501 from a mock is fine.** Codex probes `<base_url>/models` first, logs an HTML 501, then continues to `POST /v1/responses`. The real local router implements `GET /v1/models` as Anthropic passthrough, so this only shows up against a Python mock.
 - **Port 8085 conflict.** The monorepo's pubsub emulator may already own host port 8085. Drop the router's host binding with a `docker-compose.override.yml` (see workflow). The server still reaches the emulator over the compose network.
-- **No credits / no key = no reproduction.** If the real upstream returns an error (e.g. OpenRouter "Insufficient credits"), use the mock-upstream path instead.
+- **No credits / no key = no reproduction.** If the real upstream returns an error (e.g. ai& "Insufficient credits"), use the mock-upstream path instead.
 
 ## Workflow
 
