@@ -197,18 +197,10 @@ func RoutingTargetSet(availableProviders map[string]struct{}) map[string]struct{
 	return out
 }
 
-// HMMRoutingTargetSet returns the HMM policy candidate universe. It includes
-// generic routing targets plus catalog rows explicitly reserved for HMM policy
-// sidecars, without making those rows eligible for generic cluster routing.
+// HMMRoutingTargetSet returns the HMM policy candidate universe. It is the
+// generic routing target set: no catalog row is reserved for HMM alone.
 func HMMRoutingTargetSet(availableProviders map[string]struct{}) map[string]struct{} {
-	out := RoutingTargetSet(availableProviders)
-	for _, model := range Models {
-		if !model.HMMTarget || len(EnumerateBindings(model.ID, availableProviders)) == 0 {
-			continue
-		}
-		out[model.ID] = struct{}{}
-	}
-	return out
+	return RoutingTargetSet(availableProviders)
 }
 
 // UpstreamIDFor returns the upstream model ID for a catalog binding.
