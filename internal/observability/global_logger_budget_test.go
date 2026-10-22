@@ -178,7 +178,6 @@ var reservedKeyAllowlist = map[string]bool{
 	"internal/proxy/session_key.go":      true, // bindRequestLogger binds them
 	"internal/auth/service.go":           true, // SafeGo loggers, off request path
 	"internal/proxy/service.go":          true, // OTel span attrs + telemetry rows
-	"internal/proxy/usage_bypass.go":     true, // OTel span attrs + telemetry rows
 	"internal/api/anthropic/messages.go": true, // pre-Middleware oversize-body log
 }
 
