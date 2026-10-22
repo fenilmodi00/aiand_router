@@ -201,11 +201,8 @@ type Model struct {
 	// an unset value is rejected by the catalog tests rather than defaulted.
 	Source Source
 	// Tier is the coarse capability bucket. TierUnknown excludes the model
-	// from generic automatic routing; an HMM-only target may opt in separately.
+	// from automatic routing.
 	Tier Tier
-	// HMMTarget allows an otherwise untiered catalog row to be offered to an HMM
-	// policy sidecar without adding it to the generic cluster candidate set.
-	HMMTarget bool
 	// CodexSubscription marks models served by the native ChatGPT/Codex OAuth
 	// backend. OpenAI API models leave this false even when they share the same
 	// provider binding.
