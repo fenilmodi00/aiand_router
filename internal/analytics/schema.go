@@ -2,7 +2,7 @@ package analytics
 
 // SchemaVersion identifies the export contract. Additive field changes keep
 // the version; a removal or a semantic change bumps it.
-const SchemaVersion = "4"
+const SchemaVersion = "5"
 
 // Field documents one exported column so a consumer can generate warehouse DDL
 // without reading prose docs.
@@ -67,8 +67,8 @@ func Schema() []Field {
 		{"speed", "string", true, "Serving speed the upstream reported (e.g. fast); fast turns are priced at the binding's fast rate. Null when not reported."},
 		{"inference_geo", "string", true, "Inference geography the upstream reported; \"us\" applies us_inference_geo_multiplier to every token category. Null when not reported."},
 		{"credential_source", "string", true, "Winning credential source; null when attribution was not recorded."},
-		{"actual_input_cost_usd", "float", true, "Input cost of the model that actually served the turn. 0 when subscription_served."},
-		{"actual_output_cost_usd", "float", true, "Output cost of the model that actually served the turn. 0 when subscription_served."},
+		{"actual_input_cost_usd", "float", true, "Input cost of the model that actually served the turn."},
+		{"actual_output_cost_usd", "float", true, "Output cost of the model that actually served the turn."},
 		{"route_latency_ms", "integer", true, "Time spent choosing a model."},
 		{"upstream_latency_ms", "integer", true, "Time spent waiting on the upstream provider."},
 		{"total_latency_ms", "integer", true, "End-to-end time for the action."},
@@ -83,7 +83,6 @@ func Schema() []Field {
 		{"capacity_source", "string", true, "Capacity that funded the turn: included_router, prepaid, or billing_override."},
 		{"retail_usage_usd_micros", "integer", true, "Retail value of the served model usage in USD micros, independent of funding source."},
 		{"included_usage_usd_micros", "integer", true, "Retail usage funded by included Router allowance; null for other capacity sources."},
-		{"prepaid_usage_usd_micros", "integer", true, "Retail usage funded by subscriber prepaid balance; null for other capacity sources."},
 		{"settlement_failed", "boolean", true, "Whether included-allowance or prepaid settlement failed after serving. Null when no Router settlement applies."},
 		{"serving_profile_id", "string", true, "Server-owned Router profile used to serve the turn."},
 		{"serving_profile_version", "string", true, "Immutable revision of the server-owned Router profile."},

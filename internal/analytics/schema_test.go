@@ -37,6 +37,16 @@ func TestSchemaFieldsAreDocumented(t *testing.T) {
 	}
 }
 
+// Version 5 dropped the last two dead columns: the always-null prepaid usage
+// and the constant-false subscription_served flag.
+func TestSchemaHasNoDeadColumns(t *testing.T) {
+	for _, f := range analytics.Schema() {
+		require.NotEqual(t, "prepaid_usage_usd_micros", f.Name)
+		require.NotEqual(t, "subscription_served", f.Name)
+	}
+	require.Equal(t, "5", analytics.SchemaVersion)
+}
+
 // decision_reason ships verbatim and can carry version-specific internals, so
 // the dictionary has to warn consumers off parsing it.
 func TestDecisionReasonDocumentedAsUnstable(t *testing.T) {

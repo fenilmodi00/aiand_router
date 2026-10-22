@@ -94,7 +94,6 @@ type Decision struct {
 	CapacitySource           *string `json:"capacity_source"`
 	RetailUsageUSDMicros     *int64  `json:"retail_usage_usd_micros"`
 	IncludedUsageUSDMicros   *int64  `json:"included_usage_usd_micros"`
-	PrepaidUsageUSDMicros    *int64  `json:"prepaid_usage_usd_micros"`
 	SettlementFailed         *bool   `json:"settlement_failed"`
 	ServingProfileID         *string `json:"serving_profile_id"`
 	ServingProfileVersion    *string `json:"serving_profile_version"`

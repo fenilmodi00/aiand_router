@@ -101,8 +101,8 @@ func decisionFromExportRow(row sqlc.GetRoutingDecisionsForExportRow) analytics.D
 		InferenceGeo:          row.InferenceGeo,
 
 		CredentialSource:    row.CredentialSource,
-		ActualInputCostUSD:  servedCostUSD(row.ActualInputCostUsd, row.SubscriptionServed),
-		ActualOutputCostUSD: servedCostUSD(row.ActualOutputCostUsd, row.SubscriptionServed),
+		ActualInputCostUSD:  microsPtrToUSD(row.ActualInputCostUsd),
+		ActualOutputCostUSD: microsPtrToUSD(row.ActualOutputCostUsd),
 
 		RouteLatencyMs:           row.RouteLatencyMs,
 		UpstreamLatencyMs:        row.UpstreamLatencyMs,
@@ -118,9 +118,6 @@ func decisionFromExportRow(row sqlc.GetRoutingDecisionsForExportRow) analytics.D
 		CapacitySource:           row.CapacitySource,
 		RetailUsageUSDMicros:     row.RetailUsageUsdMicros,
 		IncludedUsageUSDMicros:   row.IncludedUsageUsdMicros,
-		// The prepaid capacity source no longer exists, so the exported value
-		// is always null. The field stays in the export contract.
-		PrepaidUsageUSDMicros:    nil,
 		SettlementFailed:         row.SettlementFailed,
 		ServingProfileID:         row.ServingProfileID,
 		ServingProfileVersion:    row.ServingProfileVersion,
@@ -178,18 +175,6 @@ func int32PtrToInt64(v *int32) *int64 {
 	}
 	out := int64(*v)
 	return &out
-}
-
-// servedCostUSD returns $0 for subscription-served turns (quota already paid) and the catalog rate otherwise.
-func servedCostUSD(micros *int64, subscriptionServed bool) *float64 {
-	if micros == nil {
-		return nil
-	}
-	if subscriptionServed {
-		zero := 0.0
-		return &zero
-	}
-	return microsPtrToUSD(micros)
 }
 
 func microsPtrToUSD(micros *int64) *float64 {

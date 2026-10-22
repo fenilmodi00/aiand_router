@@ -193,6 +193,11 @@ Version `4` removed the subscription-served attribution columns
 `subscription_tier`, `intended_model_family`, `final_model_family`) and
 `linked_usage_usd_micros`: the router serves one upstream, so no turn is
 attributed to a linked Claude or Codex subscription.
+Version `5` removed the two remaining dead columns: `prepaid_usage_usd_micros`
+(the prepaid capacity source no longer exists, so the value was always null)
+and the constant `subscription_served` flag (always false). `actual_input_cost_usd`
+and `actual_output_cost_usd` now report the catalog rate of the model that
+served the turn, with no subscription-served zeroing.
 
 ### `decision_reason` is prose, not an enum
 
@@ -242,7 +247,8 @@ Removed in version `4`: the router serves a single upstream, so no turn is
 served on a caller's Claude or Codex subscription quota and there is no
 subscription-served attribution to report. Every priced turn reports its
 `actual_input_cost_usd` / `actual_output_cost_usd` at the catalog rate of the
-model that served it.
+model that served it. Version `5` removed the last remnant, the
+`subscription_served` column, which had been a constant `false`.
 
 ---
 
