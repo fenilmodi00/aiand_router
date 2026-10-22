@@ -51,6 +51,7 @@ dist/
 .bench-cache/
 .embedding-cache/
 .local/
+.tmpwork/
 
 # Logs
 logs/
