@@ -69,9 +69,9 @@ func TestThreeHMMClassifiersSelectPinnedRostersThroughTheSharedSidecar(t *testin
 	candidate := policyregistry.Candidate{
 		HeadSnapshot: policyregistry.HeadSnapshot{Head: policyregistry.LaneHead{ClassifierRevisionURL: sidecar.URL}},
 		Release:      policyregistry.Release{Classifier: identity, Policy: policyregistry.PolicyObject{SHA256: defaultPolicySHA}},
-		Policy:       roster("openai/" + catalog.ModelIDDeepSeekV4Pro.String()),
+		Policy:       roster(catalog.ModelIDDeepSeekV4Pro0813.String()),
 		StrategyPolicies: map[router.Strategy]policyregistry.StrategyPolicy{
-			router.StrategyHMMQwen: {Reference: policyregistry.PolicyObject{SHA256: qwenPolicySHA}, Roster: roster(providers.ProviderAIAND + "/" + router.ModelGemini4Argon)},
+			router.StrategyHMMQwen: {Reference: policyregistry.PolicyObject{SHA256: qwenPolicySHA}, Roster: roster(catalog.ModelIDGLM53Flash.String())},
 		},
 	}
 	build := hmmPolicySnapshotBuilder(map[string]struct{}{providers.ProviderAIAND: {}},
@@ -81,9 +81,9 @@ func TestThreeHMMClassifiersSelectPinnedRostersThroughTheSharedSidecar(t *testin
 	for _, strategy := range []router.Strategy{router.StrategyHMM, router.StrategyHMMBeta, router.StrategyHMMQwen} {
 		decision, err := routers[strategy].Route(context.Background(), router.Request{PromptText: "Inspect the synthetic fixture", ClientApp: "codex"})
 		require.NoError(t, err)
-		expectedModel, expectedSHA := catalog.ModelIDDeepSeekV4Pro.String(), defaultPolicySHA
+		expectedModel, expectedSHA := catalog.ModelIDDeepSeekV4Pro0813.String(), defaultPolicySHA
 		if strategy == router.StrategyHMMQwen {
-			expectedModel, expectedSHA = router.ModelGemini4Argon, qwenPolicySHA
+			expectedModel, expectedSHA = catalog.ModelIDGLM53Flash.String(), qwenPolicySHA
 		}
 		require.Equal(t, expectedModel, decision.Model)
 		require.NotNil(t, decision.Metadata)

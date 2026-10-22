@@ -11,6 +11,6 @@ import (
 func TestUpstreamIDsForProvider_MiniMax(t *testing.T) {
 	ids := upstreamIDsForProvider(providers.ProviderAIAND)
 
-	assert.Equal(t, "MiniMax-M3", ids["minimax/minimax-m3"])
-	assert.Equal(t, "MiniMax-M2.7", ids["minimax/minimax-m2.7"])
+	assert.Equal(t, "zai-org/glm-5.3", ids["z-ai/glm-5.3"])
+	assert.Equal(t, "moonshotai/kimi-k3", ids["moonshotai/kimi-k3"])
 }

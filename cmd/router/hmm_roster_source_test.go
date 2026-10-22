@@ -41,13 +41,13 @@ func (s *stubRosterFetcher) Roster(ctx context.Context) ([]string, error) {
 }
 
 func TestHMMRosterSource_MapsAndCaches(t *testing.T) {
-	fetch := &stubRosterFetcher{ids: []string{"openai/gpt-5.6-sol"}}
+	fetch := &stubRosterFetcher{ids: []string{"z-ai/glm-5.3"}}
 	src := newHMMRosterSource(fetch, 0)
 
 	first, err := src.HMMDeployedModels(context.Background())
 	require.NoError(t, err)
 	require.Len(t, first, 1)
-	assert.Equal(t, "gpt-5.6-sol", first[0].Model)
+	assert.Equal(t, "z-ai/glm-5.3", first[0].Model)
 
 	// Second call inside the TTL window must not re-hit the sidecar.
 	second, err := src.HMMDeployedModels(context.Background())
@@ -72,7 +72,7 @@ func (h *countingHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
 func (h *countingHandler) WithGroup(string) slog.Handler      { return h }
 
 func TestHMMRosterSource_WarnsOncePerRosterOnInvalidArms(t *testing.T) {
-	fetch := &stubRosterFetcher{ids: []string{"openai/gpt-5.6-sol", "newvendor/model-x"}}
+	fetch := &stubRosterFetcher{ids: []string{"z-ai/glm-5.3", "openai/gpt-nonexistent"}}
 	src := newHMMRosterSource(fetch, 0)
 	handler := &countingHandler{}
 	ctx := observability.WithLogger(context.Background(), slog.New(handler))
@@ -81,7 +81,7 @@ func TestHMMRosterSource_WarnsOncePerRosterOnInvalidArms(t *testing.T) {
 	require.NoError(t, err)
 	// Serving behavior is unchanged: the unknown arm is still silently dropped.
 	require.Len(t, entries, 1)
-	assert.Equal(t, "gpt-5.6-sol", entries[0].Model)
+	assert.Equal(t, "z-ai/glm-5.3", entries[0].Model)
 	assert.Equal(t, int64(1), handler.warns.Load())
 
 	// A repeated refresh of the same roster must not warn again.
@@ -93,7 +93,7 @@ func TestHMMRosterSource_WarnsOncePerRosterOnInvalidArms(t *testing.T) {
 	assert.Equal(t, int64(1), handler.warns.Load())
 
 	// A different roster with invalid arms warns anew.
-	fetch.ids = []string{"openai/gpt-5.6-sol", "othervendor/model-y"}
+	fetch.ids = []string{"z-ai/glm-5.3", "openai/gpt-other"}
 	src.mu.Lock()
 	src.fetchedAt = src.fetchedAt.Add(-2 * hmmRosterTTL)
 	src.mu.Unlock()
@@ -102,7 +102,7 @@ func TestHMMRosterSource_WarnsOncePerRosterOnInvalidArms(t *testing.T) {
 	assert.Equal(t, int64(2), handler.warns.Load())
 
 	// A clean roster resets the dedup key...
-	fetch.ids = []string{"openai/gpt-5.6-sol"}
+	fetch.ids = []string{"z-ai/glm-5.3"}
 	src.mu.Lock()
 	src.fetchedAt = src.fetchedAt.Add(-2 * hmmRosterTTL)
 	src.mu.Unlock()
@@ -111,7 +111,7 @@ func TestHMMRosterSource_WarnsOncePerRosterOnInvalidArms(t *testing.T) {
 	assert.Equal(t, int64(2), handler.warns.Load())
 
 	// ...so the same invalid roster reappearing warns again.
-	fetch.ids = []string{"openai/gpt-5.6-sol", "othervendor/model-y"}
+	fetch.ids = []string{"z-ai/glm-5.3", "openai/gpt-nonexistent"}
 	src.mu.Lock()
 	src.fetchedAt = src.fetchedAt.Add(-2 * hmmRosterTTL)
 	src.mu.Unlock()
@@ -121,7 +121,7 @@ func TestHMMRosterSource_WarnsOncePerRosterOnInvalidArms(t *testing.T) {
 }
 
 func TestHMMRosterSource_ValidRosterEmitsNoWarn(t *testing.T) {
-	fetch := &stubRosterFetcher{ids: []string{"openai/gpt-5.6-sol"}}
+	fetch := &stubRosterFetcher{ids: []string{"z-ai/glm-5.3"}}
 	src := newHMMRosterSource(fetch, 0)
 	handler := &countingHandler{}
 
@@ -133,7 +133,7 @@ func TestHMMRosterSource_ValidRosterEmitsNoWarn(t *testing.T) {
 func TestHMMRosterSource_UsesConfiguredFetchTimeout(t *testing.T) {
 	const fetchTimeout = 10 * time.Second
 	fetch := &stubRosterFetcher{
-		ids:      []string{"openai/gpt-5.6-sol"},
+		ids:      []string{"z-ai/glm-5.3"},
 		deadline: make(chan time.Time, 1),
 	}
 	src := newHMMRosterSource(fetch, fetchTimeout)
@@ -148,7 +148,7 @@ func TestHMMRosterSource_UsesConfiguredFetchTimeout(t *testing.T) {
 }
 
 func TestHMMRosterSource_ServesStaleOnFetchFailure(t *testing.T) {
-	fetch := &stubRosterFetcher{ids: []string{"openai/gpt-5.6-sol"}}
+	fetch := &stubRosterFetcher{ids: []string{"z-ai/glm-5.3"}}
 	src := newHMMRosterSource(fetch, 0)
 
 	_, err := src.HMMDeployedModels(context.Background())
@@ -161,7 +161,7 @@ func TestHMMRosterSource_ServesStaleOnFetchFailure(t *testing.T) {
 	stale, err := src.HMMDeployedModels(context.Background())
 	require.NoError(t, err)
 	require.Len(t, stale, 1)
-	assert.Equal(t, "gpt-5.6-sol", stale[0].Model)
+	assert.Equal(t, "z-ai/glm-5.3", stale[0].Model)
 
 	callsAfterFailure := fetch.calls.Load()
 	// Within the backoff window the next reader serves stale without re-hitting
@@ -183,7 +183,7 @@ func TestHMMRosterSource_CallerCancelDoesNotAbortSharedFetch(t *testing.T) {
 	// One caller cancels mid-fetch; the concurrent live-context caller must
 	// still get the roster because the shared fetch runs under a detached context.
 	fetch := &stubRosterFetcher{
-		ids:     []string{"openai/gpt-5.6-sol"},
+		ids:     []string{"z-ai/glm-5.3"},
 		gate:    make(chan struct{}),
 		entered: make(chan struct{}, 2),
 	}
@@ -215,7 +215,7 @@ func TestHMMRosterSource_CallerCancelDoesNotAbortSharedFetch(t *testing.T) {
 
 	require.NoError(t, liveErr, "a live-context caller must not inherit another caller's cancellation")
 	require.Len(t, liveEntries, 1)
-	assert.Equal(t, "gpt-5.6-sol", liveEntries[0].Model)
+	assert.Equal(t, "z-ai/glm-5.3", liveEntries[0].Model)
 }
 
 func TestHMMRosterSource_ColdStartStampedeCollapsesToOneFetch(t *testing.T) {
@@ -223,7 +223,7 @@ func TestHMMRosterSource_ColdStartStampedeCollapsesToOneFetch(t *testing.T) {
 	// every caller must succeed — no 503 because a sibling's fetch "won".
 	const callers = 8
 	fetch := &stubRosterFetcher{
-		ids:     []string{"openai/gpt-5.6-sol"},
+		ids:     []string{"z-ai/glm-5.3"},
 		gate:    make(chan struct{}),
 		entered: make(chan struct{}, callers),
 	}
@@ -252,7 +252,7 @@ func TestHMMRosterSource_ColdStartStampedeCollapsesToOneFetch(t *testing.T) {
 
 	for i := range callers {
 		require.NoErrorf(t, errs[i], "caller %d must not 503 on a successful cold-start fetch", i)
-		assert.Equalf(t, []string{"gpt-5.6-sol"}, results[i], "caller %d got the wrong roster", i)
+		assert.Equalf(t, []string{"z-ai/glm-5.3"}, results[i], "caller %d got the wrong roster", i)
 	}
 	assert.LessOrEqual(t, fetch.calls.Load(), int64(2), "stampede must collapse to ~one sidecar fetch")
 }

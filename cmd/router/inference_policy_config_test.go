@@ -30,13 +30,13 @@ func TestResolveCompactionModelFailsClosed(t *testing.T) {
 	t.Run("invalid binding", func(t *testing.T) {
 		t.Setenv("ROUTER_COMPACTION_MODEL", "gpt-5.5")
 		_, err := resolveCompactionModel(providers.ProviderAIAND)
-		assert.ErrorContains(t, err, "has no anthropic catalog binding")
+		assert.ErrorContains(t, err, "has no aiand catalog binding")
 	})
 
 	t.Run("binding on the configured summarizer provider", func(t *testing.T) {
 		t.Setenv("ROUTER_COMPACTION_MODEL", "z-ai/glm-5.2")
 		_, err := resolveCompactionModel(providers.ProviderAIAND)
-		assert.ErrorContains(t, err, "has no openai catalog binding")
+		require.NoError(t, err)
 	})
 }
 
