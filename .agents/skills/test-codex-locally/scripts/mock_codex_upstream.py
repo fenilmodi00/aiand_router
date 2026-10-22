@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Deterministic native Responses upstream for local Codex routing tests.
 
-The router's Codex subscription branch normally targets chatgpt.com. Set
-ROUTER_CODEX_BASE_URL to this server's /v1 URL to exercise that same native
-Responses path without spending credits or calling the real backend.
+A /v1/responses request keeps its native wire shape end to end: the router
+dispatches the caller's original Responses body to the upstream's /responses
+surface. Set AIAND_BASE_URL to this server's /v1 URL to exercise that path
+without spending credits or calling the real API.
 """
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
