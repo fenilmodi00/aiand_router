@@ -46,10 +46,6 @@ type Pricing struct {
 	// input price (e.g. 0.10 for Anthropic, 0.50 for OpenAI). Zero means
 	// "unspecified — use DefaultCacheReadMultiplier".
 	CacheReadMultiplier float64
-	// USInferenceGeoMultiplier scales every token category when the provider
-	// reports US-only inference. Zero means the binding has no geography
-	// premium (models that reject inference_geo, or non-first-party bindings).
-	USInferenceGeoMultiplier float64
 	// LongContext applies alternate rates above a provider's prompt-size
 	// threshold.
 	LongContext *LongContextPricing
@@ -99,11 +95,10 @@ func (p Pricing) ForInputTokens(inputTokens int) Pricing {
 	}
 	long := p.LongContext
 	return Pricing{
-		InputUSDPer1M:            long.InputUSDPer1M,
-		OutputUSDPer1M:           long.OutputUSDPer1M,
-		CacheWriteMultiplier:     long.CacheWriteMultiplier,
-		CacheReadMultiplier:      long.CacheReadMultiplier,
-		USInferenceGeoMultiplier: p.USInferenceGeoMultiplier,
+		InputUSDPer1M:        long.InputUSDPer1M,
+		OutputUSDPer1M:       long.OutputUSDPer1M,
+		CacheWriteMultiplier: long.CacheWriteMultiplier,
+		CacheReadMultiplier:  long.CacheReadMultiplier,
 	}
 }
 
@@ -203,10 +198,6 @@ type Model struct {
 	// Tier is the coarse capability bucket. TierUnknown excludes the model
 	// from automatic routing.
 	Tier Tier
-	// CodexSubscription marks models served by the native ChatGPT/Codex OAuth
-	// backend. OpenAI API models leave this false even when they share the same
-	// provider binding.
-	CodexSubscription bool
 	// ContextWindow is the model's total input+output token budget in tokens.
 	// 0 means use catalog.DefaultContextWindow.
 	ContextWindow int
@@ -219,18 +210,6 @@ type Model struct {
 	// ImageInput: default ImageInputUnknown; set ImageInputUnsupported on
 	// text-only models so the scorer keeps image-bearing turns off them.
 	ImageInput ImageInput
-	// ThinkTagReasoning marks a model that streams inline <think>...</think>
-	// instead of reasoning_content; the Anthropic translator reroutes a
-	// leading <think> block into Anthropic thinking. Default false.
-	ThinkTagReasoning bool
-	// AdvisorRank orders Claude models for Anthropic's advisor tool, which
-	// rejects an advisor ranked below the request model. Values mirror Claude
-	// Code's model catalog; 0 means the model takes no advisor.
-	AdvisorRank int
-	// CodexSubscriptionFallback explicitly permits trying a Codex subscription
-	// for this model outside the native Codex automatic roster. Unsupported
-	// targets must fall back to the selected model's API credential.
-	CodexSubscriptionFallback bool
 	// Providers is the ordered fallback list. First binding whose
 	// Provider name is in the available set wins. Must be non-empty.
 	Providers []ProviderBinding

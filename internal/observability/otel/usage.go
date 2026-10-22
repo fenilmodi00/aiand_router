@@ -172,7 +172,7 @@ func (u *UsageExtractor) UsageModifiers() catalog.UsageModifiers {
 	if !u.facts.CacheSplitReported() && u.facts.CacheWrite.Value > 0 && u.requestCacheTTL1h != nil && u.requestCacheTTL1h() {
 		oneHour = u.facts.CacheWrite.Value
 	}
-	return catalog.UsageModifiers{CacheCreation1h: oneHour, InferenceGeo: u.facts.InferenceGeo}
+	return catalog.UsageModifiers{CacheCreation1h: oneHour}
 }
 
 // Speed returns the provider-reported serving speed; empty when not reported.

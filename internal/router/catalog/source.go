@@ -29,19 +29,6 @@ func SourceFor(id string) (Source, bool) {
 	return model.Source, true
 }
 
-// IDsWithSource returns the catalog IDs carrying the given classification,
-// sorted for deterministic callers.
-func IDsWithSource(source Source) []string {
-	var ids []string
-	for _, model := range Models {
-		if model.Source == source {
-			ids = append(ids, model.ID)
-		}
-	}
-	sort.Strings(ids)
-	return ids
-}
-
 // PermittedBy reports whether a boundary may dispatch a catalog ID. An ID with
 // no catalog row is refused: a boundary cannot vouch for a model it cannot
 // classify.

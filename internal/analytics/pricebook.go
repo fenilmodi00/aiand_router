@@ -22,10 +22,7 @@ type ProviderPrice struct {
 	// cache writes; cache_write_multiplier prices the rest.
 	CacheWrite1hMultiplier float64 `json:"cache_write_1h_multiplier"`
 	CacheReadMultiplier    float64 `json:"cache_read_multiplier"`
-	// USInferenceGeoMultiplier scales every token category of a row whose
-	// inference_geo is "us"; 1 when the binding charges no premium.
-	USInferenceGeoMultiplier float64           `json:"us_inference_geo_multiplier"`
-	LongContext              *LongContextPrice `json:"long_context,omitempty"`
+	LongContext           *LongContextPrice `json:"long_context,omitempty"`
 }
 
 // LongContextPrice is the alternate rate tier above ThresholdTokens.
@@ -47,13 +44,12 @@ func PriceBook() []ModelPrice {
 		bindings := make([]ProviderPrice, 0, len(m.Providers))
 		for _, b := range m.Providers {
 			price := ProviderPrice{
-				Provider:                 b.Provider,
-				InputUSDPer1M:            b.Price.InputUSDPer1M,
-				OutputUSDPer1M:           b.Price.OutputUSDPer1M,
-				CacheWriteMultiplier:     b.Price.EffectiveCacheWriteMultiplier(),
-				CacheWrite1hMultiplier:   b.Price.EffectiveCacheWrite1hMultiplier(b.Provider),
-				CacheReadMultiplier:      b.Price.EffectiveCacheReadMultiplier(),
-				USInferenceGeoMultiplier: b.Price.EffectiveUSInferenceGeoMultiplier(),
+				Provider:               b.Provider,
+				InputUSDPer1M:          b.Price.InputUSDPer1M,
+				OutputUSDPer1M:         b.Price.OutputUSDPer1M,
+				CacheWriteMultiplier:   b.Price.EffectiveCacheWriteMultiplier(),
+				CacheWrite1hMultiplier: b.Price.EffectiveCacheWrite1hMultiplier(),
+				CacheReadMultiplier:    b.Price.EffectiveCacheReadMultiplier(),
 			}
 			if b.Price.LongContext != nil {
 				long := b.Price.ForInputTokens(b.Price.LongContext.ThresholdTokens + 1)
@@ -62,7 +58,7 @@ func PriceBook() []ModelPrice {
 					InputUSDPer1M:          long.InputUSDPer1M,
 					OutputUSDPer1M:         long.OutputUSDPer1M,
 					CacheWriteMultiplier:   long.EffectiveCacheWriteMultiplier(),
-					CacheWrite1hMultiplier: long.EffectiveCacheWrite1hMultiplier(b.Provider),
+					CacheWrite1hMultiplier: long.EffectiveCacheWrite1hMultiplier(),
 					CacheReadMultiplier:    long.EffectiveCacheReadMultiplier(),
 				}
 			}

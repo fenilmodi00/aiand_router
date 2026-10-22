@@ -173,7 +173,8 @@ func TestEffectiveInputCost_OneHourWritesUseTheFiveMinuteRate(t *testing.T) {
 }
 
 func TestNoCatalogBindingChargesAUSInferencePremium(t *testing.T) {
-	us := catalog.UsageModifiers{InferenceGeo: catalog.InferenceGeoUS}
+	// ai& is the only upstream and never reports usage.inference_geo, so the
+	// geography premium is gone: output cost is the plain per-1M rate.
 	for _, model := range []string{
 		"deepseek/deepseek-v4-pro",
 		"moonshotai/kimi-k3",
@@ -181,10 +182,9 @@ func TestNoCatalogBindingChargesAUSInferencePremium(t *testing.T) {
 	} {
 		price, ok := catalog.PriceFor(providers.ProviderAIAND, model)
 		require.True(t, ok, model)
-		assert.InDelta(t, 1.0, price.EffectiveUSInferenceGeoMultiplier(), 1e-12, model)
 		assert.InDelta(t,
-			catalog.EffectiveOutputCost(0, 1_000_000, price, catalog.UsageModifiers{}),
-			catalog.EffectiveOutputCost(0, 1_000_000, price, us), 1e-12, model)
+			price.OutputUSDPer1M,
+			catalog.EffectiveOutputCost(0, 1_000_000, price, catalog.UsageModifiers{}), 1e-12, model)
 	}
 }
 
@@ -199,7 +199,7 @@ func TestCounterfactualInputCost_ReusesObservedTTLSplit(t *testing.T) {
 	assert.InDelta(t, 0.05, catalog.CounterfactualInputCost(0, 100_000, 0, 100_000, opus, providers.ProviderAIAND, m), 1e-12)
 }
 
-func TestSynthesizedBindingsDoNotInheritUSInferenceGeoPremium(t *testing.T) {
+func TestSynthesizedBindingsInheritThePrimaryPrice(t *testing.T) {
 	const custom = "custom_endpoint"
 	available := map[string]struct{}{custom: {}}
 	customs := map[string][]string{"z-ai/glm-5.3": {custom}}
@@ -207,9 +207,11 @@ func TestSynthesizedBindingsDoNotInheritUSInferenceGeoPremium(t *testing.T) {
 	binding, ok := catalog.ResolveBindingWithCustom("z-ai/glm-5.3", available, customs)
 	require.True(t, ok)
 	require.Equal(t, custom, binding.Provider)
-	assert.Equal(t, 1.0, binding.Price.EffectiveUSInferenceGeoMultiplier())
+	primary, ok := catalog.PriceFor(providers.ProviderAIAND, "z-ai/glm-5.3")
+	require.True(t, ok)
+	assert.Equal(t, primary.InputUSDPer1M, binding.Price.InputUSDPer1M)
 
 	bindings := catalog.EnumerateBindingsWithCustom("z-ai/glm-5.3", available, customs)
 	require.Len(t, bindings, 1)
-	assert.Equal(t, 1.0, bindings[0].Price.EffectiveUSInferenceGeoMultiplier())
+	assert.Equal(t, primary.InputUSDPer1M, bindings[0].Price.InputUSDPer1M)
 }
