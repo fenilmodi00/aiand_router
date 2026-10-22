@@ -152,9 +152,6 @@ INSERT INTO router.model_router_request_telemetry (
     credential_key_prefix,
     credential_key_suffix,
     credential_source,
-    subscription_account_id,
-    subscription_owner_id,
-    subscription_tier,
     intended_model_family,
     final_model_family,
     unified_limit_headers,
@@ -216,8 +213,6 @@ INSERT INTO router.model_router_request_telemetry (
     capacity_source,
     retail_usage_usd_micros,
     included_usage_usd_micros,
-    linked_usage_usd_micros,
-    prepaid_usage_usd_micros,
     settlement_failed,
     serving_profile_id,
     serving_profile_version,
@@ -327,9 +322,6 @@ INSERT INTO router.model_router_request_telemetry (
     sqlc.narg('credential_key_prefix')::varchar,
     sqlc.narg('credential_key_suffix')::varchar,
     sqlc.narg('credential_source')::varchar,
-    sqlc.narg('subscription_account_id')::uuid,
-    sqlc.narg('subscription_owner_id')::uuid,
-    sqlc.narg('subscription_tier')::varchar,
     sqlc.narg('intended_model_family')::varchar,
     sqlc.narg('final_model_family')::varchar,
     sqlc.narg('unified_limit_headers')::jsonb,
@@ -391,8 +383,6 @@ INSERT INTO router.model_router_request_telemetry (
     sqlc.narg('capacity_source')::varchar,
     sqlc.narg('retail_usage_usd_micros')::bigint,
     sqlc.narg('included_usage_usd_micros')::bigint,
-    sqlc.narg('linked_usage_usd_micros')::bigint,
-    sqlc.narg('prepaid_usage_usd_micros')::bigint,
     sqlc.narg('settlement_failed')::boolean,
     sqlc.narg('serving_profile_id')::varchar,
     sqlc.narg('serving_profile_version')::varchar,
@@ -812,26 +802,11 @@ SELECT
     t.reasoning_tokens,
     t.speed,
     t.inference_geo,
-    -- A Claude response with the plain overage claim used paid credits, even though the caller's
-    -- OAuth credential served it. Historical rows retain that evidence in
-    -- unified_limit_headers; newer rows also use subscription_overage source.
-    -- COALESCE because credential_source is NULL on deployment-key turns, and
-    -- NULL IN (...) is NULL, which cannot scan into the generated bool.
-    COALESCE(
-        t.credential_source IN ('subscription', 'codex_subscription')
-        -- Successful rows recorded before status capture carry 0 and no error class.
-        AND ((t.upstream_status_code >= 200 AND t.upstream_status_code < 300)
-             OR (t.upstream_status_code = 0 AND t.error_class IS NULL))
-        AND (
-            t.unified_limit_headers->>'anthropic-ratelimit-unified-representative-claim' = 'overage'
-            AND t.unified_limit_headers->>'anthropic-ratelimit-unified-overage-in-use' = 'true'
-        ) IS DISTINCT FROM true,
-        false
-    )::boolean AS subscription_served,
+    -- No turn is served on a subscription credential any more: the router
+    -- only ever records the byok/client credential sources. The flag stays
+    -- in the export shape so consumers keep a stable column.
+    false AS subscription_served,
     t.credential_source,
-    t.subscription_account_id,
-    t.subscription_owner_id,
-    t.subscription_tier,
     t.intended_model_family,
     t.final_model_family,
     t.actual_input_cost_usd,
@@ -850,8 +825,6 @@ SELECT
     t.capacity_source,
     t.retail_usage_usd_micros,
     t.included_usage_usd_micros,
-    t.linked_usage_usd_micros,
-    t.prepaid_usage_usd_micros,
     t.settlement_failed,
     t.serving_profile_id,
     t.serving_profile_version,

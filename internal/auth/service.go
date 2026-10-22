@@ -612,30 +612,10 @@ func (s *Service) SetInstallationRoutingPreference(ctx context.Context, external
 	return nil
 }
 
-// SetInstallationSubscriptionRoutingDisabled toggles subscription-aware
-// routing. When true, the scorer's subscription subsidy bonus is suppressed
-// so non-Claude models compete fairly. Invalidates the cache so the change
-// applies on the next request instead of waiting out the TTL.
-func (s *Service) SetInstallationSubscriptionRoutingDisabled(ctx context.Context, externalID, installationID string, disabled bool) error {
-	if err := s.installations.UpdateSubscriptionRoutingDisabled(ctx, externalID, installationID, disabled); err != nil {
-		return err
-	}
-	s.invalidateInstallation(installationID)
-	return nil
-}
-
 // SetInstallationHideTerminalSurfaces persists the toggle and invalidates the
 // auth cache so the change takes effect on the next request.
 func (s *Service) SetInstallationHideTerminalSurfaces(ctx context.Context, externalID, installationID string, hide bool) error {
 	if err := s.installations.UpdateHideTerminalSurfaces(ctx, externalID, installationID, hide); err != nil {
-		return err
-	}
-	s.invalidateInstallation(installationID)
-	return nil
-}
-
-func (s *Service) SetInstallationShowModelSelectionReasoning(ctx context.Context, externalID, installationID string, show bool) error {
-	if err := s.installations.UpdateShowModelSelectionReasoning(ctx, externalID, installationID, show); err != nil {
 		return err
 	}
 	s.invalidateInstallation(installationID)

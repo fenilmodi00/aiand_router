@@ -96,7 +96,7 @@ func servedPricing(provider, model string) (catalog.Pricing, bool) {
 		return price, true
 	}
 	price, ok := catalog.PrimaryPriceFor(model)
-	return price.WithoutInferenceGeoPremium(), ok
+	return price, ok
 }
 
 func routerResponseCostFromPricing(pricing catalog.Pricing, provider string, inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens int, mods catalog.UsageModifiers) routerResponseCost {
@@ -216,7 +216,7 @@ func (w *streamCostWriter) annotateEvent(event []byte) []byte {
 		inputTokens = facts.PromptTokens()
 	}
 	cacheCreation, cacheRead := facts.CacheWrite.Value, facts.CacheRead.Value
-	mods := catalog.UsageModifiers{CacheCreation1h: facts.CacheWrite1h.Value, InferenceGeo: facts.InferenceGeo}
+	mods := catalog.UsageModifiers{CacheCreation1h: facts.CacheWrite1h.Value}
 	if !facts.CacheSplitReported() && cacheCreation > 0 && w.requestCacheTTL1h != nil && w.requestCacheTTL1h() {
 		mods.CacheCreation1h = cacheCreation
 	}

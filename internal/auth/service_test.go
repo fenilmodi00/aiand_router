@@ -152,12 +152,8 @@ type fakeInstallationRepository struct {
 	excludedProvidersByID           map[string][]string
 	excludedProvidersExternalByID   map[string]string
 	routingQualityByID              map[string]*float64
-	usageBypassEnabledByID          map[string]bool
-	usageBypassThresholdByID        map[string]*float64
-	subscriptionRoutingDisabledByID map[string]bool
 	contentCaptureModeByID          map[string]*string
 	hideTerminalSurfacesByID        map[string]bool
-	showModelSelectionReasoningByID map[string]bool
 	flagOverridesByID               map[string]flags.Overrides
 	// firstRequestServedIDs counts MarkFirstRequestServed calls per installation.
 	firstRequestServedIDs map[string]int
@@ -258,16 +254,6 @@ func (f *fakeInstallationRepository) UpdateContentCaptureMode(ctx context.Contex
 	f.contentCaptureModeByID[id] = mode
 	return nil
 }
-func (f *fakeInstallationRepository) UpdateSubscriptionRoutingDisabled(ctx context.Context, externalID, id string, disabled bool) error {
-	if f.updateErr != nil {
-		return f.updateErr
-	}
-	if f.subscriptionRoutingDisabledByID == nil {
-		f.subscriptionRoutingDisabledByID = map[string]bool{}
-	}
-	f.subscriptionRoutingDisabledByID[id] = disabled
-	return nil
-}
 func (f *fakeInstallationRepository) UpdateFlagOverrides(ctx context.Context, externalID, id string, overrides flags.Overrides) error {
 	if f.updateErr != nil {
 		return f.updateErr
@@ -288,31 +274,6 @@ func (f *fakeInstallationRepository) UpdateHideTerminalSurfaces(ctx context.Cont
 	f.hideTerminalSurfacesByID[id] = hide
 	return nil
 }
-func (f *fakeInstallationRepository) UpdateShowModelSelectionReasoning(ctx context.Context, externalID, id string, show bool) error {
-	if f.updateErr != nil {
-		return f.updateErr
-	}
-	if f.showModelSelectionReasoningByID == nil {
-		f.showModelSelectionReasoningByID = map[string]bool{}
-	}
-	f.showModelSelectionReasoningByID[id] = show
-	return nil
-}
-func (f *fakeInstallationRepository) UpdateUsageBypass(ctx context.Context, externalID, id string, enabled bool, threshold *float64) error {
-	if f.updateErr != nil {
-		return f.updateErr
-	}
-	if f.usageBypassEnabledByID == nil {
-		f.usageBypassEnabledByID = map[string]bool{}
-	}
-	if f.usageBypassThresholdByID == nil {
-		f.usageBypassThresholdByID = map[string]*float64{}
-	}
-	f.usageBypassEnabledByID[id] = enabled
-	f.usageBypassThresholdByID[id] = threshold
-	return nil
-}
-
 func frozenClock() auth.Clock {
 	t := time.Date(2026, 4, 27, 12, 0, 0, 0, time.UTC)
 	return func() time.Time { return t }

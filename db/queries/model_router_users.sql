@@ -90,18 +90,3 @@ DO UPDATE SET
     last_seen_at = CURRENT_TIMESTAMP,
     display_name = COALESCE(EXCLUDED.display_name, router.model_router_users.display_name)
 RETURNING *;
-
--- Single-row read by id; returns sql.ErrNoRows when missing or soft-deleted.
--- name: GetModelRouterUser :one
-SELECT *
-FROM router.model_router_users
-WHERE id = @id::uuid
-  AND deleted_at IS NULL;
-
--- Lists active users for an installation (admin / dashboard; not on the request path).
--- name: ListModelRouterUsersForInstallation :many
-SELECT *
-FROM router.model_router_users
-WHERE installation_id = @installation_id::uuid
-  AND deleted_at IS NULL
-ORDER BY last_seen_at DESC;

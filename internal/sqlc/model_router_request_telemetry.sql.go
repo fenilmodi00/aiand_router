@@ -120,26 +120,11 @@ SELECT
     t.reasoning_tokens,
     t.speed,
     t.inference_geo,
-    -- A Claude response with the plain overage claim used paid credits, even though the caller's
-    -- OAuth credential served it. Historical rows retain that evidence in
-    -- unified_limit_headers; newer rows also use subscription_overage source.
-    -- COALESCE because credential_source is NULL on deployment-key turns, and
-    -- NULL IN (...) is NULL, which cannot scan into the generated bool.
-    COALESCE(
-        t.credential_source IN ('subscription', 'codex_subscription')
-        -- Successful rows recorded before status capture carry 0 and no error class.
-        AND ((t.upstream_status_code >= 200 AND t.upstream_status_code < 300)
-             OR (t.upstream_status_code = 0 AND t.error_class IS NULL))
-        AND (
-            t.unified_limit_headers->>'anthropic-ratelimit-unified-representative-claim' = 'overage'
-            AND t.unified_limit_headers->>'anthropic-ratelimit-unified-overage-in-use' = 'true'
-        ) IS DISTINCT FROM true,
-        false
-    )::boolean AS subscription_served,
+    -- No turn is served on a subscription credential any more: the router
+    -- only ever records the byok/client credential sources. The flag stays
+    -- in the export shape so consumers keep a stable column.
+    false AS subscription_served,
     t.credential_source,
-    t.subscription_account_id,
-    t.subscription_owner_id,
-    t.subscription_tier,
     t.intended_model_family,
     t.final_model_family,
     t.actual_input_cost_usd,
@@ -158,8 +143,6 @@ SELECT
     t.capacity_source,
     t.retail_usage_usd_micros,
     t.included_usage_usd_micros,
-    t.linked_usage_usd_micros,
-    t.prepaid_usage_usd_micros,
     t.settlement_failed,
     t.serving_profile_id,
     t.serving_profile_version,
@@ -250,9 +233,6 @@ type GetRoutingDecisionsForExportRow struct {
 	InferenceGeo                    *string
 	SubscriptionServed              bool
 	CredentialSource                *string
-	SubscriptionAccountID           pgtype.UUID
-	SubscriptionOwnerID             pgtype.UUID
-	SubscriptionTier                *string
 	IntendedModelFamily             *string
 	FinalModelFamily                *string
 	ActualInputCostUsd              *int64
@@ -271,8 +251,6 @@ type GetRoutingDecisionsForExportRow struct {
 	CapacitySource                  *string
 	RetailUsageUsdMicros            *int64
 	IncludedUsageUsdMicros          *int64
-	LinkedUsageUsdMicros            *int64
-	PrepaidUsageUsdMicros           *int64
 	SettlementFailed                *bool
 	ServingProfileID                *string
 	ServingProfileVersion           *string
@@ -348,26 +326,11 @@ type GetRoutingDecisionsForExportRow struct {
 //	    t.reasoning_tokens,
 //	    t.speed,
 //	    t.inference_geo,
-//	    -- A Claude response with the plain overage claim used paid credits, even though the caller's
-//	    -- OAuth credential served it. Historical rows retain that evidence in
-//	    -- unified_limit_headers; newer rows also use subscription_overage source.
-//	    -- COALESCE because credential_source is NULL on deployment-key turns, and
-//	    -- NULL IN (...) is NULL, which cannot scan into the generated bool.
-//	    COALESCE(
-//	        t.credential_source IN ('subscription', 'codex_subscription')
-//	        -- Successful rows recorded before status capture carry 0 and no error class.
-//	        AND ((t.upstream_status_code >= 200 AND t.upstream_status_code < 300)
-//	             OR (t.upstream_status_code = 0 AND t.error_class IS NULL))
-//	        AND (
-//	            t.unified_limit_headers->>'anthropic-ratelimit-unified-representative-claim' = 'overage'
-//	            AND t.unified_limit_headers->>'anthropic-ratelimit-unified-overage-in-use' = 'true'
-//	        ) IS DISTINCT FROM true,
-//	        false
-//	    )::boolean AS subscription_served,
+//	    -- No turn is served on a subscription credential any more: the router
+//	    -- only ever records the byok/client credential sources. The flag stays
+//	    -- in the export shape so consumers keep a stable column.
+//	    false AS subscription_served,
 //	    t.credential_source,
-//	    t.subscription_account_id,
-//	    t.subscription_owner_id,
-//	    t.subscription_tier,
 //	    t.intended_model_family,
 //	    t.final_model_family,
 //	    t.actual_input_cost_usd,
@@ -386,8 +349,6 @@ type GetRoutingDecisionsForExportRow struct {
 //	    t.capacity_source,
 //	    t.retail_usage_usd_micros,
 //	    t.included_usage_usd_micros,
-//	    t.linked_usage_usd_micros,
-//	    t.prepaid_usage_usd_micros,
 //	    t.settlement_failed,
 //	    t.serving_profile_id,
 //	    t.serving_profile_version,
@@ -483,9 +444,6 @@ func (q *Queries) GetRoutingDecisionsForExport(ctx context.Context, arg GetRouti
 			&i.InferenceGeo,
 			&i.SubscriptionServed,
 			&i.CredentialSource,
-			&i.SubscriptionAccountID,
-			&i.SubscriptionOwnerID,
-			&i.SubscriptionTier,
 			&i.IntendedModelFamily,
 			&i.FinalModelFamily,
 			&i.ActualInputCostUsd,
@@ -504,8 +462,6 @@ func (q *Queries) GetRoutingDecisionsForExport(ctx context.Context, arg GetRouti
 			&i.CapacitySource,
 			&i.RetailUsageUsdMicros,
 			&i.IncludedUsageUsdMicros,
-			&i.LinkedUsageUsdMicros,
-			&i.PrepaidUsageUsdMicros,
 			&i.SettlementFailed,
 			&i.ServingProfileID,
 			&i.ServingProfileVersion,
@@ -2034,9 +1990,6 @@ INSERT INTO router.model_router_request_telemetry (
     credential_key_prefix,
     credential_key_suffix,
     credential_source,
-    subscription_account_id,
-    subscription_owner_id,
-    subscription_tier,
     intended_model_family,
     final_model_family,
     unified_limit_headers,
@@ -2098,8 +2051,6 @@ INSERT INTO router.model_router_request_telemetry (
     capacity_source,
     retail_usage_usd_micros,
     included_usage_usd_micros,
-    linked_usage_usd_micros,
-    prepaid_usage_usd_micros,
     settlement_failed,
     serving_profile_id,
     serving_profile_version,
@@ -2209,85 +2160,80 @@ INSERT INTO router.model_router_request_telemetry (
     $93::varchar,
     $94::varchar,
     $95::varchar,
-    $96::uuid,
-    $97::uuid,
-    $98::varchar,
-    $99::varchar,
-    $100::varchar,
-    $101::jsonb,
-    $102::boolean,
-    $103::boolean,
+    $96::varchar,
+    $97::varchar,
+    $98::jsonb,
+    $99::boolean,
+    $100::boolean,
+    $101::varchar,
+    $102::varchar,
+    $103::varchar,
     $104::varchar,
-    $105::varchar,
-    $106::varchar,
-    $107::varchar,
-    $108::bigint,
+    $105::bigint,
+    $106::bigint,
+    $107::boolean,
+    $108::varchar,
     $109::bigint,
-    $110::boolean,
-    $111::varchar,
-    $112::bigint,
+    $110::varchar,
+    $111::boolean,
+    $112::varchar,
     $113::varchar,
-    $114::boolean,
-    $115::varchar,
-    $116::varchar,
-    $117::varchar,
-    $118::bigint,
+    $114::varchar,
+    $115::bigint,
+    $116::bigint,
+    $117::boolean,
+    $118::varchar,
     $119::bigint,
-    $120::boolean,
-    $121::varchar,
-    $122::bigint,
-    $123::double precision,
-    $124::double precision,
+    $120::double precision,
+    $121::double precision,
+    $122::int,
+    $123::int,
+    $124::int,
     $125::int,
-    $126::int,
-    $127::int,
+    $126::varchar,
+    $127::double precision,
     $128::int,
-    $129::varchar,
-    $130::double precision,
+    $129::int,
+    $130::int,
     $131::int,
     $132::int,
-    $133::int,
-    $134::int,
-    $135::int,
-    $136::boolean,
-    $137::varchar[],
-    $138::varchar[],
+    $133::boolean,
+    $134::varchar[],
+    $135::varchar[],
+    $136::varchar,
+    $137::varchar,
+    $138::varchar,
     $139::varchar,
     $140::varchar,
     $141::varchar,
     $142::varchar,
     $143::varchar,
-    $144::varchar,
+    $144::boolean,
     $145::varchar,
     $146::varchar,
     $147::boolean,
     $148::varchar,
     $149::varchar,
-    $150::boolean,
+    $150::varchar,
     $151::varchar,
     $152::varchar,
-    $153::varchar,
+    $153::bigint,
     $154::varchar,
-    $155::varchar,
+    $155::bigint,
     $156::bigint,
-    $157::varchar,
-    $158::bigint,
-    $159::bigint,
-    $160::bigint,
-    $161::bigint,
-    $162::boolean,
+    $157::boolean,
+    $158::varchar,
+    $159::varchar,
+    $160::varchar,
+    $161::varchar,
+    $162::varchar,
     $163::varchar,
-    $164::varchar,
-    $165::varchar,
+    $164::boolean,
+    $165::bigint,
     $166::varchar,
     $167::varchar,
-    $168::varchar,
-    $169::boolean,
-    $170::bigint,
-    $171::varchar,
-    $172::varchar,
-    $173::jsonb,
-    $174::jsonb
+    $168::jsonb,
+    $169::jsonb
 )
 ON CONFLICT (installation_id, request_id, span_type) DO NOTHING
 `
@@ -2388,9 +2334,6 @@ type InsertRequestTelemetryParams struct {
 	CredentialKeyPrefix                      *string
 	CredentialKeySuffix                      *string
 	CredentialSource                         *string
-	SubscriptionAccountID                    pgtype.UUID
-	SubscriptionOwnerID                      pgtype.UUID
-	SubscriptionTier                         *string
 	IntendedModelFamily                      *string
 	FinalModelFamily                         *string
 	UnifiedLimitHeaders                      []byte
@@ -2452,8 +2395,6 @@ type InsertRequestTelemetryParams struct {
 	CapacitySource                           *string
 	RetailUsageUsdMicros                     *int64
 	IncludedUsageUsdMicros                   *int64
-	LinkedUsageUsdMicros                     *int64
-	PrepaidUsageUsdMicros                    *int64
 	SettlementFailed                         *bool
 	ServingProfileID                         *string
 	ServingProfileVersion                    *string
@@ -2623,9 +2564,6 @@ type InsertRequestTelemetryParams struct {
 //	    credential_key_prefix,
 //	    credential_key_suffix,
 //	    credential_source,
-//	    subscription_account_id,
-//	    subscription_owner_id,
-//	    subscription_tier,
 //	    intended_model_family,
 //	    final_model_family,
 //	    unified_limit_headers,
@@ -2687,8 +2625,6 @@ type InsertRequestTelemetryParams struct {
 //	    capacity_source,
 //	    retail_usage_usd_micros,
 //	    included_usage_usd_micros,
-//	    linked_usage_usd_micros,
-//	    prepaid_usage_usd_micros,
 //	    settlement_failed,
 //	    serving_profile_id,
 //	    serving_profile_version,
@@ -2798,85 +2734,80 @@ type InsertRequestTelemetryParams struct {
 //	    $93::varchar,
 //	    $94::varchar,
 //	    $95::varchar,
-//	    $96::uuid,
-//	    $97::uuid,
-//	    $98::varchar,
-//	    $99::varchar,
-//	    $100::varchar,
-//	    $101::jsonb,
-//	    $102::boolean,
-//	    $103::boolean,
+//	    $96::varchar,
+//	    $97::varchar,
+//	    $98::jsonb,
+//	    $99::boolean,
+//	    $100::boolean,
+//	    $101::varchar,
+//	    $102::varchar,
+//	    $103::varchar,
 //	    $104::varchar,
-//	    $105::varchar,
-//	    $106::varchar,
-//	    $107::varchar,
-//	    $108::bigint,
+//	    $105::bigint,
+//	    $106::bigint,
+//	    $107::boolean,
+//	    $108::varchar,
 //	    $109::bigint,
-//	    $110::boolean,
-//	    $111::varchar,
-//	    $112::bigint,
+//	    $110::varchar,
+//	    $111::boolean,
+//	    $112::varchar,
 //	    $113::varchar,
-//	    $114::boolean,
-//	    $115::varchar,
-//	    $116::varchar,
-//	    $117::varchar,
-//	    $118::bigint,
+//	    $114::varchar,
+//	    $115::bigint,
+//	    $116::bigint,
+//	    $117::boolean,
+//	    $118::varchar,
 //	    $119::bigint,
-//	    $120::boolean,
-//	    $121::varchar,
-//	    $122::bigint,
-//	    $123::double precision,
-//	    $124::double precision,
+//	    $120::double precision,
+//	    $121::double precision,
+//	    $122::int,
+//	    $123::int,
+//	    $124::int,
 //	    $125::int,
-//	    $126::int,
-//	    $127::int,
+//	    $126::varchar,
+//	    $127::double precision,
 //	    $128::int,
-//	    $129::varchar,
-//	    $130::double precision,
+//	    $129::int,
+//	    $130::int,
 //	    $131::int,
 //	    $132::int,
-//	    $133::int,
-//	    $134::int,
-//	    $135::int,
-//	    $136::boolean,
-//	    $137::varchar[],
-//	    $138::varchar[],
+//	    $133::boolean,
+//	    $134::varchar[],
+//	    $135::varchar[],
+//	    $136::varchar,
+//	    $137::varchar,
+//	    $138::varchar,
 //	    $139::varchar,
 //	    $140::varchar,
 //	    $141::varchar,
 //	    $142::varchar,
 //	    $143::varchar,
-//	    $144::varchar,
+//	    $144::boolean,
 //	    $145::varchar,
 //	    $146::varchar,
 //	    $147::boolean,
 //	    $148::varchar,
 //	    $149::varchar,
-//	    $150::boolean,
+//	    $150::varchar,
 //	    $151::varchar,
 //	    $152::varchar,
-//	    $153::varchar,
+//	    $153::bigint,
 //	    $154::varchar,
-//	    $155::varchar,
+//	    $155::bigint,
 //	    $156::bigint,
-//	    $157::varchar,
-//	    $158::bigint,
-//	    $159::bigint,
-//	    $160::bigint,
-//	    $161::bigint,
-//	    $162::boolean,
+//	    $157::boolean,
+//	    $158::varchar,
+//	    $159::varchar,
+//	    $160::varchar,
+//	    $161::varchar,
+//	    $162::varchar,
 //	    $163::varchar,
-//	    $164::varchar,
-//	    $165::varchar,
+//	    $164::boolean,
+//	    $165::bigint,
 //	    $166::varchar,
 //	    $167::varchar,
-//	    $168::varchar,
-//	    $169::boolean,
-//	    $170::bigint,
-//	    $171::varchar,
-//	    $172::varchar,
-//	    $173::jsonb,
-//	    $174::jsonb
+//	    $168::jsonb,
+//	    $169::jsonb
 //	)
 //	ON CONFLICT (installation_id, request_id, span_type) DO NOTHING
 func (q *Queries) InsertRequestTelemetry(ctx context.Context, arg InsertRequestTelemetryParams) error {
@@ -2976,9 +2907,6 @@ func (q *Queries) InsertRequestTelemetry(ctx context.Context, arg InsertRequestT
 		arg.CredentialKeyPrefix,
 		arg.CredentialKeySuffix,
 		arg.CredentialSource,
-		arg.SubscriptionAccountID,
-		arg.SubscriptionOwnerID,
-		arg.SubscriptionTier,
 		arg.IntendedModelFamily,
 		arg.FinalModelFamily,
 		arg.UnifiedLimitHeaders,
@@ -3040,8 +2968,6 @@ func (q *Queries) InsertRequestTelemetry(ctx context.Context, arg InsertRequestT
 		arg.CapacitySource,
 		arg.RetailUsageUsdMicros,
 		arg.IncludedUsageUsdMicros,
-		arg.LinkedUsageUsdMicros,
-		arg.PrepaidUsageUsdMicros,
 		arg.SettlementFailed,
 		arg.ServingProfileID,
 		arg.ServingProfileVersion,

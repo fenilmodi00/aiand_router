@@ -22,7 +22,6 @@ func (s *Service) anthropicRoutingRequest(
 	headers http.Header,
 	ingress string,
 ) (context.Context, router.Request, error) {
-	ctx = s.withUsageObserver(ctx, headers)
 	log := observability.FromContext(ctx)
 	cleanBody, err := stripRoutingMarkerFromMessages(body)
 	if err != nil {
@@ -81,7 +80,7 @@ func (s *Service) anthropicRoutingRequest(
 	if features.MaxTokens > outputReserve {
 		outputReserve = features.MaxTokens
 	}
-	excluded := s.excludeCodexOAuthOnlyModels(ctx, headers, enabledProviders, s.excludedModelsForRequest(ctx))
+	excluded := s.excludedModelsForRequest(ctx)
 	excluded, _ = excludeContextOverflowModels(
 		env.ContextOverflowTokenEstimate(),
 		env.SignatureTokenSavings(),
