@@ -20,9 +20,9 @@ The Go router owns:
 
 The sidecar owns only policy inference and policy-specific state. It must not
 dispatch the selected completion itself. Managed policy candidate lists never
-contain OpenRouter bindings. A production sidecar must not send prompts,
-outcomes, or feedback to OpenRouter for auxiliary inference either; use the
-same direct provider stack approved for the router deployment.
+contain a second provider's bindings. A production sidecar must not send
+prompts, outcomes, or feedback to another provider for auxiliary inference
+either; use the same provider stack approved for the router deployment.
 
 Request-shape recognition and compatibility are router responsibilities. A
 sidecar may use generic tool evidence for classification, but it must not detect
@@ -273,7 +273,7 @@ A policy is ready for production only when all of these are true:
 - the bake-off and promotion artifact are recorded and reproducible;
 - production references an immutable artifact ID and verified SHA-256;
 - roster coverage matches the currently deployed router catalog;
-- no managed candidate or auxiliary inference path uses OpenRouter;
+- no managed candidate or auxiliary inference path uses a second provider;
 - opted-out and shadow requests cannot enter any learning sink;
 - sidecar loss produces bounded retries and an observable 503, never fallback;
 - at least two ready replicas survive a single-replica loss test;
