@@ -33,7 +33,7 @@ func TestResolveDefaultBaselineModel(t *testing.T) {
 	})
 
 	t.Run("whitespace trimmed", func(t *testing.T) {
-		t.Setenv("ROUTER_DEFAULT_BASELINE_MODEL", "  claude-haiku-4-5  ")
+		t.Setenv("ROUTER_DEFAULT_BASELINE_MODEL", "  z-ai/glm-5.3-flash  ")
 		assert.Equal(t, "z-ai/glm-5.3-flash", resolveDefaultBaselineModel())
 	})
 }
