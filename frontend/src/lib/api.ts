@@ -109,10 +109,6 @@ export interface IssueAPIKeyResponse {
   token: string;
 }
 
-// ProviderAuthType is how a BYOK key authenticates upstream. The admin API is
-// bearer-only: the stored secret is sent as-is.
-export type ProviderAuthType = "bearer";
-
 export interface ExternalKey {
   id: string;
   provider: string;
@@ -124,8 +120,6 @@ export interface ExternalKey {
   // Catalog model ID -> the ID this endpoint publishes it under; absent when it
   // uses catalog names directly.
   model_aliases?: Record<string, string>;
-  // "bearer" (send the stored secret); absent means bearer.
-  auth_type?: ProviderAuthType;
   last_used_at: string | null;
   created_at: string;
 }
@@ -133,9 +127,7 @@ export interface ExternalKey {
 export interface RouterConfig {
   cluster_version: string;
   embed_only_user_message: boolean;
-  sticky_decision_ttl_ms: string;
   otel_enabled: boolean;
-  dev_mode: boolean;
   semantic_cache_enabled: boolean;
   env_provider_keys: string[];
 }

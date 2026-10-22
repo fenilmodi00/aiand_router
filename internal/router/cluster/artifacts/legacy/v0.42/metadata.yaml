@@ -43,40 +43,4 @@ training:
     median: 4.536560974495452e-06
     n_cells: 168
     p90: 0.02728130539219235
-deployed_providers:
-  - anthropic
-  - bedrock
-  - deepinfra
-  - fireworks
-  - google
-  - openai
-  - openrouter
-deployed_models:
-  - claude-haiku-4-5
-  - claude-opus-4-7
-  - claude-sonnet-4-6
-  - deepseek/deepseek-v4-flash
-  - deepseek/deepseek-v4-pro
-  - gemini-3.1-flash-lite-preview
-  - gemini-3.1-pro-preview
-  - gpt-5.4-mini
-  - gpt-5.5
-  - moonshotai/kimi-k2.6
-  - qwen/qwen3-235b-a22b-2507
-  - qwen/qwen3-coder-next
-  - qwen/qwen3-next-80b-a3b-instruct
-cost_per_1k_input_usd:
-  claude-haiku-4-5: 0.0015151675989018547
-  claude-opus-4-7: 0.024573573239392958
-  claude-sonnet-4-6: 0.00675
-  deepseek/deepseek-v4-flash: 0.00032361659946952685
-  deepseek/deepseek-v4-pro: 0.004370433436082636
-  gemini-3.1-flash-lite-preview: 0.00013955400925712449
-  gemini-3.1-pro-preview: 0.0026896673983760316
-  gpt-5.4-mini: 0.0004865814318899995
-  gpt-5.5: 0.02044923596755163
-  moonshotai/kimi-k2.6: 0.00195
-  qwen/qwen3-235b-a22b-2507: 0.00018877725032113193
-  qwen/qwen3-coder-next: 0.000859439632039958
-  qwen/qwen3-next-80b-a3b-instruct: 0.00045
 changelog: "v0.42 candidate: v0.40 13-model set + verbosity layered on (output_cost_ratio 0.25, --per-model-verbosity). Verbosity sourced from RouterArena total output_tokens per model since AA's v2 API doesn't expose intelligence_index_output_tokens. Tests whether chatty models (DeepSeek V4 Pro at 6.2M tokens, Kimi K2.5 at 16.1M) get demoted vs concise ones (gpt-5.4-mini at 447K)."

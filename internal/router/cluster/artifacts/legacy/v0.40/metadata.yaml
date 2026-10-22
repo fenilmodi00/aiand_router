@@ -43,40 +43,4 @@ training:
     median: 1.2687844604120091e-05
     n_cells: 148
     p90: 0.03195779849024597
-deployed_providers:
-  - anthropic
-  - bedrock
-  - deepinfra
-  - fireworks
-  - google
-  - openai
-  - openrouter
-deployed_models:
-  - claude-haiku-4-5
-  - claude-opus-4-7
-  - claude-sonnet-4-6
-  - deepseek/deepseek-v4-flash
-  - deepseek/deepseek-v4-pro
-  - gemini-3.1-flash-lite-preview
-  - gemini-3.1-pro-preview
-  - gpt-5.4-mini
-  - gpt-5.5
-  - moonshotai/kimi-k2.6
-  - qwen/qwen3-235b-a22b-2507
-  - qwen/qwen3-coder-next
-  - qwen/qwen3-next-80b-a3b-instruct
-cost_per_1k_input_usd:
-  claude-haiku-4-5: 0.0008
-  claude-opus-4-7: 0.015
-  claude-sonnet-4-6: 0.003
-  deepseek/deepseek-v4-flash: 0.00014
-  deepseek/deepseek-v4-pro: 0.00174
-  gemini-3.1-flash-lite-preview: 0.0001
-  gemini-3.1-pro-preview: 0.002
-  gpt-5.4-mini: 0.0004
-  gpt-5.5: 0.005
-  moonshotai/kimi-k2.6: 0.00095
-  qwen/qwen3-235b-a22b-2507: 7.1e-05
-  qwen/qwen3-coder-next: 0.0005
-  qwen/qwen3-next-80b-a3b-instruct: 0.00015
 changelog: "v0.40 candidate: AA priors (Phase 3) + 3-axis quality/cost/speed blend (Phase 1). 13-model set unchanged from v0.39; new 5 OSS models awaiting RouterArena labels."

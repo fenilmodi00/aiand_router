@@ -5,6 +5,7 @@ import (
 
 	"weave-os/router/internal/config"
 	"weave-os/router/internal/providers"
+	"weave-os/router/internal/router/cluster"
 	"weave-os/router/internal/server/middleware"
 
 	"github.com/gin-gonic/gin"
@@ -13,7 +14,6 @@ import (
 type configResponse struct {
 	ClusterVersion       string `json:"cluster_version"`
 	EmbedOnlyUserMsg     bool   `json:"embed_only_user_message"`
-	StickyDecisionTTL    string `json:"sticky_decision_ttl_ms"`
 	OtelEnabled          bool   `json:"otel_enabled"`
 	SemanticCacheEnabled bool   `json:"semantic_cache_enabled"`
 	// EnvProviderKeys lists provider names whose upstream API key is set
@@ -39,9 +39,8 @@ func ConfigHandler(c *gin.Context) {
 		}
 	}
 	c.JSON(http.StatusOK, configResponse{
-		ClusterVersion:       config.GetOr("ROUTER_CLUSTER_VERSION", "artifacts/latest"),
+		ClusterVersion:       config.GetOr("ROUTER_CLUSTER_VERSION", cluster.LatestVersion),
 		EmbedOnlyUserMsg:     config.GetOr("ROUTER_EMBED_ONLY_USER_MESSAGE", "true") == "true",
-		StickyDecisionTTL:    config.GetOr("ROUTER_STICKY_DECISION_TTL_MS", "0"),
 		OtelEnabled:          config.GetOr("OTEL_EXPORTER_OTLP_ENDPOINT", "") != "",
 		SemanticCacheEnabled: config.GetOr("ROUTER_SEMANTIC_CACHE_ENABLED", "true") == "true",
 		EnvProviderKeys:      envKeyed,
