@@ -167,9 +167,6 @@ type fakeInstallationRepository struct {
 func (*fakeInstallationRepository) Create(ctx context.Context, params auth.CreateInstallationParams) (*auth.Installation, error) {
 	return nil, errors.New("not used")
 }
-func (*fakeInstallationRepository) Get(ctx context.Context, externalID, id string) (*auth.Installation, error) {
-	return nil, errors.New("not used")
-}
 func (*fakeInstallationRepository) ListForExternalID(ctx context.Context, externalID string) ([]*auth.Installation, error) {
 	return nil, errors.New("not used")
 }
@@ -1044,9 +1041,6 @@ func TestService_SetInstallation_NotFoundDoesNotInvalidate(t *testing.T) {
 		{"RoutingPreference", func(ctx context.Context, svc *auth.Service) error {
 			return svc.SetInstallationRoutingPreference(ctx, "ext-1", "missing-inst", &quality)
 		}},
-		{"SubscriptionRoutingDisabled", func(ctx context.Context, svc *auth.Service) error {
-			return svc.SetInstallationSubscriptionRoutingDisabled(ctx, "ext-1", "missing-inst", true)
-		}},
 		{"ContentCaptureMode", func(ctx context.Context, svc *auth.Service) error {
 			mode := "off"
 			return svc.SetInstallationContentCaptureMode(ctx, "ext-1", "missing-inst", &mode)
@@ -1128,14 +1122,6 @@ func TestService_WriteHooksInvalidateAndNotify(t *testing.T) {
 			"routing-preference writes must drop the cached installation so the next request sees the new dial")
 		assert.Equal(t, []string{installID}, nf.snapshot(),
 			"routing-preference writes must publish NOTIFY so peer replicas drop their cache too")
-	})
-
-	t.Run("SetInstallationShowModelSelectionReasoning", func(t *testing.T) {
-		svc, cache, nf := makeSvc()
-		err := svc.SetInstallationShowModelSelectionReasoning(context.Background(), "ext-1", installID, true)
-		require.NoError(t, err)
-		assert.Equal(t, []string{installID}, cache.invalidationSnapshot())
-		assert.Equal(t, []string{installID}, nf.snapshot())
 	})
 
 	t.Run("UpsertExternalAPIKey", func(t *testing.T) {

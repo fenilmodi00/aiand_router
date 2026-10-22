@@ -53,14 +53,6 @@ func (r *countingUserRepository) UpsertByAccountUUID(context.Context, auth.Upser
 	return &auth.User{ID: "unexpected"}, nil
 }
 
-func (*countingUserRepository) Get(context.Context, string) (*auth.User, error) {
-	return nil, nil
-}
-
-func (*countingUserRepository) ListForInstallation(context.Context, string) ([]*auth.User, error) {
-	return nil, nil
-}
-
 func (f *fakeRoutePreviewer) Route(context.Context, router.Request) (router.Decision, error) {
 	return router.Decision{}, errors.New("serving route must not run")
 }

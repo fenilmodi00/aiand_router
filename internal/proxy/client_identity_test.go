@@ -41,13 +41,6 @@ func (r *captureUserRepo) UpsertByAccountUUID(ctx context.Context, p auth.Upsert
 	r.accountUpserts = append(r.accountUpserts, p)
 	return &auth.User{ID: "user-from-account"}, nil
 }
-func (r *captureUserRepo) Get(ctx context.Context, id string) (*auth.User, error) {
-	return nil, errors.New("not used")
-}
-func (r *captureUserRepo) ListForInstallation(ctx context.Context, _ string) ([]*auth.User, error) {
-	return nil, errors.New("not used")
-}
-
 // newTestAuthSvc wires a Service with only what ResolveAndStashUser touches.
 func newTestAuthSvc(users auth.UserRepository) *auth.Service {
 	return auth.NewService(nil, nil, nil, users, nil, auth.NoOpUserCache{}, nil)

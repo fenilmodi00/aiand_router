@@ -41,14 +41,6 @@ func (f *fakeUserRepo) UpsertByAccountUUID(ctx context.Context, params auth.Upse
 	return f.user, nil
 }
 
-func (f *fakeUserRepo) Get(ctx context.Context, id string) (*auth.User, error) {
-	return nil, errors.New("not used by these tests")
-}
-
-func (f *fakeUserRepo) ListForInstallation(ctx context.Context, installationID string) ([]*auth.User, error) {
-	return nil, errors.New("not used by these tests")
-}
-
 func makeServiceWithUsers(t *testing.T, users auth.UserRepository) *auth.Service {
 	t.Helper()
 	return auth.NewService(
