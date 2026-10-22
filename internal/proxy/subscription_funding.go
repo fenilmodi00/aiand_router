@@ -6,7 +6,6 @@ import (
 
 	"weave-os/router/internal/dispatch"
 	"weave-os/router/internal/inference"
-	"weave-os/router/internal/providers"
 )
 
 // withSubscriptionFundingAuthorization prepares the request-local subscription
@@ -35,5 +34,3 @@ func (s *Service) subscriptionAPIAuthorization(ctx context.Context, provider, mo
 	ctx = s.withSubscriptionFundingAuthorization(ctx, nil)
 	return dispatch.AuthorizationFromContext(ctx)(clearCredentials(ctx), inference.Target{Provider: provider, CatalogID: model})
 }
-
-var _ = providers.ProviderAIAND

@@ -35,17 +35,21 @@ The generated static registry in [`POLICY_INFERENCE.md`](POLICY_INFERENCE.md) is
 
 ## Direct Provider Calls
 
-These are the complete production `providers.Client.Proxy`/`Passthrough` call sites at the baseline. No new call site may be added outside `internal/dispatch` or a provider adapter. Handover, compaction-handover, and precompaction summaries run through `dispatch.Buffered` since Phases 6–7; `ProviderSummarizer` no longer holds a provider client.
+These are the complete production `providers.Client.Proxy`/`Passthrough` call sites. No new call site may be added outside `internal/dispatch` or a provider adapter. Handover and compaction-handover summaries run through `dispatch.Buffered`; `ProviderSummarizer` no longer holds a provider client.
 
 | File / symbol | Operation |
 | --- | --- |
+| `internal/proxy/service.go` — `Service.PassthroughToNamedProvider` | metadata/passthrough (`providers.Client.Passthrough`) |
+| `internal/proxy/service.go` — `Service.anthropicNativeAttempt` | Anthropic-native main inference |
+| `internal/proxy/service.go` — one call in `Service.ProxyMessages` | OpenAI-compatible translation of an Anthropic-Messages request |
+| `internal/proxy/service.go` — one call in `Service.ProxyOpenAIChatCompletion` | Chat Completions / Responses translation |
 | `internal/proxy/gemini.go` — `Service.ProxyGeminiGenerateContent` | Gemini main inference |
-| `internal/proxy/service.go` — `Service.PassthroughToNamedProvider` | metadata/passthrough |
-| `internal/proxy/service.go` — `Service.anthropicNativeAttempt` | Anthropic main inference |
-| `internal/proxy/service.go` — two calls in `Service.ProxyMessages` | OpenAI-compatible and Gemini translations |
-| `internal/proxy/service.go` — three calls in `Service.ProxyOpenAIChatCompletion` | OpenAI, Anthropic, and Gemini dispatch branches |
 
-`proxy.Service`, `NewService`, and the two provider-filter helpers in `internal/proxy/translation_plan.go` are the only non-composition-root owners of `map[string]providers.Client`. Phase 5 moves that ownership to `internal/dispatch`.
+Handover and compaction-handover summaries call the provider through
+`internal/dispatch.Buffered`, and `internal/dispatch` owns the
+`map[string]providers.Client` registry (`dispatch.Clients`) that every
+`providers.Client.Proxy` call above resolves its client from. `internal/dispatch`
+is the only non-adapter package allowed to dereference a `providers.Client`.
 
 ## Approved Upstream Adapters
 
@@ -64,7 +68,6 @@ These clients are explicitly classified so they cannot be mistaken for inference
 | `internal/policyclient/client.go` | policy-sidecar health, capabilities, roster, decision, preview, outcome, and feedback control-plane I/O |
 | `internal/policyclient/task_domain.go` | admitted, digest-pinned task classifier; returns five domain bits, never a provider/model selection |
 | `internal/router/rl/client.go` | legacy policy-sidecar decision I/O |
-| `internal/entra/client_credentials.go` | Entra client-credential minting |
 | `internal/observability/otel/emitter.go` | telemetry export |
 
 The checker flags raw `net/http` calls outside provider adapters when their compile-time URL targets a known inference route (`/v1/messages`, `/v1/chat/completions`, `/v1/responses`, or Gemini generate content). Other HTTP clients remain subject to the repository's ordinary layer rules.

@@ -4318,7 +4318,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	subscriptionFailoverAttempted := false
 	if subscriptionRetryEligible && !paidFallbackForbiddenForModel(ctx, decision.Model) && !baselineAttempted && proxyErr != nil &&
 		!preludeBuf.Committed() &&
-		(providers.IsRetryable(proxyErr) || anthropicOAuthCredentialRejected(proxyErr) || anthropicSubscriptionModelRejected(proxyErr) || anthropicSubscriptionThirdPartyRefused(proxyErr)) {
+		(providers.IsRetryable(proxyErr) || anthropicOAuthCredentialRejected(proxyErr) || anthropicSubscriptionModelRejected(proxyErr)) {
 		subscriptionRetryRan = true
 		subCtx := subscriptionStatePaidRescueContext(ctx, decision.Model)
 		subCtx = resolveAndInjectCredentials(subCtx, providers.ProviderAIAND, decision.Model, r.Header)
