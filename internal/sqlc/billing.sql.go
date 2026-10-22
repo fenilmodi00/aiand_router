@@ -8,7 +8,6 @@ package sqlc
 import (
 	"context"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -23,19 +22,16 @@ SELECT (
         'model_router_user_monthly_spend',
         'organization_monthly_spend',
         'organization_spend_limits',
-        'model_router_user_spend_limits',
-        'subscriber_autopay_config'
+        'model_router_user_spend_limits'
       )
-) = 8 AS billing_tables_exist
+) = 7 AS billing_tables_exist
 `
 
 // Returns true if every table the billing debit path touches exists in the
 // router schema. Used by the router boot-time health check so a
 // missing-migration state disables billing rather than 500ing on every
 // request. Includes the monthly-spend counter and limit tables because
-// DebitOrgCredits writes the counters in the same statement as the debit,
-// and the subscriber autopay config because prepaid settlement reads it for
-// the recharge-signal crossing check.
+// DebitOrgCredits writes the counters in the same statement as the debit.
 //
 //	SELECT (
 //	    SELECT COUNT(*) FROM information_schema.tables
@@ -47,10 +43,9 @@ SELECT (
 //	        'model_router_user_monthly_spend',
 //	        'organization_monthly_spend',
 //	        'organization_spend_limits',
-//	        'model_router_user_spend_limits',
-//	        'subscriber_autopay_config'
+//	        'model_router_user_spend_limits'
 //	      )
-//	) = 8 AS billing_tables_exist
+//	) = 7 AS billing_tables_exist
 func (q *Queries) CheckBillingTablesExist(ctx context.Context) (bool, error) {
 	row := q.db.QueryRow(ctx, checkBillingTablesExist)
 	var billing_tables_exist bool
@@ -393,89 +388,4 @@ func (q *Queries) GetOrgCreditBalance(ctx context.Context, organizationID string
 	var balance_usd_micros int64
 	err := row.Scan(&balance_usd_micros)
 	return balance_usd_micros, err
-}
-
-const listOrgLedger = `-- name: ListOrgLedger :many
-SELECT
-    id,
-    organization_id,
-    delta_usd_micros,
-    notional_cost_micros,
-    balance_after_micros,
-    entry_type,
-    stripe_payment_intent_id,
-    router_request_id,
-    router_model,
-    created_at
-FROM router.organization_credit_ledger
-WHERE organization_id = $1::varchar
-ORDER BY created_at DESC
-LIMIT $2::int
-`
-
-type ListOrgLedgerParams struct {
-	OrganizationID string
-	RowLimit       int32
-}
-
-type ListOrgLedgerRow struct {
-	ID                    uuid.UUID
-	OrganizationID        string
-	DeltaUsdMicros        int64
-	NotionalCostMicros    int64
-	BalanceAfterMicros    int64
-	EntryType             string
-	StripePaymentIntentID *string
-	RouterRequestID       *string
-	RouterModel           *string
-	CreatedAt             pgtype.Timestamptz
-}
-
-// Paginated read for the dashboard ledger panel. Sorted newest-first so the
-// UI can render without an extra ORDER BY in Go.
-//
-//	SELECT
-//	    id,
-//	    organization_id,
-//	    delta_usd_micros,
-//	    notional_cost_micros,
-//	    balance_after_micros,
-//	    entry_type,
-//	    stripe_payment_intent_id,
-//	    router_request_id,
-//	    router_model,
-//	    created_at
-//	FROM router.organization_credit_ledger
-//	WHERE organization_id = $1::varchar
-//	ORDER BY created_at DESC
-//	LIMIT $2::int
-func (q *Queries) ListOrgLedger(ctx context.Context, arg ListOrgLedgerParams) ([]ListOrgLedgerRow, error) {
-	rows, err := q.db.Query(ctx, listOrgLedger, arg.OrganizationID, arg.RowLimit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListOrgLedgerRow
-	for rows.Next() {
-		var i ListOrgLedgerRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.OrganizationID,
-			&i.DeltaUsdMicros,
-			&i.NotionalCostMicros,
-			&i.BalanceAfterMicros,
-			&i.EntryType,
-			&i.StripePaymentIntentID,
-			&i.RouterRequestID,
-			&i.RouterModel,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
