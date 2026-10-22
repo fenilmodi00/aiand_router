@@ -50,8 +50,8 @@ Point Claude Code, Codex, Cursor, or your own app at `localhost:8080`. The route
   the router routes per **action**, not per **turn**.)
 - 🔌 **Speaks everyone's API.** Anthropic Messages, OpenAI Chat Completions,
   Gemini native. Streaming, tools, vision, the works.
-- 🧠 **Knows OSS too.** DeepSeek, Kimi, GLM, Qwen, Llama, Mistral via
-  OpenRouter (or any OpenAI-compatible endpoint).
+- 🧠 **Knows OSS too.** DeepSeek, Kimi, GLM, Qwen, Llama, Mistral through
+  ai&'s OpenAI-compatible Chat Completions surface.
 - 🔒 **BYOK by default.** Provider keys stay on your box, encrypted at rest.
 - 📊 **Observable.** OTLP traces out of the box. See them in the Weave dashboard (http://localhost:8080/ui/dashboard) or drop in Honeycomb, Datadog,
   Grafana, whatever.
@@ -93,8 +93,8 @@ continues to receive the same releases.
 If you want the router (and dashboard) running on your own box:
 
 ```bash
-# 1. Drop a provider key in. OpenRouter is the recommended baseline.
-echo "OPENROUTER_API_KEY=sk-or-v1-..." >> .env.local
+# 1. Drop a provider key in. ai& is the only upstream the router dispatches to.
+echo "AIAND_API_KEY=sk-..." >> .env.local
 
 # 2. Set a dashboard password. Without one, inference still runs but
 # dashboard administration is disabled.
@@ -138,7 +138,7 @@ flowchart LR
     hmm["HMM policy sidecar :8093<br/>optional, make up-hmm"]
     pg[("Postgres<br/>installations, rk_ keys,<br/>encrypted BYOK keys, usage")]
     ui["Dashboard /ui<br/>selfhosted mode only"]
-    providers["Anthropic · OpenAI · Gemini<br/>OpenRouter and any<br/>OpenAI-compatible endpoint"]
+    providers["ai& (api.aiand.com)<br/>OpenAI-compatible<br/>Chat Completions"]
     otel["Your OTLP collector<br/>Honeycomb, Datadog, Grafana"]
 
     client -->|"rk_… bearer token,<br/>streamed response back"| router
@@ -285,7 +285,7 @@ the final Anthropic `message_delta` usage event.
   rollout checklist for adding an out-of-process policy model.
 - 📏 [**Codex benchmark harness**](bench/README.md): reproduce the published
   SWE-Atlas QnA and Terminal-Bench 4.0 comparisons of
-  `/beta` routing vs. direct and OpenRouter controls.
+  `/beta` routing vs. direct and metarouter controls.
 - 🛠️ [**Contributing**](CONTRIBUTING.md): layering rules, hot-reload dev,
   migrations, tests, the whole engineering loop.
 - 🏗️ [**Architecture**](AGENTS.md): package layout, import contracts,

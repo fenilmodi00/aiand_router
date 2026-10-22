@@ -17,9 +17,9 @@
 # crypto/x509 at the proxy's ephemeral CA public cert (mounted read-only via
 # the shared `mitm_certs` volume) so the server trusts the intercepted TLS.
 # HTTPS_PROXY applies to every outbound HTTPS call the server makes, so this
-# intercepts calls to any upstream provider (Anthropic, OpenAI, ...) the smoke
+# intercepts calls to any upstream provider (ai&) the smoke
 # suite's fixtures route to — the proxy mints a leaf cert per CONNECT-target
-# hostname (smoke/mitmproxy/ca.go), nothing here is Anthropic-specific.
+# hostname (smoke/mitmproxy/ca.go), nothing here is provider-specific.
 #
 # Cassettes are bind-mounted from smoke/mitmproxy/cassettes/ — a real,
 # committed directory in the repo, NOT a docker volume — so a PR CI run in

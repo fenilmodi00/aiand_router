@@ -1,6 +1,6 @@
 # Smoke suite cassettes
 
-Recorded router→Anthropic interactions for the smoke suite's MITM proxy
+Recorded router→ai& interactions for the smoke suite's MITM proxy
 (`smoke/mitmproxy/`). Each `<sha256>.json` file is one request/response pair,
 keyed by a hash of (method, path, body) — the smoke fixtures are
 byte-deterministic, so a given scenario always hashes to the same file.
@@ -13,11 +13,11 @@ it into a cassette.
 
 ## Refreshing
 
-Cassettes go stale when a fixture, scenario, or Anthropic's own response shape
+Cassettes go stale when a fixture, scenario, or ai&'s own response shape
 changes. Refresh them locally:
 
 ```bash
-ANTHROPIC_API_KEY=sk-ant-… SMOKE_PROXY_MODE=record make smoke
+AIAND_API_KEY=sk-… SMOKE_PROXY_MODE=record make smoke
 git status smoke/mitmproxy/cassettes/   # review the diff, then commit
 ```
 
