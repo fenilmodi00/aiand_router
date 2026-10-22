@@ -25,7 +25,7 @@ Every committed bundle lives at `artifacts/v<X.Y>/` with four files: `centroids.
 
 - `artifacts/latest` pointer file (single line, e.g. `v0.37`) names the version the runtime serves by default; `ROUTER_CLUSTER_VERSION` env overrides.
 - Promotion = one-line edit to `latest` + redeploy.
-- Committed history spans v0.21 through the current `latest` — earlier versions are pruned once they fall out of eval comparison.
+- Committed history spans v0.25 through the current `latest` — earlier versions are pruned once they fall out of eval comparison.
 
 ### Multi-version build flag
 
@@ -39,7 +39,7 @@ Go runtime builds **only the served default version** by default (`cmd/router/ma
 
 ### `metadata.yaml`
 
-Informational at runtime — carries version changelog, training params, deployed models, α-blend cost values. Go runtime parses it for `/health`-style provenance; eval harness reads it offline. Keep it accurate but it does not affect routing decisions.
+Informational at runtime — carries version changelog, training params and the embedder block. Go runtime parses it for `/health`-style provenance; eval harness reads it offline. Keep it accurate but it does not affect routing decisions. Prices and throughput are **not** stored here: runtime pricing comes from `internal/router/catalog`, and the bundle's α-blend cost values are baked into `rankings.json` at training time.
 
 ### Embedders (per-bundle, pluggable)
 
