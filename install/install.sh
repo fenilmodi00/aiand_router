@@ -1932,19 +1932,19 @@ fi
 # drift from the canonical files.
 WEAVE_REGISTRY_DATA=$(cat <<'WEAVE_REGISTRY_EOF'
 # Weave Router directive registry
-# canonical|aliases|capability|claude|codex|opencode|pi|cursor|adapter
+# canonical|aliases|capability|claude|codex|opencode|pi|adapter
 # aliases are comma-separated; client columns are yes/no. adapter is the native asset kind.
-force-model|fm|prompt|yes|yes|yes|yes|manual|command,skill
-force-parent||prompt|yes|yes|yes|yes|manual|command,skill
-unforce-model|ufm|prompt|yes|yes|yes|yes|manual|command,skill
-router-feedback|rf|prompt|yes|yes|yes|no|manual|command,skill
-router-off||local-toggle|yes|yes|no|no|manual|command,skill
-router-on||local-toggle|yes|yes|no|no|manual|command,skill
-router-status||local-toggle|yes|yes|no|no|manual|command,skill
-router-session||prompt|yes|yes|no|no|manual|command,skill
-router-models|models|local-toggle|yes|yes|no|no|manual|command,skill
-disable-routing||local-toggle|no|yes|no|no|manual|skill
-beta||prompt|yes|no|no|yes|manual|command
+force-model|fm|prompt|yes|yes|yes|yes|command,skill
+force-parent||prompt|yes|yes|yes|yes|command,skill
+unforce-model|ufm|prompt|yes|yes|yes|yes|command,skill
+router-feedback|rf|prompt|yes|yes|yes|no|command,skill
+router-off||local-toggle|yes|yes|no|no|command,skill
+router-on||local-toggle|yes|yes|no|no|command,skill
+router-status||local-toggle|yes|yes|no|no|command,skill
+router-session||prompt|yes|yes|no|no|command,skill
+router-models|models|local-toggle|yes|yes|no|no|command,skill
+disable-routing||local-toggle|no|yes|no|no|skill
+beta||prompt|yes|no|no|yes|command
 WEAVE_REGISTRY_EOF
 )
 
@@ -1966,12 +1966,11 @@ weave_registry_rows() {
 
 # weave_registry_names lists every canonical name and alias a client installs.
 weave_registry_names() {
-  local target="$1" canonical aliases capability claude codex opencode pi cursor adapter
-  while IFS='|' read -r canonical aliases capability claude codex opencode pi cursor adapter; do
+  local target="$1" canonical aliases capability claude codex opencode pi adapter
+  while IFS='|' read -r canonical aliases capability claude codex opencode pi adapter; do
     case "$target" in
       claude) [ "$claude" = yes ] || continue ;; codex) [ "$codex" = yes ] || continue ;;
       opencode) [ "$opencode" = yes ] || continue ;; pi) [ "$pi" = yes ] || continue ;;
-      cursor) [ "$cursor" = yes ] || continue ;;
     esac
     printf '%s\n' "$canonical"
     [ -n "$aliases" ] && printf '%s\n' "$aliases" | tr ',' '\n'
@@ -1984,13 +1983,12 @@ EOF
 # native skill. Local-config toggles are excluded: they mutate config this
 # installer owns and are handled per target, not as a generic prompt.
 weave_registry_skill_names() {
-  local target="$1" canonical aliases capability claude codex opencode pi cursor adapter
-  while IFS='|' read -r canonical aliases capability claude codex opencode pi cursor adapter; do
+  local target="$1" canonical aliases capability claude codex opencode pi adapter
+  while IFS='|' read -r canonical aliases capability claude codex opencode pi adapter; do
     [ "$capability" = prompt ] || continue
     case "$target" in
       claude) [ "$claude" = yes ] || continue ;; codex) [ "$codex" = yes ] || continue ;;
       opencode) [ "$opencode" = yes ] || continue ;; pi) [ "$pi" = yes ] || continue ;;
-      cursor) [ "$cursor" = yes ] || continue ;;
     esac
     printf '%s\n' "$canonical"
     [ -n "$aliases" ] && printf '%s\n' "$aliases" | tr ',' '\n'
@@ -2004,13 +2002,12 @@ EOF
 # and uninstall use this for file management; weave_registry_skill_names is the
 # narrower prompt-only set used when generating prompt adapters.
 weave_registry_skill_assets() {
-  local target="$1" canonical aliases capability claude codex opencode pi cursor adapter
-  while IFS='|' read -r canonical aliases capability claude codex opencode pi cursor adapter; do
+  local target="$1" canonical aliases capability claude codex opencode pi adapter
+  while IFS='|' read -r canonical aliases capability claude codex opencode pi adapter; do
     case ",$adapter," in *,skill,*) ;; *) continue ;; esac
     case "$target" in
       claude) [ "$claude" = yes ] || continue ;; codex) [ "$codex" = yes ] || continue ;;
       opencode) [ "$opencode" = yes ] || continue ;; pi) [ "$pi" = yes ] || continue ;;
-      cursor) [ "$cursor" = yes ] || continue ;;
     esac
     printf '%s\n' "$canonical"
     [ -n "$aliases" ] && printf '%s\n' "$aliases" | tr ',' '\n'
@@ -2022,8 +2019,8 @@ EOF
 # weave_registry_canonical_for resolves a name or alias to its canonical
 # directive, and fails when the name is not in the registry at all.
 weave_registry_canonical_for() {
-  local wanted="$1" canonical aliases capability claude codex opencode pi cursor adapter alias
-  while IFS='|' read -r canonical aliases capability claude codex opencode pi cursor adapter; do
+  local wanted="$1" canonical aliases capability claude codex opencode pi adapter alias
+  while IFS='|' read -r canonical aliases capability claude codex opencode pi adapter; do
     [ "$wanted" = "$canonical" ] && { printf '%s' "$canonical"; return 0; }
     IFS=',' read -ra _aliases <<< "$aliases"
     for alias in ${_aliases[@]+"${_aliases[@]}"}; do

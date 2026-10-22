@@ -47,7 +47,7 @@ printf 'registry\n'
 # ---------- registry shape ----------
 
 bad_rows=""
-while IFS='|' read -r canonical aliases capability claude codex opencode pi cursor adapter; do
+while IFS='|' read -r canonical aliases capability claude codex opencode pi adapter; do
   [ -n "$canonical" ] || continue
   case "$capability" in
     prompt|local-toggle) ;;
@@ -56,9 +56,6 @@ while IFS='|' read -r canonical aliases capability claude codex opencode pi curs
   for value in "$claude" "$codex" "$opencode" "$pi"; do
     case "$value" in yes|no) ;; *) bad_rows="$bad_rows $canonical:client=$value" ;; esac
   done
-  # Cursor has no installer-owned command surface; the registry must say so
-  # rather than implying this installer can write Cursor's settings.
-  [ "$cursor" = manual ] || bad_rows="$bad_rows $canonical:cursor=$cursor"
 done < <(weave_registry_rows)
 check "every row declares a known capability and client support" "" "$bad_rows"
 

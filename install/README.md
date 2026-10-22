@@ -415,15 +415,15 @@ uninstaller, the statusline refresh, and the npm packaging step read it, so a
 directive is declared once and reaches every client that supports it.
 
 ```
-canonical|aliases|capability|claude|codex|opencode|pi|cursor|adapter
+canonical|aliases|capability|claude|codex|opencode|pi|adapter
 ```
 
 - `capability` is `prompt` (the directive is text the router parses) or
   `local-toggle` (it shells out to this installer to change local config).
   Only declare a `local-toggle` for a client whose config this installer owns —
   do not invent one where the client has no equivalent.
-- The client columns are `yes`/`no`; `cursor` is always `manual`, because no
-  Cursor command file is ours to write.
+- The client columns are `yes`/`no`. Cursor has no installer-owned command
+  surface, so it has no column; its directives are typed by hand.
 - `adapter` names the native asset: `command` (a `commands/<name>.md` wrapper),
   `skill` (a `codex-skills/<name>/SKILL.md`), or both.
 
