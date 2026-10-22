@@ -81,7 +81,7 @@ func (r Registry) DeploymentProjection(config DeploymentPolicyConfig) Deployment
 			MigrationStatus:   spec.MigrationStatus,
 		}
 		models := spec.FixedCatalogModels
-		requiredProvider := spec.FixedProvider
+		requiredProvider := ""
 		if override, found := overrides[spec.Purpose]; found {
 			projection.DeploymentTarget = &DeploymentTargetProjection{CatalogID: override.CatalogID, Provider: override.Provider, Effort: override.Effort}
 			models = []string{override.CatalogID}

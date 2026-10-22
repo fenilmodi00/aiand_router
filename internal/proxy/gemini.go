@@ -44,7 +44,7 @@ func (s *Service) ProxyGeminiGenerateContent(ctx context.Context, body []byte, w
 		return returnErr
 	}
 	ctx = requestcontext.WithContentLogging(ctx, s.effectiveCaptureMode(ctx) != CaptureOff)
-	ctx, err := s.checkUserMonthlySpendLimit(ctx, r.Header, r.URL.Path)
+	ctx, err := s.checkUserMonthlySpendLimit(ctx)
 	if err != nil {
 		return err
 	}

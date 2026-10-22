@@ -16,7 +16,7 @@
 // Cache-warmth gate: the cache-read multipliers and the eviction cost only
 // apply while the pin's upstream prompt cache is still warm. When Inputs
 // reports the pin cold (the provider's cache TTL has lapsed — short and
-// best-effort on the OSS compat providers, unlike Anthropic's 1h window),
+// best-effort on the OSS compat providers),
 // both sides are priced uncached (pinMult = freshMult = 1, eviction_cost = 0):
 // staying buys no cache reuse the fresh route wouldn't also pay, and the
 // one-time prefill is incurred either way. This stops a phantom cache from
