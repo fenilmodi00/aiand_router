@@ -213,9 +213,3 @@ func TestGLM53FlashPricing(t *testing.T) {
 	assert.InDelta(t, 0.500, p.OutputUSDPer1M, 1e-9)
 	assert.InDelta(t, 0.03/0.150, p.CacheReadMultiplier, 1e-9)
 }
-
-func TestCodexSubscriptionCoverageIsEmpty(t *testing.T) {
-	// No catalog row is served by a native ChatGPT/Codex OAuth backend any more.
-	assert.Empty(t, CodexSubscriptionModels())
-	assert.False(t, CodexSubscriptionCoversModel("deepseek/deepseek-v4-pro"))
-}

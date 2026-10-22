@@ -57,25 +57,17 @@ func TestPermittedByAndCheckEligibility(t *testing.T) {
 func TestIneligibleIDsCoversEveryNonOpenSourceModel(t *testing.T) {
 	ineligible := IneligibleIDs(eligibility.MaxOpenSourceOnly)
 	assert.IsIncreasing(t, ineligible)
-	assert.Len(t, ineligible, len(IDsWithSource(SourceClosedSource))+len(IDsWithSource(SourceUnknown)))
 	for _, id := range ineligible {
 		source, known := SourceFor(id)
 		require.True(t, known)
 		assert.NotEqual(t, SourceOpenSource, source)
 	}
-	for _, id := range IDsWithSource(SourceOpenSource) {
-		assert.NotContains(t, ineligible, id)
+	for _, m := range Models {
+		if m.Source == SourceOpenSource {
+			assert.NotContains(t, ineligible, m.ID)
+		} else {
+			assert.Contains(t, ineligible, m.ID)
+		}
 	}
 	assert.Empty(t, IneligibleIDs(eligibility.Unrestricted()))
-}
-
-func TestIDsWithSourceIsSortedAndPartitionsTheCatalog(t *testing.T) {
-	total := 0
-	for _, source := range []Source{SourceOpenSource, SourceClosedSource, SourceUnknown} {
-		ids := IDsWithSource(source)
-		assert.IsIncreasingf(t, ids, "IDsWithSource(%q) is not sorted", source)
-		total += len(ids)
-	}
-	assert.Equal(t, len(Models), total)
-	assert.NotEmpty(t, IDsWithSource(SourceOpenSource))
 }

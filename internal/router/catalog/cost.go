@@ -8,8 +8,7 @@ import (
 // pricing. Fresh tokens at base rate; 5-minute cache-creation at the binding's
 // effective write multiplier; 1-hour cache-creation (usageModifiers.CacheCreation1h, a
 // subset of cacheCreation) at the 1-hour write multiplier; cache-read at the
-// binding's effective read multiplier; the whole sum scaled by the US
-// inference-geography multiplier when it applies.
+// binding's effective read multiplier.
 //
 // The only upstream family is OpenAI-compatible, whose prompt_tokens already
 // include cached tokens, so the cached counts are subtracted back out.
@@ -26,8 +25,8 @@ func EffectiveInputCost(inputTokens, cacheCreation, cacheRead int, p Pricing, up
 	fiveMinute := cacheCreation - oneHour
 	return (float64(fresh) +
 		float64(fiveMinute)*p.EffectiveCacheWriteMultiplier() +
-		float64(oneHour)*p.EffectiveCacheWrite1hMultiplier(upstreamProvider) +
-		float64(cacheRead)*p.EffectiveCacheReadMultiplier()) / 1_000_000 * p.InputUSDPer1M * p.inferenceGeoMultiplier(usageModifiers.InferenceGeo)
+		float64(oneHour)*p.EffectiveCacheWrite1hMultiplier() +
+		float64(cacheRead)*p.EffectiveCacheReadMultiplier()) / 1_000_000 * p.InputUSDPer1M
 }
 
 // CounterfactualInputCost is EffectiveInputCost for the savings baseline, with
@@ -50,12 +49,11 @@ func PromptTokens(inputTokens, cacheCreation, cacheRead int, upstreamProvider st
 }
 
 // EffectiveOutputCost returns USD output cost for a call. Output tokens
-// have no caching multipliers — tokens × per-1M price, scaled by the US
-// inference-geography multiplier when it applies. promptTokens is the full
-// prompt length (see PromptTokens) and only selects the LongContext tier.
+// have no caching multipliers — tokens × per-1M price. promptTokens is the
+// full prompt length (see PromptTokens) and only selects the LongContext tier.
 func EffectiveOutputCost(promptTokens, outputTokens int, p Pricing, usageModifiers UsageModifiers) float64 {
 	p = p.ForInputTokens(promptTokens)
-	return float64(outputTokens) / 1_000_000 * p.OutputUSDPer1M * p.inferenceGeoMultiplier(usageModifiers.InferenceGeo)
+	return float64(outputTokens) / 1_000_000 * p.OutputUSDPer1M
 }
 
 // USDToMicros rounds a float64 USD value to BIGINT micros (USD x 1e6) for

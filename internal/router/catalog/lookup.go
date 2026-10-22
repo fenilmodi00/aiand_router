@@ -32,25 +32,6 @@ func ByID(id string) (Model, bool) {
 	return Model{}, false
 }
 
-// CodexSubscriptionModels returns the canonical models served by native
-// ChatGPT/Codex OAuth rather than OpenAI API credentials.
-func CodexSubscriptionModels() []string {
-	models := make([]string, 0, 8)
-	for _, model := range Models {
-		if model.CodexSubscription {
-			models = append(models, model.ID)
-		}
-	}
-	return models
-}
-
-// CodexSubscriptionCoversModel reports whether the catalog marks model for
-// native ChatGPT/Codex OAuth. Unknown models fail closed.
-func CodexSubscriptionCoversModel(id string) bool {
-	model, ok := byID[id]
-	return ok && model.CodexSubscription
-}
-
 // ResolveBinding returns the first ProviderBinding whose Provider is in
 // `available`. Used at boot to pick each routable model's upstream.
 func ResolveBinding(id string, available map[string]struct{}) (ProviderBinding, bool) {
@@ -83,7 +64,7 @@ func ResolveBindingWithCustom(id string, available map[string]struct{}, custom m
 	}
 	binding := ProviderBinding{Provider: provider}
 	if len(m.Providers) > 0 {
-		binding.Price = m.Providers[0].Price.WithoutInferenceGeoPremium()
+		binding.Price = m.Providers[0].Price
 	}
 	return binding, true
 }
@@ -139,7 +120,7 @@ func EnumerateBindingsWithCustom(id string, available map[string]struct{}, custo
 	for _, provider := range customProviders {
 		binding := ProviderBinding{Provider: provider}
 		if len(m.Providers) > 0 {
-			binding.Price = m.Providers[0].Price.WithoutInferenceGeoPremium()
+			binding.Price = m.Providers[0].Price
 		}
 		out = append(out, IndexedBinding{Index: next, ProviderBinding: binding})
 		next++
@@ -245,34 +226,6 @@ func TierFor(id string) Tier {
 		return TierUnknown
 	}
 	return m.Tier
-}
-
-// AdvisorRankFor returns the model's advisor-tool rank; ok is false for
-// models that take no advisor.
-func AdvisorRankFor(id string) (rank int, ok bool) {
-	m, found := ByID(id)
-	return m.AdvisorRank, found && m.AdvisorRank > 0
-}
-
-// ThinkTagReasoningFor reports whether the model streams chain-of-thought as
-// inline <think>…</think> in content (the Anthropic translator reroutes it
-// into thinking). Unknown models return false.
-func ThinkTagReasoningFor(id string) bool {
-	m, ok := ByID(id)
-	if !ok {
-		return false
-	}
-	return m.ThinkTagReasoning
-}
-
-// IsAtOrBelow reports whether the model has a known tier at or below the
-// ceiling. Unknown-tier models return false.
-func IsAtOrBelow(id string, ceiling Tier) bool {
-	t := TierFor(id)
-	if t == TierUnknown {
-		return false
-	}
-	return t <= ceiling
 }
 
 // AllowedAtOrBelow returns the set of known model IDs whose tier is at or

@@ -33,7 +33,7 @@ func TestUsageExtractor_RecordedUsageModifiersFeedTranslatedPaths(t *testing.T) 
 	ext.RecordProviderUsage(usage.Facts{Present: true, CacheWrite: usage.Reported(500), CacheRead: usage.Reported(0), CacheWrite1h: usage.Reported(200), Speed: catalog.SpeedFast, SpeedReported: true, InferenceGeo: catalog.InferenceGeoUS, InferenceGeoReported: true})
 	ext.RecordProviderUsage(usage.Facts{})
 
-	assert.Equal(t, catalog.UsageModifiers{CacheCreation1h: 200, InferenceGeo: catalog.InferenceGeoUS}, ext.UsageModifiers())
+	assert.Equal(t, catalog.UsageModifiers{CacheCreation1h: 200}, ext.UsageModifiers())
 	assert.Equal(t, catalog.SpeedFast, ext.Speed())
 }
 
