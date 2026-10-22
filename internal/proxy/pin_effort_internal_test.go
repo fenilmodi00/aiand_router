@@ -42,7 +42,7 @@ func TestRunTurnLoop_RequestForceModelCarriesEffort(t *testing.T) {
 		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil)
 
 	env, err := translate.ParseAnthropic([]byte(`{
-		"model":"z-ai/glm-5.2",
+		"model":"moonshotai/kimi-k3",
 		"system":"Your task is to create a detailed summary of the conversation so far.",
 		"messages":[{"role":"user","content":"summarize"}]
 	}`))
@@ -51,11 +51,11 @@ func TestRunTurnLoop_RequestForceModelCarriesEffort(t *testing.T) {
 
 	res, err := svc.runTurnLoop(context.Background(), env, feats, "key-1", uuid.New(), "", nil, router.Request{
 		RequestedModel: feats.Model,
-		ForceModel:     "opus:medium",
+		ForceModel:     "kimi:medium",
 	})
 	require.NoError(t, err)
 
-	assert.Equal(t, "z-ai/glm-5.2", res.Decision.Model)
+	assert.Equal(t, "moonshotai/kimi-k3", res.Decision.Model)
 	assert.Equal(t, "medium", res.Decision.Effort)
 }
 
@@ -68,7 +68,7 @@ func TestRefreshPin_CarriesEffortForward(t *testing.T) {
 
 	existing := sessionpin.Pin{
 		Provider: providers.ProviderAIAND,
-		Model:    "z-ai/glm-5.2",
+		Model:    "moonshotai/kimi-k3",
 		Effort:   "xhigh",
 		Reason:   translate.ReasonUserForceModel,
 	}
@@ -91,12 +91,12 @@ func TestRefreshPin_CarriesEffortForward(t *testing.T) {
 func TestOrderBandPair_AnchoredHalfKeepsEffort(t *testing.T) {
 	large, small := orderBandPair(sessionpin.Pin{
 		Provider:       providers.ProviderAIAND,
-		Model:          "z-ai/glm-5.2",
+		Model:          "moonshotai/kimi-k3",
 		Effort:         "high",
 		PairedProvider: providers.ProviderAIAND,
 		PairedModel:    "z-ai/glm-5.3-flash",
 	})
-	assert.Equal(t, "z-ai/glm-5.2", large.Model)
+	assert.Equal(t, "moonshotai/kimi-k3", large.Model)
 	assert.Equal(t, "high", large.Effort)
 	assert.Empty(t, small.Effort)
 }

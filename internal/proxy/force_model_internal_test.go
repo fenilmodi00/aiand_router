@@ -61,7 +61,7 @@ func TestResolveForceModel_ObservedUnknowns(t *testing.T) {
 		"opsu", "opuis", "opues-5.5", "gtp-6-sol", "sool", "sokl", "astar",
 		"gpt-61.-sol", "sol.", "opus-5-", "kimi-k", "gpt-6-1", "gpt6-1",
 		"gpt-5.6-astra", "codex-sol-6", "sol-6", "gpt-sol-6", "/force-model sol",
-		"openai/gpt-oss-120b", "qwen/qwen3-32b", "gpt-", "gpt-5 help me debug this",
+		"qwen/qwen3-32b", "gpt-", "gpt-5 help me debug this",
 		"opus high help",
 	} {
 		t.Run(input, func(t *testing.T) {

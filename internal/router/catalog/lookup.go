@@ -18,6 +18,26 @@ func init() {
 	}
 }
 
+// ReasoningEffortsFor returns the reasoning-effort levels the model accepts,
+// least to most expensive. Empty when the model declares no reasoning menu.
+func ReasoningEffortsFor(id string) []string {
+	m, ok := ByID(id)
+	if !ok {
+		return nil
+	}
+	return append([]string(nil), m.ReasoningEfforts...)
+}
+
+// DefaultEffortFor returns the effort level the model uses when a turn names
+// none. Empty when the model declares no default.
+func DefaultEffortFor(id string) string {
+	m, ok := ByID(id)
+	if !ok {
+		return ""
+	}
+	return m.DefaultEffort
+}
+
 // ByID returns the model with the given ID. If the exact ID isn't found,
 // retries after stripping a trailing Anthropic (-20251001) or OpenAI (-2024-08-06) date suffix.
 func ByID(id string) (Model, bool) {

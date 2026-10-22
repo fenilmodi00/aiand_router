@@ -107,7 +107,7 @@ func TestMultiversion_DefaultDeployedModels_ReadsDefaultVersionOnly(t *testing.T
 	for _, e := range got {
 		models = append(models, e.Model)
 	}
-	assert.ElementsMatch(t, []string{"moonshotai/kimi-k3", "z-ai/glm-5.2"}, models,
+	assert.ElementsMatch(t, []string{"moonshotai/kimi-k3", "deepseek/deepseek-v4-pro"}, models,
 		"DefaultDeployedModels must return the default version's (v0.2) candidates, not v0.1's opus+haiku pair")
 }
 

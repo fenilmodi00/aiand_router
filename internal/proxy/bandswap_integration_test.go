@@ -23,19 +23,19 @@ func TestOrderBandPair_ByTier(t *testing.T) {
 	}
 
 	anchorLarge := sessionpin.Pin{
-		Provider: "anthropic", Model: "z-ai/glm-5.2",
-		PairedProvider: "anthropic", PairedModel: "z-ai/glm-5.3-flash",
+		Provider: "aiand", Model: "deepseek/deepseek-v4-pro",
+		PairedProvider: "aiand", PairedModel: "z-ai/glm-5.3-flash",
 	}
 	l, s := orderBandPair(anchorLarge)
-	want(l, s, "z-ai/glm-5.2", "z-ai/glm-5.3-flash")
+	want(l, s, "deepseek/deepseek-v4-pro", "z-ai/glm-5.3-flash")
 
 	// Same pair, anchor and runner-up swapped -> identical large/small split.
 	anchorSmall := sessionpin.Pin{
-		Provider: "anthropic", Model: "z-ai/glm-5.3-flash",
-		PairedProvider: "anthropic", PairedModel: "z-ai/glm-5.2",
+		Provider: "aiand", Model: "z-ai/glm-5.3-flash",
+		PairedProvider: "aiand", PairedModel: "deepseek/deepseek-v4-pro",
 	}
 	l, s = orderBandPair(anchorSmall)
-	want(l, s, "z-ai/glm-5.2", "z-ai/glm-5.3-flash")
+	want(l, s, "deepseek/deepseek-v4-pro", "z-ai/glm-5.3-flash")
 }
 
 // With the swap head disabled the sticky turn must serve the pin's anchor.
@@ -82,7 +82,7 @@ func TestBandSwapServed_UnservableChoiceFallsBackToAnchor(t *testing.T) {
 	// opus is the LARGE-tier member, haiku the SMALL-tier one, so orderBandPair
 	// is deterministic. Anchor the pin on whichever member the head would NOT
 	// pick, so honoring the head is a real swap away from the anchor.
-	const large, small = "z-ai/glm-5.2", "z-ai/glm-5.3-flash"
+	const large, small = "deepseek/deepseek-v4-pro", "z-ai/glm-5.3-flash"
 	served := large
 	if band == bandswap.Small {
 		served = small

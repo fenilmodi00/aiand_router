@@ -29,7 +29,7 @@ import (
 
 var (
 	upgradeTestPinModel   = catalog.ModelIDGLM53Flash.String()
-	upgradeTestFreshModel = catalog.ModelIDGLM52.String()
+	upgradeTestFreshModel = catalog.ModelIDGLM53.String()
 )
 
 func TestEvaluateAuthoritativeUpgrade(t *testing.T) {

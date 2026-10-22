@@ -41,11 +41,11 @@ func TestHTTPRouterCarriesTaskOutcomeThroughGoSelection(t *testing.T) {
 		require.NotNil(t, input.TaskDomain)
 		assert.Equal(t, task, *input.TaskDomain)
 		assert.Equal(t, map[string]float64{"low": 1}, input.ClassProbabilities)
-		return policy.SelectionPick{Group: "low", Arm: "moonshotai/kimi-k2.7-code", Trace: policy.SelectionTrace{SelectedArm: "moonshotai/kimi-k2.7-code", SelectedGroup: "low", TaskDomain: input.TaskDomain}}, nil
+		return policy.SelectionPick{Group: "low", Arm: "z-ai/glm-5.3", Trace: policy.SelectionTrace{SelectedArm: "z-ai/glm-5.3", SelectedGroup: "low", TaskDomain: input.TaskDomain}}, nil
 	})
 	decision, err := routed.Route(context.Background(), router.Request{PromptText: "Review deployment", TaskDomain: &taskdomain.Input{UserText: "Review deployment", ConversationKey: strings.Repeat("d", 64), RootSHA256: strings.Repeat("e", 64)}})
 	require.NoError(t, err)
-	assert.Equal(t, "moonshotai/kimi-k2.7", decision.Model)
+	assert.Equal(t, "z-ai/glm-5.3", decision.Model)
 	require.NotNil(t, decision.Metadata)
 	require.NotNil(t, decision.Metadata.SelectionTrace)
 	assert.Equal(t, task, *decision.Metadata.SelectionTrace.TaskDomain)

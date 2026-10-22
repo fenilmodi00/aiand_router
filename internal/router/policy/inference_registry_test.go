@@ -33,7 +33,7 @@ func TestDefaultInferenceRegistryCompactionPurposesShareSummarizers(t *testing.T
 	handover, found := registry.Spec(policy.PurposeCompactionHandoverSummary)
 	require.True(t, found)
 	assert.Equal(t, precompaction.FixedCatalogModels, handover.FixedCatalogModels)
-	assert.Contains(t, handover.FixedCatalogModels, "z-ai/glm-5.2")
+	assert.Contains(t, handover.FixedCatalogModels, policy.PrecompactionDefaultModel)
 }
 
 func TestInferenceRegistryRejectsDuplicateAndMissingPurposes(t *testing.T) {

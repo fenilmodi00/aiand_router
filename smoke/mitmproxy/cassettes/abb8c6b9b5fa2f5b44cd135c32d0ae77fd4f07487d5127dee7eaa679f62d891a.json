@@ -1,0 +1,33 @@
+{
+  "method": "POST",
+  "path": "/v1/chat/completions",
+  "status_code": 200,
+  "headers": {
+    "Access-Control-Allow-Credentials": "true",
+    "Access-Control-Expose-Headers": "traceparent,X-Request-ID,X-Cost,X-Cost-Currency,X-Inference-Ms,X-Reasoning-Effort,X-Model,x-ratelimit-limit-requests,x-ratelimit-remaining-requests,x-ratelimit-reset-requests,x-ratelimit-limit-tokens,x-ratelimit-remaining-tokens,x-ratelimit-reset-tokens,x-ratelimit-limit-output-tokens,x-ratelimit-remaining-output-tokens,x-ratelimit-reset-output-tokens,x-ratelimit-limit-concurrency,x-ratelimit-remaining-concurrency,x-ratelimit-limit-global-requests,x-ratelimit-remaining-global-requests,x-ratelimit-reset-global-requests,x-ratelimit-limit-global-concurrency,x-ratelimit-remaining-global-concurrency,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Policy,Retry-After",
+    "Cache-Control": "no-cache",
+    "Content-Type": "text/event-stream",
+    "Date": "Thu, 22 Oct 2026 16:54:18 GMT",
+    "Server": "cloudflare",
+    "Server-Timing": "cfEdge;dur=55,cfOrigin;dur=0,cfWorker;dur=1627",
+    "Strict-Transport-Security": "max-age=2592000",
+    "Traceparent": "00-42939b2c4a82510a7cd63931275dfa3f-858f7f77586335c7-01",
+    "Vary": "Origin",
+    "X-Model": "zai-org/glm-5.3-flash",
+    "X-Org-Id": "bd15b137-fc67-4ca0-87c1-08ca66f40037",
+    "X-Processing-Ms": "1610",
+    "X-Ratelimit-Limit": "1000",
+    "X-Ratelimit-Limit-Concurrency": "100",
+    "X-Ratelimit-Limit-Global-Concurrency": "100",
+    "X-Ratelimit-Limit-Global-Requests": "10000",
+    "X-Ratelimit-Limit-Output-Tokens": "10000000",
+    "X-Ratelimit-Remaining": "999",
+    "X-Ratelimit-Remaining-Concurrency": "99",
+    "X-Ratelimit-Remaining-Global-Concurrency": "99",
+    "X-Ratelimit-Remaining-Global-Requests": "9999",
+    "X-Ratelimit-Remaining-Output-Tokens": "10000000",
+    "X-Ratelimit-Reset-Global-Requests": "1s",
+    "X-Ratelimit-Reset-Output-Tokens": "0s"
+  },
+  "body": "data: {\"id\":\"chatcmpl-d307528d-80cb-4546-8ac9-6d5406cc00d9\",\"object\":\"chat.completion.chunk\",\"created\":1792688057,\"model\":\"zai-org/glm-5.3-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"\"},\"logprobs\":null,\"finish_reason\":null}]}\n\ndata: {\"id\":\"chatcmpl-d307528d-80cb-4546-8ac9-6d5406cc00d9\",\"object\":\"chat.completion.chunk\",\"created\":1792688057,\"model\":\"zai-org/glm-5.3-flash\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"ok\",\"reasoning\":\"The user has asked me to reply with exactly the word \\\"ok\\\". This is a simple instruction test. I should just reply \\\"ok\\\" and nothing else.\",\"reasoning_content\":\"The user has asked me to reply with exactly the word \\\"ok\\\". This is a simple instruction test. I should just reply \\\"ok\\\" and nothing else.\"},\"logprobs\":null,\"finish_reason\":\"stop\"}]}\n\ndata: {\"id\":\"chatcmpl-d307528d-80cb-4546-8ac9-6d5406cc00d9\",\"object\":\"chat.completion.chunk\",\"created\":1792688057,\"model\":\"zai-org/glm-5.3-flash\",\"choices\":[],\"usage\":{\"prompt_tokens\":8495,\"total_tokens\":8530,\"completion_tokens\":35,\"prompt_tokens_details\":{\"cached_tokens\":8448},\"completion_tokens_details\":{\"reasoning_tokens\":32}}}\n\ndata: [DONE]\n\n"
+}

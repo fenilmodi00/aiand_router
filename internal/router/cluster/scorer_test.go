@@ -568,13 +568,13 @@ func TestScorer_FiltersOutUnregisteredProvider(t *testing.T) {
 	cb := buildCentroidsBlob(t, 1, dim, c0)
 	rb := []byte(`{"rankings": {"0": {
 		"z-ai/glm-5.3-flash": 0.1,
-		"z-ai/glm-5.2": 0.9,
+		"deepseek/deepseek-v4-pro": 0.9,
 		"z-ai/glm-5.3": 0.5
 	}}}`)
 	regb := []byte(`{
 		"deployed_models": [
 			{"model": "z-ai/glm-5.3-flash", "provider": "aiand", "bench_column": "z-ai/glm-5.3-flash", "proxy": true},
-			{"model": "z-ai/glm-5.2", "provider": "aiand", "bench_column": "z-ai/glm-5.2"},
+			{"model": "deepseek/deepseek-v4-pro", "provider": "aiand", "bench_column": "z-ai/glm-5.2"},
 			{"model": "z-ai/glm-5.3", "provider": "aiand", "bench_column": "z-ai/glm-5.3"}
 		]
 	}`)
@@ -593,7 +593,7 @@ func TestScorer_FiltersOutUnregisteredProvider(t *testing.T) {
 	require.NoError(t, err)
 	got, err := s.Route(context.Background(), router.Request{PromptText: strings.Repeat("x", 100)})
 	require.NoError(t, err)
-	assert.Equal(t, "z-ai/glm-5.2", got.Model)
+	assert.Equal(t, "deepseek/deepseek-v4-pro", got.Model)
 	assert.Equal(t, "aiand", got.Provider)
 	assert.Contains(t, got.Reason, "provider=aiand")
 }
@@ -604,12 +604,12 @@ func TestScorer_MultiBindingPrefersPrimaryWhenBothAvailable(t *testing.T) {
 	c0[0] = 1
 	cb := buildCentroidsBlob(t, 1, dim, c0)
 	rb := []byte(`{"rankings": {"0": {
-		"moonshotai/kimi-k2.7": 0.9,
+		"moonshotai/kimi-k3": 0.9,
 		"z-ai/glm-5.3-flash": 0.1
 	}}}`)
 	regb := []byte(`{
 		"deployed_models": [
-			{"model": "moonshotai/kimi-k2.7", "provider": "aiand", "bench_column": "routerarena_moonshotai/kimi-k2.5"},
+			{"model": "moonshotai/kimi-k3", "provider": "aiand", "bench_column": "routerarena_moonshotai/kimi-k2.5"},
 			{"model": "z-ai/glm-5.3-flash", "provider": "aiand", "bench_column": "routerarena_claude-haiku-4-5"}
 		]
 	}`)
@@ -621,7 +621,7 @@ func TestScorer_MultiBindingPrefersPrimaryWhenBothAvailable(t *testing.T) {
 	require.NoError(t, err)
 	got, err := s.Route(context.Background(), router.Request{PromptText: strings.Repeat("x", 100)})
 	require.NoError(t, err)
-	assert.Equal(t, "moonshotai/kimi-k2.7", got.Model)
+	assert.Equal(t, "moonshotai/kimi-k3", got.Model)
 	assert.Equal(t, "aiand", got.Provider, "with both providers wired, the primary binding wins")
 }
 
@@ -744,14 +744,14 @@ func twoProviderArtifacts(t *testing.T) (centroidsBlob, rankingsBlob, registryBl
 
 	rankingsBlob = []byte(`{
 		"rankings": {
-			"0": {"moonshotai/kimi-k3": 0.5, "z-ai/glm-5.2": 0.9},
-			"1": {"moonshotai/kimi-k3": 0.1, "z-ai/glm-5.2": 0.05}
+			"0": {"moonshotai/kimi-k3": 0.5, "deepseek/deepseek-v4-pro": 0.9},
+			"1": {"moonshotai/kimi-k3": 0.1, "deepseek/deepseek-v4-pro": 0.05}
 		}
 	}`)
 	registryBlob = []byte(`{
 		"deployed_models": [
 			{"model": "moonshotai/kimi-k3", "provider": "aiand", "bench_column": "z-ai/glm-5.2", "proxy": true},
-			{"model": "z-ai/glm-5.2", "provider": "aiand", "bench_column": "z-ai/glm-5.2"}
+			{"model": "deepseek/deepseek-v4-pro", "provider": "aiand", "bench_column": "z-ai/glm-5.2"}
 		]
 	}`)
 	return
@@ -777,8 +777,8 @@ func TestScorer_NilEnabledProvidersPreservesBootBehavior(t *testing.T) {
 		PromptText: strings.Repeat("x", 100),
 	})
 	require.NoError(t, err)
-	// Cluster 0 ranks gpt-5 above opus; without gating, gpt-5 wins.
-	assert.Equal(t, "z-ai/glm-5.2", got.Model)
+	// Cluster 0 ranks deepseek-v4-pro above kimi-k3; without gating, it wins.
+	assert.Equal(t, "deepseek/deepseek-v4-pro", got.Model)
 	assert.Equal(t, "aiand", got.Provider)
 }
 
@@ -794,7 +794,7 @@ func TestScorer_EnabledProvidersGatesArgmax(t *testing.T) {
 		EnabledProviders: map[string]struct{}{"aiand": {}},
 	})
 	require.NoError(t, err)
-	assert.Equal(t, "z-ai/glm-5.2", got.Model)
+	assert.Equal(t, "deepseek/deepseek-v4-pro", got.Model)
 	assert.Equal(t, "aiand", got.Provider)
 
 	_, err = s.Route(context.Background(), router.Request{
@@ -830,13 +830,13 @@ func TestScorer_ExcludedModelsRemovesFromArgmax(t *testing.T) {
 
 	got, err := s.Route(context.Background(), router.Request{
 		PromptText:     strings.Repeat("x", 100),
-		ExcludedModels: map[string]struct{}{"z-ai/glm-5.2": {}},
+		ExcludedModels: map[string]struct{}{"deepseek/deepseek-v4-pro": {}},
 	})
 	require.NoError(t, err)
-	// Without exclusion gpt-5 wins; excluding it forces argmax onto claude.
+	// Without exclusion deepseek-v4-pro wins; excluding it forces argmax onto kimi-k3.
 	assert.Equal(t, "moonshotai/kimi-k3", got.Model)
 	assert.Equal(t, "aiand", got.Provider)
-	assert.NotContains(t, got.Metadata.ScorerRescuePool, "z-ai/glm-5.2")
+	assert.NotContains(t, got.Metadata.ScorerRescuePool, "deepseek/deepseek-v4-pro")
 }
 
 func TestScorer_AutomaticExcludedModelsRemovesFromArgmax(t *testing.T) {
@@ -845,13 +845,13 @@ func TestScorer_AutomaticExcludedModelsRemovesFromArgmax(t *testing.T) {
 
 	got, err := s.Route(context.Background(), router.Request{
 		PromptText:              strings.Repeat("x", 100),
-		AutomaticExcludedModels: map[string]struct{}{"z-ai/glm-5.2": {}},
+		AutomaticExcludedModels: map[string]struct{}{"deepseek/deepseek-v4-pro": {}},
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "moonshotai/kimi-k3", got.Model)
 	assert.Equal(t, "aiand", got.Provider)
-	assert.NotContains(t, got.Metadata.CandidateModels, "z-ai/glm-5.2")
-	assert.Contains(t, got.Metadata.ScorerRescuePool, "z-ai/glm-5.2")
+	assert.NotContains(t, got.Metadata.CandidateModels, "deepseek/deepseek-v4-pro")
+	assert.Contains(t, got.Metadata.ScorerRescuePool, "deepseek/deepseek-v4-pro")
 }
 
 // The deployment-wide set is soft: unlike ExcludedModels it must never fail a
@@ -868,7 +868,7 @@ func TestScorer_AutomaticExcludedModelsEmptyingPoolStillRoutes(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	assert.Equal(t, "z-ai/glm-5.2", got.Model)
+	assert.Equal(t, "deepseek/deepseek-v4-pro", got.Model)
 }
 
 // Excluding every deployed model must surface ErrNoEligibleProvider (no
@@ -880,8 +880,8 @@ func TestScorer_ExcludedModelsEmptyingPoolReturnsErrNoEligibleProvider(t *testin
 	_, err := s.Route(context.Background(), router.Request{
 		PromptText: strings.Repeat("x", 100),
 		ExcludedModels: map[string]struct{}{
-			"z-ai/glm-5.2":           {},
-			"moonshotai/kimi-k3": {},
+			"deepseek/deepseek-v4-pro": {},
+			"moonshotai/kimi-k3":       {},
 		},
 	})
 	require.Error(t, err)
@@ -900,8 +900,8 @@ func TestScorer_AllowlistEmptyingPoolReturnsErrAllowlistEmptiesPool(t *testing.T
 		// The proxy desugars the allowlist into ExcludedModels; AllowedModels
 		// only names the cause.
 		ExcludedModels: map[string]struct{}{
-			"z-ai/glm-5.2":           {},
-			"moonshotai/kimi-k3": {},
+			"deepseek/deepseek-v4-pro": {},
+			"moonshotai/kimi-k3":       {},
 		},
 		AllowedModels: map[string]struct{}{"some-retired-model": {}},
 	})
@@ -938,12 +938,11 @@ func TestScorer_HasToolsExcludesToolUseLowFromArgmax(t *testing.T) {
 		map[string]struct{}{"aiand": {}})
 	require.NoError(t, err)
 
-	// The AgenticLow model is the higher-scored one, but it is untiered in
-	// the catalog, so it is never a cluster candidate: the tiered model wins
-	// on both turns.
+	// deepseek-v4-flash is the higher-scored tiered model; with has_tools the
+	// ToolUseLow subtraction drops it and kimi-k3 wins.
 	got, err := s.Route(context.Background(), router.Request{PromptText: strings.Repeat("x", 100)})
 	require.NoError(t, err)
-	assert.Equal(t, "moonshotai/kimi-k3", got.Model, "an untiered model is never a cluster candidate")
+	assert.Equal(t, "deepseek/deepseek-v4-flash", got.Model)
 
 	got, err = s.Route(context.Background(), router.Request{PromptText: strings.Repeat("x", 100), HasTools: true})
 	require.NoError(t, err)
@@ -959,17 +958,16 @@ func TestScorer_HasToolsExcludesAgenticLowFromArgmax(t *testing.T) {
 	c0 := make([]float32, dim)
 	c0[0] = 1
 	cb := buildCentroidsBlob(t, 1, dim, c0)
-	// The only AgenticLow catalog model (deepseek/deepseek-v4-flash) is
-	// untiered, so it is never a cluster candidate; the tiered model wins on
-	// both turns and the AgenticLow filter has nothing to drop.
+	// deepseek-v4-flash (AgenticLow) is tiered now: it wins the plain turn,
+	// and the has_tools AgenticLow subtraction must demote to kimi-k3.
 	rb := []byte(`{"rankings": {"0": {
 		"deepseek/deepseek-v4-flash": 0.95,
-		"z-ai/glm-5.2": 0.10
+		"moonshotai/kimi-k3": 0.10
 	}}}`)
 	regb := []byte(`{
 		"deployed_models": [
 			{"model": "deepseek/deepseek-v4-flash", "provider": "aiand", "bench_column": "x", "proxy": true},
-			{"model": "z-ai/glm-5.2", "provider": "aiand", "bench_column": "y", "proxy": true}
+			{"model": "moonshotai/kimi-k3", "provider": "aiand", "bench_column": "y", "proxy": true}
 		]
 	}`)
 	cfg := cfgForTest()
@@ -980,11 +978,11 @@ func TestScorer_HasToolsExcludesAgenticLowFromArgmax(t *testing.T) {
 
 	got, err := s.Route(context.Background(), router.Request{PromptText: strings.Repeat("x", 100)})
 	require.NoError(t, err)
-	assert.Equal(t, "z-ai/glm-5.2", got.Model, "an untiered model is never a cluster candidate")
+	assert.Equal(t, "deepseek/deepseek-v4-flash", got.Model, "the AgenticLow model wins the plain turn")
 
 	got, err = s.Route(context.Background(), router.Request{PromptText: strings.Repeat("x", 100), HasTools: true})
 	require.NoError(t, err)
-	assert.Equal(t, "z-ai/glm-5.2", got.Model)
+	assert.Equal(t, "moonshotai/kimi-k3", got.Model, "the agentic filter must demote to a harness-capable model")
 }
 
 // If the AgenticLow filter would empty the eligible pool, fall back to
@@ -995,11 +993,11 @@ func TestScorer_HasToolsFallsBackWhenAgenticFilterEmptiesPool(t *testing.T) {
 	c0[0] = 1
 	cb := buildCentroidsBlob(t, 1, dim, c0)
 	rb := []byte(`{"rankings": {"0": {
-		"z-ai/glm-5.2": 0.95
+		"deepseek/deepseek-v4-pro": 0.95
 	}}}`)
 	regb := []byte(`{
 		"deployed_models": [
-			{"model": "z-ai/glm-5.2", "provider": "aiand", "bench_column": "routerarena_minimax/minimax-m3"}
+			{"model": "deepseek/deepseek-v4-pro", "provider": "aiand", "bench_column": "routerarena_minimax/minimax-m3"}
 		]
 	}`)
 	cfg := cfgForTest()
@@ -1012,7 +1010,7 @@ func TestScorer_HasToolsFallsBackWhenAgenticFilterEmptiesPool(t *testing.T) {
 	// rather than returning an error.
 	got, err := s.Route(context.Background(), router.Request{PromptText: strings.Repeat("x", 100), HasTools: true})
 	require.NoError(t, err)
-	assert.Equal(t, "z-ai/glm-5.2", got.Model, "filter must fall back when it would empty the pool")
+	assert.Equal(t, "deepseek/deepseek-v4-pro", got.Model, "filter must fall back when it would empty the pool")
 }
 
 // If the ToolUseLow filter would empty the eligible pool, fall back to
@@ -1054,15 +1052,15 @@ func TestScorer_DeployedModelsReturnsBootCandidates(t *testing.T) {
 	for _, e := range got {
 		models = append(models, e.Model)
 	}
-	// Two-provider scorer fixture has gpt-5 + claude-opus-4-7.
-	assert.Contains(t, models, "z-ai/glm-5.2")
+	// Two-provider scorer fixture has deepseek-v4-pro + kimi-k3.
+	assert.Contains(t, models, "deepseek/deepseek-v4-pro")
 	assert.Contains(t, models, "moonshotai/kimi-k3")
 }
 
 // A bundle is frozen at training time, so its registry keeps naming models
 // the catalog has since retired (untiered). Those must not stay routable.
 func TestScorer_DropsCatalogRetiredRegistryEntries(t *testing.T) {
-	const retired = "deepseek/deepseek-v4-pro"
+	const retired = "deepseek/deepseek-v4-pro-0813"
 	m, ok := catalog.ByID(retired)
 	require.True(t, ok, "test premise: retired model is still in the catalog for passthrough")
 	require.Equal(t, catalog.TierUnknown, m.Tier, "test premise: retired model is untiered")
@@ -1072,12 +1070,12 @@ func TestScorer_DropsCatalogRetiredRegistryEntries(t *testing.T) {
 	c0[0] = 1
 	cb := buildCentroidsBlob(t, 1, dim, c0)
 	rb := []byte(`{"rankings": {"0": {
-		"deepseek/deepseek-v4-pro": 0.99,
+		"deepseek/deepseek-v4-pro-0813": 0.99,
 		"deepseek/deepseek-v4.1-flash": 0.50
 	}}}`)
 	regb := []byte(`{
 		"deployed_models": [
-			{"model": "deepseek/deepseek-v4-pro", "provider": "aiand", "bench_column": "x", "proxy": true},
+			{"model": "deepseek/deepseek-v4-pro-0813", "provider": "aiand", "bench_column": "x", "proxy": true},
 			{"model": "deepseek/deepseek-v4.1-flash", "provider": "aiand", "bench_column": "y", "proxy": true}
 		]
 	}`)

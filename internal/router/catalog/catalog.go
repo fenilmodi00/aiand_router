@@ -180,6 +180,16 @@ const (
 	ModelIDGLM53 ModelID = "z-ai/glm-5.3"
 	// ModelIDGLM53Flash is the GLM-5.3 Flash routing ID.
 	ModelIDGLM53Flash ModelID = "z-ai/glm-5.3-flash"
+	// ModelIDMotif3 is the Motif 3 routing ID.
+	ModelIDMotif3 ModelID = "motif/motif-3"
+	// ModelIDQwen3827B is the Qwen 3.8 27B routing ID.
+	ModelIDQwen3827B ModelID = "qwen/qwen3.8-27b"
+	// ModelIDQwen3627B is the Qwen 3.6 27B routing ID.
+	ModelIDQwen3627B ModelID = "qwen/qwen3.6-27b"
+	// ModelIDGemma431B is the Gemma 4 31B routing ID.
+	ModelIDGemma431B ModelID = "google/gemma-4-31b"
+	// ModelIDGPTOSS120B is the GPT-OSS 120B routing ID.
+	ModelIDGPTOSS120B ModelID = "openai/gpt-oss-120b"
 )
 
 func (id ModelID) String() string {
@@ -210,10 +220,36 @@ type Model struct {
 	// ImageInput: default ImageInputUnknown; set ImageInputUnsupported on
 	// text-only models so the scorer keeps image-bearing turns off them.
 	ImageInput ImageInput
+	// ReasoningEfforts lists the reasoning-effort levels the upstream accepts,
+	// least to most expensive. Empty means the model exposes no reasoning
+	// menu, so the emit paths send no reasoning_effort at all. "none" means
+	// the model reasons but accepts an explicit disable.
+	ReasoningEfforts []string
+	// DefaultEffort is the level used when a turn names no effort of its own.
+	// Empty means "let the upstream decide".
+	DefaultEffort string
 	// Providers is the ordered fallback list. First binding whose
 	// Provider name is in the available set wins. Must be non-empty.
 	Providers []ProviderBinding
 }
+
+// Reasoning-effort menus, least to most expensive. Shared by the rows that
+// accept the same upstream menu, so the spelling lives in one place.
+var (
+	effortsNoneHighMax        = []string{"none", "high", "max"}
+	effortsLowHighMax         = []string{"low", "high", "max"}
+	effortsNoneHigh           = []string{"none", "high"}
+	effortsNoneLowMediumXHigh = []string{"none", "low", "medium", "xhigh"}
+)
+
+// Effort level names shared with the router's canonical effort vocabulary.
+const (
+	effortLow    = "low"
+	effortMedium = "medium"
+	effortHigh   = "high"
+	effortMax    = "max"
+	effortXHigh  = "xhigh"
+)
 
 // PrimaryProvider returns the first binding's provider name. Callers that
 // don't yet thread provider through (OTel emitter, billing debit hook)
@@ -242,60 +278,85 @@ var Models = []Model{
 	// DeepSeek V4 natively serves 1,048,576 tokens; the 131_072 carried over
 	// from V3.2 was filtering requests over ~128K (excludeContextOverflowModels
 	// in proxy/service.go).
-	{ID: ModelIDDeepSeekV4Flash.String(), Source: SourceOpenSource, ContextWindow: 1_048_576, ImageInput: ImageInputUnsupported, AgenticUse: AgenticLow, Providers: []ProviderBinding{
+	{ID: ModelIDDeepSeekV4Flash.String(), Source: SourceOpenSource, Tier: TierLow, ContextWindow: 1_048_576, ImageInput: ImageInputUnsupported, AgenticUse: AgenticLow, ReasoningEfforts: effortsNoneHighMax, DefaultEffort: effortHigh, Providers: []ProviderBinding{
 		{Provider: providers.ProviderAIAND, UpstreamID: "deepseek-ai/deepseek-v4-flash",
 			Price: Pricing{InputUSDPer1M: 0.150, OutputUSDPer1M: 0.250, CacheReadMultiplier: 0.08 / 0.150}},
 	}},
 	// V4.1-Flash: 552B MoE (8B active prefill / 16B decode), natively
 	// multimodal, 1M context.
-	{ID: ModelIDDeepSeekV41Flash.String(), Source: SourceOpenSource, Tier: TierLow, ContextWindow: 1_048_576, Providers: []ProviderBinding{
+	{ID: ModelIDDeepSeekV41Flash.String(), Source: SourceOpenSource, Tier: TierLow, ContextWindow: 1_048_576, ReasoningEfforts: effortsNoneHighMax, DefaultEffort: effortHigh, Providers: []ProviderBinding{
 		{Provider: providers.ProviderAIAND, UpstreamID: "deepseek-ai/deepseek-v4.1-flash",
 			Price: Pricing{InputUSDPer1M: 0.300, OutputUSDPer1M: 0.600, CacheReadMultiplier: 0.02 / 0.300}},
 	}},
-	// Untiered: the bare alias is the OLD 0423 release; the routable one is
-	// the dated 0813 entry below, which is what AA actually benchmarks. Both
-	// stay priced and bound so session pins and /force-model still dispatch.
-	{ID: ModelIDDeepSeekV4Pro.String(), Source: SourceOpenSource, ContextWindow: 1_048_576, ImageInput: ImageInputUnsupported, Providers: []ProviderBinding{
+	// The bare alias is the OLD 0423 release; the dated 0813 entry below is
+	// what AA actually benchmarks. Both stay priced and bound so session pins
+	// and /force-model still dispatch, but only the dated one routes.
+	{ID: ModelIDDeepSeekV4Pro.String(), Source: SourceOpenSource, Tier: TierMid, ContextWindow: 1_048_576, ImageInput: ImageInputUnsupported, ReasoningEfforts: effortsNoneHighMax, DefaultEffort: effortHigh, Providers: []ProviderBinding{
 		{Provider: providers.ProviderAIAND, UpstreamID: "deepseek-ai/deepseek-v4-pro",
 			Price: Pricing{InputUSDPer1M: 1.000, OutputUSDPer1M: 2.500, CacheReadMultiplier: 0.25 / 1.000}},
 	}},
-	// The current V4-Pro release, and the one Artificial Analysis scores
+	// The dated V4-Pro release, and the one Artificial Analysis scores
 	// (agentic index 49.56; our aa_skill_scores entry already carries
-	// aa_name "DeepSeek V4 Pro 0813"). The bare deepseek/deepseek-v4-pro alias
-	// above resolves to the retired 0423 build, so the HMM roster must target
-	// this dated ID to route to what it was actually ranked on.
-	{ID: ModelIDDeepSeekV4Pro0813.String(), Source: SourceOpenSource, Tier: TierMid, ContextWindow: 1_048_576, ImageInput: ImageInputUnsupported, Providers: []ProviderBinding{
+	// aa_name "DeepSeek V4 Pro 0813"). Pin-only: the HMM roster and the
+	// scorer no longer select it automatically.
+	{ID: ModelIDDeepSeekV4Pro0813.String(), Source: SourceOpenSource, ContextWindow: 1_048_576, ImageInput: ImageInputUnsupported, ReasoningEfforts: effortsNoneHighMax, DefaultEffort: effortHigh, Providers: []ProviderBinding{
 		{Provider: providers.ProviderAIAND, UpstreamID: "deepseek-ai/deepseek-v4-pro",
 			Price: Pricing{InputUSDPer1M: 1.000, OutputUSDPer1M: 2.500, CacheReadMultiplier: 0.25 / 1.000}},
 	}},
-	// kimi-k2.7 "Code" variant: ~30% less thinking-token usage.
-	{ID: ModelIDKimiK27.String(), Source: SourceOpenSource, Tier: TierHigh, ContextWindow: 262_144, ImageInput: ImageInputUnsupported, Providers: []ProviderBinding{
+	// kimi-k2.7 "Code" variant: ~30% less thinking-token usage. Pin-only.
+	{ID: ModelIDKimiK27.String(), Source: SourceOpenSource, ContextWindow: 262_144, ImageInput: ImageInputUnsupported, Providers: []ProviderBinding{
 		{Provider: providers.ProviderAIAND, UpstreamID: "moonshotai/kimi-k2.7-code",
 			Price: Pricing{InputUSDPer1M: 0.750, OutputUSDPer1M: 3.500, CacheReadMultiplier: 0.20 / 0.750}},
 	}},
-	// kimi-k3 is a separate price class from k2.7 ($3/$15 vs $0.75/$3.50), not
-	// its successor — both stay routable. First multimodal Kimi, so unlike
-	// k2.5-k2.7 it carries no ImageInputUnsupported.
-	{ID: ModelIDKimiK3.String(), Source: SourceOpenSource, Tier: TierHigh, ContextWindow: 1_048_576, Providers: []ProviderBinding{
+	// kimi-k3 is a separate price class from k2.7 ($3/$12.50 vs $0.75/$3.50).
+	// First multimodal Kimi, so unlike k2.5-k2.7 it carries no
+	// ImageInputUnsupported.
+	{ID: ModelIDKimiK3.String(), Source: SourceOpenSource, Tier: TierHigh, ContextWindow: 1_048_576, ReasoningEfforts: effortsLowHighMax, DefaultEffort: effortMax, Providers: []ProviderBinding{
 		{Provider: providers.ProviderAIAND, UpstreamID: "moonshotai/kimi-k3",
 			Price: Pricing{InputUSDPer1M: 3.000, OutputUSDPer1M: 12.500, CacheReadMultiplier: 0.50 / 3.000}},
 	}},
-	// GLM-5.2.
-	{ID: ModelIDGLM52.String(), Source: SourceOpenSource, Tier: TierHigh, ContextWindow: 1_048_576, ImageInput: ImageInputUnsupported, Providers: []ProviderBinding{
+	// GLM-5.2. Pin-only.
+	{ID: ModelIDGLM52.String(), Source: SourceOpenSource, ContextWindow: 1_048_576, ImageInput: ImageInputUnsupported, Providers: []ProviderBinding{
 		{Provider: providers.ProviderAIAND, UpstreamID: "zai-org/glm-5.2",
 			Price: Pricing{InputUSDPer1M: 1.000, OutputUSDPer1M: 4.000, CacheReadMultiplier: 0.30 / 1.000}},
 	}},
 	// GLM-5.3: text-only (AA inputModalityImage=false). ContextWindow is
 	// 1,048,576, not 1,310,720 (Cloudflare-only) — overstating causes
 	// upstream 400 on overflow.
-	{ID: ModelIDGLM53.String(), Source: SourceOpenSource, Tier: TierHigh, ContextWindow: 1_048_576, ImageInput: ImageInputUnsupported, Providers: []ProviderBinding{
+	{ID: ModelIDGLM53.String(), Source: SourceOpenSource, Tier: TierHigh, ContextWindow: 1_048_576, ImageInput: ImageInputUnsupported, ReasoningEfforts: effortsLowHighMax, DefaultEffort: effortMax, Providers: []ProviderBinding{
 		{Provider: providers.ProviderAIAND, UpstreamID: "zai-org/glm-5.3",
 			Price: Pricing{InputUSDPer1M: 1.000, OutputUSDPer1M: 4.000, CacheReadMultiplier: 0.30 / 1.000}},
 	}},
 	// GLM-5.3-Flash: first native-multimodal (image+video) in the GLM-5 line —
 	// ImageInput stays default. Thinking cannot be disabled.
-	{ID: ModelIDGLM53Flash.String(), Source: SourceOpenSource, Tier: TierLow, ContextWindow: 1_048_576, Providers: []ProviderBinding{
+	{ID: ModelIDGLM53Flash.String(), Source: SourceOpenSource, Tier: TierLow, ContextWindow: 1_048_550, ReasoningEfforts: effortsLowHighMax, DefaultEffort: effortMax, Providers: []ProviderBinding{
 		{Provider: providers.ProviderAIAND, UpstreamID: "zai-org/glm-5.3-flash",
 			Price: Pricing{InputUSDPer1M: 0.150, OutputUSDPer1M: 0.500, CacheReadMultiplier: 0.03 / 0.150}},
+	}},
+	// Motif 3: mid-tier reasoning model, text-only.
+	{ID: ModelIDMotif3.String(), Source: SourceOpenSource, Tier: TierMid, ContextWindow: 262_144, ImageInput: ImageInputUnsupported, ReasoningEfforts: effortsNoneHigh, DefaultEffort: effortHigh, Providers: []ProviderBinding{
+		{Provider: providers.ProviderAIAND, UpstreamID: "motif-technologies/motif-3",
+			Price: Pricing{InputUSDPer1M: 0.500, OutputUSDPer1M: 2.000, CacheReadMultiplier: 0.20 / 0.500}},
+	}},
+	// Qwen 3.8 27B: mid-tier multimodal reasoner; the only catalog model that
+	// accepts the "xhigh" effort level.
+	{ID: ModelIDQwen3827B.String(), Source: SourceOpenSource, Tier: TierMid, ContextWindow: 262_144, ReasoningEfforts: effortsNoneLowMediumXHigh, DefaultEffort: effortXHigh, Providers: []ProviderBinding{
+		{Provider: providers.ProviderAIAND, UpstreamID: "qwen/qwen3.8-27b",
+			Price: Pricing{InputUSDPer1M: 0.400, OutputUSDPer1M: 3.000, CacheReadMultiplier: 0.20 / 0.400}},
+	}},
+	// Gemma 4 31B (instruct): pin-only, no published cache pricing.
+	{ID: ModelIDGemma431B.String(), Source: SourceOpenSource, ContextWindow: 262_144, ImageInput: ImageInputUnsupported, Providers: []ProviderBinding{
+		{Provider: providers.ProviderAIAND, UpstreamID: "google/gemma-4-31b-it",
+			Price: Pricing{InputUSDPer1M: 0.200, OutputUSDPer1M: 0.500}},
+	}},
+	// Qwen 3.6 27B: pin-only, no published cache pricing.
+	{ID: ModelIDQwen3627B.String(), Source: SourceOpenSource, ContextWindow: 262_144, ImageInput: ImageInputUnsupported, Providers: []ProviderBinding{
+		{Provider: providers.ProviderAIAND, UpstreamID: "qwen/qwen3.6-27b",
+			Price: Pricing{InputUSDPer1M: 0.320, OutputUSDPer1M: 3.200}},
+	}},
+	// GPT-OSS 120B: pin-only, no published cache pricing.
+	{ID: ModelIDGPTOSS120B.String(), Source: SourceOpenSource, ContextWindow: 131_072, ImageInput: ImageInputUnsupported, Providers: []ProviderBinding{
+		{Provider: providers.ProviderAIAND, UpstreamID: "openai/gpt-oss-120b",
+			Price: Pricing{InputUSDPer1M: 0.150, OutputUSDPer1M: 0.600}},
 	}},
 }

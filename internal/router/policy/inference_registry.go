@@ -28,11 +28,13 @@ const (
 	HandoverSummaryDefaultModel = "z-ai/glm-5.3-flash"
 	// PrecompactionDefaultModel is the reviewed summarizer the compaction
 	// cascade uses when the session has no warm pin; the summary is the only
-	// record of the elided history, so it is worth a mid-tier model.
-	PrecompactionDefaultModel = "z-ai/glm-5.2"
+	// record of the elided history, so it is worth a strong tiered model.
+	// It must be a tiered catalog row: the deployment's boot check refuses a
+	// compaction target that automatic routing cannot select.
+	PrecompactionDefaultModel = "z-ai/glm-5.3"
 	// PrecompactionLargeWindowModel is the big-context summarizer for
 	// histories too large for PrecompactionDefaultModel.
-	PrecompactionLargeWindowModel = "z-ai/glm-5.3"
+	PrecompactionLargeWindowModel = "deepseek/deepseek-v4-pro"
 	// UtilityHardPinDefaultProvider and UtilityHardPinDefaultModel are the
 	// reviewed fallback target of the utility hard-pin policies (title-gen,
 	// classifier, probe, sub-agent dispatch, client compaction without a
@@ -43,14 +45,12 @@ const (
 )
 
 // compactionSummarizerModels is the reviewed set both compaction purposes may
-// summarize with, in default preference order. It includes every non-low
-// catalog model so a session's warm pin can summarize its own history and so
-// ROUTER_COMPACTION_MODEL, which pins both purposes, validates once.
+// summarize with, in default preference order. It names only tiered catalog
+// rows: the compaction cascade's own eligibility check rejects a low-tier or
+// untiered model, so a pin-only row in this list could never be selected.
 var compactionSummarizerModels = []string{
 	PrecompactionDefaultModel,
 	PrecompactionLargeWindowModel,
-	"deepseek/deepseek-v4-pro-0813",
-	"moonshotai/kimi-k2.7",
 	"moonshotai/kimi-k3",
 }
 

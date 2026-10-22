@@ -47,9 +47,13 @@ func (e *ForcedModelUnknownError) Error() string {
 // Unwrap ties the typed error to ErrForcedModelUnknown for errors.Is.
 func (e *ForcedModelUnknownError) Unwrap() error { return ErrForcedModelUnknown }
 
+// forceModelAliases maps a human-typed name to a catalog model ID. Every
+// target must be a live catalog row: an alias naming a model the upstream
+// no longer publishes would resolve to nothing and fail the request.
 var forceModelAliases = map[string]string{
-	// Opus family aliases follow 5.5; Opus 5's own-name aliases keep
-	// resolving so existing direct pins still serve.
+	// Claude family aliases follow GLM-5.2, the strongest model in the
+	// catalog; the older Opus names keep resolving so existing direct pins
+	// still serve.
 	"anthropic":   "z-ai/glm-5.2",
 	"claude":      "z-ai/glm-5.2",
 	"opus":        "z-ai/glm-5.2",
@@ -64,14 +68,11 @@ var forceModelAliases = map[string]string{
 	"opus-5.0":    "z-ai/glm-5.2",
 	"opus5":       "z-ai/glm-5.2",
 	"claude-5":    "z-ai/glm-5.2",
-	// Opus 4.8 is retired from routing but still servable as passthrough;
-	// keep its own-name aliases so direct pins resolve.
-	"opus-4-8":   "z-ai/glm-5.2",
-	"opus-4.8":   "z-ai/glm-5.2",
-	"claude-4-8": "z-ai/glm-5.2",
-	"claude-4.8": "z-ai/glm-5.2",
-	// Fable family aliases follow 5.1; Fable 5's own-name aliases keep
-	// resolving so existing direct pins still serve.
+	"opus-4-8":    "z-ai/glm-5.2",
+	"opus-4.8":    "z-ai/glm-5.2",
+	"claude-4-8":  "z-ai/glm-5.2",
+	"claude-4.8":  "z-ai/glm-5.2",
+	// Fable family aliases follow GLM-5.2 as well.
 	"fable":        "z-ai/glm-5.2",
 	"claude-fable": "z-ai/glm-5.2",
 	"fable-5.1":    "z-ai/glm-5.2",
@@ -80,8 +81,8 @@ var forceModelAliases = map[string]string{
 	"fable51":      "z-ai/glm-5.2",
 	"fable-5":      "z-ai/glm-5.2",
 	"fable5":       "z-ai/glm-5.2",
-	// Sonnet family aliases follow 5.5; Sonnet 5's own-name aliases keep
-	// resolving so existing direct pins still serve.
+	// Sonnet family aliases follow DeepSeek V4 Pro; Sonnet 4.6 follows the
+	// V4.1 Flash.
 	"sonnet":        "deepseek/deepseek-v4-pro",
 	"claude-sonnet": "deepseek/deepseek-v4-pro",
 	"sonnet-5.5":    "deepseek/deepseek-v4-pro",
@@ -99,108 +100,48 @@ var forceModelAliases = map[string]string{
 	"haiku55":       "z-ai/glm-5.3-flash",
 	"haiku-4-5":     "z-ai/glm-5.3-flash",
 	"haiku-4.5":     "z-ai/glm-5.3-flash",
-	// Generic GPT aliases follow the current flagship, not a pinned version;
-	// they pointed at gpt-5.5 until it was retired. Version-specific aliases
-	// (gpt-5-5*) deliberately still resolve to their exact model, which stays
-	// available as priced passthrough.
-	"gpt":        "gpt-6.1-sol",
-	"openai":     "gpt-6.1-sol",
-	"gpt-6":      "gpt-6-astra",
-	"gpt6":       "gpt-6-astra",
-	"gpt-6astra": "gpt-6-astra",
-	"astra":      "gpt-6-astra",
-	// Bare sol/luna follow the GPT-6 generation; gpt-5-6-* keeps the 5.6 rows.
-	"sol":         "gpt-6.1-sol",
-	"gpt-6-1-sol": "gpt-6.1-sol",
-	"gpt6sol":     "gpt-6-sol",
-	"gpt-6sol":    "gpt-6-sol",
-	"luna":        "gpt-6-luna",
-	"gpt6luna":    "gpt-6-luna",
-	"gpt-6luna":   "gpt-6-luna",
-	// The bare gpt-5.6 alias routes to Sol, matching OpenAI's own alias.
-	"gpt-5.6":       "gpt-5.6-sol",
-	"gpt-5-6":       "gpt-5.6-sol",
-	"gpt-5-6-sol":   "gpt-5.6-sol",
-	"terra":         "gpt-5.6-terra",
-	"gpt-5-6-terra": "gpt-5.6-terra",
-	"gpt-5-6-luna":  "gpt-5.6-luna",
-	"gpt-5-5":       "gpt-5.5",
-	"gpt-5-5-pro":   "gpt-5.5-pro",
-	"gpt-5-5-mini":  "gpt-5.5-mini",
-	"gpt-5-5-nano":  "gpt-5.5-nano",
-	// grok-4.5 is retired from routing (no AA Agentic Index score, never rostered).
-	// Family aliases follow flagship 4.7; own-name aliases keep older models as passthrough.
-	"grok":                  "grok-4.7",
-	"grok-4.5":              "grok-4.5",
-	"grok4.5":               "grok-4.5",
-	"xai":                   "grok-4.7",
-	"grok-4.6":              "grok-4.6",
-	"grok4.6":               "grok-4.6",
-	"grok-4.7":              "grok-4.7",
-	"grok4.7":               "grok-4.7",
-	"grok-max":              "grok-4.7",
-	"muse-spark-1.3":        "muse-spark-1.3",
-	"muse-spark-1-3":        "muse-spark-1.3",
-	"musespark-1.3":         "muse-spark-1.3",
-	"musespark":             "muse-spark-1.3",
-	"muse-spark":            "muse-spark-1.3",
-	"muse":                  "muse-spark-1.3",
-	"meta":                  "muse-spark-1.3",
-	"gpt-5-4":               "gpt-5.4",
-	"gpt-5-4-pro":           "gpt-5.4-pro",
-	"gpt-5-4-mini":          "gpt-5.4-mini",
-	"gpt-5-4-nano":          "gpt-5.4-nano",
-	"google":                "gemini-3.1-pro-preview",
-	"gemini":                "gemini-3.1-pro-preview",
-	"gemini-pro":            "gemini-3.1-pro-preview",
-	"gemini-flash":          "gemini-3.8-flash",
-	"gemini-3-6-flash":      "gemini-3.6-flash",
-	"gemini-3-5-flash-lite": "gemini-3.5-flash-lite",
-	"gemini-3-7-flash":      "gemini-3.7-flash",
-	"gemini-3-8-flash":      "gemini-3.8-flash",
-	// V4 Flash is retired on Makora. Explicit version pins stay versioned.
+	// The GPT family follows the one OpenAI-named row the upstream publishes.
+	"gpt":          "openai/gpt-oss-120b",
+	"openai":       "openai/gpt-oss-120b",
+	"gpt-oss-120b": "openai/gpt-oss-120b",
+	// Google family follows Gemma 4 31B.
+	"google":      "google/gemma-4-31b",
+	"gemma":       "google/gemma-4-31b",
+	"gemma-4":     "google/gemma-4-31b",
+	"gemma-4-31b": "google/gemma-4-31b",
+	// DeepSeek family follows V4.1 Flash; explicit version pins stay exact.
 	"deepseek":            "deepseek/deepseek-v4.1-flash",
 	"deepseek-pro":        "deepseek/deepseek-v4-pro-0813",
 	"deepseek-flash":      "deepseek/deepseek-v4.1-flash",
 	"deepseek-v4-1-flash": "deepseek/deepseek-v4.1-flash",
 	"deepseek-v4p1-flash": "deepseek/deepseek-v4.1-flash",
-	// Generic Qwen follows the current flagship; coder remains a specialized alias.
-	"qwen":       "qwen/qwen3.8-max",
-	"qwen-coder": "qwen/qwen3-coder",
-	// qwen3.7-plus is retired from routing but still servable as passthrough;
-	// keep its own-name alias so direct pins resolve.
-	"qwen3.7-plus": "qwen/qwen3.7-plus",
-	"qwen-max":     "qwen/qwen3.8-max",
-	"qwen3.8-max":  "qwen/qwen3.8-max",
-	"qwen3.8":      "qwen/qwen3.8-max",
-	// Dash-form spellings people type from memory; the catalog ID uses dots.
-	"qwen/qwen-3.8-max": "qwen/qwen3.8-max",
-	"qwen-3.8-max":      "qwen/qwen3.8-max",
-	"qwen-3.8":          "qwen/qwen3.8-max",
-	// Generic Kimi aliases follow K3; version-specific K2 pins stay exact.
+	// Qwen family follows 3.8 27B.
+	"qwen":              "qwen/qwen3.8-27b",
+	"qwen3.8-27b":       "qwen/qwen3.8-27b",
+	"qwen-3.8-27b":      "qwen/qwen3.8-27b",
+	"qwen/qwen-3.8-27b": "qwen/qwen3.8-27b",
+	"qwen3.6":           "qwen/qwen3.6-27b",
+	"qwen3.6-27b":       "qwen/qwen3.6-27b",
+	// Motif family.
+	"motif":   "motif/motif-3",
+	"motif-3": "motif/motif-3",
+	// Kimi aliases follow K3; the K2.7 pin stays exact.
 	"kimi":      "moonshotai/kimi-k3",
 	"kimi-k3":   "moonshotai/kimi-k3",
 	"kimi-k2.7": "moonshotai/kimi-k2.7",
-	"kimi-k2.6": "moonshotai/kimi-k2.6",
-	// Generic GLM aliases follow 5.3; version-specific pins stay exact.
+	// GLM aliases follow 5.3; version-specific pins stay exact.
 	"glm":           "z-ai/glm-5.3",
 	"zai":           "z-ai/glm-5.3",
 	"z-ai":          "z-ai/glm-5.3",
 	"glm-5.3-flash": "z-ai/glm-5.3-flash",
 	"glm-5.3":       "z-ai/glm-5.3",
 	"glm-5.2":       "z-ai/glm-5.2",
-	"glm-5.1":       "z-ai/glm-5.1",
-	"glm-5":         "z-ai/glm-5",
-	"minimax":       "minimax/minimax-m3",
-	"minimax-m3":    "minimax/minimax-m3",
-	"minimax-m2.7":  "minimax/minimax-m2.7",
-	"mistral":       "mistralai/mistral-small-2603",
 }
 
 // forceModelExamples follows the family aliases so the unknown-model hint
 // never names a retired release.
-var forceModelExamples = fmt.Sprintf("opus, %s, %s, or %s",
-	forceModelAliases["opus"], forceModelAliases["gpt"], forceModelAliases["gemini"])
+var forceModelExamples = fmt.Sprintf("opus, %s, or %s",
+	forceModelAliases["qwen"], forceModelAliases["glm"])
 
 // resolveForceModel is the legacy two-return surface. New pin-and-effort
 // callers use resolveForceModelWithEffort.
