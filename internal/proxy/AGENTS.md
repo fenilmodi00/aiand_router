@@ -33,7 +33,6 @@ The per-action flow is more than "scorer → dispatch". Pinned session, planner 
 | STAY vs SWITCH | [`../router/planner`](../router/planner) | Cache-aware EV policy |
 | Handover summary on SWITCH | [`../router/handover`](../router/handover) | Bounds switch-action input cost |
 | Semantic response cache | [`../router/cache`](../router/cache) | Cross-request, non-streaming only |
-| Subscription strict pass-through gate | [`usage`](usage) | See [`usage/CLAUDE.md`](usage/CLAUDE.md) |
 
 The provider-backed `Summarizer` implementation for handover lives in [`handover.go`](handover.go); the inner-ring `handover` package only defines the contract. On summarizer timeout or error, proxy keeps the full prior history unchanged (it does **not** trim) — a pricier switch action beats silently dropping the conversation the switched-to model needs.
 
@@ -326,7 +325,6 @@ OpenAI/Gemini surfaces is a wiring change plus their own frame.
 
 ## Upstream response-header observation
 
-Proxy attaches a `providers.UpstreamHeaderObserver` to the request context. Provider adapters call `providers.ObserveUpstreamHeaders` as soon as a response arrives, allowing subscription-limit tracking without coupling the adapters to proxy internals. **Don't add a provider that forgets to report the headers.**
 
 ## What NOT to do
 
