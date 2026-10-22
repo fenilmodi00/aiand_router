@@ -14,7 +14,7 @@ There is one upstream. `ai&` speaks OpenAI Chat Completions with bearer auth, so
 
 ## Request-scoped context
 
-Provider adapters read per-request credentials (`Credentials`, `EffectiveBaseURL`, `ApplyModelAlias`), caller identity, and forwarded/baggage headers from the inner-ring `internal/requestcontext` package. Adapters must not import `internal/proxy`; `internal/architecture` fails the build if one does. Upstream response headers are reported through `providers.ObserveUpstreamHeaders`, whose observer is attached by proxy without coupling adapters to proxy internals.
+Provider adapters read per-request credentials (`Credentials`, `EffectiveBaseURL`, `ApplyModelAlias`), caller identity, and forwarded/baggage headers from the inner-ring `internal/requestcontext` package. Adapters must not import `internal/proxy`; `internal/architecture` fails the build if one does.
 
 ## Adding a second upstream
 
