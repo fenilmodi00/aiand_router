@@ -63,7 +63,6 @@ type FallbackSpec struct {
 // PolicySpec is the checked-in, reviewable policy for one purpose.
 type PolicySpec struct {
 	Optional           bool              `json:"optional,omitempty"`
-	FixedProvider      string            `json:"fixed_provider,omitempty"`
 	Purpose            Purpose           `json:"purpose"`
 	DispatchClass      DispatchClass     `json:"dispatch_class"`
 	PolicyID           PolicyID          `json:"policy_id"`
@@ -180,9 +179,6 @@ func validatePolicySpecs(specs []PolicySpec) error {
 		}
 		if !validDispatchClass(spec.DispatchClass) || !validSelectionStrategy(spec.SelectionStrategy) || !validCandidateSource(spec.CandidateSource) || !validBudgetSource(spec.Budget.Source) || !validFallbackKind(spec.Fallback.Kind) || !validMigrationStatus(spec.MigrationStatus) {
 			return fmt.Errorf("policy %q contains an invalid typed value", spec.PolicyID)
-		}
-		if spec.FixedProvider != "" && spec.SelectionStrategy != SelectionStrategyFixedCatalog {
-			return fmt.Errorf("policy %q requires a provider outside fixed catalog selection", spec.PolicyID)
 		}
 		if spec.SelectionStrategy == SelectionStrategyFixedCatalog && len(spec.FixedCatalogModels) == 0 {
 			return fmt.Errorf("fixed policy %q has no catalog models", spec.PolicyID)

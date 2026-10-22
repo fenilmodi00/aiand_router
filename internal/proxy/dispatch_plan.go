@@ -155,14 +155,6 @@ func (s *Service) dispatchPlanned(ctx context.Context, in failoverInputs, plan i
 			return dispatchAbort{err: subscriptionOnlyUnavailable(ctx)}
 		}
 		attemptErr := in.attempt(credentialCtx, decision, guarded)
-		if attemptErr != nil {
-			// Health bookkeeping must persist even if the caller has gone.
-			bookkeepingCtx := context.WithoutCancel(credentialCtx)
-			if !committed(in.buf) {
-				s.recordSubscriptionModelRejection(bookkeepingCtx, decision.Provider, decision.Model, attemptErr)
-			}
-
-		}
 		if attemptErr == nil {
 			if usage, _ := ctx.Value(ManagedSubscriptionUsageContextKey{}).(*ManagedSubscriptionUsage); usage != nil {
 				usage.WinningCredentials = requestcontext.CredentialsFromContext(credentialCtx)

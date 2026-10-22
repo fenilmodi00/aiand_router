@@ -23,13 +23,12 @@ const TopUpURL = "https://app.workweave.ai/organization/settings/weave-router"
 // Behavior (evaluated in order):
 //   - Override row present → pass through; flag the request context so
 //     the proxy's debit hook writes a delta=0 ledger row.
-//   - Balance ≤ minBalanceMicros (or no balance row) → HTTP 402 unless
-//     the request presents a validated Claude/Codex subscription credential
-//     covering this route. Subscription-covered requests pass through flagged
-//     subscription-only (billing.WithSubscriptionOnly), so the proxy serves them
-//     on the caller's own subscription or refuses them, never on a paid model.
-//     Override detection above still runs.
+//   - Balance ≤ minBalanceMicros (or no balance row) → HTTP 402.
 //   - Otherwise → pass through.
+//
+// No turn is ever funded by a caller subscription, so there is no
+// subscription exemption: every turn either debits the org's prepaid balance
+// or is rejected.
 //
 // The balance read is a single indexed SELECT (~2-5ms in-region). Any
 // repo error fails closed with HTTP 503: in a prepaid credit system,
@@ -79,24 +78,9 @@ func WithBalanceCheck(svc *billing.Service, minBalanceMicros int64) gin.HandlerF
 
 		orgID := installation.ExternalID
 
-		// Subscription turns debit $0 (cost.subscription_served), so gating them on
-		// prepaid credits is wrong. The check depends only on whether the request
-		// presents a covering credential — not on UsageBypassEnabled (routing config,
-		// not billing config).
-		subscriptionExempt := proxy.RequestPresentsCoveringSubscription(c.Request.Context(), c.Request.Header, c.FullPath())
-
 		result, err := svc.CheckBalance(c.Request.Context(), orgID)
 		if err != nil {
 			if errors.Is(err, billing.ErrBalanceRowMissing) {
-				// A subscription-only org may never have had a balance
-				// row; its turns are free, so exempt them here too.
-				if subscriptionExempt {
-					log.Warn("Balance row missing: serving subscription-only, paid failover disabled",
-						"organization_id", orgID)
-					c.Request = c.Request.WithContext(billing.WithSubscriptionOnly(c.Request.Context(), billing.SubscriptionOnlyCreditsDepleted))
-					c.Next()
-					return
-				}
 				log.Info("Balance check rejected: balance row missing", "organization_id", orgID)
 				c.AbortWithStatusJSON(http.StatusPaymentRequired, gin.H{
 					"error":              "insufficient_credits",
@@ -128,26 +112,10 @@ func WithBalanceCheck(svc *billing.Service, minBalanceMicros int64) gin.HandlerF
 		threshold := minBalanceMicros
 
 		if result.BalanceMicros <= threshold {
-			// A subscription-covered request at or below the prepaid threshold is not
-			// 402'd: 402ing here would block traffic that serves for free on the
-			// caller's own subscription. Flag it subscription-only so the proxy
-			// serves on the subscription (or refuses a would-be-paid turn) and
-			// never fails over to a paid model.
-			if subscriptionExempt {
-				log.Warn("Balance depleted: serving subscription-only, paid failover disabled",
-					"organization_id", orgID,
-					"balance_usd_micros", result.BalanceMicros,
-					"threshold_usd_micros", threshold,
-				)
-				c.Request = c.Request.WithContext(billing.WithSubscriptionOnly(c.Request.Context(), billing.SubscriptionOnlyCreditsDepleted))
-				c.Next()
-				return
-			}
 			log.Info("Balance check rejected: balance at or below threshold",
 				"organization_id", orgID,
 				"balance_usd_micros", result.BalanceMicros,
 				"threshold_usd_micros", threshold,
-				"subscription_exempt", subscriptionExempt,
 			)
 			c.AbortWithStatusJSON(http.StatusPaymentRequired, gin.H{
 				"error":              "insufficient_credits",

@@ -69,8 +69,7 @@ type Service struct {
 	recoveryProbeLeases map[string]localRecoveryProbeLease
 	nextRecoveryProbeID uint64
 
-	router             router.Router
-	subscriptionModels subscriptionModelAccess
+	router router.Router
 	// strategies contains every non-default router and its optional lifecycle
 	// reporters. Adding a strategy does not require another Service field.
 	strategies map[router.Strategy]registeredStrategy
@@ -3181,7 +3180,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	if err != nil {
 		return err
 	}
-	ctx, err = s.checkUserMonthlySpendLimit(ctx, r.Header, r.URL.Path)
+	ctx, err = s.checkUserMonthlySpendLimit(ctx)
 	if err != nil {
 		return err
 	}
@@ -4472,7 +4471,6 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		flushDeferredErr()
 	}
 
-	subscriptionFailoverUsed = subscriptionFailoverUsed || subscriptionCredentialFallbackUsed(ctx)
 	finalProvider := primaryProvider
 	if subscriptionStateWinnerProvider != "" {
 		finalProvider = subscriptionStateWinnerProvider
@@ -5972,7 +5970,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		return returnErr
 	}
 	ctx = requestcontext.WithContentLogging(ctx, s.effectiveCaptureMode(ctx) != CaptureOff)
-	ctx, err := s.checkUserMonthlySpendLimit(ctx, r.Header, r.URL.Path)
+	ctx, err := s.checkUserMonthlySpendLimit(ctx)
 	if err != nil {
 		return err
 	}
@@ -6833,7 +6831,6 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	}
 	var winnerIdx int
 	var subscriptionStateWinnerProvider string
-	subscriptionStatePaidTargetAttempted := false
 	// A released prelude can only take an SSE error frame, so every dispatch in
 	// the chain renders through this — a JSON envelope appended to a live stream
 	// is unparseable to the client.
@@ -6882,9 +6879,6 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 			marker = subscriptionTargetMarker(ctx, r.Header, routeRes, primaryDecision, target, pickedMarker)
 			decision = target
 			bindings = targetBindings
-		},
-		onSubscriptionStatePaidTarget: func(router.Decision, []catalog.ProviderBinding) {
-			subscriptionStatePaidTargetAttempted = true
 		},
 		bindings:               bindings,
 		attempt:                attempt,

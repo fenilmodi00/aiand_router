@@ -88,9 +88,6 @@ func (r Registry) ValidateDeployment(config DeploymentPolicyConfig) error {
 				models = []string{override.CatalogID}
 			}
 			requiredProvider := override.Provider
-			if spec.FixedProvider != "" {
-				requiredProvider = spec.FixedProvider
-			}
 			if !deploymentCanResolve(models, requiredProvider, config.AvailableProviders) {
 				return fmt.Errorf("deployment inference policy %q has no available fixed catalog binding", spec.PolicyID)
 			}

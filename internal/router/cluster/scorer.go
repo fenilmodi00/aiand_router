@@ -134,8 +134,7 @@ func NewScorer(bundle *Bundle, cfg Config, embed Embedder, availableProviders ma
 	if len(candidates) == 0 {
 		return nil, fmt.Errorf(
 			"cluster %s: no deployed entry matches the registered providers %v; "+
-				"add a provider key (ANTHROPIC_API_KEY / OPENAI_API_KEY / "+
-				"OPENROUTER_API_KEY / GOOGLE_API_KEY) or re-run train_cluster_router.py to "+
+				"add a provider key (AIAND_API_KEY) or re-run train_cluster_router.py to "+
 				"include a model from a registered provider",
 			bundle.Version, sortedKeys(availableProviders),
 		)
@@ -892,8 +891,8 @@ func (s *Scorer) Route(ctx context.Context, req router.Request) (router.Decision
 		}
 	}
 	// Per-request resolved binding may differ from the boot-time default
-	// (e.g. a self-hoster with only OPENROUTER_API_KEY served by a row whose
-	// primary binding is bedrock).
+	// (e.g. a deployment whose available providers resolve a row to a
+	// different binding than the one recorded at boot).
 	chosenProvider := chosen.Provider
 	if p, ok := resolvedProvider[chosen.Model]; ok {
 		chosenProvider = p

@@ -3,7 +3,6 @@ package proxy
 import (
 	"context"
 	"fmt"
-	"net/http"
 
 	"weave-os/router/internal/auth"
 	"weave-os/router/internal/billing"
@@ -15,14 +14,9 @@ import (
 // spend limit. Runs inside the proxy (not middleware) because user identity is
 // resolved by the handler after the middleware chain; no identity passes through.
 //
-// The cap bounds PAID spend, not free subscription usage: a covered turn on a
-// usage-bypass org (a Claude/Codex credential that covers routePath) is not
-// rejected when the cap is reached. Instead it returns a subscription-only
-// ctx (billing.WithSubscriptionOnly) so the proxy serves it on the caller's
-// own plan — or refuses a would-be-paid turn with the controlled 402 — never
-// on a paid model. Mirrors middleware.WithBalanceCheck's exemption. Returns the
-// (possibly flagged) ctx the rest of the turn must use.
-func (s *Service) checkUserMonthlySpendLimit(ctx context.Context, headers http.Header, routePath string) (context.Context, error) {
+// The cap bounds PAID spend. No turn is ever funded by a caller subscription,
+// so there is no exemption for one: a turn at the cap is rejected.
+func (s *Service) checkUserMonthlySpendLimit(ctx context.Context) (context.Context, error) {
 	if s.billing == nil {
 		return ctx, nil
 	}
@@ -51,19 +45,6 @@ func (s *Service) checkUserMonthlySpendLimit(ctx context.Context, headers http.H
 		return ctx, fmt.Errorf("%w: %v", billing.ErrSpendLimitCheckUnavailable, err)
 	}
 	if result.LimitReached() {
-		// Cap reached but the caller's own subscription covers this route: don't
-		// 402 free traffic. Flag subscription-only so the proxy serves on the
-		// subscription (or refuses a would-be-paid turn), bounding paid spend at
-		// the cap while subscription usage keeps flowing.
-		if RequestPresentsCoveringSubscription(ctx, headers, routePath) {
-			observability.FromContext(ctx).Info("Engineer monthly cap reached but subscription covers the route: serving subscription-only",
-				"organization_id", orgID,
-				"router_user_id", userID,
-				"spent_usd_micros", result.SpentMicros,
-				"monthly_limit_usd_micros", *result.LimitMicros,
-			)
-			return billing.WithSubscriptionOnly(ctx, billing.SubscriptionOnlySpendCapReached), nil
-		}
 		observability.FromContext(ctx).Info("Request rejected: engineer monthly spend limit reached",
 			"organization_id", orgID,
 			"router_user_id", userID,

@@ -1,6 +1,6 @@
 ---
 name: test-claude-locally
-description: Run the Weave router locally in docker compose and drive it with `claude -p` to reproduce and verify routing/translation behavior for a specific upstream model (e.g. GLM-5.1, DeepSeek, Qwen). Use when verifying a router fix end-to-end, reproducing a prod routing bug, confirming a model's streaming behavior (nudges, tool-call suppression, loop/no-progress breaks), or testing a `/force-model` route — without touching the user's global Claude Code config.
+description: Run the Weave router locally in docker compose and drive it with `claude -p` to reproduce and verify routing/translation behavior for a specific upstream model (e.g. GLM-5.3, DeepSeek, Kimi). Use when verifying a router fix end-to-end, reproducing a prod routing bug, confirming a model's streaming behavior (nudges, tool-call suppression, loop/no-progress breaks), or testing a `/force-model` route — without touching the user's global Claude Code config.
 ---
 
 ---
@@ -20,7 +20,7 @@ Stand up the router in docker compose, point a one-off `claude -p` session at it
 - **`claude -p` is stateless across invocations.** A standalone `/force-model` call does not persist to the next `claude -p`. Put `/force-model <model>` as the first line of the SAME prompt that contains the task.
 - **The router ignores the request's `model` field** and routes via the cluster scorer. The ONLY way to pin a specific model is `/force-model` through a Claude Code session (raw curl cannot).
 - **Port 8085 conflict.** The monorepo's pubsub emulator may already own host port 8085. Drop the router's host binding with a `docker-compose.override.yml` (see workflow). The server still reaches the emulator over the compose network.
-- **No credits / no key = no reproduction.** If the real upstream returns an error (e.g. OpenRouter "Insufficient credits"), use the mock-upstream path instead.
+- **No credits / no key = no reproduction.** If the real upstream returns an error (e.g. ai& "Insufficient credits"), use the mock-upstream path instead.
 
 ## Workflow
 
@@ -92,7 +92,7 @@ EOF
 ```bash
 cd <scratch-dir-with-files-to-act-on>
 env -u CLAUDE_CODE_SESSION_ID -u ANTHROPIC_BASE_URL -u ANTHROPIC_CUSTOM_HEADERS \
-  claude -p 'First send exactly: /force-model z-ai/glm-5.1
+  claude -p 'First send exactly: /force-model z-ai/glm-5.3
 Then <task that requires tool use>, then stop.' \
   --settings /tmp/local-settings.json --max-turns 10 --verbose
 ```
@@ -103,7 +103,7 @@ The decision + completion log per action (one `ProxyMessages complete`) carries 
 
 ```bash
 docker compose logs server --since=3m 2>&1 | sed -E 's/\x1b\[[0-9;]*m//g' \
-  | grep 'ProxyMessages complete' | grep 'decision_model=z-ai/glm-5.1'
+  | grep 'ProxyMessages complete' | grep 'decision_model=z-ai/glm-5.3'
 ```
 
 Useful fields: `decision_model`, `decision_provider`, `upstream_finish_reason`, `suppressed_tool_calls`, `text_only_turn_nudged`, `tool_use_blocks`, `resp_stop_reason`, `stop_reason_demoted`. Also grep for `recovery nudge`, `tool-call loop`, `no-progress`.
@@ -146,7 +146,8 @@ For fixes to `internal/billing` + `internal/server/middleware/balance_check.go` 
 ## Notes
 
 - Local cluster version comes from `ROUTER_CLUSTER_VERSION` in `.env.local`; it may differ from prod, which is why `/force-model` (not the scorer) is the reliable way to hit one model.
-- GLM-5.1's primary binding is Together (then Fireworks, then OpenRouter) — see `internal/router/catalog/catalog.go`.
+- The router dispatches to a single provider, `aiand`; every catalog model's
+  binding points at it — see `internal/router/catalog/catalog.go`.
 - To confirm a deploy contains a given router commit: the prod Cloud Run revision name maps to a monorepo commit; `git ls-tree <monorepo-commit> router-internal/router` shows the pinned router submodule SHA.
 
 ## Content-capture and stdout privacy checks
