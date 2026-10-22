@@ -120,13 +120,7 @@ SELECT
     t.reasoning_tokens,
     t.speed,
     t.inference_geo,
-    -- No turn is served on a subscription credential any more: the router
-    -- only ever records the byok/client credential sources. The flag stays
-    -- in the export shape so consumers keep a stable column.
-    false AS subscription_served,
     t.credential_source,
-    t.intended_model_family,
-    t.final_model_family,
     t.actual_input_cost_usd,
     t.actual_output_cost_usd,
     t.route_latency_ms,
@@ -231,10 +225,7 @@ type GetRoutingDecisionsForExportRow struct {
 	ReasoningTokens                 *int32
 	Speed                           *string
 	InferenceGeo                    *string
-	SubscriptionServed              bool
 	CredentialSource                *string
-	IntendedModelFamily             *string
-	FinalModelFamily                *string
 	ActualInputCostUsd              *int64
 	ActualOutputCostUsd             *int64
 	RouteLatencyMs                  *int64
@@ -326,13 +317,7 @@ type GetRoutingDecisionsForExportRow struct {
 //	    t.reasoning_tokens,
 //	    t.speed,
 //	    t.inference_geo,
-//	    -- No turn is served on a subscription credential any more: the router
-//	    -- only ever records the byok/client credential sources. The flag stays
-//	    -- in the export shape so consumers keep a stable column.
-//	    false AS subscription_served,
 //	    t.credential_source,
-//	    t.intended_model_family,
-//	    t.final_model_family,
 //	    t.actual_input_cost_usd,
 //	    t.actual_output_cost_usd,
 //	    t.route_latency_ms,
@@ -442,10 +427,7 @@ func (q *Queries) GetRoutingDecisionsForExport(ctx context.Context, arg GetRouti
 			&i.ReasoningTokens,
 			&i.Speed,
 			&i.InferenceGeo,
-			&i.SubscriptionServed,
 			&i.CredentialSource,
-			&i.IntendedModelFamily,
-			&i.FinalModelFamily,
 			&i.ActualInputCostUsd,
 			&i.ActualOutputCostUsd,
 			&i.RouteLatencyMs,
