@@ -1,0 +1,32 @@
+{
+  "method": "POST",
+  "path": "/v1/chat/completions",
+  "status_code": 200,
+  "headers": {
+    "Access-Control-Allow-Credentials": "true",
+    "Access-Control-Expose-Headers": "traceparent,X-Request-ID,X-Cost,X-Cost-Currency,X-Inference-Ms,X-Reasoning-Effort,X-Model,x-ratelimit-limit-requests,x-ratelimit-remaining-requests,x-ratelimit-reset-requests,x-ratelimit-limit-tokens,x-ratelimit-remaining-tokens,x-ratelimit-reset-tokens,x-ratelimit-limit-output-tokens,x-ratelimit-remaining-output-tokens,x-ratelimit-reset-output-tokens,x-ratelimit-limit-concurrency,x-ratelimit-remaining-concurrency,x-ratelimit-limit-global-requests,x-ratelimit-remaining-global-requests,x-ratelimit-reset-global-requests,x-ratelimit-limit-global-concurrency,x-ratelimit-remaining-global-concurrency,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Policy,Retry-After",
+    "Content-Type": "application/json",
+    "Date": "Thu, 22 Oct 2026 16:55:35 GMT",
+    "Server": "cloudflare",
+    "Server-Timing": "cfEdge;dur=53,cfOrigin;dur=0,cfWorker;dur=1264",
+    "Strict-Transport-Security": "max-age=2592000",
+    "Traceparent": "00-6de477e3812a01585247a350e359a7e0-f80dcc8790c2abb4-01",
+    "Vary": "Origin",
+    "X-Model": "zai-org/glm-5.2",
+    "X-Org-Id": "bd15b137-fc67-4ca0-87c1-08ca66f40037",
+    "X-Processing-Ms": "1240",
+    "X-Ratelimit-Limit": "100",
+    "X-Ratelimit-Limit-Concurrency": "100",
+    "X-Ratelimit-Limit-Global-Concurrency": "100",
+    "X-Ratelimit-Limit-Global-Requests": "10000",
+    "X-Ratelimit-Limit-Output-Tokens": "10000000",
+    "X-Ratelimit-Remaining": "99",
+    "X-Ratelimit-Remaining-Concurrency": "99",
+    "X-Ratelimit-Remaining-Global-Concurrency": "99",
+    "X-Ratelimit-Remaining-Global-Requests": "9999",
+    "X-Ratelimit-Remaining-Output-Tokens": "10000000",
+    "X-Ratelimit-Reset-Global-Requests": "1s",
+    "X-Ratelimit-Reset-Output-Tokens": "0s"
+  },
+  "body": "{\"id\":\"chatcmpl-bdb4d4a7-feea-4e8d-b468-f8555fe77a11\",\"object\":\"chat.completion\",\"created\":1792688135,\"model\":\"zai-org/glm-5.2\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"ok\",\"refusal\":null,\"annotations\":null,\"audio\":null,\"function_call\":null,\"reasoning\":null,\"reasoning_content\":null},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"service_tier\":null,\"usage\":{\"prompt_tokens\":8513,\"total_tokens\":8516,\"completion_tokens\":3,\"prompt_tokens_details\":{\"cached_tokens\":0},\"completion_tokens_details\":{\"reasoning_tokens\":0}}}"
+}

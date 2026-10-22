@@ -452,7 +452,7 @@ func TestFastestModel_RealLatestBundle_LowTierResolves(t *testing.T) {
 // must not widen the candidate roster: only the bundle's roster is pickable.
 func TestFastestModelForRequest_CustomBindingsDoNotWidenRoster(t *testing.T) {
 	const aliased = "z-ai/glm-5.3-flash"
-	const unaliased = "z-ai/glm-5.2"
+	const unaliased = "moonshotai/kimi-k3"
 	registry := &ModelRegistry{
 		DeployedModels: []DeployedEntry{
 			{Model: aliased, Provider: providers.ProviderAIAND},
@@ -473,7 +473,7 @@ func TestFastestModelForRequest_CustomBindingsDoNotWidenRoster(t *testing.T) {
 	t.Run("custom bindings must not widen the roster for direct-vendor keys", func(t *testing.T) {
 		_, m, ok := FastestModelForRequest(registry,
 			map[string]struct{}{providers.ProviderAIAND: {}}, nil, nil, RequestBindings{
-				Custom: map[string][]string{"z-ai/glm-5.2": {providers.ProviderAIAND}},
+			Custom: map[string][]string{"moonshotai/kimi-k3": {providers.ProviderAIAND}},
 			})
 		require.True(t, ok)
 		assert.Equal(t, aliased, m, "custom bindings must not widen the roster for direct-vendor keys")

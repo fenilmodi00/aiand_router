@@ -280,7 +280,7 @@ func TestRegistryValidatesDeploymentTargets(t *testing.T) {
 	// An untiered catalog row exists but is not a routing target, so a
 	// deployment target naming it is refused as not routable.
 	config = validDeploymentPolicyConfig()
-	config.TargetOverrides[0].Target.CatalogID = "deepseek/deepseek-v4-pro"
+	config.TargetOverrides[0].Target.CatalogID = "deepseek/deepseek-v4-pro-0813"
 	err = policy.DefaultRegistry().ValidateDeployment(config)
 	assert.ErrorContains(t, err, "is not a routable catalog model")
 }

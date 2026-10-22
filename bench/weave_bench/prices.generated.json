@@ -1,5 +1,5 @@
 {
-  "pricing_version": "catalog-sha256:d26916e5aa343f44",
+  "pricing_version": "catalog-sha256:e3aa63ed4c14356b",
   "models": {
     "deepseek/deepseek-v4-flash": {
       "input_usd_per_million": 0.15,
@@ -25,6 +25,12 @@
       "cache_read_multiplier": 0.06666666666666667,
       "cache_write_multiplier": 1.25
     },
+    "google/gemma-4-31b": {
+      "input_usd_per_million": 0.2,
+      "output_usd_per_million": 0.5,
+      "cache_read_multiplier": 0.5,
+      "cache_write_multiplier": 1.25
+    },
     "moonshotai/kimi-k2.7": {
       "input_usd_per_million": 0.75,
       "output_usd_per_million": 3.5,
@@ -35,6 +41,30 @@
       "input_usd_per_million": 3,
       "output_usd_per_million": 12.5,
       "cache_read_multiplier": 0.16666666666666666,
+      "cache_write_multiplier": 1.25
+    },
+    "motif/motif-3": {
+      "input_usd_per_million": 0.5,
+      "output_usd_per_million": 2,
+      "cache_read_multiplier": 0.4,
+      "cache_write_multiplier": 1.25
+    },
+    "openai/gpt-oss-120b": {
+      "input_usd_per_million": 0.15,
+      "output_usd_per_million": 0.6,
+      "cache_read_multiplier": 0.5,
+      "cache_write_multiplier": 1.25
+    },
+    "qwen/qwen3.6-27b": {
+      "input_usd_per_million": 0.32,
+      "output_usd_per_million": 3.2,
+      "cache_read_multiplier": 0.5,
+      "cache_write_multiplier": 1.25
+    },
+    "qwen/qwen3.8-27b": {
+      "input_usd_per_million": 0.4,
+      "output_usd_per_million": 3,
+      "cache_read_multiplier": 0.5,
       "cache_write_multiplier": 1.25
     },
     "z-ai/glm-5.2": {

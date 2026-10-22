@@ -60,14 +60,22 @@ func TestInspect_RouterPurposeUsesDeploymentServingUniverse(t *testing.T) {
 	resolver, err := NewPlanResolver(DefaultRegistry(), NewResolver(
 		catalog.RoutingTargetSet(available), available, func(model catalog.Model) string { return model.ID }))
 	require.NoError(t, err)
-	// An untiered catalog row is never a routing target, so it has no
-	// dispatchable binding and the inspection must refuse it.
-	request := InspectionRequest{Purpose: PurposeOpenAIResponses, Model: "deepseek/deepseek-v4-pro"}
+	// The deployment serving universe for router-selected purposes is the
+	// routable catalog set: tiered rows only. A pin-only (untiered) row has
+	// bindings and is dispatchable by explicit force, but it is never an
+	// automatic routing target, so inspection must refuse it.
+	request := InspectionRequest{Purpose: PurposeOpenAIResponses, Model: "z-ai/glm-5.2"}
 
 	_, err = resolver.Inspect(request, DeploymentPolicyConfig{AvailableProviders: available})
 	var resolution *ResolutionError
 	require.ErrorAs(t, err, &resolution)
 	assert.Equal(t, ResolutionErrorNoEligibleBinding, resolution.Code)
+
+	// A tiered row is inside the serving universe.
+	tiered, err := resolver.Inspect(InspectionRequest{Purpose: PurposeOpenAIResponses, Model: "deepseek/deepseek-v4-pro"},
+		DeploymentPolicyConfig{AvailableProviders: available})
+	require.NoError(t, err)
+	assert.Equal(t, "deepseek/deepseek-v4-pro", tiered.SelectedBinding().CatalogID)
 
 	served := catalog.HMMRoutingTargetSet(available)
 	plan, err := resolver.Inspect(InspectionRequest{Purpose: PurposeOpenAIResponses, Model: "z-ai/glm-5.3-flash"},

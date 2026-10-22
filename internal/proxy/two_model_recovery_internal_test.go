@@ -99,6 +99,7 @@ func TestRecoveryProbeSkipsModelWithoutEligibleProviderBinding(t *testing.T) {
 		EnabledProviders:     map[string]struct{}{providers.ProviderAIAND: {}},
 		EstimatedInputTokens: features.Tokens,
 		HasTools:             features.HasTools,
+		HasImages:            true, // glm-5.2 accepts no images: no eligible binding
 		ConversationMessages: conversationMessagesForRouting(env),
 	})
 	require.NoError(t, err)

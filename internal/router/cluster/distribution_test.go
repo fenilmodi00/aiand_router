@@ -233,9 +233,8 @@ func TestApplyDialAlpha_AgenticStaysOnCapableModelAtLowDial(t *testing.T) {
 	// demotes to the cheapest harness-capable model instead of an incapable one.
 	//
 	// In the ai&-only roster the one AgenticLow catalog row
-	// (deepseek/deepseek-v4-flash) is untiered, so it is never a cluster
-	// candidate: the gate has nothing to drop and the price extreme must land
-	// on a harness-capable model either way.
+	// (deepseek/deepseek-v4-flash) is tiered, so it IS a cluster candidate:
+	// the gate is load-bearing and must demote it when tools are present.
 	s := loadV0_70(t)
 
 	// Realized agentic alpha at the price extreme = the declared floor.
@@ -245,12 +244,14 @@ func TestApplyDialAlpha_AgenticStaysOnCapableModelAtLowDial(t *testing.T) {
 
 	low := catalog.AgenticLowSet()
 
-	// Precondition: no AgenticLow model is a cluster candidate, so the gate
-	// cannot change the realized winner on this roster.
+	// Sanity: the roster carries the AgenticLow model, so the gate has real work.
+	hasIncapable := false
 	for _, m := range s.models {
-		_, incapable := low[m]
-		assert.Falsef(t, incapable, "%s must not be a cluster candidate", m)
+		if _, incapable := low[m]; incapable {
+			hasIncapable = true
+		}
 	}
+	require.True(t, hasIncapable, "the roster must carry the AgenticLow model for this test to be load-bearing")
 
 	full, _ := argmax(s.blendScoresV2(top, knobs, s.models, nil), s.models)
 	require.NotEmpty(t, full)

@@ -46,9 +46,11 @@ func TestCandidateK12Loads(t *testing.T) {
 	}
 
 	// The roster must carry the ai& models the router can dispatch.
-	for _, m := range []string{"z-ai/glm-5.3", "z-ai/glm-5.2", "z-ai/glm-5.3-flash", "moonshotai/kimi-k3", "moonshotai/kimi-k2.7"} {
+	for _, m := range []string{"z-ai/glm-5.3", "z-ai/glm-5.2", "z-ai/glm-5.3-flash", "moonshotai/kimi-k3", "moonshotai/kimi-k2.7", "deepseek/deepseek-v4-flash", "deepseek/deepseek-v4-pro", "deepseek/deepseek-v4.1-flash", "deepseek/deepseek-v4-pro-0813"} {
 		assert.Contains(t, models, m, "%s must be a deployed model", m)
 	}
+	// The frozen k12 bundle predates motif-3 and qwen3.8-27b; they join the
+	// serving roster only when a retrained bundle carries their columns.
 
 	// ai& is the only upstream, so the deploy's provider set is a single key.
 	providers := map[string]struct{}{
@@ -62,13 +64,15 @@ func TestCandidateK12Loads(t *testing.T) {
 
 	// Every tiered ai& model in the roster is routable.
 	routable := RoutableModelSet(bundle.Registry, providers)
-	for _, m := range []string{"z-ai/glm-5.2", "z-ai/glm-5.3", "z-ai/glm-5.3-flash", "moonshotai/kimi-k3"} {
+	for _, m := range []string{"z-ai/glm-5.3", "z-ai/glm-5.3-flash", "moonshotai/kimi-k3", "deepseek/deepseek-v4-flash", "deepseek/deepseek-v4-pro", "deepseek/deepseek-v4.1-flash"} {
 		_, ok := routable[m]
 		assert.Truef(t, ok, "%s must be routable", m)
 	}
 	// The untiered passthrough rows are never cluster targets.
-	_, flashRoutable := routable["deepseek/deepseek-v4-flash"]
-	assert.Falsef(t, flashRoutable, "an untiered model must not be a cluster target")
+	for _, m := range []string{"z-ai/glm-5.2", "moonshotai/kimi-k2.7", "deepseek/deepseek-v4-pro-0813"} {
+		_, untieredRoutable := routable[m]
+		assert.Falsef(t, untieredRoutable, "an untiered model must not be a cluster target: %s", m)
+	}
 
 	// Per-cluster argmax through the live v2 blend (the authoritative runtime
 	// path: blendScoresV2 over a single cluster with the bundle's default knobs =

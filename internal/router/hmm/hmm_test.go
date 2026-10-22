@@ -28,10 +28,10 @@ func (f *fakeDecider) Decide(_ context.Context, q Query) (Result, error) {
 func TestRouterMapsSidecarRosterModelBackToCatalogDecision(t *testing.T) {
 	decider := &fakeDecider{res: Result{
 		RouteID:              "route-1",
-		Model:                "moonshotai/kimi-k2.7-code",
+		Model:                "z-ai/glm-5.3",
 		Provider:             providers.ProviderAIAND,
 		Score:                0.8,
-		CandidateScores:      map[string]float32{"moonshotai/kimi-k2.7-code": 0.8},
+		CandidateScores:      map[string]float32{"z-ai/glm-5.3": 0.8},
 		Reason:               "policy",
 		Propensity:           0.9,
 		DisplayMarker:        "display marker",
@@ -44,7 +44,7 @@ func TestRouterMapsSidecarRosterModelBackToCatalogDecision(t *testing.T) {
 		SchemaVersion:        "policy_router_v1",
 		DebugRef:             "debug-1",
 	}}
-	deployed := map[string]struct{}{"moonshotai/kimi-k2.7": {}}
+	deployed := map[string]struct{}{"z-ai/glm-5.3": {}}
 	available := map[string]struct{}{providers.ProviderAIAND: {}}
 	r := newWithRoutingTargets(router.StrategyHMM, decider, deployed, available)
 
@@ -66,7 +66,7 @@ func TestRouterMapsSidecarRosterModelBackToCatalogDecision(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, "moonshotai/kimi-k2.7", decision.Model)
+	assert.Equal(t, "z-ai/glm-5.3", decision.Model)
 	assert.NotNil(t, decision.Metadata)
 	assert.Equal(t, "display marker", decision.Metadata.DisplayMarker)
 	assert.Equal(t, "route-1", decision.Metadata.RouteID)
@@ -78,7 +78,7 @@ func TestRouterMapsSidecarRosterModelBackToCatalogDecision(t *testing.T) {
 	assert.Equal(t, "roster-v2", decision.Metadata.RosterVersion)
 	assert.Equal(t, "policy_router_v1", decision.Metadata.SidecarSchemaVersion)
 	assert.Equal(t, "debug-1", decision.Metadata.DebugRef)
-	assert.Equal(t, map[string]float32{"moonshotai/kimi-k2.7": 0.8}, decision.Metadata.CandidateScores)
+	assert.Equal(t, map[string]float32{"z-ai/glm-5.3": 0.8}, decision.Metadata.CandidateScores)
 	assert.Equal(t, "hello", decider.query.PromptText)
 	assert.Equal(t, router.StrategyHMM, decider.query.Strategy)
 	assert.Equal(t, "org-1", decider.query.OrganizationID)
@@ -91,13 +91,13 @@ func TestRouterMapsSidecarRosterModelBackToCatalogDecision(t *testing.T) {
 	assert.Equal(t, []router.ConversationMessage{{Role: "user", Text: "latest hello"}}, decider.query.ConversationMessages)
 	require.Len(t, decider.query.Candidates, 1)
 	candidate := decider.query.Candidates[0]
-	assert.Equal(t, "moonshotai/kimi-k2.7-code", candidate.RosterID)
-	assert.Equal(t, "moonshotai/kimi-k2.7", candidate.CatalogID)
+	assert.Equal(t, "z-ai/glm-5.3", candidate.RosterID)
+	assert.Equal(t, "z-ai/glm-5.3", candidate.CatalogID)
 	assert.Equal(t, providers.ProviderAIAND, candidate.Provider)
-	assert.Equal(t, 0.75, candidate.InputUSDPer1M)
-	assert.Equal(t, 3.5, candidate.OutputUSDPer1M)
-	assert.InDelta(t, 0.0000075, candidate.EstimatedCostUSD, 1e-12)
-	assert.Equal(t, 262144, candidate.Capabilities.ContextWindow)
+	assert.Equal(t, 1.0, candidate.InputUSDPer1M)
+	assert.Equal(t, 4.0, candidate.OutputUSDPer1M)
+	assert.InDelta(t, 0.00001, candidate.EstimatedCostUSD, 1e-12)
+	assert.Equal(t, 1048576, candidate.Capabilities.ContextWindow)
 	assert.Equal(t, "high", candidate.Capabilities.Tier)
 	assert.True(t, candidate.Capabilities.SupportsTools)
 	assert.False(t, candidate.Capabilities.SupportsImages)
@@ -195,14 +195,20 @@ func TestCatalogRoutingTargetsResolveCurrentHMMRosterArmsToProviders(t *testing.
 	}
 	for _, rosterID := range []string{
 		"deepseek/deepseek-v4.1-flash",
-		"deepseek/deepseek-v4-pro-0813",
-		"moonshotai/kimi-k2.7-code",
+		"deepseek/deepseek-v4-pro",
 		"moonshotai/kimi-k3",
-		"z-ai/glm-5.2",
 		"z-ai/glm-5.3",
 		"z-ai/glm-5.3-flash",
 	} {
 		assert.Contains(t, gotRosterIDs, rosterID)
+	}
+	// The pin-only rows carry no tier, so they are not routing targets.
+	for _, rosterID := range []string{
+		"deepseek/deepseek-v4-pro-0813",
+		"moonshotai/kimi-k2.7-code",
+		"z-ai/glm-5.2",
+	} {
+		assert.NotContains(t, gotRosterIDs, rosterID)
 	}
 }
 

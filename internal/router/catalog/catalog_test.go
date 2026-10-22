@@ -73,10 +73,25 @@ func TestPriceFor_KnownPair(t *testing.T) {
 }
 
 func TestTierFor_KnownAndUnknown(t *testing.T) {
-	assert.Equal(t, TierMid, TierFor("deepseek/deepseek-v4-pro-0813"))
+	assert.Equal(t, TierMid, TierFor("deepseek/deepseek-v4-pro"))
 	assert.Equal(t, TierLow, TierFor("deepseek/deepseek-v4.1-flash"))
 	assert.Equal(t, TierHigh, TierFor("z-ai/glm-5.3"))
 	assert.Equal(t, TierUnknown, TierFor("definitely-not-a-model"))
+}
+
+// The pin-only rows carry no tier: they are dispatchable but never automatic
+// routing targets.
+func TestTierFor_PinOnlyRowsAreUntiered(t *testing.T) {
+	for _, id := range []string{
+		"z-ai/glm-5.2",
+		"moonshotai/kimi-k2.7",
+		"deepseek/deepseek-v4-pro-0813",
+		"google/gemma-4-31b",
+		"qwen/qwen3.6-27b",
+		"openai/gpt-oss-120b",
+	} {
+		assert.Equal(t, TierUnknown, TierFor(id), id)
+	}
 }
 
 func TestResolveBinding_PicksFirstAvailable(t *testing.T) {
@@ -93,7 +108,26 @@ func TestRoutingTargetSet_FiltersByTierAndRegisteredProviders(t *testing.T) {
 
 	assert.Contains(t, targets, "z-ai/glm-5.3")
 	assert.Contains(t, targets, "moonshotai/kimi-k3")
-	assert.NotContains(t, targets, "deepseek/deepseek-v4-pro", "untiered passthrough models must not become routing targets")
+	assert.Contains(t, targets, "motif/motif-3")
+	assert.Contains(t, targets, "qwen/qwen3.8-27b")
+	assert.NotContains(t, targets, "z-ai/glm-5.2", "untiered pin-only models must not become routing targets")
+	assert.NotContains(t, targets, "moonshotai/kimi-k2.7", "untiered pin-only models must not become routing targets")
+	assert.NotContains(t, targets, "deepseek/deepseek-v4-pro-0813", "untiered pin-only models must not become routing targets")
+}
+
+// The catalog is 14 rows: 8 tiered routing targets and 6 pin-only rows.
+func TestCatalog_TierSplitIsEightRoutingSixPinOnly(t *testing.T) {
+	tiered, untiered := 0, 0
+	for _, m := range Models {
+		if m.Tier == TierUnknown {
+			untiered++
+			continue
+		}
+		tiered++
+	}
+	assert.Equal(t, 8, tiered, "routing (tiered) models")
+	assert.Equal(t, 6, untiered, "pin-only (untiered) models")
+	assert.Len(t, Models, 14)
 }
 
 func TestRoutingTargetSet_ExcludesUnregisteredProviders(t *testing.T) {
@@ -109,9 +143,9 @@ func TestHMMRoutingTargetSetMatchesGenericTargets(t *testing.T) {
 func TestAllowedAtOrBelow_FiltersOutUnknownTier(t *testing.T) {
 	allowed := AllowedAtOrBelow(TierMid)
 	_, low := allowed["deepseek/deepseek-v4.1-flash"]
-	_, mid := allowed["deepseek/deepseek-v4-pro-0813"]
+	_, mid := allowed["deepseek/deepseek-v4-pro"]
 	_, high := allowed["z-ai/glm-5.3"]
-	_, untiered := allowed["deepseek/deepseek-v4-pro"]
+	_, untiered := allowed["deepseek/deepseek-v4-pro-0813"]
 	assert.True(t, low)
 	assert.True(t, mid)
 	assert.False(t, high)
@@ -187,7 +221,12 @@ func TestContextWindowFor_KnownModels(t *testing.T) {
 	assert.Equal(t, 1_048_576, ContextWindowFor("moonshotai/kimi-k3"))
 	assert.Equal(t, 1_048_576, ContextWindowFor("z-ai/glm-5.2"))
 	assert.Equal(t, 1_048_576, ContextWindowFor("z-ai/glm-5.3"))
-	assert.Equal(t, 1_048_576, ContextWindowFor("z-ai/glm-5.3-flash"))
+	assert.Equal(t, 1_048_550, ContextWindowFor("z-ai/glm-5.3-flash"))
+	assert.Equal(t, 262_144, ContextWindowFor("motif/motif-3"))
+	assert.Equal(t, 262_144, ContextWindowFor("qwen/qwen3.8-27b"))
+	assert.Equal(t, 262_144, ContextWindowFor("qwen/qwen3.6-27b"))
+	assert.Equal(t, 262_144, ContextWindowFor("google/gemma-4-31b"))
+	assert.Equal(t, 131_072, ContextWindowFor("openai/gpt-oss-120b"))
 	// Unknown model falls back to DefaultContextWindow.
 	assert.Equal(t, DefaultContextWindow, ContextWindowFor("not-a-real-model"))
 }
@@ -200,10 +239,10 @@ func TestValidateDeployed_FlagsMissingAndUntiered(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "definitely-not-a-model")
 
-	// deepseek/deepseek-v4-pro is priced but has no tier (passthrough only).
-	err = ValidateDeployed([]string{"deepseek/deepseek-v4-pro"})
+	// deepseek/deepseek-v4-pro-0813 is priced but has no tier (pin-only).
+	err = ValidateDeployed([]string{"deepseek/deepseek-v4-pro-0813"})
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "deepseek/deepseek-v4-pro")
+	assert.Contains(t, err.Error(), "deepseek/deepseek-v4-pro-0813")
 }
 
 func TestGLM53FlashPricing(t *testing.T) {

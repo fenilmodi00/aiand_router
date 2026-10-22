@@ -283,7 +283,7 @@ func TestRestrictToTier_ExcludesOtherTiers(t *testing.T) {
 	svc := NewService(nil, nil, nil, false, nil, nil, false,
 		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 		WithAvailableModels(map[string]struct{}{
-			"z-ai/glm-5.2":                 {}, // high
+			"moonshotai/kimi-k3":            {}, // high
 			"z-ai/glm-5.3-flash":           {}, // low
 			"deepseek/deepseek-v4.1-flash": {}, // mid
 		})
@@ -292,7 +292,7 @@ func TestRestrictToTier_ExcludesOtherTiers(t *testing.T) {
 	require.True(t, ok)
 	_, haikuExcluded := out["z-ai/glm-5.3-flash"]
 	_, sonnetExcluded := out["deepseek/deepseek-v4.1-flash"]
-	_, opusExcluded := out["z-ai/glm-5.2"]
+	_, opusExcluded := out["moonshotai/kimi-k3"]
 	assert.True(t, haikuExcluded, "low-tier excluded")
 	assert.True(t, sonnetExcluded, "mid-tier excluded")
 	assert.False(t, opusExcluded, "high-tier stays eligible")

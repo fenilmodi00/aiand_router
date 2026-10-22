@@ -1,0 +1,32 @@
+{
+  "method": "POST",
+  "path": "/v1/chat/completions",
+  "status_code": 200,
+  "headers": {
+    "Access-Control-Allow-Credentials": "true",
+    "Access-Control-Expose-Headers": "traceparent,X-Request-ID,X-Cost,X-Cost-Currency,X-Inference-Ms,X-Reasoning-Effort,X-Model,x-ratelimit-limit-requests,x-ratelimit-remaining-requests,x-ratelimit-reset-requests,x-ratelimit-limit-tokens,x-ratelimit-remaining-tokens,x-ratelimit-reset-tokens,x-ratelimit-limit-output-tokens,x-ratelimit-remaining-output-tokens,x-ratelimit-reset-output-tokens,x-ratelimit-limit-concurrency,x-ratelimit-remaining-concurrency,x-ratelimit-limit-global-requests,x-ratelimit-remaining-global-requests,x-ratelimit-reset-global-requests,x-ratelimit-limit-global-concurrency,x-ratelimit-remaining-global-concurrency,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Policy,Retry-After",
+    "Content-Type": "application/json",
+    "Date": "Thu, 22 Oct 2026 16:55:07 GMT",
+    "Server": "cloudflare",
+    "Server-Timing": "cfEdge;dur=44,cfOrigin;dur=0,cfWorker;dur=2056",
+    "Strict-Transport-Security": "max-age=2592000",
+    "Traceparent": "00-87ab2f9764064990168878df827502db-ada1b7289c7fe7c7-01",
+    "Vary": "Origin",
+    "X-Model": "zai-org/glm-5.3-flash",
+    "X-Org-Id": "bd15b137-fc67-4ca0-87c1-08ca66f40037",
+    "X-Processing-Ms": "2044",
+    "X-Ratelimit-Limit": "1000",
+    "X-Ratelimit-Limit-Concurrency": "100",
+    "X-Ratelimit-Limit-Global-Concurrency": "100",
+    "X-Ratelimit-Limit-Global-Requests": "10000",
+    "X-Ratelimit-Limit-Output-Tokens": "10000000",
+    "X-Ratelimit-Remaining": "999",
+    "X-Ratelimit-Remaining-Concurrency": "99",
+    "X-Ratelimit-Remaining-Global-Concurrency": "99",
+    "X-Ratelimit-Remaining-Global-Requests": "9999",
+    "X-Ratelimit-Remaining-Output-Tokens": "10000000",
+    "X-Ratelimit-Reset-Global-Requests": "1s",
+    "X-Ratelimit-Reset-Output-Tokens": "0s"
+  },
+  "body": "{\"id\":\"chatcmpl-cbd2fa1e-bbe1-4810-a4fd-1da44edce438\",\"object\":\"chat.completion\",\"created\":1792688106,\"model\":\"zai-org/glm-5.3-flash\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"ok\",\"refusal\":null,\"annotations\":null,\"audio\":null,\"function_call\":null,\"reasoning\":\"The user says \\\"Say: ok\\\". This is a simple instruction to just say \\\"ok\\\".\",\"reasoning_content\":\"The user says \\\"Say: ok\\\". This is a simple instruction to just say \\\"ok\\\".\"},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"service_tier\":null,\"usage\":{\"prompt_tokens\":8643,\"total_tokens\":8665,\"completion_tokens\":22,\"prompt_tokens_details\":{\"cached_tokens\":0},\"completion_tokens_details\":{\"reasoning_tokens\":19}}}"
+}
