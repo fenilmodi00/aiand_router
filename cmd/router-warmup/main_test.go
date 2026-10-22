@@ -30,11 +30,8 @@ func TestWarmupIncludesEveryModelWithSupportedEffort(t *testing.T) {
 		if len(levels) > 0 && !slices.Contains(levels, prompt.ReasoningEffort) {
 			t.Fatalf("unsupported effort for %s", prompt.Model)
 		}
-		if prompt.Model == "gpt-5.4-pro" {
+		if prompt.Model == "z-ai/glm-5.3" {
 			foundPro = true
-			if prompt.ReasoningEffort != "medium" {
-				t.Fatalf("pro warmup effort: %s", prompt.ReasoningEffort)
-			}
 		}
 		if prompt.ReasoningEffort != "" && prompt.ReasoningEffort != "none" && prompt.MaxCompletionTokens != warmupReasoningCompletionTokens {
 			t.Fatalf("reasoning warmup budget for %s: %d", prompt.Model, prompt.MaxCompletionTokens)

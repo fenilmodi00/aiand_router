@@ -31,12 +31,12 @@ func TestRunCompileWritesCanonicalBytes(t *testing.T) {
   "clusters": {
     "low": {
       "complexity_label": "low",
-      "arms": ["openai/gpt-5.6-sol"],
-      "arms_by_harness": {"codex": ["openai/gpt-5.6-sol"]},
+      "arms": ["z-ai/glm-5.3"],
+      "arms_by_harness": {"codex": ["z-ai/glm-5.3"]},
       "cost_ref_usd": 0.02,
       "latency_ref_ms": 8000,
-      "arm_scores": {"openai/gpt-5.6-sol": 10},
-      "arm_indices": {"openai/gpt-5.6-sol": {"wii_v1": 50, "wpi_v1": 10}}
+      "arm_scores": {"z-ai/glm-5.3": 10},
+      "arm_indices": {"z-ai/glm-5.3": {"wii_v1": 50, "wpi_v1": 10}}
     }
   }
 }`)
