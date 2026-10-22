@@ -23,9 +23,13 @@ Single source of truth for per-model data: capability tier, subscription coverag
 
 That's it. Nothing else needs editing — the planner, scorer, OTel emitter, install scripts, and provider modelIDMaps all flow from this file.
 
-## Multi-provider semantics
+## Single-provider semantics
 
-Today most models carry a single binding. The catalog's data shape is multi-binding so SOC 2 direct-provider rows can append an OpenRouter fallback without touching call sites: managed-prod deploys (no `OPENROUTER_API_KEY`) get the primary binding; self-hosters with only OpenRouter get the trailing one.
+The router dispatches to exactly one upstream, ai&. Every catalog row carries
+exactly one binding, on `providers.ProviderAIAND` — `TestCatalog_EveryModelBindsOnlyAIAND`
+enforces it. The `Providers` list stays a list (rather than a single field) so
+the data shape can grow a second provider later without touching call sites,
+but today no row has one.
 
 The cluster scorer resolves each routable model's binding at boot via `ResolveBinding(id, availableProviders)`. The chosen binding's `Provider` becomes the `router.Decision.Provider`; the planner then uses `catalog.PriceFor(provider, id)` so STAY-vs-SWITCH EV math is correct when a model is served by different providers at different prices.
 
