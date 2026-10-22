@@ -1,6 +1,6 @@
 // Command mitmproxy is a record/replay MITM forward proxy for the router smoke
 // suite. Points the server container at this proxy via HTTPS_PROXY and trusts
-// its CA via SSL_CERT_DIR, intercepting router→Anthropic TLS with zero router changes.
+// its CA via SSL_CERT_DIR, intercepting router→ai& TLS with zero router changes.
 //
 // SMOKE_PROXY_MODE: replay-only (PR CI default, no key needed) | record (nightly
 // refresh) | replay-or-record (local default). Cache key: sha256(method+path+body).
@@ -98,7 +98,7 @@ func envOr(key, def string) string {
 
 // liveClient is the client used to reach the real upstream when recording. It
 // uses the host's real root store (this process runs on the host/runner, not in
-// the distroless container), so it verifies api.anthropic.com normally.
+// the distroless container), so it verifies api.aiand.com normally.
 func liveClient() *http.Client {
 	return &http.Client{Timeout: 120 * time.Second}
 }

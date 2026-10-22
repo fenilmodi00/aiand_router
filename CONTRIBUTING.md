@@ -41,7 +41,7 @@ only**. The full rules live in [AGENTS.md](AGENTS.md). The summary:
   I/O outside Service methods. `internal/router` and
   `internal/providers` are interface-only and never import each other.
 - **Adapters** (`internal/postgres`, `internal/router/cluster`,
-  `internal/providers/{anthropic,openai,google,openaicompat}`) — depend
+  `internal/providers/{httputil,openaicompat}`) — depend
   only on the inner ring. Adapters never import each other.
 - **Presentation** (`internal/api/*`, `internal/server*`) — adapts HTTP
   to Services. Never imports `internal/postgres` or concrete provider

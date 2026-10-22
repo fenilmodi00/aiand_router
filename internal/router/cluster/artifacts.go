@@ -114,16 +114,10 @@ type ArtifactMetadata struct {
 	Status            string             `yaml:"status,omitempty"`
 	PromotedDate      string             `yaml:"promoted_date,omitempty"`
 	FrozenDate        string             `yaml:"frozen_date,omitempty"`
-	Embedder          ArtifactEmbedder   `yaml:"embedder"`
-	Training          ArtifactTraining   `yaml:"training"`
-	DeployedProviders []string           `yaml:"deployed_providers,omitempty"`
-	DeployedModels    []string           `yaml:"deployed_models,omitempty"`
-	CostPer1KInputUSD map[string]float64 `yaml:"cost_per_1k_input_usd,omitempty"`
-	// TokPerS holds measured median tok/s keyed by provider then model (same
-	// model varies sharply by provider). Read only by FastestModel/clamp
-	// selectors; missing/partial data degrades to CheapestModel.
-	TokPerS   map[string]map[string]float64 `yaml:"tok_per_s,omitempty"`
-	Changelog string                        `yaml:"changelog,omitempty"`
+	Embedder ArtifactEmbedder `yaml:"embedder"`
+	Training ArtifactTraining `yaml:"training"`
+	// Changelog is the bundle's human-readable history.
+	Changelog string `yaml:"changelog,omitempty"`
 	// CacheConfig carries per-version semantic-cache knobs.
 	CacheConfig *ArtifactCacheConfig `yaml:"cache_config,omitempty"`
 }
@@ -657,12 +651,10 @@ func (b RequestBindings) candidates(registry *ModelRegistry) []DeployedEntry {
 	return registry.DeployedModels
 }
 
-// inputCostPer1K prefers the bundle's trained cost, falling back to catalog
-// pricing for off-roster gateway candidates the bundle has no entry for.
-func inputCostPer1K(meta *ArtifactMetadata, model string) (float64, bool) {
-	if cost, ok := meta.CostPer1KInputUSD[model]; ok {
-		return cost, true
-	}
+// inputCostPer1K returns the catalog's per-1k-input price for the model. The
+// catalog is the single source of truth for pricing; bundle metadata carries
+// no cost table.
+func inputCostPer1K(model string) (float64, bool) {
 	price, ok := catalog.PrimaryPriceFor(model)
 	if !ok {
 		return 0, false
@@ -670,7 +662,7 @@ func inputCostPer1K(meta *ArtifactMetadata, model string) (float64, bool) {
 	return price.InputUSDPer1M / 1000, true
 }
 
-func cheapestModelFiltered(meta *ArtifactMetadata, registry *ModelRegistry, available, denySet, allowSet map[string]struct{}, bindings RequestBindings) (provider, model string, ok bool) {
+func cheapestModelFiltered(registry *ModelRegistry, available, denySet, allowSet map[string]struct{}, bindings RequestBindings) (provider, model string, ok bool) {
 	var bestCost float64 = -1
 	for _, e := range bindings.candidates(registry) {
 		resolved := bindings.resolve(e.Model, e.Provider, available)
