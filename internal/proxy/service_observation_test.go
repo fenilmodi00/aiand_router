@@ -11,7 +11,6 @@ import (
 
 	"weave-os/router/internal/providers"
 	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/proxy/usage"
 	"weave-os/router/internal/router"
 	"weave-os/router/internal/router/policy"
 
@@ -156,10 +155,6 @@ func TestPolicyShadowComparisonCollectsUsageBypassRoute(t *testing.T) {
 		requests: make(chan router.Request, 1),
 	}
 	telem := newCaptureTelemetry()
-	observer := usage.NewObserver([]byte("salt"), 10*time.Minute, time.Now)
-	observer.Record(observer.Key([]byte(bypassSubToken)), usage.Snapshot{
-		Primary: usage.Window{UsedPercent: 0.20, WindowMinutes: 300},
-	})
 	svc := proxy.NewService(
 		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: bypassScorerPickMdl}},
 		map[string]providers.Client{providers.ProviderAIAND: &fakeProvider{proxyResponse: func(w http.ResponseWriter) {
@@ -171,10 +166,10 @@ func TestPolicyShadowComparisonCollectsUsageBypassRoute(t *testing.T) {
 		}}},
 		nil, false, nil, nil, false,
 		providers.ProviderAIAND, bypassScorerPickMdl, telem,
-	).WithUsageObserver(observer).
+	).
 		WithPolicyStrategy(policy.StrategySpec{Strategy: shadowStrategy, Router: shadowRouter})
 
-	ctx := bypassCtx(0.80)
+	ctx := bypassCtx()
 	ctx = context.WithValue(ctx, proxy.InstallationIDContextKey{}, installID)
 	ctx = context.WithValue(ctx, proxy.ExternalIDContextKey{}, "org-bypass")
 	ctx = context.WithValue(ctx, proxy.PolicyTrainingAllowedContextKey{}, true)

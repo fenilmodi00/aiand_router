@@ -18,7 +18,6 @@ func TestPlanResolverPreservesExistingSidecarBinding(t *testing.T) {
 		modelSet("z-ai/glm-5.3-flash", "z-ai/glm-5.2"),
 		providerSet(providers.ProviderAIAND, providers.ProviderAIAND),
 		func(model catalog.Model) string { return "roster/" + model.ID },
-		policy.ProviderPolicy{},
 	)
 	routingRequest := router.Request{}
 	candidates := candidateResolver.Resolve(routingRequest)
@@ -175,7 +174,6 @@ func TestPlanResolverResolvesDeclaredModelFallbacks(t *testing.T) {
 		modelSet("z-ai/glm-5.3-flash", "z-ai/glm-5.2"),
 		providerSet(providers.ProviderAIAND, providers.ProviderAIAND),
 		func(model catalog.Model) string { return model.ID },
-		policy.ProviderPolicy{},
 	)
 	planResolver, err := policy.NewPlanResolver(registry, candidateResolver)
 	require.NoError(t, err)
@@ -199,7 +197,6 @@ func TestPlanResolverReportsMissingFixedTargetAsIneligible(t *testing.T) {
 		modelSet("z-ai/glm-5.2"),
 		providerSet(providers.ProviderAIAND),
 		func(model catalog.Model) string { return model.ID },
-		policy.ProviderPolicy{},
 	)
 	planResolver, err := policy.NewPlanResolver(registry, candidateResolver)
 	require.NoError(t, err)
@@ -233,7 +230,6 @@ func TestPlanResolverEnforcesBudgetEnvelopeAndSpendCap(t *testing.T) {
 		modelSet("z-ai/glm-5.3-flash"),
 		providerSet(providers.ProviderAIAND),
 		func(model catalog.Model) string { return model.ID },
-		policy.ProviderPolicy{},
 	)
 	boundedPlanResolver, resolverErr := policy.NewPlanResolver(registry, candidateResolver)
 	require.NoError(t, resolverErr)
@@ -317,7 +313,6 @@ func TestPlanResolverIncludesEveryAlternativeBinding(t *testing.T) {
 		modelSet("z-ai/glm-5.3-flash", "z-ai/glm-5.2"),
 		providerSet(providers.ProviderAIAND, providers.ProviderAIAND),
 		func(model catalog.Model) string { return model.ID },
-		policy.ProviderPolicy{},
 	)
 	planResolver, err := policy.NewPlanResolver(registry, candidateResolver)
 	require.NoError(t, err)
@@ -338,7 +333,6 @@ func newPlanResolver(t *testing.T, deployed, available map[string]struct{}) *pol
 		deployed,
 		available,
 		func(model catalog.Model) string { return model.ID },
-		policy.ProviderPolicy{},
 	)
 	planResolver, err := policy.NewPlanResolver(policy.DefaultRegistry(), candidateResolver)
 	require.NoError(t, err)
@@ -418,7 +412,7 @@ func TestPlanResolverResolvesUntieredPrecompactionSummarizer(t *testing.T) {
 		deployed[id] = struct{}{}
 	}
 	plans, err := policy.NewPlanResolver(policy.DefaultRegistry(), policy.NewResolver(
-		deployed, available, func(m catalog.Model) string { return m.ID }, policy.ProviderPolicy{}))
+		deployed, available, func(m catalog.Model) string { return m.ID }))
 	require.NoError(t, err)
 
 	for _, model := range []string{"z-ai/glm-5.3", "moonshotai/kimi-k3"} {

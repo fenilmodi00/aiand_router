@@ -12,6 +12,6 @@ type Diagnostic = policy.Diagnostic
 // ValidateRosterIDs reports undispatchable roster arms without initializing a router.
 func ValidateRosterIDs(ids []string) []Diagnostic { return armid.ValidateRosterIDs(ids) }
 
-func validateRosterIDs(ids []string, models []catalog.Model, providerPolicy policy.ProviderPolicy) []Diagnostic {
-	return armid.ValidateWithCatalog(ids, models, providerPolicy)
+func validateRosterIDs(ids []string, models []catalog.Model) []Diagnostic {
+	return armid.ValidateWithCatalog(ids, models)
 }

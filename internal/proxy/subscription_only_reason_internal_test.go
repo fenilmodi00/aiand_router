@@ -34,13 +34,13 @@ func TestSubscriptionOnlyWarningsForReason(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, tc.want, routerNoticeForRequest(tc.ctx, http.Header{}, subscriptionSourceClaude, "model", "").Text)
+			assert.Equal(t, tc.want, routerNoticeForRequest(tc.ctx, http.Header{}, "model", "").Text)
 		})
 	}
 }
 
 func TestSpendCapWarningDoesNotClaimDepletedCredits(t *testing.T) {
-	for _, warning := range []string{subscriptionSpendCapWarningMarker, subscriptionSpendCapWarningMarkerCodex} {
+	for _, warning := range []string{subscriptionSpendCapWarningMarker} {
 		assert.NotContains(t, warning, "credits")
 		assert.NotContains(t, warning, topUpURL)
 		assert.Contains(t, warning, "spend cap")
@@ -60,20 +60,20 @@ func TestSubscriptionOnlyUnavailableNamesTheGate(t *testing.T) {
 func TestSubscriptionOnlyWarningShowsOncePerConversation(t *testing.T) {
 	capCtx := billing.WithSubscriptionOnly(context.Background(), billing.SubscriptionOnlySpendCapReached)
 	fresh := withSubscriptionOnlyWarningEcho(capCtx, []byte(`{"messages":[{"role":"user","content":"hi"}]}`))
-	assert.Equal(t, subscriptionSpendCapWarningMarker, routerNoticeForRequest(fresh, http.Header{}, subscriptionSourceClaude, "model", "").Text)
+	assert.Equal(t, subscriptionSpendCapWarningMarker, routerNoticeForRequest(fresh, http.Header{}, "model", "").Text)
 
 	shownBody := []byte(`{"messages":[{"role":"user","content":"hi"},{"role":"assistant","content":[{"type":"text","text":` +
 		jsonString(subscriptionSpendCapWarningMarker+"hello") + `}]},{"role":"user","content":"again"}]}`)
 	shown := withSubscriptionOnlyWarningEcho(capCtx, shownBody)
-	assert.Empty(t, routerNoticeForRequest(shown, http.Header{}, subscriptionSourceClaude, "model", "").Text,
+	assert.Empty(t, routerNoticeForRequest(shown, http.Header{}, "model", "").Text,
 		"a warning the conversation already shows must not repeat")
 
 	depleted := billing.WithSubscriptionOnly(shown, billing.SubscriptionOnlyCreditsDepleted)
-	assert.Equal(t, subscriptionOnlyWarningMarker, routerNoticeForRequest(depleted, http.Header{}, subscriptionSourceClaude, "model", "").Text,
+	assert.Equal(t, subscriptionOnlyWarningMarker, routerNoticeForRequest(depleted, http.Header{}, "model", "").Text,
 		"a changed reason is new information and must show")
 
 	delegated := withSubscriptionOnlyWarningEcho(shown, []byte(`{"messages":[{"role":"user","content":"stripped"}]}`))
-	assert.Empty(t, routerNoticeForRequest(delegated, http.Header{}, subscriptionSourceClaude, "model", "").Text,
+	assert.Empty(t, routerNoticeForRequest(delegated, http.Header{}, "model", "").Text,
 		"a later stripped body must not forget an earlier echo")
 }
 

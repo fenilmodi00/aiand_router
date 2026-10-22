@@ -131,7 +131,7 @@ func hmmOverflowService(provider string, upstream providers.Client, models ...st
 	for _, model := range models {
 		available[model] = struct{}{}
 	}
-	resolver := policy.NewResolver(available, map[string]struct{}{provider: {}}, func(m catalog.Model) string { return m.ID }, policy.ManagedProviderPolicy())
+	resolver := policy.NewResolver(available, map[string]struct{}{provider: {}}, func(m catalog.Model) string { return m.ID })
 	routing := policy.NewSidecarRouter(policy.SidecarRouterConfig{Strategy: router.StrategyHMM, Unavailable: hmm.ErrHMMUnavailable}, overflowPolicy{}, resolver)
 	return proxy.NewService(&fakeRouter{}, map[string]providers.Client{provider: upstream},
 		nil, false, nil, newFakePinStore(), false, provider, models[0], nil).

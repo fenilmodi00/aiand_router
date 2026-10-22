@@ -134,12 +134,6 @@ func (fakeInstallationRepository) UpdateExcludedProviders(ctx context.Context, e
 func (fakeInstallationRepository) UpdateRoutingPreference(ctx context.Context, externalID, id string, qualityWeight *float64) error {
 	return errors.New("not used")
 }
-func (fakeInstallationRepository) UpdateUsageBypass(ctx context.Context, externalID, id string, enabled bool, threshold *float64) error {
-	return errors.New("not used")
-}
-func (fakeInstallationRepository) UpdateSubscriptionRoutingDisabled(ctx context.Context, externalID, id string, disabled bool) error {
-	return errors.New("not used")
-}
 func (fakeInstallationRepository) UpdateContentCaptureMode(ctx context.Context, externalID, id string, mode *string) error {
 	return errors.New("not used")
 }

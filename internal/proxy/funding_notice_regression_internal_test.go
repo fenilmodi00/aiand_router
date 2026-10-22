@@ -19,17 +19,13 @@ func TestFundingNoticePolicyAndReplay(t *testing.T) {
 	const model = "synthetic-model"
 	const marker = "✦ **Weave Router** → synthetic-model\n\n"
 	for _, warning := range subscriptionFundingWarnings {
-		t.Run(string(warning.reason)+"/"+string(warning.source), func(t *testing.T) {
+		t.Run(string(warning.reason), func(t *testing.T) {
 			ctx := billing.WithSubscriptionOnly(context.Background(), warning.reason)
-			notice := routerNoticeForRequest(ctx, http.Header{}, warning.source, model, marker)
+			notice := routerNoticeForRequest(ctx, http.Header{}, model, marker)
 			assert.Equal(t, translate.NoticeFundingWarning, notice.Kind)
 			assert.Equal(t, translate.NoticeFromRouter, notice.Provenance)
 			assert.Equal(t, model, notice.Model)
-			if warning.source == subscriptionSourceClaude {
-				assert.Contains(t, notice.Text, "Anthropic subscription")
-			} else {
-				assert.Contains(t, notice.Text, "ChatGPT (Codex) subscription")
-			}
+			assert.Contains(t, notice.Text, "subscription-only mode")
 			if warning.reason == billing.SubscriptionOnlyCreditsDepleted {
 				assert.Contains(t, notice.Text, "credits are depleted")
 				assert.Contains(t, notice.Text, topUpURL)
@@ -64,7 +60,7 @@ func TestFundingNoticePolicyAndReplay(t *testing.T) {
 				assert.Contains(t, string(cleaned), "provider answer")
 				echoCtx := withSubscriptionOnlyWarningEcho(ctx, []byte(body))
 				echoCtx = withSubscriptionOnlyWarningEcho(echoCtx, []byte(`{"messages":[]}`))
-				replayed := routerNoticeForRequest(echoCtx, http.Header{}, warning.source, model, marker)
+				replayed := routerNoticeForRequest(echoCtx, http.Header{}, model, marker)
 				assert.Equal(t, translate.NoticeModelSelection, replayed.Kind)
 				assert.Equal(t, marker, replayed.Text)
 			}
@@ -79,7 +75,7 @@ func TestFundingNoticeBufferedAndStreamingCapabilities(t *testing.T) {
 				rec := httptest.NewRecorder()
 				caps := translate.NoticeCapabilities{Format: format, Streaming: streaming, Presentation: translate.NoticeText}
 				delivery := translate.NewNoticeDelivery(context.Background(), translate.NewProtocolNoticeSink(rec, caps), caps)
-				notice := translate.NewRouterNotice(translate.NoticeFundingWarning, subscriptionSpendCapWarningMarkerCodex, "synthetic-model", "")
+				notice := translate.NewRouterNotice(translate.NoticeFundingWarning, subscriptionSpendCapWarningMarker, "synthetic-model", "")
 				outcome, err := delivery.Deliver(notice)
 				require.NoError(t, err)
 				if !streaming && format != translate.FormatOpenAIResponses {
@@ -93,7 +89,7 @@ func TestFundingNoticeBufferedAndStreamingCapabilities(t *testing.T) {
 					require.NoError(t, err)
 				}
 				assert.Contains(t, rec.Body.String(), "spend cap has been reached")
-				assert.Contains(t, rec.Body.String(), "ChatGPT (Codex)")
+				assert.Contains(t, rec.Body.String(), "subscription-only mode")
 			})
 		}
 	}

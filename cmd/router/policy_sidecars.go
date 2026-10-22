@@ -114,7 +114,6 @@ func buildConfiguredPolicySidecars(
 			deployed,
 			availableProviders,
 			func(model catalog.Model) string { return model.ID },
-			policy.ManagedProviderPolicy(),
 		)
 		unavailable := fmt.Errorf("%s policy router unavailable: %w", strategy, router.ErrStrategyUnavailable)
 		adapter := policy.NewSidecarRouter(policy.SidecarRouterConfig{

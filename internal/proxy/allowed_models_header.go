@@ -162,9 +162,6 @@ func (s *Service) readmitForcedModel(
 	if _, ok := s.policyExcludedModels(ctx)[pin.Model]; ok {
 		return excluded
 	}
-	if advisorRejectsModel(env, pin.Model) {
-		return excluded
-	}
 	outputReserve := contextWindowOutputReserve
 	if feats.MaxTokens > outputReserve {
 		outputReserve = feats.MaxTokens

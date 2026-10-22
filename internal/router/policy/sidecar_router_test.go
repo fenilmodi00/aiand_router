@@ -38,7 +38,7 @@ func TestSidecarRouter_OrdersRescueBySelectedGroupAndForceCluster(t *testing.T) 
 		},
 	}}
 	adapter := policy.NewSidecarRouter(policy.SidecarRouterConfig{Strategy: router.StrategyHMM}, decider,
-		policy.NewResolver(set(models...), set(providers.ProviderAIAND, providers.ProviderAIAND), catalogRosterID, policy.ManagedProviderPolicy()))
+		policy.NewResolver(set(models...), set(providers.ProviderAIAND, providers.ProviderAIAND), catalogRosterID))
 
 	decision, err := adapter.Route(context.Background(), router.Request{})
 	require.NoError(t, err)
@@ -72,7 +72,7 @@ func TestSidecarRouter_CoolingRescuePoolStaysWithinEligibleGroups(t *testing.T) 
 		},
 	}}
 	adapter := policy.NewSidecarRouter(policy.SidecarRouterConfig{Strategy: router.StrategyHMM}, decider,
-		policy.NewResolver(set(models...), set(providers.ProviderAIAND, providers.ProviderAIAND), catalogRosterID, policy.ManagedProviderPolicy()))
+		policy.NewResolver(set(models...), set(providers.ProviderAIAND, providers.ProviderAIAND), catalogRosterID))
 	req := router.Request{
 		// Kimi K3 is only withdrawn from automatic selection, so it stays a
 		// cooling-rescue candidate. V4 Pro 0813 is excluded outright.
@@ -136,7 +136,6 @@ func TestSidecarRouterOnboardsFutureStrategyWithoutProxyChanges(t *testing.T) {
 		set("z-ai/glm-5.2"),
 		set(providers.ProviderAIAND),
 		func(model catalog.Model) string { return "future/" + model.ID },
-		policy.ManagedProviderPolicy(),
 	)
 	adapter := policy.NewSidecarRouter(policy.SidecarRouterConfig{
 		Strategy:    strategy,
@@ -204,7 +203,6 @@ func TestSidecarRouterDispatchesSidecarSelectedArm(t *testing.T) {
 		set("z-ai/glm-5.2", "moonshotai/kimi-k3"),
 		set(providers.ProviderAIAND, providers.ProviderAIAND),
 		func(model catalog.Model) string { return model.ID },
-		policy.ManagedProviderPolicy(),
 	)
 	resolved := resolver.Resolve(router.Request{})
 	require.Len(t, resolved.Candidates, 2)
@@ -247,7 +245,6 @@ func TestSidecarRouterMarksShadowDecisionsNonLearning(t *testing.T) {
 		set("z-ai/glm-5.2"),
 		set(providers.ProviderAIAND),
 		func(model catalog.Model) string { return model.ID },
-		policy.ManagedProviderPolicy(),
 	))
 
 	_, err := adapter.Route(context.Background(), router.Request{
@@ -289,7 +286,6 @@ func TestSidecarRouterPreviewReturnsAllEligibleArmsWithoutLifecycleCallbacks(t *
 		set("moonshotai/kimi-k3", "z-ai/glm-5.2"),
 		set(providers.ProviderAIAND, providers.ProviderAIAND),
 		catalogRosterID,
-		policy.ManagedProviderPolicy(),
 	)).WithCapabilities(policy.Capabilities{SupportsPreview: true})
 
 	result, err := adapter.PreviewRoute(context.Background(), router.Request{
@@ -317,7 +313,6 @@ func TestSidecarRouterPreviewUsesArmSchemaAndIDs(t *testing.T) {
 		set("z-ai/glm-5.2", "moonshotai/kimi-k3"),
 		set(providers.ProviderAIAND, providers.ProviderAIAND),
 		catalogRosterID,
-		policy.ManagedProviderPolicy(),
 	)
 	resolved := resolver.Resolve(router.Request{})
 	require.Len(t, resolved.Candidates, 2)
@@ -373,7 +368,6 @@ func TestSidecarRouterPreviewRecordsZeroEligibleArms(t *testing.T) {
 		set("z-ai/glm-5.2"),
 		set(providers.ProviderAIAND),
 		catalogRosterID,
-		policy.ManagedProviderPolicy(),
 	)).WithCapabilities(policy.Capabilities{SupportsPreview: true})
 
 	result, err := adapter.PreviewRoute(context.Background(), router.Request{
@@ -417,7 +411,6 @@ func TestSidecarRouterPreviewRejectsUnknownArm(t *testing.T) {
 		set("z-ai/glm-5.2"),
 		set(providers.ProviderAIAND),
 		catalogRosterID,
-		policy.ManagedProviderPolicy(),
 	))
 
 	_, err := adapter.PreviewRoute(context.Background(), router.Request{})
@@ -481,7 +474,6 @@ func TestSidecarRouterAppliesClusterArmOverride(t *testing.T) {
 		set("moonshotai/kimi-k3", "z-ai/glm-5.2"),
 		set(providers.ProviderAIAND),
 		clusterOverrideMapper,
-		policy.ManagedProviderPolicy(),
 	)
 	// Sidecar classifies into "maximum" and would serve opus first.
 	decider := &recordingPolicy{result: policy.Result{
@@ -530,7 +522,6 @@ func TestSidecarRouterClusterOverrideSuppressesStaleDisplayMarker(t *testing.T) 
 		set("moonshotai/kimi-k3", "z-ai/glm-5.2"),
 		set(providers.ProviderAIAND),
 		clusterOverrideMapper,
-		policy.ManagedProviderPolicy(),
 	)
 	decider := &recordingPolicy{result: policy.Result{
 		SchemaVersion: policy.SchemaVersionV1,
@@ -573,7 +564,6 @@ func TestSidecarRouterClusterOverrideResolvesArmEnumeratingBinding(t *testing.T)
 		set("moonshotai/kimi-k3", "z-ai/glm-5.2"),
 		set(providers.ProviderAIAND),
 		clusterOverrideMapper,
-		policy.ManagedProviderPolicy(),
 	)
 	resolved := resolver.Resolve(router.Request{})
 	require.NotEmpty(t, resolved.Candidates)
@@ -613,7 +603,6 @@ func TestSidecarRouterClusterOverrideFailsOpenWithoutRankedFallback(t *testing.T
 		set("moonshotai/kimi-k3", "z-ai/glm-5.2"),
 		set(providers.ProviderAIAND),
 		clusterOverrideMapper,
-		policy.ManagedProviderPolicy(),
 	)
 	// Old sidecar: no ranked fallback in the result, capability off.
 	decider := &recordingPolicy{result: policy.Result{
@@ -646,7 +635,6 @@ func TestSidecarRouterServesWithinForcedCluster(t *testing.T) {
 		set("moonshotai/kimi-k3", "z-ai/glm-5.3-flash"),
 		set(providers.ProviderAIAND),
 		clusterOverrideMapper,
-		policy.ManagedProviderPolicy(),
 	)
 	// The sidecar classified into "maximum" and would serve Kimi K3.
 	decider := &recordingPolicy{result: policy.Result{
@@ -681,7 +669,6 @@ func TestSidecarRouterForcedClusterSuppressesStaleDisplayMarker(t *testing.T) {
 		set("moonshotai/kimi-k3", "z-ai/glm-5.3-flash"),
 		set(providers.ProviderAIAND),
 		clusterOverrideMapper,
-		policy.ManagedProviderPolicy(),
 	)
 	decider := &recordingPolicy{result: policy.Result{
 		SchemaVersion: policy.SchemaVersionV1,
@@ -714,7 +701,6 @@ func TestSidecarRouterForcedClusterKeepsProviderAgreementCheck(t *testing.T) {
 		set("moonshotai/kimi-k3"),
 		set(providers.ProviderAIAND),
 		clusterOverrideMapper,
-		policy.ManagedProviderPolicy(),
 	)
 	decider := &recordingPolicy{result: policy.Result{
 		SchemaVersion: policy.SchemaVersionV1,
@@ -742,7 +728,6 @@ func TestSidecarRouterForcedClusterNarrowedByPerKeyOverride(t *testing.T) {
 		set("moonshotai/kimi-k3", "z-ai/glm-5.2"),
 		set(providers.ProviderAIAND),
 		clusterOverrideMapper,
-		policy.ManagedProviderPolicy(),
 	)
 	decider := &recordingPolicy{result: policy.Result{
 		SchemaVersion: policy.SchemaVersionV1,
@@ -772,7 +757,6 @@ func TestSidecarRouterForcedClusterNotInRosterErrorsUnwrapped(t *testing.T) {
 		set("moonshotai/kimi-k3"),
 		set(providers.ProviderAIAND),
 		clusterOverrideMapper,
-		policy.ManagedProviderPolicy(),
 	)
 	decider := &recordingPolicy{result: policy.Result{
 		SchemaVersion: policy.SchemaVersionV1,
@@ -804,7 +788,6 @@ func TestSidecarRouterForcedClusterFailsClosedWithoutRankedFallback(t *testing.T
 		set("moonshotai/kimi-k3"),
 		set(providers.ProviderAIAND),
 		clusterOverrideMapper,
-		policy.ManagedProviderPolicy(),
 	)
 	// Older sidecar: serves a decision but reports no roster to verify against.
 	decider := &recordingPolicy{result: policy.Result{

@@ -18,7 +18,7 @@ func TestValidateRosterIDs_AmbiguousMappingReported(t *testing.T) {
 		{ID: "acme/model-a", Providers: []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}}},
 	}
 
-	diags := validateRosterIDs([]string{"acme/model-a"}, models, policy.ManagedProviderPolicy())
+	diags := validateRosterIDs([]string{"acme/model-a"}, models)
 
 	require.Len(t, diags, 1)
 	assert.Equal(t, policy.ExclusionAmbiguousRoster, diags[0].Reason)
@@ -30,7 +30,7 @@ func TestValidateRosterIDs_ValidArmIsNotReported(t *testing.T) {
 		{ID: "acme/model-b", Providers: []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}}},
 	}
 
-	diags := validateRosterIDs([]string{"acme/model-b"}, models, policy.ManagedProviderPolicy())
+	diags := validateRosterIDs([]string{"acme/model-b"}, models)
 
 	assert.Empty(t, diags)
 }

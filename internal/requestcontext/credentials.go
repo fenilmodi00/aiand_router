@@ -12,7 +12,6 @@ import (
 
 	"weave-os/router/internal/auth"
 	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router/catalog"
 
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -146,31 +145,4 @@ func ExtractClientCredentials(provider string, headers http.Header) *Credentials
 		}
 	}
 	return nil
-}
-
-// CodexSubscriptionCanAttemptModel reports whether model belongs to the native
-// Codex roster or is explicitly enabled for a subscription-first funding
-// attempt in the catalog. Unknown models fail closed.
-func CodexSubscriptionCanAttemptModel(model string) bool {
-	if CodexSubscriptionCoversModel(model) {
-		return true
-	}
-	m, ok := catalog.ByID(model)
-	if !ok || !m.CodexSubscriptionFallback {
-		return false
-	}
-	for _, binding := range m.Providers {
-		if binding.Provider == providers.ProviderAIAND {
-			return true
-		}
-	}
-	return false
-}
-
-// CodexSubscriptionCoversModel reports whether model belongs to the curated
-// automatic Codex model roster. This is narrower than
-// CodexSubscriptionCanAttemptModel, which also permits explicitly approved
-// catalog fallback targets outside the automatic roster.
-func CodexSubscriptionCoversModel(model string) bool {
-	return catalog.CodexSubscriptionCoversModel(model)
 }

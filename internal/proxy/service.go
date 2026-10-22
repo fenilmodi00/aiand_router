@@ -25,7 +25,6 @@ import (
 	"weave-os/router/internal/observability"
 	"weave-os/router/internal/observability/otel"
 	"weave-os/router/internal/providers"
-	"weave-os/router/internal/proxy/usage"
 	"weave-os/router/internal/requestcontext"
 	"weave-os/router/internal/router"
 	"weave-os/router/internal/router/bandit"
@@ -394,10 +393,6 @@ type Service struct {
 	// https://router.workweave.ai), trailing slash trimmed. Empty disables
 	// feedback-link header emission on proxied responses.
 	feedbackBaseURL string
-	// usageObserver records per-credential subscription rate-limit headroom from
-	// upstream response headers, feeding account source selection and the
-	// subscription-quota admission gate.
-	usageObserver *usage.Observer
 }
 
 type registeredStrategy struct {
@@ -539,12 +534,6 @@ type InstallationRoutingKnobsContextKey struct{}
 // ClusterModelListsContextKey is the context key for the authed API key's
 // per-cluster ordered allowlists (map[string][]string). Set by auth middleware.
 type ClusterModelListsContextKey struct{}
-
-// InstallationSubscriptionRoutingDisabledContextKey is the context key for the
-// authed installation's "disable subscription-aware routing" toggle. Carried as
-// bool; absent (== false) when the installation hasn't disabled it. When set,
-// subscription credentials are excluded before dispatch.
-type InstallationSubscriptionRoutingDisabledContextKey struct{}
 
 // InstallationHideTerminalSurfacesContextKey is the context key for the
 // installation's hide-terminal-surfaces toggle (bool; absent == false);
@@ -957,16 +946,8 @@ func (s *Service) routableUniverse() map[string]struct{} {
 	return out
 }
 
-// subscriptionRoutingDisabledForRequest reports whether the authed installation
-// has turned off subscription serving for this request.
-func subscriptionRoutingDisabledForRequest(ctx context.Context) bool {
-	disabled, _ := ctx.Value(InstallationSubscriptionRoutingDisabledContextKey{}).(bool)
-	return disabled
-}
-
 // subscriptionFundingOutOfPlayForRequest reports that Max product scope never
-// treats a consumer subscription as a funding source or routing mode. Distinct
-// from subscriptionRoutingDisabledForRequest, which is the installation toggle.
+// treats a consumer subscription as a funding source or routing mode.
 func subscriptionFundingOutOfPlayForRequest(ctx context.Context) bool {
 	plan, ok := entitlement.ProductScopeFromContext(ctx)
 	return ok && plan == entitlement.PlanMax
@@ -1003,12 +984,11 @@ func routingKnobsForRequest(ctx context.Context) *router.Overrides {
 // Returns nil when neither filter fires.
 func (s *Service) safetyExcludedModels(env *translate.RequestEnvelope, outputReserve int, enabledProviders map[string]struct{}) map[string]struct{} {
 	_, overflowed := excludeContextOverflowModels(env.ContextOverflowTokenEstimate(), env.SignatureTokenSavings(), outputReserve, enabledProviders, nil, s.availableModels)
-	_, advisorOutranking := excludeAdvisorOutrankingModels(env, nil, s.routableUniverse())
-	if len(overflowed) == 0 && len(advisorOutranking) == 0 {
+	if len(overflowed) == 0 {
 		return nil
 	}
-	out := make(map[string]struct{}, len(overflowed)+len(advisorOutranking))
-	for _, models := range [][]string{overflowed, advisorOutranking} {
+	out := make(map[string]struct{}, len(overflowed))
+	for _, models := range [][]string{overflowed} {
 		for _, m := range models {
 			out[m] = struct{}{}
 		}
@@ -3469,13 +3449,6 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	// Hard exclusions run first so a model the request can never use does not
 	// count as fitting and suppress the total-overflow admission below.
 	excluded := baseExcluded
-	excluded, advisorOutranking := excludeAdvisorOutrankingModels(env, excluded, s.routableUniverse())
-	if len(advisorOutranking) > 0 {
-		log.Info("advisor pre-filter: excluded models the advisor tool cannot advise",
-			"advisor_model", env.AdvisorToolModel(),
-			"excluded_models", strings.Join(advisorOutranking, ","),
-		)
-	}
 	overflowEstimate := env.ContextOverflowTokenEstimate()
 	customBindings := s.customBindingsForRequest(ctx)
 	excluded, ctxOverflowed := excludeContextOverflowModels(overflowEstimate, env.SignatureTokenSavings(), outputReserve, enabledProviders, excluded, s.availableModels)
@@ -3490,7 +3463,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 			"admitted_for_upstream", strings.Join(overflowAdmitted, ","),
 		)
 	}
-	hardExcluded := advisorOutranking
+	hardExcluded := []string(nil)
 
 	routeStart := time.Now()
 	req := router.Request{
@@ -3973,7 +3946,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 						WithLogger(log).
 						WithEstimatedInputTokens(feats.Tokens).
 						WithRequestHadTools(feats.HasTools).
-						WithThinkTagReasoning(catalog.ThinkTagReasoningFor(d.Model)).
+						WithThinkTagReasoning(false).
 						WithEscapeNormalize(s.escapeNormalize).
 						WithToolValidator(toolValidator)
 					if providers.OutputExcludesReasoning(d.Provider) {
@@ -4748,8 +4721,10 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 			CredentialKeyPrefix: credentialKeyPrefix,
 			CredentialKeySuffix: credentialKeySuffix,
 			CredentialSource:    credSource,
-			// Phase 0 instrumentation — Anthropic only; see unified_limit_capture.go.
-			UnifiedLimitHeaders: unifiedLimitHeadersJSON(ctx),
+			// The capture chain is gone: no upstream ever reported the
+			// anthropic-ratelimit-unified-* headers this column held, so it
+			// stays NULL.
+			UnifiedLimitHeaders: nil,
 		}
 		applyServedGroupTelemetry(ctx, &tel, routeRes, decision)
 		applyPlannerTelemetry(&tel, routeRes)

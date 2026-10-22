@@ -75,7 +75,7 @@ func newTestSummarizer(t *testing.T, fake providers.Client, model string, timeou
 	available := map[string]struct{}{providers.ProviderAIAND: {}}
 	deployed := map[string]struct{}{model: {}}
 	plans, err := policy.NewPlanResolver(policy.DefaultRegistry(), policy.NewResolver(
-		deployed, available, func(m catalog.Model) string { return m.ID }, policy.ProviderPolicy{}))
+		deployed, available, func(m catalog.Model) string { return m.ID }))
 	require.NoError(t, err)
 	executor, err := dispatch.NewExecutor(dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: fake}))
 	require.NoError(t, err)
@@ -258,7 +258,7 @@ func TestProviderSummarizer_AttemptEventsCarryRequestID(t *testing.T) {
 	available := map[string]struct{}{providers.ProviderAIAND: {}}
 	deployed := map[string]struct{}{policy.HandoverSummaryDefaultModel: {}}
 	plans, err := policy.NewPlanResolver(policy.DefaultRegistry(), policy.NewResolver(
-		deployed, available, func(m catalog.Model) string { return m.ID }, policy.ProviderPolicy{}))
+		deployed, available, func(m catalog.Model) string { return m.ID }))
 	require.NoError(t, err)
 	var events []inference.AttemptEvent
 	executor, err := dispatch.NewExecutor(
@@ -287,7 +287,7 @@ func newTestCompactionSummarizer(t *testing.T, fake providers.Client, compaction
 		deployed[m] = struct{}{}
 	}
 	plans, err := policy.NewPlanResolver(policy.DefaultRegistry(), policy.NewResolver(
-		deployed, available, func(m catalog.Model) string { return m.ID }, policy.ProviderPolicy{}))
+		deployed, available, func(m catalog.Model) string { return m.ID }))
 	require.NoError(t, err)
 	executor, err := dispatch.NewExecutor(dispatch.NewClients(map[string]providers.Client{providers.ProviderAIAND: fake}))
 	require.NoError(t, err)

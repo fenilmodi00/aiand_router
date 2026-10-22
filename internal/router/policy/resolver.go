@@ -13,23 +13,6 @@ import (
 // artifact. An empty identifier intentionally excludes the model.
 type RosterMapper func(catalog.Model) string
 
-// ProviderPolicy limits which dispatch providers a policy router may offer.
-type ProviderPolicy struct {
-	Denied map[string]struct{}
-}
-
-// ManagedProviderPolicy allows every provider: ai& is the only upstream left,
-// so there is no aggregator to exclude.
-func ManagedProviderPolicy() ProviderPolicy {
-	return ProviderPolicy{}
-}
-
-// Allows reports whether provider may be offered to the policy.
-func (p ProviderPolicy) Allows(provider string) bool {
-	_, denied := p.Denied[provider]
-	return !denied
-}
-
 // ExclusionReason identifies why a deployed catalog model was not offered.
 type ExclusionReason string
 
@@ -51,8 +34,6 @@ const (
 	ExclusionUnmappedRoster ExclusionReason = "unmapped_roster"
 	// ExclusionNoProvider means no request-enabled provider can dispatch the model.
 	ExclusionNoProvider ExclusionReason = "no_enabled_provider"
-	// ExclusionProviderPolicy means all resolvable providers were policy-denied.
-	ExclusionProviderPolicy ExclusionReason = "provider_policy"
 	// ExclusionImageCapability means a capable peer replaced this text-only model.
 	ExclusionImageCapability ExclusionReason = "image_capability"
 	// ExclusionToolCapability means a capable peer replaced this weak tool model.
@@ -236,7 +217,6 @@ type Resolver struct {
 	deployed          map[string]struct{}
 	available         map[string]struct{}
 	mapper            RosterMapper
-	providerPolicy    ProviderPolicy
 	enumerateBindings bool
 	routerSelectsArm  bool
 	toolLow           map[string]struct{}
@@ -244,20 +224,19 @@ type Resolver struct {
 }
 
 // NewResolver constructs a reusable policy candidate resolver.
-func NewResolver(deployed, available map[string]struct{}, mapper RosterMapper, providerPolicy ProviderPolicy) *Resolver {
+func NewResolver(deployed, available map[string]struct{}, mapper RosterMapper) *Resolver {
 	return &Resolver{
-		deployed:       deployed,
-		available:      available,
-		mapper:         mapper,
-		providerPolicy: providerPolicy,
-		toolLow:        catalog.ToolUseLowSet(),
-		imageLow:       catalog.ImageUnsupportedSet(),
+		deployed:  deployed,
+		available: available,
+		mapper:    mapper,
+		toolLow:   catalog.ToolUseLowSet(),
+		imageLow:  catalog.ImageUnsupportedSet(),
 	}
 }
 
 // NewArmResolver enumerates every enabled provider binding as a distinct candidate for arm-scoring policies; use NewResolver for model-scoring policies.
-func NewArmResolver(deployed, available map[string]struct{}, mapper RosterMapper, providerPolicy ProviderPolicy) *Resolver {
-	resolver := NewResolver(deployed, available, mapper, providerPolicy)
+func NewArmResolver(deployed, available map[string]struct{}, mapper RosterMapper) *Resolver {
+	resolver := NewResolver(deployed, available, mapper)
 	resolver.enumerateBindings = true
 	return resolver
 }
@@ -349,15 +328,11 @@ func (r *Resolver) Resolve(req router.Request) ResolvedCandidates {
 
 		allowedBindings := catalog.EnumerateBindingsWithCustom(
 			id,
-			r.allowedProviders(providerSet),
+			providerSet,
 			req.CustomBindings,
 		)
 		if len(allowedBindings) == 0 {
-			reason := ExclusionNoProvider
-			if unrestrictedBindings := catalog.EnumerateBindingsWithCustom(id, providerSet, req.CustomBindings); len(unrestrictedBindings) > 0 {
-				reason = ExclusionProviderPolicy
-			}
-			diagnostics = append(diagnostics, Diagnostic{CatalogID: id, RosterID: rosterID, Reason: reason})
+			diagnostics = append(diagnostics, Diagnostic{CatalogID: id, RosterID: rosterID, Reason: ExclusionNoProvider})
 			continue
 		}
 
@@ -569,16 +544,6 @@ func bindingFromCandidate(candidate Candidate) Binding {
 		ReasoningConfigurationSHA256: candidate.ReasoningConfigurationSHA256,
 		ToolConfigurationSHA256:      candidate.ToolConfigurationSHA256,
 	}
-}
-
-func (r *Resolver) allowedProviders(in map[string]struct{}) map[string]struct{} {
-	allowed := make(map[string]struct{}, len(in))
-	for provider := range in {
-		if r.providerPolicy.Allows(provider) {
-			allowed[provider] = struct{}{}
-		}
-	}
-	return allowed
 }
 
 func preferenceRanks(models []string) map[string]*int {

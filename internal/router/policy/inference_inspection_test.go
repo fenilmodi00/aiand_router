@@ -58,7 +58,7 @@ func TestDeploymentProjection_OmitsCandidateDumpForRouterPolicies(t *testing.T) 
 func TestInspect_RouterPurposeUsesDeploymentServingUniverse(t *testing.T) {
 	available := map[string]struct{}{providers.ProviderAIAND: {}}
 	resolver, err := NewPlanResolver(DefaultRegistry(), NewResolver(
-		catalog.RoutingTargetSet(available), available, func(model catalog.Model) string { return model.ID }, ProviderPolicy{}))
+		catalog.RoutingTargetSet(available), available, func(model catalog.Model) string { return model.ID }))
 	require.NoError(t, err)
 	// An untiered catalog row is never a routing target, so it has no
 	// dispatchable binding and the inspection must refuse it.

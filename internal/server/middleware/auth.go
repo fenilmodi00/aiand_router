@@ -172,9 +172,6 @@ func withAPIKey(svc *auth.Service, byokRequiresOptIn bool, serving ...*ServingAd
 					QualityBias: installation.RoutingQualityWeight,
 				})
 			}
-			if installation.SubscriptionRoutingDisabled {
-				ctx = context.WithValue(ctx, proxy.InstallationSubscriptionRoutingDisabledContextKey{}, true)
-			}
 			if installation.HideTerminalSurfaces {
 				ctx = context.WithValue(ctx, proxy.InstallationHideTerminalSurfacesContextKey{}, true)
 			}

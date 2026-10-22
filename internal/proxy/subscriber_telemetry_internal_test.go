@@ -40,7 +40,6 @@ func TestApplySubscriberTelemetryIncludedUsage(t *testing.T) {
 	assert.Equal(t, int64(4), *telemetry.RetailUsageMicros)
 	require.NotNil(t, telemetry.IncludedUsageMicros)
 	assert.Equal(t, int64(4), *telemetry.IncludedUsageMicros)
-	assert.Nil(t, telemetry.PrepaidUsageMicros)
 	assert.Equal(t, "boost-default", telemetry.ServingProfileID)
 	assert.Equal(t, "profile-sha", telemetry.ServingProfileVersion)
 	assert.Equal(t, "release-id", telemetry.ServingReleaseID)
@@ -82,19 +81,11 @@ func TestApplySubscriberTelemetryCapacitySources(t *testing.T) {
 				assert.Equal(t, string(entitlement.PlanBoost), telemetry.SubscriberPlan)
 				assert.Nil(t, telemetry.RetailUsageMicros)
 				assert.Nil(t, telemetry.IncludedUsageMicros)
-				assert.Nil(t, telemetry.PrepaidUsageMicros)
-				return
+							return
 			}
 			require.NotNil(t, telemetry.RetailUsageMicros)
 			assert.Equal(t, int64(1_000_000), *telemetry.RetailUsageMicros)
-			switch tt.want {
-			case entitlement.CapacitySourcePrepaid:
-				require.NotNil(t, telemetry.PrepaidUsageMicros)
-				assert.Equal(t, int64(1_000_000), *telemetry.PrepaidUsageMicros)
-			default:
-				assert.Nil(t, telemetry.IncludedUsageMicros)
-				assert.Nil(t, telemetry.PrepaidUsageMicros)
-			}
+			assert.Nil(t, telemetry.IncludedUsageMicros)
 		})
 	}
 }
@@ -158,7 +149,6 @@ func TestApplySubscriberTelemetryLeavesUsageEmptyWithoutCapacitySource(t *testin
 	assert.Empty(t, telemetry.CapacitySource)
 	assert.Nil(t, telemetry.RetailUsageMicros)
 	assert.Nil(t, telemetry.IncludedUsageMicros)
-	assert.Nil(t, telemetry.PrepaidUsageMicros)
 }
 
 func TestApplySubscriberTelemetryStampsServingIdentityWithoutSubscription(t *testing.T) {
