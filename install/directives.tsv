@@ -1,14 +1,14 @@
 # Weave Router directive registry
-# canonical|aliases|capability|claude|codex|opencode|pi|cursor|adapter
+# canonical|aliases|capability|claude|codex|opencode|pi|adapter
 # aliases are comma-separated; client columns are yes/no. adapter is the native asset kind.
-force-model|fm|prompt|yes|yes|yes|yes|manual|command,skill
-force-parent||prompt|yes|yes|yes|yes|manual|command,skill
-unforce-model|ufm|prompt|yes|yes|yes|yes|manual|command,skill
-router-feedback|rf|prompt|yes|yes|yes|no|manual|command,skill
-router-off||local-toggle|yes|yes|no|no|manual|command,skill
-router-on||local-toggle|yes|yes|no|no|manual|command,skill
-router-status||local-toggle|yes|yes|no|no|manual|command,skill
-router-session||prompt|yes|yes|no|no|manual|command,skill
-router-models|models|local-toggle|yes|yes|no|no|manual|command,skill
-disable-routing||local-toggle|no|yes|no|no|manual|skill
-beta||prompt|yes|no|no|yes|manual|command
+force-model|fm|prompt|yes|yes|yes|yes|command,skill
+force-parent||prompt|yes|yes|yes|yes|command,skill
+unforce-model|ufm|prompt|yes|yes|yes|yes|command,skill
+router-feedback|rf|prompt|yes|yes|yes|no|command,skill
+router-off||local-toggle|yes|yes|no|no|command,skill
+router-on||local-toggle|yes|yes|no|no|command,skill
+router-status||local-toggle|yes|yes|no|no|command,skill
+router-session||prompt|yes|yes|no|no|command,skill
+router-models|models|local-toggle|yes|yes|no|no|command,skill
+disable-routing||local-toggle|no|yes|no|no|skill
+beta||prompt|yes|no|no|yes|command

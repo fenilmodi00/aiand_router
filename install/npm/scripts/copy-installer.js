@@ -65,7 +65,7 @@ for (const line of registryText.split(/\r?\n/)) {
   if (!line || line.startsWith("#")) continue;
   const fields = line.split("|");
   if (fields[4] !== "yes") continue;
-  if (!(fields[8] || "").split(",").includes("skill")) continue;
+  if (!(fields[7] || "").split(",").includes("skill")) continue;
   // Canonical name plus every alias: Codex discovers skills by directory name,
   // so an advertised $fm needs its own installed skill.
   const names = [fields[0], ...(fields[1] || "").split(",").filter(Boolean)];
