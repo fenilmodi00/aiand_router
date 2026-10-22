@@ -3,7 +3,6 @@ package middleware
 import (
 	"net/http"
 
-	"weave-os/router/internal/billing"
 	"weave-os/router/internal/observability"
 	"weave-os/router/internal/proxy"
 	"weave-os/router/internal/subscriptions/entitlement"
@@ -88,15 +87,6 @@ func WithSubscriberAllowance(svc *entitlement.Service) gin.HandlerFunc {
 		// Settlement skips this allowance when the linked subscription pays.
 		if admission.Outcome == entitlement.AdmissionCovered {
 			c.Request = c.Request.WithContext(entitlement.WithCoverage(c.Request.Context(), admission.Coverage))
-		}
-
-		// Max suppresses linked-subscription funding; Boost prefers it while
-		// retaining included capacity for any model it cannot cover.
-		if proxy.RequestPresentsCoveringSubscription(c.Request.Context(), c.Request.Header, c.FullPath()) {
-			log.Info("Subscriber request prefers linked subscription funding", "reason", billing.SubscriptionOnlyLinkedFirst, "subscriber_id", subscriberID, "admission_outcome", admission.Outcome)
-			c.Request = c.Request.WithContext(billing.WithSubscriptionOnly(c.Request.Context(), billing.SubscriptionOnlyLinkedFirst))
-			c.Next()
-			return
 		}
 
 		c.Next()

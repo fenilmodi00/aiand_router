@@ -12,11 +12,11 @@ type Diagnostic = policy.Diagnostic
 // ambiguous, or provider-policy-blocked. Observation only: DeployedModelsForRosterIDs's
 // silent drop is unchanged.
 func ValidateRosterIDs(rosterIDs []string) []Diagnostic {
-	return ValidateWithCatalog(rosterIDs, catalog.Models, policy.ManagedProviderPolicy())
+	return ValidateWithCatalog(rosterIDs, catalog.Models)
 }
 
 // ValidateWithCatalog validates against explicit catalog/provider contracts without runtime dependencies.
-func ValidateWithCatalog(rosterIDs []string, models []catalog.Model, providerPolicy policy.ProviderPolicy) []Diagnostic {
+func ValidateWithCatalog(rosterIDs []string, models []catalog.Model) []Diagnostic {
 	inverse := make(map[string][]catalog.Model, len(models))
 	for _, m := range models {
 		rosterID := ForModel(m)
@@ -35,18 +35,8 @@ func ValidateWithCatalog(rosterIDs []string, models []catalog.Model, providerPol
 			diagnostics = append(diagnostics, Diagnostic{RosterID: rosterID, Reason: policy.ExclusionUnknownCatalogModel})
 		case len(matches) > 1:
 			diagnostics = append(diagnostics, Diagnostic{RosterID: rosterID, CatalogID: matches[0].ID, Reason: policy.ExclusionAmbiguousRoster})
-		case !hasAllowedProvider(matches[0], providerPolicy):
-			diagnostics = append(diagnostics, Diagnostic{RosterID: rosterID, CatalogID: matches[0].ID, Reason: policy.ExclusionProviderPolicy})
 		}
 	}
 	return diagnostics
 }
 
-func hasAllowedProvider(m catalog.Model, providerPolicy policy.ProviderPolicy) bool {
-	for _, binding := range m.Providers {
-		if providerPolicy.Allows(binding.Provider) {
-			return true
-		}
-	}
-	return false
-}

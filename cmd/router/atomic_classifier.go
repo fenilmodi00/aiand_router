@@ -72,7 +72,7 @@ func configureAtomicClassifier(service *proxy.Service, pool *pgxpool.Pool, provi
 		return err
 	}
 	capabilities := policy.Capabilities{SchemaVersion: policy.SchemaVersionV4, HonorsPreferredModels: true, HonorsQualityPriceBias: true, HonorsClusterModelLists: true, AuthoritativePerTurnSelection: true}
-	resolver := policy.NewResolver(catalog.HMMRoutingTargetSet(providers), providers, armid.ForModel, policy.ManagedProviderPolicy())
+	resolver := policy.NewResolver(catalog.HMMRoutingTargetSet(providers), providers, armid.ForModel)
 	classifierRouter := policy.NewSidecarRouter(policy.SidecarRouterConfig{Strategy: router.StrategyLLMClassifier, Unavailable: router.ErrClassifierUnavailable,
 		ClassifierArtifactID: config.Release, ClassifierArtifactSHA256: config.ReleaseSHA256,
 		SelectionPolicyReleaseID: config.Release, SelectionPolicySHA256: config.SelectionPolicySHA256},

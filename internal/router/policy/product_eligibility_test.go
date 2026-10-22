@@ -17,7 +17,6 @@ func maxResolver() *policy.Resolver {
 		set("deepseek/deepseek-v4-pro", "moonshotai/kimi-k3", "z-ai/glm-5.3"),
 		set(providers.ProviderAIAND),
 		catalogRosterID,
-		policy.ManagedProviderPolicy(),
 	)
 }
 
@@ -55,7 +54,6 @@ func TestMaxBoundaryIsHardEvenWhenItEmptiesThePool(t *testing.T) {
 		set("moonshotai/kimi-k3"),
 		set(providers.ProviderAIAND),
 		catalogRosterID,
-		policy.ManagedProviderPolicy(),
 	)
 
 	resolved := resolver.Resolve(router.Request{

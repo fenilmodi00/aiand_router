@@ -5,7 +5,6 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -41,7 +40,6 @@ import (
 	providerHTTP "weave-os/router/internal/providers/httputil"
 	openaiCompatProvider "weave-os/router/internal/providers/openaicompat"
 	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/proxy/usage"
 	routerpubsub "weave-os/router/internal/pubsub"
 	"weave-os/router/internal/router"
 	"weave-os/router/internal/router/bandit"
@@ -641,7 +639,7 @@ func main() {
 		auxiliaryTargets[id] = struct{}{}
 	}
 	inferencePlans, err := policy.NewPlanResolver(policy.DefaultRegistry(), policy.NewResolver(
-		auxiliaryTargets, availableProviders, func(model catalog.Model) string { return model.ID }, policy.ProviderPolicy{}))
+		auxiliaryTargets, availableProviders, func(model catalog.Model) string { return model.ID }))
 	if err != nil {
 		panic(fmt.Sprintf("inference plan resolver: %v", err))
 	}
@@ -1134,32 +1132,6 @@ func main() {
 		proxySvc = proxySvc.WithExcludedProvidersOverride(cleaned)
 		logger.Info("Provider exclusion override active", "excluded_providers", cleaned)
 	}
-
-	// The usage observer is always wired (cheap, side-effect-free) even though
-	// the cost discount below is env-gated: it also feeds the per-installation
-	// usage-bypass gate, which is DB-gated and can't know the env flag's state.
-	subscriptionTTL := 10 * time.Minute
-	if v, err := time.ParseDuration(config.GetOr("ROUTER_SUBSCRIPTION_OBSERVATION_TTL", "10m")); err == nil {
-		subscriptionTTL = v
-	}
-	observerSalt := make([]byte, 16)
-	if _, err := rand.Read(observerSalt); err != nil {
-		logger.Error("Failed to seed subscription usage observer salt", "err", err)
-		panic(err)
-	}
-	usageObserver := usage.NewObserver(observerSalt, subscriptionTTL, time.Now)
-	// Bound memory: evict expired observations periodically (the usage package
-	// spawns no goroutines of its own).
-	go func() {
-		t := time.NewTicker(time.Minute)
-		defer t.Stop()
-		for range t.C {
-			usageObserver.Sweep()
-		}
-	}()
-	proxySvc = proxySvc.WithUsageObserver(usageObserver)
-
-	logger.Info("Subscription quota observer configured", "observation_ttl", subscriptionTTL)
 
 	trafficCapture, err := newTrafficCaptureFromEnvironment()
 	if err != nil {

@@ -19,7 +19,6 @@ func newSelectorAdapter(result policy.Result) *policy.SidecarRouter {
 		set("moonshotai/kimi-k3", "z-ai/glm-5.2"),
 		set(providers.ProviderAIAND),
 		func(model catalog.Model) string { return "anthropic/" + model.ID },
-		policy.ManagedProviderPolicy(),
 	)
 	return policy.NewSidecarRouter(policy.SidecarRouterConfig{
 		Strategy:    router.StrategyHMM,
@@ -168,7 +167,6 @@ func TestArmSelectorNegotiatesV4(t *testing.T) {
 		set("moonshotai/kimi-k3"),
 		set(providers.ProviderAIAND),
 		func(model catalog.Model) string { return "anthropic/" + model.ID },
-		policy.ManagedProviderPolicy(),
 	)
 	adapter := policy.NewSidecarRouter(policy.SidecarRouterConfig{
 		Strategy:    router.StrategyHMM,

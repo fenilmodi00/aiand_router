@@ -22,7 +22,6 @@ func TestManagedResolverResolvesTheOnlyProviderBinding(t *testing.T) {
 		set(catalog.ModelIDDeepSeekV41Flash.String()),
 		set(providers.ProviderAIAND),
 		catalogRosterID,
-		policy.ManagedProviderPolicy(),
 	)
 
 	resolved := resolver.Resolve(router.Request{})
@@ -41,7 +40,6 @@ func TestManagedResolverUsesTheOnlyRemainingProvider(t *testing.T) {
 		set("deepseek/deepseek-v4-pro", "z-ai/glm-5.3"),
 		set(providers.ProviderAIAND),
 		catalogRosterID,
-		policy.ManagedProviderPolicy(),
 	)
 
 	resolved := resolver.Resolve(router.Request{})
@@ -59,32 +57,12 @@ func TestManagedResolverUsesTheOnlyRemainingProvider(t *testing.T) {
 	assert.Equal(t, "zai-org/glm-5.3", byID["z-ai/glm-5.3"].UpstreamID)
 }
 
-// A model whose only binding is policy-denied is reported as a provider
-// policy exclusion, not as a missing provider.
-func TestResolverExcludesModelsWhoseOnlyProviderIsPolicyDenied(t *testing.T) {
-	resolver := policy.NewResolver(
-		set("z-ai/glm-5.3"),
-		set(providers.ProviderAIAND),
-		catalogRosterID,
-		policy.ProviderPolicy{Denied: map[string]struct{}{providers.ProviderAIAND: {}}},
-	)
-
-	resolved := resolver.Resolve(router.Request{})
-
-	assert.Empty(t, resolved.Candidates)
-	assert.Contains(t, resolved.Diagnostics, policy.Diagnostic{
-		CatalogID: "z-ai/glm-5.3",
-		RosterID:  "z-ai/glm-5.3",
-		Reason:    policy.ExclusionProviderPolicy,
-	})
-}
 
 func TestResolverDefaultsUpstreamIDToCatalogID(t *testing.T) {
 	resolver := policy.NewResolver(
 		set("moonshotai/kimi-k3"),
 		set(providers.ProviderAIAND),
 		catalogRosterID,
-		policy.ManagedProviderPolicy(),
 	)
 
 	resolved := resolver.Resolve(router.Request{})
@@ -102,7 +80,6 @@ func TestArmResolverEnumeratesTheAllowedProviderBinding(t *testing.T) {
 		set("z-ai/glm-5.2"),
 		set(providers.ProviderAIAND),
 		catalogRosterID,
-		policy.ManagedProviderPolicy(),
 	)
 
 	resolved := resolver.Resolve(router.Request{})
@@ -142,7 +119,6 @@ func TestArmResolverRejectsRosterOnlySelection(t *testing.T) {
 		set("z-ai/glm-5.2", "moonshotai/kimi-k3"),
 		set(providers.ProviderAIAND),
 		func(catalog.Model) string { return "shared/arm" },
-		policy.ProviderPolicy{},
 	)
 
 	resolved := resolver.Resolve(router.Request{})
@@ -158,7 +134,6 @@ func TestResolverAppliesHardFiltersAndPreferenceRanks(t *testing.T) {
 		set("moonshotai/kimi-k3", "z-ai/glm-5.2"),
 		set(providers.ProviderAIAND),
 		catalogRosterID,
-		policy.ManagedProviderPolicy(),
 	)
 
 	// With no enabled provider, no model resolves; the preference order is
@@ -201,7 +176,6 @@ func TestResolverBuildsMappingOnlyFromFinalSoftFilteredPool(t *testing.T) {
 		set("moonshotai/kimi-k3", "deepseek/deepseek-v4-flash"),
 		set(providers.ProviderAIAND, providers.ProviderAIAND),
 		catalogRosterID,
-		policy.ManagedProviderPolicy(),
 	)
 
 	resolved := resolver.Resolve(router.Request{HasImages: true})
@@ -216,7 +190,6 @@ func TestResolverRejectsAmbiguousRosterMappings(t *testing.T) {
 		set("moonshotai/kimi-k3", "z-ai/glm-5.2"),
 		set(providers.ProviderAIAND, providers.ProviderAIAND),
 		func(catalog.Model) string { return "shared/arm" },
-		policy.ManagedProviderPolicy(),
 	)
 
 	resolved := resolver.Resolve(router.Request{})
@@ -231,7 +204,6 @@ func TestResolverRejectsCandidatesThatCannotFitEstimatedInput(t *testing.T) {
 		set("moonshotai/kimi-k3"),
 		set(providers.ProviderAIAND),
 		catalogRosterID,
-		policy.ManagedProviderPolicy(),
 	)
 
 	resolved := resolver.Resolve(router.Request{EstimatedInputTokens: catalog.ContextWindowFor("moonshotai/kimi-k3") + 1})
@@ -249,7 +221,6 @@ func TestResolverAllowsExactContextFit(t *testing.T) {
 		set("moonshotai/kimi-k3"),
 		set(providers.ProviderAIAND),
 		catalogRosterID,
-		policy.ManagedProviderPolicy(),
 	)
 
 	resolved := resolver.Resolve(router.Request{EstimatedInputTokens: catalog.ContextWindowFor("moonshotai/kimi-k3")})
@@ -263,7 +234,6 @@ func TestResolverIncludesExpectedOutputInContextBudget(t *testing.T) {
 		set("moonshotai/kimi-k3"),
 		set(providers.ProviderAIAND),
 		catalogRosterID,
-		policy.ManagedProviderPolicy(),
 	)
 	expectedOutputTokens := 2_000
 
@@ -285,7 +255,6 @@ func TestResolverKeepsOverflowAdmittedModels(t *testing.T) {
 		set("moonshotai/kimi-k3", "z-ai/glm-5.2"),
 		set(providers.ProviderAIAND),
 		catalogRosterID,
-		policy.ManagedProviderPolicy(),
 	)
 
 	resolved := resolver.Resolve(router.Request{
@@ -308,7 +277,6 @@ func TestResolverPreservesUnsignedHistoryExclusionAfterOverflowAdmission(t *test
 		set(model),
 		set(providers.ProviderAIAND),
 		catalogRosterID,
-		policy.ManagedProviderPolicy(),
 	)
 
 	resolved := resolver.Resolve(router.Request{
@@ -331,7 +299,6 @@ func TestResolverDoesNotCallUnmappedOverflowCandidateAContextExclusion(t *testin
 		set(model),
 		set(providers.ProviderAIAND),
 		func(catalog.Model) string { return "" },
-		policy.ManagedProviderPolicy(),
 	)
 
 	resolved := resolver.Resolve(router.Request{
@@ -351,7 +318,6 @@ func TestResolverIncludesLiveCandidateEconomics(t *testing.T) {
 		set("moonshotai/kimi-k3"),
 		set(providers.ProviderAIAND),
 		catalogRosterID,
-		policy.ManagedProviderPolicy(),
 	)
 	expectedOutputTokens := 500
 
@@ -377,7 +343,6 @@ func TestResolverUsesLongContextPricing(t *testing.T) {
 		set("z-ai/glm-5.2"),
 		set(providers.ProviderAIAND),
 		catalogRosterID,
-		policy.ManagedProviderPolicy(),
 	)
 	expectedOutputTokens := 1_000
 
@@ -407,7 +372,6 @@ func TestResolverReportsNotAllowlistedSeparatelyFromRequestedExclusion(t *testin
 		set("moonshotai/kimi-k3", "z-ai/glm-5.3-flash"),
 		set(providers.ProviderAIAND),
 		catalogRosterID,
-		policy.ManagedProviderPolicy(),
 	)
 
 	resolved := resolver.Resolve(router.Request{
@@ -435,7 +399,6 @@ func TestResolverKeepsRequestedExclusionWhenNoAllowlist(t *testing.T) {
 		set("moonshotai/kimi-k3"),
 		set(providers.ProviderAIAND),
 		catalogRosterID,
-		policy.ManagedProviderPolicy(),
 	)
 
 	resolved := resolver.Resolve(router.Request{
@@ -453,7 +416,6 @@ func TestResolverDropsAutomaticallyDisabledModels(t *testing.T) {
 		set("moonshotai/kimi-k3", "z-ai/glm-5.3-flash"),
 		set(providers.ProviderAIAND),
 		catalogRosterID,
-		policy.ManagedProviderPolicy(),
 	)
 
 	resolved := resolver.Resolve(router.Request{
@@ -475,7 +437,6 @@ func TestResolverKeepsPoolWhenAutomaticDisablesWouldEmptyIt(t *testing.T) {
 		set("moonshotai/kimi-k3"),
 		set(providers.ProviderAIAND),
 		catalogRosterID,
-		policy.ManagedProviderPolicy(),
 	)
 
 	resolved := resolver.Resolve(router.Request{
@@ -494,7 +455,6 @@ func TestResolverSessionDemotionStaysInsideAllowlist(t *testing.T) {
 		set("moonshotai/kimi-k3", "z-ai/glm-5.2", "z-ai/glm-5.2"),
 		set(providers.ProviderAIAND, providers.ProviderAIAND),
 		catalogRosterID,
-		policy.ManagedProviderPolicy(),
 	)
 
 	t.Run("allowlist admits an Anthropic sibling", func(t *testing.T) {
@@ -523,7 +483,6 @@ func TestResolverDirectlyEnforcesAllowlistForStrategySpecificCandidates(t *testi
 		set("z-ai/glm-5.3-flash"),
 		set(providers.ProviderAIAND),
 		catalogRosterID,
-		policy.ManagedProviderPolicy(),
 	)
 
 	resolved := resolver.Resolve(router.Request{
@@ -601,7 +560,6 @@ func TestResolverKeepsVendorRoutingWhenNoGatewayConfigured(t *testing.T) {
 		set("moonshotai/kimi-k3"),
 		set(providers.ProviderAIAND),
 		catalogRosterID,
-		policy.ManagedProviderPolicy(),
 	)
 
 	resolved := resolver.Resolve(router.Request{})

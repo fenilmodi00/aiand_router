@@ -25,7 +25,7 @@ func inferencePoliciesEngine(t *testing.T) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	available := map[string]struct{}{providers.ProviderAIAND: {}}
 	plans, err := policy.NewPlanResolver(policy.DefaultRegistry(), policy.NewResolver(
-		catalog.RoutingTargetSet(available), available, func(model catalog.Model) string { return model.ID }, policy.ProviderPolicy{}))
+		catalog.RoutingTargetSet(available), available, func(model catalog.Model) string { return model.ID }))
 	require.NoError(t, err)
 	proxySvc := upstreamModelsProxyService(map[string]providers.Client{
 		providers.ProviderAIAND: &modelListingClient{},

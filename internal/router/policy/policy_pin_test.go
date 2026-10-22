@@ -38,7 +38,6 @@ func newPinnedAdapter(t *testing.T, servedArtifactSHA string) (*policy.SidecarRo
 		set("moonshotai/kimi-k3", "z-ai/glm-5.2"),
 		set(providers.ProviderAIAND),
 		func(model catalog.Model) string { return "anthropic/" + model.ID },
-		policy.ManagedProviderPolicy(),
 	)
 	adapter := policy.NewSidecarRouter(policy.SidecarRouterConfig{
 		Strategy:    router.StrategyHMM,

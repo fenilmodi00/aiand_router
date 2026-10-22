@@ -1,7 +1,6 @@
 package middleware_test
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -9,7 +8,6 @@ import (
 	"time"
 
 	"weave-os/router/internal/billing"
-	"weave-os/router/internal/proxy"
 	"weave-os/router/internal/server/middleware"
 	"weave-os/router/internal/subscriptions/entitlement"
 
@@ -78,9 +76,8 @@ func TestWithSubscriberAllowance_MaxExplicitSubscriptionOptOutUsesAllowance(t *t
 
 	request := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 	request.Header.Set("Authorization", "Bearer sk-ant-oat-test")
-	ctx := context.WithValue(request.Context(), proxy.InstallationSubscriptionRoutingDisabledContextKey{}, true)
 	response := httptest.NewRecorder()
-	engine.ServeHTTP(response, request.WithContext(ctx))
+	engine.ServeHTTP(response, request)
 
 	assert.Equal(t, http.StatusOK, response.Code)
 	assert.True(t, dispatched)

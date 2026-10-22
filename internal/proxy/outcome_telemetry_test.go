@@ -6,11 +6,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"weave-os/router/internal/providers"
 	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/proxy/usage"
 	"weave-os/router/internal/router"
 
 	"github.com/stretchr/testify/assert"
@@ -47,7 +45,6 @@ func TestBypassTelemetryRecordsOutcomeAndIncomingTools(t *testing.T) {
 			if rejected {
 				provider.proxyErr = &providers.UpstreamErrorResponse{Status: http.StatusBadRequest, Body: []byte(`{"error":{"message":"bad request"}}`)}
 			}
-			observer := usage.NewObserver([]byte("salt"), time.Minute, time.Now)
 			// The one wired upstream is the OpenAI-compatible one, so the
 			// decision must name it: an empty decision resolves to no provider
 			// at all and the turn never reaches a client.
@@ -55,8 +52,8 @@ func TestBypassTelemetryRecordsOutcomeAndIncomingTools(t *testing.T) {
 				&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: bypassRequestedMdl}},
 				map[string]providers.Client{providers.ProviderAIAND: provider},
 				nil, false, nil, nil, false, providers.ProviderAIAND, bypassRequestedMdl, telem,
-			).WithUsageObserver(observer)
-			ctx := context.WithValue(bypassCtx(0.8), proxy.InstallationIDContextKey{}, "55555555-5555-5555-5555-555555555555")
+			)
+			ctx := context.WithValue(bypassCtx(), proxy.InstallationIDContextKey{}, "55555555-5555-5555-5555-555555555555")
 			body := []byte(`{"model":"deepseek/deepseek-v4.1-flash","messages":[{"role":"user","content":"check"},{"role":"assistant","content":[{"type":"tool_use","id":"call-1","name":"Bash","input":{}}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"call-1","is_error":true,"content":"failed"}]}]}`)
 			req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
 			// A rejected upstream is a failed turn: the router reports it and

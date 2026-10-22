@@ -4,18 +4,7 @@ import (
 	"context"
 
 	"weave-os/router/internal/auth"
-	"weave-os/router/internal/proxy/usage"
 	"weave-os/router/internal/requestcontext"
-)
-
-// Inference route paths (gin FullPath templates) whose upstream cost a caller
-// subscription can cover: the Anthropic Messages API is served by a Claude
-// subscription, the OpenAI chat/responses APIs by a Codex subscription. Other
-// gated routes (Gemini /v1beta, /v1/route) have no consumer subscription.
-const (
-	routePathMessages        = "/v1/messages"
-	routePathChatCompletions = "/v1/chat/completions"
-	routePathResponses       = "/v1/responses"
 )
 
 // SubscriptionOwnerContextKey carries the linked-account owner resolved by the
@@ -58,14 +47,3 @@ func WithManagedSubscriptionUsage(ctx context.Context) context.Context {
 	return context.WithValue(ctx, ManagedSubscriptionUsageContextKey{}, &ManagedSubscriptionUsage{})
 }
 
-// CodexSubscriptionCoversModel reports whether model may receive the caller's
-// ChatGPT OAuth credential. See requestcontext.CodexSubscriptionCoversModel.
-func CodexSubscriptionCoversModel(model string) bool {
-	return requestcontext.CodexSubscriptionCoversModel(model)
-}
-
-// WithUsageObserver wires physical-account quota observation for source selection.
-func (s *Service) WithUsageObserver(obs *usage.Observer) *Service {
-	s.usageObserver = obs
-	return s
-}

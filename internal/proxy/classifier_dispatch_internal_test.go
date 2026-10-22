@@ -84,7 +84,7 @@ func TestClassifierDispatchAcrossProtocols(t *testing.T) {
 			for _, class := range escalationClasses {
 				roster.Clusters[class] = rosterdata.Cluster{Arms: []string{arm}, ArmScores: map[string]float64{arm: 1}}
 			}
-			resolver := policy.NewResolver(map[string]struct{}{test.model: {}}, map[string]struct{}{test.provider: {}}, armid.ForModel, policy.ManagedProviderPolicy())
+			resolver := policy.NewResolver(map[string]struct{}{test.model: {}}, map[string]struct{}{test.provider: {}}, armid.ForModel)
 			capabilities := policy.Capabilities{SchemaVersion: policy.SchemaVersionV4, AuthoritativePerTurnSelection: true}
 			routing := policy.NewSidecarRouter(policy.SidecarRouterConfig{Strategy: router.StrategyLLMClassifier, Unavailable: router.ErrClassifierUnavailable, ClassifierArtifactID: "llm-classifier-v1.0.0", ClassifierArtifactSHA256: strings.Repeat("a", 64), SelectionPolicyReleaseID: "llm-classifier-v1.0.0", SelectionPolicySHA256: roster.SHA256}, policy.AtomicClassifierFacts{Release: "llm-classifier-v1.0.0", ReleaseSHA256: strings.Repeat("a", 64)}, resolver).WithCapabilities(capabilities).WithArmSelector(selection.Selector(roster))
 			svc.WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyLLMClassifier, Router: routing, Capabilities: capabilities, Unavailable: router.ErrClassifierUnavailable})
@@ -157,7 +157,7 @@ func TestClassifierDispatchUsesConfiguredSubscriptionState(t *testing.T) {
 	for _, class := range classes {
 		roster.Clusters[class] = rosterdata.Cluster{Arms: []string{arm}, ArmScores: map[string]float64{arm: 1}}
 	}
-	resolver := policy.NewResolver(map[string]struct{}{model: {}}, map[string]struct{}{providers.ProviderAIAND: {}}, armid.ForModel, policy.ManagedProviderPolicy())
+	resolver := policy.NewResolver(map[string]struct{}{model: {}}, map[string]struct{}{providers.ProviderAIAND: {}}, armid.ForModel)
 	capabilities := policy.Capabilities{SchemaVersion: policy.SchemaVersionV4, AuthoritativePerTurnSelection: true}
 	routing := policy.NewSidecarRouter(policy.SidecarRouterConfig{Strategy: router.StrategyLLMClassifier, Unavailable: router.ErrClassifierUnavailable, ClassifierArtifactID: "llm-classifier-v1.0.0", ClassifierArtifactSHA256: strings.Repeat("a", 64), SelectionPolicyReleaseID: "llm-classifier-v1.0.0", SelectionPolicySHA256: roster.SHA256}, policy.AtomicClassifierFacts{Release: "llm-classifier-v1.0.0", ReleaseSHA256: strings.Repeat("a", 64)}, resolver).WithCapabilities(capabilities).WithArmSelector(selection.Selector(roster))
 	svc.WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyLLMClassifier, Router: routing, Capabilities: capabilities, Unavailable: router.ErrClassifierUnavailable})
@@ -182,7 +182,7 @@ func TestClassifierRecapServesWithoutAnchoringPin(t *testing.T) {
 	for _, class := range escalationClasses {
 		roster.Clusters[class] = rosterdata.Cluster{Arms: []string{arm}, ArmScores: map[string]float64{arm: 1}}
 	}
-	resolver := policy.NewResolver(map[string]struct{}{model: {}}, map[string]struct{}{providers.ProviderAIAND: {}}, armid.ForModel, policy.ManagedProviderPolicy())
+	resolver := policy.NewResolver(map[string]struct{}{model: {}}, map[string]struct{}{providers.ProviderAIAND: {}}, armid.ForModel)
 	capabilities := policy.Capabilities{SchemaVersion: policy.SchemaVersionV4, AuthoritativePerTurnSelection: true}
 	routing := policy.NewSidecarRouter(policy.SidecarRouterConfig{Strategy: router.StrategyLLMClassifier, Unavailable: router.ErrClassifierUnavailable, ClassifierArtifactID: "llm-classifier-v1.0.0", ClassifierArtifactSHA256: strings.Repeat("a", 64), SelectionPolicyReleaseID: "llm-classifier-v1.0.0", SelectionPolicySHA256: roster.SHA256}, policy.AtomicClassifierFacts{Release: "llm-classifier-v1.0.0", ReleaseSHA256: strings.Repeat("a", 64)}, resolver).WithCapabilities(capabilities).WithArmSelector(selection.Selector(roster))
 	svc.WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyLLMClassifier, Router: routing, Capabilities: capabilities, Unavailable: router.ErrClassifierUnavailable})

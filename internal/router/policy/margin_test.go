@@ -27,7 +27,7 @@ func TestSidecarRouterPreservesNullableClassifierMargin(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			decider := &recordingPolicy{result: policy.Result{Model: model, Score: 0.7, Margin: tc.margin}}
 			adapter := policy.NewSidecarRouter(policy.SidecarRouterConfig{Strategy: router.StrategyHMM}, decider,
-				policy.NewResolver(set(model), set(providers.ProviderAIAND), catalogRosterID, policy.ManagedProviderPolicy()))
+				policy.NewResolver(set(model), set(providers.ProviderAIAND), catalogRosterID))
 			decision, err := adapter.Route(context.Background(), router.Request{})
 			require.NoError(t, err)
 			require.NotNil(t, decision.Metadata)

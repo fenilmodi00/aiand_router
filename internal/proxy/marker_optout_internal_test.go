@@ -59,12 +59,12 @@ func TestSuppressMarkerIfRequestedHiddenByInstallation(t *testing.T) {
 func TestSubscriptionOnlyWarningHonorsTerminalSurfaceOptOut(t *testing.T) {
 	ctx := billing.WithSubscriptionOnly(context.Background(), billing.SubscriptionOnlyCreditsDepleted)
 
-	assert.Equal(t, subscriptionOnlyWarningMarker, routerNoticeForRequest(ctx, http.Header{}, subscriptionSourceClaude, "model", "").Text)
+	assert.Equal(t, subscriptionOnlyWarningMarker, routerNoticeForRequest(ctx, http.Header{}, "model", "").Text)
 
 	off := http.Header{}
 	off.Set(routingMarkerHeader, "off")
-	assert.Empty(t, routerNoticeForRequest(ctx, off, subscriptionSourceClaude, "model", "").Text)
+	assert.Empty(t, routerNoticeForRequest(ctx, off, "model", "").Text)
 
 	hidden := context.WithValue(ctx, InstallationHideTerminalSurfacesContextKey{}, true)
-	assert.Empty(t, routerNoticeForRequest(hidden, http.Header{}, subscriptionSourceClaude, "model", "").Text)
+	assert.Empty(t, routerNoticeForRequest(hidden, http.Header{}, "model", "").Text)
 }

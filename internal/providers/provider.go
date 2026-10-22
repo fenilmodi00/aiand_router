@@ -17,32 +17,6 @@ import (
 	"weave-os/router/internal/router"
 )
 
-// UpstreamHeaderObserver records subscription rate-limit headroom (see
-// internal/proxy/usage) without coupling adapters to the observer. Ctx lets it
-// check the resolved credential so only responses on the caller's own
-// subscription are recorded (not e.g. a handover summarizer's deployment-key
-// call). Invoked right after the upstream responds; must be cheap, non-blocking.
-type UpstreamHeaderObserver func(context.Context, http.Header)
-
-type upstreamHeaderObserverKey struct{}
-
-// WithUpstreamHeaderObserver returns ctx carrying obs; a nil obs leaves ctx unchanged.
-func WithUpstreamHeaderObserver(ctx context.Context, obs UpstreamHeaderObserver) context.Context {
-	if obs == nil {
-		return ctx
-	}
-	return context.WithValue(ctx, upstreamHeaderObserverKey{}, obs)
-}
-
-// ObserveUpstreamHeaders invokes the context's UpstreamHeaderObserver with ctx
-// and h, if one is set. Provider adapters call this after receiving an upstream
-// response.
-func ObserveUpstreamHeaders(ctx context.Context, h http.Header) {
-	if obs, ok := ctx.Value(upstreamHeaderObserverKey{}).(UpstreamHeaderObserver); ok && obs != nil {
-		obs(ctx, h)
-	}
-}
-
 // Adding a provider is a THREE-map edit: the Provider* constant here, its
 // APIKeyEnvVars entry, and its ProviderFamilies entry. Omitting the family
 // entry makes dispatch fall through to ErrProviderNotConfigured — a silent 502

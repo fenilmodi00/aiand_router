@@ -75,9 +75,8 @@ func withInstallation(c *gin.Context, externalID string) {
 
 func withUsageBypassInstallation(c *gin.Context, externalID string) {
 	c.Set("router_installation", &auth.Installation{
-		ID:                 "00000000-0000-0000-0000-000000000001",
-		ExternalID:         externalID,
-		UsageBypassEnabled: true,
+		ID:         "00000000-0000-0000-0000-000000000001",
+		ExternalID: externalID,
 	})
 }
 

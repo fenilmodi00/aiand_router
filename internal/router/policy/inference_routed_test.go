@@ -16,7 +16,7 @@ import (
 func routedResolver(t *testing.T) *policy.PlanResolver {
 	t.Helper()
 	resolver, err := policy.NewPlanResolver(policy.DefaultRegistry(), policy.NewResolver(
-		nil, nil, func(model catalog.Model) string { return model.ID }, policy.ProviderPolicy{}))
+		nil, nil, func(model catalog.Model) string { return model.ID }))
 	require.NoError(t, err)
 	return resolver
 }

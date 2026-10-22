@@ -89,8 +89,6 @@ func (s *Service) anthropicRoutingRequest(
 		excluded,
 		s.availableModels,
 	)
-	excluded, _ = excludeAdvisorOutrankingModels(env, excluded, s.routableUniverse())
-
 	organizationID, _ := ctx.Value(ExternalIDContextKey{}).(string)
 	installationID := ""
 	if id := installationIDFromContext(ctx); id != uuid.Nil {

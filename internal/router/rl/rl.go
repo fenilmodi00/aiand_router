@@ -75,7 +75,7 @@ type Router struct {
 func New(decider Decider, deployed, available map[string]struct{}) *Router {
 	return &Router{
 		decider:  decider,
-		resolver: policy.NewResolver(deployed, available, rosterIDFor, policy.ManagedProviderPolicy()),
+		resolver: policy.NewResolver(deployed, available, rosterIDFor),
 	}
 }
 

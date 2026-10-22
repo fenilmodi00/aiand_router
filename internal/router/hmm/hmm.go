@@ -48,7 +48,7 @@ func NewForStrategy(strategy router.Strategy, decider Decider, availableProvider
 
 // newWithRoutingTargets allows focused tests to inject a fixed target set.
 func newWithRoutingTargets(strategy router.Strategy, decider Decider, routingTargets, availableProviders map[string]struct{}) *Router {
-	resolver := policy.NewResolver(routingTargets, availableProviders, rosterIDFor, policy.ManagedProviderPolicy())
+	resolver := policy.NewResolver(routingTargets, availableProviders, rosterIDFor)
 	return &Router{
 		SidecarRouter: policy.NewSidecarRouter(policy.SidecarRouterConfig{
 			Strategy:    strategy,

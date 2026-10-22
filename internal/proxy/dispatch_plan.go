@@ -36,7 +36,7 @@ func (s *Service) inferencePlans() (*policy.PlanResolver, error) {
 	s.defaultPlansOnce.Do(func() {
 		var plans *policy.PlanResolver
 		plans, err = policy.NewPlanResolver(policy.DefaultRegistry(), policy.NewResolver(
-			nil, nil, func(model catalog.Model) string { return model.ID }, policy.ProviderPolicy{}))
+			nil, nil, func(model catalog.Model) string { return model.ID }))
 		if err == nil {
 			s.plans = plans
 		}

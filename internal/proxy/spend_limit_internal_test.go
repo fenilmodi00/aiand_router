@@ -3,7 +3,6 @@ package proxy
 import (
 	"context"
 	"errors"
-	"net/http"
 	"testing"
 
 	"weave-os/router/internal/auth"
@@ -59,7 +58,7 @@ func micros(v int64) *int64 { return &v }
 // spendLimitCheck drives checkUserMonthlySpendLimit with no header/route (the
 // non-subscription paths never consult them), returning just the error.
 func spendLimitCheck(s *Service, ctx context.Context) error {
-	_, err := s.checkUserMonthlySpendLimit(ctx, http.Header{}, "")
+	_, err := s.checkUserMonthlySpendLimit(ctx)
 	return err
 }
 
@@ -122,7 +121,7 @@ func TestCheckUserMonthlySpendLimit_ExemptsSubscriberAllowanceCoveredTurn(t *tes
 		EntitlementVersion: 1,
 		Plan:               entitlement.PlanMax,
 	})
-	_, err := s.checkUserMonthlySpendLimit(ctx, http.Header{}, routePathMessages)
+	_, err := s.checkUserMonthlySpendLimit(ctx)
 	assert.NoError(t, err, "an allowance-covered turn is not gated on the engineer's paid spend limit")
 }
 
@@ -130,7 +129,7 @@ func TestCheckUserMonthlySpendLimit_AppliesToSubscriberPaidFallback(t *testing.T
 	s := &Service{billing: billing.NewService(&spendLimitRepo{spent: 1_000_000, limit: micros(1_000_000)})}
 	ctx := entitlement.WithProductScope(spendLimitCtx("u1", "org-1"), entitlement.PlanMax)
 
-	_, err := s.checkUserMonthlySpendLimit(ctx, http.Header{}, routePathMessages)
+	_, err := s.checkUserMonthlySpendLimit(ctx)
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, billing.ErrUserMonthlySpendLimitReached)
