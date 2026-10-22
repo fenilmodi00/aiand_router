@@ -430,9 +430,9 @@ func main() {
 		reqVersion := config.GetOr("ROUTER_CLUSTER_VERSION", cluster.LatestVersion)
 		if version, vErr := cluster.ResolveVersion(reqVersion); vErr == nil {
 			if bundle, bErr := cluster.LoadBundle(version); bErr == nil {
-				meta, registry := bundle.Metadata, bundle.Registry
+				registry := bundle.Registry
 				hardPinResolver = func(req proxy.HardPinRequest) (string, string, bool) {
-					return cluster.FastestModelForRequest(meta, registry, req.EnabledProviders, req.ExcludedModels, nil, cluster.RequestBindings{
+					return cluster.FastestModelForRequest(registry, req.EnabledProviders, req.ExcludedModels, nil, cluster.RequestBindings{
 						Custom: req.CustomBindings,
 					})
 				}
@@ -1854,7 +1854,7 @@ func resolveHardPinModel(available map[string]struct{}, logger *slog.Logger) (pr
 		logger.Warn("Hard-pin model: could not load bundle; using default", "err", err, "default_model", policy.UtilityHardPinDefaultModel)
 		return policy.UtilityHardPinDefaultProvider, policy.UtilityHardPinDefaultModel, nil
 	}
-	p, m, ok := cluster.FastestModel(bundle.Metadata, bundle.Registry, available)
+	p, m, ok := cluster.FastestModel(bundle.Registry, available)
 	if !ok {
 		logger.Warn("Hard-pin model: no model found for available providers; using default", "default_model", policy.UtilityHardPinDefaultModel)
 		return policy.UtilityHardPinDefaultProvider, policy.UtilityHardPinDefaultModel, nil

@@ -266,12 +266,6 @@ func nearestCluster(vec []float32, c *cluster.Centroids) int {
 
 func availableProviders(b *cluster.Bundle) map[string]struct{} {
 	out := make(map[string]struct{})
-	if b.Metadata != nil && len(b.Metadata.DeployedProviders) > 0 {
-		for _, p := range b.Metadata.DeployedProviders {
-			out[p] = struct{}{}
-		}
-		return out
-	}
 	for _, e := range b.Registry.DeployedModels {
 		out[e.Provider] = struct{}{}
 	}
