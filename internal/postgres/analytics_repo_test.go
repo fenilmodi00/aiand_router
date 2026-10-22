@@ -64,21 +64,15 @@ func TestServingTargetReachesTelemetryInsertAndAnalyticsExport(t *testing.T) {
 	assert.Equal(t, target, exported["serving_target"])
 }
 
-func TestSubscriptionWinnerAttributionSurvivesInsert(t *testing.T) {
-	accountID := uuid.MustParse("00000000-0000-0000-0000-000000000101")
-	ownerID := uuid.MustParse("00000000-0000-0000-0000-000000000102")
-	tier := string(auth.SubscriptionTierShared)
+func TestTelemetryInsertCarriesModelFamilyAttribution(t *testing.T) {
 	intendedFamily, finalFamily := "claude-sonnet", "gpt"
 	credentialSource := "codex_subscription"
 	capture := &telemetryInsertCapture{}
 	err := NewTelemetryRepo(capture).InsertRequestTelemetry(context.Background(), proxy.InsertTelemetryParams{
-		InstallationID:        uuid.NewString(),
-		SubscriptionAccountID: accountID.String(),
-		SubscriptionOwnerID:   ownerID.String(),
-		SubscriptionTier:      auth.SubscriptionTierShared,
-		IntendedModelFamily:   intendedFamily,
-		FinalModelFamily:      finalFamily,
-		CredentialSource:      credentialSource,
+		InstallationID:      uuid.NewString(),
+		IntendedModelFamily: intendedFamily,
+		FinalModelFamily:    finalFamily,
+		CredentialSource:    credentialSource,
 	})
 	require.NoError(t, err)
 	columns := strings.Split(strings.Split(strings.Split(capture.query, "(")[1], ")")[0], ",")
@@ -86,9 +80,6 @@ func TestSubscriptionWinnerAttributionSurvivesInsert(t *testing.T) {
 	for index, column := range columns {
 		arguments[strings.TrimSpace(column)] = capture.args[index]
 	}
-	assert.Equal(t, pgtype.UUID{Bytes: accountID, Valid: true}, arguments["subscription_account_id"])
-	assert.Equal(t, pgtype.UUID{Bytes: ownerID, Valid: true}, arguments["subscription_owner_id"])
-	assert.Equal(t, &tier, arguments["subscription_tier"])
 	assert.Equal(t, &intendedFamily, arguments["intended_model_family"])
 	assert.Equal(t, &finalFamily, arguments["final_model_family"])
 	assert.Equal(t, &credentialSource, arguments["credential_source"])

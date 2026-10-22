@@ -58,7 +58,7 @@ func (s *Service) billAuxiliaryInference(ctx context.Context, requestID, request
 		return
 	}
 	pricing, _ := catalog.PrimaryPriceFor(usage.Model)
-	usageMods := catalog.UsageModifiers{CacheCreation1h: usage.CacheCreation1h, InferenceGeo: catalog.InferenceGeo(usage.InferenceGeo)}
+	usageMods := catalog.UsageModifiers{CacheCreation1h: usage.CacheCreation1h}
 	apiKeyID := apiKeyIDFromContext(ctx)
 	auxRequestID := requestID + requestIDSuffix
 

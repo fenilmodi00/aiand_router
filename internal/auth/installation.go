@@ -50,25 +50,6 @@ type Installation struct {
 	// remainder. nil means no preference -- the scorer keeps its tuned
 	// per-cluster defaults.
 	RoutingQualityWeight *float64
-	// UsageBypassEnabled toggles the per-installation subscription usage-bypass
-	// gate. When true, requests presenting a subscription credential whose
-	// observed rate-limit utilization is below UsageBypassThreshold pass
-	// straight through to the requested model (no routing, no billing debit).
-	// Defaults false -- strict opt-in.
-	UsageBypassEnabled bool
-	// UsageBypassThreshold is the [0, 1] utilization at/above which the bypass
-	// gate disengages and normal routing takes over. nil means "use the
-	// deployment default" so the toggle can be on before a value is chosen.
-	UsageBypassThreshold *float64
-	// SubscriptionRoutingDisabled turns off subscription-AWARE ROUTING for this
-	// installation. When true, the scorer's subscription subsidy bonus is
-	// suppressed, so routing decides purely on quality/cost/speed merits and
-	// non-Claude models compete fairly instead of always losing to the
-	// subsidized Claude family. It removes only the routing BIAS: a turn that
-	// still routes to Claude on its own merits is dispatched on the caller's
-	// subscription token exactly as before, so the prepaid billing path is
-	// unchanged. Defaults false -- preserves today's behavior.
-	SubscriptionRoutingDisabled bool
 	// RoutingStrategy is the canonical strategy selected for this installation.
 	// Existing installations default to the cluster scorer until allowlisted.
 	RoutingStrategy router.Strategy
@@ -121,8 +102,6 @@ type CreateInstallationParams struct {
 
 type InstallationRepository interface {
 	Create(ctx context.Context, params CreateInstallationParams) (*Installation, error)
-	// Get has no caller today; kept for a future admin detail view.
-	Get(ctx context.Context, externalID, id string) (*Installation, error)
 	ListForExternalID(ctx context.Context, externalID string) ([]*Installation, error)
 	SoftDelete(ctx context.Context, externalID, id string) error
 	// MarkFirstRequestServed stamps FirstRequestServedAt once; a no-op thereafter, so key rotation can't reset it.
@@ -140,21 +119,12 @@ type InstallationRepository interface {
 	// fraction in [0, 1]). Passing nil clears the preference so the scorer
 	// reverts to its tuned per-cluster defaults.
 	UpdateRoutingPreference(ctx context.Context, externalID, id string, qualityWeight *float64) error
-	// UpdateUsageBypass sets the subscription usage-bypass gate. enabled toggles
-	// the gate; threshold is the [0, 1] utilization at/above which it disengages
-	// (nil = use the deployment default).
-	UpdateUsageBypass(ctx context.Context, externalID, id string, enabled bool, threshold *float64) error
-	// UpdateSubscriptionRoutingDisabled toggles subscription-aware routing for
-	// the installation. When true, the scorer's subscription subsidy bonus is
-	// suppressed so routing decides on merits.
-	UpdateSubscriptionRoutingDisabled(ctx context.Context, externalID, id string, disabled bool) error
 	// UpdateContentCaptureMode sets the per-installation capture ceiling; nil
 	// clears the override.
 	UpdateContentCaptureMode(ctx context.Context, externalID, id string, mode *string) error
 	// UpdateHideTerminalSurfaces toggles hiding the router's terminal surfaces
 	// (routing marker, feedback footer, statusline) for the installation.
 	UpdateHideTerminalSurfaces(ctx context.Context, externalID, id string, hide bool) error
-	UpdateShowModelSelectionReasoning(ctx context.Context, externalID, id string, show bool) error
 	// UpdateFlagOverrides replaces the per-installation behavioral flag override
 	// set. The whole sparse set is written, not a delta, so clearing one override
 	// means omitting its key. An empty Overrides clears every override.

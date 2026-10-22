@@ -125,12 +125,6 @@ func applySubscriptionWinnerTelemetry(ctx context.Context, telemetry *InsertTele
 	if winningUsage.IntendedModel != "" {
 		telemetry.IntendedModelFamily = canonicalTelemetryModelFamily(winningUsage.IntendedModel)
 	}
-	if !winningUsage.Served || winningUsage.OverageInUse {
-		return
-	}
-	telemetry.SubscriptionAccountID = winningUsage.SubscriptionAccountID
-	telemetry.SubscriptionOwnerID = winningUsage.SubscriptionOwnerID
-	telemetry.SubscriptionTier = winningUsage.SubscriptionTier
 }
 
 func (s *Service) applySubscriptionSpanTelemetry(ctx context.Context, attrs *otel.AttrBuilder, requestedModel, selectedModel string) {
@@ -143,11 +137,6 @@ func (s *Service) applySubscriptionSpanTelemetry(ctx context.Context, attrs *ote
 	}
 	telemetry := InsertTelemetryParams{RequestedModel: requestedModel, DecisionModel: selectedModel}
 	applySubscriptionWinnerTelemetry(ctx, &telemetry)
-	if telemetry.SubscriptionAccountID != "" {
-		attrs.String("subscription.account_id", telemetry.SubscriptionAccountID).
-			String("subscription.owner_id", telemetry.SubscriptionOwnerID).
-			String("subscription.tier", string(telemetry.SubscriptionTier))
-	}
 	if telemetry.IntendedModelFamily != "" {
 		attrs.String("model.intended_family", telemetry.IntendedModelFamily)
 	}
@@ -171,11 +160,9 @@ func applySubscriptionDecisionSpanTelemetry(ctx context.Context, attrs *otel.Att
 	}
 }
 
-// servedCredentialLogValues names the credential that served the turn for the
+// servedCredentialLogValue names the credential that served the turn for the
 // completion log line. An empty source means the deployment key.
-func (s *Service) servedCredentialLogValues(ctx context.Context) (source, tier string) {
+func (s *Service) servedCredentialLogValue(ctx context.Context) (source string) {
 	_, _, source = s.credentialKeyParts(ctx)
-	var telemetry InsertTelemetryParams
-	applySubscriptionWinnerTelemetry(ctx, &telemetry)
-	return source, string(telemetry.SubscriptionTier)
+	return source
 }

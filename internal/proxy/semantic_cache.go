@@ -80,9 +80,6 @@ func (s *Service) semanticCacheStoreAllowed(ctx context.Context, provenance cach
 		return false
 	}
 	if usage, _ := ctx.Value(ManagedSubscriptionUsageContextKey{}).(*ManagedSubscriptionUsage); usage != nil {
-		if usage.SubscriptionAttempted || usage.Served {
-			return false
-		}
 		if usage.Finished {
 			ctx = requestcontext.WithCredentials(ctx, usage.WinningCredentials)
 		}

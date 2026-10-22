@@ -70,36 +70,6 @@ func (r *userRepo) UpsertByAccountUUID(ctx context.Context, params auth.UpsertUs
 	return toAuthUser(row), nil
 }
 
-func (r *userRepo) Get(ctx context.Context, id string) (*auth.User, error) {
-	parsed, err := uuid.Parse(id)
-	if err != nil {
-		return nil, err
-	}
-	q := dbbudget.Queries(r.tx)
-	row, err := q.GetModelRouterUser(ctx, parsed)
-	if err != nil {
-		return nil, err
-	}
-	return toAuthUser(row), nil
-}
-
-func (r *userRepo) ListForInstallation(ctx context.Context, installationID string) ([]*auth.User, error) {
-	parsed, err := uuid.Parse(installationID)
-	if err != nil {
-		return nil, err
-	}
-	q := dbbudget.Queries(r.tx)
-	rows, err := q.ListModelRouterUsersForInstallation(ctx, parsed)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]*auth.User, 0, len(rows))
-	for _, row := range rows {
-		out = append(out, toAuthUser(row))
-	}
-	return out, nil
-}
-
 func toAuthUser(row sqlc.RouterModelRouterUser) *auth.User {
 	user := &auth.User{
 		ID:             row.ID.String(),

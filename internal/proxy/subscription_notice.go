@@ -14,6 +14,10 @@ import (
 
 // subscriptionSource names the caller-side subscription a funding notice
 // describes. It selects the marker text, not a routing lane.
+//
+// The router has one upstream (ai&), so both ingress surfaces — the Anthropic
+// Messages API and the OpenAI chat/responses APIs — resolve to the same
+// funding mode. The distinction survives only in the marker wording.
 type subscriptionSource string
 
 const (
@@ -32,36 +36,6 @@ var (
 
 func isSubscriptionPoolError(err error) bool {
 	return errors.Is(err, ErrSubscriptionPoolExhausted) || errors.Is(err, ErrSubscriptionPoolUnavailable)
-}
-
-// claudeSubscriptionExhausted reports whether the caller's Claude subscription
-// is exhausted or actively drawing billable overage. True only when a Claude
-// token has an observed spent/billable snapshot and a paid fallback key exists.
-// The token key is derived identically to withUsageObserver so this read
-// agrees with what the observer recorded. When true the caller suppresses the
-// subscription credential so the turn serves on the Weave / BYOK key rather than
-// the customer's credits.
-func (s *Service) claudeSubscriptionExhausted(ctx context.Context, headers http.Header) bool {
-	return s.anthropicSubscriptionObservedExhausted(ctx, headers)
-}
-
-// anthropicSubscriptionObservedExhausted reports whether the caller's present
-// Claude subscription is exhausted or using paid overage per the observer,
-// independent of whether a fallback key exists. claudeSubscriptionExhausted
-// layers the fallback-key requirement on top for its suppress-and-serve-on-Weave
-// -key path; subscription-only refusal uses this bare signal because paid
-// fallback is disabled there — an exhausted sub can only 429, while using
-// overage would charge the customer. The turn is refused with a controlled 402.
-func (s *Service) anthropicSubscriptionObservedExhausted(ctx context.Context, headers http.Header) bool {
-	if s.usageObserver == nil {
-		return false
-	}
-	_, anthroTok := presentSubscriptionTokens(ctx, headers)
-	if anthroTok == "" {
-		return false
-	}
-	snap, ok := s.usageObserver.Snapshot(s.usageObserver.Key([]byte(anthroTok)))
-	return ok && snap.BillableOrExhausted()
 }
 
 // anthropicFallbackKeyAvailable reports whether a non-subscription Anthropic
@@ -113,57 +87,40 @@ func anthropicOAuthCredentialRejected(err error) bool {
 // credits-exhausted 402 can surface the CTA.
 const topUpURL = "https://app.workweave.ai/organization/settings/weave-router"
 
-// subscriptionOnlyWarningMarker is prepended to a subscription-only bypass
-// response so the customer sees why they're being served on their own plan and
-// how to restore full routing. The marker is emitted only when terminal
-// surfaces are enabled for the installation and request.
+// subscriptionOnlyWarningMarker is prepended to a subscription-only turn so the
+// customer sees why the router refused to fall back to a paid model and how to
+// restore full routing. The marker is emitted only when terminal surfaces are
+// enabled for the installation and request.
 const subscriptionOnlyWarningMarker = routingMarkerPrefix +
-	"your Weave router credits are depleted, so this turn is running on your own Anthropic subscription and paid model fallback is disabled. Add credits to restore full routing: " +
-	topUpURL + "\n\n"
-
-// subscriptionOnlyWarningMarkerCodex is the Codex/OpenAI-surface counterpart to
-// subscriptionOnlyWarningMarker, prepended to a subscription-only turn served on
-// the caller's own ChatGPT (Codex) subscription.
-const subscriptionOnlyWarningMarkerCodex = routingMarkerPrefix +
-	"your Weave router credits are depleted, so this turn is running on your own ChatGPT (Codex) subscription and paid model fallback is disabled. Add credits to restore full routing: " +
+	"your Weave router credits are depleted, so this turn is running in subscription-only mode and paid model fallback is disabled. Add credits to restore full routing: " +
 	topUpURL + "\n\n"
 
 // subscriptionSpendCapWarningMarker is prepended to a subscription-only turn
 // a spend cap barred from paid capacity. The organization may still hold
 // credits, so it names the cap and carries no top-up CTA.
 const subscriptionSpendCapWarningMarker = routingMarkerPrefix +
-	"a Weave router spend cap has been reached, so this turn is running on your own Anthropic subscription and paid model fallback is disabled.\n\n"
-
-const subscriptionSpendCapWarningMarkerCodex = routingMarkerPrefix +
-	"a Weave router spend cap has been reached, so this turn is running on your own ChatGPT (Codex) subscription and paid model fallback is disabled.\n\n"
+	"a Weave router spend cap has been reached, so this turn is running in subscription-only mode and paid model fallback is disabled.\n\n"
 
 // subscriptionFundingWarning keeps funding policy separate from notice encoding.
 type subscriptionFundingWarning struct {
 	reason billing.SubscriptionOnlyReason
-	source subscriptionSource
 }
 
 func (w subscriptionFundingWarning) text() string {
 	switch w.reason {
 	case billing.SubscriptionOnlyCreditsDepleted:
-		if w.source == subscriptionSourceCodex {
-			return subscriptionOnlyWarningMarkerCodex
-		}
 		return subscriptionOnlyWarningMarker
 	case billing.SubscriptionOnlySpendCapReached:
-		if w.source == subscriptionSourceCodex {
-			return subscriptionSpendCapWarningMarkerCodex
-		}
 		return subscriptionSpendCapWarningMarker
 	default:
 		return ""
 	}
 }
 
-func routerNoticeForRequest(ctx context.Context, headers http.Header, source subscriptionSource, model, marker string) translate.RouterNotice {
+func routerNoticeForRequest(ctx context.Context, headers http.Header, model, marker string) translate.RouterNotice {
 	kind := translate.NoticeModelSelection
 	reason, _ := billing.SubscriptionOnlyReasonFromContext(ctx)
-	warning := subscriptionFundingWarning{reason: reason, source: source}
+	warning := subscriptionFundingWarning{reason: reason}
 	echoed, _ := ctx.Value(subscriptionOnlyWarningsEchoedContextKey{}).(map[subscriptionFundingWarning]bool)
 	if text := warning.text(); text != "" && !echoed[warning] {
 		kind = translate.NoticeFundingWarning
@@ -174,11 +131,12 @@ func routerNoticeForRequest(ctx context.Context, headers http.Header, source sub
 
 type subscriptionOnlyWarningsEchoedContextKey struct{}
 
+// subscriptionFundingWarnings lists every warning text the router can emit, so
+// the echo check covers each one. A warning missing from this list repeats on
+// every turn of the same conversation.
 var subscriptionFundingWarnings = []subscriptionFundingWarning{
-	{reason: billing.SubscriptionOnlyCreditsDepleted, source: subscriptionSourceClaude},
-	{reason: billing.SubscriptionOnlyCreditsDepleted, source: subscriptionSourceCodex},
-	{reason: billing.SubscriptionOnlySpendCapReached, source: subscriptionSourceClaude},
-	{reason: billing.SubscriptionOnlySpendCapReached, source: subscriptionSourceCodex},
+	{reason: billing.SubscriptionOnlyCreditsDepleted},
+	{reason: billing.SubscriptionOnlySpendCapReached},
 }
 
 // Capture replay evidence before cleanup, retaining it through Responses delegation.

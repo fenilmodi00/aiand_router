@@ -422,20 +422,17 @@ type RouterModelRouterInferenceAttempt struct {
 
 // Customer router installations; owns API keys
 type RouterModelRouterInstallation struct {
-	ID                          uuid.UUID
-	ExternalID                  string
-	Name                        string
-	CreatedAt                   pgtype.Timestamp
-	UpdatedAt                   pgtype.Timestamp
-	DeletedAt                   pgtype.Timestamp
-	CreatedBy                   *string
-	ExcludedModels              []string
-	ExcludedProviders           []string
-	RoutingQualityWeight        *float64
-	UsageBypassEnabled          bool
-	UsageBypassThreshold        *float64
-	PreferredModels             []string
-	SubscriptionRoutingDisabled bool
+	ID                   uuid.UUID
+	ExternalID           string
+	Name                 string
+	CreatedAt            pgtype.Timestamp
+	UpdatedAt            pgtype.Timestamp
+	DeletedAt            pgtype.Timestamp
+	CreatedBy            *string
+	ExcludedModels       []string
+	ExcludedProviders    []string
+	RoutingQualityWeight *float64
+	PreferredModels      []string
 	// Optional serving-strategy override. NULL follows the deployment default.
 	RoutingStrategy              *string
 	RoutingRolloutID             *string
@@ -668,8 +665,6 @@ type RouterModelRouterRequestTelemetry struct {
 	CapacitySource          *string
 	RetailUsageUsdMicros    *int64
 	IncludedUsageUsdMicros  *int64
-	LinkedUsageUsdMicros    *int64
-	PrepaidUsageUsdMicros   *int64
 	SettlementFailed        *bool
 	ServingProfileID        *string
 	ServingProfileVersion   *string
@@ -690,9 +685,6 @@ type RouterModelRouterRequestTelemetry struct {
 	LatestToolCallCounts    []byte
 	ServingTarget           *string
 	ReasoningTokens         *int32
-	SubscriptionAccountID   pgtype.UUID
-	SubscriptionOwnerID     pgtype.UUID
-	SubscriptionTier        *string
 	IntendedModelFamily     *string
 	FinalModelFamily        *string
 	CacheCreation1hTokens   *int32
@@ -700,34 +692,6 @@ type RouterModelRouterRequestTelemetry struct {
 	InferenceGeo            *string
 	FailoverAttempted       *bool
 	ContextSnapshot         []byte
-}
-
-type RouterModelRouterSubscriptionAccount struct {
-	ID                     uuid.UUID
-	APIKeyID               pgtype.UUID
-	Provider               string
-	ExternalAccountID      string
-	RefreshTokenCiphertext []byte
-	Enabled                bool
-	CooldownUntil          pgtype.Timestamp
-	CreatedAt              pgtype.Timestamp
-	UpdatedAt              pgtype.Timestamp
-	AccessTokenCiphertext  []byte
-	AccessTokenExpiresAt   pgtype.Timestamp
-	TokenRefreshLeaseUntil pgtype.Timestamp
-	TokenRefreshLeaseID    pgtype.UUID
-	TokenRefreshVersion    int64
-	SubscriberID           pgtype.UUID
-	HealthState            string
-	// Provider-supplied human-readable account label; never used for identity or deduplication.
-	DisplayName    *string
-	ProviderUserID *string
-}
-
-type RouterModelRouterSubscriptionAccountInstallation struct {
-	InstallationID        uuid.UUID
-	SubscriptionAccountID uuid.UUID
-	CreatedAt             pgtype.Timestamptz
 }
 
 // End-user identities seen on inbound requests, scoped to an installation. Replaces the per-user API key pattern.
@@ -1172,45 +1136,6 @@ type RouterSubscriberAutopayConfig struct {
 	CreatedBy                   *string
 	CreatedAt                   pgtype.Timestamptz
 	UpdatedAt                   pgtype.Timestamptz
-}
-
-type RouterSubscriberCreditBalance struct {
-	SubscriberID         uuid.UUID
-	BalanceUsdMicros     int64
-	LowBalanceNotifiedAt pgtype.Timestamptz
-	CreatedAt            pgtype.Timestamptz
-	UpdatedAt            pgtype.Timestamptz
-}
-
-type RouterSubscriberCreditLedger struct {
-	ID                    uuid.UUID
-	SubscriberID          uuid.UUID
-	DeltaUsdMicros        int64
-	NotionalCostMicros    int64
-	BalanceAfterMicros    int64
-	EntryType             string
-	StripePaymentIntentID *string
-	RouterRequestID       *string
-	RouterModel           *string
-	Memo                  *string
-	CreatedAt             pgtype.Timestamptz
-	AuthorizationActionID *string
-	ActionID              *string
-	CapacitySource        *string
-}
-
-type RouterSubscriberCreditReservation struct {
-	ActionID          string
-	SubscriberID      uuid.UUID
-	RouterRequestID   string
-	APIKeyID          *string
-	RequestedModel    string
-	ReservedUsdMicros int64
-	SettledUsdMicros  int64
-	State             string
-	CapacitySource    string
-	CreatedAt         pgtype.Timestamptz
-	UpdatedAt         pgtype.Timestamptz
 }
 
 type RouterSubscriberEntitlement struct {

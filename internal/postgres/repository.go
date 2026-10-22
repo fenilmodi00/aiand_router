@@ -71,22 +71,6 @@ func (r *installationRepo) Create(ctx context.Context, params auth.CreateInstall
 	return toAuthInstallation(row), nil
 }
 
-func (r *installationRepo) Get(ctx context.Context, externalID, id string) (*auth.Installation, error) {
-	parsed, err := uuid.Parse(id)
-	if err != nil {
-		return nil, err
-	}
-	q := dbbudget.Queries(r.tx)
-	row, err := q.GetModelRouterInstallation(ctx, sqlc.GetModelRouterInstallationParams{
-		ID:         parsed,
-		ExternalID: externalID,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return toAuthInstallation(row), nil
-}
-
 func (r *installationRepo) ListForExternalID(ctx context.Context, externalID string) ([]*auth.Installation, error) {
 	q := dbbudget.Queries(r.tx)
 	rows, err := q.ListModelRouterInstallationsForExternalID(ctx, externalID)
@@ -210,47 +194,6 @@ func (r *installationRepo) UpdateRoutingPreference(ctx context.Context, external
 	return nil
 }
 
-func (r *installationRepo) UpdateUsageBypass(ctx context.Context, externalID, id string, enabled bool, threshold *float64) error {
-	parsed, err := uuid.Parse(id)
-	if err != nil {
-		return err
-	}
-	q := dbbudget.Queries(r.tx)
-	rows, err := q.UpdateModelRouterInstallationUsageBypass(ctx, sqlc.UpdateModelRouterInstallationUsageBypassParams{
-		ID:                   parsed,
-		ExternalID:           externalID,
-		UsageBypassEnabled:   enabled,
-		UsageBypassThreshold: threshold,
-	})
-	if err != nil {
-		return err
-	}
-	if rows == 0 {
-		return auth.ErrInstallationNotFound
-	}
-	return nil
-}
-
-func (r *installationRepo) UpdateSubscriptionRoutingDisabled(ctx context.Context, externalID, id string, disabled bool) error {
-	parsed, err := uuid.Parse(id)
-	if err != nil {
-		return err
-	}
-	q := dbbudget.Queries(r.tx)
-	rows, err := q.UpdateModelRouterInstallationSubscriptionRoutingDisabled(ctx, sqlc.UpdateModelRouterInstallationSubscriptionRoutingDisabledParams{
-		ID:                          parsed,
-		ExternalID:                  externalID,
-		SubscriptionRoutingDisabled: disabled,
-	})
-	if err != nil {
-		return err
-	}
-	if rows == 0 {
-		return auth.ErrInstallationNotFound
-	}
-	return nil
-}
-
 func (r *installationRepo) UpdateContentCaptureMode(ctx context.Context, externalID, id string, mode *string) error {
 	parsed, err := uuid.Parse(id)
 	if err != nil {
@@ -281,23 +224,6 @@ func (r *installationRepo) UpdateHideTerminalSurfaces(ctx context.Context, exter
 		ID:                   parsed,
 		ExternalID:           externalID,
 		HideTerminalSurfaces: hide,
-	})
-	if err != nil {
-		return err
-	}
-	if rows == 0 {
-		return auth.ErrInstallationNotFound
-	}
-	return nil
-}
-
-func (r *installationRepo) UpdateShowModelSelectionReasoning(ctx context.Context, externalID, id string, show bool) error {
-	parsed, err := uuid.Parse(id)
-	if err != nil {
-		return err
-	}
-	rows, err := dbbudget.Queries(r.tx).UpdateModelRouterInstallationShowModelSelectionReasoning(ctx, sqlc.UpdateModelRouterInstallationShowModelSelectionReasoningParams{
-		ID: parsed, ExternalID: externalID, ShowModelSelectionReasoning: show,
 	})
 	if err != nil {
 		return err

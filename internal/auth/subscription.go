@@ -1,13 +1,5 @@
 package auth
 
-// SubscriptionTier names the sharing tier of a linked subscription account.
-type SubscriptionTier string
-
-const (
-	SubscriptionTierPersonal SubscriptionTier = "personal"
-	SubscriptionTierShared   SubscriptionTier = "shared"
-)
-
 // SubscriptionOwner identifies a verified requester and installation. SubscriberID
 // is the stable user owner; APIKeyID records the key the request arrived on.
 type SubscriptionOwner struct {

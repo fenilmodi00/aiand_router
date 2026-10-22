@@ -11,14 +11,6 @@ VALUES (
 )
 RETURNING *;
 
--- Gets an installation by id, scoped to an external_id to prevent cross-tenant access.
--- name: GetModelRouterInstallation :one
-SELECT *
-FROM router.model_router_installations
-WHERE id = @id::uuid
-  AND external_id = @external_id::varchar
-  AND deleted_at IS NULL;
-
 -- name: ListModelRouterInstallationsForExternalID :many
 SELECT *
 FROM router.model_router_installations
@@ -79,37 +71,11 @@ WHERE id = @id::uuid
   AND external_id = @external_id::varchar
   AND deleted_at IS NULL;
 
--- Sets the subscription usage-bypass gate, scoped to an external_id to prevent
--- cross-tenant updates. enabled toggles the gate; threshold is the [0, 1]
--- utilization at/above which the gate disengages and normal routing takes over.
--- A NULL threshold means "use the deployment default" at request time.
--- name: UpdateModelRouterInstallationUsageBypass :execrows
-UPDATE router.model_router_installations
-SET usage_bypass_enabled = @usage_bypass_enabled::boolean,
-    usage_bypass_threshold = sqlc.narg('usage_bypass_threshold'),
-    updated_at = NOW()
-WHERE id = @id::uuid
-  AND external_id = @external_id::varchar
-  AND deleted_at IS NULL;
-
 -- Sets the per-installation capture ceiling ('off', 'hashed', or 'full'), scoped
 -- to an external_id to prevent cross-tenant updates. NULL clears the override.
 -- name: UpdateModelRouterInstallationContentCaptureMode :execrows
 UPDATE router.model_router_installations
 SET content_capture_mode = sqlc.narg('content_capture_mode'),
-    updated_at = NOW()
-WHERE id = @id::uuid
-  AND external_id = @external_id::varchar
-  AND deleted_at IS NULL;
-
--- Toggles subscription-aware routing for the installation, scoped to an
--- external_id to prevent cross-tenant updates. When true, the scorer's
--- subscription subsidy bonus is suppressed so routing decides on merits and
--- non-Claude models compete fairly; the subscription credential is still
--- forwarded for turns that route to Claude on their own merits.
--- name: UpdateModelRouterInstallationSubscriptionRoutingDisabled :execrows
-UPDATE router.model_router_installations
-SET subscription_routing_disabled = @subscription_routing_disabled::boolean,
     updated_at = NOW()
 WHERE id = @id::uuid
   AND external_id = @external_id::varchar

@@ -1430,45 +1430,6 @@ func (s *Service) restrictToTier(excluded map[string]struct{}, tier catalog.Tier
 	return out, true
 }
 
-type suppressCodexModelContextKey struct{}
-
-func withSuppressedCodexModel(ctx context.Context, model string) context.Context {
-	previous, _ := ctx.Value(suppressCodexModelContextKey{}).(map[string]struct{})
-	models := make(map[string]struct{}, len(previous)+1)
-	for id := range previous {
-		models[id] = struct{}{}
-	}
-	models[router.StripDateSuffix(model)] = struct{}{}
-	return context.WithValue(ctx, suppressCodexModelContextKey{}, models)
-}
-
-func codexModelSuppressed(ctx context.Context, model string) bool {
-	models, _ := ctx.Value(suppressCodexModelContextKey{}).(map[string]struct{})
-	_, suppressed := models[router.StripDateSuffix(model)]
-	return suppressed
-}
-
-type codexChatEndpointContextKey struct{}
-
-func withCodexChatEndpoint(ctx context.Context) context.Context {
-	return context.WithValue(ctx, codexChatEndpointContextKey{}, true)
-}
-
-func codexChatEndpoint(ctx context.Context) bool {
-	v, _ := ctx.Value(codexChatEndpointContextKey{}).(bool)
-	return v
-}
-
-func (s *Service) avoidCodexOnChatEndpoint(ctx context.Context, provider, model string, endpointResponses bool, headers http.Header) (context.Context, error) {
-	if provider != providers.ProviderAIAND || endpointResponses ||
-		subscriptionRoutingDisabledForRequest(ctx) || subscriptionFundingOutOfPlayForRequest(ctx) {
-		return ctx, nil
-	}
-	// No credential is a Codex subscription bearer, so the turn is never
-	// pinned to the caller's plan.
-	return ctx, nil
-}
-
 // servedOnBYOK reports whether the turn's resolved credential is a customer-owned
 // provider key. Keys off the resolved credential rather than the presence of
 // a BYOK row: the row may exist for a provider this turn didn't route to.
@@ -1493,23 +1454,6 @@ func byokServedForProvider(ctx context.Context, provider string) bool {
 			return true
 		}
 	}
-	return false
-}
-
-// codexResponsesRequest reports whether this /v1/responses request carries a
-// usable Codex (ChatGPT) subscription as an inbound Authorization bearer.
-// When true, ProxyOpenAIResponses routes to the Codex backend instead of the
-// chat-completions path. Honored even on router-keyed requests (Codex CLI
-// keeps its auth in Authorization while the router key rides in
-// X-Weave-Router-Key).
-func codexResponsesRequest(ctx context.Context, headers http.Header) bool {
-	// Subscription routing disabled: skip verbatim passthrough — route through
-	// normal chat->Responses translation and bill prepaid.
-	if subscriptionRoutingDisabledForRequest(ctx) || subscriptionFundingOutOfPlayForRequest(ctx) {
-		return false
-	}
-	// An inbound client bearer is a plain API key, never a subscription
-	// credential, so the Codex subscription lane is never taken.
 	return false
 }
 
@@ -3241,7 +3185,6 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	if err != nil {
 		return err
 	}
-	ctx = s.withUsageObserver(ctx, r.Header)
 	ctx = withTurnFailures(ctx)
 	ctx, rateLimit := s.withRateLimitTurn(ctx)
 	log := observability.FromContext(ctx)
@@ -3513,7 +3456,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	if feats.MaxTokens > outputReserve {
 		outputReserve = feats.MaxTokens
 	}
-	baseExcluded := s.excludeCodexOAuthOnlyModels(ctx, r.Header, enabledProviders, s.excludedModelsForRequest(ctx))
+	baseExcluded := s.excludedModelsForRequest(ctx)
 
 	// Snapshot inbound (client-sent) state BEFORE any env rewrite. The
 	// compaction tracker, spiral scan, and tool-output telemetry must compare
@@ -3953,7 +3896,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	var reqStats providers.RequestMutationStats
 
 	marker := suppressMarkerIfRequested(ctx, r.Header, modelSelectionMarkerForRequest(ctx, routeRes, routingMarkerFor(routeRes), decision.Model, ""))
-	marker = routerNoticeForRequest(ctx, r.Header, subscriptionSourceClaude, decision.Model, marker).Text
+	marker = routerNoticeForRequest(ctx, r.Header, decision.Model, marker).Text
 	// toolValidator compiles the request's tool schemas once (LRU-cached);
 	// translators validate/repair model tool calls against it. Nil if no tools.
 	toolValidator := env.ToolValidator()
@@ -3971,7 +3914,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	// providers route automatically; a closure so in-turn model failover can
 	// re-emit for a candidate in a different family.
 	buildAttempt := func(target router.Decision, targetOpts translate.EmitOptions, targetMarker string) (dispatchAttempt, error) {
-		targetNotice := routerNoticeForRequest(ctx, r.Header, subscriptionSourceClaude, target.Model, targetMarker)
+		targetNotice := routerNoticeForRequest(ctx, r.Header, target.Model, targetMarker)
 		switch providers.FamilyFor(target.Provider) {
 		case providers.FamilyOpenAICompat:
 			crossFormat = true
@@ -4333,7 +4276,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 			effortServed = baselineEffort
 			baselineBindings := s.resolveBindingsForDispatch(baselineCtx, baselineDecision)
 			baselineMarker := suppressMarkerIfRequested(ctx, r.Header, modelSelectionMarkerForRequest(ctx, routeRes, baselineRoutingMarkerFor(routeRes, baselineModel), baselineModel, markerReasonBaseline))
-			baselineAttempt := s.anthropicNativeAttempt(env, r, baselinePrep, sink, preludeBuf, anthropicPrelude, streamCut, routerNoticeForRequest(ctx, r.Header, subscriptionSourceClaude, baselineOpts.TargetModel, baselineMarker), setExtractor, setStreamCost)
+			baselineAttempt := s.anthropicNativeAttempt(env, r, baselinePrep, sink, preludeBuf, anthropicPrelude, streamCut, routerNoticeForRequest(ctx, r.Header, baselineOpts.TargetModel, baselineMarker), setExtractor, setStreamCost)
 			crossFormat = false
 			respSummary = translate.ResponseSummary{}
 			reqStats = providers.RequestMutationStats{}
@@ -4406,7 +4349,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 				"model", decision.Model,
 				"err", proxyErr,
 				"upstream_status", upstreamStatus(proxyErr))
-			subAttempt := s.anthropicNativeAttempt(env, r, subPrep, sink, preludeBuf, anthropicPrelude, streamCut, routerNoticeForRequest(ctx, r.Header, subscriptionSourceClaude, subOpts.TargetModel, marker), setExtractor, setStreamCost)
+			subAttempt := s.anthropicNativeAttempt(env, r, subPrep, sink, preludeBuf, anthropicPrelude, streamCut, routerNoticeForRequest(ctx, r.Header, subOpts.TargetModel, marker), setExtractor, setStreamCost)
 			crossFormat = false
 			respSummary = translate.ResponseSummary{}
 			reqStats = providers.RequestMutationStats{}
@@ -4630,7 +4573,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		Float64("cost.requested_output_usd", catalog.EffectiveOutputCost(catalog.PromptTokens(in, cacheCreation, cacheRead, decision.Provider), out, reqPricing, usageMods)).
 		Float64("cost.actual_input_usd", catalog.EffectiveInputCost(in, cacheCreation, cacheRead, actPricing, decision.Provider, usageMods)).
 		Float64("cost.actual_output_usd", catalog.EffectiveOutputCost(catalog.PromptTokens(in, cacheCreation, cacheRead, decision.Provider), out, actPricing, usageMods)).
-		Bool("cost.subscription_served", s.costNeutralSubscriptionServed(ctx)).
+		Bool("cost.subscription_served", false).
 		Bool("cost.fast_mode", upstreamFast).
 		Int64("latency.upstream_ms", proxyMs).
 		Int64("latency.total_ms", time.Since(requestStart).Milliseconds()).
@@ -4920,8 +4863,8 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	if preludeBuf.Committed() {
 		streamCut.noteCut(proxyErr)
 	}
-	servedCredentialSource, servedSubscriptionTier := s.servedCredentialLogValues(ctx)
-	log.Info("ProxyMessages complete", append(append([]any{"requested_model", feats.Model, "baseline_model", s.baselineFor(feats.Model), "decision_model", decision.Model, "decision_provider", decision.Provider, "primary_provider", primaryProvider, "primary_model", primaryModel, "fallback_attempts", winnerIdx, "failover_used", failoverUsed, "failover_attempted", failoverAttempted, "subscription_failover", subscriptionFailoverUsed, "decision_reason", decision.Reason, "requested_tier", routeRes.RequestedTier.String(), "decision_tier", catalog.TierFor(decision.Model).String(), "embedded_tokens", len(promptText) / 4, "total_input_tokens", feats.Tokens, "has_tools", feats.HasTools, "message_count", feats.MessageCount, "last_kind", feats.LastKind, "last_preview", s.zdrLogField(ctx, feats.LastPreview), "embed_input", embedInput, "cross_format", crossFormat, "sticky_hit", stickyHit, "route_ms", routeMs, "proxy_ms", proxyMs, "proxy_err", proxyErr, "upstream_err_body", s.zdrLogField(ctx, providers.UpstreamErrorBodyMessage(proxyErr)), "upstream_status", upstreamStatus(proxyErr), "upstream_finish_reason", respSummary.UpstreamFinishReason, "resp_stop_reason", respSummary.StopReason, "resp_refusal", refusalObs.refused, "resp_refusal_category", refusalObs.category, "stop_reason_promoted", respSummary.StopReasonPromoted, "tool_use_blocks", respSummary.ToolUseBlocks, "invalid_tool_args_blocks", respSummary.InvalidToolArgsBlocks, "last_tool_use_name", terminalToolUse.Name, "last_tool_use_input_bytes", terminalToolUse.InputBytes, "ended_on_tool_use", endedOnToolUse, "tool_error_counts", toolErrorTally, "text_only_turn_nudged", respSummary.TextOnlyTurnNudged, "stop_reason_demoted", respSummary.StopReasonDemoted, "suppressed_tool_calls", respSummary.SuppressedToolCalls, "tool_call_invalid_blocks", len(respSummary.ToolCallIssues), "cc_only_tools_stripped", reqStats.CCOnlyToolsStripped, "cc_task_reminders_stripped", reqStats.CCTaskRemindersStripped, "gemini_reminder_injected", reqStats.GeminiReminderInjected, "gemini_validated_tool_mode", reqStats.GeminiValidatedToolMode, "resp_output_tokens", respSummary.OutputTokens, "resp_reasoning_tokens", extractor.ReasoningTokens(), "prelude_committed", preludeBuf.Committed(), "routing_marker", marker, "prior_served_model", routeRes.PriorServedModel, "hard_pinned", routeRes.HardPinned, "credential_source", servedCredentialSource, "subscription_tier", servedSubscriptionTier}, append(append(append(armStrikeLogFieldsWithPrimaryReason(armDemoted, armDemotionReasonValue, rescuedArmDemoted, rescuedArmDemotionReason), plannerLogFields(routeRes)...), streamCut.completionLogFields()...), rateLimit.completionLogFields()...)...), downgradeShadowLogFields(routeRes)...)...)
+	servedCredentialSource := s.servedCredentialLogValue(ctx)
+	log.Info("ProxyMessages complete", append(append([]any{"requested_model", feats.Model, "baseline_model", s.baselineFor(feats.Model), "decision_model", decision.Model, "decision_provider", decision.Provider, "primary_provider", primaryProvider, "primary_model", primaryModel, "fallback_attempts", winnerIdx, "failover_used", failoverUsed, "failover_attempted", failoverAttempted, "subscription_failover", subscriptionFailoverUsed, "decision_reason", decision.Reason, "requested_tier", routeRes.RequestedTier.String(), "decision_tier", catalog.TierFor(decision.Model).String(), "embedded_tokens", len(promptText) / 4, "total_input_tokens", feats.Tokens, "has_tools", feats.HasTools, "message_count", feats.MessageCount, "last_kind", feats.LastKind, "last_preview", s.zdrLogField(ctx, feats.LastPreview), "embed_input", embedInput, "cross_format", crossFormat, "sticky_hit", stickyHit, "route_ms", routeMs, "proxy_ms", proxyMs, "proxy_err", proxyErr, "upstream_err_body", s.zdrLogField(ctx, providers.UpstreamErrorBodyMessage(proxyErr)), "upstream_status", upstreamStatus(proxyErr), "upstream_finish_reason", respSummary.UpstreamFinishReason, "resp_stop_reason", respSummary.StopReason, "resp_refusal", refusalObs.refused, "resp_refusal_category", refusalObs.category, "stop_reason_promoted", respSummary.StopReasonPromoted, "tool_use_blocks", respSummary.ToolUseBlocks, "invalid_tool_args_blocks", respSummary.InvalidToolArgsBlocks, "last_tool_use_name", terminalToolUse.Name, "last_tool_use_input_bytes", terminalToolUse.InputBytes, "ended_on_tool_use", endedOnToolUse, "tool_error_counts", toolErrorTally, "text_only_turn_nudged", respSummary.TextOnlyTurnNudged, "stop_reason_demoted", respSummary.StopReasonDemoted, "suppressed_tool_calls", respSummary.SuppressedToolCalls, "tool_call_invalid_blocks", len(respSummary.ToolCallIssues), "cc_only_tools_stripped", reqStats.CCOnlyToolsStripped, "cc_task_reminders_stripped", reqStats.CCTaskRemindersStripped, "gemini_reminder_injected", reqStats.GeminiReminderInjected, "gemini_validated_tool_mode", reqStats.GeminiValidatedToolMode, "resp_output_tokens", respSummary.OutputTokens, "resp_reasoning_tokens", extractor.ReasoningTokens(), "prelude_committed", preludeBuf.Committed(), "routing_marker", marker, "prior_served_model", routeRes.PriorServedModel, "hard_pinned", routeRes.HardPinned, "credential_source", servedCredentialSource}, append(append(append(armStrikeLogFieldsWithPrimaryReason(armDemoted, armDemotionReasonValue, rescuedArmDemoted, rescuedArmDemotionReason), plannerLogFields(routeRes)...), streamCut.completionLogFields()...), rateLimit.completionLogFields()...)...), downgradeShadowLogFields(routeRes)...)...)
 	policyRespBody, policyRespTrunc := capturedResponse(policyOutcomeCap)
 	var policyResp *policyOutcomeResponse
 	if policyOutcomeCap != nil {
@@ -5689,43 +5632,6 @@ func (s *Service) hasOpenAIInfrastructureCredential(ctx context.Context, headers
 	return false
 }
 
-// excludeCodexOAuthOnlyModels keeps model eligibility aligned with credential
-// resolution. When ChatGPT OAuth is the only way OpenAI became eligible (or
-// billing forbids paid fallback), only the native Codex roster and explicitly
-// approved catalog fallback models may select the OpenAI binding. Other
-// infrastructure-backed models remain ineligible without a paid credential.
-func (s *Service) excludeCodexOAuthOnlyModels(
-	ctx context.Context,
-	headers http.Header,
-	enabledProviders map[string]struct{},
-	excluded map[string]struct{},
-) map[string]struct{} {
-	_, codexAvailable := subscriptionServableProviders(ctx, headers)[providers.ProviderAIAND]
-	if !codexAvailable || (!paidFallbackForbidden(ctx) && s.hasOpenAIInfrastructureCredential(ctx, headers)) {
-		return excluded
-	}
-	for _, model := range catalog.Models {
-		if codexSubscriptionCanAttemptModel(model.ID) {
-			continue
-		}
-		// Match catalog binding resolution: the first enabled binding is the one
-		// this model would dispatch through. If that binding is OAuth-only OpenAI,
-		// the whole model is ineligible for this request.
-		for _, binding := range model.Providers {
-			if enabledProviders != nil {
-				if _, enabled := enabledProviders[binding.Provider]; !enabled {
-					continue
-				}
-			}
-			if binding.Provider == providers.ProviderAIAND {
-				excluded = excludingModel(excluded, model.ID)
-			}
-			break
-		}
-	}
-	return excluded
-}
-
 // resolveAndInjectCredentials resolves credentials for the selected provider
 // and model and stashes them on ctx. Codex OAuth applies to the native Codex
 // roster plus catalog-approved subscription-first fallback models. Other
@@ -5737,13 +5643,6 @@ func (s *Service) excludeCodexOAuthOnlyModels(
 // env key is the correct fallback there.
 func resolveAndInjectCredentials(ctx context.Context, provider, model string, headers http.Header) context.Context {
 	routerKeyed := installationIDFromContext(ctx) != (uuid.UUID{})
-	// Skip subscription OAuth (fall through to BYOK / deployment key): the
-	// installation turned subscription routing off, the model is excluded for
-	// this credential, or the request is an OpenAI-provider model outside the
-	// native Codex roster and catalog exceptions.
-	subDisabled := subscriptionRoutingDisabledForRequest(ctx) || subscriptionFundingOutOfPlayForRequest(ctx)
-	claudeModelDenied := claudeModelSuppressed(ctx, model)
-	codexModelDenied := codexModelSuppressed(ctx, model) || codexChatEndpoint(ctx) || !codexSubscriptionCanAttemptModel(model)
 	byok := BuildCredentialsMap(externalKeysFromContext(ctx))
 	var creds *Credentials
 	if byok != nil {
@@ -5758,7 +5657,14 @@ func resolveAndInjectCredentials(ctx context.Context, provider, model string, he
 	// Clear explicitly: router-keyed / no-BYOK ctx still carries the credential
 	// from an earlier attempt; the provider client only falls back to the
 	// deployment key when ctx carries NO credential.
-	if (subDisabled || claudeModelDenied || codexModelDenied) && provider == providers.ProviderAIAND {
+	//
+	// Invariant: no subscription credential is ever presented — a client
+	// bearer is a plain API key — so model denial by subscription never
+	// applies. The only upstream left is ai&, and the router never holds a
+	// subscription credential for it, so an ai& turn that found no BYOK or
+	// client key must fall back to the deployment key rather than reuse a
+	// credential stashed by an earlier attempt on this request.
+	if provider == providers.ProviderAIAND {
 		return clearCredentials(ctx)
 	}
 	return ctx
@@ -6070,7 +5976,6 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	if err != nil {
 		return err
 	}
-	ctx = s.withUsageObserver(ctx, r.Header)
 	ctx = withTurnFailures(ctx)
 	ctx, rateLimit := s.withRateLimitTurn(ctx)
 	log := observability.FromContext(ctx)
@@ -6319,7 +6224,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	if feats.MaxTokens > outputReserveOAI {
 		outputReserveOAI = feats.MaxTokens
 	}
-	baseExcludedOAI := s.excludeCodexOAuthOnlyModels(ctx, r.Header, enabledProviders, s.excludedModelsForRequest(ctx))
+	baseExcludedOAI := s.excludedModelsForRequest(ctx)
 
 	// Snapshot the inbound tool-output size before any env rewrite
 	// (runTurnLoop's switch handover); see toolResultBytesPtr.
@@ -6521,10 +6426,6 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	effortServed := s.resolveEffort(ctx, decision, opts.Capabilities, routeRes.EscalateEffort)
 	effortServed.apply(&opts)
 
-	// A caller whose ChatGPT (Codex) plan window has bound can't serve another
-	// turn on it — the backend rejects until reset. Credential resolution then
-	// falls through to the deployment/BYOK OpenAI key and the turn runs on Weave
-	// credits instead of hard-failing.
 	resolvedCtx := s.resolveCredentials(ctx, decision.Provider, decision.Model, r.Header)
 	openAIResponsesEndpoint := responsesPassthrough
 	if !openAIResponsesEndpoint && decision.Provider == providers.ProviderAIAND {
@@ -6536,15 +6437,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 			Broad:          s.ResolveOpenAIResponsesBroad(ctx),
 		})
 	}
-	endpointCtx, endpointErr := s.avoidCodexOnChatEndpoint(ctx, decision.Provider, decision.Model, openAIResponsesEndpoint, r.Header)
-	if endpointErr != nil {
-		return endpointErr
-	}
-	if codexChatEndpoint(endpointCtx) {
-		ctx = s.resolveCredentials(endpointCtx, decision.Provider, decision.Model, r.Header)
-	} else {
-		ctx = resolvedCtx
-	}
+	ctx = resolvedCtx
 
 	// See ProxyMessages for the preludeBuffer rationale — wrap unconditionally
 	// so single-binding upstream errors don't strand the routing-marker chunk
@@ -6583,7 +6476,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	contentSink, contentCap := s.maybeCaptureResponse(ctx, clientSink)
 
 	marker := suppressMarkerIfRequested(ctx, r.Header, modelSelectionMarkerForRequest(ctx, routeRes, routingMarkerFor(routeRes), decision.Model, ""))
-	marker = routerNoticeForRequest(ctx, r.Header, subscriptionSourceCodex, decision.Model, marker).Text
+	marker = routerNoticeForRequest(ctx, r.Header, decision.Model, marker).Text
 
 	// A /v1/responses caller's original bytes serve it natively — the client
 	// asked for the Responses surface, and its writer reads the upstream's
@@ -6616,7 +6509,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		var noticeErr error
 		rw.WrapInner(func(inner http.ResponseWriter) http.ResponseWriter {
 			responsesPreludeBuf = newPreludeBuffer(inner)
-			notice := routerNoticeForRequest(ctx, r.Header, subscriptionSourceCodex, decision.Model, marker)
+			notice := routerNoticeForRequest(ctx, r.Header, decision.Model, marker)
 			if verbatimPassthrough && !supportsResponsesTerminalSurfaces(clientID.ClientApp) {
 				notice.Text = ""
 			}
@@ -6719,7 +6612,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	// list, so a new OpenAI-compat provider routes here as soon as it has a
 	// ProviderFamilies entry (see internal/providers/provider.go).
 	buildAttempt := func(target router.Decision, targetOpts translate.EmitOptions, targetMarker string) (dispatchAttempt, error) {
-		targetNotice := routerNoticeForRequest(ctx, r.Header, subscriptionSourceCodex, target.Model, targetMarker)
+		targetNotice := routerNoticeForRequest(ctx, r.Header, target.Model, targetMarker)
 		if rw, ok := w.(*translate.ResponsesWriter); ok {
 			rw.SetRoutedModel(target.Model)
 			if targetMarker != "" && (!verbatimPassthrough || supportsResponsesTerminalSurfaces(clientID.ClientApp)) {
@@ -6912,21 +6805,13 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 
 	_, explicitRequestedModel := catalog.ByID(routeRequest.RequestedModel)
 
-	// Codex-subscription failover: a turn served on the caller's ChatGPT plan is
-	// pinned to that one credential, so a plan throttle (429 usage_limit_reached)
-	// or a rejected OAuth token has no binding to walk and reaches Codex raw.
-	// Retry the same model once on the Weave/BYOK OpenAI key so an exhausted plan
-	// rolls over to Weave credits. Suppressed when credits are depleted, where
-	// paid spend is exactly what the caller forbade; a linked-first turn's
-	// credits are intact, so its throttle rolls over like any other.
-	//
-	// No credential is ever a subscription bearer, so the subscription-pinned
-	// retry never applies.
-	codexRetryViable := false
-	// OpenAI-compatible callers can route to Anthropic too; give their Claude
-	// subscription model-access and third-party refusals the same paid recovery
-	// as /v1/messages.
-	claudeRetryViable := false
+	// No credential is ever a subscription bearer, so there is no
+	// subscription-pinned credential-rejection retry on this surface: the
+	// Codex-plan throttle recovery and the Claude model-access recovery
+	// both require a subscription credential to have been presented, and
+	// none ever is. The Anthropic Messages surface keeps its own live
+	// credential-rejection retry (see subscriptionRetryEligible), which is
+	// gated on a real fallback key rather than on a subscription credential.
 
 	siblingDecisions := subscriptionStatePaidRescueDecisions(ctx, s.siblingFailoverDecisions(ctx, rescueBasisForTurn(decision, routeRes), overflowEstimateOAI, env.SignatureTokenSavings(), outputReserveOAI))
 	siblingViable := s.ResolveSiblingFailover(ctx) &&
@@ -7004,14 +6889,10 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		bindings:               bindings,
 		attempt:                attempt,
 		flushErr:               flushErrAsOpenAI,
-		deferFlushOnExhaustion: codexRetryViable || claudeRetryViable || siblingViable,
+		deferFlushOnExhaustion: siblingViable,
 		purpose:                routeRes.dispatchPurpose(surfacePurpose),
 		origin:                 routeRes.dispatchOrigin(decision),
 	})
-	if subscriptionStatePaidTargetAttempted {
-		codexRetryViable = false
-		claudeRetryViable = false
-	}
 	primaryFailureErr := proxyErr
 	subscriptionPoolFailure := isSubscriptionPoolError(proxyErr)
 	primarySubscriptionArmFailure := proxyErr
@@ -7046,101 +6927,6 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 			return
 		}
 		flushBufferedIfPresent(contentSink, proxyErr)
-	}
-
-	codexFailoverUsed := false
-	codexRetryRan := false
-	if codexRetryViable && !paidFallbackForbiddenForModel(ctx, decision.Model) && proxyErr != nil && !preludeBuf.Committed() &&
-		(providers.IsRetryable(proxyErr) || codexOAuthCredentialRejected(proxyErr) || codexSubscriptionModelRejected(proxyErr)) {
-		// Remember the plan is spent so later turns suppress the token pre-dispatch
-		// instead of buying another rejected round-trip per turn until it resets.
-		s.recordCodexQuotaExhaustion(ctx, r.Header, proxyErr)
-		subCtx := subscriptionStatePaidRescueContext(ctx, decision.Model)
-		subCtx = resolveAndInjectCredentials(subCtx, providers.ProviderAIAND, decision.Model, r.Header)
-		subOpts := opts
-		subAttempt, subBuildErr := buildAttempt(decision, subOpts, marker)
-		subBindings := s.resolveBindingsForDispatch(subCtx, decision)
-		switch {
-		case subBuildErr != nil:
-			log.Error("Codex subscription failover: preparing the Weave-key retry failed; surfacing the original error",
-				"err", subBuildErr, "model", decision.Model)
-		case len(subBindings) == 0:
-			// No usable OpenAI binding under suppression — surface the real
-			// upstream error rather than a synthetic failure that masks it.
-			log.Warn("Codex subscription failover: no fallback OpenAI binding available; surfacing the original error",
-				"model", decision.Model, "upstream_status", upstreamStatus(proxyErr))
-		default:
-			log.Warn("Codex subscription failover: ChatGPT plan rejected the turn, retrying on Weave credits",
-				"model", decision.Model,
-				"err", proxyErr,
-				"upstream_status", upstreamStatus(proxyErr),
-				"request_id", requestID)
-			codexRetryRan = true
-			respSummary = translate.ResponseSummary{}
-			winnerIdx, proxyErr = s.dispatchWithFallback(subCtx, failoverInputs{
-				w:               contentSink,
-				buf:             preludeBuf,
-				initialDecision: decision,
-				bindings:        subBindings,
-				attempt:         subAttempt,
-				flushErr:        flushErrAsOpenAI,
-				// A failed retry keeps the same model; hold the error so the
-				// sibling rescue below can still serve the turn.
-				deferFlushOnExhaustion: siblingViable,
-				purpose:                routeRes.dispatchPurpose(surfacePurpose),
-				origin:                 routeRes.dispatchOrigin(decision),
-			})
-			bindings = subBindings
-			codexFailoverUsed = proxyErr == nil
-			subscriptionPoolFailure = isSubscriptionPoolError(proxyErr)
-		}
-	}
-
-	claudeFailoverUsed := false
-	claudeRetryRan := false
-	if claudeRetryViable && !paidFallbackForbiddenForModel(ctx, decision.Model) && proxyErr != nil && !preludeBuf.Committed() && (anthropicSubscriptionModelRejected(proxyErr) || anthropicSubscriptionThirdPartyRefused(proxyErr)) {
-		subCtx := subscriptionStatePaidRescueContext(ctx, decision.Model)
-		subCtx = resolveAndInjectCredentials(subCtx, providers.ProviderAIAND, decision.Model, r.Header)
-		subOpts := opts
-		subAttempt, subBuildErr := buildAttempt(decision, subOpts, marker)
-		subBindings := s.resolveBindingsForDispatch(subCtx, decision)
-		switch {
-		case subBuildErr != nil:
-			log.Error("Claude subscription failover: preparing the Weave-key retry failed; surfacing the original error",
-				"err", subBuildErr, "model", decision.Model)
-		case len(subBindings) == 0:
-			log.Warn("Claude subscription failover: no fallback Anthropic binding available; surfacing the original error",
-				"model", decision.Model, "upstream_status", upstreamStatus(proxyErr))
-		default:
-			log.Warn("Claude subscription failover: subscription rejected the turn, retrying on Weave credits",
-				"model", decision.Model,
-				"err", proxyErr,
-				"upstream_status", upstreamStatus(proxyErr),
-				"request_id", requestID)
-			claudeRetryRan = true
-			respSummary = translate.ResponseSummary{}
-			winnerIdx, proxyErr = s.dispatchWithFallback(subCtx, failoverInputs{
-				w:                      contentSink,
-				buf:                    preludeBuf,
-				initialDecision:        decision,
-				bindings:               subBindings,
-				attempt:                subAttempt,
-				flushErr:               flushErrAsOpenAI,
-				deferFlushOnExhaustion: siblingViable,
-				purpose:                routeRes.dispatchPurpose(surfacePurpose),
-				origin:                 routeRes.dispatchOrigin(decision),
-			})
-			bindings = subBindings
-			claudeFailoverUsed = proxyErr == nil
-			subscriptionPoolFailure = isSubscriptionPoolError(proxyErr)
-		}
-	}
-
-	// A subscription retry declined to run and no other rescue owns the held
-	// error; surface it now so it is never dropped.
-	if ((codexRetryViable && !codexRetryRan) || (claudeRetryViable && !claudeRetryRan)) &&
-		!siblingViable && proxyErr != nil && !preludeBuf.Committed() {
-		flushDeferredErr()
 	}
 
 	siblingFailoverUsed := false
@@ -7225,13 +7011,6 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		flushDeferredErr()
 	}
 
-	if subscriptionCredentialFallbackUsed(ctx) {
-		if decision.Provider == providers.ProviderAIAND {
-			codexFailoverUsed = true
-		} else if decision.Provider == providers.ProviderAIAND {
-			claudeFailoverUsed = true
-		}
-	}
 	finalProvider := decision.Provider
 	if subscriptionStateWinnerProvider != "" {
 		finalProvider = subscriptionStateWinnerProvider
@@ -7239,8 +7018,8 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		finalProvider = bindings[winnerIdx].Provider
 	}
 	decision.Provider = finalProvider
-	failoverUsed := finalProvider != primaryProvider || codexFailoverUsed || claudeFailoverUsed || siblingFailoverUsed
-	failoverAttempted := failoverUsed || codexRetryRan || claudeRetryRan || siblingRescueRan
+	failoverUsed := finalProvider != primaryProvider || siblingFailoverUsed
+	failoverAttempted := failoverUsed || siblingRescueRan
 
 	// Re-resolve credentials for the binding that actually served — each
 	// failover attempt gets its own context with potentially different creds.
@@ -7318,7 +7097,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		Float64("cost.requested_output_usd", catalog.EffectiveOutputCost(catalog.PromptTokens(in, cacheCreation, cacheRead, decision.Provider), out, reqPricing, usageMods)).
 		Float64("cost.actual_input_usd", catalog.EffectiveInputCost(in, cacheCreation, cacheRead, actPricing, decision.Provider, usageMods)).
 		Float64("cost.actual_output_usd", catalog.EffectiveOutputCost(catalog.PromptTokens(in, cacheCreation, cacheRead, decision.Provider), out, actPricing, usageMods)).
-		Bool("cost.subscription_served", s.costNeutralSubscriptionServed(ctx)).
+		Bool("cost.subscription_served", false).
 		Bool("cost.fast_mode", upstreamFast).
 		Int64("latency.upstream_ms", proxyMs).
 		Int64("latency.total_ms", time.Since(requestStart).Milliseconds()).
@@ -7330,7 +7109,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		Int64("dispatch.fallback_attempts", int64(winnerIdx)).
 		Bool("dispatch.failover_used", failoverUsed).
 		Bool("dispatch.failover_attempted", failoverAttempted).
-		Bool("dispatch.subscription_failover", codexFailoverUsed || claudeFailoverUsed).
+		Bool("dispatch.subscription_failover", false).
 		Bool("dispatch.sibling_failover", siblingFailoverUsed)
 	if responsesSurface, _ := ctx.Value(responsesSurfaceContextKey{}).(bool); responsesSurface {
 		openaiUpstreamBuilder.String("request.api_surface", string(requestAPISurfaceResponses))
@@ -7544,8 +7323,8 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		)
 	}
 
-	servedCredentialSource, servedSubscriptionTier := s.servedCredentialLogValues(ctx)
-	log.Info("ProxyOpenAIChatCompletion complete", append(append([]any{"requested_model", feats.Model, "baseline_model", s.baselineFor(feats.Model), "decision_model", decision.Model, "decision_provider", decision.Provider, "primary_provider", primaryProvider, "primary_model", primaryModel, "fallback_attempts", winnerIdx, "failover_used", failoverUsed, "failover_attempted", failoverAttempted, "subscription_failover", codexFailoverUsed || claudeFailoverUsed, "decision_reason", decision.Reason, "requested_tier", routeRes.RequestedTier.String(), "decision_tier", catalog.TierFor(decision.Model).String(), "embedded_tokens", len(promptText) / 4, "total_input_tokens", feats.Tokens, "has_tools", feats.HasTools, "embed_input", embedInput, "cross_format", crossFormat, "sticky_hit", stickyHit, "pin_tier", pinTier, "turn_type", string(tt), "route_ms", routeMs, "proxy_ms", proxyMs, "proxy_err", proxyErr, "upstream_err_body", s.zdrLogField(ctx, providers.UpstreamErrorBodyMessage(proxyErr)), "upstream_status", upstreamStatus(proxyErr), "upstream_finish_reason", respSummary.UpstreamFinishReason, "resp_stop_reason", respSummary.StopReason, "stop_reason_promoted", respSummary.StopReasonPromoted, "tool_use_blocks", respSummary.ToolUseBlocks, "invalid_tool_args_blocks", respSummary.InvalidToolArgsBlocks, "tool_call_invalid_blocks", len(respSummary.ToolCallIssues), "routing_marker", marker, "prior_served_model", routeRes.PriorServedModel, "hard_pinned", routeRes.HardPinned, "credential_source", servedCredentialSource, "subscription_tier", servedSubscriptionTier}, append(append(armStrikeLogFieldsWithPrimaryReason(armDemotedOAI, armDemotionReasonOAI, rescuedArmDemotedOAI, rescuedArmDemotionReasonOAI), plannerLogFields(routeRes)...), rateLimit.completionLogFields()...)...), downgradeShadowLogFields(routeRes)...)...)
+	servedCredentialSource := s.servedCredentialLogValue(ctx)
+	log.Info("ProxyOpenAIChatCompletion complete", append(append([]any{"requested_model", feats.Model, "baseline_model", s.baselineFor(feats.Model), "decision_model", decision.Model, "decision_provider", decision.Provider, "primary_provider", primaryProvider, "primary_model", primaryModel, "fallback_attempts", winnerIdx, "failover_used", failoverUsed, "failover_attempted", failoverAttempted, "subscription_failover", false, "decision_reason", decision.Reason, "requested_tier", routeRes.RequestedTier.String(), "decision_tier", catalog.TierFor(decision.Model).String(), "embedded_tokens", len(promptText) / 4, "total_input_tokens", feats.Tokens, "has_tools", feats.HasTools, "embed_input", embedInput, "cross_format", crossFormat, "sticky_hit", stickyHit, "pin_tier", pinTier, "turn_type", string(tt), "route_ms", routeMs, "proxy_ms", proxyMs, "proxy_err", proxyErr, "upstream_err_body", s.zdrLogField(ctx, providers.UpstreamErrorBodyMessage(proxyErr)), "upstream_status", upstreamStatus(proxyErr), "upstream_finish_reason", respSummary.UpstreamFinishReason, "resp_stop_reason", respSummary.StopReason, "stop_reason_promoted", respSummary.StopReasonPromoted, "tool_use_blocks", respSummary.ToolUseBlocks, "invalid_tool_args_blocks", respSummary.InvalidToolArgsBlocks, "tool_call_invalid_blocks", len(respSummary.ToolCallIssues), "routing_marker", marker, "prior_served_model", routeRes.PriorServedModel, "hard_pinned", routeRes.HardPinned, "credential_source", servedCredentialSource}, append(append(armStrikeLogFieldsWithPrimaryReason(armDemotedOAI, armDemotionReasonOAI, rescuedArmDemotedOAI, rescuedArmDemotionReasonOAI), plannerLogFields(routeRes)...), rateLimit.completionLogFields()...)...), downgradeShadowLogFields(routeRes)...)...)
 	s.reportPolicyOutcome(ctx, routeRes, decision, effortServed, finalProvider, feats.Tokens, in, out, cacheCreation, cacheRead, usageMods, routeMs, proxyMs, proxyErr, nil)
 
 	// Subscription-only mode disables paid failover by pinning dispatch to the
@@ -7593,7 +7372,6 @@ func (s *Service) ProxyOpenAIResponses(ctx context.Context, body []byte, w http.
 	if inputErr != nil {
 		return inputErr
 	}
-	ctx = s.withUsageObserver(ctx, r.Header)
 	clientApp := ClientIdentityFrom(ctx).ClientApp
 	portableCodex := clientApp == ClientAppCodex
 	terminalResponses := supportsResponsesTerminalSurfaces(clientApp)
@@ -7630,17 +7408,18 @@ func (s *Service) ProxyOpenAIResponses(ctx context.Context, body []byte, w http.
 	if conversion.CodexFeedbackSkill {
 		ctx = context.WithValue(ctx, codexFeedbackSkillContextKey{}, true)
 	}
-	codexNativeRequest := codexResponsesRequest(ctx, r.Header)
 	// Every Responses turn stashes its original bytes for post-routing native
-	// dispatch; NativeOnly and Codex-subscription turns also dispatch verbatim now.
-	if conversion.Requirements.NativeOnly || codexNativeRequest {
+	// dispatch; a NativeOnly turn also dispatches verbatim now. No Codex
+	// subscription credential is ever presented, so there is no
+	// subscription-driven verbatim lane.
+	if conversion.Requirements.NativeOnly {
 		ctx = context.WithValue(ctx, codexResponsesBodyContextKey{}, nativeBody)
 	}
 	ctx = context.WithValue(ctx, nativeResponsesBodyContextKey{}, nativeBody)
 	// Routing and sticky-state hashes must describe the exact native payload
 	// that an OpenAI/Codex decision will receive, even when the portable Codex
 	// projection lets HMM consider other deployed providers.
-	if conversion.Requirements.NativeOnly || (portableCodex && codexNativeRequest) {
+	if conversion.Requirements.NativeOnly {
 		originalEnvelope, parseErr := translate.ParseOpenAI(nativeBody)
 		if parseErr != nil {
 			return fmt.Errorf("parse native Responses request: %w", parseErr)

@@ -118,7 +118,9 @@ func decisionFromExportRow(row sqlc.GetRoutingDecisionsForExportRow) analytics.D
 		CapacitySource:           row.CapacitySource,
 		RetailUsageUSDMicros:     row.RetailUsageUsdMicros,
 		IncludedUsageUSDMicros:   row.IncludedUsageUsdMicros,
-		PrepaidUsageUSDMicros:    row.PrepaidUsageUsdMicros,
+		// The prepaid capacity source no longer exists, so the exported value
+		// is always null. The field stays in the export contract.
+		PrepaidUsageUSDMicros:    nil,
 		SettlementFailed:         row.SettlementFailed,
 		ServingProfileID:         row.ServingProfileID,
 		ServingProfileVersion:    row.ServingProfileVersion,

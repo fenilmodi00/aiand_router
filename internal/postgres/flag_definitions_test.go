@@ -91,15 +91,13 @@ func TestInstallationFlagOverridesRoundTrip(t *testing.T) {
 	}
 	require.NoError(t, repo.Installations.UpdateFlagOverrides(ctx, externalID, created.ID, want))
 
-	reread, err := repo.Installations.Get(ctx, externalID, created.ID)
-	require.NoError(t, err)
-	assert.Equal(t, want, reread.FlagOverrides, "overrides must survive the JSONB round-trip")
+	overrides := readFlagOverrides(t, pool, created.ID)
+	assert.Equal(t, want, overrides, "overrides must survive the JSONB round-trip")
 
 	// Clearing writes an empty object, not null, so the column default holds.
 	require.NoError(t, repo.Installations.UpdateFlagOverrides(ctx, externalID, created.ID, flags.Overrides{}))
-	reread, err = repo.Installations.Get(ctx, externalID, created.ID)
-	require.NoError(t, err)
-	assert.True(t, reread.FlagOverrides.IsEmpty())
+	overrides = readFlagOverrides(t, pool, created.ID)
+	assert.True(t, overrides.IsEmpty())
 
 	var raw []byte
 	require.NoError(t, pool.QueryRow(ctx,
@@ -115,7 +113,19 @@ func TestInstallationFlagOverridesRoundTrip(t *testing.T) {
 		"UPDATE router.model_router_installations SET flag_overrides = $1 WHERE id = $2", bad, created.ID)
 	require.NoError(t, err)
 
-	reread, err = repo.Installations.Get(ctx, externalID, created.ID)
-	require.NoError(t, err, "an unparseable payload must not fail the read")
-	assert.True(t, reread.FlagOverrides.IsEmpty(), "unparseable payload falls back to deployment defaults")
+	overrides = readFlagOverrides(t, pool, created.ID)
+	assert.True(t, overrides.IsEmpty(), "unparseable payload falls back to deployment defaults")
+}
+
+// readFlagOverrides reads the raw flag_overrides column and parses it the way
+// the installation converter does.
+func readFlagOverrides(t *testing.T, pool *pgxpool.Pool, installationID string) flags.Overrides {
+	t.Helper()
+	var raw []byte
+	require.NoError(t, pool.QueryRow(context.Background(),
+		"SELECT flag_overrides FROM router.model_router_installations WHERE id = $1", installationID,
+	).Scan(&raw))
+	overrides, err := flags.ParseOverrides(raw)
+	require.NoError(t, err)
+	return overrides
 }
