@@ -93,45 +93,6 @@ training:
       alpha: 0.5
       speed_weight: 0.12
       output_cost_ratio: 0.25
-deployed_providers:
-  - anthropic
-  - bedrock
-  - deepinfra
-  - fireworks
-  - google
-  - openai
-deployed_models:
-  - claude-haiku-4-5
-  - claude-opus-4-7
-  - claude-opus-4-8
-  - claude-sonnet-4-6
-  - deepseek/deepseek-v4-flash
-  - deepseek/deepseek-v4-pro
-  - gemini-3.1-flash-lite-preview
-  - gemini-3.1-pro-preview
-  - gemini-3.5-flash
-  - gpt-5.4-mini
-  - gpt-5.5
-  - moonshotai/kimi-k2.6
-  - qwen/qwen3-coder-next
-  - qwen/qwen3-next-80b-a3b-instruct
-  - xiaomi/mimo-v2.5-pro
-cost_per_1k_input_usd:
-  claude-haiku-4-5: 0.0008
-  claude-opus-4-7: 0.005
-  claude-opus-4-8: 0.005
-  claude-sonnet-4-6: 0.003
-  deepseek/deepseek-v4-flash: 0.00014
-  deepseek/deepseek-v4-pro: 0.00174
-  gemini-3.1-flash-lite-preview: 0.0001
-  gemini-3.1-pro-preview: 0.002
-  gemini-3.5-flash: 0.0015
-  gpt-5.4-mini: 0.0004
-  gpt-5.5: 0.005
-  moonshotai/kimi-k2.6: 0.00095
-  qwen/qwen3-coder-next: 0.0005
-  qwen/qwen3-next-80b-a3b-instruct: 0.00015
-  xiaomi/mimo-v2.5-pro: 0.001
 changelog: "v0.64 = coding-first re-cluster (routerarena downweighted to 10% via
   source-fraction; +5 benchmark-corpus loaders) trained on full-pool coding labels
   (/tmp/coding_hard_labels: easy SWE + tb-1 hard, incl. the previously-unmeasured

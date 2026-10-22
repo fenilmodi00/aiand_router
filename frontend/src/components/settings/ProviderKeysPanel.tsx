@@ -16,30 +16,18 @@ import {
 import { ChevronDown, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-const PROVIDERS = ["anthropic", "openai", "google", "openrouter", "anthropic_gateway", "openai_gateway"] as const;
+// The only provider the router dispatches to. Mirrors providers.AllProviders()
+// on the Go side.
+const PROVIDERS = ["aiand"] as const;
 type Provider = (typeof PROVIDERS)[number];
 
 const PROVIDER_LABEL: Record<Provider, string> = {
-  anthropic: "Anthropic",
-  openai: "OpenAI",
-  google: "Google",
-  openrouter: "OpenRouter",
-  anthropic_gateway: "Anthropic-compatible gateway",
-  openai_gateway: "OpenAI-compatible gateway",
+  aiand: "ai&",
 };
 
 const PROVIDER_ENV_VAR: Record<Provider, string> = {
-  anthropic: "ANTHROPIC_API_KEY",
-  openai: "OPENAI_API_KEY",
-  google: "GOOGLE_API_KEY",
-  openrouter: "OPENROUTER_API_KEY",
-  anthropic_gateway: "ANTHROPIC_GATEWAY_TOKEN",
-  openai_gateway: "OPENAI_GATEWAY_TOKEN",
+  aiand: "AIAND_API_KEY",
 };
-
-// Providers with no vendor endpoint to fall back to: a key without a URL here
-// is stored but can never be dispatched, so the form blocks it up front.
-const PROVIDERS_REQUIRING_BASE_URL: readonly Provider[] = ["anthropic_gateway", "openai_gateway"];
 
 function providerLabel(p: Provider): string {
   return PROVIDER_LABEL[p];
@@ -295,9 +283,8 @@ export function ProviderKeysPanel() {
       ? pickedProvider
       : (available[0] ?? null);
 
-  const baseURLRequired = provider != null && PROVIDERS_REQUIRING_BASE_URL.includes(provider);
-  // Mirrors the server's normalization: a slash-only value normalizes away to nothing.
-  const baseURLMissing = baseURLRequired && baseURL.trim().replace(/\/+$/, "") === "";
+  // Aiand has a default endpoint, so the URL is optional and never missing.
+  const baseURLMissing = false;
   const keyMissing = keyValue.trim() === "";
   const saveDisabled = saving || keyMissing || baseURLMissing;
   // Pre-save discovery authenticates with the token sent as-is.
@@ -450,7 +437,7 @@ export function ProviderKeysPanel() {
                 />
               </div>
               <Input
-                label={baseURLRequired ? "Endpoint URL" : "Endpoint URL (optional)"}
+                label="Endpoint URL (optional)"
                 name="provider-base-url"
                 autoComplete="off"
                 data-1p-ignore
@@ -459,12 +446,9 @@ export function ProviderKeysPanel() {
                 placeholder="https://gateway.example.com/api"
                 value={baseURL}
                 onChange={e => setBaseURL(e.target.value)}
-                required={baseURLRequired}
               />
               <Text className="text-2xs text-muted-foreground">
-                {baseURLRequired
-                  ? "This provider has no default endpoint. Give the full base URL; the router appends the API path (e.g. /v1/messages)."
-                  : "Leave blank to use the provider's default endpoint. The router appends the API path (e.g. /v1/messages)."}
+                Leave blank to use the provider&apos;s default endpoint. The router appends the API path (e.g. /v1/messages).
               </Text>
               <Input
                 label="Name (optional)"
@@ -473,7 +457,7 @@ export function ProviderKeysPanel() {
                 data-1p-ignore
                 data-lpignore="true"
                 data-form-type="other"
-                placeholder="My Anthropic key"
+                placeholder="My ai& key"
                 value={name}
                 onChange={e => setName(e.target.value)}
               />
@@ -581,9 +565,9 @@ export function ProviderKeysPanel() {
                           setEditEndpointModels(null);
                           editFetchIDRef.current = null;
                           setFetchingEditModels(false);
-                          // Gateways publish their inventory; pull it right
-                          // away so aliases are linkable without a click.
-                          if ((PROVIDERS_REQUIRING_BASE_URL as readonly string[]).includes(k.provider)) {
+                          // Aiand publishes its inventory; pull it right away
+                          // so aliases are linkable without a click.
+                          if (k.provider === "aiand") {
                             void handleFetchEditModels(k.id);
                           }
                         }}

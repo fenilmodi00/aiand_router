@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"weave-os/router/internal/config"
+	"weave-os/router/internal/router/cluster"
 	"weave-os/router/internal/version"
 
 	"github.com/gin-gonic/gin"
@@ -30,6 +31,6 @@ func VersionHandler(c *gin.Context) {
 		PR:             version.PR,
 		Display:        version.Display(),
 		BuildTime:      version.BuildTime,
-		ClusterVersion: config.GetOr("ROUTER_CLUSTER_VERSION", "artifacts/latest"),
+		ClusterVersion: config.GetOr("ROUTER_CLUSTER_VERSION", cluster.LatestVersion),
 	})
 }
