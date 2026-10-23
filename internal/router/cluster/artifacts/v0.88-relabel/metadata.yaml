@@ -1,0 +1,749 @@
+format_version: 2
+version: v0.88
+parent: v0.82
+status: candidate
+embedder:
+  model: jina-v2-base-code-int8
+  embed_dim: 768
+  max_tokens: 256
+training:
+  k: 16
+  top_p: 4
+  alpha: 0.96
+  shrinkage_k0: 10.0
+  score_normalization: per_prompt_zscore_across_bench_columns
+  per_model_zscore: false
+  seed: 42
+  n_prompts: 1775
+  training_data_mix:
+    d1: 1.0
+    d2: 0.0
+    d3: 0.0
+  output_cost_ratio: 0.25
+  speed_weight: 0.0
+  expected_output_tokens: 2000
+  per_model_verbosity: true
+  include_routerarena_labels: routerarena_labels_combined.jsonl
+  routerarena_only: false
+  bench_coding_only: false
+  include_benchmark_corpus: true
+  benchmark_corpus_loaders: aider-polyglot-go,aider-polyglot-rust-cpp-java,livecodebench-ts-and-aider-polyglot-ts,bfcl-v4-simple,bfcl-v4-parallel-multi
+  source_fractions:
+    routerarena: 0.1
+  exclude_prompts: null
+  n_excluded_prompts: 0
+  include_aa_labels: aa_quality_priors_v0.64.json
+  aa_evidence_scale: 3.0
+  cold_model_aa_boost: 1.0
+  aa_label_tier_weights:
+    AIDER_POLYGLOT_GO: 1.0
+    AIDER_POLYGLOT_RUST_CPP_JAVA: 1.0
+    BFCL_V4_PARALLEL_MULTI: 0.8
+    BFCL_V4_SIMPLE: 0.3
+    GPQA_DIAMOND: 0.3
+    IFBENCH: 0.3
+    LIVECODEBENCH: 1.0
+    LIVECODEBENCH_TS: 1.0
+    MATH_500: 0.3
+    MMLU_PRO: 0.3
+    SCICODE: 1.0
+    SWE_BENCH_VERIFIED: 1.0
+    TAU2_BENCH_TELECOM: 1.0
+    TERMINAL_BENCH_HARD: 1.0
+  aa_label_residuals:
+    fraction_under_threshold: 0.8876404494382022
+    max: 0.2636900631579798
+    mean: 0.05666298416741266
+    median: 0.03600941472238445
+    n_cells: 178
+    p90: 0.15338418701568313
+  default_routing_knobs: &id001
+    alpha:
+    - 0.96
+    - 0.96
+    - 0.8
+    - 0.8
+    - 0.8
+    - 0.96
+    - 0.8
+    - 0.96
+    - 0.96
+    - 0.96
+    - 0.96
+    - 0.96
+    - 0.96
+    - 0.96
+    - 0.96
+    - 0.96
+    alpha_floor:
+    - 0.3
+    - 0.17
+    - 0.55
+    - 0.18
+    - 0.3
+    - 0.3
+    - 0.19
+    - 0.3
+    - 0.3
+    - 0.55
+    - 0.11
+    - 0.55
+    - 0.18
+    - 0.3
+    - 0.3
+    - 0.55
+    speed_weight: 0.0
+    output_cost_ratio: 0.25
+    expected_output_tokens: 2000
+    per_model_verbosity: true
+  recommended_ui_defaults:
+    quality_pareto:
+      alpha: 0.6
+      speed_weight: 0.1
+      output_cost_ratio: 0.25
+    cost_pareto:
+      alpha: 0.4
+      speed_weight: 0.05
+      output_cost_ratio: 0.4
+    balanced:
+      alpha: 0.5
+      speed_weight: 0.12
+      output_cost_ratio: 0.25
+deployed_providers:
+- aiand
+deployed_models:
+- deepseek-ai/deepseek-v4-pro
+- deepseek-ai/deepseek-v4-flash
+- deepseek-ai/deepseek-v4.1-flash
+- zai-org/glm-5.3
+- zai-org/glm-5.3-flash
+- qwen/qwen3.8-27b
+- moonshotai/kimi-k3
+- motif-technologies/motif-3
+cost_per_1k_input_usd:
+  zai-org/glm-5.3: 0.001
+  zai-org/glm-5.3-flash: 0.00015
+  deepseek-ai/deepseek-v4-flash: 0.00015
+  deepseek-ai/deepseek-v4.1-flash: 0.0003
+  deepseek-ai/deepseek-v4-pro: 0.001
+  moonshotai/kimi-k3: 0.003
+  qwen/qwen3.8-27b: 0.0004
+  motif-technologies/motif-3: 0.0005
+changelog: 'v0.88-relabel = v0.88 with quality_means recomputed from .context/label-runs/v082-expanded-labels.jsonl
+  (1843 v4.1-flash + 1736 glm-5.3-flash labels). Recipe: per-prompt z-score across 8 roster columns, per-(cluster,model)
+  shrunk mean shrinkage_k0=10, min-max rescaled into v0.88 cell ranges. centroids.bin/model_axes.json/model_registry.json
+  byte-identical to v0.88. Replay at v0.88 knobs: v0.88 cells 66.33% (n=1772) -> relabel cells 75.23%
+  (n=1839), delta +889.85pt. 11/16 clusters are measured; the rest keep prior fallback.
+
+
+  v0.84 prior clusters rebuilt with AA-style capability priors (ticket #91; scripts/build_v084_aa_priors.py).
+  The 8 clusters below #88''s MIN_MEASURED_N=20 gate (c1 n=9, c2 n=2, c3 n=6, c4 n=18, c5 n=14, c6 n=15,
+  c13 n=8, c15 n=21) no longer inherit v0.82''s researched cells. Per-model capability prior from the
+  published benchmark columns in .context/bench-scores.md (retrieved 2026-10-04) combined with the upstream
+  tier weights (coding loaders SWE-bench Verified / LiveCodeBench / Aider Polyglot 1.0; MMLU-Pro / GPQA
+  Diamond / IFBench / MATH-500 0.3; bfcl-v4-parallel-multi 0.8). Only SWE-bench Verified and LiveCodeBench
+  have published cells on this roster; Aider Polyglot, MMLU-Pro, GPQA Diamond, IFBench, MATH-500 and bfcl-v4-parallel-multi
+  are NOT FOUND for every model (AA v4.3.2 pages no longer publish them), so 2.5 of the 4.5 total tier
+  weight is evidence we do not have and the prior is a weighted mean over the columns that exist. Pseudo-count
+  blend equivalent to upstream aa_evidence_scale = 3.0: cell_z[m] = (n_measured * measured_z[m] + 3.0
+  * prior_z[m]) / (n_measured + 3.0), measured_z from #88''s shrunk per-(cluster, model) z mean (per-prompt
+  z across the 8 roster columns, shrinkage_k0=10), prior_z = the capability prior z-scored against the
+  roster prior distribution; the blended row is min-max rescaled into the cluster''s existing v0.82 cell
+  range. Prior weight is 3/(n+3): 60% in c2, 44% in c13, 32% in c3, 27% in c1/c5/c6, 17% in c15, 14% in
+  c4. Cell ordering per prior cluster (before -> after):
+
+  c1: qwen3.8-27b > deepseek-v4.1-flash > deepseek-v4-flash > motif-3 > deepseek-v4-pro > glm-5.3 > kimi-k3
+  > glm-5.3-flash  ->  deepseek-v4.1-flash > deepseek-v4-flash > qwen3.8-27b > kimi-k3 > deepseek-v4-pro
+  > glm-5.3 > glm-5.3-flash > motif-3
+
+  c2: deepseek-v4.1-flash > qwen3.8-27b > motif-3 > deepseek-v4-pro > deepseek-v4-flash > kimi-k3 > glm-5.3
+  > glm-5.3-flash  ->  deepseek-v4-pro > kimi-k3 > deepseek-v4-flash > glm-5.3 > deepseek-v4.1-flash >
+  glm-5.3-flash > qwen3.8-27b > motif-3
+
+  c3: deepseek-v4.1-flash > deepseek-v4-flash > motif-3 > deepseek-v4-pro > qwen3.8-27b > kimi-k3 > glm-5.3
+  > glm-5.3-flash  ->  deepseek-v4-pro > deepseek-v4-flash > deepseek-v4.1-flash > glm-5.3 > qwen3.8-27b
+  > kimi-k3 > glm-5.3-flash > motif-3
+
+  c5: deepseek-v4-flash > deepseek-v4.1-flash > qwen3.8-27b > deepseek-v4-pro > motif-3 > kimi-k3 > glm-5.3-flash
+  > glm-5.3  ->  deepseek-v4-flash > deepseek-v4.1-flash > deepseek-v4-pro > qwen3.8-27b > kimi-k3 > glm-5.3
+  > glm-5.3-flash > motif-3
+
+  c13: deepseek-v4-flash > deepseek-v4.1-flash > deepseek-v4-pro > qwen3.8-27b > motif-3 > kimi-k3 > glm-5.3-flash
+  > glm-5.3  ->  deepseek-v4-pro > kimi-k3 > deepseek-v4-flash > deepseek-v4.1-flash > qwen3.8-27b > glm-5.3-flash
+  > glm-5.3 > motif-3
+
+  The ordering now follows the capability prior (deepseek-v4-pro > kimi-k3 > deepseek-v4-flash > glm-5.3
+  > glm-5.3-flash > qwen3.8-27b > deepseek-v4.1-flash roster-mean > motif-3), not the inherited v0.82
+  value. deepseek-v4.1-flash has no tier evidence at all (SWE board archived before release, vendor DeepSWE
+  is self-reported only) so its prior is the roster mean (prior_z = 0) rather than a guess; motif-3 rests
+  on a single SELF-only SWE-V cell (medium confidence). Measured clusters (n>=20: c0, c7, c8, c9, c10,
+  c11, c12, c14) keep their #88 cell byte-identical. Provenance in quality_means.json meta.v084_provenance
+  now marks those 8 clusters cell="prior" with n, n_all, prior source, prior_z, prior weight and pseudo-count;
+  measured clusters stay cell="measured". rankings.json regenerated by the exact runtime blend at the
+  SHIPPED knobs (alpha 0.96 / 0.8 demoted, mean 0.9200, output_cost_ratio 0.25, speed_weight 0) — replay
+  69.34% (n=1861) -> 69.52% (n=1862) on the identical prompt set. centroids.bin, model_axes.json, model_registry.json
+  BYTE-IDENTICAL to v0.82. Candidate; artifacts/latest NOT bumped.
+
+
+  v0.84 default_routing_knobs = upstream v0.75 semantics on the measured #88 cells (ticket #89; scripts/build_v084_knobs.py).
+  alpha = 0.96 on every cluster except the four demoted clusters (c2, c3, c5, c8) at 0.80, output_cost_ratio
+  0.25 — the v0.83 criterion: keep 0.96 where the measured winner leads by more than 2pt, drop to 0.80
+  where the top-2 models are a statistical tie so a tie resolves to the cheaper lane. Early v0.84 shipped
+  a mean alpha of 0.5125 (cost term 48.8% of the blend, v0.83''s finding), which collapsed routing onto
+  two flash lanes; alpha_floor is clamped to never exceed the new alpha. Demotion is chosen by MEASUREMENT,
+  not arbitrarily — the four smallest measured top-2 quality-cell margins (c2 0.0023, c4 0.0077, c6 0.0079,
+  c3 0.0084 in cell units; next-smallest c1 0.0127), i.e. 4.3%/7.3%/8.7%/9.3% of each cluster''s own cell
+  range. output_cost_ratio 0.0 -> 0.25 prices measured verbosity (costs[m] = input_per_1k + 0.25*output_per_1k*verbosity/median_verbosity)
+  and widens the effective cost ladder from 20.0x to 25.5x. Measured replay on the identical prompt set
+  (.context/label-runs/v082-expanded-labels.jsonl + prompt-clusters-v084.json): the new routed mix scores
+  69.34% (n=1861) of ground-truth score vs 69.49% (n=1857) for v0.82''s routed mix on the same corpus;
+  on the 1854 prompts scored under BOTH mixes the comparison is 69.55% -> 69.44% (-0.11pt, the winner
+  set widens from 2 lanes to 3 so more of qwen3.8-27b''s labels are in scope). The cost term is back to
+  a tie-break: 4% of the blend at alpha 0.96 and 20% at 0.80, mean 8.0% (v0.83 measured 48.8% against
+  upstream v0.75''s 9.0%). Routed-mix effective cost rises $0.000352 -> $0.000487 per 1k at the new ladder
+  (a quality upgrade bought with cost, not the cost collapse v0.83 fixed). Ranks after the retune: qwen3.8-27b
+  5, deepseek-v4.1-flash 7, deepseek-v4-flash 4. motif-3 is still cheaper than every premium lane once
+  verbosity is priced: $0.00100/1k vs qwen3.8-27b +45%, deepseek-v4-pro +65% and glm-5.3 +130% (kimi-k3
+  5.4x at $0.005417), so the tie-break still resolves toward it — but its measured top-2 margin in c7
+  (0.076 cell units, 12.7% of range) keeps deepseek-v4.1-flash the winner there. centroids.bin, model_axes.json
+  and model_registry.json BYTE-IDENTICAL to v0.82; rankings.json regenerated by the exact runtime blend
+  at the shipped knobs. Candidate; artifacts/latest NOT bumped.
+
+
+  v0.82 = v0.80 with coding-first quality cells (ticket #85 / C4; scripts/build_v082_coding.py). Bundle
+  policy: per cluster, the knowledge cell is replaced by the coding-only shrunk mean (per-prompt z-score
+  over the C2 coding labels, shrinkage k0=10, min-max rescaled into the cluster''s existing cell range)
+  iff the cluster holds >= 20 usable coding prompts with variance; otherwise the v0.80 knowledge cell
+  is kept byte-identical. Result: 3 coding cells, 13 knowledge cells. Config: per-cluster-knapsack (DP
+  optimum: max replay accuracy s.t. cost<=$0.60/1k) — replay 68.54% @ $0.56/1k, coding replay 68.77%.
+  centroids.bin, model_axes.json and model_registry.json are BYTE-IDENTICAL to v0.80; quality_means.json
+  and model_features.json carry the mixed cells (psi_probe mirrors quality_means — model_features overrides
+  it at load time); rankings.json regenerated via the exact runtime blend (parity-gated on v0.80 first).
+  alpha_floor clamped to never exceed the new default alpha.
+
+
+  v0.80 = v0.79 with default_routing_knobs retuned from the RouterArena sub_10 measured labels (ticket
+  #75; scripts/build_v080_cost_retune.py). Config: per-cluster-knapsack (DP optimum: max replay accuracy
+  s.t. cost<=$0.60/1k) — replay (cluster-size-weighted winner accuracy / avg_cost) 70.02% @ $0.52/1k (per-prompt
+  aggregation 70.20% @ $0.52/1k) vs v0.79''s 70.58% @ $1.18/1k (70.75% @ $1.12/1k per-prompt). Ticket
+  bar (acc>=69.0%, cost<=$0.60/1k): MET. Winner changes vs v0.79: 4/16 clusters (c1: qwen3.8-27b -> deepseek-v4-flash
+  (n=10); c3: deepseek-v4.1-flash -> deepseek-v4-flash (n=3); c6: deepseek-v4.1-flash -> deepseek-v4-flash
+  (n=5); c10: qwen3.8-27b -> deepseek-v4-flash (n=196)). The ticket''s <0.02-z tie criterion is vacuous
+  on the measured cells (minimum cluster quality-cell spread is 0.81 z, an order of magnitude above the
+  0.02 threshold), so the per-cluster tie variant degenerates to the uniform grid; the retune instead
+  lands on the per-cluster knapsack optimum — each cluster''s alpha is the midpoint of the blend interval
+  where its measured-Pareto-best lane wins, chosen by DP to maximize replay accuracy under the $0.60/1k
+  budget. The premium lanes keep the clusters where their measured margin earns their price (c0, c14:
+  qwen3.8-27b) and lose the ones where it does not (c1 dominated by the flash lane; c10''s 2.4pt margin
+  does not earn its $2.72/1k measured burn on 196 prompts). centroids.bin, quality_means.json, model_axes.json,
+  model_registry.json and model_features.json are BYTE-IDENTICAL to v0.79 (pure knob retune — no new inference,
+  no geometry change). rankings.json regenerated over the 8-model roster with the new knobs via the exact
+  runtime blend (parity-gated on v0.79 first). alpha_floor clamped to never exceed the new default alpha
+  per cluster.
+
+
+  v0.79 = v0.78 with the 8 AIand quality columns MEASURED from the RouterArena campaign (sub_10 split,
+  real ground-truth grading via RouterArena''s own evaluators; scripts/build_v079_aiand_measured.py).
+  Pipeline: embed prompts with the runtime contract (jina-v2-base-code-int8), assign clusters by centroid
+  argmax (frozen geometry), per-prompt z-score across the 8 model columns, per-(cluster, model) shrunk
+  means (shrinkage_k0=10), min-max rescaled into each cluster''s existing range. model_axes verbosity
+  from measured output tokens. centroids BYTE-IDENTICAL. rankings regenerated (parity-gated on v0.78 first).
+  Measured cells replace v0.78''s researched anchors — the comparison report is in the parent issue.
+
+
+  v0.78 = v0.77 narrowed to the 8-model curated AIand roster (user decision 2026-10-04; dropped glm-5.2,
+  kimi-k2.7-code, qwen3.6-27b, gemma-4, gpt-oss-120b). The REGISTRY is the enforcement surface — boot
+  registers all providers regardless of wired keys, so an 8-model model_registry.json is what restricts
+  routing; no env pin or BYOK header can widen it. quality_means/model_axes columns keep all 31 v0.77
+  entries (loader validates registry candidates only); rankings regenerated over the 8 by the exact runtime
+  blend (parity-gated on v0.77''s committed rankings first). centroids.bin BYTE-IDENTICAL to v0.75/v0.76/v0.77.
+  Family note: deepseek-v4-flash + v4.1-flash share a family key but are distinct capability variants
+  (text-only vs multimodal) — exempted, not a supersession. Cells inherit v0.77''s researched anchoring;
+  v0.79 replaces them with measured labels (RouterArena full-split campaign). Candidate; promotion handled
+  with the family-gate exemption in the same ticket series.
+
+
+  v0.77 = v0.76 with the 13 AIand quality columns RE-ANCHORED on researched benchmarks (additive overlay;
+  no model retired; centroids.bin BYTE-IDENTICAL to v0.75/v0.76). Calibration: per-cluster least-squares
+  regression from AA Intelligence Index v4.3.2 (2026-10-04, max/reasoning variant) to the frozen q_norm
+  cell, fit over the 18 v0.75 roster anchors (AA 9-51, interpolation range), blended 50/50 with SWE-bench
+  Verified (independent Vals runs) where both exist, slope floored at 0, clamped to the cluster''s [min,max].
+  Key corrections vs v0.76 guesses: glm-5.3-flash 0.85x glm-5.2 -> AA 42 vs 34, SWE-V 92.0 vs 82.8 (near-frontier
+  at flash price); kimi-k3 1.05x k2.7 -> AA 44 vs 26, SWE-V 93.4 vs 78.2; glm-5.3 clone glm-5.2 -> AA
+  45 vs 34, SWE-V 95.4 vs 82.8; gemma-4/gpt-oss scaled 0.85/0.88 -> AA 15/12 (weak coders, cheap+fast
+  lanes); qwen3.6 0.92x -> AA 21. model_axes TTFT/TPS replaced with AA-published per-model medians where
+  available (v0.76 cloned the source model''s axes). rankings.json regenerated by the exact runtime blend
+  (parity-gated on v0.76 first). Generated by scripts/build_v077_aiand_researched.py from .context/bench-scores.md
+  + .context/roster-aa-indexes.md sources. Candidate; artifacts/latest NOT bumped.
+
+
+  v0.76 = v0.75 with the 13-model AIand roster ADDED (additive overlay; no model retired). centroids.bin
+  BYTE-IDENTICAL to v0.75 (no retrain, no re-cluster; K=16 geometry frozen). Each AIand model''s quality_means
+  column is a clone of the semantically nearest existing column, scaled and clamped to the cluster''s
+  existing [min,max]: zai-org/glm-5.2=z-ai/glm-5.2; zai-org/glm-5.3=z-ai/glm-5.2; zai-org/glm-5.3-flash=z-ai/glm-5.2×0.85;
+  deepseek-ai/deepseek-v4-flash=deepseek/deepseek-v4-flash; deepseek-ai/deepseek-v4.1-flash=deepseek/deepseek-v4-flash;
+  deepseek-ai/deepseek-v4-pro=deepseek/deepseek-v4-pro; moonshotai/kimi-k2.7-code=moonshotai/kimi-k2.7;
+  moonshotai/kimi-k3=moonshotai/kimi-k2.7×1.05; qwen/qwen3.6-27b=qwen/qwen3-coder-next×0.92; qwen/qwen3.8-27b=qwen/qwen3-coder-next×0.95;
+  motif-technologies/motif-3=qwen/qwen3-coder-next×0.88; google/gemma-4-31b-it=qwen/qwen3-next-80b-a3b-instruct×0.85;
+  openai/gpt-oss-120b=qwen/qwen3-next-80b-a3b-instruct×0.88. model_axes rows carry live-probed AIand catalog
+  input/output prices (GET /v1/models, 2026-10-04); TTFT/TPS/verbosity are cloned from the source model''s
+  axes row, pending live measurement. rankings.json regenerated by the exact runtime blend (uniform alpha=0.96,
+  speed_weight=0, output_cost_ratio=0) over the 31-model roster — parity-gated: the same blend reproduces
+  v0.75''s committed rankings bit-for-bit on the unchanged 18-model roster first. The default roster keeps
+  all 18 v0.75 models so non-AIand deploys are unaffected on bump; AIand-only deploys narrow via availableProviders
+  at boot (only AIAND_API_KEY wired -> filterByProviders keeps the provider:"aiand" entries). Generated
+  by scripts/build_v076_aiand_roster.py. Candidate; artifacts/latest NOT bumped (promotion is a separate
+  deliberate step).
+
+
+  v0.75 = v0.73 with claude-opus-4-8 retired and claude-opus-5 added in its place (routing-roster swap;
+  same $5/$25 price). centroids.bin BYTE-IDENTICAL to v0.73 (no retrain, no re-cluster). claude-opus-5''s
+  quality_means column is a manual clone of claude-fable-5''s per-cluster cells (per direction "make opus
+  5 similar to fable"), priced at opus-5''s real catalog rate (0.005/0.025 per 1k), NOT fable''s ($10/$50).
+  rankings.json regenerated by the exact runtime blend over the new 18-model roster (parity-gated: the
+  same blend reproduces v0.73 bit-for-bit on the unchanged roster first). No probe run and no bake-off
+  (explicit direction). Candidate; latest bump is a separate step.
+
+
+  v0.70 = v0.68 with four new models added on FROZEN v0.68 geometry (z-ai/glm-5.2, minimax/minimax-m3,
+  moonshotai/kimi-k2.7, qwen/qwen3.7-plus). centroids.bin is BYTE-IDENTICAL to v0.68 (no retrain, no re-cluster):
+  v0.68''s training corpus is no longer reproducible (OpenRouterBench source returns 0 rows, routerarena
+  label file drifted), so retraining would churn the geometry (the rejected v0.69 path regressed hard-agentic
+  solve ~13pt purely from cluster movement). Instead this is a geometry-frozen ADDITIVE OVERLAY (scripts/build_v079_additive_overlay.py):
+  each new model is calibrated onto v0.68''s per-cluster q_norm scale via existing models'' shared v0.68-geometry
+  DeepSWE solve rates (eval/deepswe_quality_priors_v0.68.json) as anchors (np.interp, clamped so a new
+  model can at most tie the best existing coder, never extrapolate), blended with cost and APPENDED to
+  the 11 coding clusters; qwen3.7-plus has no DeepSWE signal so it proxies qwen3-coder-next''s q_norm
+  (v0.78 pattern). Conversational clusters (2,9,10,11,15) get no new-model entry -> byte-identical routing
+  there. Net vs v0.68: 14/16 cluster top-1 winners UNCHANGED; only c8 and c14 flip opus-4-8 -> glm-5.2.
+  minimax-m3 / kimi-k2.7 / qwen3.7-plus win no clusters (inert). quality_means carries the new columns
+  (q_norm mapped onto each cluster''s existing [min,max]) so UI-alpha re-blends stay consistent. Anchor
+  calibration mean r=+0.48 (c8 r=0.58 solid; c14 r=0.19 sparse). Candidate; promote gates on cmd/routing-report
+  + live bake-off. Inherited v0.68 behavior below: v0.68 = v0.67 with a per-cluster alpha demote on the
+  conversational/NL clusters. Pure metadata delta: centroids.bin, quality_means.json, model_features.json,
+  model_axes.json, model_registry.json and rankings.json are all BYTE-IDENTICAL to v0.67 (no retrain,
+  no re-cluster). The only change is default_routing_knobs.alpha: clusters 2, 9, 10, 11, 15 drop 0.96
+  -> 0.80; all other clusters stay 0.96. Motivation: at the deployed uniform alpha=0.96 the cost term
+  carries only 4% of the blend, so conversational / trivial-NL turns route to Opus ~70-80% of the time
+  even though every model handles them comparably (low per-cluster quality dispersion, Opus margin <0.02
+  z). The five demoted clusters are the NL/trivial-dominant clusters identified by the labeled register-probe
+  corpus (testdata/register_probes.jsonl, 180 prompts x 6 registers); coding/agentic clusters (0, 5, 13,
+  ...) are left at 0.96 so Opus is retained where it earns a real margin. Offline replay over the corpus
+  (cmd/routing-report) at top_p=2: conversational premium share 80% -> 43%, trivial-NL 90% -> 53%, with
+  hard-code (80%/100%) and agentic-tool (93%/100%) UNCHANGED. NL traffic lands mostly on deepseek-v4-pro.
+  The offline quality axis is the router''s own quality_means, not ground-truth solve rate -- the model
+  mix is exact, the quality estimate is a proxy. Candidate only; promote gated on a live bake-off and
+  the cmd/routing-report sign-off on the latest-bump PR.'
+default_routing_knobs: *id001
+aa_capability_priors_v0_84:
+  source: .context/bench-scores.md
+  retrieved: '2026-10-04'
+  tier_weights:
+    SWE_BENCH_VERIFIED: 1.0
+    LIVECODEBENCH: 1.0
+    AIDER_POLYGLOT: 1.0
+    MMLU_PRO: 0.3
+    GPQA_DIAMOND: 0.3
+    IFBENCH: 0.3
+    MATH_500: 0.3
+    BFCL_V4_PARALLEL_MULTI: 0.8
+  tier_weight_source: upstream quality_means meta.aa_label_tier_weights
+  columns_not_found_for_all_models:
+  - AIDER_POLYGLOT
+  - MMLU_PRO
+  - GPQA_DIAMOND
+  - IFBENCH
+  - MATH_500
+  - BFCL_V4_PARALLEL_MULTI
+  pseudo_count_n0: 3.0
+  arithmetic: 'prior_z[m] = (prior_score[m] - mean_roster) / std_roster; cell_z[m] = (n_measured * measured_z[m]
+    + n0 * prior_z[m]) / (n_measured + n0) with n0 = 3.0 = aa_evidence_scale; measured_z from the #88
+    shrunk per-(cluster, model) z mean; blended z min-max rescaled into the cluster''s v0.82 cell range'
+  models:
+    deepseek-ai/deepseek-v4-pro:
+      prior_score: 91.965
+      prior_z: 1.226277
+      evidence_weight: 2.0
+      confidence: high
+      cells:
+        SWE_BENCH_VERIFIED:
+          value: 96.4
+          source: vals.ai mini-SWE-agent obs 2026-08-17 rank 2 (INDEP)
+          confidence: high
+          weight: 1.0
+        LIVECODEBENCH:
+          value: 87.53
+          source: vals.ai LCB rank 13/143 (INDEP)
+          confidence: high
+          weight: 1.0
+        AIDER_POLYGLOT:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 1.0
+        MMLU_PRO:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.3
+        GPQA_DIAMOND:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.3
+        IFBENCH:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.3
+        MATH_500:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.3
+        BFCL_V4_PARALLEL_MULTI:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.8
+    deepseek-ai/deepseek-v4-flash:
+      prior_score: 88.03
+      prior_z: 0.338439
+      evidence_weight: 2.0
+      confidence: high
+      cells:
+        SWE_BENCH_VERIFIED:
+          value: 88.8
+          source: vals.ai mini-SWE-agent obs 2026-08-17 rank 11 (INDEP)
+          confidence: high
+          weight: 1.0
+        LIVECODEBENCH:
+          value: 87.26
+          source: vals.ai LCB (INDEP)
+          confidence: high
+          weight: 1.0
+        AIDER_POLYGLOT:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 1.0
+        MMLU_PRO:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.3
+        GPQA_DIAMOND:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.3
+        IFBENCH:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.3
+        MATH_500:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.3
+        BFCL_V4_PARALLEL_MULTI:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.8
+    deepseek-ai/deepseek-v4.1-flash:
+      prior_score: 86.53
+      prior_z: 0.0
+      evidence_weight: 0.0
+      confidence: none
+      cells:
+        SWE_BENCH_VERIFIED:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 1.0
+        LIVECODEBENCH:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 1.0
+        AIDER_POLYGLOT:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 1.0
+        MMLU_PRO:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.3
+        GPQA_DIAMOND:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.3
+        IFBENCH:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.3
+        MATH_500:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.3
+        BFCL_V4_PARALLEL_MULTI:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.8
+    zai-org/glm-5.3:
+      prior_score: 87.965
+      prior_z: 0.323773
+      evidence_weight: 2.0
+      confidence: high
+      cells:
+        SWE_BENCH_VERIFIED:
+          value: 95.4
+          source: vals.ai mini-SWE-agent rank 6 (INDEP)
+          confidence: high
+          weight: 1.0
+        LIVECODEBENCH:
+          value: 80.53
+          source: vals.ai LCB rank 68/143 (INDEP)
+          confidence: high
+          weight: 1.0
+        AIDER_POLYGLOT:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 1.0
+        MMLU_PRO:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.3
+        GPQA_DIAMOND:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.3
+        IFBENCH:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.3
+        MATH_500:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.3
+        BFCL_V4_PARALLEL_MULTI:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.8
+    zai-org/glm-5.3-flash:
+      prior_score: 86.255
+      prior_z: -0.062047
+      evidence_weight: 2.0
+      confidence: high
+      cells:
+        SWE_BENCH_VERIFIED:
+          value: 92.0
+          source: vals.ai (INDEP)
+          confidence: high
+          weight: 1.0
+        LIVECODEBENCH:
+          value: 80.51
+          source: vals.ai (INDEP)
+          confidence: high
+          weight: 1.0
+        AIDER_POLYGLOT:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 1.0
+        MMLU_PRO:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.3
+        GPQA_DIAMOND:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.3
+        IFBENCH:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.3
+        MATH_500:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.3
+        BFCL_V4_PARALLEL_MULTI:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.8
+    qwen/qwen3.8-27b:
+      prior_score: 85.0
+      prior_z: -0.345208
+      evidence_weight: 2.0
+      confidence: high
+      cells:
+        SWE_BENCH_VERIFIED:
+          value: 86.0
+          source: vals.ai rank 15/88 (INDEP)
+          confidence: high
+          weight: 1.0
+        LIVECODEBENCH:
+          value: 84.0
+          source: vals.ai (INDEP; HF self-report 90.3 not used)
+          confidence: high
+          weight: 1.0
+        AIDER_POLYGLOT:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 1.0
+        MMLU_PRO:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.3
+        GPQA_DIAMOND:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.3
+        IFBENCH:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.3
+        MATH_500:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.3
+        BFCL_V4_PARALLEL_MULTI:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.8
+    moonshotai/kimi-k3:
+      prior_score: 90.295
+      prior_z: 0.849482
+      evidence_weight: 2.0
+      confidence: high
+      cells:
+        SWE_BENCH_VERIFIED:
+          value: 93.4
+          source: vals.ai mini-SWE-agent rank 8/88 (INDEP)
+          confidence: high
+          weight: 1.0
+        LIVECODEBENCH:
+          value: 87.19
+          source: vals.ai LCB v6 rank 18/143 (INDEP)
+          confidence: high
+          weight: 1.0
+        AIDER_POLYGLOT:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 1.0
+        MMLU_PRO:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.3
+        GPQA_DIAMOND:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.3
+        IFBENCH:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.3
+        MATH_500:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.3
+        BFCL_V4_PARALLEL_MULTI:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.8
+    motif-technologies/motif-3:
+      prior_score: 76.2
+      prior_z: -2.330716
+      evidence_weight: 1.0
+      confidence: medium
+      cells:
+        SWE_BENCH_VERIFIED:
+          value: 76.2
+          source: HF card + arXiv 2608.09119 mini-SWE-agent (SELF)
+          confidence: medium
+          weight: 1.0
+        LIVECODEBENCH:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 1.0
+        AIDER_POLYGLOT:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 1.0
+        MMLU_PRO:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.3
+        GPQA_DIAMOND:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.3
+        IFBENCH:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.3
+        MATH_500:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.3
+        BFCL_V4_PARALLEL_MULTI:
+          value: null
+          source: NOT FOUND
+          confidence: none
+          weight: 0.8
+  ordering_before_after: 'c1: qwen3.8-27b > deepseek-v4.1-flash > deepseek-v4-flash > motif-3 > deepseek-v4-pro
+    > glm-5.3 > kimi-k3 > glm-5.3-flash  ->  deepseek-v4.1-flash > deepseek-v4-flash > qwen3.8-27b > kimi-k3
+    > deepseek-v4-pro > glm-5.3 > glm-5.3-flash > motif-3
+
+    c2: deepseek-v4.1-flash > qwen3.8-27b > motif-3 > deepseek-v4-pro > deepseek-v4-flash > kimi-k3 >
+    glm-5.3 > glm-5.3-flash  ->  deepseek-v4-pro > kimi-k3 > deepseek-v4-flash > glm-5.3 > deepseek-v4.1-flash
+    > glm-5.3-flash > qwen3.8-27b > motif-3
+
+    c3: deepseek-v4.1-flash > deepseek-v4-flash > motif-3 > deepseek-v4-pro > qwen3.8-27b > kimi-k3 >
+    glm-5.3 > glm-5.3-flash  ->  deepseek-v4-pro > deepseek-v4-flash > deepseek-v4.1-flash > glm-5.3 >
+    qwen3.8-27b > kimi-k3 > glm-5.3-flash > motif-3
+
+    c5: deepseek-v4-flash > deepseek-v4.1-flash > qwen3.8-27b > deepseek-v4-pro > motif-3 > kimi-k3 >
+    glm-5.3-flash > glm-5.3  ->  deepseek-v4-flash > deepseek-v4.1-flash > deepseek-v4-pro > qwen3.8-27b
+    > kimi-k3 > glm-5.3 > glm-5.3-flash > motif-3
+
+    c13: deepseek-v4-flash > deepseek-v4.1-flash > deepseek-v4-pro > qwen3.8-27b > motif-3 > kimi-k3 >
+    glm-5.3-flash > glm-5.3  ->  deepseek-v4-pro > kimi-k3 > deepseek-v4-flash > deepseek-v4.1-flash >
+    qwen3.8-27b > glm-5.3-flash > glm-5.3 > motif-3'
