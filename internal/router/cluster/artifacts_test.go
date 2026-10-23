@@ -234,6 +234,9 @@ func TestLatestBundle_OneDeployedModelPerFamily(t *testing.T) {
 	// Accepted capability-variant exemption: deepseek-v4-flash (text-only,
 	// $0.15/$0.25 fast lane) and v4.1-flash (multimodal, $0.30/$0.60) share
 	// the family regex but are distinct capability variants, not a supersession.
+	// v4-flash is no longer catalog-deployed (removed: upstream dropped it) but
+	// the frozen bundle retains both as roster siblings, so the exemption is
+	// self-contained on bundle.Registry.Models() and does not require a catalog row.
 	accepted := map[string]bool{
 		"deepseek/deepseek-v4-flash":   true,
 		"deepseek/deepseek-v4.1-flash": true,
@@ -488,7 +491,7 @@ func TestFastestModelForRequest_CustomBindingsDoNotWidenRoster(t *testing.T) {
 	t.Run("custom bindings must not widen the roster for direct-vendor keys", func(t *testing.T) {
 		_, m, ok := FastestModelForRequest(registry,
 			map[string]struct{}{providers.ProviderAIAND: {}}, nil, nil, RequestBindings{
-			Custom: map[string][]string{"moonshotai/kimi-k3": {providers.ProviderAIAND}},
+				Custom: map[string][]string{"moonshotai/kimi-k3": {providers.ProviderAIAND}},
 			})
 		require.True(t, ok)
 		assert.Equal(t, aliased, m, "custom bindings must not widen the roster for direct-vendor keys")

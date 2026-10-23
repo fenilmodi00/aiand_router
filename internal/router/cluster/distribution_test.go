@@ -224,55 +224,6 @@ func TestApplyDialAlpha_NilFloorIsUniformDial(t *testing.T) {
 	}
 }
 
-func TestApplyDialAlpha_AgenticStaysOnCapableModelAtLowDial(t *testing.T) {
-	// Reported bug: a price-leaning dial routed the agentic cluster (0) to a
-	// model that can't drive the Claude Code tool protocol (minimax-m3 grepping
-	// for a skill instead of running it). Fix moved the guard off the quality
-	// weight (old 0.88 floor pinned Opus, killing the dial) and onto the
-	// candidate pool: has_tools turns drop catalog.AgenticLowSet, so a low dial
-	// demotes to the cheapest harness-capable model instead of an incapable one.
-	//
-	// In the ai&-only roster the one AgenticLow catalog row
-	// (deepseek/deepseek-v4-flash) is tiered, so it IS a cluster candidate:
-	// the gate is load-bearing and must demote it when tools are present.
-	s := loadV0_70(t)
-
-	// Realized agentic alpha at the price extreme = the declared floor.
-	knobs := s.defaultActiveKnobs()
-	s.applyDialAlpha(0.0, knobs.Alpha, knobs.AlphaFloor)
-	top := topPNearest(s.centroids.Row(0), s.centroids, s.cfg.TopP)
-
-	low := catalog.AgenticLowSet()
-
-	// Sanity: the roster carries the AgenticLow model, so the gate has real work.
-	hasIncapable := false
-	for _, m := range s.models {
-		if _, incapable := low[m]; incapable {
-			hasIncapable = true
-		}
-	}
-	require.True(t, hasIncapable, "the roster must carry the AgenticLow model for this test to be load-bearing")
-
-	full, _ := argmax(s.blendScoresV2(top, knobs, s.models, nil), s.models)
-	require.NotEmpty(t, full)
-	_, fullIncapable := low[full]
-	assert.Falsef(t, fullIncapable,
-		"the price-extreme winner must be harness-capable, got %s", full)
-
-	// WITH the gate the realized winner is still harness-capable.
-	gated := make([]string, 0, len(s.models))
-	for _, m := range s.models {
-		if _, drop := low[m]; drop {
-			continue
-		}
-		gated = append(gated, m)
-	}
-	with, _ := argmax(s.blendScoresV2(top, knobs, gated, nil), gated)
-	_, withIncapable := low[with]
-	assert.Falsef(t, withIncapable,
-		"with the agentic-harness gate the price-extreme winner must be harness-capable, got %s", with)
-}
-
 func TestRoutingDistribution_ExcludedModelNeverAppears(t *testing.T) {
 	// Preview must agree with Route: an excluded model never appears, and its
 	// clusters fall through to the next-best eligible model (shares still sum

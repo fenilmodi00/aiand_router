@@ -39,7 +39,7 @@ func newDistributionEngine(src admin.RoutingDistributionSource) *gin.Engine {
 
 func TestRoutingDistributionHandler_ReturnsPoints(t *testing.T) {
 	src := &fakeDistributionSource{points: []cluster.DistributionPoint{
-		{QualityBias: 0, Models: []cluster.ModelShare{{Model: "deepseek-v4-flash", Share: 1}}, ProjectedCostPer1KInputUSD: 0.00014},
+		{QualityBias: 0, Models: []cluster.ModelShare{{Model: "deepseek/deepseek-v4.1-flash", Share: 1}}, ProjectedCostPer1KInputUSD: 0.00014},
 		{QualityBias: 1, Models: []cluster.ModelShare{{Model: "z-ai/glm-5.2", Share: 1}}, ProjectedCostPer1KInputUSD: 0.005},
 	}}
 	engine := newDistributionEngine(src)
@@ -56,7 +56,7 @@ func TestRoutingDistributionHandler_ReturnsPoints(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
 	require.Len(t, got.Points, 2)
-	assert.Equal(t, "deepseek-v4-flash", got.Points[0].Models[0].Model)
+	assert.Equal(t, "deepseek/deepseek-v4.1-flash", got.Points[0].Models[0].Model)
 	assert.Equal(t, "z-ai/glm-5.2", got.Points[1].Models[0].Model)
 }
 
@@ -86,12 +86,12 @@ func TestRoutingDistributionHandler_ParsesExclusionParams(t *testing.T) {
 	src := &fakeDistributionSource{}
 	engine := newDistributionEngine(src)
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/router/routing-distribution?excluded_models=z-ai/glm-5.2,%20deepseek-v4-flash%20&excluded_providers=fireworks", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/router/routing-distribution?excluded_models=z-ai/glm-5.2,%20deepseek/deepseek-v4.1-flash%20&excluded_providers=fireworks", nil)
 	rec := httptest.NewRecorder()
 	engine.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusOK, rec.Code)
-	assert.Equal(t, map[string]struct{}{"z-ai/glm-5.2": {}, "deepseek-v4-flash": {}}, src.lastExcludedMods, "comma-separated models should reach the source, trimmed")
+	assert.Equal(t, map[string]struct{}{"z-ai/glm-5.2": {}, "deepseek/deepseek-v4.1-flash": {}}, src.lastExcludedMods, "comma-separated models should reach the source, trimmed")
 	assert.Equal(t, map[string]struct{}{"fireworks": {}}, src.lastExcludedProvs)
 }
 

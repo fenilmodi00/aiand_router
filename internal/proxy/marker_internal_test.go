@@ -169,12 +169,12 @@ func TestRoutingMarkerFor_SidecarDisplayMarkerSuppressedWhenServedModelUnchanged
 	// sub-agent would see the badge repeated turn after turn.
 	got := routingMarkerFor(turnLoopResult{
 		Decision: router.Decision{
-			Model: "deepseek/deepseek-v4-flash",
+			Model: "deepseek/deepseek-v4.1-flash",
 			Metadata: &router.RoutingMetadata{
-				DisplayMarker: "✦ **Aiand Router** → deepseek/deepseek-v4-flash · fast route for this turn",
+				DisplayMarker: "✦ **Aiand Router** → deepseek/deepseek-v4.1-flash · fast route for this turn",
 			},
 		},
-		PriorServedModel: "deepseek/deepseek-v4-flash",
+		PriorServedModel: "deepseek/deepseek-v4.1-flash",
 	})
 	assert.Empty(t, got, "sidecar marker must be suppressed when the served model did not change")
 }
@@ -184,14 +184,14 @@ func TestRoutingMarkerFor_SidecarDisplayMarkerShownOnGenuineSwitch(t *testing.T)
 	// the sidecar marker still renders.
 	got := routingMarkerFor(turnLoopResult{
 		Decision: router.Decision{
-			Model: "deepseek/deepseek-v4-flash",
+			Model: "deepseek/deepseek-v4.1-flash",
 			Metadata: &router.RoutingMetadata{
-				DisplayMarker: "✦ **Aiand Router** → deepseek/deepseek-v4-flash · fast route for this turn",
+				DisplayMarker: "✦ **Aiand Router** → deepseek/deepseek-v4.1-flash · fast route for this turn",
 			},
 		},
 		PriorServedModel: "deepseek/deepseek-v4-pro",
 	})
-	assert.Equal(t, "✦ **Aiand Router** → deepseek/deepseek-v4-flash · fast route for this turn\n\n", got)
+	assert.Equal(t, "✦ **Aiand Router** → deepseek/deepseek-v4.1-flash · fast route for this turn\n\n", got)
 }
 
 func TestBaselineRoutingMarkerFor_SuppressedWhenBaselineAlreadyServing(t *testing.T) {

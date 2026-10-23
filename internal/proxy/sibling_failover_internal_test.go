@@ -176,9 +176,10 @@ func TestRescueDecisions_StruckOutReadmissionStaysInScoredPool(t *testing.T) {
 	assert.Equal(t, struck, siblingModels(s.siblingFailoverDecisions(ctx, overloadedDecision(md), 1_000, 0, 0)))
 }
 
-func TestHarnessSafeModels_DropsWeakAgenticArmsOnToolTurns(t *testing.T) {
-	// deepseek/deepseek-v4-flash is the catalog's weak-agentic arm.
-	models := []string{"z-ai/glm-5.2", "deepseek/deepseek-v4-flash"}
+func TestHarnessSafeModels_KeepsCatalogKnownArmsOnToolTurns(t *testing.T) {
+	// With deepseek-v4-flash removed no catalog row is ToolUseLow or
+	// AgenticLow, so a tool-bearing turn keeps every harness-capable arm.
+	models := []string{"z-ai/glm-5.2", "deepseek/deepseek-v4.1-flash"}
 	assert.Equal(t, models, harnessSafeModels(models, false))
-	assert.Equal(t, []string{"z-ai/glm-5.2"}, harnessSafeModels(models, true))
+	assert.Equal(t, models, harnessSafeModels(models, true))
 }

@@ -13,7 +13,7 @@ import (
 // TestSuppressMarkerIfRequested pins the opt-out decision: the routing marker is
 // dropped only for the recognized disable values, and preserved otherwise.
 func TestSuppressMarkerIfRequested(t *testing.T) {
-	const marker = "✦ **Aiand Router** → deepseek/deepseek-v4-flash · best pick for this turn\n\n"
+	const marker = "✦ **Aiand Router** → deepseek/deepseek-v4.1-flash · best pick for this turn\n\n"
 	cases := []struct {
 		name      string
 		setHeader bool
@@ -45,7 +45,7 @@ func TestSuppressMarkerIfRequested(t *testing.T) {
 // TestSuppressMarkerIfRequestedHiddenByInstallation pins that an installation
 // with terminal surfaces hidden drops the marker regardless of the header.
 func TestSuppressMarkerIfRequestedHiddenByInstallation(t *testing.T) {
-	const marker = "✦ **Aiand Router** → deepseek/deepseek-v4-flash · best pick for this turn\n\n"
+	const marker = "✦ **Aiand Router** → deepseek/deepseek-v4.1-flash · best pick for this turn\n\n"
 	h := http.Header{}
 
 	// Hidden: even an absent header (which would keep the marker) yields "".

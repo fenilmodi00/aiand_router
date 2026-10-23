@@ -1269,7 +1269,6 @@ var modelMaxOutputTokens = map[string]int{
 	// OSS models accept far more than the 8192 fallback; leaving them unlisted
 	// clamped Claude Code's 64K output request, truncating every long turn.
 	"moonshotai/kimi-k3":            131072,
-	"deepseek/deepseek-v4-flash":    131072, // DeepSeek V4 documents 384K max output
 	"deepseek/deepseek-v4.1-flash":  131072,
 	"deepseek/deepseek-v4-pro":      131072,
 	"deepseek/deepseek-v4-pro-0813": 131072,

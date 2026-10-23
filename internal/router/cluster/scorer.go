@@ -345,11 +345,11 @@ func (s *Scorer) applyDialAlpha(t float64, alpha, floor []float64) {
 
 // resolveProviderFor walks the catalog's ordered ProviderBinding list for
 // modelID and returns the first binding whose Provider name is in
-// available. Falls back to the registry's recorded provider for models
-// absent from the catalog (defense in depth). Returns "" when no binding
-// resolves under the available set, or when the catalog has retired the
-// model: an untiered row is passthrough-only, and a frozen bundle's
-// registry still names models the catalog has since stopped routing to.
+// available. A model the catalog doesn't know is never an automatic
+// routing target: a frozen bundle's registry may still name models the
+// catalog has since removed, and falling back to the registry's recorded
+// provider would serve them. Returns "" when the model is catalog-unknown,
+// retired (untiered, passthrough-only), or no binding resolves.
 func resolveProviderFor(modelID, registryProvider string, available map[string]struct{}) string {
 	return resolveProviderWithCustom(modelID, registryProvider, available, nil)
 }
@@ -357,12 +357,9 @@ func resolveProviderFor(modelID, registryProvider string, available map[string]s
 // resolveProviderWithCustom is resolveProviderFor plus the request's
 // configuration-declared bindings, which rank after every catalog binding so
 // a custom endpoint only serves what no wired vendor already does.
-func resolveProviderWithCustom(modelID, registryProvider string, available map[string]struct{}, custom map[string][]string) string {
+func resolveProviderWithCustom(modelID, _ string, available map[string]struct{}, custom map[string][]string) string {
 	m, ok := catalog.ByID(modelID)
 	if !ok {
-		if _, ok := available[registryProvider]; ok {
-			return registryProvider
-		}
 		return ""
 	}
 	if m.Tier == catalog.TierUnknown {
