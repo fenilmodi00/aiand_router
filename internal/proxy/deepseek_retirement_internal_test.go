@@ -16,12 +16,13 @@ func TestDeepSeekFamilyAliasesUseV4_1Flash(t *testing.T) {
 	}
 }
 
-func TestDeepSeekExplicitV4PinsKeepTheirIdentity(t *testing.T) {
+func TestDeepSeekExplicitV4FlashAliasesAreUnknown(t *testing.T) {
+	// deepseek-v4-flash is gone from the catalog: explicit pins must resolve
+	// to nothing rather than silently serving a different model.
 	for _, alias := range []string{"deepseek-v4-flash", "deepseek/deepseek-v4-flash"} {
 		t.Run(alias, func(t *testing.T) {
-			model, _, known := resolveForceModel(alias)
-			require.True(t, known)
-			require.Equal(t, "deepseek/deepseek-v4-flash", model)
+			_, _, known := resolveForceModel(alias)
+			require.False(t, known)
 		})
 	}
 }

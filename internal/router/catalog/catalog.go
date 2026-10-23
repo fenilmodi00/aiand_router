@@ -162,8 +162,6 @@ const (
 type ModelID string
 
 const (
-	// ModelIDDeepSeekV4Flash is the DeepSeek V4 Flash routing ID.
-	ModelIDDeepSeekV4Flash ModelID = "deepseek/deepseek-v4-flash"
 	// ModelIDDeepSeekV41Flash is the DeepSeek V4.1 Flash routing ID.
 	ModelIDDeepSeekV41Flash ModelID = "deepseek/deepseek-v4.1-flash"
 	// ModelIDDeepSeekV4Pro is the DeepSeek V4 Pro routing ID.
@@ -275,13 +273,6 @@ var Models = []Model{
 	// models vendor-prefixed, so each binding carries the UpstreamID rewrite;
 	// the router's slash-form slug is not what the upstream publishes.
 
-	// DeepSeek V4 natively serves 1,048,576 tokens; the 131_072 carried over
-	// from V3.2 was filtering requests over ~128K (excludeContextOverflowModels
-	// in proxy/service.go).
-	{ID: ModelIDDeepSeekV4Flash.String(), Source: SourceOpenSource, Tier: TierLow, ContextWindow: 1_048_576, ImageInput: ImageInputUnsupported, AgenticUse: AgenticLow, ReasoningEfforts: effortsNoneHighMax, DefaultEffort: effortHigh, Providers: []ProviderBinding{
-		{Provider: providers.ProviderAIAND, UpstreamID: "deepseek-ai/deepseek-v4-flash",
-			Price: Pricing{InputUSDPer1M: 0.150, OutputUSDPer1M: 0.250, CacheReadMultiplier: 0.08 / 0.150}},
-	}},
 	// V4.1-Flash: 552B MoE (8B active prefill / 16B decode), natively
 	// multimodal, 1M context.
 	{ID: ModelIDDeepSeekV41Flash.String(), Source: SourceOpenSource, Tier: TierLow, ContextWindow: 1_048_576, ReasoningEfforts: effortsNoneHighMax, DefaultEffort: effortHigh, Providers: []ProviderBinding{

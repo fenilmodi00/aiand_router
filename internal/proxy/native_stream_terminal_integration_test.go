@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	nativeChatModel      = "deepseek/deepseek-v4-flash"
+	nativeChatModel      = "deepseek/deepseek-v4.1-flash"
 	nativeResponsesModel = "gpt-5.6-luna"
 )
 

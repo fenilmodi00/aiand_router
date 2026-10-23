@@ -13,7 +13,6 @@ import (
 // rows it serves. ai& names models vendor-prefixed ("deepseek-ai/deepseek-v4.1-flash"),
 // so a binding without an UpstreamID would dispatch a slug the upstream 404s on.
 var aiandUpstreamIDs = map[string]string{
-	"deepseek/deepseek-v4-flash":    "deepseek-ai/deepseek-v4-flash",
 	"deepseek/deepseek-v4.1-flash":  "deepseek-ai/deepseek-v4.1-flash",
 	"deepseek/deepseek-v4-pro":      "deepseek-ai/deepseek-v4-pro",
 	"deepseek/deepseek-v4-pro-0813": "deepseek-ai/deepseek-v4-pro",

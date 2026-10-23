@@ -50,7 +50,6 @@ var opusModels = map[string]struct{}{
 var premiumModels = map[string]struct{}{
 	"z-ai/glm-5.2": {}, "z-ai/glm-5.3": {}, "moonshotai/kimi-k3": {},
 	"deepseek/deepseek-v4-pro": {}, "deepseek/deepseek-v4.1-flash": {},
-	"deepseek/deepseek-v4-flash": {},
 }
 
 type probe struct {

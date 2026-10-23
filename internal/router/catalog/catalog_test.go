@@ -115,8 +115,8 @@ func TestRoutingTargetSet_FiltersByTierAndRegisteredProviders(t *testing.T) {
 	assert.NotContains(t, targets, "deepseek/deepseek-v4-pro-0813", "untiered pin-only models must not become routing targets")
 }
 
-// The catalog is 14 rows: 8 tiered routing targets and 6 pin-only rows.
-func TestCatalog_TierSplitIsEightRoutingSixPinOnly(t *testing.T) {
+// The catalog is 13 rows: 7 tiered routing targets and 6 pin-only rows.
+func TestCatalog_TierSplitIsSevenRoutingSixPinOnly(t *testing.T) {
 	tiered, untiered := 0, 0
 	for _, m := range Models {
 		if m.Tier == TierUnknown {
@@ -125,9 +125,9 @@ func TestCatalog_TierSplitIsEightRoutingSixPinOnly(t *testing.T) {
 		}
 		tiered++
 	}
-	assert.Equal(t, 8, tiered, "routing (tiered) models")
+	assert.Equal(t, 7, tiered, "routing (tiered) models")
 	assert.Equal(t, 6, untiered, "pin-only (untiered) models")
-	assert.Len(t, Models, 14)
+	assert.Len(t, Models, 13)
 }
 
 func TestRoutingTargetSet_ExcludesUnregisteredProviders(t *testing.T) {
@@ -165,10 +165,10 @@ func TestModel_ToolUseQualityDefaultsToUnknown(t *testing.T) {
 	assert.Equal(t, ToolUseUnknown, m.ToolUseQuality)
 }
 
-func TestAgenticLowSet_IncludesHarnessIncapableModels(t *testing.T) {
-	set := AgenticLowSet()
-	_, found := set["deepseek/deepseek-v4-flash"]
-	assert.True(t, found, "deepseek/deepseek-v4-flash must be marked AgenticLow")
+func TestAgenticLowSet_EmptyAfterV4FlashRemoval(t *testing.T) {
+	// deepseek-v4-flash was the roster's only AgenticLow row; with the model
+	// gone the set is empty and no has_tools demotion applies.
+	assert.Empty(t, AgenticLowSet())
 }
 
 func TestAgenticLowSet_OmitsHarnessCapableModels(t *testing.T) {
@@ -215,7 +215,6 @@ func TestModel_ImageInputDefaultsToUnknown(t *testing.T) {
 
 func TestContextWindowFor_KnownModels(t *testing.T) {
 	assert.Equal(t, 1_048_576, ContextWindowFor("deepseek/deepseek-v4-pro"))
-	assert.Equal(t, 1_048_576, ContextWindowFor("deepseek/deepseek-v4-flash"))
 	assert.Equal(t, 1_048_576, ContextWindowFor("deepseek/deepseek-v4.1-flash"))
 	assert.Equal(t, 262_144, ContextWindowFor("moonshotai/kimi-k2.7"))
 	assert.Equal(t, 1_048_576, ContextWindowFor("moonshotai/kimi-k3"))

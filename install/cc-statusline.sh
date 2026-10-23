@@ -481,7 +481,6 @@ normalize_model() {
 # BEGIN_GENERATED_PRICES
 prices='{
   "input": {
-    "deepseek/deepseek-v4-flash":    0.00015,
     "deepseek/deepseek-v4-pro":      0.001,
     "deepseek/deepseek-v4-pro-0813": 0.001,
     "deepseek/deepseek-v4.1-flash":  0.0003,
@@ -497,7 +496,6 @@ prices='{
     "z-ai/glm-5.3-flash":            0.00015
   },
   "output": {
-    "deepseek/deepseek-v4-flash":    0.00025,
     "deepseek/deepseek-v4-pro":      0.0025,
     "deepseek/deepseek-v4-pro-0813": 0.0025,
     "deepseek/deepseek-v4.1-flash":  0.0006,
@@ -513,7 +511,6 @@ prices='{
     "z-ai/glm-5.3-flash":            0.0005
   },
   "cache_read": {
-    "deepseek/deepseek-v4-flash":    0.5333333333333333,
     "deepseek/deepseek-v4-pro":      0.25,
     "deepseek/deepseek-v4-pro-0813": 0.25,
     "deepseek/deepseek-v4.1-flash":  0.06666666666666667,

@@ -30,7 +30,7 @@ func TestCatalogModelsHandler_SortsByProviderThenModel(t *testing.T) {
 		{Model: "z-ai/glm-5.2", Provider: providers.ProviderAIAND},
 		{Model: "z-ai/glm-5.3-flash", Provider: providers.ProviderAIAND},
 		{Model: "deepseek/deepseek-v4.1-flash", Provider: providers.ProviderAIAND},
-		{Model: "deepseek/deepseek-v4-flash", Provider: providers.ProviderAIAND},
+		{Model: "deepseek/deepseek-v4-pro", Provider: providers.ProviderAIAND},
 	}}
 
 	engine := gin.New()
@@ -47,7 +47,7 @@ func TestCatalogModelsHandler_SortsByProviderThenModel(t *testing.T) {
 
 	require.Len(t, got.Models, 4)
 	assert.Equal(t, providers.ProviderAIAND, got.Models[0].Provider)
-	assert.Equal(t, "deepseek/deepseek-v4-flash", got.Models[0].Model)
+	assert.Equal(t, "deepseek/deepseek-v4-pro", got.Models[0].Model)
 	assert.Equal(t, providers.ProviderAIAND, got.Models[1].Provider)
 	assert.Equal(t, "deepseek/deepseek-v4.1-flash", got.Models[1].Model)
 	assert.Equal(t, providers.ProviderAIAND, got.Models[2].Provider)

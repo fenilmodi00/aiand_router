@@ -60,7 +60,7 @@ func TestComputeNoProgressFingerprint_StableAcrossCalls(t *testing.T) {
 
 func TestComputeNoProgressFingerprint_DistinguishesModel(t *testing.T) {
 	d1 := router.Decision{Model: "qwen/qwen3-235b-a22b-2507", Provider: "bedrock"}
-	d2 := router.Decision{Model: "deepseek/deepseek-v4-flash", Provider: "deepinfra"}
+	d2 := router.Decision{Model: "z-ai/glm-5.3-flash", Provider: "aiand"}
 	a := computeNoProgressFingerprint(d1, "explore", 1, "")
 	b := computeNoProgressFingerprint(d2, "explore", 1, "")
 	assert.NotEqual(t, a, b)
@@ -87,7 +87,7 @@ func TestComputeNoProgressFingerprint_DistinguishesMessageCount(t *testing.T) {
 }
 
 func TestComputeNoProgressFingerprint_DistinguishesToolProgress(t *testing.T) {
-	d := router.Decision{Model: "deepseek/deepseek-v4-flash", Provider: "deepinfra"}
+	d := router.Decision{Model: "z-ai/glm-5.3-flash", Provider: "aiand"}
 	// Explore sub-agent case: message count and prompt stay flat but tool-call
 	// history advances — the fingerprint must still diverge.
 	a := computeNoProgressFingerprint(d, "investigate the bug", 5, "42\x00Read\x00hash-a")
@@ -195,7 +195,7 @@ func TestNoProgressTracker_DoesNotTripWhenToolProgressGrows(t *testing.T) {
 	tr := newNoProgressTracker()
 	key := sessionKeyFromString("session-explore")
 	install := uuid.New()
-	d := router.Decision{Model: "deepseek/deepseek-v4-flash", Provider: "deepinfra"}
+	d := router.Decision{Model: "z-ai/glm-5.3-flash", Provider: "aiand"}
 	now := time.Now()
 
 	for i := 0; i < noProgressMatchThreshold*2; i++ {

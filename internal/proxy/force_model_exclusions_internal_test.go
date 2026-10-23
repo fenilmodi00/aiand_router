@@ -253,7 +253,7 @@ func TestForcedModelBinding_RefreshesRetiredProviderOnSavedPin(t *testing.T) {
 		WithDeploymentKeyedProviders(keyed(providers.ProviderAIAND))
 
 	binding, reason := svc.forcedModelBinding(
-		context.Background(), "deepseek/deepseek-v4-flash", providers.ProviderAIAND)
+		context.Background(), "deepseek/deepseek-v4.1-flash", providers.ProviderAIAND)
 
 	assert.Empty(t, reason)
 	assert.Equal(t, providers.ProviderAIAND, binding,

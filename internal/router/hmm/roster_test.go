@@ -14,7 +14,6 @@ func TestDeployedModelsForRosterIDs_MapsRosterSlugsToCatalogEntries(t *testing.T
 	// Roster slugs are the catalog IDs themselves (every surviving model is
 	// slash-form); entries carry the catalog ID and the primary provider.
 	got := hmm.DeployedModelsForRosterIDs([]string{
-		"deepseek/deepseek-v4-flash",
 		"deepseek/deepseek-v4.1-flash",
 		"deepseek/deepseek-v4-pro",
 		"deepseek/deepseek-v4-pro-0813",
@@ -30,7 +29,6 @@ func TestDeployedModelsForRosterIDs_MapsRosterSlugsToCatalogEntries(t *testing.T
 		byModel[e.Model] = e.Provider
 	}
 
-	assert.Equal(t, providers.ProviderAIAND, byModel["deepseek/deepseek-v4-flash"])
 	assert.Equal(t, providers.ProviderAIAND, byModel["deepseek/deepseek-v4.1-flash"])
 	assert.Equal(t, providers.ProviderAIAND, byModel["deepseek/deepseek-v4-pro"])
 	assert.Equal(t, providers.ProviderAIAND, byModel["deepseek/deepseek-v4-pro-0813"])

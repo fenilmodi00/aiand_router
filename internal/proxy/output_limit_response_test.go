@@ -6,7 +6,7 @@ import (
 
 const (
 	capAnthropicModel = "deepseek/deepseek-v4-pro"
-	capChatModel      = "deepseek/deepseek-v4-flash"
+	capChatModel      = "deepseek/deepseek-v4.1-flash"
 	capResponsesModel = "gpt-5.6-luna"
 	capGeminiModel    = "gemini-3-flash-preview"
 )

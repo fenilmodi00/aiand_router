@@ -7,10 +7,9 @@ export interface ModelPricing {
 	cacheReadMultiplier: number;
 }
 
-export const PRICING_VERSION = "catalog-sha256:e3aa63ed4c14356b";
+export const PRICING_VERSION = "catalog-sha256:eb3a5928f2a67d21";
 
 export const MODEL_PRICING: Readonly<Record<string, ModelPricing>> = Object.freeze({
-	"deepseek/deepseek-v4-flash": { inputUsdPerMillion: 0.15, outputUsdPerMillion: 0.25, cacheReadMultiplier: 0.5333333333333333 },
 	"deepseek/deepseek-v4-pro": { inputUsdPerMillion: 1, outputUsdPerMillion: 2.5, cacheReadMultiplier: 0.25 },
 	"deepseek/deepseek-v4-pro-0813": { inputUsdPerMillion: 1, outputUsdPerMillion: 2.5, cacheReadMultiplier: 0.25 },
 	"deepseek/deepseek-v4.1-flash": { inputUsdPerMillion: 0.3, outputUsdPerMillion: 0.6, cacheReadMultiplier: 0.06666666666666667 },
