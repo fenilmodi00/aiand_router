@@ -6,14 +6,14 @@ import (
 	"strings"
 	"testing"
 
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/translate"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
 
-const testFooter = "\n\n_Weave Router feedback:_ `/rf +` good experience · `/rf -` poor experience · note optional, e.g. `/rf - too slow`"
+const testFooter = "\n\n_Aiand Router feedback:_ `/rf +` good experience · `/rf -` poor experience · note optional, e.g. `/rf - too slow`"
 
 // anthropicAnswerStream is a minimal text answer (index 0) that ends naturally.
 func anthropicAnswerStream(stopReason string) string {
@@ -47,7 +47,7 @@ func TestAnthropicRoutingFooterWriter_InjectsBeforeMessageDelta(t *testing.T) {
 		typ := gjson.Get(data, "type").String()
 		switch typ {
 		case "content_block_delta":
-			if strings.Contains(gjson.Get(data, "delta.text").String(), "Weave Router feedback") {
+			if strings.Contains(gjson.Get(data, "delta.text").String(), "Aiand Router feedback") {
 				footerIdx = i
 				assert.EqualValues(t, 0, gjson.Get(data, "index").Int(),
 					"footer must fold into the answer block (index 0), not a new block")
@@ -98,7 +98,7 @@ func TestAnthropicRoutingFooterWriter_SkipsToolUseTurn(t *testing.T) {
 	_, err := w.Write([]byte(anthropicAnswerStream("tool_use")))
 	require.NoError(t, err)
 
-	assert.NotContains(t, rec.Body.String(), "Weave Router feedback", "tool_use turns must not get a footer")
+	assert.NotContains(t, rec.Body.String(), "Aiand Router feedback", "tool_use turns must not get a footer")
 }
 
 func TestAnthropicRoutingFooterWriter_EmptyFooterPassthrough(t *testing.T) {
@@ -137,7 +137,7 @@ func TestAnthropicRoutingFooterWriter_NoContentNoFooter(t *testing.T) {
 		buildAnthropicSSE("message_stop", `{"type":"message_stop"}`)
 	_, err := w.Write([]byte(in))
 	require.NoError(t, err)
-	assert.NotContains(t, rec.Body.String(), "Weave Router feedback", "no content block means nothing to rate")
+	assert.NotContains(t, rec.Body.String(), "Aiand Router feedback", "no content block means nothing to rate")
 }
 
 func TestAnthropicRoutingFooterWriter_EventSplitAcrossWrites(t *testing.T) {
@@ -154,7 +154,7 @@ func TestAnthropicRoutingFooterWriter_EventSplitAcrossWrites(t *testing.T) {
 	require.NoError(t, err)
 
 	body := rec.Body.String()
-	assert.Contains(t, body, "Weave Router feedback", "split stream must still get a footer")
+	assert.Contains(t, body, "Aiand Router feedback", "split stream must still get a footer")
 	// Footer must appear exactly once.
-	assert.Equal(t, 1, strings.Count(body, "Weave Router feedback"))
+	assert.Equal(t, 1, strings.Count(body, "Aiand Router feedback"))
 }

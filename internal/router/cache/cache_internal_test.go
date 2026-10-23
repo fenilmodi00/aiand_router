@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"testing"
 	"time"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router/catalog"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router/catalog"
 
 	lru "github.com/hashicorp/golang-lru/v2"
 

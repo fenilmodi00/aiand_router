@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/inference"
-	"weave-os/router/internal/providers"
+	"aiand-os/router/internal/inference"
+	"aiand-os/router/internal/providers"
 )
 
 func TestInferenceAttemptParamsUnknownUsageStaysNull(t *testing.T) {

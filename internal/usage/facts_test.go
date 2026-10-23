@@ -3,7 +3,7 @@ package usage_test
 import (
 	"testing"
 
-	"weave-os/router/internal/usage"
+	"aiand-os/router/internal/usage"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/tidwall/gjson"

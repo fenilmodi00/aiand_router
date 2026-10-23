@@ -115,7 +115,7 @@ setup: migrate-up seed ## Bootstrap (host DB): init DB, run migrations, seed an 
 
 full-setup: generate-statusline ## Bootstrap router: docker compose + seed + interactively wire Claude Code
 	@if [ -n "$(KEY)" ] && [ -n "$(BASE_URL)" ]; then \
-		INSTALL_CMD='WEAVE_ROUTER_KEY="$(KEY)" ./install/install.sh --claude --base-url "$(BASE_URL)"'; \
+		INSTALL_CMD='AIAND_ROUTER_KEY="$(KEY)" ./install/install.sh --claude --base-url "$(BASE_URL)"'; \
 		[ -n "$(SCOPE)" ] && INSTALL_CMD="$$INSTALL_CMD --scope $(SCOPE)"; \
 		[ -n "$(DIR)" ] && INSTALL_CMD="$$INSTALL_CMD --dir $(DIR)"; \
 		[ "$(NON_INTERACTIVE)" = "1" ] && INSTALL_CMD="$$INSTALL_CMD --non-interactive"; \
@@ -136,19 +136,19 @@ full-setup: generate-statusline ## Bootstrap router: docker compose + seed + int
 			echo "router did not become healthy within 60s. Tail with: make logs" >&2; \
 			exit 1' || exit 1; \
 		SEED_CAPTURE="$$(mktemp -t full-setup-seed.XXXXXX.log)"; \
-		WEAVE_SPIN_CAPTURE="$$SEED_CAPTURE" ./install/spin "Seeding Weave Router API key" \
+		AIAND_SPIN_CAPTURE="$$SEED_CAPTURE" ./install/spin "Seeding Aiand Router API key" \
 			docker compose run --rm seed || { rm -f "$$SEED_CAPTURE"; exit 1; }; \
-		WEAVE_KEY=$$(grep -oE "^  rk_[a-zA-Z0-9_-]+$$" "$$SEED_CAPTURE" | head -1 | xargs); \
+		AIAND_KEY=$$(grep -oE "^  rk_[a-zA-Z0-9_-]+$$" "$$SEED_CAPTURE" | head -1 | xargs); \
 		rm -f "$$SEED_CAPTURE"; \
-		if [ -z "$$WEAVE_KEY" ]; then \
+		if [ -z "$$AIAND_KEY" ]; then \
 			echo "error: failed to extract router key from seed output."; \
 			exit 1; \
 		fi; \
-		echo "    key: $$WEAVE_KEY"; \
+		echo "    key: $$AIAND_KEY"; \
 		echo ""; \
-		WEAVE_ROUTER_KEY="$$WEAVE_KEY" ./install/install.sh --claude --base-url http://localhost:8080; \
+		AIAND_ROUTER_KEY="$$AIAND_KEY" ./install/install.sh --claude --base-url http://localhost:8080; \
 		echo ""; \
-		echo "Done. Router on http://localhost:8080. Share with teammates: make full-setup KEY=$$WEAVE_KEY BASE_URL=<reachable-url>"; \
+		echo "Done. Router on http://localhost:8080. Share with teammates: make full-setup KEY=$$AIAND_KEY BASE_URL=<reachable-url>"; \
 	fi
 
 db: ## Start the compose Postgres only (port 5433)

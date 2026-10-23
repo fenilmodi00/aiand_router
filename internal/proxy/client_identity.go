@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"strings"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/requestcontext"
-	"weave-os/router/internal/router/turntype"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/router/turntype"
 )
 
 // ClientIdentity holds per-request user identification signals; defined in
@@ -32,8 +32,8 @@ func ClientIdentityFromHeaders(h http.Header) ClientIdentity {
 	xApp, eval := splitEvalClientApp(h.Get("X-App"))
 	id := ClientIdentity{
 		SessionID:   requestcontext.SessionIDFromHeaders(h),
-		Email:       NormalizeEmail(h.Get("X-Weave-User-Email")),
-		DisplayName: NormalizeDisplayName(h.Get("X-Weave-User-Name")),
+		Email:       NormalizeEmail(h.Get("X-Aiand-User-Email")),
+		DisplayName: NormalizeDisplayName(h.Get("X-Aiand-User-Name")),
 		UserAgent:   h.Get("User-Agent"),
 		ClientApp:   NormalizeClientApp(xApp, h.Get("User-Agent")),
 		Eval:        eval,
@@ -57,7 +57,7 @@ func openCodeCaller(id ClientIdentity) turntype.OpenCodeCaller {
 const EvalClientAppPrefix = requestcontext.EvalClientAppPrefix
 
 // splitEvalClientApp peels the eval-harness prefix off a raw X-App value so
-// "weave-eval-codex" resolves to the codex harness with Eval set, rather than
+// "aiand-eval-codex" resolves to the codex harness with Eval set, rather than
 // to an unknown client that falls off every codex-keyed code path.
 func splitEvalClientApp(xApp string) (string, bool) {
 	trimmed := strings.ToLower(strings.TrimSpace(xApp))
@@ -143,7 +143,7 @@ func NormalizeClientIdentifier(s string) string {
 }
 
 // RolloutIDHeader carries the eval/training-harness rollout correlation id.
-const RolloutIDHeader = "X-Weave-Rollout-Id"
+const RolloutIDHeader = "X-Aiand-Rollout-Id"
 
 // MaxRolloutIDLen bounds the rollout correlation id. Harness ids compose
 // run_id/condition/seed/instance_id, exceeding the 128-byte client id cap.

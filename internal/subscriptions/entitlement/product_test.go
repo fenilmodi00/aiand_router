@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"weave-os/router/internal/router/eligibility"
+	"aiand-os/router/internal/router/eligibility"
 )
 
 func TestPlanBoundariesCoverEveryPlan(t *testing.T) {

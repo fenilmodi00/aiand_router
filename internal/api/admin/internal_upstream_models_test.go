@@ -7,10 +7,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"weave-os/router/internal/api/admin"
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/proxy"
+	"aiand-os/router/internal/api/admin"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/proxy"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"

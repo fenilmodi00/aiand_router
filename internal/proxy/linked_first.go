@@ -3,9 +3,9 @@ package proxy
 import (
 	"context"
 
-	"weave-os/router/internal/billing"
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/billing"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/router"
 )
 
 // linkedFirst reports whether the turn is subscription-only because the

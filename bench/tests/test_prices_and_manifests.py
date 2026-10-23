@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import pytest
 
-from weave_bench.benchmarks import PINS, TB4_CONTENT_SHA256, Benchmark
-from weave_bench.manifests import harbor_task_names, load_manifest, smoke_task_names
-from weave_bench.prices import ModelPrice, load_price_table
+from aiand_bench.benchmarks import PINS, TB4_CONTENT_SHA256, Benchmark
+from aiand_bench.manifests import harbor_task_names, load_manifest, smoke_task_names
+from aiand_bench.prices import ModelPrice, load_price_table
 
 
 def test_price_table_is_generated_from_the_router_catalog() -> None:

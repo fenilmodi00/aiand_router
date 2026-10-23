@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/router"
 )
 
 func TestRouteMessagesPreserveTaskAtEveryPosition(t *testing.T) {

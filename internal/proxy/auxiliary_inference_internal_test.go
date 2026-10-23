@@ -6,14 +6,14 @@ import (
 	"testing"
 	"time"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/billing"
-	"weave-os/router/internal/inference"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/router/handover"
-	"weave-os/router/internal/router/llmescalation"
-	"weave-os/router/internal/router/policy"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/billing"
+	"aiand-os/router/internal/inference"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router/handover"
+	"aiand-os/router/internal/router/llmescalation"
+	"aiand-os/router/internal/router/policy"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -330,5 +330,5 @@ func TestBillAuxiliaryInferenceUsesSummarizerProviderForBYOK(t *testing.T) {
 	require.Len(t, debits, 1)
 	assert.Zero(t, debits[0].DeltaUsdMicros,
 		"a BYOK-served summary debits no inference cost — the customer paid their own upstream")
-	assert.NotZero(t, debits[0].FeeUsdMicros, "Weave still charges its platform fee")
+	assert.NotZero(t, debits[0].FeeUsdMicros, "Aiand still charges its platform fee")
 }

@@ -37,7 +37,7 @@ CURL
 chmod +x "$work/bin/curl"
 export PATH="$work/bin:$PATH" NO_COLOR=1
 export REQUEST_LOG="$work/requests.log"
-unset WEAVE_ROUTER_KEY
+unset AIAND_ROUTER_KEY
 
 failures=0
 assert_contains() {
@@ -72,8 +72,8 @@ for scope in user project; do
   config_root="$work/$scope"
   mkdir -p "$config_root/.claude"
   if [ "$scope" = project ]; then git -C "$config_root" init -q; fi
-  cat >"$config_root/.claude/.weave-parked.json" <<'JSON'
-{"env":{"ANTHROPIC_BASE_URL":"https://router.example.test","ANTHROPIC_CUSTOM_HEADERS":"X-Weave-Router-Key: rk_synthetic_status_1234"}}
+  cat >"$config_root/.claude/.aiand-parked.json" <<'JSON'
+{"env":{"ANTHROPIC_BASE_URL":"https://router.example.test","ANTHROPIC_CUSTOM_HEADERS":"X-Aiand-Router-Key: rk_synthetic_status_1234"}}
 JSON
   if [ "$scope" = project ]; then
     printf '%s\n' '{"env":{"ANTHROPIC_BASE_URL":"https://router.example.test"}}' >"$config_root/.claude/settings.json"
@@ -98,33 +98,33 @@ JSON
 done
 
 config_root="$work/user"
-mv "$config_root/.claude/.weave-parked.json" "$config_root/.claude/settings.json"
+mv "$config_root/.claude/.aiand-parked.json" "$config_root/.claude/settings.json"
 status_output="$(run_status "$config_root" user)"
 assert_contains 'active user config reports on' "$status_output" 'Claude Code: on'
-cp "$config_root/.claude/settings.json" "$config_root/.claude/.weave-parked.json"
+cp "$config_root/.claude/settings.json" "$config_root/.claude/.aiand-parked.json"
 status_output="$(run_status "$config_root" user)"
 assert_contains 'stale parked file cannot override active user settings' "$status_output" 'Claude Code: on'
-mv "$config_root/.claude/.weave-parked.json" "$config_root/saved-router.json"
+mv "$config_root/.claude/.aiand-parked.json" "$config_root/saved-router.json"
 
 status_output="$(VALIDATE_STATUS=401 run_status "$config_root" user)"
 assert_contains 'invalid key is reported separately from config state' "$status_output" 'Connectivity: unavailable (HTTP 401)'
 assert_contains 'unavailable router does not hide active config' "$status_output" 'Claude Code: on'
 
 printf '%s\n' '{"env":{"ANTHROPIC_BASE_URL":"https://router.example.test"}}' >"$config_root/.claude/settings.json"
-status_output="$(WEAVE_ROUTER_KEY=rk_synthetic_status_1234 run_status "$config_root" user)"
+status_output="$(AIAND_ROUTER_KEY=rk_synthetic_status_1234 run_status "$config_root" user)"
 assert_contains 'CLI-only key does not imply Claude is authenticated' "$status_output" 'router key header is missing'
 assert_not_contains 'missing live key is not on' "$status_output" 'Claude Code: on'
 
 config_root="$work/project"
-mv "$config_root/.claude/.weave-parked.json" "$config_root/saved-router.json"
-printf '%s\n' '{"env":{"ANTHROPIC_BASE_URL":"https://api.anthropic.com","ANTHROPIC_CUSTOM_HEADERS":"X-Weave-Router-Key: rk_synthetic_status_1234"}}' >"$config_root/.claude/settings.local.json"
+mv "$config_root/.claude/.aiand-parked.json" "$config_root/saved-router.json"
+printf '%s\n' '{"env":{"ANTHROPIC_BASE_URL":"https://api.anthropic.com","ANTHROPIC_CUSTOM_HEADERS":"X-Aiand-Router-Key: rk_synthetic_status_1234"}}' >"$config_root/.claude/settings.local.json"
 status_output="$(run_status "$config_root" project)"
 assert_contains 'local direct override without parked file reports off' "$status_output" 'Claude Code (project): off'
 assert_not_contains 'committed URL cannot override local direct setting' "$status_output" 'points at Router'
 status_output="$(run_status "$config_root" project --dir "$config_root")"
 assert_contains 'explicit project directory respects local direct override' "$status_output" 'Claude Code (project): off'
 
-printf '%s\n' '{"env":{"ANTHROPIC_CUSTOM_HEADERS":"X-Weave-Router-Key: rk_synthetic_status_1234"}}' >"$config_root/.claude/settings.local.json"
+printf '%s\n' '{"env":{"ANTHROPIC_CUSTOM_HEADERS":"X-Aiand-Router-Key: rk_synthetic_status_1234"}}' >"$config_root/.claude/settings.local.json"
 status_output="$(run_status "$config_root" project)"
 assert_contains 'split project URL and local key reports on' "$status_output" 'Claude Code (project): on'
 status_output="$(run_status "$config_root" project --dir "$config_root")"
@@ -136,12 +136,12 @@ status_output="$(run_status "$config_root" project)"
 assert_contains 'local-only project config reports on' "$status_output" 'Claude Code (project): on'
 status_output="$(run_status "$config_root" project --dir "$config_root")"
 assert_contains 'explicit project directory reads local-only config' "$status_output" 'Claude Code (project): on'
-cp "$config_root/saved-router.json" "$config_root/.claude/.weave-parked.json"
+cp "$config_root/saved-router.json" "$config_root/.claude/.aiand-parked.json"
 status_output="$(run_status "$config_root" project)"
 assert_contains 'stale parked file cannot override active project settings' "$status_output" 'Claude Code (project): on'
 status_output="$(run_status "$config_root" project --dir "$config_root")"
 assert_contains 'explicit project directory ignores stale parked credentials' "$status_output" 'Claude Code (project): on'
-mv "$config_root/.claude/.weave-parked.json" "$config_root/saved-router.json"
+mv "$config_root/.claude/.aiand-parked.json" "$config_root/saved-router.json"
 
 cp "$config_root/saved-router.json" "$config_root/.claude/settings.json"
 printf '%s\n' '{"env":{"ANTHROPIC_CUSTOM_HEADERS":"X-App: claude-code"}}' >"$config_root/.claude/settings.local.json"
@@ -156,8 +156,8 @@ assert_not_contains 'status output redacts credentials' "$status_output" 'rk_syn
 
 config_root="$work/user"
 printf '%s\n' '{"env":{"ANTHROPIC_BASE_URL":"https://proxy.example.test","ANTHROPIC_CUSTOM_HEADERS":"Authorization: Bearer proxy_synthetic_status_1234"}}' >"$config_root/.claude/settings.json"
-status_output="$(WEAVE_ROUTER_KEY=rk_synthetic_status_1234 run_status "$config_root" user)"
-assert_contains 'proxy without Weave header identifies missing Weave authentication' "$status_output" 'Weave-key authentication is not configured'
+status_output="$(AIAND_ROUTER_KEY=rk_synthetic_status_1234 run_status "$config_root" user)"
+assert_contains 'proxy without Aiand header identifies missing Aiand authentication' "$status_output" 'Aiand-key authentication is not configured'
 assert_contains 'proxy authentication is not assessed by the status check' "$status_output" 'other authentication methods are not checked'
 assert_not_contains 'proxy credentials are not declared invalid' "$status_output" "requests won't authenticate"
 assert_not_contains 'proxy credentials do not prompt a reinstall' "$status_output" 'Run the installer to add your key'

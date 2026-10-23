@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"weave-os/router/internal/postgres"
+	"aiand-os/router/internal/postgres"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

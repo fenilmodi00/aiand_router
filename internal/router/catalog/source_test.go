@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/router/eligibility"
+	"aiand-os/router/internal/router/eligibility"
 )
 
 func TestCatalog_EveryModelCarriesAValidSource(t *testing.T) {

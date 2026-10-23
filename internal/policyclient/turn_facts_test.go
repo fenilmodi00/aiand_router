@@ -10,8 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/policy"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/policy"
 )
 
 // turnFactsQuery populates every Go-owned turn fact so the wire fixture below

@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"strings"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/router"
 )
 
 // ForceClusterHeader constrains serving to one of the policy sidecar's
@@ -20,7 +20,7 @@ import (
 // the live group vocabulary belongs to the deployed policy artifact and changes
 // with it, so the only authority is the roster the sidecar reports on this very
 // request (see policy.ApplyClusterArmOverridesRequireMatch).
-const ForceClusterHeader = "x-weave-force-cluster"
+const ForceClusterHeader = "x-aiand-force-cluster"
 
 // ErrForcedClusterUnsupportedStrategy is returned when a caller forces a
 // cluster on an installation whose strategy never runs a policy sidecar, so no
@@ -45,7 +45,7 @@ func (e *ForcedClusterUnsupportedStrategyError) Unwrap() error {
 	return ErrForcedClusterUnsupportedStrategy
 }
 
-// applyForceClusterHeader resolves the x-weave-force-cluster header into the
+// applyForceClusterHeader resolves the x-aiand-force-cluster header into the
 // label carried on router.Request.ForceCluster. An absent header is a no-op.
 //
 // Only the strategy is checked here. Whether the named cluster exists and has
@@ -62,12 +62,12 @@ func applyForceClusterHeader(ctx context.Context, r *http.Request) (string, erro
 	}
 	strategy := router.StrategyFromContext(ctx)
 	if !router.IsHMMStrategy(strategy) {
-		observability.FromContext(ctx).Warn("x-weave-force-cluster: rejected on a strategy with no policy sidecar",
+		observability.FromContext(ctx).Warn("x-aiand-force-cluster: rejected on a strategy with no policy sidecar",
 			"cluster", label,
 			"strategy", strategy,
 		)
 		return "", &ForcedClusterUnsupportedStrategyError{Cluster: label, Strategy: string(strategy)}
 	}
-	observability.FromContext(ctx).Info("x-weave-force-cluster applied", "cluster", label, "strategy", strategy)
+	observability.FromContext(ctx).Info("x-aiand-force-cluster applied", "cluster", label, "strategy", strategy)
 	return label, nil
 }

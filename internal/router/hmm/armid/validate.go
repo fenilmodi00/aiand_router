@@ -1,8 +1,8 @@
 package armid
 
 import (
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/router/policy"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router/policy"
 )
 
 // Diagnostic re-exports policy.Diagnostic for roster-validation callers.

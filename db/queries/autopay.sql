@@ -3,7 +3,7 @@
 -- (the org never configured autopay) maps to a not-found error; the caller
 -- treats that as "autopay disabled" and skips the crossing check. Only the two
 -- columns the router needs are selected -- every other autopay column is
--- written and read exclusively by the Weave control plane.
+-- written and read exclusively by the Aiand control plane.
 -- name: GetAutopayConfig :one
 SELECT enabled, threshold_usd_micros
 FROM router.organization_autopay_config

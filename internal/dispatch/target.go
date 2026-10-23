@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"weave-os/router/internal/inference"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/inference"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router"
 
 	"github.com/tidwall/gjson"
 )

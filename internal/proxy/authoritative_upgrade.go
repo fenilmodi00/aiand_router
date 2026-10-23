@@ -7,12 +7,12 @@ import (
 	"slices"
 	"time"
 
-	"weave-os/router/internal/flags"
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/router/escalation"
-	"weave-os/router/internal/router/sessionpin"
+	"aiand-os/router/internal/flags"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router/escalation"
+	"aiand-os/router/internal/router/sessionpin"
 )
 
 // AuthoritativeUpgradeConfig holds evidence-policy calibration. Nil margin and

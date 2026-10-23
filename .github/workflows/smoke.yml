@@ -145,14 +145,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # Push + PR-create as the weave-bot machine user (not the default
+          # Push + PR-create as the aiand-bot machine user (not the default
           # GITHUB_TOKEN), so the cassette-refresh branch/PR actually triggers
           # required CI: PRs opened by GITHUB_TOKEN don't fire pull_request
           # workflows (anti-recursion), so required checks never run and
-          # auto-merge waits forever. WEAVE_BOT_TOKEN needs push + PRs
+          # auto-merge waits forever. AIAND_BOT_TOKEN needs push + PRs
           # (classic repo, or a fine-grained PAT with Contents R/W + Pull
           # requests R/W); a Contents-only token 403s on gh pr calls.
-          token: ${{ secrets.WEAVE_BOT_TOKEN }}
+          token: ${{ secrets.AIAND_BOT_TOKEN }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -208,7 +208,7 @@ jobs:
 
       - name: Open a PR if the cassettes changed
         env:
-          GH_TOKEN: ${{ secrets.WEAVE_BOT_TOKEN }}
+          GH_TOKEN: ${{ secrets.AIAND_BOT_TOKEN }}
         run: |
           # git diff alone misses brand-new cassette files (a new scenario, or
           # the very first recording) since they're untracked, not modified —
@@ -221,12 +221,12 @@ jobs:
           fi
           BRANCH="smoke-cassette-refresh-$(date -u +%Y%m%d)"
           # Match the identity that performs the auto-squash-merge
-          # (workweave-bot <bot@workweave.ai>). GitHub's squash merge adds a
+          # (workaiand-bot <bot@workaiand.ai>). GitHub's squash merge adds a
           # Co-authored-by trailer for every branch-commit author that isn't
           # the merger, so authoring under any other identity leaves a stray
           # co-author on the merged commit.
-          git config user.name "workweave-bot"
-          git config user.email "bot@workweave.ai"
+          git config user.name "workaiand-bot"
+          git config user.email "bot@workaiand.ai"
           OPEN=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open --json number --jq 'length')
           if [ "$OPEN" -gt 0 ]; then
             echo "Open cassette-refresh PR for $BRANCH already exists; nothing to do."
@@ -249,7 +249,7 @@ jobs:
 
       - name: Enable auto-merge
         env:
-          GH_TOKEN: ${{ secrets.WEAVE_BOT_TOKEN }}
+          GH_TOKEN: ${{ secrets.AIAND_BOT_TOKEN }}
         run: |
           set -euo pipefail
           BRANCH="smoke-cassette-refresh-$(date -u +%Y%m%d)"

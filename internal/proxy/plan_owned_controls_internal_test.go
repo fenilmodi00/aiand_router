@@ -5,12 +5,12 @@ import (
 	"net/http"
 	"testing"
 
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/requestcontext"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/sessionpin"
-	"weave-os/router/internal/subscriptions/entitlement"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/sessionpin"
+	"aiand-os/router/internal/subscriptions/entitlement"
+	"aiand-os/router/internal/translate"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

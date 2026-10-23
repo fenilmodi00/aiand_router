@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/translate"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -148,7 +148,7 @@ func TestResponsesToChatCompletions_StripsRoutingBadgeFromAssistantHistory(t *te
 		"input": [
 			{"type": "message", "role": "user", "content": "hi"},
 			{"type": "message", "role": "assistant", "content": [
-				{"type": "output_text", "text": "**WEAVE ROUTER** — claude-opus-4-7 ← gpt-5.5\n\nHello there!"}
+				{"type": "output_text", "text": "**AIAND ROUTER** — claude-opus-4-7 ← gpt-5.5\n\nHello there!"}
 			]},
 			{"type": "message", "role": "user", "content": "again"}
 		]
@@ -167,7 +167,7 @@ func TestResponsesToChatCompletions_StripsVerboseRoutingMarker(t *testing.T) {
 	body := []byte(`{
 		"model": "gpt-5",
 		"input": [
-			{"type": "message", "role": "assistant", "content": "✦ **WEAVE ROUTER** → minimax/minimax-m3 · best pick for this turn\n↳ classifier balanced\n↳ bandit arm minimax\n\nbody"}
+			{"type": "message", "role": "assistant", "content": "✦ **AIAND ROUTER** → minimax/minimax-m3 · best pick for this turn\n↳ classifier balanced\n↳ bandit arm minimax\n\nbody"}
 		]
 	}`)
 
@@ -183,7 +183,7 @@ func TestResponsesToChatCompletions_StripsBadgeFromStringContent(t *testing.T) {
 	body := []byte(`{
 		"model": "gpt-5",
 		"input": [
-			{"type": "message", "role": "assistant", "content": "**WEAVE ROUTER** — claude-opus-4-7\n\nbody"}
+			{"type": "message", "role": "assistant", "content": "**AIAND ROUTER** — claude-opus-4-7\n\nbody"}
 		]
 	}`)
 
@@ -201,7 +201,7 @@ func TestResponsesToChatCompletions_LeavesUserContentAlone(t *testing.T) {
 	body := []byte(`{
 		"model": "gpt-5",
 		"input": [
-			{"type": "message", "role": "user", "content": "**WEAVE ROUTER** — something\n\nplease explain"}
+			{"type": "message", "role": "user", "content": "**AIAND ROUTER** — something\n\nplease explain"}
 		]
 	}`)
 
@@ -210,19 +210,19 @@ func TestResponsesToChatCompletions_LeavesUserContentAlone(t *testing.T) {
 
 	messages := gjson.GetBytes(out, "messages").Array()
 	require.Len(t, messages, 1)
-	assert.Contains(t, messages[0].Get("content").Str, "**WEAVE ROUTER**")
+	assert.Contains(t, messages[0].Get("content").Str, "**AIAND ROUTER**")
 }
 
 func TestStripRoutingBadgeFromResponsesInput_PreservesNativeFields(t *testing.T) {
 	body := []byte(`{
 		"model":"deepseek/deepseek-v4-pro",
 		"input":[
-			{"type":"message","role":"user","content":[{"type":"input_text","text":"**WEAVE ROUTER** — quoted\n\ndo not strip"}]},
+			{"type":"message","role":"user","content":[{"type":"input_text","text":"**AIAND ROUTER** — quoted\n\ndo not strip"}]},
 			{"type":"reasoning","id":"rs_1","encrypted_content":"opaque"},
 			{"type":"message","id":"msg_1","role":"assistant","status":"completed","content":[
 				{"type":"refusal","refusal":""},
-				{"type":"output_text","text":"\u2063\u2060\u2063\u2060**Weave Router** — gpt-5.6-terra ← gpt-5.6-sol\n\nanswer","annotations":[{"type":"url_citation","url":"https://example.com"}]},
-				{"type":"output_text","text":"**WEAVE ROUTER** — user-authored\n\nlater part"}
+				{"type":"output_text","text":"\u2063\u2060\u2063\u2060**Aiand Router** — gpt-5.6-terra ← gpt-5.6-sol\n\nanswer","annotations":[{"type":"url_citation","url":"https://example.com"}]},
+				{"type":"output_text","text":"**AIAND ROUTER** — user-authored\n\nlater part"}
 			]},
 			{"type":"function_call","id":"fc_1","call_id":"call_1","name":"lookup","arguments":"{\"x\":1}"}
 		],
@@ -233,17 +233,17 @@ func TestStripRoutingBadgeFromResponsesInput_PreservesNativeFields(t *testing.T)
 	require.NoError(t, err)
 
 	root := gjson.ParseBytes(out)
-	assert.Equal(t, "**WEAVE ROUTER** — quoted\n\ndo not strip", root.Get("input.0.content.0.text").Str)
+	assert.Equal(t, "**AIAND ROUTER** — quoted\n\ndo not strip", root.Get("input.0.content.0.text").Str)
 	assert.Equal(t, "opaque", root.Get("input.1.encrypted_content").Str)
 	assert.Equal(t, "answer", root.Get("input.2.content.1.text").Str)
 	assert.Equal(t, "https://example.com", root.Get("input.2.content.1.annotations.0.url").Str)
-	assert.Equal(t, "**WEAVE ROUTER** — user-authored\n\nlater part", root.Get("input.2.content.2.text").Str)
+	assert.Equal(t, "**AIAND ROUTER** — user-authored\n\nlater part", root.Get("input.2.content.2.text").Str)
 	assert.Equal(t, "call_1", root.Get("input.3.call_id").Str)
 	assert.True(t, root.Get("metadata.keep").Bool())
 }
 
 func TestStripRoutingBadgeFromResponsesInput_RemovesSelectionReasoning(t *testing.T) {
-	body := []byte(`{"input":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"\u2063\u2060\u2063\u2060✦ **Weave Router** → claude-sonnet-5\nREASONING: This part of the conversation was classified as high difficulty.\n\nanswer"}]}]}`)
+	body := []byte(`{"input":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"\u2063\u2060\u2063\u2060✦ **Aiand Router** → claude-sonnet-5\nREASONING: This part of the conversation was classified as high difficulty.\n\nanswer"}]}]}`)
 	cleaned, err := translate.StripRoutingBadgeFromResponsesInput(body)
 	require.NoError(t, err)
 	assert.Equal(t, "answer", gjson.GetBytes(cleaned, "input.0.content.0.text").String())
@@ -275,7 +275,7 @@ func TestStripRouterCommandsFromResponsesInput_PreservesModelAliasInToolOutput(t
 // Stripping it in place would leave a blank assistant shell ahead of the real
 // function_call, which providers reject.
 func TestStripRoutingBadgeFromResponsesInput_DropsBadgeOnlyAssistantItem(t *testing.T) {
-	badge := `\u2063\u2060\u2063\u2060**Weave Router** — gpt-5.6-terra ← gpt-5.6-sol\n\n`
+	badge := `\u2063\u2060\u2063\u2060**Aiand Router** — gpt-5.6-terra ← gpt-5.6-sol\n\n`
 	body := []byte(`{
 		"model":"deepseek/deepseek-v4-pro",
 		"input":[
@@ -315,7 +315,7 @@ func TestStripRoutingBadgeFromResponsesInput_KeepsItemWithRemainingContent(t *te
 		"model":"deepseek/deepseek-v4-pro",
 		"input":[
 			{"type":"message","role":"assistant","content":[
-				{"type":"output_text","text":"\u2063\u2060\u2063\u2060**Weave Router** — gpt-5.6-terra\n\n"},
+				{"type":"output_text","text":"\u2063\u2060\u2063\u2060**Aiand Router** — gpt-5.6-terra\n\n"},
 				{"type":"output_text","text":"the answer"}
 			]}
 		]
@@ -331,8 +331,8 @@ func TestStripRoutingBadgeFromResponsesInput_KeepsItemWithRemainingContent(t *te
 }
 
 func TestStripRoutingBadgeFromResponsesInput_RebuildsEachChangedArrayOnce(t *testing.T) {
-	badge := codexResponsesBadgeSentinelForTest + "**Weave Router** — gpt-5.6-terra ← gpt-5.6-sol\n\n"
-	badgeJSON := codexResponsesBadgeSentinelForTest + "**Weave Router** — gpt-5.6-terra ← gpt-5.6-sol\\n\\n"
+	badge := codexResponsesBadgeSentinelForTest + "**Aiand Router** — gpt-5.6-terra ← gpt-5.6-sol\n\n"
+	badgeJSON := codexResponsesBadgeSentinelForTest + "**Aiand Router** — gpt-5.6-terra ← gpt-5.6-sol\\n\\n"
 	body := []byte(`{"input":[
 {"role":"assistant","content":[
 {"type":"input_text","text":"` + badgeJSON + `answer"},
@@ -380,7 +380,7 @@ func TestStripRoutingBadgeFromResponsesInput_NoMatchPreservesBytes(t *testing.T)
 }
 
 func TestStripRoutingBadgeFromResponsesInput_PreservesOrganicAssistantHeading(t *testing.T) {
-	body := []byte("{ \"model\" : \"gpt-5.6-sol\", \"input\" : [{\"type\":\"message\",\"role\":\"assistant\",\"content\":\"**WEAVE ROUTER** — an ordinary heading\\n\\nkeep this paragraph\"}] }\n")
+	body := []byte("{ \"model\" : \"gpt-5.6-sol\", \"input\" : [{\"type\":\"message\",\"role\":\"assistant\",\"content\":\"**AIAND ROUTER** — an ordinary heading\\n\\nkeep this paragraph\"}] }\n")
 
 	out, err := translate.StripRoutingBadgeFromResponsesInput(body)
 	require.NoError(t, err)
@@ -593,7 +593,7 @@ func TestResponsesWriter_StreamingText(t *testing.T) {
 			continue
 		}
 		d := e["delta"].(string)
-		if strings.HasPrefix(d, "**Weave Router**") {
+		if strings.HasPrefix(d, "**Aiand Router**") {
 			continue
 		}
 		combined.WriteString(d)
@@ -799,7 +799,7 @@ func TestResponsesWriter_PassthroughRejectsUndelimitedEmptyTerminal(t *testing.T
 }
 
 // passthroughTestMarker stands in for the routing marker the proxy supplies.
-const passthroughTestMarker = "✦ **Weave Router** → gpt-5.6-terra · best pick for this turn"
+const passthroughTestMarker = "✦ **Aiand Router** → gpt-5.6-terra · best pick for this turn"
 
 func TestResponsesWriter_PassthroughBadgePreservesNativeStream(t *testing.T) {
 	for _, terminalType := range []string{"response.completed", "response.incomplete"} {
@@ -1142,7 +1142,7 @@ func TestResponsesWriter_UsesRoutedModelFromHeader(t *testing.T) {
 func TestResponsesWriter_UsesCustomBadgeText(t *testing.T) {
 	rec := httptest.NewRecorder()
 	w := translate.NewResponsesWriter(rec, "gpt-5")
-	w.SetBadgeText("✦ **Weave Router** → minimax/minimax-m3 · best pick for this turn\n↳ classifier balanced")
+	w.SetBadgeText("✦ **Aiand Router** → minimax/minimax-m3 · best pick for this turn\n↳ classifier balanced")
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("x-router-model", "minimax/minimax-m3")
 	w.WriteHeader(200)
@@ -1293,7 +1293,7 @@ func eventTypes(events []map[string]any) []string {
 }
 
 func TestResponsesWriter_PassthroughAppendsFeedbackFooter(t *testing.T) {
-	const footer = "\n\n_Weave Router feedback:_ `$rf +` good experience · `$rf -` poor experience"
+	const footer = "\n\n_Aiand Router feedback:_ `$rf +` good experience · `$rf -` poor experience"
 	payloads := []string{
 		`{"type":"response.output_text.delta","item_id":"msg_native","output_index":0,"content_index":0,"delta":"ok"}`,
 		`{"type":"response.output_text.done","item_id":"msg_native","output_index":0,"content_index":0,"text":"ok"}`,
@@ -1324,7 +1324,7 @@ func TestResponsesWriter_PassthroughAppendsFeedbackFooter(t *testing.T) {
 }
 
 func TestResponsesWriter_PassthroughReasoningThenTextKeepsBadgeAndFooter(t *testing.T) {
-	const footer = "\n\n_Weave Router feedback:_ `$rf +` good"
+	const footer = "\n\n_Aiand Router feedback:_ `$rf +` good"
 	payloads := []string{
 		`{"type":"response.created","sequence_number":0,"response":{"id":"resp_native","status":"in_progress","output":[]}}`,
 		`{"type":"response.output_item.added","sequence_number":1,"output_index":0,"item":{"id":"rs_native","type":"reasoning","status":"in_progress","summary":[]}}`,
@@ -1381,7 +1381,7 @@ func TestResponsesWriter_PassthroughReasoningThenTextKeepsBadgeAndFooter(t *test
 }
 
 func TestResponsesWriter_PassthroughFooterSkippedOnToolCall(t *testing.T) {
-	const footer = "\n\n_Weave Router feedback:_ `$rf +` good"
+	const footer = "\n\n_Aiand Router feedback:_ `$rf +` good"
 	payloads := []string{
 		`{"type":"response.output_text.delta","item_id":"msg_native","output_index":0,"content_index":0,"delta":"ok"}`,
 		`{"type":"response.output_item.added","output_index":1,"item":{"id":"fc_native","type":"function_call","name":"lookup"}}`,
@@ -1408,7 +1408,7 @@ func TestResponsesWriter_PassthroughFooterSkippedOnToolCall(t *testing.T) {
 }
 
 func TestResponsesWriter_TranslatedStreamAppendsFeedbackFooter(t *testing.T) {
-	const footer = "\n\n_Weave Router feedback:_ `$rf +` good"
+	const footer = "\n\n_Aiand Router feedback:_ `$rf +` good"
 	rec := httptest.NewRecorder()
 	w := translate.NewResponsesWriter(rec, "z-ai/glm-5.3")
 	w.SetFooterText(footer)
@@ -1436,15 +1436,15 @@ func TestResponsesWriter_TranslatedStreamAppendsFeedbackFooter(t *testing.T) {
 }
 
 func TestStripFeedbackFooterFromResponsesInput(t *testing.T) {
-	body := []byte("{\"input\":[{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"answer\\n\\n_Weave Router feedback:_ `$rf +` good experience · `$rf -` poor experience\"}]}]}")
+	body := []byte("{\"input\":[{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"answer\\n\\n_Aiand Router feedback:_ `$rf +` good experience · `$rf -` poor experience\"}]}]}")
 	out, err := translate.StripFeedbackFooterFromResponsesInput(body)
 	require.NoError(t, err)
 	assert.Equal(t, "answer", gjson.GetBytes(out, "input.0.content.0.text").Str)
 }
 
 func TestStripFeedbackFooterFromResponsesInput_StripsAllMatchingTextParts(t *testing.T) {
-	const footer = "\n\n_Weave Router feedback:_ `$rf +` good experience · `$rf -` poor experience"
-	const footerJSON = "\\n\\n_Weave Router feedback:_ `$rf +` good experience · `$rf -` poor experience"
+	const footer = "\n\n_Aiand Router feedback:_ `$rf +` good experience · `$rf -` poor experience"
+	const footerJSON = "\\n\\n_Aiand Router feedback:_ `$rf +` good experience · `$rf -` poor experience"
 	body := []byte(`{"input":[
 {"type":"message","role":"assistant","content":[
 {"type":"output_text","text":"first` + footerJSON + `","annotations":[{"type":"url_citation","url":"https://example.com"}]},

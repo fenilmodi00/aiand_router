@@ -5,8 +5,8 @@ package policy
 import (
 	"sort"
 
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/catalog"
 )
 
 // RosterMapper maps a catalog model to the identifier understood by a policy
@@ -44,7 +44,7 @@ const (
 	ExclusionContextWindow ExclusionReason = "context_window"
 	// ExclusionUnsignedHistory means the model cannot accept this request's unsigned tool-call history.
 	ExclusionUnsignedHistory ExclusionReason = "unsigned_history"
-	// ExclusionAutomaticDisabled means Weave withdrew the model from automatic
+	// ExclusionAutomaticDisabled means Aiand withdrew the model from automatic
 	// routing deployment-wide. Soft: an explicit user pin still reaches it, and
 	// the filter is skipped entirely rather than emptying the candidate set.
 	ExclusionAutomaticDisabled ExclusionReason = "automatic_disabled"

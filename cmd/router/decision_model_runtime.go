@@ -3,10 +3,10 @@ package main
 import (
 	"log/slog"
 
-	"weave-os/router/internal/config"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/decisionmodel"
-	openaiCompatProvider "weave-os/router/internal/providers/openaicompat"
+	"aiand-os/router/internal/config"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/decisionmodel"
+	openaiCompatProvider "aiand-os/router/internal/providers/openaicompat"
 )
 
 const defaultDecisionModelBaseURL = openaiCompatProvider.AIANDBaseURL

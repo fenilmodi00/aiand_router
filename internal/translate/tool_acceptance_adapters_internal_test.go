@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 
-	"weave-os/router/internal/translate/toolcheck"
+	"aiand-os/router/internal/translate/toolcheck"
 )
 
 func acceptanceFrames(wire string) []gjson.Result {

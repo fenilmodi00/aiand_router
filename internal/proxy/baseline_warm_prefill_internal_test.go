@@ -6,8 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router/sessionpin"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router/sessionpin"
 )
 
 func priorTurnEndedAt(d time.Duration) time.Time {

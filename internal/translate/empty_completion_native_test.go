@@ -5,9 +5,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/translate"
-	providerusage "weave-os/router/internal/usage"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/translate"
+	providerusage "aiand-os/router/internal/usage"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

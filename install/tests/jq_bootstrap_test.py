@@ -44,7 +44,7 @@ class JqBootstrapTest(unittest.TestCase):
         cleanup_end = source.index("\ntrap _spin_cleanup", cleanup_start)
         start = source.index("ensure_jq() {")
         end = source.index("\n#", source.index("require_cmd() {", start))
-        shell = 'set -euo pipefail\nexport PATH="$PATH:$HOME/.weave/bin"\nerr() { echo "$*" >&2; }\ninfo() { :; }\ntty_out=false\nspin_pid=""\nspin_log=""\n' + source[cleanup_start:cleanup_end] + '\ntrap _spin_cleanup EXIT\n' + source[start:end] + '\nensure_jq\njq --version\n'
+        shell = 'set -euo pipefail\nexport PATH="$PATH:$HOME/.aiand/bin"\nerr() { echo "$*" >&2; }\ninfo() { :; }\ntty_out=false\nspin_pid=""\nspin_log=""\n' + source[cleanup_start:cleanup_end] + '\ntrap _spin_cleanup EXIT\n' + source[start:end] + '\nensure_jq\njq --version\n'
         completed = subprocess.run(["/bin/bash", "-c", shell], env={**os.environ, "HOME": str(home), "PATH": str(binaries)}, text=True, capture_output=True)
         return completed, home
 
@@ -62,34 +62,34 @@ class JqBootstrapTest(unittest.TestCase):
                 self.assertEqual(completed.returncode, 0, completed.stderr)
                 self.assertIn("jq-1.8.1", completed.stdout)
                 self.assertIn(f"/jq-1.8.1/{asset}", (home / "download-args").read_text())
-                self.assertTrue((home / ".weave/bin" / ("jq.exe" if asset.endswith(".exe") else "jq")).is_file())
+                self.assertTrue((home / ".aiand/bin" / ("jq.exe" if asset.endswith(".exe") else "jq")).is_file())
 
     def test_corrupt_download_is_not_installed(self) -> None:
         checksum = "a9fe3ea2f86dfc72f6728417521ec9067b343277152b114f4e98d8cb0e263603"
         completed, home = self.run_bootstrap("Darwin", "arm64", checksum, corrupt=True)
         self.assertNotEqual(completed.returncode, 0)
         self.assertIn("checksum verification", completed.stderr)
-        self.assertEqual(list((home / ".weave/bin").iterdir()), [])
+        self.assertEqual(list((home / ".aiand/bin").iterdir()), [])
 
     def test_shasum_fallback_verifies_download(self) -> None:
         checksum = "a9fe3ea2f86dfc72f6728417521ec9067b343277152b114f4e98d8cb0e263603"
         completed, home = self.run_bootstrap("Darwin", "arm64", checksum, checksum_program="shasum")
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertEqual((home / "shasum-args").read_text().split()[:2], ["-a", "256"])
-        self.assertTrue((home / ".weave/bin/jq").is_file())
+        self.assertTrue((home / ".aiand/bin/jq").is_file())
 
     def test_shasum_fallback_rejects_mismatched_download(self) -> None:
         checksum = "a9fe3ea2f86dfc72f6728417521ec9067b343277152b114f4e98d8cb0e263603"
         completed, home = self.run_bootstrap("Darwin", "arm64", checksum, corrupt=True, checksum_program="shasum")
         self.assertNotEqual(completed.returncode, 0)
         self.assertIn("checksum verification", completed.stderr)
-        self.assertEqual(list((home / ".weave/bin").iterdir()), [])
+        self.assertEqual(list((home / ".aiand/bin").iterdir()), [])
 
     def test_failed_install_cleans_temporary_download(self) -> None:
         checksum = "a9fe3ea2f86dfc72f6728417521ec9067b343277152b114f4e98d8cb0e263603"
         completed, home = self.run_bootstrap("Darwin", "arm64", checksum, fail_chmod=True)
         self.assertNotEqual(completed.returncode, 0)
-        self.assertEqual(list((home / ".weave/bin").iterdir()), [])
+        self.assertEqual(list((home / ".aiand/bin").iterdir()), [])
 
 
 if __name__ == "__main__":

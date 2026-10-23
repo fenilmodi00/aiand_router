@@ -8,13 +8,13 @@ import (
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 
-	"weave-os/router/internal/requestcontext"
-	"weave-os/router/internal/router/sessionpin"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/router/sessionpin"
+	"aiand-os/router/internal/translate"
 )
 
-const piSessionField = "weave_session"
-const piSessionIssuer = "weave-pi-session-v1"
+const piSessionField = "aiand_session"
+const piSessionIssuer = "aiand-pi-session-v1"
 
 type piSessionClaimsKey struct{}
 

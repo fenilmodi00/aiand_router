@@ -13,8 +13,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/postgres/serving"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/postgres/serving"
 )
 
 func TestFixtureDSNRequiresLoopback(t *testing.T) {

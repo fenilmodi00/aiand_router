@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/providers/openaicompat"
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/sessionpin"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/providers/openaicompat"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/sessionpin"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -117,7 +117,7 @@ func TestProxyMessages_RoutingMarkerWaitsForProviderOutput(t *testing.T) {
 
 	close(releaseProvider)
 	require.NoError(t, <-done)
-	assert.Contains(t, writer.BodyString(), "✦ **Weave Router**")
+	assert.Contains(t, writer.BodyString(), "✦ **Aiand Router**")
 }
 
 // TestProxyMessages_SingleBindingStreamingPreCommitError asserts that an
@@ -155,7 +155,7 @@ func TestProxyMessages_SingleBindingStreamingPreCommitError(t *testing.T) {
 
 	respBody := rec.Body.String()
 	assert.NotContains(t, respBody, "event: message_start")
-	assert.NotContains(t, respBody, "✦ **Weave Router**")
+	assert.NotContains(t, respBody, "✦ **Aiand Router**")
 	assert.Contains(t, respBody, "upstream unavailable", "translated upstream message reaches the client")
 }
 

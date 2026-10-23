@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"weave-os/router/internal/feedback"
-	"weave-os/router/internal/observability/otel"
-	"weave-os/router/internal/router/turntype"
+	"aiand-os/router/internal/feedback"
+	"aiand-os/router/internal/observability/otel"
+	"aiand-os/router/internal/router/turntype"
 
 	"github.com/google/uuid"
 )
@@ -19,7 +19,7 @@ import (
 const HeaderRouterFeedbackURL = "x-router-feedback-url"
 
 // routerFeedbackSpanName is the OTLP span the router emits on each submission so
-// the Weave backend mirrors feedback into its own router_request_feedback table.
+// the Aiand backend mirrors feedback into its own router_request_feedback table.
 const routerFeedbackSpanName = "router.feedback"
 
 // feedbackSourceLink labels feedback that arrived through the signed link page.
@@ -104,7 +104,7 @@ func (s *Service) GetFeedbackContext(ctx context.Context, installationID, reques
 }
 
 // SubmitFeedback persists feedback to the router's source-of-truth table and
-// emits a router.feedback OTLP span so Weave mirrors it. The DB write is
+// emits a router.feedback OTLP span so Aiand mirrors it. The DB write is
 // authoritative; the span is best-effort (dropped if the exporter queue is full).
 func (s *Service) SubmitFeedback(ctx context.Context, p SubmitFeedbackParams) error {
 	if s.feedbackRepo == nil {
@@ -126,8 +126,8 @@ func (s *Service) SubmitFeedback(ctx context.Context, p SubmitFeedbackParams) er
 	return nil
 }
 
-// emitFeedbackSpan ships a router.feedback span to the Weave OTLP ingest. The
-// attribute keys are the contract the Weave backend's buildFeedbackRow reads.
+// emitFeedbackSpan ships a router.feedback span to the Aiand OTLP ingest. The
+// attribute keys are the contract the Aiand backend's buildFeedbackRow reads.
 func (s *Service) emitFeedbackSpan(p SubmitFeedbackParams) {
 	if s.emitter == nil {
 		return
@@ -193,10 +193,10 @@ var terminalFeedbackClients = map[string]struct{}{
 // identically across TUI, print mode, and IDEs.
 // Keep in sync with translate.feedbackFooterPattern, which strips this back
 // out of upstream context on ingress.
-const feedbackFooterText = "\n\n_Weave Router feedback:_ `/rf +` good experience · `/rf -` poor experience · note optional, e.g. `/rf - too slow`"
+const feedbackFooterText = "\n\n_Aiand Router feedback:_ `/rf +` good experience · `/rf -` poor experience · note optional, e.g. `/rf - too slow`"
 
 // Codex reserves `/…` for built-ins, so `$rf` is used instead; the sentinel prefix is kept identical so ingress stripping matches both.
-const feedbackFooterTextCodex = "\n\n_Weave Router feedback:_ `$rf +` good experience · `$rf -` poor experience · note optional, e.g. `$rf - too slow`"
+const feedbackFooterTextCodex = "\n\n_Aiand Router feedback:_ `$rf +` good experience · `$rf -` poor experience · note optional, e.g. `$rf - too slow`"
 
 // feedbackFooter returns the in-terminal rating hint for a streamed response,
 // or "" to stay transparent. Gated to terminalFeedbackClients (avoid

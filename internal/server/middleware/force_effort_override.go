@@ -3,17 +3,17 @@ package middleware
 import (
 	"strings"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/requestcontext"
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/router"
 
 	"github.com/gin-gonic/gin"
 )
 
-// ForceEffortOverrideHeader is the request-header key for x-weave-effort.
-const ForceEffortOverrideHeader = "x-weave-effort"
+// ForceEffortOverrideHeader is the request-header key for x-aiand-effort.
+const ForceEffortOverrideHeader = "x-aiand-effort"
 
-// WithForceEffortOverride parses x-weave-effort and stashes the canonical
+// WithForceEffortOverride parses x-aiand-effort and stashes the canonical
 // level on the request context. Invalid values abort with 400.
 func WithForceEffortOverride() gin.HandlerFunc {
 	return func(c *gin.Context) {

@@ -3,8 +3,8 @@ package proxy
 import (
 	"context"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/router"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -12,7 +12,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-const proxyTracerName = "weave-os/router/internal/proxy"
+const proxyTracerName = "aiand-os/router/internal/proxy"
 
 var proxyFlowTracer = otel.Tracer(proxyTracerName)
 

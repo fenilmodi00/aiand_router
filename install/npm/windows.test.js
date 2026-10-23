@@ -10,11 +10,11 @@ const { after, before, test } = require("node:test");
 const { promisify } = require("node:util");
 const runFile = promisify(execFile);
 
-const temporaryHome = fs.mkdtempSync(path.join(os.tmpdir(), "weave-router-windows-"));
+const temporaryHome = fs.mkdtempSync(path.join(os.tmpdir(), "aiand-router-windows-"));
 const packageDirectory = __dirname;
 let baseUrl;
 const server = http.createServer((request, response) => {
-  const keyIsAccepted = request.headers["x-weave-router-key"] !== "rk_rejected";
+  const keyIsAccepted = request.headers["x-aiand-router-key"] !== "rk_rejected";
   const routerIsDown = request.url.startsWith("/down/");
   const route = request.url.replace(/^\/down/, "");
   response.writeHead((route === "/health" && !routerIsDown) || (route === "/validate" && keyIsAccepted) ? 200 : 404);
@@ -43,7 +43,7 @@ async function runInstallerAt(home, args, { cwd, envOverrides = {} } = {}) {
       ...process.env,
       USERPROFILE: home,
       XDG_CONFIG_HOME: path.join(home, ".config"),
-      WEAVE_ROUTER_KEY: "rk_test_native_windows",
+      AIAND_ROUTER_KEY: "rk_test_native_windows",
       ...envOverrides,
     },
   });
@@ -75,15 +75,15 @@ test("the native installer writes each client's config and keeps existing settin
   assert.match(claude.env.ANTHROPIC_CUSTOM_HEADERS, /X-Custom: keep/);
   const codexConfig = fs.readFileSync(path.join(temporaryHome, ".codex", "config.toml"), "utf8");
   assert.match(codexConfig, /model = "gpt-4.1"/);
-  assert.match(codexConfig, /model_provider = "weave"/);
+  assert.match(codexConfig, /model_provider = "aiand"/);
   assert.equal(TOML.parse(codexConfig).profiles.work.model_provider, "openai");
   await runInstaller("--codex", "--non-interactive", "--base-url", baseUrl, "--email", "user@example.com");
   const reinstalledCodex = TOML.parse(fs.readFileSync(codexConfigPath, "utf8"));
   assert.equal(reinstalledCodex.model, "gpt-4.1");
   assert.equal(reinstalledCodex.profiles.work.instructions, "[not_a_table]\nkeep this text\n");
-  assert.equal(reinstalledCodex.model_providers.weave.http_headers["X-Weave-User-Email"], "user@example.com");
-  assert.equal(JSON.parse(fs.readFileSync(path.join(temporaryHome, ".config", "opencode", "opencode.json"), "utf8")).model, "weave/auto");
-  assert.equal(JSON.parse(fs.readFileSync(path.join(temporaryHome, ".pi", "agent", "models.json"), "utf8")).providers.weave.baseUrl, baseUrl);
+  assert.equal(reinstalledCodex.model_providers.aiand.http_headers["X-Aiand-User-Email"], "user@example.com");
+  assert.equal(JSON.parse(fs.readFileSync(path.join(temporaryHome, ".config", "opencode", "opencode.json"), "utf8")).model, "aiand/auto");
+  assert.equal(JSON.parse(fs.readFileSync(path.join(temporaryHome, ".pi", "agent", "models.json"), "utf8")).providers.aiand.baseUrl, baseUrl);
 });
 
 test("native uninstall removes the managed Claude routing variables", async () => {
@@ -104,18 +104,18 @@ test("native uninstall removes Codex, OpenCode, and pi router settings", async (
   await runInstaller("--uninstall", "--pi");
 
   const codexConfig = fs.readFileSync(path.join(temporaryHome, ".codex", "config.toml"), "utf8");
-  assert.doesNotMatch(codexConfig, /model_providers\.weave|model_provider = "weave"/);
+  assert.doesNotMatch(codexConfig, /model_providers\.aiand|model_provider = "aiand"/);
   assert.equal(TOML.parse(codexConfig).profiles.work.model_provider, "openai");
   assert.equal(TOML.parse(codexConfig).model, "gpt-4.1");
   assert.equal(TOML.parse(codexConfig).model_provider, "openai");
   assert.match(codexConfig, /# Keep my preferences/);
   assert.match(codexConfig, /# Original provider/);
   const openCodeConfig = JSON.parse(fs.readFileSync(path.join(temporaryHome, ".config", "opencode", "opencode.json"), "utf8"));
-  assert.equal(openCodeConfig.provider.weave, undefined);
+  assert.equal(openCodeConfig.provider.aiand, undefined);
   assert.equal(openCodeConfig.model, "openai/gpt-4.1");
   assert.equal(openCodeConfig.custom, "keep");
   const piModels = JSON.parse(fs.readFileSync(path.join(temporaryHome, ".pi", "agent", "models.json"), "utf8"));
-  assert.equal(piModels.providers.weave, undefined);
+  assert.equal(piModels.providers.aiand, undefined);
   const piSettings = JSON.parse(fs.readFileSync(path.join(temporaryHome, ".pi", "agent", "settings.json"), "utf8"));
   assert.equal(piSettings.defaultProvider, "anthropic");
   assert.equal(piSettings.defaultModel, "user-model");
@@ -160,13 +160,13 @@ test("Claude migrates an untracked legacy project key but never adopts a tracked
     const project = path.join(temporaryHome, tracked ? "shared-key-project" : "legacy-key-project");
     const config = path.join(project, ".claude", "settings.json");
     fs.mkdirSync(path.dirname(config), { recursive: true });
-    fs.writeFileSync(config, JSON.stringify({ env: { ANTHROPIC_CUSTOM_HEADERS: "X-Weave-Router-Key: rk_legacy_native" } }));
+    fs.writeFileSync(config, JSON.stringify({ env: { ANTHROPIC_CUSTOM_HEADERS: "X-Aiand-Router-Key: rk_legacy_native" } }));
     await runFile("git", ["init", "-q", project]);
     if (tracked) await runFile("git", ["-C", project, "add", ".claude/settings.json"]);
-    const installation = runInstallerAt(project, ["--claude", "--scope", "project", "--non-interactive", "--base-url", baseUrl], { cwd: project, envOverrides: { PATH: "", WEAVE_ROUTER_KEY: "" } });
+    const installation = runInstallerAt(project, ["--claude", "--scope", "project", "--non-interactive", "--base-url", baseUrl], { cwd: project, envOverrides: { PATH: "", AIAND_ROUTER_KEY: "" } });
     const localConfig = path.join(project, ".claude", "settings.local.json");
     if (tracked) {
-      await assert.rejects(installation, (error) => error.stderr.includes("requires WEAVE_ROUTER_KEY"));
+      await assert.rejects(installation, (error) => error.stderr.includes("requires AIAND_ROUTER_KEY"));
       assert.equal(fs.existsSync(localConfig), false);
     } else {
       await installation;
@@ -182,7 +182,7 @@ test("the Windows wrapper bypasses WSL and forwards uninstall to the native inst
   const processStub = { platform: "win32", argv: ["node", "bin.js", "--uninstall", "--claude"], execPath: "C:\\node\\node.exe", env: { PATH: "C:\\Windows\\System32" }, exit: () => { throw exitSignal; } };
   const modules = {
     "node:child_process": { spawnSync: (executable, args) => { spawnCalls.push({ executable, args }); return { status: 0, stdout: executable.endsWith("bash.exe") ? "Linux\n" : "" }; } },
-    "node:fs": { readFileSync: () => '{"name":"@weave-os/router"}', existsSync: (filePath) => filePath.startsWith("C:\\package") || filePath === "C:\\Windows\\System32\\bash.exe" },
+    "node:fs": { readFileSync: () => '{"name":"@aiand-os/router"}', existsSync: (filePath) => filePath.startsWith("C:\\package") || filePath === "C:\\Windows\\System32\\bash.exe" },
     "node:path": path.win32,
   };
   assert.throws(() => vm.runInNewContext(fs.readFileSync(path.join(packageDirectory, "bin.js"), "utf8"), { require: (module) => modules[module], __dirname: "C:\\package", process: processStub, console }), (error) => error === exitSignal);
@@ -202,7 +202,7 @@ test("the Windows wrapper probes Git Bash without profile or BASH_ENV banners", 
       const probeIgnoresStartupFiles = args.includes("--noprofile") && args.includes("--norc") && options.env?.BASH_ENV === "";
       return { status: 0, stdout: probeIgnoresStartupFiles ? "MINGW64_NT\n" : "Welcome to my shell\nMINGW64_NT\n" };
     } },
-    "node:fs": { readFileSync: () => '{"name":"@weave-os/router"}', existsSync: (filePath) => filePath.startsWith("C:\\package") || filePath === gitBash },
+    "node:fs": { readFileSync: () => '{"name":"@aiand-os/router"}', existsSync: (filePath) => filePath.startsWith("C:\\package") || filePath === gitBash },
     "node:path": path.win32,
   };
   assert.throws(() => vm.runInNewContext(fs.readFileSync(path.join(packageDirectory, "bin.js"), "utf8"), { require: (module) => modules[module], __dirname: "C:\\package", process: processStub, console }), (error) => error === exitSignal);
@@ -225,19 +225,19 @@ test("project setup handles large Git indexes without listing unrelated paths", 
   const indexEntries = Array.from({ length: 12000 }, (_, index) => `100644 ${objectId}\tfiles/${"x".repeat(100)}-${index}\n`).join("");
   execFileSync("git", ["-C", project, "update-index", "--index-info"], { input: indexEntries });
   await runInstallerAt(project, ["--codex", "--scope", "project", "--non-interactive", "--base-url", baseUrl], { cwd: project });
-  assert.equal(TOML.parse(fs.readFileSync(path.join(project, ".codex", "config.toml"), "utf8")).model_provider, "weave");
+  assert.equal(TOML.parse(fs.readFileSync(path.join(project, ".codex", "config.toml"), "utf8")).model_provider, "aiand");
 });
 
 test("Codex uninstall after upgrading a stateless install removes the managed provider", async () => {
   const home = path.join(temporaryHome, "codex-upgrade");
   const config = path.join(home, ".codex", "config.toml");
   fs.mkdirSync(path.dirname(config), { recursive: true });
-  fs.writeFileSync(config, 'model_provider = "weave"\nmodel = "weave-auto"\n[model_providers.weave]\nname = "Weave Router"\n');
+  fs.writeFileSync(config, 'model_provider = "aiand"\nmodel = "aiand-auto"\n[model_providers.aiand]\nname = "Aiand Router"\n');
   await runInstallerAt(home, ["--codex", "--non-interactive", "--base-url", baseUrl]);
   await runInstallerAt(home, ["--codex", "--uninstall"]);
   const settings = TOML.parse(fs.readFileSync(config, "utf8"));
   assert.equal(settings.model_provider, undefined);
-  assert.equal(settings.model_providers?.weave, undefined);
+  assert.equal(settings.model_providers?.aiand, undefined);
 });
 
 test("the return URL opens only after the router and key both verify", { skip: process.platform === "win32" && "rundll32.exe cannot be stubbed on Windows" }, async () => {
@@ -250,18 +250,18 @@ test("the return URL opens only after the router and key both verify", { skip: p
   }
   const returnUrl = "https://app.example.test/continue?selection=enterprise&harness=claude_code";
   const env = { PATH: `${fakeBin}${path.delimiter}${process.env.PATH}` };
-  await runInstallerAt(home, ["--claude", "--non-interactive", "--base-url", baseUrl, "--return-url", returnUrl], { envOverrides: { ...env, WEAVE_ROUTER_KEY: "rk_rejected" } });
+  await runInstallerAt(home, ["--claude", "--non-interactive", "--base-url", baseUrl, "--return-url", returnUrl], { envOverrides: { ...env, AIAND_ROUTER_KEY: "rk_rejected" } });
   await runInstallerAt(home, ["--claude", "--non-interactive", "--base-url", `${baseUrl}/down`, "--return-url", returnUrl], { envOverrides: env });
   assert.equal(fs.existsSync(openLog), false);
   await runInstallerAt(home, ["--claude", "--non-interactive", "--base-url", baseUrl, "--return-url", returnUrl], { envOverrides: env });
   assert.equal(fs.readFileSync(openLog, "utf8"), `${returnUrl}\n`);
   fs.rmSync(openLog);
-  await runInstallerAt(home, ["--claude", "--non-interactive", "--base-url", baseUrl], { envOverrides: { ...env, WEAVE_ROUTER_RETURN_URL: returnUrl } });
+  await runInstallerAt(home, ["--claude", "--non-interactive", "--base-url", baseUrl], { envOverrides: { ...env, AIAND_ROUTER_RETURN_URL: returnUrl } });
   assert.equal(fs.readFileSync(openLog, "utf8"), `${returnUrl}\n`);
 });
 
 test("native installer rejects a non-http return URL and a return URL on uninstall", async () => {
   await assert.rejects(runInstaller("--claude", "--non-interactive", "--base-url", baseUrl, "--return-url", "javascript:alert(1)"), (error) => error.stderr.includes("http:// or https://"));
   await assert.rejects(runInstaller("--claude", "--uninstall", "--return-url", "https://app.example.test"), (error) => error.stderr.includes("only for install"));
-  await assert.rejects(runInstallerAt(path.join(temporaryHome, "env-return-url"), ["--claude", "--non-interactive", "--base-url", baseUrl], { envOverrides: { WEAVE_ROUTER_RETURN_URL: "file:///C:/Windows" } }), (error) => error.stderr.includes("WEAVE_ROUTER_RETURN_URL must be an http:// or https://"));
+  await assert.rejects(runInstallerAt(path.join(temporaryHome, "env-return-url"), ["--claude", "--non-interactive", "--base-url", baseUrl], { envOverrides: { AIAND_ROUTER_RETURN_URL: "file:///C:/Windows" } }), (error) => error.stderr.includes("AIAND_ROUTER_RETURN_URL must be an http:// or https://"));
 });

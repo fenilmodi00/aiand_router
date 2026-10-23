@@ -15,8 +15,8 @@ The call is read-only. It runs no serving admission, balance check or spend
 cap, and an `ra_` key accepted here still cannot call any inference endpoint.
 
 ```bash
-curl -sS -H "Authorization: Bearer $WEAVE_ANALYTICS_KEY" \
-  "$WEAVE_ROUTER_URL/v1/sessions/$SESSION_ID/cost" | jq .
+curl -sS -H "Authorization: Bearer $AIAND_ANALYTICS_KEY" \
+  "$AIAND_ROUTER_URL/v1/sessions/$SESSION_ID/cost" | jq .
 ```
 
 ## Response
@@ -45,7 +45,7 @@ models cost, and *requested* is what the client's requested model would have
 cost. `savings_usd*` is requested minus actual and may be negative.
 `last_recorded_at` is RFC 3339 with nanoseconds, in UTC.
 
-Apart from the savings fields, the response matches the Weave public API's
+Apart from the savings fields, the response matches the Aiand public API's
 router session cost.
 
 ## Errors

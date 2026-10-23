@@ -19,7 +19,7 @@ ORDER BY cluster_label
 `
 
 // Returns all cluster allowlists for a given API key. Writes are owned by the
-// Weave control plane (direct inserts to this schema, mirroring
+// Aiand control plane (direct inserts to this schema, mirroring
 // excluded_models / preferred_models); the router only reads on the auth path.
 //
 //	SELECT id, organization_id, api_key_id, cluster_label, models, created_at, updated_at

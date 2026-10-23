@@ -12,11 +12,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/requestcontext"
-	"weave-os/router/internal/server/middleware"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/server/middleware"
 )
 
 type forbiddenTestSecrets struct{ fakeExternalAPIKeyRepository }
@@ -61,7 +61,7 @@ func TestDirectTestAuthSkipsEmailSubscriptionsAndProviderSecrets(t *testing.T) {
 				requestCredential = "rk_invalid_test"
 			}
 			request.Header.Set(auth.RouterKeyHeader, requestCredential)
-			request.Header.Set("X-Weave-User-Email", "customer@example.com")
+			request.Header.Set("X-Aiand-User-Email", "customer@example.com")
 			grant := "valid-grant"
 			if scenario == "spoofed grant" {
 				grant = "invalid-grant"

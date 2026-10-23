@@ -1,6 +1,6 @@
 package otel
 
-import "weave-os/router/internal/auth"
+import "aiand-os/router/internal/auth"
 
 // OnboardingObserver exports auth lifecycle facts through the shared span queue.
 type OnboardingObserver struct {

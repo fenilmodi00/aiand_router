@@ -15,8 +15,8 @@ import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-age
 import { isSubagent } from "./config.js";
 
 // One id per child process so all of a subagent's requests share a single pin.
-// The parent passes WEAVE_PI_SUBAGENT_ID; a standalone child falls back to a uuid.
-const SUBAGENT_USER_ID = `subagent:${process.env.WEAVE_PI_SUBAGENT_ID?.trim() || randomUUID()}`;
+// The parent passes AIAND_PI_SUBAGENT_ID; a standalone child falls back to a uuid.
+const SUBAGENT_USER_ID = `subagent:${process.env.AIAND_PI_SUBAGENT_ID?.trim() || randomUUID()}`;
 
 export function registerMetadata(pi: ExtensionAPI): void {
 	pi.on("before_provider_request", (event, ctx: ExtensionContext) => {

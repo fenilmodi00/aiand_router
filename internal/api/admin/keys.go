@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"time"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/config"
-	"weave-os/router/internal/providers"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/config"
+	"aiand-os/router/internal/providers"
 
 	"github.com/gin-gonic/gin"
 )

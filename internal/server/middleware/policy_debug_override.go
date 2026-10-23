@@ -5,14 +5,14 @@ import (
 	"strconv"
 	"strings"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/proxy"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/proxy"
 
 	"github.com/gin-gonic/gin"
 )
 
 // RouterPolicyDebugHeader overrides policy debug mode for authorized internal traffic.
-const RouterPolicyDebugHeader = "x-weave-router-debug"
+const RouterPolicyDebugHeader = "x-aiand-router-debug"
 
 // WithPolicyDebugOverride applies persisted debug mode and an authorized
 // per-request override. Invalid or unauthorized headers preserve the persisted value.

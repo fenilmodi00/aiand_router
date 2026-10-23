@@ -3,9 +3,9 @@ package middleware
 import (
 	"net/http"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/requestcontext"
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/router"
 
 	"github.com/gin-gonic/gin"
 )
@@ -17,7 +17,7 @@ import (
 // parsed: the request is served exactly as if the header were absent, apart
 // from a policy_pin_requested telemetry mark. A malformed value from an
 // authorized installation is a 400 with code policy_pin_malformed.
-const PolicyPinOverrideHeader = "x-weave-policy-pin"
+const PolicyPinOverrideHeader = "x-aiand-policy-pin"
 
 // WithPolicyPinOverride parses the pin header onto the request context so the
 // router can select (or refuse) the pinned artifact and roster.

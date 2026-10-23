@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/translate"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -460,8 +460,8 @@ func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexBadgeNeedsPro
 		text string
 		want string
 	}{
-		{name: "injected badge", text: "\u2063\u2060\u2063\u2060**Weave Router** — gpt-5.6-terra\n\nanswer", want: "answer"},
-		{name: "organic heading", text: "**Weave Router** — an ordinary heading\n\nkeep this", want: "**Weave Router** — an ordinary heading\n\nkeep this"},
+		{name: "injected badge", text: "\u2063\u2060\u2063\u2060**Aiand Router** — gpt-5.6-terra\n\nanswer", want: "answer"},
+		{name: "organic heading", text: "**Aiand Router** — an ordinary heading\n\nkeep this", want: "**Aiand Router** — an ordinary heading\n\nkeep this"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			encoded, err := json.Marshal(tc.text)
@@ -479,7 +479,7 @@ func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexDropsMarkerOn
 		"model":"deepseek/deepseek-v4-pro",
 		"input":[
 			{"type":"message","role":"user","content":"run it"},
-			{"type":"message","role":"assistant","content":[{"type":"output_text","text":"` + codexResponsesBadgeSentinelForTest + `**Weave Router** — claude-sonnet-4-6 ← gpt-5.4\n\n\n_Weave Router feedback:_ $rf + good experience"}]},
+			{"type":"message","role":"assistant","content":[{"type":"output_text","text":"` + codexResponsesBadgeSentinelForTest + `**Aiand Router** — claude-sonnet-4-6 ← gpt-5.4\n\n\n_Aiand Router feedback:_ $rf + good experience"}]},
 			{"type":"function_call","call_id":"call_1","name":"shell","arguments":"{}"}
 		]
 	}`)

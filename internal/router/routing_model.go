@@ -6,10 +6,10 @@ import "context"
 type RoutingModel string
 
 const (
-	ModelAutomatic RoutingModel = "weave-auto"
-	ModelHMM       RoutingModel = "weave-hmm-20261019-0001v1"
-	ModelQwen      RoutingModel = "weave-qwen-20261008-0001v2"
-	ModelDecision  RoutingModel = "weave-decision-model-20261019-0001v1"
+	ModelAutomatic RoutingModel = "aiand-auto"
+	ModelHMM       RoutingModel = "aiand-hmm-20261019-0001v1"
+	ModelQwen      RoutingModel = "aiand-qwen-20261008-0001v2"
+	ModelDecision  RoutingModel = "aiand-decision-model-20261019-0001v1"
 )
 
 // IsRoutingModel reports whether model selects an automatic routing policy.

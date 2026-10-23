@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"weave-os/router/internal/server/middleware"
-	"weave-os/router/internal/trafficcapture"
+	"aiand-os/router/internal/server/middleware"
+	"aiand-os/router/internal/trafficcapture"
 
 	"github.com/gin-gonic/gin"
 )

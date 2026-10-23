@@ -15,12 +15,12 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/postgres/dbbudget"
-	"weave-os/router/internal/sqlc"
-	"weave-os/router/internal/subscriptions/entitlement"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/postgres/dbbudget"
+	"aiand-os/router/internal/sqlc"
+	"aiand-os/router/internal/subscriptions/entitlement"
 )
 
 // ServingAdmissionRepo serializes identity and session selection on the router primary.

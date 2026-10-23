@@ -3,8 +3,8 @@ package translate_test
 import (
 	"testing"
 
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/translate"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -89,7 +89,7 @@ func TestStripBetaArtifactsAnthropicPreservesCurrentToggle(t *testing.T) {
 			map[string]any{
 				"role": "assistant",
 				"content": []any{
-					map[string]any{"type": "text", "text": "✦ **Weave Router** → Beta enabled. Type /beta again to turn it off.\n\n"},
+					map[string]any{"type": "text", "text": "✦ **Aiand Router** → Beta enabled. Type /beta again to turn it off.\n\n"},
 				},
 			},
 			map[string]any{"role": "user", "content": "/beta"},
@@ -118,7 +118,7 @@ func TestStripBetaArtifactsOpenAI(t *testing.T) {
 			map[string]any{"role": "user", "content": "inspect this repository"},
 			map[string]any{"role": "assistant", "content": "I will inspect it."},
 			map[string]any{"role": "user", "content": "/beta"},
-			map[string]any{"role": "assistant", "content": "✦ **Weave Router** → Beta is unavailable for this session.\n\n"},
+			map[string]any{"role": "assistant", "content": "✦ **Aiand Router** → Beta is unavailable for this session.\n\n"},
 			map[string]any{"role": "user", "content": "continue with the implementation"},
 		},
 	})
@@ -137,9 +137,9 @@ func TestStripBetaArtifactsRemovesInvalidControlTurnButKeepsDiscussion(t *testin
 		"model": "deepseek/deepseek-v4-pro",
 		"messages": []any{
 			map[string]any{"role": "user", "content": "/beta status"},
-			map[string]any{"role": "assistant", "content": "✦ **Weave Router** → Usage: /beta\n\n"},
+			map[string]any{"role": "assistant", "content": "✦ **Aiand Router** → Usage: /beta\n\n"},
 			map[string]any{"role": "user", "content": "Please explain /beta instead of toggling it."},
-			map[string]any{"role": "assistant", "content": "✦ **Weave Router** → Beta enabled. Type /beta again to turn it off. This is quoted documentation."},
+			map[string]any{"role": "assistant", "content": "✦ **Aiand Router** → Beta enabled. Type /beta again to turn it off. This is quoted documentation."},
 			map[string]any{"role": "user", "content": "continue"},
 		},
 		"max_tokens": 128,

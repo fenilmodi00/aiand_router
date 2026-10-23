@@ -20,7 +20,7 @@ func TestCommandResponseWordingDoesNotChangeOutcome(t *testing.T) {
 		for _, stream := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%v/%t", format, stream), func(t *testing.T) {
 				var previous string
-				for _, text := range []string{"Weave Router: force-model applied: synthetic-model (synthetic).", "Entirely different acknowledgment wording."} {
+				for _, text := range []string{"Aiand Router: force-model applied: synthetic-model (synthetic).", "Entirely different acknowledgment wording."} {
 					body := []byte(fmt.Sprintf(`{"model":"synthetic-model","stream":%t,"messages":[]}`, stream))
 					var env *RequestEnvelope
 					var err error
@@ -55,7 +55,7 @@ func TestCommandResponseWordingDoesNotChangeOutcome(t *testing.T) {
 						assert.Contains(t, rec.Body.String(), `"router_command":`)
 						assert.Contains(t, rec.Body.String(), "msg_router_cmd_"+outcome.ID)
 					} else if responses != nil {
-						assert.Contains(t, rec.Body.String(), "[weave-router-command-v1]")
+						assert.Contains(t, rec.Body.String(), "[aiand-router-command-v1]")
 						assert.Contains(t, rec.Body.String(), encoded)
 					}
 				}
@@ -65,7 +65,7 @@ func TestCommandResponseWordingDoesNotChangeOutcome(t *testing.T) {
 }
 
 func TestCommandReplayPreservesOrdinaryContentAndTools(t *testing.T) {
-	carrier := "[weave-router-command-v1]: <weave-router:" + base64.RawURLEncoding.EncodeToString([]byte(`{"version":1,"id":"11111111-2222-4333-8444-555555555555","command":"router_session","disposition":"accepted","pin":{"transition":"unchanged"}}`)) + ">"
+	carrier := "[aiand-router-command-v1]: <aiand-router:" + base64.RawURLEncoding.EncodeToString([]byte(`{"version":1,"id":"11111111-2222-4333-8444-555555555555","command":"router_session","disposition":"accepted","pin":{"transition":"unchanged"}}`)) + ">"
 	for _, collection := range []string{"messages", "input"} {
 		text := "Entirely changed wording.\n\n" + carrier
 		body, err := json.Marshal(map[string]any{"model": "synthetic-model", collection: []any{
@@ -94,7 +94,7 @@ func TestCommandReplayPreservesOrdinaryContentAndTools(t *testing.T) {
 }
 
 func TestCommandReplayRemovesClaudeMetadata(t *testing.T) {
-	body := []byte(`{"model":"synthetic-model","messages":[{"role":"assistant","model":"weave-router","router_command":{"version":1},"content":[{"type":"text","text":"A differently worded acknowledgment."}]},{"role":"user","content":"continue"}]}`)
+	body := []byte(`{"model":"synthetic-model","messages":[{"role":"assistant","model":"aiand-router","router_command":{"version":1},"content":[{"type":"text","text":"A differently worded acknowledgment."}]},{"role":"user","content":"continue"}]}`)
 	env, err := ParseAnthropic(body)
 	require.NoError(t, err)
 	require.NoError(t, env.StripCommandOutcomes())
@@ -114,6 +114,6 @@ func TestCommandReplayReferenceWithCRLF(t *testing.T) {
 	outcome := CommandOutcome{Version: 1, ID: "synthetic-id", Command: CommandRouterSession, Disposition: CommandAccepted, Pin: CommandPin{Transition: PinUnchanged}}
 	raw, err := json.Marshal(outcome)
 	require.NoError(t, err)
-	text := "A changed acknowledgment.\r\n\r\n[weave-router-command-v1]: <weave-router:" + base64.RawURLEncoding.EncodeToString(raw) + ">\r\nordinary content"
+	text := "A changed acknowledgment.\r\n\r\n[aiand-router-command-v1]: <aiand-router:" + base64.RawURLEncoding.EncodeToString(raw) + ">\r\nordinary content"
 	assert.Equal(t, "ordinary content", stripCommandReference(text))
 }

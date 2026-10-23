@@ -1,6 +1,6 @@
 package unregisteredinferencepurpose
 
-import "weave-os/router/internal/inference"
+import "aiand-os/router/internal/inference"
 
 var purpose = inference.Purpose("fixture_unregistered_purpose")
 

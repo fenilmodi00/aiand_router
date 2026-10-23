@@ -7,8 +7,8 @@ import (
 
 	"github.com/google/uuid"
 	lru "github.com/hashicorp/golang-lru/v2"
-	"weave-os/router/internal/requestcontext"
-	"weave-os/router/internal/router/hmm/armid"
+	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/router/hmm/armid"
 )
 
 type servingSnapshotContextKey struct{}

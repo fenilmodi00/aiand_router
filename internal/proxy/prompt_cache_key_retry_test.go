@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router"
 )
 
 // pckStrictGatewayProvider rejects any body carrying prompt_cache_key

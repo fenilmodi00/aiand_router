@@ -13,19 +13,19 @@ import (
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 
-	"weave-os/router/internal/billing"
-	"weave-os/router/internal/inference"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/hmm"
-	"weave-os/router/internal/router/policy"
-	"weave-os/router/internal/router/sessionpin"
-	"weave-os/router/internal/router/turntype"
-	"weave-os/router/internal/translate"
-	"weave-os/router/internal/websearch"
+	"aiand-os/router/internal/billing"
+	"aiand-os/router/internal/inference"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/hmm"
+	"aiand-os/router/internal/router/policy"
+	"aiand-os/router/internal/router/sessionpin"
+	"aiand-os/router/internal/router/turntype"
+	"aiand-os/router/internal/translate"
+	"aiand-os/router/internal/websearch"
 )
 
 const piHandoffTTL = 10 * time.Minute
-const piHandoffField = "weave_handoff"
+const piHandoffField = "aiand_handoff"
 
 type handoffPurpose string
 
@@ -112,7 +112,7 @@ func (s *Service) parseHandoff(ctx context.Context, body []byte) (context.Contex
 	claims := &handoffClaims{}
 	_, err = jwt.ParseWithClaims(encoded.String(), claims, func(_ *jwt.Token) (any, error) {
 		return s.piHandoffSecret, nil
-	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}), jwt.WithExpirationRequired(), jwt.WithIssuer("weave-pi-handoff-v1"))
+	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}), jwt.WithExpirationRequired(), jwt.WithIssuer("aiand-pi-handoff-v1"))
 	apiKeyID, _ := ctx.Value(APIKeyIDContextKey{}).(string)
 	if err != nil || apiKeyID == "" || claims.APIKeyID != apiKeyID ||
 		claims.Route.InstallationID != installationIDFromContext(ctx) ||
@@ -125,7 +125,7 @@ func (s *Service) parseHandoff(ctx context.Context, body []byte) (context.Contex
 
 func (s *Service) mintHandoff(claims handoffClaims) (string, error) {
 	claims.RegisteredClaims = jwt.RegisteredClaims{
-		Issuer: "weave-pi-handoff-v1", ExpiresAt: jwt.NewNumericDate(time.Now().Add(piHandoffTTL)),
+		Issuer: "aiand-pi-handoff-v1", ExpiresAt: jwt.NewNumericDate(time.Now().Add(piHandoffTTL)),
 	}
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(s.piHandoffSecret)
 }

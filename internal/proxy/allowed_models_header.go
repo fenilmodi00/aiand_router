@@ -6,15 +6,15 @@ import (
 	"sort"
 	"strings"
 
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/sessionpin"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/sessionpin"
+	"aiand-os/router/internal/translate"
 )
 
 // AllowedModelsHeader restricts routing for one request to a comma-separated
 // subset of catalog IDs or aliases. The subset is intersected with the
 // installation's allowed_models and never widens it.
-const AllowedModelsHeader = "x-weave-allowed-models"
+const AllowedModelsHeader = "x-aiand-allowed-models"
 
 // AllowlistOverrideReasonPrefix is prepended to the persisted decision reason
 // when a request-level allowlist narrowed the candidate pool.
@@ -182,7 +182,7 @@ func (s *Service) readmitForcedModel(
 }
 
 // requestAllowedModelsPresent reports whether the request carries an
-// x-weave-allowed-models subset. Such requests bypass the semantic cache: the
+// x-aiand-allowed-models subset. Such requests bypass the semantic cache: the
 // subset is not part of the cache key, so a hit could serve a body produced by
 // a model outside it.
 func requestAllowedModelsPresent(ctx context.Context) bool {

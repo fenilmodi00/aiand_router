@@ -25,8 +25,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/postgres"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/postgres"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"

@@ -7,7 +7,7 @@ import (
 	"io"
 	"net/http"
 
-	"weave-os/router/internal/router/policy"
+	"aiand-os/router/internal/router/policy"
 )
 
 func (c *Client) PrepareClassifier(ctx context.Context, operationID string) (policy.ClassifierPreparation, error) {

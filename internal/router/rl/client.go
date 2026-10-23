@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"weave-os/router/internal/observability"
+	"aiand-os/router/internal/observability"
 )
 
 // DefaultTimeout bounds a single policy decision. The sidecar embeds the

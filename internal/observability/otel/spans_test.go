@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 
-	"weave-os/router/internal/observability/otel"
+	"aiand-os/router/internal/observability/otel"
 )
 
 func TestAttrBuilder_BuildsCorrectKeyValues(t *testing.T) {

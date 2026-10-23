@@ -12,9 +12,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"weave-os/router/internal/observability/otel"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/observability/otel"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/translate"
 
 	"github.com/tidwall/gjson"
 	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
@@ -33,7 +33,7 @@ const (
 	// but no raw text — dedup/cache analysis without exposing prompts.
 	CaptureHashed
 	// CaptureFull emits log records with full raw request/response bodies
-	// (after the redaction hook). Default for Weave-managed deploys.
+	// (after the redaction hook). Default for Aiand-managed deploys.
 	CaptureFull
 )
 

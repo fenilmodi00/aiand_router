@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/decisionmodel"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/decisionmodel"
 
 	"github.com/stretchr/testify/require"
 )

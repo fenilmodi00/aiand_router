@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"net/http"
 
-	"weave-os/router/internal/sse"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/sse"
+	"aiand-os/router/internal/translate"
 
 	"github.com/tidwall/gjson"
 )

@@ -10,9 +10,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/dispatch"
-	"weave-os/router/internal/inference"
-	"weave-os/router/internal/providers"
+	"aiand-os/router/internal/dispatch"
+	"aiand-os/router/internal/inference"
+	"aiand-os/router/internal/providers"
 )
 
 var throttleNow = time.Date(2026, 9, 18, 12, 0, 0, 0, time.UTC)

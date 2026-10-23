@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/requestcontext"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/requestcontext"
 )
 
 // Credential sources, for logging and precedence reasoning. Never log the key

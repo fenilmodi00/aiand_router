@@ -15,16 +15,16 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"weave-os/router/internal/flags"
-	"weave-os/router/internal/policyclient"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/router/escalation"
-	"weave-os/router/internal/router/policy"
-	"weave-os/router/internal/router/sessionpin"
-	"weave-os/router/internal/router/turntype"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/flags"
+	"aiand-os/router/internal/policyclient"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router/escalation"
+	"aiand-os/router/internal/router/policy"
+	"aiand-os/router/internal/router/sessionpin"
+	"aiand-os/router/internal/router/turntype"
+	"aiand-os/router/internal/translate"
 )
 
 type escalationTestStore struct {
@@ -275,7 +275,7 @@ func TestEscalationResponsesContinuation(t *testing.T) {
 	_, err := capture.Write([]byte(`{"id":"resp_1","status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"completed"}]}]}`))
 	require.NoError(t, err)
 	svc.recordEscalationOutcome(ctx, res, nil, capture, translate.EscalationResponseResponses)
-	ctx = context.WithValue(ctx, nativeResponsesBodyContextKey{}, []byte(`{"model":"weave","previous_response_id":"resp_1","input":"continue"}`))
+	ctx = context.WithValue(ctx, nativeResponsesBodyContextKey{}, []byte(`{"model":"aiand","previous_response_id":"resp_1","input":"continue"}`))
 	res.SessionKey[0] = 42
 	continued := svc.beginEscalation(ctx, escalationTestEnvelope(t, 2), router.Request{}, &res, "test-key")
 	require.NotNil(t, continued)
@@ -304,7 +304,7 @@ func TestEscalationResponsesContinuationSupportsLegacyActivation(t *testing.T) {
 		history json.RawMessage
 	}{scope: turn.scope, history: json.RawMessage(`[{"role":"user","blocks":[{"type":"text","text":"start"}]}]`)}
 
-	ctx = context.WithValue(ctx, nativeResponsesBodyContextKey{}, []byte(`{"model":"weave","previous_response_id":"resp_legacy","input":"continue"}`))
+	ctx = context.WithValue(ctx, nativeResponsesBodyContextKey{}, []byte(`{"model":"aiand","previous_response_id":"resp_legacy","input":"continue"}`))
 	continued := svc.beginEscalation(ctx, escalationTestEnvelope(t, 2), router.Request{}, &res, "test-key")
 	require.NotNil(t, continued)
 	require.Equal(t, turn.scope, continued.scope)

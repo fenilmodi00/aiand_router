@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"weave-os/router/internal/providers"
+	"aiand-os/router/internal/providers"
 )
 
 type openAIReasoningSignatureEnvelope struct {

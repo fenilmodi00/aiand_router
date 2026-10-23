@@ -7,10 +7,10 @@ import (
 	"io"
 	"net/http"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/router/hmm/rosterdata"
-	"weave-os/router/internal/router/hmm/selection"
-	"weave-os/router/internal/router/taskdomain"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/router/hmm/rosterdata"
+	"aiand-os/router/internal/router/hmm/selection"
+	"aiand-os/router/internal/router/taskdomain"
 
 	"github.com/gin-gonic/gin"
 )

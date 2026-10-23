@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/auth"
+	"aiand-os/router/internal/auth"
 )
 
 func TestCredentialOwnershipCannotBeAssertedForSharedKey(t *testing.T) {

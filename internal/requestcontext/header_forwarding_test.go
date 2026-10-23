@@ -7,9 +7,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/requestcontext"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/requestcontext"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -181,12 +181,12 @@ func TestForwardingRuntimeGuardsRejectUnsafeLegacyConfiguration(t *testing.T) {
 	identity := proxy.ClientIdentity{Email: "engineer@example.com"}
 	inbound := http.Header{
 		"Authorization":      []string{"Bearer inbound-secret"},
-		"X-Weave-Router-Key": []string{"router-secret"},
+		"X-Aiand-Router-Key": []string{"router-secret"},
 		"Cookie":             []string{"session=secret"},
 	}
 	legacyKey := &auth.ExternalAPIKey{
 		ForwardedClientHeaders: []string{"Authorization"},
-		BaggageHeader:          "X-Weave-Router-Key",
+		BaggageHeader:          "X-Aiand-Router-Key",
 		IdentityHeader:         "Cookie",
 	}
 

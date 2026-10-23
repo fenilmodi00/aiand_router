@@ -7,11 +7,11 @@ import (
 	"strconv"
 	"strings"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/cluster"
-	"weave-os/router/internal/router/hmm/rosterdata"
-	hmmselection "weave-os/router/internal/router/hmm/selection"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/cluster"
+	"aiand-os/router/internal/router/hmm/rosterdata"
+	hmmselection "aiand-os/router/internal/router/hmm/selection"
 
 	"github.com/gin-gonic/gin"
 )
@@ -41,7 +41,7 @@ type routingDistributionResponse struct {
 // grid of dial positions in [0, 1] it returns the projected model mix the
 // QualityBias dial would produce (and the share-weighted input cost at each
 // position). Read-only, unauthed metadata derived from the publicly published
-// artifact — mounted like /v1/router/models so the Weave control plane can
+// artifact — mounted like /v1/router/models so the Aiand control plane can
 // render the dashboard preview without juggling router API keys.
 //
 // `grid` (optional) sets the number of dial positions in [2, 101]; omitted

@@ -12,7 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"weave-os/router/internal/router/taskdomain"
+	"aiand-os/router/internal/router/taskdomain"
 )
 
 func TestTaskDomainTransportValidatesPinnedFacts(t *testing.T) {

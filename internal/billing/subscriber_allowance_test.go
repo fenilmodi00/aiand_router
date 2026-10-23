@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"weave-os/router/internal/billing"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/subscriptions/entitlement"
+	"aiand-os/router/internal/billing"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/subscriptions/entitlement"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -115,7 +115,7 @@ func TestDebitForInferenceDoesNotMeterTurnsThePlanDidNotPayFor(t *testing.T) {
 
 			_, err := svc.DebitForInference(coveredContext(), p)
 			require.NoError(t, err)
-			assert.Empty(t, settler.recorded(), "the included allowance only pays for turns Weave itself bought")
+			assert.Empty(t, settler.recorded(), "the included allowance only pays for turns Aiand itself bought")
 		})
 	}
 }

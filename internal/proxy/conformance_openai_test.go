@@ -4,8 +4,8 @@ package proxy_test
 // upstream. Each pins a known translation behavior or past regression.
 
 import (
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/providers/openaicompat"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/providers/openaicompat"
 )
 
 func openRouterClient(baseURL string) providers.Client {

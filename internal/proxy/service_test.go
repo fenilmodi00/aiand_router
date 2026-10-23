@@ -10,11 +10,11 @@ import (
 	"strings"
 	"testing"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/policy"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/policy"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -196,7 +196,7 @@ func TestService_ProxyOpenAIResponses_NativeBadgeForTerminalClientsHonorsSuppres
 		"data: {\"type\":\"response.output_item.done\",\"sequence_number\":1,\"output_index\":0,\"item\":{\"id\":\"msg_1\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"ok\"}]}}\n\n" +
 		"event: response.completed\n" +
 		"data: {\"type\":\"response.completed\",\"sequence_number\":2,\"response\":{\"id\":\"resp_1\",\"model\":\"gpt-5.6-terra\",\"output\":[{\"id\":\"msg_1\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"ok\"}]}]}}\n\n"
-	const priorBadge = "\u2063\u2060\u2063\u2060**Weave Router** — gpt-5.6-sol\n\nold answer\n\n_Weave Router feedback:_ /rf + good experience"
+	const priorBadge = "\u2063\u2060\u2063\u2060**Aiand Router** — gpt-5.6-sol\n\nold answer\n\n_Aiand Router feedback:_ /rf + good experience"
 
 	for _, tc := range []struct {
 		name       string
@@ -229,14 +229,14 @@ func TestService_ProxyOpenAIResponses_NativeBadgeForTerminalClientsHonorsSuppres
 			}, nil, false, nil, nil, false, providers.ProviderAIAND, "gpt-5.6-sol", nil)
 
 			ctx := context.WithValue(context.Background(), proxy.ClientIdentityContextKey{}, proxy.ClientIdentity{ClientApp: tc.clientApp})
-			body := []byte(`{"model":"gpt-5.6-sol","stream":true,"input":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"\u2063\u2060\u2063\u2060**Weave Router** — gpt-5.6-sol\n\nold answer\n\n_Weave Router feedback:_ /rf + good experience"}]},{"type":"message","role":"user","content":"continue"},{"type":"message","role":"assistant","content":[{"type":"output_text","text":""}]},{"type":"function_call","call_id":"call_shell","name":"shell","arguments":"{}"}]}`)
+			body := []byte(`{"model":"gpt-5.6-sol","stream":true,"input":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"\u2063\u2060\u2063\u2060**Aiand Router** — gpt-5.6-sol\n\nold answer\n\n_Aiand Router feedback:_ /rf + good experience"}]},{"type":"message","role":"user","content":"continue"},{"type":"message","role":"assistant","content":[{"type":"output_text","text":""}]},{"type":"function_call","call_id":"call_shell","name":"shell","arguments":"{}"}]}`)
 			rec := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(""))
 			if tc.marker != "" {
-				req.Header.Set("X-Weave-Routing-Marker", tc.marker)
+				req.Header.Set("X-Aiand-Routing-Marker", tc.marker)
 			}
 			if tc.suggestion {
-				req.Header.Set("x-weave-suggestion-mode", "true")
+				req.Header.Set("x-aiand-suggestion-mode", "true")
 			}
 
 			require.NoError(t, svc.ProxyOpenAIResponses(ctx, body, rec, req))
@@ -256,7 +256,7 @@ func TestService_ProxyOpenAIResponses_NativeBadgeForTerminalClientsHonorsSuppres
 				assert.Equal(t, "message", nativeInput[2].Get("type").Str)
 			}
 			if tc.wantBadge {
-				assert.Contains(t, rec.Body.String(), "✦ **Weave Router** → gpt-5.6-terra · "+markerReasonBestPickForTest)
+				assert.Contains(t, rec.Body.String(), "✦ **Aiand Router** → gpt-5.6-terra · "+markerReasonBestPickForTest)
 				assert.NotEqual(t, native, rec.Body.String())
 			} else {
 				assert.Equal(t, native, rec.Body.String(), "suppressed and non-terminal clients retain byte identity")
@@ -281,12 +281,12 @@ func TestService_ProxyOpenAIResponses_NativeMarkerOptOutPreservesContentType(t *
 	body := []byte(`{"model":"gpt-5.6-sol","stream":true,"input":[{"type":"reasoning","id":"rs_0","encrypted_content":"opaque"},{"type":"message","role":"user","content":[{"type":"input_text","text":"continue"}]}]}`)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(""))
-	req.Header.Set("X-Weave-Routing-Marker", "off")
+	req.Header.Set("X-Aiand-Routing-Marker", "off")
 
 	require.NoError(t, svc.ProxyOpenAIResponses(codexNativeResponsesCtx(), body, rec, req))
 	assert.Equal(t, "text/event-stream", rec.Header().Get("Content-Type"))
 	assert.Contains(t, rec.Body.String(), `"type":"response.completed"`)
-	assert.NotContains(t, rec.Body.String(), "✦ **Weave Router**")
+	assert.NotContains(t, rec.Body.String(), "✦ **Aiand Router**")
 }
 
 // codexBadgeSentinelForTest mirrors translate's invisible provenance prefix.

@@ -10,8 +10,8 @@ import (
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
 	"google.golang.org/protobuf/proto"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/observability/otel"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/observability/otel"
 )
 
 func TestOnboardingObserverExportsDomainEvents(t *testing.T) {

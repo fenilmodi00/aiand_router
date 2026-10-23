@@ -65,7 +65,7 @@
       "tool": "build_v075_opus5_swap.py",
       "version": "v0.75"
     },
-    "router_version": "weave-router-v0.1-bootstrap",
+    "router_version": "aiand-router-v0.1-bootstrap",
     "routerarena_only": false,
     "score_normalization": "per_prompt_zscore_across_bench_columns",
     "seed": 42,

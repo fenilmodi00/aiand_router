@@ -1,10 +1,10 @@
 ---
-description: Show whether Claude Code is routing through the Weave Router or directly to Anthropic.
+description: Show whether Claude Code is routing through the Aiand Router or directly to Anthropic.
 allowed-tools: Bash(npx:*)
 ---
 
-Report whether Claude Code is using the Weave Router by running:
+Report whether Claude Code is using the Aiand Router by running:
 
-`npx @weave-os/router status --claude{{SCOPE}}`
+`npx @aiand-os/router status --claude{{SCOPE}}`
 
 Then summarize the result for me in one line.

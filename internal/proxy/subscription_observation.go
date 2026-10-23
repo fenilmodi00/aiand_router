@@ -3,8 +3,8 @@ package proxy
 import (
 	"context"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/requestcontext"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/requestcontext"
 )
 
 // SubscriptionOwnerContextKey carries the linked-account owner resolved by the

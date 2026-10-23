@@ -10,13 +10,13 @@ import (
 	"strings"
 	"testing"
 
-	"weave-os/router/internal/api/classifier"
-	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/requestcontext"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/server/middleware"
-	"weave-os/router/internal/subscriptions/entitlement"
+	"aiand-os/router/internal/api/classifier"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/server/middleware"
+	"aiand-os/router/internal/subscriptions/entitlement"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -55,7 +55,7 @@ func TestRoutingModelSelectsPolicyAndPreservesRequest(t *testing.T) {
 		{name: "default preserves classifier enrollment", model: string(router.ModelAutomatic), initial: router.StrategyLLMClassifier, status: http.StatusOK, want: router.StrategyLLMClassifier},
 		{name: "direct model unaffected", model: "gpt-6.1-sol", initial: router.StrategyHMMEmbedding, status: http.StatusOK, want: router.StrategyHMMEmbedding},
 		{name: "conflicting direct pin", model: string(router.ModelHMM), available: true, force: true, status: http.StatusConflict},
-		{name: "unknown router", model: "weave-missing", status: http.StatusBadRequest},
+		{name: "unknown router", model: "aiand-missing", status: http.StatusBadRequest},
 		{name: "stable cannot select alternate classifier", model: string(router.ModelHMM), initial: router.StrategyHMMEmbedding, available: true, target: policyregistry.TargetStable, status: http.StatusForbidden},
 		{name: "stable cannot select qwen", model: string(router.ModelQwen), available: true, target: policyregistry.TargetStable, status: http.StatusForbidden},
 		{name: "subscriber profile cannot select qwen", model: string(router.ModelQwen), available: true, target: policyregistry.TargetInternal, plan: entitlement.PlanMax, status: http.StatusForbidden},

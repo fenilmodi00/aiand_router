@@ -1,8 +1,8 @@
 BEGIN;
 
--- Weave-maintained projection of the person behind a request email, scoped to
+-- Aiand-maintained projection of the person behind a request email, scoped to
 -- one installation. The router holds no account table, so an inbound
--- X-Weave-User-Email can only become a credential subject through this row.
+-- X-Aiand-User-Email can only become a credential subject through this row.
 -- Installation scoping is what stops one organization's email from resolving
 -- into another's subject.
 CREATE TABLE router.credential_subject_identities (

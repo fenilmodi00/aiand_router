@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"testing"
 	"time"
-	"weave-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router/catalog"
 
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router/cache"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router/cache"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

@@ -13,9 +13,9 @@ import (
 	"testing"
 	"time"
 
-	"weave-os/router/internal/analytics"
-	analyticsapi "weave-os/router/internal/api/analytics"
-	"weave-os/router/internal/auth"
+	"aiand-os/router/internal/analytics"
+	analyticsapi "aiand-os/router/internal/api/analytics"
+	"aiand-os/router/internal/auth"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -170,8 +170,8 @@ func TestRoutingDecisionsReturnsCursorHeaders(t *testing.T) {
 	rec := get(engine, "/v1/analytics/routing-decisions?since=2026-01-01T00:00:00Z&limit=2", nil)
 
 	require.Equal(t, http.StatusOK, rec.Code)
-	require.Equal(t, "true", rec.Header().Get("X-Weave-Has-More"))
-	cursor := rec.Header().Get("X-Weave-Next-Cursor")
+	require.Equal(t, "true", rec.Header().Get("X-Aiand-Has-More"))
+	cursor := rec.Header().Get("X-Aiand-Next-Cursor")
 	require.NotEmpty(t, cursor)
 	parsed, err := analytics.ParseCursor(cursor)
 	require.NoError(t, err)

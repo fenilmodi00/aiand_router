@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/router"
 )
 
 // Adding a provider is a THREE-map edit: the Provider* constant here, its

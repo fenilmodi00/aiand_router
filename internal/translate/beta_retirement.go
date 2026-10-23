@@ -7,7 +7,7 @@ import (
 
 	"github.com/tidwall/gjson"
 
-	"weave-os/router/internal/requestcontext"
+	"aiand-os/router/internal/requestcontext"
 )
 
 // BetaRetiredMessage is shared with historical-control stripping so replies never become prompts.
@@ -52,12 +52,12 @@ func WriteRetiredBetaRequest(w http.ResponseWriter, r *http.Request, body []byte
 	if _, found := envelope.ExtractBetaCommand(); !found {
 		return false, nil
 	}
-	text := "✦ **Weave Router** → " + BetaRetiredMessage + "\n\n"
+	text := "✦ **Aiand Router** → " + BetaRetiredMessage + "\n\n"
 	switch surface {
 	case requestcontext.ConversationAnthropic:
 		return true, WriteSyntheticAnthropicResponse(w, envelope, text, 0)
 	case requestcontext.ConversationResponses:
-		writer := NewResponsesWriter(w, "weave-router")
+		writer := NewResponsesWriter(w, "aiand-router")
 		if err := WriteSyntheticOpenAIResponse(writer, envelope, text, 0); err != nil {
 			return true, err
 		}

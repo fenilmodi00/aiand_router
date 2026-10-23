@@ -10,8 +10,8 @@ import (
 	"net/http"
 	"strings"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/providers"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/providers"
 
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"

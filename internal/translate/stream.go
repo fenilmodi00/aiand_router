@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/sse"
-	"weave-os/router/internal/translate/toolcheck"
-	"weave-os/router/internal/usage"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/sse"
+	"aiand-os/router/internal/translate/toolcheck"
+	"aiand-os/router/internal/usage"
 
 	"github.com/tidwall/gjson"
 )

@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"weave-os/router/internal/proxy"
+	"aiand-os/router/internal/proxy"
 )
 
 const (

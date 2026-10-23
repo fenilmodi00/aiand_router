@@ -3,7 +3,7 @@ package config_test
 import (
 	"github.com/stretchr/testify/require"
 	"testing"
-	"weave-os/router/internal/config"
+	"aiand-os/router/internal/config"
 )
 
 func TestCodexExtraCreditsOptIn(t *testing.T) {

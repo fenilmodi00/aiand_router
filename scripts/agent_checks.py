@@ -187,7 +187,7 @@ SUITES = (
             "install/cc-statusline.sh",
             "install/install.sh",
             "install/pi-router/src/pricing.generated.ts",
-            "bench/weave_bench/prices.generated.json",
+            "bench/aiand_bench/prices.generated.json",
         ),
         (
             ("go", "run", "./cmd/geninferencepolicy", "--check"),
@@ -392,7 +392,7 @@ def validation_environment(suite: SuiteID) -> dict[str, str]:
         "HMM_",
         "ESCALATION_",
         "SMOKE_",
-        "WEAVE_",
+        "AIAND_",
         "ANTHROPIC_",
         "OPENAI_",
         "OPENCODE_",

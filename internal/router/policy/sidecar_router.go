@@ -12,9 +12,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/escalation"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/escalation"
 )
 
 // ReasonRenderer converts policy metadata into the compact internal reason

@@ -70,7 +70,7 @@ go_generated_artifacts=(
 	install/cc-statusline.sh
 	install/install.sh
 	install/pi-router/src/pricing.generated.ts
-	bench/weave_bench/prices.generated.json
+	bench/aiand_bench/prices.generated.json
 )
 
 # Directories holding at least one Go source file in either tree. A file's

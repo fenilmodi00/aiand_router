@@ -11,16 +11,16 @@ const packageName = JSON.parse(
   readFileSync(path.join(__dirname, "package.json"), "utf8"),
 ).name;
 
-const defaultEntrypointURL = "https://router.workweave.ai/start";
+const defaultEntrypointURL = "https://router.workaiand.ai/start";
 
-if (packageName === "@weave-os/router" && args.length === 0) {
+if (packageName === "@aiand-os/router" && args.length === 0) {
   openDefaultEntrypoint(defaultEntrypointURL);
   process.exit(0);
 }
 
-if (packageName === "@workweave/router") {
+if (packageName === "@workaiand/router") {
   console.error(
-    "warning: @workweave/router is deprecated; use @weave-os/router instead (npx @weave-os/router).",
+    "warning: @workaiand/router is deprecated; use @aiand-os/router instead (npx @aiand-os/router).",
   );
 }
 
@@ -33,7 +33,7 @@ const script = path.join(__dirname, scriptName);
 
 if (!existsSync(script)) {
   console.error(
-    `Weave Router: ${scriptName} missing from package — report it at https://github.com/weave-os/router/issues`,
+    `Aiand Router: ${scriptName} missing from package — report it at https://github.com/aiand-os/router/issues`,
   );
   process.exit(1);
 }
@@ -43,10 +43,10 @@ if (process.platform === "win32") {
   if (bash) {
     const bashResult = spawnSync(bash, [script, ...args], {
       stdio: "inherit",
-      env: { ...process.env, WEAVE_ROUTER_NPM_PACKAGE: packageName },
+      env: { ...process.env, AIAND_ROUTER_NPM_PACKAGE: packageName },
     });
     if (bashResult.error) {
-      console.error("Weave Router:", bashResult.error.message);
+      console.error("Aiand Router:", bashResult.error.message);
       process.exit(1);
     }
     process.exit(bashResult.status ?? 1);
@@ -54,16 +54,16 @@ if (process.platform === "win32") {
 
   const windowsInstaller = path.join(__dirname, "windows.js");
   if (!existsSync(windowsInstaller)) {
-    console.error("Weave Router: native Windows installer missing from package.");
+    console.error("Aiand Router: native Windows installer missing from package.");
     process.exit(1);
   }
   console.log("Git Bash was not found; using the native Windows installer.");
   const installerResult = spawnSync(process.execPath, [windowsInstaller, ...(isUninstall ? ["--uninstall"] : []), ...args], {
     stdio: "inherit",
-    env: { ...process.env, WEAVE_ROUTER_NPM_PACKAGE: packageName },
+    env: { ...process.env, AIAND_ROUTER_NPM_PACKAGE: packageName },
   });
   if (installerResult.error) {
-    console.error("Weave Router:", installerResult.error.message);
+    console.error("Aiand Router:", installerResult.error.message);
     process.exit(1);
   }
   process.exit(installerResult.status ?? 1);
@@ -72,7 +72,7 @@ if (process.platform === "win32") {
 const bash = pickBash();
 if (!bash) {
   console.error(
-    "Weave Router: bash is required. On Windows install Git Bash or run inside WSL.",
+    "Aiand Router: bash is required. On Windows install Git Bash or run inside WSL.",
   );
   process.exit(1);
 }
@@ -81,12 +81,12 @@ const unixBashResult = spawnSync(bash, [script, ...args], {
   stdio: "inherit",
   env: {
     ...process.env,
-    WEAVE_ROUTER_NPM_PACKAGE: packageName,
+    AIAND_ROUTER_NPM_PACKAGE: packageName,
   },
 });
 
 if (unixBashResult.error) {
-  console.error("Weave Router:", unixBashResult.error.message);
+  console.error("Aiand Router:", unixBashResult.error.message);
   process.exit(1);
 }
 process.exit(unixBashResult.status ?? 1);

@@ -8,9 +8,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/router/hmm/policycompiler"
-	"weave-os/router/internal/router/hmm/rosterdata"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/router/hmm/policycompiler"
+	"aiand-os/router/internal/router/hmm/rosterdata"
 )
 
 // rosterCheckReport is the machine-readable result of `policyctl check-rosters`.

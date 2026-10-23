@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from tests.conftest import T0, TrialWriter
-from weave_bench.cli import main
+from aiand_bench.cli import main
 
 
 def test_run_dry_run_prints_the_harbor_commands_without_launching(
@@ -24,7 +24,7 @@ def test_run_dry_run_prints_the_harbor_commands_without_launching(
     assert "tasks=1 (manifest has 124)" in out
     assert "## arm router (router)" in out and "## arm luna (direct)" in out
     assert "## arm openrouter-beta (openrouter)" in out
-    assert "requires `weave-bench tap serve`" in out
+    assert "requires `aiand-bench tap serve`" in out
     assert "--include-task-name task-6905333b74f22949d97ba998" in out
     assert "--job-name dry--router" in out
     assert not (tmp_path / "jobs").exists()
@@ -62,9 +62,9 @@ def test_run_report_hint_names_the_arms_that_ran(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("weave_bench.cli.run_job", lambda job, config: 0)
+    monkeypatch.setattr("aiand_bench.cli.run_job", lambda job, config: 0)
     assert main(["run", "terminal-bench-4", "--arms", "router,luna", "--smoke", "--run-id", "r1"]) == 0
-    assert "weave-bench report terminal-bench-4 r1 --arms router,luna" in capsys.readouterr().out
+    assert "aiand-bench report terminal-bench-4 r1 --arms router,luna" in capsys.readouterr().out
 
 
 def test_report_without_analytics_writes_markdown_and_json(
@@ -119,7 +119,7 @@ def test_report_refetches_analytics_when_the_run_grows(
     tmp_path: Path, write_trial: TrialWriter, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("WEAVE_ANALYTICS_KEY", "ra_test")
+    monkeypatch.setenv("AIAND_ANALYTICS_KEY", "ra_test")
     jobs = tmp_path / "jobs"
     write_trial(jobs / "r1--router", task="t1", trial_name="t1__a", reward=1.0, session_id="s1")
     write_trial(jobs / "r1--sol", task="t1", trial_name="t1__b", reward=1.0)
@@ -140,7 +140,7 @@ def test_report_refetches_analytics_when_the_run_grows(
             }
         ]
 
-    monkeypatch.setattr("weave_bench.cli.fetch_rows", fake_fetch)
+    monkeypatch.setattr("aiand_bench.cli.fetch_rows", fake_fetch)
     assert main(["report", "terminal-bench-4", "r1"]) == 0
     assert main(["report", "terminal-bench-4", "r1"]) == 0
     assert len(windows) == 1  # same trial span: the cached export is replayed

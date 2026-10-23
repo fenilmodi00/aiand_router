@@ -15,14 +15,14 @@ import (
 
 	"cloud.google.com/go/storage"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/policyclient"
-	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/postgres"
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/router/hmm/rosterdata"
-	"weave-os/router/internal/router/hmm/selection"
-	"weave-os/router/internal/router/taskdomain"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/policyclient"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/postgres"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/router/hmm/rosterdata"
+	"aiand-os/router/internal/router/hmm/selection"
+	"aiand-os/router/internal/router/taskdomain"
 )
 
 type taskDomainBinding struct {
@@ -51,7 +51,7 @@ const (
 	taskDomainReleases         taskDomainMetadataKind = "releases"
 	taskDomainEvidence         taskDomainMetadataKind = "evidence"
 	maxTaskDomainMetadataBytes                        = 4 << 20
-	taskDomainRegistryPrefix                          = "weave_registry/router_task_domain/"
+	taskDomainRegistryPrefix                          = "aiand_registry/router_task_domain/"
 )
 
 type taskDomainMetadataReader struct {
@@ -144,7 +144,7 @@ func (r *taskDomainMetadataReader) read(ctx context.Context, path, expectedDiges
 				return nil, fmt.Errorf("create task metadata storage client: %w", err)
 			}
 		}
-		file, err = r.client.Bucket("weave_ml").Object(name).Generation(generation).NewReader(ctx)
+		file, err = r.client.Bucket("aiand_ml").Object(name).Generation(generation).NewReader(ctx)
 	} else {
 		file, err = os.Open(path)
 	}
@@ -167,7 +167,7 @@ func (r *taskDomainMetadataReader) read(ctx context.Context, path, expectedDiges
 
 func taskDomainGCSReference(path, expectedDigest string, kind taskDomainMetadataKind) (string, int64, error) {
 	ref, err := url.Parse(path)
-	if err != nil || ref.Scheme != "gs" || ref.Host != "weave_ml" || ref.User != nil || ref.RawQuery != "" || ref.ForceQuery || ref.RawPath != "" {
+	if err != nil || ref.Scheme != "gs" || ref.Host != "aiand_ml" || ref.User != nil || ref.RawQuery != "" || ref.ForceQuery || ref.RawPath != "" {
 		return "", 0, errors.New("invalid task metadata registry reference")
 	}
 	name := taskDomainRegistryPrefix + string(kind) + "/sha256/" + expectedDigest + ".json"

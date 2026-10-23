@@ -18,11 +18,11 @@ import (
 	"os"
 	"time"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/postgres"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/sessionpin"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/postgres"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/sessionpin"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"

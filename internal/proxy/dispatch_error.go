@@ -5,18 +5,18 @@ import (
 	"log/slog"
 	"net/http"
 
-	"weave-os/router/internal/billing"
-	"weave-os/router/internal/dispatch"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/bandit"
-	"weave-os/router/internal/router/cluster"
-	"weave-os/router/internal/router/decisionmodel"
-	"weave-os/router/internal/router/eligibility"
-	"weave-os/router/internal/router/hmm"
-	"weave-os/router/internal/router/policy"
-	"weave-os/router/internal/router/rl"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/billing"
+	"aiand-os/router/internal/dispatch"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/bandit"
+	"aiand-os/router/internal/router/cluster"
+	"aiand-os/router/internal/router/decisionmodel"
+	"aiand-os/router/internal/router/eligibility"
+	"aiand-os/router/internal/router/hmm"
+	"aiand-os/router/internal/router/policy"
+	"aiand-os/router/internal/router/rl"
+	"aiand-os/router/internal/translate"
 )
 
 // DispatchErrorKind identifies which sentinel a dispatch error (from
@@ -131,7 +131,7 @@ func ClassifyDispatchError(err error) (DispatchErrorClass, bool) {
 		return DispatchErrorClass{
 			Kind:       DispatchErrorSpendCapReached,
 			Status:     http.StatusPaymentRequired,
-			Message:    "A Weave router spend cap has been reached and your subscription can't serve this turn (rate-limited, or the requested model isn't subscription-covered).",
+			Message:    "A Aiand router spend cap has been reached and your subscription can't serve this turn (rate-limited, or the requested model isn't subscription-covered).",
 			LogLevel:   "warn",
 			LogMessage: "Subscription-only request refused: spend cap reached and subscription unavailable",
 		}, true
@@ -139,7 +139,7 @@ func ClassifyDispatchError(err error) (DispatchErrorClass, bool) {
 		return DispatchErrorClass{
 			Kind:       DispatchErrorCreditsExhausted,
 			Status:     http.StatusPaymentRequired,
-			Message:    "Your Weave router credits are exhausted and your subscription can't serve this turn (rate-limited, or the requested model isn't subscription-covered). Add credits to re-enable paid routing: " + topUpURL,
+			Message:    "Your Aiand router credits are exhausted and your subscription can't serve this turn (rate-limited, or the requested model isn't subscription-covered). Add credits to re-enable paid routing: " + topUpURL,
 			LogLevel:   "warn",
 			LogMessage: "Subscription-only request refused: credits exhausted and subscription unavailable",
 		}, true
@@ -317,7 +317,7 @@ func ClassifyDispatchError(err error) (DispatchErrorClass, bool) {
 		return DispatchErrorClass{
 			Kind:       DispatchErrorUserSpendLimitReached,
 			Status:     http.StatusPaymentRequired,
-			Message:    "You've reached your monthly Weave Router spend limit. Ask your org admin to raise it, or it resets next month.",
+			Message:    "You've reached your monthly Aiand Router spend limit. Ask your org admin to raise it, or it resets next month.",
 			LogLevel:   "warn",
 			LogMessage: "Request refused: engineer monthly spend limit reached",
 		}, true

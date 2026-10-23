@@ -11,9 +11,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"weave-os/router/internal/api/admin"
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/router/escalationdashboard"
+	"aiand-os/router/internal/api/admin"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/router/escalationdashboard"
 )
 
 type escalationDashboardHandlerStore struct {

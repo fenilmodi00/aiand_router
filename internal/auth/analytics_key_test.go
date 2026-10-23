@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"weave-os/router/internal/auth"
+	"aiand-os/router/internal/auth"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

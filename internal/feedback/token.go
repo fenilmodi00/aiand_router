@@ -1,7 +1,7 @@
 // Package feedback defines the signed, no-login token that authorizes a
 // single router request's feedback link (`/f/<token>`). It's the sole
 // credential for the public feedback page — minted at routing time, verified
-// on page load/rating submit — and the Weave backend never sees the secret.
+// on page load/rating submit — and the Aiand backend never sees the secret.
 // Pure (HMAC + base64, no I/O) so it can be shared across layers.
 package feedback
 
@@ -26,7 +26,7 @@ var ErrExpiredToken = errors.New("feedback: expired token")
 
 // Claims is the verified payload of a feedback-link token. InstallationID +
 // RequestID look up routing context; ExternalID + RouterUserID attribute the
-// emitted router.feedback span to a Weave org and user.
+// emitted router.feedback span to a Aiand org and user.
 type Claims struct {
 	InstallationID string `json:"iid"`
 	ExternalID     string `json:"eid"`

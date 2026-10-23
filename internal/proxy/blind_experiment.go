@@ -5,11 +5,11 @@ import (
 	"errors"
 	"fmt"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/observability/otel"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/router/cluster"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/observability/otel"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router/cluster"
 )
 
 const blindExperimentPublicDecisionReason = "cluster_argmax"

@@ -19,7 +19,7 @@ ORDER BY cluster_label
 `
 
 // Returns every configured per-cluster model selection for one router user.
-// Writes are owned by the Weave control plane (direct inserts to this schema,
+// Writes are owned by the Aiand control plane (direct inserts to this schema,
 // mirroring cluster_model_lists); the router only reads on the auth path.
 //
 //	SELECT router_user_id, cluster_label, organization_id, models, created_by, created_at, updated_at

@@ -16,8 +16,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/policyclient"
-	"weave-os/router/internal/router/escalation"
+	"aiand-os/router/internal/policyclient"
+	"aiand-os/router/internal/router/escalation"
 )
 
 const validEscalationResponse = `{"schema_version":"escalation_runtime_v1","state":{"observed_turns":5},"prediction":{"score":0.75,"threshold":0.5,"escalate":true},"prediction_unavailable":false,"model_id":"classifier-fixture","package_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}`

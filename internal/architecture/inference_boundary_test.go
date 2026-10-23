@@ -18,13 +18,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/tools/go/packages"
 
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/router/policy"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router/policy"
 )
 
 const (
-	modulePath            = "weave-os/router"
+	modulePath            = "aiand-os/router"
 	providersPackagePath  = modulePath + "/internal/providers"
 	routerPackagePath     = modulePath + "/internal/router"
 	policyPackagePath     = modulePath + "/internal/router/policy"

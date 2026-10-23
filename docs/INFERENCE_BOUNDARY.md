@@ -6,7 +6,7 @@ This inventory freezes the behavior-neutral starting point for the centralized i
 
 ## Pending Router PR Sequencing
 
-Router PRs [#884](https://github.com/weave-os/router/pull/884) and [#792](https://github.com/weave-os/router/pull/792) are both open and unmerged at this baseline. This slice does not port either change because it must remain behavior-neutral. Before Phase 6 migrates handover, rebase the surviving PRs onto the then-current router `main` or port their exact behavior and regression tests; freeze the post-port behavior as the handover comparison baseline.
+Router PRs [#884](https://github.com/aiand-os/router/pull/884) and [#792](https://github.com/aiand-os/router/pull/792) are both open and unmerged at this baseline. This slice does not port either change because it must remain behavior-neutral. Before Phase 6 migrates handover, rebase the surviving PRs onto the then-current router `main` or port their exact behavior and regression tests; freeze the post-port behavior as the handover comparison baseline.
 
 ## Operation Inventory
 

@@ -1,6 +1,6 @@
 package entitlement
 
-import "weave-os/router/internal/router"
+import "aiand-os/router/internal/router"
 
 // ServingProfile identifies the immutable server-owned routing profile for a plan.
 type ServingProfile struct {

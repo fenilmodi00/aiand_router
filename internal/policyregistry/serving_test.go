@@ -16,10 +16,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/hmm/rosterdata"
-	"weave-os/router/internal/subscriptions/entitlement"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/hmm/rosterdata"
+	"aiand-os/router/internal/subscriptions/entitlement"
 )
 
 const profileKeyOne = "10000000-0000-4000-8000-000000000001"
@@ -178,7 +178,7 @@ func storedViews(t *testing.T, store *servingMemoryStore, refs ...policyregistry
 }
 
 func TestServingContractsRejectMutableTargetsAndReferences(t *testing.T) {
-	for _, target := range []policyregistry.ServingTarget{"beta", "prod/beta", "stable", "staging/weave-internal", "../stable"} {
+	for _, target := range []policyregistry.ServingTarget{"beta", "prod/beta", "stable", "staging/aiand-internal", "../stable"} {
 		_, err := target.Environment()
 		require.Error(t, err)
 	}
@@ -603,7 +603,7 @@ func controllerFixture(t *testing.T) (*servingMemoryStore, *policyregistry.Servi
 	identity.PackageSHA256 = packageRef.SHA256
 	bundle := policyregistry.ClassifierBundle{SchemaVersion: policyregistry.ServingClassifierV1, Identity: identity, Package: packageRef, Configuration: artifactRef("classifier-config"), AuxiliaryModels: map[string]policyregistry.ObjectRef{"escalation": artifactRef("escalation")}}
 	bundleRef := store.publish(t, policyregistry.ServingClassifiers, bundle)
-	release := policyregistry.ServingRelease{SchemaVersion: policyregistry.ServingReleaseV1, RouterImageDigest: "sha256:" + strings.Repeat("1", 64), Policy: policyregistry.PolicyObject{URI: policyRef.URI, SHA256: policyRef.SHA256, Generation: policyRef.Generation, SchemaVersion: legacy.policy.SchemaVersion}, Classifier: bundleRef, Requirements: policyregistry.ServingRequirements{RuntimeContract: policyregistry.ManagedRuntimeContractV1, PolicySchema: legacy.policy.SchemaVersion, ClassifierWireSchema: identity.WireSchema, TaxonomySHA256: identity.TaxonomySHA256}, Provenance: policyregistry.ServingProvenance{RouterRevision: strings.Repeat("2", 40), WeaveRevision: strings.Repeat("3", 40), BuildAttestation: artifactRef("build-attestation")}}
+	release := policyregistry.ServingRelease{SchemaVersion: policyregistry.ServingReleaseV1, RouterImageDigest: "sha256:" + strings.Repeat("1", 64), Policy: policyregistry.PolicyObject{URI: policyRef.URI, SHA256: policyRef.SHA256, Generation: policyRef.Generation, SchemaVersion: legacy.policy.SchemaVersion}, Classifier: bundleRef, Requirements: policyregistry.ServingRequirements{RuntimeContract: policyregistry.ManagedRuntimeContractV1, PolicySchema: legacy.policy.SchemaVersion, ClassifierWireSchema: identity.WireSchema, TaxonomySHA256: identity.TaxonomySHA256}, Provenance: policyregistry.ServingProvenance{RouterRevision: strings.Repeat("2", 40), AiandRevision: strings.Repeat("3", 40), BuildAttestation: artifactRef("build-attestation")}}
 	releaseRef := store.publish(t, policyregistry.ServingReleases, release)
 	binding := policyregistry.DeploymentBinding{SchemaVersion: policyregistry.ServingBindingV1, Target: policyregistry.TargetStable, Project: "test-project", Region: "test-region", Release: releaseRef, Router: policyregistry.RevisionBinding{Name: "worker-0001", URL: "https://worker-0001.example", Audience: "https://worker.example", ImageDigest: release.RouterImageDigest, Configuration: artifactRef("worker-config")}, Classifier: policyregistry.RevisionBinding{Name: "classifier-0001", URL: "https://classifier-0001.example", Audience: "https://classifier.example", ImageDigest: identity.ImageDigest, Configuration: bundle.Configuration}, ClassifierBundleSHA256: bundleRef.SHA256, Attestation: artifactRef("binding-attestation")}
 	bindingRef := store.publish(t, policyregistry.ServingBindings, binding)

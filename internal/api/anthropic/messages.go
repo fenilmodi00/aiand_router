@@ -7,11 +7,11 @@ import (
 	"log/slog"
 	"net/http"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/requestcontext"
-	"weave-os/router/internal/server/middleware"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/server/middleware"
 
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
@@ -119,8 +119,8 @@ func stashClientIdentity(ctx context.Context, h http.Header, body []byte) contex
 		"final_email_present", id.Email != "",
 		"final_account_present", id.AccountID != "",
 		"final_name_present", id.DisplayName != "",
-		"header_email_present", h.Get("X-Weave-User-Email") != "",
-		"header_name_present", h.Get("X-Weave-User-Name") != "",
+		"header_email_present", h.Get("X-Aiand-User-Email") != "",
+		"header_name_present", h.Get("X-Aiand-User-Name") != "",
 	)
 	return requestcontext.WithClientIdentity(ctx, id)
 }

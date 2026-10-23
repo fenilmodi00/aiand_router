@@ -16,7 +16,7 @@ run_install() {
   local home="$1"
   shift
   HOME="$home" XDG_CACHE_HOME="$home/.cache" PATH="$fake_bin:$PATH" \
-    NO_COLOR=1 WEAVE_ROUTER_KEY="rk_test" \
+    NO_COLOR=1 AIAND_ROUTER_KEY="rk_test" \
     bash "$installer" --claude --quiet --non-interactive \
       --base-url http://127.0.0.1:9 "$@" </dev/null >/dev/null 2>&1
 }

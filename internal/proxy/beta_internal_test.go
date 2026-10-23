@@ -9,14 +9,14 @@ import (
 	"sync"
 	"testing"
 
-	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/requestcontext"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/policy"
-	"weave-os/router/internal/router/sessionpin"
-	"weave-os/router/internal/router/sessionstrategy"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/policy"
+	"aiand-os/router/internal/router/sessionpin"
+	"aiand-os/router/internal/router/sessionstrategy"
+	"aiand-os/router/internal/translate"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -281,7 +281,7 @@ func TestHandleBetaCommandTogglesAndAcknowledges(t *testing.T) {
 		require.NoError(t, svc.handleBetaCommand(
 			context.Background(), response, env, cmd, installationID, sessionKey, sessionKey, 1,
 		))
-		assert.Equal(t, "✦ **Weave Router** → "+want+"\n\n", gjson.Get(response.Body.String(), "content.0.text").String())
+		assert.Equal(t, "✦ **Aiand Router** → "+want+"\n\n", gjson.Get(response.Body.String(), "content.0.text").String())
 	}
 
 	assert.Equal(t, 2, store.toggles)
@@ -306,7 +306,7 @@ func TestHandleBetaCommandIsInertWhenInstallationPinnedToBeta(t *testing.T) {
 
 	response := httptest.NewRecorder()
 	require.NoError(t, svc.handleBetaCommand(ctx, response, env, cmd, uuid.New(), sessionKey, sessionKey, 1))
-	assert.Equal(t, "✦ **Weave Router** → "+betaPinnedMessage+"\n\n", gjson.Get(response.Body.String(), "content.0.text").String())
+	assert.Equal(t, "✦ **Aiand Router** → "+betaPinnedMessage+"\n\n", gjson.Get(response.Body.String(), "content.0.text").String())
 	assert.Equal(t, 0, store.toggles, "an installation pin must not be shadowed by a session toggle")
 	assert.Empty(t, pins.consumedStrategy)
 }
@@ -325,7 +325,7 @@ func TestHandleBetaCommandAcceptsHeaderOnlyClientSession(t *testing.T) {
 
 	response := httptest.NewRecorder()
 	require.NoError(t, svc.handleBetaCommand(ctx, response, env, cmd, uuid.New(), sessionKey, sessionKey, 1))
-	assert.Equal(t, "✦ **Weave Router** → "+betaEnabledMessage+"\n\n", gjson.Get(response.Body.String(), "content.0.text").String())
+	assert.Equal(t, "✦ **Aiand Router** → "+betaEnabledMessage+"\n\n", gjson.Get(response.Body.String(), "content.0.text").String())
 	assert.Equal(t, 1, store.toggles)
 }
 
@@ -368,8 +368,8 @@ func TestHandleBetaCommandOverlappingTogglesAcknowledgeDistinctStates(t *testing
 		acked = append(acked, text)
 	}
 	assert.ElementsMatch(t, []string{
-		"✦ **Weave Router** → " + betaEnabledMessage + "\n\n",
-		"✦ **Weave Router** → " + betaDisabledMessage + "\n\n",
+		"✦ **Aiand Router** → " + betaEnabledMessage + "\n\n",
+		"✦ **Aiand Router** → " + betaDisabledMessage + "\n\n",
 	}, acked)
 	assert.Equal(t, 2, store.toggles)
 	assert.False(t, store.found, "two overlapping toggles from stable must land back on stable")
@@ -517,8 +517,8 @@ func TestHandleBetaCommandOverlappingTogglesCannotReenableUnavailableBeta(t *tes
 		acked = append(acked, text)
 	}
 	assert.ElementsMatch(t, []string{
-		"✦ **Weave Router** → " + betaDisabledMessage + "\n\n",
-		"✦ **Weave Router** → " + betaUnavailable + "\n\n",
+		"✦ **Aiand Router** → " + betaDisabledMessage + "\n\n",
+		"✦ **Aiand Router** → " + betaUnavailable + "\n\n",
 	}, acked)
 	assert.False(t, store.found, "beta must stay off while its policy is unavailable")
 }
@@ -717,7 +717,7 @@ func TestProxyEntrypointsStripHistoricalBetaArtifactsBeforeRouting(t *testing.T)
 					map[string]any{"role": "user", "content": "inspect this repository"},
 					map[string]any{"role": "assistant", "content": "I will inspect it."},
 					map[string]any{"role": "user", "content": "/beta"},
-					map[string]any{"role": "assistant", "content": "✦ **Weave Router** → Beta enabled. Type /beta again to turn it off.\n\n"},
+					map[string]any{"role": "assistant", "content": "✦ **Aiand Router** → Beta enabled. Type /beta again to turn it off.\n\n"},
 					map[string]any{"role": "user", "content": "continue with the implementation"},
 				},
 				"tools":      tt.tools,

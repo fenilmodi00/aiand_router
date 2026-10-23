@@ -6,10 +6,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/eligibility"
-	"weave-os/router/internal/router/policy"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/eligibility"
+	"aiand-os/router/internal/router/policy"
 )
 
 func maxResolver() *policy.Resolver {

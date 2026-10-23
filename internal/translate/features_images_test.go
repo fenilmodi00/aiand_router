@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/translate"
 )
 
 func TestHasImages_OpenAI(t *testing.T) {
@@ -17,22 +17,22 @@ func TestHasImages_OpenAI(t *testing.T) {
 	}{
 		{
 			name: "image_url part",
-			body: `{"model":"Weave","messages":[{"role":"user","content":[{"type":"text","text":"what is this"},{"type":"image_url","image_url":{"url":"data:image/png;base64,AAA"}}]}]}`,
+			body: `{"model":"Aiand","messages":[{"role":"user","content":[{"type":"text","text":"what is this"},{"type":"image_url","image_url":{"url":"data:image/png;base64,AAA"}}]}]}`,
 			want: true,
 		},
 		{
 			name: "text parts only",
-			body: `{"model":"Weave","messages":[{"role":"user","content":[{"type":"text","text":"hello"}]}]}`,
+			body: `{"model":"Aiand","messages":[{"role":"user","content":[{"type":"text","text":"hello"}]}]}`,
 			want: false,
 		},
 		{
 			name: "string content",
-			body: `{"model":"Weave","messages":[{"role":"user","content":"hello"}]}`,
+			body: `{"model":"Aiand","messages":[{"role":"user","content":"hello"}]}`,
 			want: false,
 		},
 		{
 			name: "image earlier in history",
-			body: `{"model":"Weave","messages":[{"role":"user","content":[{"type":"image_url","image_url":{"url":"x"}}]},{"role":"assistant","content":"ok"},{"role":"user","content":"and now"}]}`,
+			body: `{"model":"Aiand","messages":[{"role":"user","content":[{"type":"image_url","image_url":{"url":"x"}}]},{"role":"assistant","content":"ok"},{"role":"user","content":"and now"}]}`,
 			want: true,
 		},
 	}
@@ -54,17 +54,17 @@ func TestHasImages_Anthropic(t *testing.T) {
 	}{
 		{
 			name: "image block",
-			body: `{"model":"Weave","messages":[{"role":"user","content":[{"type":"text","text":"look"},{"type":"image","source":{"type":"base64","media_type":"image/png","data":"AAA"}}]}]}`,
+			body: `{"model":"Aiand","messages":[{"role":"user","content":[{"type":"text","text":"look"},{"type":"image","source":{"type":"base64","media_type":"image/png","data":"AAA"}}]}]}`,
 			want: true,
 		},
 		{
 			name: "text block only",
-			body: `{"model":"Weave","messages":[{"role":"user","content":[{"type":"text","text":"hello"}]}]}`,
+			body: `{"model":"Aiand","messages":[{"role":"user","content":[{"type":"text","text":"hello"}]}]}`,
 			want: false,
 		},
 		{
 			name: "string content",
-			body: `{"model":"Weave","messages":[{"role":"user","content":"hello"}]}`,
+			body: `{"model":"Aiand","messages":[{"role":"user","content":"hello"}]}`,
 			want: false,
 		},
 		{
@@ -73,17 +73,17 @@ func TestHasImages_Anthropic(t *testing.T) {
 			// gate keys off this one signal, so missing this shape lets the turn
 			// dispatch to a text-only model.
 			name: "image nested in tool_result",
-			body: `{"model":"Weave","messages":[{"role":"assistant","content":[{"type":"tool_use","id":"toolu_1","name":"Read","input":{}}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","content":[{"type":"image","source":{"type":"base64","media_type":"image/png","data":"AAA"}}]}]}]}`,
+			body: `{"model":"Aiand","messages":[{"role":"assistant","content":[{"type":"tool_use","id":"toolu_1","name":"Read","input":{}}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","content":[{"type":"image","source":{"type":"base64","media_type":"image/png","data":"AAA"}}]}]}]}`,
 			want: true,
 		},
 		{
 			name: "tool_result with text only",
-			body: `{"model":"Weave","messages":[{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","content":[{"type":"text","text":"file contents"}]}]}]}`,
+			body: `{"model":"Aiand","messages":[{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","content":[{"type":"text","text":"file contents"}]}]}]}`,
 			want: false,
 		},
 		{
 			name: "tool_result with string content",
-			body: `{"model":"Weave","messages":[{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","content":"ok"}]}]}`,
+			body: `{"model":"Aiand","messages":[{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","content":"ok"}]}]}`,
 			want: false,
 		},
 	}

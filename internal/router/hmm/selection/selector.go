@@ -8,13 +8,13 @@ import (
 	"slices"
 	"sort"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/escalation"
-	"weave-os/router/internal/router/hmm"
-	"weave-os/router/internal/router/hmm/rosterdata"
-	"weave-os/router/internal/router/policy"
-	"weave-os/router/internal/router/taskdomain"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/escalation"
+	"aiand-os/router/internal/router/hmm"
+	"aiand-os/router/internal/router/hmm/rosterdata"
+	"aiand-os/router/internal/router/policy"
+	"aiand-os/router/internal/router/taskdomain"
 )
 
 // ErrNoEligibleArm is returned when no ranked group holds an eligible arm.

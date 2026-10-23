@@ -1,6 +1,6 @@
 package planner
 
-import "weave-os/router/internal/router/catalog"
+import "aiand-os/router/internal/router/catalog"
 
 // CorrectedTermsForTest exposes corrected per-turn gain and switch cost for
 // cross-validation against router-internal/eval/cache_eviction/policy.py.

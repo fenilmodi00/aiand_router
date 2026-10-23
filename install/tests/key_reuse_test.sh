@@ -44,40 +44,40 @@ run() {
   if [ "${1:-}" != "--" ]; then key="$1"; shift; fi
   [ "${1:-}" = "--" ] && shift
   HOME="$home" XDG_CACHE_HOME="$home/.cache" PATH="$test_path" NO_COLOR=1 \
-    WEAVE_ROUTER_KEY="$key" \
+    AIAND_ROUTER_KEY="$key" \
     bash "$installer" "$@" --base-url http://127.0.0.1:9 </dev/null >/dev/null 2>&1
 }
 
 run_with_email() {
   local home="$1"; local flag_email="$2"; shift 2
   HOME="$home" XDG_CACHE_HOME="$home/.cache" PATH="$test_path" NO_COLOR=1 \
-    WEAVE_ROUTER_KEY="rk_email" WEAVE_USER_EMAIL="env@example.com" \
+    AIAND_ROUTER_KEY="rk_email" AIAND_USER_EMAIL="env@example.com" \
     bash "$installer" "$@" --email "$flag_email" --base-url http://127.0.0.1:9 </dev/null >/dev/null 2>&1
 }
 
 installed_key() { # installed_key <settings_file>
   jq -r '.env.ANTHROPIC_CUSTOM_HEADERS // ""' "$1" 2>/dev/null \
-    | sed -n 's/^X-Weave-Router-Key: //p'
+    | sed -n 's/^X-Aiand-Router-Key: //p'
 }
 
 installed_email() { # installed_email <settings_file>
   jq -r '.env.ANTHROPIC_CUSTOM_HEADERS // ""' "$1" 2>/dev/null \
-    | sed -n 's/^X-Weave-User-Email: //p'
+    | sed -n 's/^X-Aiand-User-Email: //p'
 }
 
 # Per-target readers for the same key, each pulling from where that client's
 # install actually stores it. Deliberately independent of install.sh's own
 # parsers: a test that reused them would pass even if both sides were wrong.
 codex_key() { # codex_key <config.toml>
-  sed -n 's/.*"X-Weave-Router-Key"[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$1" 2>/dev/null | head -n 1
+  sed -n 's/.*"X-Aiand-Router-Key"[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$1" 2>/dev/null | head -n 1
 }
 
 opencode_key() { # opencode_key <opencode.json>
-  jq -r '.provider.weave.options.headers["X-Weave-Router-Key"] // ""' "$1" 2>/dev/null
+  jq -r '.provider.aiand.options.headers["X-Aiand-Router-Key"] // ""' "$1" 2>/dev/null
 }
 
 pi_key() { # pi_key <models.json>
-  jq -r '.providers.weave.headers["X-Weave-Router-Key"] // ""' "$1" 2>/dev/null
+  jq -r '.providers.aiand.headers["X-Aiand-Router-Key"] // ""' "$1" 2>/dev/null
 }
 
 codex_base() { # codex_base <config.toml>
@@ -136,14 +136,14 @@ project_settings="$proj/.claude/settings.json"
 printf '%s\n' '{"model":"opus[1m]","hooks":{"PostToolUse":[{"hooks":[{"type":"command","command":"telemetry"}]}]}}' >"$project_settings"
 ( cd "$proj" && run "$proj_home" rk_proj -- --claude --scope project --quiet --non-interactive )
 check "project install writes the endpoint marker" \
-  "$(jq -r '.env.WEAVE_ROUTER_BASE_URL // ""' "$local_settings")" "http://127.0.0.1:9"
+  "$(jq -r '.env.AIAND_ROUTER_BASE_URL // ""' "$local_settings")" "http://127.0.0.1:9"
 
 jq '.env.KEEP_ME = "preserve"' "$local_settings" >"$local_settings.tmp" && mv "$local_settings.tmp" "$local_settings"
 ( cd "$proj" && HOME="$proj_home" PATH="$test_path" NO_COLOR=1 \
     bash "$uninstaller" --claude --scope project </dev/null >/dev/null 2>&1 )
 check "project uninstall succeeds" "$?" 0
 check "project uninstall removes the endpoint marker" \
-  "$(jq -r '.env.WEAVE_ROUTER_BASE_URL // ""' "$local_settings")" ""
+  "$(jq -r '.env.AIAND_ROUTER_BASE_URL // ""' "$local_settings")" ""
 check "project uninstall removes the router key" "$(installed_key "$local_settings")" ""
 check "project uninstall preserves unrelated local env" \
   "$(jq -r '.env.KEEP_ME // ""' "$local_settings")" "preserve"
@@ -212,7 +212,7 @@ check "update installs the beta slash command" \
 # on the physical command-dir path, so resolve it the same way here — on macOS
 # mktemp hands back /var/... for /private/var/....
 cmd_dir_real="$(cd "$upd_home/.claude/commands" && pwd -P)"
-baseline="$upd_home/.cache/weave-router/commands$(printf '%s' "$cmd_dir_real" | tr -c 'A-Za-z0-9._-' '_')"
+baseline="$upd_home/.cache/aiand-router/commands$(printf '%s' "$cmd_dir_real" | tr -c 'A-Za-z0-9._-' '_')"
 if [ -f "$baseline/force-model.md" ] && [ -f "$baseline/beta.md" ] && [ -f "$baseline/router-off.md" ]; then
   ok "install seeds the slash-command baseline"
 else
@@ -242,7 +242,7 @@ fi
 # ---------- update after `off`: parked sidecar key + base URL carry-over ----------
 #
 # `off` moves the router URL and key header out of settings.json/settings.local.json
-# and into .weave-parked.json. A re-run while toggled off must still find the key
+# and into .aiand-parked.json. A re-run while toggled off must still find the key
 # there (not demand a fresh paste) and must not silently retarget the endpoint at
 # the hosted default just because --base-url wasn't repeated.
 #
@@ -253,11 +253,11 @@ fi
 
 off_home="$work/off"; mkdir -p "$off_home"
 off_settings="$off_home/.claude/settings.json"
-off_parked="$off_home/.claude/.weave-parked.json"
+off_parked="$off_home/.claude/.aiand-parked.json"
 custom_url="http://custom-router.internal:9999"
 
 HOME="$off_home" XDG_CACHE_HOME="$off_home/.cache" PATH="$test_path" NO_COLOR=1 \
-  WEAVE_ROUTER_KEY="rk_off" \
+  AIAND_ROUTER_KEY="rk_off" \
   bash "$installer" --claude --scope user --quiet --non-interactive --base-url "$custom_url" </dev/null >/dev/null 2>&1
 HOME="$off_home" PATH="$test_path" NO_COLOR=1 \
   bash "$installer" off --claude </dev/null >/dev/null 2>&1
@@ -303,7 +303,7 @@ proj_off_settings="$proj_off/.claude/settings.json"
 proj_off_local="$proj_off/.claude/settings.local.json"
 
 ( cd "$proj_off" && HOME="$proj_off_home" XDG_CACHE_HOME="$proj_off_home/.cache" PATH="$test_path" NO_COLOR=1 \
-    WEAVE_ROUTER_KEY="rk_proj_off" \
+    AIAND_ROUTER_KEY="rk_proj_off" \
     bash "$installer" --claude --scope project --quiet --non-interactive </dev/null >/dev/null 2>&1 )
 ( cd "$proj_off" && HOME="$proj_off_home" PATH="$test_path" NO_COLOR=1 \
     bash "$installer" off --claude --scope project </dev/null >/dev/null 2>&1 )
@@ -317,7 +317,7 @@ check "update while off (project scope) recovers the key into settings.local.jso
 check "update while off (project scope) drops the direct-to-Anthropic override" \
   "$(jq -r '.env.ANTHROPIC_BASE_URL // ""' "$proj_off_local")" ""
 check "update while off (project scope) leaves the router URL live in settings.json" \
-  "$(jq -r '.env.ANTHROPIC_BASE_URL // ""' "$proj_off_settings")" "https://router.workweave.ai"
+  "$(jq -r '.env.ANTHROPIC_BASE_URL // ""' "$proj_off_settings")" "https://router.workaiand.ai"
 
 # ---------- codex / opencode / pi: the same read-back Claude Code has ----------
 #
@@ -340,7 +340,7 @@ run_dir() {
   if [ "${1:-}" != "--" ]; then key="$1"; shift; fi
   [ "${1:-}" = "--" ] && shift
   HOME="$home" XDG_CACHE_HOME="$home/.cache" PATH="$test_path" NO_COLOR=1 \
-    WEAVE_ROUTER_KEY="$key" \
+    AIAND_ROUTER_KEY="$key" \
     bash "$installer" "$@" --dir "$dir" --base-url http://127.0.0.1:9 </dev/null >/dev/null 2>&1
 }
 
@@ -392,7 +392,7 @@ check_target_reuse pi       --pi       ".pi/models.json"    pi_key
 # pi keeps a second copy in a dedicated key file, which is what its runtime
 # extension actually reads. Read-back has to keep both in step.
 check "pi: key file matches the config copy" \
-  "$(tr -d '[:space:]' <"$work/pi-dir/.pi/.weave_router_key" 2>/dev/null)" "rk_pi_second"
+  "$(tr -d '[:space:]' <"$work/pi-dir/.pi/.aiand_router_key" 2>/dev/null)" "rk_pi_second"
 
 # ---------- update must not retarget a custom endpoint ----------
 #
@@ -409,7 +409,7 @@ custom_ep="http://custom-router.internal:9999"
 # Direct invocation, not run_dir — that helper always appends its own
 # --base-url, which would set base_url_explicit and defeat the carry-over.
 HOME="$ep_home" XDG_CACHE_HOME="$ep_home/.cache" PATH="$test_path" NO_COLOR=1 \
-  WEAVE_ROUTER_KEY="rk_endpoint" \
+  AIAND_ROUTER_KEY="rk_endpoint" \
   bash "$installer" --codex --dir "$ep_dir" --quiet --non-interactive \
     --base-url "$custom_ep" </dev/null >/dev/null 2>&1
 HOME="$ep_home" XDG_CACHE_HOME="$ep_home/.cache" PATH="$test_path" NO_COLOR=1 \
@@ -432,22 +432,22 @@ git -C "$hostile" init -q .
 git -C "$hostile" config user.email test@example.com
 git -C "$hostile" config user.name test
 cat >"$hostile/.codex/config.toml" <<'HOSTILE'
-# >>> weave-router managed (do not edit between markers) >>>
-model_provider = "weave"
+# >>> aiand-router managed (do not edit between markers) >>>
+model_provider = "aiand"
 
-[model_providers.weave]
-name = "Weave Router"
+[model_providers.aiand]
+name = "Aiand Router"
 base_url = "http://127.0.0.1:9/v1"
 wire_api = "responses"
 requires_openai_auth = true
-http_headers = { "X-Weave-Router-Key" = "rk_attacker_planted", "X-App" = "codex" }
-# <<< weave-router managed <<<
+http_headers = { "X-Aiand-Router-Key" = "rk_attacker_planted", "X-App" = "codex" }
+# <<< aiand-router managed <<<
 HOSTILE
 git -C "$hostile" add -f .codex/config.toml
 git -C "$hostile" commit -qm "planted router config"
 
 ( cd "$hostile" && HOME="$hostile_home" XDG_CACHE_HOME="$hostile_home/.cache" \
-    PATH="$test_path" NO_COLOR=1 WEAVE_ROUTER_KEY="" \
+    PATH="$test_path" NO_COLOR=1 AIAND_ROUTER_KEY="" \
     bash "$installer" --codex --scope project --quiet --non-interactive \
       --base-url http://127.0.0.1:9 </dev/null >/dev/null 2>&1 )
 check "codex: a git-tracked config's key is not adopted" "$?" 1
@@ -464,7 +464,7 @@ HOME="$gone_home" PATH="$test_path" NO_COLOR=1 \
   bash "$uninstaller" --pi --dir "$gone_dir" </dev/null >/dev/null 2>&1
 check "pi: uninstall removes the models.json key" \
   "$(pi_key "$gone_dir/.pi/models.json")" ""
-if [ ! -f "$gone_dir/.pi/.weave_router_key" ]; then
+if [ ! -f "$gone_dir/.pi/.aiand_router_key" ]; then
   ok "pi: uninstall removes the key file"
 else
   no "pi: uninstall removes the key file" "file removed" "file still present"

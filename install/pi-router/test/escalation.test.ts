@@ -24,7 +24,7 @@ function harness(version?: string) {
 		sendUserMessage: (message: string) => messages.push(message),
 	} as unknown as ExtensionAPI;
 	const ctx = {
-		model: { id: "virtual-model", provider: "weave" },
+		model: { id: "virtual-model", provider: "aiand" },
 		sessionManager: { getSessionId: () => "test-session", getBranch: () => branch },
 		getContextUsage: () => ({ tokens: 60_000 }),
 		isIdle: () => true,
@@ -54,15 +54,15 @@ function harness(version?: string) {
 }
 
 function enable(t: TestContext) {
-	const oldEnabled = process.env.WEAVE_PI_ESCALATION_COMPACTION;
-	const oldKey = process.env.WEAVE_ROUTER_KEY;
-	delete process.env.WEAVE_PI_ESCALATION_COMPACTION;
-	process.env.WEAVE_ROUTER_KEY = "offline-test-key";
+	const oldEnabled = process.env.AIAND_PI_ESCALATION_COMPACTION;
+	const oldKey = process.env.AIAND_ROUTER_KEY;
+	delete process.env.AIAND_PI_ESCALATION_COMPACTION;
+	process.env.AIAND_ROUTER_KEY = "offline-test-key";
 	t.after(() => {
-		if (oldEnabled === undefined) delete process.env.WEAVE_PI_ESCALATION_COMPACTION;
-		else process.env.WEAVE_PI_ESCALATION_COMPACTION = oldEnabled;
-		if (oldKey === undefined) delete process.env.WEAVE_ROUTER_KEY;
-		else process.env.WEAVE_ROUTER_KEY = oldKey;
+		if (oldEnabled === undefined) delete process.env.AIAND_PI_ESCALATION_COMPACTION;
+		else process.env.AIAND_PI_ESCALATION_COMPACTION = oldEnabled;
+		if (oldKey === undefined) delete process.env.AIAND_ROUTER_KEY;
+		else process.env.AIAND_ROUTER_KEY = oldKey;
 	});
 }
 
@@ -95,7 +95,7 @@ test("older Pi warns at startup and preserves routing without handoff preparatio
 
 test("explicit opt-out preserves provider requests without preparing a handoff", async (t) => {
 	enable(t);
-	process.env.WEAVE_PI_ESCALATION_COMPACTION = "0";
+	process.env.AIAND_PI_ESCALATION_COMPACTION = "0";
 	const h = harness();
 	assert.equal(await h.emit("before_provider_request", { payload: { messages: [] } }), undefined);
 	assert.equal(h.preparations(), 0);
@@ -107,8 +107,8 @@ test("Pi defaults to handoff compaction and resumes the reserved model without p
 	enable(t);
 	const h = harness();
 	const first = await h.emit("before_provider_request", { payload: { messages: [] } });
-	assert.equal(first.weave_handoff, lowRoute.token);
-	assert.equal(first.weave_session, lowRoute.session_token);
+	assert.equal(first.aiand_handoff, lowRoute.token);
+	assert.equal(first.aiand_session, lowRoute.session_token);
 	await h.emit("after_provider_response", { status: 200, headers: { "x-router-model": lowRoute.model } });
 	h.select(highRoute);
 	assert.equal(await h.emit("before_provider_request", { payload: { messages: [] } }), undefined);
@@ -120,9 +120,9 @@ test("Pi defaults to handoff compaction and resumes the reserved model without p
 	h.complete();
 	assert.equal(h.messages.length, 1);
 	const resumed = await h.emit("before_provider_request", { payload: { messages: ["compacted"] } });
-	assert.equal(resumed.weave_handoff, highRoute.token);
-	assert.equal(resumed.weave_session, lowRoute.session_token);
-	assert.equal(h.preparedPayloads[1].weave_session, lowRoute.session_token);
+	assert.equal(resumed.aiand_handoff, highRoute.token);
+	assert.equal(resumed.aiand_session, lowRoute.session_token);
+	assert.equal(h.preparedPayloads[1].aiand_session, lowRoute.session_token);
 	assert.deepEqual(resumed.messages, ["compacted"]);
 	assert.equal(h.preparations(), 2);
 	assert.equal(h.pending(), false);
@@ -180,7 +180,7 @@ test("summary requests preserve the cached prefix and do not duplicate the seria
 	assert.deepEqual((summary.messages as unknown[]).slice(0, -1), original.messages);
 	assert.equal(original.messages.length, 1);
 	assert.doesNotMatch(JSON.stringify(summary), /serialized duplicate/);
-	assert.equal(summary.weave_handoff, "summary-ticket");
+	assert.equal(summary.aiand_handoff, "summary-ticket");
 });
 
 test("restored route classes survive session resume but an unknown served model invalidates them", async (t) => {
@@ -199,7 +199,7 @@ test("restored route classes survive session resume but an unknown served model 
 	await h.emit("session_start");
 	h.select(highRoute);
 	const dispatched = await h.emit("before_provider_request", { payload: {} });
-	assert.equal(dispatched.weave_handoff, highRoute.token);
+	assert.equal(dispatched.aiand_handoff, highRoute.token);
 	assert.equal(h.pending(), false);
 });
 
@@ -211,14 +211,14 @@ test("signed thread identity survives resume, model selection, and preparation b
 	await h.emit("model_select");
 	h.select({ bypass: true });
 	const bypass = await h.emit("before_provider_request", { payload: { messages: ["compacted"] } });
-	assert.equal(h.preparedPayloads[1].weave_session, lowRoute.session_token);
-	assert.equal(bypass.weave_session, lowRoute.session_token);
-	assert.equal(bypass.weave_handoff, undefined);
+	assert.equal(h.preparedPayloads[1].aiand_session, lowRoute.session_token);
+	assert.equal(bypass.aiand_session, lowRoute.session_token);
+	assert.equal(bypass.aiand_handoff, undefined);
 	await h.emit("session_start");
 	h.select(lowRoute);
 	await h.emit("before_provider_request", { payload: {} });
-	assert.equal(h.preparedPayloads[2].weave_session, lowRoute.session_token);
-	assert.equal(h.branch.filter(entry => entry.customType === "weave-handoff-session").length, 1);
+	assert.equal(h.preparedPayloads[2].aiand_session, lowRoute.session_token);
+	assert.equal(h.branch.filter(entry => entry.customType === "aiand-handoff-session").length, 1);
 });
 
 test("a forked session does not reuse its parent's signed thread identity", async (t) => {
@@ -228,5 +228,5 @@ test("a forked session does not reuse its parent's signed thread identity", asyn
 	h.ctx.sessionManager.getSessionId = () => "forked-session";
 	await h.emit("session_start");
 	await h.emit("before_provider_request", { payload: {} });
-	assert.equal(h.preparedPayloads[1].weave_session, undefined);
+	assert.equal(h.preparedPayloads[1].aiand_session, undefined);
 });

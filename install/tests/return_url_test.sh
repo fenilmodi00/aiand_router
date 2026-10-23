@@ -42,7 +42,7 @@ run_install() {
   mkdir -p "$home"
   : >"$log"
   HOME="$home" OPEN_LOG="$log" PATH="$fake_bin:$PATH" NO_COLOR=1 \
-    WEAVE_ROUTER_KEY="rk_return_url_test" HEALTH_OK="$health" VALIDATE_OK="$validate" \
+    AIAND_ROUTER_KEY="rk_return_url_test" HEALTH_OK="$health" VALIDATE_OK="$validate" \
     bash "$installer" --claude --scope user --quiet --non-interactive \
       --base-url http://127.0.0.1:9 --return-url 'https://app.example.test/continue?source=router&ok=1' \
       </dev/null >"$home/install.log" 2>&1 || true
@@ -77,7 +77,7 @@ mkdir -p "$invalid_home"
 : >"$invalid_log"
 invalid_rc=0
 HOME="$invalid_home" OPEN_LOG="$invalid_log" PATH="$fake_bin:$PATH" NO_COLOR=1 \
-  WEAVE_ROUTER_KEY="rk_return_url_test" \
+  AIAND_ROUTER_KEY="rk_return_url_test" \
   bash "$installer" --claude --scope user --quiet --non-interactive \
     --base-url http://127.0.0.1:9 --return-url 'javascript:alert(1)' \
     </dev/null >"$invalid_home/install.log" 2>&1 || invalid_rc=$?
@@ -89,10 +89,10 @@ env_log="$work/env-browser.log"
 mkdir -p "$env_home"
 : >"$env_log"
 HOME="$env_home" OPEN_LOG="$env_log" PATH="$fake_bin:$PATH" NO_COLOR=1 \
-  WEAVE_ROUTER_KEY="rk_return_url_test" WEAVE_ROUTER_RETURN_URL='https://app.example.test/continue?source=router&ok=1' \
+  AIAND_ROUTER_KEY="rk_return_url_test" AIAND_ROUTER_RETURN_URL='https://app.example.test/continue?source=router&ok=1' \
   bash "$installer" --claude --scope user --quiet --non-interactive --base-url http://127.0.0.1:9 \
     </dev/null >"$env_home/install.log" 2>&1 || true
-check "opens WEAVE_ROUTER_RETURN_URL after verification" \
+check "opens AIAND_ROUTER_RETURN_URL after verification" \
   "https://app.example.test/continue?source=router&ok=1" "$(cat "$env_log")"
 
 win_home="$work/windows-opener"

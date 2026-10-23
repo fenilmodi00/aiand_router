@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"weave-os/router/internal/policyregistry"
+	"aiand-os/router/internal/policyregistry"
 )
 
 // slowServingStore delays every authoritative read so a recorded duration is

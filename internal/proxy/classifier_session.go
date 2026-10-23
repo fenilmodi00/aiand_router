@@ -11,20 +11,20 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/requestcontext"
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/router"
 )
 
 // ClassifierThreadHeader is a router-only token. General subagents enroll
 // independently; the native one-shot search helper is isolated server-side.
 // Compaction must never create a new token.
-const ClassifierThreadHeader = "X-Weave-Classifier-Thread"
+const ClassifierThreadHeader = "X-Aiand-Classifier-Thread"
 
 // ClassifierThreadUnavailableToken lets a client fail closed when its hook
 // runtime swallows an enrollment error. It is never a valid signed ticket.
-const ClassifierThreadUnavailableToken = "weave-classifier-unavailable"
-const classifierThreadIssuer = "weave-classifier-thread-v1"
+const ClassifierThreadUnavailableToken = "aiand-classifier-unavailable"
+const classifierThreadIssuer = "aiand-classifier-thread-v1"
 const classifierThreadLifetime = 30 * 24 * time.Hour
 
 var classifierReleasePattern = regexp.MustCompile(`^llm-classifier-v[0-9]+\.[0-9]+\.[0-9]+$`)

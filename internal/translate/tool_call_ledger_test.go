@@ -3,8 +3,8 @@ package translate_test
 import (
 	"testing"
 
-	"weave-os/router/internal/translate"
-	"weave-os/router/internal/translate/toolcheck"
+	"aiand-os/router/internal/translate"
+	"aiand-os/router/internal/translate/toolcheck"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

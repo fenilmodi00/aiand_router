@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/router"
 )
 
 // byID is built once at init from Models so accessors are O(1).

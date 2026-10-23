@@ -256,8 +256,8 @@ A helper that logs on the request path takes `ctx` and calls `observability.From
 
 ## Things to NEVER do
 
-- **Never put customer/company/org names or private identifiers in anything committed here.** This repo is public — commit messages, branch names, PR titles/descriptions, code comments, tests, and fixtures are world-readable. This holds even when a change is motivated by one customer's investigation (e.g. a loop-break or spiral fix found from a specific org's agentic session): describe the trigger generically ("a customer", "a large agentic session", "an org's monorepo"). No org names, org IDs, account emails, internal ticket/Linear links, or verbatim private Slack/support excerpts — those stay in the private Weave repo + Linear.
-- **Never import code from outside this subproject.** Router is standalone Go module (`module weave-os/router`) with no cross-project deps. If need utility from elsewhere in monorepo, copy into appropriate `internal/` package with own godoc.
+- **Never put customer/company/org names or private identifiers in anything committed here.** This repo is public — commit messages, branch names, PR titles/descriptions, code comments, tests, and fixtures are world-readable. This holds even when a change is motivated by one customer's investigation (e.g. a loop-break or spiral fix found from a specific org's agentic session): describe the trigger generically ("a customer", "a large agentic session", "an org's monorepo"). No org names, org IDs, account emails, internal ticket/Linear links, or verbatim private Slack/support excerpts — those stay in the private Aiand repo + Linear.
+- **Never import code from outside this subproject.** Router is standalone Go module (`module aiand-os/router`) with no cross-project deps. If need utility from elsewhere in monorepo, copy into appropriate `internal/` package with own godoc.
 - **Never write raw SQL outside `db/queries/`** or call `pgx.Pool` directly from anywhere except `internal/postgres/`. SQLC is only data mapper.
 - **Never reach across layers.** Handler in `internal/api/` calling `*sqlc.Queries` directly = layering violation; surface Service method instead. Repo calling another repo = layering violation; put orchestration in `auth.Service` / `proxy.Service`.
 - **Never add FKs to tables outside router's own schema.** Such tables don't exist in this project. `organization_id` + `created_by` = opaque external strings, not FKs.
@@ -277,12 +277,12 @@ When adding new endpoint, put inside `selfhosted` block in `server.Register` unl
 
 ## Eval harness (sibling `router-internal/eval/`)
 
-The eval harness is a sibling uv project, **not in this repo** — lives at `router-internal/eval/` in the Weave monorepo and runs as a Modal app. It exercises the router via staging headers; see that package's README.
+The eval harness is a sibling uv project, **not in this repo** — lives at `router-internal/eval/` in the Aiand monorepo and runs as a Modal app. It exercises the router via staging headers; see that package's README.
 
 **Per-request router selection (server side):**
 
-- [`internal/server/middleware`](internal/server/middleware).`WithClusterVersionOverride` reads `x-weave-cluster-version: v0.X` header + stashes version on request context. `cluster.Multiversion.Route` reads via `cluster.VersionFromContext` + dispatches to matching `Scorer`. Customer traffic (no header) always serves deployment's default version (`ROUTER_CLUSTER_VERSION` → `artifacts/latest`).
-- `WithEmbedOnlyUserMessageOverride` honors `x-weave-embed-only-user-message: true|false` header, flipping proxy between embedding user-role text only (default) + concatenated action stream.
+- [`internal/server/middleware`](internal/server/middleware).`WithClusterVersionOverride` reads `x-aiand-cluster-version: v0.X` header + stashes version on request context. `cluster.Multiversion.Route` reads via `cluster.VersionFromContext` + dispatches to matching `Scorer`. Customer traffic (no header) always serves deployment's default version (`ROUTER_CLUSTER_VERSION` → `artifacts/latest`).
+- `WithEmbedOnlyUserMessageOverride` honors `x-aiand-embed-only-user-message: true|false` header, flipping proxy between embedding user-role text only (default) + concatenated action stream.
 
 **What to NOT do:**
 

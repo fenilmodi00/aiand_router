@@ -1,6 +1,6 @@
 # Third-party licensing
 
-The repository's Apache-2.0 license covers Weave's code. It does not
+The repository's Apache-2.0 license covers Aiand's code. It does not
 relicense third-party code, dependencies, model weights, or datasets, or grant
 access to upstream API services. Retain the applicable upstream licenses,
 copyrights, and attribution when redistributing them.

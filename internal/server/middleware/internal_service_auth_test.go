@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"weave-os/router/internal/server/middleware"
+	"aiand-os/router/internal/server/middleware"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -24,7 +24,7 @@ func internalServiceResponse(t *testing.T, token, presented string) int {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, "/internal/v1/ping", nil)
 	if presented != "" {
-		req.Header.Set("X-Weave-Internal-Token", presented)
+		req.Header.Set("X-Aiand-Internal-Token", presented)
 	}
 	rec := httptest.NewRecorder()
 	internalServiceEngine(token).ServeHTTP(rec, req)

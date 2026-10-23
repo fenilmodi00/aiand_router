@@ -16,12 +16,12 @@ Pipeline:
   4. INT8 dynamic quantization (onnxruntime).
   5. Parity self-check vs sentence-transformers reference (cosine
      >= 0.99 fp32, >= 0.98 int8) and emit a Go test fixture JSON.
-  6. Optionally upload to a Weave-owned HF repo (--upload).
+  6. Optionally upload to a Aiand-owned HF repo (--upload).
 
 Usage:
   python scripts/export_qwen3_onnx.py --out-dir ./qwen3-export
   python scripts/export_qwen3_onnx.py --out-dir ./qwen3-export \
-      --upload weave-ai/qwen3-embedding-0.6b-onnx-router
+      --upload aiand-ai/qwen3-embedding-0.6b-onnx-router
 
 Requires: torch>=2.2, transformers>=4.51, onnx, onnxruntime,
           sentence-transformers>=2.7 (parity check), huggingface_hub

@@ -13,12 +13,12 @@ ALTER TABLE router.model_router_request_telemetry
     ADD COLUMN degenerate_shadow      BOOLEAN;
 
 -- Canonical production-traffic view.  Filters out eval/knob-sweep traffic
--- tagged via X-App: weave-eval* so routing-health queries don't need to
+-- tagged via X-App: aiand-eval* so routing-health queries don't need to
 -- re-derive the predicate ad hoc.  For historical rows (before eval harnesses
--- sent the weave-eval prefix) additionally filter session_id IS NOT NULL.
+-- sent the aiand-eval prefix) additionally filter session_id IS NOT NULL.
 CREATE VIEW router.production_request_telemetry AS
 SELECT * FROM router.model_router_request_telemetry
 WHERE span_type = 'router.upstream'
-  AND (client_app IS NULL OR client_app NOT LIKE 'weave-eval%');
+  AND (client_app IS NULL OR client_app NOT LIKE 'aiand-eval%');
 
 COMMIT;

@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/hmm/armid"
-	"weave-os/router/internal/router/hmm/rosterdata"
-	"weave-os/router/internal/router/policy"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/hmm/armid"
+	"aiand-os/router/internal/router/hmm/rosterdata"
+	"aiand-os/router/internal/router/policy"
 )
 
 // PrepareWorker validates the immutable bootstrap closure without contacting

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"weave-os/router/internal/subscriptions/entitlement"
+	"aiand-os/router/internal/subscriptions/entitlement"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

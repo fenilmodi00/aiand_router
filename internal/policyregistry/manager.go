@@ -11,10 +11,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/escalation"
-	"weave-os/router/internal/router/hmm/rosterdata"
-	"weave-os/router/internal/router/policy"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/escalation"
+	"aiand-os/router/internal/router/hmm/rosterdata"
+	"aiand-os/router/internal/router/policy"
 )
 
 const defaultPollInterval = time.Minute

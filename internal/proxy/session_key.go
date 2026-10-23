@@ -6,11 +6,11 @@ import (
 	"encoding/hex"
 	"log/slog"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/requestcontext"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/sessionpin"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/sessionpin"
+	"aiand-os/router/internal/translate"
 
 	"github.com/google/uuid"
 )

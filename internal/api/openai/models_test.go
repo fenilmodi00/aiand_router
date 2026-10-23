@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"weave-os/router/internal/api/openai"
+	"aiand-os/router/internal/api/openai"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -19,7 +19,7 @@ func TestModelsHandler_CodexShapeByClientApp(t *testing.T) {
 		wantCodex bool
 	}{
 		{"codex", "codex", true},
-		{"eval-tagged codex keeps the codex shape", "weave-eval-codex", true},
+		{"eval-tagged codex keeps the codex shape", "aiand-eval-codex", true},
 		{"claude-code falls through", "claude-code", false},
 		{"unknown falls through", "", false},
 	}

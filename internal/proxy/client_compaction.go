@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"strings"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/turntype"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/turntype"
+	"aiand-os/router/internal/translate"
 )
 
 const clientRecoveryAssistantTurns = 3

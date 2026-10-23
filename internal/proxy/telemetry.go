@@ -8,13 +8,13 @@ import (
 
 	"github.com/google/uuid"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/dispatch"
-	"weave-os/router/internal/inference"
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/gitcontext"
-	"weave-os/router/internal/router/turntype"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/dispatch"
+	"aiand-os/router/internal/inference"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/gitcontext"
+	"aiand-os/router/internal/router/turntype"
 )
 
 // InstallationIDContextKey is the request-context key for the authenticated installation UUID.
@@ -166,7 +166,7 @@ type InsertTelemetryParams struct {
 	ServingTarget         string
 	BoostOptimizerVersion string
 	// RolloutID joins eval/training-harness rollout rewards onto decisions
-	// (x-weave-rollout-id header). Empty for normal traffic → NULL column.
+	// (x-aiand-rollout-id header). Empty for normal traffic → NULL column.
 	RolloutID string
 
 	UpstreamFinishReason  *string
@@ -274,7 +274,7 @@ type InsertTelemetryParams struct {
 	SpiralEditAttempted      *bool
 	// SpiralReasons is non-nil and empty for a recorded turn with no crossings.
 	SpiralReasons []string
-	// RequestedAllowedModels is the canonical x-weave-allowed-models subset the
+	// RequestedAllowedModels is the canonical x-aiand-allowed-models subset the
 	// caller sent, before intersection with the installation allowlist. Nil
 	// (NULL) when the header was absent.
 	RequestedAllowedModels []string
@@ -336,7 +336,7 @@ func trialCaptureEnabledFromContext(ctx context.Context) bool {
 	return enabled
 }
 
-// applyPolicyPinTelemetry records whether an x-weave-policy-pin header reached
+// applyPolicyPinTelemetry records whether an x-aiand-policy-pin header reached
 // the router and whether the served decision came from exactly the pinned
 // artifact and roster. Both stay nil when no pin was requested.
 func applyPolicyPinTelemetry(ctx context.Context, params *InsertTelemetryParams, metadata *router.RoutingMetadata) {

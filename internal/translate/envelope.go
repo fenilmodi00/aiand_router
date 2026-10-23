@@ -7,9 +7,9 @@ import (
 	"regexp"
 	"strings"
 
-	"weave-os/router/internal/requestcontext"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/translate/toolcheck"
+	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/translate/toolcheck"
 
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -60,7 +60,7 @@ type EmitOptions struct {
 	// "high" after a failed/no-progress turn; gemini stays "low" (effort-immune).
 	ForceReasoningEffort string
 	// ForceEffort, when non-empty, is the user-requested effort level
-	// (x-weave-effort header / :level suffix). Wins over ForceReasoningEffort;
+	// (x-aiand-effort header / :level suffix). Wins over ForceReasoningEffort;
 	// per-model caps applied by ResolveForceEffort.
 	ForceEffort string
 	// KeepCrossVendorOrchestrationTools preserves CC orchestration tools
@@ -873,7 +873,7 @@ func encodeJSONStringNoHTMLEscape(s string) ([]byte, error) {
 	return []byte(strings.TrimSuffix(out, "\n")), nil
 }
 
-// routingMarkerPattern matches the "âœ¦ **Weave Router** â†’ ..." snippet
+// routingMarkerPattern matches the "âœ¦ **Aiand Router** â†’ ..." snippet
 // injected in cross-format responses.
 var routingMarkerPattern = routerOwnedNoticePattern
 
@@ -881,7 +881,7 @@ var routingMarkerPattern = routerOwnedNoticePattern
 // responses (see proxy.Service.feedbackFooter), absorbing leading newlines
 // and everything to end of line since there's no fixed end-anchor. Keep the
 // sentinel in sync with proxy.feedbackFooterText.
-var feedbackFooterPattern = regexp.MustCompile("\\n*_Weave Router feedback:_ [^\\n]*")
+var feedbackFooterPattern = regexp.MustCompile("\\n*_Aiand Router feedback:_ [^\\n]*")
 
 // StripRoutingMarkerFromMessages removes the routing-marker snippet from every
 // text block in messages[*].content[*]. Stripping on ingress keeps it out of

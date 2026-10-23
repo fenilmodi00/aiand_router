@@ -9,8 +9,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/router"
 )
 
 func TestDirectRoutingModelInferenceSelection(t *testing.T) {
@@ -31,7 +31,7 @@ func TestDirectRoutingModelInferenceSelection(t *testing.T) {
 		{name: "Gemini URL overrides current HMM body", method: http.MethodPost, path: "/v1beta/models/" + string(router.ModelQwen) + ":streamGenerateContent", body: `{"model":"` + string(router.ModelAutomatic) + `"}`, model: router.ModelQwen, inference: true},
 		{name: "inspection", method: http.MethodGet, path: "/v1/models", body: `{}`},
 		{name: "prepare", method: http.MethodPost, path: "/v1/router/models/" + string(router.ModelQwen) + "/prepare", body: `{}`},
-		{name: "unknown selector", method: http.MethodPost, path: "/v1/messages", body: `{"model":"weave-unknown"}`},
+		{name: "unknown selector", method: http.MethodPost, path: "/v1/messages", body: `{"model":"aiand-unknown"}`},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			request := httptest.NewRequest(test.method, test.path, nil)

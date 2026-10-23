@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/sqlc"
-	"weave-os/router/internal/subscriptions/entitlement"
+	"aiand-os/router/internal/sqlc"
+	"aiand-os/router/internal/subscriptions/entitlement"
 )
 
 type subscriberEntitlementDB struct {

@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"weave-os/router/internal/router/escalation"
+	"aiand-os/router/internal/router/escalation"
 )
 
 type escalationCommitTestStore struct {

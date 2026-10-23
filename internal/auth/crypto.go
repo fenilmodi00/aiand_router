@@ -45,8 +45,8 @@ func (e *tinkEncryptor) Decrypt(ciphertext []byte, externalID, provider string) 
 	return e.aead.Decrypt(ciphertext, aadFor(externalID, provider))
 }
 
-// aadFor MUST stay byte-identical with the Weave-side helper at
-// backend/internal/app/weaverouter/crypto.go.
+// aadFor MUST stay byte-identical with the Aiand-side helper at
+// backend/internal/app/aiandrouter/crypto.go.
 func aadFor(externalID, provider string) []byte {
 	return []byte(externalID + "\x00" + provider)
 }

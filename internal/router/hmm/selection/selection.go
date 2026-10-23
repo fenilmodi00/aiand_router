@@ -8,9 +8,9 @@ import (
 	"sort"
 	"strings"
 
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/hmm"
-	"weave-os/router/internal/router/hmm/rosterdata"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/hmm"
+	"aiand-os/router/internal/router/hmm/rosterdata"
 )
 
 // Pick is the deterministic selection for one decision.

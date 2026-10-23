@@ -12,7 +12,7 @@ import (
 	"sync"
 	"syscall"
 
-	"weave-os/router/internal/trafficcapture"
+	"aiand-os/router/internal/trafficcapture"
 )
 
 const (

@@ -10,10 +10,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/planner"
-	"weave-os/router/internal/router/turntype"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/planner"
+	"aiand-os/router/internal/router/turntype"
+	"aiand-os/router/internal/translate"
 )
 
 func TestModelSelectionReasoningIsOptInAndUsesRecordedClassification(t *testing.T) {
@@ -46,7 +46,7 @@ func TestModelSelectionReasoningOnlyForNewlyServedModel(t *testing.T) {
 	assert.Contains(t, modelSelectionMarkerForRequest(ctx, turn, baselineRoutingMarkerFor(turn, "baseline-model"), "baseline-model", markerReasonBaseline), "REASONING: "+markerReasonBaseline)
 
 	turn.PriorServedModel = "new-model"
-	assert.NotContains(t, modelSelectionMarkerForRequest(ctx, turn, "✦ **Weave Router** → new-model\n\n", turn.Decision.Model, ""), "REASONING:")
+	assert.NotContains(t, modelSelectionMarkerForRequest(ctx, turn, "✦ **Aiand Router** → new-model\n\n", turn.Decision.Model, ""), "REASONING:")
 	turn.PriorServedModel = "old-model"
 	turn.SuggestionMode = true
 	assert.NotContains(t, modelSelectionMarkerForRequest(ctx, turn, marker, turn.Decision.Model, ""), "REASONING:")
@@ -99,7 +99,7 @@ func TestRoutingMarkerFor_UsesSidecarDisplayMarker(t *testing.T) {
 			Model:    "moonshotai/kimi-k2.7-code",
 			Provider: "openrouter",
 			Metadata: &router.RoutingMetadata{
-				DisplayMarker: "✦ **Weave Router** → Delegating work with moonshotai/kimi-k2.7-code\n↳ label: delegated_work",
+				DisplayMarker: "✦ **Aiand Router** → Delegating work with moonshotai/kimi-k2.7-code\n↳ label: delegated_work",
 			},
 		},
 		PlannerDecision: planner.Decision{
@@ -107,7 +107,7 @@ func TestRoutingMarkerFor_UsesSidecarDisplayMarker(t *testing.T) {
 		},
 	})
 
-	assert.Equal(t, "✦ **Weave Router** → Delegating work with moonshotai/kimi-k2.7-code\n↳ label: delegated_work\n\n", got)
+	assert.Equal(t, "✦ **Aiand Router** → Delegating work with moonshotai/kimi-k2.7-code\n↳ label: delegated_work\n\n", got)
 }
 
 func TestRoutingMarkerFor_SidecarDisplayMarkerStillRespectsSuggestionMode(t *testing.T) {
@@ -116,7 +116,7 @@ func TestRoutingMarkerFor_SidecarDisplayMarkerStillRespectsSuggestionMode(t *tes
 		Decision: router.Decision{
 			Model: "moonshotai/kimi-k2.7-code",
 			Metadata: &router.RoutingMetadata{
-				DisplayMarker: "✦ **Weave Router** → Delegating work with moonshotai/kimi-k2.7-code\n↳ label: delegated_work",
+				DisplayMarker: "✦ **Aiand Router** → Delegating work with moonshotai/kimi-k2.7-code\n↳ label: delegated_work",
 			},
 		},
 		PlannerDecision: planner.Decision{
@@ -140,7 +140,7 @@ func TestRoutingMarkerFor_RejectsMalformedSidecarDisplayMarker(t *testing.T) {
 		},
 	})
 
-	assert.Contains(t, got, "✦ **Weave Router** → moonshotai/kimi-k2.7-code")
+	assert.Contains(t, got, "✦ **Aiand Router** → moonshotai/kimi-k2.7-code")
 	assert.Contains(t, got, markerReasonBestPick)
 	assert.NotContains(t, got, "arbitrary sidecar text")
 }
@@ -150,7 +150,7 @@ func TestRoutingMarkerFor_ClampsSidecarDisplayMarker(t *testing.T) {
 		Decision: router.Decision{
 			Model: "moonshotai/kimi-k2.7-code",
 			Metadata: &router.RoutingMetadata{
-				DisplayMarker: "✦ **Weave Router** → " + strings.Repeat("x", maxSidecarDisplayMarkerRunes+100),
+				DisplayMarker: "✦ **Aiand Router** → " + strings.Repeat("x", maxSidecarDisplayMarkerRunes+100),
 			},
 		},
 		PlannerDecision: planner.Decision{
@@ -159,7 +159,7 @@ func TestRoutingMarkerFor_ClampsSidecarDisplayMarker(t *testing.T) {
 	})
 
 	assert.LessOrEqual(t, len([]rune(strings.TrimSpace(got))), maxSidecarDisplayMarkerRunes)
-	assert.Contains(t, got, "✦ **Weave Router** → ")
+	assert.Contains(t, got, "✦ **Aiand Router** → ")
 }
 
 func TestRoutingMarkerFor_SidecarDisplayMarkerSuppressedWhenServedModelUnchanged(t *testing.T) {
@@ -171,7 +171,7 @@ func TestRoutingMarkerFor_SidecarDisplayMarkerSuppressedWhenServedModelUnchanged
 		Decision: router.Decision{
 			Model: "deepseek/deepseek-v4-flash",
 			Metadata: &router.RoutingMetadata{
-				DisplayMarker: "✦ **Weave Router** → deepseek/deepseek-v4-flash · fast route for this turn",
+				DisplayMarker: "✦ **Aiand Router** → deepseek/deepseek-v4-flash · fast route for this turn",
 			},
 		},
 		PriorServedModel: "deepseek/deepseek-v4-flash",
@@ -186,12 +186,12 @@ func TestRoutingMarkerFor_SidecarDisplayMarkerShownOnGenuineSwitch(t *testing.T)
 		Decision: router.Decision{
 			Model: "deepseek/deepseek-v4-flash",
 			Metadata: &router.RoutingMetadata{
-				DisplayMarker: "✦ **Weave Router** → deepseek/deepseek-v4-flash · fast route for this turn",
+				DisplayMarker: "✦ **Aiand Router** → deepseek/deepseek-v4-flash · fast route for this turn",
 			},
 		},
 		PriorServedModel: "deepseek/deepseek-v4-pro",
 	})
-	assert.Equal(t, "✦ **Weave Router** → deepseek/deepseek-v4-flash · fast route for this turn\n\n", got)
+	assert.Equal(t, "✦ **Aiand Router** → deepseek/deepseek-v4-flash · fast route for this turn\n\n", got)
 }
 
 func TestBaselineRoutingMarkerFor_SuppressedWhenBaselineAlreadyServing(t *testing.T) {
@@ -272,7 +272,7 @@ func TestSubscriptionTargetMarker_SwitchedModelIsWordedAsRescue(t *testing.T) {
 	target := router.Decision{Model: "gpt-6.1-sol", Provider: "openai"}
 	res := turnLoopResult{Decision: picked}
 
-	assert.Equal(t, "✦ **Weave Router** → gpt-6.1-sol · "+markerReasonSibling+"\n\n",
+	assert.Equal(t, "✦ **Aiand Router** → gpt-6.1-sol · "+markerReasonSibling+"\n\n",
 		subscriptionTargetMarker(ctx, http.Header{}, res, picked, target, routingMarkerFor(res)))
 
 	optOut := http.Header{}

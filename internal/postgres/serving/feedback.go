@@ -7,8 +7,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/sqlc"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/sqlc"
 )
 
 // FeedbackLookup recovers only persisted request attribution, never the current lane head.

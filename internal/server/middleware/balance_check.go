@@ -5,16 +5,16 @@ import (
 	"errors"
 	"net/http"
 
-	"weave-os/router/internal/billing"
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/proxy"
+	"aiand-os/router/internal/billing"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/proxy"
 
 	"github.com/gin-gonic/gin"
 )
 
 // TopUpURL is the customer-facing page where org admins buy credits.
 // Returned in the 402 body so the client can surface a CTA.
-const TopUpURL = "https://app.workweave.ai/organization/settings/weave-router"
+const TopUpURL = "https://app.workaiand.ai/organization/settings/aiand-router"
 
 // WithBalanceCheck enforces prepaid credit gating on inference routes.
 // Attached only in managed mode and only after WithAuth, so the

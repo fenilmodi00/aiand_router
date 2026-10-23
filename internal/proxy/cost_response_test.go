@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router/catalog"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router/catalog"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,7 +33,7 @@ func TestStreamCostWriterAnnotatesFinalMessageDelta(t *testing.T) {
 	var annotated gjson.Result
 	for _, event := range strings.Split(rec.Body.String(), "\n\n") {
 		if strings.HasPrefix(event, "event: message_delta") {
-			annotated = gjson.Get(strings.TrimPrefix(strings.SplitN(event, "data: ", 2)[1], "data: "), "usage.weave_cost")
+			annotated = gjson.Get(strings.TrimPrefix(strings.SplitN(event, "data: ", 2)[1], "data: "), "usage.aiand_cost")
 		}
 	}
 	require.True(t, annotated.Exists())
@@ -151,7 +151,7 @@ func TestStreamCostWriter_FragmentationMatchesSingleWrite(t *testing.T) {
 			oracle := httptest.NewRecorder()
 			writeChunks(t, newAnnotatingStreamCostWriter(oracle), []string{fx.body})
 			want := oracle.Body.String()
-			require.Contains(t, want, `"weave_cost":{"usd":0.02,"input_usd":0.013,"output_usd":0.007,"cache_read_tokens":3,"cache_creation_tokens":0}`,
+			require.Contains(t, want, `"aiand_cost":{"usd":0.02,"input_usd":0.013,"output_usd":0.007,"cache_read_tokens":3,"cache_creation_tokens":0}`,
 				"the single write must annotate from message_start fallbacks so equivalence is not vacuous")
 
 			for _, size := range chunkSizesFor(fx.body) {

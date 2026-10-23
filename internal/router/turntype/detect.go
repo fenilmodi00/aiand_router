@@ -5,7 +5,7 @@ package turntype
 import (
 	"strings"
 
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/translate"
 )
 
 // TurnType classifies an inbound conversation turn.
@@ -95,7 +95,7 @@ type OpenCodeCaller struct {
 }
 
 // DetectFromEnvelope classifies an inbound request. subAgentHint is the
-// optional x-weave-subagent-type header value.
+// optional x-aiand-subagent-type header value.
 //
 // Conservative by design: false negatives (MainLoop) are safe, false
 // positives aren't, so each heuristic below is intentionally tight.
@@ -260,7 +260,7 @@ func isRecap(lastUserText string) bool {
 }
 
 // isSubAgentDispatch reports whether the request originates from a sub-agent:
-// the x-weave-subagent-type header, a "subagent:" metadata.user_id prefix,
+// the x-aiand-subagent-type header, a "subagent:" metadata.user_id prefix,
 // Claude Code's cc_is_subagent flag on the billing-header line, or a
 // "<transcript>" tag (Claude Code's Agent tool convention) near the start of
 // the first user message. Matching the transcript tag in the user-message body

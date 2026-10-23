@@ -11,13 +11,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
-	"weave-os/router/internal/billing"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/billing"
+	"aiand-os/router/internal/translate"
 )
 
 func TestFundingNoticePolicyAndReplay(t *testing.T) {
 	const model = "synthetic-model"
-	const marker = "✦ **Weave Router** → synthetic-model\n\n"
+	const marker = "✦ **Aiand Router** → synthetic-model\n\n"
 	for _, warning := range subscriptionFundingWarnings {
 		t.Run(string(warning.reason), func(t *testing.T) {
 			ctx := billing.WithSubscriptionOnly(context.Background(), warning.reason)

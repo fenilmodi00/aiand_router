@@ -6,14 +6,14 @@ import (
 	"net/http"
 	"strings"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/requestcontext"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/router/sessionpin"
-	"weave-os/router/internal/router/sessionstrategy"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router/sessionpin"
+	"aiand-os/router/internal/router/sessionstrategy"
+	"aiand-os/router/internal/translate"
 
 	"github.com/google/uuid"
 )
@@ -249,7 +249,7 @@ func writeBetaCommandResponse(
 	message string,
 	inputTokens int,
 ) error {
-	text := "✦ **Weave Router** → " + message + "\n\n"
+	text := "✦ **Aiand Router** → " + message + "\n\n"
 	if env.SourceFormat() == translate.FormatOpenAI {
 		return writeSyntheticOpenAIResponse(w, env, text, inputTokens)
 	}

@@ -6,8 +6,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/policyregistry"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/policyregistry"
 )
 
 func testPlanFailure(c *gin.Context, err error) {

@@ -6,8 +6,8 @@ import (
 	"context"
 	"time"
 
-	"weave-os/router/internal/flags"
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/flags"
+	"aiand-os/router/internal/router"
 )
 
 type Installation struct {
@@ -80,9 +80,9 @@ type Installation struct {
 	ShowModelSelectionReasoning bool
 	// TrialCaptureEnabled opts the installation into the consented trial-period
 	// benchmark's extra telemetry capture (client git context on a session's
-	// first turn). Written by WorkWeave; never influences routing. Defaults false.
+	// first turn). Written by WorkAiand; never influences routing. Defaults false.
 	TrialCaptureEnabled bool
-	// TrialEnrollmentID is the WorkWeave trial enrollment this installation is
+	// TrialEnrollmentID is the WorkAiand trial enrollment this installation is
 	// mirrored from. Empty when not enrolled.
 	TrialEnrollmentID string
 	// FirstRequestServedAt is when this installation first routed a request.

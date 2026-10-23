@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/policyclient"
+	"aiand-os/router/internal/policyclient"
 )
 
 func TestBuildHMMPolicyClientPreservesUnauthenticatedLocalMode(t *testing.T) {

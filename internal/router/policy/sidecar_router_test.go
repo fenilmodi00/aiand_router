@@ -9,10 +9,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/router/policy"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router/policy"
 )
 
 type recordingPolicy struct {
@@ -529,7 +529,7 @@ func TestSidecarRouterClusterOverrideSuppressesStaleDisplayMarker(t *testing.T) 
 		Provider:      providers.ProviderAIAND,
 		Score:         0.8,
 		PolicyGroup:   "maximum",
-		DisplayMarker: "✦ **Weave Router** → Delegating work with moonshotai/kimi-k3",
+		DisplayMarker: "✦ **Aiand Router** → Delegating work with moonshotai/kimi-k3",
 		RankedFallback: []policy.PreviewGroup{{
 			Group:        "maximum",
 			Probability:  0.8,
@@ -675,7 +675,7 @@ func TestSidecarRouterForcedClusterSuppressesStaleDisplayMarker(t *testing.T) {
 		Model:         "anthropic/moonshotai/kimi-k3",
 		Provider:      providers.ProviderAIAND,
 		PolicyGroup:   "maximum",
-		DisplayMarker: "✦ **Weave Router** → Delegating work with moonshotai/kimi-k3",
+		DisplayMarker: "✦ **Aiand Router** → Delegating work with moonshotai/kimi-k3",
 		RankedFallback: []policy.PreviewGroup{
 			{Group: "maximum", Probability: 0.8, EligibleArms: []string{"anthropic/moonshotai/kimi-k3"}},
 			{Group: "fast", Probability: 0.2, EligibleArms: []string{"anthropic/z-ai/glm-5.3-flash"}},

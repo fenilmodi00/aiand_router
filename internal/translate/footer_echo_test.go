@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/translate"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -111,7 +111,7 @@ func TestFeedbackFooterSinceLastHumanTurn_EmptyAndMissing(t *testing.T) {
 }
 
 func TestFeedbackFooterSinceLastHumanTurnInResponses(t *testing.T) {
-	body := []byte("{\"input\":[{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"done\\n\\n_Weave Router feedback:_ `$rf +` x\"}]}]}")
+	body := []byte("{\"input\":[{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"done\\n\\n_Aiand Router feedback:_ `$rf +` x\"}]}]}")
 	assert.True(t, translate.FeedbackFooterSinceLastHumanTurnInResponses(body))
 	assert.True(t, translate.FeedbackFooterSinceLastHumanTurn(body))
 }

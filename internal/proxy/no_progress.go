@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/sessionpin"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/sessionpin"
+	"aiand-os/router/internal/translate"
 
 	"github.com/google/uuid"
 	lru "github.com/hashicorp/golang-lru/v2/expirable"
@@ -289,12 +289,12 @@ func (s *Service) handleNoProgressBreak(
 	}
 
 	msg := fmt.Sprintf(
-		"✦ **Weave Router** → No-progress loop detected: %d consecutive requests under this session routed to `%s` (`%s`) with no observable progress in %s. Stopping this turn and %s.\n\nIf the task is genuinely incomplete, send a follow-up message describing what's still needed; the router will pick a different model.\n\n",
+		"✦ **Aiand Router** → No-progress loop detected: %d consecutive requests under this session routed to `%s` (`%s`) with no observable progress in %s. Stopping this turn and %s.\n\nIf the task is genuinely incomplete, send a follow-up message describing what's still needed; the router will pick a different model.\n\n",
 		count, decisionModel, decisionProvider, noProgressTimeWindow, pinAction,
 	)
 	if env.SourceFormat() == translate.FormatOpenAI {
 		msg = fmt.Sprintf(
-			"Weave Router: no-progress loop detected (%d consecutive routes to %s/%s with no progress in %s). Stopping and %s.",
+			"Aiand Router: no-progress loop detected (%d consecutive routes to %s/%s with no progress in %s). Stopping and %s.",
 			count, decisionModel, decisionProvider, noProgressTimeWindow, pinAction,
 		)
 	}

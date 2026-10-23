@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/tidwall/gjson"
-	"weave-os/router/internal/translate/toolcheck"
+	"aiand-os/router/internal/translate/toolcheck"
 )
 
 // ToolCallEntry is one stable, client-visible tool call assembled from a

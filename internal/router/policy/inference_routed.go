@@ -1,8 +1,8 @@
 package policy
 
 import (
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/catalog"
 )
 
 // RoutedResolutionRequest adapts a decision the turn loop already made into a

@@ -25,9 +25,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/postgres"
-	"weave-os/router/internal/server"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/postgres"
+	"aiand-os/router/internal/server"
 )
 
 func main() {
@@ -175,9 +175,9 @@ func checkWorker(ctx context.Context, binary, dsn, pubsubAddress, token string, 
 		if err != nil {
 			return err
 		}
-		request.Header.Set("X-Weave-Router-Key", token)
+		request.Header.Set("X-Aiand-Router-Key", token)
 		request.Header.Set("User-Agent", "codex_cli_rs/0.1.0")
-		request.Header.Set("X-Weave-Serving-Assertion", "untrusted-ignored-in-legacy-mode")
+		request.Header.Set("X-Aiand-Serving-Assertion", "untrusted-ignored-in-legacy-mode")
 		if err := expectResponse(client, request, http.StatusOK, probe.response); err != nil {
 			return err
 		}
@@ -186,7 +186,7 @@ func checkWorker(ctx context.Context, binary, dsn, pubsubAddress, token string, 
 	if err != nil {
 		return err
 	}
-	request.Header.Set("X-Weave-Router-Key", token)
+	request.Header.Set("X-Aiand-Router-Key", token)
 	request.Header.Set("Content-Type", "application/json")
 	wantStatus := http.StatusOK
 	if mode == server.DeploymentModeManaged {

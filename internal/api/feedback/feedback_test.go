@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	feedbackapi "weave-os/router/internal/api/feedback"
-	token "weave-os/router/internal/feedback"
-	"weave-os/router/internal/proxy"
+	feedbackapi "aiand-os/router/internal/api/feedback"
+	token "aiand-os/router/internal/feedback"
+	"aiand-os/router/internal/proxy"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -191,7 +191,7 @@ func TestRateHandler_OneClickUpPersists(t *testing.T) {
 	assert.Nil(t, up.Comment, "one-click ratings carry no comment")
 	assert.Contains(t, rec.Body.String(), "Thank you for your feedback!")
 	assert.Contains(t, rec.Body.String(), "/v1/feedback/assets/wooly-wave.png")
-	assert.Contains(t, rec.Body.String(), "/v1/feedback/assets/weave.svg")
+	assert.Contains(t, rec.Body.String(), "/v1/feedback/assets/aiand.svg")
 	assert.Contains(t, rec.Header().Get("Content-Type"), "text/html")
 }
 

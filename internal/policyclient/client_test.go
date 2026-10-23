@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/policy"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/policy"
 )
 
 func TestClientPostsVersionedRouteAndParsesPolicyMetadata(t *testing.T) {
@@ -57,7 +57,7 @@ func TestClientPostsVersionedRouteAndParsesPolicyMetadata(t *testing.T) {
 		InstallationID:  "installation-1",
 		ClientApp:       "codex",
 		RolloutID:       "rollout-1",
-		RequestedModel:  "Weave",
+		RequestedModel:  "Aiand",
 		PromptText:      "hello",
 		RoutingIntent:   "high",
 		PreferredModels: []string{"moonshotai/kimi-k2.7"},

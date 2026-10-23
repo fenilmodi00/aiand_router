@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	"github.com/tidwall/gjson"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/sse"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/sse"
 )
 
 var (

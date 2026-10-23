@@ -11,8 +11,8 @@ import (
 	"slices"
 	"time"
 
-	"weave-os/router/internal/router/hmm/rosterdata"
-	"weave-os/router/internal/router/taskdomain"
+	"aiand-os/router/internal/router/hmm/rosterdata"
+	"aiand-os/router/internal/router/taskdomain"
 )
 
 // Domain is one independent work-category bit, not a complexity label.

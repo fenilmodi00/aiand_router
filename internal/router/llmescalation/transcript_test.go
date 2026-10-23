@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/translate"
 )
 
 func transcriptMessage(role translate.EscalationRole, text string) translate.EscalationMessage {

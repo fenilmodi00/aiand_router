@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"weave-os/router/internal/server/middleware"
+	"aiand-os/router/internal/server/middleware"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -14,7 +14,7 @@ import (
 )
 
 // runInvalidKnob fires a request at the given path with an out-of-range
-// x-weave-routing-alpha header and returns the response status + parsed JSON
+// x-aiand-routing-alpha header and returns the response status + parsed JSON
 // body the middleware aborted with.
 func runInvalidKnob(t *testing.T, path string) (int, map[string]any) {
 	t.Helper()

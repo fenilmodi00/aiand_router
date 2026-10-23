@@ -14,10 +14,10 @@ import (
 	"sync"
 	"time"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/postgres"
-	"weave-os/router/internal/router/escalation"
-	"weave-os/router/internal/router/escalationdashboard"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/postgres"
+	"aiand-os/router/internal/router/escalation"
+	"aiand-os/router/internal/router/escalationdashboard"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"

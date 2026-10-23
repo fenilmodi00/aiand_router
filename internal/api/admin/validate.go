@@ -3,7 +3,7 @@ package admin
 import (
 	"net/http"
 
-	"weave-os/router/internal/server/middleware"
+	"aiand-os/router/internal/server/middleware"
 
 	"github.com/gin-gonic/gin"
 )

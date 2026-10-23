@@ -10,9 +10,9 @@ import (
 	"sort"
 	"strings"
 
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/router/taskdomain"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router/taskdomain"
 )
 
 const (

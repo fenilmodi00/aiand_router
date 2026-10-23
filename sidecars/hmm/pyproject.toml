@@ -1,8 +1,8 @@
 [project]
-name = "workweave-hmm-sidecar"
+name = "workaiand-hmm-sidecar"
 version = "0.1.0"
-description = "Frozen HMM policy sidecar for the self-hosted Weave Router"
-authors = [{ name = "Weave Team", email = "engineering@workweave.ai" }]
+description = "Frozen HMM policy sidecar for the self-hosted Aiand Router"
+authors = [{ name = "Aiand Team", email = "engineering@workaiand.ai" }]
 license = { text = "Apache-2.0" }
 requires-python = ">=3.12,<4"
 dependencies = [

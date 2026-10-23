@@ -6,8 +6,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/router/hmm/policycompiler"
-	"weave-os/router/internal/router/hmm/rosterdata"
+	"aiand-os/router/internal/router/hmm/policycompiler"
+	"aiand-os/router/internal/router/hmm/rosterdata"
 )
 
 func TestCompileLegacyRosterPreservesWIIDescription(t *testing.T) {

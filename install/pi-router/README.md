@@ -1,25 +1,25 @@
-# Weave Router pi extension
+# Aiand Router pi extension
 
-> Bundled inside the [`@weave-os/router`](https://www.npmjs.com/package/@weave-os/router) package — not published separately. `src/` here is the source of truth; `npm run prepack` copies it into the package.
+> Bundled inside the [`@aiand-os/router`](https://www.npmjs.com/package/@aiand-os/router) package — not published separately. `src/` here is the source of truth; `npm run prepack` copies it into the package.
 
 A [pi](https://pi.dev) extension that routes every request through the
-[WorkWeave Router](https://github.com/weave-os/router) — a trained, per-request
+[WorkAiand Router](https://github.com/aiand-os/router) — a trained, per-request
 LLM proxy that picks the most cost-efficient model that still solves each task.
 
-Installed automatically by the Weave Router installer:
+Installed automatically by the Aiand Router installer:
 
 ```bash
-WEAVE_ROUTER_KEY=rk_… npx --package @weave-os/router -y -- weave-router --pi
-WEAVE_ROUTER_KEY=rk_… npx --package @weave-os/router -y -- weave-router --pi --local  # local router
-WEAVE_ROUTER_KEY=rk_… npx --package @weave-os/router -y -- weave-router --pi --lsp go,typescript  # + language servers for the lsp tool
+AIAND_ROUTER_KEY=rk_… npx --package @aiand-os/router -y -- aiand-router --pi
+AIAND_ROUTER_KEY=rk_… npx --package @aiand-os/router -y -- aiand-router --pi --local  # local router
+AIAND_ROUTER_KEY=rk_… npx --package @aiand-os/router -y -- aiand-router --pi --lsp go,typescript  # + language servers for the lsp tool
 ```
 
-That writes `~/.pi/agent/models.json` (the `weave` provider), adds
-`npm:@weave-os/router` to `~/.pi/agent/settings.json` `packages`, and stores
-the key in `~/.pi/agent/.weave_router_key`. pi auto-installs `@weave-os/router`
+That writes `~/.pi/agent/models.json` (the `aiand` provider), adds
+`npm:@aiand-os/router` to `~/.pi/agent/settings.json` `packages`, and stores
+the key in `~/.pi/agent/.aiand_router_key`. pi auto-installs `@aiand-os/router`
 from npm on next start and loads this extension via its `pi.extensions` field.
 Plain `pi` then connects to the installed endpoint, normally
-`https://router.workweave.ai`; it does not start a local Python proxy.
+`https://router.workaiand.ai`; it does not start a local Python proxy.
 
 ## What it does
 
@@ -39,7 +39,7 @@ Plain `pi` then connects to the installed endpoint, normally
 - **Beta routing toggle.** `/beta` toggles the router's beta HMM strategy for
   the current session. The router confirms whether beta routing is enabled or
   disabled; run `/beta` again to switch back.
-- **Per-process routing bias.** Static `x-weave-routing-*` knob headers bias the
+- **Per-process routing bias.** Static `x-aiand-routing-*` knob headers bias the
   router: quality on the main loop and speed + cheap on subagents.
 - **Long tool-loop compaction.** Pi can cross its context threshold inside an
   uninterrupted tool loop before its normal post-run compaction check. The
@@ -60,56 +60,56 @@ Plain `pi` then connects to the installed endpoint, normally
   socket — a fan-out reuses the parent's warm servers instead of cold-starting
   its own. A bundled `lsp-guide` skill (`/skill:lsp-guide`) carries the usage
   recipes (per-operation cookbook, the locate-then-references flow, caveats).
-  Disable with `WEAVE_PI_NO_LSP=1`.
+  Disable with `AIAND_PI_NO_LSP=1`.
 - **Opt-in language-server install — nothing installs silently.** Two ways in:
   pass `--lsp go,typescript` to the installer, or let the assistant offer.
   When the workspace contains a language whose server is missing, the
   assistant offers once in conversation ("I can enable go LSP support if
   you'd like — just say the word!"); a yes runs the install through the
   `lsp_enable` tool (main process only — subagents can't trigger installs), a
-  "don't ask again" is persisted per language in `<agentDir>/.weave_lsp.json`
+  "don't ask again" is persisted per language in `<agentDir>/.aiand_lsp.json`
   and respected across sessions. Installs need that language's toolchain
   (`go`, `npm`, or `rustup`) on PATH; when the toolchain itself is missing,
   the bundled `install-lsps` skill (`/skill:install-lsps`) walks the agent
   through installing it — again only with explicit consent.
 - **Persistent route + savings display.** Shows
-  `WEAVE ROUTER — <routed> ← <selected> · saved $X.XX` below pi's native footer
+  `AIAND ROUTER — <routed> ← <selected> · saved $X.XX` below pi's native footer
   data. Savings compare the selected and routed catalog prices against the same
   input/output/cache usage, accumulate across the reachable session branch,
   and survive resume. Unknown catalog prices are labeled `unpriced` instead of
   silently contributing zero; costlier routing is labeled `extra`, not savings.
-- **No duplicate in-band badge.** Sets `X-Weave-Routing-Marker: off` because the
+- **No duplicate in-band badge.** Sets `X-Aiand-Routing-Marker: off` because the
   persistent status already conveys the actual model.
 - **Safety backstop.** Blocks a few catastrophic shell commands (`rm -rf /`,
   `mkfs`, `dd of=/dev/…`, fork bombs, force-push to main). Disable with
-  `WEAVE_NO_SAFETY=1`.
+  `AIAND_NO_SAFETY=1`.
 
 ## Configuration (environment)
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `WEAVE_ROUTER_URL` | installed `models.json` endpoint, normally hosted | Override router base URL (children inherit it); an unconfigured extension falls back to `http://localhost:8080` |
-| `WEAVE_ROUTER_KEY` | — | Router key (else read from `.weave_router_key`) |
-| `WEAVE_ROUTER_KEY_FILE` | `<agentDir>/.weave_router_key` | Override key file path |
-| `WEAVE_USER_EMAIL` / `WEAVE_USER_NAME` | from `git config` | Identity headers for attribution |
-| `WEAVE_PI_SUBAGENT_MODEL` | `claude-sonnet-4-6` | `weave/<model>` handle children launch with (router re-routes) |
-| `WEAVE_PI_DISPATCH_CONCURRENCY` | `4` | Max concurrent subagents |
-| `WEAVE_PI_SUBAGENT_TIMEOUT_MS` | `600000` | Per-subagent timeout |
-| `WEAVE_PI_ALLOW_SUBAGENT_TOOLS` | unset | `1` lets `dispatch` grant subagents write/exec tools (bash, write, edit); default strips them |
-| `WEAVE_ROUTING_ALPHA` / `…_SPEED_WEIGHT` / `…_OUTPUT_COST_RATIO` / `…_EXPECTED_OUTPUT_TOKENS` | role preset | Override individual routing knobs (main process only — children always use their role preset) |
-| `WEAVE_NO_SAFETY` | unset | `1` disables the catastrophic-bash gate |
-| `WEAVE_PI_AUTO_COMPACTION` | unset | `0` disables the routed tool-loop compaction safeguard |
-| `WEAVE_PI_ESCALATION_COMPACTION` | enabled | `0` disables preparation and compaction before upward complexity model changes; requires Pi 0.83+ and the matching router deployment |
-| `WEAVE_PI_NO_LSP` | unset | `1` disables the `lsp` tool, the server pool, and the subagent broker |
-| `WEAVE_PI_LSP_IDLE_MS` | `300000` | Idle window before an unused language server is shut down |
-| `WEAVE_PI_LSP_REQUEST_TIMEOUT_MS` | `15000` | Per-request budget once a server is warm |
-| `WEAVE_PI_LSP_WARMUP_TIMEOUT_MS` | `60000` | Budget for initialize + the first query (indexing) |
-| `WEAVE_PI_LSP_DIAGNOSTICS_WAIT_MS` | `3000` | How long `diagnostics` waits for a fresh publish |
-| `WEAVE_PI_LSP_MAX_SERVERS` | `4` | LRU cap on concurrently live language servers |
-| `WEAVE_PI_LSP_MAX_REFERENCES` | `100` | Cap on reported reference sites |
+| `AIAND_ROUTER_URL` | installed `models.json` endpoint, normally hosted | Override router base URL (children inherit it); an unconfigured extension falls back to `http://localhost:8080` |
+| `AIAND_ROUTER_KEY` | — | Router key (else read from `.aiand_router_key`) |
+| `AIAND_ROUTER_KEY_FILE` | `<agentDir>/.aiand_router_key` | Override key file path |
+| `AIAND_USER_EMAIL` / `AIAND_USER_NAME` | from `git config` | Identity headers for attribution |
+| `AIAND_PI_SUBAGENT_MODEL` | `claude-sonnet-4-6` | `aiand/<model>` handle children launch with (router re-routes) |
+| `AIAND_PI_DISPATCH_CONCURRENCY` | `4` | Max concurrent subagents |
+| `AIAND_PI_SUBAGENT_TIMEOUT_MS` | `600000` | Per-subagent timeout |
+| `AIAND_PI_ALLOW_SUBAGENT_TOOLS` | unset | `1` lets `dispatch` grant subagents write/exec tools (bash, write, edit); default strips them |
+| `AIAND_ROUTING_ALPHA` / `…_SPEED_WEIGHT` / `…_OUTPUT_COST_RATIO` / `…_EXPECTED_OUTPUT_TOKENS` | role preset | Override individual routing knobs (main process only — children always use their role preset) |
+| `AIAND_NO_SAFETY` | unset | `1` disables the catastrophic-bash gate |
+| `AIAND_PI_AUTO_COMPACTION` | unset | `0` disables the routed tool-loop compaction safeguard |
+| `AIAND_PI_ESCALATION_COMPACTION` | enabled | `0` disables preparation and compaction before upward complexity model changes; requires Pi 0.83+ and the matching router deployment |
+| `AIAND_PI_NO_LSP` | unset | `1` disables the `lsp` tool, the server pool, and the subagent broker |
+| `AIAND_PI_LSP_IDLE_MS` | `300000` | Idle window before an unused language server is shut down |
+| `AIAND_PI_LSP_REQUEST_TIMEOUT_MS` | `15000` | Per-request budget once a server is warm |
+| `AIAND_PI_LSP_WARMUP_TIMEOUT_MS` | `60000` | Budget for initialize + the first query (indexing) |
+| `AIAND_PI_LSP_DIAGNOSTICS_WAIT_MS` | `3000` | How long `diagnostics` waits for a fresh publish |
+| `AIAND_PI_LSP_MAX_SERVERS` | `4` | LRU cap on concurrently live language servers |
+| `AIAND_PI_LSP_MAX_REFERENCES` | `100` | Cap on reported reference sites |
 
-Internal: `WEAVE_PI_SUBAGENT=1`, `WEAVE_PI_SUBAGENT_ID`, `WEAVE_PI_LSP_BROKER`,
-and `WEAVE_PI_LSP_BROKER_TOKEN` are set by `dispatch` on child processes; don't
+Internal: `AIAND_PI_SUBAGENT=1`, `AIAND_PI_SUBAGENT_ID`, `AIAND_PI_LSP_BROKER`,
+and `AIAND_PI_LSP_BROKER_TOKEN` are set by `dispatch` on child processes; don't
 set them yourself.
 
 ## Escalation compaction
@@ -118,7 +118,7 @@ Escalation compaction is enabled by default on Pi 0.83 or newer. Older Pi
 versions warn at startup and continue routing without escalation compaction.
 The router requires the same
 `ROUTER_PI_HANDOFF_SECRET` (at least 32 bytes) on every replica. Set
-`WEAVE_PI_ESCALATION_COMPACTION=0` to opt out. An enabled client stops
+`AIAND_PI_ESCALATION_COMPACTION=0` to opt out. An enabled client stops
 with a visible error if preparation is unavailable; it never falls back to
 silently sending the full unreserved request.
 
@@ -133,7 +133,7 @@ model eligibility and explicit force state. Expired or stale tickets return
 and are never saved in the Pi transcript.
 
 Preparation also returns a signed thread-continuity token (`session_token`).
-Pi saves it as a session entry and sends it as `weave_session` on preparation,
+Pi saves it as a session entry and sends it as `aiand_session` on preparation,
 summary and continuation requests. It preserves the original first-message
 digest across compaction and process restarts, and binds it to the API key,
 installation, client session and metadata identity. A `pi:` prefix alone never

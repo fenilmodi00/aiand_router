@@ -3,10 +3,10 @@ package proxy
 import (
 	"context"
 
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router/turntype"
-	"weave-os/router/internal/translate"
-	"weave-os/router/internal/websearch"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router/turntype"
+	"aiand-os/router/internal/translate"
+	"aiand-os/router/internal/websearch"
 )
 
 // autonomySystemAppendApplies decides whether this turn's outgoing system

@@ -1,6 +1,6 @@
 BEGIN;
 
--- Prepaid credit balance, one row per Weave organization. organization_id is
+-- Prepaid credit balance, one row per Aiand organization. organization_id is
 -- the opaque external identifier set on auth.installation.external_id; the
 -- router schema deliberately has no FK to public.organizations.
 CREATE TABLE router.organization_credit_balance (
@@ -37,7 +37,7 @@ CREATE UNIQUE INDEX organization_credit_ledger_stripe_pi_idx
     ON router.organization_credit_ledger (stripe_payment_intent_id)
     WHERE stripe_payment_intent_id IS NOT NULL;
 
--- Orgs that bypass billing entirely (Weave internal, enterprise trials,
+-- Orgs that bypass billing entirely (Aiand internal, enterprise trials,
 -- comped accounts). The middleware passes them through; the debit hook still
 -- writes a ledger row with delta=0 and notional_cost_micros>0 so we keep a
 -- shadow billing trail for capacity planning.

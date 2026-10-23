@@ -5,7 +5,7 @@ import {
 	PROVIDER_NAME,
 	ROUTED_CONTEXT_WINDOW_HEADER,
 	ROUTED_MODEL_HEADER,
-	WEAVE_MODELS,
+	AIAND_MODELS,
 } from "../src/config.js";
 import { parseRoutedContextWindow } from "../src/context-window.js";
 import { registerRoutedModel } from "../src/routed-model.js";
@@ -58,14 +58,14 @@ test("commits structured pin acknowledgments after successful matching completio
 	extension.emit("turn_start", { type: "turn_start", turnIndex: 0 }, ctx);
 	extension.emit("after_provider_response", {
 		type: "after_provider_response", status: 200,
-		headers: { "x-weave-router-command": Buffer.from(JSON.stringify(outcome)).toString("base64url") },
+		headers: { "x-aiand-router-command": Buffer.from(JSON.stringify(outcome)).toString("base64url") },
 	}, ctx);
 	assert.deepEqual(extension.commandEntries, []);
 	extension.emit("turn_end", {
 		type: "turn_end", turnIndex: 0,
 		message: { role: "assistant", responseId: `msg_router_cmd_${outcome.id}`, stopReason: "stop", content: [{ type: "text", text: "New acknowledgment wording." }] },
 	}, ctx);
-	assert.deepEqual(extension.commandEntries, [{ customType: "weave-router-command", data: outcome }]);
+	assert.deepEqual(extension.commandEntries, [{ customType: "aiand-router-command", data: outcome }]);
 });
 
 const APPLIED_COMMAND: RouterCommandOutcome = {
@@ -157,13 +157,13 @@ function context({ modelId = "claude-haiku-4-5", provider = PROVIDER_NAME, entri
 }
 
 function withRouterKey<T>(callback: () => T): T {
-	const previous = process.env.WEAVE_ROUTER_KEY;
-	process.env.WEAVE_ROUTER_KEY = "rk_unit_test";
+	const previous = process.env.AIAND_ROUTER_KEY;
+	process.env.AIAND_ROUTER_KEY = "rk_unit_test";
 	try {
 		return callback();
 	} finally {
-		if (previous === undefined) delete process.env.WEAVE_ROUTER_KEY;
-		else process.env.WEAVE_ROUTER_KEY = previous;
+		if (previous === undefined) delete process.env.AIAND_ROUTER_KEY;
+		else process.env.AIAND_ROUTER_KEY = previous;
 	}
 }
 
@@ -171,7 +171,7 @@ function contextWindow(registration: ProviderRegistration, modelId: string): num
 	return registration.config.models?.find((model) => model.id === modelId)?.contextWindow;
 }
 
-test("uses the served context-window header only for Pi's active Weave model", () => {
+test("uses the served context-window header only for Pi's active Aiand model", () => {
 	withRouterKey(() => {
 		const extension = extensionHarness();
 		extension.emit(
@@ -186,10 +186,10 @@ test("uses the served context-window header only for Pi's active Weave model", (
 
 		assert.equal(extension.registrations.length, 1);
 		assert.equal(extension.registrations[0]?.name, PROVIDER_NAME);
-		assert.equal(extension.registrations[0]?.config.models?.length, WEAVE_MODELS.length);
+		assert.equal(extension.registrations[0]?.config.models?.length, AIAND_MODELS.length);
 		assert.equal(contextWindow(extension.registrations[0]!, "claude-haiku-4-5"), 1_000_000);
 		assert.equal(contextWindow(extension.registrations[0]!, "grok-4.6"), 500_000);
-		assert.equal(WEAVE_MODELS.find((model) => model.id === "claude-haiku-4-5")?.contextWindow, 200_000);
+		assert.equal(AIAND_MODELS.find((model) => model.id === "claude-haiku-4-5")?.contextWindow, 200_000);
 	});
 });
 

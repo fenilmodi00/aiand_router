@@ -4,10 +4,10 @@ import (
 	"context"
 	"net/http"
 	"testing"
-	"weave-os/router/internal/dispatch"
+	"aiand-os/router/internal/dispatch"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/providers"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/providers"
 
 	"github.com/stretchr/testify/assert"
 )

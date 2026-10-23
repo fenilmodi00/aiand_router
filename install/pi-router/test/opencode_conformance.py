@@ -31,7 +31,7 @@ def stop_process_group(process: subprocess.Popen) -> None:
 class OpenCodeV2Conformance(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.work = Path(tempfile.mkdtemp(prefix="weave-opencode-v2-"))
+        cls.work = Path(tempfile.mkdtemp(prefix="aiand-opencode-v2-"))
         cls.addClassCleanup(shutil.rmtree, cls.work)
         cls.env = {key: os.environ[key] for key in ("PATH", "SYSTEMROOT", "TMPDIR") if key in os.environ}
         for key, directory in {
@@ -41,8 +41,8 @@ class OpenCodeV2Conformance(unittest.TestCase):
             cls.env[key] = str(cls.work / directory)
             (cls.work / directory).mkdir()
         cls.env.update({
-            "WEAVE_ROUTER_KEY": "rk_oc_smoke_key", "WEAVE_USER_EMAIL": "test@example.test",
-            "WEAVE_USER_NAME": "Conformance test", "NO_COLOR": "1", "CI": "true",
+            "AIAND_ROUTER_KEY": "rk_oc_smoke_key", "AIAND_USER_EMAIL": "test@example.test",
+            "AIAND_USER_NAME": "Conformance test", "NO_COLOR": "1", "CI": "true",
             "OPENCODE_DISABLE_AUTOUPDATE": "true", "OPENCODE_DISABLE_MODELS_FETCH": "true",
         })
         cls.opencode = shutil.which(os.environ.get("OPENCODE_BIN", "opencode"))
@@ -113,7 +113,7 @@ class OpenCodeV2Conformance(unittest.TestCase):
             self.assertTrue(request["session_id"])
             user_agent = request["user_agent"]
             self.assertIn("/2.", user_agent)
-            self.assertFalse(request["weave_agent"])
+            self.assertFalse(request["aiand_agent"])
         return events, requests
 
     def assert_finished(self, events: list[dict]) -> None:
@@ -131,12 +131,12 @@ class OpenCodeV2Conformance(unittest.TestCase):
         })
 
     def test_installed_config_has_no_plugin(self) -> None:
-        self.assertEqual(self.config["model"], "weave/auto")
-        provider = self.config["provider"]["weave"]
+        self.assertEqual(self.config["model"], "aiand/auto")
+        provider = self.config["provider"]["aiand"]
         self.assertEqual(provider["npm"], "@ai-sdk/openai")
         self.assertEqual(provider["options"]["baseURL"], self.base_url + "/v1")
         self.assertNotIn("plugin", self.config)
-        self.assertFalse((self.work / ".weave/opencode-weave.ts").exists())
+        self.assertFalse((self.work / ".aiand/opencode-aiand.ts").exists())
 
     def test_responses_and_native_session_continuity(self) -> None:
         events, requests = self.run_turn("Return the test marker")
@@ -145,7 +145,7 @@ class OpenCodeV2Conformance(unittest.TestCase):
         self.assertEqual({request["session_id"] for request in requests}, {session})
         title_requests = [request for request in requests if request["instructions"].startswith("You are a title generator")]
         self.assertTrue(title_requests, requests)
-        self.assertFalse(title_requests[0]["weave_agent"])
+        self.assertFalse(title_requests[0]["aiand_agent"])
 
         resumed, requests = self.run_turn("Continue this session", "--session", session)
         self.assertFalse([event for event in resumed if event["type"] == "error"], resumed)
@@ -164,7 +164,7 @@ class OpenCodeV2Conformance(unittest.TestCase):
         titles = [request for request in requests if request["instructions"].startswith("You are a title generator")]
         self.assertTrue(titles, requests)
         self.assertNotIn("tools", titles[0]["body_keys"])
-        self.assertNotIn("x-weave-opencode-agent", titles[0]["header_names"])
+        self.assertNotIn("x-aiand-opencode-agent", titles[0]["header_names"])
 
 
 if __name__ == "__main__":

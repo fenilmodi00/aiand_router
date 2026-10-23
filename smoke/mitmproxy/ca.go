@@ -44,8 +44,8 @@ func newCA() (*ca, error) {
 	tmpl := &x509.Certificate{
 		SerialNumber: serial,
 		Subject: pkix.Name{
-			Organization: []string{"Weave Router Smoke Suite — ephemeral, ci-only, do not trust outside this run"},
-			CommonName:   "weave-router-smoke-mitm-ca",
+			Organization: []string{"Aiand Router Smoke Suite — ephemeral, ci-only, do not trust outside this run"},
+			CommonName:   "aiand-router-smoke-mitm-ca",
 		},
 		NotBefore:             time.Now().Add(-time.Hour),
 		NotAfter:              time.Now().Add(24 * time.Hour),

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/translate"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,7 +17,7 @@ func TestStripRouterFeedbackArtifacts_StripsSequenceNotFoundAck(t *testing.T) {
 			map[string]any{"role": "user", "content": "first request"},
 			map[string]any{"role": "assistant", "content": "first response"},
 			map[string]any{"role": "user", "content": "/rf -9 - never happened"},
-			map[string]any{"role": "assistant", "content": "✦ **Weave Router** → No turn found at that sequence number. Try `/rf` without a number for the last turn.\n\n"},
+			map[string]any{"role": "assistant", "content": "✦ **Aiand Router** → No turn found at that sequence number. Try `/rf` without a number for the last turn.\n\n"},
 			map[string]any{"role": "user", "content": "/rf + all good now"},
 		},
 		"max_tokens": 1024,

@@ -1,7 +1,7 @@
 [project]
-name = "weave-bench"
+name = "aiand-bench"
 version = "0.1.0"
-description = "Reproducible Codex-harness benchmarks (SWE-Atlas QnA, Terminal-Bench 4.0) for the Weave router"
+description = "Reproducible Codex-harness benchmarks (SWE-Atlas QnA, Terminal-Bench 4.0) for the Aiand router"
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
 dependencies = []
@@ -21,17 +21,17 @@ dev = ["pytest>=8.3", "ruff==0.16.6"]
 conflicts = [[{ extra = "harbor" }, { extra = "harbor-atlas" }]]
 
 [project.scripts]
-weave-bench = "weave_bench.cli:main"
+aiand-bench = "aiand_bench.cli:main"
 
 [build-system]
 requires = ["setuptools>=70"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["weave_bench*"]
+include = ["aiand_bench*"]
 
 [tool.setuptools.package-data]
-weave_bench = ["manifests/*.json", "prices.generated.json"]
+aiand_bench = ["manifests/*.json", "prices.generated.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

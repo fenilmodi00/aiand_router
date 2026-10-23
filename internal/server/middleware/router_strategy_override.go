@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"strings"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/requestcontext"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/subscriptions/entitlement"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/subscriptions/entitlement"
 
 	"github.com/gin-gonic/gin"
 )
@@ -17,7 +17,7 @@ import (
 // RL/DPO policy router), and "bandit" (Thompson sampling over a frozen
 // posterior). Absent or unrecognized values fall through to the deployment
 // default.
-const RouterStrategyOverrideHeader = "x-weave-router-strategy"
+const RouterStrategyOverrideHeader = "x-aiand-router-strategy"
 
 // StrategyAvailability reports whether a registered strategy has a live router
 // right now; the proxy service's PolicyStrategyAvailable satisfies it.

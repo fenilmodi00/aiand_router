@@ -18,13 +18,13 @@ import (
 
 	collogspb "go.opentelemetry.io/proto/otlp/collector/logs/v1"
 
-	"weave-os/router/internal/observability/otel"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/escalation"
-	"weave-os/router/internal/router/llmescalation"
-	"weave-os/router/internal/router/planner"
-	"weave-os/router/internal/router/sessionpin"
+	"aiand-os/router/internal/observability/otel"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/escalation"
+	"aiand-os/router/internal/router/llmescalation"
+	"aiand-os/router/internal/router/planner"
+	"aiand-os/router/internal/router/sessionpin"
 
 	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 )

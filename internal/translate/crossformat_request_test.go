@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/translate"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -845,7 +845,7 @@ func TestCrossFormat_AnthropicToOpenAI_EmptyAssistantKeepsContent(t *testing.T) 
 		"max_tokens": 100,
 		"messages": [
 			{"role": "user", "content": "/force-model muse"},
-			{"role": "assistant", "content": [{"type": "text", "text": "✦ **Weave Router** → force-model applied: muse-spark-1.3 (meta) · Use /unforce-model to clear\n\n"}]},
+			{"role": "assistant", "content": [{"type": "text", "text": "✦ **Aiand Router** → force-model applied: muse-spark-1.3 (meta) · Use /unforce-model to clear\n\n"}]},
 			{"role": "user", "content": "hi"}
 		]
 	}`))

@@ -6,7 +6,7 @@ import { PROVIDER_NAME } from "../src/config.js";
 import { registerEscalationCompaction } from "../src/escalation.js";
 
 function enable(t: TestContext) {
-	for (const [name, value] of Object.entries({ WEAVE_PI_LLM_CLASSIFIER: "1", WEAVE_ROUTER_KEY: "test-key", WEAVE_ROUTER_URL: "https://router.example.test" })) {
+	for (const [name, value] of Object.entries({ AIAND_PI_LLM_CLASSIFIER: "1", AIAND_ROUTER_KEY: "test-key", AIAND_ROUTER_URL: "https://router.example.test" })) {
 		const previous = process.env[name];
 		process.env[name] = value;
 		t.after(() => { if (previous === undefined) delete process.env[name]; else process.env[name] = previous; });
@@ -58,10 +58,10 @@ test("fresh Pi chat obtains one ticket and restores it across resume, reload, tr
 	const h = harness();
 	await h.emit("session_start", { reason: "startup" });
 	const first = await h.emit("before_provider_request", { payload: { messages: [] } });
-	assert.match(first.weave_classifier_thread, /^ticket-/);
+	assert.match(first.aiand_classifier_thread, /^ticket-/);
 	assert.equal(h.calls[0].url, "https://router.example.test/v1/router/threads");
 	assert.equal(h.calls[0].options.redirect, "error");
-	process.env.WEAVE_PI_LLM_CLASSIFIER = "0";
+	process.env.AIAND_PI_LLM_CLASSIFIER = "0";
 	for (const reason of ["resume", "reload"]) {
 		await h.emit("session_start", { reason });
 		assert.deepEqual(await h.emit("before_provider_request", { payload: { messages: [] } }), first);
@@ -88,7 +88,7 @@ test("unticketed resumed, forked, populated, compacted, old-version and opt-out 
 	const old = harness("0.82.0");
 	await old.emit("session_start", { reason: "startup" });
 	assert.equal(old.active(), false);
-	process.env.WEAVE_PI_LLM_CLASSIFIER = "0";
+	process.env.AIAND_PI_LLM_CLASSIFIER = "0";
 	const off = harness();
 	await off.emit("session_start", { reason: "new" });
 	assert.equal(await off.emit("before_provider_request", { payload: {} }), undefined);
@@ -104,7 +104,7 @@ test("failed handshake blocks dispatch and retries the persisted id, including a
 	const restarted = harness(); restarted.entries.push(...h.entries);
 	await restarted.emit("session_start", { reason: "resume" });
 	assert.equal(restarted.calls[0].body.new_chat_id, h.calls[0].body.new_chat_id);
-	assert.ok((await restarted.emit("before_provider_request", { payload: {} })).weave_classifier_thread);
+	assert.ok((await restarted.emit("before_provider_request", { payload: {} })).aiand_classifier_thread);
 	assert.equal(new Set(h.calls.map(call => call.body.new_chat_id)).size, 1);
 });
 
@@ -133,7 +133,7 @@ test("classifier blocks compaction and bypasses legacy handoff requests", async 
 	const h = harness();
 	registerEscalationCompaction(h.pi, (async () => { assert.fail("legacy handoff must not run"); }) as typeof fetch, "0.83.0", h.active);
 	await h.emit("session_start", { reason: "new" });
-	assert.ok((await h.emit("before_provider_request", { payload: {} })).weave_classifier_thread);
+	assert.ok((await h.emit("before_provider_request", { payload: {} })).aiand_classifier_thread);
 	assert.deepEqual(await h.emit("session_before_compact"), { cancel: true });
 	assert.equal(h.calls.length, 1);
 });
@@ -142,15 +142,15 @@ test("changed origin, model or malformed persisted state fails closed without le
 	enable(t);
 	const h = harness();
 	await h.emit("session_start", { reason: "new" });
-	process.env.WEAVE_ROUTER_URL = "https://other.example.test";
+	process.env.AIAND_ROUTER_URL = "https://other.example.test";
 	assert.equal(await h.emit("before_provider_request", { payload: {} }), undefined);
 	assert.equal(h.aborted(), 1);
 	assert.equal(h.calls.length, 1);
-	process.env.WEAVE_ROUTER_URL = "https://router.example.test";
+	process.env.AIAND_ROUTER_URL = "https://router.example.test";
 	h.ctx.model!.provider = "other-provider";
 	await h.emit("before_provider_request", { payload: {} });
 	assert.equal(h.aborted(), 2);
-	h.entries.push({ type: "custom", customType: "weave-classifier-thread", data: { sessionId: "session-a", threadToken: 17 } });
+	h.entries.push({ type: "custom", customType: "aiand-classifier-thread", data: { sessionId: "session-a", threadToken: 17 } });
 	await h.emit("session_start", { reason: "reload" });
 	await h.emit("before_provider_request", { payload: {} });
 	assert.equal(h.aborted(), 3);

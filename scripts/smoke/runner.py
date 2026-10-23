@@ -28,7 +28,7 @@ from agent_checks import (  # noqa: E402 - standalone script needs scripts/ on s
     validation_environment,
 )
 
-OWNER_LABEL = "ai.weave.smoke-owner"
+OWNER_LABEL = "ai.aiand.smoke-owner"
 PLACEHOLDER_KEY = "smoke-fixture-key-unused-outside-replay"
 COMMAND_TIMEOUT_SECONDS = 120
 BUILD_TIMEOUT_SECONDS = 1200

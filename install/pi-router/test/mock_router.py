@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mock Weave Router for the bundled pi and OpenCode endpoint tests.
+"""Mock Aiand Router for the bundled pi and OpenCode endpoint tests.
 
 Speaks enough Anthropic Messages for pi and OpenAI Responses for OpenCode,
 with no real model spend and no network beyond localhost:
@@ -57,10 +57,10 @@ CLASSIFIER_THREAD_PATH = "/v1/router/threads"
 CLASSIFIER_DENIED_KEY = "rk_e2e_classifier_denied"
 
 KNOB_HEADERS = (
-    "x-weave-routing-alpha",
-    "x-weave-routing-speed-weight",
-    "x-weave-routing-output-cost-ratio",
-    "x-weave-routing-expected-output-tokens",
+    "x-aiand-routing-alpha",
+    "x-aiand-routing-speed-weight",
+    "x-aiand-routing-output-cost-ratio",
+    "x-aiand-routing-expected-output-tokens",
 )
 DISPATCH_TASKS = [
     {"prompt": "Reply with exactly: SUBAGENT_ONE_OK"},
@@ -284,7 +284,7 @@ class Handler(BaseHTTPRequestHandler):
             except (ValueError, KeyError, TypeError):
                 self._send_json(400, {"error": "invalid_new_chat_id"})
                 return
-            denied = self.headers.get("x-weave-router-key") == CLASSIFIER_DENIED_KEY
+            denied = self.headers.get("x-aiand-router-key") == CLASSIFIER_DENIED_KEY
             log_request({"method": "POST", "path": path, "new_chat_id": new_chat_id, "classifier_denied": denied})
             self._send_json(503 if denied else 200, {"thread_token": f"fixture-{new_chat_id}"})
             return
@@ -297,7 +297,7 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if path == RESPONSES_PATH:
-            if self.headers.get("x-weave-classifier-thread") == "weave-classifier-unavailable":
+            if self.headers.get("x-aiand-classifier-thread") == "aiand-classifier-unavailable":
                 log_request({"method": "POST", "path": path, "rejected": True,
                              "classifier_thread_unavailable": True})
                 self._send_json(400, {"error": {"type": "invalid_request_error",
@@ -317,16 +317,16 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(400, {"error": {"message": "unknown conformance scenario"}})
                 return
             agent = self.headers.get("x-conformance-agent", "")
-            weave_agent = self.headers.get("x-weave-opencode-agent")
+            aiand_agent = self.headers.get("x-aiand-opencode-agent")
             inputs = body.get("input") or []
             tool_outputs = [item for item in inputs if isinstance(item, dict)
                             and item.get("type") == "function_call_output"]
-            key = self.headers.get("x-weave-router-key") or ""
+            key = self.headers.get("x-aiand-router-key") or ""
             log_request({
                 "method": "POST", "path": path, "rejected": False,
                 "app": self.headers.get("x-app"), "model": body.get("model"),
                 "stream": bool(body.get("stream")), "served": scenario.value,
-                "agent": agent, "weave_agent": weave_agent,
+                "agent": agent, "aiand_agent": aiand_agent,
                 "session_id": self.headers.get("session-id") or self.headers.get("x-session-id") or self.headers.get("x-opencode-session"),
                 "instructions": body.get("instructions", ""),
                 "body_keys": list(body), "header_names": [name.lower() for name in self.headers],
@@ -336,7 +336,7 @@ class Handler(BaseHTTPRequestHandler):
                 "codex_header_names": [key for key in self.headers if "codex" in key.lower() or "session" in key.lower()],
                 "codex_parent_thread_id": self.headers.get("x-codex-parent-thread-id"),
                 "codex_window_id": self.headers.get("x-codex-window-id"),
-                "classifier_thread": self.headers.get("x-weave-classifier-thread"),
+                "classifier_thread": self.headers.get("x-aiand-classifier-thread"),
                 "tool_names": [tool.get("name") for tool in body.get("tools", []) if isinstance(tool, dict)],
                 "key_present": bool(key), "key_suffix": key[-4:],
                 "input": inputs, "tool_outputs": tool_outputs,
@@ -401,7 +401,7 @@ class Handler(BaseHTTPRequestHandler):
         messages = body.get("messages") or []
         app = self.headers.get("x-app") or "pi"
         is_subagent = app == "pi-subagent"
-        key = self.headers.get("x-weave-router-key") or ""
+        key = self.headers.get("x-aiand-router-key") or ""
         metadata = body.get("metadata") or {}
         user_text = latest_user_text(messages)
         tool_result_present = has_tool_result(messages)
@@ -421,16 +421,16 @@ class Handler(BaseHTTPRequestHandler):
         if force_command:
             action, model = force_command
             route_headers = False
-            routed_model = "weave-router"
+            routed_model = "aiand-router"
             if action == "clear":
                 with _pin_lock:
                     _forced_models.pop(user_id, None)
-                reply = "✦ **Weave Router** → force-model cleared · resuming automatic model selection"
+                reply = "✦ **Aiand Router** → force-model cleared · resuming automatic model selection"
                 served = "unforce_model"
             else:
                 with _pin_lock:
                     _forced_models[user_id] = model
-                reply = f"✦ **Weave Router** → force-model applied: {model} (mock) · Use /unforce-model to clear"
+                reply = f"✦ **Aiand Router** → force-model applied: {model} (mock) · Use /unforce-model to clear"
                 served = "force_model"
             block = {"type": "text", "text": reply}
             stop_reason = "end_turn"
@@ -477,14 +477,14 @@ class Handler(BaseHTTPRequestHandler):
                 "user_id": user_id,
                 "key_present": bool(key),
                 "key_suffix": key[-4:] if key else "",
-                "email": self.headers.get("x-weave-user-email"),
-                "name": self.headers.get("x-weave-user-name"),
+                "email": self.headers.get("x-aiand-user-email"),
+                "name": self.headers.get("x-aiand-user-name"),
                 "knobs": {h: self.headers.get(h) for h in KNOB_HEADERS},
-                "marker_opt": self.headers.get("x-weave-routing-marker"),
+                "marker_opt": self.headers.get("x-aiand-routing-marker"),
                 "has_tool_result": tool_result_present,
                 "served": served,
                 "forced_model": forced_model,
-                "classifier_thread": self.headers.get("x-weave-classifier-thread") or body.get("weave_classifier_thread"),
+                "classifier_thread": self.headers.get("x-aiand-classifier-thread") or body.get("aiand_classifier_thread"),
             }
         )
 

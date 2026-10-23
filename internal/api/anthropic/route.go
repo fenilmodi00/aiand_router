@@ -5,11 +5,11 @@ import (
 	"io"
 	"net/http"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/cluster"
-	"weave-os/router/internal/server/middleware"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/cluster"
+	"aiand-os/router/internal/server/middleware"
 
 	"github.com/gin-gonic/gin"
 )

@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/router/policy"
+	"aiand-os/router/internal/router/policy"
 )
 
 type staticTokenProvider struct{}
@@ -128,7 +128,7 @@ func TestParseWorkloadIdentityFederationSplitsTargetFromFederatedSource(t *testi
 		"audience": "//iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/pool/providers/github",
 		"subject_token_type": "urn:ietf:params:oauth:token-type:jwt",
 		"token_url": "https://sts.googleapis.com/v1/token",
-		"service_account_impersonation_url": "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/ci-sa-01@workweave-root.iam.gserviceaccount.com:generateAccessToken",
+		"service_account_impersonation_url": "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/ci-sa-01@workaiand-root.iam.gserviceaccount.com:generateAccessToken",
 		"credential_source": {"file": "/tmp/oidc-token"}
 	}`)
 
@@ -136,7 +136,7 @@ func TestParseWorkloadIdentityFederationSplitsTargetFromFederatedSource(t *testi
 
 	require.NoError(t, err)
 	require.NotNil(t, federated)
-	assert.Equal(t, "ci-sa-01@workweave-root.iam.gserviceaccount.com", federated.targetServiceAccount)
+	assert.Equal(t, "ci-sa-01@workaiand-root.iam.gserviceaccount.com", federated.targetServiceAccount)
 	var source map[string]any
 	require.NoError(t, json.Unmarshal(federated.sourceCredentialsJSON, &source))
 	assert.NotContains(t, source, "service_account_impersonation_url")

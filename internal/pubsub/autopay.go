@@ -3,15 +3,15 @@ package pubsub
 import (
 	"context"
 
-	"weave-os/router/internal/billing"
-	"weave-os/router/internal/observability"
+	"aiand-os/router/internal/billing"
+	"aiand-os/router/internal/observability"
 
 	gcppubsub "cloud.google.com/go/pubsub/v2"
 )
 
 // AutopayNotifier publishes an "org needs a recharge" signal over GCP Pub/Sub
 // when the router's debit hook detects a balance crossing below the org's
-// autopay threshold. The Weave control-plane subscriber picks it up and charges
+// autopay threshold. The Aiand control-plane subscriber picks it up and charges
 // the saved card; a reconciliation sweep backstops any dropped signal.
 type AutopayNotifier struct {
 	publisher autopayPublisher

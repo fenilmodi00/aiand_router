@@ -8,9 +8,9 @@ import (
 	"errors"
 	"time"
 
-	"weave-os/router/internal/flags"
-	"weave-os/router/internal/inference"
-	"weave-os/router/internal/router/escalation"
+	"aiand-os/router/internal/flags"
+	"aiand-os/router/internal/inference"
+	"aiand-os/router/internal/router/escalation"
 )
 
 // ErrStale identifies state from an expired or superseded session lifetime.

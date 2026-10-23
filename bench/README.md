@@ -1,4 +1,4 @@
-# weave-bench — reproducible Codex-harness benchmarks for the router
+# aiand-bench — reproducible Codex-harness benchmarks for the router
 
 Standalone Python tooling that reruns the router's published Codex comparisons
 on **SWE-Atlas Codebase QnA** and **Terminal-Bench 4.0**:
@@ -7,8 +7,8 @@ directly at one pinned model (GPT-5.6 Sol / Luna, GPT-6 Astra) or at
 OpenRouter's `auto-beta` metarouter.
 
 Everything that determines a published number is pinned in code
-(`weave_bench/benchmarks.py`, `weave_bench/manifests/`, `weave_bench/arms.py`)
-and surfaced by `--dry-run`. Nothing here talks to WorkWeave-internal systems:
+(`aiand_bench/benchmarks.py`, `aiand_bench/manifests/`, `aiand_bench/arms.py`)
+and surfaced by `--dry-run`. Nothing here talks to WorkAiand-internal systems:
 the router is whatever URL you configure, task definitions are fetched from
 their official sources, and router-billed cost comes from the
 public [analytics export](../docs/ANALYTICS_EXPORT.md).
@@ -19,8 +19,8 @@ Claude Code harnesses are out of scope for now (Codex only).
 
 | Piece | Where | Notes |
 |---|---|---|
-| Harbor agent `BetaCodex` | `weave_bench/agent/beta_codex.py`, `beta_turn.py` | Harbor's stock Codex agent plus: a Codex `config.toml` pointing at the router/tap, and — for router arms — a `/beta` first turn followed by `codex exec resume --last` so the whole trial runs on the beta lane. |
-| OpenRouter tap | `weave_bench/tap/` | Recording reverse proxy for `/v1/responses`. Injects `usage.include`, the request-level `cache_control: {type: ephemeral}` marker, the `auto-beta-router` plugin with `cost_tier`, and a stable `session_id`; records served model, tokens and OpenRouter-billed cost per request. |
+| Harbor agent `BetaCodex` | `aiand_bench/agent/beta_codex.py`, `beta_turn.py` | Harbor's stock Codex agent plus: a Codex `config.toml` pointing at the router/tap, and — for router arms — a `/beta` first turn followed by `codex exec resume --last` so the whole trial runs on the beta lane. |
+| OpenRouter tap | `aiand_bench/tap/` | Recording reverse proxy for `/v1/responses`. Injects `usage.include`, the request-level `cache_control: {type: ephemeral}` marker, the `auto-beta-router` plugin with `cost_tier`, and a stable `session_id`; records served model, tokens and OpenRouter-billed cost per request. |
 | Harbor launcher | `harbor_command.py`, `launch.py`, `cli.py` | Renders the exact `harbor run …` argv per arm; `--dry-run` prints it without spending. |
 | Report | `trials.py`, `analytics.py`, `stats.py`, `report.py`, `markdown.py` | Pass rate + Wilson CI, task-level bootstrap CI, paired Δ, wins/ties/losses, exact sign test, McNemar, pass@k, $/trial (list vs router-billed vs OpenRouter-billed), served-model mix, token/cache totals, error categories, agent-time median/p90. Markdown in the `RESULTS_*.md` layout plus `report.json`. |
 | Prices | `prices.generated.json` | Generated from the router's `internal/router/catalog` by `make generate` (`cmd/genprices`). Used for the direct arms' *list* cost. |
@@ -37,19 +37,19 @@ cd bench
 export HARBOR_EXTRA=harbor  # run this block in one shell; use harbor-atlas for Atlas (Harbor 0.18.0)
 uv sync --locked --extra "$HARBOR_EXTRA" --extra tap --extra dev
 cp bench.example.toml bench.toml         # git-ignored; edit URLs / env-var names
-uv run --locked --extra "$HARBOR_EXTRA" --extra tap weave-bench --help
+uv run --locked --extra "$HARBOR_EXTRA" --extra tap aiand-bench --help
 ```
 
 Secrets are never written to disk: `bench.toml` names the environment
-variables that hold them (defaults: `WEAVE_ROUTER_API_KEY`,
-`WEAVE_ANALYTICS_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`,
+variables that hold them (defaults: `AIAND_ROUTER_API_KEY`,
+`AIAND_ANALYTICS_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`,
 `OPENROUTER_API_KEY`). Every key can be overridden as
-`WEAVE_BENCH_<SECTION>_<KEY>`, e.g. `WEAVE_BENCH_ROUTER_BASE_URL`.
+`AIAND_BENCH_<SECTION>_<KEY>`, e.g. `AIAND_BENCH_ROUTER_BASE_URL`.
 
 ## 1. Verify what the router will serve
 
 ```bash
-weave-bench probe
+aiand-bench probe
 ```
 
 Prints the router build (`/health` → commit + cluster artifact version), the
@@ -64,8 +64,8 @@ packages (see below); a different build is a different experiment.
 ## 2. Plan without spending
 
 ```bash
-weave-bench run terminal-bench-4 --arms router,luna --smoke --dry-run
-weave-bench run atlas-qna --dry-run                # full 124 tasks, router vs sol
+aiand-bench run terminal-bench-4 --arms router,luna --smoke --dry-run
+aiand-bench run atlas-qna --dry-run                # full 124 tasks, router vs sol
 ```
 
 `--dry-run` resolves the manifest (task count), pins (Harbor + Codex version),
@@ -78,9 +78,9 @@ outside the pinned manifest.
 ## 3. Run
 
 ```bash
-export WEAVE_ROUTER_API_KEY=rk_… OPENAI_API_KEY=sk-…
-weave-bench run terminal-bench-4 --arms router,luna --smoke --run-id tb4-smoke-$(date +%Y%m%d)
-weave-bench report terminal-bench-4 tb4-smoke-<date> --arms router,luna
+export AIAND_ROUTER_API_KEY=rk_… OPENAI_API_KEY=sk-…
+aiand-bench run terminal-bench-4 --arms router,luna --smoke --run-id tb4-smoke-$(date +%Y%m%d)
+aiand-bench report terminal-bench-4 tb4-smoke-<date> --arms router,luna
 ```
 
 Each arm is one Harbor job at `<jobs_dir>/<run-id>--<arm>/`; Harbor's own
@@ -95,8 +95,8 @@ itself, so keep `listen_host` on an interface only the sandboxes reach:
 
 ```bash
 export OPENROUTER_API_KEY=sk-or-…
-weave-bench tap serve &                            # records to jobs/openrouter-tap.jsonl
-weave-bench run atlas-qna --arms router,openrouter-beta --run-id …
+aiand-bench tap serve &                            # records to jobs/openrouter-tap.jsonl
+aiand-bench run atlas-qna --arms router,openrouter-beta --run-id …
 ```
 
 ### Arms
@@ -105,15 +105,15 @@ weave-bench run atlas-qna --arms router,openrouter-beta --run-id …
 |---|---|---|---|---|
 | `router` | router, `/beta` first turn | `gpt-5.6-sol` (ignored; the beta policy picks per request) | high | the treatment |
 | `sol`, `luna`, `astra` | OpenAI directly | `gpt-5.6-sol` / `gpt-5.6-luna` / `gpt-6-astra` | high / high / **max** | single-model controls |
-| `router-sol`, `router-luna`, `router-astra` | router with `x-weave-force-model` | pinned | high | the router's overhead with routing disabled (headless `/force-model`) |
+| `router-sol`, `router-luna`, `router-astra` | router with `x-aiand-force-model` | pinned | high | the router's overhead with routing disabled (headless `/force-model`) |
 | `openrouter` | OpenRouter via the tap | `openrouter/auto` | high | OpenRouter's default metarouter |
 | `openrouter-beta` | OpenRouter via the tap | `openrouter/auto-beta`, plugin `auto-beta-router` `cost_tier=max` | high | OpenRouter's beta metarouter, top tier |
 | `openrouter-beta-xhigh` | same | `cost_tier=xhigh` | high | the tier the TB4 comparison used |
 
-Router arms send `x-app: weave-eval-codex` and `x-weave-rollout-id: <run-id>` so
-production telemetry (`client_app NOT LIKE 'weave-eval%'`) and force-pin alerts can
+Router arms send `x-app: aiand-eval-codex` and `x-aiand-rollout-id: <run-id>` so
+production telemetry (`client_app NOT LIKE 'aiand-eval%'`) and force-pin alerts can
 exclude the run, while the analytics export can still filter on rollout id. The router
-strips the `weave-eval-` prefix before any harness-keyed behaviour runs, so an eval arm
+strips the `aiand-eval-` prefix before any harness-keyed behaviour runs, so an eval arm
 is served exactly as `x-app: codex` would be (HMM harness roster, Codex `/models`,
 compaction and footer policy); only the recorded `client_app` carries the prefix. OpenRouter arms set
 `web_search = "disabled"` in Codex's config so the metarouter's server-side
@@ -122,8 +122,8 @@ search tool cannot change the task.
 ## 4. Report
 
 ```bash
-export WEAVE_ANALYTICS_KEY=ra_…              # optional: router-billed cost + served-model mix
-weave-bench report atlas-qna <run-id> [--arms router,astra] [--k 2]
+export AIAND_ANALYTICS_KEY=ra_…              # optional: router-billed cost + served-model mix
+aiand-bench report atlas-qna <run-id> [--arms router,astra] [--k 2]
 ```
 
 Writes `<jobs_dir>/reports/<run-id>/report.md` (the table layout of the
@@ -155,17 +155,17 @@ All published runs: k=2 attempts, `--n-concurrent` as pinned (Atlas 24, TB4
 `model_reasoning_effort=high` (Astra control `max`); the published TB4 launcher
 set no effort in either arm, so both used Codex's default — this harness
 sets `high` on every benchmark, so TB4 reruns are effort-pinned rather than
-launcher-exact. The router arm ran against WorkWeave's staging router; the
+launcher-exact. The router arm ran against WorkAiand's staging router; the
 HMM package it served is noted per run — your router's package is whatever
-`weave-bench probe` reports.
+`aiand-bench probe` reports.
 
 | Comparison | Command | Published (router vs control) | Spend / wall clock |
 |---|---|---|---|
-| Atlas · router `/beta` vs Sol | `weave-bench run atlas-qna --arms router,sol` | 47.6% vs 53.2% task-mean pass; $262 billed vs $445 list (pkg `6868da84`) | ≈ $940 incl. judge; 1.5 h wall at 24 concurrent |
+| Atlas · router `/beta` vs Sol | `aiand-bench run atlas-qna --arms router,sol` | 47.6% vs 53.2% task-mean pass; $262 billed vs $445 list (pkg `6868da84`) | ≈ $940 incl. judge; 1.5 h wall at 24 concurrent |
 | Atlas · router `/beta` vs Luna | `--arms router,luna` | 60.1% vs 46.4%; $692 billed vs $127 list (pkg `468b99a9`) | ≈ $1,000 incl. judge; router arm 113 min, Luna 57 min |
 | Atlas · router `/beta` vs OpenRouter auto-beta (max) | `--arms router,openrouter-beta` | 60.1% vs 60.9% — tie (Δ −0.8 pp, CI −8.2..+6.6, sign p=0.89); $692 vs $612 OpenRouter-billed | control 200 min wall in 4 batches of 31 tasks |
 | Atlas · router `/beta` vs Astra (max) | `--arms router,astra` | 55.6% vs 57.7% (Δ −2.0 pp, CI −8.9..+4.8); $573 billed vs $1,250 list (pkg `17752a7d`) | Codex arms ≈ $1,820 + judge; median trial 6.0 vs 16.3 min |
-| TB4 · router `/beta` vs Sol | `weave-bench run terminal-bench-4 --arms router,sol` | 24.6% vs 30.3% trial pass, McNemar p=0.29; $399 billed vs $633 list (pkg `af0ef6ce`) | ≈ $1,030; 10 h wall for both arms |
+| TB4 · router `/beta` vs Sol | `aiand-bench run terminal-bench-4 --arms router,sol` | 24.6% vs 30.3% trial pass, McNemar p=0.29; $399 billed vs $633 list (pkg `af0ef6ce`) | ≈ $1,030; 10 h wall for both arms |
 | TB4 · router `/beta` vs Luna | `--arms router,luna` | 25.8% vs 0.8%, McNemar p<0.0001; $651 billed vs $36 list (pkg `468b99a9`) | ≈ $690 |
 | TB4 · router `/beta` vs OpenRouter auto-beta (xhigh) | `--arms router,openrouter-beta-xhigh` | 25.8% vs 19.0% (121/132 control trials graded), McNemar p=0.21; $651 vs $668 on graded trials | control $1,288 total incl. smoke + preemption losses |
 
@@ -179,7 +179,7 @@ analytics join) for a few dollars.
 | | SWE-Atlas QnA | Terminal-Bench 4.0 |
 |---|---|---|
 | Tasks | 124 (`manifests/sweatlas_qna_tasks.json`) | 66 (`manifests/terminalbench4_tasks.json`) |
-| Source | `scaleapi/SWE-Atlas` @ `49e4af3b`, `data/qa` (`weave-bench fetch atlas`) | Harbor registry `terminal-bench/terminal-bench@4.0.0`, content sha256 `39d9f44b…` |
+| Source | `scaleapi/SWE-Atlas` @ `49e4af3b`, `data/qa` (`aiand-bench fetch atlas`) | Harbor registry `terminal-bench/terminal-bench@4.0.0`, content sha256 `39d9f44b…` |
 | Harbor | 0.22.0 (published: 0.18.0 + a private patch equivalent to `BetaCodex`) | 0.22.0 |
 | Codex CLI | 0.153.0 | 0.150.0 |
 | Verifier | task rubrics judged by `anthropic/claude-opus-4-5-20251101` (`EVAL_*` env, prompt ships in each task's `tests/`) | task tests |
@@ -207,7 +207,7 @@ run id should say so.
   `beta_turn.py` asserts the shape it rewrites and fails loudly otherwise.
 - **Router build and HMM package.** `/beta` routes with whatever roster the
   router at `router.base_url` serves; the published runs name their package.
-  Attach `weave-bench probe` output to any result.
+  Attach `aiand-bench probe` output to any result.
 - **Router-billed cost needs analytics access.** See §4. Without a `ra_` key
   for the org that ran the trials (or a saved NDJSON), only list and
   OpenRouter-billed costs are reproducible. The published router-billed

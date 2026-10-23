@@ -10,11 +10,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/api/admin"
-	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/cluster"
-	"weave-os/router/internal/router/hmm/rosterdata"
+	"aiand-os/router/internal/api/admin"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/cluster"
+	"aiand-os/router/internal/router/hmm/rosterdata"
 )
 
 func profileDistributionSnapshot(arm string) *policyregistry.Snapshot {

@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"time"
 
-	"weave-os/router/internal/flags"
-	"weave-os/router/internal/router/escalationdashboard"
-	"weave-os/router/internal/router/llmescalation"
+	"aiand-os/router/internal/flags"
+	"aiand-os/router/internal/router/escalationdashboard"
+	"aiand-os/router/internal/router/llmescalation"
 )
 
 // ErrEscalationJudgeUnavailable prevents selecting an LLM judge that this

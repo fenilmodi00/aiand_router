@@ -46,9 +46,9 @@ function tokensMatch(expected: string, received: unknown): boolean {
 function defaultSocketPath(): { socketPath: string; cleanup(): void } {
 	if (process.platform === "win32") {
 		// Named pipes live in the kernel namespace: nothing to create or unlink.
-		return { socketPath: `\\\\.\\pipe\\weave-pi-lsp-${process.pid}-${randomBytes(6).toString("hex")}`, cleanup: () => undefined };
+		return { socketPath: `\\\\.\\pipe\\aiand-pi-lsp-${process.pid}-${randomBytes(6).toString("hex")}`, cleanup: () => undefined };
 	}
-	const dir = fs.mkdtempSync(path.join(os.tmpdir(), "weave-pi-lsp-"));
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), "aiand-pi-lsp-"));
 	fs.chmodSync(dir, 0o700);
 	const socketPath = path.join(dir, "lsp.sock");
 	return {

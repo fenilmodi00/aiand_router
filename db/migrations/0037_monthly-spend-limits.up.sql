@@ -1,7 +1,7 @@
 BEGIN;
 
 -- Org-scoped spend-limit configuration. One row per organization, written by
--- the Weave control plane (like organization_autopay_config); the router only
+-- the Aiand control plane (like organization_autopay_config); the router only
 -- reads it on the request path. NULL means "no limit of that kind":
 --   user_monthly_limit_usd_micros -- default monthly cap applied to every
 --       engineer (router user) in the org, overridable per user below.

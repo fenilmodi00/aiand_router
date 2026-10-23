@@ -57,4 +57,4 @@ changelog: 'candidate-k12 is a fresh K=12 re-cluster of real production turns (J
   routed mix glm-5.2 ~61% + fable-5 ~39%. Per-cluster top-1 winners: glm-5.2 on 8 clusters
   (c0,c2,c3,c4,c5,c6,c8,c9), fable-5 on 4 (c1,c7,c10,c11). For a 3-way live bake-off vs
   v0.72; NOT promoted — artifacts/latest is unchanged. Servable on a staging router
-  (ROUTER_CLUSTER_BUILD_ALL_VERSIONS=true) via x-weave-cluster-version: candidate-k12.'
+  (ROUTER_CLUSTER_BUILD_ALL_VERSIONS=true) via x-aiand-cluster-version: candidate-k12.'

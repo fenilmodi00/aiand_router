@@ -392,7 +392,7 @@ var Registry = []Definition{
 		Key:            KeyAllowedModelsHeader,
 		EnvVar:         "ROUTER_ALLOWED_MODELS_HEADER",
 		Kind:           KindBool,
-		Description:    "Honor the x-weave-allowed-models request header (per-request routing subset) for this organization even when the installation is not authorized for policy headers.",
+		Description:    "Honor the x-aiand-allowed-models request header (per-request routing subset) for this organization even when the installation is not authorized for policy headers.",
 		OrgOverridable: true,
 	},
 }
@@ -421,7 +421,7 @@ type PublishedDefinition struct {
 	DeploymentDefault string
 }
 
-// DefinitionRepository publishes the registry so the Weave control plane can
+// DefinitionRepository publishes the registry so the Aiand control plane can
 // render and validate the per-org override UI without importing router code.
 // Implemented by internal/postgres.
 type DefinitionRepository interface {

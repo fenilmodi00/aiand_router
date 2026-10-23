@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/billing"
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/router/handover"
-	"weave-os/router/internal/router/llmescalation"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/billing"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router/handover"
+	"aiand-os/router/internal/router/llmescalation"
 
 	"github.com/google/uuid"
 )
@@ -23,10 +23,10 @@ import (
 // would misread an auxiliary call as a served turn (inflating request counts,
 // polluting decision-model breakdowns, and feeding the policy trainer rows no
 // policy produced). Consumers that want the true session total opt in by
-// naming this span type — see the Weave public session-cost endpoint.
+// naming this span type — see the Aiand public session-cost endpoint.
 const SpanTypeAuxiliaryInference = "router.auxiliary_inference"
 
-// SpanTypePlatformAuxiliaryInference is Weave-funded overhead. It remains
+// SpanTypePlatformAuxiliaryInference is Aiand-funded overhead. It remains
 // outside customer session-cost and billing paths while preserving usage.
 const SpanTypePlatformAuxiliaryInference = "router.platform_auxiliary_inference"
 

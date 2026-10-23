@@ -6,7 +6,7 @@
 -- turn_type is the turntype classification (main_loop, tool_result, probe,
 -- title_gen, compaction, classifier, recap, sub_agent_dispatch); NULL only on rows
 -- written before the column existed.
--- rollout_id is the client-supplied x-weave-rollout-id correlation id used by
+-- rollout_id is the client-supplied x-aiand-rollout-id correlation id used by
 -- eval/training harnesses to join graded rollout rewards onto decisions; NULL
 -- for all non-harness traffic.
 -- session_key + role are the offline join key to router.spiral_shadow_events
@@ -851,7 +851,7 @@ LIMIT @row_limit::int;
 
 -- Committed cost of one client session for this installation. Includes
 -- served turns and billed auxiliary inference so the total matches the
--- Weave public session-cost contract. No-rows when the session has no
+-- Aiand public session-cost contract. No-rows when the session has no
 -- committed telemetry yet.
 -- name: GetSessionCost :one
 SELECT

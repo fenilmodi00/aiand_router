@@ -16,9 +16,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/option"
-	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/router/hmm/rosterdata"
-	"weave-os/router/internal/router/taskdomain"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/router/hmm/rosterdata"
+	"aiand-os/router/internal/router/taskdomain"
 )
 
 func TestTaskBindingRequiresAdmittedAndLoadedRelease(t *testing.T) {
@@ -74,7 +74,7 @@ func TestTaskDomainGCSReferenceRejectsUnreviewedObjects(t *testing.T) {
 	valid := taskDomainTestURI(taskDomainBindings, digest)
 	for _, reference := range []string{
 		strings.Replace(valid, "gs://", "https://", 1),
-		strings.Replace(valid, "weave_ml", "other-bucket", 1),
+		strings.Replace(valid, "aiand_ml", "other-bucket", 1),
 		strings.Replace(valid, "/bindings/", "/releases/", 1),
 		strings.Replace(valid, digest, strings.Repeat("b", 64), 1),
 		strings.Replace(valid, "/sha256/", "/sha256/../sha256/", 1),
@@ -148,11 +148,11 @@ func TestTaskDomainGCSBindingLoadsExactGenerationAndBytes(t *testing.T) {
 	require.Len(t, requests, 3)
 	for _, object := range []string{taskDomainTestObject(taskDomainBindings, bindingsDigest), taskDomainTestObject(taskDomainReleases, releaseDigest), taskDomainTestObject(taskDomainEvidence, evidenceDigest)} {
 		request := <-requests
-		assert.Equal(t, "/weave_ml/"+object, request.URL.Path)
+		assert.Equal(t, "/aiand_ml/"+object, request.URL.Path)
 		assert.Equal(t, "7", request.URL.Query().Get("generation"))
 	}
 
-	latest, err := reader.client.Bucket("weave_ml").Object(taskDomainTestObject(taskDomainBindings, bindingsDigest)).NewReader(context.Background())
+	latest, err := reader.client.Bucket("aiand_ml").Object(taskDomainTestObject(taskDomainBindings, bindingsDigest)).NewReader(context.Background())
 	require.NoError(t, err, "the fixture must serve the current object for an unpinned read")
 	latestPayload, err := io.ReadAll(latest)
 	require.NoError(t, err)
@@ -222,7 +222,7 @@ func taskDomainTestObject(kind taskDomainMetadataKind, digest string) string {
 }
 
 func taskDomainTestURI(kind taskDomainMetadataKind, digest string) string {
-	return "gs://weave_ml/" + taskDomainTestObject(kind, digest) + "#7"
+	return "gs://aiand_ml/" + taskDomainTestObject(kind, digest) + "#7"
 }
 
 func taskDomainTestGCSReader(t *testing.T, objects map[string][]byte) (*taskDomainMetadataReader, <-chan *http.Request) {
@@ -230,7 +230,7 @@ func taskDomainTestGCSReader(t *testing.T, objects map[string][]byte) (*taskDoma
 	requests := make(chan *http.Request, 32)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests <- r
-		_, name, found := strings.Cut(r.URL.Path, "/weave_ml/")
+		_, name, found := strings.Cut(r.URL.Path, "/aiand_ml/")
 		payload, exists := objects[name]
 		generation := r.URL.Query().Get("generation")
 		if r.Method != http.MethodGet || !found || !exists || (generation != "" && generation != "7") {

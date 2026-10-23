@@ -9,14 +9,14 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// SessionCostRequestsPerMinute matches the Weave public API's session-cost
+// SessionCostRequestsPerMinute matches the Aiand public API's session-cost
 // budget, which is sized for CI fan-out calling once per agent invocation.
 const SessionCostRequestsPerMinute = 500
 
 // WithInstallationRateLimit throttles each installation to perMinute requests
 // with a full minute's worth as burst, shared by every key the installation
 // owns. Buckets are per replica, so aggregate allowance scales with replica
-// count. Every response carries the Weave public API's X-RateLimit-* headers.
+// count. Every response carries the Aiand public API's X-RateLimit-* headers.
 // Must run after an auth middleware that stashes the installation.
 func WithInstallationRateLimit(perMinute int, now func() time.Time) gin.HandlerFunc {
 	if perMinute <= 0 {

@@ -3,7 +3,7 @@
  * irreversible shell commands. pi already confirms normal tool calls; this
  * matters most in non-interactive subagents where there is no human to
  * confirm. It blocks ONLY the obviously-destructive forms below — it is a
- * backstop, not a sandbox. Disable with WEAVE_NO_SAFETY=1.
+ * backstop, not a sandbox. Disable with AIAND_NO_SAFETY=1.
  */
 
 import { type ExtensionAPI, type ExtensionContext, isToolCallEventType, type ToolCallEvent } from "@mariozechner/pi-coding-agent";
@@ -61,6 +61,6 @@ export function registerSafety(pi: ExtensionAPI): void {
 		if (!isToolCallEventType("bash", event)) return undefined;
 		const reason = catastrophicReason(event.input.command ?? "");
 		if (!reason) return undefined;
-		return { block: true, reason: `Weave safety: blocked ${reason}. Set WEAVE_NO_SAFETY=1 to override.` };
+		return { block: true, reason: `Aiand safety: blocked ${reason}. Set AIAND_NO_SAFETY=1 to override.` };
 	});
 }

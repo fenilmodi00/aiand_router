@@ -12,7 +12,7 @@ import (
 )
 
 // TestAADFor_GoldenBytes pins the AAD format. The matching test in
-// backend/internal/app/weaverouter/crypto_test.go asserts the same expected
+// backend/internal/app/aiandrouter/crypto_test.go asserts the same expected
 // bytes; drift on either side fails CI before any cross-repo decrypt breaks.
 func TestAADFor_GoldenBytes(t *testing.T) {
 	assert.Equal(t,

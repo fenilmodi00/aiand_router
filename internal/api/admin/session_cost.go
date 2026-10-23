@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"time"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/server/middleware"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/server/middleware"
 
 	"github.com/gin-gonic/gin"
 )
@@ -16,7 +16,7 @@ import (
 const usdMicrosPerUSD = 1_000_000.0
 
 // sessionCostResponse is the JSON envelope for GET /v1/sessions/:id/cost: the
-// Weave public API's RouterSessionCost plus the savings fields the Codex status
+// Aiand public API's RouterSessionCost plus the savings fields the Codex status
 // hook reads. The *_usd_micros integers are authoritative; decimal fields are
 // derived for display only.
 type sessionCostResponse struct {
@@ -39,7 +39,7 @@ type sessionCostResponse struct {
 // SessionCostHandler returns committed router cost for a session, scoped to the
 // installation that owns the presented rk_ or ra_ key. Exists so the Codex status
 // hook gets real savings without a local price table it cannot keep in sync.
-// Errors use the Weave public API's message/description shape.
+// Errors use the Aiand public API's message/description shape.
 func SessionCostHandler(proxySvc *proxy.Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		installation := middleware.InstallationFrom(c)
@@ -61,7 +61,7 @@ func SessionCostHandler(proxySvc *proxy.Service) gin.HandlerFunc {
 		}
 		if errors.Is(err, proxy.ErrSessionCostUnavailable) {
 			observability.FromGin(c).Warn("Session cost requested but telemetry storage is not configured", "installation_id", installation.ID)
-			c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"message": "WeaveRouter is not available on this deployment"})
+			c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"message": "AiandRouter is not available on this deployment"})
 			return
 		}
 		if err != nil {

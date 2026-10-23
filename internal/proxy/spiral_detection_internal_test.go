@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/translate"
 )
 
 // buildSpiralBody constructs an Anthropic-format request body from a compact

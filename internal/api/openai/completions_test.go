@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"weave-os/router/internal/api/openai"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/api/openai"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/router"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"

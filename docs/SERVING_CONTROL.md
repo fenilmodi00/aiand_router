@@ -17,13 +17,13 @@ registry writer. The kept list is at the end of this document.
 ## Command surface
 
 `policyctl serving` exposes exactly four verbs. Every verb accepts
-`--registry gs://<bucket>/<prefix>` (default `gs://weave_ml/weave_registry`).
+`--registry gs://<bucket>/<prefix>` (default `gs://aiand_ml/aiand_registry`).
 
 ```bash
 policyctl serving publish  --kind candidate|selection_set|proposal --manifest <file> [--dry-run]
 policyctl serving publish-release --candidate <file> --selection-set <file> --proposal <file> [--dry-run]
 policyctl serving apply    --proposal <ObjectRef.json> | --proposal-sha256 <sha256> [--dry-run]
-policyctl serving status   --target staging|prod/stable|prod/weave-internal | --proposal <ObjectRef.json>
+policyctl serving status   --target staging|prod/stable|prod/aiand-internal | --proposal <ObjectRef.json>
 ```
 
 | Command | Required inputs | Effect | Stdout on success |
@@ -73,7 +73,7 @@ destination validation calls the HTTPS origins the selection set's lanes declare
 ```
 
 `<env>` is `staging` or `prod`; `<target>` is `staging`, `prod/stable`, or
-`prod/weave-internal`. Beta targets are rejected.
+`prod/aiand-internal`. Beta targets are rejected.
 
 Objects under `artifacts/` are content-addressed by the digest of the exact bytes
 published; the object's `schema_version` selects the decoder, and `artifacts/` holds
@@ -147,7 +147,7 @@ across targets. Merges the v1 release and classifier bundle: `router_image_diges
 `classifier` (identity, `package`, `auxiliary_models` — explicit even when `{}` —
 and `configuration`), `requirements` (`runtime_contract`, `policy_schema`,
 `classifier_wire_schema`, `taxonomy_sha256`), and `provenance` (`router_revision`,
-`weave_revision`, `build_attestation`).
+`aiand_revision`, `build_attestation`).
 
 The optional `strategy_policies` map pins an independent compiled policy for a
 beta classifier variant. Each key must identify a pinned classifier variant;
@@ -155,8 +155,8 @@ the policy must share its schema and ordered taxonomy. Routing and model discove
 use that policy only for the requested strategy, preserving the default policy.
 
 Clients can select an automatic router with the request `model` IDs
-`weave-auto`, `weave-hmm-20261019-0001v1`, and
-`weave-qwen-20261008-0001v2`. `weave-auto` uses the configured default;
+`aiand-auto`, `aiand-hmm-20261019-0001v1`, and
+`aiand-qwen-20261008-0001v2`. `aiand-auto` uses the configured default;
 the other IDs select the corresponding classifier variant and its pinned roster
 within the admitted release. Managed variant selection requires internal
 organization admission without a subscriber plan. A missing variant returns 503;
@@ -167,7 +167,7 @@ Both variants use the existing classifier sidecar.
 with a description and a `kind` of `router` or `direct`. Explicit router IDs take
 precedence over legacy session beta preferences. Legacy beta commands in those
 sessions direct clients to the model selector instead of changing hidden state.
-Signed atomic-classifier thread enrollment remains authoritative for `weave-auto`;
+Signed atomic-classifier thread enrollment remains authoritative for `aiand-auto`;
 selecting an alternate router requires a fresh thread.
 
 **`selection_set`** (`schema_version: router_serving_selection_set_v2`) — one per
@@ -414,7 +414,7 @@ error text.
 
 The span rule is positional: every projection query the transaction runs before the
 conversation lock — including the installation lane-enrollment lookup that selects
-`prod/weave-internal` — counts in `admission_projection_queries_ms`; the lock and the
+`prod/aiand-internal` — counts in `admission_projection_queries_ms`; the lock and the
 session-binding read that follows it belong to `admission_lock_wait_ms` and the
 remainder of `admission_tx_ms`. The lane lookup's inputs and result are not logged:
 only the resulting `target` appears, never the installation id or the enrollment flag
@@ -486,7 +486,7 @@ environment-local latency; those remain authorized rollout checks.
 
 ## Shared code cohorts and roster configuration (selection v3)
 
-The ordinary production code cohorts are `prod/weave-internal` and `prod/stable`.
+The ordinary production code cohorts are `prod/aiand-internal` and `prod/stable`.
 Staging retains its existing target. Customers and subscription profiles are roster
 configuration within a cohort. Internal and stable may run different candidates;
 all customers on a target share one worker image and physical worker/classifier
@@ -624,7 +624,7 @@ Preparation re-resolves the preview, and each admission checks the grant digest,
 current eligibility, single bound session, expiry/revocation and exact retained
 activation/profile/policy. There is no fallback to a current head.
 
-`X-Weave-Test-Grant` and `X-Weave-Test-Session` are consumed by worker auth.
+`X-Aiand-Test-Grant` and `X-Aiand-Test-Session` are consumed by worker auth.
 The worker strips provider credentials and client email attribution, verifies the
 grant before subscriber resolution and avoids provider-secret lookup. Only the
 server-resolved test scope selects identity, plan, session and billing subject.

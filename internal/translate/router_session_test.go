@@ -32,7 +32,7 @@ func TestExtractRouterSessionCommand_CodexSkillBlobFollowsDirective(t *testing.T
 func TestExtractRouterSessionCommand_SkillBlobAfterAssistantIsNotADirective(t *testing.T) {
 	env := codexEnvelope(t,
 		codexUserItem("$router-session"),
-		codexAssistantItem("Weave Router: session id: abc-123."),
+		codexAssistantItem("Aiand Router: session id: abc-123."),
 		codexUserItem("<skill>\nname: router-session\n</skill>"),
 	)
 	assert.False(t, env.ExtractRouterSessionCommand())

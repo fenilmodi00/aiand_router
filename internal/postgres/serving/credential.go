@@ -7,8 +7,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/sqlc"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/sqlc"
 )
 
 // CredentialLookup reads only the credential identity needed for the subsequent locked admission.

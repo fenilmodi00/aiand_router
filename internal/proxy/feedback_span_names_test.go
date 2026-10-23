@@ -10,12 +10,12 @@ import (
 	"testing"
 	"time"
 
-	feedbacktoken "weave-os/router/internal/feedback"
-	"weave-os/router/internal/observability/otel"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/sessionpin"
+	feedbacktoken "aiand-os/router/internal/feedback"
+	"aiand-os/router/internal/observability/otel"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/sessionpin"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -153,7 +153,7 @@ func TestFeedbackSpans_UseDistinctNamesAndSchemas(t *testing.T) {
 
 	// The documented-contract span (router.feedback) always carries a rating.
 	rating, ok := attrString(linkSpans[0], "feedback.rating")
-	assert.True(t, ok, "router.feedback span must carry feedback.rating (Weave contract)")
+	assert.True(t, ok, "router.feedback span must carry feedback.rating (Aiand contract)")
 	assert.Equal(t, "down", rating)
 
 	// The two pipelines must not collide under the same span name.

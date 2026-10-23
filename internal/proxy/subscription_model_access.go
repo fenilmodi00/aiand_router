@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"weave-os/router/internal/providers"
+	"aiand-os/router/internal/providers"
 
 	"github.com/tidwall/gjson"
 )

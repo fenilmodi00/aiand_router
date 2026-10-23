@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"weave-os/router/internal/router/llmescalation"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/router/llmescalation"
+	"aiand-os/router/internal/translate"
 )
 
 func TestRenderQwenIntervalUsesLastFiveCompletedTurns(t *testing.T) {

@@ -48,7 +48,7 @@ type DebitParams struct {
 	NotionalCostMicros int64  // always the would-be charge, populated regardless of override
 	EntryType          string // 'inference', 'adjustment', etc.
 	// FeeUsdMicros, when non-zero, writes a second ledger row of FeeEntryType
-	// in the same statement. BYOK turns use it to charge Weave's platform fee
+	// in the same statement. BYOK turns use it to charge Aiand's platform fee
 	// while the inference row records upstream cost at delta 0.
 	FeeUsdMicros    int64
 	FeeEntryType    string

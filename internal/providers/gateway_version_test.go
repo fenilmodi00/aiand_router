@@ -3,7 +3,7 @@ package providers_test
 import (
 	"testing"
 
-	"weave-os/router/internal/providers"
+	"aiand-os/router/internal/providers"
 
 	"github.com/stretchr/testify/assert"
 )

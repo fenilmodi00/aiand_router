@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/subscriptions/entitlement"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/subscriptions/entitlement"
 )
 
 type testLaunchRepo struct {

@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"weave-os/router/internal/billing"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/billing"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/translate"
 )
 
 // subscriptionSource names the caller-side subscription a funding notice
@@ -85,21 +85,21 @@ func anthropicOAuthCredentialRejected(err error) bool {
 // Duplicated from middleware.TopUpURL (proxy can't import the middleware
 // adapter without an import cycle) so subscription-only warnings and the
 // credits-exhausted 402 can surface the CTA.
-const topUpURL = "https://app.workweave.ai/organization/settings/weave-router"
+const topUpURL = "https://app.workaiand.ai/organization/settings/aiand-router"
 
 // subscriptionOnlyWarningMarker is prepended to a subscription-only turn so the
 // customer sees why the router refused to fall back to a paid model and how to
 // restore full routing. The marker is emitted only when terminal surfaces are
 // enabled for the installation and request.
 const subscriptionOnlyWarningMarker = routingMarkerPrefix +
-	"your Weave router credits are depleted, so this turn is running in subscription-only mode and paid model fallback is disabled. Add credits to restore full routing: " +
+	"your Aiand router credits are depleted, so this turn is running in subscription-only mode and paid model fallback is disabled. Add credits to restore full routing: " +
 	topUpURL + "\n\n"
 
 // subscriptionSpendCapWarningMarker is prepended to a subscription-only turn
 // a spend cap barred from paid capacity. The organization may still hold
 // credits, so it names the cap and carries no top-up CTA.
 const subscriptionSpendCapWarningMarker = routingMarkerPrefix +
-	"a Weave router spend cap has been reached, so this turn is running in subscription-only mode and paid model fallback is disabled.\n\n"
+	"a Aiand router spend cap has been reached, so this turn is running in subscription-only mode and paid model fallback is disabled.\n\n"
 
 // subscriptionFundingWarning keeps funding policy separate from notice encoding.
 type subscriptionFundingWarning struct {

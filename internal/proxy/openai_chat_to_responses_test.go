@@ -4,9 +4,9 @@ import (
 	"io"
 	"net/http"
 
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/router"
 )
 
 // responsesStreamUpstream writes a minimal Responses SSE stream: one text

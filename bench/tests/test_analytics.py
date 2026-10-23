@@ -9,7 +9,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
-from weave_bench.analytics import (
+from aiand_bench.analytics import (
     AnalyticsUnavailable,
     by_session,
     fetch_rows,
@@ -86,8 +86,8 @@ class _PagedExport(BaseHTTPRequestHandler):
         body = "".join(json.dumps(row) + "\n" for row in rows).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/x-ndjson")
-        self.send_header("X-Weave-Next-Cursor", next_cursor)
-        self.send_header("X-Weave-Has-More", has_more)
+        self.send_header("X-Aiand-Next-Cursor", next_cursor)
+        self.send_header("X-Aiand-Has-More", has_more)
         self.end_headers()
         self.wfile.write(body)
 

@@ -10,16 +10,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/auth"
+	"aiand-os/router/internal/auth"
 )
 
 func TestRoutingTokenPrecedence(t *testing.T) {
 	headers := make(http.Header)
-	headers.Set("X-Weave-Router-Key", " dedicated ")
+	headers.Set("X-Aiand-Router-Key", " dedicated ")
 	headers.Set("Authorization", "bEaReR bearer")
 	headers.Set("x-api-key", "fallback")
 	assert.Equal(t, "dedicated", auth.RoutingTokenFromHeaders(headers))
-	headers.Del("X-Weave-Router-Key")
+	headers.Del("X-Aiand-Router-Key")
 	assert.Equal(t, "bearer", auth.RoutingTokenFromHeaders(headers))
 	headers.Set("Authorization", "Bearer ")
 	assert.Equal(t, "fallback", auth.RoutingTokenFromHeaders(headers))

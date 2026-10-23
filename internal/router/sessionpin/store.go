@@ -7,7 +7,7 @@ import (
 	"sort"
 	"time"
 
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/router"
 
 	"github.com/google/uuid"
 )
@@ -38,7 +38,7 @@ type Pin struct {
 	Provider       string
 	Model          string
 	// Effort is the reasoning level the user forced alongside Model (the
-	// `:level` suffix of /force-model or x-weave-force-model); empty means the
+	// `:level` suffix of /force-model or x-aiand-force-model); empty means the
 	// model's default. Persisted so later turns served from the pin carry it.
 	Effort string
 	// ForcedThreadKey restricts an explicit pin to this thread digest. Empty

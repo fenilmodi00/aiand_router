@@ -3,8 +3,8 @@ package proxy
 import (
 	"context"
 
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/sessionpin"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/sessionpin"
 )
 
 // pinMatchesEffectiveStrategy reports whether a stored pin belongs to the

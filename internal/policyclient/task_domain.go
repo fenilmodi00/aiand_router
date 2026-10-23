@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"weave-os/router/internal/router/taskdomain"
+	"aiand-os/router/internal/router/taskdomain"
 )
 
 var taskDomainOutput = regexp.MustCompile(`^[01](,[01]){4}$`)

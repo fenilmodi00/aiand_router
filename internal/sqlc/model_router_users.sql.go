@@ -144,7 +144,7 @@ type UpsertModelRouterUserByEmailRow struct {
 // Upserts an end-user identity keyed on (installation_id, email), refreshing
 // last_seen_at on every hit. claude_account_uuid and display_name are
 // overwritten only when the new value is non-NULL so a request from a
-// non-Claude-Code client (or one that omits the X-Weave-User-Name header)
+// non-Claude-Code client (or one that omits the X-Aiand-User-Name header)
 // can't blank out fields populated by earlier requests. Returns the row so
 // the caller can stash user_id on the request context.
 //
@@ -152,7 +152,7 @@ type UpsertModelRouterUserByEmailRow struct {
 // already exists for this account (created by an earlier email-less request
 // via UpsertModelRouterUserByAccountUUID), we update that row's email +
 // display_name in place instead of inserting a new email-keyed row. Without
-// this, every installer upgrade that introduces X-Weave-User-Email creates
+// this, every installer upgrade that introduces X-Aiand-User-Email creates
 // duplicate rows for the same human and the dashboard picker shows both.
 // The fallback INSERT keeps the original ON CONFLICT path so concurrent
 // email-bearing requests still collapse onto a single row.

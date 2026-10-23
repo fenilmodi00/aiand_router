@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"weave-os/router/internal/billing"
-	"weave-os/router/internal/server/middleware"
-	"weave-os/router/internal/subscriptions/entitlement"
+	"aiand-os/router/internal/billing"
+	"aiand-os/router/internal/server/middleware"
+	"aiand-os/router/internal/subscriptions/entitlement"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"

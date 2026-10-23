@@ -7,11 +7,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"weave-os/router/internal/api/admin"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/router/policy"
-	"weave-os/router/internal/server/middleware"
+	"aiand-os/router/internal/api/admin"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router/policy"
+	"aiand-os/router/internal/server/middleware"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -53,7 +53,7 @@ func inspectionRequest(t *testing.T, method, path string, body any) *http.Reques
 		require.NoError(t, err)
 	}
 	req := httptest.NewRequest(method, path, bytes.NewReader(payload))
-	req.Header.Set("X-Weave-Internal-Token", inspectionToken)
+	req.Header.Set("X-Aiand-Internal-Token", inspectionToken)
 	return req
 }
 

@@ -17,8 +17,8 @@ import (
 	"math/rand/v2"
 	"sort"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/router"
 )
 
 // ProviderForModel is a boot-time fallback resolver for a model's provider,

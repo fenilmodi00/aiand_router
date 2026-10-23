@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/billing"
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/subscriptions/entitlement"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/billing"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/subscriptions/entitlement"
 )
 
 // checkUserMonthlySpendLimit gates a turn on the resolved engineer's monthly

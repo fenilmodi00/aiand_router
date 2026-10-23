@@ -49,7 +49,7 @@ done
 
 # Every registry-declared adapter is packaged, and nothing is packaged that the
 # registry does not declare. This is the check that keeps the two in lockstep.
-check "the canonical package name is published" "@weave-os/router" \
+check "the canonical package name is published" "@aiand-os/router" \
   "$(node -p 'require(process.argv[1]).name' "$root/package.json")"
 
 check "the package declares Apache-2.0" "Apache-2.0" \
@@ -65,32 +65,32 @@ done
 missing=""
 while IFS= read -r name; do
   [ -f "$root/commands/$name.md" ] || missing="$missing $name"
-done < <(weave_registry_names claude)
+done < <(aiand_registry_names claude)
 check "every Claude directive's command file is packaged" "" "$missing"
 
 missing=""
 while IFS= read -r name; do
   [ -f "$root/commands/$name.md" ] || missing="$missing $name"
-done < <(weave_registry_names opencode)
+done < <(aiand_registry_names opencode)
 check "every opencode directive's command file is packaged" "" "$missing"
 
 missing=""
 while IFS= read -r name; do
   [ -f "$root/codex-skills/$name/SKILL.md" ] || missing="$missing $name"
-done < <(weave_registry_skill_names codex)
+done < <(aiand_registry_skill_names codex)
 check "every Codex prompt directive's skill is packaged" "" "$missing"
 
 orphans=""
 for f in "$root"/commands/*.md; do
   name="$(basename "$f" .md)"
-  weave_registry_canonical_for "$name" >/dev/null || orphans="$orphans $name"
+  aiand_registry_canonical_for "$name" >/dev/null || orphans="$orphans $name"
 done
 check "no packaged command lacks a registry entry" "" "$orphans"
 
 orphans=""
 for d in "$root"/codex-skills/*/; do
   name="$(basename "$d")"
-  weave_registry_canonical_for "$name" >/dev/null || orphans="$orphans $name"
+  aiand_registry_canonical_for "$name" >/dev/null || orphans="$orphans $name"
 done
 check "no packaged Codex skill lacks a registry entry" "" "$orphans"
 
@@ -123,48 +123,48 @@ chmod +x "$home/bin/opencode"
 HOME="$home" PATH="$home/bin:$PATH" NO_COLOR=1 \
   node "$root/bin.js" >/dev/null 2>&1
 check "the canonical no-argument entrypoint opens the hosted start page" \
-  "https://router.workweave.ai/start" "$(cat "$browser_log" 2>/dev/null || true)"
+  "https://router.workaiand.ai/start" "$(cat "$browser_log" 2>/dev/null || true)"
 
-# Drive bin.js exactly as `npx @weave-os/router` does. A tarball missing any
+# Drive bin.js exactly as `npx @aiand-os/router` does. A tarball missing any
 # runtime asset fails here even though every string assertion above passed.
-HOME="$home" PATH="$home/bin:$PATH" WEAVE_ROUTER_KEY="rk_test_key" NO_COLOR=1 \
+HOME="$home" PATH="$home/bin:$PATH" AIAND_ROUTER_KEY="rk_test_key" NO_COLOR=1 \
   node "$root/bin.js" --codex --scope user --quiet --base-url http://127.0.0.1:9 >/dev/null 2>&1 || true
 
 installed="$(cd "$home/.codex/skills" 2>/dev/null && ls -d */ 2>/dev/null | tr -d '/' | sort | tr '\n' ' ' | sed 's/ $//')"
 check "the packed entrypoint installs every Codex skill" \
   "disable-routing fm force-model force-parent rf router-feedback router-models router-off router-on router-session router-status ufm unforce-model" "$installed"
 
-mkdir -p "$work/packed-opencode/.weave"
-printf '%s\n' 'export default legacyPlugin' >"$work/packed-opencode/.weave/opencode-weave.ts"
-HOME="$home" PATH="$home/bin:$PATH" WEAVE_ROUTER_KEY="rk_test_key" NO_COLOR=1 \
+mkdir -p "$work/packed-opencode/.aiand"
+printf '%s\n' 'export default legacyPlugin' >"$work/packed-opencode/.aiand/opencode-aiand.ts"
+HOME="$home" PATH="$home/bin:$PATH" AIAND_ROUTER_KEY="rk_test_key" NO_COLOR=1 \
   node "$root/bin.js" --opencode --dir "$work/packed-opencode" --quiet --base-url http://127.0.0.1:9 >/dev/null 2>&1 || true
 check "the packed entrypoint removes the old OpenCode plugin" "no" \
-  "$([ -e "$work/packed-opencode/.weave/opencode-weave.ts" ] && echo yes || echo no)"
+  "$([ -e "$work/packed-opencode/.aiand/opencode-aiand.ts" ] && echo yes || echo no)"
 check "the packed entrypoint installs OpenCode without registering a plugin" "false" \
   "$(jq -r 'has("plugin")' "$work/packed-opencode/opencode.json" 2>/dev/null || echo false)"
-check "the packed entrypoint activates weave/auto" "weave/auto" \
+check "the packed entrypoint activates aiand/auto" "aiand/auto" \
   "$(jq -r '.model // empty' "$work/packed-opencode/opencode.json" 2>/dev/null || true)"
 
-HOME="$home" PATH="$home/bin:$PATH" WEAVE_ROUTER_KEY="rk_test_key" NO_COLOR=1 \
+HOME="$home" PATH="$home/bin:$PATH" AIAND_ROUTER_KEY="rk_test_key" NO_COLOR=1 \
   node "$root/bin.js" --claude --scope user --quiet --base-url http://127.0.0.1:9 >/dev/null 2>&1 || true
 installed="$(cd "$home/.claude/commands" 2>/dev/null && ls *.md 2>/dev/null | sed 's/\.md$//' | sort | tr '\n' ' ' | sed 's/ $//')"
 check "the packed entrypoint installs every Claude command" \
-  "$(weave_registry_names claude | sort | tr '\n' ' ' | sed 's/ $//')" "$installed"
+  "$(aiand_registry_names claude | sort | tr '\n' ' ' | sed 's/ $//')" "$installed"
 
-HOME="$home" PATH="$home/bin:$PATH" WEAVE_ROUTER_KEY="rk_test_key" NO_COLOR=1 \
+HOME="$home" PATH="$home/bin:$PATH" AIAND_ROUTER_KEY="rk_test_key" NO_COLOR=1 \
   node "$root/bin.js" --pi --scope user --quiet --base-url http://127.0.0.1:9 >/dev/null 2>&1 || true
 check "the packed entrypoint registers its own pi package" \
-  "npm:@weave-os/router" \
-  "$(jq -r '.packages[]? // empty' "$home/.pi/agent/settings.json" 2>/dev/null | grep -F 'npm:@weave-os/router' || true)"
+  "npm:@aiand-os/router" \
+  "$(jq -r '.packages[]? // empty' "$home/.pi/agent/settings.json" 2>/dev/null | grep -F 'npm:@aiand-os/router' || true)"
 
-# Re-install after a prior @workweave/router install must not leave both
+# Re-install after a prior @workaiand/router install must not leave both
 # extensions in packages — pi would load them twice.
 mkdir -p "$home/.pi/agent"
-printf '%s\n' '{"defaultProvider":"weave","packages":["npm:@workweave/router","npm:@workweave/pi-router"]}' >"$home/.pi/agent/settings.json"
-HOME="$home" PATH="$home/bin:$PATH" WEAVE_ROUTER_KEY="rk_test_key" NO_COLOR=1 \
+printf '%s\n' '{"defaultProvider":"aiand","packages":["npm:@workaiand/router","npm:@workaiand/pi-router"]}' >"$home/.pi/agent/settings.json"
+HOME="$home" PATH="$home/bin:$PATH" AIAND_ROUTER_KEY="rk_test_key" NO_COLOR=1 \
   node "$root/bin.js" --pi --scope user --quiet --base-url http://127.0.0.1:9 >/dev/null 2>&1 || true
-check "a weave-os re-install drops leftover workweave pi packages" \
-  "npm:@weave-os/router" \
+check "a aiand-os re-install drops leftover workaiand pi packages" \
+  "npm:@aiand-os/router" \
   "$(jq -r '.packages[]? // empty' "$home/.pi/agent/settings.json" 2>/dev/null | tr '\n' ' ' | sed 's/ $//')"
 
 # The uninstall path is bundled too; a tarball that can install but not
@@ -177,12 +177,12 @@ check "the packed entrypoint uninstalls what it installed" "" \
 HOME="$home" PATH="$home/bin:$PATH" NO_COLOR=1 \
   node "$root/bin.js" --uninstall --pi --scope user >/dev/null 2>&1 || true
 check "the packed entrypoint removes its pi package" "" \
-  "$(jq -r '.packages[]? // empty' "$home/.pi/agent/settings.json" 2>/dev/null | grep -E 'npm:(@weave-os/router|@workweave/router)' || true)"
+  "$(jq -r '.packages[]? // empty' "$home/.pi/agent/settings.json" 2>/dev/null | grep -E 'npm:(@aiand-os/router|@workaiand/router)' || true)"
 
 HOME="$home" PATH="$home/bin:$PATH" NO_COLOR=1 \
   node "$root/bin.js" --uninstall --opencode --dir "$work/packed-opencode" >/dev/null 2>&1 || true
 check "the packed entrypoint leaves no OpenCode plugin directory" "no" \
-  "$([ -e "$work/packed-opencode/.weave" ] && echo yes || echo no)"
+  "$([ -e "$work/packed-opencode/.aiand" ] && echo yes || echo no)"
 
 # The legacy package is published from the same tarball with only its package
 # name changed. Its entrypoint must identify that name and explain the
@@ -193,15 +193,15 @@ node -e '
   const fs = require("node:fs");
   const file = process.argv[1];
   const pkg = JSON.parse(fs.readFileSync(file, "utf8"));
-  pkg.name = "@workweave/router";
+  pkg.name = "@workaiand/router";
   fs.writeFileSync(file, JSON.stringify(pkg, null, 2) + "\n");
 ' "$legacy/package.json"
 legacy_err="$work/legacy.err"
-HOME="$home" PATH="$home/bin:$PATH" WEAVE_ROUTER_KEY="rk_test_key" NO_COLOR=1 \
+HOME="$home" PATH="$home/bin:$PATH" AIAND_ROUTER_KEY="rk_test_key" NO_COLOR=1 \
   node "$legacy/bin.js" --codex --scope user --quiet --base-url http://127.0.0.1:9 \
   >/dev/null 2>"$legacy_err" || true
 check "the legacy entrypoint points to the renamed package" \
-  "yes" "$(grep -Fq 'use @weave-os/router' "$legacy_err" && echo yes || echo no)"
+  "yes" "$(grep -Fq 'use @aiand-os/router' "$legacy_err" && echo yes || echo no)"
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

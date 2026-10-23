@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 
-	"weave-os/router/internal/usage"
+	"aiand-os/router/internal/usage"
 )
 
 func acceptanceResponse(calls string) []byte {

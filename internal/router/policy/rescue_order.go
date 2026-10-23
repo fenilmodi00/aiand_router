@@ -1,6 +1,6 @@
 package policy
 
-import "weave-os/router/internal/router/escalation"
+import "aiand-os/router/internal/router/escalation"
 
 func EscalatingRescueGroups(selectedGroup, forcedGroup string, rankedFallback []PreviewGroup) []PreviewGroup {
 	if forcedGroup != "" {

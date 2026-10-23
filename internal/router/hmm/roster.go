@@ -1,8 +1,8 @@
 package hmm
 
 import (
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/router/cluster"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router/cluster"
 )
 
 // DeployedModelsForRosterIDs maps sidecar roster IDs to catalog {model, provider} entries.

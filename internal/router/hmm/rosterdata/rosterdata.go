@@ -16,7 +16,7 @@ import (
 	"sort"
 	"strings"
 
-	"weave-os/router/internal/router/hmm/armid"
+	"aiand-os/router/internal/router/hmm/armid"
 )
 
 type SchemaVersion string

@@ -14,9 +14,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/sse"
-	"weave-os/router/internal/usage"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/sse"
+	"aiand-os/router/internal/usage"
 
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"

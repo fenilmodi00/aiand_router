@@ -285,7 +285,7 @@ func ParseResponsesEscalationObservation(body []byte) (EscalationObservation, er
 				if !callID.Exists() {
 					// Older clients omit native IDs on replay. The input position
 					// is stable under the append-only checkpoint and counts repeats.
-					searchID = fmt.Sprintf("__weave_native_web_search_%d", itemIndex)
+					searchID = fmt.Sprintf("__aiand_native_web_search_%d", itemIndex)
 				}
 				// Server-executed searches have no separate client output item.
 				// Keep the terminal event intact as the paired result for identity.

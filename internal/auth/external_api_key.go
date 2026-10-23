@@ -74,7 +74,7 @@ const (
 const maxIdentityHeaderNameLength = 128
 
 const (
-	weaveHeaderPrefix     = "x-weave-"
+	aiandHeaderPrefix     = "x-aiand-"
 	forwardedHeaderPrefix = "x-forwarded-"
 )
 
@@ -250,7 +250,7 @@ func IsSafeForwardingHeader(name string) bool {
 		return false
 	}
 	lowerName := strings.ToLower(name)
-	if strings.HasPrefix(lowerName, weaveHeaderPrefix) || strings.HasPrefix(lowerName, forwardedHeaderPrefix) {
+	if strings.HasPrefix(lowerName, aiandHeaderPrefix) || strings.HasPrefix(lowerName, forwardedHeaderPrefix) {
 		return false
 	}
 	if _, protected := protectedForwardingHeaders[lowerName]; protected {

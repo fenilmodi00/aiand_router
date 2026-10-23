@@ -5,9 +5,9 @@ import (
 	"io"
 	"net/http"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/requestcontext"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/requestcontext"
 
 	"github.com/tidwall/gjson"
 )

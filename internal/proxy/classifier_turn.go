@@ -6,13 +6,13 @@ import (
 
 	"github.com/tidwall/gjson"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/sessionpin"
-	"weave-os/router/internal/router/turntype"
-	"weave-os/router/internal/translate"
-	"weave-os/router/internal/websearch"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/sessionpin"
+	"aiand-os/router/internal/router/turntype"
+	"aiand-os/router/internal/translate"
+	"aiand-os/router/internal/websearch"
 )
 
 type classifierInputContextKey struct{}

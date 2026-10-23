@@ -1,7 +1,7 @@
 package rl
 
 import (
-	"weave-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router/catalog"
 )
 
 // rosterAliases maps a catalog model ID to the policy-artifact roster ID when

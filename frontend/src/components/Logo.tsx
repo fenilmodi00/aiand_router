@@ -7,13 +7,13 @@ interface LogoProps {
 // basePath is "/ui" (see next.config.ts). Hardcoded so it works in both
 // next dev (where next/image's basePath rewrite isn't reliable with our
 // unoptimized + dev-rewrites combo) and the static /ui export.
-const LOGO_SRC = "/ui/weave.svg";
+const LOGO_SRC = "/ui/aiand.svg";
 
 export function Logo({ href = "/" }: LogoProps) {
   return (
-    <Link href={href} className="inline-flex shrink-0" aria-label="Weave Router">
+    <Link href={href} className="inline-flex shrink-0" aria-label="Aiand Router">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={LOGO_SRC} alt="Weave Router" width={32} height={32} className="size-8 shrink-0 grow-0 rounded-lg" />
+      <img src={LOGO_SRC} alt="Aiand Router" width={32} height={32} className="size-8 shrink-0 grow-0 rounded-lg" />
     </Link>
   );
 }

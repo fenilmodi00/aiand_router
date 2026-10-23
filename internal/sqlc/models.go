@@ -193,7 +193,7 @@ type RouterEscalationSession struct {
 	ExpiresAt        pgtype.Timestamptz
 }
 
-// Published mirror of internal/flags.Registry, upserted by the router at boot. Read by the Weave control plane to render the per-org flag override admin UI. Never read on the request path.
+// Published mirror of internal/flags.Registry, upserted by the router at boot. Read by the Aiand control plane to render the per-org flag override admin UI. Never read on the request path.
 type RouterFlagDefinition struct {
 	Key string
 	// Value type: bool, int, float, or string. A stored override whose JSON type disagrees is rejected at parse time.
@@ -216,7 +216,7 @@ type RouterGlobalAutomaticRoutingExclusion struct {
 	// Operator note shown in the internal admin UI and in force-model diagnostics; NULL when none was given.
 	Reason    *string
 	CreatedAt pgtype.Timestamp
-	// Opaque external identifier of the Weave account that disabled the model.
+	// Opaque external identifier of the Aiand account that disabled the model.
 	CreatedBy *string
 }
 
@@ -384,7 +384,7 @@ type RouterModelRouterExternalAPIKey struct {
 	AuthAccount *string
 	// User/principal for keypair_jwt, or Microsoft Entra client ID for azure_entra
 	AuthUser *string
-	// Weave account that soft-deleted or replaced this key; NULL when the router deleted it internally or attribution predates the column
+	// Aiand account that soft-deleted or replaced this key; NULL when the router deleted it internally or attribution predates the column
 	DeletedBy *string
 	// Inbound client header names copied verbatim to this key's endpoint; NULL forwards nothing
 	ForwardedClientHeaders []string
@@ -705,7 +705,7 @@ type RouterModelRouterUser struct {
 	FirstSeenAt       pgtype.Timestamp
 	LastSeenAt        pgtype.Timestamp
 	DeletedAt         pgtype.Timestamp
-	// Free-form user display name (typically git user.name) carried on the X-Weave-User-Name request header. Nullable: requests without the header leave the column NULL; existing rows are not back-filled.
+	// Free-form user display name (typically git user.name) carried on the X-Aiand-User-Name request header. Nullable: requests without the header leave the column NULL; existing rows are not back-filled.
 	DisplayName *string
 }
 
@@ -888,7 +888,7 @@ type RouterProductionRequestTelemetry struct {
 	CredentialSource       *string
 }
 
-// Router-owned per-request human feedback captured via the no-login feedback link; mirrored into Weave via the router.feedback OTLP span
+// Router-owned per-request human feedback captured via the no-login feedback link; mirrored into Aiand via the router.feedback OTLP span
 type RouterRequestFeedback struct {
 	ID             uuid.UUID
 	CreatedAt      pgtype.Timestamptz

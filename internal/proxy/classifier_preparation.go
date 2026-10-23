@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"strings"
 
-	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/requestcontext"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/policy"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/policy"
 )
 
 var (

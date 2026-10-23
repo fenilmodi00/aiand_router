@@ -14,8 +14,8 @@ import type {
 	SessionEntry,
 } from "@mariozechner/pi-coding-agent";
 
-export const ROUTER_COMMAND_HEADER = "x-weave-router-command";
-export const ROUTER_COMMAND_ENTRY_TYPE = "weave-router-command";
+export const ROUTER_COMMAND_HEADER = "x-aiand-router-command";
+export const ROUTER_COMMAND_ENTRY_TYPE = "aiand-router-command";
 
 const COMMAND_ID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
 const ROUTER_COMMANDS = ["force_model", "router_session", "router_models", "router_feedback", "loop_stop"] as const;
@@ -97,9 +97,9 @@ export function parseForceModelDirective(text: string): ForceModelDirective | un
 }
 
 export function parseForceModelAcknowledgement(text: string): ForceModelTransition | undefined {
-	const applied = /^(?:(?:✦ \*\*Weave Router\*\* →|Weave Router:)\s+)?force-(?:model|parent) applied:\s+([^\s()]+)/i.exec(text.trim());
+	const applied = /^(?:(?:✦ \*\*Aiand Router\*\* →|Aiand Router:)\s+)?force-(?:model|parent) applied:\s+([^\s()]+)/i.exec(text.trim());
 	if (applied) return { kind: "applied", model: applied[1] };
-	if (/^(?:(?:✦ \*\*Weave Router\*\* →|Weave Router:)\s+)?force-model cleared\b/i.test(text.trim())) return { kind: "cleared" };
+	if (/^(?:(?:✦ \*\*Aiand Router\*\* →|Aiand Router:)\s+)?force-model cleared\b/i.test(text.trim())) return { kind: "cleared" };
 	if (/is(?:n't| not) a recognized model/i.test(text)) return { kind: "noop" };
 	return undefined;
 }
@@ -174,7 +174,7 @@ export function registerForceModelCommands(pi: ExtensionAPI): void {
 
 	for (const name of ["fm", "force-model"]) {
 		pi.registerCommand(name, {
-			description: "Pin this session to a specific model via the Weave Router",
+			description: "Pin this session to a specific model via the Aiand Router",
 			handler: forceModel,
 		});
 	}
@@ -190,7 +190,7 @@ export function registerForceModelCommands(pi: ExtensionAPI): void {
 	});
 	for (const name of ["ufm", "unforce-model"]) {
 		pi.registerCommand(name, {
-			description: "Clear this session's forced Weave Router model",
+			description: "Clear this session's forced Aiand Router model",
 			handler: clearForceModel,
 		});
 	}

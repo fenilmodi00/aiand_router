@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/translate"
 )
 
 // Anthropic executes web_search_*/web_fetch_* server-side; emitted to a non-Anthropic
@@ -27,7 +27,7 @@ const anthropicServerToolBody = `{
 // Only the native server tools are declared, so the whole tools array goes.
 const anthropicServerToolOnlyBody = `{
 	"model":"z-ai/glm-5.2",
-	"messages":[{"role":"user","content":"Perform a web search for the query: weave router"}],
+	"messages":[{"role":"user","content":"Perform a web search for the query: aiand router"}],
 	"tools":[{"type":"web_search_20250305","name":"web_search"}],
 	"tool_choice":{"type":"tool","name":"web_search"},
 	"max_tokens":256

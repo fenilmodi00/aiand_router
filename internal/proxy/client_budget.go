@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"strings"
 
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/translate"
 )
 
 const (

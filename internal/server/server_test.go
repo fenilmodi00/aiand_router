@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"weave-os/router/internal/analytics"
-	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/router/cluster"
-	"weave-os/router/internal/server"
-	"weave-os/router/internal/server/middleware"
+	"aiand-os/router/internal/analytics"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/router/cluster"
+	"aiand-os/router/internal/server"
+	"aiand-os/router/internal/server/middleware"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"

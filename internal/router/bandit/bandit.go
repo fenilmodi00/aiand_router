@@ -1,6 +1,6 @@
 // Package bandit is a router.Router that wraps the cluster scorer and
 // Thompson-samples a model from a frozen ts_posterior.json. Opt-in via the
-// x-weave-router-strategy: bandit header; OFF at boot unless
+// x-aiand-router-strategy: bandit header; OFF at boot unless
 // ROUTER_BANDIT_POSTERIOR_FILE is set.
 //
 // Every failure path returns ErrBanditUnavailable (HTTP 503) — no silent
@@ -15,8 +15,8 @@ import (
 	"math/rand/v2"
 	"sort"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/router"
 )
 
 // ErrBanditUnavailable signals the bandit strategy could not produce a

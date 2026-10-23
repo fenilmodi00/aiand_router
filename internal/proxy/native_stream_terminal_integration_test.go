@@ -6,9 +6,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/router"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/subscriptions/entitlement"
+	"aiand-os/router/internal/subscriptions/entitlement"
 )
 
 func TestEntitlementValidateAcceptsProjectedMaxAndBoost(t *testing.T) {

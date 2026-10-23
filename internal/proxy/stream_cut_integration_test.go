@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"testing"
 
-	"weave-os/router/internal/observability"
+	"aiand-os/router/internal/observability"
 )
 
 const streamCutTurnBody = `{"model":"z-ai/glm-5.2","stream":true,"messages":[{"role":"user","content":"hi"}]}`

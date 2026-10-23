@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"slices"
 
-	"weave-os/router/internal/inference"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/catalog"
+	"aiand-os/router/internal/inference"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/catalog"
 )
 
 // ResolutionErrorCode identifies a fail-closed policy resolution failure.

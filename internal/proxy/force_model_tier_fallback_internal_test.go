@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/router/sessionpin"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router/sessionpin"
+	"aiand-os/router/internal/translate"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -259,7 +259,7 @@ func TestForceModelHeader_OverridesHardPin(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "z-ai/glm-5.2", res.Decision.Model,
-		"the x-weave-force-model pin must outrank the automatic compaction hard-pin")
+		"the x-aiand-force-model pin must outrank the automatic compaction hard-pin")
 	assert.Equal(t, translate.ReasonUserForceModel, res.Decision.Reason)
 	assert.False(t, res.HardPinned)
 }

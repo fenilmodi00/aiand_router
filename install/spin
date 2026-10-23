@@ -49,7 +49,7 @@ if [ "$tty_out" != "true" ]; then
   fi
 fi
 
-spin_log="$(mktemp -t weave-spin.XXXXXX)"
+spin_log="$(mktemp -t aiand-spin.XXXXXX)"
 spin_pid=""
 
 cleanup() {
@@ -84,10 +84,10 @@ printf '\033[?25h\r\033[2K' # show cursor, clear line
 if [ "$rc" -eq 0 ]; then
   printf '%s✓%s %s\n' "$C_GREEN" "$C_RESET" "$label"
   # Optional output capture: callers (e.g. Makefile seed step) that need to
-  # parse the wrapped command's stdout can set WEAVE_SPIN_CAPTURE=<path> and
+  # parse the wrapped command's stdout can set AIAND_SPIN_CAPTURE=<path> and
   # read the file after spin exits 0.
-  if [ -n "${WEAVE_SPIN_CAPTURE:-}" ]; then
-    cp "$spin_log" "$WEAVE_SPIN_CAPTURE"
+  if [ -n "${AIAND_SPIN_CAPTURE:-}" ]; then
+    cp "$spin_log" "$AIAND_SPIN_CAPTURE"
   fi
 else
   printf '%s✗%s %s\n' "$C_RED" "$C_RESET" "$label" >&2

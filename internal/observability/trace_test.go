@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/observability/apm"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/observability/apm"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"

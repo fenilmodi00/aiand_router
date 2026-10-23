@@ -25,7 +25,7 @@ services:
       POSTGRES_USER: router
       POSTGRES_PASSWORD: router
       POSTGRES_DB: router
-    # Host port 5433 to avoid colliding with the Weave backend's local Postgres
+    # Host port 5433 to avoid colliding with the Aiand backend's local Postgres
     # on 5432. The router service inside the compose network still talks on the
     # internal :5432, so this only affects manual `psql` from the host.
     ports:

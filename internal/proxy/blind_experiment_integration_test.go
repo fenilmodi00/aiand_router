@@ -3,7 +3,7 @@ package proxy_test
 import (
 	"context"
 
-	"weave-os/router/internal/auth"
+	"aiand-os/router/internal/auth"
 )
 
 func blindExperimentPassthroughContext(ctx context.Context) context.Context {

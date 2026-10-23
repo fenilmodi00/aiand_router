@@ -13,9 +13,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/sync/semaphore"
 
-	"weave-os/router/internal/postgres/dbbudget"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/sqlc"
+	"aiand-os/router/internal/postgres/dbbudget"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/sqlc"
 )
 
 const classifierTransactionLimit = 2

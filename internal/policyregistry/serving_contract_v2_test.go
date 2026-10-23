@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/policyregistry"
+	"aiand-os/router/internal/policyregistry"
 )
 
 // artifactStoredRef addresses published bytes in the flat v2 layout.
@@ -141,7 +141,7 @@ func TestServingRefAcceptsBothLayoutsOnlyForTheKindThatFoldsThem(t *testing.T) {
 		}
 	}
 	outside := artifact
-	outside.URI = "gs://weave_ml/other_registry/artifacts/" + artifact.SHA256 + ".json"
+	outside.URI = "gs://aiand_ml/other_registry/artifacts/" + artifact.SHA256 + ".json"
 	assert.Error(t, policyregistry.ValidateServingRef(outside, testRegistryRoot, policyregistry.ServingCandidate))
 	relabeled := artifact
 	relabeled.URI = testRegistryRoot + "/artifacts/" + strings.Repeat("0", 64) + ".json"
@@ -154,8 +154,8 @@ func TestGCSReadServingStatePrefersNewPathAndFallsBackToLegacy(t *testing.T) {
 	set := fixtureSet("active")
 	legacySnapshot, _ := activateFixture(t, policyregistry.ServingStateSnapshot{}, set, servingEpoch)
 	newSnapshot, _ := activateFixture(t, legacySnapshot, fixtureSet("next"), servingEpoch.Add(time.Hour))
-	legacyName := "weave_registry/runtime_state/router_serving/v1/targets/prod-01/prod/stable/state.json"
-	newName := "weave_registry/state/prod-01/prod/stable.json"
+	legacyName := "aiand_registry/runtime_state/router_serving/v1/targets/prod-01/prod/stable/state.json"
+	newName := "aiand_registry/state/prod-01/prod/stable.json"
 	seed := func(name string, state policyregistry.ServingControlState) int64 {
 		payload, err := json.Marshal(state)
 		require.NoError(t, err)

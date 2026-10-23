@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/hex"
 
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/sqlc"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/sqlc"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"

@@ -6,15 +6,15 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/server/middleware"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/server/middleware"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// runForceEffort fires a request with the given x-weave-effort header and
+// runForceEffort fires a request with the given x-aiand-effort header and
 // returns the response status, body, and captured routing overrides.
 func runForceEffort(t *testing.T, path, header string) (status int, body any, captured *router.Overrides) {
 	t.Helper()
@@ -44,7 +44,7 @@ func runForceEffort(t *testing.T, path, header string) (status int, body any, ca
 	return rr.Code, parsed, captured
 }
 
-// TestForceEffortOverride_BareValue verifies x-weave-effort low passes
+// TestForceEffortOverride_BareValue verifies x-aiand-effort low passes
 // through to Overrides.ForceEffort in canonical (low) form.
 func TestForceEffortOverride_BareValue(t *testing.T) {
 	status, _, captured := runForceEffort(t, "/v1/messages", "low")

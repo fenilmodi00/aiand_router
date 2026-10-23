@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/router/policy"
+	"aiand-os/router/internal/router/policy"
 )
 
 type policyCapabilityClientFunc func(context.Context) (policy.Capabilities, error)

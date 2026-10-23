@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"weave-os/router/internal/sse"
+	"aiand-os/router/internal/sse"
 )
 
 var splitNextBufferedBenchmarkSink []byte

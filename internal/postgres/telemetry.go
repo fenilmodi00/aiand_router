@@ -5,11 +5,11 @@ import (
 	"errors"
 	"time"
 
-	"weave-os/router/internal/inference"
-	"weave-os/router/internal/postgres/dbbudget"
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/sqlc"
+	"aiand-os/router/internal/inference"
+	"aiand-os/router/internal/postgres/dbbudget"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/sqlc"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"

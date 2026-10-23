@@ -9,25 +9,25 @@ import (
 	"strings"
 	"time"
 
-	"weave-os/router/internal/analytics"
-	"weave-os/router/internal/api/admin"
-	analyticsapi "weave-os/router/internal/api/analytics"
-	anthropicapi "weave-os/router/internal/api/anthropic"
-	classifierapi "weave-os/router/internal/api/classifier"
-	feedbackapi "weave-os/router/internal/api/feedback"
-	geminiapi "weave-os/router/internal/api/gemini"
-	openaiapi "weave-os/router/internal/api/openai"
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/billing"
-	"weave-os/router/internal/policyclient"
-	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/hmm/rosterdata"
-	"weave-os/router/internal/router/policy"
-	"weave-os/router/internal/server/middleware"
-	"weave-os/router/internal/subscriptions/entitlement"
-	"weave-os/router/internal/trafficcapture"
+	"aiand-os/router/internal/analytics"
+	"aiand-os/router/internal/api/admin"
+	analyticsapi "aiand-os/router/internal/api/analytics"
+	anthropicapi "aiand-os/router/internal/api/anthropic"
+	classifierapi "aiand-os/router/internal/api/classifier"
+	feedbackapi "aiand-os/router/internal/api/feedback"
+	geminiapi "aiand-os/router/internal/api/gemini"
+	openaiapi "aiand-os/router/internal/api/openai"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/billing"
+	"aiand-os/router/internal/policyclient"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/hmm/rosterdata"
+	"aiand-os/router/internal/router/policy"
+	"aiand-os/router/internal/server/middleware"
+	"aiand-os/router/internal/subscriptions/entitlement"
+	"aiand-os/router/internal/trafficcapture"
 
 	"github.com/gin-gonic/gin"
 )
@@ -61,7 +61,7 @@ const (
 
 // DeploymentMode gates whether the self-hoster admin dashboard and its
 // /admin/v1/* API are mounted. Managed (SaaS) deployments skip it since
-// keys, BYOK secrets, and config are owned by the Weave control plane.
+// keys, BYOK secrets, and config are owned by the Aiand control plane.
 type DeploymentMode string
 
 const (
@@ -120,7 +120,7 @@ type Features struct {
 	StartupDatabasePing func(context.Context) error
 	// TrafficCapture records local conversation HTTP exchanges when explicitly configured.
 	TrafficCapture trafficcapture.Recorder
-	// PolicyPinEnabled registers the x-weave-policy-pin middleware. Off means
+	// PolicyPinEnabled registers the x-aiand-policy-pin middleware. Off means
 	// the header is never read.
 	PolicyPinEnabled bool
 	// ServingAdmission admits authenticated requests and pins policy snapshots.
@@ -213,7 +213,7 @@ func RegisterWithFeatures(engine *gin.Engine, authSvc *auth.Service, proxySvc *p
 		admin.PolicyCatalogHandler(proxySvc, defaultStrategy),
 	)
 
-	// /v1/router/models lets the Weave control plane validate per-org exclusion
+	// /v1/router/models lets the Aiand control plane validate per-org exclusion
 	// submissions against the live deployed-models universe instead of
 	// hand-copying it per gitlink bump. Unauthed: read-only, and the list is
 	// already public on the RouterArena leaderboard.
@@ -487,7 +487,7 @@ func RegisterWithFeatures(engine *gin.Engine, authSvc *auth.Service, proxySvc *p
 		// One-click thumb links embedded in response footers.
 		feedbackGroup.GET("/rate", feedbackapi.RateHandler(proxySvc))
 		feedbackGroup.GET("/assets/wooly-wave.png", feedbackapi.WoolyWaveHandler())
-		feedbackGroup.GET("/assets/weave.svg", feedbackapi.WeaveLogoHandler())
+		feedbackGroup.GET("/assets/aiand.svg", feedbackapi.AiandLogoHandler())
 	}
 }
 

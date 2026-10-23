@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/translate"
 )
 
 func TestNoticePreludeDoesNotCommitProviderAttempt(t *testing.T) {
@@ -18,10 +18,10 @@ func TestNoticePreludeDoesNotCommitProviderAttempt(t *testing.T) {
 			buffer := newPreludeBuffer(rec)
 			caps := translate.NoticeCapabilities{Format: format, Presentation: translate.NoticeText, Streaming: true, Eager: true}
 			delivery := translate.NewNoticeDelivery(context.Background(), translate.NewProtocolNoticeSink(buffer, caps), caps)
-			notice := translate.NewRouterNotice(translate.NoticeModelSelection, "✦ **Weave Router** → model\n\n", "model", "attempt-one")
+			notice := translate.NewRouterNotice(translate.NoticeModelSelection, "✦ **Aiand Router** → model\n\n", "model", "attempt-one")
 			_, err := delivery.Deliver(notice)
 			require.NoError(t, err)
-			assert.Contains(t, rec.Body.String(), "Weave Router")
+			assert.Contains(t, rec.Body.String(), "Aiand Router")
 			assert.True(t, buffer.PreludeSent())
 			assert.False(t, buffer.Committed())
 			buffer.Seal()

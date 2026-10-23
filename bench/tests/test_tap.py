@@ -11,9 +11,9 @@ from starlette.responses import JSONResponse, Response, StreamingResponse
 from starlette.routing import Route
 from starlette.testclient import TestClient
 
-from weave_bench.arms import CostTier
-from weave_bench.tap.app import TapRecorder, build_app
-from weave_bench.tap.rewrite import (
+from aiand_bench.arms import CostTier
+from aiand_bench.tap.app import TapRecorder, build_app
+from aiand_bench.tap.rewrite import (
     codex_session_id,
     forwardable_request_headers,
     rewrite_request,
@@ -73,7 +73,7 @@ def test_plain_auto_rewrite_only_restores_prefix_and_usage() -> None:
 
 def test_hop_by_hop_and_routing_headers_are_not_forwarded() -> None:
     forwarded = forwardable_request_headers(
-        {"host": "tap", "content-length": "3", "Authorization": "Bearer k", "x-weave-openrouter-cost-tier": "max"}
+        {"host": "tap", "content-length": "3", "Authorization": "Bearer k", "x-aiand-openrouter-cost-tier": "max"}
     )
     assert forwarded == {"Authorization": "Bearer k"}
 
@@ -118,8 +118,8 @@ def test_tap_forwards_rewritten_request_relays_stream_and_records_usage(tmp_path
         headers={
             "Authorization": "Bearer or_key",
             "Session-Id": "thread-9",
-            "x-weave-rollout-id": "run-7",
-            "x-weave-openrouter-cost-tier": "max",
+            "x-aiand-rollout-id": "run-7",
+            "x-aiand-openrouter-cost-tier": "max",
         },
     )
     assert response.status_code == 200
@@ -131,7 +131,7 @@ def test_tap_forwards_rewritten_request_relays_stream_and_records_usage(tmp_path
     assert body["cache_control"] == {"type": "ephemeral"}
     assert body["session_id"] == "thread-9"
     assert upstream_headers[0]["authorization"] == "Bearer or_key"
-    assert "x-weave-openrouter-cost-tier" not in upstream_headers[0]
+    assert "x-aiand-openrouter-cost-tier" not in upstream_headers[0]
 
     (record,) = [json.loads(line) for line in records.read_text().splitlines()]
     assert record["response_id"] == "resp_or_1"

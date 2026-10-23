@@ -9,7 +9,7 @@ import type { ExtensionAPI, ExtensionCommandContext } from "@mariozechner/pi-cod
 
 export function registerBetaCommand(pi: ExtensionAPI): void {
 	pi.registerCommand("beta", {
-		description: "Toggle beta HMM routing for this Weave Router session",
+		description: "Toggle beta HMM routing for this Aiand Router session",
 		handler: async (args: string, ctx: ExtensionCommandContext): Promise<void> => {
 			if (args.trim()) {
 				ctx.ui.notify("Usage: /beta", "warning");

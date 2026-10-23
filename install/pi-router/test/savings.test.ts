@@ -14,7 +14,7 @@ import {
 const usage = { input: 1_000_000, output: 0, cacheRead: 0, cacheWrite: 0 };
 
 test("normalizes Pi, dated, and context-tier model ids", () => {
-	assert.equal(normalizeModelId("weave/claude-opus-4-8[1m]"), "claude-opus-4-8");
+	assert.equal(normalizeModelId("aiand/claude-opus-4-8[1m]"), "claude-opus-4-8");
 	assert.equal(normalizeModelId("claude-sonnet-4-6-20260101"), "claude-sonnet-4-6");
 });
 
@@ -126,7 +126,7 @@ test("persists routed-response savings in RPC mode", async () => {
 		},
 		ctx,
 	);
-	assert.equal(statuses.at(-1), "WEAVE ROUTER — moonshotai/kimi-k2.7 ← claude-sonnet-4-6 · saved —");
+	assert.equal(statuses.at(-1), "AIAND ROUTER — moonshotai/kimi-k2.7 ← claude-sonnet-4-6 · saved —");
 	await handlers.get("turn_end")?.(
 		{
 			type: "turn_end",
@@ -147,5 +147,5 @@ test("persists routed-response savings in RPC mode", async () => {
 	assert.equal(saved.data.routedModel, "moonshotai/kimi-k2.7");
 	assert.equal(saved.data.provider, "openrouter");
 	assert.equal(saved.data.decision, "automatic");
-	assert.equal(statuses.at(-1), "WEAVE ROUTER — moonshotai/kimi-k2.7 ← claude-sonnet-4-6 · saved $2.05");
+	assert.equal(statuses.at(-1), "AIAND ROUTER — moonshotai/kimi-k2.7 ← claude-sonnet-4-6 · saved $2.05");
 });

@@ -27,7 +27,7 @@ import { parseRoutedContextWindow } from "./context-window.js";
 const PROBE_MAX_TOKENS = 4;
 const CONTINUATION_MAX_TOKENS = 16_384;
 const COMPACTION_RESERVE_TOKENS = 16_384;
-const STATUS_KEY = "weave-compaction";
+const STATUS_KEY = "aiand-compaction";
 /** Pi does not retry threshold compaction automatically, so resume our tool loop explicitly. */
 export const ROUTED_COMPACTION_CONTINUATION = "Continue from the compacted context. Pick up exactly where you left off.";
 
@@ -136,7 +136,7 @@ export function registerCompaction(pi: ExtensionAPI, schedule: Schedule = (callb
 	});
 
 	pi.on("agent_end", (_event: AgentEndEvent, ctx: ExtensionContext) => {
-		if (process.env.WEAVE_PI_AUTO_COMPACTION === "0" || compactionScheduled || handoffPending()) return;
+		if (process.env.AIAND_PI_AUTO_COMPACTION === "0" || compactionScheduled || handoffPending()) return;
 		const registeredWindow = ctx.model?.contextWindow ?? ctx.getContextUsage()?.contextWindow ?? 0;
 		const contextWindow = servedContextWindow ?? registeredWindow;
 		if (contextWindow <= COMPACTION_RESERVE_TOKENS) return;

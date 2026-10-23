@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"time"
 
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/server/middleware"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/server/middleware"
 
 	"github.com/gin-gonic/gin"
 )

@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"strings"
 
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/translate"
 )
 
 // logInboundToolTraffic logs names + short arg previews of the last few

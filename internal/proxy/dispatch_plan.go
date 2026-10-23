@@ -7,15 +7,15 @@ import (
 	"net/http"
 	"strconv"
 
-	"weave-os/router/internal/dispatch"
-	"weave-os/router/internal/inference"
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/requestcontext"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/router/policy"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/dispatch"
+	"aiand-os/router/internal/inference"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router/policy"
+	"aiand-os/router/internal/translate"
 )
 
 // WithInferencePlans installs the policy resolver that authorizes routed

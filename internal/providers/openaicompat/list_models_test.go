@@ -7,10 +7,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/providers/httputil"
-	"weave-os/router/internal/providers/openaicompat"
-	"weave-os/router/internal/requestcontext"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/providers/httputil"
+	"aiand-os/router/internal/providers/openaicompat"
+	"aiand-os/router/internal/requestcontext"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

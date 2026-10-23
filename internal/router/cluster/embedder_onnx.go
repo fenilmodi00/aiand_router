@@ -77,7 +77,7 @@ func newONNXEmbedder(session *hugot.Session, spec EmbedderSpec) (*onnxEmbedder, 
 
 	pipelineCfg := hugot.FeatureExtractionConfig{
 		ModelPath:    assetsDir,
-		Name:         "weave-router-" + spec.ID,
+		Name:         "aiand-router-" + spec.ID,
 		OnnxFilename: "model.onnx",
 		Options:      []hugot.FeatureExtractionOption{pipelines.WithNormalization()},
 	}

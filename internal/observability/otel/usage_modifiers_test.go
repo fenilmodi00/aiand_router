@@ -3,10 +3,10 @@ package otel_test
 import (
 	"testing"
 
-	"weave-os/router/internal/observability/otel"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/usage"
+	"aiand-os/router/internal/observability/otel"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/usage"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

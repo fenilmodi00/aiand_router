@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/trafficcapture"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/trafficcapture"
 
 	"github.com/gin-gonic/gin"
 )

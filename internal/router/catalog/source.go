@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sort"
 
-	"weave-os/router/internal/router/eligibility"
+	"aiand-os/router/internal/router/eligibility"
 )
 
 // Source classifies how a model's weights are published. Aliased rather than

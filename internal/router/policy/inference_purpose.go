@@ -1,6 +1,6 @@
 package policy
 
-import "weave-os/router/internal/inference"
+import "aiand-os/router/internal/inference"
 
 type Purpose = inference.Purpose
 

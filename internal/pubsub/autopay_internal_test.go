@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"weave-os/router/internal/billing"
+	"aiand-os/router/internal/billing"
 
 	gcppubsub "cloud.google.com/go/pubsub/v2"
 	"github.com/stretchr/testify/assert"

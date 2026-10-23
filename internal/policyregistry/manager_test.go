@@ -7,9 +7,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/hmm/rosterdata"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/hmm/rosterdata"
 )
 
 type fakeLoader struct {

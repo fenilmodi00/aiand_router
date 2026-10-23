@@ -15,7 +15,7 @@ type FilterPillType = React.FC<React.PropsWithChildren<{ onRemove?: () => void }
 /**
  * Active-filter pill: muted background, slot for an icon + label + a
  * Popover-trigger Button (via FilterPill.Button) that opens the picker.
- * Mirrors WorkWeave's filter bar pill aesthetic.
+ * Mirrors WorkAiand's filter bar pill aesthetic.
  */
 const FilterPillButton = forwardRef<
   HTMLButtonElement,

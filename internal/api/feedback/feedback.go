@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
-	token "weave-os/router/internal/feedback"
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/proxy"
+	token "aiand-os/router/internal/feedback"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/proxy"
 
 	"github.com/gin-gonic/gin"
 )

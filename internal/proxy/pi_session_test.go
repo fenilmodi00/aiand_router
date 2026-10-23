@@ -10,9 +10,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/sjson"
 
-	"weave-os/router/internal/requestcontext"
-	"weave-os/router/internal/router/sessionpin"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/router/sessionpin"
+	"aiand-os/router/internal/translate"
 )
 
 func TestPiSessionRejectsInvalidProofBeforeRouting(t *testing.T) {
@@ -31,7 +31,7 @@ func TestPiSessionRejectsInvalidProofBeforeRouting(t *testing.T) {
 		return token
 	}
 	wrongIssuer := claims
-	wrongIssuer.Issuer = "weave-pi-handoff-v1"
+	wrongIssuer.Issuer = "aiand-pi-handoff-v1"
 	zeroThread := claims
 	zeroThread.SessionKey = [sessionpin.SessionKeyLen]byte{}
 	for _, test := range []struct {

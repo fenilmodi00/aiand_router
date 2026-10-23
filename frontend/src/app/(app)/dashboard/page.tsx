@@ -46,7 +46,7 @@ type OnboardingState = "checking" | "needed" | "done";
 // Set when the user chooses "Skip to dashboard". Persisted rather than held in
 // memory so a refresh doesn't drop them back into a flow they opted out of;
 // the server-side flag still takes over for good once a request is served.
-const SKIP_ONBOARDING_KEY = "weave-router.onboarding-skipped";
+const SKIP_ONBOARDING_KEY = "aiand-router.onboarding-skipped";
 
 function onboardingSkipped(): boolean {
   if (typeof window === "undefined") return false;

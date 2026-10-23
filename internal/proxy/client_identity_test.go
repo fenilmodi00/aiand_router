@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/requestcontext"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/requestcontext"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -62,7 +62,7 @@ func TestParseClaudeCodeMetadata_EmptyAndMalformed(t *testing.T) {
 }
 
 func TestNormalizeEmail_Valid(t *testing.T) {
-	assert.Equal(t, "steven@workweave.ai", proxy.NormalizeEmail("  Steven@Workweave.AI  "))
+	assert.Equal(t, "steven@workaiand.ai", proxy.NormalizeEmail("  Steven@Workaiand.AI  "))
 	assert.Equal(t, "a@b.co", proxy.NormalizeEmail("a@b.co"))
 }
 
@@ -210,19 +210,19 @@ func TestNormalizeClientApp(t *testing.T) {
 func TestClientIdentityFromHeaders_EvalPrefixKeepsHarness(t *testing.T) {
 	t.Run("eval prefix resolves to the imitated harness", func(t *testing.T) {
 		h := http.Header{}
-		h.Set("X-App", "Weave-Eval-Codex")
+		h.Set("X-App", "Aiand-Eval-Codex")
 		got := proxy.ClientIdentityFromHeaders(h)
 		assert.Equal(t, proxy.ClientAppCodex, got.ClientApp)
 		assert.True(t, got.Eval)
-		assert.Equal(t, "weave-eval-codex", got.TelemetryClientApp())
+		assert.Equal(t, "aiand-eval-codex", got.TelemetryClientApp())
 	})
 	t.Run("eval prefix on claude-code alias", func(t *testing.T) {
 		h := http.Header{}
-		h.Set("X-App", "weave-eval-cli")
+		h.Set("X-App", "aiand-eval-cli")
 		got := proxy.ClientIdentityFromHeaders(h)
 		assert.Equal(t, proxy.ClientAppClaudeCode, got.ClientApp)
 		assert.True(t, got.Eval)
-		assert.Equal(t, "weave-eval-claude-code", got.TelemetryClientApp())
+		assert.Equal(t, "aiand-eval-claude-code", got.TelemetryClientApp())
 	})
 	t.Run("production client is untagged", func(t *testing.T) {
 		h := http.Header{}
@@ -234,7 +234,7 @@ func TestClientIdentityFromHeaders_EvalPrefixKeepsHarness(t *testing.T) {
 	})
 	t.Run("oversized eval header falls through to UA", func(t *testing.T) {
 		h := http.Header{}
-		h.Set("X-App", "weave-eval-"+strings.Repeat("a", proxy.MaxClientAppLen))
+		h.Set("X-App", "aiand-eval-"+strings.Repeat("a", proxy.MaxClientAppLen))
 		h.Set("User-Agent", "codex_cli_rs/0.39.0 (darwin)")
 		got := proxy.ClientIdentityFromHeaders(h)
 		assert.Equal(t, proxy.ClientAppCodex, got.ClientApp)
@@ -242,7 +242,7 @@ func TestClientIdentityFromHeaders_EvalPrefixKeepsHarness(t *testing.T) {
 	})
 	t.Run("bare prefix carries no harness", func(t *testing.T) {
 		h := http.Header{}
-		h.Set("X-App", "weave-eval-")
+		h.Set("X-App", "aiand-eval-")
 		got := proxy.ClientIdentityFromHeaders(h)
 		assert.Equal(t, "", got.ClientApp)
 		assert.True(t, got.Eval)

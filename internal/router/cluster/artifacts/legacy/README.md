@@ -13,7 +13,7 @@ These are kept around for two reasons:
 2. **Dual-version eval.** When deploying with
    `ROUTER_CLUSTER_BUILD_ALL_VERSIONS=true` (staging only), the runtime
    constructs one `Scorer` per committed bundle so the eval harness can
-   pin per-request to any of them via `x-weave-cluster-version`.
+   pin per-request to any of them via `x-aiand-cluster-version`.
 
 ## Rules
 
@@ -22,7 +22,7 @@ These are kept around for two reasons:
   them.
 - New training runs write to the parent `artifacts/` directory in v2
   format — never into `legacy/`.
-- The `x-weave-routing-*` knob headers are no-ops against any bundle
+- The `x-aiand-routing-*` knob headers are no-ops against any bundle
   in this directory; v1 lacks the components needed for runtime
   re-blending. Override-driven sweeps must target a v2 bundle.
 

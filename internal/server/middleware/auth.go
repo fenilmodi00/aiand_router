@@ -4,14 +4,14 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/requestcontext"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/requestcontext"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/flags"
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/flags"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/router"
 
 	"github.com/gin-gonic/gin"
 )
@@ -23,7 +23,7 @@ const (
 	ctxKeySubscriptionOwner = "router_subscription_owner"
 )
 
-// RouterKeyHeader carries the Weave Router key when clients need to preserve Authorization / x-api-key for the upstream provider.
+// RouterKeyHeader carries the Aiand Router key when clients need to preserve Authorization / x-api-key for the upstream provider.
 const RouterKeyHeader = auth.RouterKeyHeader
 
 // WithAuth validates the inbound request via a bearer rk_ token only. Used on data-plane routes (`/v1/*`). On failure, short-circuits 401.

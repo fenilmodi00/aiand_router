@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from weave_bench.stats import (
+from aiand_bench.stats import (
     Interval,
     McNemar,
     binomial_two_sided_p,

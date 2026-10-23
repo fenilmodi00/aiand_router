@@ -10,8 +10,8 @@ package handover
 import (
 	"context"
 
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/translate"
 )
 
 // Usage captures the upstream token counts of a Summarize call so callers can

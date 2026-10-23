@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from weave_bench.config import HarborEnvironment, load_config, require_secret
+from aiand_bench.config import HarborEnvironment, load_config, require_secret
 
 
 def test_defaults_without_a_file() -> None:
@@ -44,9 +44,9 @@ def test_env_overrides_beat_the_file(tmp_path: Path) -> None:
     config = load_config(
         toml,
         env={
-            "WEAVE_BENCH_ROUTER_BASE_URL": "http://from-env",
-            "WEAVE_BENCH_HARBOR_ENVIRONMENT": "modal",
-            "WEAVE_BENCH_OPENROUTER_TAP_LISTEN_PORT": "9001",
+            "AIAND_BENCH_ROUTER_BASE_URL": "http://from-env",
+            "AIAND_BENCH_HARBOR_ENVIRONMENT": "modal",
+            "AIAND_BENCH_OPENROUTER_TAP_LISTEN_PORT": "9001",
         },
     )
     assert config.router.base_url == "http://from-env"

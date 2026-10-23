@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"strings"
 
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/translate"
 )
 
 // InstructionFingerprint changes for new top-level user instructions, including

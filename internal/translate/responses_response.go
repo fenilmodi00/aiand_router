@@ -3,8 +3,8 @@ package translate
 import (
 	"fmt"
 
-	"weave-os/router/internal/translate/toolcheck"
-	"weave-os/router/internal/usage"
+	"aiand-os/router/internal/translate/toolcheck"
+	"aiand-os/router/internal/usage"
 
 	"github.com/tidwall/gjson"
 )

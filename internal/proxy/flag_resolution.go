@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"weave-os/router/internal/flags"
+	"aiand-os/router/internal/flags"
 )
 
 // Per-organization resolution for the behavioral feature flags registered in
@@ -120,7 +120,7 @@ func (s *Service) ResolveSiblingFailover(ctx context.Context) bool {
 }
 
 // ResolveAllowedModelsHeader reports the ROUTER_ALLOWED_MODELS_HEADER flag:
-// whether x-weave-allowed-models is honored for an installation that is not
+// whether x-aiand-allowed-models is honored for an installation that is not
 // authorized for policy headers.
 func (s *Service) ResolveAllowedModelsHeader(ctx context.Context) bool {
 	return flags.BoolOr(ctx, flags.KeyAllowedModelsHeader, s.allowedModelsHeader)

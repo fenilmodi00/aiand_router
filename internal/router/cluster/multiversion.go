@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sort"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/router"
 )
 
 type versionContextKey struct{}

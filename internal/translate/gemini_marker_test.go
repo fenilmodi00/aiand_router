@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/translate"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,7 +15,7 @@ import (
 
 func TestGeminiRoutingMarkerWriter_StreamingInjectsMarker(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewGeminiRoutingMarkerWriter(rec, "✦ **Weave Router** → gemini-2.0-flash · best pick for this turn\n\n")
+	w := translate.NewGeminiRoutingMarkerWriter(rec, "✦ **Aiand Router** → gemini-2.0-flash · best pick for this turn\n\n")
 
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.WriteHeader(http.StatusOK)
@@ -30,7 +30,7 @@ func TestGeminiRoutingMarkerWriter_StreamingInjectsMarker(t *testing.T) {
 
 	markerData := strings.TrimPrefix(events[0], "data: ")
 	text := gjson.Get(markerData, "candidates.0.content.parts.0.text").String()
-	assert.Contains(t, text, "Weave Router")
+	assert.Contains(t, text, "Aiand Router")
 	assert.Contains(t, text, "gemini-2.0-flash")
 	assert.Equal(t, "model", gjson.Get(markerData, "candidates.0.content.role").String())
 }

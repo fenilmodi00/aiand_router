@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/translate"
 )
 
 type forceRejection string
@@ -69,14 +69,14 @@ func (ack commandAcknowledgment) render(format translate.Format) string {
 		switch ack.feedback {
 		case feedbackEmpty:
 			if format == translate.FormatOpenAI {
-				return fmt.Sprintf("Weave Router: router-feedback needs a verdict or a note, e.g. %s+ or %s- too slow.", rf, rf)
+				return fmt.Sprintf("Aiand Router: router-feedback needs a verdict or a note, e.g. %s+ or %s- too slow.", rf, rf)
 			}
-			return fmt.Sprintf("✦ **Weave Router** → Router-feedback needs a verdict or a note, e.g. %s+ or %s- too slow.\n\n", rf, rf)
+			return fmt.Sprintf("✦ **Aiand Router** → Router-feedback needs a verdict or a note, e.g. %s+ or %s- too slow.\n\n", rf, rf)
 		case feedbackMissingSequence:
 			if format == translate.FormatOpenAI {
-				return fmt.Sprintf("Weave Router: No turn found at that sequence number. Try `%s` without a number for the last turn.", rf)
+				return fmt.Sprintf("Aiand Router: No turn found at that sequence number. Try `%s` without a number for the last turn.", rf)
 			}
-			return fmt.Sprintf("✦ **Weave Router** → No turn found at that sequence number. Try `%s` without a number for the last turn.\n\n", rf)
+			return fmt.Sprintf("✦ **Aiand Router** → No turn found at that sequence number. Try `%s` without a number for the last turn.\n\n", rf)
 		case feedbackRecorded:
 			return routerFeedbackAck(format, ack.rating)
 		}
@@ -92,21 +92,21 @@ func (ack commandAcknowledgment) renderForce(format translate.Format) string {
 			hint = fmt.Sprintf("Did you mean %q?", ack.force.suggestion)
 		}
 		if format == translate.FormatOpenAI {
-			return fmt.Sprintf("Weave Router: force-model: %q isn't a recognized model; keeping automatic routing. %s", ack.force.inputModel, hint)
+			return fmt.Sprintf("Aiand Router: force-model: %q isn't a recognized model; keeping automatic routing. %s", ack.force.inputModel, hint)
 		}
-		return fmt.Sprintf("✦ **Weave Router** → force-model: %q isn't a recognized model · keeping automatic routing. %s\n\n", ack.force.inputModel, hint)
+		return fmt.Sprintf("✦ **Aiand Router** → force-model: %q isn't a recognized model · keeping automatic routing. %s\n\n", ack.force.inputModel, hint)
 	case forceExcludedModel:
 		if format == translate.FormatOpenAI {
-			return fmt.Sprintf("Weave Router: force-model rejected: %s; keeping automatic routing. Ask an admin to allow the provider, or force a model from one that is permitted.", ack.force.reason)
+			return fmt.Sprintf("Aiand Router: force-model rejected: %s; keeping automatic routing. Ask an admin to allow the provider, or force a model from one that is permitted.", ack.force.reason)
 		}
-		return fmt.Sprintf("✦ **Weave Router** → force-model rejected: %s · keeping automatic routing. Ask an admin to allow the provider, or force a model from one that is permitted.\n\n", ack.force.reason)
+		return fmt.Sprintf("✦ **Aiand Router** → force-model rejected: %s · keeping automatic routing. Ask an admin to allow the provider, or force a model from one that is permitted.\n\n", ack.force.reason)
 	}
 	pin := ack.outcome.Pin
 	if pin.Transition == translate.PinCleared {
 		if format == translate.FormatOpenAI {
-			return "Weave Router: force-model cleared; resuming automatic model selection"
+			return "Aiand Router: force-model cleared; resuming automatic model selection"
 		}
-		return "✦ **Weave Router** → force-model cleared · resuming automatic model selection\n\n"
+		return "✦ **Aiand Router** → force-model cleared · resuming automatic model selection\n\n"
 	}
 	model := pin.Model
 	if pin.Effort != "" {
@@ -114,14 +114,14 @@ func (ack commandAcknowledgment) renderForce(format translate.Format) string {
 	}
 	if ack.force.parentOnly {
 		if format == translate.FormatOpenAI {
-			return fmt.Sprintf("Weave Router: force-parent applied: %s (%s). Subagents use automatic routing. Use %s to clear.", model, pin.Provider, ack.force.clearCommand)
+			return fmt.Sprintf("Aiand Router: force-parent applied: %s (%s). Subagents use automatic routing. Use %s to clear.", model, pin.Provider, ack.force.clearCommand)
 		}
-		return fmt.Sprintf("✦ **Weave Router** → force-parent applied: %s (%s) · Subagents use automatic routing · Use %s to clear\n\n", model, pin.Provider, ack.force.clearCommand)
+		return fmt.Sprintf("✦ **Aiand Router** → force-parent applied: %s (%s) · Subagents use automatic routing · Use %s to clear\n\n", model, pin.Provider, ack.force.clearCommand)
 	}
 	if format == translate.FormatOpenAI {
-		return fmt.Sprintf("Weave Router: force-model applied: %s (%s). Use %s to clear.", model, pin.Provider, ack.force.clearCommand)
+		return fmt.Sprintf("Aiand Router: force-model applied: %s (%s). Use %s to clear.", model, pin.Provider, ack.force.clearCommand)
 	}
-	return fmt.Sprintf("✦ **Weave Router** → force-model applied: %s (%s) · Use %s to clear\n\n", model, pin.Provider, ack.force.clearCommand)
+	return fmt.Sprintf("✦ **Aiand Router** → force-model applied: %s (%s) · Use %s to clear\n\n", model, pin.Provider, ack.force.clearCommand)
 }
 
 func writeCommandAcknowledgment(ctx context.Context, w http.ResponseWriter, env *translate.RequestEnvelope, ack commandAcknowledgment, inputTokens int) error {
@@ -141,20 +141,20 @@ func routerSessionMessage(sessionID, clientApp string, format translate.Format) 
 		// substitute id would point support at the wrong session. Say so.
 		const detail = "no session id on this request. This client did not send one, so its turns are not correlated in router telemetry."
 		if format == translate.FormatOpenAI {
-			return "Weave Router: " + detail
+			return "Aiand Router: " + detail
 		}
-		return "✦ **Weave Router** → " + detail + "\n\n"
+		return "✦ **Aiand Router** → " + detail + "\n\n"
 	}
 	hint := directivePrefix(clientApp) + "router-feedback"
 	if format == translate.FormatOpenAI {
-		return fmt.Sprintf("Weave Router: session id: %s. Quote it in support requests; %s attaches feedback to this session.", sessionID, hint)
+		return fmt.Sprintf("Aiand Router: session id: %s. Quote it in support requests; %s attaches feedback to this session.", sessionID, hint)
 	}
-	return fmt.Sprintf("✦ **Weave Router** → session id: `%s` · quote it in support requests; `%s` attaches feedback to this session\n\n", sessionID, hint)
+	return fmt.Sprintf("✦ **Aiand Router** → session id: `%s` · quote it in support requests; `%s` attaches feedback to this session\n\n", sessionID, hint)
 }
 
 // routerModelsMessage renders the routable universe grouped by each model's
 // primary provider, marking what this installation may actually be routed to.
-// The [x]/[ ] form matches what `weave-router models` prints, so the two
+// The [x]/[ ] form matches what `aiand-router models` prints, so the two
 // surfaces stay recognizably the same listing.
 //
 // [-] is the third state, and it exists because the two model-restriction
@@ -167,9 +167,9 @@ func routerModelsMessage(routable, excluded, automaticExcluded map[string]struct
 	if len(routable) == 0 {
 		const detail = "no routable models are configured on this router."
 		if format == translate.FormatOpenAI {
-			return "Weave Router: " + detail
+			return "Aiand Router: " + detail
 		}
-		return "✦ **Weave Router** → " + detail + "\n\n"
+		return "✦ **Aiand Router** → " + detail + "\n\n"
 	}
 
 	byProvider := make(map[string][]string, len(routable))
@@ -223,9 +223,9 @@ func routerModelsMessage(routable, excluded, automaticExcluded map[string]struct
 	}
 
 	if format == translate.FormatOpenAI {
-		return fmt.Sprintf("Weave Router: models this installation can be routed to.\n%s%s", b.String(), footer)
+		return fmt.Sprintf("Aiand Router: models this installation can be routed to.\n%s%s", b.String(), footer)
 	}
-	return fmt.Sprintf("✦ **Weave Router** → models this installation can be routed to\n```\n%s```\n%s\n\n", b.String(), footer)
+	return fmt.Sprintf("✦ **Aiand Router** → models this installation can be routed to\n```\n%s```\n%s\n\n", b.String(), footer)
 }
 
 // contains keeps the three-way mark switch readable; a nil map is empty.
@@ -246,7 +246,7 @@ func routerFeedbackAck(format translate.Format, rating string) string {
 		verdict = " 👎"
 	}
 	if format == translate.FormatOpenAI {
-		return "Weave Router: Feedback recorded" + verdict + ". Thank you."
+		return "Aiand Router: Feedback recorded" + verdict + ". Thank you."
 	}
-	return "✦ **Weave Router** → Feedback recorded" + verdict + ". Thank you.\n\n"
+	return "✦ **Aiand Router** → Feedback recorded" + verdict + ". Thank you.\n\n"
 }

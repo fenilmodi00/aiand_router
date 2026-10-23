@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"weave-os/router/internal/auth"
+	"aiand-os/router/internal/auth"
 
 	gcppubsub "cloud.google.com/go/pubsub/v2"
 	"github.com/stretchr/testify/assert"

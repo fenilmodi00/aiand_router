@@ -19,7 +19,7 @@ type DeploymentPrincipal interface {
 
 const (
 	principalKDFIterations = 100_000
-	principalKDFSalt       = "weave-router/upstream-principal/v1\x00"
+	principalKDFSalt       = "aiand-router/upstream-principal/v1\x00"
 )
 
 var principalCache, _ = lru.New[string, string](1024)

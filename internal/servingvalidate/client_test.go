@@ -12,8 +12,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/servingvalidate"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/servingvalidate"
 )
 
 func TestPrivateValidationPreservesIAMAudienceAndExactSnapshot(t *testing.T) {
@@ -25,14 +25,14 @@ func TestPrivateValidationPreservesIAMAudienceAndExactSnapshot(t *testing.T) {
 		require.Empty(t, r.Header.Get("Authorization"))
 		switch r.URL.Path {
 		case policyregistry.WorkerValidationPath:
-			require.Equal(t, "worker-secret", r.Header.Get("X-Weave-Internal-Token"))
+			require.Equal(t, "worker-secret", r.Header.Get("X-Aiand-Internal-Token"))
 			require.Equal(t, http.MethodPost, r.Method)
 			var request policyregistry.WorkerValidationRequest
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 			require.Equal(t, selection, request)
 			require.NoError(t, json.NewEncoder(w).Encode(worker))
 		case policyregistry.ClassifierAttestationPath:
-			require.Empty(t, r.Header.Get("X-Weave-Internal-Token"))
+			require.Empty(t, r.Header.Get("X-Aiand-Internal-Token"))
 			require.Equal(t, http.MethodGet, r.Method)
 			require.NoError(t, json.NewEncoder(w).Encode(classifier))
 		default:

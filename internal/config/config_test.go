@@ -3,7 +3,7 @@ package config_test
 import (
 	"testing"
 
-	"weave-os/router/internal/config"
+	"aiand-os/router/internal/config"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

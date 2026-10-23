@@ -3,7 +3,7 @@ description: Print the session id that correlates this session in router telemet
 allowed-tools: Bash(echo:*)
 ---
 
-Print the session id used by the Weave Router to correlate this session's
+Print the session id used by the Aiand Router to correlate this session's
 telemetry, logs, and feedback submissions. Also works as a transcript
 filename key for manual lookups in the router dashboard.
 

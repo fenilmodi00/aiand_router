@@ -3,7 +3,7 @@ package proxy
 import (
 	"context"
 
-	"weave-os/router/internal/auth"
+	"aiand-os/router/internal/auth"
 )
 
 // credentialKeyParts returns the safe display parts and source of the turn's

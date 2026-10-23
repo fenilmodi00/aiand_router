@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/translate"
 )
 
 const codexSkillBlob = "<skill>\n<name>fm</name>\n<path>/x/skills/fm/SKILL.md</path>\n---\nname: fm\ndescription: \"Alias for force-model.\"\n---\nRun this skill's scripts/emit.sh.\n</skill>"
@@ -127,7 +127,7 @@ func TestStripThenExtract_SkillBlobDoesNotEatTheDirective(t *testing.T) {
 func TestStripThenExtract_PriorFeedbackTurnStillStripped(t *testing.T) {
 	env := codexEnvelope(t,
 		codexUserItem("$rf - an older complaint"),
-		codexAssistantItem("Weave Router: Feedback recorded 👎. Thank you."),
+		codexAssistantItem("Aiand Router: Feedback recorded 👎. Thank you."),
 		codexUserItem("now do something else"),
 	)
 	removed := env.StripRouterFeedbackArtifacts()
@@ -146,7 +146,7 @@ func TestStripThenExtract_SkillBlobAfterAnAckDoesNotRevivePriorFeedback(t *testi
 		"model": "deepseek/deepseek-v4-pro",
 		"messages": []any{
 			map[string]any{"role": "user", "content": "$rf - an older complaint"},
-			map[string]any{"role": "assistant", "content": "Weave Router: Feedback recorded 👎. Thank you."},
+			map[string]any{"role": "assistant", "content": "Aiand Router: Feedback recorded 👎. Thank you."},
 			map[string]any{"role": "user", "content": codexSkillBlob},
 		},
 	})

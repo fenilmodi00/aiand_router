@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/translate"
 )
 
 // Claude Code appends a <system-reminder> nudging the model toward the
@@ -136,7 +136,7 @@ const taskReminderInToolResultBody = `{
 		{"role":"assistant","content":[{"type":"tool_use","id":"toolu_2","name":"Read","input":{"file_path":"go.mod"}}]},
 		{"role":"user","content":[
 			{"type":"tool_result","tool_use_id":"toolu_2","content":[
-				{"type":"text","text":"module weave-os/router\n\n<system-reminder>\nThe task tools haven't been used recently.\n</system-reminder>"},
+				{"type":"text","text":"module aiand-os/router\n\n<system-reminder>\nThe task tools haven't been used recently.\n</system-reminder>"},
 				{"type":"text","text":"<system-reminder>\nThe task tools haven't been used recently.\n</system-reminder>"}
 			]}
 		]},
@@ -173,7 +173,7 @@ func TestTaskReminderStripped_InsideToolResultContent(t *testing.T) {
 			assert.NotContains(t, s, "task tools haven't been used recently")
 			assert.NotContains(t, s, "system-reminder")
 			assert.Contains(t, s, "go version go1.25.9 linux/amd64", "tool output before the reminder survives")
-			assert.Contains(t, s, "module weave-os/router")
+			assert.Contains(t, s, "module aiand-os/router")
 			assert.Contains(t, s, "thanks", "user text before the reminder survives")
 			assert.NotContains(t, s, "linux/amd64\\n\\n", "trailing padding is cut with the reminder")
 			assert.Equal(t, 4, out.Stats.CCTaskRemindersStripped)
@@ -250,7 +250,7 @@ const taskReminderAsSystemMessageBody = `{
 		{"role":"user","content":"and the module path?"},
 		{"role":"system","content":"<system-reminder>\nThe task tools haven't been used recently.\n</system-reminder>"},
 		{"role":"assistant","content":[{"type":"tool_use","id":"toolu_2","name":"Read","input":{"file_path":"go.mod"}}]},
-		{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_2","content":"module weave-os/router"}]},
+		{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_2","content":"module aiand-os/router"}]},
 		{"role":"system","content":[
 			{"type":"text","text":"<system-reminder>\nThe user is in plan mode.\n</system-reminder>"},
 			{"type":"text","text":"<system-reminder>\nThe task tools haven't been used recently.\n</system-reminder>"}
@@ -289,7 +289,7 @@ func TestTaskReminderStripped_AsSystemMessage(t *testing.T) {
 			}
 			assert.Contains(t, s, "go version go1.25.9 linux/amd64")
 			assert.Contains(t, s, "and the module path?")
-			assert.Contains(t, s, "module weave-os/router")
+			assert.Contains(t, s, "module aiand-os/router")
 			assert.Contains(t, s, "Go 1.25.9.")
 			assert.Equal(t, 3, out.Stats.CCTaskRemindersStripped)
 		})

@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"weave-os/router/internal/sqlc"
+	"aiand-os/router/internal/sqlc"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"

@@ -1,3 +1,3 @@
 package concreteproviderimport
 
-import _ "weave-os/router/internal/providers/openaicompat"
+import _ "aiand-os/router/internal/providers/openaicompat"

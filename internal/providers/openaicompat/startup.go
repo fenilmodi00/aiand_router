@@ -2,7 +2,7 @@ package openaicompat
 
 import (
 	"context"
-	"weave-os/router/internal/providers/httputil"
+	"aiand-os/router/internal/providers/httputil"
 )
 
 // WarmTransport initializes the configured origin using the serving transports.

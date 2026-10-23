@@ -9,7 +9,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	"weave-os/router/internal/sse"
+	"aiand-os/router/internal/sse"
 )
 
 type NoticeKind string
@@ -21,7 +21,7 @@ const (
 
 type NoticeProvenance string
 
-const NoticeFromRouter NoticeProvenance = "weave_router"
+const NoticeFromRouter NoticeProvenance = "aiand_router"
 
 type NoticePresentation string
 

@@ -1,19 +1,19 @@
 ---
 name: router-status
-description: "Show whether Codex is routing through the Weave Router or using its default provider."
+description: "Show whether Codex is routing through the Aiand Router or using its default provider."
 ---
 
-<!-- weave-router managed router-status skill -->
+<!-- aiand-router managed router-status skill -->
 
-# Weave Router status
+# Aiand Router status
 
 When the user invokes `$router-status`, report whether this Codex installation
-routes through the Weave Router.
+routes through the Aiand Router.
 
 Run exactly:
 
 ```bash
-npx --package @weave-os/router -y -- weave-router status --codex{{SCOPE}}
+npx --package @aiand-os/router -y -- aiand-router status --codex{{SCOPE}}
 ```
 
 Then summarize the result in one line. Do not change any configuration.

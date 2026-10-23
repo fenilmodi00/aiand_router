@@ -5,10 +5,10 @@ import (
 	"sort"
 	"strings"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/hmm"
-	"weave-os/router/internal/router/policy"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/hmm"
+	"aiand-os/router/internal/router/policy"
 
 	"github.com/gin-gonic/gin"
 )

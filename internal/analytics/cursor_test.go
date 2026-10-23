@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"weave-os/router/internal/analytics"
+	"aiand-os/router/internal/analytics"
 
 	"github.com/stretchr/testify/require"
 )

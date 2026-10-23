@@ -96,11 +96,11 @@ test("missing force-model arguments warn without starting a turn", async () => {
 test("parses applied, cleared, and rejected router acknowledgements", () => {
 	assert.deepEqual(
 		parseForceModelAcknowledgement(
-			"✦ **Weave Router** → force-model applied: claude-haiku-4-5 (anthropic) · Use /unforce-model to clear",
+			"✦ **Aiand Router** → force-model applied: claude-haiku-4-5 (anthropic) · Use /unforce-model to clear",
 		),
 		{ kind: "applied", model: "claude-haiku-4-5" },
 	);
-	assert.deepEqual(parseForceModelAcknowledgement("Weave Router: force-model cleared; resuming automatic routing"), {
+	assert.deepEqual(parseForceModelAcknowledgement("Aiand Router: force-model cleared; resuming automatic routing"), {
 		kind: "cleared",
 	});
 	assert.deepEqual(parseForceModelAcknowledgement("force-model: \"nope\" isn't a recognized model"), {
@@ -120,7 +120,7 @@ test("restores the newest effective pin and ignores quoted acknowledgements", ()
 	assert.equal(lastPinFromBranch(branch), "claude-opus-4-8");
 
 	branch.push(messageEntry("user", "/ufm"));
-	branch.push(messageEntry("assistant", "✦ **Weave Router** → force-model cleared · resuming automatic model selection"));
+	branch.push(messageEntry("assistant", "✦ **Aiand Router** → force-model cleared · resuming automatic model selection"));
 	assert.equal(lastPinFromBranch(branch), undefined);
 });
 
@@ -144,7 +144,7 @@ test("legacy loop prose cannot clear acknowledged pin history", () => {
 		messageEntry("user", "Keep working"),
 		messageEntry(
 			"assistant",
-			"✦ **Weave Router** → Tool-call loop detected: `read` was called 5 times in the last 10 turns with identical arguments. Stopping this turn and clearing the session pin so the next message re-routes to a fresh model.",
+			"✦ **Aiand Router** → Tool-call loop detected: `read` was called 5 times in the last 10 turns with identical arguments. Stopping this turn and clearing the session pin so the next message re-routes to a fresh model.",
 		),
 	];
 	assert.equal(lastPinFromBranch(branch), "claude-opus-4-8");
@@ -155,11 +155,11 @@ test("legacy loop prose cannot clear acknowledged pin history", () => {
 		messageEntry("user", "Keep working"),
 		messageEntry(
 			"assistant",
-			"✦ **Weave Router** → No-progress loop detected: 3 consecutive requests under this session routed to `claude-opus-4-8` (`anthropic`) with no observable progress in 2m0s. Stopping this turn and preserving the explicit force-model pin for the next message.",
+			"✦ **Aiand Router** → No-progress loop detected: 3 consecutive requests under this session routed to `claude-opus-4-8` (`anthropic`) with no observable progress in 2m0s. Stopping this turn and preserving the explicit force-model pin for the next message.",
 		),
 		messageEntry(
 			"assistant",
-			"Quoted example: ✦ **Weave Router** → Tool-call loop detected and clearing the session pin.",
+			"Quoted example: ✦ **Aiand Router** → Tool-call loop detected and clearing the session pin.",
 		),
 	];
 	assert.equal(lastPinFromBranch(preserved), "claude-opus-4-8");
@@ -182,7 +182,7 @@ test("historical pin stays separate from route and savings detail", () => {
 		lastPinModel: "claude-haiku-4-5",
 		savings: aggregateSavings([]),
 	});
-	assert.equal(status, "WEAVE ROUTER — moonshotai/kimi-k2.7 ← claude-sonnet-4-6 · saved — · last pin: claude-haiku-4-5");
+	assert.equal(status, "AIAND ROUTER — moonshotai/kimi-k2.7 ← claude-sonnet-4-6 · saved — · last pin: claude-haiku-4-5");
 });
 
 function commandEntry(outcome: RouterCommandOutcome): SessionEntry {

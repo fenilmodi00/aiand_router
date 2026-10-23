@@ -7,12 +7,12 @@ import (
 	"slices"
 	"time"
 
-	"weave-os/router/internal/policyclient"
-	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/hmm"
-	"weave-os/router/internal/router/hmm/selection"
-	"weave-os/router/internal/router/policy"
+	"aiand-os/router/internal/policyclient"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/hmm"
+	"aiand-os/router/internal/router/hmm/selection"
+	"aiand-os/router/internal/router/policy"
 )
 
 func hmmPolicySnapshotBuilder(

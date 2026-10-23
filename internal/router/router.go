@@ -4,9 +4,9 @@ package router
 import (
 	"context"
 
-	"weave-os/router/internal/router/eligibility"
-	"weave-os/router/internal/router/escalation"
-	"weave-os/router/internal/router/taskdomain"
+	"aiand-os/router/internal/router/eligibility"
+	"aiand-os/router/internal/router/escalation"
+	"aiand-os/router/internal/router/taskdomain"
 )
 
 // WireFormat identifies the client-facing request representation. It is kept
@@ -65,7 +65,7 @@ func (r TranslationRequirements) IsZero() bool {
 
 type Overrides struct {
 	// Alpha is the raw per-cluster quality weight applied UNIFORMLY across every
-	// cluster (the eval/debug "sledgehammer" set via x-weave-routing-alpha), so
+	// cluster (the eval/debug "sledgehammer" set via x-aiand-routing-alpha), so
 	// a bake-off can probe a single global alpha regardless of per-cluster
 	// quality dispersion.
 	Alpha *float64
@@ -82,7 +82,7 @@ type Overrides struct {
 	ExpectedOutputTokens *int
 	PerModelVerbosity    *bool
 	// ForceEffort, when non-empty, is the user-requested effort level
-	// (x-weave-effort header / :level suffix). Wins over effortEscalation;
+	// (x-aiand-effort header / :level suffix). Wins over effortEscalation;
 	// per-model caps (xhigh→max on non-CapXhighEffort) still apply.
 	ForceEffort string
 }
@@ -104,7 +104,7 @@ type Request struct {
 	// than applying alternative-policy behavior such as exploration.
 	ForceModel string
 	// ForceCluster is the sidecar classifier-group label forced by
-	// x-weave-force-cluster on this turn. Empty means no cluster constraint.
+	// x-aiand-force-cluster on this turn. Empty means no cluster constraint.
 	// Unlike ForceModel (which pins one canonical model), it constrains the pool
 	// the policy's own selection may draw from; the sidecar is never told a
 	// cluster is forced, so enforcement is a router-side re-check of the live
@@ -197,7 +197,7 @@ type Request struct {
 	// reaches the client as its native prompt-too-long error. Downstream
 	// context-window checks must not re-exclude these.
 	OverflowAdmittedModels map[string]struct{}
-	// AutomaticExcludedModels is the deployment-wide set Weave has withdrawn
+	// AutomaticExcludedModels is the deployment-wide set Aiand has withdrawn
 	// from AUTOMATIC selection. Deliberately not folded into ExcludedModels:
 	// that set is hard (it also rejects an explicit /force-model pin), whereas
 	// this one must leave a user's explicit pin serving. Routers apply it as a

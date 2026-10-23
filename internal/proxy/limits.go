@@ -1,6 +1,6 @@
 package proxy
 
-import "weave-os/router/internal/requestcontext"
+import "aiand-os/router/internal/requestcontext"
 
 // MaxRequestBodyBytes caps inbound request bodies across the Anthropic,
 // OpenAI, and Gemini API surfaces. One shared constant so the cap can't

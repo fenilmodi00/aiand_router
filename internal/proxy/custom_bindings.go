@@ -4,8 +4,8 @@ import (
 	"context"
 	"sort"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/router/catalog"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/router/catalog"
 )
 
 // customBindingsForRequest derives configuration-declared provider bindings

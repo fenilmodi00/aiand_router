@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"weave-os/router/internal/router/decisionmodel"
+	"aiand-os/router/internal/router/decisionmodel"
 
 	"github.com/stretchr/testify/require"
 )
