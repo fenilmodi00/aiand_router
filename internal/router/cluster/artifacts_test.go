@@ -231,6 +231,21 @@ func TestLatestBundle_OneDeployedModelPerFamily(t *testing.T) {
 	require.NoError(t, err)
 
 	dups := catalog.FamilyDuplicates(bundle.Registry.Models())
+	// Accepted capability-variant exemption: deepseek-v4-flash (text-only,
+	// $0.15/$0.25 fast lane) and v4.1-flash (multimodal, $0.30/$0.60) share
+	// the family regex but are distinct capability variants, not a supersession.
+	accepted := map[string]bool{
+		"deepseek/deepseek-v4-flash":   true,
+		"deepseek/deepseek-v4.1-flash": true,
+	}
+	kept := dups[:0]
+	for _, d := range dups {
+		if accepted[d.Superseded] {
+			continue
+		}
+		kept = append(kept, d)
+	}
+	dups = kept
 	if len(dups) == 0 {
 		return
 	}
