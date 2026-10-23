@@ -21,7 +21,7 @@ import (
 // Anthropic on `resume`, producing a 400.
 func TestAnthropicSSETranslator_SanitizesStreamedToolUseID(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewAnthropicSSETranslator(rec, "moonshotai/kimi-k2.7", nil)
+	w := translate.NewAnthropicSSETranslator(rec, "moonshotai/kimi-k3", nil)
 	require.NoError(t, w.Prelude(true))
 
 	feedChat(t, w,
@@ -71,7 +71,7 @@ func streamedToolUseIDs(out string) []string {
 func TestAnthropicSSETranslator_StreamedToolUseIDUniqueAcrossResponses(t *testing.T) {
 	feedOnce := func() string {
 		rec := httptest.NewRecorder()
-		w := translate.NewAnthropicSSETranslator(rec, "moonshotai/kimi-k2.7", nil)
+		w := translate.NewAnthropicSSETranslator(rec, "moonshotai/kimi-k3", nil)
 		require.NoError(t, w.Prelude(true))
 		feedChat(t, w,
 			`{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"functions.Bash:0","function":{"name":"Bash","arguments":""}}]},"finish_reason":null}]}`,
@@ -97,7 +97,7 @@ func TestAnthropicSSETranslator_StreamedToolUseIDUniqueAcrossResponses(t *testin
 // and distinct upstream ids stay distinct.
 func TestAnthropicSSETranslator_StreamedToolUseIDStableWithinResponse(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewAnthropicSSETranslator(rec, "moonshotai/kimi-k2.7", nil)
+	w := translate.NewAnthropicSSETranslator(rec, "moonshotai/kimi-k3", nil)
 	require.NoError(t, w.Prelude(true))
 	feedChat(t, w,
 		`{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"functions.Bash:0","function":{"name":"Bash","arguments":"{}"}}]},"finish_reason":null}]}`,

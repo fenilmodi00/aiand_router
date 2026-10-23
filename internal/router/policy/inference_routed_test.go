@@ -139,7 +139,7 @@ func TestResolveRouted_AuthorizesHardPinnedUtilityTurns(t *testing.T) {
 
 	compaction, err := resolver.ResolveRouted(policy.RoutedResolutionRequest{
 		Purpose:  policy.PurposeClientCompaction,
-		Decision: router.Decision{Model: "z-ai/glm-5.2", Provider: providers.ProviderAIAND},
+		Decision: router.Decision{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND},
 		Bindings: []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}},
 		Origin:   policy.OverrideSourceSession,
 	})
@@ -163,7 +163,7 @@ func TestResolveRouted_AuthorizesHardPinnedUtilityTurns(t *testing.T) {
 		}, policy.ResolutionErrorOverrideNotAllowed},
 		"summary operation is not routed": {policy.RoutedResolutionRequest{
 			Purpose:  policy.PurposePrecompactionSummary,
-			Decision: router.Decision{Model: "z-ai/glm-5.2", Provider: providers.ProviderAIAND},
+			Decision: router.Decision{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND},
 			Bindings: anthropic,
 			Origin:   policy.OverrideSourceDeployment,
 		}, policy.ResolutionErrorUnsupportedPurpose},

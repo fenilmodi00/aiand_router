@@ -14,7 +14,7 @@ import (
 // the four task-list tools, and both reminder shapes Claude Code emits: a
 // standalone text block on a user turn and a role:"system" turn.
 const claudeCodeTaskToolBody = `{
-	"model":"z-ai/glm-5.2",
+	"model":"z-ai/glm-5.3",
 	"system":"You are Claude Code.",
 	"messages":[
 		{"role":"user","content":[
@@ -131,7 +131,7 @@ func TestCCTaskToolsCrossVendor_AnthropicTargetUnaffected(t *testing.T) {
 		require.NoError(t, err)
 
 		out, err := env.PrepareAnthropic(nil, translate.EmitOptions{
-			TargetModel:                       "z-ai/glm-5.2",
+			TargetModel:                       "z-ai/glm-5.3",
 			KeepCrossVendorOrchestrationTools: false,
 			KeepCrossVendorTaskTools:          keepTaskTools,
 		})

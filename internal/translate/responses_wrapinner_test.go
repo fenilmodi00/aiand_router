@@ -37,7 +37,7 @@ func (t *teeWriter) Flush() {
 // spliced-in writer, and that what it captures equals what the client receives.
 func TestResponsesWriter_WrapInnerCapturesPrelude(t *testing.T) {
 	rec := httptest.NewRecorder()
-	rw := translate.NewResponsesWriter(rec, "z-ai/glm-5.2")
+	rw := translate.NewResponsesWriter(rec, "z-ai/glm-5.3")
 
 	var captured bytes.Buffer
 	rw.WrapInner(func(inner http.ResponseWriter) http.ResponseWriter {

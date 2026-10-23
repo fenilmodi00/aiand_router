@@ -203,7 +203,7 @@
       "ttft_s": 1.154,
       "verbosity_tokens": null
     },
-    "moonshotai/kimi-k2.7": {
+    "moonshotai/kimi-k3": {
       "input_per_1k_usd": 0.00075,
       "output_per_1k_usd": 0.0035,
       "tps": 95.126,
@@ -217,7 +217,7 @@
       "ttft_s": 1.235,
       "verbosity_tokens": null
     },
-    "z-ai/glm-5.2": {
+    "z-ai/glm-5.3": {
       "input_per_1k_usd": 0.001,
       "output_per_1k_usd": 0.004,
       "tps": null,

@@ -41,8 +41,8 @@ func parseAndEmit(t *testing.T, body []byte, format string, opts translate.EmitO
 }
 
 func TestAnthropicSameFormat_AddsTailCacheBreakpointWhenSystemAlreadyCached(t *testing.T) {
-	body := []byte(`{"model":"z-ai/glm-5.2","max_tokens":1024,"system":[{"type":"text","text":"cached rules","cache_control":{"type":"ephemeral","ttl":"1h"}}],"messages":[{"role":"user","content":"first"},{"role":"assistant","content":"ok"},{"role":"user","content":"continue"}]}`)
-	out := parseAndEmit(t, body, "anthropic", translate.EmitOptions{TargetModel: "z-ai/glm-5.2", Capabilities: router.Lookup("z-ai/glm-5.2")})
+	body := []byte(`{"model":"z-ai/glm-5.3","max_tokens":1024,"system":[{"type":"text","text":"cached rules","cache_control":{"type":"ephemeral","ttl":"1h"}}],"messages":[{"role":"user","content":"first"},{"role":"assistant","content":"ok"},{"role":"user","content":"continue"}]}`)
+	out := parseAndEmit(t, body, "anthropic", translate.EmitOptions{TargetModel: "z-ai/glm-5.3", Capabilities: router.Lookup("z-ai/glm-5.3")})
 
 	system := out["system"].([]any)
 	require.Len(t, system, 1)
@@ -63,8 +63,8 @@ func TestAnthropicSameFormat_AddsTailCacheBreakpointWhenSystemAlreadyCached(t *t
 }
 
 func TestAnthropicSameFormat_SkipsSystemBreakpointBeforeLaterOneHourMessage(t *testing.T) {
-	body := []byte(`{"model":"z-ai/glm-5.2","max_tokens":1024,"system":[{"type":"text","text":"rules"}],"messages":[{"role":"user","content":"first"},{"role":"assistant","content":"ok"},{"role":"user","content":"continue"},{"role":"assistant","content":"ok"},{"role":"user","content":[{"type":"text","text":"cached tail","cache_control":{"type":"ephemeral","ttl":"1h"}}]}]}`)
-	out := parseAndEmit(t, body, "anthropic", translate.EmitOptions{TargetModel: "z-ai/glm-5.2", Capabilities: router.Lookup("z-ai/glm-5.2")})
+	body := []byte(`{"model":"z-ai/glm-5.3","max_tokens":1024,"system":[{"type":"text","text":"rules"}],"messages":[{"role":"user","content":"first"},{"role":"assistant","content":"ok"},{"role":"user","content":"continue"},{"role":"assistant","content":"ok"},{"role":"user","content":[{"type":"text","text":"cached tail","cache_control":{"type":"ephemeral","ttl":"1h"}}]}]}`)
+	out := parseAndEmit(t, body, "anthropic", translate.EmitOptions{TargetModel: "z-ai/glm-5.3", Capabilities: router.Lookup("z-ai/glm-5.3")})
 
 	system := out["system"].([]any)
 	require.Len(t, system, 1)
@@ -79,23 +79,23 @@ func TestAnthropicSameFormat_SkipsSystemBreakpointBeforeLaterOneHourMessage(t *t
 }
 
 func TestAnthropicSameFormat_RejectsExplicitTTLOrderViolation(t *testing.T) {
-	body := []byte(`{"model":"z-ai/glm-5.2","max_tokens":1024,"tools":[{"name":"a","input_schema":{"type":"object"},"cache_control":{"type":"ephemeral"}}],"messages":[{"role":"user","content":[{"type":"text","text":"cached later","cache_control":{"type":"ephemeral","ttl":"1h"}}]}]}`)
+	body := []byte(`{"model":"z-ai/glm-5.3","max_tokens":1024,"tools":[{"name":"a","input_schema":{"type":"object"},"cache_control":{"type":"ephemeral"}}],"messages":[{"role":"user","content":[{"type":"text","text":"cached later","cache_control":{"type":"ephemeral","ttl":"1h"}}]}]}`)
 	env, err := translate.ParseAnthropic(body)
 	require.NoError(t, err)
-	_, err = env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "z-ai/glm-5.2", Capabilities: router.Lookup("z-ai/glm-5.2")})
+	_, err = env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "z-ai/glm-5.3", Capabilities: router.Lookup("z-ai/glm-5.3")})
 	require.ErrorIs(t, err, translate.ErrAnthropicCacheControlInvalid)
 }
 
 func TestAnthropicSameFormat_ToolCacheControlCountsTowardCapacity(t *testing.T) {
 	// 1 tool + 3 system = 4 breakpoints; router must not inject a fifth.
-	body := []byte(`{"model":"z-ai/glm-5.2","max_tokens":1024,` +
+	body := []byte(`{"model":"z-ai/glm-5.3","max_tokens":1024,` +
 		`"tools":[{"name":"a","input_schema":{"type":"object"}},` +
 		`{"name":"b","input_schema":{"type":"object"},"cache_control":{"type":"ephemeral"}}],` +
 		`"system":[{"type":"text","text":"one","cache_control":{"type":"ephemeral"}},` +
 		`{"type":"text","text":"two","cache_control":{"type":"ephemeral"}},` +
 		`{"type":"text","text":"three","cache_control":{"type":"ephemeral"}}],` +
 		`"messages":[{"role":"user","content":"hi"}]}`)
-	out := parseAndEmit(t, body, "anthropic", translate.EmitOptions{TargetModel: "z-ai/glm-5.2", Capabilities: router.Lookup("z-ai/glm-5.2")})
+	out := parseAndEmit(t, body, "anthropic", translate.EmitOptions{TargetModel: "z-ai/glm-5.3", Capabilities: router.Lookup("z-ai/glm-5.3")})
 
 	lastMessage := out["messages"].([]any)[0].(map[string]any)
 	assert.Equal(t, "hi", lastMessage["content"], "capacity is full (1 tool + 3 system = 4), so the router injects no tail breakpoint")
@@ -104,7 +104,7 @@ func TestAnthropicSameFormat_ToolCacheControlCountsTowardCapacity(t *testing.T) 
 func TestAnthropicSameFormat_ToolCacheControlOverflowRejected(t *testing.T) {
 	// Five tool breakpoints alone exceed the 4-breakpoint capacity; the count
 	// must include tools or this overflow slips through as a silent upstream 400.
-	body := []byte(`{"model":"z-ai/glm-5.2","max_tokens":1024,"messages":[{"role":"user","content":"hi"}],"tools":[` +
+	body := []byte(`{"model":"z-ai/glm-5.3","max_tokens":1024,"messages":[{"role":"user","content":"hi"}],"tools":[` +
 		`{"name":"a","input_schema":{"type":"object"},"cache_control":{"type":"ephemeral"}},` +
 		`{"name":"b","input_schema":{"type":"object"},"cache_control":{"type":"ephemeral"}},` +
 		`{"name":"c","input_schema":{"type":"object"},"cache_control":{"type":"ephemeral"}},` +
@@ -112,7 +112,7 @@ func TestAnthropicSameFormat_ToolCacheControlOverflowRejected(t *testing.T) {
 		`{"name":"e","input_schema":{"type":"object"},"cache_control":{"type":"ephemeral"}}]}`)
 	env, err := translate.ParseAnthropic(body)
 	require.NoError(t, err)
-	_, err = env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "z-ai/glm-5.2", Capabilities: router.Lookup("z-ai/glm-5.2")})
+	_, err = env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "z-ai/glm-5.3", Capabilities: router.Lookup("z-ai/glm-5.3")})
 	require.ErrorIs(t, err, translate.ErrAnthropicCacheControlOverflow)
 }
 
@@ -148,7 +148,7 @@ func TestOpenAISameFormat_UnknownFieldsPreserved(t *testing.T) {
 // Anthropic upstream, so same-format emit must strip it from every block. On
 // tool_use the signature still round-trips via the id; on text it's just dropped.
 func TestAnthropicSameFormat_StripsThoughtSignature(t *testing.T) {
-	body := []byte(`{"model":"z-ai/glm-5.2","max_tokens":1024,"messages":[
+	body := []byte(`{"model":"z-ai/glm-5.3","max_tokens":1024,"messages":[
 		{"role":"assistant","content":[
 			{"type":"text","text":"thinking out loud","thought_signature":"TEXT_SIG"},
 			{"type":"tool_use","id":"call_x__thought__QUFB","name":"Read","input":{"file_path":"main.go"},"thought_signature":"OPAQUE_SIG"}
@@ -156,8 +156,8 @@ func TestAnthropicSameFormat_StripsThoughtSignature(t *testing.T) {
 		{"role":"user","content":[{"type":"tool_result","tool_use_id":"call_x__thought__QUFB","content":"ok"}]}
 	]}`)
 	opts := translate.EmitOptions{
-		TargetModel:  "z-ai/glm-5.2",
-		Capabilities: router.Lookup("z-ai/glm-5.2"),
+		TargetModel:  "z-ai/glm-5.3",
+		Capabilities: router.Lookup("z-ai/glm-5.3"),
 	}
 	out := parseAndEmit(t, body, "anthropic", opts)
 	msgs, _ := out["messages"].([]any)
@@ -263,11 +263,11 @@ func TestOpenAISameFormat_OutputTokensClamped(t *testing.T) {
 func TestAnthropicSameFormat_ModelRewrite(t *testing.T) {
 	body := []byte(`{"model":"claude-sonnet-4-20250514","messages":[{"role":"user","content":"hello"}],"max_tokens":1024}`)
 	opts := translate.EmitOptions{
-		TargetModel:  "z-ai/glm-5.2",
-		Capabilities: router.Lookup("z-ai/glm-5.2"),
+		TargetModel:  "z-ai/glm-5.3",
+		Capabilities: router.Lookup("z-ai/glm-5.3"),
 	}
 	out := parseAndEmit(t, body, "anthropic", opts)
-	assert.Equal(t, "z-ai/glm-5.2", out["model"])
+	assert.Equal(t, "z-ai/glm-5.3", out["model"])
 	msgs, _ := out["messages"].([]any)
 	require.Len(t, msgs, 1)
 }
@@ -285,8 +285,8 @@ func TestAnthropicSameFormat_StripsUnsupportedToolSchemaPattern(t *testing.T) {
 		}
 	}]}`)
 	opts := translate.EmitOptions{
-		TargetModel:  "z-ai/glm-5.2",
-		Capabilities: router.Lookup("z-ai/glm-5.2"),
+		TargetModel:  "z-ai/glm-5.3",
+		Capabilities: router.Lookup("z-ai/glm-5.3"),
 	}
 	out := parseAndEmit(t, body, "anthropic", opts)
 
@@ -302,7 +302,7 @@ func TestAnthropicSameFormat_StripsUnsupportedToolSchemaPattern(t *testing.T) {
 }
 
 func TestAnthropicSameFormat_OmitsEmptyWebSearchDomainLists(t *testing.T) {
-	body := []byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"search"}],"max_tokens":1024,"tools":[{
+	body := []byte(`{"model":"z-ai/glm-5.3","messages":[{"role":"user","content":"search"}],"max_tokens":1024,"tools":[{
 		"type":"web_search_20250305",
 		"name":"web_search",
 		"allowed_domains":["openrouter.ai","docs.anthropic.com"],
@@ -310,8 +310,8 @@ func TestAnthropicSameFormat_OmitsEmptyWebSearchDomainLists(t *testing.T) {
 		"max_uses":8
 	}]}`)
 	opts := translate.EmitOptions{
-		TargetModel:  "z-ai/glm-5.2",
-		Capabilities: router.Lookup("z-ai/glm-5.2"),
+		TargetModel:  "z-ai/glm-5.3",
+		Capabilities: router.Lookup("z-ai/glm-5.3"),
 	}
 	out := parseAndEmit(t, body, "anthropic", opts)
 
@@ -325,15 +325,15 @@ func TestAnthropicSameFormat_OmitsEmptyWebSearchDomainLists(t *testing.T) {
 }
 
 func TestAnthropicSameFormat_OmitsEmptyAllowedDomains(t *testing.T) {
-	body := []byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"search"}],"max_tokens":1024,"tools":[{
+	body := []byte(`{"model":"z-ai/glm-5.3","messages":[{"role":"user","content":"search"}],"max_tokens":1024,"tools":[{
 		"type":"web_search_20250305",
 		"name":"web_search",
 		"allowed_domains":[],
 		"blocked_domains":["example.com"]
 	}]}`)
 	opts := translate.EmitOptions{
-		TargetModel:  "z-ai/glm-5.2",
-		Capabilities: router.Lookup("z-ai/glm-5.2"),
+		TargetModel:  "z-ai/glm-5.3",
+		Capabilities: router.Lookup("z-ai/glm-5.3"),
 	}
 	out := parseAndEmit(t, body, "anthropic", opts)
 
@@ -345,15 +345,15 @@ func TestAnthropicSameFormat_OmitsEmptyAllowedDomains(t *testing.T) {
 }
 
 func TestAnthropicSameFormat_OmitsEmptyWebFetchDomainLists(t *testing.T) {
-	body := []byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"fetch"}],"max_tokens":1024,"tools":[{
+	body := []byte(`{"model":"z-ai/glm-5.3","messages":[{"role":"user","content":"fetch"}],"max_tokens":1024,"tools":[{
 		"type":"web_fetch_20250305",
 		"name":"web_fetch",
 		"allowed_domains":["example.com"],
 		"blocked_domains":[]
 	}]}`)
 	opts := translate.EmitOptions{
-		TargetModel:  "z-ai/glm-5.2",
-		Capabilities: router.Lookup("z-ai/glm-5.2"),
+		TargetModel:  "z-ai/glm-5.3",
+		Capabilities: router.Lookup("z-ai/glm-5.3"),
 	}
 	out := parseAndEmit(t, body, "anthropic", opts)
 
@@ -366,7 +366,7 @@ func TestAnthropicSameFormat_OmitsEmptyWebFetchDomainLists(t *testing.T) {
 }
 
 func TestAnthropicSameFormat_KeepsEmptyDomainListsOnNonSearchTools(t *testing.T) {
-	body := []byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"hi"}],"max_tokens":1024,"tools":[{
+	body := []byte(`{"model":"z-ai/glm-5.3","messages":[{"role":"user","content":"hi"}],"max_tokens":1024,"tools":[{
 		"name":"custom_tool",
 		"description":"not native web search",
 		"input_schema":{"type":"object"},
@@ -374,8 +374,8 @@ func TestAnthropicSameFormat_KeepsEmptyDomainListsOnNonSearchTools(t *testing.T)
 		"blocked_domains":[]
 	}]}`)
 	opts := translate.EmitOptions{
-		TargetModel:  "z-ai/glm-5.2",
-		Capabilities: router.Lookup("z-ai/glm-5.2"),
+		TargetModel:  "z-ai/glm-5.3",
+		Capabilities: router.Lookup("z-ai/glm-5.3"),
 	}
 	out := parseAndEmit(t, body, "anthropic", opts)
 
@@ -402,8 +402,8 @@ func TestOpenAIToAnthropic_StripsUnsupportedToolSchemaPattern(t *testing.T) {
 		}
 	}]}`)
 	opts := translate.EmitOptions{
-		TargetModel:  "z-ai/glm-5.2",
-		Capabilities: router.Lookup("z-ai/glm-5.2"),
+		TargetModel:  "z-ai/glm-5.3",
+		Capabilities: router.Lookup("z-ai/glm-5.3"),
 	}
 	env, err := translate.ParseOpenAI(body)
 	require.NoError(t, err)
@@ -429,8 +429,8 @@ func TestAnthropicSameFormat_LeadingSystemMessageHoistedWhenNoSystemField(t *tes
 	// field, where it costs nothing to put it in front of the history.
 	body := []byte(`{"model":"claude-sonnet-4-20250514","messages":[{"role":"system","content":"be terse"},{"role":"user","content":"hi"},{"role":"assistant","content":"ok"}],"max_tokens":1024}`)
 	opts := translate.EmitOptions{
-		TargetModel:  "z-ai/glm-5.2",
-		Capabilities: router.Lookup("z-ai/glm-5.2"),
+		TargetModel:  "z-ai/glm-5.3",
+		Capabilities: router.Lookup("z-ai/glm-5.3"),
 	}
 	out := parseAndEmit(t, body, "anthropic", opts)
 
@@ -451,8 +451,8 @@ func TestAnthropicSameFormat_MidConversationSystemMessageDemotedInPlace(t *testi
 	// Mid-conversation system messages are demoted in place; hoisting would shift the cached prefix.
 	body := []byte(`{"model":"claude-sonnet-4-20250514","system":"rules","messages":[{"role":"user","content":"hi"},{"role":"assistant","content":"ok"},{"role":"system","content":"be terse"}],"max_tokens":1024}`)
 	opts := translate.EmitOptions{
-		TargetModel:  "z-ai/glm-5.2",
-		Capabilities: router.Lookup("z-ai/glm-5.2"),
+		TargetModel:  "z-ai/glm-5.3",
+		Capabilities: router.Lookup("z-ai/glm-5.3"),
 	}
 	out := parseAndEmit(t, body, "anthropic", opts)
 
@@ -474,8 +474,8 @@ func TestAnthropicSameFormat_MidConversationSystemMessageDemotedInPlace(t *testi
 func TestAnthropicSameFormat_DemotedSystemNullOutputConfigRemoved(t *testing.T) {
 	body := []byte(`{"model":"claude-sonnet-4-20250514","messages":[{"role":"user","content":"hi"},{"role":"system","content":"reminder","output_config":null}],"max_tokens":1024}`)
 	opts := translate.EmitOptions{
-		TargetModel:  "z-ai/glm-5.2",
-		Capabilities: router.Lookup("z-ai/glm-5.2"),
+		TargetModel:  "z-ai/glm-5.3",
+		Capabilities: router.Lookup("z-ai/glm-5.3"),
 	}
 	out := parseAndEmit(t, body, "anthropic", opts)
 
@@ -491,8 +491,8 @@ func TestAnthropicSameFormat_NewSystemMessageLeavesEarlierTurnsInPlace(t *testin
 	// The cache-affecting property: a system reminder arriving on a later turn
 	// must not shift any earlier message, or the whole cached prefix moves.
 	opts := translate.EmitOptions{
-		TargetModel:  "z-ai/glm-5.2",
-		Capabilities: router.Lookup("z-ai/glm-5.2"),
+		TargetModel:  "z-ai/glm-5.3",
+		Capabilities: router.Lookup("z-ai/glm-5.3"),
 	}
 	head := `{"model":"claude-sonnet-4-20250514","system":"rules","messages":[{"role":"user","content":"hi"},{"role":"system","content":"reminder one"},{"role":"assistant","content":"ok"}`
 	before := parseAndEmit(t, []byte(head+`],"max_tokens":1024}`), "anthropic", opts)
@@ -512,8 +512,8 @@ func TestAnthropicSameFormat_SystemMessageMergedWithExistingSystem(t *testing.T)
 	// Existing top-level system is preserved and the hoisted text appended.
 	body := []byte(`{"model":"claude-sonnet-4-20250514","system":"top-level rules","messages":[{"role":"system","content":[{"type":"text","text":"extra rule"}]},{"role":"user","content":"hi"}],"max_tokens":1024}`)
 	opts := translate.EmitOptions{
-		TargetModel:  "z-ai/glm-5.2",
-		Capabilities: router.Lookup("z-ai/glm-5.2"),
+		TargetModel:  "z-ai/glm-5.3",
+		Capabilities: router.Lookup("z-ai/glm-5.3"),
 	}
 	out := parseAndEmit(t, body, "anthropic", opts)
 
@@ -531,8 +531,8 @@ func TestAnthropicSameFormat_NoSystemMessageIsNoOp(t *testing.T) {
 	// Common case: no in-array system message — body passes through unchanged.
 	body := []byte(`{"model":"claude-sonnet-4-20250514","system":"rules","messages":[{"role":"user","content":"hi"}],"max_tokens":1024}`)
 	opts := translate.EmitOptions{
-		TargetModel:  "z-ai/glm-5.2",
-		Capabilities: router.Lookup("z-ai/glm-5.2"),
+		TargetModel:  "z-ai/glm-5.3",
+		Capabilities: router.Lookup("z-ai/glm-5.3"),
 	}
 	out := parseAndEmit(t, body, "anthropic", opts)
 	assert.Equal(t, "rules", out["system"], "untouched string system field")
@@ -543,8 +543,8 @@ func TestAnthropicSameFormat_NoSystemMessageIsNoOp(t *testing.T) {
 func TestAnthropicSameFormat_UnknownFieldsPreserved(t *testing.T) {
 	body := []byte(`{"model":"claude-sonnet-4-20250514","messages":[{"role":"user","content":"hi"}],"max_tokens":1024,"custom_field":"preserved","metadata":{"key":"val"}}`)
 	opts := translate.EmitOptions{
-		TargetModel:  "z-ai/glm-5.2",
-		Capabilities: router.Lookup("z-ai/glm-5.2"),
+		TargetModel:  "z-ai/glm-5.3",
+		Capabilities: router.Lookup("z-ai/glm-5.3"),
 	}
 	out := parseAndEmit(t, body, "anthropic", opts)
 	assert.Equal(t, "preserved", out["custom_field"])
@@ -622,10 +622,10 @@ func TestAnthropicSameFormat_DisabledThinkingStrippedForNonThinkingModel(t *test
 func TestAnthropicSameFormat_ThinkingBlocksStrippedOnModelSwitch(t *testing.T) {
 	// On a model switch, prior thinking blocks carry signatures from the old
 	// model; Anthropic 400s on those. ModelSwitched forces the strip.
-	body := []byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"hi"},{"role":"assistant","content":[{"type":"thinking","thinking":"thought","signature":"sig-from-other-model"},{"type":"text","text":"reply"}]}],"max_tokens":1024,"thinking":{"type":"adaptive"}}`)
+	body := []byte(`{"model":"z-ai/glm-5.3","messages":[{"role":"user","content":"hi"},{"role":"assistant","content":[{"type":"thinking","thinking":"thought","signature":"sig-from-other-model"},{"type":"text","text":"reply"}]}],"max_tokens":1024,"thinking":{"type":"adaptive"}}`)
 	opts := translate.EmitOptions{
-		TargetModel:   "z-ai/glm-5.2",
-		Capabilities:  router.Lookup("z-ai/glm-5.2"),
+		TargetModel:   "z-ai/glm-5.3",
+		Capabilities:  router.Lookup("z-ai/glm-5.3"),
 		ModelSwitched: true,
 	}
 	out := parseAndEmit(t, body, "anthropic", opts)
@@ -642,10 +642,10 @@ func TestAnthropicSameFormat_ThinkingBlocksStrippedOnModelSwitch(t *testing.T) {
 // #860: pin TTL can lapse before switch history does, so unsigned thinking
 // blocks must be stripped even when ModelSwitched is false.
 func TestAnthropicSameFormat_UnsignedThinkingStrippedWithoutModelSwitch(t *testing.T) {
-	body := []byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"hi"},{"role":"assistant","content":[{"type":"thinking","thinking":"from an OSS model"},{"type":"text","text":"reply"}]}],"max_tokens":1024,"thinking":{"type":"adaptive"}}`)
+	body := []byte(`{"model":"z-ai/glm-5.3","messages":[{"role":"user","content":"hi"},{"role":"assistant","content":[{"type":"thinking","thinking":"from an OSS model"},{"type":"text","text":"reply"}]}],"max_tokens":1024,"thinking":{"type":"adaptive"}}`)
 	opts := translate.EmitOptions{
-		TargetModel:   "z-ai/glm-5.2",
-		Capabilities:  router.Lookup("z-ai/glm-5.2"),
+		TargetModel:   "z-ai/glm-5.3",
+		Capabilities:  router.Lookup("z-ai/glm-5.3"),
 		ModelSwitched: false,
 	}
 	out := parseAndEmit(t, body, "anthropic", opts)
@@ -661,10 +661,10 @@ func TestAnthropicSameFormat_UnsignedThinkingStrippedWithoutModelSwitch(t *testi
 // TestAnthropicSameFormat_EmptySignatureThinkingStripped covers the shape where
 // the key is present but empty — an empty signature is just as invalid upstream.
 func TestAnthropicSameFormat_EmptySignatureThinkingStripped(t *testing.T) {
-	body := []byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"assistant","content":[{"type":"thinking","thinking":"t","signature":""},{"type":"text","text":"reply"}]}],"max_tokens":1024,"thinking":{"type":"adaptive"}}`)
+	body := []byte(`{"model":"z-ai/glm-5.3","messages":[{"role":"assistant","content":[{"type":"thinking","thinking":"t","signature":""},{"type":"text","text":"reply"}]}],"max_tokens":1024,"thinking":{"type":"adaptive"}}`)
 	opts := translate.EmitOptions{
-		TargetModel:  "z-ai/glm-5.2",
-		Capabilities: router.Lookup("z-ai/glm-5.2"),
+		TargetModel:  "z-ai/glm-5.3",
+		Capabilities: router.Lookup("z-ai/glm-5.3"),
 	}
 	out := parseAndEmit(t, body, "anthropic", opts)
 	msgs, _ := out["messages"].([]any)
@@ -679,10 +679,10 @@ func TestAnthropicSameFormat_EmptySignatureThinkingStripped(t *testing.T) {
 // thinking block (no accompanying text/tool_use). Stripping the block must drop
 // the whole message rather than emit content:[], which Anthropic also rejects.
 func TestAnthropicSameFormat_UnsignedThinkingOnlyMessageDropped(t *testing.T) {
-	body := []byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"hi"},{"role":"assistant","content":[{"type":"thinking","thinking":"from an OSS model"}]},{"role":"user","content":"continue"}],"max_tokens":1024,"thinking":{"type":"adaptive"}}`)
+	body := []byte(`{"model":"z-ai/glm-5.3","messages":[{"role":"user","content":"hi"},{"role":"assistant","content":[{"type":"thinking","thinking":"from an OSS model"}]},{"role":"user","content":"continue"}],"max_tokens":1024,"thinking":{"type":"adaptive"}}`)
 	opts := translate.EmitOptions{
-		TargetModel:   "z-ai/glm-5.2",
-		Capabilities:  router.Lookup("z-ai/glm-5.2"),
+		TargetModel:   "z-ai/glm-5.3",
+		Capabilities:  router.Lookup("z-ai/glm-5.3"),
 		ModelSwitched: false,
 	}
 	out := parseAndEmit(t, body, "anthropic", opts)
@@ -924,8 +924,8 @@ func TestAnthropicSameFormat_BodyIsImmutable(t *testing.T) {
 	require.NoError(t, err)
 
 	opts := translate.EmitOptions{
-		TargetModel:  "z-ai/glm-5.2",
-		Capabilities: router.Lookup("z-ai/glm-5.2"),
+		TargetModel:  "z-ai/glm-5.3",
+		Capabilities: router.Lookup("z-ai/glm-5.3"),
 	}
 	_, err = env.PrepareAnthropic(http.Header{}, opts)
 	require.NoError(t, err)
@@ -957,10 +957,10 @@ func openAIReasoningSignature(t *testing.T, id, enc string) string {
 }
 
 func TestAnthropicSameFormat_ForcedToolChoicePreservedForCapableModel(t *testing.T) {
-	body := []byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"hi"}],"max_tokens":1024,"tools":[{"type":"web_search_20260209","name":"web_search"}],"tool_choice":{"type":"tool","name":"web_search"}}`)
+	body := []byte(`{"model":"z-ai/glm-5.3","messages":[{"role":"user","content":"hi"}],"max_tokens":1024,"tools":[{"type":"web_search_20260209","name":"web_search"}],"tool_choice":{"type":"tool","name":"web_search"}}`)
 	opts := translate.EmitOptions{
-		TargetModel:  "z-ai/glm-5.2",
-		Capabilities: router.Lookup("z-ai/glm-5.2"),
+		TargetModel:  "z-ai/glm-5.3",
+		Capabilities: router.Lookup("z-ai/glm-5.3"),
 	}
 	out := parseAndEmit(t, body, "anthropic", opts)
 	choice, _ := out["tool_choice"].(map[string]any)
@@ -1000,7 +1000,7 @@ func TestOpenAIEmit_FillsMissingFunctionToolParameters(t *testing.T) {
 }
 
 func TestAnthropicToOpenAI_FillsMissingInputSchemaAsParameters(t *testing.T) {
-	body := []byte(`{"model":"z-ai/glm-5.2","max_tokens":1024,"messages":[{"role":"user","content":"hi"}],"tools":[{"name":"Read","input_schema":{"type":"object"}},{"name":"Ping","description":"no args"}]}`)
+	body := []byte(`{"model":"z-ai/glm-5.3","max_tokens":1024,"messages":[{"role":"user","content":"hi"}],"tools":[{"name":"Read","input_schema":{"type":"object"}},{"name":"Ping","description":"no args"}]}`)
 	env, err := translate.ParseAnthropic(body)
 	require.NoError(t, err)
 	p, err := env.PrepareOpenAI(http.Header{}, translate.EmitOptions{TargetModel: "grok-4.6", TargetProvider: providers.ProviderAIAND, Capabilities: router.Lookup("grok-4.6")})

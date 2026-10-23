@@ -42,12 +42,12 @@
       "gpt-5.4-mini": 0.0004,
       "gpt-5.5": 0.005,
       "minimax/minimax-m3": 0.0006,
-      "moonshotai/kimi-k2.7": 0.00095,
+      "moonshotai/kimi-k3": 0.00095,
       "qwen/qwen3-coder-next": 0.0005,
       "qwen/qwen3-next-80b-a3b-instruct": 0.00015,
       "qwen/qwen3.7-plus": 0.0004,
       "xiaomi/mimo-v2.5-pro": 0.001,
-      "z-ai/glm-5.2": 0.0014
+      "z-ai/glm-5.3": 0.0014
     },
     "embedder_model": "jina-v2-base-code-int8",
     "exclude_prompts": null,

@@ -133,7 +133,7 @@ func (s *overwritingPinStore) SweepExpired(context.Context) error { return nil }
 func TestRunTurnLoop_ForcedModelOverridesHardPin(t *testing.T) {
 	store := &forcedPinStore{pin: sessionpin.Pin{
 		Provider:    providers.ProviderAIAND,
-		Model:       "z-ai/glm-5.2",
+		Model:       "z-ai/glm-5.3",
 		Reason:      translate.ReasonUserForceModel,
 		PinnedUntil: time.Now().Add(time.Hour),
 	}}
@@ -152,7 +152,7 @@ func TestRunTurnLoop_ForcedModelOverridesHardPin(t *testing.T) {
 	)
 
 	env, err := translate.ParseAnthropic([]byte(`{
-		"model":"z-ai/glm-5.2",
+		"model":"z-ai/glm-5.3",
 		"system":"Your task is to create a detailed summary of the conversation so far.",
 		"messages":[{"role":"user","content":"summarize"}]
 	}`))
@@ -164,7 +164,7 @@ func TestRunTurnLoop_ForcedModelOverridesHardPin(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	assert.Equal(t, "z-ai/glm-5.2", res.Decision.Model,
+	assert.Equal(t, "z-ai/glm-5.3", res.Decision.Model,
 		"an explicit force-model pin must outrank the automatic compaction hard-pin")
 	assert.Equal(t, translate.ReasonUserForceModel, res.Decision.Reason)
 	assert.True(t, res.StickyHit)
@@ -178,7 +178,7 @@ func TestRunTurnLoop_ForcedModelOverridesHardPin(t *testing.T) {
 func TestRunTurnLoop_ForcedModelServesDespiteDisabledProvider(t *testing.T) {
 	store := &forcedPinStore{pin: sessionpin.Pin{
 		Provider:          providers.ProviderAIAND,
-		Model:             "z-ai/glm-5.2",
+		Model:             "z-ai/glm-5.3",
 		Reason:            translate.ReasonUserForceModel,
 		PinnedUntil:       time.Now().Add(time.Hour),
 		DisabledProviders: []string{providers.ProviderAIAND},
@@ -198,7 +198,7 @@ func TestRunTurnLoop_ForcedModelServesDespiteDisabledProvider(t *testing.T) {
 	)
 
 	env, err := translate.ParseAnthropic([]byte(`{
-		"model":"z-ai/glm-5.2",
+		"model":"z-ai/glm-5.3",
 		"messages":[{"role":"user","content":"hello"}]
 	}`))
 	require.NoError(t, err)
@@ -210,7 +210,7 @@ func TestRunTurnLoop_ForcedModelServesDespiteDisabledProvider(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	assert.Equal(t, "z-ai/glm-5.2", res.Decision.Model,
+	assert.Equal(t, "z-ai/glm-5.3", res.Decision.Model,
 		"force-model must serve through the pinned provider despite the session-level disable")
 	assert.Equal(t, providers.ProviderAIAND, res.Decision.Provider)
 	assert.Equal(t, translate.ReasonUserForceModel, res.Decision.Reason)
@@ -240,7 +240,7 @@ func TestForceModelHeader_OverridesHardPin(t *testing.T) {
 	)
 
 	env, err := translate.ParseAnthropic([]byte(`{
-		"model":"z-ai/glm-5.2",
+		"model":"z-ai/glm-5.3",
 		"system":"Your task is to create a detailed summary of the conversation so far.",
 		"messages":[{"role":"user","content":"summarize"}]
 	}`))
@@ -258,7 +258,7 @@ func TestForceModelHeader_OverridesHardPin(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	assert.Equal(t, "z-ai/glm-5.2", res.Decision.Model,
+	assert.Equal(t, "z-ai/glm-5.3", res.Decision.Model,
 		"the x-aiand-force-model pin must outrank the automatic compaction hard-pin")
 	assert.Equal(t, translate.ReasonUserForceModel, res.Decision.Reason)
 	assert.False(t, res.HardPinned)

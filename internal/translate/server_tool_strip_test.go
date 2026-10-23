@@ -14,7 +14,7 @@ import (
 // Anthropic executes web_search_*/web_fetch_* server-side; emitted to a non-Anthropic
 // upstream they become phantom function tools (same failure claudecode_tool_filter.go prevents).
 const anthropicServerToolBody = `{
-	"model":"z-ai/glm-5.2",
+	"model":"z-ai/glm-5.3",
 	"messages":[{"role":"user","content":"what changed upstream?"}],
 	"tools":[
 		{"type":"web_search_20250305","name":"web_search","max_uses":5},
@@ -26,7 +26,7 @@ const anthropicServerToolBody = `{
 
 // Only the native server tools are declared, so the whole tools array goes.
 const anthropicServerToolOnlyBody = `{
-	"model":"z-ai/glm-5.2",
+	"model":"z-ai/glm-5.3",
 	"messages":[{"role":"user","content":"Perform a web search for the query: aiand router"}],
 	"tools":[{"type":"web_search_20250305","name":"web_search"}],
 	"tool_choice":{"type":"tool","name":"web_search"},
@@ -64,7 +64,7 @@ func TestServerTools_AnthropicSourceAnthropicTarget_Kept(t *testing.T) {
 	env, err := translate.ParseAnthropic([]byte(anthropicServerToolBody))
 	require.NoError(t, err)
 
-	out, err := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "z-ai/glm-5.2"})
+	out, err := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "z-ai/glm-5.3"})
 	require.NoError(t, err)
 
 	var doc map[string]any

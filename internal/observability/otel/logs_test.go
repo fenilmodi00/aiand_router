@@ -111,7 +111,7 @@ func TestBuffer_RecordLogAndFlush(t *testing.T) {
 		Time:     now,
 		Severity: otel.SeverityInfo,
 		Attrs: otel.NewAttrBuilder(2).
-			String("decision.model", "z-ai/glm-5.2").
+			String("decision.model", "z-ai/glm-5.3").
 			String("io.request_body", `{"messages":[]}`).
 			Build(),
 	})
@@ -142,7 +142,7 @@ func TestBuffer_RecordLogAndFlush(t *testing.T) {
 	}
 	require.NotNil(t, info)
 	require.NotNil(t, errRec)
-	assert.Equal(t, "z-ai/glm-5.2", info.attrs["decision.model"])
+	assert.Equal(t, "z-ai/glm-5.3", info.attrs["decision.model"])
 	assert.Equal(t, `{"messages":[]}`, info.attrs["io.request_body"])
 }
 

@@ -84,7 +84,7 @@
       "ttft_s": null,
       "verbosity_tokens": null
     },
-    "moonshotai/kimi-k2.7": {
+    "moonshotai/kimi-k3": {
       "input_per_1k_usd": 0.00095,
       "output_per_1k_usd": 0.004,
       "tps": null,
@@ -119,7 +119,7 @@
       "ttft_s": 2.253,
       "verbosity_tokens": null
     },
-    "z-ai/glm-5.2": {
+    "z-ai/glm-5.3": {
       "input_per_1k_usd": 0.0014,
       "output_per_1k_usd": 0.0044,
       "tps": null,
@@ -154,7 +154,7 @@
       "ttft_s": 1.09,
       "verbosity_tokens": 456.122311827957
     },
-    "moonshotai/kimi-k2.7-code": {
+    "moonshotai/kimi-k3": {
       "input_per_1k_usd": 0.00075,
       "output_per_1k_usd": 0.0035,
       "tps": 96.5,

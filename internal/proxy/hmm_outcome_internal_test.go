@@ -38,7 +38,7 @@ func TestReportPolicyOutcome_UsesFreshMetadataForStickyServedDecision(t *testing
 	routeRes := turnLoopResult{
 		StickyHit: true,
 		Fresh: router.Decision{
-			Model:    "moonshotai/kimi-k2.7",
+			Model:    "moonshotai/kimi-k3",
 			Provider: providers.ProviderAIAND,
 			Metadata: &router.RoutingMetadata{
 				RouteID:          "route-fresh",
@@ -73,13 +73,13 @@ func TestReportPolicyOutcome_UsesFreshMetadataForStickyServedDecision(t *testing
 	select {
 	case payload := <-reporter.ch:
 		require.Equal(t, "route-fresh", payload["route_id"])
-		assert.Equal(t, "moonshotai/kimi-k2.7", payload["selected_model"])
+		assert.Equal(t, "moonshotai/kimi-k3", payload["selected_model"])
 		assert.Equal(t, providers.ProviderAIAND, payload["selected_provider"])
 		assert.Equal(t, "z-ai/glm-5.3-flash", payload["served_model"])
 		assert.Equal(t, providers.ProviderAIAND, payload["served_provider"])
 		assert.Equal(t, false, payload["selected_served_model_match"])
 		assert.NotContains(t, payload, "training_exclusion_reason")
-		assert.Equal(t, "moonshotai/kimi-k2.7", payload["decision_model"])
+		assert.Equal(t, "moonshotai/kimi-k3", payload["decision_model"])
 		assert.Equal(t, providers.ProviderAIAND, payload["decision_provider"])
 		assert.Equal(t, "medium|mid", payload["policy_route_key"])
 		assert.Equal(t, "hmm-prod", payload["policy_artifact_id"])
@@ -103,7 +103,7 @@ func TestReportPolicyOutcome_OmitsResponseBodyWhenTrainingIsNotAllowed(t *testin
 	reporter := &captureHMMOutcomeReporter{ch: make(chan map[string]interface{}, 1)}
 	s := (&Service{}).WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyHMM, Router: reporter})
 	routeRes := turnLoopResult{Fresh: router.Decision{
-		Model:    "moonshotai/kimi-k2.7",
+		Model:    "moonshotai/kimi-k3",
 		Metadata: &router.RoutingMetadata{RouteID: "route-1", Strategy: string(router.StrategyHMM)},
 	}}
 
@@ -127,7 +127,7 @@ func TestReportPolicyOutcome_AuthoritativeMismatchFailsClosedForTraining(t *test
 		Router:   reporter,
 	})
 	selected := router.Decision{
-		Model:    "z-ai/glm-5.2",
+		Model:    "z-ai/glm-5.3",
 		Provider: providers.ProviderAIAND,
 		Metadata: &router.RoutingMetadata{
 			RouteID:                       "route-authoritative",
@@ -161,7 +161,7 @@ func TestReportPolicyOutcome_AuthoritativeMismatchFailsClosedForTraining(t *test
 
 	select {
 	case payload := <-reporter.ch:
-		assert.Equal(t, "z-ai/glm-5.2", payload["selected_model"])
+		assert.Equal(t, "z-ai/glm-5.3", payload["selected_model"])
 		assert.Equal(t, "z-ai/glm-5.3-flash", payload["served_model"])
 		assert.Equal(t, false, payload["selected_served_model_match"])
 		assert.Equal(t, false, payload["training_allowed"])

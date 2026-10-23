@@ -20,7 +20,7 @@ test("normalizes Pi, dated, and context-tier model ids", () => {
 
 test("calculates savings against identical usage", () => {
 	const entry = createSavingsEntry(
-		{ requestedModel: "claude-sonnet-4-6", routedModel: "moonshotai/kimi-k2.7" },
+		{ requestedModel: "claude-sonnet-4-6", routedModel: "moonshotai/kimi-k3" },
 		usage,
 	);
 	assert.equal(entry.priced, true);
@@ -70,7 +70,7 @@ test("negative deltas render as added cost", () => {
 
 test("aggregates restored entry data and rejects malformed entries", () => {
 	const first = createSavingsEntry(
-		{ requestedModel: "claude-sonnet-4-6", routedModel: "moonshotai/kimi-k2.7" },
+		{ requestedModel: "claude-sonnet-4-6", routedModel: "moonshotai/kimi-k3" },
 		usage,
 	);
 	const second = createSavingsEntry(
@@ -119,14 +119,14 @@ test("persists routed-response savings in RPC mode", async () => {
 			type: "after_provider_response",
 			status: 200,
 			headers: {
-				"x-router-model": "moonshotai/kimi-k2.7",
+				"x-router-model": "moonshotai/kimi-k3",
 				"x-router-provider": "openrouter",
 				"x-router-decision": "automatic",
 			},
 		},
 		ctx,
 	);
-	assert.equal(statuses.at(-1), "AIAND ROUTER — moonshotai/kimi-k2.7 ← claude-sonnet-4-6 · saved —");
+	assert.equal(statuses.at(-1), "AIAND ROUTER — moonshotai/kimi-k3 ← claude-sonnet-4-6 · saved —");
 	await handlers.get("turn_end")?.(
 		{
 			type: "turn_end",
@@ -144,8 +144,8 @@ test("persists routed-response savings in RPC mode", async () => {
 	assert.ok(saved);
 	assert.equal(saved.customType, SAVINGS_ENTRY_TYPE);
 	assert.ok(isSavingsEntryData(saved.data));
-	assert.equal(saved.data.routedModel, "moonshotai/kimi-k2.7");
+	assert.equal(saved.data.routedModel, "moonshotai/kimi-k3");
 	assert.equal(saved.data.provider, "openrouter");
 	assert.equal(saved.data.decision, "automatic");
-	assert.equal(statuses.at(-1), "AIAND ROUTER — moonshotai/kimi-k2.7 ← claude-sonnet-4-6 · saved $2.05");
+	assert.equal(statuses.at(-1), "AIAND ROUTER — moonshotai/kimi-k3 ← claude-sonnet-4-6 · saved $2.05");
 });

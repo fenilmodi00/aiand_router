@@ -18,7 +18,7 @@ import (
 const (
 	testSol   = "gpt-5.6-sol"
 	testTerra = "gpt-5.6-terra"
-	testOpus  = "z-ai/glm-5.2"
+	testOpus  = "z-ai/glm-5.3"
 )
 
 func ctxWithRequestSubset(ctx context.Context, models ...string) context.Context {
@@ -83,7 +83,7 @@ func TestRequestedAllowedModelsForTelemetry(t *testing.T) {
 func TestReadmitForcedModel_LiftsSubsetOnlyExclusion(t *testing.T) {
 	s := &Service{availableModels: map[string]struct{}{testSol: {}, testTerra: {}, testOpus: {}}}
 	ctx := ctxWithRequestSubset(context.Background(), testSol)
-	env, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.2","max_tokens":16,"messages":[{"role":"user","content":"hi"}]}`))
+	env, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.3","max_tokens":16,"messages":[{"role":"user","content":"hi"}]}`))
 	require.NoError(t, err)
 	req := router.Request{ExcludedModels: s.excludedModelsForRequest(ctx)}
 	require.Contains(t, req.ExcludedModels, testTerra)
@@ -98,7 +98,7 @@ func TestReadmitForcedModel_LiftsSubsetOnlyExclusion(t *testing.T) {
 func TestReadmitForcedModel_KeepsPolicyExclusion(t *testing.T) {
 	s := &Service{availableModels: map[string]struct{}{testSol: {}, testTerra: {}, testOpus: {}}}
 	ctx := ctxWithRequestSubset(ctxWithAllowedModels(testSol, testTerra), testSol)
-	env, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.2","max_tokens":16,"messages":[{"role":"user","content":"hi"}]}`))
+	env, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.3","max_tokens":16,"messages":[{"role":"user","content":"hi"}]}`))
 	require.NoError(t, err)
 	req := router.Request{ExcludedModels: s.excludedModelsForRequest(ctx)}
 

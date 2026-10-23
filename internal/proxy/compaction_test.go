@@ -45,7 +45,7 @@ func TestTurnLoop_CompactionHardPinContextOverflowIsNotRoutingOutage(t *testing.
 			WithHardPinResolver(resolver)
 		s.compactionHardPinEnabled = true
 		s.availableModels = map[string]struct{}{summarizer: {}, policy.PrecompactionDefaultModel: {}}
-		env, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.2","max_tokens":1024,"system":"Your task is to create a detailed summary of the conversation so far.","messages":[{"role":"user","content":"summarize"}]}`))
+		env, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.3","max_tokens":1024,"system":"Your task is to create a detailed summary of the conversation so far.","messages":[{"role":"user","content":"summarize"}]}`))
 		require.NoError(t, err)
 		features := env.RoutingFeatures(false)
 		_, err = s.runTurnLoop(context.Background(), env, features, "test-key", uuid.Nil, "", nil, router.Request{

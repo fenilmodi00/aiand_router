@@ -76,7 +76,7 @@ func TestIsPolicyDeadlineErr(t *testing.T) {
 		{
 			name: "contract violation (provider mismatch) must still fail closed",
 			err: fmt.Errorf("hmm_embedding: sidecar returned provider %q for %q, expected %q: %w",
-				"openai", "z-ai/glm-5.2", "anthropic", hmm.ErrHMMUnavailable),
+				"openai", "z-ai/glm-5.3", "anthropic", hmm.ErrHMMUnavailable),
 			want: false,
 		},
 		{
@@ -140,7 +140,7 @@ func runPolicyDeadlineFallbackTurnLoop(
 ) (turnLoopResult, error) {
 	t.Helper()
 	env, err := translate.ParseAnthropic(
-		[]byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"continue"}]}`),
+		[]byte(`{"model":"z-ai/glm-5.3","messages":[{"role":"user","content":"continue"}]}`),
 	)
 	require.NoError(t, err)
 	features := env.RoutingFeatures(false)

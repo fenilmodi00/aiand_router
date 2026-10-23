@@ -612,7 +612,7 @@ func TestDispatchWithFallback_SingleBindingExhaustsRetries(t *testing.T) {
 	winnerIdx, err := s.dispatchWithFallback(context.Background(), failoverInputs{
 		w:               rec,
 		buf:             buf,
-		initialDecision: router.Decision{Model: "z-ai/glm-5.2"},
+		initialDecision: router.Decision{Model: "z-ai/glm-5.3"},
 		purpose:         inference.PurposeAnthropicMessages,
 		bindings:        []catalog.ProviderBinding{{Provider: "anthropic"}},
 		attempt: func(ctx context.Context, d router.Decision, p providers.Client) error {
@@ -672,7 +672,7 @@ func TestDispatchWithFallback_SlowAttemptsStopBeforeRetryCount(t *testing.T) {
 	_, err := s.dispatchWithFallback(context.Background(), failoverInputs{
 		w:               rec,
 		buf:             buf,
-		initialDecision: router.Decision{Model: "z-ai/glm-5.2"},
+		initialDecision: router.Decision{Model: "z-ai/glm-5.3"},
 		purpose:         inference.PurposeAnthropicMessages,
 		bindings:        []catalog.ProviderBinding{{Provider: "anthropic"}},
 		attempt: func(ctx context.Context, d router.Decision, p providers.Client) error {
@@ -708,7 +708,7 @@ func TestDispatchWithFallback_SingleBindingRetrySucceeds(t *testing.T) {
 	winnerIdx, err := s.dispatchWithFallback(context.Background(), failoverInputs{
 		w:               rec,
 		buf:             buf,
-		initialDecision: router.Decision{Model: "z-ai/glm-5.2"},
+		initialDecision: router.Decision{Model: "z-ai/glm-5.3"},
 		purpose:         inference.PurposeAnthropicMessages,
 		bindings:        []catalog.ProviderBinding{{Provider: "anthropic"}},
 		attempt: func(ctx context.Context, d router.Decision, p providers.Client) error {
@@ -742,7 +742,7 @@ func TestDispatchWithFallback_SingleBindingNonRetryableNoRetry(t *testing.T) {
 	_, err := s.dispatchWithFallback(context.Background(), failoverInputs{
 		w:               rec,
 		buf:             buf,
-		initialDecision: router.Decision{Model: "z-ai/glm-5.2"},
+		initialDecision: router.Decision{Model: "z-ai/glm-5.3"},
 		purpose:         inference.PurposeAnthropicMessages,
 		bindings:        []catalog.ProviderBinding{{Provider: "anthropic"}},
 		attempt: func(ctx context.Context, d router.Decision, p providers.Client) error {
@@ -778,7 +778,7 @@ func TestDispatchWithFallback_SingleBindingBackoffAbortsOnCancel(t *testing.T) {
 	_, err := s.dispatchWithFallback(context.Background(), failoverInputs{
 		w:               rec,
 		buf:             buf,
-		initialDecision: router.Decision{Model: "z-ai/glm-5.2"},
+		initialDecision: router.Decision{Model: "z-ai/glm-5.3"},
 		purpose:         inference.PurposeAnthropicMessages,
 		bindings:        []catalog.ProviderBinding{{Provider: "anthropic"}},
 		attempt: func(ctx context.Context, d router.Decision, p providers.Client) error {

@@ -45,7 +45,7 @@ func decodeOpenAIReasoningTestSignature(t *testing.T, sig string) map[string]any
 // but OpenAI Responses only accepts the restricted function-name alphabet.
 func TestPrepareOpenAIResponses_SanitizesHistoricalToolName(t *testing.T) {
 	body := []byte(`{
-      "model":"z-ai/glm-5.2",
+      "model":"z-ai/glm-5.3",
       "messages":[
         {"role":"assistant","content":[{"type":"tool_use","id":"toolu_1","name":"dots schema search --scope all","input":{}}]},
         {"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","content":"done"}]}
@@ -54,8 +54,8 @@ func TestPrepareOpenAIResponses_SanitizesHistoricalToolName(t *testing.T) {
 	env, err := translate.ParseAnthropic(body)
 	require.NoError(t, err)
 	prep, err := env.PrepareOpenAIResponses(http.Header{}, translate.EmitOptions{
-		TargetModel:  "moonshotai/kimi-k2.7",
-		Capabilities: router.Lookup("moonshotai/kimi-k2.7"),
+		TargetModel:  "moonshotai/kimi-k3",
+		Capabilities: router.Lookup("moonshotai/kimi-k3"),
 	})
 	require.NoError(t, err)
 
@@ -113,7 +113,7 @@ func TestPrepareOpenAIResponses_StaticFieldsPrecedeInput(t *testing.T) {
 		{
 			name:  "Anthropic source",
 			parse: translate.ParseAnthropic,
-			body: `{"model":"z-ai/glm-5.2","max_tokens":1024,
+			body: `{"model":"z-ai/glm-5.3","max_tokens":1024,
 				"system":"You are helpful.",
 				"tools":[{"name":"bash","description":"run","input_schema":{"type":"object"}}],
 				"tool_choice":{"type":"auto"},
@@ -169,7 +169,7 @@ func TestPrepareOpenAIResponses_ToolChoiceVariants(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			body := []byte(`{
-				"model":"z-ai/glm-5.2","max_tokens":4096,
+				"model":"z-ai/glm-5.3","max_tokens":4096,
 				"tools":[{"name":"bash","input_schema":{"type":"object"}}],
 				"tool_choice":` + tc.toolChoice + `,
 				"messages":[{"role":"user","content":"fix the bug"}]
@@ -198,7 +198,7 @@ func TestPrepareOpenAIResponses_ClampsGeminiThoughtSignatureCallID(t *testing.T)
 	id := "call_abc123__thought__" + longSig
 	require.Greater(t, len(id), 1300)
 	body := []byte(`{
-		"model":"z-ai/glm-5.2","max_tokens":1024,
+		"model":"z-ai/glm-5.3","max_tokens":1024,
 		"messages":[
 			{"role":"user","content":"continue"},
 			{"role":"assistant","content":[
@@ -244,7 +244,7 @@ func TestPrepareOpenAIResponses_DropsReasoningMintedOnAnotherAccount(t *testing.
 	// envelope rides on both carriers and both must honor the scope.
 	carrierID := "toolu_1__openai_reasoning__" + base64.RawURLEncoding.EncodeToString([]byte(sig))
 	body := []byte(`{
-		"model":"z-ai/glm-5.2","max_tokens":1024,
+		"model":"z-ai/glm-5.3","max_tokens":1024,
 		"thinking":{"type":"enabled","budget_tokens":8192},
 		"messages":[
 			{"role":"user","content":"continue"},
@@ -318,7 +318,7 @@ func TestPrepareGemini_ThinkingBudgetToThinkingConfig(t *testing.T) {
 		{budget: 31999, level: "high"},
 	} {
 		t.Run(tc.level, func(t *testing.T) {
-			body := []byte(`{"model":"z-ai/glm-5.2","max_tokens":1024,"messages":[{"role":"user","content":"hi"}],"thinking":{"type":"enabled","budget_tokens":` + itoa(tc.budget) + `}}`)
+			body := []byte(`{"model":"z-ai/glm-5.3","max_tokens":1024,"messages":[{"role":"user","content":"hi"}],"thinking":{"type":"enabled","budget_tokens":` + itoa(tc.budget) + `}}`)
 			env, err := translate.ParseAnthropic(body)
 			require.NoError(t, err)
 			prep, err := env.PrepareGemini(nil, translate.EmitOptions{
@@ -341,7 +341,7 @@ func TestPrepareGemini_ThinkingBudgetToThinkingConfig(t *testing.T) {
 
 // gemini-2.5 (legacy) keeps the numeric thinkingBudget — thinkingLevel is 3.x only.
 func TestPrepareGemini_ThinkingBudget_Legacy25(t *testing.T) {
-	body := []byte(`{"model":"z-ai/glm-5.2","max_tokens":1024,"messages":[{"role":"user","content":"hi"}],"thinking":{"type":"enabled","budget_tokens":31999}}`)
+	body := []byte(`{"model":"z-ai/glm-5.3","max_tokens":1024,"messages":[{"role":"user","content":"hi"}],"thinking":{"type":"enabled","budget_tokens":31999}}`)
 	env, err := translate.ParseAnthropic(body)
 	require.NoError(t, err)
 	prep, err := env.PrepareGemini(nil, translate.EmitOptions{
@@ -364,7 +364,7 @@ func TestPrepareGemini_ThinkingBudget_Legacy25(t *testing.T) {
 // no longer be skipped.
 func TestPrepareOpenAIResponses_ImageBlocks(t *testing.T) {
 	body := []byte(`{
-		"model":"z-ai/glm-5.2","max_tokens":1024,
+		"model":"z-ai/glm-5.3","max_tokens":1024,
 		"messages":[
 			{"role":"user","content":[
 				{"type":"text","text":"what is this"},
@@ -407,7 +407,7 @@ func TestPrepareOpenAIResponses_ImageBlocks(t *testing.T) {
 // following message instead of vanishing.
 func TestPrepareOpenAIResponses_ToolResultImageHoisted(t *testing.T) {
 	body := []byte(`{
-		"model":"z-ai/glm-5.2","max_tokens":1024,
+		"model":"z-ai/glm-5.3","max_tokens":1024,
 		"messages":[
 			{"role":"assistant","content":[{"type":"tool_use","id":"call_1","name":"shot","input":{}}]},
 			{"role":"user","content":[{"type":"tool_result","tool_use_id":"call_1","content":[
@@ -452,7 +452,7 @@ func TestPrepareOpenAIResponses_ToolResultImageHoisted(t *testing.T) {
 // Responses samples normally, so the client's knobs must reach a gpt-4.1.
 func TestPrepareOpenAIResponses_Samplers(t *testing.T) {
 	body := []byte(`{
-		"model":"z-ai/glm-5.2","max_tokens":1024,"temperature":0.2,"top_p":0.9,
+		"model":"z-ai/glm-5.3","max_tokens":1024,"temperature":0.2,"top_p":0.9,
 		"messages":[{"role":"user","content":"hi"}]
 	}`)
 	env, err := translate.ParseAnthropic(body)
@@ -495,14 +495,14 @@ func TestRequiresChatCompletionsParams(t *testing.T) {
 	reasoning := reasoningSpec
 
 	withStops, err := translate.ParseAnthropic([]byte(
-		`{"model":"z-ai/glm-5.2","max_tokens":16,"stop_sequences":["\n\n"],"messages":[{"role":"user","content":"hi"}]}`))
+		`{"model":"z-ai/glm-5.3","max_tokens":16,"stop_sequences":["\n\n"],"messages":[{"role":"user","content":"hi"}]}`))
 	require.NoError(t, err)
 	assert.True(t, withStops.RequiresChatCompletionsParams(nonReasoning))
 	assert.False(t, withStops.RequiresChatCompletionsParams(reasoning),
 		"a reasoning target rejects stop on chat/completions too, so it is already dropped")
 
 	empty, err := translate.ParseAnthropic([]byte(
-		`{"model":"z-ai/glm-5.2","max_tokens":16,"stop_sequences":[],"messages":[{"role":"user","content":"hi"}]}`))
+		`{"model":"z-ai/glm-5.3","max_tokens":16,"stop_sequences":[],"messages":[{"role":"user","content":"hi"}]}`))
 	require.NoError(t, err)
 	assert.False(t, empty.RequiresChatCompletionsParams(nonReasoning))
 

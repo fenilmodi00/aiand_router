@@ -15,7 +15,7 @@ func TestEmptyCandidateError_SizeIsNotConfiguration(t *testing.T) {
 	// prompt-too-long, the only error a harness compacts on.
 	err := emptyCandidateError([]Diagnostic{
 		{CatalogID: "moonshotai/kimi-k3", Reason: ExclusionContextWindow},
-		{CatalogID: "z-ai/glm-5.2", Reason: ExclusionRequested},
+		{CatalogID: "z-ai/glm-5.3", Reason: ExclusionRequested},
 	})
 	assert.ErrorIs(t, err, ErrContextWindowExceeded)
 	assert.NotErrorIs(t, err, ErrNoRoutableModels)
@@ -37,18 +37,18 @@ func TestEmptyCandidateError_SizeIsNotConfiguration(t *testing.T) {
 
 func TestCandidateLogFields_GroupsExclusionsByReason(t *testing.T) {
 	fields := candidateLogFields(ResolvedCandidates{
-		Candidates: []Candidate{{CatalogID: "z-ai/glm-5.2"}, {CatalogID: "z-ai/glm-5.3-flash"}},
+		Candidates: []Candidate{{CatalogID: "z-ai/glm-5.3"}, {CatalogID: "z-ai/glm-5.3-flash"}},
 		Diagnostics: []Diagnostic{
 			{CatalogID: "moonshotai/kimi-k3", Reason: ExclusionRequested},
 			{CatalogID: "z-ai/glm-5", Reason: ExclusionContextWindow},
-			{CatalogID: "z-ai/glm-5.2", Reason: ExclusionRequested},
+			{CatalogID: "z-ai/glm-5.3", Reason: ExclusionRequested},
 		},
 	})
 
 	assert.Equal(t, []any{
 		"candidate_count", 2,
-		"candidates", "z-ai/glm-5.2,z-ai/glm-5.3-flash",
+		"candidates", "z-ai/glm-5.3,z-ai/glm-5.3-flash",
 		"excluded_" + string(ExclusionContextWindow), "z-ai/glm-5",
-		"excluded_" + string(ExclusionRequested), "moonshotai/kimi-k3,z-ai/glm-5.2",
+		"excluded_" + string(ExclusionRequested), "moonshotai/kimi-k3,z-ai/glm-5.3",
 	}, fields)
 }

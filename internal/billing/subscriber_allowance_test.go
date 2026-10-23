@@ -148,14 +148,14 @@ func TestDebitForInferenceKeepsRequestedAndServedModelApart(t *testing.T) {
 	settler := &fakeSettler{}
 	svc := billing.NewService(repo).WithSubscriberAllowance(settler)
 	p := subscriberParams()
-	p.RequestedModel = "z-ai/glm-5.2"
+	p.RequestedModel = "z-ai/glm-5.3"
 
 	_, err := svc.DebitForInference(coveredContext(), p)
 	require.NoError(t, err)
 
 	settlements := settler.recorded()
 	require.Len(t, settlements, 1)
-	assert.Equal(t, "z-ai/glm-5.2", settlements[0].RequestedModel, "failover must not rewrite what the client asked for")
+	assert.Equal(t, "z-ai/glm-5.3", settlements[0].RequestedModel, "failover must not rewrite what the client asked for")
 	assert.Equal(t, "deepseek/deepseek-v4.1-flash", settlements[0].ServedModel)
 }
 

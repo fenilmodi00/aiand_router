@@ -56,7 +56,7 @@ func TestForceModelCommand_TypoSuggestsWithoutPinning(t *testing.T) {
 func typedCommandEnv(t *testing.T, text string) *translate.RequestEnvelope {
 	t.Helper()
 	body, err := json.Marshal(map[string]any{
-		"model":    "z-ai/glm-5.2",
+		"model":    "z-ai/glm-5.3",
 		"messages": []map[string]any{{"role": "user", "content": text}},
 	})
 	require.NoError(t, err)

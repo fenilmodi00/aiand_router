@@ -60,7 +60,7 @@ func TestProxy_RewritesMappedCatalogModelIDs(t *testing.T) {
 		{"deepseek/deepseek-v4-pro", "deepseek-v4-pro"},
 		{"moonshotai/kimi-k2.6", "kimi-k2.6"},
 		{"xiaomi/mimo-v2.5-pro", "mimo-v2.5-pro"},
-		{"z-ai/glm-5.2", "glm-5.2"},
+		{"z-ai/glm-5.3", "glm-5.2"},
 	}
 	idMap := make(map[string]string, len(cases))
 	for _, tc := range cases {
@@ -399,7 +399,7 @@ func TestProxy_DefaultHeadersSentOnEveryRequest(t *testing.T) {
 	clientReq := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(""))
 	prep := providers.PreparedRequest{Body: []byte(`{"model":"GLM-5.2","messages":[]}`), Headers: make(http.Header)}
 
-	require.NoError(t, c.Proxy(context.Background(), router.Decision{Model: "z-ai/glm-5.2"}, prep, rec, clientReq))
+	require.NoError(t, c.Proxy(context.Background(), router.Decision{Model: "z-ai/glm-5.3"}, prep, rec, clientReq))
 	assert.Equal(t, "required", gotZDR)
 }
 

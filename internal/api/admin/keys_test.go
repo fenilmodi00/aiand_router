@@ -476,23 +476,23 @@ func TestUpsertExternalKeyHandler_PersistsAndReturnsModelAliases(t *testing.T) {
 
 	repo := &fakeExternalAPIKeyRepo{}
 	models := fakeDeployedModels{entries: []cluster.DeployedEntry{
-		{Model: "z-ai/glm-5.2", Provider: providers.ProviderAIAND},
+		{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND},
 	}}
 	rec := postProviderKeyWithAliases(
 		upsertKeyEngineWithModels(newUpsertKeyService(repo), models),
 		providers.ProviderAIAND,
-		map[string]string{"z-ai/glm-5.2": " gateway-claude-fable-5 "},
+		map[string]string{"z-ai/glm-5.3": " gateway-claude-fable-5 "},
 	)
 
 	require.Equal(t, http.StatusCreated, rec.Code)
-	assert.Equal(t, map[string]string{"z-ai/glm-5.2": "gateway-claude-fable-5"}, repo.createdAliases,
+	assert.Equal(t, map[string]string{"z-ai/glm-5.3": "gateway-claude-fable-5"}, repo.createdAliases,
 		"the alias must reach the repository trimmed, or the endpoint gets a padded model name it can't match")
 
 	var body struct {
 		ModelAliases map[string]string `json:"model_aliases"`
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
-	assert.Equal(t, map[string]string{"z-ai/glm-5.2": "gateway-claude-fable-5"}, body.ModelAliases,
+	assert.Equal(t, map[string]string{"z-ai/glm-5.3": "gateway-claude-fable-5"}, body.ModelAliases,
 		"the response must echo the stored aliases so the dashboard can show the mapping")
 }
 
@@ -501,7 +501,7 @@ func TestUpsertExternalKeyHandler_RejectsAliasForUnknownModel(t *testing.T) {
 
 	repo := &fakeExternalAPIKeyRepo{}
 	models := fakeDeployedModels{entries: []cluster.DeployedEntry{
-		{Model: "z-ai/glm-5.2", Provider: providers.ProviderAIAND},
+		{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND},
 	}}
 	rec := postProviderKeyWithAliases(
 		upsertKeyEngineWithModels(newUpsertKeyService(repo), models),

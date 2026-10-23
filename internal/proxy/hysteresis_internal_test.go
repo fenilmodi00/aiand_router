@@ -17,12 +17,12 @@ func hysteresisDecision(model string, armScores map[string]float32) router.Decis
 }
 
 func TestEffortHysteresisAllowsGapAboveThreshold(t *testing.T) {
-	fresh := hysteresisDecision("z-ai/glm-5.2", map[string]float32{
+	fresh := hysteresisDecision("z-ai/glm-5.3", map[string]float32{
 		"anthropic/claude-opus-5:low":  4.0,
 		"anthropic/claude-opus-5:high": 6.0,
 	})
 
-	got := effortHysteresisHold(fresh, "claude-opus-5:low", "z-ai/glm-5.2", "high")
+	got := effortHysteresisHold(fresh, "claude-opus-5:low", "z-ai/glm-5.3", "high")
 
 	if got != "" {
 		t.Fatalf("expected switch allowed, got %q", got)
@@ -30,12 +30,12 @@ func TestEffortHysteresisAllowsGapAboveThreshold(t *testing.T) {
 }
 
 func TestEffortHysteresisAllowsCrossModelSwitch(t *testing.T) {
-	fresh := hysteresisDecision("z-ai/glm-5.2", map[string]float32{
+	fresh := hysteresisDecision("z-ai/glm-5.3", map[string]float32{
 		"anthropic/claude-opus-5:low":  4.0,
 		"anthropic/claude-opus-5:high": 4.5,
 	})
 
-	got := effortHysteresisHold(fresh, "claude-fable-5:low", "z-ai/glm-5.2", "high")
+	got := effortHysteresisHold(fresh, "claude-fable-5:low", "z-ai/glm-5.3", "high")
 
 	if got != "" {
 		t.Fatalf("expected cross-model switch allowed, got %q", got)
@@ -43,12 +43,12 @@ func TestEffortHysteresisAllowsCrossModelSwitch(t *testing.T) {
 }
 
 func TestEffortHysteresisAllowsStayOnModelTheFreshArmDoesNotDescribe(t *testing.T) {
-	fresh := hysteresisDecision("z-ai/glm-5.2", map[string]float32{
+	fresh := hysteresisDecision("z-ai/glm-5.3", map[string]float32{
 		"anthropic/claude-opus-5:low":  4.0,
 		"anthropic/claude-opus-5:high": 4.5,
 	})
 
-	got := effortHysteresisHold(fresh, "claude-fable-5:low", "z-ai/glm-5.2", "high")
+	got := effortHysteresisHold(fresh, "claude-fable-5:low", "z-ai/glm-5.3", "high")
 
 	if got != "" {
 		t.Fatalf("expected pass-through when the stay model differs from the scored arm, got %q", got)
@@ -56,9 +56,9 @@ func TestEffortHysteresisAllowsStayOnModelTheFreshArmDoesNotDescribe(t *testing.
 }
 
 func TestEffortHysteresisPassesThroughWithoutArmScores(t *testing.T) {
-	fresh := hysteresisDecision("z-ai/glm-5.2", nil)
+	fresh := hysteresisDecision("z-ai/glm-5.3", nil)
 
-	got := effortHysteresisHold(fresh, "claude-opus-5:low", "z-ai/glm-5.2", "high")
+	got := effortHysteresisHold(fresh, "claude-opus-5:low", "z-ai/glm-5.3", "high")
 
 	if got != "" {
 		t.Fatalf("expected pass-through on a pre-B1 sidecar, got %q", got)
@@ -66,12 +66,12 @@ func TestEffortHysteresisPassesThroughWithoutArmScores(t *testing.T) {
 }
 
 func TestEffortHysteresisPassesThroughOnBarePin(t *testing.T) {
-	fresh := hysteresisDecision("z-ai/glm-5.2", map[string]float32{
+	fresh := hysteresisDecision("z-ai/glm-5.3", map[string]float32{
 		"anthropic/claude-opus-5:low":  4.0,
 		"anthropic/claude-opus-5:high": 4.5,
 	})
 
-	got := effortHysteresisHold(fresh, "z-ai/glm-5.2", "z-ai/glm-5.2", "high")
+	got := effortHysteresisHold(fresh, "z-ai/glm-5.3", "z-ai/glm-5.3", "high")
 
 	if got != "" {
 		t.Fatalf("expected pre-effort bare pin to pass through, got %q", got)
@@ -79,11 +79,11 @@ func TestEffortHysteresisPassesThroughOnBarePin(t *testing.T) {
 }
 
 func TestEffortHysteresisPassesThroughWhenIncumbentArmUnscored(t *testing.T) {
-	fresh := hysteresisDecision("z-ai/glm-5.2", map[string]float32{
+	fresh := hysteresisDecision("z-ai/glm-5.3", map[string]float32{
 		"anthropic/claude-opus-5:high": 4.5,
 	})
 
-	got := effortHysteresisHold(fresh, "claude-opus-5:low", "z-ai/glm-5.2", "high")
+	got := effortHysteresisHold(fresh, "claude-opus-5:low", "z-ai/glm-5.3", "high")
 
 	if got != "" {
 		t.Fatalf("expected pass-through when the incumbent arm has no score, got %q", got)
@@ -91,11 +91,11 @@ func TestEffortHysteresisPassesThroughWhenIncumbentArmUnscored(t *testing.T) {
 }
 
 func TestEffortHysteresisPassesThroughOnUnchangedEffort(t *testing.T) {
-	fresh := hysteresisDecision("z-ai/glm-5.2", map[string]float32{
+	fresh := hysteresisDecision("z-ai/glm-5.3", map[string]float32{
 		"anthropic/claude-opus-5:low": 4.0,
 	})
 
-	got := effortHysteresisHold(fresh, "claude-opus-5:low", "z-ai/glm-5.2", "low")
+	got := effortHysteresisHold(fresh, "claude-opus-5:low", "z-ai/glm-5.3", "low")
 
 	if got != "" {
 		t.Fatalf("expected no hold when effort is unchanged, got %q", got)

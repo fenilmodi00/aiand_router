@@ -17,7 +17,7 @@ import (
 	"aiand-os/router/internal/router/sessionpin"
 )
 
-const recoveryOpusModel = "z-ai/glm-5.2"
+const recoveryOpusModel = "z-ai/glm-5.3"
 
 // An in-process lease is a safety net for stores without durable leases: a
 // request that never released must not deny the arm forever.

@@ -251,7 +251,7 @@ func TestScorer_BandPairEmptyForSingleModel(t *testing.T) {
 	c0[0] = 1
 	cb := buildCentroidsBlob(t, 1, dim, c0)
 	rb := []byte(`{"rankings": {"0": {"moonshotai/kimi-k3": 0.9}}}`)
-	regb := []byte(`{"deployed_models": [{"model": "moonshotai/kimi-k3", "provider": "aiand", "bench_column": "z-ai/glm-5.2", "proxy": true}]}`)
+	regb := []byte(`{"deployed_models": [{"model": "moonshotai/kimi-k3", "provider": "aiand", "bench_column": "z-ai/glm-5.3", "proxy": true}]}`)
 	s, err := NewScorer(bundleFromBlobs(t, "v-test", cb, rb, regb), cfgForTest(), &fakeEmbedder{vec: makeOpusVec()}, map[string]struct{}{"aiand": {}})
 	require.NoError(t, err)
 
@@ -412,7 +412,7 @@ func TestScorer_TopPSumsAcrossClusters(t *testing.T) {
 	}`)
 	registryBlob := []byte(`{
 		"deployed_models": [
-			{"model": "moonshotai/kimi-k3", "provider": "aiand", "bench_column": "z-ai/glm-5.2", "proxy": true},
+			{"model": "moonshotai/kimi-k3", "provider": "aiand", "bench_column": "z-ai/glm-5.3", "proxy": true},
 			{"model": "z-ai/glm-5.3-flash", "provider": "aiand", "bench_column": "z-ai/glm-5.3-flash", "proxy": true}
 		]
 	}`)
@@ -513,7 +513,7 @@ func TestScorer_QwenBundleRoutes(t *testing.T) {
 	}`)
 	regb := []byte(`{
 		"deployed_models": [
-			{"model": "moonshotai/kimi-k3", "provider": "aiand", "bench_column": "z-ai/glm-5.2", "proxy": true},
+			{"model": "moonshotai/kimi-k3", "provider": "aiand", "bench_column": "z-ai/glm-5.3", "proxy": true},
 			{"model": "z-ai/glm-5.3-flash", "provider": "aiand", "bench_column": "z-ai/glm-5.3-flash", "proxy": true}
 		]
 	}`)
@@ -542,7 +542,7 @@ func TestNewScorer_RejectsRankingsMissingDeployedModel(t *testing.T) {
 	rb := []byte(`{"rankings": {"0": {"moonshotai/kimi-k3": 1.0}}}`)
 	regb := []byte(`{
 		"deployed_models": [
-			{"model": "moonshotai/kimi-k3", "provider": "aiand", "bench_column": "z-ai/glm-5.2", "proxy": true},
+			{"model": "moonshotai/kimi-k3", "provider": "aiand", "bench_column": "z-ai/glm-5.3", "proxy": true},
 			{"model": "z-ai/glm-5.3-flash", "provider": "aiand", "bench_column": "z-ai/glm-5.3-flash", "proxy": true}
 		]
 	}`)
@@ -574,7 +574,7 @@ func TestScorer_FiltersOutUnregisteredProvider(t *testing.T) {
 	regb := []byte(`{
 		"deployed_models": [
 			{"model": "z-ai/glm-5.3-flash", "provider": "aiand", "bench_column": "z-ai/glm-5.3-flash", "proxy": true},
-			{"model": "deepseek/deepseek-v4-pro", "provider": "aiand", "bench_column": "z-ai/glm-5.2"},
+			{"model": "deepseek/deepseek-v4-pro", "provider": "aiand", "bench_column": "z-ai/glm-5.3"},
 			{"model": "z-ai/glm-5.3", "provider": "aiand", "bench_column": "z-ai/glm-5.3"}
 		]
 	}`)
@@ -636,7 +636,7 @@ func TestScorer_DedupesDuplicateRegistryEntries(t *testing.T) {
 	}}}`)
 	regb := []byte(`{
 		"deployed_models": [
-			{"model": "moonshotai/kimi-k3", "provider": "aiand", "bench_column": "z-ai/glm-5.2", "proxy": true},
+			{"model": "moonshotai/kimi-k3", "provider": "aiand", "bench_column": "z-ai/glm-5.3", "proxy": true},
 			{"model": "moonshotai/kimi-k3", "provider": "aiand", "bench_column": "claude-opus-4-5", "proxy": true},
 			{"model": "z-ai/glm-5.3-flash", "provider": "aiand", "bench_column": "z-ai/glm-5.3-flash", "proxy": true}
 		]
@@ -750,8 +750,8 @@ func twoProviderArtifacts(t *testing.T) (centroidsBlob, rankingsBlob, registryBl
 	}`)
 	registryBlob = []byte(`{
 		"deployed_models": [
-			{"model": "moonshotai/kimi-k3", "provider": "aiand", "bench_column": "z-ai/glm-5.2", "proxy": true},
-			{"model": "deepseek/deepseek-v4-pro", "provider": "aiand", "bench_column": "z-ai/glm-5.2"}
+			{"model": "moonshotai/kimi-k3", "provider": "aiand", "bench_column": "z-ai/glm-5.3", "proxy": true},
+			{"model": "deepseek/deepseek-v4-pro", "provider": "aiand", "bench_column": "z-ai/glm-5.3"}
 		]
 	}`)
 	return
@@ -863,7 +863,7 @@ func TestScorer_AutomaticExcludedModelsEmptyingPoolStillRoutes(t *testing.T) {
 	got, err := s.Route(context.Background(), router.Request{
 		PromptText: strings.Repeat("x", 100),
 		AutomaticExcludedModels: map[string]struct{}{
-			"z-ai/glm-5.2":           {},
+			"z-ai/glm-5.3":           {},
 			"moonshotai/kimi-k3": {},
 		},
 	})
@@ -1026,7 +1026,7 @@ func TestScorer_V2DynamicScoring(t *testing.T) {
 	emb := &fakeEmbedder{vec: makeOpusVec()}
 	regBlob := []byte(`{
 		"deployed_models": [
-			{"model": "moonshotai/kimi-k3", "provider": "aiand", "bench_column": "z-ai/glm-5.2", "proxy": true},
+			{"model": "moonshotai/kimi-k3", "provider": "aiand", "bench_column": "z-ai/glm-5.3", "proxy": true},
 			{"model": "z-ai/glm-5.3-flash", "provider": "aiand", "bench_column": "z-ai/glm-5.3-flash", "proxy": true}
 		]
 	}`)
@@ -1179,7 +1179,7 @@ func newV2BundleForTest(t *testing.T, emb Embedder, opts v2BundleOpts) *Scorer {
 
 	registry, err := loadRegistry([]byte(`{
 		"deployed_models": [
-			{"model": "moonshotai/kimi-k3", "provider": "aiand", "bench_column": "z-ai/glm-5.2", "proxy": true},
+			{"model": "moonshotai/kimi-k3", "provider": "aiand", "bench_column": "z-ai/glm-5.3", "proxy": true},
 			{"model": "z-ai/glm-5.3-flash", "provider": "aiand", "bench_column": "z-ai/glm-5.3-flash", "proxy": true}
 		]
 	}`))

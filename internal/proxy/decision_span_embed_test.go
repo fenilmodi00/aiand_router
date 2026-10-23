@@ -77,7 +77,7 @@ func embedMsPtr(ms float64) *float64 { return &ms }
 // embedTurnBody mirrors the force-cluster harness body: tools + max_tokens
 // keep the turn off the classifier/probe hard-pin fast paths.
 func embedTurnBody() []byte {
-	return []byte(`{"model":"z-ai/glm-5.2","max_tokens":4096,` +
+	return []byte(`{"model":"z-ai/glm-5.3","max_tokens":4096,` +
 		`"tools":[{"name":"Bash","input_schema":{"type":"object"}}],` +
 		`"messages":[{"role":"user","content":"hi"}]}`)
 }

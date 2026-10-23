@@ -30,7 +30,7 @@ func TestResponsesWriter_EmptyTerminalIsRetryable(t *testing.T) {
 
 func TestResponsesToOpenAIChatWriter_EmptyTerminalIsRetryable(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToOpenAIChatWriter(rec, "moonshotai/kimi-k2.7", nil)
+	w := translate.NewResponsesToOpenAIChatWriter(rec, "moonshotai/kimi-k3", nil)
 	require.NoError(t, w.Prelude(true))
 	_, err := w.Write([]byte(`event: response.completed
 data: {"type":"response.completed","response":{"id":"resp_empty","status":"completed","output":[],"usage":{"input_tokens":2,"output_tokens":8192}}}
@@ -42,7 +42,7 @@ data: {"type":"response.completed","response":{"id":"resp_empty","status":"compl
 
 func TestResponsesToAnthropicWriter_EmptyTerminalIsRetryable(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToAnthropicWriter(rec, "z-ai/glm-5.2", nil)
+	w := translate.NewResponsesToAnthropicWriter(rec, "z-ai/glm-5.3", nil)
 	require.NoError(t, w.Prelude(true))
 	_, err := w.Write([]byte(`event: response.incomplete
 data: {"type":"response.incomplete","response":{"id":"resp_empty","status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},"output":[]}}
@@ -54,7 +54,7 @@ data: {"type":"response.incomplete","response":{"id":"resp_empty","status":"inco
 
 func TestResponsesToOpenAIChatWriter_NonStreamingEmptyTerminalIsError(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToOpenAIChatWriter(rec, "moonshotai/kimi-k2.7", nil)
+	w := translate.NewResponsesToOpenAIChatWriter(rec, "moonshotai/kimi-k3", nil)
 	require.NoError(t, w.Prelude(false))
 	_, err := w.Write([]byte(`event: response.completed
 data: {"type":"response.completed","response":{"id":"resp_empty","status":"completed","output":[]}}
@@ -67,7 +67,7 @@ data: {"type":"response.completed","response":{"id":"resp_empty","status":"compl
 
 func TestResponsesWriter_NativeEmptyTerminalIsRetryable(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesWriter(rec, "moonshotai/kimi-k2.7")
+	w := translate.NewResponsesWriter(rec, "moonshotai/kimi-k3")
 	w.SetPassthrough()
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
@@ -79,7 +79,7 @@ func TestResponsesWriter_NativeEmptyTerminalIsRetryable(t *testing.T) {
 
 func TestResponsesWriter_NativeStreamingEmptyTerminalIsRetryable(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesWriter(rec, "moonshotai/kimi-k2.7")
+	w := translate.NewResponsesWriter(rec, "moonshotai/kimi-k3")
 	w.SetPassthroughBadge()
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.WriteHeader(200)
@@ -92,7 +92,7 @@ data: {"type":"response.completed","response":{"id":"resp_empty","status":"compl
 
 func TestResponsesWriter_NativeStreamingEmptyTerminalFinalizesAsFailure(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesWriter(rec, "moonshotai/kimi-k2.7")
+	w := translate.NewResponsesWriter(rec, "moonshotai/kimi-k3")
 	w.SetPassthrough()
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.WriteHeader(200)
@@ -111,7 +111,7 @@ data: {"type":"response.completed","sequence_number":1,"response":{"id":"resp_em
 
 func TestResponsesWriter_ArrayContentIsUsable(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesWriter(rec, "moonshotai/kimi-k2.7")
+	w := translate.NewResponsesWriter(rec, "moonshotai/kimi-k3")
 	w.WriteHeader(200)
 	_, err := w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":[{"type":"text","text":"ok"}]},"finish_reason":"stop"}]}`))
 	require.NoError(t, err)
@@ -121,7 +121,7 @@ func TestResponsesWriter_ArrayContentIsUsable(t *testing.T) {
 
 func TestResponsesWriter_ReasoningOnlyTerminalIsRetryable(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesWriter(rec, "moonshotai/kimi-k2.7")
+	w := translate.NewResponsesWriter(rec, "moonshotai/kimi-k3")
 	require.NoError(t, w.Prelude(false))
 	_, err := w.Write([]byte(`{"choices":[{"message":{"role":"assistant","reasoning_content":"internal"},"finish_reason":"stop"}]}`))
 	require.NoError(t, err)
@@ -130,7 +130,7 @@ func TestResponsesWriter_ReasoningOnlyTerminalIsRetryable(t *testing.T) {
 
 func TestResponsesToAnthropicWriter_EmptyCompletionUsesAnthropicEnvelope(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesToAnthropicWriter(rec, "z-ai/glm-5.2", nil)
+	w := translate.NewResponsesToAnthropicWriter(rec, "z-ai/glm-5.3", nil)
 	require.NoError(t, w.Prelude(false))
 	_, err := w.Write([]byte(`event: response.completed
 data: {"type":"response.completed","response":{"id":"resp_empty","status":"completed","output":[]}}

@@ -9,18 +9,7 @@ import (
 	"aiand-os/router/internal/router/catalog"
 )
 
-var rosterAliases = map[string]string{
-	// The policy roster knows Kimi K2.7 under its "-code" build name.
-	"moonshotai/kimi-k2.7": "moonshotai/kimi-k2.7-code",
-}
-
-// ForModel maps a compiled catalog model to its canonical roster identity.
-// Every surviving catalog model is slash-form, so the ID is its own roster
-// identity apart from the explicit aliases above.
 func ForModel(m catalog.Model) string {
-	if alias, ok := rosterAliases[m.ID]; ok {
-		return alias
-	}
 	return m.ID
 }
 

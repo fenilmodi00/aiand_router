@@ -10,11 +10,11 @@ import (
 )
 
 func TestKimiK27RosterIdentityUsesAlias(t *testing.T) {
-	model, ok := catalog.ByID("moonshotai/kimi-k2.7")
+	model, ok := catalog.ByID("moonshotai/kimi-k3")
 	require.True(t, ok)
-	assert.Equal(t, "moonshotai/kimi-k2.7-code", ForModel(model))
-	assert.Equal(t, "moonshotai/kimi-k2.7", CatalogIDForRoster("moonshotai/kimi-k2.7-code"))
-	assert.Empty(t, ValidateRosterIDs([]string{"moonshotai/kimi-k2.7-code"}))
+	assert.Equal(t, "moonshotai/kimi-k3", ForModel(model))
+	assert.Equal(t, "moonshotai/kimi-k3", CatalogIDForRoster("moonshotai/kimi-k3"))
+	assert.Empty(t, ValidateRosterIDs([]string{"moonshotai/kimi-k3"}))
 }
 
 func TestSlashFormModelIsItsOwnRosterIdentity(t *testing.T) {

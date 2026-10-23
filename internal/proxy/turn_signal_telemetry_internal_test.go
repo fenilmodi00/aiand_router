@@ -207,7 +207,7 @@ func TestApplyUserPromptGap_TimesTypedPromptAgainstPreviousResponse(t *testing.T
 		return p
 	}
 
-	first := apply(turn(0, 4_000, "main_loop", "z-ai/glm-5.2", true))
+	first := apply(turn(0, 4_000, "main_loop", "z-ai/glm-5.3", true))
 	assert.Nil(t, first.UserPromptGapMs, "a session's first prompt has no previous response")
 
 	toolTurn := apply(turn(5*time.Second, 3_000, "tool_result", "deepseek/deepseek-v4-pro", false))
@@ -218,7 +218,7 @@ func TestApplyUserPromptGap_TimesTypedPromptAgainstPreviousResponse(t *testing.T
 
 	// The tool turn finished at +8s; the classifier call beside it must not
 	// move the clock, so the typed prompt at +20s waited 12s on the sonnet reply.
-	typed := apply(turn(20*time.Second, 2_000, "main_loop", "z-ai/glm-5.2", true))
+	typed := apply(turn(20*time.Second, 2_000, "main_loop", "z-ai/glm-5.3", true))
 	require.NotNil(t, typed.UserPromptGapMs)
 	assert.Equal(t, int64(12_000), *typed.UserPromptGapMs)
 	assert.Equal(t, "deepseek/deepseek-v4-pro", typed.UserPromptGapPriorModel)
@@ -251,7 +251,7 @@ func TestApplyUserPromptGap_FailedTurnDoesNotMoveTheClock(t *testing.T) {
 	typed := true
 	reply := InsertTelemetryParams{
 		InstallationID: "installation-1", SpanType: "router.upstream", SessionKey: []byte("session-a"),
-		Timestamp: start, TotalLatencyMs: 4_000, TurnType: "main_loop", DecisionModel: "z-ai/glm-5.2", OutputTokens: 120, UserPrompt: &typed,
+		Timestamp: start, TotalLatencyMs: 4_000, TurnType: "main_loop", DecisionModel: "z-ai/glm-5.3", OutputTokens: 120, UserPrompt: &typed,
 	}
 	service.applyUserPromptGap(context.Background(), slog.Default(), &reply)
 
@@ -271,7 +271,7 @@ func TestApplyUserPromptGap_FailedTurnDoesNotMoveTheClock(t *testing.T) {
 	// The 502 at +10s showed no reply, so the prompt at +20s waited 16s on opus.
 	require.NotNil(t, next.UserPromptGapMs)
 	assert.Equal(t, int64(16_000), *next.UserPromptGapMs)
-	assert.Equal(t, "z-ai/glm-5.2", next.UserPromptGapPriorModel)
+	assert.Equal(t, "z-ai/glm-5.3", next.UserPromptGapPriorModel)
 }
 
 // deadlineRecordingClock records the deadline its advance ran under.
@@ -292,7 +292,7 @@ func TestApplyUserPromptGap_ClockLeavesTheInsertItsBudget(t *testing.T) {
 	parentDeadline, _ := parent.Deadline()
 	row := InsertTelemetryParams{
 		InstallationID: "installation-1", SpanType: "router.upstream", SessionKey: []byte("session-a"),
-		Timestamp: time.Now(), TurnType: "main_loop", DecisionModel: "z-ai/glm-5.2", OutputTokens: 120,
+		Timestamp: time.Now(), TurnType: "main_loop", DecisionModel: "z-ai/glm-5.3", OutputTokens: 120,
 	}
 	service.applyUserPromptGap(parent, slog.Default(), &row)
 

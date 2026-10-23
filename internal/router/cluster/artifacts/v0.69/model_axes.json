@@ -44,12 +44,12 @@
       "gpt-5.5": 0.005,
       "minimax/minimax-m3": 0.0006,
       "moonshotai/kimi-k2.6": 0.00095,
-      "moonshotai/kimi-k2.7": 0.00095,
+      "moonshotai/kimi-k3": 0.00095,
       "qwen/qwen3-coder-next": 0.0005,
       "qwen/qwen3-next-80b-a3b-instruct": 0.00015,
       "qwen/qwen3.7-plus": 0.0004,
       "xiaomi/mimo-v2.5-pro": 0.001,
-      "z-ai/glm-5.2": 0.0014
+      "z-ai/glm-5.3": 0.0014
     },
     "deepswe_evidence_scale": 1.0,
     "deepswe_label_meta": {
@@ -75,10 +75,10 @@
         "minimax/minimax-m2.7",
         "minimax/minimax-m3",
         "moonshotai/kimi-k2.6",
-        "moonshotai/kimi-k2.7",
+        "moonshotai/kimi-k3",
         "xiaomi/mimo-v2.5-pro",
         "z-ai/glm-5.1",
-        "z-ai/glm-5.2"
+        "z-ai/glm-5.3"
       ],
       "n_cluster_model_cells": 320,
       "n_tasks": 113,
@@ -212,7 +212,7 @@
       "ttft_s": 1.235,
       "verbosity_tokens": null
     },
-    "moonshotai/kimi-k2.7": {
+    "moonshotai/kimi-k3": {
       "input_per_1k_usd": 0.00095,
       "output_per_1k_usd": 0.004,
       "tps": null,
@@ -247,7 +247,7 @@
       "ttft_s": 2.253,
       "verbosity_tokens": null
     },
-    "z-ai/glm-5.2": {
+    "z-ai/glm-5.3": {
       "input_per_1k_usd": 0.0014,
       "output_per_1k_usd": 0.0044,
       "tps": null,

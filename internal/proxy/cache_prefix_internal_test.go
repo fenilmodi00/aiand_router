@@ -47,7 +47,7 @@ func TestCacheablePrefixDistinguishesUnknownFromMeasuredZero(t *testing.T) {
 // larger number would move STAY/SWITCH the moment this deploys.
 func TestPlannerTokensStayLegacyUntilFlagIsArmed(t *testing.T) {
 	env, err := translate.ParseAnthropic([]byte(
-		`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"hello"}],` +
+		`{"model":"z-ai/glm-5.3","messages":[{"role":"user","content":"hello"}],` +
 			`"tools":[{"name":"t","description":"` + longDescription(4000) + `"}]}`,
 	))
 	require.NoError(t, err)

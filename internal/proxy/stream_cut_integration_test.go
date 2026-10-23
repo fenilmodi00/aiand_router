@@ -8,7 +8,7 @@ import (
 	"aiand-os/router/internal/observability"
 )
 
-const streamCutTurnBody = `{"model":"z-ai/glm-5.2","stream":true,"messages":[{"role":"user","content":"hi"}]}`
+const streamCutTurnBody = `{"model":"z-ai/glm-5.3","stream":true,"messages":[{"role":"user","content":"hi"}]}`
 
 func captureCompletionLog(t *testing.T) *bytes.Buffer {
 	t.Helper()

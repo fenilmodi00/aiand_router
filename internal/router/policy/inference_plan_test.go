@@ -15,7 +15,7 @@ import (
 
 func TestPlanResolverPreservesExistingSidecarBinding(t *testing.T) {
 	candidateResolver := policy.NewResolver(
-		modelSet("z-ai/glm-5.3-flash", "z-ai/glm-5.2"),
+		modelSet("z-ai/glm-5.3-flash", "z-ai/glm-5.3"),
 		providerSet(providers.ProviderAIAND, providers.ProviderAIAND),
 		func(model catalog.Model) string { return "roster/" + model.ID },
 	)
@@ -45,13 +45,13 @@ func TestPlanResolverPreservesExistingSidecarBinding(t *testing.T) {
 
 func TestPlanResolverAppliesTypedOverridePrecedence(t *testing.T) {
 	planResolver := newPlanResolver(t,
-		modelSet("z-ai/glm-5.3-flash", "z-ai/glm-5.2"),
+		modelSet("z-ai/glm-5.3-flash", "z-ai/glm-5.3"),
 		providerSet(providers.ProviderAIAND, providers.ProviderAIAND),
 	)
 	plan, err := planResolver.Resolve(policy.ResolutionRequest{
 		Purpose: policy.PurposeAnthropicMessages,
 		Overrides: []policy.TargetOverride{
-			{Source: policy.OverrideSourceInstallation, CatalogID: "z-ai/glm-5.2"},
+			{Source: policy.OverrideSourceInstallation, CatalogID: "z-ai/glm-5.3"},
 			{Source: policy.OverrideSourceRequest, CatalogID: "z-ai/glm-5.3-flash"},
 		},
 	})
@@ -63,14 +63,14 @@ func TestPlanResolverAppliesTypedOverridePrecedence(t *testing.T) {
 
 func TestPlanResolverRejectsInvalidExplicitOverrideWithoutSubstitution(t *testing.T) {
 	planResolver := newPlanResolver(t,
-		modelSet("z-ai/glm-5.3-flash", "z-ai/glm-5.2"),
+		modelSet("z-ai/glm-5.3-flash", "z-ai/glm-5.3"),
 		providerSet(providers.ProviderAIAND, providers.ProviderAIAND),
 	)
 	_, err := planResolver.Resolve(policy.ResolutionRequest{
 		Purpose: policy.PurposeAnthropicMessages,
 		Overrides: []policy.TargetOverride{
 			{Source: policy.OverrideSourceRequest, CatalogID: "not-a-catalog-model"},
-			{Source: policy.OverrideSourceInstallation, CatalogID: "z-ai/glm-5.2"},
+			{Source: policy.OverrideSourceInstallation, CatalogID: "z-ai/glm-5.3"},
 		},
 	})
 
@@ -125,7 +125,7 @@ func TestPlanResolverRequiresTypedForceModelOverride(t *testing.T) {
 
 func TestPlanResolverRestrictsFixedPolicyToReviewedModels(t *testing.T) {
 	planResolver := newPlanResolver(t,
-		modelSet("z-ai/glm-5.3-flash", "z-ai/glm-5.2"),
+		modelSet("z-ai/glm-5.3-flash", "z-ai/glm-5.3"),
 		providerSet(providers.ProviderAIAND, providers.ProviderAIAND),
 	)
 	plan, err := planResolver.Resolve(policy.ResolutionRequest{Purpose: policy.PurposeHandoverSummary})
@@ -135,7 +135,7 @@ func TestPlanResolverRestrictsFixedPolicyToReviewedModels(t *testing.T) {
 	_, err = planResolver.Resolve(policy.ResolutionRequest{
 		Purpose: policy.PurposeHandoverSummary,
 		Overrides: []policy.TargetOverride{{
-			Source: policy.OverrideSourceDeployment, CatalogID: "z-ai/glm-5.2",
+			Source: policy.OverrideSourceDeployment, CatalogID: "z-ai/glm-5.3",
 		}},
 	})
 	assertResolutionErrorCode(t, err, policy.ResolutionErrorInvalidOverride)
@@ -166,12 +166,12 @@ func TestPlanResolverResolvesDeclaredModelFallbacks(t *testing.T) {
 	index := policyIndex(t, specs, policy.PurposeHandoverSummary)
 	specs[index].Fallback = policy.FallbackSpec{
 		Kind:         policy.FallbackKindPlanAlternatives,
-		Alternatives: []string{"z-ai/glm-5.2"},
+		Alternatives: []string{"z-ai/glm-5.3"},
 	}
 	registry, err := policy.NewRegistry(specs)
 	require.NoError(t, err)
 	candidateResolver := policy.NewResolver(
-		modelSet("z-ai/glm-5.3-flash", "z-ai/glm-5.2"),
+		modelSet("z-ai/glm-5.3-flash", "z-ai/glm-5.3"),
 		providerSet(providers.ProviderAIAND, providers.ProviderAIAND),
 		func(model catalog.Model) string { return model.ID },
 	)
@@ -181,7 +181,7 @@ func TestPlanResolverResolvesDeclaredModelFallbacks(t *testing.T) {
 	plan, err := planResolver.Resolve(policy.ResolutionRequest{Purpose: policy.PurposeHandoverSummary})
 	require.NoError(t, err)
 	require.Len(t, plan.AlternativeBindings(), 1)
-	assert.Equal(t, "z-ai/glm-5.2", plan.AlternativeBindings()[0].CatalogID)
+	assert.Equal(t, "z-ai/glm-5.3", plan.AlternativeBindings()[0].CatalogID)
 }
 
 func TestPlanResolverReportsMissingFixedTargetAsIneligible(t *testing.T) {
@@ -189,12 +189,12 @@ func TestPlanResolverReportsMissingFixedTargetAsIneligible(t *testing.T) {
 	index := policyIndex(t, specs, policy.PurposeHandoverSummary)
 	specs[index].Fallback = policy.FallbackSpec{
 		Kind:         policy.FallbackKindPlanAlternatives,
-		Alternatives: []string{"z-ai/glm-5.2"},
+		Alternatives: []string{"z-ai/glm-5.3"},
 	}
 	registry, err := policy.NewRegistry(specs)
 	require.NoError(t, err)
 	candidateResolver := policy.NewResolver(
-		modelSet("z-ai/glm-5.2"),
+		modelSet("z-ai/glm-5.3"),
 		providerSet(providers.ProviderAIAND),
 		func(model catalog.Model) string { return model.ID },
 	)
@@ -305,12 +305,12 @@ func TestPlanResolverIncludesEveryAlternativeBinding(t *testing.T) {
 	index := policyIndex(t, specs, policy.PurposeHandoverSummary)
 	specs[index].Fallback = policy.FallbackSpec{
 		Kind:         policy.FallbackKindPlanAlternatives,
-		Alternatives: []string{"z-ai/glm-5.2"},
+		Alternatives: []string{"z-ai/glm-5.3"},
 	}
 	registry, err := policy.NewRegistry(specs)
 	require.NoError(t, err)
 	candidateResolver := policy.NewResolver(
-		modelSet("z-ai/glm-5.3-flash", "z-ai/glm-5.2"),
+		modelSet("z-ai/glm-5.3-flash", "z-ai/glm-5.3"),
 		providerSet(providers.ProviderAIAND, providers.ProviderAIAND),
 		func(model catalog.Model) string { return model.ID },
 	)
@@ -323,7 +323,7 @@ func TestPlanResolverIncludesEveryAlternativeBinding(t *testing.T) {
 	// ai& is the only upstream, so the alternative model has exactly one
 	// binding: the plan declares it once.
 	require.Len(t, alternatives, 1)
-	assert.Equal(t, "z-ai/glm-5.2", alternatives[0].CatalogID)
+	assert.Equal(t, "z-ai/glm-5.3", alternatives[0].CatalogID)
 	assert.Equal(t, providers.ProviderAIAND, alternatives[0].Provider)
 }
 

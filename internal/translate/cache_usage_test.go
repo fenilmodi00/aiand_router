@@ -347,7 +347,7 @@ func TestSSETranslator_ForwardsAnthropicUsageModifiers(t *testing.T) {
 	t.Run("streaming message_start", func(t *testing.T) {
 		rec := httptest.NewRecorder()
 		sink := &fakeUsageSink{}
-		translator := translate.NewSSETranslator(rec, "z-ai/glm-5.2", sink)
+		translator := translate.NewSSETranslator(rec, "z-ai/glm-5.3", sink)
 		translator.Header().Set("Content-Type", "text/event-stream")
 		translator.WriteHeader(http.StatusOK)
 
@@ -363,10 +363,10 @@ func TestSSETranslator_ForwardsAnthropicUsageModifiers(t *testing.T) {
 	t.Run("non-streaming body without split", func(t *testing.T) {
 		rec := httptest.NewRecorder()
 		sink := &fakeUsageSink{}
-		translator := translate.NewSSETranslator(rec, "z-ai/glm-5.2", sink)
+		translator := translate.NewSSETranslator(rec, "z-ai/glm-5.3", sink)
 		translator.Header().Set("Content-Type", "application/json")
 		translator.WriteHeader(http.StatusOK)
-		_, err := translator.Write([]byte(`{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"text","text":"ok"}],"model":"z-ai/glm-5.2","stop_reason":"end_turn","usage":{"input_tokens":3,"output_tokens":4,"cache_creation_input_tokens":322}}`))
+		_, err := translator.Write([]byte(`{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"text","text":"ok"}],"model":"z-ai/glm-5.3","stop_reason":"end_turn","usage":{"input_tokens":3,"output_tokens":4,"cache_creation_input_tokens":322}}`))
 		require.NoError(t, err)
 		require.NoError(t, translator.Finalize())
 
@@ -379,10 +379,10 @@ func TestSSETranslator_ForwardsAnthropicUsageModifiers(t *testing.T) {
 	t.Run("non-streaming body with split", func(t *testing.T) {
 		rec := httptest.NewRecorder()
 		sink := &fakeUsageSink{}
-		translator := translate.NewSSETranslator(rec, "z-ai/glm-5.2", sink)
+		translator := translate.NewSSETranslator(rec, "z-ai/glm-5.3", sink)
 		translator.Header().Set("Content-Type", "application/json")
 		translator.WriteHeader(http.StatusOK)
-		_, err := translator.Write([]byte(`{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"text","text":"ok"}],"model":"z-ai/glm-5.2","stop_reason":"end_turn","usage":{"input_tokens":3,"output_tokens":4,"cache_creation_input_tokens":322,"cache_creation":{"ephemeral_5m_input_tokens":22,"ephemeral_1h_input_tokens":300},"speed":"fast","inference_geo":"us"}}`))
+		_, err := translator.Write([]byte(`{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"text","text":"ok"}],"model":"z-ai/glm-5.3","stop_reason":"end_turn","usage":{"input_tokens":3,"output_tokens":4,"cache_creation_input_tokens":322,"cache_creation":{"ephemeral_5m_input_tokens":22,"ephemeral_1h_input_tokens":300},"speed":"fast","inference_geo":"us"}}`))
 		require.NoError(t, err)
 		require.NoError(t, translator.Finalize())
 

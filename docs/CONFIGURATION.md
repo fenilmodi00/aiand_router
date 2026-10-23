@@ -81,7 +81,7 @@ models under their own names:
 curl -sS -b jar -X POST https://<router>/admin/v1/provider-keys \
   -H 'content-type: application/json' \
   -d '{"provider":"aiand","key":"<token>","base_url":"https://gateway.example.com/api",
-       "model_aliases":{"z-ai/glm-5.2":"zai-org/glm-5.2"}}'
+       "model_aliases":{"z-ai/glm-5.3":"zai-org/glm-5.3"}}'
 ```
 
 Keys are catalog model IDs (an ID outside the deployed catalog is rejected with
@@ -96,7 +96,7 @@ alone — so retargeting model names doesn't need the credential re-entered:
 ```bash
 curl -sS -b jar -X PUT https://<router>/admin/v1/provider-keys/<key id>/model-aliases \
   -H 'content-type: application/json' \
-  -d '{"model_aliases":{"z-ai/glm-5.2":"zai-org/glm-5.2"}}'
+  -d '{"model_aliases":{"z-ai/glm-5.3":"zai-org/glm-5.3"}}'
 ```
 
 In `selfhosted` mode BYOK is always active (it's the only credentialing path).

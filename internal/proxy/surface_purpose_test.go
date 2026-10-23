@@ -216,7 +216,7 @@ func TestConcreteProbeFailureNeverRescuesAnotherModel(t *testing.T) {
 	svc := proxy.NewService(scorer, clients, nil, false, nil, pins, false, providers.ProviderAIAND, catalog.ModelIDGLM53Flash.String(), nil).
 		WithInferenceExecutor(executor).WithRetrySleep(noRetrySleep).WithSiblingFailover(true).
 		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
-	requestedModel := catalog.ModelIDGLM52.String()
+	requestedModel := catalog.ModelIDGLM53.String()
 	body := []byte(`{"model":"` + requestedModel + `","max_tokens":1,"messages":[{"role":"user","content":"ping"}]}`)
 	err = svc.ProxyMessages(authedCtx("00000000-0000-0000-0000-000000000001"), body, httptest.NewRecorder(),
 		httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader("")))

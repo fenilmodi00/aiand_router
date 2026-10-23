@@ -464,11 +464,11 @@ func TestAnthropicRoutingMarkerWriter_EventSplitAcrossWrites(t *testing.T) {
 // routed turn, which is what /cost, /context and auto-compact read.
 func TestAnthropicRoutingMarkerWriter_CarriesUpstreamUsageIntoMessageDelta(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewAnthropicRoutingMarkerWriter(rec, "z-ai/glm-5.2", "✦ marker\n\n")
+	w := translate.NewAnthropicRoutingMarkerWriter(rec, "z-ai/glm-5.3", "✦ marker\n\n")
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.WriteHeader(http.StatusOK)
 
-	upstream := buildAnthropicSSE("message_start", `{"type":"message_start","message":{"id":"msg_1","type":"message","role":"assistant","content":[],"model":"z-ai/glm-5.2","stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":1234,"output_tokens":0,"cache_read_input_tokens":98765,"cache_creation_input_tokens":432}}}`) +
+	upstream := buildAnthropicSSE("message_start", `{"type":"message_start","message":{"id":"msg_1","type":"message","role":"assistant","content":[],"model":"z-ai/glm-5.3","stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":1234,"output_tokens":0,"cache_read_input_tokens":98765,"cache_creation_input_tokens":432}}}`) +
 		buildAnthropicSSE("message_delta", `{"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":77}}`) +
 		buildAnthropicSSE("message_stop", `{"type":"message_stop"}`)
 
@@ -499,7 +499,7 @@ func TestAnthropicRoutingMarkerWriter_CarriesUpstreamUsageIntoMessageDelta(t *te
 // A delta that already carries its own input-side counts must not be rewritten.
 func TestAnthropicRoutingMarkerWriter_DeltaUsageWinsOverMessageStart(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewAnthropicRoutingMarkerWriter(rec, "z-ai/glm-5.2", "✦ marker\n\n")
+	w := translate.NewAnthropicRoutingMarkerWriter(rec, "z-ai/glm-5.3", "✦ marker\n\n")
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.WriteHeader(http.StatusOK)
 
@@ -525,7 +525,7 @@ func TestAnthropicRoutingMarkerWriter_DeltaUsageWinsOverMessageStart(t *testing.
 // byte-identical rather than synthesizing counts.
 func TestAnthropicRoutingMarkerWriter_NoUpstreamUsageLeavesDeltaUntouched(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewAnthropicRoutingMarkerWriter(rec, "z-ai/glm-5.2", "✦ marker\n\n")
+	w := translate.NewAnthropicRoutingMarkerWriter(rec, "z-ai/glm-5.3", "✦ marker\n\n")
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.WriteHeader(http.StatusOK)
 

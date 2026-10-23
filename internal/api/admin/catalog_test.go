@@ -27,7 +27,7 @@ func TestCatalogModelsHandler_SortsByProviderThenModel(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	src := fakeDeployedModels{entries: []cluster.DeployedEntry{
-		{Model: "z-ai/glm-5.2", Provider: providers.ProviderAIAND},
+		{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND},
 		{Model: "z-ai/glm-5.3-flash", Provider: providers.ProviderAIAND},
 		{Model: "deepseek/deepseek-v4.1-flash", Provider: providers.ProviderAIAND},
 		{Model: "deepseek/deepseek-v4-pro", Provider: providers.ProviderAIAND},
@@ -51,7 +51,7 @@ func TestCatalogModelsHandler_SortsByProviderThenModel(t *testing.T) {
 	assert.Equal(t, providers.ProviderAIAND, got.Models[1].Provider)
 	assert.Equal(t, "deepseek/deepseek-v4.1-flash", got.Models[1].Model)
 	assert.Equal(t, providers.ProviderAIAND, got.Models[2].Provider)
-	assert.Equal(t, "z-ai/glm-5.2", got.Models[2].Model)
+	assert.Equal(t, "z-ai/glm-5.3", got.Models[2].Model)
 	assert.Equal(t, providers.ProviderAIAND, got.Models[3].Provider)
 	assert.Equal(t, "z-ai/glm-5.3-flash", got.Models[3].Model)
 }
@@ -154,6 +154,6 @@ func TestCatalogModelsHandler_ScopeCatalogReturnsFullCatalog(t *testing.T) {
 		require.False(t, dup, "duplicate catalog id %s", m.Model)
 		seen[m.Model] = struct{}{}
 	}
-	_, hasOpus := seen["z-ai/glm-5.2"]
+	_, hasOpus := seen["z-ai/glm-5.3"]
 	require.True(t, hasOpus, "catalog must include a known Models row")
 }

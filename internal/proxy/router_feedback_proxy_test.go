@@ -416,7 +416,7 @@ func TestService_RouterFeedbackCommand_SequenceResolvesTelemetryTurn(t *testing.
 	store.pin = sessionpin.Pin{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash", LastServedModel: "z-ai/glm-5.3-flash"}
 	feedback := &fakeFeedbackStore{}
 	telem := newCaptureTelemetry()
-	telem.seqResult = proxy.TelemetryTurnResult{RequestID: "req-abc", DecisionModel: "z-ai/glm-5.2", RouteID: "hmm:xyz"}
+	telem.seqResult = proxy.TelemetryTurnResult{RequestID: "req-abc", DecisionModel: "z-ai/glm-5.3", RouteID: "hmm:xyz"}
 	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4.1-flash", Reason: "cluster"}}
 	svc := newPinSvcWithTelemetry(fr, store, telem).WithRouterFeedbackStore(feedback)
 
@@ -428,7 +428,7 @@ func TestService_RouterFeedbackCommand_SequenceResolvesTelemetryTurn(t *testing.
 	require.Equal(t, []int{-2}, telem.seqCalls, "the parsed relative sequence must be resolved against telemetry")
 	require.Len(t, feedback.events, 1)
 	ev := feedback.events[0]
-	assert.Equal(t, "z-ai/glm-5.2", ev.ServedModel, "served_model comes from the resolved telemetry row, not the pin")
+	assert.Equal(t, "z-ai/glm-5.3", ev.ServedModel, "served_model comes from the resolved telemetry row, not the pin")
 	assert.Equal(t, "req-abc", ev.RequestID)
 	assert.Equal(t, "hmm:xyz", ev.RouteID)
 	assert.Equal(t, "down", ev.Rating)
@@ -544,7 +544,7 @@ func TestService_RouterFeedbackCommand_SequenceNoteOnlySkipsRequestFeedbackUpser
 	store := newFakePinStore()
 	feedback := &fakeFeedbackStore{}
 	telem := newCaptureTelemetry()
-	telem.seqResult = proxy.TelemetryTurnResult{RequestID: "req-note-only", DecisionModel: "z-ai/glm-5.2"}
+	telem.seqResult = proxy.TelemetryTurnResult{RequestID: "req-note-only", DecisionModel: "z-ai/glm-5.3"}
 	repo := &recordingFeedbackRepo{}
 	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4.1-flash", Reason: "cluster"}}
 	svc := newPinSvcWithTelemetry(fr, store, telem).WithRouterFeedbackStore(feedback).WithFeedback(repo, nil, "")
@@ -570,7 +570,7 @@ func TestService_RouterFeedbackCommand_SequenceWithRatingUpsertsRequestFeedback(
 	store := newFakePinStore()
 	feedback := &fakeFeedbackStore{}
 	telem := newCaptureTelemetry()
-	telem.seqResult = proxy.TelemetryTurnResult{RequestID: "req-rated", DecisionModel: "z-ai/glm-5.2"}
+	telem.seqResult = proxy.TelemetryTurnResult{RequestID: "req-rated", DecisionModel: "z-ai/glm-5.3"}
 	repo := &recordingFeedbackRepo{}
 	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4.1-flash", Reason: "cluster"}}
 	svc := newPinSvcWithTelemetry(fr, store, telem).WithRouterFeedbackStore(feedback).WithFeedback(repo, nil, "")
@@ -601,7 +601,7 @@ func TestService_RouterFeedbackCommand_SequenceResolvesStrategyRoutesToItsReport
 	telem := newCaptureTelemetry()
 	telem.seqResult = proxy.TelemetryTurnResult{
 		RequestID:     "req-resolved-on-RL",
-		DecisionModel: "z-ai/glm-5.2",
+		DecisionModel: "z-ai/glm-5.3",
 		Strategy:      "rl",
 	}
 	hmmReporter := &fakePolicyFeedbackRouter{}
@@ -619,7 +619,7 @@ func TestService_RouterFeedbackCommand_SequenceResolvesStrategyRoutesToItsReport
 	payload := rlReporter.Payloads()[0]
 	assert.Equal(t, "rl", payload["strategy"], "the resolved turn's strategy must drive both the payload and the reporter")
 	assert.Equal(t, "req-resolved-on-RL", payload["request_id"])
-	assert.Equal(t, "z-ai/glm-5.2", payload["served_model"])
+	assert.Equal(t, "z-ai/glm-5.3", payload["served_model"])
 	assert.NotContains(t, payload, "training_conversation_delta", "training delta is suppressed for sequence-rated feedback (latest-turn slice is wrong for older turns)")
 }
 
@@ -638,7 +638,7 @@ func TestService_RouterFeedbackCommand_SequenceRejectsHMMDeltaWithResolvedStrate
 	telem := newCaptureTelemetry()
 	telem.seqResult = proxy.TelemetryTurnResult{
 		RequestID:     "req-resolved-hmm",
-		DecisionModel: "z-ai/glm-5.2",
+		DecisionModel: "z-ai/glm-5.3",
 		Strategy:      "hmm_embedding",
 	}
 	hmmReporter := &fakePolicyFeedbackRouter{}
@@ -651,7 +651,7 @@ func TestService_RouterFeedbackCommand_SequenceRejectsHMMDeltaWithResolvedStrate
 			Router:      hmmReporter,
 			Unavailable: router.ErrStrategyUnavailable,
 		}).
-		WithAvailableModels(map[string]struct{}{"z-ai/glm-5.2": {}})
+		WithAvailableModels(map[string]struct{}{"z-ai/glm-5.3": {}})
 	ctx = context.WithValue(ctx, proxy.PolicyTrainingAllowedContextKey{}, true)
 	require.NoError(t, svc.ProxyMessages(ctx, []byte(body), httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))))
 

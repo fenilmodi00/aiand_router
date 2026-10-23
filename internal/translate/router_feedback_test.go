@@ -386,7 +386,7 @@ func TestExtractRouterFeedbackCommand_CodexExecPreamble(t *testing.T) {
 
 func TestExtractRouterFeedbackCommand_CodexSkillResponsesToolResult(t *testing.T) {
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "z-ai/glm-5.2",
+		"model": "z-ai/glm-5.3",
 		"input": []any{
 			map[string]any{"type": "message", "role": "user", "content": "$rf +"},
 			map[string]any{"type": "message", "role": "user", "content": "<skill>\n<name>rf</name>\nrun the feedback skill\n</skill>"},
@@ -412,7 +412,7 @@ func TestExtractRouterFeedbackCommand_CodexSkillResponsesToolResult(t *testing.T
 
 func TestCodexFeedbackSkillDoesNotLatchAcrossTurns(t *testing.T) {
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "z-ai/glm-5.2",
+		"model": "z-ai/glm-5.3",
 		"input": []any{
 			map[string]any{"type": "message", "role": "user", "content": "$rf +"},
 			map[string]any{"type": "message", "role": "user", "content": "<skill>\n<name>rf</name>\nrun the feedback skill\n</skill>"},
@@ -493,7 +493,7 @@ func TestExtractRouterFeedbackCommand_GeminiFormatIgnored(t *testing.T) {
 // emit.sh forwards "$*", so a multi-line note arrives under one "Output:" preamble; parsing only the first line would truncate the note and leak the rest upstream.
 func TestExtractRouterFeedbackCommand_CodexExecMultiLineNote(t *testing.T) {
 	body := mustMarshalJSON(t, map[string]any{
-		"model": "z-ai/glm-5.2",
+		"model": "z-ai/glm-5.3",
 		"messages": []any{
 			map[string]any{"role": "assistant", "tool_calls": []any{map[string]any{
 				"id": "call_skill", "type": "function",

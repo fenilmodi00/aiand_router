@@ -189,10 +189,10 @@ func TestRescued429_StoreWithoutCooldownsDemotesForSession(t *testing.T) {
 // moment longer.
 func TestActiveDemotionCooldowns_ExpiryBoundary(t *testing.T) {
 	until := rateLimitTestNow.Add(45 * time.Second)
-	cooldowns := map[string]time.Time{"z-ai/glm-5.2": until, "glm-5": rateLimitTestNow.Add(-time.Second)}
+	cooldowns := map[string]time.Time{"z-ai/glm-5.3": until, "glm-5": rateLimitTestNow.Add(-time.Second)}
 
-	assert.Equal(t, map[string]time.Time{"z-ai/glm-5.2": until}, activeDemotionCooldowns(cooldowns, rateLimitTestNow))
-	assert.Equal(t, map[string]time.Time{"z-ai/glm-5.2": until}, activeDemotionCooldowns(cooldowns, until.Add(-time.Millisecond)))
+	assert.Equal(t, map[string]time.Time{"z-ai/glm-5.3": until}, activeDemotionCooldowns(cooldowns, rateLimitTestNow))
+	assert.Equal(t, map[string]time.Time{"z-ai/glm-5.3": until}, activeDemotionCooldowns(cooldowns, until.Add(-time.Millisecond)))
 	assert.Nil(t, activeDemotionCooldowns(cooldowns, until), "eligible again the instant the cooldown expires")
 	assert.Nil(t, activeDemotionCooldowns(nil, rateLimitTestNow))
 }
@@ -213,7 +213,7 @@ func TestMergeDemotionCooldowns_KeepsLaterExpiry(t *testing.T) {
 func TestRescueDecisions_ExhaustedPoolWithoutCooldownsStaysEmpty(t *testing.T) {
 	s := siblingService(providers.ProviderAIAND)
 	md := &router.RoutingMetadata{
-		CandidateModels:    []string{"z-ai/glm-5.2", "deepseek/deepseek-v4-pro"},
+		CandidateModels:    []string{"z-ai/glm-5.3", "deepseek/deepseek-v4-pro"},
 		CandidateProviders: map[string]string{"deepseek/deepseek-v4-pro": providers.ProviderAIAND},
 	}
 	ctx := context.WithValue(context.Background(), SessionDemotedModelsContextKey{}, []string{"deepseek/deepseek-v4-pro"})
@@ -232,12 +232,12 @@ func TestRescueDecisions_ReadmitsCoolingArmAbsentFromScoredCandidates(t *testing
 	}
 	failed := overloadedDecision(md)
 	failed.Model = "deepseek/deepseek-v4-pro"
-	ctx := context.WithValue(context.Background(), SessionDemotedModelsContextKey{}, []string{"z-ai/glm-5.2"})
-	ctx = context.WithValue(ctx, SessionCooldownModelsContextKey{}, map[string]time.Time{"z-ai/glm-5.2": rateLimitTestNow.Add(30 * time.Second)})
+	ctx := context.WithValue(context.Background(), SessionDemotedModelsContextKey{}, []string{"z-ai/glm-5.3"})
+	ctx = context.WithValue(ctx, SessionCooldownModelsContextKey{}, map[string]time.Time{"z-ai/glm-5.3": rateLimitTestNow.Add(30 * time.Second)})
 
 	got := s.siblingFailoverDecisions(ctx, failed, 1_000, 0, 0)
 
-	assert.Equal(t, []string{"z-ai/glm-5.3-flash", "z-ai/glm-5.2"}, siblingModels(got))
+	assert.Equal(t, []string{"z-ai/glm-5.3-flash", "z-ai/glm-5.3"}, siblingModels(got))
 	assert.Equal(t, providers.ProviderAIAND, got[1].Provider)
 }
 
@@ -249,19 +249,19 @@ func TestSiblingFailover_SidecarReadmitsCoolingRosterArmLast(t *testing.T) {
 		Metadata: &router.RoutingMetadata{
 			RosterFailover:     true,
 			RescueModels:       []string{"z-ai/glm-5.3-flash", "gpt-4.1-mini"},
-			SidecarRescuePool:  []string{"z-ai/glm-5.2"},
+			SidecarRescuePool:  []string{"z-ai/glm-5.3"},
 			CandidateProviders: map[string]string{"gpt-4.1-mini": providers.ProviderAIAND},
 		},
 	}
-	ctx := context.WithValue(context.Background(), SessionDemotedModelsContextKey{}, []string{"z-ai/glm-5.2", "gpt-5"})
+	ctx := context.WithValue(context.Background(), SessionDemotedModelsContextKey{}, []string{"z-ai/glm-5.3", "gpt-5"})
 	ctx = context.WithValue(ctx, SessionCooldownModelsContextKey{}, map[string]time.Time{
-		"z-ai/glm-5.2": rateLimitTestNow.Add(30 * time.Second),
+		"z-ai/glm-5.3": rateLimitTestNow.Add(30 * time.Second),
 		"gpt-5":        rateLimitTestNow.Add(10 * time.Second),
 	})
 
 	got := s.siblingFailoverDecisions(ctx, failed, 1_000, 0, 0)
 
-	assert.Equal(t, []string{"gpt-4.1-mini", "z-ai/glm-5.2"}, siblingModels(got))
+	assert.Equal(t, []string{"gpt-4.1-mini", "z-ai/glm-5.3"}, siblingModels(got))
 	assert.Equal(t, providers.ProviderAIAND, got[1].Provider)
 }
 
@@ -271,7 +271,7 @@ func TestRescueDecisions_ReadmissionKeepsGlobalAutomaticExclusions(t *testing.T)
 	s := siblingService(providers.ProviderAIAND).
 		WithGlobalAutomaticExclusions(&stubGlobalExclusionStore{byModel: map[string]string{"z-ai/glm-5.3-flash": "disabled"}})
 	md := &router.RoutingMetadata{
-		CandidateModels: []string{"z-ai/glm-5.2", "deepseek/deepseek-v4-pro", "z-ai/glm-5.3-flash"},
+		CandidateModels: []string{"z-ai/glm-5.3", "deepseek/deepseek-v4-pro", "z-ai/glm-5.3-flash"},
 		CandidateProviders: map[string]string{
 			"deepseek/deepseek-v4-pro": providers.ProviderAIAND,
 			"z-ai/glm-5.3-flash":       providers.ProviderAIAND,
@@ -291,7 +291,7 @@ func TestRescueDecisions_ReadmissionKeepsGlobalExclusionOnCoolingArm(t *testing.
 	s := siblingService(providers.ProviderAIAND).
 		WithGlobalAutomaticExclusions(&stubGlobalExclusionStore{byModel: map[string]string{"deepseek/deepseek-v4-pro": "disabled"}})
 	md := &router.RoutingMetadata{
-		CandidateModels: []string{"z-ai/glm-5.2", "deepseek/deepseek-v4-pro", "z-ai/glm-5.3-flash"},
+		CandidateModels: []string{"z-ai/glm-5.3", "deepseek/deepseek-v4-pro", "z-ai/glm-5.3-flash"},
 		CandidateProviders: map[string]string{
 			"deepseek/deepseek-v4-pro": providers.ProviderAIAND,
 			"z-ai/glm-5.3-flash":       providers.ProviderAIAND,

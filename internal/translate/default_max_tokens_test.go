@@ -15,8 +15,8 @@ import (
 func TestAnthropicSameFormat_ExistingMaxTokensUnchanged(t *testing.T) {
 	body := []byte(`{"model":"claude-sonnet-4-20250514","messages":[{"role":"user","content":"hi"}],"max_tokens":1024}`)
 	opts := translate.EmitOptions{
-		TargetModel:  "z-ai/glm-5.2",
-		Capabilities: router.Lookup("z-ai/glm-5.2"),
+		TargetModel:  "z-ai/glm-5.3",
+		Capabilities: router.Lookup("z-ai/glm-5.3"),
 	}
 	out := parseAndEmit(t, body, "anthropic", opts)
 	assert.Equal(t, float64(1024), out["max_tokens"])
@@ -101,8 +101,8 @@ func TestAnthropicSameFormat_DefaultInjectionPreservesSourceBytes(t *testing.T) 
 	env, err := translate.ParseAnthropic(body)
 	require.NoError(t, err)
 	_, err = env.PrepareAnthropic(http.Header{}, translate.EmitOptions{
-		TargetModel:  "z-ai/glm-5.2",
-		Capabilities: router.Lookup("z-ai/glm-5.2"),
+		TargetModel:  "z-ai/glm-5.3",
+		Capabilities: router.Lookup("z-ai/glm-5.3"),
 	})
 	require.NoError(t, err)
 

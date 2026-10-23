@@ -492,7 +492,7 @@
         0.2081702227418661
       ]
     },
-    "moonshotai/kimi-k2.7": {
+    "moonshotai/kimi-k3": {
       "operational": {
         "input_per_1k_usd": 0.00075,
         "output_per_1k_usd": 0.0035,
@@ -546,7 +546,7 @@
         0.2190764746402357
       ]
     },
-    "z-ai/glm-5.2": {
+    "z-ai/glm-5.3": {
       "operational": {
         "input_per_1k_usd": 0.001,
         "output_per_1k_usd": 0.004,

@@ -101,7 +101,7 @@ func newDemotionTestService(store sessionpin.Store, flagOn bool) *Service {
 	).WithCommittedStreamArmDemotion(flagOn)
 }
 
-const demotedArm = "z-ai/glm-5.2"
+const demotedArm = "z-ai/glm-5.3"
 
 func TestMaybeDemoteArmAfterUnrescuedStall(t *testing.T) {
 	for _, tc := range []struct {

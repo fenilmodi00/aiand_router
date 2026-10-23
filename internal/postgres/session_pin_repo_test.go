@@ -65,9 +65,9 @@ func TestToSessionPinDemotionCooldowns(t *testing.T) {
 	t.Run("decodes model to instant map", func(t *testing.T) {
 		t.Parallel()
 		pin := toSessionPin(sqlc.RouterSessionPin{
-			DemotionCooldowns: []byte(`{"z-ai/glm-5.2":"2026-09-18T12:00:45Z"}`),
+			DemotionCooldowns: []byte(`{"z-ai/glm-5.3":"2026-09-18T12:00:45Z"}`),
 		})
-		assert.Equal(t, map[string]time.Time{"z-ai/glm-5.2": until}, pin.DemotionCooldowns)
+		assert.Equal(t, map[string]time.Time{"z-ai/glm-5.3": until}, pin.DemotionCooldowns)
 	})
 
 	t.Run("empty object and NULL are no cooldowns", func(t *testing.T) {

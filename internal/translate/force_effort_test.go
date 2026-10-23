@@ -16,7 +16,7 @@ import (
 // "low" (effort-immune on hard tasks) regardless of the inbound budget.
 func TestForceReasoningEffort_GeminiOverride(t *testing.T) {
 	// Inbound high budget would map to thinkingLevel "high"; override forces low.
-	body := []byte(`{"model":"z-ai/glm-5.2","max_tokens":1024,"messages":[{"role":"user","content":"hi"}],"thinking":{"type":"enabled","budget_tokens":31999}}`)
+	body := []byte(`{"model":"z-ai/glm-5.3","max_tokens":1024,"messages":[{"role":"user","content":"hi"}],"thinking":{"type":"enabled","budget_tokens":31999}}`)
 	env, err := translate.ParseAnthropic(body)
 	require.NoError(t, err)
 	prep, err := env.PrepareGemini(http.Header{}, translate.EmitOptions{
@@ -52,7 +52,7 @@ func TestForceReasoningEffort_GeminiFromOpenAI(t *testing.T) {
 }
 
 func TestForceEffort_CrossFormatOpenAI(t *testing.T) {
-	body := []byte(`{"model":"z-ai/glm-5.2","max_tokens":1024,"messages":[{"role":"user","content":"hi"}]}`)
+	body := []byte(`{"model":"z-ai/glm-5.3","max_tokens":1024,"messages":[{"role":"user","content":"hi"}]}`)
 	env, err := translate.ParseAnthropic(body)
 	require.NoError(t, err)
 	prep, err := env.PrepareOpenAI(http.Header{}, translate.EmitOptions{
@@ -67,7 +67,7 @@ func TestForceEffort_CrossFormatOpenAI(t *testing.T) {
 }
 
 func TestForceEffort_GeminiMaxLevel(t *testing.T) {
-	body := []byte(`{"model":"z-ai/glm-5.2","max_tokens":1024,"messages":[{"role":"user","content":"hi"}]}`)
+	body := []byte(`{"model":"z-ai/glm-5.3","max_tokens":1024,"messages":[{"role":"user","content":"hi"}]}`)
 	env, err := translate.ParseAnthropic(body)
 	require.NoError(t, err)
 	for _, level := range []string{"max", "xhigh"} {

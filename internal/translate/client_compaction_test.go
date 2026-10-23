@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	clientCompactionTestOpus  = "z-ai/glm-5.2"
+	clientCompactionTestOpus  = "z-ai/glm-5.3"
 	clientCompactionTestSol   = "deepseek/deepseek-v4-pro"
 	clientCompactionTestTools = `"tools":[{"name":"Read","input_schema":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}}]`
 )

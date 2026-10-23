@@ -51,7 +51,7 @@ func correctedInputs(pinModel, freshModel string, tokens, prefix, priorOut int, 
 // (kimi-k3 -> deepseek-v4.1-flash cannot show the difference: legacy already
 // switches there.)
 func TestCorrectedEconomicsIsOffByDefault(t *testing.T) {
-	in := correctedInputs("moonshotai/kimi-k3", "z-ai/glm-5.2", 200_000, 80_000, 1200, false)
+	in := correctedInputs("moonshotai/kimi-k3", "z-ai/glm-5.3", 200_000, 80_000, 1200, false)
 
 	before := planner.Decide(in, legacyCfg(3))
 	after := planner.Decide(in, correctedCfg(3))

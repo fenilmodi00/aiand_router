@@ -18,7 +18,7 @@ import (
 // Synthetic Claude Code system prompt: a plain instruction block followed by
 // the gitStatus block as a separate content block, the shape Claude Code sends.
 const clientGitContextBody = `{
-	"model":"z-ai/glm-5.2",
+	"model":"z-ai/glm-5.3",
 	"system":[
 		{"type":"text","text":"You are Claude Code."},
 		{"type":"text","text":"gitStatus: This is the git status at the start of the conversation. Note that this status is a snapshot in time, and will not update during the conversation.\nCurrent branch: feature/synthetic-branch\n\nMain branch (you will usually use this for PRs): main\n\nGit user: Synthetic User\n\nStatus:\n M internal/example.go\n?? notes.txt\n\nRecent commits:\nabc1234 synthetic subject one\ndef5678 synthetic subject two"}

@@ -201,7 +201,7 @@ func TestUpgradeShadowPreservesServingAndPinWrites(t *testing.T) {
 					WithAuthorityCacheShadow(enabled).WithAuthoritativeUpgradeGate(tc.gate).
 					WithAuthoritativeUpgradeConfig(AuthoritativeUpgradeConfig{MarginThreshold: &margin}).
 					WithPolicyStrategy(policy.StrategySpec{Strategy: strategy, Router: &authorityShadowTestRouter{decision: fresh}, Capabilities: policy.Capabilities{AuthoritativePerTurnSelection: true}})
-				env, err := translate.ParseAnthropic([]byte(fmt.Sprintf(`{"model":%q,"messages":[{"role":"user","content":"continue"}]}`, catalog.ModelIDGLM52.String())))
+				env, err := translate.ParseAnthropic([]byte(fmt.Sprintf(`{"model":%q,"messages":[{"role":"user","content":"continue"}]}`, catalog.ModelIDGLM53Flash.String())))
 				require.NoError(t, err)
 				feats := env.RoutingFeatures(false)
 				res, err := svc.runTurnLoop(router.WithStrategy(context.Background(), strategy), env, feats, "test-key", uuid.New(), "", http.Header{}, router.Request{RequestedModel: feats.Model})
@@ -307,9 +307,9 @@ func TestUpgradeShadowPreservesHigherPrecedencePaths(t *testing.T) {
 			svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAIAND, upgradeTestPinModel, nil).
 				WithAuthorityCacheShadow(true).WithPolicyDeadlineFallback(true).
 				WithPolicyStrategy(policy.StrategySpec{Strategy: strategy, Router: policyRouter, Capabilities: policy.Capabilities{AuthoritativePerTurnSelection: true}})
-			body := fmt.Sprintf(`{"model":%q,"messages":[{"role":"user","content":"continue"}]}`, catalog.ModelIDGLM52.String())
+			body := fmt.Sprintf(`{"model":%q,"messages":[{"role":"user","content":"continue"}]}`, catalog.ModelIDGLM53Flash.String())
 			if tc.compaction {
-				body = fmt.Sprintf(`{"model":%q,"system":"Your task is to create a detailed summary of the conversation so far.","messages":[{"role":"user","content":"summarize"}]}`, catalog.ModelIDGLM52.String())
+				body = fmt.Sprintf(`{"model":%q,"system":"Your task is to create a detailed summary of the conversation so far.","messages":[{"role":"user","content":"summarize"}]}`, catalog.ModelIDGLM53Flash.String())
 			}
 			env, err := translate.ParseAnthropic([]byte(body))
 			require.NoError(t, err)
@@ -340,7 +340,7 @@ func TestEvidenceUpgradeServesFreshWhenQualified(t *testing.T) {
 		WithAuthoritativeUpgradeVotes(3).
 		WithAuthoritativeUpgradeConfig(AuthoritativeUpgradeConfig{MarginThreshold: &threshold}).
 		WithPolicyStrategy(policy.StrategySpec{Strategy: strategy, Router: &authorityShadowTestRouter{decision: fresh}, Capabilities: policy.Capabilities{AuthoritativePerTurnSelection: true}})
-	env, err := translate.ParseAnthropic([]byte(fmt.Sprintf(`{"model":%q,"messages":[{"role":"user","content":"continue"}]}`, catalog.ModelIDGLM52.String())))
+	env, err := translate.ParseAnthropic([]byte(fmt.Sprintf(`{"model":%q,"messages":[{"role":"user","content":"continue"}]}`, catalog.ModelIDGLM53Flash.String())))
 	require.NoError(t, err)
 	feats := env.RoutingFeatures(false)
 	res, err := svc.runTurnLoop(router.WithStrategy(context.Background(), strategy), env, feats, "test-key", uuid.New(), "", http.Header{}, router.Request{RequestedModel: feats.Model})
@@ -370,7 +370,7 @@ func TestEvidenceUpgradeHoldsWarmLowMarginAndCountsVotes(t *testing.T) {
 		WithAuthoritativeUpgradeVotes(3).
 		WithAuthoritativeUpgradeConfig(AuthoritativeUpgradeConfig{MarginThreshold: &threshold}).
 		WithPolicyStrategy(policy.StrategySpec{Strategy: strategy, Router: &authorityShadowTestRouter{decision: fresh}, Capabilities: policy.Capabilities{AuthoritativePerTurnSelection: true}})
-	env, err := translate.ParseAnthropic([]byte(fmt.Sprintf(`{"model":%q,"messages":[{"role":"user","content":"continue"}]}`, catalog.ModelIDGLM52.String())))
+	env, err := translate.ParseAnthropic([]byte(fmt.Sprintf(`{"model":%q,"messages":[{"role":"user","content":"continue"}]}`, catalog.ModelIDGLM53Flash.String())))
 	require.NoError(t, err)
 	feats := env.RoutingFeatures(false)
 	res, err := svc.runTurnLoop(router.WithStrategy(context.Background(), strategy), env, feats, "test-key", uuid.New(), "", http.Header{}, router.Request{RequestedModel: feats.Model})
@@ -421,7 +421,7 @@ func TestEvidenceUpgradeExclusionKeepsEligiblePin(t *testing.T) {
 				AuthoritativePerTurnSelection: true,
 			},
 		})
-	env, err := translate.ParseAnthropic([]byte(fmt.Sprintf(`{"model":%q,"messages":[{"role":"user","content":"continue"}]}`, catalog.ModelIDGLM52.String())))
+	env, err := translate.ParseAnthropic([]byte(fmt.Sprintf(`{"model":%q,"messages":[{"role":"user","content":"continue"}]}`, catalog.ModelIDGLM53Flash.String())))
 	require.NoError(t, err)
 	features := env.RoutingFeatures(false)
 	res, err := svc.runTurnLoop(router.WithStrategy(context.Background(), strategy), env, features, "test-key", uuid.New(), "", http.Header{}, router.Request{RequestedModel: features.Model})
@@ -448,7 +448,7 @@ func TestEvidenceUpgradeExclusionFailsOpenWhenOnlyDemotedModelIsAvailable(t *tes
 				AuthoritativePerTurnSelection: true,
 			},
 		})
-	env, err := translate.ParseAnthropic([]byte(fmt.Sprintf(`{"model":%q,"messages":[{"role":"user","content":"continue"}]}`, catalog.ModelIDGLM52.String())))
+	env, err := translate.ParseAnthropic([]byte(fmt.Sprintf(`{"model":%q,"messages":[{"role":"user","content":"continue"}]}`, catalog.ModelIDGLM53Flash.String())))
 	require.NoError(t, err)
 	features := env.RoutingFeatures(false)
 	res, err := svc.runTurnLoop(router.WithStrategy(context.Background(), strategy), env, features, "test-key", uuid.New(), "", http.Header{}, router.Request{RequestedModel: features.Model})

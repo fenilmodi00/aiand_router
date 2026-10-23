@@ -14,7 +14,7 @@ import (
 // readPrefixBody is a Claude Code turn: a Read of tab-indented Go (separator
 // tab followed by indentation tabs), a Bash result that merely looks numbered,
 // and an Edit tool whose description names the prefix format.
-const readPrefixBody = `{"model":"z-ai/glm-5.2","max_tokens":1024,
+const readPrefixBody = `{"model":"z-ai/glm-5.3","max_tokens":1024,
 "tools":[
  {"name":"Edit","description":"Strip the Read line prefix (line number + tab) before matching.","input_schema":{"type":"object"}},
  {"name":"Read","description":"Reads a file.","input_schema":{"type":"object"}}],
@@ -41,7 +41,7 @@ func TestReadPrefixes_NonAnthropicTargetsGetUnambiguousSeparator(t *testing.T) {
 
 	for name, prepare := range map[string]func() ([]byte, error){
 		"responses": func() ([]byte, error) {
-			p, err := env.PrepareOpenAIResponses(http.Header{}, translate.EmitOptions{TargetModel: "moonshotai/kimi-k2.7"})
+			p, err := env.PrepareOpenAIResponses(http.Header{}, translate.EmitOptions{TargetModel: "moonshotai/kimi-k3"})
 			return p.Body, err
 		},
 		"chat": func() ([]byte, error) {
@@ -66,7 +66,7 @@ func TestReadPrefixes_NonAnthropicTargetsGetUnambiguousSeparator(t *testing.T) {
 func TestReadPrefixes_AnthropicTargetKeepsClaudeCodeFormat(t *testing.T) {
 	env, err := translate.ParseAnthropic([]byte(readPrefixBody))
 	require.NoError(t, err)
-	prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "z-ai/glm-5.2"})
+	prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "z-ai/glm-5.3"})
 	require.NoError(t, err)
 	out := decodedJSON(prep.Body)
 	assert.Contains(t, out, "4\t\treturn")
@@ -74,7 +74,7 @@ func TestReadPrefixes_AnthropicTargetKeepsClaudeCodeFormat(t *testing.T) {
 }
 
 func TestReadPrefixes_ArrayContentAndStableOutput(t *testing.T) {
-	body := `{"model":"z-ai/glm-5.2","max_tokens":64,"messages":[
+	body := `{"model":"z-ai/glm-5.3","max_tokens":64,"messages":[
  {"role":"user","content":"read"},
  {"role":"assistant","content":[{"type":"tool_use","id":"r1","name":"Read","input":{}}]},
  {"role":"user","content":[{"type":"tool_result","tool_use_id":"r1","content":[{"type":"text","text":"7\t\tx := 1"}]}]}]}`

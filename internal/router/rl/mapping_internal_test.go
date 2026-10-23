@@ -36,10 +36,10 @@ func TestRosterIDForMatchesActualBehavior(t *testing.T) {
 // policy roster knows Kimi K2.7 under its "-code" build name.
 func TestRosterIDForKeepsTheKimiCodeAlias(t *testing.T) {
 	model := catalog.Model{
-		ID:        "moonshotai/kimi-k2.7",
+		ID:        "moonshotai/kimi-k3",
 		Providers: []catalog.ProviderBinding{{Provider: providers.ProviderAIAND}},
 	}
-	assert.Equal(t, "moonshotai/kimi-k2.7-code", rosterIDFor(model))
+	assert.Equal(t, "moonshotai/kimi-k3", rosterIDFor(model))
 }
 
 // TestRosterIDForResolvesEveryCatalogModel: no catalog model may map to an

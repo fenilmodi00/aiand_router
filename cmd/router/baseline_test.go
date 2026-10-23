@@ -28,8 +28,8 @@ func TestResolveDefaultBaselineModel(t *testing.T) {
 	})
 
 	t.Run("explicit value wins", func(t *testing.T) {
-		t.Setenv("ROUTER_DEFAULT_BASELINE_MODEL", "z-ai/glm-5.2")
-		assert.Equal(t, "z-ai/glm-5.2", resolveDefaultBaselineModel())
+		t.Setenv("ROUTER_DEFAULT_BASELINE_MODEL", "z-ai/glm-5.3")
+		assert.Equal(t, "z-ai/glm-5.3", resolveDefaultBaselineModel())
 	})
 
 	t.Run("whitespace trimmed", func(t *testing.T) {

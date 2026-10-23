@@ -42,11 +42,11 @@ func TestOrderBandPair_ByTier(t *testing.T) {
 func TestBandSwapServed_DisabledServesAnchor(t *testing.T) {
 	s := &Service{} // bandSwap nil
 	pin := sessionpin.Pin{
-		Provider: "anthropic", Model: "z-ai/glm-5.2",
+		Provider: "anthropic", Model: "z-ai/glm-5.3",
 		PairedProvider: "anthropic", PairedModel: "z-ai/glm-5.3-flash", Reason: "cluster",
 	}
 	got := s.bandSwapServed(context.Background(), turntype.MainLoop, pin, router.Decision{}, false, nil, nil)
-	if got.Model != "z-ai/glm-5.2" {
+	if got.Model != "z-ai/glm-5.3" {
 		t.Fatalf("served %q, want anchor claude-opus-4-7", got.Model)
 	}
 }
@@ -54,9 +54,9 @@ func TestBandSwapServed_DisabledServesAnchor(t *testing.T) {
 // A pin with no runner-up can never swap, even if the head were enabled.
 func TestBandSwapServed_NoPairServesAnchor(t *testing.T) {
 	s := &Service{}
-	pin := sessionpin.Pin{Provider: "anthropic", Model: "z-ai/glm-5.2", Reason: "cluster"}
+	pin := sessionpin.Pin{Provider: "anthropic", Model: "z-ai/glm-5.3", Reason: "cluster"}
 	got := s.bandSwapServed(context.Background(), turntype.MainLoop, pin, router.Decision{}, false, nil, nil)
-	if got.Model != "z-ai/glm-5.2" {
+	if got.Model != "z-ai/glm-5.3" {
 		t.Fatalf("served %q, want anchor", got.Model)
 	}
 }

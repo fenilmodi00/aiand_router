@@ -132,15 +132,15 @@ func TestLoadRankings_Roundtrip(t *testing.T) {
 	raw := []byte(`{
 		"aiand": {"router_version": "aiand-router-v0.1-bootstrap"},
 		"rankings": {
-			"0": {"moonshotai/kimi-k3": 0.8, "z-ai/glm-5.2": 0.5},
-			"1": {"moonshotai/kimi-k3": 0.3, "z-ai/glm-5.2": 0.6}
+			"0": {"moonshotai/kimi-k3": 0.8, "z-ai/glm-5.3": 0.5},
+			"1": {"moonshotai/kimi-k3": 0.3, "z-ai/glm-5.3": 0.6}
 		}
 	}`)
 	got, err := loadRankings(raw)
 	require.NoError(t, err)
 	assert.Len(t, got, 2)
 	assert.InDelta(t, 0.8, got[0]["moonshotai/kimi-k3"], 1e-6)
-	assert.InDelta(t, 0.6, got[1]["z-ai/glm-5.2"], 1e-6)
+	assert.InDelta(t, 0.6, got[1]["z-ai/glm-5.3"], 1e-6)
 }
 
 func TestLoadRankings_NonIntegerKey(t *testing.T) {
@@ -165,7 +165,7 @@ func TestLoadRankings_EmptyClusterRow(t *testing.T) {
 func TestLoadRegistry_Roundtrip(t *testing.T) {
 	raw, _ := json.Marshal(map[string]any{
 		"deployed_models": []any{
-			map[string]any{"model": "moonshotai/kimi-k3", "provider": "aiand", "bench_column": "z-ai/glm-5.2", "proxy": true},
+			map[string]any{"model": "moonshotai/kimi-k3", "provider": "aiand", "bench_column": "z-ai/glm-5.3", "proxy": true},
 			map[string]any{"model": "z-ai/glm-5.3-flash", "provider": "aiand", "bench_column": "z-ai/glm-5.3-flash"},
 		},
 	})

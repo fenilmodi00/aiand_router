@@ -80,7 +80,7 @@ func TestProxyMessages_StripRoutingMarkerFailure_ReturnsError(t *testing.T) {
 	svc := NewService(fr, map[string]providers.Client{providers.ProviderAIAND: fp}, nil, false, nil, nil, false,
 		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil)
 
-	body := `{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"hi"}]}`
+	body := `{"model":"z-ai/glm-5.3","messages":[{"role":"user","content":"hi"}]}`
 	rec := httptest.NewRecorder()
 	httpReq := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(body))
 

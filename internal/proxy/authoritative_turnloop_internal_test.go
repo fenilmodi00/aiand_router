@@ -57,19 +57,19 @@ func TestAuthoritativePolicySelectsEveryEligibleTurn(t *testing.T) {
 	}{
 		{
 			name:       "first turn routes once",
-			body:       []byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"start"}]}`),
+			body:       []byte(`{"model":"z-ai/glm-5.3","messages":[{"role":"user","content":"start"}]}`),
 			pinExpires: time.Now().Add(time.Hour),
 		},
 		{
 			name:       "main loop ignores planner stay",
-			body:       []byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"fix the failing test"}]}`),
+			body:       []byte(`{"model":"z-ai/glm-5.3","messages":[{"role":"user","content":"fix the failing test"}]}`),
 			pinFound:   true,
 			pinExpires: time.Now().Add(time.Hour),
 		},
 		{
 			name: "tool result ignores sticky kill switch",
 			body: []byte(`{
-				"model":"z-ai/glm-5.2",
+				"model":"z-ai/glm-5.3",
 				"tools":[{"name":"Read","description":"read","input_schema":{"type":"object"}}],
 				"messages":[
 					{"role":"user","content":"inspect the repository"},
@@ -82,13 +82,13 @@ func TestAuthoritativePolicySelectsEveryEligibleTurn(t *testing.T) {
 		},
 		{
 			name:       "expired pin does not reanchor",
-			body:       []byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"continue"}]}`),
+			body:       []byte(`{"model":"z-ai/glm-5.3","messages":[{"role":"user","content":"continue"}]}`),
 			pinFound:   true,
 			pinExpires: time.Now().Add(-time.Minute),
 		},
 		{
 			name:             "deterministic compaction is visible",
-			body:             []byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"continue after trim"}]}`),
+			body:             []byte(`{"model":"z-ai/glm-5.3","messages":[{"role":"user","content":"continue after trim"}]}`),
 			pinFound:         true,
 			pinExpires:       time.Now().Add(time.Hour),
 			historyTruncated: true,
@@ -101,18 +101,18 @@ func TestAuthoritativePolicySelectsEveryEligibleTurn(t *testing.T) {
 			store.getFound = test.pinFound
 			store.getPin = sessionpin.Pin{
 				Provider:         providers.ProviderAIAND,
-				Model:            "z-ai/glm-5.2",
+				Model:            "z-ai/glm-5.3",
 				Reason:           "cluster:v0.2",
 				TurnCount:        7,
 				PinnedUntil:      test.pinExpires,
 				LastTurnEndedAt:  time.Now().Add(-time.Minute),
-				LastServedModel:  "z-ai/glm-5.2",
+				LastServedModel:  "z-ai/glm-5.3",
 				LastOutputTokens: 321,
 				HasEverSwitched:  true,
 			}
 			policyRouter := &authoritativeTestRouter{decision: router.Decision{
 				Provider: providers.ProviderAIAND,
-				Model:    "z-ai/glm-5.2",
+				Model:    "z-ai/glm-5.3",
 				Reason:   "authoritative-test_policy",
 			}}
 			summarizer := &authoritativeHandoverSummarizer{}
@@ -166,7 +166,7 @@ func TestAuthoritativePolicySelectsEveryEligibleTurn(t *testing.T) {
 
 			require.NoError(t, err)
 			assert.True(t, result.AuthoritativePerTurn)
-			assert.Equal(t, "z-ai/glm-5.2", result.Decision.Model)
+			assert.Equal(t, "z-ai/glm-5.3", result.Decision.Model)
 			assert.Equal(t, "authoritative_per_turn", result.PinTier)
 			assert.False(t, result.StickyHit)
 			assert.Empty(t, result.PlannerDecision.Outcome)
@@ -178,7 +178,7 @@ func TestAuthoritativePolicySelectsEveryEligibleTurn(t *testing.T) {
 			assert.Equal(t, test.historyTruncated, turnContext.HistoryTruncated)
 			if test.pinFound {
 				assert.Equal(t, 7, turnContext.SessionTurnCount)
-				assert.Equal(t, "z-ai/glm-5.2", turnContext.PreviousServedModel)
+				assert.Equal(t, "z-ai/glm-5.3", turnContext.PreviousServedModel)
 				assert.Equal(t, providers.ProviderAIAND, turnContext.PreviousProvider)
 				expectedCacheState := router.PolicyCacheStateWarm
 				if test.historyTruncated {
@@ -197,7 +197,7 @@ func TestAuthoritativePolicySelectsEveryEligibleTurn(t *testing.T) {
 				assert.False(t, turnContext.SessionEverSwitched)
 			}
 			require.Len(t, store.upserts, 1)
-			assert.Equal(t, "z-ai/glm-5.2", store.upserts[0].Model)
+			assert.Equal(t, "z-ai/glm-5.3", store.upserts[0].Model)
 		})
 	}
 }
@@ -222,13 +222,13 @@ func TestAuthoritativePolicyPreservesExplicitForceModel(t *testing.T) {
 	store.getFound = true
 	store.getPin = sessionpin.Pin{
 		Provider:    providers.ProviderAIAND,
-		Model:       "z-ai/glm-5.2",
+		Model:       "z-ai/glm-5.3",
 		Reason:      translate.ReasonUserForceModel,
 		PinnedUntil: time.Now().Add(time.Hour),
 	}
 	policyRouter := &authoritativeTestRouter{decision: router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "z-ai/glm-5.2",
+		Model:    "z-ai/glm-5.3",
 	}}
 	svc := NewService(
 		nil,
@@ -249,7 +249,7 @@ func TestAuthoritativePolicyPreservesExplicitForceModel(t *testing.T) {
 		},
 	})
 	env, err := translate.ParseAnthropic(
-		[]byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"continue"}]}`),
+		[]byte(`{"model":"z-ai/glm-5.3","messages":[{"role":"user","content":"continue"}]}`),
 	)
 	require.NoError(t, err)
 	features := env.RoutingFeatures(false)
@@ -269,14 +269,14 @@ func TestAuthoritativePolicyPreservesExplicitForceModel(t *testing.T) {
 	)
 
 	require.NoError(t, err)
-	assert.Equal(t, "z-ai/glm-5.2", result.Decision.Model)
+	assert.Equal(t, "z-ai/glm-5.3", result.Decision.Model)
 	assert.True(t, result.StickyHit)
 	assert.Empty(t, policyRouter.requests)
 }
 
 func TestAuthoritativeUpgradeConfidenceGate(t *testing.T) {
 	strategy := router.Strategy("authoritative-test")
-	body := []byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"fix the failing test"}]}`)
+	body := []byte(`{"model":"z-ai/glm-5.3","messages":[{"role":"user","content":"fix the failing test"}]}`)
 
 	tests := []struct {
 		name       string
@@ -294,7 +294,7 @@ func TestAuthoritativeUpgradeConfidenceGate(t *testing.T) {
 			pinModel: "z-ai/glm-5.3-flash",
 			fresh: router.Decision{
 				Provider: providers.ProviderAIAND,
-				Model:    "z-ai/glm-5.2",
+				Model:    "z-ai/glm-5.3",
 				Reason:   "hmm_policy(tool-result communication reroute: classifier 'maximum' (p=0.180))",
 				Metadata: &router.RoutingMetadata{ChosenScore: 0.18},
 			},
@@ -308,18 +308,18 @@ func TestAuthoritativeUpgradeConfidenceGate(t *testing.T) {
 			pinModel: "z-ai/glm-5.3-flash",
 			fresh: router.Decision{
 				Provider: providers.ProviderAIAND,
-				Model:    "z-ai/glm-5.2",
+				Model:    "z-ai/glm-5.3",
 				Reason:   "hmm_policy(classifier 'maximum' (p=0.91))",
 				Metadata: &router.RoutingMetadata{ChosenScore: 0.91},
 			},
-			wantModel:  "z-ai/glm-5.2",
+			wantModel:  "z-ai/glm-5.3",
 			wantSticky: false,
 			wantTier:   "authoritative_per_turn",
 		},
 		{
 			name:     "downgrade serves fresh despite low confidence",
 			pinFound: true,
-			pinModel: "z-ai/glm-5.2",
+			pinModel: "z-ai/glm-5.3",
 			fresh: router.Decision{
 				Provider: providers.ProviderAIAND,
 				Model:    "z-ai/glm-5.3-flash",
@@ -336,10 +336,10 @@ func TestAuthoritativeUpgradeConfidenceGate(t *testing.T) {
 			pinModel: "z-ai/glm-5.3-flash",
 			fresh: router.Decision{
 				Provider: providers.ProviderAIAND,
-				Model:    "z-ai/glm-5.2",
+				Model:    "z-ai/glm-5.3",
 				Reason:   "authoritative-test_policy",
 			},
-			wantModel:  "z-ai/glm-5.2",
+			wantModel:  "z-ai/glm-5.3",
 			wantSticky: false,
 			wantTier:   "authoritative_per_turn",
 		},
@@ -348,11 +348,11 @@ func TestAuthoritativeUpgradeConfidenceGate(t *testing.T) {
 			pinFound: false,
 			fresh: router.Decision{
 				Provider: providers.ProviderAIAND,
-				Model:    "z-ai/glm-5.2",
+				Model:    "z-ai/glm-5.3",
 				Reason:   "hmm_policy(classifier 'maximum' (p=0.18))",
 				Metadata: &router.RoutingMetadata{ChosenScore: 0.18},
 			},
-			wantModel:  "z-ai/glm-5.2",
+			wantModel:  "z-ai/glm-5.3",
 			wantSticky: false,
 			wantTier:   "authoritative_per_turn",
 		},
@@ -363,11 +363,11 @@ func TestAuthoritativeUpgradeConfidenceGate(t *testing.T) {
 			pinModel: "z-ai/glm-5.3-flash",
 			fresh: router.Decision{
 				Provider: providers.ProviderAIAND,
-				Model:    "z-ai/glm-5.2",
+				Model:    "z-ai/glm-5.3",
 				Reason:   "hmm_policy(classifier 'maximum' (p=0.18))",
 				Metadata: &router.RoutingMetadata{ChosenScore: 0.18},
 			},
-			wantModel:  "z-ai/glm-5.2",
+			wantModel:  "z-ai/glm-5.3",
 			wantSticky: false,
 			wantTier:   "authoritative_per_turn",
 		},

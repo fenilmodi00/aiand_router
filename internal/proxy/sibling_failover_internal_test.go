@@ -22,7 +22,7 @@ func siblingService(keyed ...string) *Service {
 func overloadedDecision(md *router.RoutingMetadata) router.Decision {
 	return router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "z-ai/glm-5.2",
+		Model:    "z-ai/glm-5.3",
 		Metadata: md,
 	}
 }
@@ -47,11 +47,11 @@ func siblingModels(decisions []router.Decision) []string {
 func TestRescueBasisForTurnKeepsHeldPrimaryIdentity(t *testing.T) {
 	primary := router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-6-luna", Reason: "held_pin"}
 	fresh := &router.RoutingMetadata{
-		RescueModels:        []string{"z-ai/glm-5.2"},
+		RescueModels:        []string{"z-ai/glm-5.3"},
 		SelectedArmID:       "fresh-arm",
 		SelectedRosterArmID: "fresh-arm:high",
 	}
-	turn := turnLoopResult{StickyHit: true, Fresh: router.Decision{Model: "z-ai/glm-5.2", Metadata: fresh}}
+	turn := turnLoopResult{StickyHit: true, Fresh: router.Decision{Model: "z-ai/glm-5.3", Metadata: fresh}}
 
 	basis := rescueBasisForTurn(primary, turn)
 
@@ -60,8 +60,8 @@ func TestRescueBasisForTurnKeepsHeldPrimaryIdentity(t *testing.T) {
 	assert.Equal(t, primary.Reason, basis.Reason)
 	assert.Nil(t, primary.Metadata, "the selected primary must retain its own dispatch identity")
 	assert.NotSame(t, fresh, basis.Metadata)
-	assert.Equal(t, []string{"z-ai/glm-5.2"}, basis.Metadata.RescueModels, "the held pin must retain eligible rescue models")
-	assert.Equal(t, []string{"z-ai/glm-5.2"}, fresh.RescueModels, "fresh policy metadata must remain unchanged")
+	assert.Equal(t, []string{"z-ai/glm-5.3"}, basis.Metadata.RescueModels, "the held pin must retain eligible rescue models")
+	assert.Equal(t, []string{"z-ai/glm-5.3"}, fresh.RescueModels, "fresh policy metadata must remain unchanged")
 	assert.Nil(t, rescueBasisForTurn(primary, turnLoopResult{Fresh: turn.Fresh}).Metadata)
 	turn.HardPinned = true
 	assert.Nil(t, rescueBasisForTurn(primary, turn).Metadata)
@@ -71,7 +71,7 @@ func TestRescueBasisForTurnKeepsHeldPrimaryIdentity(t *testing.T) {
 func TestRescueDecisions_StruckOutPoolWithoutReadmitListStaysEmpty(t *testing.T) {
 	s := siblingService(providers.ProviderAIAND)
 	md := &router.RoutingMetadata{
-		CandidateModels:    []string{"z-ai/glm-5.2", "deepseek/deepseek-v4-pro"},
+		CandidateModels:    []string{"z-ai/glm-5.3", "deepseek/deepseek-v4-pro"},
 		CandidateProviders: map[string]string{"deepseek/deepseek-v4-pro": providers.ProviderAIAND},
 	}
 	ctx := context.WithValue(context.Background(), SessionDemotedModelsContextKey{}, []string{"deepseek/deepseek-v4-pro"})
@@ -84,7 +84,7 @@ func TestRescueDecisions_StruckOutPoolWithoutReadmitListStaysEmpty(t *testing.T)
 func TestRescueDecisions_StruckOutArmsOnlyWhenNothingElseIsLeft(t *testing.T) {
 	s := siblingService(providers.ProviderAIAND)
 	md := &router.RoutingMetadata{
-		CandidateModels: []string{"z-ai/glm-5.2", "deepseek/deepseek-v4-pro", "z-ai/glm-5.3-flash"},
+		CandidateModels: []string{"z-ai/glm-5.3", "deepseek/deepseek-v4-pro", "z-ai/glm-5.3-flash"},
 		CandidateProviders: map[string]string{
 			"deepseek/deepseek-v4-pro": providers.ProviderAIAND,
 			"z-ai/glm-5.3-flash":       providers.ProviderAIAND,
@@ -108,7 +108,7 @@ func TestRescueDecisions_StruckOutReadmissionKeepsGlobalExclusion(t *testing.T) 
 	s := siblingService(providers.ProviderAIAND).
 		WithGlobalAutomaticExclusions(&stubGlobalExclusionStore{byModel: map[string]string{"deepseek/deepseek-v4-pro": "disabled"}})
 	md := &router.RoutingMetadata{
-		CandidateModels: []string{"z-ai/glm-5.2", "deepseek/deepseek-v4-pro", "z-ai/glm-5.3-flash"},
+		CandidateModels: []string{"z-ai/glm-5.3", "deepseek/deepseek-v4-pro", "z-ai/glm-5.3-flash"},
 		CandidateProviders: map[string]string{
 			"deepseek/deepseek-v4-pro": providers.ProviderAIAND,
 			"z-ai/glm-5.3-flash":       providers.ProviderAIAND,
@@ -141,7 +141,7 @@ func TestNoteRescueReadmission_RecordsStruckOutArm(t *testing.T) {
 
 func TestImageSafeModels_DropsTextOnlyArmsOnImageTurns(t *testing.T) {
 	// z-ai/glm-5.2 is text-only in the catalog; z-ai/glm-5.3-flash takes images.
-	models := []string{"z-ai/glm-5.2", "z-ai/glm-5.3-flash"}
+	models := []string{"z-ai/glm-5.3", "z-ai/glm-5.3-flash"}
 	assert.Equal(t, models, imageSafeModels(models, false))
 	assert.Equal(t, []string{"z-ai/glm-5.3-flash"}, imageSafeModels(models, true))
 }
@@ -163,7 +163,7 @@ func TestRescueDecisions_StrikerArmIsReadmitted(t *testing.T) {
 func TestRescueDecisions_StruckOutReadmissionStaysInScoredPool(t *testing.T) {
 	s := siblingService(providers.ProviderAIAND)
 	md := &router.RoutingMetadata{
-		CandidateModels:    []string{"z-ai/glm-5.2"},
+		CandidateModels:    []string{"z-ai/glm-5.3"},
 		CandidateProviders: map[string]string{"z-ai/glm-5.3-flash": providers.ProviderAIAND},
 	}
 	struck := []string{"z-ai/glm-5.3-flash"}
@@ -179,7 +179,7 @@ func TestRescueDecisions_StruckOutReadmissionStaysInScoredPool(t *testing.T) {
 func TestHarnessSafeModels_KeepsCatalogKnownArmsOnToolTurns(t *testing.T) {
 	// With deepseek-v4-flash removed no catalog row is ToolUseLow or
 	// AgenticLow, so a tool-bearing turn keeps every harness-capable arm.
-	models := []string{"z-ai/glm-5.2", "deepseek/deepseek-v4.1-flash"}
+	models := []string{"z-ai/glm-5.3", "deepseek/deepseek-v4.1-flash"}
 	assert.Equal(t, models, harnessSafeModels(models, false))
 	assert.Equal(t, models, harnessSafeModels(models, true))
 }

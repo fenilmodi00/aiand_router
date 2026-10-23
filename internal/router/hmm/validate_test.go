@@ -10,10 +10,10 @@ import (
 )
 
 func TestValidateRosterIDs_AliasMappedArmIsValid(t *testing.T) {
-	// "moonshotai/kimi-k2.7-code" only maps back to the catalog ID
-	// "moonshotai/kimi-k2.7" through the roster alias; it must not be
+	// "moonshotai/kimi-k3" only maps back to the catalog ID
+	// "moonshotai/kimi-k3" through the roster alias; it must not be
 	// reported as unknown.
-	assert.Empty(t, hmm.ValidateRosterIDs([]string{"moonshotai/kimi-k2.7-code"}))
+	assert.Empty(t, hmm.ValidateRosterIDs([]string{"moonshotai/kimi-k3"}))
 }
 
 func TestValidateRosterIDs_EffortSuffixedArmIsValid(t *testing.T) {

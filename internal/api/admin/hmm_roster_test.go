@@ -33,7 +33,7 @@ func TestHMMRosterHandler_PreservesRosterArmsAndCatalogModels(t *testing.T) {
 			RosterSHA256: "sha-1",
 			Clusters: map[string][]string{
 				"high": {
-					"z-ai/glm-5.2",
+					"z-ai/glm-5.3",
 					"deepseek/deepseek-v4-pro",
 				},
 			},
@@ -55,10 +55,10 @@ func TestHMMRosterHandler_PreservesRosterArmsAndCatalogModels(t *testing.T) {
 	require.Len(t, body.Clusters, 1)
 	assert.Equal(t, "sha-1", body.RosterSHA256)
 	assert.Equal(t, []string{
-		"z-ai/glm-5.2",
+		"z-ai/glm-5.3",
 		"deepseek/deepseek-v4-pro",
 	}, body.Clusters[0].Arms)
-	assert.Equal(t, []string{"z-ai/glm-5.2", "deepseek/deepseek-v4-pro"}, body.Clusters[0].Models)
+	assert.Equal(t, []string{"z-ai/glm-5.3", "deepseek/deepseek-v4-pro"}, body.Clusters[0].Models)
 }
 
 func TestHMMRosterHandler_SelectsBetaPolicy(t *testing.T) {

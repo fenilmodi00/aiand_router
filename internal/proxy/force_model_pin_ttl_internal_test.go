@@ -86,7 +86,7 @@ func TestSetForceModelSessionPin_WritesNeverExpiresSentinel(t *testing.T) {
 	var key [sessionpin.SessionKeyLen]byte
 	require.NoError(t, svc.setForceModelSessionPin(
 		context.Background(), key, uuid.New(),
-		"z-ai/glm-5.2", providers.ProviderAIAND, "", ""))
+		"z-ai/glm-5.3", providers.ProviderAIAND, "", ""))
 
 	require.Len(t, store.upserts, 1)
 	assert.Equal(t, forceModelSessionRole, store.upserts[0].Role)
@@ -103,7 +103,7 @@ func TestSetForceModelSessionPin_IsStrategyIndependent(t *testing.T) {
 	ctx := router.WithStrategy(context.Background(), router.StrategyHMMBeta)
 	require.NoError(t, svc.setForceModelSessionPin(
 		ctx, [sessionpin.SessionKeyLen]byte{}, uuid.New(),
-		"z-ai/glm-5.2", providers.ProviderAIAND, "", ""))
+		"z-ai/glm-5.3", providers.ProviderAIAND, "", ""))
 
 	require.Len(t, store.upserts, 1)
 	assert.Empty(t, store.upserts[0].Strategy)

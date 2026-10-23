@@ -39,7 +39,7 @@ func TestGLM51Flags_Fireworks_OpenAISameFormat(t *testing.T) {
 
 func TestGLM51Flags_Fireworks_AnthropicCrossFormat(t *testing.T) {
 	body := []byte(`{
-		"model": "z-ai/glm-5.2",
+		"model": "z-ai/glm-5.3",
 		"max_tokens": 256,
 		"messages": [{"role":"user","content":"hi"}]
 	}`)

@@ -143,7 +143,7 @@ func pinnedTurnLoopService(t *testing.T, rt router.Router, store sessionpin.Stor
 
 func pinnedTurnLoopEnvelope(t *testing.T) (*translate.RequestEnvelope, translate.RoutingFeatures) {
 	t.Helper()
-	env, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.2","system":"sys","messages":[{"role":"user","content":"original prompt"}],"max_tokens":8192}`))
+	env, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.3","system":"sys","messages":[{"role":"user","content":"original prompt"}],"max_tokens":8192}`))
 	require.NoError(t, err)
 	return env, env.RoutingFeatures(false)
 }

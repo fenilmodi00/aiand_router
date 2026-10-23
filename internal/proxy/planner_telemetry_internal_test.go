@@ -49,7 +49,7 @@ func TestApplyPlannerTelemetry_StayPopulatesPinAndEV(t *testing.T) {
 func TestApplyPlannerTelemetry_SwitchRecordsAbandonedPin(t *testing.T) {
 	p := InsertTelemetryParams{}
 	applyPlannerTelemetry(&p, turnLoopResult{
-		PinModel:    "z-ai/glm-5.2",
+		PinModel:    "z-ai/glm-5.3",
 		PinProvider: "anthropic",
 		PlannerDecision: planner.Decision{
 			Outcome:                  planner.OutcomeSwitch,
@@ -63,7 +63,7 @@ func TestApplyPlannerTelemetry_SwitchRecordsAbandonedPin(t *testing.T) {
 		},
 	})
 	assert.Equal(t, "switch", p.PlannerOutcome)
-	assert.Equal(t, "z-ai/glm-5.2", p.PlannerPinModel)
+	assert.Equal(t, "z-ai/glm-5.3", p.PlannerPinModel)
 	require.NotNil(t, p.PlannerPinCacheCold)
 	assert.True(t, *p.PlannerPinCacheCold)
 	assert.Equal(t, "stay", p.PlannerShadowOutcome)

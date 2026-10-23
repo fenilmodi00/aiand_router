@@ -9,7 +9,7 @@ import (
 )
 
 const workspaceCachedBody = `{
-	"model":"z-ai/glm-5.2",
+	"model":"z-ai/glm-5.3",
 	"system":[
 		{"type":"text","text":"x-anthropic-billing-header: cc_version=2.1.232; cc_entrypoint=sdk-cli"},
 		{"type":"text","text":"You are a Claude agent, built on Anthropic's Claude Agent SDK.","cache_control":{"type":"ephemeral"}}
@@ -45,7 +45,7 @@ func TestWithWorkspaceSystemAppended_OffOrNonAnthropicSourceIsIdentity(t *testin
 	require.NoError(t, err)
 	assert.Same(t, env, off)
 
-	openai, err := ParseOpenAI([]byte(`{"model":"moonshotai/kimi-k2.7","messages":[{"role":"system","content":"You are Claude Code."},{"role":"user","content":"hi"}]}`))
+	openai, err := ParseOpenAI([]byte(`{"model":"moonshotai/kimi-k3","messages":[{"role":"system","content":"You are Claude Code."},{"role":"user","content":"hi"}]}`))
 	require.NoError(t, err)
 	same, err := openai.withWorkspaceSystemAppended(EmitOptions{AppendWorkspaceSystem: true})
 	require.NoError(t, err)

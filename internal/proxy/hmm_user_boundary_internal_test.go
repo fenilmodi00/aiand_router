@@ -45,7 +45,7 @@ func unscorableHMMService(store sessionpin.Store, sidecarFailure error) *Service
 }
 
 func TestHMMCommandOnlyTurnKeepsEligibleSessionPin(t *testing.T) {
-	env, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":[{"type":"text","text":"<command-name>local command</command-name>"}]}]}`))
+	env, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.3","messages":[{"role":"user","content":[{"type":"text","text":"<command-name>local command</command-name>"}]}]}`))
 	require.NoError(t, err)
 	features := env.RoutingFeatures(false)
 	store := newStubPinStore()

@@ -266,7 +266,7 @@ func validReservation() entitlement.Reservation {
 		WeeklyPeriod:       entitlement.Period{Kind: entitlement.PeriodKindWeekly, Start: start, End: start.Add(7 * 24 * time.Hour)},
 		SixHourPeriod:      entitlement.Period{Kind: entitlement.PeriodKindSixHour, Start: start, End: start.Add(6 * time.Hour)},
 		APIKeyID:           "f8fc3d54-3652-46c5-be85-6727f5572e5a",
-		RequestedModel:     "z-ai/glm-5.2",
+		RequestedModel:     "z-ai/glm-5.3",
 		ReservedUsdMicros:  125_000,
 		CapacitySource:     entitlement.CapacitySourceIncludedRouter,
 		ReservedAt:         start.Add(time.Minute),

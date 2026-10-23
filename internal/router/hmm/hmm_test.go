@@ -106,11 +106,11 @@ func TestRouterMapsSidecarRosterModelBackToCatalogDecision(t *testing.T) {
 func TestRouterUsesSeparatelySelectableHMMStrategies(t *testing.T) {
 	for _, strategy := range []router.Strategy{router.StrategyHMMEmbedding, router.StrategyHMMBeta} {
 		t.Run(string(strategy), func(t *testing.T) {
-			decider := &fakeDecider{res: Result{Model: "moonshotai/kimi-k2.7-code"}}
+			decider := &fakeDecider{res: Result{Model: "moonshotai/kimi-k3"}}
 			r := newWithRoutingTargets(
 				strategy,
 				decider,
-				map[string]struct{}{"moonshotai/kimi-k2.7": {}},
+				map[string]struct{}{"moonshotai/kimi-k3": {}},
 				map[string]struct{}{providers.ProviderAIAND: {}},
 			)
 
@@ -127,9 +127,9 @@ func TestRouterUsesSeparatelySelectableHMMStrategies(t *testing.T) {
 
 func TestRouterKeepsGeneratedRouteIDWhenSidecarOmitsIt(t *testing.T) {
 	decider := &fakeDecider{res: Result{
-		Model: "moonshotai/kimi-k2.7-code",
+		Model: "moonshotai/kimi-k3",
 	}}
-	r := newWithRoutingTargets(router.StrategyHMM, decider, map[string]struct{}{"moonshotai/kimi-k2.7": {}}, map[string]struct{}{providers.ProviderAIAND: {}})
+	r := newWithRoutingTargets(router.StrategyHMM, decider, map[string]struct{}{"moonshotai/kimi-k3": {}}, map[string]struct{}{providers.ProviderAIAND: {}})
 
 	decision, err := r.Route(context.Background(), router.Request{PromptText: "hello"})
 
@@ -141,7 +141,7 @@ func TestRouterKeepsGeneratedRouteIDWhenSidecarOmitsIt(t *testing.T) {
 
 func TestRouterFailsClosedOnUnknownReturnedModel(t *testing.T) {
 	decider := &fakeDecider{res: Result{Model: "unknown/model"}}
-	r := newWithRoutingTargets(router.StrategyHMM, decider, map[string]struct{}{"moonshotai/kimi-k2.7": {}}, map[string]struct{}{providers.ProviderAIAND: {}})
+	r := newWithRoutingTargets(router.StrategyHMM, decider, map[string]struct{}{"moonshotai/kimi-k3": {}}, map[string]struct{}{providers.ProviderAIAND: {}})
 
 	_, err := r.Route(context.Background(), router.Request{PromptText: "hello"})
 
@@ -153,7 +153,7 @@ func TestRouterFailsClosedOnUnknownRosterModel(t *testing.T) {
 	// The policy names a roster arm that is not in the candidate set: the
 	// router must fail closed rather than dispatch it.
 	decider := &fakeDecider{res: Result{Model: "not/a-real-roster-id", Provider: providers.ProviderAIAND}}
-	r := newWithRoutingTargets(router.StrategyHMM, decider, map[string]struct{}{"moonshotai/kimi-k2.7": {}}, map[string]struct{}{providers.ProviderAIAND: {}})
+	r := newWithRoutingTargets(router.StrategyHMM, decider, map[string]struct{}{"moonshotai/kimi-k3": {}}, map[string]struct{}{providers.ProviderAIAND: {}})
 
 	_, err := r.Route(context.Background(), router.Request{PromptText: "hello"})
 
@@ -205,8 +205,6 @@ func TestCatalogRoutingTargetsResolveCurrentHMMRosterArmsToProviders(t *testing.
 	// The pin-only rows carry no tier, so they are not routing targets.
 	for _, rosterID := range []string{
 		"deepseek/deepseek-v4-pro-0813",
-		"moonshotai/kimi-k2.7-code",
-		"z-ai/glm-5.2",
 	} {
 		assert.NotContains(t, gotRosterIDs, rosterID)
 	}
@@ -218,18 +216,18 @@ func TestRosterIDForKeepsSlashFormCatalogIDs(t *testing.T) {
 	for _, id := range []string{
 		"deepseek/deepseek-v4.1-flash",
 		"deepseek/deepseek-v4-pro-0813",
-		"moonshotai/kimi-k2.7",
 		"moonshotai/kimi-k3",
-		"z-ai/glm-5.2",
+		"moonshotai/kimi-k3",
+		"z-ai/glm-5.3",
 		"z-ai/glm-5.3",
 		"z-ai/glm-5.3-flash",
 	} {
 		m, ok := catalog.ByID(id)
 		require.True(t, ok, id)
-		if id == "moonshotai/kimi-k2.7" {
+		if id == "moonshotai/kimi-k3" {
 			// The policy roster knows Kimi K2.7 under its "-code" build.
-			assert.Equal(t, "moonshotai/kimi-k2.7-code", rosterIDFor(m), id)
-			assert.Equal(t, "moonshotai/kimi-k2.7", CatalogIDForRoster("moonshotai/kimi-k2.7-code"), id)
+			assert.Equal(t, "moonshotai/kimi-k3", rosterIDFor(m), id)
+			assert.Equal(t, "moonshotai/kimi-k3", CatalogIDForRoster("moonshotai/kimi-k3"), id)
 			continue
 		}
 		assert.Equal(t, id, rosterIDFor(m), id)
@@ -239,10 +237,10 @@ func TestRosterIDForKeepsSlashFormCatalogIDs(t *testing.T) {
 	// Kimi K2.7 is the one divergence: the policy roster knows the "-code"
 	// build, and the reverse mapping must land back on the catalog ID the
 	// dispatch path consumes.
-	kimi, ok := catalog.ByID("moonshotai/kimi-k2.7")
+	kimi, ok := catalog.ByID("moonshotai/kimi-k3")
 	require.True(t, ok)
-	assert.Equal(t, "moonshotai/kimi-k2.7-code", rosterIDFor(kimi))
-	assert.Equal(t, "moonshotai/kimi-k2.7", CatalogIDForRoster("moonshotai/kimi-k2.7-code"))
+	assert.Equal(t, "moonshotai/kimi-k3", rosterIDFor(kimi))
+	assert.Equal(t, "moonshotai/kimi-k3", CatalogIDForRoster("moonshotai/kimi-k3"))
 }
 
 func TestRouterOffersAndSelectsKimiK3WithoutLegacyDeployedSet(t *testing.T) {

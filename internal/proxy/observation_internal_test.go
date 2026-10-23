@@ -47,7 +47,7 @@ func TestBuildObservationContext_CapturesFreshOnStay(t *testing.T) {
 	// Final (served) decision = the pinned model, no metadata — the STAY shape.
 	served := router.Decision{
 		Provider: "anthropic",
-		Model:    "z-ai/glm-5.2",
+		Model:    "z-ai/glm-5.3",
 		Reason:   "pin",
 	}
 	// Fresh scorer recommendation this turn: a cheaper model nearly ties opus.
@@ -56,9 +56,9 @@ func TestBuildObservationContext_CapturesFreshOnStay(t *testing.T) {
 		Model:    "z-ai/glm-5.3-flash",
 		Reason:   "cluster:v-test",
 		Metadata: &router.RoutingMetadata{
-			CandidateModels: []string{"z-ai/glm-5.2", "z-ai/glm-5.3-flash"},
+			CandidateModels: []string{"z-ai/glm-5.3", "z-ai/glm-5.3-flash"},
 			ChosenScore:     0.82,
-			CandidateScores: map[string]float32{"z-ai/glm-5.2": 0.83, "z-ai/glm-5.3-flash": 0.82},
+			CandidateScores: map[string]float32{"z-ai/glm-5.3": 0.83, "z-ai/glm-5.3-flash": 0.82},
 			Propensity:      1.0,
 		},
 	}
@@ -74,7 +74,7 @@ func TestBuildObservationContext_CapturesFreshOnStay(t *testing.T) {
 	require.NotNil(t, obs.FreshCandidateScores, "fresh score vector must be captured on a STAY")
 	var got map[string]float32
 	require.NoError(t, json.Unmarshal(obs.FreshCandidateScores, &got))
-	assert.InDelta(t, 0.83, got["z-ai/glm-5.2"], 1e-6)
+	assert.InDelta(t, 0.83, got["z-ai/glm-5.3"], 1e-6)
 	assert.InDelta(t, 0.82, got["z-ai/glm-5.3-flash"], 1e-6)
 }
 
@@ -82,7 +82,7 @@ func TestBuildObservationContext_CapturesFreshOnStay(t *testing.T) {
 // run (hard-pin / tool_result), fresh is a zero Decision, so the fresh columns
 // stay NULL rather than logging a phantom model.
 func TestBuildObservationContext_NoScorerLeavesFreshNull(t *testing.T) {
-	served := router.Decision{Provider: "anthropic", Model: "z-ai/glm-5.2", Reason: "tool_result_sc"}
+	served := router.Decision{Provider: "anthropic", Model: "z-ai/glm-5.3", Reason: "tool_result_sc"}
 
 	obs := buildObservationContext(context.Background(), served, router.Decision{}, CaptureOff)
 
@@ -98,7 +98,7 @@ func TestBuildObservationContext_CapturesHMMStrategy(t *testing.T) {
 		Model:    "z-ai/glm-5.3-flash",
 		Reason:   "hmm_policy(label=explore)",
 		Metadata: &router.RoutingMetadata{
-			CandidateModels:      []string{"z-ai/glm-5.2", "z-ai/glm-5.3-flash"},
+			CandidateModels:      []string{"z-ai/glm-5.3", "z-ai/glm-5.3-flash"},
 			ChosenScore:          0.71,
 			Strategy:             string(router.StrategyHMM),
 			RouteID:              "route-abc-123",
@@ -170,10 +170,10 @@ func TestBuildObservationContext_SuppressesDebugRefWithoutDebugMode(t *testing.T
 func TestBuildObservationContext_DefaultsStrategyToActive(t *testing.T) {
 	served := router.Decision{
 		Provider: "anthropic",
-		Model:    "z-ai/glm-5.2",
+		Model:    "z-ai/glm-5.3",
 		Reason:   "cluster:v-test",
 		Metadata: &router.RoutingMetadata{
-			CandidateModels: []string{"z-ai/glm-5.2"},
+			CandidateModels: []string{"z-ai/glm-5.3"},
 			ChosenScore:     0.9,
 		},
 	}
@@ -188,7 +188,7 @@ func TestBuildObservationContext_DefaultsStrategyToActive(t *testing.T) {
 // fresh.Metadata on a sticky HMM turn so telemetry joins to the same id policyOutcomeRoute reports.
 func TestBuildObservationContext_StickyHMMRouteIDFromFresh(t *testing.T) {
 	// Served pin — no metadata, the sticky shape.
-	served := router.Decision{Provider: "anthropic", Model: "z-ai/glm-5.2", Reason: "pin"}
+	served := router.Decision{Provider: "anthropic", Model: "z-ai/glm-5.3", Reason: "pin"}
 	// Fresh HMM re-score this turn carries the correlation id.
 	fresh := router.Decision{
 		Provider: "anthropic",
@@ -210,7 +210,7 @@ func TestBuildObservationContext_StickyHMMRouteIDFromFresh(t *testing.T) {
 // TestBuildObservationContext_HardPinLeavesStrategyNull verifies that turns bypassing routing
 // (no served metadata and no fresh re-score) leave strategy NULL, not the session's active strategy.
 func TestBuildObservationContext_HardPinLeavesStrategyNull(t *testing.T) {
-	served := router.Decision{Provider: "anthropic", Model: "z-ai/glm-5.2", Reason: "user_forced"}
+	served := router.Decision{Provider: "anthropic", Model: "z-ai/glm-5.3", Reason: "user_forced"}
 
 	// Request opted into HMM, but this turn was hard-pinned and never scored.
 	ctx := router.WithStrategy(context.Background(), router.StrategyHMM)

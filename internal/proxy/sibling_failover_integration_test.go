@@ -29,13 +29,13 @@ const overloadedSSE = "event: error\ndata: {\"type\":\"error\",\"error\":{\"type
 func siblingClusterDecision(reason string) router.Decision {
 	return router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "z-ai/glm-5.2",
+		Model:    "z-ai/glm-5.3",
 		Reason:   reason,
 		Metadata: &router.RoutingMetadata{
 			PolicyGroup:     "cluster-7",
-			CandidateModels: []string{"z-ai/glm-5.2", "deepseek/deepseek-v4-pro"},
+			CandidateModels: []string{"z-ai/glm-5.3", "deepseek/deepseek-v4-pro"},
 			CandidateProviders: map[string]string{
-				"z-ai/glm-5.2":             providers.ProviderAIAND,
+				"z-ai/glm-5.3":             providers.ProviderAIAND,
 				"deepseek/deepseek-v4-pro": providers.ProviderAIAND,
 			},
 		},
@@ -84,15 +84,15 @@ func newRankedRescueFixture(t *testing.T) *rankedRescueFixture {
 
 	decision := router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "z-ai/glm-5.2",
+		Model:    "z-ai/glm-5.3",
 		Metadata: &router.RoutingMetadata{
 			PolicyGroup:    "medium",
 			RosterFailover: true,
 			// The scored pool lists deepseek first; the ranked fallback puts kimi ahead of it.
-			CandidateModels: []string{"deepseek/deepseek-v4-pro", "moonshotai/kimi-k2.6", "z-ai/glm-5.2"},
-			RescueModels:    []string{"z-ai/glm-5.2", "moonshotai/kimi-k2.6", "deepseek/deepseek-v4-pro"},
+			CandidateModels: []string{"deepseek/deepseek-v4-pro", "moonshotai/kimi-k2.6", "z-ai/glm-5.3"},
+			RescueModels:    []string{"z-ai/glm-5.3", "moonshotai/kimi-k2.6", "deepseek/deepseek-v4-pro"},
 			CandidateProviders: map[string]string{
-				"z-ai/glm-5.2":             providers.ProviderAIAND,
+				"z-ai/glm-5.3":             providers.ProviderAIAND,
 				"moonshotai/kimi-k2.6":     providers.ProviderAIAND,
 				"deepseek/deepseek-v4-pro": providers.ProviderAIAND,
 			},
@@ -158,7 +158,7 @@ func TestProxyMessages_ForceModelOverloadDoesNotDegrade(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
-	body := []byte(`{"model":"z-ai/glm-5.2","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
+	body := []byte(`{"model":"z-ai/glm-5.3","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
 
 	err := svc.ProxyMessages(authedCtx("11111111-1111-1111-1111-111111111111"), body, rec, req)
 
@@ -188,8 +188,8 @@ func TestProxyMessages_OverloadWithoutCandidatesSurfacesUpstreamError(t *testing
 	svc := proxy.NewService(
 		&fakeRouter{decision: router.Decision{
 			Provider: providers.ProviderAIAND,
-			Model:    "z-ai/glm-5.2",
-			Metadata: &router.RoutingMetadata{CandidateModels: []string{"z-ai/glm-5.2"}},
+			Model:    "z-ai/glm-5.3",
+			Metadata: &router.RoutingMetadata{CandidateModels: []string{"z-ai/glm-5.3"}},
 		}},
 		map[string]providers.Client{
 			providers.ProviderAIAND: openaicompat.NewClient("test-anthropic-key", anthropicUpstream.URL),
@@ -200,7 +200,7 @@ func TestProxyMessages_OverloadWithoutCandidatesSurfacesUpstreamError(t *testing
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
-	body := []byte(`{"model":"z-ai/glm-5.2","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
+	body := []byte(`{"model":"z-ai/glm-5.3","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
 
 	err := svc.ProxyMessages(authedCtx("11111111-1111-1111-1111-111111111111"), body, rec, req)
 	require.Error(t, err, "no candidate to degrade to, so the overload surfaces")

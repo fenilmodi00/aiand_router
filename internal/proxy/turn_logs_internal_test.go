@@ -229,7 +229,7 @@ func TestRecordCallLog_OffEmitsNothing(t *testing.T) {
 
 	buf := otel.NewBuffer(em)
 	ctx := buf.WithContext(context.Background())
-	base := otel.NewAttrBuilder(1).String("decision.model", "z-ai/glm-5.2").Build()
+	base := otel.NewAttrBuilder(1).String("decision.model", "z-ai/glm-5.3").Build()
 	s.recordCallLog(ctx, base, 42, nil, []byte("req"), []byte("resp"), false)
 	otel.Flush(ctx)
 
@@ -247,10 +247,10 @@ func TestRecordCallLog_InstallationOffEmitsPermanentErrorResponse(t *testing.T) 
 		String("external_id", "org-1").
 		String("client.session_id", "sess-1").
 		String("router_user_id", "11111111-1111-1111-1111-111111111111").
-		String("requested.model", "z-ai/glm-5.2").
-		String("decision.model", "z-ai/glm-5.2").
+		String("requested.model", "z-ai/glm-5.3").
+		String("decision.model", "z-ai/glm-5.3").
 		String("decision.provider", "snowflake").
-		String("dispatch.primary_model", "z-ai/glm-5.2").
+		String("dispatch.primary_model", "z-ai/glm-5.3").
 		String("dispatch.primary_provider", "anthropic_gateway").
 		String("dispatch.final_provider", "anthropic_gateway").
 		Int64("request.message_count", 37).
@@ -285,9 +285,9 @@ func TestRecordCallLog_InstallationOffEmitsPermanentErrorResponse(t *testing.T) 
 		"external_id":                       {Value: &commonv1.AnyValue_StringValue{StringValue: "org-1"}},
 		"client.session_id":                 {Value: &commonv1.AnyValue_StringValue{StringValue: "sess-1"}},
 		"router_user_id":                    {Value: &commonv1.AnyValue_StringValue{StringValue: "11111111-1111-1111-1111-111111111111"}},
-		"decision.model":                    {Value: &commonv1.AnyValue_StringValue{StringValue: "z-ai/glm-5.2"}},
+		"decision.model":                    {Value: &commonv1.AnyValue_StringValue{StringValue: "z-ai/glm-5.3"}},
 		"decision.provider":                 {Value: &commonv1.AnyValue_StringValue{StringValue: "snowflake"}},
-		"dispatch.primary_model":            {Value: &commonv1.AnyValue_StringValue{StringValue: "z-ai/glm-5.2"}},
+		"dispatch.primary_model":            {Value: &commonv1.AnyValue_StringValue{StringValue: "z-ai/glm-5.3"}},
 		"dispatch.primary_provider":         {Value: &commonv1.AnyValue_StringValue{StringValue: "anthropic_gateway"}},
 		"dispatch.final_provider":           {Value: &commonv1.AnyValue_StringValue{StringValue: "anthropic_gateway"}},
 		"request.message_count":             {Value: &commonv1.AnyValue_IntValue{IntValue: 37}},
@@ -419,14 +419,14 @@ func TestRecordCallLog_FullCapturesBodies(t *testing.T) {
 
 	buf := otel.NewBuffer(em)
 	ctx := buf.WithContext(context.Background())
-	base := otel.NewAttrBuilder(1).String("decision.model", "z-ai/glm-5.2").Build()
+	base := otel.NewAttrBuilder(1).String("decision.model", "z-ai/glm-5.3").Build()
 	s.recordCallLog(ctx, base, 42, nil, []byte(`{"req":1}`), []byte(`{"resp":2}`), false)
 	otel.Flush(ctx)
 
 	require.NoError(t, em.Shutdown(context.Background()))
 	require.Equal(t, 1, coll.count(t))
 	a := coll.attrs(t)
-	assert.Equal(t, "z-ai/glm-5.2", a["decision.model"]) // base metadata carried over
+	assert.Equal(t, "z-ai/glm-5.3", a["decision.model"]) // base metadata carried over
 	assert.Equal(t, int64(42), coll.intAttr(t, "latency.route_ms"))
 	assert.Equal(t, `{"req":1}`, a["io.request_body"])
 	assert.Equal(t, `{"resp":2}`, a["io.response_body"])
@@ -520,7 +520,7 @@ func TestApplyRoutingStateAttrs_EmitsExactThreadAndTransition(t *testing.T) {
 		PriorServedModel: "z-ai/glm-5.3-flash",
 	}
 	b := otel.NewAttrBuilder(4)
-	applyRoutingStateAttrs(b, res, "z-ai/glm-5.2", key)
+	applyRoutingStateAttrs(b, res, "z-ai/glm-5.3", key)
 	attrs := attrsByKey(b.Build())
 
 	assert.Equal(t, "0102030405060708090a0b0c0d0e0f10", attrs["routing.session_key"].GetStringValue())
@@ -585,7 +585,7 @@ func TestApplyPlannerAttrs_OmitsDetailsWhenSkipped(t *testing.T) {
 func TestApplyPlannerAttrs_EmitsDetailsWhenEvaluated(t *testing.T) {
 	res := turnLoopResult{
 		Decision:     router.Decision{Model: "z-ai/glm-5.3-flash"},
-		Fresh:        router.Decision{Model: "z-ai/glm-5.2"},
+		Fresh:        router.Decision{Model: "z-ai/glm-5.3"},
 		PinModel:     "z-ai/glm-5.3-flash",
 		PinProvider:  providers.ProviderAIAND,
 		PrefixBroken: true,

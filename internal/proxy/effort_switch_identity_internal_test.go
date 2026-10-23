@@ -15,7 +15,7 @@ import (
 func TestModelSwitched_EffortChangeOnSameModelCountsAsSwitch(t *testing.T) {
 	res := turnLoopResult{
 		PriorServedModel: "claude-opus-5:low",
-		Decision:         router.Decision{Model: "z-ai/glm-5.2", Effort: "xhigh"},
+		Decision:         router.Decision{Model: "z-ai/glm-5.3", Effort: "xhigh"},
 	}
 
 	assert.True(t, res.modelSwitched(),
@@ -26,8 +26,8 @@ func TestModelSwitched_EffortChangeOnSameModelCountsAsSwitch(t *testing.T) {
 // conservative direction — rather than the unsafe one.
 func TestModelSwitched_LegacyBarePinReportsSwitchAgainstEffortIdentity(t *testing.T) {
 	res := turnLoopResult{
-		PriorServedModel: "z-ai/glm-5.2",
-		Decision:         router.Decision{Model: "z-ai/glm-5.2", Effort: "high"},
+		PriorServedModel: "z-ai/glm-5.3",
+		Decision:         router.Decision{Model: "z-ai/glm-5.3", Effort: "high"},
 	}
 
 	assert.True(t, res.modelSwitched(),
@@ -36,11 +36,11 @@ func TestModelSwitched_LegacyBarePinReportsSwitchAgainstEffortIdentity(t *testin
 
 func TestModelSwitched_NoEffortEitherSideBehavesAsBefore(t *testing.T) {
 	same := turnLoopResult{
-		PriorServedModel: "z-ai/glm-5.2",
-		Decision:         router.Decision{Model: "z-ai/glm-5.2"},
+		PriorServedModel: "z-ai/glm-5.3",
+		Decision:         router.Decision{Model: "z-ai/glm-5.3"},
 	}
 	changed := turnLoopResult{
-		PriorServedModel: "z-ai/glm-5.2",
+		PriorServedModel: "z-ai/glm-5.3",
 		Decision:         router.Decision{Model: "gpt-5.6-sol"},
 	}
 
@@ -50,11 +50,11 @@ func TestModelSwitched_NoEffortEitherSideBehavesAsBefore(t *testing.T) {
 
 func TestMaxedOutServedModel_BareIdentityUnchanged(t *testing.T) {
 	pin := sessionpin.Pin{
-		LastServedModel:   "z-ai/glm-5.2",
+		LastServedModel:   "z-ai/glm-5.3",
 		LastOutputTokens:  8192,
 		LastTurnEndedAt:   time.Unix(100, 0),
 		LastOutputLimitAt: time.Unix(100, 0),
 	}
 
-	assert.Equal(t, "z-ai/glm-5.2", maxedOutServedModel(pin))
+	assert.Equal(t, "z-ai/glm-5.3", maxedOutServedModel(pin))
 }

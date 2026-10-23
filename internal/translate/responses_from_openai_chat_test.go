@@ -28,7 +28,7 @@ func prepareChatOnResponses(t *testing.T, body string, opts translate.EmitOption
 }
 
 func chatOnResponsesOpts() translate.EmitOptions {
-	return translate.EmitOptions{TargetModel: "moonshotai/kimi-k2.7", Capabilities: router.Lookup("moonshotai/kimi-k2.7")}
+	return translate.EmitOptions{TargetModel: "moonshotai/kimi-k3", Capabilities: router.Lookup("moonshotai/kimi-k3")}
 }
 
 func TestPrepareOpenAIResponses_FromChatCompletions_ClosesNestedWorkflowArgsSchemas(t *testing.T) {
@@ -57,7 +57,7 @@ func TestPrepareOpenAIResponses_FromChatCompletions_ClosesNestedWorkflowArgsSche
 // front would shift the cacheable prefix on every turn.
 func TestPrepareOpenAIResponses_FromChatCompletions_MidConversationSystemStaysInPlace(t *testing.T) {
 	out := prepareChatOnResponses(t, `{
-      "model":"moonshotai/kimi-k2.7",
+      "model":"moonshotai/kimi-k3",
       "messages":[
         {"role":"system","content":"lead"},
         {"role":"user","content":"one"},
@@ -77,7 +77,7 @@ func TestPrepareOpenAIResponses_FromChatCompletions_MidConversationSystemStaysIn
 // rather than being dropped on the floor.
 func TestPrepareOpenAIResponses_FromChatCompletions_MultimodalParts(t *testing.T) {
 	out := prepareChatOnResponses(t, `{
-      "model":"moonshotai/kimi-k2.7",
+      "model":"moonshotai/kimi-k3",
       "messages":[{"role":"user","content":[
         {"type":"text","text":"what is this"},
         {"type":"image_url","image_url":{"url":"data:image/png;base64,AAA","detail":"high"}},
@@ -107,7 +107,7 @@ func TestPrepareOpenAIResponses_FromChatCompletions_MultimodalParts(t *testing.T
 // them would hand the client free-form prose it can't parse.
 func TestPrepareOpenAIResponses_FromChatCompletions_ResponseFormat(t *testing.T) {
 	out := prepareChatOnResponses(t, `{
-      "model":"moonshotai/kimi-k2.7",
+      "model":"moonshotai/kimi-k3",
       "messages":[{"role":"user","content":"hi"}],
       "response_format":{"type":"json_schema","json_schema":{"name":"answer","strict":true,"schema":{"type":"object","properties":{"a":{"type":"string"}}}}}
     }`, chatOnResponsesOpts())
@@ -124,7 +124,7 @@ func TestPrepareOpenAIResponses_FromChatCompletions_ResponseFormat(t *testing.T)
 
 func TestPrepareOpenAIResponses_FromChatCompletions_NamedToolChoice(t *testing.T) {
 	out := prepareChatOnResponses(t, `{
-      "model":"moonshotai/kimi-k2.7",
+      "model":"moonshotai/kimi-k3",
       "messages":[{"role":"user","content":"hi"}],
       "tools":[{"type":"function","function":{"name":"bash","parameters":{"type":"object"}}}],
       "tool_choice":{"type":"function","function":{"name":"bash"}}
@@ -139,7 +139,7 @@ func TestPrepareOpenAIResponses_FromChatCompletions_NamedToolChoice(t *testing.T
 // Requests using a chat-only knob must report as such so the proxy keeps them
 // on chat/completions instead of silently dropping the field.
 func TestRequiresChatCompletionsParams_OpenAIChatOnlyKnobs(t *testing.T) {
-	caps := router.Lookup("moonshotai/kimi-k2.7")
+	caps := router.Lookup("moonshotai/kimi-k3")
 	for _, tc := range []struct {
 		name  string
 		extra string
@@ -155,7 +155,7 @@ func TestRequiresChatCompletionsParams_OpenAIChatOnlyKnobs(t *testing.T) {
 		{name: "n=1 is the default and expressible", extra: `,"n":1`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			env, err := translate.ParseOpenAI([]byte(`{"model":"moonshotai/kimi-k2.7","messages":[{"role":"user","content":"hi"}]` + tc.extra + `}`))
+			env, err := translate.ParseOpenAI([]byte(`{"model":"moonshotai/kimi-k3","messages":[{"role":"user","content":"hi"}]` + tc.extra + `}`))
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, env.RequiresChatCompletionsParams(caps))
 		})
@@ -165,17 +165,17 @@ func TestRequiresChatCompletionsParams_OpenAIChatOnlyKnobs(t *testing.T) {
 // Inline audio has no Responses input part, so such a turn must stay on
 // chat/completions rather than lose the audio.
 func TestRequiresChatCompletionsParams_OpenAIInlineAudio(t *testing.T) {
-	env, err := translate.ParseOpenAI([]byte(`{"model":"moonshotai/kimi-k2.7","messages":[{"role":"user","content":[
+	env, err := translate.ParseOpenAI([]byte(`{"model":"moonshotai/kimi-k3","messages":[{"role":"user","content":[
       {"type":"input_audio","input_audio":{"data":"AAA","format":"wav"}}
     ]}]}`))
 	require.NoError(t, err)
-	assert.True(t, env.RequiresChatCompletionsParams(router.Lookup("moonshotai/kimi-k2.7")))
+	assert.True(t, env.RequiresChatCompletionsParams(router.Lookup("moonshotai/kimi-k3")))
 }
 
 // The compiled validator must cover chat function tools too, or a chat-ingress
 // turn would silently skip schema validation an Anthropic one gets.
 func TestToolValidator_CompilesOpenAIChatTools(t *testing.T) {
-	env, err := translate.ParseOpenAI([]byte(`{"model":"moonshotai/kimi-k2.7","messages":[{"role":"user","content":"hi"}],
+	env, err := translate.ParseOpenAI([]byte(`{"model":"moonshotai/kimi-k3","messages":[{"role":"user","content":"hi"}],
       "tools":[{"type":"function","function":{"name":"bash","parameters":{"type":"object","properties":{"command":{"type":"string"}},"required":["command"]}}}]}`))
 	require.NoError(t, err)
 	v := env.ToolValidator()

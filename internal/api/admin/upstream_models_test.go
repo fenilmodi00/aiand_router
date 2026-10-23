@@ -76,7 +76,7 @@ func TestListUpstreamModelsHandler_ReturnsEndpointModels(t *testing.T) {
 		Plaintext:      []byte("sk-byok"),
 		BaseURL:        "https://cortex.example/api/v2/cortex/v1",
 	}
-	lister := &modelListingClient{models: []string{"z-ai/glm-5.2", "snowflake-llama-70b"}}
+	lister := &modelListingClient{models: []string{"z-ai/glm-5.3", "snowflake-llama-70b"}}
 	engine := upstreamModelsEngine(
 		upstreamModelsAuthService([]*auth.ExternalAPIKey{key}),
 		upstreamModelsProxyService(map[string]providers.Client{providers.ProviderAIAND: lister}),
@@ -90,7 +90,7 @@ func TestListUpstreamModelsHandler_ReturnsEndpointModels(t *testing.T) {
 		Models []string `json:"models"`
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
-	assert.Equal(t, []string{"z-ai/glm-5.2", "snowflake-llama-70b"}, body.Models)
+	assert.Equal(t, []string{"z-ai/glm-5.3", "snowflake-llama-70b"}, body.Models)
 	require.NotNil(t, lister.seenCreds, "the stored key's credential must reach the adapter")
 	assert.Equal(t, "sk-byok", string(lister.seenCreds.APIKey))
 	assert.Equal(t, key.BaseURL, lister.seenCreds.BaseURL)

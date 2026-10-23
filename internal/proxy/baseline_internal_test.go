@@ -9,7 +9,7 @@ import (
 func TestBaselineFor(t *testing.T) {
 	t.Run("known model returns itself", func(t *testing.T) {
 		s := &Service{defaultBaselineModel: "deepseek/deepseek-v4.1-flash"}
-		assert.Equal(t, "z-ai/glm-5.2", s.baselineFor("z-ai/glm-5.2"))
+		assert.Equal(t, "z-ai/glm-5.3", s.baselineFor("z-ai/glm-5.3"))
 	})
 
 	t.Run("unknown model returns baseline", func(t *testing.T) {

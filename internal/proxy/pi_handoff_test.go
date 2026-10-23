@@ -38,7 +38,7 @@ func (p *handoffResponseProvider) Proxy(ctx context.Context, decision router.Dec
 
 func handoffTestService() (*Service, *betaTestRouter, *betaCaptureProvider, context.Context) {
 	classifier := &betaTestRouter{decision: router.Decision{
-		Model: "z-ai/glm-5.2", Provider: providers.ProviderAIAND,
+		Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND,
 		Metadata: &router.RoutingMetadata{PolicyGroup: "high", AuthoritativePerTurnSelection: true},
 	}}
 	upstream := &betaCaptureProvider{}

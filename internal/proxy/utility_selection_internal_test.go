@@ -57,7 +57,7 @@ func TestAutomaticUtilitySelectionDoesNotUseDeploymentShortcut(t *testing.T) {
 						assert.False(t, turn.CallerModelPassthrough)
 					} else {
 						assert.Zero(t, scorer.routeCalls)
-						assert.Equal(t, catalog.ModelIDGLM52.String(), turn.Decision.Model)
+						assert.Equal(t, "moonshotai/kimi-k3", turn.Decision.Model)
 						assert.Equal(t, providers.ProviderAIAND, turn.Decision.Provider)
 						assert.True(t, turn.CallerModelPassthrough)
 						assert.Equal(t, policy.OverrideSourceRequest, turn.Origin)
@@ -84,7 +84,7 @@ func TestTitleNeverEmitsDroppedForceDiagnostic(t *testing.T) {
 		TurnType:         turntype.TitleGen,
 		Decision:         router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDGLM53.String()},
 		ForcedPinDropped: true,
-		ForcedPinModel:   catalog.ModelIDGLM52.String(),
+		ForcedPinModel:   catalog.ModelIDGLM53.String(),
 	}))
 }
 
@@ -108,7 +108,7 @@ func TestAutomaticProbeWithoutConcreteTargetScoresWithoutPinning(t *testing.T) {
 			pins := newStubPinStore()
 			service := NewService(scorer, nil, nil, false, nil, pins, false,
 				providers.ProviderAIAND, catalog.ModelIDGLM53Flash.String(), nil)
-			body := strings.Replace(blindExperimentUtilityTurnBodies()[0].body, catalog.ModelIDGLM52.String(), requestedModel, 1)
+			body := strings.Replace(blindExperimentUtilityTurnBodies()[0].body, "moonshotai/kimi-k3", requestedModel, 1)
 			envelope, err := translate.ParseAnthropic([]byte(body))
 			require.NoError(t, err)
 			features := envelope.RoutingFeatures(false)

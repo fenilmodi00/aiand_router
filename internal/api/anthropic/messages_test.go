@@ -164,7 +164,7 @@ func TestMessagesHandler_BodyOverLegacyTenMegabyteCapIsAccepted(t *testing.T) {
 
 	padding := bytes.Repeat([]byte("a"), 12*1024*1024)
 	body, err := json.Marshal(map[string]any{
-		"model":    "z-ai/glm-5.2",
+		"model":    "z-ai/glm-5.3",
 		"messages": []map[string]string{{"role": "user", "content": string(padding)}},
 	})
 	require.NoError(t, err)
@@ -351,7 +351,7 @@ func TestMessagesHandler_HappyPathServesUpstreamResponse(t *testing.T) {
 func TestMessagesHandler_AgentShadowDoesNotUpsertRouterUser(t *testing.T) {
 	users := &countingUserRepository{}
 	authSvc := auth.NewService(nil, nil, nil, users, nil, nil, nil)
-	provider := &fakeProviderClient{proxyBody: `{"id":"chatcmpl_eval","object":"chat.completion","model":"z-ai/glm-5.2","choices":[{"index":0,"message":{"role":"assistant","content":"done"},"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":3}}`}
+	provider := &fakeProviderClient{proxyBody: `{"id":"chatcmpl_eval","object":"chat.completion","model":"z-ai/glm-5.3","choices":[{"index":0,"message":{"role":"assistant","content":"done"},"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":3}}`}
 	svc := newTestService(&fakeRouter{}, providers.ProviderAIAND, provider)
 
 	gin.SetMode(gin.TestMode)
@@ -359,7 +359,7 @@ func TestMessagesHandler_AgentShadowDoesNotUpsertRouterUser(t *testing.T) {
 	engine.Use(func(c *gin.Context) {
 		c.Set("router_installation", &auth.Installation{ID: uuid.NewString()})
 		ctx := context.WithValue(c.Request.Context(), proxy.AgentShadowEvalContextKey{}, proxy.AgentShadowEvaluation{
-			Model: "z-ai/glm-5.2", RolloutID: "pilot-1", StateID: "state-1",
+			Model: "z-ai/glm-5.3", RolloutID: "pilot-1", StateID: "state-1",
 		})
 		c.Request = c.Request.WithContext(ctx)
 		c.Next()

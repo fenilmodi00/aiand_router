@@ -23,7 +23,7 @@ import (
 // ccTaskToolTurnBody is a Claude Code turn carrying the task-list tools plus
 // one of their system reminders, as it arrives on /v1/messages.
 const ccTaskToolTurnBody = `{
-	"model":"z-ai/glm-5.2",
+	"model":"z-ai/glm-5.3",
 	"system":"You are Claude Code.",
 	"messages":[{"role":"user","content":[
 		{"type":"text","text":"fix the bug"},

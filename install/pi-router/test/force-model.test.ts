@@ -178,11 +178,11 @@ test("historical pin stays separate from route and savings detail", () => {
 	} as unknown as ExtensionCommandContext;
 	updateRouterStatus(ctx, {
 		requestedModel: "claude-sonnet-4-6",
-		routedModel: "moonshotai/kimi-k2.7",
+		routedModel: "moonshotai/kimi-k3",
 		lastPinModel: "claude-haiku-4-5",
 		savings: aggregateSavings([]),
 	});
-	assert.equal(status, "AIAND ROUTER — moonshotai/kimi-k2.7 ← claude-sonnet-4-6 · saved — · last pin: claude-haiku-4-5");
+	assert.equal(status, "AIAND ROUTER — moonshotai/kimi-k3 ← claude-sonnet-4-6 · saved — · last pin: claude-haiku-4-5");
 });
 
 function commandEntry(outcome: RouterCommandOutcome): SessionEntry {

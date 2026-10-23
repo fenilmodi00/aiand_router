@@ -205,7 +205,7 @@ func TestAnthropicSSETranslator_TextOnlyTurnNudge_SuppressedOnGemini3x(t *testin
 func TestAnthropicSSETranslator_TextOnlyTurnNudge_NoToolsInRequest(t *testing.T) {
 	// No tools in the request means nothing else to do — nudge must not
 	// fire (would inject a Bash call the client never declared).
-	body, summary := driveAnthropicSSEWithTools(t, "z-ai/glm-5.2", false, []string{
+	body, summary := driveAnthropicSSEWithTools(t, "z-ai/glm-5.3", false, []string{
 		`data: {"id":"c1","choices":[{"index":0,"delta":{"content":"Here is the explanation you asked for."},"finish_reason":null}]}` + "\n\n",
 		`data: {"id":"c1","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}` + "\n\n",
 		"data: [DONE]\n\n",
@@ -220,7 +220,7 @@ func TestAnthropicSSETranslator_TextOnlyTurnNudge_NoToolsInRequest(t *testing.T)
 
 func TestAnthropicSSETranslator_TextOnlyTurnNudge_SkippedWhenToolUseAlreadyEmitted(t *testing.T) {
 	// Normal happy path: model emitted a real tool_use. Nudge must skip.
-	_, summary := driveAnthropicSSEWithTools(t, "z-ai/glm-5.2", true, []string{
+	_, summary := driveAnthropicSSEWithTools(t, "z-ai/glm-5.3", true, []string{
 		`data: {"id":"c1","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_a","type":"function","function":{"name":"Read","arguments":"{\"path\":\"a.go\"}"}}]},"finish_reason":null}]}` + "\n\n",
 		`data: {"id":"c1","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}` + "\n\n",
 		"data: [DONE]\n\n",

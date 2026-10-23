@@ -112,7 +112,7 @@ func escalationTestContext(active, shadow bool) context.Context {
 }
 func escalationTestEnvelope(t *testing.T, turn int) *translate.RequestEnvelope {
 	t.Helper()
-	env, err := translate.ParseAnthropic([]byte(fmt.Sprintf(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"start"},{"role":"assistant","content":"working"},{"role":"user","content":"turn %d"}]}`, turn)))
+	env, err := translate.ParseAnthropic([]byte(fmt.Sprintf(`{"model":"z-ai/glm-5.3","messages":[{"role":"user","content":"start"},{"role":"assistant","content":"working"},{"role":"user","content":"turn %d"}]}`, turn)))
 	require.NoError(t, err)
 	return env
 }
@@ -157,7 +157,7 @@ func TestEscalationCadenceReplayFloorAndGates(t *testing.T) {
 	require.Nil(t, shadow.constraint())
 	require.Empty(t, shadow.session.Floor)
 	forced := req
-	forced.ForceModel = "z-ai/glm-5.2"
+	forced.ForceModel = "z-ai/glm-5.3"
 	require.Nil(t, svc.beginEscalation(ctx, escalationTestEnvelope(t, 7), forced, &res, "test-key"))
 }
 func TestEscalationShadowCheckpointsDoNotChangeRoutingOrEstablishFloor(t *testing.T) {
@@ -187,7 +187,7 @@ func TestEscalationShadowCheckpointsDoNotChangeRoutingOrEstablishFloor(t *testin
 			}
 			ctx := flags.WithOverrides(router.WithStrategy(context.Background(), tc.strategy), overrides)
 			installation := uuid.New()
-			svc := NewService(escalationDispatchRouter{}, nil, nil, false, nil, newStubPinStore(), false, providers.ProviderAIAND, "z-ai/glm-5.2", nil).
+			svc := NewService(escalationDispatchRouter{}, nil, nil, false, nil, newStubPinStore(), false, providers.ProviderAIAND, "z-ai/glm-5.3", nil).
 				WithEscalation(store, observer).
 				WithPolicyStrategy(policy.StrategySpec{Strategy: tc.strategy, Router: escalationDispatchRouter{}, Capabilities: policy.Capabilities{SchemaVersion: policy.SchemaVersionV1, AuthoritativePerTurnSelection: router.IsHMMStrategy(tc.strategy)}})
 			for ordinal := 1; ordinal <= 11; ordinal++ {
@@ -328,7 +328,7 @@ func (escalationDispatchRouter) Route(_ context.Context, req router.Request) (ro
 		}
 		intervention = &escalation.Decision{Baseline: escalation.Low, Effective: group, Outcome: outcome, Constrained: true}
 	}
-	models := map[escalation.Group]string{escalation.Low: "z-ai/glm-5.3-flash", escalation.Medium: "deepseek/deepseek-v4.1-flash", escalation.High: "z-ai/glm-5.2", escalation.Maximum: "z-ai/glm-5.2"}
+	models := map[escalation.Group]string{escalation.Low: "z-ai/glm-5.3-flash", escalation.Medium: "deepseek/deepseek-v4.1-flash", escalation.High: "z-ai/glm-5.3", escalation.Maximum: "z-ai/glm-5.3"}
 	return router.Decision{Model: models[group], Provider: providers.ProviderAIAND, Metadata: &router.RoutingMetadata{Strategy: string(router.StrategyHMMEmbedding), Escalation: intervention}}, nil
 }
 func TestEscalationLiveModelThroughTurnLoop(t *testing.T) {
@@ -349,7 +349,7 @@ func TestEscalationLiveModelThroughTurnLoop(t *testing.T) {
 	var last turnLoopResult
 	for n, body := range observations[:11] {
 		// Recreate the service each turn: all continuity must come from the store.
-		svc := NewService(nil, nil, nil, false, nil, newStubPinStore(), false, providers.ProviderAIAND, "z-ai/glm-5.2", nil).WithEscalation(store, client).WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyHMMEmbedding, Router: escalationDispatchRouter{}, Capabilities: policy.Capabilities{SchemaVersion: policy.SchemaVersionV1, AuthoritativePerTurnSelection: true}})
+		svc := NewService(nil, nil, nil, false, nil, newStubPinStore(), false, providers.ProviderAIAND, "z-ai/glm-5.3", nil).WithEscalation(store, client).WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyHMMEmbedding, Router: escalationDispatchRouter{}, Capabilities: policy.Capabilities{SchemaVersion: policy.SchemaVersionV1, AuthoritativePerTurnSelection: true}})
 		env, parseErr := translate.ParseAnthropic(body)
 		require.NoError(t, parseErr)
 		features := env.RoutingFeatures(false)
@@ -359,7 +359,7 @@ func TestEscalationLiveModelThroughTurnLoop(t *testing.T) {
 		if n < 9 {
 			require.Equal(t, "z-ai/glm-5.3-flash", last.Decision.Model)
 		} else {
-			require.Equal(t, "z-ai/glm-5.2", last.Decision.Model)
+			require.Equal(t, "z-ai/glm-5.3", last.Decision.Model)
 		}
 	}
 	require.Equal(t, escalation.Maximum, store.sessions[last.EscalationScope].Floor)
@@ -377,7 +377,7 @@ func TestEscalationOrdinaryHigherClassificationDoesNotRaiseFloor(t *testing.T) {
 }
 func TestEscalationCommitFailureDoesNotDispatchUncommittedPromotion(t *testing.T) {
 	store := newEscalationTestStore()
-	svc := NewService(nil, nil, nil, false, nil, newStubPinStore(), false, providers.ProviderAIAND, "z-ai/glm-5.2", nil).WithEscalation(store, &escalationTestObserver{}).WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyHMMEmbedding, Router: escalationDispatchRouter{}, Capabilities: policy.Capabilities{SchemaVersion: policy.SchemaVersionV1, AuthoritativePerTurnSelection: true}})
+	svc := NewService(nil, nil, nil, false, nil, newStubPinStore(), false, providers.ProviderAIAND, "z-ai/glm-5.3", nil).WithEscalation(store, &escalationTestObserver{}).WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyHMMEmbedding, Router: escalationDispatchRouter{}, Capabilities: policy.Capabilities{SchemaVersion: policy.SchemaVersionV1, AuthoritativePerTurnSelection: true}})
 	ctx := escalationTestContext(true, false)
 	installation := uuid.New()
 	for n := 1; n <= 5; n++ {
@@ -410,7 +410,7 @@ func TestEscalationCommitFailurePreservesOrdinaryStickySelection(t *testing.T) {
 	store := newEscalationTestStore()
 	observer := &escalationTestObserver{}
 	pins := &rolePinStore{byRole: map[string]sessionpin.Pin{
-		roleForTier(catalog.TierFor("z-ai/glm-5.2")): {Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.2", Strategy: router.StrategyHMMEmbedding, PinnedUntil: time.Now().Add(time.Hour)},
+		roleForTier(catalog.TierFor("z-ai/glm-5.3")): {Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3", Strategy: router.StrategyHMMEmbedding, PinnedUntil: time.Now().Add(time.Hour)},
 	}}
 	svc := NewService(nil, nil, nil, false, nil, pins, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).WithEscalation(store, observer).WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyHMMEmbedding, Router: escalationDispatchRouter{}, Capabilities: policy.Capabilities{SchemaVersion: policy.SchemaVersionV1}})
 	ctx := flags.WithOverrides(router.WithStrategy(context.Background(), router.StrategyHMMEmbedding), flags.Overrides{Bools: map[flags.Key]bool{flags.KeyEscalationXGBoostEnabled: true, flags.KeyPlannerEnabled: false}})
@@ -421,7 +421,7 @@ func TestEscalationCommitFailurePreservesOrdinaryStickySelection(t *testing.T) {
 		feats := env.RoutingFeatures(false)
 		res, err := svc.runTurnLoop(ctx, env, feats, "test-key", installation, "", http.Header{}, router.Request{RequestedModel: feats.Model})
 		require.NoError(t, err)
-		require.Equal(t, "z-ai/glm-5.2", res.Decision.Model)
+		require.Equal(t, "z-ai/glm-5.3", res.Decision.Model)
 		require.True(t, res.StickyHit)
 		if n == 5 {
 			require.Zero(t, res.EscalationOrdinal)
@@ -437,13 +437,13 @@ func TestEscalationCommitFailureDoesNotRepeatUnconstrainedSelection(t *testing.T
 			store := newEscalationTestStore()
 			store.failCommit = true
 			pins := newStubPinStore()
-			classifier := &authoritativeTestRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.2", Metadata: &router.RoutingMetadata{Strategy: string(router.StrategyHMMEmbedding), Escalation: &escalation.Decision{Baseline: escalation.Maximum, Effective: escalation.Maximum, Outcome: outcome}}}}
-			svc := NewService(nil, nil, nil, false, nil, pins, false, providers.ProviderAIAND, "z-ai/glm-5.2", nil).WithEscalation(store, &escalationTestObserver{}).WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyHMMEmbedding, Router: classifier, Capabilities: policy.Capabilities{SchemaVersion: policy.SchemaVersionV1, AuthoritativePerTurnSelection: true}})
+			classifier := &authoritativeTestRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3", Metadata: &router.RoutingMetadata{Strategy: string(router.StrategyHMMEmbedding), Escalation: &escalation.Decision{Baseline: escalation.Maximum, Effective: escalation.Maximum, Outcome: outcome}}}}
+			svc := NewService(nil, nil, nil, false, nil, pins, false, providers.ProviderAIAND, "z-ai/glm-5.3", nil).WithEscalation(store, &escalationTestObserver{}).WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyHMMEmbedding, Router: classifier, Capabilities: policy.Capabilities{SchemaVersion: policy.SchemaVersionV1, AuthoritativePerTurnSelection: true}})
 			env := escalationTestEnvelope(t, 1)
 			feats := env.RoutingFeatures(false)
 			res, err := svc.runTurnLoop(escalationTestContext(true, false), env, feats, "test-key", uuid.New(), "", http.Header{}, router.Request{RequestedModel: feats.Model})
 			require.NoError(t, err)
-			require.Equal(t, "z-ai/glm-5.2", res.Decision.Model)
+			require.Equal(t, "z-ai/glm-5.3", res.Decision.Model)
 			require.Zero(t, res.EscalationOrdinal)
 			require.Len(t, classifier.requests, 1, "failed observational commits cannot repeat ordinary routing and its side effects")
 		})

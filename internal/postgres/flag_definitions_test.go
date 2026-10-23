@@ -87,7 +87,7 @@ func TestInstallationFlagOverridesRoundTrip(t *testing.T) {
 	want := flags.Overrides{
 		Bools:   map[flags.Key]bool{flags.KeyStruggleShadowEnabled: false, flags.KeySubscriptionPlanAwareRouting: true},
 		Ints:    map[flags.Key]int{flags.KeyLoopEscalationHoldoutPct: 42},
-		Strings: map[flags.Key]string{flags.KeyCyberRefusalFallback: "z-ai/glm-5.2"},
+		Strings: map[flags.Key]string{flags.KeyCyberRefusalFallback: "z-ai/glm-5.3"},
 	}
 	require.NoError(t, repo.Installations.UpdateFlagOverrides(ctx, externalID, created.ID, want))
 

@@ -34,7 +34,7 @@ func TestGLM53FlashFlags_OpenRouter_ToolStreamSet(t *testing.T) {
 
 func TestGLM53FlashFlags_AnthropicCrossFormat_ToolStreamSet(t *testing.T) {
 	body := []byte(`{
-		"model": "z-ai/glm-5.2",
+		"model": "z-ai/glm-5.3",
 		"max_tokens": 256,
 		"messages": [{"role":"user","content":"hi"}]
 	}`)

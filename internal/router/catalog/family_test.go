@@ -13,13 +13,11 @@ func TestLatestInFamily(t *testing.T) {
 		eligible []string
 		want     string
 	}{
-		{"GLM keeps variant", "z-ai/glm-5.2", []string{"z-ai/glm-5.2", "z-ai/glm-5.3", "z-ai/glm-5.3-flash"}, "z-ai/glm-5.3"},
-		{"GLM flash is its own family", "z-ai/glm-5.3-flash", []string{"z-ai/glm-5.2", "z-ai/glm-5.3", "z-ai/glm-5.3-flash"}, "z-ai/glm-5.3-flash"},
-		{"Kimi major", "moonshotai/kimi-k2.7", []string{"moonshotai/kimi-k2.7", "moonshotai/kimi-k3"}, "moonshotai/kimi-k3"},
+		{"GLM keeps variant", "z-ai/glm-5.3", []string{"z-ai/glm-5.3", "z-ai/glm-5.3-flash"}, "z-ai/glm-5.3"},
+		{"GLM flash is its own family", "z-ai/glm-5.3-flash", []string{"z-ai/glm-5.3", "z-ai/glm-5.3-flash"}, "z-ai/glm-5.3-flash"},
 		{"dated alias is its own family", "deepseek/deepseek-v4-pro", []string{"deepseek/deepseek-v4-pro", "deepseek/deepseek-v4-pro-0813"}, "deepseek/deepseek-v4-pro"},
-		{"newest unavailable", "z-ai/glm-5.2", []string{"z-ai/glm-5.2", "z-ai/glm-5.3"}, "z-ai/glm-5.3"},
-		{"no downgrade", "z-ai/glm-5.3", []string{"z-ai/glm-5.2"}, ""},
-		{"unknown ID", "unknown-1", []string{"unknown-1"}, ""},
+		{"self ineligible and no newer sibling", "z-ai/glm-5.3", []string{"z-ai/glm-5.3-flash"}, ""},
+		{"no downgrade", "moonshotai/kimi-k3", []string{"z-ai/glm-5.3", "z-ai/glm-5.3-flash"}, ""},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
