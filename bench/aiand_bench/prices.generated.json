@@ -1,0 +1,71 @@
+{
+  "pricing_version": "catalog-sha256:b082e32330471fe4",
+  "models": {
+    "deepseek/deepseek-v4-pro": {
+      "input_usd_per_million": 1,
+      "output_usd_per_million": 2.5,
+      "cache_read_multiplier": 0.25,
+      "cache_write_multiplier": 1.25
+    },
+    "deepseek/deepseek-v4-pro-0813": {
+      "input_usd_per_million": 1,
+      "output_usd_per_million": 2.5,
+      "cache_read_multiplier": 0.25,
+      "cache_write_multiplier": 1.25
+    },
+    "deepseek/deepseek-v4.1-flash": {
+      "input_usd_per_million": 0.3,
+      "output_usd_per_million": 0.6,
+      "cache_read_multiplier": 0.06666666666666667,
+      "cache_write_multiplier": 1.25
+    },
+    "google/gemma-4-31b": {
+      "input_usd_per_million": 0.2,
+      "output_usd_per_million": 0.5,
+      "cache_read_multiplier": 0.5,
+      "cache_write_multiplier": 1.25
+    },
+    "moonshotai/kimi-k3": {
+      "input_usd_per_million": 3,
+      "output_usd_per_million": 12.5,
+      "cache_read_multiplier": 0.16666666666666666,
+      "cache_write_multiplier": 1.25
+    },
+    "motif/motif-3": {
+      "input_usd_per_million": 0.5,
+      "output_usd_per_million": 2,
+      "cache_read_multiplier": 0.4,
+      "cache_write_multiplier": 1.25
+    },
+    "openai/gpt-oss-120b": {
+      "input_usd_per_million": 0.15,
+      "output_usd_per_million": 0.6,
+      "cache_read_multiplier": 0.5,
+      "cache_write_multiplier": 1.25
+    },
+    "qwen/qwen3.6-27b": {
+      "input_usd_per_million": 0.32,
+      "output_usd_per_million": 3.2,
+      "cache_read_multiplier": 0.5,
+      "cache_write_multiplier": 1.25
+    },
+    "qwen/qwen3.8-27b": {
+      "input_usd_per_million": 0.4,
+      "output_usd_per_million": 3,
+      "cache_read_multiplier": 0.5,
+      "cache_write_multiplier": 1.25
+    },
+    "z-ai/glm-5.3": {
+      "input_usd_per_million": 1,
+      "output_usd_per_million": 4,
+      "cache_read_multiplier": 0.3,
+      "cache_write_multiplier": 1.25
+    },
+    "z-ai/glm-5.3-flash": {
+      "input_usd_per_million": 0.15,
+      "output_usd_per_million": 0.5,
+      "cache_read_multiplier": 0.2,
+      "cache_write_multiplier": 1.25
+    }
+  }
+}
