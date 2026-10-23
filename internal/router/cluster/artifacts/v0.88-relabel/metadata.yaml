@@ -131,9 +131,10 @@ cost_per_1k_input_usd:
   motif-technologies/motif-3: 0.0005
 changelog: 'v0.88-relabel = v0.88 with quality_means recomputed from .context/label-runs/v082-expanded-labels.jsonl
   (1843 v4.1-flash + 1736 glm-5.3-flash labels). Recipe: per-prompt z-score across 8 roster columns, per-(cluster,model)
-  shrunk mean shrinkage_k0=10, min-max rescaled into v0.88 cell ranges. centroids.bin/model_axes.json/model_registry.json
-  byte-identical to v0.88. Replay at v0.88 knobs: v0.88 cells 66.33% (n=1772) -> relabel cells 75.23%
-  (n=1839), delta +889.85pt. 11/16 clusters are measured; the rest keep prior fallback.
+  shrunk mean shrinkage_k0=10, min-max rescaled into v0.88 cell ranges, operator offsets as range-relative
+  cell boosts on measured cells only (prior clusters preserved from v0.88). centroids.bin/model_axes.json/model_registry.json
+  byte-identical to v0.88. Replay at v0.88 knobs: v0.88 cells 66.33% (n=1772) -> relabel cells 74.28%
+  (n=1845), delta +794.88pt. 11/16 clusters are measured; the rest keep prior fallback.
 
 
   v0.84 prior clusters rebuilt with AA-style capability priors (ticket #91; scripts/build_v084_aa_priors.py).

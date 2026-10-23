@@ -362,113 +362,15 @@
       "generated_by": "build_v084_knobs.py"
     },
     "operator_override": {
-      "ticket": "owner decision: route glm-5.3/flash and motif-3 on measured accuracy + price",
-      "rationale": "glm-5.3 is the highest measured model on the coding corpus (0.788 acc, n=657) and glm-5.3-flash (0.736) beats every deepseek flash lane, but the v0.84 per-prompt z-score fit pushed their cells negative in most clusters. motif-3 (0.657 acc, $0.50/$2.00) is priced below glm-5.3 and the owner rates it capable for general tasks. Offsets are range-relative (v0.86 kimi-k3 mechanism), applied identically to quality_means and model_features psi_probe (the runtime prefers model_features).",
+      "ticket": "v0.88 operator overrides propagated (glm-5.3, glm-5.3-flash, motif-3, qwen pricing)",
       "offsets": {
         "z-ai/glm-5.3": 0.45,
         "z-ai/glm-5.3-flash": 0.55,
         "motif/motif-3": 0.25,
         "qwen/qwen3.8-27b": 0.1
       },
-      "measured_cells_preserved": {
-        "0": {
-          "z-ai/glm-5.3": -0.438,
-          "z-ai/glm-5.3-flash": -0.3813,
-          "motif/motif-3": 0.1292,
-          "qwen/qwen3.8-27b": 0.4771
-        },
-        "1": {
-          "z-ai/glm-5.3": 0.482,
-          "z-ai/glm-5.3-flash": 0.4608,
-          "motif/motif-3": 0.427,
-          "qwen/qwen3.8-27b": 0.5163
-        },
-        "2": {
-          "z-ai/glm-5.3": 0.5058,
-          "z-ai/glm-5.3-flash": 0.4996,
-          "motif/motif-3": 0.4688,
-          "qwen/qwen3.8-27b": 0.4991
-        },
-        "3": {
-          "z-ai/glm-5.3": 0.502,
-          "z-ai/glm-5.3-flash": 0.4518,
-          "motif/motif-3": 0.4507,
-          "qwen/qwen3.8-27b": 0.4977
-        },
-        "4": {
-          "z-ai/glm-5.3": -0.103,
-          "z-ai/glm-5.3-flash": -0.5847,
-          "motif/motif-3": -0.0721,
-          "qwen/qwen3.8-27b": 0.3662
-        },
-        "5": {
-          "z-ai/glm-5.3": 0.5159,
-          "z-ai/glm-5.3-flash": 0.5059,
-          "motif/motif-3": 0.3608,
-          "qwen/qwen3.8-27b": 0.5765
-        },
-        "6": {
-          "z-ai/glm-5.3": 0.0443,
-          "z-ai/glm-5.3-flash": -0.0105,
-          "motif/motif-3": -0.0733,
-          "qwen/qwen3.8-27b": 0.0989
-        },
-        "7": {
-          "z-ai/glm-5.3": 0.0751,
-          "z-ai/glm-5.3-flash": -0.2147,
-          "motif/motif-3": 0.0444,
-          "qwen/qwen3.8-27b": 0.0008
-        },
-        "8": {
-          "z-ai/glm-5.3": -0.533,
-          "z-ai/glm-5.3-flash": -0.8772,
-          "motif/motif-3": 0.1218,
-          "qwen/qwen3.8-27b": 0.3533
-        },
-        "9": {
-          "z-ai/glm-5.3": -0.7075,
-          "z-ai/glm-5.3-flash": -0.4359,
-          "motif/motif-3": 0.3465,
-          "qwen/qwen3.8-27b": 0.2472
-        },
-        "10": {
-          "z-ai/glm-5.3": -0.4199,
-          "z-ai/glm-5.3-flash": -0.3859,
-          "motif/motif-3": 0.1383,
-          "qwen/qwen3.8-27b": 0.2323
-        },
-        "11": {
-          "z-ai/glm-5.3": -0.4982,
-          "z-ai/glm-5.3-flash": -0.6644,
-          "motif/motif-3": 0.2079,
-          "qwen/qwen3.8-27b": 0.3136
-        },
-        "12": {
-          "z-ai/glm-5.3": -0.332,
-          "z-ai/glm-5.3-flash": -0.4092,
-          "motif/motif-3": 0.0686,
-          "qwen/qwen3.8-27b": 0.27
-        },
-        "13": {
-          "z-ai/glm-5.3": 0.3719,
-          "z-ai/glm-5.3-flash": 0.3968,
-          "motif/motif-3": 0.3266,
-          "qwen/qwen3.8-27b": 0.4928
-        },
-        "14": {
-          "z-ai/glm-5.3": -0.268,
-          "z-ai/glm-5.3-flash": -0.4819,
-          "motif/motif-3": -0.0533,
-          "qwen/qwen3.8-27b": 0.4429
-        },
-        "15": {
-          "z-ai/glm-5.3": -0.3207,
-          "z-ai/glm-5.3-flash": -0.391,
-          "motif/motif-3": 0.1135,
-          "qwen/qwen3.8-27b": 0.1293
-        }
-      },
-      "reversal": "Restore the preserved measured cells, or rebuild from labels via the measured-cells builder."
+      "rationale": "Owner decision: route glm-5.3/flash and motif-3 on measured accuracy + price. Offsets applied as range-relative cell boosts on measured cells only (prior clusters keep v0.88 cells).",
+      "reversal": "Rebuild from fresh label campaign without operator offsets."
     },
     "v088_relabel_provenance": {
       "0": {
@@ -479,17 +381,20 @@
       "1": {
         "cell": "prior_fallback",
         "n": 12,
-        "n_all": 34
+        "n_all": 34,
+        "source": "v0.88_preserved"
       },
       "2": {
         "cell": "prior_fallback",
         "n": 1,
-        "n_all": 1
+        "n_all": 1,
+        "source": "v0.88_preserved"
       },
       "3": {
         "cell": "prior_fallback",
         "n": 12,
-        "n_all": 43
+        "n_all": 43,
+        "source": "v0.88_preserved"
       },
       "4": {
         "cell": "measured",
@@ -499,7 +404,8 @@
       "5": {
         "cell": "prior_fallback",
         "n": 17,
-        "n_all": 42
+        "n_all": 42,
+        "source": "v0.88_preserved"
       },
       "6": {
         "cell": "measured",
@@ -539,7 +445,8 @@
       "13": {
         "cell": "prior_fallback",
         "n": 8,
-        "n_all": 10
+        "n_all": 10,
+        "source": "v0.88_preserved"
       },
       "14": {
         "cell": "measured",
@@ -553,18 +460,24 @@
       }
     },
     "v088_relabel_source": "v082-expanded-labels.jsonl (normalized to v0.88 roster names)",
-    "v088_relabel_recipe": "per-prompt z-score across 8 roster columns, per-(cluster,model) shrunk mean shrinkage_k0=10, min-max rescaled into v0.88 cell ranges (scripts/build_v088_measured_cells.py)"
+    "v088_relabel_recipe": "per-prompt z-score across 8 roster columns, per-(cluster,model) shrunk mean shrinkage_k0=10, min-max rescaled into v0.88 cell ranges, operator offsets as range-relative cell boosts on measured cells only (scripts/build_v088_measured_cells.py)",
+    "v088_relabel_operator_offsets": {
+      "z-ai/glm-5.3": 0.45,
+      "z-ai/glm-5.3-flash": 0.55,
+      "motif/motif-3": 0.25,
+      "qwen/qwen3.8-27b": 0.1
+    }
   },
   "quality_means": {
     "0": {
       "deepseek/deepseek-v4-pro": 0.12648018596298605,
       "deepseek/deepseek-v4-flash": 0.301674766375573,
       "deepseek/deepseek-v4.1-flash": 0.40320846630329066,
-      "z-ai/glm-5.3": -0.42834481589276563,
-      "z-ai/glm-5.3-flash": -0.3701643693256284,
-      "qwen/qwen3.8-27b": 0.479772339523979,
+      "z-ai/glm-5.3": 0.07871134584717077,
+      "z-ai/glm-5.3-flash": 0.24957093946762715,
+      "qwen/qwen3.8-27b": 0.5924514865772982,
       "moonshotai/kimi-k3": -0.6470191310092128,
-      "motif/motif-3": 0.10100605763870085
+      "motif/motif-3": 0.3827039252719988
     },
     "1": {
       "deepseek/deepseek-v4-pro": 0.4940820164294552,
@@ -600,11 +513,11 @@
       "deepseek/deepseek-v4-pro": 0.0813247550220817,
       "deepseek/deepseek-v4-flash": 0.44994845639366343,
       "deepseek/deepseek-v4.1-flash": 0.21298315212945773,
-      "z-ai/glm-5.3": -0.058618506968363626,
-      "z-ai/glm-5.3-flash": -0.5128411627625357,
-      "qwen/qwen3.8-27b": 0.37001529079224027,
+      "z-ai/glm-5.3": 0.37463682165192597,
+      "z-ai/glm-5.3-flash": 0.01669312777337384,
+      "qwen/qwen3.8-27b": 0.4662942527078602,
       "moonshotai/kimi-k3": -0.3265382354930011,
-      "motif/motif-3": -0.1364996962551065
+      "motif/motif-3": 0.10419770853394328
     },
     "5": {
       "deepseek/deepseek-v4-pro": 0.5831464985778391,
@@ -620,71 +533,71 @@
       "deepseek/deepseek-v4-pro": -0.12422684948369257,
       "deepseek/deepseek-v4-flash": -0.07844529201287621,
       "deepseek/deepseek-v4.1-flash": 0.20030080304865477,
-      "z-ai/glm-5.3": 0.05901038645139729,
-      "z-ai/glm-5.3-flash": 0.005949413886361429,
-      "qwen/qwen3.8-27b": 0.10278711234602349,
+      "z-ai/glm-5.3": 0.20504783009095362,
+      "z-ai/glm-5.3-flash": 0.1844396227791525,
+      "qwen/qwen3.8-27b": 0.1352398775992582,
       "moonshotai/kimi-k3": -0.04009990308925107,
-      "motif/motif-3": -0.11743212132977496
+      "motif/motif-3": -0.036300208196688125
     },
     "7": {
       "deepseek/deepseek-v4-pro": -0.14609588060774878,
       "deepseek/deepseek-v4-flash": -0.13076908825347022,
       "deepseek/deepseek-v4.1-flash": 0.2235553540055711,
-      "z-ai/glm-5.3": 0.0780972663603616,
-      "z-ai/glm-5.3-flash": -0.21136881795450882,
-      "qwen/qwen3.8-27b": 0.001542400264492344,
+      "z-ai/glm-5.3": 0.27381314374239757,
+      "z-ai/glm-5.3-flash": 0.02783947662353517,
+      "qwen/qwen3.8-27b": 0.04503481746050034,
       "moonshotai/kimi-k3": 0.14938498432376537,
-      "motif/motif-3": 0.03516113865640799
+      "motif/motif-3": 0.14389218164642797
     },
     "8": {
       "deepseek/deepseek-v4-pro": 0.28759237218652256,
       "deepseek/deepseek-v4-flash": 0.5134112182224411,
       "deepseek/deepseek-v4.1-flash": 0.49450574179860807,
-      "z-ai/glm-5.3": -0.5187998440086125,
-      "z-ai/glm-5.3-flash": -0.8613052534740042,
-      "qwen/qwen3.8-27b": 0.3569950094936152,
+      "z-ai/glm-5.3": 0.09982256825478797,
+      "z-ai/glm-5.3-flash": -0.10521119404095924,
+      "qwen/qwen3.8-27b": 0.49446665666325973,
       "moonshotai/kimi-k3": -0.33662947512613584,
-      "motif/motif-3": 0.07762571169625543
+      "motif/motif-3": 0.42130482962036675
     },
     "9": {
       "deepseek/deepseek-v4-pro": 0.4127709714939669,
       "deepseek/deepseek-v4-flash": 0.2953042316939465,
       "deepseek/deepseek-v4.1-flash": 0.4436348958517311,
-      "z-ai/glm-5.3": -0.5936644299084469,
-      "z-ai/glm-5.3-flash": -0.3705558394592879,
-      "qwen/qwen3.8-27b": 0.3079786705810791,
+      "z-ai/glm-5.3": -0.10616919856751345,
+      "z-ai/glm-5.3-flash": 0.22527166551296413,
+      "qwen/qwen3.8-27b": 0.4163109442123976,
       "moonshotai/kimi-k3": -0.6396878404614543,
-      "motif/motif-3": 0.14003019252297622
+      "motif/motif-3": 0.4108608766012726
     },
     "10": {
       "deepseek/deepseek-v4-pro": 0.4260725149180203,
       "deepseek/deepseek-v4-flash": 0.49692200054401553,
       "deepseek/deepseek-v4.1-flash": 0.07705871711258433,
-      "z-ai/glm-5.3": -0.35913463394299083,
-      "z-ai/glm-5.3-flash": -0.3108973718129325,
-      "qwen/qwen3.8-27b": 0.22767567998350086,
+      "z-ai/glm-5.3": 0.08773442652733338,
+      "z-ai/glm-5.3-flash": 0.23527592431746386,
+      "qwen/qwen3.8-27b": 0.3269799156435729,
       "moonshotai/kimi-k3": -0.49612035605670496,
-      "motif/motif-3": -0.11513692472781217
+      "motif/motif-3": 0.13312366442236795
     },
     "11": {
       "deepseek/deepseek-v4-pro": 0.14349028117408025,
       "deepseek/deepseek-v4-flash": 0.2313103736272809,
       "deepseek/deepseek-v4.1-flash": 0.463471456176096,
-      "z-ai/glm-5.3": -0.49180123109430124,
-      "z-ai/glm-5.3-flash": -0.6572364174453031,
-      "qwen/qwen3.8-27b": 0.3152778010597027,
+      "z-ai/glm-5.3": 0.01251731203532841,
+      "z-ai/glm-5.3-flash": -0.04084708695353356,
+      "qwen/qwen3.8-27b": 0.42734858842184265,
       "moonshotai/kimi-k3": -0.1681450051635094,
-      "motif/motif-3": 0.18810349623806177
+      "motif/motif-3": 0.46828046464341155
     },
     "12": {
       "deepseek/deepseek-v4-pro": 0.20257647516075467,
       "deepseek/deepseek-v4-flash": 0.5342771496731871,
       "deepseek/deepseek-v4.1-flash": 0.01900524329730674,
-      "z-ai/glm-5.3": -0.2038329954348864,
-      "z-ai/glm-5.3-flash": -0.29042837492533113,
-      "qwen/qwen3.8-27b": 0.324240091249329,
+      "z-ai/glm-5.3": 0.21734874242379862,
+      "z-ai/glm-5.3-flash": 0.22434930467972836,
+      "qwen/qwen3.8-27b": 0.4178360329957035,
       "moonshotai/kimi-k3": -0.4016822677905573,
-      "motif/motif-3": -0.14388329100739444
+      "motif/motif-3": 0.09010656335854167
     },
     "13": {
       "deepseek/deepseek-v4-pro": 0.6141194707559223,
@@ -700,21 +613,21 @@
       "deepseek/deepseek-v4-pro": -0.055340381964035346,
       "deepseek/deepseek-v4-flash": 0.36708503584374924,
       "deepseek/deepseek-v4.1-flash": 0.30966326277922157,
-      "z-ai/glm-5.3": -0.2581503366080572,
-      "z-ai/glm-5.3-flash": -0.47132433684623215,
-      "qwen/qwen3.8-27b": 0.4454816557035867,
+      "z-ai/glm-5.3": 0.15441236003936132,
+      "z-ai/glm-5.3-flash": 0.03291895905616832,
+      "qwen/qwen3.8-27b": 0.5371622549585686,
       "moonshotai/kimi-k3": -0.21413878836682637,
-      "motif/motif-3": -0.08147710381746315
+      "motif/motif-3": 0.14772439431999157
     },
     "15": {
       "deepseek/deepseek-v4-pro": 0.20012103766669076,
       "deepseek/deepseek-v4-flash": 0.20766124173723788,
       "deepseek/deepseek-v4.1-flash": 0.5298144883069159,
-      "z-ai/glm-5.3": -0.3074552373056059,
-      "z-ai/glm-5.3-flash": -0.37655675116083553,
-      "qwen/qwen3.8-27b": 0.13276942472388065,
+      "z-ai/glm-5.3": 0.134265247116222,
+      "z-ai/glm-5.3-flash": 0.1633238409102875,
+      "qwen/qwen3.8-27b": 0.23092953237317576,
       "moonshotai/kimi-k3": -0.451786588186035,
-      "motif/motif-3": 0.07338654656888066
+      "motif/motif-3": 0.3187868156921184
     }
   }
 }

@@ -101,14 +101,14 @@
   },
   "rankings": {
     "0": {
-      "deepseek/deepseek-v4-pro": 0.6879328802460519,
-      "deepseek/deepseek-v4-flash": 0.8482650297826927,
-      "deepseek/deepseek-v4.1-flash": 0.9330782377909781,
-      "z-ai/glm-5.3": 0.21030363763316984,
-      "z-ai/glm-5.3-flash": 0.2754006201927178,
+      "deepseek/deepseek-v4-pro": 0.6280234855611486,
+      "deepseek/deepseek-v4-flash": 0.7747863907115388,
+      "deepseek/deepseek-v4.1-flash": 0.8517355678547435,
+      "z-ai/glm-5.3": 0.5860940552601127,
+      "z-ai/glm-5.3-flash": 0.7339575486551474,
       "qwen/qwen3.8-27b": 0.990475537062582,
       "moonshotai/kimi-k3": 0.0,
-      "motif/motif-3": 0.6712490155890029
+      "motif/motif-3": 0.8314944719956395
     },
     "1": {
       "deepseek/deepseek-v4-pro": 0.42281835225222814,
@@ -141,14 +141,14 @@
       "motif/motif-3": 0.16974518031003358
     },
     "4": {
-      "deepseek/deepseek-v4-pro": 0.6383513280516553,
-      "deepseek/deepseek-v4-flash": 1.0,
-      "deepseek/deepseek-v4.1-flash": 0.7946454149709489,
-      "z-ai/glm-5.3": 0.49741330409109497,
-      "z-ai/glm-5.3-flash": 0.19763416639721773,
-      "qwen/qwen3.8-27b": 0.8859597148562048,
-      "moonshotai/kimi-k3": 0.15480260573047125,
-      "motif/motif-3": 0.48245438200438473
+      "deepseek/deepseek-v4-pro": 0.5561979229823106,
+      "deepseek/deepseek-v4-flash": 0.9835064313761516,
+      "deepseek/deepseek-v4.1-flash": 0.7359432117331232,
+      "z-ai/glm-5.3": 0.8275051080268889,
+      "z-ai/glm-5.3-flash": 0.5439684737061973,
+      "qwen/qwen3.8-27b": 0.9523776853129097,
+      "moonshotai/kimi-k3": 0.0,
+      "motif/motif-3": 0.6043751435744239
     },
     "5": {
       "deepseek/deepseek-v4-pro": 0.4007887511232961,
@@ -162,73 +162,73 @@
     },
     "6": {
       "deepseek/deepseek-v4-pro": 0.14464769356057972,
-      "deepseek/deepseek-v4-flash": 0.31285708842023086,
-      "deepseek/deepseek-v4.1-flash": 0.9915443424619911,
-      "z-ai/glm-5.3": 0.5716931547016033,
-      "z-ai/glm-5.3-flash": 0.5185344344742592,
-      "qwen/qwen3.8-27b": 0.7119946179429286,
-      "moonshotai/kimi-k3": 0.20738312002193685,
-      "motif/motif-3": 0.186495008809139
+      "deepseek/deepseek-v4-flash": 0.31123007096678434,
+      "deepseek/deepseek-v4.1-flash": 0.980011048621284,
+      "z-ai/glm-5.3": 0.9199911576477143,
+      "z-ai/glm-5.3-flash": 0.9475648265052526,
+      "qwen/qwen3.8-27b": 0.7827735054060364,
+      "moonshotai/kimi-k3": 0.20439335694591731,
+      "motif/motif-3": 0.38337020948163514
     },
     "7": {
-      "deepseek/deepseek-v4-pro": 0.17300527396152665,
-      "deepseek/deepseek-v4-flash": 0.21790627769499804,
-      "deepseek/deepseek-v4.1-flash": 0.9983088684923982,
-      "z-ai/glm-5.3": 0.6629313119557599,
-      "z-ai/glm-5.3-flash": 0.03952683327944359,
-      "qwen/qwen3.8-27b": 0.5004304916678682,
-      "moonshotai/kimi-k3": 0.7962851285693336,
-      "motif/motif-3": 0.5781100038920566
+      "deepseek/deepseek-v4-pro": 0.02892953871211597,
+      "deepseek/deepseek-v4-flash": 0.07504025826279506,
+      "deepseek/deepseek-v4.1-flash": 0.8834090322194782,
+      "z-ai/glm-5.3": 0.9839982315295428,
+      "z-ai/glm-5.3-flash": 0.4371794991168798,
+      "qwen/qwen3.8-27b": 0.4674403544524495,
+      "moonshotai/kimi-k3": 0.6755311600488939,
+      "motif/motif-3": 0.6969224984562608
     },
     "8": {
-      "deepseek/deepseek-v4-pro": 0.8312344090924347,
+      "deepseek/deepseek-v4-pro": 0.7338992867597143,
       "deepseek/deepseek-v4-flash": 1.0,
-      "deepseek/deepseek-v4.1-flash": 0.9851066862675188,
-      "z-ai/glm-5.3": 0.26317860061395465,
-      "z-ai/glm-5.3-flash": 0.03952683327944359,
-      "qwen/qwen3.8-27b": 0.8812460606787201,
-      "moonshotai/kimi-k3": 0.3663946403380074,
-      "motif/motif-3": 0.6896287672076767
+      "deepseek/deepseek-v4.1-flash": 0.9769578231731629,
+      "z-ai/glm-5.3": 0.5169087061976887,
+      "z-ai/glm-5.3-flash": 0.3008808503049174,
+      "qwen/qwen3.8-27b": 0.9690803506448933,
+      "moonshotai/kimi-k3": 0.0,
+      "motif/motif-3": 0.8899279771293233
     },
     "9": {
       "deepseek/deepseek-v4-pro": 0.9615790858966515,
       "deepseek/deepseek-v4-flash": 0.8685549256760853,
       "deepseek/deepseek-v4.1-flash": 0.9983088684923982,
-      "z-ai/glm-5.3": 0.0647824527499439,
-      "z-ai/glm-5.3-flash": 0.27802152401340297,
-      "qwen/qwen3.8-27b": 0.8702620753724575,
+      "z-ai/glm-5.3": 0.49678245274994387,
+      "z-ai/glm-5.3-flash": 0.806021524013403,
+      "qwen/qwen3.8-27b": 0.9662620753724573,
       "moonshotai/kimi-k3": 0.0,
-      "motif/motif-3": 0.724905928753545
+      "motif/motif-3": 0.9649059287535451
     },
     "10": {
       "deepseek/deepseek-v4-pro": 0.9204374892553546,
       "deepseek/deepseek-v4-flash": 1.0,
       "deepseek/deepseek-v4.1-flash": 0.5924160589712444,
-      "z-ai/glm-5.3": 0.1564259093169479,
-      "z-ai/glm-5.3-flash": 0.2185867330834119,
-      "qwen/qwen3.8-27b": 0.7301880820310727,
+      "z-ai/glm-5.3": 0.5884259093169478,
+      "z-ai/glm-5.3-flash": 0.746586733083412,
+      "qwen/qwen3.8-27b": 0.8261880820310726,
       "moonshotai/kimi-k3": 0.0,
-      "motif/motif-3": 0.4022556764028219
+      "motif/motif-3": 0.6422556764028219
     },
     "11": {
-      "deepseek/deepseek-v4-pro": 0.7148331972548878,
-      "deepseek/deepseek-v4-flash": 0.8011304778945859,
-      "deepseek/deepseek-v4.1-flash": 0.9983088684923982,
-      "z-ai/glm-5.3": 0.16571025357839853,
-      "z-ai/glm-5.3-flash": 0.03952683327944359,
-      "qwen/qwen3.8-27b": 0.8635326358299649,
-      "moonshotai/kimi-k3": 0.41895641749469786,
-      "motif/motif-3": 0.7580684397329249
+      "deepseek/deepseek-v4-pro": 0.4990079517819894,
+      "deepseek/deepseek-v4-flash": 0.6425484237070181,
+      "deepseek/deepseek-v4.1-flash": 0.9910548405698143,
+      "z-ai/glm-5.3": 0.29651376200242185,
+      "z-ai/glm-5.3-flash": 0.23154617769482613,
+      "qwen/qwen3.8-27b": 0.9287328774159979,
+      "moonshotai/kimi-k3": 0.0,
+      "motif/motif-3": 0.9939490360620067
     },
     "12": {
       "deepseek/deepseek-v4-pro": 0.6487089676163932,
       "deepseek/deepseek-v4-flash": 1.0,
       "deepseek/deepseek-v4.1-flash": 0.4698019472614822,
-      "z-ai/glm-5.3": 0.2269293607190213,
-      "z-ai/glm-5.3-flash": 0.15363833764363183,
-      "qwen/qwen3.8-27b": 0.775043572465982,
+      "z-ai/glm-5.3": 0.6589293607190212,
+      "z-ai/glm-5.3-flash": 0.6816383376436318,
+      "qwen/qwen3.8-27b": 0.871043572465982,
       "moonshotai/kimi-k3": 0.0,
-      "motif/motif-3": 0.2983697076147059
+      "motif/motif-3": 0.5383697076147058
     },
     "13": {
       "deepseek/deepseek-v4-pro": 0.988929538712116,
@@ -241,24 +241,24 @@
       "motif/motif-3": 0.033949036062006756
     },
     "14": {
-      "deepseek/deepseek-v4-pro": 0.4645119846516899,
-      "deepseek/deepseek-v4-flash": 0.9179098351482968,
-      "deepseek/deepseek-v4.1-flash": 0.8560915855918336,
-      "z-ai/glm-5.3": 0.24721562091361973,
-      "z-ai/glm-5.3-flash": 0.03952683327944359,
+      "deepseek/deepseek-v4-pro": 0.23183950602950926,
+      "deepseek/deepseek-v4-flash": 0.7826781530509453,
+      "deepseek/deepseek-v4.1-flash": 0.7076144332424491,
+      "z-ai/glm-5.3": 0.49492677024674836,
+      "z-ai/glm-5.3-flash": 0.355213121263676,
       "qwen/qwen3.8-27b": 0.990475537062582,
-      "moonshotai/kimi-k3": 0.269302478983102,
-      "motif/motif-3": 0.4421633657554086
+      "moonshotai/kimi-k3": 0.0,
+      "motif/motif-3": 0.49633180321715387
     },
     "15": {
       "deepseek/deepseek-v4-pro": 0.6664913097877724,
       "deepseek/deepseek-v4-flash": 0.6849360456980796,
       "deepseek/deepseek-v4.1-flash": 0.9983088684923982,
-      "z-ai/glm-5.3": 0.16515343211291036,
-      "z-ai/glm-5.3-flash": 0.11310116533113641,
-      "qwen/qwen3.8-27b": 0.6021678322651015,
+      "z-ai/glm-5.3": 0.5971534321129103,
+      "z-ai/glm-5.3-flash": 0.6411011653311365,
+      "qwen/qwen3.8-27b": 0.6981678322651015,
       "moonshotai/kimi-k3": 0.0,
-      "motif/motif-3": 0.5475652305001752
+      "motif/motif-3": 0.7875652305001754
     }
   }
 }
