@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Aiand Checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  aiand-checks:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    uses: aiand-os/checks/.github/workflows/aiand-checks.yml@v1.0.1
+    permissions:
+      id-token: write
+    with:
+      aiand-router-url: https://internal.router.workaiand.ai
+      use-default-checks: true
+    secrets:
+      aiand-router-key: ${{ secrets.AIAND_ROUTER_KEY }}
