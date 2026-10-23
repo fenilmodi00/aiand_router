@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/translate"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -803,7 +803,7 @@ func TestPrepareGemini_VendorExtensionKeysDegradeToNoParameters(t *testing.T) {
 			"name":"sheets_get",
 			"input_schema":{
 				"$schema":"http://json-schema.org/draft-07/schema#",
-				"$id":"urn:weave:test",
+				"$id":"urn:aiand:test",
 				"type":"object",
 				"x-google-resource":"sheet",
 				"properties":{

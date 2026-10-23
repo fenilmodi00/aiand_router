@@ -4,7 +4,7 @@ BEGIN;
 -- dashboard: managed deploys strip customer provider keys in the auth
 -- middleware because a stored key would spend upstream *and* debit prepaid
 -- credits. These columns let a managed installation opt in explicitly, with
--- Weave charging a percentage fee on the customer's upstream spend instead of
+-- Aiand charging a percentage fee on the customer's upstream spend instead of
 -- the full inference cost.
 
 -- Per-installation opt-in. Managed deploys honor BYOK rows only when this is

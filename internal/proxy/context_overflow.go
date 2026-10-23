@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router/policy"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router/policy"
 )
 
 // contextOverflowMessage leads with Anthropic's own wording: Claude Code keys

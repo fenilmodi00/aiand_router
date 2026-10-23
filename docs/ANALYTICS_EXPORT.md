@@ -24,12 +24,12 @@ config can read telemetry and nothing else.
 **Self-hosted:** Settings → API keys → *Issue key* → scope **Analytics
 (read-only)**.
 
-**Managed:** ask your Weave contact, or issue one from the dashboard's API-keys
+**Managed:** ask your Aiand contact, or issue one from the dashboard's API-keys
 page the same way.
 
 ```bash
-export WEAVE_ANALYTICS_KEY=ra_...
-export WEAVE_ROUTER_URL=https://your-router.example.com
+export AIAND_ANALYTICS_KEY=ra_...
+export AIAND_ROUTER_URL=https://your-router.example.com
 ```
 
 Routing keys (`rk_`) are rejected here with `401`, and analytics keys are
@@ -42,8 +42,8 @@ not by convention.
 
 ```bash
 curl -sS --compressed \
-  -H "Authorization: Bearer $WEAVE_ANALYTICS_KEY" \
-  "$WEAVE_ROUTER_URL/v1/analytics/routing-decisions?since=2026-01-01T00:00:00Z&limit=1000" \
+  -H "Authorization: Bearer $AIAND_ANALYTICS_KEY" \
+  "$AIAND_ROUTER_URL/v1/analytics/routing-decisions?since=2026-01-01T00:00:00Z&limit=1000" \
   -D headers.txt -o page.ndjson
 ```
 
@@ -54,14 +54,14 @@ envelope, no trailing array. Pipe it straight into a loader.
 |---|---|
 | `since` | RFC3339, inclusive. Required on the first page; ignored once you pass `cursor`. |
 | `until` | RFC3339, exclusive. Optional. Use it to close a backfill window. |
-| `cursor` | Opaque resume token from the previous page's `X-Weave-Next-Cursor`. |
+| `cursor` | Opaque resume token from the previous page's `X-Aiand-Next-Cursor`. |
 | `limit` | Rows per page. Default 1000, max 10000. |
 | `format` | `ndjson` (the only supported value today). |
 
 | Response header | Meaning |
 |---|---|
-| `X-Weave-Next-Cursor` | Pass as `cursor` to get the next page. |
-| `X-Weave-Has-More` | `true` while more rows are ready; `false` means you have caught up. |
+| `X-Aiand-Next-Cursor` | Pass as `cursor` to get the next page. |
+| `X-Aiand-Has-More` | `true` while more rows are ready; `false` means you have caught up. |
 
 Send `Accept-Encoding: gzip` (curl's `--compressed`) — these rows are
 repetitive JSON and compress by roughly an order of magnitude.
@@ -71,14 +71,14 @@ repetitive JSON and compress by roughly an order of magnitude.
 ```bash
 cursor=""
 while :; do
-  url="$WEAVE_ROUTER_URL/v1/analytics/routing-decisions?limit=10000"
+  url="$AIAND_ROUTER_URL/v1/analytics/routing-decisions?limit=10000"
   if [ -z "$cursor" ]; then url="$url&since=2026-01-01T00:00:00Z"; else url="$url&cursor=$cursor"; fi
 
-  curl -sS --compressed -H "Authorization: Bearer $WEAVE_ANALYTICS_KEY" \
+  curl -sS --compressed -H "Authorization: Bearer $AIAND_ANALYTICS_KEY" \
     "$url" -D headers.txt >> routing_decisions.ndjson
 
-  cursor=$(grep -i '^x-weave-next-cursor:' headers.txt | tr -d '\r' | cut -d' ' -f2)
-  [ "$(grep -i '^x-weave-has-more:' headers.txt | tr -d '\r' | cut -d' ' -f2)" = "true" ] || break
+  cursor=$(grep -i '^x-aiand-next-cursor:' headers.txt | tr -d '\r' | cut -d' ' -f2)
+  [ "$(grep -i '^x-aiand-has-more:' headers.txt | tr -d '\r' | cut -d' ' -f2)" = "true" ] || break
 done
 ```
 
@@ -159,8 +159,8 @@ semantics above. Generate your DDL from it rather than hand-transcribing this
 page.
 
 ```bash
-curl -sS -H "Authorization: Bearer $WEAVE_ANALYTICS_KEY" \
-  "$WEAVE_ROUTER_URL/v1/analytics/schema" | jq .
+curl -sS -H "Authorization: Bearer $AIAND_ANALYTICS_KEY" \
+  "$AIAND_ROUTER_URL/v1/analytics/schema" | jq .
 ```
 
 Field groups:

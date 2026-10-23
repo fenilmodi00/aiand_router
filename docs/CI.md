@@ -12,7 +12,7 @@ the latest 100 workflow entries available on 2026-09-11.
 | Test | 70 | 3m 57s | 4m 24s | 5m 14s |
 | Smoke | 82 | 4m 26s | 4m 51s | 6m 15s |
 
-[Test run 34648736869](https://github.com/weave-os/router/actions/runs/34648736869)
+[Test run 34648736869](https://github.com/aiand-os/router/actions/runs/34648736869)
 showed why the Test critical path was longer than any individual gate:
 
 | Job | Duration |
@@ -57,7 +57,7 @@ fatal: updating files failed
 ```
 
 All 20 scheduled runs inspected failed this way. Public example:
-[run 34574571427](https://github.com/weave-os/router/actions/runs/34574571427).
+[run 34574571427](https://github.com/aiand-os/router/actions/runs/34574571427).
 
 The recorder now changes its temporary cassette file from `0600` (the default
 from Go's `os.CreateTemp`) to `0644` before the atomic rename. That preserves
@@ -161,7 +161,7 @@ directory that contains Go sources, which covers `//go:embed` inputs such as
 and the embedded model artifacts. It also gates ON for the checked-in
 artifacts [`cmd/genprices`](../cmd/genprices) writes (the installer price
 blocks, `install/pi-router/src/pricing.generated.ts`,
-`bench/weave_bench/prices.generated.json`), which live outside every Go
+`bench/aiand_bench/prices.generated.json`), which live outside every Go
 package yet are asserted by Go tests. Package ownership is resolved against
 both the base and the head tree and the diff is taken with `--no-renames`, so
 moving a file out of a Go package still gates ON. Anything it cannot
@@ -169,7 +169,7 @@ classify — including a failing `git` invocation — runs the checks.
 
 The aggregate `Test` job accepts `skipped` for `Go checks` only when the
 classifier reported `go=false`; a skip for any other reason, a cancellation or
-a failure still fails the required check, so the pin check in WorkWeave keeps
+a failure still fails the required check, so the pin check in WorkAiand keeps
 the same contract. Push, merge and `workflow_dispatch` runs have no base SHA
 and therefore run everything, with one exception below.
 

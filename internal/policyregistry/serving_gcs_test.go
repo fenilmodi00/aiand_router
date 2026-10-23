@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/option"
 
-	"weave-os/router/internal/policyregistry"
+	"aiand-os/router/internal/policyregistry"
 )
 
 type servingGCSFixture struct {

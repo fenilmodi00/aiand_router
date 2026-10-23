@@ -11,7 +11,7 @@ import (
 )
 
 // ServingAssertionHeader is a legacy wire header stripped by direct worker auth.
-const ServingAssertionHeader = "X-Weave-Serving-Assertion"
+const ServingAssertionHeader = "X-Aiand-Serving-Assertion"
 
 // ServerlessAuthorizationHeader carries IAM separately from client subscription credentials.
 const ServerlessAuthorizationHeader = "X-Serverless-Authorization"
@@ -162,7 +162,7 @@ func (a ServingAssertion) validate() error {
 func StripServingHeaders(headers http.Header) {
 	for name := range headers {
 		lower := strings.ToLower(name)
-		if strings.HasPrefix(lower, "x-weave-serving-") || strings.HasPrefix(lower, "x-weave-internal-") || strings.EqualFold(name, ServerlessAuthorizationHeader) {
+		if strings.HasPrefix(lower, "x-aiand-serving-") || strings.HasPrefix(lower, "x-aiand-internal-") || strings.EqualFold(name, ServerlessAuthorizationHeader) {
 			delete(headers, name)
 		}
 	}

@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"testing"
 
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router"
 
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/attribute"

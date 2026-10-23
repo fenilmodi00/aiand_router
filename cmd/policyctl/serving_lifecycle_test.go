@@ -14,8 +14,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/router/hmm/rosterdata"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/router/hmm/rosterdata"
 )
 
 type cliServingRegistry struct {
@@ -163,7 +163,7 @@ func cliServingFixture(t *testing.T) (*cliServingRegistry, *cliDestinationEndpoi
 	policyBytes, err := rosterdata.CanonicalBytes(policy)
 	require.NoError(t, err)
 	policyDigest := policyregistry.Digest(policyBytes)
-	release := policyregistry.ServingRelease{SchemaVersion: policyregistry.ServingReleaseV1, RouterImageDigest: image, Policy: policyregistry.PolicyObject{URI: defaultRegistryURI + "/router_policy/v1/policies/sha256/" + policyDigest + ".json", SHA256: policyDigest, Generation: 1, SchemaVersion: policy.SchemaVersion}, Classifier: bundleRef, Requirements: policyregistry.ServingRequirements{RuntimeContract: policyregistry.ManagedRuntimeContractV1, PolicySchema: policy.SchemaVersion, ClassifierWireSchema: bundle.Identity.WireSchema, TaxonomySHA256: bundle.Identity.TaxonomySHA256}, Provenance: policyregistry.ServingProvenance{RouterRevision: strings.Repeat("c", 40), WeaveRevision: strings.Repeat("d", 40), BuildAttestation: artifact}}
+	release := policyregistry.ServingRelease{SchemaVersion: policyregistry.ServingReleaseV1, RouterImageDigest: image, Policy: policyregistry.PolicyObject{URI: defaultRegistryURI + "/router_policy/v1/policies/sha256/" + policyDigest + ".json", SHA256: policyDigest, Generation: 1, SchemaVersion: policy.SchemaVersion}, Classifier: bundleRef, Requirements: policyregistry.ServingRequirements{RuntimeContract: policyregistry.ManagedRuntimeContractV1, PolicySchema: policy.SchemaVersion, ClassifierWireSchema: bundle.Identity.WireSchema, TaxonomySHA256: bundle.Identity.TaxonomySHA256}, Provenance: policyregistry.ServingProvenance{RouterRevision: strings.Repeat("c", 40), AiandRevision: strings.Repeat("d", 40), BuildAttestation: artifact}}
 	releaseRef := cliPublish(t, registry, policyregistry.ServingReleases, release)
 	binding := policyregistry.DeploymentBinding{SchemaVersion: policyregistry.ServingBindingV1, Target: policyregistry.TargetStable, Project: "test-project", Region: "test-region", Release: releaseRef, Router: policyregistry.RevisionBinding{Name: "worker-1", URL: "https://worker-1.example", Audience: "https://worker.example", ImageDigest: image, Configuration: artifact}, Classifier: policyregistry.RevisionBinding{Name: "classifier-1", URL: "https://classifier-1.example", Audience: "https://classifier.example", ImageDigest: image, Configuration: artifact}, ClassifierBundleSHA256: bundleRef.SHA256, Attestation: artifact}
 	bindingRef := cliPublish(t, registry, policyregistry.ServingBindings, binding)

@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"sort"
 
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/policy"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/policy"
 
 	"github.com/gin-gonic/gin"
 )

@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/translate"
 )
 
 const syntheticNoticeKind translate.NoticeKind = "synthetic_status"
@@ -363,7 +363,7 @@ func TestNoticeReplayRecognition(t *testing.T) {
 }
 
 func TestNoticeReplayPreservesUnmarkedQuotedHeadings(t *testing.T) {
-	const quotedText = "Please explain this heading: **WEAVE ROUTER** — an ordinary heading\n\nKeep this paragraph."
+	const quotedText = "Please explain this heading: **AIAND ROUTER** — an ordinary heading\n\nKeep this paragraph."
 	for _, role := range []string{"user", "assistant"} {
 		t.Run("messages/"+role, func(t *testing.T) {
 			body := []byte(`{"messages":[{"role":"` + role + `","content":` + fmt.Sprintf("%q", quotedText) + `}]}`)

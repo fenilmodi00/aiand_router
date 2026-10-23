@@ -7,9 +7,9 @@ type Complexity = "low" | "medium" | "high" | "maximum";
 const COMPLEXITY_RANK: Record<Complexity, number> = { low: 0, medium: 1, high: 2, maximum: 3 };
 // Below this, Pi's retained recent context can outweigh the history summarized.
 const MIN_HANDOFF_TOKENS = 32_768;
-const STATUS_KEY = "weave-handoff";
-const ROUTE_ENTRY_TYPE = "weave-handoff-route";
-const SESSION_ENTRY_TYPE = "weave-handoff-session";
+const STATUS_KEY = "aiand-handoff";
+const ROUTE_ENTRY_TYPE = "aiand-handoff-route";
+const SESSION_ENTRY_TYPE = "aiand-handoff-session";
 
 interface RouteSelection {
 	token: string;
@@ -41,7 +41,7 @@ export function handoffSummaryPayload(original: Record<string, unknown>, generat
 		// Preserve the original system, tools, thinking settings and message
 		// prefix so the old model can reuse its cache when the provider permits.
 		messages: [...original.messages, { role: "user", content: HANDOFF_SUMMARY_INSTRUCTIONS + (customInstructions ? `\n\nAdditional focus: ${customInstructions}` : "") }],
-		weave_handoff: token,
+		aiand_handoff: token,
 	};
 }
 
@@ -84,8 +84,8 @@ export function registerEscalationCompaction(
 	const [major, minor] = version.split(".").map(Number);
 	if (major === 0 && minor < 83) {
 		pi.on("session_start", (_event, ctx) => {
-			if (process.env.WEAVE_PI_ESCALATION_COMPACTION === "0") return;
-			const message = "Weave escalation compaction requires Pi 0.83 or newer. Upgrade Pi to enable it; routing will continue without escalation compaction.";
+			if (process.env.AIAND_PI_ESCALATION_COMPACTION === "0") return;
+			const message = "Aiand escalation compaction requires Pi 0.83 or newer. Upgrade Pi to enable it; routing will continue without escalation compaction.";
 			if (ctx.hasUI) ctx.ui.notify(message, "warning");
 			else process.stderr.write(`${message}\n`);
 		});
@@ -137,16 +137,16 @@ export function registerEscalationCompaction(
 	const fail = (ctx: ExtensionContext, error: unknown) => {
 		pending = undefined;
 		dispatched = undefined;
-		const message = `Weave handoff failed: ${error instanceof Error ? error.message : String(error)}`;
+		const message = `Aiand handoff failed: ${error instanceof Error ? error.message : String(error)}`;
 		if (ctx.hasUI) ctx.ui.notify(message, "error");
 		else process.stderr.write(`${message}\n`);
 	};
 
 	pi.on("before_provider_request", async (event, ctx) => {
 		if (classifierThreadActive()) return;
-		if (process.env.WEAVE_PI_ESCALATION_COMPACTION === "0" || isSubagent() || ctx.model?.provider !== PROVIDER_NAME) return;
+		if (process.env.AIAND_PI_ESCALATION_COMPACTION === "0" || isSubagent() || ctx.model?.provider !== PROVIDER_NAME) return;
 		if (!isRecord(event.payload)) return;
-		let payload = sessionToken ? { ...event.payload, weave_session: sessionToken } : event.payload;
+		let payload = sessionToken ? { ...event.payload, aiand_session: sessionToken } : event.payload;
 		const requestGeneration = generation;
 		try {
 			if (pending?.stage === "ready") {
@@ -155,7 +155,7 @@ export function registerEscalationCompaction(
 				}
 				dispatched = pending.route;
 				pending = undefined;
-				return { ...payload, weave_handoff: dispatched.token };
+				return { ...payload, aiand_handoff: dispatched.token };
 			}
 			if (pending) throw new Error("A compaction handoff is already in progress");
 			const key = resolveRouterKey();
@@ -183,10 +183,10 @@ export function registerEscalationCompaction(
 				sessionToken = prepared.session_token;
 				pi.appendEntry(SESSION_ENTRY_TYPE, { sessionId: ctx.sessionManager.getSessionId(), token: sessionToken });
 			}
-			payload = { ...payload, weave_session: sessionToken };
+			payload = { ...payload, aiand_session: sessionToken };
 			if (!needsEscalationCompaction(previous, prepared, ctx.getContextUsage()?.tokens ?? 0)) {
 				dispatched = prepared;
-				return { ...payload, weave_handoff: prepared.token };
+				return { ...payload, aiand_handoff: prepared.token };
 			}
 			pending = { stage: "waiting", route: prepared, sessionId: ctx.sessionManager.getSessionId(), modelId: ctx.model.id, payload: structuredClone(payload) };
 			// Awaiting compact/abort here deadlocks the active provider request. The

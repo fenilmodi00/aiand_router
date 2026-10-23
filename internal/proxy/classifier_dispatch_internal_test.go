@@ -12,16 +12,16 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/router/escalation"
-	"weave-os/router/internal/router/hmm/armid"
-	"weave-os/router/internal/router/hmm/rosterdata"
-	"weave-os/router/internal/router/hmm/selection"
-	"weave-os/router/internal/router/policy"
-	"weave-os/router/internal/router/turntype"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router/escalation"
+	"aiand-os/router/internal/router/hmm/armid"
+	"aiand-os/router/internal/router/hmm/rosterdata"
+	"aiand-os/router/internal/router/hmm/selection"
+	"aiand-os/router/internal/router/policy"
+	"aiand-os/router/internal/router/turntype"
+	"aiand-os/router/internal/translate"
 )
 
 type classifierResponseProvider struct{ betaCaptureProvider }
@@ -213,8 +213,8 @@ func TestClassifierInputRejectsControlBypasses(t *testing.T) {
 	for _, body := range []string{
 		`{"messages":[{"role":"user","content":"/beta"}]}`,
 		`{"messages":[{"role":"user","content":"/force-model example"}]}`,
-		`{"messages":[{"role":"user","content":"first"}],"weave_handoff":"ticket"}`,
-		`{"messages":[{"role":"user","content":"first"}],"weave_session":"ticket"}`,
+		`{"messages":[{"role":"user","content":"first"}],"aiand_handoff":"ticket"}`,
+		`{"messages":[{"role":"user","content":"first"}],"aiand_session":"ticket"}`,
 	} {
 		_, err := svc.withClassifierInput(ctx, []byte(body), router.EndpointAnthropicMessages)
 		require.Error(t, err, gjson.Get(body, "messages.0.content").String())

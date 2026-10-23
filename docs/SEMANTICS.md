@@ -1,6 +1,6 @@
 # Router semantics
 
-> **Established 2026-07-23.** Canonical definitions for the Weave Router
+> **Established 2026-07-23.** Canonical definitions for the Aiand Router
 > codebase and documentation. These terms replace the historical usage
 > where "turn" often meant a single upstream API request.
 
@@ -98,8 +98,8 @@ if acknowledgment delivery fails; the harness cannot record an incomplete reply.
 | Harness | Structured carrier | Lifecycle owner |
 | --- | --- | --- |
 | Claude Code | `message.router_command` in Messages JSON or SSE `message_start.message`, retained in the transcript | Statusline folds transcript order and deduplicates outcome IDs. |
-| Codex | Unused Markdown reference definition `[weave-router-command-v1]: <weave-router:BASE64URL_JSON>` after acknowledgment prose | Stop hook decodes raw `last_assistant_message`; UserPromptSubmit records `turn_id` under the same scope/session lock to reject delayed Stop updates. |
-| Pi | `X-Weave-Router-Command` response header with unpadded base64url JSON | `after_provider_response` stages the outcome; matching successful `turn_end` commits a custom session entry. Aborted, failed or truncated responses discard it; restore follows the reachable branch. |
+| Codex | Unused Markdown reference definition `[aiand-router-command-v1]: <aiand-router:BASE64URL_JSON>` after acknowledgment prose | Stop hook decodes raw `last_assistant_message`; UserPromptSubmit records `turn_id` under the same scope/session lock to reject delayed Stop updates. |
+| Pi | `X-Aiand-Router-Command` response header with unpadded base64url JSON | `after_provider_response` stages the outcome; matching successful `turn_end` commits a custom session entry. Aborted, failed or truncated responses discard it; restore follows the reachable branch. |
 
 The native Gemini surface does not intercept these commands. The Codex text
 carrier survives Chat-to-Responses conversion; unknown JSON fields alone do not

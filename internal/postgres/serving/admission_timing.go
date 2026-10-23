@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/policyregistry"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/policyregistry"
 )
 
 // admissionTimingRecord is the single per-admission latency line. It exists to size the

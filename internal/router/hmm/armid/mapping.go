@@ -5,8 +5,8 @@ package armid
 import (
 	"strings"
 
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/catalog"
 )
 
 var rosterAliases = map[string]string{

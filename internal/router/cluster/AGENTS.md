@@ -29,7 +29,7 @@ Every committed bundle lives at `artifacts/v<X.Y>/` with four files: `centroids.
 
 ### Multi-version build flag
 
-Go runtime builds **only the served default version** by default (`cmd/router/main.go`'s `buildClusterScorer`). Setting `ROUTER_CLUSTER_BUILD_ALL_VERSIONS=true` switches to building **one Scorer per committed bundle** so callers can pin per-request to a sibling version with `x-weave-cluster-version: v0.X` via `middleware.WithClusterVersionOverride`.
+Go runtime builds **only the served default version** by default (`cmd/router/main.go`'s `buildClusterScorer`). Setting `ROUTER_CLUSTER_BUILD_ALL_VERSIONS=true` switches to building **one Scorer per committed bundle** so callers can pin per-request to a sibling version with `x-aiand-cluster-version: v0.X` via `middleware.WithClusterVersionOverride`.
 
 "Compare-against-each-other" mechanism — staging/eval deploys set the flag so a single deploy carries every committed bundle + the eval harness flips between them per-request. Prod leaves the flag off: only the default bundle is loaded into memory, and the header override is a no-op.
 
@@ -57,7 +57,7 @@ Registered specs (`embedder.go` `embedderSpecs`):
 **NOT in git.** One subdir per embedder ID under the assets root:
 
 - `<root>/jina-v2-base-code-int8/{model.onnx,tokenizer.json}` — Jina's own INT8 export at `jinaai/jina-embeddings-v2-base-code`, file path `onnx/model_quantized.onnx`. Flat legacy layout (`<root>/model.onnx`) still resolves for Jina in local dev.
-- `<root>/qwen3-embedding-0.6b-int8/{model.onnx,tokenizer.json}` — `scripts/export_qwen3_onnx.py` output uploaded to a Weave HF repo; Dockerfile pulls it only when `HF_QWEN_REPO` is set.
+- `<root>/qwen3-embedding-0.6b-int8/{model.onnx,tokenizer.json}` — `scripts/export_qwen3_onnx.py` output uploaded to a Aiand HF repo; Dockerfile pulls it only when `HF_QWEN_REPO` is set.
 
 - Dockerfile pulls anonymously during build (Jina repo public — self-hosters don't need creds); follow the [local-development download steps](../../../docs/CONFIGURATION.md#cluster-routing-artifacts) outside Docker.
 - `HF_TOKEN` build secret is *optional* (raises rate limits in CI) + `required=false` in Dockerfile.
@@ -71,7 +71,7 @@ Used in α-blend, live in `train_cluster_router.py`'s `DEFAULT_COST_PER_1K_INPUT
 
 ## What to NOT do
 
-- **Don't add per-request cost lookup or runtime α knob.** α is baked at training time; changing it requires retraining. Per-request override (`x-weave-routing-alpha`) is P1, not P0 — wait for a customer ask before shipping.
+- **Don't add per-request cost lookup or runtime α knob.** α is baked at training time; changing it requires retraining. Per-request override (`x-aiand-routing-alpha`) is P1, not P0 — wait for a customer ask before shipping.
 - **Don't loosen `MaxPromptChars = 1024` cap** without re-running the latency test. BERT inference is O(n²) attention; the cap is load-bearing.
 - **Don't promote a Qwen-embedder bundle without a latency gate.** Measure Qwen3-0.6B INT8 embed p95 on the target CPU against the 1500 ms `EmbedTimeout` before pointing `latest` at a `qwen3-embedding-0.6b-int8` bundle — embed timeouts surface as `ErrClusterUnavailable` → 503, not as degraded routing.
 - **Don't score a bundle with a different embedder than it was trained with.** `NewScorer` enforces ID + dim; never weaken that check. Trainer-side embedding (model, pooling, L2 norm, no instruction prefix, tail truncation) must match the runtime exactly.

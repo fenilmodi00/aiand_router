@@ -23,24 +23,24 @@ Do **not** auto-fix decisions that belong to a human. Product/architecture/scope
 
 ## Which reviewers auto-resolve their own threads
 
-Not every reviewer needs a manual `resolveReviewThread` call. Some bots re-scan the pushed commit and close their own thread once the flagged issue is gone; calling `resolveReviewThread` on those threads yourself is redundant, and for weave-checks it's actively wrong — it marks a thread resolved against a code state the bot never re-verified.
+Not every reviewer needs a manual `resolveReviewThread` call. Some bots re-scan the pushed commit and close their own thread once the flagged issue is gone; calling `resolveReviewThread` on those threads yourself is redundant, and for aiand-checks it's actively wrong — it marks a thread resolved against a code state the bot never re-verified.
 
 | Reviewer                                                         | Auto-resolves?                              | Action                                                                                                                                              |
 | ---------------------------------------------------------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `cursor[bot]` (Cursor Bugbot)                                    | Yes, once it re-scans and the issue is gone | **Fix:** push the code change only — do not call `resolveReviewThread`. **Decline:** resolve manually (there's nothing new for the bot to re-scan). |
 | `cubic-dev-ai[bot]` (Cubic)                                      | Yes, same as above                          | Same as Cursor Bugbot.                                                                                                                              |
-| `weave-checks[bot]` (body carries `<!-- weave-check:<slug> -->`) | Yes, same as above                          | Same as Cursor Bugbot.                                                                                                                              |
+| `aiand-checks[bot]` (body carries `<!-- aiand-check:<slug> -->`) | Yes, same as above                          | Same as Cursor Bugbot.                                                                                                                              |
 | `greptile-apps[bot]`                                             | No                                          | Always resolve manually — Fix and Decline both.                                                                                                     |
 | Human reviewers                                                  | No                                          | Always resolve manually — Fix and Decline both.                                                                                                     |
 | Any other/unrecognized author                                    | Assume no                                   | Always resolve manually. Only skip the mutation for the three named auto-resolving bots above.                                                      |
 
-Identify the author(s) from each `unresolved_comments` entry's `authors` field (or the `<!-- weave-check: -->` marker in `body`) during triage, and carry that classification into the resolve step.
+Identify the author(s) from each `unresolved_comments` entry's `authors` field (or the `<!-- aiand-check: -->` marker in `body`) during triage, and carry that classification into the resolve step.
 
-**Reading a weave-checks finding against its own criteria.** The marker's `<slug>` maps to a repo-local `.weave-checks/<slug>.md` if one exists, else to the default check `starter-checks/<slug>.md` in `weave-os/checks` at the release tag pinned in `.github/workflows/weave-checks.yml` (this repo runs with `use-default-checks: true`). When triaging a `weave-checks[bot]` thread, read that file — "Do Not Flag"/"Exclusions" is the fastest false-positive check:
+**Reading a aiand-checks finding against its own criteria.** The marker's `<slug>` maps to a repo-local `.aiand-checks/<slug>.md` if one exists, else to the default check `starter-checks/<slug>.md` in `aiand-os/checks` at the release tag pinned in `.github/workflows/aiand-checks.yml` (this repo runs with `use-default-checks: true`). When triaging a `aiand-checks[bot]` thread, read that file — "Do Not Flag"/"Exclusions" is the fastest false-positive check:
 
 ```bash
-REF=$(sed -nE 's#.*weave-os/checks/.github/workflows/weave-checks.yml@(v[0-9]+\.[0-9]+\.[0-9]+).*#\1#p' .github/workflows/weave-checks.yml)
-gh api "repos/weave-os/checks/contents/starter-checks/<slug>.md?ref=$REF" -H 'Accept: application/vnd.github.raw'
+REF=$(sed -nE 's#.*aiand-os/checks/.github/workflows/aiand-checks.yml@(v[0-9]+\.[0-9]+\.[0-9]+).*#\1#p' .github/workflows/aiand-checks.yml)
+gh api "repos/aiand-os/checks/contents/starter-checks/<slug>.md?ref=$REF" -H 'Accept: application/vnd.github.raw'
 ```
 
 **Collapsed threads and mixed authorship:** `pr-fix-plan` collapses same-location threads into one entry with a deduplicated `authors` list and a separately deduplicated `thread_ids` list — the two are **not positionally paired**. Apply the auto-resolving-bot exception only when **every** entry in `authors` is one of the three auto-resolving bots. If mixed, resolve **all** of that entry's `thread_ids` manually.
@@ -69,7 +69,7 @@ If the branch is out of date: `git push --force-with-lease` only after verifying
 
 ```
 0. Identify or create PR; align checkout with the PR's base repository and head SHA
-0b. WEAVE-CHECKS PREFLIGHT: read weave-checks criteria for the files in play
+0b. AIAND-CHECKS PREFLIGHT: read aiand-checks criteria for the files in play
 1. Fetch fresh state
 2. If DONE → exit
 3. If actionable threads:
@@ -77,7 +77,7 @@ If the branch is out of date: `git push --force-with-lease` only after verifying
    b. Surface Escalates in one AskQuestion batch; wait if they block
    c. APPLY ALL Fixes in one pass (group by file)
    d. Resolve all Declines (and decided Escalates) silently
-   e. Validate ONCE, scoped to touched files (Step 4) + re-run weave checks
+   e. Validate ONCE, scoped to touched files (Step 4) + re-run aiand checks
    f. One commit + one push
    g. Go to step 1 — do NOT wait for CI yet
 4. Else (zero actionable threads):
@@ -132,9 +132,9 @@ test "$(git rev-parse HEAD)" = "$HEAD_SHA" || { echo "PR head SHA mismatch" >&2;
 
 If that unique local branch already exists at a different commit, choose another unused local name rather than resetting it. Before editing or pushing, verify the local branch tracks the PR head ref from `head_owner/head_repo`. If the checkout or upstream cannot be verified safely, stop and ask. Fixes always go on the PR's own head branch.
 
-### Step 0b: Weave-checks preflight (once, before any triage or edit)
+### Step 0b: Aiand-checks preflight (once, before any triage or edit)
 
-Read the weave-checks criteria (repo-local `.weave-checks/*.md`, else the pinned `starter-checks/*.md` — see "Reading a weave-checks finding" above) that apply to the files this PR touches, plus the `CLAUDE.md` guide of each touched package. Reviewer asks that contradict those guides (layering, magic provider strings, logging keys, tautological tests) are Decline or Escalate, not Fix.
+Read the aiand-checks criteria (repo-local `.aiand-checks/*.md`, else the pinned `starter-checks/*.md` — see "Reading a aiand-checks finding" above) that apply to the files this PR touches, plus the `CLAUDE.md` guide of each touched package. Reviewer asks that contradict those guides (layering, magic provider strings, logging keys, tautological tests) are Decline or Escalate, not Fix.
 
 ### Step 1: Fetch fresh PR state (every iteration)
 
@@ -161,7 +161,7 @@ Skip `is_outdated: true` entries when counting actionable work. Also skip any wh
 
 `top_level_comments` are not line-anchored. Triage them the same Fix/Decline/Escalate/Skip way, but they have no `thread_ids` to GraphQL-resolve — Fix by editing, Decline/Skip by noting in chat only.
 
-**Advisory review bodies are nitlists.** Bots such as `workweave-bot` post `COMMENTED` reviews with zero threads and a body listing several nits across files; these arrive as `top_level_comments` entries with `source: "review"`. Split each body into **one item per nit** and triage each individually — an empty `unresolved_comments` does not mean "no feedback". Track which nits you've applied across iterations (by review URL + nit) so an already-applied body isn't re-triaged; it stays on the PR forever.
+**Advisory review bodies are nitlists.** Bots such as `workaiand-bot` post `COMMENTED` reviews with zero threads and a body listing several nits across files; these arrive as `top_level_comments` entries with `source: "review"`. Split each body into **one item per nit** and triage each individually — an empty `unresolved_comments` does not mean "no feedback". Track which nits you've applied across iterations (by review URL + nit) so an already-applied body isn't re-triaged; it stays on the PR forever.
 
 **Comment-first:** any non-Skip entry whose issue still applies → Steps 2–5 immediately. Do not wait for CI, even if checks are running or failed.
 
@@ -198,7 +198,7 @@ Announce this list to the user, then execute. Do not drip-triage (classify one, 
 
 When in genuine doubt between Fix and Escalate, **Escalate**. (Low-stakes mechanical nits still default to Fix.)
 
-**Bot `suggestion` blocks are authoritative.** When a bot (`workweave-bot`, `greptile-apps[bot]`, `cubic-dev-ai[bot]`, …) offers a fenced ```` ```suggestion ```` replacement — especially comment-length / doc-brevity nits — it is a Fix: apply the replacement **verbatim**. Don't paraphrase or skip because the existing wording seems fine. Only decline if applying it would break the build or contradict a package `CLAUDE.md` rule. Free-form bot feedback without a `suggestion` block is triaged like any other comment.
+**Bot `suggestion` blocks are authoritative.** When a bot (`workaiand-bot`, `greptile-apps[bot]`, `cubic-dev-ai[bot]`, …) offers a fenced ```` ```suggestion ```` replacement — especially comment-length / doc-brevity nits — it is a Fix: apply the replacement **verbatim**. Don't paraphrase or skip because the existing wording seems fine. Only decline if applying it would break the build or contradict a package `CLAUDE.md` rule. Free-form bot feedback without a `suggestion` block is triaged like any other comment.
 
 ### Step 3: Apply the whole Fix set in one pass
 
@@ -293,7 +293,7 @@ Run the non-Go suites the planner selects that are cheap and local (`docs`, `ins
 
 Resolve all Decline threads now. After a successful push, resolve Fix threads and decided Escalates — **except** the auto-resolving-bot exception below. Use each entry's `thread_ids` (collapsed comments may list more than one — resolve every id).
 
-**Auto-resolving-bot exception (Fix only):** for a Fix whose `authors` are entirely `cursor[bot]`, `cubic-dev-ai[bot]`, or `weave-checks[bot]`, do **not** call `resolveReviewThread` — push and let the bot close it. Declines on those same threads still need a manual resolve. Greptile and humans always get a manual resolve.
+**Auto-resolving-bot exception (Fix only):** for a Fix whose `authors` are entirely `cursor[bot]`, `cubic-dev-ai[bot]`, or `aiand-checks[bot]`, do **not** call `resolveReviewThread` — push and let the bot close it. Declines on those same threads still need a manual resolve. Greptile and humans always get a manual resolve.
 
 **Bounded fallback:** carry a skip ledger `(thread_id, first_seen_unresolved_at)`. On every **full** pr-fix-plan poll inside Step 6 (~2 min cadence, not the cheap sentinel), if a skipped bot thread has been open across **≥2 full pr-fix-plan polls AND ≥5 min** since first seen, force-resolve it and tell the user the bot never closed it. Fire this from Step 6 too — Step 5 may never run again during a CI wait.
 
@@ -489,7 +489,7 @@ If after **5 full iterations** (5 push cycles) the loop hasn't terminated, stop 
 | Resolving Fix threads, then a push that fails                                 | Threads closed against code that never landed                                                                                  | Push first, resolve human/Greptile Fixes after                              |
 | Waiting out the full CI matrix after the first red check                      | Burns 5–10 min for jobs that cannot save a failed run                                                                          | Abort CI wait on `failed > 0`, fix, re-push                                 |
 | Invoking `make precommit` / `make check` from this skill                      | Those run the whole module matrix; meant for shipping a feature                                                                | Step 4 scoped checks                                                        |
-| Treating a bot `COMMENTED` review as "no feedback" because it has no threads  | Missed a whole `workweave-bot` nitlist living in the review body                                                               | Split `top_level_comments` review bodies into one item per nit              |
+| Treating a bot `COMMENTED` review as "no feedback" because it has no threads  | Missed a whole `workaiand-bot` nitlist living in the review body                                                               | Split `top_level_comments` review bodies into one item per nit              |
 | Rephrasing a bot's `suggestion` block instead of applying it                  | Lost the brevity the bot was asking for; subjective drift                                                                      | Apply the suggested replacement verbatim                                    |
 | Committing a generator-input change without its regenerated output           | CI drift check fails (`internal/sqlc`, `AGENTS.md`, policy docs)                                                               | Step 4 regenerate table                                                     |
 | Falling through to another PR review workflow                                 | This skill is the full workflow and validates once per batch                                                                   | This file is the full workflow                                              |
@@ -502,7 +502,7 @@ If after **5 full iterations** (5 push cycles) the loop hasn't terminated, stop 
 | Asking with no research or options                                            | Forces the human to do the legwork                                                                                             | Investigate, then 2–4 grounded options + recommendation                     |
 | Running `pr-fix-plan` on every sentinel tick                                  | Wastes ~2s/tick                                                                                                                | Cheap GraphQL sentinel; full fetch on fire or ~2 min                        |
 | Passing `/pr-merge-ready` as the `ScheduleWakeup` prompt                      | Re-injects the whole skill per wake-up                                                                                         | ~1KB state-carrying resume prompt                                           |
-| Manually resolving a Cursor/Cubic/weave-checks Fix right after push           | weave-checks re-files the same nit                                                                                             | Skip resolve; let the bot re-scan                                           |
+| Manually resolving a Cursor/Cubic/aiand-checks Fix right after push           | aiand-checks re-files the same nit                                                                                             | Skip resolve; let the bot re-scan                                           |
 | Skipping resolve on a Decline just because the bot auto-resolves Fixes        | Nothing new to re-scan → thread sits open                                                                                      | Always resolve Declines yourself                                            |
 | Applying the bot exception to a collapsed entry that mixes a bot with a human | `authors` and `thread_ids` aren't paired — you'd strand the human thread                                                       | Only skip when `authors` is entirely auto-resolving bots                    |
 | Declaring merge-ready while a skipped bot thread is still open                | Bot never re-scanned                                                                                                           | Wait the 2-poll / 5 min window; only then force-resolve and count DONE      |

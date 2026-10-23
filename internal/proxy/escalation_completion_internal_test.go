@@ -5,14 +5,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"weave-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router/catalog"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/cache"
-	"weave-os/router/internal/router/policy"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/cache"
+	"aiand-os/router/internal/router/policy"
 )
 
 func escalationCompletionContext() context.Context {

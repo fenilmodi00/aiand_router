@@ -21,7 +21,7 @@ COMMENT ON COLUMN router.model_router_installations.flag_overrides IS 'Sparse pe
 
 -- Published mirror of the router's compiled-in flag registry. The router upserts
 -- every row at boot from internal/flags.Registry, stamping the deployment default
--- it actually resolved from the environment. It exists so the Weave control plane
+-- it actually resolved from the environment. It exists so the Aiand control plane
 -- can render and validate the override admin UI without importing router Go code
 -- or calling the router over HTTP -- it already reads this schema directly.
 --
@@ -38,7 +38,7 @@ CREATE TABLE router.flag_definitions (
     updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-COMMENT ON TABLE router.flag_definitions IS 'Published mirror of internal/flags.Registry, upserted by the router at boot. Read by the Weave control plane to render the per-org flag override admin UI. Never read on the request path.';
+COMMENT ON TABLE router.flag_definitions IS 'Published mirror of internal/flags.Registry, upserted by the router at boot. Read by the Aiand control plane to render the per-org flag override admin UI. Never read on the request path.';
 COMMENT ON COLUMN router.flag_definitions.kind IS 'Value type: bool, int, float, or string. A stored override whose JSON type disagrees is rejected at parse time.';
 COMMENT ON COLUMN router.flag_definitions.deployment_default IS 'Deployment default as resolved from env_var at the last boot, rendered as text. Display only; the routing path reads the live in-process value, not this column.';
 COMMENT ON COLUMN router.flag_definitions.org_overridable IS 'Whether a per-organization override may be written for this flag. A registered-but-not-overridable flag is shown read-only and rejects writes.';

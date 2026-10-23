@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"weave-os/router/internal/flags"
+	"aiand-os/router/internal/flags"
 )
 
 // ErrConfigurationConflict indicates a stale operator configuration snapshot.

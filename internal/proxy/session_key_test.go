@@ -3,9 +3,9 @@ package proxy_test
 import (
 	"testing"
 
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/router/sessionpin"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/router/sessionpin"
+	"aiand-os/router/internal/translate"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

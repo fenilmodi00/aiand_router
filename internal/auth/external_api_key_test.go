@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"weave-os/router/internal/auth"
+	"aiand-os/router/internal/auth"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -74,7 +74,7 @@ func TestForwardingHeaderSafetyPolicy(t *testing.T) {
 		"Ocp-Apim-Subscription-Key",
 		"X-Aws-Ec2-Metadata-Token",
 		"X-Forwarded-For",
-		"x-WEAVE-router-key",
+		"x-AIAND-router-key",
 		"Transfer-Encoding",
 	} {
 		t.Run(protected, func(t *testing.T) {

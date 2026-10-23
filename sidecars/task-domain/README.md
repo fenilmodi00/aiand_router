@@ -161,17 +161,17 @@ no filesystem mount is needed. The inventory keeps the same JSON shape:
 ```json
 [
   {
-    "release_file": "gs://weave_ml/weave_registry/router_task_domain/releases/sha256/MANIFEST_SHA256.json#GENERATION",
+    "release_file": "gs://aiand_ml/aiand_registry/router_task_domain/releases/sha256/MANIFEST_SHA256.json#GENERATION",
     "release_sha256": "MANIFEST_SHA256",
     "endpoint": "https://task-classifier.example.net",
     "bearer_env": "TASK_DOMAIN_BEARER",
-    "evidence_files": {"DOMAIN_EVIDENCE_SHA256": "gs://weave_ml/weave_registry/router_task_domain/evidence/sha256/DOMAIN_EVIDENCE_SHA256.json#GENERATION"}
+    "evidence_files": {"DOMAIN_EVIDENCE_SHA256": "gs://aiand_ml/aiand_registry/router_task_domain/evidence/sha256/DOMAIN_EVIDENCE_SHA256.json#GENERATION"}
   }
 ]
 ```
 
 The inventory itself lives at
-`gs://weave_ml/weave_registry/router_task_domain/bindings/sha256/INVENTORY_SHA256.json#GENERATION`.
+`gs://aiand_ml/aiand_registry/router_task_domain/bindings/sha256/INVENTORY_SHA256.json#GENERATION`.
 Every GCS reference requires a positive generation and must match its metadata
 namespace and expected SHA-256; arbitrary buckets, URLs and mutable pointers are
 rejected. Each object is limited to 4 MiB, and startup GCS metadata reads share a

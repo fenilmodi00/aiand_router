@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"sort"
 
-	"weave-os/router/internal/providers"
+	"aiand-os/router/internal/providers"
 )
 
 // ErrProviderNotConfigured is returned when a target names a provider that

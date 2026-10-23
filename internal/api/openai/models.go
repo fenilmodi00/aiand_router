@@ -3,7 +3,7 @@ package openai
 import (
 	"net/http"
 
-	"weave-os/router/internal/proxy"
+	"aiand-os/router/internal/proxy"
 
 	"github.com/gin-gonic/gin"
 )

@@ -4,20 +4,20 @@ import (
 	"encoding/json"
 	"testing"
 
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/translate"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
 
-const footerSentinel = "_Weave Router feedback:_"
+const footerSentinel = "_Aiand Router feedback:_"
 
 // sampleFooter mirrors proxy.Service.feedbackFooter's output shape: a leading
 // blank-line separator, the italic sentinel, the /rf± typed-command hints, and
 // the trailing optional-note example.
 func sampleFooter() string {
-	return "\n\n_Weave Router feedback:_ `/rf +` good experience · `/rf -` poor experience · note optional, e.g. `/rf - too slow`"
+	return "\n\n_Aiand Router feedback:_ `/rf +` good experience · `/rf -` poor experience · note optional, e.g. `/rf - too slow`"
 }
 
 func TestStripFeedbackFooter_AppendedToAssistantBlock(t *testing.T) {

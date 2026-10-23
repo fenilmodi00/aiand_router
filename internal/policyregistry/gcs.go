@@ -12,7 +12,7 @@ import (
 	"cloud.google.com/go/storage"
 	"google.golang.org/api/googleapi"
 
-	"weave-os/router/internal/router/hmm/rosterdata"
+	"aiand-os/router/internal/router/hmm/rosterdata"
 )
 
 const maxPolicyObjectBytes = 8 << 20

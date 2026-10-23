@@ -85,7 +85,7 @@ ledger AS (
     RETURNING balance_after_micros
 ),
 fee_ledger AS (
-    -- Weave's platform fee on a BYOK turn. No-ops when fee_usd_micros is 0,
+    -- Aiand's platform fee on a BYOK turn. No-ops when fee_usd_micros is 0,
     -- which is every non-BYOK turn.
     INSERT INTO router.organization_credit_ledger (
         organization_id,
@@ -204,7 +204,7 @@ type DebitOrgCreditsParams struct {
 // When fee_usd_micros is non-zero, a second ledger row of fee_entry_type is
 // written in the same statement. BYOK turns use this: the inference row carries
 // notional upstream cost at delta 0 (the customer paid their own provider) and
-// the fee row holds Weave's platform charge. Both rows must land together or a
+// the fee row holds Aiand's platform charge. Both rows must land together or a
 // crash between them would serve inference with no fee, so they share one CTE.
 // Returns the TRUE post-debit balance (from `updated`, after both delta and
 // fee), not a ledger row's balance_after. The inference row deliberately
@@ -244,7 +244,7 @@ type DebitOrgCreditsParams struct {
 //	    RETURNING balance_after_micros
 //	),
 //	fee_ledger AS (
-//	    -- Weave's platform fee on a BYOK turn. No-ops when fee_usd_micros is 0,
+//	    -- Aiand's platform fee on a BYOK turn. No-ops when fee_usd_micros is 0,
 //	    -- which is every non-BYOK turn.
 //	    INSERT INTO router.organization_credit_ledger (
 //	        organization_id,

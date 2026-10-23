@@ -14,10 +14,10 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/policy"
-	"weave-os/router/internal/router/taskdomain"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/policy"
+	"aiand-os/router/internal/router/taskdomain"
 )
 
 // DefaultTimeout bounds a single delegated policy decision. It has to hold more

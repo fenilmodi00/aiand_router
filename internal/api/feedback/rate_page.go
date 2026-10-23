@@ -16,18 +16,18 @@ const (
 	ratePageSuccessBody  = "Your feedback is extremely valuable to us"
 	ratePageSuccessFoot  = "You can close this tab."
 	woolyWaveAssetPath   = "/v1/feedback/assets/wooly-wave.png"
-	weaveLogoAssetPath   = "/v1/feedback/assets/weave.svg"
+	aiandLogoAssetPath   = "/v1/feedback/assets/aiand.svg"
 )
 
 // WoolyWaveHandler serves the Wooly waving illustration bundled for the
-// one-click rate confirmation page (resized from WorkWeave frontend/public).
+// one-click rate confirmation page (resized from WorkAiand frontend/public).
 func WoolyWaveHandler() gin.HandlerFunc {
 	return staticAssetHandler("wooly-wave.png", "image/png")
 }
 
-// WeaveLogoHandler serves the Weave mark used on the rate confirmation page.
-func WeaveLogoHandler() gin.HandlerFunc {
-	return staticAssetHandler("weave.svg", "image/svg+xml")
+// AiandLogoHandler serves the Aiand mark used on the rate confirmation page.
+func AiandLogoHandler() gin.HandlerFunc {
+	return staticAssetHandler("aiand.svg", "image/svg+xml")
 }
 
 func staticAssetHandler(name, contentType string) gin.HandlerFunc {
@@ -80,7 +80,7 @@ func ratePageLayout(p ratePageLayoutParams) []byte {
 		`<title>` + html.EscapeString(p.Title) + `</title>` +
 		`<style>` + ratePageCSS + `</style></head><body>` +
 		`<main class="card">` +
-		`<img class="logo" src="` + weaveLogoAssetPath + `" alt="Weave" width="32" height="32">` +
+		`<img class="logo" src="` + aiandLogoAssetPath + `" alt="Aiand" width="32" height="32">` +
 		`<h1>` + html.EscapeString(p.Title) + `</h1>` +
 		`<p class="body">` + html.EscapeString(p.Body) + `</p>` +
 		woolyBlock +

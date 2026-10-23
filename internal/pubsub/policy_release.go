@@ -5,7 +5,7 @@ import (
 
 	gcppubsub "cloud.google.com/go/pubsub/v2"
 
-	"weave-os/router/internal/observability"
+	"aiand-os/router/internal/observability"
 )
 
 // PolicyReleaseListener triggers a local GCS lane-head refresh for every

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# <!-- weave-router managed codex status -->
+# <!-- aiand-router managed codex status -->
 #
-# Codex lifecycle hook for the Weave Router. Codex passes a JSON object on
+# Codex lifecycle hook for the Aiand Router. Codex passes a JSON object on
 # stdin; the Stop hook includes the last assistant message, which carries the
 # router's routed-model marker when the selected model changes. The helper
 # keeps the last known routed model per session and reflects it in the terminal
@@ -18,7 +18,7 @@
 # blocks on the network, and every failure path leaves the title model-only.
 
 set -euo pipefail
-export PATH="$PATH:$HOME/.weave/bin"
+export PATH="$PATH:$HOME/.aiand/bin"
 
 # ---------- background self-refresh ----------
 #
@@ -28,27 +28,27 @@ export PATH="$PATH:$HOME/.weave/bin"
 # download is detached and swapped atomically; the current hook always
 # finishes against the copy it started with.
 #
-# Set WEAVE_CODEX_STATUS_UPDATE=0 to disable it. Self-hosters can point
-# WEAVE_CODEX_STATUS_URL at their own helper source. The common
-# WEAVE_STATUSLINE_UPDATE and WEAVE_STATUSLINE_UPDATE_INTERVAL_DAYS variables
+# Set AIAND_CODEX_STATUS_UPDATE=0 to disable it. Self-hosters can point
+# AIAND_CODEX_STATUS_URL at their own helper source. The common
+# AIAND_STATUSLINE_UPDATE and AIAND_STATUSLINE_UPDATE_INTERVAL_DAYS variables
 # remain accepted as aliases for users who configure both clients together.
-weave_self_refresh() {
+aiand_self_refresh() {
   # The published helper may predate classifier lifecycle forwarding. Do not
   # replace the hook implementation underneath an opted-in session.
-  [ "${WEAVE_CAPTURE_LLM_CLASSIFIER:-}" = "1" ] && return 0
-  [ "${WEAVE_CODEX_STATUS_UPDATE:-${WEAVE_STATUSLINE_UPDATE:-1}}" = "0" ] && return 0
+  [ "${AIAND_CAPTURE_LLM_CLASSIFIER:-}" = "1" ] && return 0
+  [ "${AIAND_CODEX_STATUS_UPDATE:-${AIAND_STATUSLINE_UPDATE:-1}}" = "0" ] && return 0
   command -v curl >/dev/null 2>&1 || return 0
 
   local self="${BASH_SOURCE[0]:-$0}"
   [ -f "$self" ] && [ -w "$self" ] || return 0
 
-  local interval_days="${WEAVE_CODEX_STATUS_UPDATE_INTERVAL_DAYS:-${WEAVE_STATUSLINE_UPDATE_INTERVAL_DAYS:-7}}"
+  local interval_days="${AIAND_CODEX_STATUS_UPDATE_INTERVAL_DAYS:-${AIAND_STATUSLINE_UPDATE_INTERVAL_DAYS:-7}}"
   case "$interval_days" in
     ''|*[!0-9]*) return 0 ;;
   esac
   local interval_seconds=$(( interval_days * 86400 ))
 
-  local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/weave-router"
+  local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/aiand-router"
   mkdir -p "$cache_dir" 2>/dev/null || return 0
   local script_slug path_digest
   script_slug="$(printf '%s' "$self" | tr -c 'A-Za-z0-9._-' '_')"
@@ -71,7 +71,7 @@ weave_self_refresh() {
   # download. A failed download consumes the interval; the next hook retries.
   : >"$stamp" 2>/dev/null || return 0
 
-  local url="${WEAVE_CODEX_STATUS_URL:-https://raw.githubusercontent.com/weave-os/router/main/install/codex-status.sh}"
+  local url="${AIAND_CODEX_STATUS_URL:-https://raw.githubusercontent.com/aiand-os/router/main/install/codex-status.sh}"
   local tmp="${self}.tmp.$$"
   (
     exec </dev/null
@@ -96,15 +96,15 @@ weave_self_refresh() {
 async_title_enabled=0
 [ ! -t 2 ] || async_title_enabled=1
 
-state_root="${XDG_CACHE_HOME:-$HOME/.cache}/weave-router/codex"
+state_root="${XDG_CACHE_HOME:-$HOME/.cache}/aiand-router/codex"
 helper_dir="$(cd "$(dirname "$0")" 2>/dev/null && pwd -P)"
-disabled_marker="$helper_dir/.weave-router-disabled"
+disabled_marker="$helper_dir/.aiand-router-disabled"
 router_badge_sentinel=$'⁣⁠⁣⁠'
 
 emit_title() {
   local title="$1"
-  if [ -n "${WEAVE_CODEX_STATUS_TITLE_FILE:-}" ]; then
-    printf '%s\n' "$title" >"$WEAVE_CODEX_STATUS_TITLE_FILE"
+  if [ -n "${AIAND_CODEX_STATUS_TITLE_FILE:-}" ]; then
+    printf '%s\n' "$title" >"$AIAND_CODEX_STATUS_TITLE_FILE"
   elif { [ -t 2 ] || [ "${async_title_enabled:-0}" = "1" ]; } && [ -w /dev/tty ]; then
     printf '\033]0;%s\007' "$title" >/dev/tty
   fi
@@ -227,7 +227,7 @@ context_snapshot() {
 command_outcome() {
   printf '%s' "$1" | jq -Rsec '
     def safe_identifier: type == "string" and test("^[A-Za-z0-9._:/-]{1,128}$");
-    capture("(?:^|\n)\\[weave-router-command-v1\\]: <weave-router:(?<encoded>[A-Za-z0-9_-]{1,8192})>(?:\n|$)").encoded |
+    capture("(?:^|\n)\\[aiand-router-command-v1\\]: <aiand-router:(?<encoded>[A-Za-z0-9_-]{1,8192})>(?:\n|$)").encoded |
     gsub("-"; "+") | gsub("_"; "/") | @base64d | fromjson |
     select(.version == 1 and (.id | type == "string" and test("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"))) |
     select(.command == "force_model" or .command == "router_session" or .command == "router_models" or .command == "router_feedback" or .command == "loop_stop") |
@@ -255,8 +255,8 @@ context_clause() {
 # Reads the router base URL and key out of the Codex config this install owns.
 # Resolved from the helper's own location first so a project-scope install never
 # reads (or leaks) the user-scope key: the project helper lives in the same
-# .codex directory as its config, while the user-scope helper sits in ~/.weave
-# and reads ~/.codex. Values are scoped to the [model_providers.weave] table so
+# .codex directory as its config, while the user-scope helper sits in ~/.aiand
+# and reads ~/.codex. Values are scoped to the [model_providers.aiand] table so
 # a key-shaped string the user wrote elsewhere in the file is never adopted. awk,
 # not a TOML parser, because the Codex target deliberately does not require jq
 # for config reads.
@@ -270,13 +270,13 @@ context_clause() {
 # savings figure from the title with no error anywhere.
 read_codex_endpoint() {
   local config=""
-  # Project/custom installs name the helper weave-status.sh and keep it next
+  # Project/custom installs name the helper aiand-status.sh and keep it next
   # to their config.toml. Falling through to ~/.codex would fetch another
   # installation's session cost with that key. The user-scope helper
-  # (codex-status.sh in ~/.weave) has no adjacent config and owns HOME.
+  # (codex-status.sh in ~/.aiand) has no adjacent config and owns HOME.
   if [ -f "$helper_dir/config.toml" ]; then
     config="$helper_dir/config.toml"
-  elif [ "$(basename "$0")" != "weave-status.sh" ] && [ -f "$HOME/.codex/config.toml" ]; then
+  elif [ "$(basename "$0")" != "aiand-status.sh" ] && [ -f "$HOME/.codex/config.toml" ]; then
     config="$HOME/.codex/config.toml"
   fi
   [ -n "$config" ] || return 0
@@ -286,7 +286,7 @@ read_codex_endpoint() {
     # replaces a separate skip rule -- and unlike one, it also catches a comment
     # trailing another assignment, which the unanchored matches would otherwise
     # read as live config on any line preceding the real value.
-    function weave_strip_comment(line,   i, c, out, indq, insq, esc) {
+    function aiand_strip_comment(line,   i, c, out, indq, insq, esc) {
       out = ""
       indq = 0
       insq = 0
@@ -304,9 +304,9 @@ read_codex_endpoint() {
       }
       return out
     }
-    { $0 = weave_strip_comment($0) }
+    { $0 = aiand_strip_comment($0) }
     /^[[:space:]]*\[/ {
-      in_provider = ($0 ~ /^[[:space:]]*\[[[:space:]]*model_providers[[:space:]]*\.[[:space:]]*weave[[:space:]]*(\.[^]]*)?\][[:space:]]*(#.*)?$/)
+      in_provider = ($0 ~ /^[[:space:]]*\[[[:space:]]*model_providers[[:space:]]*\.[[:space:]]*aiand[[:space:]]*(\.[^]]*)?\][[:space:]]*(#.*)?$/)
       next
     }
     !in_provider { next }
@@ -315,7 +315,7 @@ read_codex_endpoint() {
       sub(/^.*=[[:space:]]*"/, "", v); sub(/"$/, "", v)
       if (url == "") url = v
     }
-    match($0, /"?X-Weave-Router-Key"?[[:space:]]*=[[:space:]]*"[^"]*"/) {
+    match($0, /"?X-Aiand-Router-Key"?[[:space:]]*=[[:space:]]*"[^"]*"/) {
       v = substr($0, RSTART, RLENGTH)
       sub(/^.*=[[:space:]]*"/, "", v); sub(/"$/, "", v)
       if (key == "") key = v
@@ -330,7 +330,7 @@ read_codex_endpoint() {
 # Codex turn, and every failure simply leaves the previous cache in place.
 refresh_session_cost() {
   local id="$1" file="$2" context_file="$3" generation="$4"
-  [ "${WEAVE_CODEX_STATUS_SAVINGS:-1}" = "0" ] && [ "${WEAVE_CODEX_STATUS_CONTEXT:-1}" = "0" ] && return 0
+  [ "${AIAND_CODEX_STATUS_SAVINGS:-1}" = "0" ] && [ "${AIAND_CODEX_STATUS_CONTEXT:-1}" = "0" ] && return 0
   command -v curl >/dev/null 2>&1 || return 0
 
   local endpoint base_url key active_file state_lock
@@ -369,7 +369,7 @@ refresh_session_cost() {
     esac
     header_file="$(mktemp "$state_root/.headers.XXXXXX")" || exit 0
     chmod 600 "$header_file"
-    printf 'header = "X-Weave-Router-Key: %s"\n' "$key" >"$header_file"
+    printf 'header = "X-Aiand-Router-Key: %s"\n' "$key" >"$header_file"
     if ! body="$(curl -fsS --max-time 5 --max-filesize 8192 -K "$header_file" "$url" 2>/dev/null)"; then
       rm -f "$header_file"
       exit 0
@@ -385,7 +385,7 @@ refresh_session_cost() {
     savings=""
     fresh_model=""
     fresh_requested=""
-    if [ "${WEAVE_CODEX_STATUS_CONTEXT:-1}" != "0" ]; then
+    if [ "${AIAND_CODEX_STATUS_CONTEXT:-1}" != "0" ]; then
       context_tmp="$(mktemp "$state_root/.context.XXXXXX")" || exit 0
       chmod 600 "$context_tmp"
       printf '%s' "$body" >"$context_tmp" || { rm -f "$context_tmp"; exit 0; }
@@ -399,14 +399,14 @@ refresh_session_cost() {
           shown_requested="$requested_model"
           [ -n "$shown_requested" ] || shown_requested="$(safe_display_value "$fresh_requested")"
           if [ -n "$shown_requested" ] && [ "$fresh_model" != "$shown_requested" ]; then
-            fresh_title="Weave Router · $shown_requested → $fresh_model"
+            fresh_title="Aiand Router · $shown_requested → $fresh_model"
           else
-            fresh_title="Weave Router · $fresh_model"
+            fresh_title="Aiand Router · $fresh_model"
           fi
         fi
       fi
     fi
-    if [ "${WEAVE_CODEX_STATUS_SAVINGS:-1}" != "0" ]; then
+    if [ "${AIAND_CODEX_STATUS_SAVINGS:-1}" != "0" ]; then
       # savings_usd is the router's own (requested - actual). A body without it
       # (404, error envelope, older router) leaves the cache untouched.
       savings="$(printf '%s' "$body" | jq -r '.savings_usd // empty' 2>/dev/null)" || savings=""
@@ -427,7 +427,7 @@ refresh_session_cost() {
     fi
     trap 'release_state_lock "$state_lock"; rmdir "$lock" 2>/dev/null || true' EXIT
     if [ "$(cat "$active_file" 2>/dev/null)" = "$generation" ]; then
-      if [ "${WEAVE_CODEX_STATUS_CONTEXT:-1}" != "0" ]; then
+      if [ "${AIAND_CODEX_STATUS_CONTEXT:-1}" != "0" ]; then
         if [ -n "$fresh_snapshot" ]; then
           existing_snapshot="$(context_snapshot "$context_file" "$id")"
           if [ -n "$existing_snapshot" ] && ! jq -en --argjson incoming "$fresh_snapshot" --argjson existing "$existing_snapshot" '
@@ -475,7 +475,7 @@ refresh_session_cost() {
 # session and "saved -$0.02" is a worse answer than staying quiet.
 savings_clause() {
   local file="$1" raw
-  [ "${WEAVE_CODEX_STATUS_SAVINGS:-1}" = "0" ] && return 0
+  [ "${AIAND_CODEX_STATUS_SAVINGS:-1}" = "0" ] && return 0
   [ -f "$file" ] || return 0
   raw="$(cat "$file" 2>/dev/null)" || return 0
   case "$raw" in
@@ -498,7 +498,7 @@ case "${1:-hook}" in
     ;;
   --on)
     rm -f "$disabled_marker"
-    emit_title "Weave Router · active"
+    emit_title "Aiand Router · active"
     exit 0
     ;;
   --off)
@@ -512,13 +512,13 @@ esac
 
 payload="$(cat)"
 [ -n "$payload" ] || exit 0
-weave_self_refresh 2>/dev/null || true
+aiand_self_refresh 2>/dev/null || true
 command -v jq >/dev/null 2>&1 || exit 0
 jq -e . >/dev/null 2>&1 <<<"$payload" || exit 0
 
 hook_event_name="$(jq -r '.hook_event_name // ""' <<<"$payload")"
-if [ "${WEAVE_CAPTURE_LLM_CLASSIFIER:-}" = "1" ] && [ -n "${WEAVE_CAPTURE_HOOK_TOKEN:-}" ]; then
-  classifier_hook_url="${WEAVE_CAPTURE_HOOK_URL:-http://127.0.0.1:41984/classifier/hook}"
+if [ "${AIAND_CAPTURE_LLM_CLASSIFIER:-}" = "1" ] && [ -n "${AIAND_CAPTURE_HOOK_TOKEN:-}" ]; then
+  classifier_hook_url="${AIAND_CAPTURE_HOOK_URL:-http://127.0.0.1:41984/classifier/hook}"
   if [[ "$classifier_hook_url" =~ ^http://(127\.0\.0\.1|localhost|\[::1\]):[0-9]+/classifier/hook$ ]]; then
   case "$hook_event_name" in
     SessionStart|PreToolUse|PreCompact)
@@ -526,7 +526,7 @@ if [ "${WEAVE_CAPTURE_LLM_CLASSIFIER:-}" = "1" ] && [ -n "${WEAVE_CAPTURE_HOOK_T
       # the opted-in capture proxy rejects its inference request instead.
       jq -c '{hook_event_name,session_id,source,tool_name}' <<<"$payload" |
         curl -fsS --max-time 2 -H 'Content-Type: application/json' \
-          -H "X-Weave-Capture-Hook-Token: $WEAVE_CAPTURE_HOOK_TOKEN" \
+          -H "X-Aiand-Capture-Hook-Token: $AIAND_CAPTURE_HOOK_TOKEN" \
           --data-binary @- "$classifier_hook_url" >/dev/null 2>&1 || true
       ;;
   esac
@@ -568,13 +568,13 @@ if [ "$hook_event_name" = "SessionStart" ]; then
   if [ -f "$disabled_marker" ]; then
     emit_title "Codex · direct"
   else
-    emit_title "Weave Router · active"
+    emit_title "Aiand Router · active"
   fi
   exit 0
 fi
 
 if [ "$hook_event_name" = "PreCompact" ]; then
-  [ -f "$disabled_marker" ] || emit_title "Weave Router · active"
+  [ -f "$disabled_marker" ] || emit_title "Aiand Router · active"
   exit 0
 fi
 if [ "$hook_event_name" = "PreToolUse" ]; then
@@ -602,7 +602,7 @@ marker_model=""
 force_model=""
 structured_command=0
 case "$last_assistant_message" in
-  *'[weave-router-command-v'*) structured_command=1 ;;
+  *'[aiand-router-command-v'*) structured_command=1 ;;
 esac
 if [ "$structured_command" = 1 ]; then
   outcome="$(command_outcome "$last_assistant_message")"
@@ -625,16 +625,16 @@ if [ "$structured_command" = 1 ]; then
 else
   # Legacy acknowledgments remain readable; only explicit force and clear mutate history.
   case "$first_line" in
-    "Weave Router: force-model applied: "*" ("*|"✦ **Weave Router** → force-model applied: "*" ("*|"Weave Router: force-parent applied: "*" ("*|"✦ **Weave Router** → force-parent applied: "*" ("*)
+    "Aiand Router: force-model applied: "*" ("*|"✦ **Aiand Router** → force-model applied: "*" ("*|"Aiand Router: force-parent applied: "*" ("*|"✦ **Aiand Router** → force-parent applied: "*" ("*)
       force_model="${first_line#*applied: }"
       force_model="${force_model%% (*}"
       last_pin_model="$(safe_display_value "$force_model")"
       ;;
-    "Weave Router: force-model cleared"*|"✦ **Weave Router** → force-model cleared"*) last_pin_model="" ;;
+    "Aiand Router: force-model cleared"*|"✦ **Aiand Router** → force-model cleared"*) last_pin_model="" ;;
     *)
       case "$first_line" in
-        "${router_badge_sentinel}✦ **Weave Router** → "*) marker_model="${first_line#"${router_badge_sentinel}✦ **Weave Router** → "}" ;;
-        "✦ **Weave Router** → "*) marker_model="${first_line#"✦ **Weave Router** → "}" ;;
+        "${router_badge_sentinel}✦ **Aiand Router** → "*) marker_model="${first_line#"${router_badge_sentinel}✦ **Aiand Router** → "}" ;;
+        "✦ **Aiand Router** → "*) marker_model="${first_line#"✦ **Aiand Router** → "}" ;;
       esac
       marker_model="${marker_model%% ·*}"
       case "$marker_model" in ''|*[!A-Za-z0-9._:/-]*) marker_model="" ;; esac
@@ -658,7 +658,7 @@ fi
 savings=""
 context=""
 context_file="$(context_file_for "$session_id" 2>/dev/null)" || context_file=""
-if [ -n "$context_file" ] && [ "${WEAVE_CODEX_STATUS_CONTEXT:-1}" != "0" ]; then
+if [ -n "$context_file" ] && [ "${AIAND_CODEX_STATUS_CONTEXT:-1}" != "0" ]; then
   snapshot="$(context_snapshot "$context_file" "$session_id")"
   if [ -n "$snapshot" ]; then
     snapshot_model="$(safe_display_value "$(jq -r '.served_model' <<<"$snapshot")")"
@@ -677,13 +677,13 @@ if cost_file="$(cost_file_for "$session_id" 2>/dev/null)"; then
 fi
 
 if [ -n "$routed_model" ] && [ -n "$requested_model" ] && [ "$routed_model" != "$requested_model" ]; then
-  title="Weave Router · $requested_model → $routed_model$savings"
+  title="Aiand Router · $requested_model → $routed_model$savings"
 elif [ -n "$routed_model" ]; then
-  title="Weave Router · $routed_model$savings"
+  title="Aiand Router · $routed_model$savings"
 elif [ -n "$requested_model" ]; then
-  title="Weave Router · $requested_model → active$savings"
+  title="Aiand Router · $requested_model → active$savings"
 else
-  title="Weave Router · active$savings"
+  title="Aiand Router · active$savings"
 fi
 emit_title "$title$context$(pin_clause)"
 release_state_lock "$state_lock"

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"regexp"
 
-	"weave-os/router/internal/observability"
+	"aiand-os/router/internal/observability"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -17,7 +17,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-const tracerName = "weave-os/router/internal/postgres"
+const tracerName = "aiand-os/router/internal/postgres"
 
 var (
 	// ErrDatabaseNameEmpty is returned when a Postgres tracer has no database namespace.

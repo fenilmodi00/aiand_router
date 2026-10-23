@@ -6,7 +6,7 @@ import (
 	"net/http"
 
 	"github.com/tidwall/gjson"
-	"weave-os/router/internal/sse"
+	"aiand-os/router/internal/sse"
 )
 
 type protocolNoticeSink struct {

@@ -4,12 +4,12 @@ import (
 	"context"
 	"slices"
 
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/router/hmm"
-	"weave-os/router/internal/router/policy"
-	"weave-os/router/internal/router/sessionpin"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router/hmm"
+	"aiand-os/router/internal/router/policy"
+	"aiand-os/router/internal/router/sessionpin"
 )
 
 // compactionModelOrDefault returns the configured Sonnet-class model for

@@ -46,7 +46,7 @@ interface RouterOnboardingProps {
  * idle until the router serves its first request and hand off to the
  * dashboard.
  *
- * Deliberately mirrors the hosted flow at router.workweave.ai so the two
+ * Deliberately mirrors the hosted flow at router.workaiand.ai so the two
  * surfaces teach the same mental model, but the base URL comes from this
  * deployment's own origin rather than the hosted endpoint.
  */

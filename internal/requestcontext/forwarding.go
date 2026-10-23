@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"weave-os/router/internal/auth"
+	"aiand-os/router/internal/auth"
 )
 
 // Wire shape agreed with Snowflake Cortex: raw JSON, no percent-encoding.

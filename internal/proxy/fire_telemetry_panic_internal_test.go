@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"weave-os/router/internal/observability"
+	"aiand-os/router/internal/observability"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

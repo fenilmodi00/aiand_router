@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"weave-os/router/internal/escalationmodal"
-	"weave-os/router/internal/router/llmescalation"
+	"aiand-os/router/internal/escalationmodal"
+	"aiand-os/router/internal/router/llmescalation"
 )
 
 func TestJudgeAcceptsOnlyPinnedDigitVerdict(t *testing.T) {

@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"weave-os/router/internal/router/hmm/rosterdata"
+	"aiand-os/router/internal/router/hmm/rosterdata"
 )
 
 // ServingTarget is a managed runtime destination, independent of routing strategy.
@@ -19,7 +19,7 @@ type ServingTarget string
 const (
 	TargetStaging  ServingTarget = "staging"
 	TargetStable   ServingTarget = "prod/stable"
-	TargetInternal ServingTarget = "prod/weave-internal"
+	TargetInternal ServingTarget = "prod/aiand-internal"
 )
 
 // Environment rejects legacy beta and cross-environment target combinations.
@@ -86,7 +86,7 @@ const ManagedRuntimeContractV1 ServingSchema = "router_managed_runtime_v1"
 // ServingProvenance keeps both source identities separate from artifact identity.
 type ServingProvenance struct {
 	RouterRevision   string    `json:"router_revision"`
-	WeaveRevision    string    `json:"weave_revision"`
+	AiandRevision    string    `json:"aiand_revision"`
 	BuildAttestation ObjectRef `json:"build_attestation"`
 }
 

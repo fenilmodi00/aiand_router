@@ -8,9 +8,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/server/middleware"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/server/middleware"
 )
 
 func runPolicyDebugOverride(t *testing.T, installation *auth.Installation, header string) bool {

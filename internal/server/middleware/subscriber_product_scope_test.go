@@ -12,11 +12,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/billing"
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/router/eligibility"
-	"weave-os/router/internal/server/middleware"
-	"weave-os/router/internal/subscriptions/entitlement"
+	"aiand-os/router/internal/billing"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/router/eligibility"
+	"aiand-os/router/internal/server/middleware"
+	"aiand-os/router/internal/subscriptions/entitlement"
 )
 
 // runProductScopeMiddleware reports the product scope the handler downstream
@@ -170,7 +170,7 @@ func TestWithSubscriberAllowance_EndedMaxKeepsOrganizationFallbackWithoutSubscri
 	assert.False(t, billing.SubscriptionOnlyFromContext(ctx))
 }
 
-// An agent-shadow evaluation is Weave's own traffic: it draws no included
+// An agent-shadow evaluation is Aiand's own traffic: it draws no included
 // allowance even when the subscriber's is spent, but the plan still bounds
 // which model its forced route may dispatch.
 func TestWithSubscriberAllowance_ScopesAgentShadowWithoutSpendingAllowance(t *testing.T) {

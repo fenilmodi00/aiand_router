@@ -6,7 +6,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
 
-from weave_bench.probe import probe_router, response_output_text
+from aiand_bench.probe import probe_router, response_output_text
 
 RESPONSES_OBJECT = {
     "id": "resp_1",
@@ -17,7 +17,7 @@ RESPONSES_OBJECT = {
             "type": "message",
             "role": "assistant",
             "content": [
-                {"type": "output_text", "text": "✦ **Weave Router** → "},
+                {"type": "output_text", "text": "✦ **Aiand Router** → "},
                 {"type": "output_text", "text": "Beta enabled. Type /beta again to turn it off."},
             ],
         },
@@ -28,7 +28,7 @@ RESPONSES_OBJECT = {
 
 def test_output_text_concatenates_message_parts_only() -> None:
     assert (
-        response_output_text(RESPONSES_OBJECT) == "✦ **Weave Router** → Beta enabled. Type /beta again to turn it off."
+        response_output_text(RESPONSES_OBJECT) == "✦ **Aiand Router** → Beta enabled. Type /beta again to turn it off."
     )
     assert response_output_text({"output": "not-a-list"}) == ""
     assert response_output_text({"error": {"message": "invalid_key"}}) == ""
@@ -86,8 +86,8 @@ def test_probe_reports_version_roster_and_beta_ack(fake_router: str) -> None:
     assert "beta lane enabled for this key: yes" in rendered
     ((headers, body),) = _FakeRouter.responses_requests
     assert body == {"model": "gpt-5.6-sol", "input": "/beta", "stream": False}
-    assert headers["x-app"] == "weave-eval-codex"
-    assert headers["session-id"].startswith("weave-bench-probe-")
+    assert headers["x-app"] == "aiand-eval-codex"
+    assert headers["session-id"].startswith("aiand-bench-probe-")
     assert headers["authorization"] == "Bearer rk_test"
 
 

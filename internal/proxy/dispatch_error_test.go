@@ -6,17 +6,17 @@ import (
 	"net/http"
 	"testing"
 
-	"weave-os/router/internal/billing"
-	"weave-os/router/internal/dispatch"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/router/bandit"
-	"weave-os/router/internal/router/cluster"
-	"weave-os/router/internal/router/decisionmodel"
-	"weave-os/router/internal/router/hmm"
-	"weave-os/router/internal/router/policy"
-	"weave-os/router/internal/router/rl"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/billing"
+	"aiand-os/router/internal/dispatch"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/router/bandit"
+	"aiand-os/router/internal/router/cluster"
+	"aiand-os/router/internal/router/decisionmodel"
+	"aiand-os/router/internal/router/hmm"
+	"aiand-os/router/internal/router/policy"
+	"aiand-os/router/internal/router/rl"
+	"aiand-os/router/internal/translate"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -179,7 +179,7 @@ func TestClassifyDispatchError_CreditsExhaustedIs402(t *testing.T) {
 	assert.Equal(t, proxy.DispatchErrorCreditsExhausted, cls.Kind)
 	assert.Equal(t, http.StatusPaymentRequired, cls.Status)
 	assert.Contains(t, cls.Message, "credits are exhausted", "the client message must explain the depleted balance")
-	assert.Contains(t, cls.Message, "weave-router", "the client message must surface the top-up CTA")
+	assert.Contains(t, cls.Message, "aiand-router", "the client message must surface the top-up CTA")
 	assert.Equal(t, "warn", cls.LogLevel)
 	assert.False(t, cls.RetryAfter, "a retry won't help until credits are added")
 }

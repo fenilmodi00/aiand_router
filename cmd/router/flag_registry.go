@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"time"
 
-	"weave-os/router/internal/flags"
-	"weave-os/router/internal/observability"
+	"aiand-os/router/internal/flags"
+	"aiand-os/router/internal/observability"
 )
 
 const (

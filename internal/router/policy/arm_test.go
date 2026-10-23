@@ -6,8 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/policy"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/policy"
 )
 
 func TestMakeArmIDMatchesPythonTemporalQContract(t *testing.T) {

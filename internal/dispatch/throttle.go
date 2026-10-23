@@ -3,7 +3,7 @@ package dispatch
 import (
 	"time"
 
-	"weave-os/router/internal/providers"
+	"aiand-os/router/internal/providers"
 )
 
 const (

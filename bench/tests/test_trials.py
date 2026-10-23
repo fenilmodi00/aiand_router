@@ -4,8 +4,8 @@ from datetime import timedelta
 from pathlib import Path
 
 from tests.conftest import T0, TrialWriter
-from weave_bench.arms import ARMS
-from weave_bench.trials import CodexUsage, ErrorCategory, load_job
+from aiand_bench.arms import ARMS
+from aiand_bench.trials import CodexUsage, ErrorCategory, load_job
 
 TURN = {"type": "turn.completed", "usage": {"input_tokens": 1000, "cached_input_tokens": 600, "output_tokens": 50}}
 THREAD = {"type": "thread.started", "thread_id": "thread-from-stream"}

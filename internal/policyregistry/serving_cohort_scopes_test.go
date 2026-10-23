@@ -3,7 +3,7 @@ package policyregistry_test
 import (
 	"testing"
 
-	"weave-os/router/internal/policyregistry"
+	"aiand-os/router/internal/policyregistry"
 )
 
 func expandCohortV2(t *testing.T, store *servingMemoryStore, set policyregistry.SelectionSetV3) policyregistry.SelectionSetV2 {

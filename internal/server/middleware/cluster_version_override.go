@@ -3,15 +3,15 @@ package middleware
 import (
 	"strings"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/requestcontext"
-	"weave-os/router/internal/router/cluster"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/router/cluster"
 
 	"github.com/gin-gonic/gin"
 )
 
 // ClusterVersionOverrideHeader pins a request to a specific cluster artifact version.
-const ClusterVersionOverrideHeader = "x-weave-cluster-version"
+const ClusterVersionOverrideHeader = "x-aiand-cluster-version"
 
 // WithClusterVersionOverride stashes the requested cluster version on the request context when the header is set.
 func WithClusterVersionOverride() gin.HandlerFunc {

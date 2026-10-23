@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"weave-os/router/internal/flags"
+	"aiand-os/router/internal/flags"
 )
 
 func TestEscalationSelectorPreservesLegacyUntilExplicit(t *testing.T) {

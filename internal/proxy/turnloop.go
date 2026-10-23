@@ -11,24 +11,24 @@ import (
 	"strings"
 	"time"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/flags"
-	"weave-os/router/internal/inference"
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/observability/apm"
-	"weave-os/router/internal/observability/otel"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/router/cluster"
-	"weave-os/router/internal/router/escalation"
-	"weave-os/router/internal/router/handover"
-	"weave-os/router/internal/router/hmm"
-	"weave-os/router/internal/router/planner"
-	"weave-os/router/internal/router/policy"
-	"weave-os/router/internal/router/sessionpin"
-	"weave-os/router/internal/router/turntype"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/flags"
+	"aiand-os/router/internal/inference"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/observability/apm"
+	"aiand-os/router/internal/observability/otel"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router/cluster"
+	"aiand-os/router/internal/router/escalation"
+	"aiand-os/router/internal/router/handover"
+	"aiand-os/router/internal/router/hmm"
+	"aiand-os/router/internal/router/planner"
+	"aiand-os/router/internal/router/policy"
+	"aiand-os/router/internal/router/sessionpin"
+	"aiand-os/router/internal/router/turntype"
+	"aiand-os/router/internal/translate"
 
 	"github.com/google/uuid"
 )
@@ -172,7 +172,7 @@ func (s *Service) plannerTokensFor(env *translate.RequestEnvelope, feats transla
 }
 
 // policyPinTier is the PinTier stamped on a turn scored fresh under an
-// honoured x-weave-policy-pin, bypassing every session short-circuit.
+// honoured x-aiand-policy-pin, bypassing every session short-circuit.
 const policyPinTier = "policy_pin"
 
 type pinTier string
@@ -280,7 +280,7 @@ type turnLoopResult struct {
 	// Handover captures the summarize-or-trim step when the planner switched.
 	Handover handoverOutcome
 	// SuggestionMode suppresses the routing-marker badge for requests carrying
-	// the x-weave-suggestion-mode header.
+	// the x-aiand-suggestion-mode header.
 	SuggestionMode bool
 	// PrefixTrimmed is true when the compaction tracker detected a client-side
 	// history trim this turn. Set before routing so the planner can price the
@@ -724,7 +724,7 @@ func forcedPinIneligibilityReason(pin sessionpin.Pin, req router.Request) string
 // installationID == uuid.Nil skips the async pin upsert (rows need one); the
 // rest of the path runs normally.
 //
-// An honoured x-weave-policy-pin narrows the loop to one outcome: the turn is
+// An honoured x-aiand-policy-pin narrows the loop to one outcome: the turn is
 // scored fresh by exactly the pinned artifact and roster, or it fails closed
 // with ErrPolicyPinUnavailable. No branch may answer 200 for a pinned turn
 // with a decision the pinned policy did not produce.
@@ -1457,7 +1457,7 @@ func (s *Service) runTurnLoop(
 		pin = sessionpin.Pin{}
 	}
 
-	// A pin the router chose itself stops being reusable the moment Weave
+	// A pin the router chose itself stops being reusable the moment Aiand
 	// disables its model deployment-wide. Dropping it here — before the
 	// tool-result, planner-disabled, EV-stay, and re-anchor branches — is what
 	// makes the setting reach sessions that are already pinned, instead of only

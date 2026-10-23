@@ -3,9 +3,9 @@ package middleware
 import (
 	"net/http"
 
-	"weave-os/router/internal/billing"
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/proxy"
+	"aiand-os/router/internal/billing"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/proxy"
 
 	"github.com/gin-gonic/gin"
 )
@@ -67,7 +67,7 @@ func WithOrgMonthlySpendCap(svc *billing.Service) gin.HandlerFunc {
 				"error":                    "org_monthly_spend_limit_reached",
 				"spent_usd_micros":         result.SpentMicros,
 				"monthly_limit_usd_micros": *result.LimitMicros,
-				"message":                  "Your organization has reached its monthly Weave Router spend limit. An org admin can raise the limit, or it resets next month.",
+				"message":                  "Your organization has reached its monthly Aiand Router spend limit. An org admin can raise the limit, or it resets next month.",
 			})
 			return
 		}

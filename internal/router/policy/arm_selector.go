@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/escalation"
-	"weave-os/router/internal/router/taskdomain"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/escalation"
+	"aiand-os/router/internal/router/taskdomain"
 )
 
 // ErrNoEligibleArm is returned when deterministic selection exhausts every

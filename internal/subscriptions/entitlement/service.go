@@ -92,7 +92,7 @@ func (s *Service) ProductScope(ctx context.Context, subscriberID SubscriberID) (
 // rather than exhausted: those requests are paid for by the org/prepaid paths
 // that already gate them, and a stale projection must not hand out free usage.
 //
-// The month's allowance is the projected one, which Weave prorates across the
+// The month's allowance is the projected one, which Aiand prorates across the
 // entitlement segments covering the period. The weekly and six-hour caps are
 // derived here instead: they depend on the window being admitted, not only on
 // the entitlement, so they cannot be projected scalars.

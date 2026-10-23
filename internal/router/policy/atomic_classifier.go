@@ -3,8 +3,8 @@ package policy
 import (
 	"context"
 
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/escalation"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/escalation"
 )
 
 // AtomicClassifierFacts adapts already committed V3 facts to Go-owned selection.

@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/billing"
-	"weave-os/router/internal/subscriptions/entitlement"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/billing"
+	"aiand-os/router/internal/subscriptions/entitlement"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

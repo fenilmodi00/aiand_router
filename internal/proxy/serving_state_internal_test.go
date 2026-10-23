@@ -8,10 +8,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/requestcontext"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/translate"
 )
 
 func TestEscalationActivationPreservesLegacyIdentityAndIsolatesManagedState(t *testing.T) {

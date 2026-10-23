@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router/catalog"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router/catalog"
 )
 
 // buildCentroidsBlob produces centroids.bin bytes from in-memory data,
@@ -130,7 +130,7 @@ func TestLoadCentroids_SizeMismatch(t *testing.T) {
 
 func TestLoadRankings_Roundtrip(t *testing.T) {
 	raw := []byte(`{
-		"aiand": {"router_version": "weave-router-v0.1-bootstrap"},
+		"aiand": {"router_version": "aiand-router-v0.1-bootstrap"},
 		"rankings": {
 			"0": {"moonshotai/kimi-k3": 0.8, "z-ai/glm-5.2": 0.5},
 			"1": {"moonshotai/kimi-k3": 0.3, "z-ai/glm-5.2": 0.6}

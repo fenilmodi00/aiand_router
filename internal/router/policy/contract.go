@@ -3,8 +3,8 @@ package policy
 import (
 	"context"
 
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/taskdomain"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/taskdomain"
 )
 
 // SchemaVersionV1 is the first stable policy-sidecar wire contract.

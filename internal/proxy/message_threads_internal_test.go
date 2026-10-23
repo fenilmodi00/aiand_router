@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/router"
 )
 
 func TestProxyMessages_ThreadContinueBouncedBeforeClassifierHistory(t *testing.T) {

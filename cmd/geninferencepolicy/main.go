@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 
-	"weave-os/router/internal/router/policy"
+	"aiand-os/router/internal/router/policy"
 )
 
 const (

@@ -64,7 +64,7 @@ function toTimeGranularity(g: RouterGranularity): TimeGranularity {
 /**
  * Stacked bar chart of per-bucket totals broken down by the model the router
  * selected. `metric` picks the summed value: request volume (usage) or actual
- * retail cost (spend) — mirroring the managed WorkWeave dashboard's Model
+ * retail cost (spend) — mirroring the managed WorkAiand dashboard's Model
  * Usage / Model Spend charts.
  */
 export function ModelBreakdownChart({ buckets, granularity, metric }: Props) {

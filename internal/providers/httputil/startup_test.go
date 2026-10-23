@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"weave-os/router/internal/providers/httputil"
+	"aiand-os/router/internal/providers/httputil"
 )
 
 func TestWarmTransportRetainsConnectionWithoutCredentials(t *testing.T) {

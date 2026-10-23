@@ -9,11 +9,11 @@ import (
 	"strings"
 	"testing"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/sessionpin"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/sessionpin"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -81,7 +81,7 @@ func TestProxyGeminiGenerateContent_DelaysMarkerUntilFirstUpstreamEvent(t *testi
 	require.NoError(t, svc.ProxyGeminiGenerateContent(authedCtx("00000000-0000-0000-0000-000000000001"), []byte(body), rec,
 		httptest.NewRequest(http.MethodPost, "/v1beta/models/gemini-1.5-pro:streamGenerateContent", nil)))
 
-	markerAt := strings.Index(rec.Body.String(), "Weave Router")
+	markerAt := strings.Index(rec.Body.String(), "Aiand Router")
 	upstreamAt := strings.Index(rec.Body.String(), "upstream")
 	assert.GreaterOrEqual(t, markerAt, 0)
 	assert.GreaterOrEqual(t, upstreamAt, 0)
@@ -105,7 +105,7 @@ func TestProxyGeminiGenerateContent_RetriesBuffered429WithoutMarkerLeak(t *testi
 		httptest.NewRequest(http.MethodPost, "/v1beta/models/gemini-1.5-pro:streamGenerateContent", nil))
 	require.Error(t, err)
 	assert.Len(t, googleProv.proxyBodies, 3, "single-provider 429 retries are bounded")
-	assert.NotContains(t, rec.Body.String(), "Weave Router", "a retryable upstream failure must not commit the marker")
+	assert.NotContains(t, rec.Body.String(), "Aiand Router", "a retryable upstream failure must not commit the marker")
 	assert.Contains(t, rec.Body.String(), "retry later")
 }
 

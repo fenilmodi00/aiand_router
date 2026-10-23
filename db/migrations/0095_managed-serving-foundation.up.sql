@@ -38,7 +38,7 @@ CREATE TABLE router.session_release_bindings (
     installation_id uuid NOT NULL REFERENCES router.model_router_installations(id) ON DELETE CASCADE,
     credential_scope varchar(160) NOT NULL,
     conversation_digest bytea NOT NULL CHECK (octet_length(conversation_digest) = 16),
-    target varchar(32) NOT NULL CHECK (target IN ('staging', 'prod/stable', 'prod/weave-internal')),
+    target varchar(32) NOT NULL CHECK (target IN ('staging', 'prod/stable', 'prod/aiand-internal')),
     activation_id uuid NOT NULL,
     release_sha256 varchar(64) NOT NULL CHECK (release_sha256 ~ '^[0-9a-f]{64}$'),
     binding_sha256 varchar(64) NOT NULL CHECK (binding_sha256 ~ '^[0-9a-f]{64}$'),

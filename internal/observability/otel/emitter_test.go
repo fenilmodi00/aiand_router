@@ -16,7 +16,7 @@ import (
 	coltracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	tracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
 
-	"weave-os/router/internal/observability/otel"
+	"aiand-os/router/internal/observability/otel"
 )
 
 // testSpan returns a minimal valid tracev1.Span with the given name.
@@ -119,7 +119,7 @@ func TestEmitter_ExportRoundTrip(t *testing.T) {
 		assert.Equal(t, "router", svcName)
 
 		require.NotEmpty(t, rs[0].ScopeSpans)
-		assert.Equal(t, "workweave-router", rs[0].ScopeSpans[0].Scope.Name)
+		assert.Equal(t, "workaiand-router", rs[0].ScopeSpans[0].Scope.Name)
 
 		for _, ss := range rs[0].ScopeSpans {
 			for _, s := range ss.Spans {

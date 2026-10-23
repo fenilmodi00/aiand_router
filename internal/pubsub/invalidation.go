@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/observability"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/observability"
 
 	gcppubsub "cloud.google.com/go/pubsub/v2"
 	"cloud.google.com/go/pubsub/v2/apiv1/pubsubpb"

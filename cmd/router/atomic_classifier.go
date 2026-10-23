@@ -11,17 +11,17 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"weave-os/router/internal/policyclient"
-	"weave-os/router/internal/postgres"
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/router/escalation"
-	"weave-os/router/internal/router/hmm/armid"
-	"weave-os/router/internal/router/hmm/rosterdata"
-	"weave-os/router/internal/router/hmm/selection"
-	"weave-os/router/internal/router/policy"
-	"weave-os/router/internal/server"
+	"aiand-os/router/internal/policyclient"
+	"aiand-os/router/internal/postgres"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router/escalation"
+	"aiand-os/router/internal/router/hmm/armid"
+	"aiand-os/router/internal/router/hmm/rosterdata"
+	"aiand-os/router/internal/router/hmm/selection"
+	"aiand-os/router/internal/router/policy"
+	"aiand-os/router/internal/server"
 )
 
 type atomicClassifierConfig struct {

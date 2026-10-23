@@ -98,7 +98,7 @@ function fakeTransport(options: { autoHandshake?: boolean } = {}): FakeTransport
 }
 
 function tempDir(): string {
-	return fs.mkdtempSync(path.join(os.tmpdir(), "weave-lsp-test-"));
+	return fs.mkdtempSync(path.join(os.tmpdir(), "aiand-lsp-test-"));
 }
 
 function goProject(): { dir: string; file: string } {
@@ -804,7 +804,7 @@ test("workspace detection ignores dot dirs and vendored trees, and .git is never
 });
 
 test("dismissals round-trip through the prefs file and tolerate a corrupt one", () => {
-	const prefsPath = path.join(tempDir(), ".weave_lsp.json");
+	const prefsPath = path.join(tempDir(), ".aiand_lsp.json");
 	assert.deepEqual([...loadDismissedLanguages(prefsPath)], []);
 	saveDismissedLanguages(prefsPath, new Set(["go", "rust"]));
 	assert.deepEqual([...loadDismissedLanguages(prefsPath)].sort(), ["go", "rust"]);
@@ -917,7 +917,7 @@ function lspToolHarness(deps: Parameters<typeof registerLsp>[1]) {
 test("lsp_enable dismiss persists the opt-out and the offer stops being injected", async () => {
 	const dir = tempDir();
 	fs.writeFileSync(path.join(dir, "go.mod"), "module x\n");
-	const prefsPath = path.join(dir, ".weave_lsp.json");
+	const prefsPath = path.join(dir, ".aiand_lsp.json");
 	const harness = lspToolHarness({
 		prefsPath,
 		which: () => undefined,
@@ -943,7 +943,7 @@ test("lsp_enable dismiss persists the opt-out and the offer stops being injected
 
 test("lsp_enable install runs the injected installer and a user-requested install clears an old dismissal", async () => {
 	const dir = tempDir();
-	const prefsPath = path.join(dir, ".weave_lsp.json");
+	const prefsPath = path.join(dir, ".aiand_lsp.json");
 	saveDismissedLanguages(prefsPath, new Set(["go"]));
 	const installedFor: string[] = [];
 	const harness = lspToolHarness({

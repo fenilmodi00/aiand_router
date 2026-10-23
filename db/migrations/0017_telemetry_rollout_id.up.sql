@@ -1,6 +1,6 @@
 BEGIN;
 
--- Client-supplied rollout correlation id (x-weave-rollout-id header). Set by
+-- Client-supplied rollout correlation id (x-aiand-rollout-id header). Set by
 -- eval/training harnesses so a sandbox rollout's graded reward can be joined
 -- back onto every routing decision made inside it (bandit closed loop).
 -- NULL for all non-harness traffic.

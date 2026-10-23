@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"weave-os/router/internal/providers"
+	"aiand-os/router/internal/providers"
 )
 
 // TestLatestWinMapLive reports which models win which clusters under the promoted bundle.

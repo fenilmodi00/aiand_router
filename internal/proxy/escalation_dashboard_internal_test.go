@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"weave-os/router/internal/router/escalationdashboard"
+	"aiand-os/router/internal/router/escalationdashboard"
 )
 
 type escalationDashboardStoreStub struct {

@@ -25,12 +25,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/sync/errgroup"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/postgres"
-	"weave-os/router/internal/postgres/serving"
-	"weave-os/router/internal/sqlc"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/postgres"
+	"aiand-os/router/internal/postgres/serving"
+	"aiand-os/router/internal/sqlc"
 )
 
 // databaseURLEnv gates the harness; it must name a loopback Postgres fixture.

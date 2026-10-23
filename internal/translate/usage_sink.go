@@ -1,6 +1,6 @@
 package translate
 
-import "weave-os/router/internal/usage"
+import "aiand-os/router/internal/usage"
 
 // UsageSink records provider facts separately from explicit output-limit evidence.
 type UsageSink interface {

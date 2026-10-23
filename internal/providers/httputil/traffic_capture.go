@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/trafficcapture"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/trafficcapture"
 )
 
 type trafficCaptureRoundTripper struct {

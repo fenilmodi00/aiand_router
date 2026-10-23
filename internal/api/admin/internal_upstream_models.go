@@ -4,9 +4,9 @@ import (
 	"errors"
 	"net/http"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/proxy"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/proxy"
 
 	"github.com/gin-gonic/gin"
 )
@@ -20,7 +20,7 @@ type internalUpstreamModelsRequest struct {
 }
 
 // InternalListUpstreamModelsHandler lists the models a saved BYOK endpoint
-// publishes, for the Weave control plane. Key-pair and workload-identity
+// publishes, for the Aiand control plane. Key-pair and workload-identity
 // credentials are minted per request and never leave the router, so the
 // control plane cannot make this call itself.
 func InternalListUpstreamModelsHandler(authSvc *auth.Service, proxySvc *proxy.Service) gin.HandlerFunc {

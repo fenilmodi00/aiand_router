@@ -1,6 +1,6 @@
 BEGIN;
 
--- Monthly cap on autopay recharges, written by the Weave control plane like
+-- Monthly cap on autopay recharges, written by the Aiand control plane like
 -- the rest of this table. NULL cap means uncapped. recharged_month /
 -- recharged_month_usd_micros track successful autopay grants in the current
 -- UTC calendar month (recharged_month is the month's first day); the claim

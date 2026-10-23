@@ -51,7 +51,7 @@ export const HARNESSES: HarnessInfo[] = [
   {
     id: "pi",
     label: "pi",
-    detail: "Merges a weave provider into ~/.pi/agent/models.json.",
+    detail: "Merges a aiand provider into ~/.pi/agent/models.json.",
     projectDetail: "Writes <repo>/.pi/ (gitignored). Run: PI_CODING_AGENT_DIR=.pi pi",
   },
 ];
@@ -74,15 +74,15 @@ export function routerOrigin(): string {
 
 /**
  * The npx one-liner that configures `harnessID` against this router. The token
- * rides in as WEAVE_ROUTER_KEY, which the installer reads to skip its
+ * rides in as AIAND_ROUTER_KEY, which the installer reads to skip its
  * interactive prompt: a per-command env prefix in POSIX shells, a session
  * variable in PowerShell (which has no prefix form), removed after the run.
  * PowerShell calls npx.cmd because npx.ps1 is blocked by the Restricted
  * execution policy.
  *
- * `--package … -- <bin>` rather than `npx -y @weave-os/router`: npm <= 6's
+ * `--package … -- <bin>` rather than `npx -y @aiand-os/router`: npm <= 6's
  * bundled npx treats an undeclared flag as consuming the next token, so the
- * short form drops the package name and resolves `weave-router` from the
+ * short form drops the package name and resolves `aiand-router` from the
  * registry instead — with the key already in its environment.
  */
 export function installCommand(
@@ -94,10 +94,10 @@ export function installCommand(
 ): string {
   const quote = shell === "powershell" ? powerShellSingleQuote : shellSingleQuote;
   const flags = [`--${harnessID}`, `--scope ${scope}`, `--base-url ${quote(origin)}`];
-  const npxArgs = `--package @weave-os/router -y -- weave-router ${flags.join(" ")}`;
+  const npxArgs = `--package @aiand-os/router -y -- aiand-router ${flags.join(" ")}`;
   return shell === "powershell"
-    ? `$env:WEAVE_ROUTER_KEY=${quote(token)}; npx.cmd ${npxArgs}; Remove-Item Env:WEAVE_ROUTER_KEY`
-    : `WEAVE_ROUTER_KEY=${quote(token)} npx ${npxArgs}`;
+    ? `$env:AIAND_ROUTER_KEY=${quote(token)}; npx.cmd ${npxArgs}; Remove-Item Env:AIAND_ROUTER_KEY`
+    : `AIAND_ROUTER_KEY=${quote(token)} npx ${npxArgs}`;
 }
 
 /**

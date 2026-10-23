@@ -9,10 +9,10 @@ import (
 	"math"
 
 	"github.com/google/uuid"
-	"weave-os/router/internal/flags"
-	"weave-os/router/internal/postgres/dbbudget"
-	"weave-os/router/internal/router/llmescalation"
-	"weave-os/router/internal/sqlc"
+	"aiand-os/router/internal/flags"
+	"aiand-os/router/internal/postgres/dbbudget"
+	"aiand-os/router/internal/router/llmescalation"
+	"aiand-os/router/internal/sqlc"
 )
 
 var _ llmescalation.ConfigurationStore = (*LLMEscalationRepo)(nil)

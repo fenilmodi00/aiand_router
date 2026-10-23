@@ -3,7 +3,7 @@ package catalog
 import (
 	"fmt"
 
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/router"
 )
 
 // ScopeSelection includes automatic routers alongside explicit upstream models.

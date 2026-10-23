@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"weave-os/router/internal/policyclient"
-	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/router/hmm/policycompiler"
-	"weave-os/router/internal/router/hmm/rosterdata"
+	"aiand-os/router/internal/policyclient"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/router/hmm/policycompiler"
+	"aiand-os/router/internal/router/hmm/rosterdata"
 )
 
 type commandName string
@@ -31,7 +31,7 @@ const (
 	commandServing      commandName = "serving"
 )
 
-const defaultRegistryURI = "gs://weave_ml/weave_registry"
+const defaultRegistryURI = "gs://aiand_ml/aiand_registry"
 
 type classifierVerification string
 

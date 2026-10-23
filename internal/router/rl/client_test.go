@@ -8,8 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router/rl"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router/rl"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

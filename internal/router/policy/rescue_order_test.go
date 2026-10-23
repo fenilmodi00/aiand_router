@@ -3,7 +3,7 @@ package policy_test
 import (
 	"testing"
 
-	"weave-os/router/internal/router/policy"
+	"aiand-os/router/internal/router/policy"
 
 	"github.com/stretchr/testify/assert"
 )

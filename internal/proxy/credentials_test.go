@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"testing"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/requestcontext"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/requestcontext"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

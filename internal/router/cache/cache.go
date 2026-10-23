@@ -14,7 +14,7 @@ import (
 
 	lru "github.com/hashicorp/golang-lru/v2"
 
-	"weave-os/router/internal/observability"
+	"aiand-os/router/internal/observability"
 )
 
 // CachedResponse captures the upstream response in the inbound wire format.
@@ -34,7 +34,7 @@ type Config struct {
 	BucketSize int
 	// MaxBucketsPerInstallation caps buckets per installation. Bucket identity
 	// includes attacker-influenceable inputs (cluster version, knobs hash), so
-	// without this cap one tenant could vary x-weave-routing-* headers to evict
+	// without this cap one tenant could vary x-aiand-routing-* headers to evict
 	// other tenants' buckets from a shared global LRU.
 	MaxBucketsPerInstallation int
 	// MaxInstallations caps tracked installations. Defense in depth since

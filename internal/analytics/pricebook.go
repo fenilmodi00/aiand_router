@@ -1,6 +1,6 @@
 package analytics
 
-import "weave-os/router/internal/router/catalog"
+import "aiand-os/router/internal/router/catalog"
 
 // ModelPrice is one model's export-facing price entry. Published so a consumer
 // can recompute cost columns independently.

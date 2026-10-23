@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"time"
 
-	"weave-os/router/internal/router/turntype"
+	"aiand-os/router/internal/router/turntype"
 )
 
 // SessionTurnClock records when each session's main thread last finished a

@@ -8,7 +8,7 @@ import (
 	"io"
 	"net/http"
 
-	"weave-os/router/internal/router/escalation"
+	"aiand-os/router/internal/router/escalation"
 )
 
 const escalationResponseMaxBytes = 2 << 20

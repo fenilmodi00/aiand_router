@@ -4,12 +4,12 @@ import (
 	"slices"
 	"time"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/flags"
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/sqlc"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/flags"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/sqlc"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"

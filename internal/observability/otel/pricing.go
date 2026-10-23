@@ -3,7 +3,7 @@
 //go:generate go run ../../../cmd/genprices
 package otel
 
-import "weave-os/router/internal/router/catalog"
+import "aiand-os/router/internal/router/catalog"
 
 // Pricing holds the per-1M-token USD costs for a single model.
 //

@@ -4,10 +4,10 @@ import (
 	"context"
 	"github.com/stretchr/testify/require"
 	"testing"
-	"weave-os/router/internal/billing"
-	"weave-os/router/internal/requestcontext"
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/subscriptions/entitlement"
+	"aiand-os/router/internal/billing"
+	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/subscriptions/entitlement"
 )
 
 type testBudgetBook struct {

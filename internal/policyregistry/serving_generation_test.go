@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/policyregistry"
+	"aiand-os/router/internal/policyregistry"
 )
 
 func TestRejectStaleServingGeneration(t *testing.T) {

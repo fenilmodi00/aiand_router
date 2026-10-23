@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sync"
 
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/catalog"
 )
 
 // EscalationCadence is the number of calls between escalation checks, which begin at call 4.

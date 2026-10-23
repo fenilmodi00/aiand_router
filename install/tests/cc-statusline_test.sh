@@ -2,7 +2,7 @@
 #
 # Regression tests for install/cc-statusline.sh.
 #
-# Fully offline: every case points WEAVE_STATUSLINE_URL at a file:// copy under
+# Fully offline: every case points AIAND_STATUSLINE_URL at a file:// copy under
 # a temp dir, so no test ever reaches raw.githubusercontent.com. Run directly or
 # via `make test-statusline`.
 #
@@ -60,13 +60,13 @@ wait_for() { # wait_for <timeout_seconds> <command...>
 # own, masking whether the price-miss path did anything. Pre-seeding its stamp
 # puts it inside its interval so the miss path is the only thing that can act.
 seed_periodic_stamp() { # seed_periodic_stamp <cache_home> <script_path>
-  local dir="$1/weave-router"
+  local dir="$1/aiand-router"
   mkdir -p "$dir"
   : > "$dir/checked-at$(printf '%s' "$2" | tr -c 'A-Za-z0-9._-' '_')"
 }
 
 count_stamps() { # count_stamps <cache_home> [<name_filter>]
-  local dir="$1/weave-router"
+  local dir="$1/aiand-router"
   [ -d "$dir" ] || { echo 0; return 0; }
   if [ -n "${2:-}" ]; then
     find "$dir" -type f -name "*$2*" | wc -l | tr -d ' '
@@ -150,7 +150,7 @@ make_installed_bad_prices() { # make_installed_bad_prices <dest>
 
 render() { # render <installed_script> <cache_home> <url> <model_id> [transcript]
   echo "{\"model\":{\"id\":\"$4\"},\"transcript_path\":\"${5-$transcript}\"}" \
-    | XDG_CACHE_HOME="$2" WEAVE_STATUSLINE_URL="$3" bash "$1" 2>&1 \
+    | XDG_CACHE_HOME="$2" AIAND_STATUSLINE_URL="$3" bash "$1" 2>&1 \
     | sed 's/\x1b\[[0-9;]*m//g'
 }
 
@@ -164,8 +164,8 @@ c="$work/routing-evidence"; mkdir -p "$c/cache"; make_installed "$c/cc.sh"
 printf '{"hide_terminal_surfaces": false}' > "$c/display-settings.json"
 for response_model in claude-sonnet-4-5 deepseek/deepseek-v4-pro; do
   jq -cn --arg model "$response_model" '{type:"assistant",message:{id:"msg_local",model:$model,usage:{input_tokens:1000,output_tokens:200,cache_read_input_tokens:3000,cache_creation_input_tokens:500}}}' > "$c/transcript.jsonl"
-  out="$(WEAVE_STATUSLINE_UPDATE=0 WEAVE_ROUTER_KEY=rk_synthetic \
-    WEAVE_ROUTER_BASE_URL="file://$c/display-settings.json" \
+  out="$(AIAND_STATUSLINE_UPDATE=0 AIAND_ROUTER_KEY=rk_synthetic \
+    AIAND_ROUTER_BASE_URL="file://$c/display-settings.json" \
     render "$c/cc.sh" "$c/cache" "file://$upstream" claude-sonnet-4-5 "$c/transcript.jsonl")"
   check_not_contains "$response_model does not show a routing warning" "$out" "routing unverified"
   check_contains "$response_model has a clear response label" "$out" "response model: $response_model"
@@ -178,11 +178,11 @@ for response_model in claude-sonnet-4-5 deepseek/deepseek-v4-pro; do
 done
 
 cat > "$c/pin.jsonl" <<'JSONL'
-{"type":"assistant","message":{"id":"msg_ack","model":"weave-router","content":[{"type":"text","text":"force-model applied: claude-opus-4-7 (anthropic)"}]}}
+{"type":"assistant","message":{"id":"msg_ack","model":"aiand-router","content":[{"type":"text","text":"force-model applied: claude-opus-4-7 (anthropic)"}]}}
 {"type":"assistant","message":{"id":"msg_later","model":"claude-sonnet-4-5","usage":{"input_tokens":123,"output_tokens":456}}}
 JSONL
-out="$(WEAVE_STATUSLINE_UPDATE=0 WEAVE_ROUTER_KEY=rk_synthetic \
-  WEAVE_ROUTER_BASE_URL="file://$c/display-settings.json" \
+out="$(AIAND_STATUSLINE_UPDATE=0 AIAND_ROUTER_KEY=rk_synthetic \
+  AIAND_ROUTER_BASE_URL="file://$c/display-settings.json" \
   render "$c/cc.sh" "$c/cache" "file://$upstream" claude-sonnet-4-5 "$c/pin.jsonl")"
 check_not_contains "historical pin does not show a routing warning" "$out" "routing unverified"
 check_contains "historical pin is labeled as historical" "$out" "last pin: claude-opus-4-7"
@@ -192,8 +192,8 @@ check_not_contains "historical pin does not claim an active force" "$out" "[forc
 # Control acknowledgments and rejected commands do not clear an acknowledged pin.
 for ack in 'session id: synthetic-session' 'models this installation can be routed to' 'Feedback recorded' 'force-model rejected: provider is excluded'; do
   head -n 1 "$c/pin.jsonl" > "$c/control.jsonl"
-  jq -cn --arg ack "$ack" '{type:"assistant",message:{model:"weave-router",content:[{type:"text",text:$ack}]}}' >> "$c/control.jsonl"
-  out="$(WEAVE_STATUSLINE_UPDATE=0 WEAVE_STATUSLINE_CONTEXT=0 render "$c/cc.sh" "$c/cache" "file://$upstream" claude-sonnet-4-5 "$c/control.jsonl")"
+  jq -cn --arg ack "$ack" '{type:"assistant",message:{model:"aiand-router",content:[{type:"text",text:$ack}]}}' >> "$c/control.jsonl"
+  out="$(AIAND_STATUSLINE_UPDATE=0 AIAND_STATUSLINE_CONTEXT=0 render "$c/cc.sh" "$c/cache" "file://$upstream" claude-sonnet-4-5 "$c/control.jsonl")"
   check_contains "$ack preserves the historical pin" "$out" "last pin: claude-opus-4-7"
 done
 
@@ -203,7 +203,7 @@ for malformed_position in before after; do
   if [ "$malformed_position" = before ]; then printf 'not-json\n' >> "$c/partial.jsonl"; fi
   head -n 1 "$c/pin.jsonl" >> "$c/partial.jsonl"
   if [ "$malformed_position" = after ]; then printf '{"partial":\n' >> "$c/partial.jsonl"; fi
-  out="$(WEAVE_STATUSLINE_UPDATE=0 WEAVE_STATUSLINE_CONTEXT=0 render "$c/cc.sh" "$c/cache" "file://$upstream" claude-sonnet-4-5 "$c/partial.jsonl")"
+  out="$(AIAND_STATUSLINE_UPDATE=0 AIAND_STATUSLINE_CONTEXT=0 render "$c/cc.sh" "$c/cache" "file://$upstream" claude-sonnet-4-5 "$c/partial.jsonl")"
   check_contains "malformed line $malformed_position acknowledgment preserves history" "$out" "last pin: claude-opus-4-7"
 done
 
@@ -216,11 +216,11 @@ for transition in unchanged applied cleared malformed unsupported duplicate; do
     unsupported) envelope='{"version":2,"id":"future","command":"force_model","disposition":"accepted","pin":{"transition":"cleared"}}' ;;
     *) envelope='{"version":1,"id":"11111111-2222-4333-8444-555555555555","command":"router_session","disposition":"accepted","pin":{"transition":"unchanged"}}' ;;
   esac
-  jq -cn --argjson outcome "$envelope" '{type:"assistant",message:{model:"weave-router",router_command:$outcome,content:[{type:"text",text:"force-model cleared (contradictory prose)"}]}}' >> "$c/typed.jsonl"
+  jq -cn --argjson outcome "$envelope" '{type:"assistant",message:{model:"aiand-router",router_command:$outcome,content:[{type:"text",text:"force-model cleared (contradictory prose)"}]}}' >> "$c/typed.jsonl"
   if [ "$transition" = duplicate ]; then
-    jq -cn '{type:"assistant",message:{model:"weave-router",router_command:{version:1,id:"11111111-2222-4333-8444-555555555555",command:"force_model",disposition:"accepted",pin:{transition:"cleared"}},content:[]}}' >> "$c/typed.jsonl"
+    jq -cn '{type:"assistant",message:{model:"aiand-router",router_command:{version:1,id:"11111111-2222-4333-8444-555555555555",command:"force_model",disposition:"accepted",pin:{transition:"cleared"}},content:[]}}' >> "$c/typed.jsonl"
   fi
-  out="$(WEAVE_STATUSLINE_UPDATE=0 WEAVE_STATUSLINE_CONTEXT=0 render "$c/cc.sh" "$c/cache" "file://$upstream" claude-sonnet-4-5 "$c/typed.jsonl")"
+  out="$(AIAND_STATUSLINE_UPDATE=0 AIAND_STATUSLINE_CONTEXT=0 render "$c/cc.sh" "$c/cache" "file://$upstream" claude-sonnet-4-5 "$c/typed.jsonl")"
   case "$transition" in
     applied) check_contains "structured apply ignores prose" "$out" "last pin: synthetic-model" ;;
     cleared) check_not_contains "structured clear removes pin" "$out" "last pin:" ;;
@@ -228,20 +228,20 @@ for transition in unchanged applied cleared malformed unsupported duplicate; do
   esac
 done
 sed 's/force-model applied:/force-parent applied:/' "$c/pin.jsonl" > "$c/parent-pin.jsonl"
-out="$(WEAVE_STATUSLINE_UPDATE=0 WEAVE_ROUTER_KEY=rk_synthetic \
-  WEAVE_ROUTER_BASE_URL="file://$c/display-settings.json" \
+out="$(AIAND_STATUSLINE_UPDATE=0 AIAND_ROUTER_KEY=rk_synthetic \
+  AIAND_ROUTER_BASE_URL="file://$c/display-settings.json" \
   render "$c/cc.sh" "$c/cache" "file://$upstream" claude-sonnet-4-5 "$c/parent-pin.jsonl")"
 check_contains "parent pin is shown in the statusline" "$out" "last pin: claude-opus-4-7"
 
 printf '{"type":"assistant","message":{"model":"<synthetic>"}}\n' >> "$c/pin.jsonl"
-out="$(WEAVE_STATUSLINE_UPDATE=0 WEAVE_ROUTER_KEY=rk_synthetic \
-  WEAVE_ROUTER_BASE_URL="file://$c/display-settings.json" \
+out="$(AIAND_STATUSLINE_UPDATE=0 AIAND_ROUTER_KEY=rk_synthetic \
+  AIAND_ROUTER_BASE_URL="file://$c/display-settings.json" \
   render "$c/cc.sh" "$c/cache" "file://$upstream" claude-sonnet-4-5 "$c/pin.jsonl")"
 check_contains "historical pin cannot mask a later failure" "$out" "last response failed"
 check_not_contains "failed response does not show a routing warning" "$out" "routing unverified"
 
-out="$(WEAVE_STATUSLINE_UPDATE=0 WEAVE_ROUTER_KEY=rk_synthetic \
-  WEAVE_ROUTER_BASE_URL="file://$c/display-settings.json" \
+out="$(AIAND_STATUSLINE_UPDATE=0 AIAND_ROUTER_KEY=rk_synthetic \
+  AIAND_ROUTER_BASE_URL="file://$c/display-settings.json" \
   render "$c/cc.sh" "$c/cache" "file://$upstream" claude-sonnet-4-5 "$c/missing.jsonl")"
 check_not_contains "missing transcript does not show a routing warning" "$out" "routing unverified"
 check_contains "missing transcript labels the selected model" "$out" "selected: claude-sonnet-4-5"
@@ -250,8 +250,8 @@ check_not_contains "missing transcript does not invent a response model" "$out" 
 for transcript_state in empty malformed; do
   : > "$c/$transcript_state.jsonl"
   if [ "$transcript_state" = malformed ]; then printf 'not-json\n' > "$c/$transcript_state.jsonl"; fi
-  out="$(WEAVE_STATUSLINE_UPDATE=0 WEAVE_ROUTER_KEY=rk_synthetic \
-    WEAVE_ROUTER_BASE_URL="file://$c/display-settings.json" \
+  out="$(AIAND_STATUSLINE_UPDATE=0 AIAND_ROUTER_KEY=rk_synthetic \
+    AIAND_ROUTER_BASE_URL="file://$c/display-settings.json" \
     render "$c/cc.sh" "$c/cache" "file://$upstream" claude-sonnet-4-5 "$c/$transcript_state.jsonl")"
   check_not_contains "$transcript_state transcript does not show a routing warning" "$out" "routing unverified"
   check_not_contains "$transcript_state transcript does not invent a price comparison" "$out" "est. cost difference"
@@ -259,8 +259,8 @@ for transcript_state in empty malformed; do
 done
 
 head -n 1 "$c/pin.jsonl" > "$c/ack.jsonl"
-out="$(WEAVE_STATUSLINE_UPDATE=0 WEAVE_ROUTER_KEY=rk_synthetic \
-  WEAVE_ROUTER_BASE_URL="file://$c/display-settings.json" \
+out="$(AIAND_STATUSLINE_UPDATE=0 AIAND_ROUTER_KEY=rk_synthetic \
+  AIAND_ROUTER_BASE_URL="file://$c/display-settings.json" \
   render "$c/cc.sh" "$c/cache" "file://$upstream" claude-sonnet-4-5 "$c/ack.jsonl")"
 check_not_contains "control acknowledgement does not show a routing warning" "$out" "routing unverified"
 check_contains "control acknowledgement is not labeled as an inference response" "$out" "control acknowledgement"
@@ -270,15 +270,15 @@ cat > "$c/duplicate.jsonl" <<'JSONL'
 {"type":"assistant","message":{"id":"msg_repeat","model":"claude-opus-5","content":[{"type":"text","text":"Synthetic response."}],"usage":{"input_tokens":10000,"output_tokens":2000}}}
 {"type":"assistant","message":{"id":"msg_repeat","model":"claude-opus-5","content":[{"type":"text","text":"Another synthetic block."}],"usage":{"input_tokens":10000,"output_tokens":2000}}}
 JSONL
-out="$(WEAVE_STATUSLINE_UPDATE=0 WEAVE_ROUTER_KEY=rk_synthetic \
-  WEAVE_ROUTER_BASE_URL="file://$c/display-settings.json" \
+out="$(AIAND_STATUSLINE_UPDATE=0 AIAND_ROUTER_KEY=rk_synthetic \
+  AIAND_ROUTER_BASE_URL="file://$c/display-settings.json" \
   render "$c/cc.sh" "$c/cache" "file://$upstream" deepseek/deepseek-v4-pro "$c/duplicate.jsonl")"
 check_contains "more expensive transcript preserves a signed comparison" "$out" "est. cost difference -\$0.08"
 check_not_contains "content-block copies do not display token totals" "$out" " in / "
 
 jq -c '.message.usage = {input_tokens:100,output_tokens:20}' "$c/duplicate.jsonl" > "$c/tiny-difference.jsonl"
-out="$(WEAVE_STATUSLINE_UPDATE=0 WEAVE_ROUTER_KEY=rk_synthetic \
-  WEAVE_ROUTER_BASE_URL="file://$c/display-settings.json" \
+out="$(AIAND_STATUSLINE_UPDATE=0 AIAND_ROUTER_KEY=rk_synthetic \
+  AIAND_ROUTER_BASE_URL="file://$c/display-settings.json" \
   render "$c/cc.sh" "$c/cache" "file://$upstream" deepseek/deepseek-v4-pro "$c/tiny-difference.jsonl")"
 check_contains "sub-cent negative comparison keeps its sign" "$out" "est. cost difference -<\$0.01"
 
@@ -289,31 +289,31 @@ check_contains "priced selection reports the estimated difference" "$out" "est. 
 check_contains "priced selection still names the routed model" "$out" "deepseek/deepseek-v4-pro"
 check "priced selection writes no miss stamp" "$(count_stamps "$c/cache" .miss.)" 0
 
-for sentinel_model in '<synthetic>' weave-router; do
+for sentinel_model in '<synthetic>' aiand-router; do
   jq -cn --arg model "$sentinel_model" '{type:"assistant",message:{id:"msg_control",model:$model,usage:{input_tokens:5000,output_tokens:3000}}}' > "$c/sentinel.jsonl"
   cat "$transcript" >> "$c/sentinel.jsonl"
-  out="$(WEAVE_STATUSLINE_UPDATE=0 render "$c/cc.sh" "$c/cache" "file://$upstream" "$STALE_MODEL" "$c/sentinel.jsonl")"
+  out="$(AIAND_STATUSLINE_UPDATE=0 render "$c/cc.sh" "$c/cache" "file://$upstream" "$STALE_MODEL" "$c/sentinel.jsonl")"
   check_contains "$sentinel_model does not poison later inference estimates" "$out" "est. cost difference \$0.08"
   check_not_contains "$sentinel_model followed by inference does not display token totals" "$out" " in / "
   check_not_contains "$sentinel_model followed by inference does not show a routing warning" "$out" "routing unverified"
 
   head -n 1 "$c/sentinel.jsonl" > "$c/sentinel-only.jsonl"
-  out="$(WEAVE_STATUSLINE_UPDATE=0 render "$c/cc.sh" "$c/cache" "file://$upstream" "$STALE_MODEL" "$c/sentinel-only.jsonl")"
+  out="$(AIAND_STATUSLINE_UPDATE=0 render "$c/cc.sh" "$c/cache" "file://$upstream" "$STALE_MODEL" "$c/sentinel-only.jsonl")"
   check_not_contains "$sentinel_model alone does not invent an estimate" "$out" "est. cost difference"
   check_not_contains "$sentinel_model alone does not count as inference tokens" "$out" " in / "
 done
 
 jq -c 'select(.type == "assistant") | .message.model = "model-nobody-prices"' "$transcript" > "$c/unpriced.jsonl"
-out="$(WEAVE_STATUSLINE_UPDATE=0 render "$c/cc.sh" "$c/cache" "file://$upstream" model-nobody-prices "$c/unpriced.jsonl")"
+out="$(AIAND_STATUSLINE_UPDATE=0 render "$c/cc.sh" "$c/cache" "file://$upstream" model-nobody-prices "$c/unpriced.jsonl")"
 check_not_contains "same unpriced model does not invent a zero comparison" "$out" "est. cost difference"
 check_contains "same unpriced model still names the response model" "$out" "response model: model-nobody-prices"
 check_not_contains "same unpriced model does not display token totals" "$out" " in / "
 
 cat "$transcript" >> "$c/unpriced.jsonl"
-out="$(WEAVE_STATUSLINE_UPDATE=0 render "$c/cc.sh" "$c/cache" "file://$upstream" "$STALE_MODEL" "$c/unpriced.jsonl")"
+out="$(AIAND_STATUSLINE_UPDATE=0 render "$c/cc.sh" "$c/cache" "file://$upstream" "$STALE_MODEL" "$c/unpriced.jsonl")"
 check_not_contains "unpriced inference still prevents a session estimate" "$out" "est. cost difference"
 
-out="$(WEAVE_STATUSLINE_UPDATE=0 render "$c/cc.sh" "$c/cache" "file://$upstream" deepseek/deepseek-v4-pro)"
+out="$(AIAND_STATUSLINE_UPDATE=0 render "$c/cc.sh" "$c/cache" "file://$upstream" deepseek/deepseek-v4-pro)"
 check_contains "same priced model retains a zero comparison" "$out" "est. cost difference \$0.00"
 
 # Cache-heavy routes must price each side with its own catalog multiplier.
@@ -377,15 +377,15 @@ cat > "$c/bin/curl" <<'SHIM'
 # Record each download target, then delegate to the real curl.
 args=("$@")
 for i in "${!args[@]}"; do
-  if [ "${args[$i]}" = "-o" ]; then echo "${args[$((i + 1))]}" >> "$WEAVE_TEST_CURL_LOG"; fi
+  if [ "${args[$i]}" = "-o" ]; then echo "${args[$((i + 1))]}" >> "$AIAND_TEST_CURL_LOG"; fi
 done
-exec "$WEAVE_TEST_REAL_CURL" "$@"
+exec "$AIAND_TEST_REAL_CURL" "$@"
 SHIM
 chmod +x "$c/bin/curl"
 curl_log="$c/targets.log"; : > "$curl_log"
 echo "{\"model\":{\"id\":\"$STALE_MODEL\"},\"transcript_path\":\"$transcript\"}" \
-  | PATH="$c/bin:$PATH" WEAVE_TEST_CURL_LOG="$curl_log" WEAVE_TEST_REAL_CURL="$real_curl" \
-    XDG_CACHE_HOME="$c/cache" WEAVE_STATUSLINE_URL="file://$upstream" \
+  | PATH="$c/bin:$PATH" AIAND_TEST_CURL_LOG="$curl_log" AIAND_TEST_REAL_CURL="$real_curl" \
+    XDG_CACHE_HOME="$c/cache" AIAND_STATUSLINE_URL="file://$upstream" \
     bash "$c/cc.sh" >/dev/null 2>&1
 wait_for 20 line_count_at_least "$curl_log" 2
 downloads="$(wc -l < "$curl_log" | tr -d ' ')"
@@ -416,7 +416,7 @@ check "malformed prices trigger no refresh" "$(count_stamps "$c/cache" .miss.)" 
 
 # Sentinels are not models and can never be priced; refreshing on them would
 # download once per sentinel forever.
-for sentinel in "?" "failure" "weave-router"; do
+for sentinel in "?" "failure" "aiand-router"; do
   c="$work/c6-$(printf '%s' "$sentinel" | tr -c 'A-Za-z0-9' '_')"
   mkdir -p "$c/cache"; make_installed "$c/cc.sh" stale
   render "$c/cc.sh" "$c/cache" "file://$upstream" "$sentinel" >/dev/null
@@ -427,15 +427,15 @@ done
 # Opt-out must suppress every network path, including the miss-triggered one.
 c="$work/c7"; mkdir -p "$c/cache"; make_installed "$c/cc.sh" stale
 echo "{\"model\":{\"id\":\"$STALE_MODEL\"},\"transcript_path\":\"$transcript\"}" \
-  | XDG_CACHE_HOME="$c/cache" WEAVE_STATUSLINE_UPDATE=0 \
-    WEAVE_STATUSLINE_URL="file://$upstream" bash "$c/cc.sh" >/dev/null 2>&1
+  | XDG_CACHE_HOME="$c/cache" AIAND_STATUSLINE_UPDATE=0 \
+    AIAND_STATUSLINE_URL="file://$upstream" bash "$c/cc.sh" >/dev/null 2>&1
 sleep 0.5
-check "WEAVE_STATUSLINE_UPDATE=0 writes no stamps" "$(count_stamps "$c/cache")" 0
+check "AIAND_STATUSLINE_UPDATE=0 writes no stamps" "$(count_stamps "$c/cache")" 0
 
 # A missing transcript is normal on a fresh session.
 c="$work/c8"; mkdir -p "$c/cache"; make_installed "$c/cc.sh"
 echo "{\"model\":{\"id\":\"$STALE_MODEL\"}}" \
-  | XDG_CACHE_HOME="$c/cache" WEAVE_STATUSLINE_URL="file://$upstream" \
+  | XDG_CACHE_HOME="$c/cache" AIAND_STATUSLINE_URL="file://$upstream" \
     bash "$c/cc.sh" >/dev/null 2>&1
 check "missing transcript exits 0" "$?" 0
 
@@ -449,34 +449,34 @@ commands_upstream="$work/commands-upstream"
 mkdir -p "$commands_upstream"
 cp "$script_dir/../commands"/*.md "$commands_upstream/"
 
-# Lay out a user-scope install: statusline under .weave/, wrappers under
+# Lay out a user-scope install: statusline under .aiand/, wrappers under
 # .claude/commands/, and a seeded baseline (what install.sh writes) holding the
 # unrendered canonical bodies.
 make_command_install() { # make_command_install <root> <cache_home> [scope_args]
   local root="$1" cache="$2" scope_args="${3:-}" name body
-  mkdir -p "$root/.weave" "$root/.claude/commands"
-  cp "$upstream" "$root/.weave/cc-statusline.sh"
-  chmod +x "$root/.weave/cc-statusline.sh"
+  mkdir -p "$root/.aiand" "$root/.claude/commands"
+  cp "$upstream" "$root/.aiand/cc-statusline.sh"
+  chmod +x "$root/.aiand/cc-statusline.sh"
   local baseline
-  baseline="$cache/weave-router/commands$(printf '%s' "$(cd "$root/.claude/commands" && pwd -P)" | tr -c 'A-Za-z0-9._-' '_')"
+  baseline="$cache/aiand-router/commands$(printf '%s' "$(cd "$root/.claude/commands" && pwd -P)" | tr -c 'A-Za-z0-9._-' '_')"
   mkdir -p "$baseline"
   for name in "$script_dir/../commands"/*.md; do
     body="$(cat "$name")"
     rendered="${body//\{\{SCOPE\}\}/$scope_args}"
     printf '%s\n' "$rendered" >"$root/.claude/commands/$(basename "$name")"
-    printf 'weave-router managed command: %s\n%s\n' "$(basename "$name" .md)" "$rendered" \
-      >"$root/.claude/commands/$(basename "$name").weave-router"
+    printf 'aiand-router managed command: %s\n%s\n' "$(basename "$name" .md)" "$rendered" \
+      >"$root/.claude/commands/$(basename "$name").aiand-router"
     cp "$name" "$baseline/$(basename "$name")"
   done
 }
 
-# WEAVE_STATUSLINE_UPDATE=0 is a master kill switch that covers this path too,
+# AIAND_STATUSLINE_UPDATE=0 is a master kill switch that covers this path too,
 # so these cases can't use it to isolate the wrapper refresh. Point the script's
 # own refresh at the same offline fixture instead — it lands as a content no-op.
 sync_commands() { # sync_commands <root> <cache_home> <commands_url_base>
   echo "{\"model\":{\"id\":\"$STALE_MODEL\"},\"transcript_path\":\"$transcript\"}" \
-    | XDG_CACHE_HOME="$2" WEAVE_STATUSLINE_URL="file://$upstream" WEAVE_COMMANDS_URL_BASE="$3" \
-      bash "$1/.weave/cc-statusline.sh" >/dev/null 2>&1
+    | XDG_CACHE_HOME="$2" AIAND_STATUSLINE_URL="file://$upstream" AIAND_COMMANDS_URL_BASE="$3" \
+      bash "$1/.aiand/cc-statusline.sh" >/dev/null 2>&1
 }
 
 # An upstream wrapper change reaches an untouched install.
@@ -490,7 +490,7 @@ else
   no "an upstream wrapper change reaches the install" "refreshed body" "$(cat "$c/root/.claude/commands/fm.md")"
 fi
 check "a refreshed wrapper has no ownership marker" "" \
-  "$(grep -F '<!-- weave-router managed command:' "$c/root/.claude/commands/fm.md" || true)"
+  "$(grep -F '<!-- aiand-router managed command:' "$c/root/.claude/commands/fm.md" || true)"
 
 # A wrapper the user edited is theirs. Overwriting it is the one unrecoverable
 # mistake here, so the baseline comparison must veto the swap.
@@ -523,7 +523,7 @@ check "a git-tracked wrapper is never overwritten" \
 c="$work/cmd3"; mkdir -p "$c/cache"
 make_command_install "$c/root" "$c/cache" " --scope project"
 printf '%s\n' '---' 'description: refreshed off.' 'allowed-tools: Bash(npx:*)' '---' '' \
-  'Turn it off:' '' "\`npx @workweave/router off --claude{{SCOPE}}\`" \
+  'Turn it off:' '' "\`npx @workaiand/router off --claude{{SCOPE}}\`" \
   >"$commands_upstream/router-off.md"
 sync_commands "$c/root" "$c/cache" "file://$commands_upstream"
 if wait_for 20 grep -q 'refreshed off.' "$c/root/.claude/commands/router-off.md"; then
@@ -557,11 +557,11 @@ fi
 c="$work/cmd6"; mkdir -p "$c/cache"; make_command_install "$c/root" "$c/cache"
 before="$(cat "$c/root/.claude/commands/fm.md")"
 echo "{\"model\":{\"id\":\"$STALE_MODEL\"},\"transcript_path\":\"$transcript\"}" \
-  | XDG_CACHE_HOME="$c/cache" WEAVE_STATUSLINE_URL="file://$upstream" WEAVE_COMMANDS_UPDATE=0 \
-    WEAVE_COMMANDS_URL_BASE="file://$commands_upstream" \
-    bash "$c/root/.weave/cc-statusline.sh" >/dev/null 2>&1
+  | XDG_CACHE_HOME="$c/cache" AIAND_STATUSLINE_URL="file://$upstream" AIAND_COMMANDS_UPDATE=0 \
+    AIAND_COMMANDS_URL_BASE="file://$commands_upstream" \
+    bash "$c/root/.aiand/cc-statusline.sh" >/dev/null 2>&1
 sleep 1
-check "WEAVE_COMMANDS_UPDATE=0 suppresses the wrapper refresh" \
+check "AIAND_COMMANDS_UPDATE=0 suppresses the wrapper refresh" \
   "$(cat "$c/root/.claude/commands/fm.md")" "$before"
 
 # The master kill switch has to cover the wrapper refresh too, not just the
@@ -569,11 +569,11 @@ check "WEAVE_COMMANDS_UPDATE=0 suppresses the wrapper refresh" \
 c="$work/cmd7"; mkdir -p "$c/cache"; make_command_install "$c/root" "$c/cache"
 before="$(cat "$c/root/.claude/commands/fm.md")"
 echo "{\"model\":{\"id\":\"$STALE_MODEL\"},\"transcript_path\":\"$transcript\"}" \
-  | XDG_CACHE_HOME="$c/cache" WEAVE_STATUSLINE_UPDATE=0 \
-    WEAVE_COMMANDS_URL_BASE="file://$commands_upstream" \
-    bash "$c/root/.weave/cc-statusline.sh" >/dev/null 2>&1
+  | XDG_CACHE_HOME="$c/cache" AIAND_STATUSLINE_UPDATE=0 \
+    AIAND_COMMANDS_URL_BASE="file://$commands_upstream" \
+    bash "$c/root/.aiand/cc-statusline.sh" >/dev/null 2>&1
 sleep 1
-check "WEAVE_STATUSLINE_UPDATE=0 suppresses the wrapper refresh too" \
+check "AIAND_STATUSLINE_UPDATE=0 suppresses the wrapper refresh too" \
   "$(cat "$c/root/.claude/commands/fm.md")" "$before"
 
 # ---------- org "hide terminal surfaces" gate ----------
@@ -581,7 +581,7 @@ check "WEAVE_STATUSLINE_UPDATE=0 suppresses the wrapper refresh too" \
 # The gate decides from a per-install cache file only; the network fetch runs
 # in a detached background refresh that repopulates the cache for the NEXT
 # invocation, and a missing or stale cache fails open. These cases stub
-# GET /v1/display-settings via the file:// seam: WEAVE_ROUTER_BASE_URL or the
+# GET /v1/display-settings via the file:// seam: AIAND_ROUTER_BASE_URL or the
 # install's ANTHROPIC_BASE_URL accepts a file:// URL, which curl reads as the
 # response body, exercising the full parse-and-decide path without a network.
 # The key just needs to be present and non-empty for the refresh to proceed.
@@ -592,12 +592,12 @@ check "WEAVE_STATUSLINE_UPDATE=0 suppresses the wrapper refresh too" \
 write_install() { # write_install <base> <scope> <key> <display_settings_url>
   local base="$1" scope="$2" key="$3" url="$4"
   if [ "$scope" = "user" ]; then
-    mkdir -p "$base/.weave" "$base/.claude"
-    cp "$upstream" "$base/.weave/cc-statusline.sh"
+    mkdir -p "$base/.aiand" "$base/.claude"
+    cp "$upstream" "$base/.aiand/cc-statusline.sh"
     cat > "$base/.claude/settings.json" <<EOF
-{"env":{"ANTHROPIC_BASE_URL":"$url","ANTHROPIC_CUSTOM_HEADERS":"X-Weave-Router-Key: $key"}}
+{"env":{"ANTHROPIC_BASE_URL":"$url","ANTHROPIC_CUSTOM_HEADERS":"X-Aiand-Router-Key: $key"}}
 EOF
-    chmod +x "$base/.weave/cc-statusline.sh"
+    chmod +x "$base/.aiand/cc-statusline.sh"
   else
     mkdir -p "$base/.claude"
     cp "$upstream" "$base/.claude/cc-statusline.sh"
@@ -605,7 +605,7 @@ EOF
 {"env":{"ANTHROPIC_BASE_URL":"$url"}}
 EOF
     cat > "$base/.claude/settings.local.json" <<EOF
-{"env":{"ANTHROPIC_CUSTOM_HEADERS":"X-Weave-Router-Key: $key"}}
+{"env":{"ANTHROPIC_CUSTOM_HEADERS":"X-Aiand-Router-Key: $key"}}
 EOF
     chmod +x "$base/.claude/cc-statusline.sh"
   fi
@@ -614,7 +614,7 @@ EOF
 # gate_cache <cache_home> <script> — the cache file the gate reads/writes for
 # this install (mirrors the slug derivation in cc-statusline.sh).
 gate_cache() {
-  echo "$1/weave-router/display-settings$(printf '%s' "$2" | tr -c 'A-Za-z0-9._-' '_')"
+  echo "$1/aiand-router/display-settings$(printf '%s' "$2" | tr -c 'A-Za-z0-9._-' '_')"
 }
 
 # Hidden org goes blank via the cache: the first run fails open while the
@@ -624,14 +624,14 @@ printf '{"hide_terminal_surfaces": true}' > "$c/ds.json"
 write_install "$c/proj" project "rk_proj_hidden" "file://$c/ds.json"
 cache_file="$(gate_cache "$c/cache" "$c/proj/.claude/cc-statusline.sh")"
 echo "{\"model\":{\"id\":\"$STALE_MODEL\"},\"transcript_path\":\"$transcript\"}" \
-  | XDG_CACHE_HOME="$c/cache" WEAVE_STATUSLINE_UPDATE=0 WEAVE_COMMANDS_UPDATE=0 HOME="$c/home" \
-    WEAVE_ROUTER_BASE_URL='' ANTHROPIC_BASE_URL='' WEAVE_ROUTER_KEY='' ANTHROPIC_CUSTOM_HEADERS='' \
+  | XDG_CACHE_HOME="$c/cache" AIAND_STATUSLINE_UPDATE=0 AIAND_COMMANDS_UPDATE=0 HOME="$c/home" \
+    AIAND_ROUTER_BASE_URL='' ANTHROPIC_BASE_URL='' AIAND_ROUTER_KEY='' ANTHROPIC_CUSTOM_HEADERS='' \
     bash "$c/proj/.claude/cc-statusline.sh" >/dev/null 2>&1
 wait_for 5 test -f "$cache_file"
 check "background refresh caches the hidden setting" "$(cat "$cache_file" 2>/dev/null)" "1"
 out="$(echo "{\"model\":{\"id\":\"$STALE_MODEL\"},\"transcript_path\":\"$transcript\"}" \
-  | XDG_CACHE_HOME="$c/cache" WEAVE_STATUSLINE_UPDATE=0 WEAVE_COMMANDS_UPDATE=0 HOME="$c/home" \
-    WEAVE_ROUTER_BASE_URL='' ANTHROPIC_BASE_URL='' WEAVE_ROUTER_KEY='' ANTHROPIC_CUSTOM_HEADERS='' \
+  | XDG_CACHE_HOME="$c/cache" AIAND_STATUSLINE_UPDATE=0 AIAND_COMMANDS_UPDATE=0 HOME="$c/home" \
+    AIAND_ROUTER_BASE_URL='' ANTHROPIC_BASE_URL='' AIAND_ROUTER_KEY='' ANTHROPIC_CUSTOM_HEADERS='' \
     bash "$c/proj/.claude/cc-statusline.sh" 2>&1)"
 check "project-scope hidden org renders a blank statusline" "$out" ""
 
@@ -645,15 +645,15 @@ write_install "$c/proj" project "rk_proj_hidden" "file://$c/ds_proj.json"
 write_install "$c/home" user "rk_user_visible" "file://$c/ds_user.json"
 cache_file="$(gate_cache "$c/cache" "$c/proj/.claude/cc-statusline.sh")"
 echo "{\"model\":{\"id\":\"$STALE_MODEL\"},\"transcript_path\":\"$transcript\"}" \
-  | XDG_CACHE_HOME="$c/cache" WEAVE_STATUSLINE_UPDATE=0 WEAVE_COMMANDS_UPDATE=0 HOME="$c/home" \
-    WEAVE_ROUTER_BASE_URL='' ANTHROPIC_BASE_URL='' WEAVE_ROUTER_KEY='' ANTHROPIC_CUSTOM_HEADERS='' \
+  | XDG_CACHE_HOME="$c/cache" AIAND_STATUSLINE_UPDATE=0 AIAND_COMMANDS_UPDATE=0 HOME="$c/home" \
+    AIAND_ROUTER_BASE_URL='' ANTHROPIC_BASE_URL='' AIAND_ROUTER_KEY='' ANTHROPIC_CUSTOM_HEADERS='' \
     bash "$c/proj/.claude/cc-statusline.sh" >/dev/null 2>&1
 wait_for 5 test -f "$cache_file"
 check "project install caches from its own key, not the user-scope one" \
   "$(cat "$cache_file" 2>/dev/null)" "1"
 out="$(echo "{\"model\":{\"id\":\"$STALE_MODEL\"},\"transcript_path\":\"$transcript\"}" \
-  | XDG_CACHE_HOME="$c/cache" WEAVE_STATUSLINE_UPDATE=0 WEAVE_COMMANDS_UPDATE=0 HOME="$c/home" \
-    WEAVE_ROUTER_BASE_URL='' ANTHROPIC_BASE_URL='' WEAVE_ROUTER_KEY='' ANTHROPIC_CUSTOM_HEADERS='' \
+  | XDG_CACHE_HOME="$c/cache" AIAND_STATUSLINE_UPDATE=0 AIAND_COMMANDS_UPDATE=0 HOME="$c/home" \
+    AIAND_ROUTER_BASE_URL='' ANTHROPIC_BASE_URL='' AIAND_ROUTER_KEY='' ANTHROPIC_CUSTOM_HEADERS='' \
     bash "$c/proj/.claude/cc-statusline.sh" 2>&1)"
 check "project install hides via its own org setting" "$out" ""
 
@@ -663,14 +663,14 @@ printf '{"hide_terminal_surfaces": false}' > "$c/ds.json"
 write_install "$c/proj" project "rk_proj_visible" "file://$c/ds.json"
 cache_file="$(gate_cache "$c/cache" "$c/proj/.claude/cc-statusline.sh")"
 echo "{\"model\":{\"id\":\"$STALE_MODEL\"},\"transcript_path\":\"$transcript\"}" \
-  | XDG_CACHE_HOME="$c/cache" WEAVE_STATUSLINE_UPDATE=0 WEAVE_COMMANDS_UPDATE=0 HOME="$c/home" \
-    WEAVE_ROUTER_BASE_URL='' ANTHROPIC_BASE_URL='' WEAVE_ROUTER_KEY='' ANTHROPIC_CUSTOM_HEADERS='' \
+  | XDG_CACHE_HOME="$c/cache" AIAND_STATUSLINE_UPDATE=0 AIAND_COMMANDS_UPDATE=0 HOME="$c/home" \
+    AIAND_ROUTER_BASE_URL='' ANTHROPIC_BASE_URL='' AIAND_ROUTER_KEY='' ANTHROPIC_CUSTOM_HEADERS='' \
     bash "$c/proj/.claude/cc-statusline.sh" >/dev/null 2>&1
 wait_for 5 test -f "$cache_file"
 check "visible org caches the visible setting" "$(cat "$cache_file" 2>/dev/null)" "0"
 out="$(echo "{\"model\":{\"id\":\"$STALE_MODEL\"},\"transcript_path\":\"$transcript\"}" \
-  | XDG_CACHE_HOME="$c/cache" WEAVE_STATUSLINE_UPDATE=0 WEAVE_COMMANDS_UPDATE=0 HOME="$c/home" \
-    WEAVE_ROUTER_BASE_URL='' ANTHROPIC_BASE_URL='' WEAVE_ROUTER_KEY='' ANTHROPIC_CUSTOM_HEADERS='' \
+  | XDG_CACHE_HOME="$c/cache" AIAND_STATUSLINE_UPDATE=0 AIAND_COMMANDS_UPDATE=0 HOME="$c/home" \
+    AIAND_ROUTER_BASE_URL='' ANTHROPIC_BASE_URL='' AIAND_ROUTER_KEY='' ANTHROPIC_CUSTOM_HEADERS='' \
     bash "$c/proj/.claude/cc-statusline.sh" 2>&1 | sed 's/\x1b\[[0-9;]*m//g')"
 check_contains "visible org still renders the statusline" "$out" "deepseek/deepseek-v4-pro"
 check_not_contains "successful display-settings fetch does not show a routing warning" "$out" "routing unverified"
@@ -684,8 +684,8 @@ cache_file="$(gate_cache "$c/cache" "$c/proj/.claude/cc-statusline.sh")"
 mkdir -p "$(dirname "$cache_file")"
 printf '1' > "$cache_file"
 out="$(echo "{\"model\":{\"id\":\"$STALE_MODEL\"},\"transcript_path\":\"$transcript\"}" \
-  | XDG_CACHE_HOME="$c/cache" WEAVE_STATUSLINE_UPDATE=0 WEAVE_COMMANDS_UPDATE=0 HOME="$c/home" \
-    WEAVE_ROUTER_BASE_URL='' ANTHROPIC_BASE_URL='' WEAVE_ROUTER_KEY='' ANTHROPIC_CUSTOM_HEADERS='' \
+  | XDG_CACHE_HOME="$c/cache" AIAND_STATUSLINE_UPDATE=0 AIAND_COMMANDS_UPDATE=0 HOME="$c/home" \
+    AIAND_ROUTER_BASE_URL='' ANTHROPIC_BASE_URL='' AIAND_ROUTER_KEY='' ANTHROPIC_CUSTOM_HEADERS='' \
     bash "$c/proj/.claude/cc-statusline.sh" 2>&1)"
 check "fresh hidden cache blanks the statusline without touching the network" "$out" ""
 
@@ -698,9 +698,9 @@ cache_file="$(gate_cache "$c/cache" "$c/proj/.claude/cc-statusline.sh")"
 mkdir -p "$(dirname "$cache_file")"
 printf '1' > "$cache_file"
 out="$(echo "{\"model\":{\"id\":\"$STALE_MODEL\"},\"transcript_path\":\"$transcript\"}" \
-  | XDG_CACHE_HOME="$c/cache" WEAVE_STATUSLINE_UPDATE=0 WEAVE_COMMANDS_UPDATE=0 HOME="$c/home" \
-    WEAVE_ROUTER_BASE_URL='' ANTHROPIC_BASE_URL='' WEAVE_ROUTER_KEY='' ANTHROPIC_CUSTOM_HEADERS='' \
-    WEAVE_DISPLAY_SETTINGS_TTL_SECONDS=0 \
+  | XDG_CACHE_HOME="$c/cache" AIAND_STATUSLINE_UPDATE=0 AIAND_COMMANDS_UPDATE=0 HOME="$c/home" \
+    AIAND_ROUTER_BASE_URL='' ANTHROPIC_BASE_URL='' AIAND_ROUTER_KEY='' ANTHROPIC_CUSTOM_HEADERS='' \
+    AIAND_DISPLAY_SETTINGS_TTL_SECONDS=0 \
     bash "$c/proj/.claude/cc-statusline.sh" 2>&1 | sed 's/\x1b\[[0-9;]*m//g')"
 check_contains "stale hidden cache fails open when the router is unreachable" "$out" "deepseek/deepseek-v4-pro"
 sleep 1
@@ -712,8 +712,8 @@ c="$work/g6"; mkdir -p "$c/proj/.claude" "$c/cache"
 write_install "$c/proj" project "rk_key" "file://$c/missing.json"
 cache_file="$(gate_cache "$c/cache" "$c/proj/.claude/cc-statusline.sh")"
 out="$(echo "{\"model\":{\"id\":\"$STALE_MODEL\"},\"transcript_path\":\"$transcript\"}" \
-  | XDG_CACHE_HOME="$c/cache" WEAVE_STATUSLINE_UPDATE=0 WEAVE_COMMANDS_UPDATE=0 HOME="$c/home" \
-    WEAVE_ROUTER_BASE_URL='' ANTHROPIC_BASE_URL='' WEAVE_ROUTER_KEY='' ANTHROPIC_CUSTOM_HEADERS='' \
+  | XDG_CACHE_HOME="$c/cache" AIAND_STATUSLINE_UPDATE=0 AIAND_COMMANDS_UPDATE=0 HOME="$c/home" \
+    AIAND_ROUTER_BASE_URL='' ANTHROPIC_BASE_URL='' AIAND_ROUTER_KEY='' ANTHROPIC_CUSTOM_HEADERS='' \
     bash "$c/proj/.claude/cc-statusline.sh" 2>&1 | sed 's/\x1b\[[0-9;]*m//g')"
 check_contains "cache miss with an unreachable router renders normally" "$out" "deepseek/deepseek-v4-pro"
 sleep 1
@@ -734,37 +734,37 @@ cat > "$c/bin/curl" <<'SHIM'
 # Claim a turn number atomically — mkdir is the test-and-set; a read-then-write
 # counter races here exactly as it would in the code under test.
 n=1
-while ! mkdir "$WEAVE_TEST_TURNS/$n" 2>/dev/null; do n=$((n + 1)); done
-echo "$n" >> "$WEAVE_TEST_CALLS"
+while ! mkdir "$AIAND_TEST_TURNS/$n" 2>/dev/null; do n=$((n + 1)); done
+echo "$n" >> "$AIAND_TEST_CALLS"
 # Announce this fetch for its whole duration; a concurrent one records a
 # violation. This is what the mutex must make impossible.
-[ -e "$WEAVE_TEST_INFLIGHT" ] && echo overlap >> "$WEAVE_TEST_OVERLAP"
-: > "$WEAVE_TEST_INFLIGHT"
+[ -e "$AIAND_TEST_INFLIGHT" ] && echo overlap >> "$AIAND_TEST_OVERLAP"
+: > "$AIAND_TEST_INFLIGHT"
 if [ "$n" -eq 1 ]; then
   # Stall the stale responder until the fresh one has written, or until the
   # deadline passes (serialized runs never produce a second call, and this
   # test must not hang waiting for one that will never come).
   for _ in $(seq 1 60); do
-    [ -f "$WEAVE_TEST_RELEASE" ] && break
+    [ -f "$AIAND_TEST_RELEASE" ] && break
     sleep 0.05
   done
-  rm -f "$WEAVE_TEST_INFLIGHT"
+  rm -f "$AIAND_TEST_INFLIGHT"
   printf '{"hide_terminal_surfaces": true}'
 else
-  rm -f "$WEAVE_TEST_INFLIGHT"
+  rm -f "$AIAND_TEST_INFLIGHT"
   printf '{"hide_terminal_surfaces": false}'
-  : > "$WEAVE_TEST_RELEASE"
+  : > "$AIAND_TEST_RELEASE"
 fi
 SHIM
 chmod +x "$c/bin/curl"
 mkdir -p "$c/turns"; : > "$c/calls"; : > "$c/overlap"; rm -f "$c/inflight"
 for _ in 1 2; do
   echo "{\"model\":{\"id\":\"$STALE_MODEL\"},\"transcript_path\":\"$transcript\"}" \
-    | PATH="$c/bin:$PATH" XDG_CACHE_HOME="$c/cache" WEAVE_STATUSLINE_UPDATE=0 \
-      WEAVE_COMMANDS_UPDATE=0 HOME="$c/home" WEAVE_ROUTER_BASE_URL='' ANTHROPIC_BASE_URL='' \
-      WEAVE_ROUTER_KEY='' ANTHROPIC_CUSTOM_HEADERS='' WEAVE_TEST_TURNS="$c/turns" \
-      WEAVE_TEST_CALLS="$c/calls" WEAVE_TEST_RELEASE="$c/release" \
-      WEAVE_TEST_INFLIGHT="$c/inflight" WEAVE_TEST_OVERLAP="$c/overlap" \
+    | PATH="$c/bin:$PATH" XDG_CACHE_HOME="$c/cache" AIAND_STATUSLINE_UPDATE=0 \
+      AIAND_COMMANDS_UPDATE=0 HOME="$c/home" AIAND_ROUTER_BASE_URL='' ANTHROPIC_BASE_URL='' \
+      AIAND_ROUTER_KEY='' ANTHROPIC_CUSTOM_HEADERS='' AIAND_TEST_TURNS="$c/turns" \
+      AIAND_TEST_CALLS="$c/calls" AIAND_TEST_RELEASE="$c/release" \
+      AIAND_TEST_INFLIGHT="$c/inflight" AIAND_TEST_OVERLAP="$c/overlap" \
       bash "$c/proj/.claude/cc-statusline.sh" >/dev/null 2>&1 &
 done
 wait
@@ -796,8 +796,8 @@ mkdir -p "$(dirname "$cache_file")"
 mkdir -p "$cache_file.lock"
 touch -t 202001010000 "$cache_file.lock"
 echo "{\"model\":{\"id\":\"$STALE_MODEL\"},\"transcript_path\":\"$transcript\"}" \
-  | XDG_CACHE_HOME="$c/cache" WEAVE_STATUSLINE_UPDATE=0 WEAVE_COMMANDS_UPDATE=0 HOME="$c/home" \
-    WEAVE_ROUTER_BASE_URL='' ANTHROPIC_BASE_URL='' WEAVE_ROUTER_KEY='' ANTHROPIC_CUSTOM_HEADERS='' \
+  | XDG_CACHE_HOME="$c/cache" AIAND_STATUSLINE_UPDATE=0 AIAND_COMMANDS_UPDATE=0 HOME="$c/home" \
+    AIAND_ROUTER_BASE_URL='' ANTHROPIC_BASE_URL='' AIAND_ROUTER_KEY='' ANTHROPIC_CUSTOM_HEADERS='' \
     bash "$c/proj/.claude/cc-statusline.sh" >/dev/null 2>&1
 wait_for 15 test -f "$cache_file"
 check "an abandoned lock is reclaimed rather than blocking refreshes forever" \
@@ -819,8 +819,8 @@ cache_file="$(gate_cache "$c/cache" "$c/proj/.claude/cc-statusline.sh")"
 mkdir -p "$(dirname "$cache_file")"
 mkdir -p "$cache_file.lock"
 echo "{\"model\":{\"id\":\"$STALE_MODEL\"},\"transcript_path\":\"$transcript\"}" \
-  | XDG_CACHE_HOME="$c/cache" WEAVE_STATUSLINE_UPDATE=0 WEAVE_COMMANDS_UPDATE=0 HOME="$c/home" \
-    WEAVE_ROUTER_BASE_URL='' ANTHROPIC_BASE_URL='' WEAVE_ROUTER_KEY='' ANTHROPIC_CUSTOM_HEADERS='' \
+  | XDG_CACHE_HOME="$c/cache" AIAND_STATUSLINE_UPDATE=0 AIAND_COMMANDS_UPDATE=0 HOME="$c/home" \
+    AIAND_ROUTER_BASE_URL='' ANTHROPIC_BASE_URL='' AIAND_ROUTER_KEY='' ANTHROPIC_CUSTOM_HEADERS='' \
     bash "$c/proj/.claude/cc-statusline.sh" >/dev/null 2>&1
 sleep 2
 check "a lock a live holder owns is left alone" \

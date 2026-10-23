@@ -2,7 +2,7 @@
 #
 # Re-embed the directive registry into install.sh.
 #
-# install.sh is served standalone (WorkWeave serves it for `curl | sh`), so it
+# install.sh is served standalone (WorkAiand serves it for `curl | sh`), so it
 # cannot source install/registry.sh or read install/directives.tsv at runtime.
 # Both are embedded in it verbatim. Run this after changing either canonical
 # file; install/tests/registry_test.sh fails when the copies drift.
@@ -20,10 +20,10 @@ for f in "$installer" "$uninstaller" "$registry" "$data"; do
   [ -f "$f" ] || { echo "missing $f" >&2; exit 1; }
 done
 
-lib="$(awk '/^# >>> weave-router registry lib >>>$/{f=1;next} /^# <<< weave-router registry lib <<<$/{f=0} f' "$registry")"
+lib="$(awk '/^# >>> aiand-router registry lib >>>$/{f=1;next} /^# <<< aiand-router registry lib <<<$/{f=0} f' "$registry")"
 [ -n "$lib" ] || { echo "could not extract the registry lib region from $registry" >&2; exit 1; }
 
-tmp="$(mktemp -t weave-embed.XXXXXX)"
+tmp="$(mktemp -t aiand-embed.XXXXXX)"
 trap 'rm -f "$tmp"' EXIT
 
 # Replace the data heredoc and the lib region in place, leaving everything else
@@ -31,22 +31,22 @@ trap 'rm -f "$tmp"' EXIT
 embed_into() {
   local target="$1"
   LIB="$lib" DATA_FILE="$data" awk '
-    /^WEAVE_REGISTRY_DATA=\$\(cat <<.WEAVE_REGISTRY_EOF.$/ {
+    /^AIAND_REGISTRY_DATA=\$\(cat <<.AIAND_REGISTRY_EOF.$/ {
       print
       while ((getline line < ENVIRON["DATA_FILE"]) > 0) print line
       close(ENVIRON["DATA_FILE"])
       skip_data = 1
       next
     }
-    skip_data && /^WEAVE_REGISTRY_EOF$/ { skip_data = 0; print; next }
+    skip_data && /^AIAND_REGISTRY_EOF$/ { skip_data = 0; print; next }
     skip_data { next }
-    /^# >>> weave-router registry lib >>>$/ {
+    /^# >>> aiand-router registry lib >>>$/ {
       print
       print ENVIRON["LIB"]
       skip_lib = 1
       next
     }
-    skip_lib && /^# <<< weave-router registry lib <<<$/ { skip_lib = 0; print; next }
+    skip_lib && /^# <<< aiand-router registry lib <<<$/ { skip_lib = 0; print; next }
     skip_lib { next }
     { print }
   ' "$target" >"$tmp"

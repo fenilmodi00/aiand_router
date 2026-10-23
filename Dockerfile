@@ -25,7 +25,7 @@ ARG HF_MODEL_REPO=jinaai/jina-embeddings-v2-base-code
 ARG HF_MODEL_REVISION=516f4baf13dec4ddddda8631e019b5737c8bc250
 # Second embedder: Qwen3-Embedding-0.6B exported with last-token
 # pooling baked into the graph (scripts/export_qwen3_onnx.py),
-# uploaded to a public Weave-owned repo (Apache-2.0 derivative, same
+# uploaded to a public Aiand-owned repo (Apache-2.0 derivative, same
 # public-pull model as Jina). Set HF_QWEN_REPO= (empty) to skip the
 # pull; the runtime constructs embedders lazily, so deploys serving
 # only Jina bundles don't need the asset. Pin HF_QWEN_REVISION to the
@@ -35,7 +35,7 @@ ARG HF_MODEL_REVISION=516f4baf13dec4ddddda8631e019b5737c8bc250
 # ~6 MB/s (~3 min), which dominates the whole image build. No committed
 # bundle uses this embedder (every artifacts/v* declares
 # embedder_model: jina-v2-base-code-int8), so the runtime never loads
-# it. Re-set this to weave-eng/qwen3-embedding-0.6b-onnx-router if a
+# it. Re-set this to aiand-eng/qwen3-embedding-0.6b-onnx-router if a
 # Qwen-embedder bundle is ever promoted to `latest`.
 ARG HF_QWEN_REPO=
 ARG HF_QWEN_REVISION=a43740ed1bb6436deaa4b79c9a132a3d98756ace
@@ -207,7 +207,7 @@ WORKDIR /app/cmd/router
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     GOOS=linux go build -tags ORT \
-      -ldflags "-X weave-os/router/internal/version.Commit=${ROUTER_SHA} -X weave-os/router/internal/version.BuildTime=${ROUTER_BUILD_TIME} -X weave-os/router/internal/version.PR=${ROUTER_PR}" \
+      -ldflags "-X aiand-os/router/internal/version.Commit=${ROUTER_SHA} -X aiand-os/router/internal/version.BuildTime=${ROUTER_BUILD_TIME} -X aiand-os/router/internal/version.PR=${ROUTER_PR}" \
       -o /server
 
 # The smoke suite's one-shot seed command does not need the router's CGO/ONNX

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"weave-os/router/internal/config"
+	"aiand-os/router/internal/config"
 
 	"github.com/jackc/pgx/v5"
 )

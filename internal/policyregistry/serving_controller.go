@@ -9,8 +9,8 @@ import (
 	"slices"
 	"time"
 
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/hmm/rosterdata"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/hmm/rosterdata"
 )
 
 // ServingStore is shared by admission, proposal validation and the single activation controller.

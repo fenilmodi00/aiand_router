@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"weave-os/router/internal/analytics"
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/server/middleware"
+	"aiand-os/router/internal/analytics"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/server/middleware"
 
 	"github.com/gin-gonic/gin"
 )
@@ -22,8 +22,8 @@ import (
 // Headers rather than an envelope so the NDJSON body is a clean stream a
 // warehouse loader can ingest without unwrapping.
 const (
-	nextCursorHeader = "X-Weave-Next-Cursor"
-	hasMoreHeader    = "X-Weave-Has-More"
+	nextCursorHeader = "X-Aiand-Next-Cursor"
+	hasMoreHeader    = "X-Aiand-Has-More"
 )
 
 const contentTypeNDJSON = "application/x-ndjson"

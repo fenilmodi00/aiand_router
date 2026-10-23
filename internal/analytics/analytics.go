@@ -7,7 +7,7 @@ import (
 	"context"
 	"time"
 
-	"weave-os/router/internal/auth"
+	"aiand-os/router/internal/auth"
 )
 
 // Decision is one exported routing decision: a single upstream action, not a
@@ -56,7 +56,7 @@ type Decision struct {
 	CohortScheduledArm              *auth.BlindExperimentArm              `json:"cohort_scheduled_arm"`
 	CohortTreatmentApplied          *bool                                 `json:"cohort_treatment_applied"`
 	CohortBypassReason              *auth.CohortBypassReason              `json:"cohort_bypass_reason"`
-	// PolicyPin* are null when the turn carried no x-weave-policy-pin header.
+	// PolicyPin* are null when the turn carried no x-aiand-policy-pin header.
 	PolicyPinRequested *bool `json:"policy_pin_requested"`
 	PolicyPinHonoured  *bool `json:"policy_pin_honoured"`
 	StickyHit          bool  `json:"sticky_hit"`

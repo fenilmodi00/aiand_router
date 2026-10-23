@@ -32,7 +32,7 @@ type User struct {
 	InstallationID    string
 	Email             string // empty when account-uuid-only
 	ClaudeAccountUUID *string
-	DisplayName       *string // free-form name from X-Weave-User-Name (git user.name)
+	DisplayName       *string // free-form name from X-Aiand-User-Name (git user.name)
 	FirstSeenAt       time.Time
 	LastSeenAt        time.Time
 	DeletedAt         *time.Time

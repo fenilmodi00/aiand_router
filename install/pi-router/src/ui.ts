@@ -4,12 +4,12 @@ import type { SavingsAggregate } from "./savings.js";
 import { formatSavings } from "./savings.js";
 import { WoolyComponent } from "./wooly.js";
 
-const STATUS_KEY = "weave-router";
-const WOOLY_WIDGET_KEY = "weave-wooly";
+const STATUS_KEY = "aiand-router";
+const WOOLY_WIDGET_KEY = "aiand-wooly";
 const BRAND_OPEN = "\x1b[38;2;255;108;71m";
 const BRAND_CLOSE = "\x1b[39m";
 
-const WEAVE_WORDMARK = ["╦ ╦╔═╗╔═╗╦  ╦╔═╗", "║║║║╣ ╠═╣╚╗╔╝║╣ ", "╚╩╝╚═╝╩ ╩ ╚╝ ╚═╝"] as const;
+const AIAND_WORDMARK = ["╦ ╦╔═╗╔═╗╦  ╦╔═╗", "║║║║╣ ╠═╣╚╗╔╝║╣ ", "╚╩╝╚═╝╩ ╩ ╚╝ ╚═╝"] as const;
 const LOOM_WORDMARK = [
 	"██╗    ███████╗ ███████╗ ███╗   ███╗",
 	"██║    ██╔═══██╗██╔═══██╗████╗ ████║",
@@ -41,22 +41,22 @@ function brand(text: string): string {
 }
 
 function headerLines(theme: Theme, width: number): string[] {
-	const weave = WEAVE_WORDMARK.map((line) => theme.bold(brand(line)));
+	const aiand = AIAND_WORDMARK.map((line) => theme.bold(brand(line)));
 	if (width < 44) {
-		return ["", ...weave, theme.bold("LOOM"), theme.fg("dim", "Weave Router · Loom for Pi"), ""];
+		return ["", ...aiand, theme.bold("LOOM"), theme.fg("dim", "Aiand Router · Loom for Pi"), ""];
 	}
 	return [
 		"",
-		...weave,
+		...aiand,
 		...LOOM_WORDMARK.map((line) => theme.bold(line)),
-		theme.bold("Weave Router · Loom for Pi"),
+		theme.bold("Aiand Router · Loom for Pi"),
 		"",
 	];
 }
 
 export function installLoomUi(ctx: ExtensionContext): void {
 	if (!isTuiContext(ctx)) return;
-	ctx.ui.setTitle("Loom · Weave Router");
+	ctx.ui.setTitle("Loom · Aiand Router");
 	ctx.ui.setHeader((_tui: TUI, theme: Theme) => ({
 		invalidate() {},
 		render(width: number): string[] {
@@ -97,7 +97,7 @@ export function updateRouterStatus(ctx: ExtensionContext, snapshot: RouterUiSnap
 	else route = "automatic routing";
 
 	const tui = isTuiContext(ctx);
-	const label = tui ? ctx.ui.theme.bold(brand("WEAVE ROUTER")) : "WEAVE ROUTER";
+	const label = tui ? ctx.ui.theme.bold(brand("AIAND ROUTER")) : "AIAND ROUTER";
 	const detail = `${route} · ${formatSavings(savings)}${lastPinModel ? ` · last pin: ${lastPinModel}` : ""}`;
 	ctx.ui.setStatus(STATUS_KEY, `${label} — ${tui ? ctx.ui.theme.fg("dim", detail) : detail}`);
 }

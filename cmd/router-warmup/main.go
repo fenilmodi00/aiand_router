@@ -16,10 +16,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/catalog"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/catalog"
 )
 
 type warmupRequest struct {

@@ -1,9 +1,9 @@
 /**
- * Registers the `weave` provider with the per-process header policy.
+ * Registers the `aiand` provider with the per-process header policy.
  *
  * Re-registered on each `session_start` (and once at load) so the right knob
  * headers are always live and the provider survives `/reload`. We register a
- * new provider named "weave" rather than overriding the built-in "anthropic"
+ * new provider named "aiand" rather than overriding the built-in "anthropic"
  * provider — overriding "anthropic" would hijack the Claude OAuth token.
  */
 
@@ -15,7 +15,7 @@ import {
 	PROVIDER_NAME,
 	providerHeaders,
 	resolveRouterKey,
-	WEAVE_MODELS,
+	AIAND_MODELS,
 } from "./config.js";
 
 export interface ContextWindowOverride {
@@ -23,15 +23,15 @@ export interface ContextWindowOverride {
 	contextWindow: number;
 }
 
-function modelsForContextWindow(override?: ContextWindowOverride): typeof WEAVE_MODELS {
-	if (!override) return WEAVE_MODELS;
-	return WEAVE_MODELS.map((model) =>
+function modelsForContextWindow(override?: ContextWindowOverride): typeof AIAND_MODELS {
+	if (!override) return AIAND_MODELS;
+	return AIAND_MODELS.map((model) =>
 		model.id === override.modelId ? { ...model, contextWindow: override.contextWindow } : model,
 	);
 }
 
-/** Register the Weave provider, optionally using the router-confirmed active context window. */
-export function registerWeave(pi: ExtensionAPI, contextWindowOverride?: ContextWindowOverride): void {
+/** Register the Aiand provider, optionally using the router-confirmed active context window. */
+export function registerAiand(pi: ExtensionAPI, contextWindowOverride?: ContextWindowOverride): void {
 	const key = resolveRouterKey();
 	const role = getRole();
 
@@ -41,19 +41,19 @@ export function registerWeave(pi: ExtensionAPI, contextWindowOverride?: ContextW
 		// key there is fatal rather than silently routing on quality knobs.
 		if (isSubagent()) {
 			throw new Error(
-				"Weave Router: no router key found (set WEAVE_ROUTER_KEY or write ~/.pi/agent/.weave_router_key).",
+				"Aiand Router: no router key found (set AIAND_ROUTER_KEY or write ~/.pi/agent/.aiand_router_key).",
 			);
 		}
 		return;
 	}
 
 	pi.registerProvider(PROVIDER_NAME, {
-		name: "Weave Router",
+		name: "Aiand Router",
 		// Root URL, no /v1: the anthropic-messages provider uses @anthropic-ai/sdk,
 		// which appends /v1/messages to baseUrl. A /v1 here yields /v1/v1/messages.
 		baseUrl: getRouterBaseUrl(),
 		// Planted to satisfy pi's "is auth configured" check. The router ignores
-		// it (auth runs off X-Weave-Router-Key); authHeader:false keeps
+		// it (auth runs off X-Aiand-Router-Key); authHeader:false keeps
 		// Authorization free for BYOK.
 		apiKey: key,
 		api: "anthropic-messages",

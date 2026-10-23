@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/router"
 )
 
 // v2 kinds fold the seven v1 objects into three content-addressed artifacts. Their singular
@@ -148,8 +148,8 @@ func (c ClassifierComponent) validate() error {
 }
 
 func (p ServingProvenance) validate() error {
-	if !sourceRevisionPattern.MatchString(p.RouterRevision) || !sourceRevisionPattern.MatchString(p.WeaveRevision) {
-		return errors.New("serving provenance requires exact router and Weave source revisions")
+	if !sourceRevisionPattern.MatchString(p.RouterRevision) || !sourceRevisionPattern.MatchString(p.AiandRevision) {
+		return errors.New("serving provenance requires exact router and Aiand source revisions")
 	}
 	return validateArtifactRef(p.BuildAttestation)
 }

@@ -14,7 +14,7 @@ func TestBaselineFor(t *testing.T) {
 
 	t.Run("unknown model returns baseline", func(t *testing.T) {
 		s := &Service{defaultBaselineModel: "deepseek/deepseek-v4.1-flash"}
-		assert.Equal(t, "deepseek/deepseek-v4.1-flash", s.baselineFor("weave-router"))
+		assert.Equal(t, "deepseek/deepseek-v4.1-flash", s.baselineFor("aiand-router"))
 	})
 
 	t.Run("empty model returns baseline", func(t *testing.T) {
@@ -24,7 +24,7 @@ func TestBaselineFor(t *testing.T) {
 
 	t.Run("unknown model with no baseline returns empty", func(t *testing.T) {
 		s := &Service{}
-		assert.Equal(t, "", s.baselineFor("weave-router"))
+		assert.Equal(t, "", s.baselineFor("aiand-router"))
 	})
 }
 

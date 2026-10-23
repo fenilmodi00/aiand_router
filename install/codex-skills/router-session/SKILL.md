@@ -1,9 +1,9 @@
 ---
 name: router-session
-description: "Print the session id that correlates this Codex session in Weave Router telemetry and logs."
+description: "Print the session id that correlates this Codex session in Aiand Router telemetry and logs."
 ---
 
-<!-- weave-router managed router-session skill -->
+<!-- aiand-router managed router-session skill -->
 
 When the user invokes `$router-session`, run this skill's `scripts/emit.sh` using the
 absolute path shown in this skill's `<path>` (its directory + `/scripts/emit.sh`).

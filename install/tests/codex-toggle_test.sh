@@ -36,7 +36,7 @@ grep -Fq '{{SCOPE}}' "$hook" && { echo "scope token survived rendering" >&2; exi
 cat >"$fake_bin/npx" <<'FAKE'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$NPX_LOG"
-printf 'weave-router fake output\n'
+printf 'aiand-router fake output\n'
 FAKE
 chmod +x "$fake_bin/npx"
 
@@ -102,8 +102,8 @@ echo "toggles"
 
 out="$(run_hook '$router-status')"
 contains "router-status blocks the turn" '"decision":"block"' "$out"
-contains "router-status runs the status subcommand" 'weave-router status --codex' "$(npx_log)"
-contains "router-status surfaces the command output" 'weave-router fake output' "$out"
+contains "router-status runs the status subcommand" 'aiand-router status --codex' "$(npx_log)"
+contains "router-status surfaces the command output" 'aiand-router fake output' "$out"
 # Nothing changed, so the restart note would be noise.
 case "$out" in
   *'next `codex` launch'*) printf '  FAIL router-status should not claim a restart is needed\n'; fails=$((fails + 1)) ;;
@@ -111,14 +111,14 @@ case "$out" in
 esac
 
 out="$(run_hook '$router-off')"
-contains "router-off runs the off subcommand" 'weave-router off --codex' "$(npx_log)"
+contains "router-off runs the off subcommand" 'aiand-router off --codex' "$(npx_log)"
 contains "router-off says when it takes effect" 'next `codex` launch' "$out"
 
 out="$(run_hook '$router-on')"
-contains "router-on runs the on subcommand" 'weave-router on --codex' "$(npx_log)"
+contains "router-on runs the on subcommand" 'aiand-router on --codex' "$(npx_log)"
 
 out="$(run_hook '$disable-routing')"
-contains "disable-routing runs the off subcommand" 'weave-router off --codex' "$(npx_log)"
+contains "disable-routing runs the off subcommand" 'aiand-router off --codex' "$(npx_log)"
 contains "disable-routing names its reversal" '$router-on' "$out"
 
 echo
@@ -186,7 +186,7 @@ HANG
 chmod +x "$hang_bin/npx"
 start=$(date +%s)
 out="$(jq -Rn --arg p '$router-off' '{prompt:$p, session_id:"s"}' \
-  | WEAVE_TOGGLE_TIMEOUT=1 PATH="$hang_bin:$PATH" bash "$hook" 2>/dev/null || true)"
+  | AIAND_TOGGLE_TIMEOUT=1 PATH="$hang_bin:$PATH" bash "$hook" 2>/dev/null || true)"
 elapsed=$(( $(date +%s) - start ))
 check "a hanging toggle times out and passes through" "$passthrough" "$out"
 if [ "$elapsed" -lt 15 ]; then
@@ -203,8 +203,8 @@ fi
 assert_timeout_rejected() {
   local label="$1" value="$2" err
   err="$(jq -Rn --arg p '$router-off' '{prompt:$p, session_id:"s"}' \
-    | WEAVE_TOGGLE_TIMEOUT="$value" PATH="$fake_bin:$PATH" bash "$hook" 2>&1 >/dev/null || true)"
-  contains "$label" 'ignoring invalid WEAVE_TOGGLE_TIMEOUT' "$err"
+    | AIAND_TOGGLE_TIMEOUT="$value" PATH="$fake_bin:$PATH" bash "$hook" 2>&1 >/dev/null || true)"
+  contains "$label" 'ignoring invalid AIAND_TOGGLE_TIMEOUT' "$err"
 }
 assert_timeout_rejected "a non-numeric budget falls back to the default" "banana"
 # Digit-only but past the shell's integer type: [ -ge ] errors rather than
@@ -214,7 +214,7 @@ assert_timeout_rejected "a zero budget falls back to the default" "0"
 
 # ...and a usable value is left alone.
 err="$(jq -Rn --arg p '$router-off' '{prompt:$p, session_id:"s"}' \
-  | WEAVE_TOGGLE_TIMEOUT=30 PATH="$fake_bin:$PATH" bash "$hook" 2>&1 >/dev/null || true)"
+  | AIAND_TOGGLE_TIMEOUT=30 PATH="$fake_bin:$PATH" bash "$hook" 2>&1 >/dev/null || true)"
 case "$err" in
   *'ignoring invalid'*)
     printf '  FAIL a valid budget was rejected\n'; fails=$((fails + 1)) ;;

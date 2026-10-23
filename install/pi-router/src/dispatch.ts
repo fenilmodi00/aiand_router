@@ -4,9 +4,9 @@
  * pi has no native subagents. The canonical pattern (examples/extensions/
  * subagent) is to spawn a fresh `pi --print --mode json --no-session` process
  * per task: true context isolation, reuses pi's own agent loop, and an
- * independent router session. We layer Weave routing on top by loading this
- * same extension in each child (`-e <self>`) with WEAVE_PI_SUBAGENT=1, so the
- * child registers the `weave` provider with the speed/cheap knobs and a
+ * independent router session. We layer Aiand routing on top by loading this
+ * same extension in each child (`-e <self>`) with AIAND_PI_SUBAGENT=1, so the
+ * child registers the `aiand` provider with the speed/cheap knobs and a
  * "subagent:" session id. Only the final assistant text comes back to the
  * parent — intermediate tool output stays in the child, keeping the main
  * context tiny.
@@ -51,7 +51,7 @@ const TaskItem = Type.Object({
 	prompt: Type.String({ description: "The full instruction for this subagent." }),
 	tools: Type.Optional(
 		Type.Array(Type.String(), {
-			description: "Tool names this subagent may use (e.g. read, grep). Overrides readOnly for this task. Dangerous tools (bash, write, edit) are ignored unless WEAVE_PI_ALLOW_SUBAGENT_TOOLS=1.",
+			description: "Tool names this subagent may use (e.g. read, grep). Overrides readOnly for this task. Dangerous tools (bash, write, edit) are ignored unless AIAND_PI_ALLOW_SUBAGENT_TOOLS=1.",
 		}),
 	),
 	cwd: Type.Optional(Type.String({ description: "Working directory for this subagent. Defaults to the parent cwd." })),
@@ -66,7 +66,7 @@ const DispatchParams = Type.Object({
 	readOnly: Type.Optional(
 		Type.Boolean({
 			default: true,
-			description: "When true (default), subagents get read-only tools (read, grep, find, ls). Per-task `tools` overrides this. Without WEAVE_PI_ALLOW_SUBAGENT_TOOLS=1, readOnly:false still yields read-only tools (no silent bash/write).",
+			description: "When true (default), subagents get read-only tools (read, grep, find, ls). Per-task `tools` overrides this. Without AIAND_PI_ALLOW_SUBAGENT_TOOLS=1, readOnly:false still yields read-only tools (no silent bash/write).",
 		}),
 	),
 });
@@ -141,10 +141,10 @@ function runChild(
 	// Secure-by-default tool gating. Task input is model-influenced, so without an
 	// explicit opt-in we never hand a child write/exec tools: model-requested
 	// `tools` are stripped of dangerous entries, and readOnly:false's "all tools"
-	// is downgraded to read-only. WEAVE_PI_ALLOW_SUBAGENT_TOOLS=1 restores full
+	// is downgraded to read-only. AIAND_PI_ALLOW_SUBAGENT_TOOLS=1 restores full
 	// flexibility. Stops a prompt-injected main loop from escalating a read-only
 	// fan-out into arbitrary command/file execution under the user's identity.
-	const allowDangerousTools = process.env.WEAVE_PI_ALLOW_SUBAGENT_TOOLS === "1";
+	const allowDangerousTools = process.env.AIAND_PI_ALLOW_SUBAGENT_TOOLS === "1";
 	let tools: string[] | undefined;
 	if (task.tools && task.tools.length > 0) {
 		tools = task.tools;
@@ -170,26 +170,26 @@ function runChild(
 	const env: NodeJS.ProcessEnv = {
 		...process.env,
 		...lspEnv,
-		WEAVE_PI_SUBAGENT: "1",
-		WEAVE_PI_SUBAGENT_ID: randomUUID(),
-		WEAVE_ROUTER_KEY: key,
-		WEAVE_ROUTER_URL: getRouterBaseUrl(),
+		AIAND_PI_SUBAGENT: "1",
+		AIAND_PI_SUBAGENT_ID: randomUUID(),
+		AIAND_ROUTER_KEY: key,
+		AIAND_ROUTER_URL: getRouterBaseUrl(),
 	};
 	// Don't let the main loop's per-knob routing overrides leak into children:
 	// knobsForRole prefers env values over the role preset, which would route
 	// subagents on the main loop's quality knobs instead of the speed/cheap ones.
-	delete env.WEAVE_ROUTING_ALPHA;
-	delete env.WEAVE_ROUTING_SPEED_WEIGHT;
-	delete env.WEAVE_ROUTING_OUTPUT_COST_RATIO;
-	delete env.WEAVE_ROUTING_EXPECTED_OUTPUT_TOKENS;
+	delete env.AIAND_ROUTING_ALPHA;
+	delete env.AIAND_ROUTING_SPEED_WEIGHT;
+	delete env.AIAND_ROUTING_OUTPUT_COST_RATIO;
+	delete env.AIAND_ROUTING_EXPECTED_OUTPUT_TOKENS;
 	// With no broker there must be no broker env at all, so a child never tries
 	// to dial a socket that isn't there.
 	if (!lspEnv) {
 		delete env[LSP_BROKER_ENV];
 		delete env[LSP_BROKER_TOKEN_ENV];
 	}
-	if (identity.email) env.WEAVE_USER_EMAIL = identity.email;
-	if (identity.name) env.WEAVE_USER_NAME = identity.name;
+	if (identity.email) env.AIAND_USER_EMAIL = identity.email;
+	if (identity.name) env.AIAND_USER_NAME = identity.name;
 
 	const result: ChildResult = { index, finalText: "", exitCode: 0 };
 	const messages: Message[] = [];
@@ -311,7 +311,7 @@ export function registerDispatch(pi: ExtensionAPI, selfPath: string, lspBroker?:
 		label: "Dispatch",
 		description: [
 			"Run tasks as parallel, context-isolated subagents (separate pi processes).",
-			"Each subagent has its own context window and routes through the Weave Router on speed/cheap knobs;",
+			"Each subagent has its own context window and routes through the Aiand Router on speed/cheap knobs;",
 			"only its final answer returns here, so intermediate work never bloats this context.",
 			"Subagents are read-only by default (read, grep, find, ls); pass per-task `tools` to widen.",
 			"Use for fan-out investigation/search across independent questions.",
@@ -324,7 +324,7 @@ export function registerDispatch(pi: ExtensionAPI, selfPath: string, lspBroker?:
 			if (!key) {
 				return {
 					content: [
-						{ type: "text", text: "Weave Router dispatch unavailable: no router key (set WEAVE_ROUTER_KEY or run the --pi installer)." },
+						{ type: "text", text: "Aiand Router dispatch unavailable: no router key (set AIAND_ROUTER_KEY or run the --pi installer)." },
 					],
 					details: { results: [] as ChildResult[] },
 					isError: true,

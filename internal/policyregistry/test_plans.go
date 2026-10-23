@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"weave-os/router/internal/subscriptions/entitlement"
+	"aiand-os/router/internal/subscriptions/entitlement"
 )
 
 // TestPlan selects request behavior without granting a subscriber entitlement.
@@ -18,8 +18,8 @@ const (
 	TestPlanStable         TestPlan = "stable"
 	TestPlanMax            TestPlan = "max"
 	TestPlanBoost          TestPlan = "boost"
-	TestPlanGrantHeader             = "X-Weave-Test-Grant"
-	TestPlanSessionHeader           = "X-Weave-Test-Session"
+	TestPlanGrantHeader             = "X-Aiand-Test-Grant"
+	TestPlanSessionHeader           = "X-Aiand-Test-Session"
 	TestPlanLaunchLifetime          = time.Hour
 )
 

@@ -23,7 +23,7 @@ MAX_MEMBER_BYTES = 64 * 1024 * 1024
 # every entry is downloaded, verified and loaded at boot, so the registry must
 # stay small enough for startup to finish inside a readiness window.
 MAX_PACKAGE_REGISTRY_ENTRIES = 8
-DEFAULT_CACHE_DIR = Path("/tmp/workweave-hmm-artifacts")
+DEFAULT_CACHE_DIR = Path("/tmp/workaiand-hmm-artifacts")
 
 
 @dataclass(frozen=True)

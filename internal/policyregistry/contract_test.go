@@ -8,13 +8,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/hmm/rosterdata"
-	"weave-os/router/internal/router/policy"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/hmm/rosterdata"
+	"aiand-os/router/internal/router/policy"
 )
 
-const testRegistryRoot = "gs://weave_ml/weave_registry"
+const testRegistryRoot = "gs://aiand_ml/aiand_registry"
 
 func TestReleaseValidationBindsClassifierTaxonomyAndPolicyPath(t *testing.T) {
 	release := validRelease()
@@ -33,7 +33,7 @@ func TestReleasePinsQwenBundleEndpointAndAudience(t *testing.T) {
 			ArtifactID:    "qwen-classifier",
 			PackageSHA256: strings.Repeat("f", 64),
 			Endpoint:      "https://router-qwen.modal.run/",
-			Audience:      "https://weave-router/qwen-classifier",
+			Audience:      "https://aiand-router/qwen-classifier",
 		},
 	}
 	require.NoError(t, release.Validate(testRegistryRoot))
@@ -42,7 +42,7 @@ func TestReleasePinsQwenBundleEndpointAndAudience(t *testing.T) {
 		ArtifactID:    "qwen-classifier",
 		PackageSHA256: strings.Repeat("f", 64),
 		Endpoint:      "https://untrusted.example/",
-		Audience:      "https://weave-router/qwen-classifier",
+		Audience:      "https://aiand-router/qwen-classifier",
 	}
 	require.Error(t, release.Validate(testRegistryRoot))
 }
@@ -52,7 +52,7 @@ func TestDecodeLaneHeadRejectsUnknownFieldsAndWrongFacet(t *testing.T) {
   "schema_version":"router_policy_lane_head_v1",
   "environment":"staging-01",
   "lane":"stable",
-  "release_uri":"gs://weave_ml/weave_registry/router_policy/v1/releases/sha256/` + strings.Repeat("b", 64) + `.json",
+  "release_uri":"gs://aiand_ml/aiand_registry/router_policy/v1/releases/sha256/` + strings.Repeat("b", 64) + `.json",
   "release_sha256":"` + strings.Repeat("b", 64) + `",
   "release_generation":1,
   "classifier_revision_url":"https://classifier.example",
@@ -70,7 +70,7 @@ func TestDecodeLaneHeadRejectsUnknownFieldsAndWrongFacet(t *testing.T) {
   "schema_version":"router_policy_lane_head_v1",
   "environment":"prod-01",
   "lane":"stable",
-  "release_uri":"gs://weave_ml/weave_registry/router_policy/v1/releases/sha256/` + strings.Repeat("b", 64) + `.json",
+  "release_uri":"gs://aiand_ml/aiand_registry/router_policy/v1/releases/sha256/` + strings.Repeat("b", 64) + `.json",
   "release_sha256":"` + strings.Repeat("b", 64) + `",
   "release_generation":1,
   "classifier_revision_url":"https://classifier.example",
@@ -173,7 +173,7 @@ func TestReleasePinsDistinctLocalHMMVariant(t *testing.T) {
 func TestQwenServingRevisionChangesReleaseIdentity(t *testing.T) {
 	release := validRelease()
 	variant := policy.ClassifierArtifact{ArtifactID: "candidate-qwen", PackageSHA256: strings.Repeat("b", 64),
-		Endpoint: "https://immutable-qwen.modal.run/", Audience: "weave", ServingRevision: strings.Repeat("c", 64)}
+		Endpoint: "https://immutable-qwen.modal.run/", Audience: "aiand", ServingRevision: strings.Repeat("c", 64)}
 	release.Classifier.Variants = map[router.Strategy]policy.ClassifierArtifact{router.StrategyHMMQwen: variant}
 	require.NoError(t, release.Validate(testRegistryRoot))
 	first, err := policyregistry.ReleaseID(release)

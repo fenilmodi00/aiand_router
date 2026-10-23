@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"weave-os/router/internal/router/escalation"
+	"aiand-os/router/internal/router/escalation"
 )
 
 const (

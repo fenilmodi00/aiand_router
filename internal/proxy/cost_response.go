@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/sse"
-	"weave-os/router/internal/usage"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/sse"
+	"aiand-os/router/internal/usage"
 
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -224,7 +224,7 @@ func (w *streamCostWriter) annotateEvent(event []byte) []byte {
 	if err != nil {
 		return event
 	}
-	annotated, err := sjson.SetRawBytes(data, "usage.weave_cost", cost)
+	annotated, err := sjson.SetRawBytes(data, "usage.aiand_cost", cost)
 	if err != nil {
 		return event
 	}

@@ -71,7 +71,7 @@ func TestConfigureInstallsClientCertificateAndDropsPlaintextFallback(t *testing.
 }
 
 func TestConfigureVerifiesTheExpectedServerIdentity(t *testing.T) {
-	serverDER, certPEM, keyPEM := selfSigned(t, "workweave-staging-01:us-central1:main-instance")
+	serverDER, certPEM, keyPEM := selfSigned(t, "workaiand-staging-01:us-central1:main-instance")
 	t.Setenv(serverCACertEnvVar, certPEM)
 	t.Setenv(clientCertEnvVar, certPEM)
 	t.Setenv(clientKeyEnvVar, keyPEM)
@@ -82,8 +82,8 @@ func TestConfigureVerifiesTheExpectedServerIdentity(t *testing.T) {
 		wantAccepted bool
 	}{
 		{name: "unset accepts any certificate from the CA", serverName: "", wantAccepted: true},
-		{name: "matching identity is accepted", serverName: "workweave-staging-01:us-central1:main-instance", wantAccepted: true},
-		{name: "another endpoint under the same CA is rejected", serverName: "workweave-staging-01:us-central1:other-instance"},
+		{name: "matching identity is accepted", serverName: "workaiand-staging-01:us-central1:main-instance", wantAccepted: true},
+		{name: "another endpoint under the same CA is rejected", serverName: "workaiand-staging-01:us-central1:other-instance"},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Setenv(serverNameEnvVar, testCase.serverName)

@@ -2,7 +2,7 @@
 #
 # Note: schema-only validation (no live DB connection). SQLC parses the migration
 # files in `migrations/` to build its type model, which means generation works
-# without a running Postgres — different from the Weave backend's sqlc.yml that
+# without a running Postgres — different from the Aiand backend's sqlc.yml that
 # requires a live connection. Trade-off: less accurate type inference for
 # DB-time features (functions/triggers), but the router's schema is plain
 # enough that this doesn't matter and the simpler setup wins.

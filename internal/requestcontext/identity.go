@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"strings"
 
-	"weave-os/router/internal/auth"
+	"aiand-os/router/internal/auth"
 )
 
 // ClientIdentity holds per-request user identification signals, persisted to
@@ -23,11 +23,11 @@ type ClientIdentity struct {
 	// harness-keyed behaviour reads this, so an eval run is served exactly
 	// like the production client it imitates.
 	ClientApp string
-	// Eval marks traffic from a Weave eval harness (X-App carried the
+	// Eval marks traffic from a Aiand eval harness (X-App carried the
 	// EvalClientAppPrefix). Telemetry reads TelemetryClientApp so dashboards
 	// and alerts can exclude the run; nothing on the request path reads it.
 	Eval bool
-	// RolloutID is the x-weave-rollout-id eval/training-harness correlation
+	// RolloutID is the x-aiand-rollout-id eval/training-harness correlation
 	// id; joins a sandbox rollout's graded reward to its routing decisions.
 	RolloutID string
 	// OpenCodeSubagent marks an OpenCode child-session request. Routing
@@ -36,7 +36,7 @@ type ClientIdentity struct {
 }
 
 // OpenCodeSessionHeader carries OpenCode's own session id (ses_...), which
-// OpenCode core sends on every provider request without a Weave plugin.
+// OpenCode core sends on every provider request without a Aiand plugin.
 const OpenCodeSessionHeader = "X-OpenCode-Session"
 
 // OpenCodeParentSessionHeader names the parent session on OpenCode subagent
@@ -44,8 +44,8 @@ const OpenCodeSessionHeader = "X-OpenCode-Session"
 const OpenCodeParentSessionHeader = "X-Parent-Session-Id"
 
 // EvalClientAppPrefix is the X-App prefix an eval harness puts in front of
-// the client it imitates ("weave-eval-codex").
-const EvalClientAppPrefix = "weave-eval-"
+// the client it imitates ("aiand-eval-codex").
+const EvalClientAppPrefix = "aiand-eval-"
 
 // TelemetryClientApp is the client_app value recorded on spans, telemetry
 // rows and completion logs: the canonical app, prefixed for eval traffic.

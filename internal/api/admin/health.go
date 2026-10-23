@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"weave-os/router/internal/observability"
+	"aiand-os/router/internal/observability"
 
 	"github.com/gin-gonic/gin"
 )

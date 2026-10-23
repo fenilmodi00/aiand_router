@@ -16,10 +16,10 @@ import (
 
 	"golang.org/x/net/http2"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/timing"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/timing"
 )
 
 // FlushChunk is the read buffer size used by all streaming provider adapters.

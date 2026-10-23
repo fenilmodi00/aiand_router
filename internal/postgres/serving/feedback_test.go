@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/postgres/serving"
-	"weave-os/router/internal/sqlc"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/postgres/serving"
+	"aiand-os/router/internal/sqlc"
 )
 
 type feedbackDB struct {

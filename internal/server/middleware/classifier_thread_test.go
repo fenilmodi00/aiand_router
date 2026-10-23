@@ -13,10 +13,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/api/classifier"
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/server/middleware"
+	"aiand-os/router/internal/api/classifier"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/server/middleware"
 )
 
 type threadEndpointStore struct{ threads []router.ClassifierThread }
@@ -57,7 +57,7 @@ func TestClassifierThreadHTTPContract(t *testing.T) {
 			body, err := io.ReadAll(c.Request.Body)
 			require.NoError(t, err)
 			require.Empty(t, c.GetHeader(proxy.ClassifierThreadHeader))
-			require.NotContains(t, string(body), "weave_classifier_thread")
+			require.NotContains(t, string(body), "aiand_classifier_thread")
 			c.JSON(http.StatusOK, gin.H{"strategy": router.StrategyFromContext(c.Request.Context()), "body": json.RawMessage(body)})
 		})
 	}
@@ -96,17 +96,17 @@ func TestClassifierThreadHTTPContract(t *testing.T) {
 			require.Equal(t, http.StatusOK, baseline.Code)
 			require.Contains(t, baseline.Body.String(), `"strategy":"hmm_embedding"`)
 			for _, header := range []string{"", ticket.Token} {
-				body := `{"model":"test","weave_classifier_thread":"` + ticket.Token + `","messages":[]}`
+				body := `{"model":"test","aiand_classifier_thread":"` + ticket.Token + `","messages":[]}`
 				admitted := request(ctx, path, body, header)
 				require.Equal(t, http.StatusOK, admitted.Code, admitted.Body.String())
 				require.Contains(t, admitted.Body.String(), `"strategy":"llm_classifier"`)
 				require.NotContains(t, admitted.Body.String(), ticket.Token)
 			}
 			require.Equal(t, http.StatusOK, request(ctx, path, `{}`, ticket.Token).Code)
-			for _, body := range []string{`{"weave_classifier_thread":null}`, `{"weave_classifier_thread":17}`, `{"weave_classifier_thread":""}`, `{"weave_classifier_thread":"forged"}`} {
+			for _, body := range []string{`{"aiand_classifier_thread":null}`, `{"aiand_classifier_thread":17}`, `{"aiand_classifier_thread":""}`, `{"aiand_classifier_thread":"forged"}`} {
 				require.Equal(t, http.StatusConflict, request(ctx, path, body, "").Code)
 			}
-			require.Equal(t, http.StatusConflict, request(ctx, path, `{"weave_classifier_thread":"forged"}`, ticket.Token).Code)
+			require.Equal(t, http.StatusConflict, request(ctx, path, `{"aiand_classifier_thread":"forged"}`, ticket.Token).Code)
 			require.Equal(t, http.StatusConflict, request(foreign, path, `{}`, ticket.Token).Code)
 			otherKey := context.WithValue(ctx, proxy.APIKeyIDContextKey{}, "other-credential")
 			require.Equal(t, http.StatusConflict, request(otherKey, path, `{}`, ticket.Token).Code)

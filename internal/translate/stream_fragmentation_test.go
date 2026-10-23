@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/translate"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,7 +36,7 @@ const (
 	// largeFixtureSmallFrames is how many ordinary frames follow it.
 	largeFixtureSmallFrames = 200
 
-	testMarker = "✦ **Weave Router** → routed\n\n"
+	testMarker = "✦ **Aiand Router** → routed\n\n"
 )
 
 // streamObservation is everything a caller can see from one writer run.
@@ -538,10 +538,10 @@ func streamFamilies() []streamFamily {
 		{
 			name: "AnthropicRoutingFooterWriter",
 			fixtures: []streamFixture{
-				{name: "natural answer", body: anthropicAnswerStream("end_turn"), streaming: true, mustContain: []string{"Weave Router feedback", "event: message_stop"}},
-				{name: "natural answer with CRLF framing", body: withCRLF(anthropicAnswerStream("end_turn")), streaming: true, mustContain: []string{"Weave Router feedback", "event: message_stop\r\n"}},
-				{name: "tool_use turn keeps footer off", body: anthropicToolTurnStream(), streaming: true, mustContain: []string{`"id":"toolu_frag_01"`, "event: message_stop"}, mustNotContain: []string{"Weave Router feedback"}},
-				{name: "large text turn", body: largeAnthropicStream(), streaming: true, mustContain: []string{"Weave Router feedback", "event: message_stop"}},
+				{name: "natural answer", body: anthropicAnswerStream("end_turn"), streaming: true, mustContain: []string{"Aiand Router feedback", "event: message_stop"}},
+				{name: "natural answer with CRLF framing", body: withCRLF(anthropicAnswerStream("end_turn")), streaming: true, mustContain: []string{"Aiand Router feedback", "event: message_stop\r\n"}},
+				{name: "tool_use turn keeps footer off", body: anthropicToolTurnStream(), streaming: true, mustContain: []string{`"id":"toolu_frag_01"`, "event: message_stop"}, mustNotContain: []string{"Aiand Router feedback"}},
+				{name: "large text turn", body: largeAnthropicStream(), streaming: true, mustContain: []string{"Aiand Router feedback", "event: message_stop"}},
 			},
 			run: func(t *testing.T, fixture streamFixture, chunks [][]byte) streamObservation {
 				rec := httptest.NewRecorder()
@@ -553,9 +553,9 @@ func streamFamilies() []streamFamily {
 		{
 			name: "OpenAIRoutingFooterWriter",
 			fixtures: []streamFixture{
-				{name: "natural answer", body: openAIAnswerStream("stop"), streaming: true, mustContain: []string{"Weave Router feedback", "data: [DONE]"}},
-				{name: "tool_calls turn keeps footer off", body: openAIChunkToolTurnFrames().join(), streaming: true, mustContain: []string{`"id":"call_frag_1"`, "data: [DONE]"}, mustNotContain: []string{"Weave Router feedback"}},
-				{name: "large text turn", body: largeOpenAIChunkStream(), streaming: true, mustContain: []string{"Weave Router feedback", "data: [DONE]"}},
+				{name: "natural answer", body: openAIAnswerStream("stop"), streaming: true, mustContain: []string{"Aiand Router feedback", "data: [DONE]"}},
+				{name: "tool_calls turn keeps footer off", body: openAIChunkToolTurnFrames().join(), streaming: true, mustContain: []string{`"id":"call_frag_1"`, "data: [DONE]"}, mustNotContain: []string{"Aiand Router feedback"}},
+				{name: "large text turn", body: largeOpenAIChunkStream(), streaming: true, mustContain: []string{"Aiand Router feedback", "data: [DONE]"}},
 			},
 			run: func(t *testing.T, fixture streamFixture, chunks [][]byte) streamObservation {
 				rec := httptest.NewRecorder()
@@ -567,9 +567,9 @@ func streamFamilies() []streamFamily {
 		{
 			name: "GeminiRoutingFooterWriter",
 			fixtures: []streamFixture{
-				{name: "natural answer", body: geminiAnswerStream(), streaming: true, mustContain: []string{"Weave Router feedback", `"finishReason":"STOP"`}},
-				{name: "functionCall turn keeps footer off", body: geminiToolTurnFrames().join(), streaming: true, mustContain: []string{`"name":"get_weather"`}, mustNotContain: []string{"Weave Router feedback"}},
-				{name: "large text turn", body: largeGeminiStream(), streaming: true, mustContain: []string{"Weave Router feedback", `"finishReason":"STOP"`}},
+				{name: "natural answer", body: geminiAnswerStream(), streaming: true, mustContain: []string{"Aiand Router feedback", `"finishReason":"STOP"`}},
+				{name: "functionCall turn keeps footer off", body: geminiToolTurnFrames().join(), streaming: true, mustContain: []string{`"name":"get_weather"`}, mustNotContain: []string{"Aiand Router feedback"}},
+				{name: "large text turn", body: largeGeminiStream(), streaming: true, mustContain: []string{"Aiand Router feedback", `"finishReason":"STOP"`}},
 			},
 			run: func(t *testing.T, fixture streamFixture, chunks [][]byte) streamObservation {
 				rec := httptest.NewRecorder()
@@ -583,9 +583,9 @@ func streamFamilies() []streamFamily {
 			fixtures: []streamFixture{
 				{
 					name: "text and tool_use turn", body: anthropicToolTurnStream(), streaming: true,
-					mustContain: []string{"Weave Router", `"id":"toolu_frag_01"`, `"content_block_start","index":2`, `"input_tokens":12`, "event: message_stop"}, wantProgress: true,
+					mustContain: []string{"Aiand Router", `"id":"toolu_frag_01"`, `"content_block_start","index":2`, `"input_tokens":12`, "event: message_stop"}, wantProgress: true,
 				},
-				{name: "large text turn", body: largeAnthropicStream(), streaming: true, mustContain: []string{"Weave Router", "event: message_stop"}, wantProgress: true},
+				{name: "large text turn", body: largeAnthropicStream(), streaming: true, mustContain: []string{"Aiand Router", "event: message_stop"}, wantProgress: true},
 			},
 			run: func(t *testing.T, fixture streamFixture, chunks [][]byte) streamObservation {
 				rec := httptest.NewRecorder()
@@ -600,9 +600,9 @@ func streamFamilies() []streamFamily {
 		{
 			name: "OpenAIRoutingMarkerWriter",
 			fixtures: []streamFixture{
-				{name: "natural answer", body: openAIAnswerStream("stop"), streaming: true, mustContain: []string{"Weave Router", `"finish_reason":"stop"`, "data: [DONE]"}, wantProgress: true},
-				{name: "tool_calls turn", body: openAIChunkToolTurnFrames().join(), streaming: true, mustContain: []string{"Weave Router", `"id":"call_frag_1"`, "data: [DONE]"}, wantProgress: true},
-				{name: "large text turn", body: largeOpenAIChunkStream(), streaming: true, mustContain: []string{"Weave Router", "data: [DONE]"}, wantProgress: true},
+				{name: "natural answer", body: openAIAnswerStream("stop"), streaming: true, mustContain: []string{"Aiand Router", `"finish_reason":"stop"`, "data: [DONE]"}, wantProgress: true},
+				{name: "tool_calls turn", body: openAIChunkToolTurnFrames().join(), streaming: true, mustContain: []string{"Aiand Router", `"id":"call_frag_1"`, "data: [DONE]"}, wantProgress: true},
+				{name: "large text turn", body: largeOpenAIChunkStream(), streaming: true, mustContain: []string{"Aiand Router", "data: [DONE]"}, wantProgress: true},
 			},
 			run: func(t *testing.T, fixture streamFixture, chunks [][]byte) streamObservation {
 				rec := httptest.NewRecorder()

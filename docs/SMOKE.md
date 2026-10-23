@@ -163,7 +163,7 @@ when Compose is installed, verify the actual merged config without a daemon.
 `replay-only` runs make zero upstream calls. `record`/`replay-or-record` pin
 every scenario to the cheapest upstream tier (`z-ai/glm-5.3-flash`); the
 mid-conversation tool-change scenario pins `z-ai/glm-5.2`. All pins use
-`x-weave-force-model` and cap `max_tokens` — a full refresh is ~15 real calls
+`x-aiand-force-model` and cap `max_tokens` — a full refresh is ~15 real calls
 against the one upstream, a few cents.
 
 ## What it covers
@@ -171,7 +171,7 @@ against the one upstream, a few cents.
 | File | Scenario |
 |---|---|
 | `smoke/boot_test.go` | `/health`, `/v1/version`, `/v1/router/models` respond and are well-formed |
-| `smoke/basic_test.go` | `/force-model` command turn; non-stream turn (usage + decision headers); streamed turn well-ordered; `x-weave-force-cluster` / unknown `x-weave-force-model` refused with 400 pre-dispatch |
+| `smoke/basic_test.go` | `/force-model` command turn; non-stream turn (usage + decision headers); streamed turn well-ordered; `x-aiand-force-cluster` / unknown `x-aiand-force-model` refused with 400 pre-dispatch |
 | `smoke/cache_test.go` | router-injected caching warms then reads; client-at-capacity doesn't over-inject; `ttl=1h` breakpoint not poisoned; overflow rejected cleanly by the router |
 | `smoke/streaming_test.go` | tool-use stream lifecycle: balanced `content_block_start/stop`, exactly one `message_stop`, `stop_reason` present |
 | `smoke/tool_delta_test.go` | non-system `tool_addition` and `tool_removal` blocks are normalized and accepted by the upstream |

@@ -3,9 +3,9 @@ package admin
 import (
 	"net/http"
 
-	"weave-os/router/internal/config"
-	"weave-os/router/internal/router/cluster"
-	"weave-os/router/internal/version"
+	"aiand-os/router/internal/config"
+	"aiand-os/router/internal/router/cluster"
+	"aiand-os/router/internal/version"
 
 	"github.com/gin-gonic/gin"
 )

@@ -3,8 +3,8 @@ package proxy
 import (
 	"unicode/utf8"
 
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/translate"
 )
 
 func conversationMessagesForRouting(env *translate.RequestEnvelope) []router.ConversationMessage {

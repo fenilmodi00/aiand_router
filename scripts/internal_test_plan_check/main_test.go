@@ -9,9 +9,9 @@ import (
 	"os"
 	"testing"
 	"time"
-	"weave-os/router/internal/billing"
-	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/postgres/serving"
+	"aiand-os/router/internal/billing"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/postgres/serving"
 )
 
 func TestInternalTestBookAndGrantIsolation(t *testing.T) {

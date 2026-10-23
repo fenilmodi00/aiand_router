@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/router"
 )
 
 func cohortCache(t *testing.T, store *servingMemoryStore) *policyregistry.ServingRuntimeCache {

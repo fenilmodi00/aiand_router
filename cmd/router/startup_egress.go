@@ -11,8 +11,8 @@ import (
 
 	"github.com/cenkalti/backoff/v5"
 	"golang.org/x/sync/errgroup"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/providers/httputil"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/providers/httputil"
 )
 
 const startupEgressTimeout = 10 * time.Second

@@ -13,7 +13,7 @@ test_home="$work/user"
 
 run() {
   HOME="$test_home" XDG_CACHE_HOME="$test_home/.cache" PATH="$work/bin:$PATH" \
-    ANTHROPIC_MODEL="" CLAUDE_CODE_DISABLE_1M_CONTEXT="" NO_COLOR=1 WEAVE_ROUTER_KEY=rk_test \
+    ANTHROPIC_MODEL="" CLAUDE_CODE_DISABLE_1M_CONTEXT="" NO_COLOR=1 AIAND_ROUTER_KEY=rk_test \
     bash "$installer" --claude --quiet --non-interactive --base-url http://127.0.0.1:9 "$@" </dev/null >"$work/output" 2>&1
 }
 run_update() {
@@ -30,7 +30,7 @@ uninstall() {
 }
 model() { jq -r '.model // "unset"' "$1"; }
 settings="$test_home/.claude/settings.json"
-state="$test_home/.claude/.weave-context-window.json"
+state="$test_home/.claude/.aiand-context-window.json"
 
 printf '%s\n' '{"model":"opus","statusLine":{"type":"command","command":"my-status"},"env":{"MY_SETTING":"keep"}}' >"$settings"
 run

@@ -10,8 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"weave-os/router/internal/router/policy"
-	"weave-os/router/internal/router/taskdomain"
+	"aiand-os/router/internal/router/policy"
+	"aiand-os/router/internal/router/taskdomain"
 )
 
 type taskResolverFunc func(context.Context, taskdomain.Input) taskdomain.Outcome

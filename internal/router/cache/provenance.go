@@ -4,7 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 
-	"weave-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router/catalog"
 )
 
 type Product string

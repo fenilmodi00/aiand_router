@@ -4,14 +4,14 @@ import (
 	"context"
 	"strings"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/proxy"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/proxy"
 
 	"github.com/gin-gonic/gin"
 )
 
 // EmbedOnlyUserMessageOverrideHeader flips the cluster scorer's PromptText source per-request.
-const EmbedOnlyUserMessageOverrideHeader = "x-weave-embed-only-user-message"
+const EmbedOnlyUserMessageOverrideHeader = "x-aiand-embed-only-user-message"
 
 // WithEmbedOnlyUserMessageOverride attaches a bool override to the request context when the header is "true" or "false".
 func WithEmbedOnlyUserMessageOverride() gin.HandlerFunc {

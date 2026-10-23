@@ -3,9 +3,9 @@ package proxy
 import (
 	"context"
 
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/router/sessionpin"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router/sessionpin"
 )
 
 // reasonCyberRefusalRepin is the pin reason recorded when a safety refusal

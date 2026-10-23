@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"weave-os/router/internal/inference"
-	"weave-os/router/internal/providers"
+	"aiand-os/router/internal/inference"
+	"aiand-os/router/internal/providers"
 )
 
 // AttemptFunc performs one upstream attempt against client for target. It

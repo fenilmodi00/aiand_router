@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"weave-os/router/internal/trafficcapture"
+	"aiand-os/router/internal/trafficcapture"
 
 	"github.com/stretchr/testify/require"
 )

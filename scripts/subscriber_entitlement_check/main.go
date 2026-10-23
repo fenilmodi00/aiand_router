@@ -14,9 +14,9 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"weave-os/router/internal/postgres"
-	"weave-os/router/internal/sqlc"
-	"weave-os/router/internal/subscriptions/entitlement"
+	"aiand-os/router/internal/postgres"
+	"aiand-os/router/internal/sqlc"
+	"aiand-os/router/internal/subscriptions/entitlement"
 )
 
 func main() {

@@ -6,9 +6,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/billing"
-	"weave-os/router/internal/server/middleware"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/billing"
+	"aiand-os/router/internal/server/middleware"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"

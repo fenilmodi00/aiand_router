@@ -60,10 +60,10 @@ test("Pi 0.74 TUI starts without Wooly and toggles it for the session", async ()
 		savings: aggregateSavings([]),
 	});
 
-	assert.equal(values().title, "Loom · Weave Router");
+	assert.equal(values().title, "Loom · Aiand Router");
 	assert.equal(typeof values().header, "function");
 	assert.equal(values().widget, undefined);
-	assert.match(values().status ?? "", /<bold>.*WEAVE ROUTER.*<\/bold>/);
+	assert.match(values().status ?? "", /<bold>.*AIAND ROUTER.*<\/bold>/);
 
 	await toggleWooly();
 	assert.equal(typeof values().widget, "function");
@@ -92,5 +92,5 @@ test("modern non-TUI modes do not receive terminal components", async () => {
 	assert.equal(values().title, undefined);
 	assert.equal(values().header, undefined);
 	assert.equal(values().widget, undefined);
-	assert.equal(values().status, "WEAVE ROUTER — claude-sonnet-4-6 · awaiting route · saved —");
+	assert.equal(values().status, "AIAND ROUTER — claude-sonnet-4-6 · awaiting route · saved —");
 });

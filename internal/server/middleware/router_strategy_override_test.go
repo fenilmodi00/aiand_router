@@ -5,10 +5,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/requestcontext"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/server/middleware"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/server/middleware"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"

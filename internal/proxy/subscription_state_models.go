@@ -4,13 +4,13 @@ import (
 	"context"
 	"net/http"
 
-	"weave-os/router/internal/billing"
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/router/cluster"
-	"weave-os/router/internal/router/policy"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/billing"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router/cluster"
+	"aiand-os/router/internal/router/policy"
+	"aiand-os/router/internal/translate"
 )
 
 type subscriptionStateAllowedModelsKey struct{}

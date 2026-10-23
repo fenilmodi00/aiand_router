@@ -4,7 +4,7 @@ import shlex
 
 import pytest
 
-from weave_bench.agent.beta_turn import beta_acknowledged, is_fresh_exec, with_beta_turn
+from aiand_bench.agent.beta_turn import beta_acknowledged, is_fresh_exec, with_beta_turn
 
 HARBOR_COMMAND = (
     "if [ -s ~/.nvm/nvm.sh ]; then . ~/.nvm/nvm.sh; fi; "
@@ -38,5 +38,5 @@ def test_unexpected_command_shape_is_rejected() -> None:
 
 
 def test_ack_detection() -> None:
-    assert beta_acknowledged('{"type":"item.completed","text":"✦ **Weave Router** → Beta enabled. Type /beta again"}')
+    assert beta_acknowledged('{"type":"item.completed","text":"✦ **Aiand Router** → Beta enabled. Type /beta again"}')
     assert not beta_acknowledged('{"type":"error","message":"invalid_key"}')

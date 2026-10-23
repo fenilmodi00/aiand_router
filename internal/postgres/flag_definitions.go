@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"weave-os/router/internal/flags"
-	"weave-os/router/internal/postgres/dbbudget"
-	"weave-os/router/internal/sqlc"
+	"aiand-os/router/internal/flags"
+	"aiand-os/router/internal/postgres/dbbudget"
+	"aiand-os/router/internal/sqlc"
 )
 
 // FlagDefinitionRepo publishes the compiled-in flag registry to

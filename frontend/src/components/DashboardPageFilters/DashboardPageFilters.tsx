@@ -27,7 +27,7 @@ export interface DashboardPageFiltersProps {
 }
 
 /**
- * Dashboard filter bar. Mirrors WorkWeave's DashboardPageFilters: each
+ * Dashboard filter bar. Mirrors WorkAiand's DashboardPageFilters: each
  * pill is wrapped in a Tooltip with a keyboard hint, opens a Popover
  * with a Command list, and the bar itself is a flat row that wraps on
  * narrow screens. Rendered inline with the page content (no separator).

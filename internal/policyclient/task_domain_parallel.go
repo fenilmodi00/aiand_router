@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"golang.org/x/sync/errgroup"
-	"weave-os/router/internal/router/policy"
-	"weave-os/router/internal/router/taskdomain"
+	"aiand-os/router/internal/router/policy"
+	"aiand-os/router/internal/router/taskdomain"
 )
 
 // WithTaskDomain joins optional task inference before Go consumes complexity facts.

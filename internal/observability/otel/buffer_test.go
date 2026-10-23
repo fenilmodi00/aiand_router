@@ -15,7 +15,7 @@ import (
 
 	coltracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 
-	"weave-os/router/internal/observability/otel"
+	"aiand-os/router/internal/observability/otel"
 )
 
 type collector struct {

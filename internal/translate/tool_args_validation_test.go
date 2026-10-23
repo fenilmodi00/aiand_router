@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/translate"
 )
 
 // OpenAI-compat upstreams (vLLM/SGLang) sometimes emit malformed JSON in

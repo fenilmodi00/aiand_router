@@ -1,6 +1,6 @@
 import { MODEL_PRICING, PRICING_VERSION } from "./pricing.generated.js";
 
-export const SAVINGS_ENTRY_TYPE = "weave-router-savings-v1";
+export const SAVINGS_ENTRY_TYPE = "aiand-router-savings-v1";
 
 export interface TokenUsage {
 	input: number;
@@ -43,7 +43,7 @@ function finiteNonNegative(value: number): number | undefined {
 }
 
 export function normalizeModelId(model: string): string {
-	return model.trim().replace(/^weave\//, "").replace(/\[[^\]]*\]$/, "").replace(/-[0-9]{8}$/, "");
+	return model.trim().replace(/^aiand\//, "").replace(/\[[^\]]*\]$/, "").replace(/-[0-9]{8}$/, "");
 }
 
 function normalizedUsage(usage: TokenUsage): TokenUsage | undefined {

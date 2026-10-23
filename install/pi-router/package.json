@@ -1,8 +1,8 @@
 {
-  "name": "@workweave/router-pi-extension",
+  "name": "@workaiand/router-pi-extension",
   "private": true,
   "type": "module",
-  "description": "The pi routing extension bundled into @workweave/router. NOT published separately: src/ is copied into the @workweave/router package at prepack and loaded via that package's pi.extensions. This manifest just marks the sources as ESM and declares the pi peer deps for local typecheck.",
+  "description": "The pi routing extension bundled into @workaiand/router. NOT published separately: src/ is copied into the @workaiand/router package at prepack and loaded via that package's pi.extensions. This manifest just marks the sources as ESM and declares the pi peer deps for local typecheck.",
   "scripts": {
     "typecheck": "tsc --project tsconfig.json"
   },

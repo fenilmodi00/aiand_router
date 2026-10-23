@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"weave-os/router/internal/observability/apm"
+	"aiand-os/router/internal/observability/apm"
 
 	"github.com/stretchr/testify/assert"
 )

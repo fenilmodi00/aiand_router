@@ -11,11 +11,11 @@ import (
 	"strings"
 	"time"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/requestcontext"
-	"weave-os/router/internal/router/taskdomain"
-	"weave-os/router/internal/router/turntype"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/router/taskdomain"
+	"aiand-os/router/internal/router/turntype"
+	"aiand-os/router/internal/translate"
 )
 
 // TaskDomainResolver keeps optional inference and persistence under one bounded request lifetime.

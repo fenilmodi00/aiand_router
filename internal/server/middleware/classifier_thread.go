@@ -6,14 +6,14 @@ import (
 	"io"
 	"net/http"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/proxy"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/proxy"
 
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 )
 
-const classifierThreadField = "weave_classifier_thread"
+const classifierThreadField = "aiand_classifier_thread"
 
 // WithClassifierThread runs after authentication and ordinary strategy selection.
 // The ticket is consumed here and never enters provider-forwarded headers.

@@ -272,7 +272,7 @@ const TOOL_PROMPT_GUIDELINES = [
 	"To find every usage of a symbol: locate its declaration first (grep or lsp documentSymbol), then call lsp references at that exact line and column — a text match list is not a references answer.",
 ];
 
-const EXIT_SWEEP_KEY = Symbol.for("weave.pi.lsp.exitSweep");
+const EXIT_SWEEP_KEY = Symbol.for("aiand.pi.lsp.exitSweep");
 
 interface ExitSweepState {
 	sweep(): void;

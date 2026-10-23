@@ -4,8 +4,8 @@ import (
 	"context"
 	"net/http"
 
-	"weave-os/router/internal/dispatch"
-	"weave-os/router/internal/inference"
+	"aiand-os/router/internal/dispatch"
+	"aiand-os/router/internal/inference"
 )
 
 // withSubscriptionFundingAuthorization prepares the request-local subscription

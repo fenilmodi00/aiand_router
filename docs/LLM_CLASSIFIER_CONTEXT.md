@@ -49,8 +49,8 @@ server binds the ticket to the installation, credential, classifier release,
 Go selection-policy hash and expiry.
 Tickets expire after 30 days without renewal or release rebinding.
 
-Send the ticket as `X-Weave-Classifier-Thread` or the top-level JSON field
-`weave_classifier_thread`. Middleware consumes both before request capture and
+Send the ticket as `X-Aiand-Classifier-Thread` or the top-level JSON field
+`aiand_classifier_thread`. Middleware consumes both before request capture and
 provider dispatch. Conflicting/empty tokens fail closed. Tickets apply to
 Messages, Chat Completions, Responses and Gemini inference; dry-run routing,
 handoff, router commands, force-model/cluster, shadow evaluation and policy-pin
@@ -59,7 +59,7 @@ Title-generation, quota probes, short-form classification and compaction request
 carrying a thread ticket return 409 before creating classifier facts or session
 pins; they cannot establish or replace the conversation root.
 A client whose enrollment fails may send the reserved
-`weave-classifier-unavailable` header value. Middleware returns a non-retryable
+`aiand-classifier-unavailable` header value. Middleware returns a non-retryable
 400 without dispatch; other invalid tickets still return 409.
 
 Postgres `classifier_threads` and `classifier_predictions` store hashes,
@@ -156,8 +156,8 @@ thread can no longer supply its complete causal prefix.
 
 ## Pi client admission
 
-Set `WEAVE_PI_LLM_CLASSIFIER=1` on Pi 0.83+ with this bundled extension. Only an
-explicit new session or empty fresh startup using the Weave provider enrolls.
+Set `AIAND_PI_LLM_CLASSIFIER=1` on Pi 0.83+ with this bundled extension. Only an
+explicit new session or empty fresh startup using the Aiand provider enrolls.
 Existing/resumed, seeded, forked and unsupported unticketed sessions stay on
 their existing strategy. New child processes enroll independently; they must
 not copy their parent's ticket. Other clients may implement the handshake only
@@ -171,8 +171,8 @@ extension auto-compaction and legacy handoff/escalation.
 
 ## Claude Code and Codex local proxy admission
 
-The `capture/` proxy in WorkWeave has a separate, explicit
-`WEAVE_CAPTURE_LLM_CLASSIFIER=1` mode. It is off by default and requires a
+The `capture/` proxy in WorkAiand has a separate, explicit
+`AIAND_CAPTURE_LLM_CLASSIFIER=1` mode. It is off by default and requires a
 private durable state file, a shared hook token and a router upstream. Its
 loopback-only authenticated hook endpoint accepts new parent lifecycle events,
 Claude `SubagentStart` IDs, and Codex `PreToolUse spawn_agent` permits. The

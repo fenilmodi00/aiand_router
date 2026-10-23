@@ -3,7 +3,7 @@ package entitlement
 import (
 	"context"
 
-	"weave-os/router/internal/router/eligibility"
+	"aiand-os/router/internal/router/eligibility"
 )
 
 // planBoundaries maps each plan to the hard model-eligibility boundary it

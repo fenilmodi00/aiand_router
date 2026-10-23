@@ -4,8 +4,8 @@ import (
 	"context"
 	"net/http"
 
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router"
 )
 
 type upstreamClient = providers.Client

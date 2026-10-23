@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/translate"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,7 +15,7 @@ import (
 
 func TestOpenAIRoutingMarkerWriter_StreamingInjectsMarker(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewOpenAIRoutingMarkerWriter(rec, "gpt-4o", "✦ **Weave Router** → gpt-4o · best pick for this turn\n\n")
+	w := translate.NewOpenAIRoutingMarkerWriter(rec, "gpt-4o", "✦ **Aiand Router** → gpt-4o · best pick for this turn\n\n")
 
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.WriteHeader(http.StatusOK)
@@ -32,7 +32,7 @@ func TestOpenAIRoutingMarkerWriter_StreamingInjectsMarker(t *testing.T) {
 	assert.Contains(t, marker, `"chat.completion.chunk"`)
 	markerData := strings.TrimPrefix(marker, "data: ")
 	assert.Equal(t, "assistant", gjson.Get(markerData, "choices.0.delta.role").String())
-	assert.Contains(t, gjson.Get(markerData, "choices.0.delta.content").String(), "Weave Router")
+	assert.Contains(t, gjson.Get(markerData, "choices.0.delta.content").String(), "Aiand Router")
 	assert.Contains(t, gjson.Get(markerData, "choices.0.delta.content").String(), "gpt-4o")
 	assert.Equal(t, "gpt-4o", gjson.Get(markerData, "model").String())
 }
@@ -97,8 +97,8 @@ func TestOpenAIRoutingMarkerWriter_MarkerEmittedOnce(t *testing.T) {
 
 	markerCount := 0
 	for _, e := range events {
-		if strings.Contains(e, "Weave") {
-			// Not all markers contain "Weave" — count by the specific marker content.
+		if strings.Contains(e, "Aiand") {
+			// Not all markers contain "Aiand" — count by the specific marker content.
 		}
 		data := strings.TrimPrefix(e, "data: ")
 		if content := gjson.Get(data, "choices.0.delta.content").String(); strings.Contains(content, "marker") {
@@ -110,7 +110,7 @@ func TestOpenAIRoutingMarkerWriter_MarkerEmittedOnce(t *testing.T) {
 
 func TestOpenAIRoutingMarkerWriter_PreludeFiresBeforeUpstream(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewOpenAIRoutingMarkerWriter(rec, "gpt-4o", "✦ Weave Router → gpt-4o\n\n")
+	w := translate.NewOpenAIRoutingMarkerWriter(rec, "gpt-4o", "✦ Aiand Router → gpt-4o\n\n")
 
 	require.NoError(t, w.Prelude(true))
 
@@ -119,7 +119,7 @@ func TestOpenAIRoutingMarkerWriter_PreludeFiresBeforeUpstream(t *testing.T) {
 	assert.Equal(t, "text/event-stream", rec.Header().Get("Content-Type"))
 	events := splitSSEEvents(rec.Body.String())
 	require.Len(t, events, 1, "prelude should emit exactly one marker chunk")
-	assert.Contains(t, events[0], "Weave Router")
+	assert.Contains(t, events[0], "Aiand Router")
 
 	// A subsequent upstream chunk must NOT trigger a duplicate marker.
 	upstream := "data: {\"choices\":[{\"delta\":{\"content\":\"Hi\"}}]}\n\n"

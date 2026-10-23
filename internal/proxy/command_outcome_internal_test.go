@@ -14,9 +14,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router/sessionpin"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router/sessionpin"
+	"aiand-os/router/internal/translate"
 )
 
 func readCommandOutcome(t *testing.T, recorder *httptest.ResponseRecorder) translate.CommandOutcome {
@@ -102,11 +102,11 @@ func TestCommandOutcomesAcrossSurfaces(t *testing.T) {
 						} else {
 							assert.JSONEq(t, string(mustJSON(t, outcome)), gjson.Get(rec.Body.String(), "router_command").Raw)
 						}
-						assert.NotContains(t, rec.Body.String(), "[weave-router-command-v1]")
+						assert.NotContains(t, rec.Body.String(), "[aiand-router-command-v1]")
 					} else {
 						// The carrier is part of output_text after the actual Chat→Responses conversion.
-						assert.Contains(t, rec.Body.String(), "[weave-router-command-v1]")
-						assert.Contains(t, rec.Body.String(), "weave-router:"+rec.Header().Get(translate.RouterCommandHeader))
+						assert.Contains(t, rec.Body.String(), "[aiand-router-command-v1]")
+						assert.Contains(t, rec.Body.String(), "aiand-router:"+rec.Header().Get(translate.RouterCommandHeader))
 					}
 					for _, pin := range store.pins {
 						if pin.Role != forceModelSessionRole {

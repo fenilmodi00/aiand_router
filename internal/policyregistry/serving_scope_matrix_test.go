@@ -10,8 +10,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/router/hmm/rosterdata"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/router/hmm/rosterdata"
 )
 
 func publishChangedPolicy(t *testing.T, store *servingMemoryStore, base *rosterdata.Roster, bonus float64) policyregistry.PolicyObject {
@@ -118,7 +118,7 @@ func routerOnlySource(t *testing.T, store *servingMemoryStore, initialSet policy
 	source.RouterImageDigest = "sha256:" + strings.Repeat(digit, 64)
 	source.Policy = publishChangedPolicy(t, store, basePolicy, 0.65)
 	source.Provenance.RouterRevision = strings.Repeat(digit, 40)
-	source.Provenance.WeaveRevision = strings.Repeat("a", 40)
+	source.Provenance.AiandRevision = strings.Repeat("a", 40)
 	attestation := "build-attestation-" + digit
 	source.Provenance.BuildAttestation = artifactRef(attestation)
 	store.artifacts[source.Provenance.BuildAttestation] = []byte(attestation)

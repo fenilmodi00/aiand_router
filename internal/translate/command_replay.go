@@ -10,7 +10,7 @@ import (
 	"github.com/tidwall/sjson"
 )
 
-var commandReferencePattern = regexp.MustCompile(`(?m)^\[weave-router-command-v[0-9]+\]: <weave-router:[A-Za-z0-9_-]+>\r?$`)
+var commandReferencePattern = regexp.MustCompile(`(?m)^\[aiand-router-command-v[0-9]+\]: <aiand-router:[A-Za-z0-9_-]+>\r?$`)
 
 func stripCommandReference(text string) string {
 	location := commandReferencePattern.FindStringIndex(text)
@@ -18,7 +18,7 @@ func stripCommandReference(text string) string {
 		return text
 	}
 	reference := strings.TrimSpace(text[location[0]:location[1]])
-	encoded := strings.TrimSuffix(strings.SplitN(reference, "weave-router:", 2)[1], ">")
+	encoded := strings.TrimSuffix(strings.SplitN(reference, "aiand-router:", 2)[1], ">")
 	raw, err := base64.RawURLEncoding.DecodeString(strings.TrimSpace(encoded))
 	var outcome CommandOutcome
 	if err == nil && json.Unmarshal(raw, &outcome) == nil && outcome.Version == 1 && outcome.ID != "" && outcome.Command != "" {
@@ -57,7 +57,7 @@ func stripCommandOutcomes(body []byte, collection string) ([]byte, error) {
 			continue
 		}
 		raw := []byte(item.Raw)
-		control := item.Get("router_command").Exists() && item.Get("model").String() == "weave-router"
+		control := item.Get("router_command").Exists() && item.Get("model").String() == "aiand-router"
 		var err error
 		if item.Get("router_command").Exists() {
 			raw, err = sjson.DeleteBytes(raw, "router_command")

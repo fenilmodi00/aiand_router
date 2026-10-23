@@ -6,7 +6,7 @@
 package catalog
 
 import (
-	"weave-os/router/internal/providers"
+	"aiand-os/router/internal/providers"
 )
 
 // Tier is the coarse capability bucket. Higher is stronger; integer

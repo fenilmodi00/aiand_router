@@ -3,9 +3,9 @@ package postgres
 import (
 	"context"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/postgres/dbbudget"
-	"weave-os/router/internal/sqlc"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/postgres/dbbudget"
+	"aiand-os/router/internal/sqlc"
 )
 
 type routingPolicyRepo struct{ tx sqlc.DBTX }

@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"sort"
 
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/router/cluster"
-	"weave-os/router/internal/router/hmm"
-	"weave-os/router/internal/router/hmm/rosterdata"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router/cluster"
+	"aiand-os/router/internal/router/hmm"
+	"aiand-os/router/internal/router/hmm/rosterdata"
 )
 
 const defaultDistributionGrid = 21

@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/sessionpin"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/sessionpin"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

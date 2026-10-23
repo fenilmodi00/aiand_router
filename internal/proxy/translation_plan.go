@@ -7,12 +7,12 @@ import (
 	"sort"
 	"time"
 
-	"weave-os/router/internal/observability/apm"
-	"weave-os/router/internal/observability/otel"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/observability/apm"
+	"aiand-os/router/internal/observability/otel"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/translate"
 )
 
 // TranslationCompatibilityMode controls whether broad compatibility filters

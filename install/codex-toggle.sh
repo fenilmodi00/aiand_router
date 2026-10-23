@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# <!-- weave-router managed codex directive -->
+# <!-- aiand-router managed codex directive -->
 #
-# Codex UserPromptSubmit hook for the Weave Router's LOCAL config toggles.
+# Codex UserPromptSubmit hook for the Aiand Router's LOCAL config toggles.
 # Codex passes a JSON object on stdin carrying the RAW prompt text, before
 # `$skill` expansion and before any inference.
 #
@@ -29,7 +29,7 @@
 # fire.
 
 set -uo pipefail
-export PATH="$PATH:$HOME/.weave/bin"
+export PATH="$PATH:$HOME/.aiand/bin"
 
 # How long the toggle may take before the hook gives up and passes the prompt
 # through. npx resolves from cache after first use; the budget covers a cold
@@ -47,22 +47,22 @@ export PATH="$PATH:$HOME/.weave/bin"
 # channel and any stray byte there corrupts the JSON. Codex discards stderr,
 # so this costs a user nothing and tells whoever set the variable why it was
 # ignored.
-WEAVE_TOGGLE_TIMEOUT_DEFAULT=45
-# Resolved into a local first: under `set -u`, ${#WEAVE_TOGGLE_TIMEOUT} on an
+AIAND_TOGGLE_TIMEOUT_DEFAULT=45
+# Resolved into a local first: under `set -u`, ${#AIAND_TOGGLE_TIMEOUT} on an
 # unset variable aborts the hook outright -- which would swallow every prompt,
 # the one failure this script must never have.
-weave_timeout="${WEAVE_TOGGLE_TIMEOUT:-$WEAVE_TOGGLE_TIMEOUT_DEFAULT}"
-weave_timeout_invalid=""
-case "$weave_timeout" in
-  ''|*[!0-9]*|0) weave_timeout_invalid=1 ;;
-  *) [ "${#weave_timeout}" -gt 4 ] && weave_timeout_invalid=1 ;;
+aiand_timeout="${AIAND_TOGGLE_TIMEOUT:-$AIAND_TOGGLE_TIMEOUT_DEFAULT}"
+aiand_timeout_invalid=""
+case "$aiand_timeout" in
+  ''|*[!0-9]*|0) aiand_timeout_invalid=1 ;;
+  *) [ "${#aiand_timeout}" -gt 4 ] && aiand_timeout_invalid=1 ;;
 esac
-if [ -n "$weave_timeout_invalid" ]; then
-  printf 'weave-router: ignoring invalid WEAVE_TOGGLE_TIMEOUT=%s; using %ss\n' \
-    "$weave_timeout" "$WEAVE_TOGGLE_TIMEOUT_DEFAULT" >&2
-  weave_timeout="$WEAVE_TOGGLE_TIMEOUT_DEFAULT"
+if [ -n "$aiand_timeout_invalid" ]; then
+  printf 'aiand-router: ignoring invalid AIAND_TOGGLE_TIMEOUT=%s; using %ss\n' \
+    "$aiand_timeout" "$AIAND_TOGGLE_TIMEOUT_DEFAULT" >&2
+  aiand_timeout="$AIAND_TOGGLE_TIMEOUT_DEFAULT"
 fi
-WEAVE_TOGGLE_TIMEOUT="$weave_timeout"
+AIAND_TOGGLE_TIMEOUT="$aiand_timeout"
 
 # ---------- responses ----------
 
@@ -123,10 +123,10 @@ command -v npx >/dev/null 2>&1 || pass_through
 
 # ---------- run ----------
 
-# WEAVE_TOGGLE_TIMED_OUT is set by run_bounded instead of encoding the timeout
+# AIAND_TOGGLE_TIMED_OUT is set by run_bounded instead of encoding the timeout
 # in the exit status. 124 is a status the child can legitimately return, and
 # reading that as "we timed out" would swallow the toggle's own error output.
-WEAVE_TOGGLE_TIMED_OUT=0
+AIAND_TOGGLE_TIMED_OUT=0
 
 # run_bounded runs a command with a wall-clock cap. GNU `timeout` is not on
 # macOS, so this polls the child rather than depending on coreutils.
@@ -136,7 +136,7 @@ WEAVE_TOGGLE_TIMED_OUT=0
 # running after the hook has already passed the prompt through.
 run_bounded() {
   local seconds="$1" out="$2"; shift 2
-  WEAVE_TOGGLE_TIMED_OUT=0
+  AIAND_TOGGLE_TIMED_OUT=0
 
   local had_monitor=0
   case "$-" in *m*) had_monitor=1 ;; esac
@@ -148,7 +148,7 @@ run_bounded() {
   local waited=0
   while kill -0 "$pid" 2>/dev/null; do
     if [ "$waited" -ge "$seconds" ]; then
-      WEAVE_TOGGLE_TIMED_OUT=1
+      AIAND_TOGGLE_TIMED_OUT=1
       # Negative pid = the whole group. Fall back to the bare pid if the
       # group is already gone, so a raced exit still gets reaped.
       kill -TERM -- "-$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null
@@ -163,7 +163,7 @@ run_bounded() {
   wait "$pid"
 }
 
-out_file="$(mktemp -t weave-codex-toggle.XXXXXX)" || pass_through
+out_file="$(mktemp -t aiand-codex-toggle.XXXXXX)" || pass_through
 # shellcheck disable=SC2064  # expand out_file now; it never changes after this
 trap "rm -f '$out_file'" EXIT
 
@@ -172,8 +172,8 @@ trap "rm -f '$out_file'" EXIT
 # text (the installer printf %q-quotes any path), so there is nothing here to
 # word-split at runtime -- the braces are a template token, not an expansion.
 # shellcheck disable=SC1083
-run_bounded "$WEAVE_TOGGLE_TIMEOUT" "$out_file" \
-  npx --package @weave-os/router -y -- weave-router "$toggle" --codex{{SCOPE}}
+run_bounded "$AIAND_TOGGLE_TIMEOUT" "$out_file" \
+  npx --package @aiand-os/router -y -- aiand-router "$toggle" --codex{{SCOPE}}
 status=$?
 
 output="$(cat "$out_file" 2>/dev/null || true)"
@@ -185,11 +185,11 @@ output="$(printf '%s' "$output" | sed -e 's/\x1b\[[0-9;]*m//g')"
 # model a prompt the user meant as a command, and it would likely try the same
 # command again. Only a real timeout passes through -- the toggle never got to
 # finish, so the skill path is still the honest fallback.
-if [ "$WEAVE_TOGGLE_TIMED_OUT" -eq 1 ]; then
+if [ "$AIAND_TOGGLE_TIMED_OUT" -eq 1 ]; then
   pass_through
 fi
 
-[ -n "$output" ] || output="weave-router $toggle --codex exited with status $status."
+[ -n "$output" ] || output="aiand-router $toggle --codex exited with status $status."
 
 # Both trailers describe a change that actually happened, so they are gated on
 # a zero exit. A failed toggle rewrote no config; telling the user it takes

@@ -3,20 +3,20 @@ package translate_test
 import (
 	"testing"
 
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/translate"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestEchoedInAssistantText(t *testing.T) {
-	const shown = "✦ **Weave Router** → shown warning\n\n"
-	const notShown = "✦ **Weave Router** → other warning\n\n"
+	const shown = "✦ **Aiand Router** → shown warning\n\n"
+	const notShown = "✦ **Aiand Router** → other warning\n\n"
 	needles := []string{shown, notShown}
 
 	for name, body := range map[string]string{
-		"anthropic text block":  `{"messages":[{"role":"user","content":"hi"},{"role":"assistant","content":[{"type":"text","text":"✦ **Weave Router** → shown warning\n\nhello"}]}]}`,
-		"chat string content":   `{"messages":[{"role":"assistant","content":"✦ **Weave Router** → shown warning"}]}`,
-		"responses output_text": `{"input":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"⁣⁠⁣⁠✦ **Weave Router** → shown warning\n\nhello"}]}]}`,
+		"anthropic text block":  `{"messages":[{"role":"user","content":"hi"},{"role":"assistant","content":[{"type":"text","text":"✦ **Aiand Router** → shown warning\n\nhello"}]}]}`,
+		"chat string content":   `{"messages":[{"role":"assistant","content":"✦ **Aiand Router** → shown warning"}]}`,
+		"responses output_text": `{"input":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"⁣⁠⁣⁠✦ **Aiand Router** → shown warning\n\nhello"}]}]}`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			echoed := translate.EchoedInAssistantText([]byte(body), needles)
@@ -26,7 +26,7 @@ func TestEchoedInAssistantText(t *testing.T) {
 	}
 
 	t.Run("user text does not count", func(t *testing.T) {
-		body := `{"messages":[{"role":"user","content":"✦ **Weave Router** → shown warning"}]}`
+		body := `{"messages":[{"role":"user","content":"✦ **Aiand Router** → shown warning"}]}`
 		assert.False(t, translate.EchoedInAssistantText([]byte(body), needles)[shown])
 	})
 }

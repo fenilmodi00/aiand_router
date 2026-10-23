@@ -14,7 +14,7 @@ import (
 	"syscall"
 	"time"
 
-	"weave-os/router/internal/providers"
+	"aiand-os/router/internal/providers"
 )
 
 // ErrRestrictedDestination is the dial error when an upstream resolves outside

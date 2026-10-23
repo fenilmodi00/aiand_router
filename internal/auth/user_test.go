@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"weave-os/router/internal/auth"
+	"aiand-os/router/internal/auth"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -143,7 +143,7 @@ func TestResolveAndStashUser_PropagatesDisplayNameOnEmailPath(t *testing.T) {
 
 func TestResolveAndStashUser_PropagatesDisplayNameOnAccountUUIDPath(t *testing.T) {
 	// Claude CLI v2.1.x ships only account_uuid in metadata.user_id, but the
-	// X-Weave-User-Name header still carries the git user.name. The display
+	// X-Aiand-User-Name header still carries the git user.name. The display
 	// name must reach the account-uuid-keyed upsert so the dashboard has a
 	// human-readable label even when email is NULL.
 	repo := &fakeUserRepo{user: &auth.User{ID: "user-9"}}

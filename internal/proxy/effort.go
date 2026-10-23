@@ -4,9 +4,9 @@ import (
 	"context"
 	"strings"
 
-	"weave-os/router/internal/observability/otel"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/observability/otel"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/translate"
 )
 
 // Effort sources, ordered by the precedence resolveEffort applies.

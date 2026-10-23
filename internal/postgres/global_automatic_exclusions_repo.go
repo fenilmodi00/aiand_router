@@ -3,12 +3,12 @@ package postgres
 import (
 	"context"
 
-	"weave-os/router/internal/postgres/dbbudget"
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/sqlc"
+	"aiand-os/router/internal/postgres/dbbudget"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/sqlc"
 )
 
-// GlobalAutomaticExclusionRepo reads the deployment-wide models the Weave
+// GlobalAutomaticExclusionRepo reads the deployment-wide models the Aiand
 // control plane has withdrawn from automatic routing. Read-only here: the rows
 // are written by the control plane, which owns catalog validation.
 type GlobalAutomaticExclusionRepo struct {

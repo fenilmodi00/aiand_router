@@ -1,6 +1,6 @@
 BEGIN;
 
--- Org-wide fast-mode opt-in, written by the Weave control plane. Every
+-- Org-wide fast-mode opt-in, written by the Aiand control plane. Every
 -- dispatch of a listed catalog model (routed, force-pinned, hard-pinned,
 -- failover) is sent on the provider's fast tier -- OpenAI
 -- service_tier=priority, Anthropic speed=fast -- and billed at that tier's

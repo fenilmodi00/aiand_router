@@ -9,18 +9,18 @@ import (
 	"strings"
 	"time"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/inference"
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/observability/otel"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/requestcontext"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/router/cluster"
-	"weave-os/router/internal/router/sessionpin"
-	"weave-os/router/internal/subscriptions/entitlement"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/inference"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/observability/otel"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router/cluster"
+	"aiand-os/router/internal/router/sessionpin"
+	"aiand-os/router/internal/subscriptions/entitlement"
+	"aiand-os/router/internal/translate"
 
 	"github.com/google/uuid"
 )
@@ -124,7 +124,7 @@ func (s *Service) ProxyGeminiGenerateContent(ctx context.Context, body []byte, w
 		logInboundRequestDiagnostics(log, env)
 	}
 
-	subAgentHint := r.Header.Get("x-weave-subagent-type")
+	subAgentHint := r.Header.Get("x-aiand-subagent-type")
 
 	forceCluster, forceErr := applyForceClusterHeader(ctx, r)
 	if forceErr != nil {
@@ -208,7 +208,7 @@ func (s *Service) ProxyGeminiGenerateContent(ctx context.Context, body []byte, w
 	if len(routeRes.CooldownProbeDeniedModels) > 0 {
 		ctx = context.WithValue(ctx, SessionCooldownProbeDeniedModelsContextKey{}, routeRes.CooldownProbeDeniedModels)
 	}
-	routeRes.SuggestionMode = r.Header.Get("x-weave-suggestion-mode") == "true"
+	routeRes.SuggestionMode = r.Header.Get("x-aiand-suggestion-mode") == "true"
 	decision := routeRes.Decision
 	s.firePolicyShadowForServingDecision(ctx, decision, routeRequest)
 	tt := routeRes.TurnType

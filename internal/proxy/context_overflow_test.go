@@ -9,12 +9,12 @@ import (
 	"strings"
 	"testing"
 
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/router/hmm"
-	"weave-os/router/internal/router/policy"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router/hmm"
+	"aiand-os/router/internal/router/policy"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

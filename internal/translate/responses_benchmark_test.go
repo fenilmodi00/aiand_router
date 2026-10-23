@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/tidwall/gjson"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/translate"
 )
 
 var responsesCleanupBenchmarkSink []byte
@@ -102,8 +102,8 @@ func responsesFooterCleanBody(count int) []byte {
 }
 
 func responsesBenchmarkBody(count int, retainBody, footer bool) []byte {
-	const badge = "\u2063\u2060\u2063\u2060**Weave Router** — model-a ← model-b\n\n"
-	const feedback = "\n\n_Weave Router feedback:_ `$rf +` good · `$rf -` poor"
+	const badge = "\u2063\u2060\u2063\u2060**Aiand Router** — model-a ← model-b\n\n"
+	const feedback = "\n\n_Aiand Router feedback:_ `$rf +` good · `$rf -` poor"
 	var body strings.Builder
 	body.WriteString(`{"input":[`)
 	for i := 0; i < count; i++ {
@@ -127,7 +127,7 @@ func responsesBenchmarkBody(count int, retainBody, footer bool) []byte {
 }
 
 func responsesFooterAcrossMessagesBody(count int) []byte {
-	const feedback = "\n\n_Weave Router feedback:_ `$rf +` good · `$rf -` poor"
+	const feedback = "\n\n_Aiand Router feedback:_ `$rf +` good · `$rf -` poor"
 	var body strings.Builder
 	body.WriteString(`{"input":[`)
 	for i := 0; i < count; i++ {
@@ -143,7 +143,7 @@ func responsesFooterAcrossMessagesBody(count int) []byte {
 }
 
 func responsesFooterOneMessageBody(partCount int) []byte {
-	const feedback = "\n\n_Weave Router feedback:_ `$rf +` good · `$rf -` poor"
+	const feedback = "\n\n_Aiand Router feedback:_ `$rf +` good · `$rf -` poor"
 	var body strings.Builder
 	body.WriteString(`{"input":[{"type":"message","role":"assistant","content":[`)
 	for i := 0; i < partCount; i++ {

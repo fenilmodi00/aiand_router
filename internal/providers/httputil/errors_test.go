@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/requestcontext"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/requestcontext"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

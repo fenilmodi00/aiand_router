@@ -4,8 +4,8 @@ import (
 	"context"
 	"net/http"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/requestcontext"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/requestcontext"
 )
 
 // ClaudeCodeSessionHeader carries Claude Code's session id.

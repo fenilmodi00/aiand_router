@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/timing"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/timing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

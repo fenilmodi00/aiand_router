@@ -29,7 +29,7 @@ type Config struct {
 	BaseURL string
 	// RouterKey is the rk_... key the orchestrator seeded. Required.
 	RouterKey string
-	// PinModel is forced via x-weave-force-model so decisions land on the one
+	// PinModel is forced via x-aiand-force-model so decisions land on the one
 	// upstream (ai&) deterministically and cheaply (default z-ai/glm-5.3-flash).
 	PinModel string
 }
@@ -42,11 +42,11 @@ const anthropicVersion = "2023-06-01"
 
 // forceModelHeader pins the served model (headless equivalent of /force-model).
 // Must match internal/proxy/force_model.go:ForceModelHeader.
-const forceModelHeader = "x-weave-force-model"
+const forceModelHeader = "x-aiand-force-model"
 
 // forceClusterHeader constrains serving to one policy-sidecar routing cluster.
 // Must match internal/proxy/force_cluster.go:ForceClusterHeader.
-const forceClusterHeader = "x-weave-force-cluster"
+const forceClusterHeader = "x-aiand-force-cluster"
 
 // httpClient is shared; the streaming scenarios need a generous timeout because
 // real Anthropic turns can take several seconds.
@@ -162,7 +162,7 @@ func call(t *testing.T, body []byte) response {
 	return callModel(t, body, cfg.PinModel)
 }
 
-// callModel posts to /v1/messages pinning model via x-weave-force-model, skipping
+// callModel posts to /v1/messages pinning model via x-aiand-force-model, skipping
 // the pin for /force-model command bodies. Retries once on 5xx/529; parses SSE
 // when stream:true, JSON otherwise.
 func callModel(t *testing.T, body []byte, model string) response {

@@ -6,10 +6,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"weave-os/router/internal/flags"
-	"weave-os/router/internal/requestcontext"
-	"weave-os/router/internal/router/turntype"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/flags"
+	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/router/turntype"
+	"aiand-os/router/internal/translate"
 )
 
 func workspaceGateCtx(flagOn bool, clientApp string) context.Context {

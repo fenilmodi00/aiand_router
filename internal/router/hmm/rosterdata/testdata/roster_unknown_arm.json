@@ -2,7 +2,7 @@
   "schema_version": "hmm_router_cluster_roster_v6",
   "comment": "Test fixture built from catalog models; not production data.",
   "ranking": {
-    "metric": "weave_model_index_v3",
+    "metric": "aiand_model_index_v3",
     "alpha": {
       "low": 0.4,
       "maximum": 0.95

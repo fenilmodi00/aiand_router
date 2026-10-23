@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/requestcontext"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/requestcontext"
 
 	"github.com/gin-gonic/gin"
 )

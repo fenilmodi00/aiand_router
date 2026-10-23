@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/router"
 )
 
 // fakeRouter returns a fixed decision (or error) and records nothing.

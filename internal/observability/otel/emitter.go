@@ -18,7 +18,7 @@ import (
 	resourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
 	tracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
 
-	"weave-os/router/internal/observability"
+	"aiand-os/router/internal/observability"
 )
 
 // EmitterConfig controls the emitter's async export pipeline.
@@ -256,7 +256,7 @@ func (e *Emitter) exportBatch(spans []*tracev1.Span) {
 		ResourceSpans: []*tracev1.ResourceSpans{{
 			Resource: e.resource,
 			ScopeSpans: []*tracev1.ScopeSpans{{
-				Scope: &commonv1.InstrumentationScope{Name: "workweave-router"},
+				Scope: &commonv1.InstrumentationScope{Name: "workaiand-router"},
 				Spans: spans,
 			}},
 		}},
@@ -275,7 +275,7 @@ func (e *Emitter) exportLogBatch(records []*logsv1.LogRecord) {
 		ResourceLogs: []*logsv1.ResourceLogs{{
 			Resource: e.resource,
 			ScopeLogs: []*logsv1.ScopeLogs{{
-				Scope:      &commonv1.InstrumentationScope{Name: "workweave-router"},
+				Scope:      &commonv1.InstrumentationScope{Name: "workaiand-router"},
 				LogRecords: records,
 			}},
 		}},

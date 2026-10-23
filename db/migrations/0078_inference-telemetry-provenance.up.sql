@@ -4,7 +4,7 @@ BEGIN;
 -- typed operation (anthropic_messages, handover_summary, ...); policy id and
 -- the registry/policy revisions identify the reviewed policy entry that
 -- produced the plan, so telemetry, generated docs, runtime inspection, and the
--- WorkWeave UI can be compared on one revision. plan_model/plan_provider are
+-- WorkAiand UI can be compared on one revision. plan_model/plan_provider are
 -- the policy-selected target; decision_model/decision_provider remain the
 -- served target. fallback_reason is set only when the served target differs
 -- from the plan. accounting_outcome states how usage was accounted:

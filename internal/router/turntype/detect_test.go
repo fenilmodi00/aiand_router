@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"weave-os/router/internal/router/turntype"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/router/turntype"
+	"aiand-os/router/internal/translate"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -117,7 +117,7 @@ func TestDetectFromEnvelope_Anthropic(t *testing.T) {
 			// Regression guard: the main-loop system prompt's Agent tool
 			// description contains "subagent_type" as a param name; that used
 			// to false-trigger SubAgentDispatch. Requires metadata.user_id or
-			// x-weave-subagent-type now.
+			// x-aiand-subagent-type now.
 			name: "main_loop with Agent tool description mentioning subagent_type stays main_loop",
 			body: `{"model":"claude-opus-4-7","system":"Use the Agent tool with a subagent_type parameter to dispatch sub-agents.","messages":[{"role":"user","content":"hi"}]}`,
 			want: turntype.MainLoop,
@@ -135,7 +135,7 @@ func TestDetectFromEnvelope_Anthropic(t *testing.T) {
 			want: turntype.MainLoop,
 		},
 		{
-			name: "sub-agent via x-weave-subagent-type header hint",
+			name: "sub-agent via x-aiand-subagent-type header hint",
 			body: `{"model":"claude-haiku-4-5","messages":[{"role":"user","content":"grep"}]}`,
 			hint: "Explore",
 			want: turntype.SubAgentDispatch,

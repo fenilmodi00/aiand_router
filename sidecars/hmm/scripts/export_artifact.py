@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Export a trusted WorkWeave HMM package into the public data-only format.
+"""Export a trusted WorkAiand HMM package into the public data-only format.
 
 This is an offline release-maintainer tool. It deliberately accepts the legacy
 trusted pickle as input, but the emitted package contains no pickle and the

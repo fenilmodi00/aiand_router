@@ -4,8 +4,8 @@ import (
 	"context"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"weave-os/router/internal/postgres/dbbudget"
-	"weave-os/router/internal/sqlc"
+	"aiand-os/router/internal/postgres/dbbudget"
+	"aiand-os/router/internal/sqlc"
 )
 
 // LLMEscalationCheckFixture confines expiry injection to one disposable installation.

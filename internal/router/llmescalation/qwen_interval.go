@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/translate"
 )
 
 const qwenIntervalWidth = 5

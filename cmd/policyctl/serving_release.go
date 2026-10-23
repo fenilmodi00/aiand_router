@@ -10,7 +10,7 @@ import (
 	"os"
 	"strings"
 
-	"weave-os/router/internal/policyregistry"
+	"aiand-os/router/internal/policyregistry"
 )
 
 const commandPublishRelease commandName = "publish-release"

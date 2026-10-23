@@ -1,6 +1,6 @@
 ---
 name: test-claude-locally
-description: Run the Weave router locally in docker compose and drive it with `claude -p` to reproduce and verify routing/translation behavior for a specific upstream model (e.g. GLM-5.3, DeepSeek, Kimi). Use when verifying a router fix end-to-end, reproducing a prod routing bug, confirming a model's streaming behavior (nudges, tool-call suppression, loop/no-progress breaks), or testing a `/force-model` route — without touching the user's global Claude Code config.
+description: Run the Aiand router locally in docker compose and drive it with `claude -p` to reproduce and verify routing/translation behavior for a specific upstream model (e.g. GLM-5.3, DeepSeek, Kimi). Use when verifying a router fix end-to-end, reproducing a prod routing bug, confirming a model's streaming behavior (nudges, tool-call suppression, loop/no-progress breaks), or testing a `/force-model` route — without touching the user's global Claude Code config.
 ---
 
 ---
@@ -82,7 +82,7 @@ Edit the mock's emitted chunks to match the upstream shape you're reproducing. P
 cat > /tmp/local-settings.json <<EOF
 { "env": {
   "ANTHROPIC_BASE_URL": "http://localhost:8080",
-  "ANTHROPIC_CUSTOM_HEADERS": "X-Weave-Router-Key: rk_REPLACE_ME"
+  "ANTHROPIC_CUSTOM_HEADERS": "X-Aiand-Router-Key: rk_REPLACE_ME"
 }}
 EOF
 ```
@@ -134,7 +134,7 @@ For fixes to `internal/billing` + `internal/server/middleware/balance_check.go` 
   ```bash
   curl -sS -N -D /tmp/h.txt -X POST http://localhost:8080/v1/messages \
     -H "Authorization: Bearer $RK" \
-    -H "X-Weave-Anthropic-Subscription: sk-ant-oat01-anything" \
+    -H "X-Aiand-Anthropic-Subscription: sk-ant-oat01-anything" \
     -H "anthropic-version: 2023-06-01" -H "Content-Type: application/json" \
     -d '{"model":"claude-sonnet-4-5","max_tokens":4096,"stream":true,"tools":[{"name":"Bash","input_schema":{"type":"object"}}],"messages":[{"role":"user","content":"<realistic multi-sentence task>"}]}'
   ```
@@ -154,7 +154,7 @@ For fixes to `internal/billing` + `internal/server/middleware/balance_check.go` 
 
 - Self-hosted capture defaults to off. For a positive control, set `WV_CAPTURE_CONTENT=full` on the Compose server and leave the seeded installation's `content_capture_mode` NULL. Deployment off wins over installation full; installation off wins over deployment full.
 - Direct SQL changes to `router.model_router_installations.content_capture_mode` do not invalidate cached auth. Restart the server after a direct update, or use the admin endpoint that publishes invalidation.
-- For headless requests, `x-weave-force-model: <catalog model>` pins the target without a slash-command exchange. Supply it alongside `X-Weave-Router-Key` through the one-off Claude settings. `--settings` accepts inline JSON as well as a file, allowing locally seeded keys to remain in shell memory.
+- For headless requests, `x-aiand-force-model: <catalog model>` pins the target without a slash-command exchange. Supply it alongside `X-Aiand-Router-Key` through the one-off Claude settings. `--settings` accepts inline JSON as well as a file, allowing locally seeded keys to remain in shell memory.
 - Newer Claude versions may prepend environment context to the main user message. Its `last_preview` can therefore show environment text rather than the task; title-generation requests may contain the task canary. Add a raw authenticated Messages request when exact preview equality matters.
 - To provoke a real Anthropic 400 through either Messages or Chat Completions, use a tool schema with an invalid nested JSON Schema type, e.g. `{"type":"object","properties":{"canary":{"type":"not_a_valid_json_schema_type"}}}`. Verify `upstream_status=400` and a nonempty error body with capture on before asserting it is blank off. Unknown model pins can fail locally, invalid tool names are sanitized, and invalid caller API keys are ignored on the router-keyed paid-credential path.
 - Search the entire container log for unique off-mode canaries, not only completion records. Include start records and conversation-tail diagnostics. Save logs before recreating the container, which replaces its log history.

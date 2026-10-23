@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"weave-os/router/internal/billing"
-	"weave-os/router/internal/requestcontext"
-	"weave-os/router/internal/subscriptions/entitlement"
+	"aiand-os/router/internal/billing"
+	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/subscriptions/entitlement"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -153,7 +153,7 @@ func TestApplySubscriberTelemetryLeavesUsageEmptyWithoutCapacitySource(t *testin
 
 func TestApplySubscriberTelemetryStampsServingIdentityWithoutSubscription(t *testing.T) {
 	ctx := requestcontext.WithServingIdentity(context.Background(), requestcontext.ServingIdentity{
-		Target:    "prod/weave-internal",
+		Target:    "prod/aiand-internal",
 		ReleaseID: "release-id",
 		BindingID: "binding-id",
 	})
@@ -161,7 +161,7 @@ func TestApplySubscriberTelemetryStampsServingIdentityWithoutSubscription(t *tes
 
 	applySubscriberTelemetry(ctx, &telemetry)
 
-	assert.Equal(t, "prod/weave-internal", telemetry.ServingTarget)
+	assert.Equal(t, "prod/aiand-internal", telemetry.ServingTarget)
 	assert.Equal(t, "release-id", telemetry.ServingReleaseID)
 	assert.Equal(t, "binding-id", telemetry.ServingBindingID)
 	assert.Empty(t, telemetry.SubscriberPlan)

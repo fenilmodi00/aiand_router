@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"weave-os/router/internal/router/turntype"
+	"aiand-os/router/internal/router/turntype"
 
 	"github.com/stretchr/testify/assert"
 )

@@ -16,38 +16,38 @@ import (
 	"sync"
 	"time"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/billing"
-	"weave-os/router/internal/dispatch"
-	"weave-os/router/internal/feedback"
-	"weave-os/router/internal/flags"
-	"weave-os/router/internal/inference"
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/observability/otel"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/requestcontext"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/bandit"
-	"weave-os/router/internal/router/bandswap"
-	"weave-os/router/internal/router/cache"
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/router/cluster"
-	"weave-os/router/internal/router/escalation"
-	"weave-os/router/internal/router/escalationdashboard"
-	"weave-os/router/internal/router/handover"
-	"weave-os/router/internal/router/hmm"
-	"weave-os/router/internal/router/llmescalation"
-	"weave-os/router/internal/router/planner"
-	"weave-os/router/internal/router/policy"
-	"weave-os/router/internal/router/rl"
-	"weave-os/router/internal/router/sessionpin"
-	"weave-os/router/internal/router/sessionstrategy"
-	"weave-os/router/internal/router/turntype"
-	"weave-os/router/internal/sse"
-	"weave-os/router/internal/subscriptions/entitlement"
-	"weave-os/router/internal/timing"
-	"weave-os/router/internal/translate"
-	providerusage "weave-os/router/internal/usage"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/billing"
+	"aiand-os/router/internal/dispatch"
+	"aiand-os/router/internal/feedback"
+	"aiand-os/router/internal/flags"
+	"aiand-os/router/internal/inference"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/observability/otel"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/bandit"
+	"aiand-os/router/internal/router/bandswap"
+	"aiand-os/router/internal/router/cache"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router/cluster"
+	"aiand-os/router/internal/router/escalation"
+	"aiand-os/router/internal/router/escalationdashboard"
+	"aiand-os/router/internal/router/handover"
+	"aiand-os/router/internal/router/hmm"
+	"aiand-os/router/internal/router/llmescalation"
+	"aiand-os/router/internal/router/planner"
+	"aiand-os/router/internal/router/policy"
+	"aiand-os/router/internal/router/rl"
+	"aiand-os/router/internal/router/sessionpin"
+	"aiand-os/router/internal/router/sessionstrategy"
+	"aiand-os/router/internal/router/turntype"
+	"aiand-os/router/internal/sse"
+	"aiand-os/router/internal/subscriptions/entitlement"
+	"aiand-os/router/internal/timing"
+	"aiand-os/router/internal/translate"
+	providerusage "aiand-os/router/internal/usage"
 
 	"github.com/google/uuid"
 	"github.com/tidwall/gjson"
@@ -390,7 +390,7 @@ type Service struct {
 	feedbackSigner  *feedback.Signer
 	piHandoffSecret []byte
 	// feedbackBaseURL is the public origin of the feedback page (e.g.
-	// https://router.workweave.ai), trailing slash trimmed. Empty disables
+	// https://router.workaiand.ai), trailing slash trimmed. Empty disables
 	// feedback-link header emission on proxied responses.
 	feedbackBaseURL string
 }
@@ -527,7 +527,7 @@ type InstallationPreferredModelsContextKey struct{}
 // InstallationRoutingKnobsContextKey is the context key for the authed
 // installation's persisted routing preference (the "quality vs price" dial).
 // Carried as *router.Overrides with only Alpha (quality weight) set; the
-// per-request x-weave-routing-* header override takes precedence over it. See
+// per-request x-aiand-routing-* header override takes precedence over it. See
 // routingKnobsForRequest.
 type InstallationRoutingKnobsContextKey struct{}
 
@@ -566,12 +566,12 @@ type PolicyRolloutIDContextKey struct{}
 // Its decision is collected asynchronously and never affects dispatch.
 type PolicyShadowStrategyContextKey struct{}
 
-// routingMarkerHeader lets a client suppress the in-band "✦ **Weave Router** → …"
+// routingMarkerHeader lets a client suppress the in-band "✦ **Aiand Router** → …"
 // badge — needed by programmatic clients (e.g. pi) that surface the routed
 // model out-of-band and can't show a standalone marker text block without it
 // hiding the actual answer. off/false/0/none disables it.
-const routingMarkerHeader = "X-Weave-Routing-Marker"
-const routingMarkerPrefix = "✦ **Weave Router** → "
+const routingMarkerHeader = "X-Aiand-Routing-Marker"
+const routingMarkerPrefix = "✦ **Aiand Router** → "
 const maxSidecarDisplayMarkerRunes = 512
 const policyOutcomeReportTimeout = 2 * time.Second
 const policyFeedbackReportTimeout = 2 * time.Second
@@ -612,10 +612,10 @@ func routingMarkerFor(res turnLoopResult) string {
 	// A dropped force-model pin contradicts an ack the user already saw, so it
 	// prints even when the automatic fallback is a normally hidden hard pin.
 	if res.ForcedPinDropped {
-		parts := []string{"✦ **Weave Router** → " + decision.Model, markerReasonForcedPinDropped}
+		parts := []string{"✦ **Aiand Router** → " + decision.Model, markerReasonForcedPinDropped}
 		if res.ForcedPinModel != "" {
 			parts = []string{
-				"✦ **Weave Router** → " + decision.Model,
+				"✦ **Aiand Router** → " + decision.Model,
 				fmt.Sprintf("%s (%s)", markerReasonForcedPinDropped, res.ForcedPinModel),
 			}
 		}
@@ -646,7 +646,7 @@ func routingMarkerFor(res turnLoopResult) string {
 			return marker + "\n\n"
 		}
 	}
-	parts := []string{"✦ **Weave Router** → " + decision.Model}
+	parts := []string{"✦ **Aiand Router** → " + decision.Model}
 	if reason := routingReasonShort(res); reason != "" {
 		parts = append(parts, reason)
 	}
@@ -764,7 +764,7 @@ func baselineRoutingMarkerFor(res turnLoopResult, baselineModel string) string {
 	if baseModelOf(res.PriorServedModel) == baselineModel {
 		return ""
 	}
-	return "✦ **Weave Router** → " + baselineModel + " · " + markerReasonBaseline + "\n\n"
+	return "✦ **Aiand Router** → " + baselineModel + " · " + markerReasonBaseline + "\n\n"
 }
 
 // siblingRoutingMarkerFor renders the routing badge for an in-turn same-cluster
@@ -773,7 +773,7 @@ func siblingRoutingMarkerFor(res turnLoopResult, siblingModel string) string {
 	if res.SuggestionMode || isUnpinnedScoredTurn(res.TurnType) || res.TurnType == turntype.Probe || siblingModel == "" || baseModelOf(res.PriorServedModel) == siblingModel {
 		return ""
 	}
-	return "✦ **Weave Router** → " + siblingModel + " · " + markerReasonSibling + "\n\n"
+	return "✦ **Aiand Router** → " + siblingModel + " · " + markerReasonSibling + "\n\n"
 }
 
 // subscriptionTargetMarker words the badge for a subscription-state dispatch.
@@ -960,7 +960,7 @@ func hideTerminalSurfacesForRequest(ctx context.Context) bool {
 }
 
 // routingKnobsForRequest resolves the routing knobs for a request. The
-// per-request x-weave-routing-* header override (used by the eval harness)
+// per-request x-aiand-routing-* header override (used by the eval harness)
 // wins; otherwise the authed installation's persisted preference applies;
 // otherwise nil leaves the scorer on its tuned bundle defaults.
 func routingKnobsForRequest(ctx context.Context) *router.Overrides {
@@ -1716,7 +1716,7 @@ func (s *Service) WithNativeOpenAIResponseSignals(enabled bool) *Service {
 }
 
 // WithAllowedModelsHeader sets the deployment default for honoring the
-// x-weave-allowed-models header (ROUTER_ALLOWED_MODELS_HEADER).
+// x-aiand-allowed-models header (ROUTER_ALLOWED_MODELS_HEADER).
 func (s *Service) WithAllowedModelsHeader(enabled bool) *Service {
 	s.allowedModelsHeader = enabled
 	return s
@@ -2189,7 +2189,7 @@ func (s *Service) HasExcludedModelsOverride() bool {
 }
 
 // WithGlobalAutomaticExclusions wires the deployment-wide soft exclusion list
-// the Weave control plane maintains. A nil store leaves automatic routing
+// the Aiand control plane maintains. A nil store leaves automatic routing
 // unrestricted.
 func (s *Service) WithGlobalAutomaticExclusions(store GlobalAutomaticExclusionStore) *Service {
 	if store == nil {
@@ -3373,7 +3373,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		}
 	}
 
-	// Honor the x-weave-force-model header (headless equivalent of /force-model).
+	// Honor the x-aiand-force-model header (headless equivalent of /force-model).
 	// Writes the user-forced pin and falls through to normal routing, which picks
 	// the pin up and serves the requested model on this same turn.
 	forceModel := agentForceModel
@@ -3399,7 +3399,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	if !agentShadowMode && !callerModelPassthroughActive(ctx) && handoffFromContext(ctx) == nil {
 		if cyc, csig, ccount, cratio, cwin := detectCyclicToolCallLoop(env); cyc {
 			loopRole := roleForTier(catalog.TierFor(feats.Model))
-			s.handleLoopEscalation(ctx, csig, ccount, cratio, cwin, installationID, sessionKey, loopRole, feats.Model, turntype.IsSubAgent(env, r.Header.Get("x-weave-subagent-type"), openCodeCaller(ClientIdentityFrom(ctx))), forceModelSessionKey)
+			s.handleLoopEscalation(ctx, csig, ccount, cratio, cwin, installationID, sessionKey, loopRole, feats.Model, turntype.IsSubAgent(env, r.Header.Get("x-aiand-subagent-type"), openCodeCaller(ClientIdentityFrom(ctx))), forceModelSessionKey)
 		}
 	}
 
@@ -3422,7 +3422,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	}
 
 	// Anthropic packs sub-agent identity into metadata.user_id; the
-	// x-weave-subagent-type header is for non-Anthropic ingress only.
+	// x-aiand-subagent-type header is for non-Anthropic ingress only.
 	enabledProviders := s.enabledProvidersForRequest(ctx, providers.ProviderAIAND, r.Header)
 
 	// Linked-first is a funding preference; only depleted capacity restricts
@@ -3506,7 +3506,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	var routeErr error
 	routeCtx, routeSpan := startRoutingSpan(ctx, req)
 	if handoffFromContext(ctx) != nil {
-		routeRes, routeErr = s.resumeHandoff(routeCtx, env, req, turntype.IsSubAgent(env, r.Header.Get("x-weave-subagent-type"), openCodeCaller(ClientIdentityFrom(routeCtx))))
+		routeRes, routeErr = s.resumeHandoff(routeCtx, env, req, turntype.IsSubAgent(env, r.Header.Get("x-aiand-subagent-type"), openCodeCaller(ClientIdentityFrom(routeCtx))))
 	} else if agentShadowMode {
 		routeRes, routeErr = s.runAgentShadowEvaluationRoute(routeCtx, env, feats, installationID, req, agentShadowEval)
 	} else {
@@ -3547,7 +3547,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		ctx = context.WithValue(ctx, SessionCooldownProbeDeniedModelsContextKey{}, routeRes.CooldownProbeDeniedModels)
 	}
 
-	routeRes.SuggestionMode = r.Header.Get("x-weave-suggestion-mode") == "true"
+	routeRes.SuggestionMode = r.Header.Get("x-aiand-suggestion-mode") == "true"
 	decision := routeRes.Decision
 	if !agentShadowMode {
 		s.firePolicyShadowForServingDecision(ctx, decision, req)
@@ -4041,12 +4041,12 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	//
 	// When a non-subscription Anthropic key exists (BYOK or deployment), retry
 	// the same model on it once: a retryable 429 on the subscription is served
-	// on the Weave key (full cost) rather than surfaced raw — the same
+	// on the Aiand key (full cost) rather than surfaced raw — the same
 	// fallback claudeSubscriptionExhausted takes pre-emptively, just driven by
 	// the live error instead of a stale snapshot. Eligible only pre-commit, on
 	// a subscription-served Anthropic turn, with a fallback key available.
 	// Mutually exclusive with baselineEligible (non-Anthropic routed provider).
-	// Suppressed when credits are depleted: this retry serves on the Weave/BYOK
+	// Suppressed when credits are depleted: this retry serves on the Aiand/BYOK
 	// key at full cost, which is exactly the paid spend that mode forbids — a
 	// subscription throttle there surfaces raw instead. A linked-first turn's
 	// credits are intact, so its throttle rolls over like any other.
@@ -4280,7 +4280,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	}
 
 	// Subscription-credit failover: suppress the OAuth token and retry the SAME
-	// model once on the Weave/BYOK key when a subscription-served Anthropic turn
+	// model once on the Aiand/BYOK key when a subscription-served Anthropic turn
 	// hit a transient fault (429/timeout), an OAuth rejection (401/403), a
 	// model-access 404 (subscription token cannot use that Claude model), or a
 	// third-party-client refusal (400: plan limits serve only Claude Code),
@@ -4296,7 +4296,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		subCtx = resolveAndInjectCredentials(subCtx, providers.ProviderAIAND, decision.Model, r.Header)
 		// Model is unchanged, but rebuild prep so the retry gets a pristine
 		// PreparedRequest under the suppressed-subscription context — which
-		// now pays on the Weave key.
+		// now pays on the Aiand key.
 		subOpts := opts
 		subPrep, subEmitErr := env.PrepareAnthropic(r.Header, subOpts)
 		if subEmitErr != nil {
@@ -4307,7 +4307,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		} else if subBindings := s.resolveBindingsForDispatch(subCtx, decision); len(subBindings) == 0 {
 			// No usable Anthropic binding under suppression — surface the
 			// original retryable error (real throttle) rather than a synthetic
-			// 502 that would mask it. No Weave key attempted, so attribution
+			// 502 that would mask it. No Aiand key attempted, so attribution
 			// stays on the subscription.
 			log.Warn("Subscription failover: no fallback Anthropic binding available; surfacing original error",
 				"model", decision.Model,
@@ -4317,7 +4317,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 				flushDeferredErr()
 			}
 		} else {
-			log.Warn("Subscription failover: subscription rejected the turn, retrying requested model on Weave key",
+			log.Warn("Subscription failover: subscription rejected the turn, retrying requested model on Aiand key",
 				"model", decision.Model,
 				"err", proxyErr,
 				"upstream_status", upstreamStatus(proxyErr))
@@ -4456,7 +4456,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		finalProvider = providers.ProviderAIAND
 	}
 	decision.Provider = finalProvider
-	// Same-provider subscription->Weave retries keep finalProvider ==
+	// Same-provider subscription->Aiand retries keep finalProvider ==
 	// primaryProvider, so OR in subscriptionFailoverUsed.
 	failoverUsed := finalProvider != primaryProvider || subscriptionFailoverUsed || siblingFailoverUsed
 	failoverAttempted := failoverUsed || baselineAttempted || subscriptionFailoverAttempted || siblingRescueRan
@@ -5481,8 +5481,8 @@ func hasEvalOverrideHeader(r *http.Request) bool {
 	if r == nil {
 		return false
 	}
-	return r.Header.Get("x-weave-cluster-version") != "" ||
-		r.Header.Get("x-weave-embed-only-user-message") != ""
+	return r.Header.Get("x-aiand-cluster-version") != "" ||
+		r.Header.Get("x-aiand-embed-only-user-message") != ""
 }
 
 // externalKeysFromContext reads external API keys stashed by auth middleware.
@@ -6132,7 +6132,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		}
 	}
 
-	// Honor the x-weave-force-model header (headless equivalent of /force-model).
+	// Honor the x-aiand-force-model header (headless equivalent of /force-model).
 	// Writes the user-forced pin and falls through to normal routing, which picks
 	// the pin up and serves the requested model on this same turn.
 	forceModel := agentForceModel
@@ -6156,7 +6156,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	if !callerModelPassthroughActive(ctx) {
 		if cyc, csig, ccount, cratio, cwin := detectCyclicToolCallLoop(env); cyc {
 			loopRole := roleForTier(catalog.TierFor(feats.Model))
-			s.handleLoopEscalation(ctx, csig, ccount, cratio, cwin, installationID, sessionKey, loopRole, feats.Model, turntype.IsSubAgent(env, r.Header.Get("x-weave-subagent-type"), openCodeCaller(ClientIdentityFrom(ctx))), forceModelSessionKey)
+			s.handleLoopEscalation(ctx, csig, ccount, cratio, cwin, installationID, sessionKey, loopRole, feats.Model, turntype.IsSubAgent(env, r.Header.Get("x-aiand-subagent-type"), openCodeCaller(ClientIdentityFrom(ctx))), forceModelSessionKey)
 		}
 	}
 
@@ -6164,8 +6164,8 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		logInboundRequestDiagnostics(log, env)
 	}
 
-	// OpenAI signals sub-agent identity via x-weave-subagent-type (no metadata.user_id).
-	subAgentHint := r.Header.Get("x-weave-subagent-type")
+	// OpenAI signals sub-agent identity via x-aiand-subagent-type (no metadata.user_id).
+	subAgentHint := r.Header.Get("x-aiand-subagent-type")
 
 	enabledProviders := s.enabledProvidersForRequest(ctx, providers.ProviderAIAND, r.Header)
 
@@ -6281,7 +6281,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	if len(routeRes.CooldownProbeDeniedModels) > 0 {
 		ctx = context.WithValue(ctx, SessionCooldownProbeDeniedModelsContextKey{}, routeRes.CooldownProbeDeniedModels)
 	}
-	routeRes.SuggestionMode = r.Header.Get("x-weave-suggestion-mode") == "true"
+	routeRes.SuggestionMode = r.Header.Get("x-aiand-suggestion-mode") == "true"
 	decision := routeRes.Decision
 	s.firePolicyShadowForServingDecision(ctx, decision, routeRequest)
 	tt := routeRes.TurnType
@@ -7241,7 +7241,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 			// passthrough.
 			ToolUseBlocks:         int32PtrIfKnown(int32(respSummary.ToolUseBlocks), respSummary.StopReason != ""),
 			InvalidToolArgsBlocks: int32PtrIfKnown(int32(respSummary.InvalidToolArgsBlocks), respSummary.StopReason != "" && !nativeRespSummary),
-			// A subscription->Weave retry keeps the same provider, so OR it in to
+			// A subscription->Aiand retry keeps the same provider, so OR it in to
 			// match the OTel span + completion log.
 			FailoverUsed:      boolPtrTrue(failoverUsed),
 			FailoverAttempted: boolPtrTrue(failoverAttempted),

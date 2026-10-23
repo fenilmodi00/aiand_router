@@ -4,8 +4,8 @@ import (
 	"io"
 	"net/http"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/proxy"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/proxy"
 
 	"github.com/gin-gonic/gin"
 )

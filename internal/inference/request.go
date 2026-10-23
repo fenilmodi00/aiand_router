@@ -2,7 +2,7 @@
 // policy resolution, and upstream execution.
 package inference
 
-import "weave-os/router/internal/router"
+import "aiand-os/router/internal/router"
 
 // Purpose identifies why an operation may perform inference or related I/O.
 // It is semantic and stable across ingress protocols and provider bindings.

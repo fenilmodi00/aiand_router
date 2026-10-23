@@ -3,8 +3,8 @@ package main
 import (
 	"github.com/stretchr/testify/require"
 	"testing"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/server"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/server"
 )
 
 func TestManagedServingUsesFleetTarget(t *testing.T) {
@@ -20,7 +20,7 @@ func TestValidateManagedServingBoot(t *testing.T) {
 		valid                  bool
 	}{
 		{"stable", "prod/stable", "hmm_embedding", true},
-		{"internal", "prod/weave-internal", "hmm", true},
+		{"internal", "prod/aiand-internal", "hmm", true},
 		{"staging", "staging", "hmm_embedding", true},
 		{"missing target", "", "hmm_embedding", false},
 		{"unknown fleet", "beta", "hmm_embedding", false},

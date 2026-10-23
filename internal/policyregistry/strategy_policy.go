@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"slices"
 
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/hmm/armid"
-	"weave-os/router/internal/router/hmm/rosterdata"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/hmm/armid"
+	"aiand-os/router/internal/router/hmm/rosterdata"
 )
 
 // StrategyPolicy pairs one beta strategy's immutable policy identity and roster.

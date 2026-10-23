@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"strings"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/router/cluster"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router/cluster"
 
 	"github.com/gin-gonic/gin"
 )

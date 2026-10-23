@@ -10,9 +10,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"weave-os/router/internal/postgres/dbbudget"
-	"weave-os/router/internal/sqlc"
-	"weave-os/router/internal/subscriptions/entitlement"
+	"aiand-os/router/internal/postgres/dbbudget"
+	"aiand-os/router/internal/sqlc"
+	"aiand-os/router/internal/subscriptions/entitlement"
 )
 
 // SubscriberAllowanceRepo accounts subscriber allowance holds and settlements.

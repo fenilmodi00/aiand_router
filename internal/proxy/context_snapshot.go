@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"weave-os/router/internal/router/turntype"
+	"aiand-os/router/internal/router/turntype"
 )
 
 type ContextEstimateKind string

@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
-	"weave-os/router/internal/dispatch"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/router/sessionpin"
+	"aiand-os/router/internal/dispatch"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router/sessionpin"
 )
 
 // DefaultRateLimitCooldownSeconds is how long a rescued transient upstream

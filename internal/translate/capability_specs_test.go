@@ -1,7 +1,7 @@
 package translate_test
 
 import (
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/router"
 )
 
 // The wired catalog declares no per-model capabilities: router.Lookup yields

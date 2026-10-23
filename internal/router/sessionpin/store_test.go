@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"weave-os/router/internal/router/sessionpin"
+	"aiand-os/router/internal/router/sessionpin"
 )
 
 func TestActiveCooldowns(t *testing.T) {

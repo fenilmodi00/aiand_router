@@ -16,9 +16,9 @@ import (
 	"testing"
 	"time"
 
-	"weave-os/router/internal/providers/httputil"
-	"weave-os/router/internal/server/middleware"
-	"weave-os/router/internal/trafficcapture"
+	"aiand-os/router/internal/providers/httputil"
+	"aiand-os/router/internal/server/middleware"
+	"aiand-os/router/internal/trafficcapture"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -155,7 +155,7 @@ func TestTrafficCaptureWriterRedactsHeadersAndPreservesBodies(t *testing.T) {
 			Header: map[string][]string{
 				"Authorization":      {"Bearer secret"},
 				"X-Client-Secret":    {"opaque credential"},
-				"X-Weave-User-Email": {"agent@example.com"},
+				"X-Aiand-User-Email": {"agent@example.com"},
 				"Content-Type":       {"application/json"},
 			},
 			Body: []byte(`{"prompt":"synthetic"}`),
@@ -185,7 +185,7 @@ func TestTrafficCaptureWriterRedactsHeadersAndPreservesBodies(t *testing.T) {
 	}
 	if saved.Request.Header["Authorization"][0] != "[REDACTED]" ||
 		saved.Request.Header["X-Client-Secret"][0] != "[REDACTED]" ||
-		saved.Request.Header["X-Weave-User-Email"][0] != "[REDACTED]" {
+		saved.Request.Header["X-Aiand-User-Email"][0] != "[REDACTED]" {
 		t.Fatalf("sensitive headers were not redacted: %#v", saved.Request.Header)
 	}
 	if saved.Request.Header["Content-Type"][0] != "application/json" || string(saved.Request.Body) != `{"prompt":"synthetic"}` {

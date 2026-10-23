@@ -14,8 +14,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/postgres"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/postgres"
 )
 
 func TestMarkUsedSerializesFirstUseAndCoalescesLastUse(t *testing.T) {

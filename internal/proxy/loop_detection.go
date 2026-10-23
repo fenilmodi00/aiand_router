@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/sessionpin"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/sessionpin"
+	"aiand-os/router/internal/translate"
 
 	"github.com/google/uuid"
 )
@@ -50,7 +50,7 @@ const (
 	// loopActionAlreadyStrong: the looping model IS the escalation target — a
 	// genuinely hard task, not a misroute. Record-only training signal.
 	loopActionAlreadyStrong = "already_strong"
-	// loopActionUserForced: a /force-model (or x-weave-force-model) pin
+	// loopActionUserForced: a /force-model (or x-aiand-force-model) pin
 	// outranks auto-escalation; the forced pin is left in place.
 	loopActionUserForced = "user_forced"
 	// loopActionDisabled: the ROUTER_LOOP_ESCALATION_ENABLED kill switch is

@@ -7,12 +7,12 @@ import (
 	"slices"
 	"strings"
 
-	"weave-os/router/internal/config"
-	"weave-os/router/internal/policyclient"
-	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/server"
-	"weave-os/router/internal/server/middleware"
+	"aiand-os/router/internal/config"
+	"aiand-os/router/internal/policyclient"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/server"
+	"aiand-os/router/internal/server/middleware"
 )
 
 const (
@@ -107,7 +107,7 @@ func buildManagedServingRuntime(ctx context.Context, availableProviders map[stri
 	if err := identity.Validate(); err != nil {
 		return nil, nil, nil, err
 	}
-	registryURI := strings.TrimSpace(config.GetOr("ROUTER_SERVING_REGISTRY_URI", config.GetOr("WEAVE_REGISTRY_URI", "gs://weave_ml/weave_registry")))
+	registryURI := strings.TrimSpace(config.GetOr("ROUTER_SERVING_REGISTRY_URI", config.GetOr("AIAND_REGISTRY_URI", "gs://aiand_ml/aiand_registry")))
 	registry, err := policyregistry.NewGCSRegistry(ctx, registryURI)
 	if err != nil {
 		return nil, nil, nil, err

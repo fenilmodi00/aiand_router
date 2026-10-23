@@ -4,10 +4,10 @@ import (
 	"io"
 	"net/http"
 
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/cache"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/cache"
 )
 
 // responsesTextUpstream answers a text-only Responses stream whose usage

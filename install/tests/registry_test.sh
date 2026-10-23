@@ -56,20 +56,20 @@ while IFS='|' read -r canonical aliases capability claude codex opencode pi adap
   for value in "$claude" "$codex" "$opencode" "$pi"; do
     case "$value" in yes|no) ;; *) bad_rows="$bad_rows $canonical:client=$value" ;; esac
   done
-done < <(weave_registry_rows)
+done < <(aiand_registry_rows)
 check "every row declares a known capability and client support" "" "$bad_rows"
 
 # Names repeated across clients are the same directive installed for each of
 # them (Codex ships most of Claude Code's set as skills). Pinning the exact
 # overlap catches a genuine collision — two *different* directives claiming one
 # filename — which would otherwise hide in this list.
-dupes="$(weave_registry_names claude; weave_registry_names codex; weave_registry_names opencode)"
+dupes="$(aiand_registry_names claude; aiand_registry_names codex; aiand_registry_names opencode)"
 dupes="$(printf '%s\n' "$dupes" | sort | uniq -d | tr '\n' ' ' | sed 's/ $//')"
 check "names shared across clients are the expected shared directives" \
   "fm force-model force-parent models rf router-feedback router-models router-off router-on router-session router-status ufm unforce-model" "$dupes"
 
-check "an alias resolves to its canonical directive" "force-model" "$(weave_registry_canonical_for fm)"
-check "a canonical name resolves to itself" "router-feedback" "$(weave_registry_canonical_for router-feedback)"
+check "an alias resolves to its canonical directive" "force-model" "$(aiand_registry_canonical_for fm)"
+check "a canonical name resolves to itself" "router-feedback" "$(aiand_registry_canonical_for router-feedback)"
 
 # Pi implements /fm, /ufm and /beta in its extension rather than through
 # installed files. Its registered names must still match the shared registry.
@@ -77,20 +77,20 @@ pi_registered="$(grep -hoE '"(fm|force-model|force-parent|ufm|unforce-model|beta
   "$install_dir/pi-router/src/force-model.ts" "$install_dir/pi-router/src/beta.ts" \
   | tr -d '"' | sort -u | tr '\n' ' ' | sed 's/ $//')"
 check "the pi extension registers exactly the registry's pi names" \
-  "$(weave_registry_names pi | sort -u | tr '\n' ' ' | sed 's/ $//')" "$pi_registered"
+  "$(aiand_registry_names pi | sort -u | tr '\n' ' ' | sed 's/ $//')" "$pi_registered"
 
 # Every prompt directive Codex supports needs a native skill asset, and no
 # skill may ship without a registry entry.
 missing=""
 while IFS= read -r name; do
   [ -f "$install_dir/codex-skills/$name/SKILL.md" ] || missing="$missing $name"
-done < <(weave_registry_skill_names codex)
+done < <(aiand_registry_skill_names codex)
 check "every Codex prompt directive has a skill asset" "" "$missing"
 
 orphans=""
 for dir in "$install_dir"/codex-skills/*/; do
   name="$(basename "$dir")"
-  weave_registry_canonical_for "$name" >/dev/null || orphans="$orphans $name"
+  aiand_registry_canonical_for "$name" >/dev/null || orphans="$orphans $name"
 done
 check "no Codex skill ships without a registry entry" "" "$orphans"
 
@@ -108,15 +108,15 @@ for f in "$install_dir"/registry.sh "$install_dir"/install.sh "$install_dir"/uni
 done
 check "every shell asset parses" "" "$bad_sh"
 
-# install.sh is served standalone (WorkWeave serves it for `curl | sh`), so it
+# install.sh is served standalone (WorkAiand serves it for `curl | sh`), so it
 # embeds the registry data and helpers rather than sourcing them. Embedded and
 # canonical copies must stay byte-identical, or a directive added to the
 # registry would never reach the standalone installer.
-embedded_data="$(awk '/^WEAVE_REGISTRY_DATA=\$\(cat <<.WEAVE_REGISTRY_EOF.$/{f=1;next} /^WEAVE_REGISTRY_EOF$/{f=0} f' "$install_dir/install.sh")"
+embedded_data="$(awk '/^AIAND_REGISTRY_DATA=\$\(cat <<.AIAND_REGISTRY_EOF.$/{f=1;next} /^AIAND_REGISTRY_EOF$/{f=0} f' "$install_dir/install.sh")"
 check "install.sh embeds the canonical registry data" "$(cat "$install_dir/directives.tsv")" "$embedded_data"
 
 lib_region() {
-  awk '/^# >>> weave-router registry lib >>>$/{f=1;next} /^# <<< weave-router registry lib <<<$/{f=0} f' "$1"
+  awk '/^# >>> aiand-router registry lib >>>$/{f=1;next} /^# <<< aiand-router registry lib <<<$/{f=0} f' "$1"
 }
 embedded_lib="$(lib_region "$install_dir/install.sh")"
 check "install.sh embeds the canonical registry helpers" \
@@ -129,7 +129,7 @@ standalone="$work/standalone"
 mkdir -p "$standalone/bin" "$standalone/home"
 cp "$install_dir/install.sh" "$standalone/install.sh"
 cp "$fake_bin/curl" "$standalone/bin/curl"
-HOME="$standalone/home" PATH="$standalone/bin:$PATH" WEAVE_ROUTER_KEY=rk_test_key NO_COLOR=1 \
+HOME="$standalone/home" PATH="$standalone/bin:$PATH" AIAND_ROUTER_KEY=rk_test_key NO_COLOR=1 \
   bash "$standalone/install.sh" --codex --scope user --quiet --base-url http://127.0.0.1:9 >"$work/standalone.log" 2>&1 || true
 if grep -qi 'registry.sh: No such file\|unbound variable\|command not found' "$work/standalone.log"; then
   no "the standalone installer runs without its sibling files" "no resolution errors" \
@@ -154,7 +154,7 @@ else
 fi
 
 check "uninstall.sh embeds the canonical registry data" "$(cat "$install_dir/directives.tsv")" \
-  "$(awk '/^WEAVE_REGISTRY_DATA=\$\(cat <<.WEAVE_REGISTRY_EOF.$/{f=1;next} /^WEAVE_REGISTRY_EOF$/{f=0} f' "$install_dir/uninstall.sh")"
+  "$(awk '/^AIAND_REGISTRY_DATA=\$\(cat <<.AIAND_REGISTRY_EOF.$/{f=1;next} /^AIAND_REGISTRY_EOF$/{f=0} f' "$install_dir/uninstall.sh")"
 check "uninstall.sh embeds the canonical registry helpers" \
   "$(lib_region "$install_dir/registry.sh")" "$(lib_region "$install_dir/uninstall.sh")"
 
@@ -168,7 +168,7 @@ printf '\ninstalls\n'
 run_install() { # run_install <home> <target-flag> [extra args...]
   local home="$1"; shift
   env ${XDG_CONFIG_HOME:+XDG_CONFIG_HOME="$XDG_CONFIG_HOME"} \
-    HOME="$home" PATH="$test_path" WEAVE_ROUTER_KEY="rk_test_key" NO_COLOR=1 \
+    HOME="$home" PATH="$test_path" AIAND_ROUTER_KEY="rk_test_key" NO_COLOR=1 \
     bash "$installer" "$@" --quiet --base-url http://127.0.0.1:9 >/dev/null 2>&1
 }
 run_uninstall() {
@@ -196,15 +196,15 @@ installed_names() { # installed_names <dir>
 cc_home="$work/claude-user"; mkdir -p "$cc_home"
 run_install "$cc_home" --claude --scope user
 check "claude user install writes exactly the registry's commands" \
-  "$(weave_registry_names claude | sort | tr '\n' ' ' | sed 's/ $//')" \
+  "$(aiand_registry_names claude | sort | tr '\n' ' ' | sed 's/ $//')" \
   "$(installed_names "$cc_home/.claude/commands")"
-if [ -f "$cc_home/.claude/commands/rf.md.weave-router" ]; then
+if [ -f "$cc_home/.claude/commands/rf.md.aiand-router" ]; then
   ok "claude install records command ownership outside the prompt"
 else
   no "claude install records command ownership outside the prompt" "sidecar" "missing"
 fi
 check "claude commands do not contain ownership markers" "" \
-  "$(grep -rho '<!-- weave-router managed command:' "$cc_home/.claude/commands" || true)"
+  "$(grep -rho '<!-- aiand-router managed command:' "$cc_home/.claude/commands" || true)"
 
 piped_claude_home="$work/claude-piped"; mkdir -p "$piped_claude_home"
 run_install "$piped_claude_home" --claude --scope user
@@ -214,8 +214,8 @@ check "piped uninstall removes markerless Claude commands" "" \
 
 # Reinstalling repairs a router-owned statusline after its permissions or file
 # contents are damaged, while a same-named user script remains untouched.
-cc_statusline="$cc_home/.weave/cc-statusline.sh"
-cc_statusline_marker="$cc_statusline.weave-router"
+cc_statusline="$cc_home/.aiand/cc-statusline.sh"
+cc_statusline_marker="$cc_statusline.aiand-router"
 if [ -f "$cc_statusline_marker" ]; then
   ok "fresh install records statusline ownership"
 else
@@ -223,7 +223,7 @@ else
 fi
 chmod 000 "$cc_statusline"
 run_install "$cc_home" --claude --scope user
-if [ -x "$cc_statusline" ] && grep -Fq 'Claude Code statusline for the Weave Router.' "$cc_statusline"; then
+if [ -x "$cc_statusline" ] && grep -Fq 'Claude Code statusline for the Aiand Router.' "$cc_statusline"; then
   ok "reinstall repairs a router-owned statusline with broken permissions"
 else
   no "reinstall repairs a router-owned statusline with broken permissions" \
@@ -237,25 +237,25 @@ else
   no "reinstall recreates a missing router-owned statusline" "file recreated" "missing"
 fi
 
-custom_statusline_home="$work/claude-statusline-custom"; mkdir -p "$custom_statusline_home/.claude" "$custom_statusline_home/.weave"
-printf '%s\n' '# user statusline' >"$custom_statusline_home/.weave/cc-statusline.sh"
-chmod +x "$custom_statusline_home/.weave/cc-statusline.sh"
-jq -n --arg command "$custom_statusline_home/.weave/cc-statusline.sh" \
+custom_statusline_home="$work/claude-statusline-custom"; mkdir -p "$custom_statusline_home/.claude" "$custom_statusline_home/.aiand"
+printf '%s\n' '# user statusline' >"$custom_statusline_home/.aiand/cc-statusline.sh"
+chmod +x "$custom_statusline_home/.aiand/cc-statusline.sh"
+jq -n --arg command "$custom_statusline_home/.aiand/cc-statusline.sh" \
   '{statusLine: {type: "command", command: $command}}' \
   >"$custom_statusline_home/.claude/settings.json"
 run_install "$custom_statusline_home" --claude --scope user
 check "install preserves a user-owned statusline at the conventional path" \
-  "# user statusline" "$(cat "$custom_statusline_home/.weave/cc-statusline.sh")"
-mv "$custom_statusline_home/.weave/cc-statusline.sh" "$work/missing-user-statusline.sh"
+  "# user statusline" "$(cat "$custom_statusline_home/.aiand/cc-statusline.sh")"
+mv "$custom_statusline_home/.aiand/cc-statusline.sh" "$work/missing-user-statusline.sh"
 run_install "$custom_statusline_home" --claude --scope user
-if [ -e "$custom_statusline_home/.weave/cc-statusline.sh" ]; then
+if [ -e "$custom_statusline_home/.aiand/cc-statusline.sh" ]; then
   no "reinstall preserves a missing user-owned statusline" "file stays missing" "file recreated"
 else
   ok "reinstall preserves a missing user-owned statusline"
 fi
 run_uninstall "$custom_statusline_home" --claude --scope user
 check "uninstall preserves a user-owned statusline setting" \
-  "$custom_statusline_home/.weave/cc-statusline.sh" \
+  "$custom_statusline_home/.aiand/cc-statusline.sh" \
   "$(jq -r '.statusLine.command' "$custom_statusline_home/.claude/settings.json")"
 
 orphan_statusline_home="$work/claude-statusline-orphan"; mkdir -p "$orphan_statusline_home"
@@ -269,7 +269,7 @@ run_uninstall "$orphan_statusline_home" --claude --scope user
 check "uninstall preserves a replacement statusline setting" \
   "$orphan_statusline_home/.claude/custom-statusline.sh" \
   "$(jq -r '.statusLine.command' "$orphan_statusline_home/.claude/settings.json")"
-if [ -e "$orphan_statusline_home/.weave/cc-statusline.sh" ]; then
+if [ -e "$orphan_statusline_home/.aiand/cc-statusline.sh" ]; then
   no "uninstall removes an orphaned router statusline script" "removed" "still present"
 else
   ok "uninstall removes an orphaned router statusline script"
@@ -277,8 +277,8 @@ fi
 
 missing_statusline_home="$work/claude-statusline-missing"; mkdir -p "$missing_statusline_home"
 run_install "$missing_statusline_home" --claude --scope user
-missing_statusline="$missing_statusline_home/.weave/cc-statusline.sh"
-missing_statusline_marker="$missing_statusline.weave-router"
+missing_statusline="$missing_statusline_home/.aiand/cc-statusline.sh"
+missing_statusline_marker="$missing_statusline.aiand-router"
 rm -f "$missing_statusline"
 if [ -f "$missing_statusline_marker" ]; then
   ok "uninstall test leaves the router statusline ownership marker"
@@ -302,7 +302,7 @@ oc_xdg="$work/opencode-xdg"; mkdir -p "$oc_xdg"
 XDG_CONFIG_HOME="$oc_xdg" run_install "$oc_home" --opencode --scope user
 oc_cmds="$oc_xdg/opencode/commands"
 check "opencode user install writes exactly the registry's commands" \
-  "$(weave_registry_names opencode | sort | tr '\n' ' ' | sed 's/ $//')" \
+  "$(aiand_registry_names opencode | sort | tr '\n' ' ' | sed 's/ $//')" \
   "$(installed_names "$oc_cmds")"
 piped_opencode_home="$work/opencode-piped"; mkdir -p "$piped_opencode_home"
 piped_opencode_xdg="$work/opencode-piped-xdg"; mkdir -p "$piped_opencode_xdg"
@@ -351,11 +351,11 @@ done
 for name in router-off:off router-on:on router-status:status router-models:models; do
   skill_name="${name%%:*}"; verb="${name##*:}"
   skill="$cx_home/.codex/skills/$skill_name/SKILL.md"
-  if grep -Fq "weave-router $verb --codex" "$skill"; then
+  if grep -Fq "aiand-router $verb --codex" "$skill"; then
     ok "codex \$$skill_name shells out to '$verb --codex'"
   else
     no "codex \$$skill_name shells out to '$verb --codex'" \
-      "weave-router $verb --codex" "$(grep -m1 'weave-router' "$skill" || echo 'no weave-router call')"
+      "aiand-router $verb --codex" "$(grep -m1 'aiand-router' "$skill" || echo 'no aiand-router call')"
   fi
 done
 
@@ -385,7 +385,7 @@ for tool in bash cat sed awk grep mkdir rm cp mv chmod ls dirname basename date 
   [ -n "$src" ] && ln -sf "$src" "$nojq_bin/$tool" 2>/dev/null || true
 done
 nojq_home="$work/codex-nojq"; mkdir -p "$nojq_home"
-HOME="$nojq_home" PATH="$nojq_bin" WEAVE_ROUTER_KEY="rk_test_key" NO_COLOR=1 \
+HOME="$nojq_home" PATH="$nojq_bin" AIAND_ROUTER_KEY="rk_test_key" NO_COLOR=1 \
   bash "$installer" --codex --scope user --quiet --base-url http://127.0.0.1:9 >/dev/null 2>&1 || true
 if [ -f "$nojq_home/.codex/skills/force-model/SKILL.md" ]; then
   ok "codex installs its skills without jq on PATH"
@@ -412,12 +412,12 @@ project_scope_home="$work/project-scope-home"
 mkdir -p "$project_scope" "$project_scope_home"
 git -C "$project_scope" init -q .
 (cd "$project_scope" && run_install "$project_scope_home" --claude --scope project)
-if [ -f "$project_scope/.claude/commands/fm.md.weave-router" ]; then
+if [ -f "$project_scope/.claude/commands/fm.md.aiand-router" ]; then
   ok "project command ownership is persisted alongside the wrapper"
 else
   no "project command ownership is persisted alongside the wrapper" "sidecar" "missing"
 fi
-if grep -qF '.claude/commands/*.weave-router' "$project_scope/.gitignore" 2>/dev/null; then
+if grep -qF '.claude/commands/*.aiand-router' "$project_scope/.gitignore" 2>/dev/null; then
   no "project command ownership is not gitignored" "no sidecar ignore" "ignored"
 else
   ok "project command ownership is not gitignored"
@@ -428,12 +428,12 @@ opencode_project_scope_home="$work/opencode-project-scope-home"
 mkdir -p "$opencode_project_scope" "$opencode_project_scope_home"
 git -C "$opencode_project_scope" init -q .
 (cd "$opencode_project_scope" && run_install "$opencode_project_scope_home" --opencode --scope project)
-if [ -f "$opencode_project_scope/.opencode/commands/fm.md.weave-router" ]; then
+if [ -f "$opencode_project_scope/.opencode/commands/fm.md.aiand-router" ]; then
   ok "OpenCode project command ownership is persisted alongside the wrapper"
 else
   no "OpenCode project command ownership is persisted alongside the wrapper" "sidecar" "missing"
 fi
-if grep -qF '.opencode/commands/*.weave-router' "$opencode_project_scope/.gitignore" 2>/dev/null; then
+if grep -qF '.opencode/commands/*.aiand-router' "$opencode_project_scope/.gitignore" 2>/dev/null; then
   no "OpenCode project command ownership is not gitignored" "no sidecar ignore" "ignored"
 else
   ok "OpenCode project command ownership is not gitignored"
@@ -461,8 +461,8 @@ sidecar_upgrade_home="$work/claude-sidecar-upgrade"; mkdir -p "$sidecar_upgrade_
 run_install "$sidecar_upgrade_home" --claude --scope user
 stale_body=$'---\ndescription: stale force-model wrapper.\n---\n\n/force-model $ARGUMENTS'
 printf '%s\n' "$stale_body" >"$sidecar_upgrade_home/.claude/commands/fm.md"
-printf 'weave-router managed command: fm\n%s\n' "$stale_body" \
-  >"$sidecar_upgrade_home/.claude/commands/fm.md.weave-router"
+printf 'aiand-router managed command: fm\n%s\n' "$stale_body" \
+  >"$sidecar_upgrade_home/.claude/commands/fm.md.aiand-router"
 run_install "$sidecar_upgrade_home" --claude --scope user
 check "an owned wrapper with a changed body is refreshed" \
   "$(cat "$install_dir/commands/fm.md")" "$(cat "$sidecar_upgrade_home/.claude/commands/fm.md")"
@@ -475,7 +475,7 @@ run_install "$legacy_home" --claude --scope user
 check "an upgrade adopts an unmarked wrapper it previously wrote" "$legacy_body" \
   "$(cat "$legacy_home/.claude/commands/fm.md")"
 check "an upgrade does not add an ownership marker to the wrapper" "" \
-  "$(grep -F '<!-- weave-router managed command:' "$legacy_home/.claude/commands/fm.md" || true)"
+  "$(grep -F '<!-- aiand-router managed command:' "$legacy_home/.claude/commands/fm.md" || true)"
 check "an upgrade still leaves a genuinely user-authored command alone" "MY OWN CUSTOM WRAPPER" \
   "$(cat "$legacy_home/.claude/commands/rf.md")"
 
@@ -507,7 +507,7 @@ run_uninstall "$cc_home" --claude --scope user
 check "uninstall removes every command it owns" "rf" "$(installed_names "$cc_home/.claude/commands")"
 check "uninstall preserves the user-owned command's contents" "my own wrapper" \
   "$(cat "$cc_home/.claude/commands/rf.md")"
-if [ -e "$cc_home/.weave/cc-statusline.sh" ]; then
+if [ -e "$cc_home/.aiand/cc-statusline.sh" ]; then
   no "uninstall removes the router-owned statusline" "removed" "still present"
 else
   ok "uninstall removes the router-owned statusline"
@@ -547,7 +547,7 @@ check "uninstall keeps a skills dir that still holds a user skill" "user skill" 
 # and rm would otherwise reach a file outside the Codex tree entirely.
 sym_skills="$work/sym-skills"
 mkdir -p "$sym_skills/home/.codex" "$sym_skills/external/force-model"
-printf '%s\n' '<!-- weave-router managed force-model skill -->' \
+printf '%s\n' '<!-- aiand-router managed force-model skill -->' \
   >"$sym_skills/external/force-model/SKILL.md"
 ln -s "$sym_skills/external" "$sym_skills/home/.codex/skills"
 run_uninstall "$sym_skills/home" --codex --scope user
@@ -560,7 +560,7 @@ fi
 
 sym_one="$work/sym-one"
 mkdir -p "$sym_one/home/.codex/skills" "$sym_one/external/force-model"
-printf '%s\n' '<!-- weave-router managed force-model skill -->' \
+printf '%s\n' '<!-- aiand-router managed force-model skill -->' \
   >"$sym_one/external/force-model/SKILL.md"
 ln -s "$sym_one/external/force-model" "$sym_one/home/.codex/skills/force-model"
 run_uninstall "$sym_one/home" --codex --scope user

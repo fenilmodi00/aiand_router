@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/auth"
+	"aiand-os/router/internal/auth"
 )
 
 type routingPolicyFixture struct {

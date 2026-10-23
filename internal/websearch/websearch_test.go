@@ -5,7 +5,7 @@ import (
 
 	"github.com/tidwall/gjson"
 
-	"weave-os/router/internal/websearch"
+	"aiand-os/router/internal/websearch"
 )
 
 func TestFindServerToolAcceptsEveryDatedVersion(t *testing.T) {

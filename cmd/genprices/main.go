@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"strings"
 
-	"weave-os/router/internal/observability/otel"
+	"aiand-os/router/internal/observability/otel"
 )
 
 const (
@@ -33,7 +33,7 @@ const piPricingPath = "install/pi-router/src/pricing.generated.ts"
 
 // benchPricingPath is the list-price table the Python benchmark harness
 // (bench/) uses to reprice Codex token counts; JSON so it needs no Go toolchain.
-const benchPricingPath = "bench/weave_bench/prices.generated.json"
+const benchPricingPath = "bench/aiand_bench/prices.generated.json"
 
 func main() {
 	table := otel.AllPricing()

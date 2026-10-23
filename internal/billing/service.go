@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/subscriptions/entitlement"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/subscriptions/entitlement"
 )
 
 // hasOverrideContextKeyT lives in billing (not middleware/proxy) so both
@@ -42,7 +42,7 @@ type SubscriptionOnlyReason string
 const (
 	// SubscriptionOnlyCreditsDepleted marks a turn the organization cannot pay
 	// for: prepaid credits are gone or a balance row is missing. The caller's
-	// own plan is absorbing work Weave would otherwise have billed, so the turn
+	// own plan is absorbing work Aiand would otherwise have billed, so the turn
 	// carries the top-up CTA.
 	SubscriptionOnlyCreditsDepleted SubscriptionOnlyReason = "credits_depleted"
 	// SubscriptionOnlySpendCapReached marks a turn a configured spend cap (API
@@ -127,7 +127,7 @@ func subscriptionOnlyReason(ctx context.Context) (reason SubscriptionOnlyReason,
 // router.organization_credit_ledger.entry_type.
 const EntryTypeInference = "inference"
 
-// EntryTypeByokFee is the entry_type for Weave's platform fee on a turn served
+// EntryTypeByokFee is the entry_type for Aiand's platform fee on a turn served
 // by the customer's own provider key. Keep in sync with the CHECK constraint on
 // router.organization_credit_ledger.entry_type.
 const EntryTypeByokFee = "byok_fee"
@@ -306,9 +306,9 @@ type DebitInferenceParams struct {
 	UsageModifiers  catalog.UsageModifiers
 	HasOverride     bool
 	// SubscriptionServed: turn ran on the customer's own Anthropic/Codex
-	// subscription token, so Weave charges nothing.
+	// subscription token, so Aiand charges nothing.
 	SubscriptionServed bool
-	// ByokServed: turn ran on the customer's own provider key; Weave charges
+	// ByokServed: turn ran on the customer's own provider key; Aiand charges
 	// only the configured BYOK fee rate of the upstream cost rather than
 	// full inference cost.
 	ByokServed bool
@@ -365,7 +365,7 @@ func (s *Service) DebitForInference(ctx context.Context, p DebitInferenceParams)
 		// Already paid for — debit nothing, but still record notional cost below.
 		delta = 0
 	case p.ByokServed:
-		// Customer paid their upstream directly; Weave charges only the fee.
+		// Customer paid their upstream directly; Aiand charges only the fee.
 		delta = 0
 		fee = -s.byokFeeMicros(notional)
 	case subscriberCovered:
@@ -493,7 +493,7 @@ func computeNotionalMicros(p DebitInferenceParams) int64 {
 	return catalog.USDToMicros(inUSD + outUSD)
 }
 
-// byokFeeMicros returns Weave's platform fee as a positive micros magnitude.
+// byokFeeMicros returns Aiand's platform fee as a positive micros magnitude.
 // Integer math avoids a float round-trip; rounds half away from zero so a
 // sub-micro fee rounds up rather than disappearing.
 func (s *Service) byokFeeMicros(notionalMicros int64) int64 {

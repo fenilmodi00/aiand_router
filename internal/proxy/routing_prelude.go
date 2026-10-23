@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/translate"
 )
 
 // The coordinator outlives binding attempts; the buffer's provider commitment

@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"weave-os/router/internal/flags"
-	"weave-os/router/internal/observability"
+	"aiand-os/router/internal/flags"
+	"aiand-os/router/internal/observability"
 
 	"github.com/hashicorp/golang-lru/v2/expirable"
 	"golang.org/x/sync/singleflight"

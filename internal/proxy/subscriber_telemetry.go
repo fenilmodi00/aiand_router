@@ -3,11 +3,11 @@ package proxy
 import (
 	"context"
 
-	"weave-os/router/internal/billing"
-	"weave-os/router/internal/observability/otel"
-	"weave-os/router/internal/requestcontext"
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/subscriptions/entitlement"
+	"aiand-os/router/internal/billing"
+	"aiand-os/router/internal/observability/otel"
+	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/subscriptions/entitlement"
 )
 
 // applyServingTelemetry stamps the managed serving identity on every admitted turn.

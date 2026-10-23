@@ -4,8 +4,8 @@ import (
 	"context"
 	"net/http"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/translate"
 )
 
 // handleRouterSessionCommand answers a router-session directive synthetically,

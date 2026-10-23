@@ -1,4 +1,4 @@
-# Weave Router directive registry
+# Aiand Router directive registry
 # canonical|aliases|capability|claude|codex|opencode|pi|adapter
 # aliases are comma-separated; client columns are yes/no. adapter is the native asset kind.
 force-model|fm|prompt|yes|yes|yes|yes|command,skill

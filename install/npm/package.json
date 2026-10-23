@@ -1,9 +1,9 @@
 {
-  "name": "@weave-os/router",
+  "name": "@aiand-os/router",
   "version": "0.2.30",
-  "description": "One-command installer that points Claude Code, Codex, opencode, or pi at the Weave Router. For pi it also ships the routing extension, loaded via pi.extensions.",
+  "description": "One-command installer that points Claude Code, Codex, opencode, or pi at the Aiand Router. For pi it also ships the routing extension, loaded via pi.extensions.",
   "bin": {
-    "weave-router": "bin.js",
+    "aiand-router": "bin.js",
     "router": "bin.js"
   },
   "pi": {
@@ -63,13 +63,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/weave-os/router.git",
+    "url": "git+https://github.com/aiand-os/router.git",
     "directory": "install/npm"
   },
-  "homepage": "https://workweave.ai",
+  "homepage": "https://workaiand.ai",
   "license": "Apache-2.0",
   "keywords": [
-    "weave",
+    "aiand",
     "router",
     "claude",
     "claude-code",

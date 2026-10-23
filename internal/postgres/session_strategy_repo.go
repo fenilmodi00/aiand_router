@@ -5,10 +5,10 @@ import (
 	"database/sql"
 	"errors"
 
-	"weave-os/router/internal/postgres/dbbudget"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/sessionstrategy"
-	"weave-os/router/internal/sqlc"
+	"aiand-os/router/internal/postgres/dbbudget"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/sessionstrategy"
+	"aiand-os/router/internal/sqlc"
 
 	"github.com/google/uuid"
 )

@@ -4,8 +4,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"weave-os/router/internal/observability/otel"
-	"weave-os/router/internal/providers"
+	"aiand-os/router/internal/observability/otel"
+	"aiand-os/router/internal/providers"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

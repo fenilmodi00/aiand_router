@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 import { VERSION, type ExtensionAPI, type ExtensionContext } from "@mariozechner/pi-coding-agent";
 import { getRole, getRouterBaseUrl, PROVIDER_NAME, providerHeaders, resolveRouterKey } from "./config.js";
 
-const ENTRY_TYPE = "weave-classifier-thread";
-const THREAD_FIELD = "weave_classifier_thread";
+const ENTRY_TYPE = "aiand-classifier-thread";
+const THREAD_FIELD = "aiand_classifier_thread";
 
 interface ClassifierThread {
 	sessionId: string;
@@ -80,7 +80,7 @@ export function registerClassifierThread(pi: ExtensionAPI, request: typeof fetch
 
 	pi.on("session_start", async (event, ctx) => {
 		restore(ctx);
-		if (!thread && process.env.WEAVE_PI_LLM_CLASSIFIER === "1" && supported &&
+		if (!thread && process.env.AIAND_PI_LLM_CLASSIFIER === "1" && supported &&
 			ctx.model?.provider === PROVIDER_NAME && (event.reason === "new" || event.reason === "startup") &&
 			!ctx.sessionManager.getHeader()?.parentSession &&
 			!ctx.sessionManager.getEntries().some(entry => entry.type === "message" || entry.type === "compaction" || entry.type === "branch_summary")) {
@@ -99,7 +99,7 @@ export function registerClassifierThread(pi: ExtensionAPI, request: typeof fetch
 		const requestGeneration = generation;
 		try {
 			if (!supported || ctx.model?.provider !== PROVIDER_NAME || !isRecord(event.payload)) {
-				throw new Error("Classifier thread requires the supported Weave provider");
+				throw new Error("Classifier thread requires the supported Aiand provider");
 			}
 			await ensureTicket(ctx);
 			if (generation !== requestGeneration || !thread?.threadToken || ctx.signal?.aborted) throw new Error("Classifier thread changed");

@@ -9,10 +9,10 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"weave-os/router/internal/billing"
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router/catalog"
+	"aiand-os/router/internal/billing"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router/catalog"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -202,7 +202,7 @@ func TestDebitForInference_MatchesExportedCostMath(t *testing.T) {
 }
 
 func TestDebitForInference_ByokChargesFeeOnlyNotUpstreamCost(t *testing.T) {
-	// The customer paid their own provider for the upstream call, so Weave
+	// The customer paid their own provider for the upstream call, so Aiand
 	// debits only its platform fee. The inference row still carries the full
 	// notional cost so the savings dashboard can price the turn.
 	repo := &fakeRepo{balanceRowExists: true, balanceMicros: 10_000_000}
@@ -563,7 +563,7 @@ func TestDebitForInference_AttributesAPIKey(t *testing.T) {
 
 func TestDebitForInference_SubscriptionLeavesKeySpendFlat(t *testing.T) {
 	// A subscription-served turn debits 0, so the key's spend must not move —
-	// the customer's own plan paid, not their Weave key budget.
+	// the customer's own plan paid, not their Aiand key budget.
 	repo := &fakeRepo{balanceRowExists: true, balanceMicros: 10_000_000}
 	svc := billing.NewService(repo)
 	p := catalog.Pricing{InputUSDPer1M: 3.00, OutputUSDPer1M: 15.00, CacheReadMultiplier: 0.10}

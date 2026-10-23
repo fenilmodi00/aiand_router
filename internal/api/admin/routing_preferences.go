@@ -3,8 +3,8 @@ package admin
 import (
 	"net/http"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/observability"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/observability"
 
 	"github.com/gin-gonic/gin"
 )

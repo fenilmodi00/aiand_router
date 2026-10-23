@@ -3,7 +3,7 @@
 This companion Python service makes the router's opt-in `hmm` strategy
 self-hostable. It serves immutable PCA/HMM/XGBoost artifacts through the
 router's `policy_router_v3` HTTP contract. Training, online learning,
-WorkWeave registries, GCS, and managed-service credentials are intentionally
+WorkAiand registries, GCS, and managed-service credentials are intentionally
 outside this package.
 
 ## Quickstart
@@ -16,11 +16,11 @@ make up-hmm
 ```
 
 The router still defaults to `cluster`. Select HMM through an installation
-strategy or an authorized `x-weave-router-strategy: hmm` override. To stop the
+strategy or an authorized `x-aiand-router-strategy: hmm` override. To stop the
 sidecar and return to the normal stack, run `make down-hmm && make up`.
 
 The Compose configuration downloads the public
-[`hmm-model-v1`](https://github.com/weave-os/router/releases/tag/hmm-model-v1)
+[`hmm-model-v1`](https://github.com/aiand-os/router/releases/tag/hmm-model-v1)
 asset and verifies SHA-256 before extraction. Set `HMM_PACKAGE_PATH` instead
 when running the sidecar directly with a local package.
 
@@ -41,7 +41,7 @@ HMM_PACKAGE_REGISTRY='[{"sha256":"<sha256>","url":"https://.../hmm-model-v0.tar.
 `/route`, `/preview` (request field `artifact_sha256`) and `/roster` (query
 `?artifact_sha256=`) select a loaded package by its outer digest; omitting it
 serves the default. An unknown digest answers **404** rather than the default
-package, so a router honouring an `x-weave-policy-pin` header fails closed.
+package, so a router honouring an `x-aiand-policy-pin` header fails closed.
 `/readyz` lists every loaded digest under `policy_artifact_sha256s`.
 
 ## Embedding compatibility
@@ -95,4 +95,4 @@ The runtime accepts only `hmm_router_frozen_package_v1` archives. It verifies:
 
 The public package contains data arrays and XGBoost JSON only. The legacy
 training pickle, training rows, prompts, embedding cache, local filesystem
-paths, and WorkWeave registry records are excluded.
+paths, and WorkAiand registry records are excluded.

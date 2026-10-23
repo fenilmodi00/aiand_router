@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/subscriptions/entitlement"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/subscriptions/entitlement"
 
 	"github.com/google/uuid"
 )

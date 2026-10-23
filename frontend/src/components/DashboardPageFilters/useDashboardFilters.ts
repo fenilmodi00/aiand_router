@@ -40,7 +40,7 @@ function addMonths(d: Date, n: number): Date {
 }
 
 /**
- * Mirrors WorkWeave's default date filter set (week- and month-anchored
+ * Mirrors WorkAiand's default date filter set (week- and month-anchored
  * windows ending at "now"), trimmed to the granularities the router
  * supports.
  */

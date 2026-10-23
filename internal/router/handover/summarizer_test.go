@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/handover"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/handover"
+	"aiand-os/router/internal/translate"
 )
 
 // anthropicConversation: system + 2 user + 2 assistant turns + trailing

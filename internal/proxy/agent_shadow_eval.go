@@ -5,19 +5,19 @@ import (
 	"fmt"
 	"strings"
 
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/router/cluster"
-	"weave-os/router/internal/router/turntype"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router/cluster"
+	"aiand-os/router/internal/router/turntype"
+	"aiand-os/router/internal/translate"
 
 	"github.com/google/uuid"
 )
 
 const (
-	AgentShadowModelHeader   = "x-weave-agent-shadow-model"
-	AgentShadowRolloutHeader = "x-weave-agent-shadow-rollout-id"
-	AgentShadowStateHeader   = "x-weave-agent-shadow-state-id"
+	AgentShadowModelHeader   = "x-aiand-agent-shadow-model"
+	AgentShadowRolloutHeader = "x-aiand-agent-shadow-rollout-id"
+	AgentShadowStateHeader   = "x-aiand-agent-shadow-state-id"
 	ReasonAgentShadowEval    = "agent_shadow_eval_force"
 )
 

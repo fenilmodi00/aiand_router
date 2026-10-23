@@ -4,20 +4,20 @@ import (
 	"context"
 	"strings"
 
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/router"
 
 	"github.com/tidwall/gjson"
 )
 
 type codexSelectedModelContextKey struct{}
 
-// CodexAutomaticModel is the native /model choice that keeps Weave routing automatic.
+// CodexAutomaticModel is the native /model choice that keeps Aiand routing automatic.
 const CodexAutomaticModel = string(router.ModelAutomatic)
 
 // CodexNativeModelPinHeader opts installed Codex clients into interpreting a
 // /model switch made during the session as an explicit force. The model a
 // session launches with (config.toml, SDK thread options) stays a baseline.
-const CodexNativeModelPinHeader = "X-Weave-Codex-Native-Model-Pin"
+const CodexNativeModelPinHeader = "X-Aiand-Codex-Native-Model-Pin"
 
 // The client repeats its selected model on every request, so a request-scoped
 // force follows /model changes immediately without writing a separate pin.

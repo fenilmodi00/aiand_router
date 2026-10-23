@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/router"
 
 	lru "github.com/hashicorp/golang-lru/v2"
 	"golang.org/x/sync/singleflight"

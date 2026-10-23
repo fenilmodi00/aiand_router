@@ -8,8 +8,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 
-	"weave-os/router/internal/server"
-	"weave-os/router/internal/server/middleware"
+	"aiand-os/router/internal/server"
+	"aiand-os/router/internal/server/middleware"
 )
 
 func TestServingDistributionMountsWithoutLegacyScorerAndRequiresAuthentication(t *testing.T) {

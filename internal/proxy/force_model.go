@@ -10,12 +10,12 @@ import (
 	"strings"
 	"time"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/router/sessionpin"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router/sessionpin"
+	"aiand-os/router/internal/translate"
 
 	"github.com/google/uuid"
 )
@@ -26,7 +26,7 @@ import (
 // command before it reaches the router. The header rides on every request,
 // so the pin is (re)written and served on the same turn. Values that name no
 // catalog model fail the request; so do excluded ones.
-const ForceModelHeader = "x-weave-force-model"
+const ForceModelHeader = "x-aiand-force-model"
 
 // ErrForcedModelUnknown is returned when a caller forces a model name that
 // resolves to no catalog entry. Failing is the point: routing on regardless
@@ -648,7 +648,7 @@ func (s *Service) clearForceModelSessionPin(
 	return s.pinStore.Upsert(context.Background(), cleared)
 }
 
-// applyForceModelHeader honors the x-weave-force-model request header,
+// applyForceModelHeader honors the x-aiand-force-model request header,
 // writing the same session pin the /force-model command writes. It's
 // (re)written on every request carrying the header. A model that names no
 // catalog entry, or one the exclusion policy forbids, fails the request —
@@ -686,7 +686,7 @@ func (s *Service) applyForceModelHeader(
 		*r = *r.WithContext(router.WithRoutingKnobs(r.Context(), &merged))
 	}
 	if !known {
-		log.Warn("x-weave-force-model: rejected unrecognized model",
+		log.Warn("x-aiand-force-model: rejected unrecognized model",
 			"input_model", raw,
 			"force_model_session_key_hex", fmt.Sprintf("%x", forceModelSessionKey),
 		)
@@ -694,7 +694,7 @@ func (s *Service) applyForceModelHeader(
 	}
 	binding, reason := s.forcedModelBinding(ctx, canonicalModel, provider)
 	if reason != "" {
-		log.Warn("x-weave-force-model: rejected excluded model",
+		log.Warn("x-aiand-force-model: rejected excluded model",
 			"input_model", raw,
 			"canonical_model", canonicalModel,
 			"provider", provider,
@@ -711,10 +711,10 @@ func (s *Service) applyForceModelHeader(
 		forcedModel += ":" + effortLevel
 	}
 	if err := s.setForceModelSessionPin(ctx, forceModelSessionKey, installationID, canonicalModel, provider, effortLevel, ""); err != nil {
-		log.Error("x-weave-force-model: session pin upsert failed", "err", err)
+		log.Error("x-aiand-force-model: session pin upsert failed", "err", err)
 		return ctx, forcedModel, nil
 	}
-	log.Info("x-weave-force-model applied",
+	log.Info("x-aiand-force-model applied",
 		"input_model", raw,
 		"canonical_model", canonicalModel,
 		"provider", provider,

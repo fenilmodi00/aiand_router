@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net/http"
 
-	"weave-os/router/internal/providers"
+	"aiand-os/router/internal/providers"
 )
 
 // codexSubscriptionModelRejected reports an explicit model-availability
@@ -34,7 +34,7 @@ func codexSubscriptionModelRejected(err error) bool {
 }
 
 // codexOAuthCredentialRejected reports whether err is a buffered OpenAI 401/403
-// — a rejected or expired ChatGPT OAuth token, which the Weave-key retry can
+// — a rejected or expired ChatGPT OAuth token, which the Aiand-key retry can
 // still serve. Narrower than treating every 403 as credential-related would be
 // on Anthropic: the OpenAI backend answers a content-policy refusal with 400,
 // not 403.

@@ -6,7 +6,7 @@ import (
 )
 
 // RouterKeyHeader preserves upstream Authorization when a separate router key is supplied.
-const RouterKeyHeader = "X-Weave-Router-Key"
+const RouterKeyHeader = "X-Aiand-Router-Key"
 
 // RoutingTokenFromHeaders preserves the existing dedicated-header, bearer, x-api-key precedence.
 func RoutingTokenFromHeaders(headers http.Header) string {

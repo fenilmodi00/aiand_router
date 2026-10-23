@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/translate"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -877,7 +877,7 @@ func TestAnthropicSSETranslator_EmptyStreamEmitsSyntheticMessage(t *testing.T) {
 
 func TestAnthropicSSETranslator_RoutingMarkerEmittedBeforeUpstreamContent(t *testing.T) {
 	rec := httptest.NewRecorder()
-	marker := "✦ **Weave Router** → deepseek/deepseek-v4-pro (openrouter) · reason: switched to save on cache reads\n\n"
+	marker := "✦ **Aiand Router** → deepseek/deepseek-v4-pro (openrouter) · reason: switched to save on cache reads\n\n"
 	delivery := noticeDelivery(context.Background(), rec, translate.FormatAnthropic)
 	_, noticeErr := delivery.Deliver(translate.NewRouterNotice(translate.NoticeModelSelection, marker, "gpt-4o", ""))
 	require.NoError(t, noticeErr)
@@ -901,7 +901,7 @@ func TestAnthropicSSETranslator_RoutingMarkerEmittedBeforeUpstreamContent(t *tes
 	body := rec.Body.String()
 	// Marker's trailing newlines get JSON-escaped in the SSE data field;
 	// match the prose only.
-	markerProse := "✦ **Weave Router** → deepseek/deepseek-v4-pro (openrouter) · reason: switched to save on cache reads"
+	markerProse := "✦ **Aiand Router** → deepseek/deepseek-v4-pro (openrouter) · reason: switched to save on cache reads"
 	startIdx := strings.Index(body, "event: message_start")
 	markerIdx := strings.Index(body, markerProse)
 	helloIdx := strings.Index(body, `"text":"Hello"`)
@@ -921,8 +921,8 @@ func TestAnthropicSSETranslator_RoutingMarkerEmittedBeforeUpstreamContent(t *tes
 
 func TestAnthropicSSETranslator_RoutingMarkerEmittedOnEmptyUpstream(t *testing.T) {
 	rec := httptest.NewRecorder()
-	marker := "✦ **Weave Router** → gpt-5-mini (openai) · reason: top scorer\n\n"
-	markerProse := "✦ **Weave Router** → gpt-5-mini (openai) · reason: top scorer"
+	marker := "✦ **Aiand Router** → gpt-5-mini (openai) · reason: top scorer\n\n"
+	markerProse := "✦ **Aiand Router** → gpt-5-mini (openai) · reason: top scorer"
 	delivery := noticeDelivery(context.Background(), rec, translate.FormatAnthropic)
 	_, noticeErr := delivery.Deliver(translate.NewRouterNotice(translate.NoticeModelSelection, marker, "z-ai/glm-5.2", ""))
 	require.NoError(t, noticeErr)
@@ -960,7 +960,7 @@ func TestAnthropicSSETranslator_NoMarkerWhenNotConfigured(t *testing.T) {
 	require.NoError(t, translator.Finalize())
 
 	body := rec.Body.String()
-	assert.NotContains(t, body, "Weave Router")
+	assert.NotContains(t, body, "Aiand Router")
 	assert.Contains(t, body, `"text":"hi"`)
 	// Upstream's first block takes index 0 when no marker is configured.
 	assert.Contains(t, body, `"index":0,"content_block":{"type":"text"`)

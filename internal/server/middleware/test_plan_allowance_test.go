@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/requestcontext"
-	"weave-os/router/internal/subscriptions/entitlement"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/subscriptions/entitlement"
 )
 
 func TestVerifiedInternalTestSkipsAllSubscriberAllowanceAndProductReads(t *testing.T) {
@@ -33,7 +33,7 @@ func TestVerifiedInternalTestSkipsAllSubscriberAllowanceAndProductReads(t *testi
 		c.Status(http.StatusNoContent)
 	})
 	request := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
-	request.Header.Set("X-Weave-User-Email", "customer@example.com")
+	request.Header.Set("X-Aiand-User-Email", "customer@example.com")
 	recorder := httptest.NewRecorder()
 	engine.ServeHTTP(recorder, request)
 	require.Equal(t, http.StatusNoContent, recorder.Code)

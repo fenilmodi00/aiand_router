@@ -14,13 +14,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/requestcontext"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/hmm/rosterdata"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/hmm/rosterdata"
 )
 
 const (
@@ -112,7 +112,7 @@ func admissionMiddlewareFixture(t *testing.T) (*ServingAdmissionConfig, policyre
 		SchemaVersion: policyregistry.ServingReleaseV1, RouterImageDigest: "sha256:" + strings.Repeat("d", 64), Classifier: bundleRef,
 		Policy:       policyregistry.PolicyObject{URI: policyRef.URI, SHA256: policyRef.SHA256, Generation: policyRef.Generation, SchemaVersion: policy.SchemaVersion},
 		Requirements: policyregistry.ServingRequirements{RuntimeContract: policyregistry.ManagedRuntimeContractV1, PolicySchema: policy.SchemaVersion, ClassifierWireSchema: bundle.Identity.WireSchema, TaxonomySHA256: bundle.Identity.TaxonomySHA256},
-		Provenance:   policyregistry.ServingProvenance{RouterRevision: strings.Repeat("a", 40), WeaveRevision: strings.Repeat("b", 40), BuildAttestation: artifact("build-attestation")},
+		Provenance:   policyregistry.ServingProvenance{RouterRevision: strings.Repeat("a", 40), AiandRevision: strings.Repeat("b", 40), BuildAttestation: artifact("build-attestation")},
 	}
 	releaseRef := store.put(t, policyregistry.ServingReleases, release)
 	binding := &policyregistry.DeploymentBinding{

@@ -4,15 +4,15 @@ import (
 	"context"
 	"net/http"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/translate"
 )
 
 // handleRouterModelsCommand answers a bare router-models directive
 // synthetically, with no upstream call.
 //
 // This reports strictly more than the skill it replaces. The skill shells out
-// to `weave-router models`, which on a managed router gets a 404 from the
+// to `aiand-router models`, which on a managed router gets a 404 from the
 // admin API and degrades to the unauthenticated catalog -- a flat list that
 // has to tell the user "this router does not report which of them your
 // installation has enabled". The exclusions ARE on this request, so the

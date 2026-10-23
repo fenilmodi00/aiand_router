@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-const RouterCommandHeader = "X-Weave-Router-Command"
+const RouterCommandHeader = "X-Aiand-Router-Command"
 
 // WriteCommandResponse serializes an already decided command outcome. TextCarrier
 // is selected by the harness adapter because Codex drops unknown Responses fields.
@@ -21,7 +21,7 @@ func WriteCommandResponse(w http.ResponseWriter, env *RequestEnvelope, text stri
 	carrier := base64.RawURLEncoding.EncodeToString(encoded)
 	w.Header().Set(RouterCommandHeader, carrier)
 	if textCarrier {
-		text += "\n\n[weave-router-command-v1]: <weave-router:" + carrier + ">"
+		text += "\n\n[aiand-router-command-v1]: <aiand-router:" + carrier + ">"
 	}
 	if env.SourceFormat() == FormatOpenAI {
 		id := "chatcmpl_router_cmd_" + outcome.ID
@@ -51,7 +51,7 @@ func writeSyntheticAnthropicJSON(w http.ResponseWriter, msgID, text string, inpu
 		"id":            msgID,
 		"type":          "message",
 		"role":          "assistant",
-		"model":         "weave-router",
+		"model":         "aiand-router",
 		"stop_reason":   "end_turn",
 		"stop_sequence": nil,
 		"content": []any{
@@ -82,7 +82,7 @@ func writeSyntheticAnthropicSSE(w http.ResponseWriter, msgID, text string, input
 	outTokens := len(text) / 4
 
 	message := map[string]any{
-		"id": msgID, "type": "message", "role": "assistant", "content": []any{}, "model": "weave-router",
+		"id": msgID, "type": "message", "role": "assistant", "content": []any{}, "model": "aiand-router",
 		"stop_reason": nil, "stop_sequence": nil, "usage": map[string]any{"input_tokens": inputTokens, "output_tokens": 0},
 	}
 	if outcome != nil {
@@ -140,7 +140,7 @@ func writeSyntheticOpenAIJSON(w http.ResponseWriter, respID, text string, inputT
 		"id":      respID,
 		"object":  "chat.completion",
 		"created": time.Now().Unix(),
-		"model":   "weave-router",
+		"model":   "aiand-router",
 		"choices": []any{
 			map[string]any{
 				"index": 0,
@@ -178,7 +178,7 @@ func writeSyntheticOpenAISSE(w http.ResponseWriter, respID, text string, inputTo
 		"id":      respID,
 		"object":  "chat.completion.chunk",
 		"created": created,
-		"model":   "weave-router",
+		"model":   "aiand-router",
 		"choices": []any{
 			map[string]any{
 				"index": 0,
@@ -194,7 +194,7 @@ func writeSyntheticOpenAISSE(w http.ResponseWriter, respID, text string, inputTo
 		"id":      respID,
 		"object":  "chat.completion.chunk",
 		"created": created,
-		"model":   "weave-router",
+		"model":   "aiand-router",
 		"choices": []any{
 			map[string]any{
 				"index":         0,

@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"weave-os/router/internal/sse"
+	"aiand-os/router/internal/sse"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

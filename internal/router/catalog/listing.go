@@ -14,7 +14,7 @@ type ModelListing struct {
 }
 
 // ModelListingResponse is the body of GET /v1/router/models. Kept stable so
-// the Weave control plane can rely on the wire format without re-checking the
+// the Aiand control plane can rely on the wire format without re-checking the
 // artifact JSON shape on every router gitlink bump.
 type ModelListingResponse struct {
 	Models []ModelListing `json:"models"`

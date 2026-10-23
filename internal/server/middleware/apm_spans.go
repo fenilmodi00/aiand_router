@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"weave-os/router/internal/observability"
+	"aiand-os/router/internal/observability"
 
 	"github.com/gin-gonic/gin"
 	"go.opentelemetry.io/otel"
@@ -13,7 +13,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-const middlewareTracerName = "weave-os/router/internal/server/middleware"
+const middlewareTracerName = "aiand-os/router/internal/server/middleware"
 
 var middlewareFlowTracer = otel.Tracer(middlewareTracerName)
 

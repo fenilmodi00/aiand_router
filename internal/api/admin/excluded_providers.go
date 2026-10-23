@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"sort"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/proxy"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/proxy"
 
 	"github.com/gin-gonic/gin"
 )

@@ -16,11 +16,11 @@ import (
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/policy"
-	"weave-os/router/internal/router/sessionpin"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/policy"
+	"aiand-os/router/internal/router/sessionpin"
+	"aiand-os/router/internal/translate"
 )
 
 const handoffTestBody = `{"model":"deepseek/deepseek-v4.1-flash","max_tokens":1024,"stream":false,"metadata":{"user_id":"pi:handoff-test"},"messages":[{"role":"user","content":"Implement the parser and verify its behavior."}]}`

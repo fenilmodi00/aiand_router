@@ -3,8 +3,8 @@ package middleware
 import (
 	"net/http"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/subscriptions/entitlement"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/subscriptions/entitlement"
 
 	"github.com/gin-gonic/gin"
 )

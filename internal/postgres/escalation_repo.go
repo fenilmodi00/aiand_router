@@ -8,9 +8,9 @@ import (
 	"errors"
 	"fmt"
 
-	"weave-os/router/internal/postgres/dbbudget"
-	"weave-os/router/internal/router/escalation"
-	"weave-os/router/internal/sqlc"
+	"aiand-os/router/internal/postgres/dbbudget"
+	"aiand-os/router/internal/router/escalation"
+	"aiand-os/router/internal/sqlc"
 
 	"github.com/cenkalti/backoff/v5"
 	"github.com/google/uuid"

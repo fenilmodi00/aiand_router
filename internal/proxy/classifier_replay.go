@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/translate"
 )
 
 const classifierClaudeContextPrefix = "<system-reminder>\nAs you answer the user's questions, you can use the following context:\n"

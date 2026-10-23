@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	"weave-os/router/internal/billing"
-	"weave-os/router/internal/postgres/dbbudget"
-	"weave-os/router/internal/sqlc"
+	"aiand-os/router/internal/billing"
+	"aiand-os/router/internal/postgres/dbbudget"
+	"aiand-os/router/internal/sqlc"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"

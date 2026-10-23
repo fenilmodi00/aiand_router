@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/billing"
-	"weave-os/router/internal/server/middleware"
-	"weave-os/router/internal/subscriptions/entitlement"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/billing"
+	"aiand-os/router/internal/server/middleware"
+	"aiand-os/router/internal/subscriptions/entitlement"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -185,7 +185,7 @@ func TestWithSubscriberAllowance_PassesThroughNonSubscribers(t *testing.T) {
 	}
 }
 
-// A credential subject without a Weave entitlement keeps the organization's
+// A credential subject without a Aiand entitlement keeps the organization's
 // ordinary billing and routing path even when Claude Code presents OAuth.
 func TestWithSubscriberAllowance_ClaudeOAuthDoesNotRestrictNonSubscriber(t *testing.T) {
 	gin.SetMode(gin.TestMode)

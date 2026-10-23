@@ -10,9 +10,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/policyclient"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/policyclient"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router"
 )
 
 func TestHTTPRouterEndToEndWithSidecar(t *testing.T) {
@@ -38,7 +38,7 @@ func TestHTTPRouterEndToEndWithSidecar(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"route_id": gotRoute.RouteID, "model": "moonshotai/kimi-k3", "score": 0.72,
 				"score_kind": "policy_confidence", "reason": "policy delegated_work", "policy_group": "delegated",
-				"policy_label": "delegated_work", "propensity": 0.5, "display_marker": "Weave Router: delegated_work",
+				"policy_label": "delegated_work", "propensity": 0.5, "display_marker": "Aiand Router: delegated_work",
 			})
 		case "/outcome":
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&gotOutcome))

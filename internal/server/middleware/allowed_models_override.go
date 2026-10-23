@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"strings"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/requestcontext"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/requestcontext"
 
 	"github.com/gin-gonic/gin"
 )
@@ -18,7 +18,7 @@ type AllowedModelsHeaderGate interface {
 	ResolveAllowedModelsHeader(ctx context.Context) bool
 }
 
-// WithAllowedModelsOverride narrows routing to the x-weave-allowed-models
+// WithAllowedModelsOverride narrows routing to the x-aiand-allowed-models
 // subset for installations authorized for policy headers or organizations
 // with the allowed_models_header flag on. The subset is intersected with the
 // installation allowlist; an unknown alias or an empty intersection is a 400,

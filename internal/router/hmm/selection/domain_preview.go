@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	"weave-os/router/internal/router/hmm"
-	"weave-os/router/internal/router/hmm/rosterdata"
+	"aiand-os/router/internal/router/hmm"
+	"aiand-os/router/internal/router/hmm/rosterdata"
 )
 
 // DomainPreviewBenchmark is one benchmark's term in an arm's score correction.

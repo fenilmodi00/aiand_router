@@ -12,12 +12,12 @@ import (
 	"testing"
 	"time"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/cluster"
-	"weave-os/router/internal/router/sessionpin"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/cluster"
+	"aiand-os/router/internal/router/sessionpin"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -666,10 +666,10 @@ func TestService_HardPin_OpenAI_SubAgentHeaderHintRoutesToHardPin(t *testing.T) 
 	ctx := authedCtx(uuid.New().String())
 	rec := httptest.NewRecorder()
 	httpReq := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(""))
-	httpReq.Header.Set("x-weave-subagent-type", "Explore")
+	httpReq.Header.Set("x-aiand-subagent-type", "Explore")
 	require.NoError(t, svc.ProxyOpenAIChatCompletion(ctx, []byte(openAIPinTestBody), rec, httpReq))
 
-	assert.Equal(t, 0, fr.routeCalls, "x-weave-subagent-type must trigger Explore hard-pin")
+	assert.Equal(t, 0, fr.routeCalls, "x-aiand-subagent-type must trigger Explore hard-pin")
 	assert.Equal(t, "gpt-4o-mini", rec.Header().Get(proxy.HeaderRouterModel))
 }
 
@@ -703,7 +703,7 @@ func buildCyclicLoopBody(t *testing.T, nFiles, total int) []byte {
 	return b
 }
 
-// An unrecognized x-weave-force-model value fails the request: routing on
+// An unrecognized x-aiand-force-model value fails the request: routing on
 // regardless would serve a model the caller never asked for while looking to
 // them like the force took.
 func TestService_ForceModelHeader_UnknownModelRejected(t *testing.T) {

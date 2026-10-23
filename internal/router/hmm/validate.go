@@ -1,9 +1,9 @@
 package hmm
 
 import (
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/router/hmm/armid"
-	"weave-os/router/internal/router/policy"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router/hmm/armid"
+	"aiand-os/router/internal/router/policy"
 )
 
 // Diagnostic describes an undispatchable roster arm for conformance and debug inspection.

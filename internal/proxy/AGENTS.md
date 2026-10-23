@@ -65,7 +65,7 @@ set, so all six existing enforcement sites honor it with no new filter loops.
 the allowlist instead of dumping the desugared exclusion list.
 
 **The deployment-wide automatic exclusion is soft, and is a separate request
-field for that reason.** `global_automatic_routing_exclusions` is the Weave
+field for that reason.** `global_automatic_routing_exclusions` is the Aiand
 control plane's list of models the router may not *choose*; the same models
 still serve an explicit `/force-model` pin, which is what makes it safe to
 disable a model without stranding a debugging or eval session. Folding it into

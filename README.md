@@ -23,16 +23,16 @@
 A drop-in proxy for Anthropic, OpenAI, and Gemini that picks the best model
 for *every* request: using a tiny on-box embedder, not a vibes-based prompt.
 
-[![Weave Badge](https://img.shields.io/endpoint?url=https%3A%2F%2Fapp.workweave.ai%2Fapi%2Frepository%2Fbadge%2Forg_QWsHDcRQWQEs6RpkdEZrlFK8%2F1222789989%2Fhttps%253A%252F%252Fgithub.com&cacheSeconds=3600)](https://app.workweave.ai/reports/repository/org_QWsHDcRQWQEs6RpkdEZrlFK8/https%3A%2F%2Fgithub.com/1222789989)
+[![Aiand Badge](https://img.shields.io/endpoint?url=https%3A%2F%2Fapp.workaiand.ai%2Fapi%2Frepository%2Fbadge%2Forg_QWsHDcRQWQEs6RpkdEZrlFK8%2F1222789989%2Fhttps%253A%252F%252Fgithub.com&cacheSeconds=3600)](https://app.workaiand.ai/reports/repository/org_QWsHDcRQWQEs6RpkdEZrlFK8/https%3A%2F%2Fgithub.com/1222789989)
 [![Go](https://img.shields.io/badge/Go-1.26%2B-00ADD8?logo=go)](go.mod)
-[![Tests](https://github.com/weave-os/router/actions/workflows/test.yml/badge.svg)](https://github.com/weave-os/router/actions/workflows/test.yml)
+[![Tests](https://github.com/aiand-os/router/actions/workflows/test.yml/badge.svg)](https://github.com/aiand-os/router/actions/workflows/test.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![Managed deployment](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Frouter.workweave.ai%2Fv1%2Fversion&query=%24.display&label=managed%20deployment&color=EC6341&cacheSeconds=1800)](https://github.com/weave-os/router/deployments)
+[![Managed deployment](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Frouter.workaiand.ai%2Fv1%2Fversion&query=%24.display&label=managed%20deployment&color=EC6341&cacheSeconds=1800)](https://github.com/aiand-os/router/deployments)
 
 
-[![#1 Product of the Day on Product Hunt](https://api.producthunt.com/widgets/embed-image/v1/top-post-badge.svg?post_id=1247729&theme=light&period=daily)](https://www.producthunt.com/posts/weave-router-2-0?embed=true&utm_source=badge-top-post-badge&utm_medium=badge&utm_campaign=badge-weave-router-2-0)
+[![#1 Product of the Day on Product Hunt](https://api.producthunt.com/widgets/embed-image/v1/top-post-badge.svg?post_id=1247729&theme=light&period=daily)](https://www.producthunt.com/posts/aiand-router-2-0?embed=true&utm_source=badge-top-post-badge&utm_medium=badge&utm_campaign=badge-aiand-router-2-0)
 
-*Built by [Weave](https://www.workweave.ai): The #1 engineering intelligence platform,
+*Built by [Aiand](https://www.workaiand.ai): The #1 engineering intelligence platform,
 loved by Robinhood, PostHog, Reducto, and hundreds of others.*
 
 </div>
@@ -53,39 +53,39 @@ Point Claude Code, Codex, Cursor, or your own app at `localhost:8080`. The route
 - 🧠 **Knows OSS too.** DeepSeek, Kimi, GLM, Qwen, Llama, Mistral through
   ai&'s OpenAI-compatible Chat Completions surface.
 - 🔒 **BYOK by default.** Provider keys stay on your box, encrypted at rest.
-- 📊 **Observable.** OTLP traces out of the box. See them in the Weave dashboard (http://localhost:8080/ui/dashboard) or drop in Honeycomb, Datadog,
+- 📊 **Observable.** OTLP traces out of the box. See them in the Aiand dashboard (http://localhost:8080/ui/dashboard) or drop in Honeycomb, Datadog,
   Grafana, whatever.
 
 ## 30-second quickstart
 
 The fastest way: point Claude Code, Codex, opencode, or pi at the **hosted**
-Weave Router with one command. No clone, no Docker, no Postgres.
+Aiand Router with one command. No clone, no Docker, no Postgres.
 
 ```bash
-npx @weave-os/router
+npx @aiand-os/router
 ```
 
 That's it. Your browser opens the hosted setup page. To install directly from
 the terminal, choose a target explicitly. Other flavors:
 
 ```bash
-npx @weave-os/router --claude              # skip the picker, Claude Code
-npx @weave-os/router --codex               # skip the picker, OpenAI Codex CLI
-npx @weave-os/router --opencode            # skip the picker, opencode
-npx @weave-os/router --pi                  # skip the picker, pi + Loom UI
-npx @weave-os/router --scope project       # per-repo, commits settings.json (or .codex/ / opencode.json)
-npx @weave-os/router --local               # self-hosted localhost:8080
-npx @weave-os/router --base-url https://router.acme.internal
-npx @weave-os/router --email you@example.com # set identity without prompting
-npx @weave-os/router --claude --return-url https://app.example.com/onboarding # continue after health + key verification
-npx @weave-os/router@0.1.0                 # pin a version
+npx @aiand-os/router --claude              # skip the picker, Claude Code
+npx @aiand-os/router --codex               # skip the picker, OpenAI Codex CLI
+npx @aiand-os/router --opencode            # skip the picker, opencode
+npx @aiand-os/router --pi                  # skip the picker, pi + Loom UI
+npx @aiand-os/router --scope project       # per-repo, commits settings.json (or .codex/ / opencode.json)
+npx @aiand-os/router --local               # self-hosted localhost:8080
+npx @aiand-os/router --base-url https://router.acme.internal
+npx @aiand-os/router --email you@example.com # set identity without prompting
+npx @aiand-os/router --claude --return-url https://app.example.com/onboarding # continue after health + key verification
+npx @aiand-os/router@0.1.0                 # pin a version
 ```
 
 Requires Node ≥ 18 (Claude Code, opencode, and pi paths also need `jq`). Full
 flag reference: [install/npm/README.md](install/npm/README.md).
 
-The npm package is published as `@weave-os/router`. The former
-`@workweave/router` package remains available as a compatibility alias and
+The npm package is published as `@aiand-os/router`. The former
+`@workaiand/router` package remains available as a compatibility alias and
 continues to receive the same releases.
 
 ### Or: self-host the whole stack
@@ -128,7 +128,7 @@ curl -sS http://localhost:8080/v1/route -H "Authorization: Bearer rk_..." -d '..
 
 Only the grey boxes are off your machine. The router, the scorer, Postgres, and
 your provider keys all stay local; prompts go from the router straight to the
-provider you configured, never to Weave.
+provider you configured, never to Aiand.
 
 ```mermaid
 flowchart LR
@@ -174,19 +174,19 @@ embedding compatibility, and explicit HMM selection.
 
 **Claude Code.** Run `make install-cc` to wire Claude Code at the local
 self-hosted router (it's also invoked automatically at the end of
-`make full-setup`). For the hosted router, use `npx @weave-os/router`
+`make full-setup`). For the hosted router, use `npx @aiand-os/router`
 above.
 
-**Codex** (OpenAI CLI). `npx @weave-os/router --codex` patches
+**Codex** (OpenAI CLI). `npx @aiand-os/router --codex` patches
 `~/.codex/config.toml` (or `<repo>/.codex/config.toml` with `--scope project`)
-with a managed `[model_providers.weave]` block and sets `model_provider = "weave"`.
+with a managed `[model_providers.aiand]` block and sets `model_provider = "aiand"`.
 The provider preserves Codex's existing ChatGPT OAuth login while the router
-key rides in an `X-Weave-Router-Key` HTTP header and the installer selects the
+key rides in an `X-Aiand-Router-Key` HTTP header and the installer selects the
 HMM strategy for the public hosted endpoint. `--codex --local` and custom
 self-hosted URLs keep their router's configured default because the HMM
 sidecar is optional. HMM and forced selections in the native Codex family
 (`gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`) use that OAuth credential;
-every other selected model uses its WorkWeave deployment or BYOK credential,
+every other selected model uses its WorkAiand deployment or BYOK credential,
 matching the Claude Code plugin's model-to-credential dispatch.
 Codex does not load third-party slash-command files, so the installer ships
 `$force-model <model-id>` (alias `$fm <model-id>`), `$unforce-model` (alias
@@ -197,13 +197,13 @@ of your Codex config untouched. Codex also gets `$router-status`,
 `$router-off`, `$router-on`, and `$router-models` as skills that call this
 installer's own verbs. Invoke `$disable-routing` (or `$router-off`) to switch the
 next Codex session back to its normal provider, or run
-`npx @weave-os/router disable-routing` in a shell; a literal
+`npx @aiand-os/router disable-routing` in a shell; a literal
 `/disable-routing` is not a third-party extension point in Codex.
 
-**opencode.** `npx @weave-os/router --opencode` requires OpenCode major version
+**opencode.** `npx @aiand-os/router --opencode` requires OpenCode major version
 2 when the CLI is installed and available on `PATH`. It merges a
-`provider.weave` entry into `~/.config/opencode/opencode.json` (or
-`<repo>/opencode.json` with `--scope project`) and makes `weave/auto` the active
+`provider.aiand` entry into `~/.config/opencode/opencode.json` (or
+`<repo>/opencode.json` with `--scope project`) and makes `aiand/auto` the active
 model while saving any prior default for off/uninstall. OpenCode v2 sends
 Responses requests through its bundled `@ai-sdk/openai` provider; the router
 selects and translates to the upstream model. The router key, identity, and
@@ -211,9 +211,9 @@ session headers ride alongside the provider config. No plugin is installed;
 re-install removes stale v1 plugin registrations/files, and
 `--uninstall --opencode` removes the provider and restores the prior model.
 
-**pi.** `npx @weave-os/router --pi` keeps stock pi as the runtime and installs
+**pi.** `npx @aiand-os/router --pi` keeps stock pi as the runtime and installs
 the router's pi extension. It adds the Loom header, Wooly's animated terminal
-mascot, a persistent `WEAVE ROUTER` route/savings line, `/fm` + `/ufm`
+mascot, a persistent `AIAND ROUTER` route/savings line, `/fm` + `/ufm`
 model-pin commands with a `[forced]` status, and context-isolated subagents
 without shipping or maintaining a forked pi binary.
 
@@ -221,19 +221,19 @@ without shipping or maintaining a forked pi binary.
 Models → *Override OpenAI Base URL* → `http://localhost:8080/v1`, paste
 `rk_...` as the API key.
 
-**Switching on/off.** After installing, `npx @weave-os/router off --claude`
+**Switching on/off.** After installing, `npx @aiand-os/router off --claude`
 (or `--codex` / `--opencode`) routes that client straight to its provider
 again without discarding the router config; `on` flips it back, and `status`
 reports which way it's pointing. Claude Code also gets `/router-off`,
 `/router-on`, and `/router-status` slash commands. Cursor toggles via the same
 Settings → Models override above. See [install/README.md](install/README.md#switching-on-and-off).
 
-**Choosing which models the router may pick.** `npx @weave-os/router models
+**Choosing which models the router may pick.** `npx @aiand-os/router models
 --claude` lists every deployed model with its on/off state, and `models enable`
 / `models disable` change it — the same setting as the dashboard's settings
 page, edited from the terminal. Claude Code gets this as `/router-models`
 (alias `/models`). Requires a router that serves the model-selection API;
-against the Weave-hosted router the list still prints and points you at the
+against the Aiand-hosted router the list still prints and points you at the
 dashboard, where selection is an organization-wide setting. See
 [install/README.md](install/README.md#choosing-which-models-the-router-may-pick).
 
@@ -270,7 +270,7 @@ Routed non-stream responses include `x-router-cost-usd`,
 `x-router-cost-input-usd`, `x-router-cost-output-usd`,
 `x-router-cache-read-tokens`, and `x-router-cache-creation-tokens`. Streaming
 responses cannot carry the final cost in HTTP headers because headers flush
-before usage is known; stream clients should read the `weave_cost` object on
+before usage is known; stream clients should read the `aiand_cost` object on
 the final Anthropic `message_delta` usage event.
 
 ## Deeper docs
@@ -293,17 +293,17 @@ the final Anthropic `message_delta` usage event.
 
 ## License
 
-Licensed under the [Apache License 2.0](LICENSE). Copyright 2025-2026 Workweave, Inc.
+Licensed under the [Apache License 2.0](LICENSE). Copyright 2025-2026 Workaiand, Inc.
 See [NOTICE](NOTICE) for attribution.
 
 The Apache-2.0 release line begins with `router-v0.2.24` (npm packages
-`@weave-os/router` and `@workweave/router` version `0.2.24`). Earlier tags and
+`@aiand-os/router` and `@workaiand/router` version `0.2.24`). Earlier tags and
 published packages retain the licenses shipped with them; this change does
 not rewrite historical releases.
 
 Apache-2.0 permits commercial use, hosted services, and proprietary derivatives,
 subject to its terms, and includes a patent grant. It does not grant general
-rights to Workweave's trademarks. Third-party code, dependencies, model weights,
+rights to Workaiand's trademarks. Third-party code, dependencies, model weights,
 and datasets retain their own licenses; see [THIRD_PARTY.md](THIRD_PARTY.md).
 
 

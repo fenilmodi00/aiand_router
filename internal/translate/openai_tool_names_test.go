@@ -9,8 +9,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/translate"
 )
 
 func TestPrepareOpenAIAliasesLongToolNamesReversibly(t *testing.T) {

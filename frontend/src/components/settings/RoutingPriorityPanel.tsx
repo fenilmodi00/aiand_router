@@ -9,7 +9,7 @@ import { api } from "@/lib/api";
 import { useEffect, useState } from "react";
 
 // Routing dials, rendered as proportional weights (sum to 100%) — mirrors the
-// metric-weights editor in the main Weave app. Quality is the scorer's Alpha;
+// metric-weights editor in the main Aiand app. Quality is the scorer's Alpha;
 // price is the implied remainder.
 const ROUTING_DIALS = [
   { key: "quality", label: "Quality" },

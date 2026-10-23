@@ -4,13 +4,13 @@ import (
 	"context"
 	"time"
 
-	"weave-os/router/internal/observability/otel"
+	"aiand-os/router/internal/observability/otel"
 
-	"weave-os/router/internal/requestcontext"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/cache"
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/subscriptions/entitlement"
+	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/cache"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/subscriptions/entitlement"
 )
 
 type cacheMissReason string

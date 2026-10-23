@@ -7,9 +7,9 @@ import (
 	"net/url"
 	"strings"
 
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/requestcontext"
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/router"
 )
 
 // reasoningReplayScope fingerprints the upstream an attempt dispatches to:

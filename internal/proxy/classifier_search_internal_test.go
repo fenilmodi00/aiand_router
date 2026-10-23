@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/sjson"
 
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/router"
 )
 
 const classifierSearchBody = `{"model":"auto","max_tokens":1024,"system":[{"type":"text","text":"Synthetic SDK instructions"},{"type":"text","text":"You are an assistant for performing a web search tool use"}],"messages":[{"role":"user","content":"Perform a web search for the query: synthetic language documentation"}],"tools":[{"type":"web_search_20250305","name":"web_search"}],"tool_choice":{"type":"auto"}}`

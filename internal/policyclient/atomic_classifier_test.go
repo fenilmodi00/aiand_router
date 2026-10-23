@@ -11,8 +11,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/policyclient"
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/policyclient"
+	"aiand-os/router/internal/router"
 )
 
 func TestAtomicClassifierAuthenticatedFactsAndRelease(t *testing.T) {

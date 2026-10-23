@@ -1,8 +1,8 @@
 package hmm
 
 import (
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/router/hmm/armid"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router/hmm/armid"
 )
 
 func rosterIDFor(model catalog.Model) string { return armid.ForModel(model) }

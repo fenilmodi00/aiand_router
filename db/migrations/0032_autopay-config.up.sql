@@ -3,7 +3,7 @@ BEGIN;
 -- Per-org auto-recharge ("autopay") configuration and state machine. Lives in
 -- the router schema next to the credit balance/ledger it governs; the router
 -- only reads (enabled, threshold_usd_micros) in the debit hook to detect a
--- balance crossing, while the Weave control plane owns every write via raw
+-- balance crossing, while the Aiand control plane owns every write via raw
 -- pgx (config upserts, the recharge state machine, backoff).
 --
 -- A row exists only once an org configures autopay. threshold_usd_micros is

@@ -13,7 +13,7 @@ import (
 	"testing"
 	"testing/synctest"
 	"time"
-	"weave-os/router/internal/providers"
+	"aiand-os/router/internal/providers"
 )
 
 func TestStartupEgressRejectsInvalidOrigins(t *testing.T) {

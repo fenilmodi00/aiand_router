@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/escalation"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/escalation"
 )
 
 func (r *SidecarRouter) selectEscalationArm(ctx context.Context, req router.Request, input SelectionInput, resolved ResolvedCandidates, constrained bool) (SelectionPick, error) {

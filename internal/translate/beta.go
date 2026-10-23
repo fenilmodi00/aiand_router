@@ -3,7 +3,7 @@ package translate
 import (
 	"strings"
 
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/router"
 
 	"github.com/tidwall/gjson"
 )
@@ -205,15 +205,15 @@ func isBetaAckOnlyContent(content gjson.Result) bool {
 
 func isBetaAckText(text string) bool {
 	switch strings.TrimSpace(text) {
-	case "✦ **Weave Router** → Beta enabled. Type /beta again to turn it off.",
-		"✦ **Weave Router** → Qwen beta enabled. Type /beta-llm again to turn it off.",
-		"✦ **Weave Router** → Qwen beta disabled. Stable routing restored.",
-		"✦ **Weave Router** → Qwen beta is unavailable for this session.",
-		"✦ **Weave Router** → Usage: /beta-llm",
-		"✦ **Weave Router** → " + BetaRetiredMessage,
-		"✦ **Weave Router** → Beta disabled. Stable routing restored.",
-		"✦ **Weave Router** → Beta is unavailable for this session.",
-		"✦ **Weave Router** → Usage: /beta":
+	case "✦ **Aiand Router** → Beta enabled. Type /beta again to turn it off.",
+		"✦ **Aiand Router** → Qwen beta enabled. Type /beta-llm again to turn it off.",
+		"✦ **Aiand Router** → Qwen beta disabled. Stable routing restored.",
+		"✦ **Aiand Router** → Qwen beta is unavailable for this session.",
+		"✦ **Aiand Router** → Usage: /beta-llm",
+		"✦ **Aiand Router** → " + BetaRetiredMessage,
+		"✦ **Aiand Router** → Beta disabled. Stable routing restored.",
+		"✦ **Aiand Router** → Beta is unavailable for this session.",
+		"✦ **Aiand Router** → Usage: /beta":
 		return true
 	default:
 		return false

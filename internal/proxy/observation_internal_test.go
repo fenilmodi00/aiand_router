@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"testing"
 
-	"weave-os/router/internal/observability/otel"
-	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/requestcontext"
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/observability/otel"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/router"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

@@ -11,8 +11,8 @@ import (
 	"net/url"
 	"strings"
 
-	"weave-os/router/internal/inference"
-	"weave-os/router/internal/router/llmescalation"
+	"aiand-os/router/internal/inference"
+	"aiand-os/router/internal/router/llmescalation"
 )
 
 const maxResponseBytes = 16 * 1024

@@ -3,9 +3,9 @@ package middleware
 import (
 	"net/http"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/subscriptions/entitlement"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/subscriptions/entitlement"
 
 	"github.com/gin-gonic/gin"
 )
@@ -75,7 +75,7 @@ func WithSubscriberAllowance(svc *entitlement.Service) gin.HandlerFunc {
 			return
 		}
 
-		// An agent-shadow evaluation draws no included allowance — it is Weave's
+		// An agent-shadow evaluation draws no included allowance — it is Aiand's
 		// own traffic, not the subscriber's turn — but it dispatches a forced
 		// model, so it runs after the boundary above is stamped.
 		if _, shadow := proxy.AgentShadowEvalFromContext(c.Request.Context()); shadow {

@@ -26,10 +26,10 @@ import (
 	"strings"
 	"time"
 
-	feedbackapi "weave-os/router/internal/api/feedback"
-	token "weave-os/router/internal/feedback"
-	"weave-os/router/internal/postgres"
-	"weave-os/router/internal/proxy"
+	feedbackapi "aiand-os/router/internal/api/feedback"
+	token "aiand-os/router/internal/feedback"
+	"aiand-os/router/internal/postgres"
+	"aiand-os/router/internal/proxy"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"

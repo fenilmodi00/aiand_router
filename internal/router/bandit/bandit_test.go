@@ -6,7 +6,7 @@ import (
 	"math/rand/v2"
 	"testing"
 
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/router"
 )
 
 type fakeInner struct {

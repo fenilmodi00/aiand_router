@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"testing"
 
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/translate"
 
 	"github.com/stretchr/testify/assert"
 )

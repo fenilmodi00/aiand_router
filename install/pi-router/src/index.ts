@@ -1,13 +1,13 @@
 /**
- * @weave-os/router — route the pi coding agent through the Weave Router.
+ * @aiand-os/router — route the pi coding agent through the Aiand Router.
  *
  * Wiring:
- *   - provider:     register `weave` with per-process knob headers (quality on
+ *   - provider:     register `aiand` with per-process knob headers (quality on
  *                   the main loop, speed/cheap in subagents).
  *   - metadata:     stamp body.metadata.user_id for sticky sessions + subagent
  *                   detection.
  *   - Loom UI:      branded header, Wooly animation, actual route, and saved $.
- *   - safety:       block catastrophic bash (unless WEAVE_NO_SAFETY=1).
+ *   - safety:       block catastrophic bash (unless AIAND_NO_SAFETY=1).
  *   - compaction:   protect long tool loops and compact before model escalation.
  *   - dispatch:     parallel, context-isolated subagents — top-level process
  *                   only (no grandchildren).
@@ -15,7 +15,7 @@
  *                   diagnostics) over lazily spawned language servers, shared
  *                   with subagents through a parent-side broker socket.
  *
- * The same module loads in dispatched children via `-e <self>`; WEAVE_PI_SUBAGENT
+ * The same module loads in dispatched children via `-e <self>`; AIAND_PI_SUBAGENT
  * flips the provider knobs and suppresses the dispatch tool so fan-out doesn't recurse.
  */
 
@@ -32,7 +32,7 @@ import { registerLsp } from "./lsp.js";
 import { registerMetadata } from "./metadata.js";
 import { registerRoutedModel } from "./routed-model.js";
 import { registerSafety } from "./safety.js";
-import { registerWeave } from "./provider.js";
+import { registerAiand } from "./provider.js";
 import { registerWooly } from "./ui.js";
 
 const SELF_PATH = fileURLToPath(import.meta.url);
@@ -41,8 +41,8 @@ export default function (pi: ExtensionAPI): void {
 	// Register at load so the provider is available for `--list-models` and
 	// print mode (dispatched children), and again on session_start so the right
 	// knob headers survive `/reload` and new/resumed sessions.
-	registerWeave(pi);
-	pi.on("session_start", () => registerWeave(pi));
+	registerAiand(pi);
+	pi.on("session_start", () => registerAiand(pi));
 
 	registerMetadata(pi);
 	const classifierThreadActive = registerClassifierThread(pi);
@@ -54,14 +54,14 @@ export default function (pi: ExtensionAPI): void {
 	registerCompaction(pi, undefined, () => handoffPending() || classifierThreadActive());
 	handoffPending = registerEscalationCompaction(pi, undefined, undefined, classifierThreadActive);
 
-	if (process.env.WEAVE_NO_SAFETY !== "1") registerSafety(pi);
+	if (process.env.AIAND_NO_SAFETY !== "1") registerSafety(pi);
 
 	// registerLsp picks its own role: the main process gets the pool-backed tool
 	// and returns the broker provider below; a child gets the broker-backed tool
 	// only when dispatch actually handed it a socket.
-	const lspBroker = process.env.WEAVE_PI_NO_LSP === "1" ? undefined : registerLsp(pi);
+	const lspBroker = process.env.AIAND_PI_NO_LSP === "1" ? undefined : registerLsp(pi);
 
-	// Only the top-level process fans out. Children (WEAVE_PI_SUBAGENT=1) load
+	// Only the top-level process fans out. Children (AIAND_PI_SUBAGENT=1) load
 	// this same extension but get no dispatch tool, so subagents can't spawn
 	// grandchildren.
 	if (!isSubagent()) registerDispatch(pi, SELF_PATH, lspBroker);

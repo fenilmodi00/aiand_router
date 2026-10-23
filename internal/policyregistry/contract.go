@@ -17,9 +17,9 @@ import (
 	"strings"
 	"time"
 
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/hmm/rosterdata"
-	"weave-os/router/internal/router/policy"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/hmm/rosterdata"
+	"aiand-os/router/internal/router/policy"
 )
 
 // ReleaseSchemaV1 is the first atomic classifier-and-selection-policy release.

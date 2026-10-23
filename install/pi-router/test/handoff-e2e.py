@@ -35,7 +35,7 @@ def write_session(path, cwd):
             "timestamp": 1,
         }
         if role == "assistant":
-            message.update({"api": "anthropic-messages", "provider": "weave", "model": MODEL, "stopReason": "stop", "usage": {
+            message.update({"api": "anthropic-messages", "provider": "aiand", "model": MODEL, "stopReason": "stop", "usage": {
                 "input": 60000, "output": 100, "cacheRead": 0, "cacheWrite": 0, "totalTokens": 60100,
                 "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0, "total": 0},
             }})
@@ -71,7 +71,7 @@ def main():
                 self.send_error(404)
                 return
             requests.append(payload)
-            ticket = payload.get("weave_handoff")
+            ticket = payload.get("aiand_handoff")
             if ticket == "low-ticket":
                 block = {"type": "tool_use", "id": "handoff_probe", "name": "bash", "input": {}}
                 delta = {"type": "input_json_delta", "partial_json": json.dumps({"command": "echo handoff_probe"})}
@@ -103,28 +103,28 @@ def main():
         work = Path(temp)
         config = work / "agent"
         config.mkdir()
-        (config / "settings.json").write_text(json.dumps({"defaultProvider": "weave", "defaultModel": MODEL, "packages": [], "compaction": {"enabled": True}}))
+        (config / "settings.json").write_text(json.dumps({"defaultProvider": "aiand", "defaultModel": MODEL, "packages": [], "compaction": {"enabled": True}}))
         session = work / "session.jsonl"
         write_session(session, work)
         server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         threading.Thread(target=server.serve_forever, daemon=True).start()
-        env = {**os.environ, "PI_CODING_AGENT_DIR": str(config), "WEAVE_ROUTER_KEY": "offline-handoff-key",
-               "WEAVE_ROUTER_URL": f"http://127.0.0.1:{server.server_port}",
-               "WEAVE_PI_NO_LSP": "1", "WEAVE_NO_SAFETY": "1", "WEAVE_USER_EMAIL": "offline@example.invalid", "WEAVE_USER_NAME": "Offline test"}
-        env.pop("WEAVE_PI_ESCALATION_COMPACTION", None)
+        env = {**os.environ, "PI_CODING_AGENT_DIR": str(config), "AIAND_ROUTER_KEY": "offline-handoff-key",
+               "AIAND_ROUTER_URL": f"http://127.0.0.1:{server.server_port}",
+               "AIAND_PI_NO_LSP": "1", "AIAND_NO_SAFETY": "1", "AIAND_USER_EMAIL": "offline@example.invalid", "AIAND_USER_NAME": "Offline test"}
+        env.pop("AIAND_PI_ESCALATION_COMPACTION", None)
         try:
-            process = subprocess.run(["pi", "-e", str(SOURCE), "--offline", "--session", str(session), "--model", f"weave/{MODEL}",
+            process = subprocess.run(["pi", "-e", str(SOURCE), "--offline", "--session", str(session), "--model", f"aiand/{MODEL}",
                                       "--mode", "json", "-p", FINAL_REQUEST], cwd=work, env=env, text=True, capture_output=True, timeout=90)
         finally:
             server.shutdown()
             server.server_close()
         assert process.returncode == 0, process.stderr[-4000:]
-        assert [request.get("weave_handoff") for request in requests] == ["low-ticket", "summary-ticket", "high-ticket"], (
-            [request.get("weave_handoff") for request in requests], process.stderr[-3000:], process.stdout[-3000:])
+        assert [request.get("aiand_handoff") for request in requests] == ["low-ticket", "summary-ticket", "high-ticket"], (
+            [request.get("aiand_handoff") for request in requests], process.stderr[-3000:], process.stdout[-3000:])
         assert len(preparations) == 2, "Compacted context must not be reclassified"
         assert requests[1]["messages"][:-1] == preparations[1]["messages"], "Summary must preserve the old model's message prefix"
-        assert all(request.get("weave_session") == "session-ticket" for request in requests), "Summary and continuation must retain signed thread identity"
-        assert preparations[1].get("weave_session") == "session-ticket", "Next preparation must reuse the original thread"
+        assert all(request.get("aiand_session") == "session-ticket" for request in requests), "Summary and continuation must retain signed thread identity"
+        assert preparations[1].get("aiand_session") == "session-ticket", "Next preparation must reuse the original thread"
         for field in ("system", "tools", "thinking"):
             assert requests[1].get(field) == preparations[1].get(field), f"Summary changed the cached {field} prefix"
         assert "HANDOFF_COMPLETE" in process.stdout, process.stdout[-3000:]
@@ -134,7 +134,7 @@ def main():
         assert len(continuation) < len(json.dumps(preparations[-1]["messages"])) / 2, "History was not compacted"
         persisted = [json.loads(line) for line in session.read_text().splitlines()]
         assert any(entry["type"] == "compaction" for entry in persisted), "Pi must persist a compaction boundary"
-        assert any(entry.get("customType") == "weave-handoff-session" for entry in persisted), "Thread proof must survive process restart"
+        assert any(entry.get("customType") == "aiand-handoff-session" for entry in persisted), "Thread proof must survive process restart"
         assert any(entry.get("id") == "seed0000" for entry in persisted), "Raw transcript must remain available"
         print("PASS: real Pi aborts before dispatch, summarizes once, persists compaction, and resumes the reserved model with reduced context")
 

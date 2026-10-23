@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/translate"
 )
 
 // A substantive narration line (>= textRepetitionMinLen) that a stuck model

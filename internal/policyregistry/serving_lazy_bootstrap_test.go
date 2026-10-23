@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/policyregistry"
+	"aiand-os/router/internal/policyregistry"
 )
 
 func TestGCSCompareAndSwapServingStateMigratesLegacyStateToNewPathOnce(t *testing.T) {
@@ -19,8 +19,8 @@ func TestGCSCompareAndSwapServingStateMigratesLegacyStateToNewPathOnce(t *testin
 	legacySnapshot, _ := activateFixture(t, policyregistry.ServingStateSnapshot{}, set, servingEpoch)
 	firstSnapshot, _ := activateFixture(t, legacySnapshot, fixtureSet("first"), servingEpoch.Add(time.Hour))
 	secondSnapshot, _ := activateFixture(t, firstSnapshot, fixtureSet("second"), servingEpoch.Add(2*time.Hour))
-	legacyName := "weave_registry/runtime_state/router_serving/v1/targets/prod-01/prod/stable/state.json"
-	newName := "weave_registry/state/prod-01/prod/stable.json"
+	legacyName := "aiand_registry/runtime_state/router_serving/v1/targets/prod-01/prod/stable/state.json"
+	newName := "aiand_registry/state/prod-01/prod/stable.json"
 	legacyPayload, err := json.Marshal(legacySnapshot.State)
 	require.NoError(t, err)
 	fixture.mu.Lock()

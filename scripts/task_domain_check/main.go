@@ -17,8 +17,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/sync/errgroup"
-	"weave-os/router/internal/postgres"
-	"weave-os/router/internal/router/taskdomain"
+	"aiand-os/router/internal/postgres"
+	"aiand-os/router/internal/router/taskdomain"
 )
 
 func main() {

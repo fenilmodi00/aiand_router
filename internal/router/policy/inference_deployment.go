@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"slices"
 
-	"weave-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router/catalog"
 )
 
 // PurposeTargetOverride associates a typed target override with one registered

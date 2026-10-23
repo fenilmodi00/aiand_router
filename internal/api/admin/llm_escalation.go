@@ -9,11 +9,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"weave-os/router/internal/flags"
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/router/escalationdashboard"
-	"weave-os/router/internal/router/llmescalation"
+	"aiand-os/router/internal/flags"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/router/escalationdashboard"
+	"aiand-os/router/internal/router/llmescalation"
 )
 
 func InternalEscalationDashboardHandler(service *proxy.Service) gin.HandlerFunc {

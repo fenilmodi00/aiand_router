@@ -11,12 +11,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/api/classifier"
-	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/requestcontext"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/policy"
+	"aiand-os/router/internal/api/classifier"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/policy"
 )
 
 type handlerPreparationRouter struct {

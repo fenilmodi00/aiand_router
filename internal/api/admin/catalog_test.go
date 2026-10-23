@@ -8,9 +8,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"weave-os/router/internal/api/admin"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router/cluster"
+	"aiand-os/router/internal/api/admin"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router/cluster"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -67,7 +67,7 @@ func TestCatalogModelsHandler_EmptyListReturnsEmptyArray(t *testing.T) {
 	engine.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusOK, rec.Code)
-	// Empty slice must round-trip as [], not null — the Weave control plane
+	// Empty slice must round-trip as [], not null — the Aiand control plane
 	// distinguishes "no models" from "missing field".
 	assert.JSONEq(t, `{"models":[]}`, rec.Body.String())
 }

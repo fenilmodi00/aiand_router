@@ -5,12 +5,12 @@
 //
 // The sidecar only answers "which eligible model should we route to?": this
 // package builds the candidate set from the router's own catalog (so dispatch
-// stays on Weave's providers, never OpenRouter), asks the policy to pick one,
+// stays on Aiand's providers, never OpenRouter), asks the policy to pick one,
 // and maps the choice back to a router.Decision. Auth, request translation,
 // provider dispatch, failover, and telemetry all stay in proxy.Service exactly
 // as for the cluster scorer.
 //
-// It is opt-in via the x-weave-router-strategy: rl header and is never a silent
+// It is opt-in via the x-aiand-router-strategy: rl header and is never a silent
 // fallback — every failure path returns ErrPolicyUnavailable so the API layer
 // maps it to HTTP 503 (the same contract as cluster.ErrClusterUnavailable),
 // rather than masking a regression by quietly serving a default model.
@@ -21,9 +21,9 @@ import (
 	"errors"
 	"fmt"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/policy"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/policy"
 )
 
 // ErrPolicyUnavailable signals the RL strategy could not produce a decision
@@ -61,7 +61,7 @@ type Decider interface {
 }
 
 // Router selects a model via the RL policy and returns a router.Decision whose
-// provider is resolved from the catalog so dispatch uses Weave's own providers.
+// provider is resolved from the catalog so dispatch uses Aiand's own providers.
 type Router struct {
 	decider  Decider
 	resolver *policy.Resolver

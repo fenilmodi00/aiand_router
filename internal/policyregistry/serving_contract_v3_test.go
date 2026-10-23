@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/router/hmm/rosterdata"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/router/hmm/rosterdata"
 )
 
 const alternateRosterArm = "openai/gpt-6-sol"

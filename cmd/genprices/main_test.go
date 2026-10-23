@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"weave-os/router/internal/observability/otel"
+	"aiand-os/router/internal/observability/otel"
 )
 
 // TestFmtPriceRoundsAwayFloat64Artifacts pins fmtPrice to a clean decimal form
@@ -13,7 +13,7 @@ import (
 // FormatFloat(-1) representation leaks IEEE 754 noise (e.g. 0.071/1000
 // renders as 0.00007099999999999999) into the generated install.sh /
 // cc-statusline.sh prices block, which is checked into the repo and copied
-// into WorkWeave verbatim by the bump-workweave-pin workflow.
+// into WorkAiand verbatim by the bump-workaiand-pin workflow.
 //
 // Inputs are taken from float64 variables so the test mirrors the runtime
 // path genprices walks (struct field / 1000), not Go's untyped-constant
@@ -95,7 +95,7 @@ func TestCheckedInPiPricingIsCurrent(t *testing.T) {
 }
 
 func TestCheckedInBenchPricingIsCurrent(t *testing.T) {
-	got, err := os.ReadFile("../../bench/weave_bench/prices.generated.json")
+	got, err := os.ReadFile("../../bench/aiand_bench/prices.generated.json")
 	if err != nil {
 		t.Fatalf("read checked-in bench pricing: %v", err)
 	}
@@ -104,6 +104,6 @@ func TestCheckedInBenchPricingIsCurrent(t *testing.T) {
 		t.Fatalf("build bench pricing: %v", err)
 	}
 	if string(got) != string(want) {
-		t.Fatal("bench/weave_bench/prices.generated.json is stale; run go run ./cmd/genprices")
+		t.Fatal("bench/aiand_bench/prices.generated.json is stale; run go run ./cmd/genprices")
 	}
 }

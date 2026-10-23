@@ -3,13 +3,13 @@ package proxy
 import (
 	"context"
 	"testing"
-	"weave-os/router/internal/dispatch"
+	"aiand-os/router/internal/dispatch"
 
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/bandswap"
-	"weave-os/router/internal/router/sessionpin"
-	"weave-os/router/internal/router/turntype"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/bandswap"
+	"aiand-os/router/internal/router/sessionpin"
+	"aiand-os/router/internal/router/turntype"
 )
 
 // orderBandPair must put the stronger-tier model in `large` regardless of which

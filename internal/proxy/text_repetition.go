@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"strings"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/router/sessionpin"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/router/sessionpin"
+	"aiand-os/router/internal/translate"
 
 	"github.com/google/uuid"
 )
@@ -97,12 +97,12 @@ func (s *Service) handleTextRepetitionBreak(
 	log := observability.FromContext(ctx)
 
 	msg := fmt.Sprintf(
-		"✦ **Weave Router** → Repetition loop detected: `%s` (`%s`) repeated the same response %d times without making progress. Stopping this turn and clearing the session pin so the next message re-routes to a fresh model.\n\nIf the task is genuinely incomplete, send a follow-up message describing what's still needed; the router will pick a different model.\n\n",
+		"✦ **Aiand Router** → Repetition loop detected: `%s` (`%s`) repeated the same response %d times without making progress. Stopping this turn and clearing the session pin so the next message re-routes to a fresh model.\n\nIf the task is genuinely incomplete, send a follow-up message describing what's still needed; the router will pick a different model.\n\n",
 		decisionModel, decisionProvider, count,
 	)
 	if env.SourceFormat() == translate.FormatOpenAI {
 		msg = fmt.Sprintf(
-			"Weave Router: repetition loop detected (%s/%s repeated the same response %d times). Stopping and clearing the session pin; send a follow-up to resume on a different model.",
+			"Aiand Router: repetition loop detected (%s/%s repeated the same response %d times). Stopping and clearing the session pin; send a follow-up to resume on a different model.",
 			decisionModel, decisionProvider, count,
 		)
 	}

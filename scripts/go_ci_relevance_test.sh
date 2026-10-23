@@ -24,7 +24,7 @@ mkdir -p \
 	"$repo/scripts" \
 	"$repo/sidecars/hmm" \
 	"$repo/install/pi-router/src" \
-	"$repo/bench/weave_bench"
+	"$repo/bench/aiand_bench"
 printf 'module example.test\n\ngo 1.25.0\n' >"$repo/go.mod"
 printf 'package main\n' >"$repo/cmd/router/main.go"
 printf 'package policyregistry\n' >"$repo/internal/policyregistry/registry.go"
@@ -44,7 +44,7 @@ printf 'print("hmm")\n' >"$repo/sidecars/hmm/policy.py"
 printf '#!/usr/bin/env bash\nexit 0\n' >"$repo/install/install.sh"
 printf '# Installer\n' >"$repo/install/README.md"
 printf 'export const PRICING = {};\n' >"$repo/install/pi-router/src/pricing.generated.ts"
-printf '{}\n' >"$repo/bench/weave_bench/prices.generated.json"
+printf '{}\n' >"$repo/bench/aiand_bench/prices.generated.json"
 git -C "$repo" add .
 git -C "$repo" commit --quiet -m base
 base=$(git -C "$repo" rev-parse HEAD)
@@ -94,7 +94,7 @@ run_case installer-only false edit install/README.md
 # Artifacts cmd/genprices regenerates from the Go catalog and its tests assert.
 run_case installer-price-block true edit install/install.sh
 run_case pi-pricing-artifact true edit install/pi-router/src/pricing.generated.ts
-run_case bench-pricing-artifact true edit bench/weave_bench/prices.generated.json
+run_case bench-pricing-artifact true edit bench/aiand_bench/prices.generated.json
 # A move reports both paths, so leaving a Go package still gates ON.
 run_case embed-moved-out-of-package true bash -c "
 	git -C '$repo' mv internal/router/llmescalation/prompt.md docs/prompt.md

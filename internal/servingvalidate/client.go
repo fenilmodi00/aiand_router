@@ -12,7 +12,7 @@ import (
 	"net/url"
 	"time"
 
-	"weave-os/router/internal/policyregistry"
+	"aiand-os/router/internal/policyregistry"
 )
 
 const (
@@ -82,7 +82,7 @@ func (c *Client) call(ctx context.Context, revision policyregistry.RevisionBindi
 	request.Header.Set("X-Serverless-Authorization", "Bearer "+token)
 	request.Header.Set("Content-Type", "application/json")
 	if path == policyregistry.WorkerValidationPath {
-		request.Header.Set("X-Weave-Internal-Token", c.internalToken)
+		request.Header.Set("X-Aiand-Internal-Token", c.internalToken)
 	}
 	response, err := c.http.Do(request)
 	if err != nil {

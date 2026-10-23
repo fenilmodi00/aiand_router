@@ -3,8 +3,8 @@ package postgres
 import (
 	"testing"
 
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/sqlc"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/sqlc"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"

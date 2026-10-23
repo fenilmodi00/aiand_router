@@ -1,4 +1,4 @@
-module weave-os/router
+module aiand-os/router
 
 go 1.26.0
 

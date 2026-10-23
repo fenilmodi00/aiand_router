@@ -1,6 +1,6 @@
 BEGIN;
 
--- The public Weave session-cost endpoint aggregates one client session's
+-- The public Aiand session-cost endpoint aggregates one client session's
 -- committed upstream telemetry: an (installation_id, session_id) equality
 -- lookup scoped through router.model_router_installations.external_id. Neither
 -- existing index serves it — (installation_id, timestamp DESC) is event-time

@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/router/hmm"
+	"aiand-os/router/internal/router/hmm"
 )
 
 func TestValidateRosterIDs_AliasMappedArmIsValid(t *testing.T) {

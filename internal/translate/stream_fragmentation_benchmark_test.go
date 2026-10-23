@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/translate"
 )
 
 // writerChainBenchmark is one representative writer driven the way the proxy
@@ -70,7 +70,7 @@ func writerChainBenchmarks() []writerChainBenchmark {
 		{name: "SSETranslator/anthropic-text", body: []byte(largeAnthropicStream()), expect: "data: [DONE]", build: buildSSETranslator},
 		{name: "AnthropicSSETranslator/openai-text", body: []byte(largeOpenAIChunkStream()), expect: "event: message_stop", build: buildAnthropicSSETranslator},
 		{name: "ResponsesToAnthropicWriter/text-and-tool-args", body: []byte(largeResponsesStream()), expect: `"name":"write_file"`, build: buildResponsesToAnthropicWriter},
-		{name: "AnthropicRoutingFooterWriter/anthropic-text", body: []byte(largeAnthropicStream()), expect: "Weave Router feedback", build: buildAnthropicRoutingFooterWriter},
+		{name: "AnthropicRoutingFooterWriter/anthropic-text", body: []byte(largeAnthropicStream()), expect: "Aiand Router feedback", build: buildAnthropicRoutingFooterWriter},
 		{name: "OpenAIRoutingMarkerWriter/openai-text", body: []byte(largeOpenAIChunkStream()), expect: "data: [DONE]", build: buildOpenAIRoutingMarkerWriter},
 	}
 }
@@ -132,7 +132,7 @@ func BenchmarkStreamWriterChunkedWrites(b *testing.B) {
 func BenchmarkStreamWriterGrowingFrame(b *testing.B) {
 	for _, frameBytes := range []int{16 << 10, 64 << 10, 256 << 10} {
 		chains := []writerChainBenchmark{
-			{name: "AnthropicRoutingFooterWriter", body: []byte(largeAnthropicStreamOf(frameBytes, 0)), expect: "Weave Router feedback", build: buildAnthropicRoutingFooterWriter},
+			{name: "AnthropicRoutingFooterWriter", body: []byte(largeAnthropicStreamOf(frameBytes, 0)), expect: "Aiand Router feedback", build: buildAnthropicRoutingFooterWriter},
 			{name: "AnthropicSSETranslator", body: []byte(largeOpenAIChunkStreamOf(frameBytes, 0)), expect: "event: message_stop", build: buildAnthropicSSETranslator},
 		}
 		for _, chain := range chains {
@@ -151,7 +151,7 @@ func BenchmarkStreamWriterFullChain(b *testing.B) {
 			chain := writerChainBenchmark{
 				name:   "openai-to-anthropic-marker-footer",
 				body:   body,
-				expect: "Weave Router feedback",
+				expect: "Aiand Router feedback",
 				build: func(b *testing.B, rec *httptest.ResponseRecorder) (http.ResponseWriter, func() error) {
 					footer := translate.NewAnthropicRoutingFooterWriter(rec, testFooter)
 					marker := translate.NewAnthropicRoutingMarkerWriter(footer, "gpt-x", testMarker)

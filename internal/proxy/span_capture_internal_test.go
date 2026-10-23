@@ -14,8 +14,8 @@ import (
 	tracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
 	"google.golang.org/protobuf/proto"
 
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router"
 )
 
 // bypassSpanCollector is an in-process OTLP endpoint that records spans by name for assertion.

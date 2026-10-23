@@ -7,11 +7,11 @@ from pathlib import Path
 import pytest
 
 from tests.conftest import T0, TrialWriter
-from weave_bench.arms import ARMS
-from weave_bench.markdown import render_markdown
-from weave_bench.prices import load_price_table
-from weave_bench.report import build_report, load_tap_rows
-from weave_bench.trials import load_job
+from aiand_bench.arms import ARMS
+from aiand_bench.markdown import render_markdown
+from aiand_bench.prices import load_price_table
+from aiand_bench.report import build_report, load_tap_rows
+from aiand_bench.trials import load_job
 
 TURN = {"type": "turn.completed", "usage": {"input_tokens": 1000, "cached_input_tokens": 600, "output_tokens": 50}}
 BETA_ACK = '{"type":"item.completed","text":"Beta enabled. Type /beta again to turn it off."}\n'

@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"weave-os/router/internal/observability"
+	"aiand-os/router/internal/observability"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"

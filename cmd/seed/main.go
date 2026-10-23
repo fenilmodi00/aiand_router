@@ -15,8 +15,8 @@ import (
 	"os"
 	"time"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/config"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/config"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -133,9 +133,9 @@ func main() {
 
 	fmt.Printf("Created installation %s (external_id: %s)\n", installationID, externalID)
 	fmt.Printf("Created API key      %s (suffix: ...%s)\n\n", apiKeyID, keySuffix)
-	fmt.Printf("Weave Router key (shown once — store it now):\n")
+	fmt.Printf("Aiand Router key (shown once — store it now):\n")
 	fmt.Printf("  %s\n\n", rawToken)
-	fmt.Printf("This is a Weave Router auth token (rk_...) — it gates traffic to your\n")
+	fmt.Printf("This is a Aiand Router auth token (rk_...) — it gates traffic to your\n")
 	fmt.Printf("router. It is NOT an Anthropic key. Anthropic only sees the upstream\n")
 	fmt.Printf("provider key (sk-ant-...) the router holds server-side.\n\n")
 
@@ -143,7 +143,7 @@ func main() {
 	fmt.Printf("  curl -i -H 'Authorization: Bearer %s' %s/validate\n\n", rawToken, baseURL)
 
 	fmt.Printf("=== Claude Code (recommended) ===\n")
-	fmt.Printf("  export WEAVE_ROUTER_KEY=%s\n", rawToken)
+	fmt.Printf("  export AIAND_ROUTER_KEY=%s\n", rawToken)
 	fmt.Printf("  ./install/install.sh --base-url %s\n", baseURL)
 	fmt.Printf("  claude  # The installer wires settings.json — no shell exports needed afterwards\n\n")
 
@@ -151,18 +151,18 @@ func main() {
 	fmt.Printf("  Keep Claude Code's Anthropic auth unchanged; send the router key\n")
 	fmt.Printf("  in a router-only custom header.\n")
 	fmt.Printf("    export ANTHROPIC_BASE_URL=%s\n", baseURL)
-	fmt.Printf("    export ANTHROPIC_CUSTOM_HEADERS='X-Weave-Router-Key: %s'\n", rawToken)
+	fmt.Printf("    export ANTHROPIC_CUSTOM_HEADERS='X-Aiand-Router-Key: %s'\n", rawToken)
 	fmt.Printf("    claude\n\n")
 
 	fmt.Printf("=== Codex ===\n")
 	fmt.Printf("  Keep Codex's OpenAI auth unchanged; send the router key\n")
 	fmt.Printf("  in a router-only custom header.\n")
 	fmt.Printf("    export OPENAI_BASE_URL=%s/v1\n", baseURL)
-	fmt.Printf("    export OPENAI_EXTRA_HEADERS='X-Weave-Router-Key: %s'\n", rawToken)
+	fmt.Printf("    export OPENAI_EXTRA_HEADERS='X-Aiand-Router-Key: %s'\n", rawToken)
 	fmt.Printf("    codex\n\n")
 
 	fmt.Printf("=== Cursor ===\n")
 	fmt.Printf("  1. Open Cursor Settings > Models > Override OpenAI Base URL\n")
 	fmt.Printf("     Set to: %s/v1\n", baseURL)
-	fmt.Printf("  2. Paste the Weave Router key as the API key: %s\n", rawToken)
+	fmt.Printf("  2. Paste the Aiand Router key as the API key: %s\n", rawToken)
 }

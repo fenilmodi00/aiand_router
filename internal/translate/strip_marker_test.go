@@ -5,28 +5,28 @@ import (
 	"strings"
 	"testing"
 
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/translate"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
 
-const markerSentinel = "✦ **Weave Router**"
+const markerSentinel = "✦ **Aiand Router**"
 
 // Sample markers covering every humanReasonFromPlanner output and the
 // no-planner fallbacks plus the clamp note tail.
 // Keep in sync with internal/proxy/service.go.
 var sampleMarkers = []string{
-	"✦ **Weave Router** → claude-haiku-4-5 · best pick for this turn\n\n",
-	"✦ **Weave Router** → deepseek/deepseek-v4-pro · switched for cheaper cache reuse\n\n",
-	"✦ **Weave Router** → deepseek/deepseek-v4-pro · stayed on your last pick\n\n",
-	"✦ **Weave Router** → claude-sonnet-4-5 · upgraded to a stronger tier\n\n",
-	"✦ **Weave Router** → gemini-3.1-flash-lite-preview · pinned for compaction / sub-agent\n\n",
-	"✦ **Weave Router** → deepseek/deepseek-v4-pro\n\n",
-	"✦ **Weave Router** → claude-haiku-4-5 · best pick for this turn · second-choice pick at low tier (would have used deepseek/deepseek-v4-pro)\n\n",
-	"✦ **Weave Router** → Delegating work with moonshotai/kimi-k2.7-code\n↳ label: delegated_work\n\n",
-	"✦ **Weave Router** → claude-sonnet-5 · best pick for this turn\nREASONING: This part of the conversation was classified as high difficulty.\n\n",
+	"✦ **Aiand Router** → claude-haiku-4-5 · best pick for this turn\n\n",
+	"✦ **Aiand Router** → deepseek/deepseek-v4-pro · switched for cheaper cache reuse\n\n",
+	"✦ **Aiand Router** → deepseek/deepseek-v4-pro · stayed on your last pick\n\n",
+	"✦ **Aiand Router** → claude-sonnet-4-5 · upgraded to a stronger tier\n\n",
+	"✦ **Aiand Router** → gemini-3.1-flash-lite-preview · pinned for compaction / sub-agent\n\n",
+	"✦ **Aiand Router** → deepseek/deepseek-v4-pro\n\n",
+	"✦ **Aiand Router** → claude-haiku-4-5 · best pick for this turn · second-choice pick at low tier (would have used deepseek/deepseek-v4-pro)\n\n",
+	"✦ **Aiand Router** → Delegating work with moonshotai/kimi-k2.7-code\n↳ label: delegated_work\n\n",
+	"✦ **Aiand Router** → claude-sonnet-5 · best pick for this turn\nREASONING: This part of the conversation was classified as high difficulty.\n\n",
 }
 
 func TestStripRoutingMarker_AssistantBlockExactMatch(t *testing.T) {

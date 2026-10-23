@@ -6,19 +6,19 @@ import (
 	"strconv"
 	"strings"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/requestcontext"
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/router"
 
 	"github.com/gin-gonic/gin"
 )
 
 const (
-	HeaderAlpha                = "x-weave-routing-alpha"
-	HeaderSpeedWeight          = "x-weave-routing-speed-weight"
-	HeaderOutputCostRatio      = "x-weave-routing-output-cost-ratio"
-	HeaderExpectedOutputTokens = "x-weave-routing-expected-output-tokens"
-	HeaderPerModelVerbosity    = "x-weave-routing-per-model-verbosity"
+	HeaderAlpha                = "x-aiand-routing-alpha"
+	HeaderSpeedWeight          = "x-aiand-routing-speed-weight"
+	HeaderOutputCostRatio      = "x-aiand-routing-output-cost-ratio"
+	HeaderExpectedOutputTokens = "x-aiand-routing-expected-output-tokens"
+	HeaderPerModelVerbosity    = "x-aiand-routing-per-model-verbosity"
 )
 
 // abortInvalidKnob writes a 400 with the error envelope matching the route's
@@ -75,7 +75,7 @@ func detectAPIFormat(path string) apiFormat {
 	}
 }
 
-// WithRoutingKnobsOverride parses the x-weave-routing-* headers and stashes them on the request context.
+// WithRoutingKnobsOverride parses the x-aiand-routing-* headers and stashes them on the request context.
 func WithRoutingKnobsOverride() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if identity, managed := requestcontext.ServingIdentityFromContext(c.Request.Context()); managed && identity.Plan != "" {

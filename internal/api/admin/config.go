@@ -3,10 +3,10 @@ package admin
 import (
 	"net/http"
 
-	"weave-os/router/internal/config"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router/cluster"
-	"weave-os/router/internal/server/middleware"
+	"aiand-os/router/internal/config"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router/cluster"
+	"aiand-os/router/internal/server/middleware"
 
 	"github.com/gin-gonic/gin"
 )

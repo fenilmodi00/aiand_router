@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"weave-os/router/internal/api/admin"
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/api/admin"
+	"aiand-os/router/internal/router"
 )
 
 type databasePinger interface {

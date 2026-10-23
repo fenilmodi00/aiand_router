@@ -120,7 +120,7 @@ async def lifespan(application: FastAPI):
     yield
 
 
-app = FastAPI(title="WorkWeave frozen HMM sidecar", lifespan=lifespan)
+app = FastAPI(title="WorkAiand frozen HMM sidecar", lifespan=lifespan)
 
 
 def _artifacts() -> FrozenArtifacts | None:

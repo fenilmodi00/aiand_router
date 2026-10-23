@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Regression tests for `npx @weave-os/router models` — the model-selection CLI
+# Regression tests for `npx @aiand-os/router models` — the model-selection CLI
 # behind the /models slash command.
 #
 # Fully offline: an isolated $HOME keeps real config untouched, and a fake curl
@@ -24,7 +24,7 @@ mkdir -p "$fake_bin"
 # -o, -w, and file-backed headers) and routes on the request path. $ROUTER_MODE decides which
 # router it impersonates:
 #   full    — serves the model-selection API
-#   managed — 404s /admin/v1/* (the Weave-hosted router) but serves the catalog
+#   managed — 404s /admin/v1/* (the Aiand-hosted router) but serves the catalog
 #   down    — connection failure
 # Requests are appended to $REQUEST_LOG as "METHOD PATH BODY".
 cat >"$fake_bin/curl" <<'FAKE_CURL'
@@ -121,7 +121,7 @@ contains() { # contains <name> <haystack> <needle>
 seed_install() { # seed_install <home> <base-url> <key>
   mkdir -p "$1/.claude"
   cat >"$1/.claude/settings.json" <<EOF
-{"env":{"ANTHROPIC_BASE_URL":"$2","ANTHROPIC_CUSTOM_HEADERS":"X-Weave-Router-Key: $3"}}
+{"env":{"ANTHROPIC_BASE_URL":"$2","ANTHROPIC_CUSTOM_HEADERS":"X-Aiand-Router-Key: $3"}}
 EOF
 }
 
@@ -131,16 +131,16 @@ EOF
 seed_codex_install() { # seed_codex_install <home> <base-url> <key>
   mkdir -p "$1/.codex"
   cat >"$1/.codex/config.toml" <<EOF
-# >>> weave-router managed (do not edit between markers) >>>
-model_provider = "weave"
+# >>> aiand-router managed (do not edit between markers) >>>
+model_provider = "aiand"
 
-[model_providers.weave]
-name = "Weave Router"
+[model_providers.aiand]
+name = "Aiand Router"
 base_url = "$2/v1"
 wire_api = "responses"
 requires_openai_auth = true
-http_headers = { "X-Weave-Router-Key" = "$3", "X-App" = "codex" }
-# <<< weave-router managed <<<
+http_headers = { "X-Aiand-Router-Key" = "$3", "X-App" = "codex" }
+# <<< aiand-router managed <<<
 EOF
 }
 
@@ -281,7 +281,7 @@ ROUTER_MODE="managed"
 run_models "$home" -- --claude
 check "list against a router without the API still exits 0" "$rc" "0"
 contains "list falls back to the public catalog" "$out" "claude-opus-5"
-contains "list says where model selection lives" "$out" "router.workweave.ai/models"
+contains "list says where model selection lives" "$out" "router.workaiand.ai/models"
 # The catalog endpoint reports what is deployed, not what this installation
 # enabled, so the fallback must not render on/off state it cannot know.
 case "$out" in
@@ -291,14 +291,14 @@ esac
 
 run_models "$home" -- disable gpt-5.6 --claude
 check "editing against a router without the API fails" "$rc" "1"
-contains "the failure names the dashboard" "$out" "router.workweave.ai/models"
+contains "the failure names the dashboard" "$out" "router.workaiand.ai/models"
 
 # `models providers` is read-only, same as `models list` — it must degrade the
 # same way on a 404 rather than hard-failing while listing still succeeds.
 run_models "$home" -- providers --claude
 check "providers list against a router without the API still exits 0" "$rc" "0"
 contains "providers list falls back to the public catalog" "$out" "anthropic"
-contains "providers list says where selection lives" "$out" "router.workweave.ai/models"
+contains "providers list says where selection lives" "$out" "router.workaiand.ai/models"
 case "$out" in
   *"[x]"*|*"[ ]"*) no "the providers fallback claims no on/off state" "no checkbox markers" "$out" ;;
   *)               ok "the providers fallback claims no on/off state" ;;
@@ -310,7 +310,7 @@ check "providers list --json against a router without the API emits the provider
 
 run_models "$home" -- providers disable openai --claude
 check "editing providers against a router without the API still fails" "$rc" "1"
-contains "the providers failure names the dashboard" "$out" "router.workweave.ai/models"
+contains "the providers failure names the dashboard" "$out" "router.workaiand.ai/models"
 
 ROUTER_MODE="full"
 
@@ -339,8 +339,8 @@ parked="$work/parked"; mkdir -p "$parked/.claude"
 cat >"$parked/.claude/settings.json" <<'EOF'
 {"env":{"ANTHROPIC_BASE_URL":"https://api.anthropic.com"}}
 EOF
-cat >"$parked/.claude/.weave-parked.json" <<'EOF'
-{"env":{"ANTHROPIC_BASE_URL":"http://127.0.0.1:8080","ANTHROPIC_CUSTOM_HEADERS":"X-Weave-Router-Key: rk_parked"}}
+cat >"$parked/.claude/.aiand-parked.json" <<'EOF'
+{"env":{"ANTHROPIC_BASE_URL":"http://127.0.0.1:8080","ANTHROPIC_CUSTOM_HEADERS":"X-Aiand-Router-Key: rk_parked"}}
 EOF
 export REQUEST_LOG="$work/parked.log"
 : >"$REQUEST_LOG"
@@ -352,7 +352,7 @@ check "models reads the parked endpoint, not api.anthropic.com" \
 empty="$work/empty"; mkdir -p "$empty"
 run_models "$empty" -- --claude
 check "no install found fails" "$rc" "1"
-contains "no install found explains how to fix it" "$out" "npx @weave-os/router --claude"
+contains "no install found explains how to fix it" "$out" "npx @aiand-os/router --claude"
 
 nokey="$work/nokey"; mkdir -p "$nokey/.claude"
 cat >"$nokey/.claude/settings.json" <<'EOF'
@@ -375,7 +375,7 @@ run_models_project() { # run_models_project <repo> [extra args...]
   ( cd "$repo" && HOME="$repo/../home" XDG_CACHE_HOME="$repo/../home/.cache" \
       PATH="$test_path" NO_COLOR=1 ROUTER_MODE="${ROUTER_MODE:-full}" \
       REQUEST_LOG="${REQUEST_LOG:-}" \
-      KEY_LOG="${KEY_LOG:-}" WEAVE_ROUTER_KEY="${WEAVE_ROUTER_KEY:-}" \
+      KEY_LOG="${KEY_LOG:-}" AIAND_ROUTER_KEY="${AIAND_ROUTER_KEY:-}" \
       bash "$installer" models --claude --scope project "$@" </dev/null >"$work/out" 2>&1 )
   rc=$?
   out="$(cat "$work/out")"
@@ -386,7 +386,7 @@ run_update_project() { # run_update_project <repo> [extra args...]
   ( cd "$repo" && HOME="$repo/../home" XDG_CACHE_HOME="$repo/../home/.cache" \
       PATH="$test_path" NO_COLOR=1 ROUTER_MODE="${ROUTER_MODE:-full}" \
       REQUEST_LOG="${REQUEST_LOG:-}" KEY_LOG="${KEY_LOG:-}" \
-      WEAVE_ROUTER_KEY="${WEAVE_ROUTER_KEY:-}" \
+      AIAND_ROUTER_KEY="${AIAND_ROUTER_KEY:-}" \
       bash "$installer" update --claude --scope project "$@" </dev/null >"$work/out" 2>&1 )
   rc=$?
   out="$(cat "$work/out")"
@@ -401,10 +401,10 @@ seed_project_split() { # seed_project_split <root> <committed-endpoint> [trusted
   git -C "$1/repo" init -q .
   printf '{"env":{"ANTHROPIC_BASE_URL":"%s"}}\n' "$2" >"$1/repo/.claude/settings.json"
   if [ "${3:-}" = "trusted" ]; then
-    printf '{"env":{"ANTHROPIC_CUSTOM_HEADERS":"X-Weave-Router-Key: rk_teammate","WEAVE_ROUTER_BASE_URL":"%s"}}\n' "$2" \
+    printf '{"env":{"ANTHROPIC_CUSTOM_HEADERS":"X-Aiand-Router-Key: rk_teammate","AIAND_ROUTER_BASE_URL":"%s"}}\n' "$2" \
       >"$1/repo/.claude/settings.local.json"
   else
-    printf '%s\n' '{"env":{"ANTHROPIC_CUSTOM_HEADERS":"X-Weave-Router-Key: rk_teammate"}}' \
+    printf '%s\n' '{"env":{"ANTHROPIC_CUSTOM_HEADERS":"X-Aiand-Router-Key: rk_teammate"}}' \
       >"$1/repo/.claude/settings.local.json"
   fi
   printf '.claude/settings.local.json\n' >"$1/repo/.gitignore"
@@ -421,18 +421,18 @@ check "a git-tracked endpoint paired with a local key is refused" "$rc" "1"
 contains "the refusal names the endpoint" "$out" "evil.example.com"
 check "the refusal sends no request at all" "$(wc -l <"$REQUEST_LOG" | tr -d ' ')" "0"
 
-export WEAVE_ROUTER_KEY="rk_env_secret"
+export AIAND_ROUTER_KEY="rk_env_secret"
 : >"$REQUEST_LOG"
 run_models_project "$hostile/repo"
 check "an env key does not bypass the endpoint trust check" "$rc" "1"
 check "an env key still sends no request to the hostile endpoint" \
   "$(wc -l <"$REQUEST_LOG" | tr -d ' ')" "0"
-unset WEAVE_ROUTER_KEY
+unset AIAND_ROUTER_KEY
 
 # The same split against the hosted default is the layout the installer itself
 # writes, so it must keep working — the endpoint is one the user can vouch for.
 legit="$work/legit"
-seed_project_split "$legit" "https://router.workweave.ai"
+seed_project_split "$legit" "https://router.workaiand.ai"
 export REQUEST_LOG="$work/legit.log"
 : >"$REQUEST_LOG"
 run_models_project "$legit/repo"
@@ -447,7 +447,7 @@ selfhosted_project="$work/selfhosted-project"
 mkdir -p "$selfhosted_project/home" "$selfhosted_project/repo"
 git -C "$selfhosted_project/repo" init -q .
 (cd "$selfhosted_project/repo" && HOME="$selfhosted_project/home" XDG_CACHE_HOME="$selfhosted_project/home/.cache" \
-  PATH="$test_path" NO_COLOR=1 WEAVE_ROUTER_KEY=rk_teammate \
+  PATH="$test_path" NO_COLOR=1 AIAND_ROUTER_KEY=rk_teammate \
   bash "$installer" --claude --scope project --quiet --non-interactive --base-url http://127.0.0.1:8080 >/dev/null 2>&1)
 export REQUEST_LOG="$work/selfhosted-project.log"
 : >"$REQUEST_LOG"
@@ -459,7 +459,7 @@ check "the trusted self-hosted endpoint is actually called" \
 # `update` has the same endpoint/key split as `models`, but it also writes the
 # endpoint into the live project config and validates the key against it. The
 # guard must run before either side effect, including when CI supplies the key
-# through WEAVE_ROUTER_KEY instead of reading settings.local.json.
+# through AIAND_ROUTER_KEY instead of reading settings.local.json.
 update_hostile="$work/update-hostile"
 seed_project_split "$update_hostile" "http://evil.example.com//"
 export REQUEST_LOG="$work/update-hostile.log" KEY_LOG="$work/update-hostile.key"
@@ -469,12 +469,12 @@ check "update refuses a tracked hostile endpoint" "$rc" "1"
 check "update sends no request to a hostile endpoint" "$(wc -l <"$REQUEST_LOG" | tr -d ' ')" "0"
 check "update sends no key to a hostile endpoint" "$(wc -c <"$KEY_LOG" | tr -d ' ')" "0"
 
-export WEAVE_ROUTER_KEY="rk_env_secret"
+export AIAND_ROUTER_KEY="rk_env_secret"
 : >"$REQUEST_LOG"; : >"$KEY_LOG"
 run_update_project "$update_hostile/repo"
 check "update refuses a tracked hostile endpoint with an env key" "$rc" "1"
 check "env-key update sends no request to a hostile endpoint" "$(wc -l <"$REQUEST_LOG" | tr -d ' ')" "0"
-unset WEAVE_ROUTER_KEY
+unset AIAND_ROUTER_KEY
 
 update_explicit="$work/update-explicit"
 seed_project_split "$update_explicit" "http://evil.example.com"
@@ -483,7 +483,7 @@ export REQUEST_LOG="$work/update-explicit.log" KEY_LOG="$work/update-explicit.ke
 run_update_project "$update_explicit/repo" --base-url http://127.0.0.1:8080
 check "explicit update endpoint is allowed" "$rc" "0"
 check "explicit update endpoint is called" "$(grep -c '^GET /health ' "$REQUEST_LOG")" "1"
-check "explicit update sends the local key" "$(grep -c 'X-Weave-Router-Key: rk_teammate' "$KEY_LOG")" "1"
+check "explicit update sends the local key" "$(grep -c 'X-Aiand-Router-Key: rk_teammate' "$KEY_LOG")" "1"
 
 update_marked="$work/update-marked"
 seed_project_split "$update_marked" "http://127.0.0.1:8080" trusted
@@ -492,7 +492,7 @@ export REQUEST_LOG="$work/update-marked.log" KEY_LOG="$work/update-marked.key"
 run_update_project "$update_marked/repo"
 check "marked self-hosted update is allowed" "$rc" "0"
 check "marked self-hosted update endpoint is called" "$(grep -c '^GET /health ' "$REQUEST_LOG")" "1"
-check "marked self-hosted update sends the local key" "$(grep -c 'X-Weave-Router-Key: rk_teammate' "$KEY_LOG")" "1"
+check "marked self-hosted update sends the local key" "$(grep -c 'X-Aiand-Router-Key: rk_teammate' "$KEY_LOG")" "1"
 
 # An explicit --base-url is the user vouching out-of-band, so it overrides the
 # committed value rather than being refused.
@@ -551,7 +551,7 @@ for wrapper in router-models models; do
     no "$wrapper.md is shipped" "a file at $file" "missing"
     continue
   fi
-  bad="$(grep -o 'npx @weave-os/router models[^`]*' "$file" | grep -cv -- '--claude' || true)"
+  bad="$(grep -o 'npx @aiand-os/router models[^`]*' "$file" | grep -cv -- '--claude' || true)"
   check "every $wrapper.md command line names a client" "$bad" "0"
 done
 

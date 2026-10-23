@@ -4,11 +4,11 @@ import (
 	"net/http"
 	"strings"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/requestcontext"
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/router"
 
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
@@ -18,7 +18,7 @@ import (
 func applyRoutingModel(c *gin.Context, body []byte, available StrategyAvailability) bool {
 	model := router.RoutingModel(requestedModel(c, body))
 	if !router.IsRoutingModel(string(model)) {
-		if strings.HasPrefix(string(model), "weave-") {
+		if strings.HasPrefix(string(model), "aiand-") {
 			observability.FromGin(c).Debug("Unknown routing model rejected")
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "unknown_routing_model"})
 			return false

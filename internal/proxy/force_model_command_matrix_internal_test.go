@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/translate"
 )
 
 // A name that resolves to no model writes no pin and keeps the ack wording the

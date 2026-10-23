@@ -18,48 +18,48 @@ import (
 	"syscall"
 	"time"
 
-	"weave-os/router/internal/analytics"
-	"weave-os/router/internal/api/admin"
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/billing"
-	"weave-os/router/internal/config"
-	"weave-os/router/internal/dispatch"
-	"weave-os/router/internal/escalationmodal"
-	"weave-os/router/internal/feedback"
-	"weave-os/router/internal/flags"
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/observability/apm"
-	"weave-os/router/internal/observability/otel"
-	"weave-os/router/internal/policyclient"
-	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/postgres"
-	"weave-os/router/internal/postgres/pgtls"
-	"weave-os/router/internal/postgres/poolconfig"
-	servingpostgres "weave-os/router/internal/postgres/serving"
-	"weave-os/router/internal/providers"
-	providerHTTP "weave-os/router/internal/providers/httputil"
-	openaiCompatProvider "weave-os/router/internal/providers/openaicompat"
-	"weave-os/router/internal/proxy"
-	routerpubsub "weave-os/router/internal/pubsub"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/bandit"
-	"weave-os/router/internal/router/banditexplore"
-	"weave-os/router/internal/router/cache"
-	"weave-os/router/internal/router/catalog"
-	"weave-os/router/internal/router/cluster"
-	"weave-os/router/internal/router/decisionmodel"
-	"weave-os/router/internal/router/escalation"
-	"weave-os/router/internal/router/handover"
-	"weave-os/router/internal/router/hmm"
-	"weave-os/router/internal/router/llmescalation"
-	"weave-os/router/internal/router/planner"
-	"weave-os/router/internal/router/policy"
-	"weave-os/router/internal/router/rl"
-	"weave-os/router/internal/router/sessionpin"
-	"weave-os/router/internal/router/sessionstrategy"
-	"weave-os/router/internal/server"
-	"weave-os/router/internal/server/middleware"
-	"weave-os/router/internal/subscriptions/entitlement"
+	"aiand-os/router/internal/analytics"
+	"aiand-os/router/internal/api/admin"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/billing"
+	"aiand-os/router/internal/config"
+	"aiand-os/router/internal/dispatch"
+	"aiand-os/router/internal/escalationmodal"
+	"aiand-os/router/internal/feedback"
+	"aiand-os/router/internal/flags"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/observability/apm"
+	"aiand-os/router/internal/observability/otel"
+	"aiand-os/router/internal/policyclient"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/postgres"
+	"aiand-os/router/internal/postgres/pgtls"
+	"aiand-os/router/internal/postgres/poolconfig"
+	servingpostgres "aiand-os/router/internal/postgres/serving"
+	"aiand-os/router/internal/providers"
+	providerHTTP "aiand-os/router/internal/providers/httputil"
+	openaiCompatProvider "aiand-os/router/internal/providers/openaicompat"
+	"aiand-os/router/internal/proxy"
+	routerpubsub "aiand-os/router/internal/pubsub"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/bandit"
+	"aiand-os/router/internal/router/banditexplore"
+	"aiand-os/router/internal/router/cache"
+	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/router/cluster"
+	"aiand-os/router/internal/router/decisionmodel"
+	"aiand-os/router/internal/router/escalation"
+	"aiand-os/router/internal/router/handover"
+	"aiand-os/router/internal/router/hmm"
+	"aiand-os/router/internal/router/llmescalation"
+	"aiand-os/router/internal/router/planner"
+	"aiand-os/router/internal/router/policy"
+	"aiand-os/router/internal/router/rl"
+	"aiand-os/router/internal/router/sessionpin"
+	"aiand-os/router/internal/router/sessionstrategy"
+	"aiand-os/router/internal/server"
+	"aiand-os/router/internal/server/middleware"
+	"aiand-os/router/internal/subscriptions/entitlement"
 
 	_ "time/tzdata"
 
@@ -297,7 +297,7 @@ func main() {
 	defer notifier.Stop()
 
 	// When configured, the billing debit hook publishes a signal once an org's
-	// balance crosses its recharge threshold; the Weave control plane charges
+	// balance crosses its recharge threshold; the Aiand control plane charges
 	// the saved card. Unset topic just leaves autopay disabled.
 	if billingSvc != nil {
 		if autopayTopicID := config.GetOr("PUBSUB_TOPIC_ROUTER_AUTOPAY", ""); autopayTopicID != "" {
@@ -681,7 +681,7 @@ func main() {
 		logger.Info("Feedback link disabled (set ROUTER_FEEDBACK_LINK_SECRET and ROUTER_FEEDBACK_BASE_URL to enable)")
 	}
 
-	// Wired only when ROUTER_RL_SIDECAR_URL is set; x-weave-router-strategy: rl
+	// Wired only when ROUTER_RL_SIDECAR_URL is set; x-aiand-router-strategy: rl
 	// then routes through it. Unset fails closed with 503 rather than
 	// silently falling back to the cluster scorer.
 	var rlRouter router.Router
@@ -701,7 +701,7 @@ func main() {
 			"modal_proxy_auth", len(rlHeaders) > 0,
 		)
 	} else {
-		logger.Info("RL policy router disabled (ROUTER_RL_SIDECAR_URL unset); x-weave-router-strategy: rl will return 503")
+		logger.Info("RL policy router disabled (ROUTER_RL_SIDECAR_URL unset); x-aiand-router-strategy: rl will return 503")
 	}
 
 	// HMM policy activation is driven only by generation-CAS lane heads. The
@@ -779,7 +779,7 @@ func main() {
 		}
 		logger.Info("Managed serving admission enabled", "target", admission.Identity.Target, "revision", admission.Identity.Revision)
 	} else if policyEnvironmentRaw != "" {
-		registryURI := strings.TrimSpace(config.GetOr("WEAVE_REGISTRY_URI", "gs://weave_ml/weave_registry"))
+		registryURI := strings.TrimSpace(config.GetOr("AIAND_REGISTRY_URI", "gs://aiand_ml/aiand_registry"))
 		policyRegistry, registryErr := policyregistry.NewGCSRegistry(context.Background(), registryURI)
 		if registryErr != nil {
 			logger.Error("Router policy registry failed to initialize; refusing to boot", "err", registryErr)
@@ -878,14 +878,14 @@ func main() {
 	}
 
 	// Wired only when ROUTER_BANDIT_POSTERIOR_FILE points at a ts_posterior.json;
-	// x-weave-router-strategy: bandit then routes through it. Wraps the raw
+	// x-aiand-router-strategy: bandit then routes through it. Wraps the raw
 	// cluster scorer, not the explore wrapper. Unset -> nil -> 503.
 	var banditRouter router.Router
 	if posteriorPath := strings.TrimSpace(config.GetOr("ROUTER_BANDIT_POSTERIOR_FILE", "")); posteriorPath != "" {
 		post, loadErr := bandit.LoadPosterior(posteriorPath)
 		if loadErr != nil {
 			logger.Error(
-				"Bandit posterior load failed; x-weave-router-strategy: bandit will return 503",
+				"Bandit posterior load failed; x-aiand-router-strategy: bandit will return 503",
 				"path", posteriorPath,
 				"err", loadErr,
 			)
@@ -894,7 +894,7 @@ func main() {
 			logger.Info("Bandit strategy router wired", "posterior_file", posteriorPath)
 		}
 	} else {
-		logger.Info("Bandit strategy router disabled (ROUTER_BANDIT_POSTERIOR_FILE unset); x-weave-router-strategy: bandit will return 503")
+		logger.Info("Bandit strategy router disabled (ROUTER_BANDIT_POSTERIOR_FILE unset); x-aiand-router-strategy: bandit will return 503")
 	}
 
 	configuredPolicySpecs, err := buildConfiguredPolicySidecars(
@@ -913,7 +913,7 @@ func main() {
 	}
 
 	// Publish the compiled-in flag registry, stamped with the defaults this
-	// process actually resolved, so the Weave control plane can render and
+	// process actually resolved, so the Aiand control plane can render and
 	// validate the per-org override UI without importing router code. Best
 	// effort: the table is never read on the request path, so a failure here
 	// degrades that UI and nothing else.
@@ -1165,7 +1165,7 @@ func main() {
 		logger.Error("ROUTER_DEFAULT_STRATEGY has no router configured; refusing to boot", "err", defaultStrategyErr)
 		panic(defaultStrategyErr)
 	}
-	// ROUTER_POLICY_PIN_ENABLED=true registers x-weave-policy-pin; when off,
+	// ROUTER_POLICY_PIN_ENABLED=true registers x-aiand-policy-pin; when off,
 	// the header is never read and no pin telemetry is written.
 	policyPinEnabled := strings.EqualFold(config.GetOr("ROUTER_POLICY_PIN_ENABLED", "false"), "true")
 	if policyPinEnabled {
@@ -1234,7 +1234,7 @@ func main() {
 	for name := range providerMap {
 		providerNames = append(providerNames, name)
 	}
-	logger.Info("Starting Weave router", "providers", providerNames, "addr", srv.Addr)
+	logger.Info("Starting Aiand router", "providers", providerNames, "addr", srv.Addr)
 
 	serverErr := make(chan error, 1)
 	go func() {
@@ -1341,7 +1341,7 @@ func buildClusterScorer(availableProviders map[string]struct{}) (router.Router, 
 	}
 
 	// Builds only the served version by default. ROUTER_CLUSTER_BUILD_ALL_VERSIONS=true
-	// powers the eval harness's per-request x-weave-cluster-version A/B; prod
+	// powers the eval harness's per-request x-aiand-cluster-version A/B; prod
 	// skips it to avoid the extra memory and the header-override foot-gun.
 	buildAll := strings.EqualFold(config.GetOr("ROUTER_CLUSTER_BUILD_ALL_VERSIONS", "false"), "true")
 	var versions []string
@@ -1592,7 +1592,7 @@ func boolDefault(b bool) string {
 // rlSidecarHeadersFromEnv builds auth headers for the RL sidecar when both
 // ROUTER_RL_SIDECAR_MODAL_KEY and ROUTER_RL_SIDECAR_MODAL_SECRET are set.
 //
-// Sends X-Weave-Band-Key / X-Weave-Band-Secret (and Authorization Bearer) for
+// Sends X-Aiand-Band-Key / X-Aiand-Band-Secret (and Authorization Bearer) for
 // the Modal tip_k3 band serve — Modal's edge strips Modal-Key/Modal-Secret
 // before they reach ASGI when requires_proxy_auth is false. Also still sends
 // Modal-Key/Modal-Secret for true Modal proxy-auth endpoints.
@@ -1612,8 +1612,8 @@ func rlSidecarHeadersFromEnv() map[string]string {
 		return nil
 	}
 	return map[string]string{
-		"X-Weave-Band-Key":    key,
-		"X-Weave-Band-Secret": secret,
+		"X-Aiand-Band-Key":    key,
+		"X-Aiand-Band-Secret": secret,
 		"Authorization":       "Bearer " + key + ":" + secret,
 		"Modal-Key":           key,
 		"Modal-Secret":        secret,

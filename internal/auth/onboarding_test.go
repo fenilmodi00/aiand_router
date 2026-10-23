@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/auth"
+	"aiand-os/router/internal/auth"
 )
 
 type onboardingRecorder struct {

@@ -556,7 +556,7 @@ wheels = [
 ]
 
 [[package]]
-name = "workweave-hmm-sidecar"
+name = "workaiand-hmm-sidecar"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

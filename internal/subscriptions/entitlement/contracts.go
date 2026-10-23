@@ -174,12 +174,12 @@ type Entitlement struct {
 	Status        Status
 	BillingPeriod Period
 	EffectiveAt   time.Time
-	// MonthlyAllowanceUsdMicros is the period allowance Weave prorated across
+	// MonthlyAllowanceUsdMicros is the period allowance Aiand prorated across
 	// the entitlement segments covering the billing period; the nominal one is
 	// the plan's undivided monthly figure, which the window caps derive from.
 	MonthlyAllowanceUsdMicros        int64
 	NominalMonthlyAllowanceUsdMicros int64
-	// SixHourAllowanceUsdMicros is Weave's period-average window figure, kept
+	// SixHourAllowanceUsdMicros is Aiand's period-average window figure, kept
 	// for display. Enforcement uses SixHourAllowanceUsdMicros(), which resolves
 	// the cap of the specific window being admitted.
 	SixHourAllowanceUsdMicros int64

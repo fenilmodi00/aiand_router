@@ -12,13 +12,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"weave-os/router/internal/flags"
-	"weave-os/router/internal/postgres/dbbudget"
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/router/escalation"
-	"weave-os/router/internal/router/llmescalation"
-	"weave-os/router/internal/router/policy"
-	"weave-os/router/internal/sqlc"
+	"aiand-os/router/internal/flags"
+	"aiand-os/router/internal/postgres/dbbudget"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router/escalation"
+	"aiand-os/router/internal/router/llmescalation"
+	"aiand-os/router/internal/router/policy"
+	"aiand-os/router/internal/sqlc"
 )
 
 // LLMEscalationRepo persists short claims separately from XGBoost observations.

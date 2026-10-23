@@ -8,8 +8,8 @@ import (
 	"regexp"
 	"strings"
 
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/translate"
 )
 
 const classifierHistoryResponseLimit = 10

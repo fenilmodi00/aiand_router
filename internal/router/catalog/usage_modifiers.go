@@ -1,7 +1,7 @@
 package catalog
 
 import (
-	"weave-os/router/internal/usage"
+	"aiand-os/router/internal/usage"
 )
 
 // InferenceGeo is the inference geography a provider reports it served a call

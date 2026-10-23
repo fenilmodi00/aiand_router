@@ -7,9 +7,9 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/require"
-	"weave-os/router/internal/postgres"
-	"weave-os/router/internal/router/escalationdashboard"
-	"weave-os/router/internal/sqlc"
+	"aiand-os/router/internal/postgres"
+	"aiand-os/router/internal/router/escalationdashboard"
+	"aiand-os/router/internal/sqlc"
 )
 
 func TestEscalationDashboardSnapshotPageRoundTrip(t *testing.T) {

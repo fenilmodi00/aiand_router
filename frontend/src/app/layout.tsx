@@ -11,7 +11,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Weave Router",
+  title: "Aiand Router",
   description: "Router dashboard and settings",
 };
 

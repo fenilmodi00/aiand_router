@@ -10,8 +10,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/policy"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/policy"
 )
 
 // CI supplies the actual bundled sidecar environment; ordinary Go-only builds

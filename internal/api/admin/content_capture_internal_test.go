@@ -3,8 +3,8 @@ package admin
 import (
 	"testing"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/proxy"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/proxy"
 
 	"github.com/stretchr/testify/assert"
 )

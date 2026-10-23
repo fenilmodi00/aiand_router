@@ -8,10 +8,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/requestcontext"
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/router"
 )
 
 var errServingFleetMismatch = errors.New("serving admission belongs to another fleet")
@@ -41,8 +41,8 @@ func prepareDirectTest(c *gin.Context, svc *auth.Service, cfg *ServingAdmissionC
 	credential := extractToken(c)
 	c.Request.Header.Del("Authorization")
 	c.Request.Header.Del("x-api-key")
-	c.Request.Header.Del("X-Weave-User-Email")
-	c.Request.Header.Del("X-Weave-User-Name")
+	c.Request.Header.Del("X-Aiand-User-Email")
+	c.Request.Header.Del("X-Aiand-User-Name")
 	c.Request.Header.Set(auth.RouterKeyHeader, credential)
 	c.Request = c.Request.WithContext(policyregistry.WithServingAssertion(c.Request.Context(), assertion))
 	return assertion.TestPlan, nil
@@ -76,7 +76,7 @@ func directAssertion(ctx context.Context, cfg *ServingAdmissionConfig, installat
 	return policyregistry.ServingAssertion{APIKeyID: keyID, BodySHA256: policyregistry.Digest(body), Scope: scope, Admission: binding}, nil
 }
 
-// directRoutingModel treats implicit routing as the same classifier as weave-auto.
+// directRoutingModel treats implicit routing as the same classifier as aiand-auto.
 // Preparation and inspection endpoints must not choose a conversation's classifier.
 func directRoutingModel(r *http.Request, body []byte) (router.RoutingModel, bool) {
 	if r.Method != http.MethodPost {
@@ -95,7 +95,7 @@ func directRoutingModel(r *http.Request, body []byte) (router.RoutingModel, bool
 	if router.IsRoutingModel(model) {
 		return router.RoutingModel(model), true
 	}
-	if strings.HasPrefix(model, "weave-") {
+	if strings.HasPrefix(model, "aiand-") {
 		return "", false // Unknown selectors are rejected by routing-model middleware.
 	}
 	return router.ModelAutomatic, true

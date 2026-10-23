@@ -11,11 +11,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/policyregistry"
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/requestcontext"
-	"weave-os/router/internal/subscriptions/entitlement"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/subscriptions/entitlement"
 )
 
 // ServingAdmissionConfig is assembled only when the worker is running with managed serving.

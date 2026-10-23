@@ -7,7 +7,7 @@
  * Anthropic client is created, before the hook runs). So routing-knob headers
  * are *static per provider config*, i.e. static per process. Subagents are
  * separate processes, which is exactly why "quality for the main loop, speed
- * for subagents" maps cleanly onto process identity (`WEAVE_PI_SUBAGENT`).
+ * for subagents" maps cleanly onto process identity (`AIAND_PI_SUBAGENT`).
  */
 
 import { execFileSync } from "node:child_process";
@@ -17,13 +17,13 @@ import * as path from "node:path";
 import type { ProviderModelConfig } from "@mariozechner/pi-coding-agent";
 
 /** Provider name. NOT "anthropic" — overriding the built-in provider hijacks the Claude OAuth token. */
-export const PROVIDER_NAME = "weave";
+export const PROVIDER_NAME = "aiand";
 
 export type Role = "main" | "subagent";
 
-/** Children spawned by the dispatch tool run with WEAVE_PI_SUBAGENT=1. */
+/** Children spawned by the dispatch tool run with AIAND_PI_SUBAGENT=1. */
 export function isSubagent(): boolean {
-	return process.env.WEAVE_PI_SUBAGENT === "1";
+	return process.env.AIAND_PI_SUBAGENT === "1";
 }
 
 export function getRole(): Role {
@@ -43,7 +43,7 @@ function numEnv(name: string, fallback: number): number {
  * Router base URL — the ROOT, with no /v1 and no trailing slash. pi's
  * anthropic-messages provider uses @anthropic-ai/sdk, which appends /v1/messages
  * to this; a trailing /v1 would produce /v1/v1/messages and 404. Order:
- * WEAVE_ROUTER_URL env (children inherit it), then the installer-written
+ * AIAND_ROUTER_URL env (children inherit it), then the installer-written
  * models.json baseUrl (so the extension always agrees with however the user
  * installed — hosted, --local, or custom), then the local default. Without the
  * models.json fallback, a hosted install with no env var would be silently
@@ -51,9 +51,9 @@ function numEnv(name: string, fallback: number): number {
  * written by an older installer (which appended /v1) working after an update.
  */
 export function getRouterBaseUrl(): string {
-	const env = process.env.WEAVE_ROUTER_URL?.trim();
+	const env = process.env.AIAND_ROUTER_URL?.trim();
 	if (env) return env.replace(/\/v1\/?$/, "").replace(/\/+$/, "");
-	const fromModels = readWeaveProvider().baseUrl?.trim();
+	const fromModels = readAiandProvider().baseUrl?.trim();
 	if (fromModels) return fromModels.replace(/\/v1\/?$/, "").replace(/\/+$/, "");
 	return "http://localhost:8080";
 }
@@ -68,42 +68,42 @@ function getAgentDir(): string {
 }
 
 export function getKeyFilePath(): string {
-	return process.env.WEAVE_ROUTER_KEY_FILE?.trim() || path.join(getAgentDir(), ".weave_router_key");
+	return process.env.AIAND_ROUTER_KEY_FILE?.trim() || path.join(getAgentDir(), ".aiand_router_key");
 }
 
 /** Persisted LSP preferences (per-language "don't offer again" dismissals). */
 export function getLspPrefsPath(): string {
-	return path.join(getAgentDir(), ".weave_lsp.json");
+	return path.join(getAgentDir(), ".aiand_lsp.json");
 }
 
-interface WeaveProviderConfig {
+interface AiandProviderConfig {
 	baseUrl?: string;
 	apiKey?: string;
 }
 
-let cachedWeaveProvider: WeaveProviderConfig | undefined;
+let cachedAiandProvider: AiandProviderConfig | undefined;
 
-/** Read the installer-written `weave` provider block from models.json (cached). */
-function readWeaveProvider(): WeaveProviderConfig {
-	if (cachedWeaveProvider) return cachedWeaveProvider;
-	let result: WeaveProviderConfig = {};
+/** Read the installer-written `aiand` provider block from models.json (cached). */
+function readAiandProvider(): AiandProviderConfig {
+	if (cachedAiandProvider) return cachedAiandProvider;
+	let result: AiandProviderConfig = {};
 	try {
 		const raw = fs.readFileSync(path.join(getAgentDir(), "models.json"), "utf-8");
-		const parsed = JSON.parse(raw) as { providers?: { weave?: WeaveProviderConfig } };
-		result = parsed.providers?.weave ?? {};
+		const parsed = JSON.parse(raw) as { providers?: { aiand?: AiandProviderConfig } };
+		result = parsed.providers?.aiand ?? {};
 	} catch {
 		/* no models.json — fall through to env/defaults */
 	}
 	// Cache only a successful, non-empty read. An empty result (file missing or no
-	// weave block yet) must not be cached forever — a later install/write should be
+	// aiand block yet) must not be cached forever — a later install/write should be
 	// picked up on the next call.
-	if (result.baseUrl || result.apiKey) cachedWeaveProvider = result;
+	if (result.baseUrl || result.apiKey) cachedAiandProvider = result;
 	return result;
 }
 
-/** Router key from WEAVE_ROUTER_KEY, else the installer-written key file, else models.json. */
+/** Router key from AIAND_ROUTER_KEY, else the installer-written key file, else models.json. */
 export function resolveRouterKey(): string | undefined {
-	const envKey = process.env.WEAVE_ROUTER_KEY?.trim();
+	const envKey = process.env.AIAND_ROUTER_KEY?.trim();
 	if (envKey) return envKey;
 	try {
 		const contents = fs.readFileSync(getKeyFilePath(), "utf-8").trim();
@@ -111,7 +111,7 @@ export function resolveRouterKey(): string | undefined {
 	} catch {
 		/* no key file — fall through */
 	}
-	return readWeaveProvider().apiKey?.trim() || undefined;
+	return readAiandProvider().apiKey?.trim() || undefined;
 }
 
 // ---------- identity ----------
@@ -138,8 +138,8 @@ let cachedIdentity: Identity | undefined;
 /** Resolve user identity the same way the installer does: env overrides, then git config. */
 export function resolveIdentity(): Identity {
 	if (cachedIdentity) return cachedIdentity;
-	const email = process.env.WEAVE_USER_EMAIL?.trim() || gitConfig("user.email");
-	const name = process.env.WEAVE_USER_NAME?.trim() || gitConfig("user.name");
+	const email = process.env.AIAND_USER_EMAIL?.trim() || gitConfig("user.email");
+	const name = process.env.AIAND_USER_NAME?.trim() || gitConfig("user.name");
 	cachedIdentity = { email: email || undefined, name: name || undefined };
 	return cachedIdentity;
 }
@@ -165,10 +165,10 @@ const COMPACTION_KNOBS: Knobs = { alpha: 0.05, speedWeight: 0.55, outputCostRati
 export function knobsForRole(role: Role): Knobs {
 	const base = role === "subagent" ? FAST_CHEAP_KNOBS : MAIN_LOOP_KNOBS;
 	return {
-		alpha: numEnv("WEAVE_ROUTING_ALPHA", base.alpha),
-		speedWeight: numEnv("WEAVE_ROUTING_SPEED_WEIGHT", base.speedWeight),
-		outputCostRatio: numEnv("WEAVE_ROUTING_OUTPUT_COST_RATIO", base.outputCostRatio),
-		expectedOutputTokens: numEnv("WEAVE_ROUTING_EXPECTED_OUTPUT_TOKENS", base.expectedOutputTokens),
+		alpha: numEnv("AIAND_ROUTING_ALPHA", base.alpha),
+		speedWeight: numEnv("AIAND_ROUTING_SPEED_WEIGHT", base.speedWeight),
+		outputCostRatio: numEnv("AIAND_ROUTING_OUTPUT_COST_RATIO", base.outputCostRatio),
+		expectedOutputTokens: numEnv("AIAND_ROUTING_EXPECTED_OUTPUT_TOKENS", base.expectedOutputTokens),
 	};
 }
 
@@ -179,10 +179,10 @@ export function compactionKnobs(): Knobs {
 // ---------- header builders ----------
 
 const KNOB_HEADER = {
-	alpha: "x-weave-routing-alpha",
-	speedWeight: "x-weave-routing-speed-weight",
-	outputCostRatio: "x-weave-routing-output-cost-ratio",
-	expectedOutputTokens: "x-weave-routing-expected-output-tokens",
+	alpha: "x-aiand-routing-alpha",
+	speedWeight: "x-aiand-routing-speed-weight",
+	outputCostRatio: "x-aiand-routing-output-cost-ratio",
+	expectedOutputTokens: "x-aiand-routing-expected-output-tokens",
 } as const;
 
 export function knobHeaders(k: Knobs): Record<string, string> {
@@ -194,27 +194,27 @@ export function knobHeaders(k: Knobs): Record<string, string> {
 	};
 }
 
-/** Identity + auth headers. The router authenticates off X-Weave-Router-Key (authHeader stays false). */
+/** Identity + auth headers. The router authenticates off X-Aiand-Router-Key (authHeader stays false). */
 export function identityHeaders(role: Role, key: string): Record<string, string> {
 	const id = resolveIdentity();
 	const headers: Record<string, string> = {
-		"X-Weave-Router-Key": key,
+		"X-Aiand-Router-Key": key,
 		"X-App": role === "subagent" ? "pi-subagent" : "pi",
 	};
-	if (id.email) headers["X-Weave-User-Email"] = id.email;
-	if (id.name) headers["X-Weave-User-Name"] = id.name;
+	if (id.email) headers["X-Aiand-User-Email"] = id.email;
+	if (id.name) headers["X-Aiand-User-Name"] = id.name;
 	return headers;
 }
 
-/** The full static header set for this process's `weave` provider. */
+/** The full static header set for this process's `aiand` provider. */
 export function providerHeaders(role: Role, key: string): Record<string, string> {
 	return {
 		...identityHeaders(role, key),
 		...knobHeaders(knobsForRole(role)),
 		// pi surfaces the routed model in its status bar (from x-router-model), so
-		// opt out of the router's in-band "✦ Weave Router → …" badge — it arrives as
+		// opt out of the router's in-band "✦ Aiand Router → …" badge — it arrives as
 		// a separate text block that hides the answer in pi's renderer. (router #263)
-		"X-Weave-Routing-Marker": "off",
+		"X-Aiand-Routing-Marker": "off",
 	};
 }
 
@@ -223,20 +223,20 @@ export function providerHeaders(role: Role, key: string): Record<string, string>
 // Carried as a shared constant rather than relying on registerProvider preserving
 // an omitted `models` list, so the extension is self-sufficient: a freshly
 // dispatched child (and a `pi -e` smoke test with no models.json) can still
-// resolve `weave/<model>`. The list mirrors the installer's headline models;
+// resolve `aiand/<model>`. The list mirrors the installer's headline models;
 // the router re-routes every request regardless, so this is a UX/label surface.
 // The context windows mirror the router's catalog for these models (see
 // internal/router/catalog) so the footer and auto-compaction budget reflect
 // what the router actually serves; per-request reroutes can still land on a
 // different window, which the served-window header reports on the response.
-export const WEAVE_MODELS: ProviderModelConfig[] = [
-	model("claude-opus-4-8", "Claude Opus 4.8 (via Weave Router)", 64000, 1_000_000),
-	model("claude-opus-4-7", "Claude Opus 4.7 (via Weave Router)", 64000, 1_000_000),
-	model("claude-sonnet-4-6", "Claude Sonnet 4.6 (via Weave Router)", 64000, 1_000_000),
-	model("claude-haiku-4-5", "Claude Haiku 4.5 (via Weave Router)", 32000, 200_000),
-	model("grok-4.6", "Grok 4.6 (via Weave Router)", 131072, 500_000),
-	model("grok-4.7", "Grok 4.7 (via Weave Router)", 131072, 500_000),
-	model("qwen/qwen3.8-max", "Qwen 3.8 Max (via Weave Router)", 131072, 1_000_000),
+export const AIAND_MODELS: ProviderModelConfig[] = [
+	model("claude-opus-4-8", "Claude Opus 4.8 (via Aiand Router)", 64000, 1_000_000),
+	model("claude-opus-4-7", "Claude Opus 4.7 (via Aiand Router)", 64000, 1_000_000),
+	model("claude-sonnet-4-6", "Claude Sonnet 4.6 (via Aiand Router)", 64000, 1_000_000),
+	model("claude-haiku-4-5", "Claude Haiku 4.5 (via Aiand Router)", 32000, 200_000),
+	model("grok-4.6", "Grok 4.6 (via Aiand Router)", 131072, 500_000),
+	model("grok-4.7", "Grok 4.7 (via Aiand Router)", 131072, 500_000),
+	model("qwen/qwen3.8-max", "Qwen 3.8 Max (via Aiand Router)", 131072, 1_000_000),
 ];
 
 function model(id: string, name: string, maxTokens: number, contextWindow: number = 200000): ProviderModelConfig {
@@ -254,40 +254,40 @@ function model(id: string, name: string, maxTokens: number, contextWindow: numbe
 
 // ---------- dispatch / misc tunables ----------
 
-export const ROUTED_MODEL_HEADER = (process.env.WEAVE_ROUTED_MODEL_HEADER || "x-router-model").toLowerCase();
+export const ROUTED_MODEL_HEADER = (process.env.AIAND_ROUTED_MODEL_HEADER || "x-router-model").toLowerCase();
 export const ROUTED_PROVIDER_HEADER = "x-router-provider";
 export const ROUTER_DECISION_HEADER = "x-router-decision";
 /** Context window (tokens) of the model that actually served the routed response. */
 export const ROUTED_CONTEXT_WINDOW_HEADER = "x-router-context-window";
 /** Marker a headless child prints to stderr so the parent dispatch can read its routed model. */
-export const ROUTED_MODEL_STDERR_PREFIX = "weave-routed-model:";
+export const ROUTED_MODEL_STDERR_PREFIX = "aiand-routed-model:";
 
-export const SUBAGENT_MODEL = process.env.WEAVE_PI_SUBAGENT_MODEL?.trim() || "claude-sonnet-4-6";
-export const DISPATCH_CONCURRENCY = Math.max(1, numEnv("WEAVE_PI_DISPATCH_CONCURRENCY", 4));
+export const SUBAGENT_MODEL = process.env.AIAND_PI_SUBAGENT_MODEL?.trim() || "claude-sonnet-4-6";
+export const DISPATCH_CONCURRENCY = Math.max(1, numEnv("AIAND_PI_DISPATCH_CONCURRENCY", 4));
 export const MAX_SUBAGENTS = 8;
-export const SUBAGENT_TIMEOUT_MS = Math.max(1000, numEnv("WEAVE_PI_SUBAGENT_TIMEOUT_MS", 600000));
+export const SUBAGENT_TIMEOUT_MS = Math.max(1000, numEnv("AIAND_PI_SUBAGENT_TIMEOUT_MS", 600000));
 export const DEFAULT_READONLY_TOOLS = ["read", "grep", "find", "ls"];
 
 // ---------- LSP tunables ----------
 
 /** Idle window before an unused language server is shut down. */
-export const LSP_IDLE_MS = Math.max(10_000, numEnv("WEAVE_PI_LSP_IDLE_MS", 300_000));
-export const LSP_REQUEST_TIMEOUT_MS = Math.max(1000, numEnv("WEAVE_PI_LSP_REQUEST_TIMEOUT_MS", 15_000));
+export const LSP_IDLE_MS = Math.max(10_000, numEnv("AIAND_PI_LSP_IDLE_MS", 300_000));
+export const LSP_REQUEST_TIMEOUT_MS = Math.max(1000, numEnv("AIAND_PI_LSP_REQUEST_TIMEOUT_MS", 15_000));
 /** Budget for `initialize` and the first query, which race the server's initial indexing pass. */
-export const LSP_WARMUP_TIMEOUT_MS = Math.max(5000, numEnv("WEAVE_PI_LSP_WARMUP_TIMEOUT_MS", 60_000));
-export const LSP_DIAGNOSTICS_WAIT_MS = Math.max(500, numEnv("WEAVE_PI_LSP_DIAGNOSTICS_WAIT_MS", 3000));
-export const LSP_MAX_SERVERS = Math.max(1, numEnv("WEAVE_PI_LSP_MAX_SERVERS", 4));
-export const LSP_MAX_REFERENCES = Math.max(1, numEnv("WEAVE_PI_LSP_MAX_REFERENCES", 100));
+export const LSP_WARMUP_TIMEOUT_MS = Math.max(5000, numEnv("AIAND_PI_LSP_WARMUP_TIMEOUT_MS", 60_000));
+export const LSP_DIAGNOSTICS_WAIT_MS = Math.max(500, numEnv("AIAND_PI_LSP_DIAGNOSTICS_WAIT_MS", 3000));
+export const LSP_MAX_SERVERS = Math.max(1, numEnv("AIAND_PI_LSP_MAX_SERVERS", 4));
+export const LSP_MAX_REFERENCES = Math.max(1, numEnv("AIAND_PI_LSP_MAX_REFERENCES", 100));
 
 // Set by dispatch on children so a subagent reaches the parent's warm server
 // pool over a local socket instead of cold-starting its own gopls. Internal:
 // never set these yourself.
-export const LSP_BROKER_ENV = "WEAVE_PI_LSP_BROKER";
-export const LSP_BROKER_TOKEN_ENV = "WEAVE_PI_LSP_BROKER_TOKEN";
+export const LSP_BROKER_ENV = "AIAND_PI_LSP_BROKER";
+export const LSP_BROKER_TOKEN_ENV = "AIAND_PI_LSP_BROKER_TOKEN";
 
 // Tools that let a subagent mutate the filesystem or run arbitrary commands.
 // dispatch strips these from model-requested per-task `tools` (and downgrades
-// readOnly:false's "all tools") unless WEAVE_PI_ALLOW_SUBAGENT_TOOLS=1, so a
+// readOnly:false's "all tools") unless AIAND_PI_ALLOW_SUBAGENT_TOOLS=1, so a
 // prompt-injected main loop can't silently escalate a read-only fan-out into
 // writes/exec. The catastrophic-command gate in safety.ts is a separate, narrower
 // backstop; this is the capability gate.

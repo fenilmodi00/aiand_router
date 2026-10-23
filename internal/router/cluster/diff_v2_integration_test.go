@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/router"
 )
 
 // TestV2MatchesV1 is the release gate for the v2 routing migration.

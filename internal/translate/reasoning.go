@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/router"
 
 	"github.com/tidwall/gjson"
 )

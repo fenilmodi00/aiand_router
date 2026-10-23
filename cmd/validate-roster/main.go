@@ -8,7 +8,7 @@ import (
 	"io"
 	"os"
 
-	"weave-os/router/internal/router/hmm"
+	"aiand-os/router/internal/router/hmm"
 )
 
 func main() {

@@ -1,6 +1,6 @@
 // Package apm wires the OpenTelemetry SDK against an OTLP/gRPC collector so
 // HTTP spans and Go runtime metrics show up in the shared SigNoz instance
-// alongside the rest of Weave's services. It's independent of the router's
+// alongside the rest of Aiand's services. It's independent of the router's
 // own custom OTLP/HTTP emitter (internal/observability/otel), which keeps
 // publishing high-cardinality per-decision spans separately.
 //
@@ -25,9 +25,9 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
 
-	"weave-os/router/internal/config"
-	"weave-os/router/internal/observability"
-	"weave-os/router/internal/version"
+	"aiand-os/router/internal/config"
+	"aiand-os/router/internal/observability"
+	"aiand-os/router/internal/version"
 )
 
 // serviceName is the resource attribute the SigNoz UI groups spans + metrics
@@ -45,7 +45,7 @@ var (
 // still enables W3C trace-context propagation but does not export telemetry.
 // Idempotent.
 // Mirrors backend/internal/app/telemetry/otel.go's init() so the router
-// reports the same resource attribute shape as the rest of Weave.
+// reports the same resource attribute shape as the rest of Aiand.
 func Init() {
 	initOnce.Do(initLocked)
 }

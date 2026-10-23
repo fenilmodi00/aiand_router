@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"weave-os/router/internal/auth"
-	"weave-os/router/internal/flags"
-	"weave-os/router/internal/observability"
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/flags"
+	"aiand-os/router/internal/observability"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

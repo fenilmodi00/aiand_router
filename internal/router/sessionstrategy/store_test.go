@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"weave-os/router/internal/router"
-	"weave-os/router/internal/router/sessionstrategy"
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/sessionstrategy"
 
 	"github.com/stretchr/testify/assert"
 )

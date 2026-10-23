@@ -7,7 +7,7 @@ import (
 )
 
 func TestAnthropicClientResponseTextJSON(t *testing.T) {
-	body := []byte(`{"content":[{"type":"text","text":"✦ **Weave Router** → model\n\nanswer"},{"type":"server_tool_use","name":"web_search"},{"type":"web_search_tool_result"}]}`)
+	body := []byte(`{"content":[{"type":"text","text":"✦ **Aiand Router** → model\n\nanswer"},{"type":"server_tool_use","name":"web_search"},{"type":"web_search_tool_result"}]}`)
 	assert.Equal(t, "answer\n[tool call] web_search", AnthropicClientResponseText(body))
 }
 

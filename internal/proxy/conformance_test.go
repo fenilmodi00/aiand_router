@@ -19,16 +19,16 @@ import (
 	"strings"
 	"testing"
 
-	"weave-os/router/internal/providers"
-	"weave-os/router/internal/proxy"
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/router"
 
 	"github.com/stretchr/testify/require"
 )
 
 // routingMarkerHeader opts a request out of the per-turn routing badge so goldens
 // don't carry the volatile marker block (mirrors proxy.routingMarkerHeader).
-const routingMarkerHeader = "X-Weave-Routing-Marker"
+const routingMarkerHeader = "X-Aiand-Routing-Marker"
 
 type conformanceCase struct {
 	// name is the subtest name and the testdata golden path, e.g. "openai_chat/basic_text".

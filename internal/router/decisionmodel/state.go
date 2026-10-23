@@ -3,7 +3,7 @@ package decisionmodel
 import (
 	"strings"
 
-	"weave-os/router/internal/router"
+	"aiand-os/router/internal/router"
 )
 
 const (

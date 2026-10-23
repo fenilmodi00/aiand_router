@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"weave-os/router/internal/translate"
+	"aiand-os/router/internal/translate"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,7 +20,7 @@ func buildAnthropicSSE(eventType, data string) string {
 
 func TestAnthropicRoutingMarkerWriter_StreamingInjectsMarker(t *testing.T) {
 	rec := httptest.NewRecorder()
-	markerText := "✦ **Weave Router** → claude-opus-4 · best pick for this turn"
+	markerText := "✦ **Aiand Router** → claude-opus-4 · best pick for this turn"
 	w := translate.NewAnthropicRoutingMarkerWriter(rec, "claude-opus-4", markerText)
 
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -75,7 +75,7 @@ func TestAnthropicRoutingMarkerWriter_StreamingInjectsMarker(t *testing.T) {
 	assert.Equal(t, "content_block_delta", gjson.Get(deltaData, "type").String())
 	assert.EqualValues(t, 0, gjson.Get(deltaData, "index").Int())
 	assert.Equal(t, "text_delta", gjson.Get(deltaData, "delta.type").String())
-	assert.Contains(t, gjson.Get(deltaData, "delta.text").String(), "Weave Router")
+	assert.Contains(t, gjson.Get(deltaData, "delta.text").String(), "Aiand Router")
 	assert.Contains(t, gjson.Get(deltaData, "delta.text").String(), "claude-opus-4")
 
 	// Event 3: prelude content_block_stop at index 0
@@ -352,7 +352,7 @@ func TestAnthropicRoutingMarkerWriter_MarkerEmittedOnce(t *testing.T) {
 
 func TestAnthropicRoutingMarkerWriter_PreludeFiresBeforeUpstream(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewAnthropicRoutingMarkerWriter(rec, "claude-opus-4", "✦ Weave Router → claude-opus-4")
+	w := translate.NewAnthropicRoutingMarkerWriter(rec, "claude-opus-4", "✦ Aiand Router → claude-opus-4")
 
 	require.NoError(t, w.Prelude(true))
 
@@ -364,7 +364,7 @@ func TestAnthropicRoutingMarkerWriter_PreludeFiresBeforeUpstream(t *testing.T) {
 
 	// Verify prelude contains the marker text.
 	deltaData := extractDataField(events[2])
-	assert.Contains(t, gjson.Get(deltaData, "delta.text").String(), "Weave Router")
+	assert.Contains(t, gjson.Get(deltaData, "delta.text").String(), "Aiand Router")
 
 	// A subsequent upstream chunk must NOT trigger a duplicate marker.
 	upstream := buildAnthropicSSE("message_stop", `{"type":"message_stop"}`)
@@ -415,7 +415,7 @@ func extractDataField(event string) string {
 // (regression test for the persistent buffer fix).
 func TestAnthropicRoutingMarkerWriter_EventSplitAcrossWrites(t *testing.T) {
 	rec := httptest.NewRecorder()
-	markerText := "✦ **Weave Router** → claude-opus-4"
+	markerText := "✦ **Aiand Router** → claude-opus-4"
 	w := translate.NewAnthropicRoutingMarkerWriter(rec, "claude-opus-4", markerText)
 
 	w.Header().Set("Content-Type", "text/event-stream")
