@@ -27,10 +27,10 @@ func TestClientPostsVersionedRouteAndParsesPolicyMetadata(t *testing.T) {
 			SchemaVersion:        policy.SchemaVersionV1,
 			RouteID:              "route-1",
 			SelectedArmID:        "arm-kimi-fireworks",
-			SelectedRosterID:     "moonshotai/kimi-k2.7-code",
+			SelectedRosterID:     "moonshotai/kimi-k3",
 			SelectedProvider:     providers.ProviderAIAND,
 			ChosenScore:          floatPtr(0.91),
-			CandidateScores:      map[string]float32{"moonshotai/kimi-k2.7-code": 0.91},
+			CandidateScores:      map[string]float32{"moonshotai/kimi-k3": 0.91},
 			ScoreLabel:           "classifier_confidence",
 			Cluster:              "balanced",
 			ComplexityLabel:      "balanced",
@@ -60,7 +60,7 @@ func TestClientPostsVersionedRouteAndParsesPolicyMetadata(t *testing.T) {
 		RequestedModel:  "Aiand",
 		PromptText:      "hello",
 		RoutingIntent:   "high",
-		PreferredModels: []string{"moonshotai/kimi-k2.7"},
+		PreferredModels: []string{"moonshotai/kimi-k3"},
 		RoutingKnobs:    &router.Overrides{QualityBias: &qualityBias},
 		DebugEnabled:    true,
 		ConversationMessages: []router.ConversationMessage{
@@ -80,7 +80,7 @@ func TestClientPostsVersionedRouteAndParsesPolicyMetadata(t *testing.T) {
 			VisibleTurnIndex:    7,
 			SessionTurnCount:    9,
 			TurnType:            "sub_agent_dispatch",
-			PreviousServedModel: "z-ai/glm-5.2",
+			PreviousServedModel: "z-ai/glm-5.3",
 			PreviousProvider:    providers.ProviderAIAND,
 			CacheState:          router.PolicyCacheStateWarm,
 			PriorOutputTokens:   intPointer(321),
@@ -97,8 +97,8 @@ func TestClientPostsVersionedRouteAndParsesPolicyMetadata(t *testing.T) {
 		TrainingAllowed: true,
 		Candidates: []policy.Candidate{{
 			ArmID:          "arm-kimi-fireworks",
-			RosterID:       "moonshotai/kimi-k2.7-code",
-			CatalogID:      "moonshotai/kimi-k2.7",
+			RosterID:       "moonshotai/kimi-k3",
+			CatalogID:      "moonshotai/kimi-k3",
 			Provider:       providers.ProviderAIAND,
 			UpstreamID:     "accounts/fireworks/models/kimi-k2p5",
 			PreferenceRank: &preferenceRank,
@@ -115,7 +115,7 @@ func TestClientPostsVersionedRouteAndParsesPolicyMetadata(t *testing.T) {
 	assert.Equal(t, "codex", got.Harness)
 	assert.Equal(t, "rollout-1", got.RolloutID)
 	assert.Equal(t, "high", got.RoutingIntent)
-	assert.Equal(t, []string{"moonshotai/kimi-k2.7"}, got.PreferredModels)
+	assert.Equal(t, []string{"moonshotai/kimi-k3"}, got.PreferredModels)
 	require.NotNil(t, got.QualityBias)
 	assert.Equal(t, 0.7, *got.QualityBias)
 	assert.True(t, got.TrainingAllowed)
@@ -127,7 +127,7 @@ func TestClientPostsVersionedRouteAndParsesPolicyMetadata(t *testing.T) {
 	require.NotNil(t, got.SessionTurnCount)
 	assert.Equal(t, 9, *got.SessionTurnCount)
 	assert.Equal(t, "sub_agent_dispatch", got.TurnType)
-	assert.Equal(t, "z-ai/glm-5.2", got.PreviousServedModel)
+	assert.Equal(t, "z-ai/glm-5.3", got.PreviousServedModel)
 	assert.Equal(t, providers.ProviderAIAND, got.PreviousProvider)
 	assert.Equal(t, router.PolicyCacheStateWarm, got.CacheState)
 	require.NotNil(t, got.PriorOutputTokens)
@@ -156,7 +156,7 @@ func TestClientPostsVersionedRouteAndParsesPolicyMetadata(t *testing.T) {
 	require.Len(t, got.Candidates, 1)
 	assert.Empty(t, got.Candidates[0].ArmID)
 	assert.Nil(t, got.Candidates[0].BindingIndex)
-	assert.Equal(t, "moonshotai/kimi-k2.7", got.Candidates[0].CatalogID)
+	assert.Equal(t, "moonshotai/kimi-k3", got.Candidates[0].CatalogID)
 	assert.Equal(t, "accounts/fireworks/models/kimi-k2p5", got.Candidates[0].UpstreamID)
 	assert.Equal(t, "balanced|open", result.PolicyRouteKey)
 	assert.Equal(t, providers.ProviderAIAND, result.Provider)
@@ -166,7 +166,7 @@ func TestClientPostsVersionedRouteAndParsesPolicyMetadata(t *testing.T) {
 	assert.Equal(t, "arm-kimi-fireworks", result.ArmID)
 	assert.Equal(t, "debug-1", result.DebugRef)
 	assert.Equal(t, 0.91, result.Score)
-	assert.Equal(t, map[string]float32{"moonshotai/kimi-k2.7-code": 0.91}, result.CandidateScores)
+	assert.Equal(t, map[string]float32{"moonshotai/kimi-k3": 0.91}, result.CandidateScores)
 }
 
 func validClassifierResponseV4() classifierResponseV4 {
@@ -307,7 +307,7 @@ func decideWithTimings(t *testing.T, timings *routeTimings) policy.Result {
 	defer server.Close()
 
 	result, err := New(server.URL, server.Client(), 0).Decide(context.Background(), policy.Query{
-		Candidates: []policy.Candidate{{RosterID: "anthropic/claude-opus-4-8", CatalogID: "z-ai/glm-5.2", Provider: providers.ProviderAIAND}},
+		Candidates: []policy.Candidate{{RosterID: "anthropic/claude-opus-4-8", CatalogID: "z-ai/glm-5.3", Provider: providers.ProviderAIAND}},
 	})
 	require.NoError(t, err)
 	return result
@@ -354,7 +354,7 @@ func TestClientDecideLeavesTimingsNilWhenOmittedEntirely(t *testing.T) {
 	defer server.Close()
 
 	result, err := New(server.URL, server.Client(), 0).Decide(context.Background(), policy.Query{
-		Candidates: []policy.Candidate{{RosterID: "anthropic/claude-opus-4-8", CatalogID: "z-ai/glm-5.2", Provider: providers.ProviderAIAND}},
+		Candidates: []policy.Candidate{{RosterID: "anthropic/claude-opus-4-8", CatalogID: "z-ai/glm-5.3", Provider: providers.ProviderAIAND}},
 	})
 
 	require.NoError(t, err)
@@ -542,7 +542,7 @@ func TestClientAcceptsLegacyRouteResponse(t *testing.T) {
 	defer server.Close()
 
 	result, err := New(server.URL, server.Client(), 0).Decide(context.Background(), policy.Query{
-		Candidates: []policy.Candidate{{RosterID: "anthropic/claude-opus-4-8", CatalogID: "z-ai/glm-5.2", Provider: providers.ProviderAIAND}},
+		Candidates: []policy.Candidate{{RosterID: "anthropic/claude-opus-4-8", CatalogID: "z-ai/glm-5.3", Provider: providers.ProviderAIAND}},
 	})
 
 	require.NoError(t, err)

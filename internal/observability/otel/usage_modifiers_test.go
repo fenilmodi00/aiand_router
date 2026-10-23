@@ -16,8 +16,8 @@ import (
 // service_tier and inference_geo ride on the full usage object, while
 // message_delta repeats only the token totals.
 const (
-	anthropicSplitBody   = `{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"text","text":"ok"}],"model":"z-ai/glm-5.2","stop_reason":"end_turn","usage":{"input_tokens":3,"cache_creation_input_tokens":322,"cache_read_input_tokens":8895,"cache_creation":{"ephemeral_5m_input_tokens":22,"ephemeral_1h_input_tokens":300},"output_tokens":4,"service_tier":"standard","speed":"fast","inference_geo":"us"}}`
-	anthropicNoSplitBody = `{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"text","text":"ok"}],"model":"z-ai/glm-5.2","stop_reason":"end_turn","usage":{"input_tokens":3,"cache_creation_input_tokens":322,"cache_read_input_tokens":8895,"output_tokens":4}}`
+	anthropicSplitBody   = `{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"text","text":"ok"}],"model":"z-ai/glm-5.3","stop_reason":"end_turn","usage":{"input_tokens":3,"cache_creation_input_tokens":322,"cache_read_input_tokens":8895,"cache_creation":{"ephemeral_5m_input_tokens":22,"ephemeral_1h_input_tokens":300},"output_tokens":4,"service_tier":"standard","speed":"fast","inference_geo":"us"}}`
+	anthropicNoSplitBody = `{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"text","text":"ok"}],"model":"z-ai/glm-5.3","stop_reason":"end_turn","usage":{"input_tokens":3,"cache_creation_input_tokens":322,"cache_read_input_tokens":8895,"output_tokens":4}}`
 )
 
 func writeAll(t *testing.T, ext *otel.UsageExtractor, chunks ...string) {

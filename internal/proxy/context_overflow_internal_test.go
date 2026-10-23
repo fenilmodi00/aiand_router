@@ -19,7 +19,7 @@ import (
 // untouched when every model fits.
 func TestExcludeContextOverflowModels_NoOverflowUnderWindow(t *testing.T) {
 	available := map[string]struct{}{
-		"z-ai/glm-5.2":       {},
+		"z-ai/glm-5.3":       {},
 		"z-ai/glm-5.3-flash": {},
 	}
 
@@ -78,8 +78,8 @@ func TestWithoutModelsKeep_PreservesIndependentExclusions(t *testing.T) {
 }
 
 func TestContextWindowOnlyExclusions_DropsAdmittedAndUnsigned(t *testing.T) {
-	overflowed := []string{"deepseek/deepseek-v4.1-flash", "z-ai/glm-5.2", "gemini-3.1-pro-preview"}
-	out := contextWindowOnlyExclusions(overflowed, []string{"z-ai/glm-5.2"}, []string{"gemini-3.1-pro-preview"})
+	overflowed := []string{"deepseek/deepseek-v4.1-flash", "z-ai/glm-5.3", "gemini-3.1-pro-preview"}
+	out := contextWindowOnlyExclusions(overflowed, []string{"z-ai/glm-5.3"}, []string{"gemini-3.1-pro-preview"})
 	assert.Equal(t, map[string]struct{}{"deepseek/deepseek-v4.1-flash": {}}, out,
 		"admitted models already serve and unsigned-history models stay out for their own reason")
 	assert.Nil(t, contextWindowOnlyExclusions(nil, nil, nil))

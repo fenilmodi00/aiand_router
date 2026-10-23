@@ -64,7 +64,7 @@ func TestStripAnthropicBillingHeader(t *testing.T) {
 // "\n?" would skip the strip; this test guards against that regression.
 func TestPrepareOpenAIStripsBillingHeaderFromSystemArray(t *testing.T) {
 	inbound := []byte(`{
-		"model": "z-ai/glm-5.2",
+		"model": "z-ai/glm-5.3",
 		"max_tokens": 64,
 		"system": [
 			{"type": "text", "text": "x-anthropic-billing-header: cc_version=2.1.141.bb8; cc_entrypoint=cli; cch=6c6ec;"},
@@ -88,7 +88,7 @@ func TestPrepareOpenAIStripsBillingHeaderFromSystemArray(t *testing.T) {
 // twin of the OpenAI test above — same inbound shape, same expectation.
 func TestPrepareGeminiStripsBillingHeaderFromSystemArray(t *testing.T) {
 	inbound := []byte(`{
-		"model": "z-ai/glm-5.2",
+		"model": "z-ai/glm-5.3",
 		"max_tokens": 64,
 		"system": [
 			{"type": "text", "text": "x-anthropic-billing-header: cc_version=2.1.141.bb8; cc_entrypoint=cli; cch=6c6ec;"},

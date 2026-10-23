@@ -92,7 +92,7 @@ func largeBody(t *testing.T) []byte {
 	t.Helper()
 	prompt := strings.Repeat("aaaa ", 8000) // ~10k tokens
 	return []byte(`{
-		"model":"z-ai/glm-5.2",
+		"model":"z-ai/glm-5.3",
 		"system":"sys",
 		"messages":[{"role":"user","content":"` + prompt + `"}]
 	}`)
@@ -112,7 +112,7 @@ func largeMultiTurnBody(t *testing.T) []byte {
 		`{"role":"user","content":"` + chunk + `"}`,
 		`{"role":"user","content":"latest question"}`,
 	}
-	return []byte(`{"model":"z-ai/glm-5.2","system":"sys","messages":[` + strings.Join(msgs, ",") + `]}`)
+	return []byte(`{"model":"z-ai/glm-5.3","system":"sys","messages":[` + strings.Join(msgs, ",") + `]}`)
 }
 
 // forwardedMessageCount returns the number of messages in the body the
@@ -143,7 +143,7 @@ func newPinSvcCapturing(fr *fakeRouter, store *fakePinStore) (*proxy.Service, *f
 }
 
 const toolResultPinnedBody = `{
-	"model":"z-ai/glm-5.2",
+	"model":"z-ai/glm-5.3",
 	"system":"sys",
 	"messages":[
 		{"role":"user","content":"plan"},
@@ -166,7 +166,7 @@ func trimSessionTurn(t *testing.T, msgCount int) []byte {
 		msgs = append(msgs, `{"role":"`+role+`","content":"TRIM-SESSION turn `+itoa(i)+`"}`)
 	}
 	msgs[0] = `{"role":"user","content":"TRIM-SESSION refactor the dispatch loop"}`
-	return []byte(`{"model":"z-ai/glm-5.2","system":"sys","messages":[` + strings.Join(msgs, ",") + `]}`)
+	return []byte(`{"model":"z-ai/glm-5.3","system":"sys","messages":[` + strings.Join(msgs, ",") + `]}`)
 }
 
 // warmOpusPin's prior turn billed 1.5k input tokens seconds ago (warm), so an
@@ -175,7 +175,7 @@ func trimSessionTurn(t *testing.T, msgCount int) []byte {
 func warmOpusPin() sessionpin.Pin {
 	return sessionpin.Pin{
 		Provider:        providers.ProviderAIAND,
-		Model:           "z-ai/glm-5.2",
+		Model:           "z-ai/glm-5.3",
 		Reason:          "cluster:v0.2",
 		PinnedUntil:     time.Now().Add(time.Hour),
 		LastInputTokens: 1500,

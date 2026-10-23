@@ -166,10 +166,10 @@ func blindExperimentUtilityTurnBodies() []struct {
 		turnType turntype.TurnType
 		body     string
 	}{
-		{turntype.Probe, `{"model":"z-ai/glm-5.2","max_tokens":1,"messages":[{"role":"user","content":"quota"}]}`},
-		{turntype.TitleGen, `{"model":"z-ai/glm-5.2","max_tokens":1024,"output_config":{"format":{"type":"json_schema","schema":{"type":"object","properties":{"title":{"type":"string"}},"required":["title"]}}},"messages":[{"role":"user","content":"title"}]}`},
-		{turntype.Compaction, `{"model":"z-ai/glm-5.2","max_tokens":1024,"system":"Your task is to create a detailed summary","messages":[{"role":"user","content":"summary"}]}`},
-		{turntype.SubAgentDispatch, `{"model":"z-ai/glm-5.2","max_tokens":1024,"metadata":{"user_id":"subagent:Explore"},"messages":[{"role":"user","content":"list go files"}]}`},
+		{turntype.Probe, `{"model":"moonshotai/kimi-k3","max_tokens":1,"messages":[{"role":"user","content":"quota"}]}`},
+		{turntype.TitleGen, `{"model":"moonshotai/kimi-k3","max_tokens":1024,"output_config":{"format":{"type":"json_schema","schema":{"type":"object","properties":{"title":{"type":"string"}},"required":["title"]}}},"messages":[{"role":"user","content":"title"}]}`},
+		{turntype.Compaction, `{"model":"moonshotai/kimi-k3","max_tokens":1024,"system":"Your task is to create a detailed summary","messages":[{"role":"user","content":"summary"}]}`},
+		{turntype.SubAgentDispatch, `{"model":"moonshotai/kimi-k3","max_tokens":1024,"metadata":{"user_id":"subagent:Explore"},"messages":[{"role":"user","content":"list go files"}]}`},
 	}
 }
 
@@ -213,7 +213,7 @@ func TestBlindExperimentPassthroughOutranksUtilityHardPins(t *testing.T) {
 			assert.True(t, loopResult.CallerModelPassthrough)
 			assert.False(t, loopResult.HardPinned)
 			assert.Empty(t, loopResult.Purpose, "a passthrough turn is not authorized as deployment utility work")
-			assert.Equal(t, "z-ai/glm-5.2", loopResult.Decision.Model)
+			assert.Equal(t, "moonshotai/kimi-k3", loopResult.Decision.Model)
 			assert.Equal(t, providers.ProviderAIAND, loopResult.Decision.Provider)
 			assert.Equal(t, blindExperimentPublicDecisionReason, loopResult.Decision.Reason)
 		})
@@ -235,7 +235,7 @@ func TestBlindExperimentRouterOnKeepsExplicitUtilityHardPins(t *testing.T) {
 			case turntype.SubAgentDispatch:
 				assert.Equal(t, experimentSubAgentOverrideModel, loopResult.Decision.Model)
 			default:
-				assert.NotEqual(t, catalog.ModelIDGLM52.String(), loopResult.Decision.Model)
+				assert.Equal(t, catalog.ModelIDGLM53.String(), loopResult.Decision.Model, "compaction hard-pins to the compaction model, not the caller's")
 			}
 		})
 	}
@@ -263,7 +263,7 @@ func TestBlindExperimentPassthroughKeepsUtilityHardPinsUnderPolicyPin(t *testing
 			case turntype.SubAgentDispatch:
 				assert.Equal(t, experimentSubAgentOverrideModel, loopResult.Decision.Model)
 			default:
-				assert.NotEqual(t, catalog.ModelIDGLM52.String(), loopResult.Decision.Model)
+				assert.Equal(t, catalog.ModelIDGLM53.String(), loopResult.Decision.Model, "compaction hard-pins to the compaction model, not the caller's")
 			}
 		})
 	}
@@ -276,7 +276,7 @@ func TestBlindExperimentPassthroughYieldsUtilityTurnToForceModel(t *testing.T) {
 	routerSpy := &blindExperimentRouterSpy{err: errors.New("scorer must not run")}
 	service := NewService(routerSpy, nil, nil, false, nil, newStubPinStore(), false,
 		providers.ProviderAIAND, "gemini-3.1-flash-lite-preview", nil)
-	envelope, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.2","max_tokens":1,"messages":[{"role":"user","content":"quota"}]}`))
+	envelope, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.3","max_tokens":1,"messages":[{"role":"user","content":"quota"}]}`))
 	require.NoError(t, err)
 
 	loopResult, err := service.runTurnLoop(
@@ -288,7 +288,7 @@ func TestBlindExperimentPassthroughYieldsUtilityTurnToForceModel(t *testing.T) {
 		"",
 		http.Header{},
 		router.Request{
-			RequestedModel:   "z-ai/glm-5.2",
+			RequestedModel:   "z-ai/glm-5.3",
 			ForceModel:       "deepseek/deepseek-v4.1-flash",
 			EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}},
 		},

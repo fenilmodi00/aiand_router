@@ -92,7 +92,7 @@ func emittedResponsesToolNames(t *testing.T, body []byte) []string {
 // claudeCodeMixedToolBody is a representative Anthropic request body carrying
 // coding + scheduling tools interleaved with CC-only control-plane tools.
 const claudeCodeMixedToolBody = `{
-	"model":"z-ai/glm-5.2",
+	"model":"z-ai/glm-5.3",
 	"system":"You are a helpful coding assistant.",
 	"messages":[{"role":"user","content":"fix the bug"}],
 	"tools":[
@@ -186,7 +186,7 @@ func TestStripCCTools_AnthropicSourceAnthropicTarget_KeepsCCOnly(t *testing.T) {
 	env, err := translate.ParseAnthropic([]byte(claudeCodeMixedToolBody))
 	require.NoError(t, err)
 
-	out, err := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "z-ai/glm-5.2"})
+	out, err := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "z-ai/glm-5.3"})
 	require.NoError(t, err)
 
 	var doc map[string]any
@@ -245,7 +245,7 @@ func TestKeepOrchestrationTools_OpenAITarget_KeepsOrchestrationDropsRest(t *test
 
 func TestKeepOrchestrationTools_OpenAITarget_NormalizesTypelessAnyOf(t *testing.T) {
 	body := `{
-		"model":"z-ai/glm-5.2",
+		"model":"z-ai/glm-5.3",
 		"messages":[{"role":"user","content":"run a workflow"}],
 		"tools":[{
 			"name":"Workflow",
@@ -302,7 +302,7 @@ func TestDeferredMCPToolSearchSurvivesCrossVendorEmit(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("OpenAI chat", func(t *testing.T) {
-		out, err := env.PrepareOpenAI(nil, translate.EmitOptions{TargetModel: "moonshotai/kimi-k2.7"})
+		out, err := env.PrepareOpenAI(nil, translate.EmitOptions{TargetModel: "moonshotai/kimi-k3"})
 		require.NoError(t, err)
 		assert.ElementsMatch(t, []string{"Read", "Bash", "ToolSearch"}, emittedToolNames(t, out.Body))
 		assert.Equal(t, 1, out.Stats.CCOnlyToolsStripped, "Skill is stripped but ToolSearch is not counted")
@@ -325,7 +325,7 @@ func TestDeferredMCPToolSearchSurvivesCrossVendorEmit(t *testing.T) {
 	})
 
 	t.Run("OpenAI Responses", func(t *testing.T) {
-		out, err := env.PrepareOpenAIResponses(nil, translate.EmitOptions{TargetModel: "moonshotai/kimi-k2.7"})
+		out, err := env.PrepareOpenAIResponses(nil, translate.EmitOptions{TargetModel: "moonshotai/kimi-k3"})
 		require.NoError(t, err)
 		assert.ElementsMatch(t, []string{"Read", "Bash", "ToolSearch"}, emittedResponsesToolNames(t, out.Body))
 		assert.Equal(t, 1, out.Stats.CCOnlyToolsStripped, "Skill is stripped but ToolSearch is not counted")
@@ -361,7 +361,7 @@ func TestStripCCTools_NoCCToolsNoRewrite(t *testing.T) {
 	// When the request carries no CC-only tools, the filter must not
 	// re-serialize the body (cheap fast path).
 	src := []byte(`{
-		"model":"z-ai/glm-5.2",
+		"model":"z-ai/glm-5.3",
 		"system":"sys",
 		"messages":[{"role":"user","content":"hi"}],
 		"tools":[
@@ -383,7 +383,7 @@ func TestStripCCTools_NoToolsAtAll(t *testing.T) {
 	// Requests without a tools field must pass through unchanged — the
 	// filter is a no-op on the most common shape.
 	src := []byte(`{
-		"model":"z-ai/glm-5.2",
+		"model":"z-ai/glm-5.3",
 		"messages":[{"role":"user","content":"hi"}],
 		"max_tokens":256
 	}`)
@@ -404,7 +404,7 @@ func TestStripCCTools_AllToolsCCOnly_DropsToEmpty(t *testing.T) {
 	// tools array. Downstream emit must treat this as no-tools (the
 	// reminder gate uses hasNonEmptyTools which checks length).
 	src := []byte(`{
-		"model":"z-ai/glm-5.2",
+		"model":"z-ai/glm-5.3",
 		"messages":[{"role":"user","content":"hi"}],
 		"tools":[
 			{"name":"Task","input_schema":{"type":"object"}},

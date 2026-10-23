@@ -146,9 +146,9 @@ func TestTotalOverflowIgnoresWiderUnservableModel(t *testing.T) {
 	// ~900k-token estimate plus a 128k output reserve: past a 1M window, inside
 	// Gemini's 1,048,576 one.
 	prompt := strings.Repeat("overflow ", 400_000)
-	body := `{"model":"z-ai/glm-5.2","max_tokens":128000,"messages":[{"role":"user","content":"` + prompt + `"}]}`
+	body := `{"model":"z-ai/glm-5.3","max_tokens":128000,"messages":[{"role":"user","content":"` + prompt + `"}]}`
 	upstream := overflowingProvider(`{"type":"error","error":{"type":"invalid_request_error","message":"prompt is too long: 1100000 tokens > 1000000 maximum"}}`)
-	svc := hmmOverflowService(providers.ProviderAIAND, upstream, "z-ai/glm-5.2", "gemini-3.5-flash")
+	svc := hmmOverflowService(providers.ProviderAIAND, upstream, "z-ai/glm-5.3", "gemini-3.5-flash")
 	ctx := router.WithStrategy(authedCtx(overflowInstallationID), router.StrategyHMM)
 
 	err := svc.ProxyMessages(ctx, []byte(body), httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/v1/messages", nil))
@@ -164,10 +164,10 @@ func TestTotalOverflowIgnoresWiderUnservableModel(t *testing.T) {
 // its model selection to widen.
 func TestHMMPolicyEmptiedPoolStaysNoRoutableModels(t *testing.T) {
 	upstream := &fakeProvider{}
-	svc := hmmOverflowService(providers.ProviderAIAND, upstream, "z-ai/glm-5.2", "z-ai/glm-5.3-flash")
+	svc := hmmOverflowService(providers.ProviderAIAND, upstream, "z-ai/glm-5.3", "z-ai/glm-5.3-flash")
 	ctx := context.WithValue(router.WithStrategy(authedCtx(overflowInstallationID), router.StrategyHMM),
-		proxy.InstallationExcludedModelsContextKey{}, []string{"z-ai/glm-5.2", "z-ai/glm-5.3-flash"})
-	body := []byte(`{"model":"z-ai/glm-5.2","max_tokens":1024,"messages":[{"role":"user","content":"hi"}]}`)
+		proxy.InstallationExcludedModelsContextKey{}, []string{"z-ai/glm-5.3", "z-ai/glm-5.3-flash"})
+	body := []byte(`{"model":"z-ai/glm-5.3","max_tokens":1024,"messages":[{"role":"user","content":"hi"}]}`)
 
 	err := svc.ProxyMessages(ctx, body, httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/v1/messages", nil))
 

@@ -61,7 +61,7 @@ func TestCommandOutcomesAcrossSurfaces(t *testing.T) {
 					{"/fm opus", translate.CommandForceModel, translate.PinUnchanged, translate.CommandRejected, true},
 					{"/unforce-model", translate.CommandForceModel, translate.PinCleared, translate.CommandAccepted, false},
 				} {
-					body := map[string]any{"model": "z-ai/glm-5.2", "stream": streaming, "max_tokens": 100}
+					body := map[string]any{"model": "z-ai/glm-5.3", "stream": streaming, "max_tokens": 100}
 					input := []map[string]string{{"role": "user", "content": command.text}}
 					if surface == translate.FormatOpenAIResponses {
 						body["input"] = input
@@ -74,7 +74,7 @@ func TestCommandOutcomesAcrossSurfaces(t *testing.T) {
 					req := httptest.NewRequest(http.MethodPost, "/", nil)
 					requestContext := ctx
 					if command.excluded {
-						requestContext = context.WithValue(ctx, InstallationExcludedModelsContextKey{}, []string{"z-ai/glm-5.2"})
+						requestContext = context.WithValue(ctx, InstallationExcludedModelsContextKey{}, []string{"z-ai/glm-5.3"})
 					}
 					switch surface {
 					case translate.FormatAnthropic:
@@ -92,7 +92,7 @@ func TestCommandOutcomesAcrossSurfaces(t *testing.T) {
 					assert.False(t, seen[outcome.ID])
 					seen[outcome.ID] = true
 					if outcome.Pin.Transition == translate.PinApplied {
-						assert.Equal(t, "z-ai/glm-5.2", outcome.Pin.Model)
+						assert.Equal(t, "z-ai/glm-5.3", outcome.Pin.Model)
 						assert.Equal(t, providers.ProviderAIAND, outcome.Pin.Provider)
 						assert.Equal(t, "high", outcome.Pin.Effort)
 					}
@@ -115,7 +115,7 @@ func TestCommandOutcomesAcrossSurfaces(t *testing.T) {
 						if command.transition == translate.PinCleared {
 							assert.Equal(t, userUnforcedReason, pin.Reason)
 						} else {
-							assert.Equal(t, "z-ai/glm-5.2", pin.Model)
+							assert.Equal(t, "z-ai/glm-5.3", pin.Model)
 						}
 					}
 				}
@@ -183,5 +183,5 @@ func TestAcknowledgmentWriteFailureDoesNotUndoPin(t *testing.T) {
 	pin, found, err := store.Get(context.Background(), key, forceModelSessionRole)
 	require.NoError(t, err)
 	require.True(t, found)
-	assert.Equal(t, "z-ai/glm-5.2", pin.Model)
+	assert.Equal(t, "z-ai/glm-5.3", pin.Model)
 }

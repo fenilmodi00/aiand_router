@@ -185,7 +185,7 @@ func TestWithSubscriberAllowance_ScopesAgentShadowWithoutSpendingAllowance(t *te
 	engine.POST("/v1/messages", func(c *gin.Context) {
 		c.Set("router_api_key", subscriberAPIKey())
 		c.Request = c.Request.WithContext(context.WithValue(c.Request.Context(), proxy.AgentShadowEvalContextKey{}, proxy.AgentShadowEvaluation{
-			Model:     "z-ai/glm-5.2",
+			Model:     "z-ai/glm-5.3",
 			RolloutID: "rollout-1",
 			StateID:   "state-1",
 		}))

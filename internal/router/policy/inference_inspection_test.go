@@ -64,7 +64,7 @@ func TestInspect_RouterPurposeUsesDeploymentServingUniverse(t *testing.T) {
 	// routable catalog set: tiered rows only. A pin-only (untiered) row has
 	// bindings and is dispatchable by explicit force, but it is never an
 	// automatic routing target, so inspection must refuse it.
-	request := InspectionRequest{Purpose: PurposeOpenAIResponses, Model: "z-ai/glm-5.2"}
+	request := InspectionRequest{Purpose: PurposeOpenAIResponses, Model: "deepseek/deepseek-v4-pro-0813"}
 
 	_, err = resolver.Inspect(request, DeploymentPolicyConfig{AvailableProviders: available})
 	var resolution *ResolutionError

@@ -20,8 +20,8 @@ func TestContextManagement_DedupesClientBeta(t *testing.T) {
 	in.Set("anthropic-beta", "context-management-2025-06-27")
 
 	prep, err := env.PrepareAnthropic(in, translate.EmitOptions{
-		TargetModel:  "z-ai/glm-5.2",
-		Capabilities: router.Lookup("z-ai/glm-5.2"),
+		TargetModel:  "z-ai/glm-5.3",
+		Capabilities: router.Lookup("z-ai/glm-5.3"),
 	})
 
 	require.NoError(t, err)
@@ -29,12 +29,12 @@ func TestContextManagement_DedupesClientBeta(t *testing.T) {
 }
 
 func TestContextManagement_AbsentDoesNotInjectBeta(t *testing.T) {
-	env, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.2","max_tokens":1024,"messages":[{"role":"user","content":"hi"}]}`))
+	env, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.3","max_tokens":1024,"messages":[{"role":"user","content":"hi"}]}`))
 	require.NoError(t, err)
 
 	prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{
-		TargetModel:  "z-ai/glm-5.2",
-		Capabilities: router.Lookup("z-ai/glm-5.2"),
+		TargetModel:  "z-ai/glm-5.3",
+		Capabilities: router.Lookup("z-ai/glm-5.3"),
 	})
 
 	require.NoError(t, err)

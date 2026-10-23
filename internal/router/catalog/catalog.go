@@ -168,12 +168,8 @@ const (
 	ModelIDDeepSeekV4Pro ModelID = "deepseek/deepseek-v4-pro"
 	// ModelIDDeepSeekV4Pro0813 is the dated DeepSeek V4 Pro routing ID.
 	ModelIDDeepSeekV4Pro0813 ModelID = "deepseek/deepseek-v4-pro-0813"
-	// ModelIDKimiK27 is the Kimi K2.7 routing ID.
-	ModelIDKimiK27 ModelID = "moonshotai/kimi-k2.7"
 	// ModelIDKimiK3 is the Kimi K3 routing ID.
 	ModelIDKimiK3 ModelID = "moonshotai/kimi-k3"
-	// ModelIDGLM52 is the GLM-5.2 routing ID.
-	ModelIDGLM52 ModelID = "z-ai/glm-5.2"
 	// ModelIDGLM53 is the GLM-5.3 routing ID.
 	ModelIDGLM53 ModelID = "z-ai/glm-5.3"
 	// ModelIDGLM53Flash is the GLM-5.3 Flash routing ID.
@@ -294,22 +290,12 @@ var Models = []Model{
 		{Provider: providers.ProviderAIAND, UpstreamID: "deepseek-ai/deepseek-v4-pro",
 			Price: Pricing{InputUSDPer1M: 1.000, OutputUSDPer1M: 2.500, CacheReadMultiplier: 0.25 / 1.000}},
 	}},
-	// kimi-k2.7 "Code" variant: ~30% less thinking-token usage. Pin-only.
-	{ID: ModelIDKimiK27.String(), Source: SourceOpenSource, ContextWindow: 262_144, ImageInput: ImageInputUnsupported, Providers: []ProviderBinding{
-		{Provider: providers.ProviderAIAND, UpstreamID: "moonshotai/kimi-k2.7-code",
-			Price: Pricing{InputUSDPer1M: 0.750, OutputUSDPer1M: 3.500, CacheReadMultiplier: 0.20 / 0.750}},
-	}},
 	// kimi-k3 is a separate price class from k2.7 ($3/$12.50 vs $0.75/$3.50).
 	// First multimodal Kimi, so unlike k2.5-k2.7 it carries no
 	// ImageInputUnsupported.
 	{ID: ModelIDKimiK3.String(), Source: SourceOpenSource, Tier: TierHigh, ContextWindow: 1_048_576, ReasoningEfforts: effortsLowHighMax, DefaultEffort: effortMax, Providers: []ProviderBinding{
 		{Provider: providers.ProviderAIAND, UpstreamID: "moonshotai/kimi-k3",
 			Price: Pricing{InputUSDPer1M: 3.000, OutputUSDPer1M: 12.500, CacheReadMultiplier: 0.50 / 3.000}},
-	}},
-	// GLM-5.2. Pin-only.
-	{ID: ModelIDGLM52.String(), Source: SourceOpenSource, ContextWindow: 1_048_576, ImageInput: ImageInputUnsupported, Providers: []ProviderBinding{
-		{Provider: providers.ProviderAIAND, UpstreamID: "zai-org/glm-5.2",
-			Price: Pricing{InputUSDPer1M: 1.000, OutputUSDPer1M: 4.000, CacheReadMultiplier: 0.30 / 1.000}},
 	}},
 	// GLM-5.3: text-only (AA inputModalityImage=false). ContextWindow is
 	// 1,048,576, not 1,310,720 (Cloudflare-only) — overstating causes

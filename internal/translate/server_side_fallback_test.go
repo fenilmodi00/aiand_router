@@ -13,7 +13,7 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-const serverSideFallbackBody = `{"model":"z-ai/glm-5.2","max_tokens":1024,"messages":[{"role":"user","content":"hi"}]}`
+const serverSideFallbackBody = `{"model":"z-ai/glm-5.3","max_tokens":1024,"messages":[{"role":"user","content":"hi"}]}`
 
 func prepareWithFallback(t *testing.T, in http.Header, body string, opts translate.EmitOptions) providers.PreparedRequest {
 	t.Helper()

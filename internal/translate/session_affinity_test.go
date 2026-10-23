@@ -14,7 +14,7 @@ import (
 const affinityKey = "0123456789abcdef0123456789abcdef"
 
 func anthropicSrc() []byte {
-	return []byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"hi"}],"max_tokens":256}`)
+	return []byte(`{"model":"z-ai/glm-5.3","messages":[{"role":"user","content":"hi"}],"max_tokens":256}`)
 }
 
 func promptCacheKey(t *testing.T, body []byte) (string, bool) {
@@ -96,12 +96,12 @@ func metadataUserID(t *testing.T, body []byte) (string, bool) {
 }
 
 func TestSessionAffinity_AnthropicGatewayPreservesCallerUserID(t *testing.T) {
-	src := []byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"hi"}],"max_tokens":256,"metadata":{"user_id":"caller-session-1"}}`)
+	src := []byte(`{"model":"z-ai/glm-5.3","messages":[{"role":"user","content":"hi"}],"max_tokens":256,"metadata":{"user_id":"caller-session-1"}}`)
 	env, err := translate.ParseAnthropic(src)
 	require.NoError(t, err)
 
 	out, err := env.PrepareAnthropic(nil, translate.EmitOptions{
-		TargetModel:     "z-ai/glm-5.2",
+		TargetModel:     "z-ai/glm-5.3",
 		TargetProvider:  providers.ProviderAIAND,
 		SessionAffinity: affinityKey,
 	})
@@ -117,7 +117,7 @@ func TestSessionAffinity_DirectAnthropicStaysUnhinted(t *testing.T) {
 	require.NoError(t, err)
 
 	out, err := env.PrepareAnthropic(nil, translate.EmitOptions{
-		TargetModel:     "z-ai/glm-5.2",
+		TargetModel:     "z-ai/glm-5.3",
 		TargetProvider:  providers.ProviderAIAND,
 		SessionAffinity: affinityKey,
 	})
@@ -132,7 +132,7 @@ func TestSessionAffinity_AnthropicGatewayEmptyIsNoOp(t *testing.T) {
 	require.NoError(t, err)
 
 	out, err := env.PrepareAnthropic(nil, translate.EmitOptions{
-		TargetModel:    "z-ai/glm-5.2",
+		TargetModel:    "z-ai/glm-5.3",
 		TargetProvider: providers.ProviderAIAND,
 	})
 	require.NoError(t, err)
@@ -270,7 +270,7 @@ func TestSessionAffinity_ResponsesStripPromptCacheKey(t *testing.T) {
 // Keyless Responses requests fall back to the stable prefix hash (instructions
 // + tools), matching the chat/completions fallback semantics.
 func TestSessionAffinity_ResponsesFallbackPrefixHashStable(t *testing.T) {
-	src := []byte(`{"model":"z-ai/glm-5.2","system":"you are helpful","messages":[{"role":"user","content":"hi"}],"max_tokens":256}`)
+	src := []byte(`{"model":"z-ai/glm-5.3","system":"you are helpful","messages":[{"role":"user","content":"hi"}],"max_tokens":256}`)
 	keys := make([]string, 0, 2)
 	for i := 0; i < 2; i++ {
 		env, err := translate.ParseAnthropic(src)

@@ -32,5 +32,5 @@ func TestCatalogModelsHandler_SelectionDescribesModelIDs(t *testing.T) {
 	}
 	require.Equal(t, catalog.ModelChoiceRouter, seen[string(router.ModelHMM)].Kind)
 	require.Contains(t, seen[string(router.ModelQwen)].Description, "Qwen classifier")
-	require.Equal(t, catalog.ModelChoiceDirect, seen["z-ai/glm-5.2"].Kind)
+	require.Equal(t, catalog.ModelChoiceDirect, seen["z-ai/glm-5.3"].Kind)
 }

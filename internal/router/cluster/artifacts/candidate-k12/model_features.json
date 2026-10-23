@@ -352,7 +352,7 @@
         "verbosity_tokens": null
       }
     },
-    "z-ai/glm-5.2": {
+    "z-ai/glm-5.3": {
       "psi_probe": [
         0.3928535714285714,
         0.30219505494505494,
@@ -421,7 +421,7 @@
         "verbosity_tokens": null
       }
     },
-    "moonshotai/kimi-k2.7": {
+    "moonshotai/kimi-k3": {
       "psi_probe": [
         0.02564102564102564,
         0.017094017094017092,

@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-const toolDeltaPinModel = "z-ai/glm-5.2"
+const toolDeltaPinModel = "z-ai/glm-5.3"
 
 // TestToolDeltaBlocks sends mid-conversation tool-change blocks on user and
 // assistant messages, matching the client shapes that previously reached the

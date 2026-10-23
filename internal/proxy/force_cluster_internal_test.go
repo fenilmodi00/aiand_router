@@ -79,7 +79,7 @@ func TestProxyMessages_ForceClusterOnNonSidecarStrategyRejects(t *testing.T) {
 	svc := NewService(fr, map[string]providers.Client{providers.ProviderAIAND: fp}, nil, false, nil, nil, false,
 		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil)
 
-	body := `{"model":"z-ai/glm-5.2","max_tokens":64,"messages":[{"role":"user","content":"hi"}]}`
+	body := `{"model":"z-ai/glm-5.3","max_tokens":64,"messages":[{"role":"user","content":"hi"}]}`
 	rec := httptest.NewRecorder()
 
 	err := svc.ProxyMessages(context.Background(), []byte(body), rec, forceClusterRequest(t, "maximum"))

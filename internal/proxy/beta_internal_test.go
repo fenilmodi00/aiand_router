@@ -712,7 +712,7 @@ func TestProxyEntrypointsStripHistoricalBetaArtifactsBeforeRouting(t *testing.T)
 				providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
 			)
 			body, err := json.Marshal(map[string]any{
-				"model": "z-ai/glm-5.2",
+				"model": "z-ai/glm-5.3",
 				"messages": []any{
 					map[string]any{"role": "user", "content": "inspect this repository"},
 					map[string]any{"role": "assistant", "content": "I will inspect it."},

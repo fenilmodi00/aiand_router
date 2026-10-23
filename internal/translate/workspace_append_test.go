@@ -17,9 +17,9 @@ func TestWorkspaceAppend_AnthropicTargetIsNeverTouched(t *testing.T) {
 	env, err := translate.ParseAnthropic([]byte(claudeCodeCachedSystemBody))
 	require.NoError(t, err)
 
-	off, err := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "z-ai/glm-5.2"})
+	off, err := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "z-ai/glm-5.3"})
 	require.NoError(t, err)
-	on, err := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "z-ai/glm-5.2", AppendWorkspaceSystem: true})
+	on, err := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "z-ai/glm-5.3", AppendWorkspaceSystem: true})
 	require.NoError(t, err)
 
 	assert.Equal(t, string(off.Body), string(on.Body), "an Anthropic-served attempt keeps the client prompt byte-identical")
@@ -49,7 +49,7 @@ func TestWorkspaceAppend_OpenAIResponsesInstructions(t *testing.T) {
 	env, err := translate.ParseAnthropic([]byte(claudeCodeCachedSystemBody))
 	require.NoError(t, err)
 
-	on, err := env.PrepareOpenAIResponses(nil, translate.EmitOptions{TargetModel: "moonshotai/kimi-k2.7", AppendWorkspaceSystem: true})
+	on, err := env.PrepareOpenAIResponses(nil, translate.EmitOptions{TargetModel: "moonshotai/kimi-k3", AppendWorkspaceSystem: true})
 	require.NoError(t, err)
 	instructions := gjson.GetBytes(on.Body, "instructions").String()
 	assert.Contains(t, instructions, translate.WorkspaceSystemText)
@@ -57,7 +57,7 @@ func TestWorkspaceAppend_OpenAIResponsesInstructions(t *testing.T) {
 	assert.Equal(t, 1, strings.Count(instructions, workspaceMarker))
 	assert.NotContains(t, string(on.Body), "cache_control")
 
-	off, err := env.PrepareOpenAIResponses(nil, translate.EmitOptions{TargetModel: "moonshotai/kimi-k2.7"})
+	off, err := env.PrepareOpenAIResponses(nil, translate.EmitOptions{TargetModel: "moonshotai/kimi-k3"})
 	require.NoError(t, err)
 	assert.NotContains(t, gjson.GetBytes(off.Body, "instructions").String(), workspaceMarker)
 }
@@ -66,7 +66,7 @@ func TestWorkspaceAppend_BothAppendsKeepOrder(t *testing.T) {
 	env, err := translate.ParseAnthropic([]byte(claudeCodeCachedSystemBody))
 	require.NoError(t, err)
 
-	out, err := env.PrepareOpenAIResponses(nil, translate.EmitOptions{TargetModel: "moonshotai/kimi-k2.7", AppendAutonomySystem: true, AppendWorkspaceSystem: true})
+	out, err := env.PrepareOpenAIResponses(nil, translate.EmitOptions{TargetModel: "moonshotai/kimi-k3", AppendAutonomySystem: true, AppendWorkspaceSystem: true})
 	require.NoError(t, err)
 	instructions := gjson.GetBytes(out.Body, "instructions").String()
 	client := strings.Index(instructions, "ask for confirmation before proceeding")
@@ -99,11 +99,11 @@ func TestWorkspaceAppend_HasWorkspaceSystemText(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, plain.HasWorkspaceSystemText())
 
-	carried, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.2","system":[{"type":"text","text":"You are Claude Code."},{"type":"text","text":"Before answering, use your tools to Inspect The Workspace."}],"messages":[{"role":"user","content":"hi"}],"max_tokens":8}`))
+	carried, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.3","system":[{"type":"text","text":"You are Claude Code."},{"type":"text","text":"Before answering, use your tools to Inspect The Workspace."}],"messages":[{"role":"user","content":"hi"}],"max_tokens":8}`))
 	require.NoError(t, err)
 	assert.True(t, carried.HasWorkspaceSystemText(), "match is case-insensitive on the marker phrase")
 
-	autonomyOnly, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.2","system":"` + translate.AutonomySystemText + `","messages":[{"role":"user","content":"hi"}],"max_tokens":8}`))
+	autonomyOnly, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.3","system":"` + translate.AutonomySystemText + `","messages":[{"role":"user","content":"hi"}],"max_tokens":8}`))
 	require.NoError(t, err)
 	assert.False(t, autonomyOnly.HasWorkspaceSystemText(), "the two appends are tracked independently")
 }

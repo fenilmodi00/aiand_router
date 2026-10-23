@@ -58,7 +58,7 @@ const reminderSnippet = "byte-for-byte"
 
 func TestSystemReminder_AnthropicSource_SkipsWithoutTools(t *testing.T) {
 	src := []byte(`{
-		"model":"z-ai/glm-5.2",
+		"model":"z-ai/glm-5.3",
 		"system":"You are a helpful coding assistant.",
 		"messages":[{"role":"user","content":"hi"}],
 		"max_tokens":256
@@ -78,7 +78,7 @@ func TestSystemReminder_AnthropicSource_NoReminderForNonDeepSeek(t *testing.T) {
 	for _, model := range cases {
 		t.Run(model, func(t *testing.T) {
 			src := []byte(`{
-				"model":"z-ai/glm-5.2",
+				"model":"z-ai/glm-5.3",
 				"system":"sys",
 				"messages":[{"role":"user","content":"hi"}],
 				"tools":[{"name":"Edit","description":"edit","input_schema":{"type":"object"}}],
@@ -142,7 +142,7 @@ func geminiSystemInstructionText(t *testing.T, body []byte) string {
 
 func TestGeminiSystemReminder_AnthropicSource_AppendsForGemini3xWithTools(t *testing.T) {
 	src := []byte(`{
-		"model":"z-ai/glm-5.2",
+		"model":"z-ai/glm-5.3",
 		"system":"You are a helpful coding assistant.",
 		"messages":[{"role":"user","content":"hi"}],
 		"tools":[{"name":"Edit","description":"edit","input_schema":{"type":"object"}}],
@@ -161,7 +161,7 @@ func TestGeminiSystemReminder_AnthropicSource_AppendsForGemini3xWithTools(t *tes
 
 func TestGeminiSystemReminder_AnthropicSource_SkipsWithoutTools(t *testing.T) {
 	src := []byte(`{
-		"model":"z-ai/glm-5.2",
+		"model":"z-ai/glm-5.3",
 		"system":"sys",
 		"messages":[{"role":"user","content":"hi"}],
 		"max_tokens":256
@@ -177,7 +177,7 @@ func TestGeminiSystemReminder_AnthropicSource_SkipsWithoutTools(t *testing.T) {
 
 func TestGeminiSystemReminder_AnthropicSource_SkipsForGemini2x(t *testing.T) {
 	src := []byte(`{
-		"model":"z-ai/glm-5.2",
+		"model":"z-ai/glm-5.3",
 		"system":"sys",
 		"messages":[{"role":"user","content":"hi"}],
 		"tools":[{"name":"Edit","description":"edit","input_schema":{"type":"object"}}],

@@ -44,15 +44,15 @@ func TestNativeServerToolsRecognizeHostedToolsBySourceShape(t *testing.T) {
 }
 
 func TestAdvisorToolModel(t *testing.T) {
-	withAdvisor, err := ParseAnthropic([]byte(`{"tools":[{"name":"Bash","input_schema":{"type":"object"}},{"type":"advisor_20260301","name":"advisor","model":"z-ai/glm-5.2"}]}`))
+	withAdvisor, err := ParseAnthropic([]byte(`{"tools":[{"name":"Bash","input_schema":{"type":"object"}},{"type":"advisor_20260301","name":"advisor","model":"z-ai/glm-5.3"}]}`))
 	require.NoError(t, err)
-	assert.Equal(t, "z-ai/glm-5.2", withAdvisor.AdvisorToolModel())
+	assert.Equal(t, "z-ai/glm-5.3", withAdvisor.AdvisorToolModel())
 
 	withoutAdvisor, err := ParseAnthropic([]byte(`{"tools":[{"name":"advisor","input_schema":{"type":"object"}}]}`))
 	require.NoError(t, err)
 	assert.Empty(t, withoutAdvisor.AdvisorToolModel())
 
-	openAI, err := ParseOpenAI([]byte(`{"tools":[{"type":"advisor_20260301","model":"z-ai/glm-5.2"}]}`))
+	openAI, err := ParseOpenAI([]byte(`{"tools":[{"type":"advisor_20260301","model":"z-ai/glm-5.3"}]}`))
 	require.NoError(t, err)
 	assert.Empty(t, openAI.AdvisorToolModel())
 }

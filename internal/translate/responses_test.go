@@ -469,7 +469,7 @@ func TestResponsesWriter_NativePreludeFallbackAndFailureStaySequenced(t *testing
 	w.SetPassthroughBadge()
 
 	require.NoError(t, w.Prelude(true))
-	w.SetRoutedModel("z-ai/glm-5.2")
+	w.SetRoutedModel("z-ai/glm-5.3")
 	require.NoError(t, w.EmitRoutingBadge("fallback decision"))
 	require.NoError(t, w.FinalizeError(errors.New("upstream failed")))
 
@@ -486,7 +486,7 @@ func TestResponsesWriter_NativePreludeFallbackAndFailureStaySequenced(t *testing
 	assert.Equal(t, "response.failed", events[13]["type"])
 	failed := events[13]["response"].(map[string]any)
 	assert.Equal(t, "failed", failed["status"])
-	assert.Equal(t, "z-ai/glm-5.2", failed["model"])
+	assert.Equal(t, "z-ai/glm-5.3", failed["model"])
 	output := failed["output"].([]any)
 	require.Len(t, output, 2)
 	initialContent := output[0].(map[string]any)["content"].([]any)
@@ -502,7 +502,7 @@ func TestResponsesWriter_NativePreludeRewritesFinalServingModel(t *testing.T) {
 	w.SetPassthroughBadge()
 
 	require.NoError(t, w.Prelude(true))
-	w.SetRoutedModel("moonshotai/kimi-k2.7")
+	w.SetRoutedModel("moonshotai/kimi-k3")
 	require.NoError(t, w.EmitRoutingBadge("fallback decision"))
 	_, err := w.Write([]byte("event: response.completed\n" +
 		`data: {"type":"response.completed","sequence_number":1,"response":{"id":"resp_upstream","model":"deepseek/deepseek-v4-pro","status":"completed","output":[{"id":"msg_upstream","type":"message","role":"assistant","content":[{"type":"output_text","text":"ok"}]}]}}` +
@@ -513,7 +513,7 @@ func TestResponsesWriter_NativePreludeRewritesFinalServingModel(t *testing.T) {
 	completed := events[len(events)-1]
 	require.Equal(t, "response.completed", completed["type"])
 	response := completed["response"].(map[string]any)
-	assert.Equal(t, "moonshotai/kimi-k2.7", response["model"])
+	assert.Equal(t, "moonshotai/kimi-k3", response["model"])
 }
 
 func TestResponsesWriter_ClearPassthroughContinuesVisiblePrelude(t *testing.T) {
@@ -524,7 +524,7 @@ func TestResponsesWriter_ClearPassthroughContinuesVisiblePrelude(t *testing.T) {
 
 	require.NoError(t, w.Prelude(true))
 	require.True(t, w.ClearPassthrough())
-	w.SetRoutedModel("z-ai/glm-5.2")
+	w.SetRoutedModel("z-ai/glm-5.3")
 	require.NoError(t, w.EmitRoutingBadge("fallback decision"))
 	require.NoError(t, w.FinalizeError(errors.New("fallback failed")))
 
@@ -538,7 +538,7 @@ func TestResponsesWriter_ClearPassthroughContinuesVisiblePrelude(t *testing.T) {
 	assert.Contains(t, events[9]["delta"], "fallback decision")
 	assert.Equal(t, "response.failed", events[len(events)-1]["type"])
 	failed := events[len(events)-1]["response"].(map[string]any)
-	assert.Equal(t, "z-ai/glm-5.2", failed["model"])
+	assert.Equal(t, "z-ai/glm-5.3", failed["model"])
 }
 
 // Before anything streams, FinalizeError writes nothing so the handler can
@@ -805,8 +805,8 @@ func TestResponsesWriter_PassthroughBadgePreservesNativeStream(t *testing.T) {
 	for _, terminalType := range []string{"response.completed", "response.incomplete"} {
 		t.Run(terminalType, func(t *testing.T) {
 			payloads := []string{
-				`{"type":"response.created","sequence_number":0,"response":{"id":"resp_native","model":"z-ai/glm-5.2","status":"in_progress","output":[]}}`,
-				`{"type":"response.in_progress","sequence_number":1,"response":{"id":"resp_native","model":"z-ai/glm-5.2","status":"in_progress","output":[]}}`,
+				`{"type":"response.created","sequence_number":0,"response":{"id":"resp_native","model":"z-ai/glm-5.3","status":"in_progress","output":[]}}`,
+				`{"type":"response.in_progress","sequence_number":1,"response":{"id":"resp_native","model":"z-ai/glm-5.3","status":"in_progress","output":[]}}`,
 				`{"type":"response.output_item.added","sequence_number":2,"output_index":0,"item":{"id":"msg_native","type":"message","role":"assistant","status":"in_progress","content":[]}}`,
 				`{"type":"response.content_part.added","sequence_number":3,"item_id":"msg_native","output_index":0,"content_index":0,"part":{"type":"output_text","text":"","annotations":[]}}`,
 				`{"type":"response.output_text.delta","sequence_number":4,"item_id":"msg_native","output_index":0,"content_index":0,"delta":"o"}`,
@@ -818,7 +818,7 @@ func TestResponsesWriter_PassthroughBadgePreservesNativeStream(t *testing.T) {
 				`{"type":"response.function_call_arguments.delta","sequence_number":10,"item_id":"fc_native","output_index":1,"delta":"{\"x\":1}"}`,
 				`{"type":"response.function_call_arguments.done","sequence_number":11,"item_id":"fc_native","output_index":1,"arguments":"{\"x\":1}"}`,
 				`{"type":"response.output_item.done","sequence_number":12,"output_index":1,"item":{"id":"fc_native","type":"function_call","call_id":"call_native","name":"lookup","arguments":"{\"x\":1}","status":"completed"}}`,
-				`{"type":"` + terminalType + `","sequence_number":13,"response":{"id":"resp_native","model":"z-ai/glm-5.2","status":"completed","output":[{"id":"msg_native","type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"ok","annotations":[]}]},{"id":"fc_native","type":"function_call","call_id":"call_native","name":"lookup","arguments":"{\"x\":1}","status":"completed"}]}}`,
+				`{"type":"` + terminalType + `","sequence_number":13,"response":{"id":"resp_native","model":"z-ai/glm-5.3","status":"completed","output":[{"id":"msg_native","type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":"ok","annotations":[]}]},{"id":"fc_native","type":"function_call","call_id":"call_native","name":"lookup","arguments":"{\"x\":1}","status":"completed"}]}}`,
 			}
 			var native strings.Builder
 			for _, payload := range payloads {
@@ -831,7 +831,7 @@ func TestResponsesWriter_PassthroughBadgePreservesNativeStream(t *testing.T) {
 			w.SetBadgeText(passthroughTestMarker)
 			w.SetPassthroughBadge()
 			w.Header().Set("Content-Type", "text/event-stream")
-			w.Header().Set("x-router-model", "z-ai/glm-5.2")
+			w.Header().Set("x-router-model", "z-ai/glm-5.3")
 			w.WriteHeader(200)
 
 			raw := []byte(native.String())
@@ -857,7 +857,7 @@ func TestResponsesWriter_PassthroughBadgePreservesNativeStream(t *testing.T) {
 			assert.Equal(t, badge+"ok", events[8]["item"].(map[string]any)["content"].([]any)[0].(map[string]any)["text"])
 			response := events[13]["response"].(map[string]any)
 			assert.Equal(t, "resp_native", response["id"])
-			assert.Equal(t, "z-ai/glm-5.2", response["model"])
+			assert.Equal(t, "z-ai/glm-5.3", response["model"])
 			output := response["output"].([]any)
 			assert.Equal(t, badge+"ok", output[0].(map[string]any)["content"].([]any)[0].(map[string]any)["text"])
 
@@ -882,7 +882,7 @@ func TestResponsesWriter_PassthroughBadgeCanGrowPastOriginalEventCapacity(t *tes
 	w.SetBadgeText(badge)
 	w.SetPassthroughBadge()
 	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("x-router-model", "z-ai/glm-5.2")
+	w.Header().Set("x-router-model", "z-ai/glm-5.3")
 	w.WriteHeader(200)
 
 	native := `event: response.output_text.delta
@@ -963,7 +963,7 @@ func TestResponsesWriter_PrependsRoutingMarkerBadge(t *testing.T) {
 	w := translate.NewResponsesWriter(rec, "z-ai/glm-5.3")
 	w.SetBadgeText(passthroughTestMarker)
 	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("x-router-model", "z-ai/glm-5.2")
+	w.Header().Set("x-router-model", "z-ai/glm-5.3")
 	w.WriteHeader(200)
 
 	for _, c := range []string{
@@ -1006,7 +1006,7 @@ func TestResponsesWriter_WithoutMarkerEmitsNoBadge(t *testing.T) {
 	rec := httptest.NewRecorder()
 	w := translate.NewResponsesWriter(rec, "z-ai/glm-5.3")
 	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("x-router-model", "z-ai/glm-5.2")
+	w.Header().Set("x-router-model", "z-ai/glm-5.3")
 	w.WriteHeader(200)
 
 	_, err := w.Write([]byte(`data: {"choices":[{"index":0,"delta":{"content":"hi"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}` + "\n\n"))
@@ -1029,10 +1029,10 @@ func TestResponsesWriter_WithoutMarkerEmitsNoBadge(t *testing.T) {
 // so the badge has to open its own message item or it never renders.
 func TestResponsesWriter_EmitsBadgeOnToolCallOnlyTurn(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesWriter(rec, "moonshotai/kimi-k2.7")
+	w := translate.NewResponsesWriter(rec, "moonshotai/kimi-k3")
 	w.SetBadgeText(passthroughTestMarker)
 	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("x-router-model", "z-ai/glm-5.2")
+	w.Header().Set("x-router-model", "z-ai/glm-5.3")
 	w.WriteHeader(200)
 
 	for _, c := range []string{
@@ -1080,7 +1080,7 @@ func TestResponsesWriter_RejectsReasoningOnlyTurn(t *testing.T) {
 	for _, field := range []string{"reasoning", "reasoning_content"} {
 		t.Run(field, func(t *testing.T) {
 			rec := httptest.NewRecorder()
-			w := translate.NewResponsesWriter(rec, "moonshotai/kimi-k2.7")
+			w := translate.NewResponsesWriter(rec, "moonshotai/kimi-k3")
 			w.SetBadgeText(passthroughTestMarker)
 			w.Header().Set("Content-Type", "text/event-stream")
 			w.WriteHeader(200)
@@ -1109,7 +1109,7 @@ func TestResponsesWriter_UsesRoutedModelFromHeader(t *testing.T) {
 	// Simulate the proxy stamping its routing decision on the writer headers
 	// before any body bytes flow through.
 	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("x-router-model", "z-ai/glm-5.2")
+	w.Header().Set("x-router-model", "z-ai/glm-5.3")
 	w.Header().Set("x-router-provider", "anthropic")
 	w.WriteHeader(200)
 
@@ -1135,8 +1135,8 @@ func TestResponsesWriter_UsesRoutedModelFromHeader(t *testing.T) {
 	}
 	require.NotNil(t, created)
 	require.NotNil(t, completed)
-	assert.Equal(t, "z-ai/glm-5.2", created["model"])
-	assert.Equal(t, "z-ai/glm-5.2", completed["model"])
+	assert.Equal(t, "z-ai/glm-5.3", created["model"])
+	assert.Equal(t, "z-ai/glm-5.3", completed["model"])
 }
 
 func TestResponsesWriter_UsesCustomBadgeText(t *testing.T) {
@@ -1473,7 +1473,7 @@ func TestConvertResponsesToChatCompletions_RejectsChatCompletionsBody(t *testing
 }
 
 func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexRejectsChatCompletionsBody(t *testing.T) {
-	body := []byte(`{"model":"moonshotai/kimi-k2.7","messages":[{"role":"user","content":"hi"}]}`)
+	body := []byte(`{"model":"moonshotai/kimi-k3","messages":[{"role":"user","content":"hi"}]}`)
 
 	_, err := translate.ConvertResponsesToChatCompletionsWithOptions(body, translate.ResponsesConversionOptions{PortableCodex: true})
 
@@ -1482,7 +1482,7 @@ func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexRejectsChatCo
 }
 
 func TestConvertResponsesToChatCompletions_AcceptsInputOnlyBody(t *testing.T) {
-	body := []byte(`{"model":"moonshotai/kimi-k2.7","input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"hi"}]}]}`)
+	body := []byte(`{"model":"moonshotai/kimi-k3","input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"hi"}]}]}`)
 
 	conv, err := translate.ConvertResponsesToChatCompletions(body)
 

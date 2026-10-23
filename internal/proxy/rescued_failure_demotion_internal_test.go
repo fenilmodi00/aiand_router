@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	rescuedPrimaryModel = "z-ai/glm-5.2"
+	rescuedPrimaryModel = "z-ai/glm-5.3"
 	rescuerModel        = "gpt-5.6-luna"
 )
 

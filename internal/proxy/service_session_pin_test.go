@@ -270,13 +270,13 @@ func authedCtxWithExternalKey(installationID, provider string, plaintext []byte)
 }
 
 const pinTestBody = `{
-	"model":"z-ai/glm-5.2",
+	"model":"z-ai/glm-5.3",
 	"system":"sys",
 	"messages":[{"role":"user","content":"original prompt"}]
 }`
 
 const nativeWebSearchSubTurnBody = `{
-	"model":"z-ai/glm-5.2",
+	"model":"z-ai/glm-5.3",
 	"tools":[{"type":"web_search_20250305","name":"web_search"}],
 	"tool_choice":{"type":"tool","name":"web_search"},
 	"messages":[{"role":"user","content":"Perform a web search for the query: git-ai latest release"}]
@@ -284,14 +284,14 @@ const nativeWebSearchSubTurnBody = `{
 
 // compactionBody triggers the compaction detector (§3.4).
 const compactionBody = `{
-	"model":"z-ai/glm-5.2",
+	"model":"z-ai/glm-5.3",
 	"system":"Your task is to create a detailed summary of the conversation so far.",
 	"messages":[{"role":"user","content":"go"}]
 }`
 
 // exploreBody marks an Explore sub-agent dispatch (§3.4).
 const exploreBody = `{
-	"model":"z-ai/glm-5.2",
+	"model":"z-ai/glm-5.3",
 	"metadata":{"user_id":"subagent:Explore"},
 	"messages":[{"role":"user","content":"list go files"}]
 }`
@@ -300,7 +300,7 @@ const exploreBody = `{
 // ErrClusterUnavailable rather than dispatch to an unauthenticatable default.
 func TestService_HardPin_Compaction_ByokOnly_NoEligibleProviderErrors(t *testing.T) {
 	store := newFakePinStore()
-	fr := &fakeRouter{decision: router.Decision{Provider: "anthropic", Model: "z-ai/glm-5.2", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: "anthropic", Model: "z-ai/glm-5.3", Reason: "cluster"}}
 
 	resolver := func(req proxy.HardPinRequest) (string, string, bool) {
 		if _, ok := req.EnabledProviders[providers.ProviderAIAND]; ok {
@@ -335,7 +335,7 @@ const classifierBody = `{"model":"z-ai/glm-5.3-flash","max_tokens":5,"messages":
 // because the hard-pin path never consulted req.ExcludedModels.
 func TestService_HardPin_TitleGen_AppliesExcludedModels(t *testing.T) {
 	store := newFakePinStore()
-	fr := &fakeRouter{decision: router.Decision{Provider: "anthropic", Model: "z-ai/glm-5.2", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: "anthropic", Model: "z-ai/glm-5.3", Reason: "cluster"}}
 
 	const excludedModel = "gemini-3.1-flash-lite-preview"
 	const allowedFallback = "z-ai/glm-5.3-flash"
@@ -383,7 +383,7 @@ func TestService_HardPin_TitleGen_AppliesExcludedModels(t *testing.T) {
 // sub-agents pinned regardless of that legacy flag.
 func TestService_HardPin_SubAgentOverrideRoutesIndependentlyOfHardPin(t *testing.T) {
 	store := newFakePinStore()
-	fr := &fakeRouter{decision: router.Decision{Provider: "anthropic", Model: "z-ai/glm-5.2", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: "anthropic", Model: "z-ai/glm-5.3", Reason: "cluster"}}
 	// OpenRouter speaks the OpenAI-compat wire format, so the fake response
 	// must be a valid chat-completion body for the cross-format translation
 	// back to the Anthropic-shaped client response to succeed.
@@ -425,7 +425,7 @@ func TestService_HardPin_SubAgentOverrideAppliesUnderHMMStrategy(t *testing.T) {
 	store := newFakePinStore()
 	fr := &fakeRouter{decision: router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "z-ai/glm-5.2",
+		Model:    "z-ai/glm-5.3",
 		Reason:   "hmm_policy:classifier_select(label=medium)",
 		Metadata: &router.RoutingMetadata{Strategy: string(router.StrategyHMM)},
 	}}
@@ -698,7 +698,7 @@ func buildCyclicLoopBody(t *testing.T, nFiles, total int) []byte {
 			}},
 		)
 	}
-	b, err := json.Marshal(map[string]any{"model": "z-ai/glm-5.2", "max_tokens": 256, "messages": msgs})
+	b, err := json.Marshal(map[string]any{"model": "z-ai/glm-5.3", "max_tokens": 256, "messages": msgs})
 	require.NoError(t, err)
 	return b
 }

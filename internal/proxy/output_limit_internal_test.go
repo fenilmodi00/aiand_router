@@ -20,7 +20,7 @@ import (
 
 const (
 	outputLimitFirstModel  = "deepseek/deepseek-v4-pro"
-	outputLimitSecondModel = "z-ai/glm-5.2"
+	outputLimitSecondModel = "z-ai/glm-5.3"
 )
 
 func TestMaxedOutServedModel_RequiresMatchingTerminalEvidence(t *testing.T) {

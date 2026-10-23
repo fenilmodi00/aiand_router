@@ -29,20 +29,20 @@ func TestHandleNoProgressBreak_PreservesUserForcedPin(t *testing.T) {
 	store := &overwritingPinStore{
 		pin: sessionpin.Pin{
 			Provider:    "anthropic",
-			Model:       "z-ai/glm-5.2",
+			Model:       "z-ai/glm-5.3",
 			Reason:      translate.ReasonUserForceModel,
 			PinnedUntil: time.Now().Add(time.Hour),
 		},
 		found: true,
 	}
 	svc := &Service{pinStore: store}
-	env, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"retry"}]}`))
+	env, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.3","messages":[{"role":"user","content":"retry"}]}`))
 	require.NoError(t, err)
 	rec := httptest.NewRecorder()
 
 	err = svc.handleNoProgressBreak(
 		context.Background(), rec, env, noProgressMatchThreshold, uuid.New(), key,
-		"default_high", "z-ai/glm-5.2", "anthropic", 10,
+		"default_high", "z-ai/glm-5.3", "anthropic", 10,
 	)
 	require.NoError(t, err)
 
@@ -99,7 +99,7 @@ func TestComputeNoProgressFingerprint_IgnoresMessageCountWhenMarkerPresent(t *te
 	// Regression: a frozen tool-progress marker combined with a rising
 	// message_count must produce identical fingerprints (marker excluded from
 	// hash when present, so count noise doesn't defeat detection).
-	d := router.Decision{Model: "moonshotai/kimi-k2.7", Provider: "fireworks"}
+	d := router.Decision{Model: "moonshotai/kimi-k3", Provider: "fireworks"}
 	marker := "57\x00Bash\x00frozen-hash"
 	a := computeNoProgressFingerprint(d, "create a PR from staging to prod", 90, marker)
 	b := computeNoProgressFingerprint(d, "create a PR from staging to prod", 109, marker)
@@ -121,7 +121,7 @@ func TestNoProgressTracker_TripsOnFrozenMarkerDespiteRisingMessageCount(t *testi
 	tr := newNoProgressTracker()
 	key := sessionKeyFromString("session-kimi-churn")
 	install := uuid.New()
-	d := router.Decision{Model: "moonshotai/kimi-k2.7", Provider: "fireworks"}
+	d := router.Decision{Model: "moonshotai/kimi-k3", Provider: "fireworks"}
 	now := time.Now()
 	marker := "57\x00Bash\x00frozen-hash"
 

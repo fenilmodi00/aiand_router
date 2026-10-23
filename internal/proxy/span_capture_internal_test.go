@@ -109,7 +109,7 @@ func openaiChatBody() []byte {
 }
 
 func anthropicMessagesBody() []byte {
-	return []byte(`{"model":"z-ai/glm-5.2","max_tokens":1024,"stream":true,"messages":[{"role":"user","content":"read main.go"}],"tools":[{"name":"read_file","input_schema":{"type":"object","properties":{"path":{"type":"string"}}}}]}`)
+	return []byte(`{"model":"z-ai/glm-5.3","max_tokens":1024,"stream":true,"messages":[{"role":"user","content":"read main.go"}],"tools":[{"name":"read_file","input_schema":{"type":"object","properties":{"path":{"type":"string"}}}}]}`)
 }
 
 // upstreamErr builds a buffered upstream error, the shape both classifiers read.

@@ -162,7 +162,7 @@ when Compose is installed, verify the actual merged config without a daemon.
 
 `replay-only` runs make zero upstream calls. `record`/`replay-or-record` pin
 every scenario to the cheapest upstream tier (`z-ai/glm-5.3-flash`); the
-mid-conversation tool-change scenario pins `z-ai/glm-5.2`. All pins use
+mid-conversation tool-change scenario pins `z-ai/glm-5.3`. All pins use
 `x-aiand-force-model` and cap `max_tokens` — a full refresh is ~15 real calls
 against the one upstream, a few cents.
 

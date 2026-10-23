@@ -21,10 +21,10 @@ func TestResolveCompactionModelFailsClosed(t *testing.T) {
 	})
 
 	t.Run("valid Anthropic binding", func(t *testing.T) {
-		t.Setenv("ROUTER_COMPACTION_MODEL", "z-ai/glm-5.2")
+		t.Setenv("ROUTER_COMPACTION_MODEL", "z-ai/glm-5.3")
 		model, err := resolveCompactionModel(providers.ProviderAIAND)
 		require.NoError(t, err)
-		assert.Equal(t, "z-ai/glm-5.2", model)
+		assert.Equal(t, "z-ai/glm-5.3", model)
 	})
 
 	t.Run("invalid binding", func(t *testing.T) {
@@ -34,7 +34,7 @@ func TestResolveCompactionModelFailsClosed(t *testing.T) {
 	})
 
 	t.Run("binding on the configured summarizer provider", func(t *testing.T) {
-		t.Setenv("ROUTER_COMPACTION_MODEL", "z-ai/glm-5.2")
+		t.Setenv("ROUTER_COMPACTION_MODEL", "z-ai/glm-5.3")
 		_, err := resolveCompactionModel(providers.ProviderAIAND)
 		require.NoError(t, err)
 	})

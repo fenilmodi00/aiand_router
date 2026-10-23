@@ -96,7 +96,7 @@ func TestRoutingMarkerFor_RecapSuppressed(t *testing.T) {
 func TestRoutingMarkerFor_UsesSidecarDisplayMarker(t *testing.T) {
 	got := routingMarkerFor(turnLoopResult{
 		Decision: router.Decision{
-			Model:    "moonshotai/kimi-k2.7-code",
+			Model:    "moonshotai/kimi-k3",
 			Provider: "openrouter",
 			Metadata: &router.RoutingMetadata{
 				DisplayMarker: "✦ **Aiand Router** → Delegating work with moonshotai/kimi-k2.7-code\n↳ label: delegated_work",
@@ -114,7 +114,7 @@ func TestRoutingMarkerFor_SidecarDisplayMarkerStillRespectsSuggestionMode(t *tes
 	got := routingMarkerFor(turnLoopResult{
 		SuggestionMode: true,
 		Decision: router.Decision{
-			Model: "moonshotai/kimi-k2.7-code",
+			Model: "moonshotai/kimi-k3",
 			Metadata: &router.RoutingMetadata{
 				DisplayMarker: "✦ **Aiand Router** → Delegating work with moonshotai/kimi-k2.7-code\n↳ label: delegated_work",
 			},
@@ -130,7 +130,7 @@ func TestRoutingMarkerFor_SidecarDisplayMarkerStillRespectsSuggestionMode(t *tes
 func TestRoutingMarkerFor_RejectsMalformedSidecarDisplayMarker(t *testing.T) {
 	got := routingMarkerFor(turnLoopResult{
 		Decision: router.Decision{
-			Model: "moonshotai/kimi-k2.7-code",
+			Model: "moonshotai/kimi-k3",
 			Metadata: &router.RoutingMetadata{
 				DisplayMarker: "not a router marker\narbitrary sidecar text",
 			},
@@ -140,7 +140,7 @@ func TestRoutingMarkerFor_RejectsMalformedSidecarDisplayMarker(t *testing.T) {
 		},
 	})
 
-	assert.Contains(t, got, "✦ **Aiand Router** → moonshotai/kimi-k2.7-code")
+	assert.Contains(t, got, "✦ **Aiand Router** → moonshotai/kimi-k3")
 	assert.Contains(t, got, markerReasonBestPick)
 	assert.NotContains(t, got, "arbitrary sidecar text")
 }
@@ -148,7 +148,7 @@ func TestRoutingMarkerFor_RejectsMalformedSidecarDisplayMarker(t *testing.T) {
 func TestRoutingMarkerFor_ClampsSidecarDisplayMarker(t *testing.T) {
 	got := routingMarkerFor(turnLoopResult{
 		Decision: router.Decision{
-			Model: "moonshotai/kimi-k2.7-code",
+			Model: "moonshotai/kimi-k3",
 			Metadata: &router.RoutingMetadata{
 				DisplayMarker: "✦ **Aiand Router** → " + strings.Repeat("x", maxSidecarDisplayMarkerRunes+100),
 			},
@@ -196,8 +196,8 @@ func TestRoutingMarkerFor_SidecarDisplayMarkerShownOnGenuineSwitch(t *testing.T)
 
 func TestBaselineRoutingMarkerFor_SuppressedWhenBaselineAlreadyServing(t *testing.T) {
 	got := baselineRoutingMarkerFor(turnLoopResult{
-		PriorServedModel: "z-ai/glm-5.2",
-	}, "z-ai/glm-5.2")
+		PriorServedModel: "z-ai/glm-5.3",
+	}, "z-ai/glm-5.3")
 	assert.Empty(t, got, "a failover that lands back on the model already serving must stay quiet")
 }
 

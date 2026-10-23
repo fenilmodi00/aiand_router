@@ -83,8 +83,6 @@ func TestTierFor_KnownAndUnknown(t *testing.T) {
 // routing targets.
 func TestTierFor_PinOnlyRowsAreUntiered(t *testing.T) {
 	for _, id := range []string{
-		"z-ai/glm-5.2",
-		"moonshotai/kimi-k2.7",
 		"deepseek/deepseek-v4-pro-0813",
 		"google/gemma-4-31b",
 		"qwen/qwen3.6-27b",
@@ -110,13 +108,13 @@ func TestRoutingTargetSet_FiltersByTierAndRegisteredProviders(t *testing.T) {
 	assert.Contains(t, targets, "moonshotai/kimi-k3")
 	assert.Contains(t, targets, "motif/motif-3")
 	assert.Contains(t, targets, "qwen/qwen3.8-27b")
-	assert.NotContains(t, targets, "z-ai/glm-5.2", "untiered pin-only models must not become routing targets")
-	assert.NotContains(t, targets, "moonshotai/kimi-k2.7", "untiered pin-only models must not become routing targets")
 	assert.NotContains(t, targets, "deepseek/deepseek-v4-pro-0813", "untiered pin-only models must not become routing targets")
+	assert.NotContains(t, targets, "google/gemma-4-31b", "untiered pin-only models must not become routing targets")
+	assert.NotContains(t, targets, "openai/gpt-oss-120b", "untiered pin-only models must not become routing targets")
 }
 
-// The catalog is 13 rows: 7 tiered routing targets and 6 pin-only rows.
-func TestCatalog_TierSplitIsSevenRoutingSixPinOnly(t *testing.T) {
+// The catalog is 11 rows: 7 tiered routing targets and 4 pin-only rows.
+func TestCatalog_TierSplitIsSevenRoutingFourPinOnly(t *testing.T) {
 	tiered, untiered := 0, 0
 	for _, m := range Models {
 		if m.Tier == TierUnknown {
@@ -126,8 +124,8 @@ func TestCatalog_TierSplitIsSevenRoutingSixPinOnly(t *testing.T) {
 		tiered++
 	}
 	assert.Equal(t, 7, tiered, "routing (tiered) models")
-	assert.Equal(t, 6, untiered, "pin-only (untiered) models")
-	assert.Len(t, Models, 13)
+	assert.Equal(t, 4, untiered, "pin-only (untiered) models")
+	assert.Len(t, Models, 11)
 }
 
 func TestRoutingTargetSet_ExcludesUnregisteredProviders(t *testing.T) {
@@ -154,7 +152,7 @@ func TestAllowedAtOrBelow_FiltersOutUnknownTier(t *testing.T) {
 
 func TestToolUseLowSet_OmitsHealthyModels(t *testing.T) {
 	set := ToolUseLowSet()
-	for _, id := range []string{"z-ai/glm-5.2", "moonshotai/kimi-k3", "deepseek/deepseek-v4-pro"} {
+	for _, id := range []string{"moonshotai/kimi-k3", "deepseek/deepseek-v4-pro"} {
 		_, found := set[id]
 		assert.Falsef(t, found, "%s must NOT be in the ToolUseLow set", id)
 	}
@@ -173,7 +171,7 @@ func TestAgenticLowSet_EmptyAfterV4FlashRemoval(t *testing.T) {
 
 func TestAgenticLowSet_OmitsHarnessCapableModels(t *testing.T) {
 	set := AgenticLowSet()
-	for _, id := range []string{"z-ai/glm-5.2", "deepseek/deepseek-v4-pro", "moonshotai/kimi-k2.7"} {
+	for _, id := range []string{"deepseek/deepseek-v4-pro", "moonshotai/kimi-k3"} {
 		_, found := set[id]
 		assert.Falsef(t, found, "%s must NOT be in the AgenticLow set", id)
 	}
@@ -186,7 +184,7 @@ func TestModel_AgenticUseDefaultsToUnknown(t *testing.T) {
 
 func TestImageUnsupportedSet_IncludesTextOnlyModels(t *testing.T) {
 	set := ImageUnsupportedSet()
-	for _, id := range []string{"z-ai/glm-5.2", "z-ai/glm-5.3", "deepseek/deepseek-v4-pro", "moonshotai/kimi-k2.7"} {
+	for _, id := range []string{"z-ai/glm-5.3", "deepseek/deepseek-v4-pro", "deepseek/deepseek-v4-pro-0813", "google/gemma-4-31b", "motif/motif-3"} {
 		_, found := set[id]
 		assert.Truef(t, found, "%s must be flagged ImageInputUnsupported", id)
 	}
@@ -216,9 +214,7 @@ func TestModel_ImageInputDefaultsToUnknown(t *testing.T) {
 func TestContextWindowFor_KnownModels(t *testing.T) {
 	assert.Equal(t, 1_048_576, ContextWindowFor("deepseek/deepseek-v4-pro"))
 	assert.Equal(t, 1_048_576, ContextWindowFor("deepseek/deepseek-v4.1-flash"))
-	assert.Equal(t, 262_144, ContextWindowFor("moonshotai/kimi-k2.7"))
 	assert.Equal(t, 1_048_576, ContextWindowFor("moonshotai/kimi-k3"))
-	assert.Equal(t, 1_048_576, ContextWindowFor("z-ai/glm-5.2"))
 	assert.Equal(t, 1_048_576, ContextWindowFor("z-ai/glm-5.3"))
 	assert.Equal(t, 1_048_550, ContextWindowFor("z-ai/glm-5.3-flash"))
 	assert.Equal(t, 262_144, ContextWindowFor("motif/motif-3"))

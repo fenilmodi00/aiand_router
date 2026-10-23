@@ -95,22 +95,22 @@ func TestService_AgentShadowEvaluationNeverRetriesOnAnotherModel(t *testing.T) {
 	provider := &fakeProvider{proxyErr: &providers.UpstreamStatusError{Status: http.StatusTooManyRequests}}
 	svc := proxy.NewService(&fakeRouter{}, map[string]providers.Client{
 		providers.ProviderAIAND: provider,
-	}, nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.2", nil).
+	}, nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.3", nil).
 		WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}}).
-		WithAvailableModels(map[string]struct{}{"z-ai/glm-5.2": {}})
+		WithAvailableModels(map[string]struct{}{"z-ai/glm-5.3": {}})
 
 	ctx := context.WithValue(context.Background(), proxy.AgentShadowEvalContextKey{}, proxy.AgentShadowEvaluation{
-		Model: "z-ai/glm-5.2", RolloutID: "pilot-1", StateID: "state-1",
+		Model: "z-ai/glm-5.3", RolloutID: "pilot-1", StateID: "state-1",
 	})
 	ctx = context.WithValue(ctx, proxy.InstallationIDContextKey{}, "1791da5d-d0db-494c-8574-859a4cb20d97")
-	body := []byte(`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"inspect this repository"}],"max_tokens":512}`)
+	body := []byte(`{"model":"z-ai/glm-5.3","messages":[{"role":"user","content":"inspect this repository"}],"max_tokens":512}`)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
 	_ = svc.ProxyMessages(ctx, body, rec, req)
 
 	require.Len(t, provider.proxyBodies, 1, "eval traffic must not retry on another model")
-	assert.Equal(t, "z-ai/glm-5.2", gjson.GetBytes(provider.proxyBodies[0], "model").Str,
+	assert.Equal(t, "z-ai/glm-5.3", gjson.GetBytes(provider.proxyBodies[0], "model").Str,
 		"the single attempt must carry the planned model")
 }
 
@@ -464,7 +464,7 @@ func TestService_ProxyMessages_DispatchesBedrockMakoraTogether(t *testing.T) {
 			)
 			// Tools + opus keeps this out of the classifier-hard-pin path,
 			// so the test exercises the widened switch, not the fallback.
-			body := []byte(`{"model":"z-ai/glm-5.2","max_tokens":16,"tools":[{"name":"calc","description":"add","input_schema":{"type":"object","properties":{"a":{"type":"integer"},"b":{"type":"integer"}},"required":["a","b"]}}],"messages":[{"role":"user","content":"What is 7+5? Use calc."}]}`)
+			body := []byte(`{"model":"z-ai/glm-5.3","max_tokens":16,"tools":[{"name":"calc","description":"add","input_schema":{"type":"object","properties":{"a":{"type":"integer"},"b":{"type":"integer"}},"required":["a","b"]}}],"messages":[{"role":"user","content":"What is 7+5? Use calc."}]}`)
 			rec := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(string(body)))
 			require.NoError(t, svc.ProxyMessages(context.Background(), body, rec, req))

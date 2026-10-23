@@ -19,7 +19,7 @@
       "direct_label": "routerarena"
     },
     {
-      "model": "z-ai/glm-5.2",
+      "model": "z-ai/glm-5.3",
       "provider": "aiand",
       "bench_column": "routerarena_z-ai/glm-5",
       "direct_label": "routerarena",
@@ -30,7 +30,7 @@
       ]
     },
     {
-      "model": "moonshotai/kimi-k2.7",
+      "model": "moonshotai/kimi-k3",
       "provider": "aiand",
       "bench_column": "routerarena_moonshotai/kimi-k2.6",
       "direct_label": "routerarena",
@@ -64,14 +64,14 @@
     {
       "model": "z-ai/glm-5.3",
       "provider": "aiand",
-      "bench_column": "z-ai/glm-5.2",
+      "bench_column": "z-ai/glm-5.3",
       "proxy": true,
       "proxy_note": "ai&-only roster: z-ai/glm-5.3 reuses z-ai/glm-5.2's trained column."
     },
     {
       "model": "z-ai/glm-5.3-flash",
       "provider": "aiand",
-      "bench_column": "z-ai/glm-5.2",
+      "bench_column": "z-ai/glm-5.3",
       "proxy": true,
       "proxy_note": "ai&-only roster: z-ai/glm-5.3-flash reuses z-ai/glm-5.2's trained column."
     }

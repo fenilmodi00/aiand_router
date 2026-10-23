@@ -17,9 +17,9 @@ func TestDeployedModelsForRosterIDs_MapsRosterSlugsToCatalogEntries(t *testing.T
 		"deepseek/deepseek-v4.1-flash",
 		"deepseek/deepseek-v4-pro",
 		"deepseek/deepseek-v4-pro-0813",
-		"moonshotai/kimi-k2.7-code",
 		"moonshotai/kimi-k3",
-		"z-ai/glm-5.2",
+		"moonshotai/kimi-k3",
+		"z-ai/glm-5.3",
 		"z-ai/glm-5.3",
 		"z-ai/glm-5.3-flash",
 	})
@@ -34,9 +34,9 @@ func TestDeployedModelsForRosterIDs_MapsRosterSlugsToCatalogEntries(t *testing.T
 	assert.Equal(t, providers.ProviderAIAND, byModel["deepseek/deepseek-v4-pro-0813"])
 	// The aliased Kimi arm maps back to the catalog ID the dispatch path
 	// consumes, not the roster slug.
-	assert.Equal(t, providers.ProviderAIAND, byModel["moonshotai/kimi-k2.7"])
 	assert.Equal(t, providers.ProviderAIAND, byModel["moonshotai/kimi-k3"])
-	assert.Equal(t, providers.ProviderAIAND, byModel["z-ai/glm-5.2"])
+	assert.Equal(t, providers.ProviderAIAND, byModel["moonshotai/kimi-k3"])
+	assert.Equal(t, providers.ProviderAIAND, byModel["z-ai/glm-5.3"])
 	assert.Equal(t, providers.ProviderAIAND, byModel["z-ai/glm-5.3"])
 	assert.Equal(t, providers.ProviderAIAND, byModel["z-ai/glm-5.3-flash"])
 }

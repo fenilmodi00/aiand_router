@@ -20,27 +20,27 @@ func priorTurn(model string, ago time.Duration) turnLoopResult {
 }
 
 func TestBaselineWarmPrefillTokens_SwitchWithinBaselineTTLIsCorrected(t *testing.T) {
-	turnResult := priorTurn("z-ai/glm-5.2", 2*time.Minute)
+	turnResult := priorTurn("z-ai/glm-5.3", 2*time.Minute)
 
-	assert.Equal(t, 100_000, turnResult.baselineWarmPrefillTokens(time.Now(), 100_000, 0, "gpt-5.6-sol", "z-ai/glm-5.2", false),
+	assert.Equal(t, 100_000, turnResult.baselineWarmPrefillTokens(time.Now(), 100_000, 0, "gpt-5.6-sol", "z-ai/glm-5.3", false),
 		"switching away from the baseline pays a cold prefill the baseline would have read warm")
 }
 
 func TestBaselineWarmPrefillTokens_SwitchBackToBaselineIsCorrected(t *testing.T) {
 	turnResult := priorTurn("gpt-5.6-sol", 2*time.Minute)
 
-	assert.Equal(t, 100_000, turnResult.baselineWarmPrefillTokens(time.Now(), 100_000, 0, "z-ai/glm-5.2", "z-ai/glm-5.2", false),
+	assert.Equal(t, 100_000, turnResult.baselineWarmPrefillTokens(time.Now(), 100_000, 0, "z-ai/glm-5.3", "z-ai/glm-5.3", false),
 		"returning to the baseline re-primes a cache the baseline never let go cold")
 }
 
 // Content appended since the previous turn is a cache write for the baseline
 // too; only the previous prompt, less what the served model did read, was warm.
 func TestBaselineWarmPrefillTokens_LimitedToPreviousPrompt(t *testing.T) {
-	turnResult := priorTurn("z-ai/glm-5.2", 2*time.Minute)
+	turnResult := priorTurn("z-ai/glm-5.3", 2*time.Minute)
 
-	assert.Equal(t, 100_000, turnResult.baselineWarmPrefillTokens(time.Now(), 110_000, 0, "gpt-5.6-sol", "z-ai/glm-5.2", false),
+	assert.Equal(t, 100_000, turnResult.baselineWarmPrefillTokens(time.Now(), 110_000, 0, "gpt-5.6-sol", "z-ai/glm-5.3", false),
 		"10k of new content stays a write")
-	assert.Equal(t, 95_000, turnResult.baselineWarmPrefillTokens(time.Now(), 105_000, 5_000, "gpt-5.6-sol", "z-ai/glm-5.2", false),
+	assert.Equal(t, 95_000, turnResult.baselineWarmPrefillTokens(time.Now(), 105_000, 5_000, "gpt-5.6-sol", "z-ai/glm-5.3", false),
 		"a 5k system prefix the served model already read is not repriced again")
 }
 
@@ -49,14 +49,14 @@ func TestBaselineWarmPrefillTokens_LimitedToPreviousPrompt(t *testing.T) {
 func TestBaselineWarmPrefillTokens_EffortOnlyChangeIsNotASwitch(t *testing.T) {
 	turnResult := priorTurn("gpt-5.6-sol:low", time.Minute)
 
-	assert.Zero(t, turnResult.baselineWarmPrefillTokens(time.Now(), 100_000, 0, "gpt-5.6-sol", "z-ai/glm-5.2", false))
+	assert.Zero(t, turnResult.baselineWarmPrefillTokens(time.Now(), 100_000, 0, "gpt-5.6-sol", "z-ai/glm-5.3", false))
 }
 
 // A fresh HMM switch has no thread pin; the prior served turn lives only on
 // the HMM history pin, and its timing and size must come from that same pin.
 func TestApplySwitchHistory_ReadsThePriorTurnFromTheSelectedPin(t *testing.T) {
 	hmmHistory := sessionpin.Pin{
-		LastServedModel:      "z-ai/glm-5.2",
+		LastServedModel:      "z-ai/glm-5.3",
 		Provider:             providers.ProviderAIAND,
 		LastTurnEndedAt:      priorTurnEndedAt(2 * time.Minute),
 		LastInputTokens:      2_000,
@@ -65,7 +65,7 @@ func TestApplySwitchHistory_ReadsThePriorTurnFromTheSelectedPin(t *testing.T) {
 	var turnResult turnLoopResult
 	turnResult.applySwitchHistory(sessionpin.Pin{}, hmmHistory)
 
-	assert.Equal(t, 100_000, turnResult.baselineWarmPrefillTokens(time.Now(), 110_000, 0, "gpt-5.6-sol", "z-ai/glm-5.2", false))
+	assert.Equal(t, 100_000, turnResult.baselineWarmPrefillTokens(time.Now(), 110_000, 0, "gpt-5.6-sol", "z-ai/glm-5.3", false))
 }
 
 func TestBaselineWarmPrefillTokens_BaselineWouldAlsoBeCold(t *testing.T) {
@@ -74,13 +74,13 @@ func TestBaselineWarmPrefillTokens_BaselineWouldAlsoBeCold(t *testing.T) {
 		baseline         string
 		historyTruncated bool
 	}{
-		"first turn":           {turnResult: turnLoopResult{PriorServedEndedAt: priorTurnEndedAt(time.Minute), PriorPromptTokens: 100_000}, baseline: "z-ai/glm-5.2"},
-		"no prior turn time":   {turnResult: turnLoopResult{PriorServedModel: "z-ai/glm-5.2", PriorPromptTokens: 100_000}, baseline: "z-ai/glm-5.2"},
-		"no prior prompt size": {turnResult: turnLoopResult{PriorServedModel: "z-ai/glm-5.2", PriorServedEndedAt: priorTurnEndedAt(time.Minute)}, baseline: "z-ai/glm-5.2"},
-		"client trimmed":       {turnResult: turnLoopResult{PriorServedModel: "z-ai/glm-5.2", PriorServedEndedAt: priorTurnEndedAt(time.Minute), PriorPromptTokens: 100_000, PrefixTrimmed: true}, baseline: "z-ai/glm-5.2"},
-		"ingress truncation":   {turnResult: priorTurn("z-ai/glm-5.2", time.Minute), baseline: "z-ai/glm-5.2", historyTruncated: true},
-		"unpriced baseline":    {turnResult: priorTurn("z-ai/glm-5.2", time.Minute), baseline: "not-a-model"},
-		"cache gap past TTL":   {turnResult: priorTurn("z-ai/glm-5.2", 2*time.Hour), baseline: "z-ai/glm-5.2"},
+		"first turn":           {turnResult: turnLoopResult{PriorServedEndedAt: priorTurnEndedAt(time.Minute), PriorPromptTokens: 100_000}, baseline: "z-ai/glm-5.3"},
+		"no prior turn time":   {turnResult: turnLoopResult{PriorServedModel: "z-ai/glm-5.3", PriorPromptTokens: 100_000}, baseline: "z-ai/glm-5.3"},
+		"no prior prompt size": {turnResult: turnLoopResult{PriorServedModel: "z-ai/glm-5.3", PriorServedEndedAt: priorTurnEndedAt(time.Minute)}, baseline: "z-ai/glm-5.3"},
+		"client trimmed":       {turnResult: turnLoopResult{PriorServedModel: "z-ai/glm-5.3", PriorServedEndedAt: priorTurnEndedAt(time.Minute), PriorPromptTokens: 100_000, PrefixTrimmed: true}, baseline: "z-ai/glm-5.3"},
+		"ingress truncation":   {turnResult: priorTurn("z-ai/glm-5.3", time.Minute), baseline: "z-ai/glm-5.3", historyTruncated: true},
+		"unpriced baseline":    {turnResult: priorTurn("z-ai/glm-5.3", time.Minute), baseline: "not-a-model"},
+		"cache gap past TTL":   {turnResult: priorTurn("z-ai/glm-5.3", 2*time.Hour), baseline: "z-ai/glm-5.3"},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {

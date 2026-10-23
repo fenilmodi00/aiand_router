@@ -45,7 +45,7 @@ func TestCoalesceDuplicateToolResults_CodexNotifyHistoryEmitsOneAnthropicToolRes
 
 	assert.Equal(t, 3, env.CoalesceDuplicateToolResults())
 
-	out, err := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "z-ai/glm-5.2"})
+	out, err := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "z-ai/glm-5.3"})
 	require.NoError(t, err)
 	var results []gjson.Result
 	gjson.GetBytes(out.Body, "messages").ForEach(func(_, msg gjson.Result) bool {

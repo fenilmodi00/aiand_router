@@ -20,7 +20,7 @@ import (
 const authoritativeDowngradeStrategy = router.Strategy("authoritative-downgrade-test")
 
 var authoritativeDowngradeBody = []byte(
-	`{"model":"z-ai/glm-5.2","messages":[{"role":"user","content":"fix the failing test"}]}`,
+	`{"model":"z-ai/glm-5.3","messages":[{"role":"user","content":"fix the failing test"}]}`,
 )
 
 // authoritativeDowngradeService wires an authoritative policy whose fresh pick
@@ -96,7 +96,7 @@ func TestAuthoritativeDowngradeGuards(t *testing.T) {
 	}
 	cheapUpgradeFresh := router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "z-ai/glm-5.2",
+		Model:    "z-ai/glm-5.3",
 		Reason:   "hmm_policy(classifier 'maximum' (p=0.95))",
 		Metadata: &router.RoutingMetadata{ChosenScore: 0.95},
 	}
@@ -116,7 +116,7 @@ func TestAuthoritativeDowngradeGuards(t *testing.T) {
 	}{
 		{
 			name:       "both levers off downgrades on the first vote",
-			pinModel:   "z-ai/glm-5.2",
+			pinModel:   "z-ai/glm-5.3",
 			fresh:      cheapFresh,
 			wantModel:  "z-ai/glm-5.3-flash",
 			wantTier:   "authoritative_per_turn",
@@ -125,17 +125,17 @@ func TestAuthoritativeDowngradeGuards(t *testing.T) {
 		},
 		{
 			name:            "first vote under hysteresis keeps the pin",
-			pinModel:        "z-ai/glm-5.2",
+			pinModel:        "z-ai/glm-5.3",
 			hysteresisTurns: 3,
 			fresh:           cheapFresh,
-			wantModel:       "z-ai/glm-5.2",
+			wantModel:       "z-ai/glm-5.3",
 			wantSticky:      true,
 			wantTier:        "authoritative_hmm_downgrade_hysteresis",
 			wantVotes:       1,
 		},
 		{
 			name:            "final vote under hysteresis serves fresh and clears the run",
-			pinModel:        "z-ai/glm-5.2",
+			pinModel:        "z-ai/glm-5.3",
 			priorVotes:      2,
 			hysteresisTurns: 3,
 			fresh:           cheapFresh,
@@ -150,36 +150,36 @@ func TestAuthoritativeDowngradeGuards(t *testing.T) {
 			priorVotes:      2,
 			hysteresisTurns: 3,
 			fresh:           cheapUpgradeFresh,
-			wantModel:       "z-ai/glm-5.2",
+			wantModel:       "z-ai/glm-5.3",
 			wantTier:        "authoritative_per_turn",
 			wantVotes:       0,
 		},
 		{
 			name:          "low-confidence downgrade keeps the pin without voting",
-			pinModel:      "z-ai/glm-5.2",
+			pinModel:      "z-ai/glm-5.3",
 			priorVotes:    1,
 			downgradeGate: true,
 			fresh:         cheapFresh,
-			wantModel:     "z-ai/glm-5.2",
+			wantModel:     "z-ai/glm-5.3",
 			wantSticky:    true,
 			wantTier:      "authoritative_hmm_downgrade_confidence_low",
 			wantVotes:     1,
 		},
 		{
 			name:            "low-confidence downgrade is dropped before hysteresis counts it",
-			pinModel:        "z-ai/glm-5.2",
+			pinModel:        "z-ai/glm-5.3",
 			priorVotes:      2,
 			hysteresisTurns: 3,
 			downgradeGate:   true,
 			fresh:           cheapFresh,
-			wantModel:       "z-ai/glm-5.2",
+			wantModel:       "z-ai/glm-5.3",
 			wantSticky:      true,
 			wantTier:        "authoritative_hmm_downgrade_confidence_low",
 			wantVotes:       2,
 		},
 		{
 			name:          "confident downgrade clears the gate",
-			pinModel:      "z-ai/glm-5.2",
+			pinModel:      "z-ai/glm-5.3",
 			downgradeGate: true,
 			fresh:         confidentCheapFresh,
 			wantModel:     "z-ai/glm-5.3-flash",
@@ -189,11 +189,11 @@ func TestAuthoritativeDowngradeGuards(t *testing.T) {
 		},
 		{
 			name:            "confident downgrade still serves its hysteresis sentence",
-			pinModel:        "z-ai/glm-5.2",
+			pinModel:        "z-ai/glm-5.3",
 			hysteresisTurns: 3,
 			downgradeGate:   true,
 			fresh:           confidentCheapFresh,
-			wantModel:       "z-ai/glm-5.2",
+			wantModel:       "z-ai/glm-5.3",
 			wantSticky:      true,
 			wantTier:        "authoritative_hmm_downgrade_hysteresis",
 			wantVotes:       1,
@@ -246,7 +246,7 @@ func TestAuthoritativeDowngradeShadow(t *testing.T) {
 	}
 	upgradeFresh := router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "z-ai/glm-5.2",
+		Model:    "z-ai/glm-5.3",
 		Reason:   "hmm_policy(classifier 'maximum' (p=0.95))",
 		Metadata: &router.RoutingMetadata{ChosenScore: 0.95},
 	}
@@ -260,35 +260,35 @@ func TestAuthoritativeDowngradeShadow(t *testing.T) {
 	}{
 		{
 			name:        "unconfident first vote would be held by both guards",
-			pinModel:    "z-ai/glm-5.2",
+			pinModel:    "z-ai/glm-5.3",
 			shadowTurns: 2,
 			fresh:       cheapFresh,
 			wantShadow:  downgradeGuardShadow{Served: true, Votes: 1, HysteresisWouldHold: true, ConfidenceWouldHold: true},
 		},
 		{
 			name:        "confident first vote would be held by hysteresis only",
-			pinModel:    "z-ai/glm-5.2",
+			pinModel:    "z-ai/glm-5.3",
 			shadowTurns: 2,
 			fresh:       confidentCheapFresh,
 			wantShadow:  downgradeGuardShadow{Served: true, Votes: 1, HysteresisWouldHold: true},
 		},
 		{
 			name:        "unscored downgrade is not confidence-gated",
-			pinModel:    "z-ai/glm-5.2",
+			pinModel:    "z-ai/glm-5.3",
 			shadowTurns: 2,
 			fresh:       unscoredCheapFresh,
 			wantShadow:  downgradeGuardShadow{Served: true, Votes: 1, HysteresisWouldHold: true},
 		},
 		{
 			name:        "shadow threshold of one never holds",
-			pinModel:    "z-ai/glm-5.2",
+			pinModel:    "z-ai/glm-5.3",
 			shadowTurns: 1,
 			fresh:       confidentCheapFresh,
 			wantShadow:  downgradeGuardShadow{Served: true, Votes: 1},
 		},
 		{
 			name:       "shadow disabled still marks the served downgrade",
-			pinModel:   "z-ai/glm-5.2",
+			pinModel:   "z-ai/glm-5.3",
 			fresh:      cheapFresh,
 			wantShadow: downgradeGuardShadow{Served: true, Votes: 1, ConfidenceWouldHold: true},
 		},
@@ -357,7 +357,7 @@ func TestAuthoritativeDowngradeHysteresisAcrossTurns(t *testing.T) {
 	}
 	confirming := router.Decision{
 		Provider: providers.ProviderAIAND,
-		Model:    "z-ai/glm-5.2",
+		Model:    "z-ai/glm-5.3",
 		Reason:   "hmm_policy(classifier 'maximum' (p=0.95))",
 		Metadata: &router.RoutingMetadata{ChosenScore: 0.95},
 	}
@@ -368,15 +368,15 @@ func TestAuthoritativeDowngradeHysteresisAcrossTurns(t *testing.T) {
 		wantTier  string
 		wantVotes int
 	}{
-		{fresh: cheaper, wantModel: "z-ai/glm-5.2", wantTier: "authoritative_hmm_downgrade_hysteresis", wantVotes: 1},
-		{fresh: cheaper, wantModel: "z-ai/glm-5.2", wantTier: "authoritative_hmm_downgrade_hysteresis", wantVotes: 2},
-		{fresh: confirming, wantModel: "z-ai/glm-5.2", wantTier: "authoritative_per_turn", wantVotes: 0},
-		{fresh: cheaper, wantModel: "z-ai/glm-5.2", wantTier: "authoritative_hmm_downgrade_hysteresis", wantVotes: 1},
-		{fresh: cheaper, wantModel: "z-ai/glm-5.2", wantTier: "authoritative_hmm_downgrade_hysteresis", wantVotes: 2},
+		{fresh: cheaper, wantModel: "z-ai/glm-5.3", wantTier: "authoritative_hmm_downgrade_hysteresis", wantVotes: 1},
+		{fresh: cheaper, wantModel: "z-ai/glm-5.3", wantTier: "authoritative_hmm_downgrade_hysteresis", wantVotes: 2},
+		{fresh: confirming, wantModel: "z-ai/glm-5.3", wantTier: "authoritative_per_turn", wantVotes: 0},
+		{fresh: cheaper, wantModel: "z-ai/glm-5.3", wantTier: "authoritative_hmm_downgrade_hysteresis", wantVotes: 1},
+		{fresh: cheaper, wantModel: "z-ai/glm-5.3", wantTier: "authoritative_hmm_downgrade_hysteresis", wantVotes: 2},
 		{fresh: cheaper, wantModel: "z-ai/glm-5.3-flash", wantTier: "authoritative_per_turn", wantVotes: 0},
 	}
 
-	pin := authoritativeDowngradePin("z-ai/glm-5.2", 0)
+	pin := authoritativeDowngradePin("z-ai/glm-5.3", 0)
 	for i, turn := range turns {
 		store := newStubPinStore()
 		store.getFound = true

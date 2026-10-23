@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	escalationSonnet    = "z-ai/glm-5.2"
+	escalationSonnet    = "z-ai/glm-5.3"
 	escalationOpus      = "moonshotai/kimi-k3"
 	escalationSonnetArm = "anthropic/" + escalationSonnet
 	escalationOpusArm   = "anthropic/" + escalationOpus

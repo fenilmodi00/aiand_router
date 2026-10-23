@@ -26,7 +26,7 @@ const (
 	// modelAlt is a second, differently-priced model ($1.00 input / $4.00
 	// output, cache-read multiplier 0.30) used where a case needs a model
 	// other than modelTop on the fresh side.
-	modelAlt     = "z-ai/glm-5.2"
+	modelAlt     = "z-ai/glm-5.3"
 	modelUnknown = "fictional-foo-1.0" // intentionally absent from the pricing table
 )
 

@@ -39,7 +39,7 @@ func TestInternalListUpstreamModelsHandler_ListsWithMintedCredential(t *testing.
 		Plaintext:      []byte("sk-byok"),
 		BaseURL:        "https://cortex.example/api/v2/cortex/v1",
 	}
-	lister := &modelListingClient{models: []string{"z-ai/glm-5.2"}}
+	lister := &modelListingClient{models: []string{"z-ai/glm-5.3"}}
 	engine := internalUpstreamModelsEngine(
 		upstreamModelsAuthService([]*auth.ExternalAPIKey{key}),
 		upstreamModelsProxyService(map[string]providers.Client{providers.ProviderAIAND: lister}),
@@ -53,7 +53,7 @@ func TestInternalListUpstreamModelsHandler_ListsWithMintedCredential(t *testing.
 		Models []string `json:"models"`
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
-	assert.Equal(t, []string{"z-ai/glm-5.2"}, body.Models)
+	assert.Equal(t, []string{"z-ai/glm-5.3"}, body.Models)
 	require.NotNil(t, lister.seenCreds)
 	assert.Equal(t, key.BaseURL, lister.seenCreds.BaseURL)
 }

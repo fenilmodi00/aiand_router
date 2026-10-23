@@ -77,7 +77,7 @@ func TestArmResolverEnumeratesTheAllowedProviderBinding(t *testing.T) {
 	// ai& is the only upstream and every catalog model carries exactly one
 	// binding, so the arm resolver offers exactly one arm per model.
 	resolver := policy.NewArmResolver(
-		set("z-ai/glm-5.2"),
+		set("z-ai/glm-5.3"),
 		set(providers.ProviderAIAND),
 		catalogRosterID,
 	)
@@ -85,11 +85,11 @@ func TestArmResolverEnumeratesTheAllowedProviderBinding(t *testing.T) {
 	resolved := resolver.Resolve(router.Request{})
 
 	require.Len(t, resolved.Candidates, 1)
-	assert.Equal(t, "z-ai/glm-5.2", resolved.Candidates[0].RosterID)
+	assert.Equal(t, "z-ai/glm-5.3", resolved.Candidates[0].RosterID)
 	// The roster ID is unambiguous (one model maps to it), so the resolver
 	// can resolve a selection by roster ID.
-	require.Contains(t, resolved.ByRosterID, "z-ai/glm-5.2")
-	assert.Equal(t, []string{"z-ai/glm-5.2"}, resolved.CandidateModels())
+	require.Contains(t, resolved.ByRosterID, "z-ai/glm-5.3")
+	assert.Equal(t, []string{"z-ai/glm-5.3"}, resolved.CandidateModels())
 	assert.Equal(t, map[string]string{
 		resolved.Candidates[0].ArmID: resolved.Candidates[0].Provider,
 	}, resolved.CandidateArmProviders())
@@ -116,7 +116,7 @@ func TestArmResolverRejectsRosterOnlySelection(t *testing.T) {
 	// A roster ID that several models share is ambiguous, so the resolver
 	// must not resolve a selection by roster ID alone.
 	resolver := policy.NewArmResolver(
-		set("z-ai/glm-5.2", "moonshotai/kimi-k3"),
+		set("z-ai/glm-5.3", "moonshotai/kimi-k3"),
 		set(providers.ProviderAIAND),
 		func(catalog.Model) string { return "shared/arm" },
 	)
@@ -131,7 +131,7 @@ func TestArmResolverRejectsRosterOnlySelection(t *testing.T) {
 
 func TestResolverAppliesHardFiltersAndPreferenceRanks(t *testing.T) {
 	resolver := policy.NewResolver(
-		set("moonshotai/kimi-k3", "z-ai/glm-5.2"),
+		set("moonshotai/kimi-k3", "z-ai/glm-5.3"),
 		set(providers.ProviderAIAND),
 		catalogRosterID,
 	)
@@ -140,13 +140,13 @@ func TestResolverAppliesHardFiltersAndPreferenceRanks(t *testing.T) {
 	// what the resolver would have ranked them by.
 	resolved := resolver.Resolve(router.Request{
 		EnabledProviders: set("other-provider"),
-		PreferredModels:  []string{"z-ai/glm-5.2", "moonshotai/kimi-k3"},
+		PreferredModels:  []string{"z-ai/glm-5.3", "moonshotai/kimi-k3"},
 	})
 
 	assert.Empty(t, resolved.Candidates)
 	assert.Contains(t, resolved.Diagnostics, policy.Diagnostic{
-		CatalogID: "z-ai/glm-5.2",
-		RosterID:  "z-ai/glm-5.2",
+		CatalogID: "z-ai/glm-5.3",
+		RosterID:  "z-ai/glm-5.3",
 		Reason:    policy.ExclusionNoProvider,
 	})
 	assert.Contains(t, resolved.Diagnostics, policy.Diagnostic{
@@ -158,7 +158,7 @@ func TestResolverAppliesHardFiltersAndPreferenceRanks(t *testing.T) {
 	// With ai& wired, both resolve and the preference list ranks them.
 	resolved = resolver.Resolve(router.Request{
 		EnabledProviders: set(providers.ProviderAIAND),
-		PreferredModels:  []string{"z-ai/glm-5.2", "moonshotai/kimi-k3"},
+		PreferredModels:  []string{"z-ai/glm-5.3", "moonshotai/kimi-k3"},
 	})
 
 	require.Len(t, resolved.Candidates, 2)
@@ -167,7 +167,7 @@ func TestResolverAppliesHardFiltersAndPreferenceRanks(t *testing.T) {
 		require.NotNil(t, candidate.PreferenceRank)
 		ranks[candidate.CatalogID] = *candidate.PreferenceRank
 	}
-	assert.Equal(t, 0, ranks["z-ai/glm-5.2"], "the first preferred model ranks first")
+	assert.Equal(t, 0, ranks["z-ai/glm-5.3"], "the first preferred model ranks first")
 	assert.Equal(t, 1, ranks["moonshotai/kimi-k3"], "the second preferred model ranks second")
 }
 
@@ -187,7 +187,7 @@ func TestResolverBuildsMappingOnlyFromFinalSoftFilteredPool(t *testing.T) {
 
 func TestResolverRejectsAmbiguousRosterMappings(t *testing.T) {
 	resolver := policy.NewResolver(
-		set("moonshotai/kimi-k3", "z-ai/glm-5.2"),
+		set("moonshotai/kimi-k3", "z-ai/glm-5.3"),
 		set(providers.ProviderAIAND, providers.ProviderAIAND),
 		func(catalog.Model) string { return "shared/arm" },
 	)
@@ -252,7 +252,7 @@ func TestResolverIncludesExpectedOutputInContextBudget(t *testing.T) {
 
 func TestResolverKeepsOverflowAdmittedModels(t *testing.T) {
 	resolver := policy.NewResolver(
-		set("moonshotai/kimi-k3", "z-ai/glm-5.2"),
+		set("moonshotai/kimi-k3", "z-ai/glm-5.3"),
 		set(providers.ProviderAIAND),
 		catalogRosterID,
 	)
@@ -265,8 +265,8 @@ func TestResolverKeepsOverflowAdmittedModels(t *testing.T) {
 	assert.Equal(t, []string{"moonshotai/kimi-k3"}, resolved.CandidateModels(),
 		"the provider's exact count decides for a model the proxy admitted on total overflow")
 	assert.Equal(t, []policy.Diagnostic{{
-		CatalogID: "z-ai/glm-5.2",
-		RosterID:  "z-ai/glm-5.2",
+		CatalogID: "z-ai/glm-5.3",
+		RosterID:  "z-ai/glm-5.3",
 		Reason:    policy.ExclusionContextWindow,
 	}}, resolved.Diagnostics)
 }
@@ -340,7 +340,7 @@ func TestResolverUsesLongContextPricing(t *testing.T) {
 	// No surviving ai& model publishes a long-context tier, so the resolver
 	// must report the standard rates for a long prompt.
 	resolver := policy.NewResolver(
-		set("z-ai/glm-5.2"),
+		set("z-ai/glm-5.3"),
 		set(providers.ProviderAIAND),
 		catalogRosterID,
 	)
@@ -452,18 +452,18 @@ func TestResolverKeepsPoolWhenAutomaticDisablesWouldEmptyIt(t *testing.T) {
 // else the demoted model is kept rather than the pool widened.
 func TestResolverSessionDemotionStaysInsideAllowlist(t *testing.T) {
 	resolver := policy.NewResolver(
-		set("moonshotai/kimi-k3", "z-ai/glm-5.2", "z-ai/glm-5.2"),
+		set("moonshotai/kimi-k3", "z-ai/glm-5.3", "z-ai/glm-5.3"),
 		set(providers.ProviderAIAND, providers.ProviderAIAND),
 		catalogRosterID,
 	)
 
 	t.Run("allowlist admits an Anthropic sibling", func(t *testing.T) {
 		resolved := resolver.Resolve(router.Request{
-			AllowedModels:           set("moonshotai/kimi-k3", "z-ai/glm-5.2"),
+			AllowedModels:           set("moonshotai/kimi-k3", "z-ai/glm-5.3"),
 			AutomaticExcludedModels: set("moonshotai/kimi-k3"),
 		})
 
-		assert.Equal(t, []string{"z-ai/glm-5.2"}, resolved.CandidateModels())
+		assert.Equal(t, []string{"z-ai/glm-5.3"}, resolved.CandidateModels())
 	})
 
 	t.Run("allowlist admits only the demoted model", func(t *testing.T) {
@@ -474,7 +474,7 @@ func TestResolverSessionDemotionStaysInsideAllowlist(t *testing.T) {
 
 		assert.Equal(t, []string{"moonshotai/kimi-k3"}, resolved.CandidateModels(),
 			"the demotion must not admit a cross-vendor model the allowlist excludes")
-		assert.NotContains(t, resolved.CandidateModels(), "z-ai/glm-5.2")
+		assert.NotContains(t, resolved.CandidateModels(), "z-ai/glm-5.3")
 	})
 }
 
@@ -495,7 +495,7 @@ func TestResolverDirectlyEnforcesAllowlistForStrategySpecificCandidates(t *testi
 	assert.Equal(t, "z-ai/glm-5.3-flash", resolved.Candidates[0].CatalogID)
 
 	resolved = resolver.Resolve(router.Request{
-		AllowedModels: map[string]struct{}{"z-ai/glm-5.2": {}},
+		AllowedModels: map[string]struct{}{"z-ai/glm-5.3": {}},
 	})
 
 	assert.Empty(t, resolved.Candidates)

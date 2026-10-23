@@ -72,7 +72,7 @@ func ctxWithGatewayAliases(installationID string, models ...string) context.Cont
 // routable, or one bad alias would sideline the whole key.
 func TestService_HardPin_TitleGen_GatewayModelNotFound_KeepsServedAliasesRoutable(t *testing.T) {
 	store := newFakePinStore()
-	fr := &fakeRouter{decision: router.Decision{Provider: "anthropic", Model: "z-ai/glm-5.2", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: "anthropic", Model: "z-ai/glm-5.3", Reason: "cluster"}}
 
 	var seen []proxy.HardPinRequest
 	resolver := func(req proxy.HardPinRequest) (string, string, bool) {
@@ -107,7 +107,7 @@ func TestService_HardPin_TitleGen_GatewayModelNotFound_KeepsServedAliasesRoutabl
 // has its own binding walk — it must not feed the gateway memo.
 func TestService_HardPin_TitleGen_VendorModelNotFound_DoesNotExcludeModel(t *testing.T) {
 	store := newFakePinStore()
-	fr := &fakeRouter{decision: router.Decision{Provider: "anthropic", Model: "z-ai/glm-5.2", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: "anthropic", Model: "z-ai/glm-5.3", Reason: "cluster"}}
 
 	var seen []proxy.HardPinRequest
 	resolver := func(req proxy.HardPinRequest) (string, string, bool) {

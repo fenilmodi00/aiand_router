@@ -33,7 +33,7 @@ func TestHTTPRouterEndToEndWithSidecar(t *testing.T) {
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&gotRoute))
 			require.NotEmpty(t, gotRoute.RouteID)
 			require.Contains(t, gotRoute.CandidateModels, "moonshotai/kimi-k3")
-			require.NotContains(t, gotRoute.CandidateModels, "moonshotai/kimi-k2.7")
+		require.NotContains(t, gotRoute.CandidateModels, "z-ai/glm-5.2")
 			require.Equal(t, "aiand", gotRoute.CandidateProviders["moonshotai/kimi-k3"])
 			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"route_id": gotRoute.RouteID, "model": "moonshotai/kimi-k3", "score": 0.72,

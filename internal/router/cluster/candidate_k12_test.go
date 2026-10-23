@@ -5,6 +5,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"aiand-os/router/internal/router/catalog"
 )
 
 // TestCandidateK12Loads is the load-gate for the candidate-k12 bake-off bundle:
@@ -46,7 +48,14 @@ func TestCandidateK12Loads(t *testing.T) {
 	}
 
 	// The roster must carry the ai& models the router can dispatch.
-	for _, m := range []string{"z-ai/glm-5.3", "z-ai/glm-5.2", "z-ai/glm-5.3-flash", "moonshotai/kimi-k3", "moonshotai/kimi-k2.7", "deepseek/deepseek-v4-pro", "deepseek/deepseek-v4.1-flash", "deepseek/deepseek-v4-pro-0813"} {
+	for _, m := range []string{
+		catalog.ModelIDGLM53.String(),
+		catalog.ModelIDGLM53Flash.String(),
+		catalog.ModelIDKimiK3.String(),
+		catalog.ModelIDDeepSeekV4Pro.String(),
+		catalog.ModelIDDeepSeekV41Flash.String(),
+		catalog.ModelIDDeepSeekV4Pro0813.String(),
+	} {
 		assert.Contains(t, models, m, "%s must be a deployed model", m)
 	}
 	// The frozen k12 bundle predates motif-3 and qwen3.8-27b; they join the
@@ -64,14 +73,21 @@ func TestCandidateK12Loads(t *testing.T) {
 
 	// Every tiered ai& model in the roster is routable.
 	routable := RoutableModelSet(bundle.Registry, providers)
-	for _, m := range []string{"z-ai/glm-5.3", "z-ai/glm-5.3-flash", "moonshotai/kimi-k3", "deepseek/deepseek-v4-pro", "deepseek/deepseek-v4.1-flash"} {
+	for _, m := range []string{
+		catalog.ModelIDGLM53.String(),
+		catalog.ModelIDGLM53Flash.String(),
+		catalog.ModelIDKimiK3.String(),
+		catalog.ModelIDDeepSeekV4Pro.String(),
+		catalog.ModelIDDeepSeekV41Flash.String(),
+	} {
 		_, ok := routable[m]
 		assert.Truef(t, ok, "%s must be routable", m)
 	}
 	// The untiered passthrough rows are never cluster targets; a registry
 	// entry the catalog no longer knows (deepseek-v4-flash, removed upstream)
-	// is not routable either.
-	for _, m := range []string{"z-ai/glm-5.2", "moonshotai/kimi-k2.7", "deepseek/deepseek-v4-pro-0813", "deepseek/deepseek-v4-flash"} {
+	// is not routable either. z-ai/glm-5.3 and moonshotai/kimi-k3 are TierHigh
+	// in the catalog and must remain routable.
+	for _, m := range []string{"deepseek/deepseek-v4-pro-0813", "deepseek/deepseek-v4-flash"} {
 		_, untieredRoutable := routable[m]
 		assert.Falsef(t, untieredRoutable, "an untiered model must not be a cluster target: %s", m)
 	}

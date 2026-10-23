@@ -50,37 +50,37 @@ func (e *ForcedModelUnknownError) Unwrap() error { return ErrForcedModelUnknown 
 // forceModelAliases maps a human-typed name to a catalog model ID. Every
 // target must be a live catalog row: an alias naming a model the upstream
 // no longer publishes would resolve to nothing and fail the request.
+
 var forceModelAliases = map[string]string{
-	// Claude family aliases follow GLM-5.2, the strongest model in the
-	// catalog; the older Opus names keep resolving so existing direct pins
-	// still serve.
-	"anthropic":   "z-ai/glm-5.2",
-	"claude":      "z-ai/glm-5.2",
-	"opus":        "z-ai/glm-5.2",
-	"claude-opus": "z-ai/glm-5.2",
-	"opus-5.5":    "z-ai/glm-5.2",
-	"opus-5-5":    "z-ai/glm-5.2",
-	"opus5.5":     "z-ai/glm-5.2",
-	"opus55":      "z-ai/glm-5.2",
-	"claude-5.5":  "z-ai/glm-5.2",
-	"claude-5-5":  "z-ai/glm-5.2",
-	"opus-5":      "z-ai/glm-5.2",
-	"opus-5.0":    "z-ai/glm-5.2",
-	"opus5":       "z-ai/glm-5.2",
-	"claude-5":    "z-ai/glm-5.2",
-	"opus-4-8":    "z-ai/glm-5.2",
-	"opus-4.8":    "z-ai/glm-5.2",
-	"claude-4-8":  "z-ai/glm-5.2",
-	"claude-4.8":  "z-ai/glm-5.2",
-	// Fable family aliases follow GLM-5.2 as well.
-	"fable":        "z-ai/glm-5.2",
-	"claude-fable": "z-ai/glm-5.2",
-	"fable-5.1":    "z-ai/glm-5.2",
-	"fable-5-1":    "z-ai/glm-5.2",
-	"fable5.1":     "z-ai/glm-5.2",
-	"fable51":      "z-ai/glm-5.2",
-	"fable-5":      "z-ai/glm-5.2",
-	"fable5":       "z-ai/glm-5.2",
+	// Claude family aliases follow GLM-5.3, the strongest text model in
+	// the catalog.
+	"anthropic":   "z-ai/glm-5.3",
+	"claude":      "z-ai/glm-5.3",
+	"opus":        "z-ai/glm-5.3",
+	"claude-opus": "z-ai/glm-5.3",
+	"opus-5.5":    "z-ai/glm-5.3",
+	"opus-5-5":    "z-ai/glm-5.3",
+	"opus5.5":     "z-ai/glm-5.3",
+	"opus55":      "z-ai/glm-5.3",
+	"claude-5.5":  "z-ai/glm-5.3",
+	"claude-5-5":  "z-ai/glm-5.3",
+	"opus-5":      "z-ai/glm-5.3",
+	"opus-5.0":    "z-ai/glm-5.3",
+	"opus5":       "z-ai/glm-5.3",
+	"claude-5":    "z-ai/glm-5.3",
+	"opus-4-8":    "z-ai/glm-5.3",
+	"opus-4.8":    "z-ai/glm-5.3",
+	"claude-4-8":  "z-ai/glm-5.3",
+	"claude-4.8":  "z-ai/glm-5.3",
+	// Fable family aliases follow GLM-5.3 as well.
+	"fable":        "z-ai/glm-5.3",
+	"claude-fable": "z-ai/glm-5.3",
+	"fable-5.1":    "z-ai/glm-5.3",
+	"fable-5-1":    "z-ai/glm-5.3",
+	"fable5.1":     "z-ai/glm-5.3",
+	"fable51":      "z-ai/glm-5.3",
+	"fable-5":      "z-ai/glm-5.3",
+	"fable5":       "z-ai/glm-5.3",
 	// Sonnet family aliases follow DeepSeek V4 Pro; Sonnet 4.6 follows the
 	// V4.1 Flash.
 	"sonnet":        "deepseek/deepseek-v4-pro",
@@ -125,19 +125,16 @@ var forceModelAliases = map[string]string{
 	// Motif family.
 	"motif":   "motif/motif-3",
 	"motif-3": "motif/motif-3",
-	// Kimi aliases follow K3; the K2.7 pin stays exact.
-	"kimi":      "moonshotai/kimi-k3",
-	"kimi-k3":   "moonshotai/kimi-k3",
-	"kimi-k2.7": "moonshotai/kimi-k2.7",
+	// Kimi aliases follow K3.
+	"kimi":    "moonshotai/kimi-k3",
+	"kimi-k3": "moonshotai/kimi-k3",
 	// GLM aliases follow 5.3; version-specific pins stay exact.
 	"glm":           "z-ai/glm-5.3",
 	"zai":           "z-ai/glm-5.3",
 	"z-ai":          "z-ai/glm-5.3",
 	"glm-5.3-flash": "z-ai/glm-5.3-flash",
 	"glm-5.3":       "z-ai/glm-5.3",
-	"glm-5.2":       "z-ai/glm-5.2",
 }
-
 // forceModelExamples follows the family aliases so the unknown-model hint
 // never names a retired release.
 var forceModelExamples = fmt.Sprintf("opus, %s, or %s",

@@ -43,7 +43,7 @@ func (s *turnStrikePinStore) ClearTurnStrikes(_ context.Context, _ [sessionpin.S
 
 var _ sessionpin.TurnStrikeStore = (*turnStrikePinStore)(nil)
 
-const toolResultTurnBody = `{"model":"z-ai/glm-5.2","messages":[` +
+const toolResultTurnBody = `{"model":"z-ai/glm-5.3","messages":[` +
 	`{"role":"user","content":"fix the build"},` +
 	`{"role":"assistant","content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"make"}}]},` +
 	`{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"ok"}]}]}`

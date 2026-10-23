@@ -29,21 +29,21 @@
     {
       "model": "moonshotai/kimi-k3",
       "provider": "aiand",
-      "bench_column": "moonshotai/kimi-k2.7",
+      "bench_column": "moonshotai/kimi-k3",
       "proxy": true,
       "proxy_note": "ai&-only roster: moonshotai/kimi-k3 reuses moonshotai/kimi-k2.7's trained column."
     },
     {
       "model": "z-ai/glm-5.3",
       "provider": "aiand",
-      "bench_column": "z-ai/glm-5.2",
+      "bench_column": "z-ai/glm-5.3",
       "proxy": true,
       "proxy_note": "ai&-only roster: z-ai/glm-5.3 reuses z-ai/glm-5.2's trained column."
     },
     {
       "model": "z-ai/glm-5.3-flash",
       "provider": "aiand",
-      "bench_column": "z-ai/glm-5.2",
+      "bench_column": "z-ai/glm-5.3",
       "proxy": true,
       "proxy_note": "ai&-only roster: z-ai/glm-5.3-flash reuses z-ai/glm-5.2's trained column."
     }

@@ -52,6 +52,6 @@ func TestSemanticCacheOriginalRequirementsAndAutomaticExclusionsBypass(t *testin
 		ctx := context.WithValue(context.Background(), responsesRequirementsContextKey{}, requirements)
 		assert.False(t, service.semanticCacheRequestAllowed(ctx, router.Request{}))
 	}
-	service.WithGlobalAutomaticExclusions(&stubGlobalExclusionStore{byModel: map[string]string{catalog.ModelIDGLM52.String(): "disabled"}})
+	service.WithGlobalAutomaticExclusions(&stubGlobalExclusionStore{byModel: map[string]string{catalog.ModelIDGLM53.String(): "disabled"}})
 	assert.False(t, service.semanticCacheRequestAllowed(context.Background(), router.Request{}))
 }

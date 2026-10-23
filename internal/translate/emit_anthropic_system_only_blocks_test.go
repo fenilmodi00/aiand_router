@@ -16,7 +16,7 @@ func prepareAnthropicBody(t *testing.T, body []byte) []byte {
 	t.Helper()
 	env, err := translate.ParseAnthropic(body)
 	require.NoError(t, err)
-	prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "z-ai/glm-5.2"})
+	prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "z-ai/glm-5.3"})
 	require.NoError(t, err)
 	return prep.Body
 }
@@ -32,7 +32,7 @@ func prepareAnthropicPassthroughBody(t *testing.T, body []byte) []byte {
 
 func TestPrepareAnthropic_NormalizesToolAdditionOnNonSystemMessage(t *testing.T) {
 	body := []byte(`{
-		"model": "z-ai/glm-5.2",
+		"model": "z-ai/glm-5.3",
 		"max_tokens": 1024,
 		"messages": [
 			{"role": "user", "content": [{"type": "text", "text": "hello"}]},
@@ -58,7 +58,7 @@ func TestPrepareAnthropic_NormalizesToolAdditionOnNonSystemMessage(t *testing.T)
 
 func TestPrepareAnthropic_PreservesSystemToolDeltasAfterSystemHandling(t *testing.T) {
 	body := []byte(`{
-		"model": "z-ai/glm-5.2",
+		"model": "z-ai/glm-5.3",
 		"max_tokens": 1024,
 		"messages": [
 			{"role": "user", "content": "hello"},
@@ -91,7 +91,7 @@ func TestPrepareAnthropic_PreservesSystemToolDeltasAfterSystemHandling(t *testin
 
 func TestPrepareAnthropic_DropsMessageThatOnlyHadSystemOnlyBlocks(t *testing.T) {
 	body := []byte(`{
-		"model": "z-ai/glm-5.2",
+		"model": "z-ai/glm-5.3",
 		"max_tokens": 1024,
 		"messages": [
 			{"role": "user", "content": "hello"},
@@ -108,7 +108,7 @@ func TestPrepareAnthropic_DropsMessageThatOnlyHadSystemOnlyBlocks(t *testing.T) 
 
 func TestPrepareAnthropic_PlacesAssistantToolDeltaBeforeAssistantTurn(t *testing.T) {
 	body := []byte(`{
-		"model": "z-ai/glm-5.2",
+		"model": "z-ai/glm-5.3",
 		"max_tokens": 1024,
 		"messages": [
 			{"role": "user", "content": "start"},
@@ -134,7 +134,7 @@ func TestPrepareAnthropic_PlacesAssistantToolDeltaBeforeAssistantTurn(t *testing
 
 func TestPrepareAnthropicPassthrough_NormalizesToolDeltas(t *testing.T) {
 	body := []byte(`{
-		"model": "z-ai/glm-5.2",
+		"model": "z-ai/glm-5.3",
 		"max_tokens": 1024,
 		"messages": [{"role": "user", "content": [
 			{"type": "tool_removal", "tool": {"type": "tool_reference", "name": "search"}},
@@ -153,7 +153,7 @@ func TestPrepareAnthropicPassthrough_NormalizesToolDeltas(t *testing.T) {
 
 func TestPrepareAnthropic_AddsToolChangesBeta(t *testing.T) {
 	body := []byte(`{
-		"model": "z-ai/glm-5.2",
+		"model": "z-ai/glm-5.3",
 		"max_tokens": 1024,
 		"messages": [{"role": "user", "content": [
 			{"type": "tool_addition", "tool": {"type": "tool_reference", "name": "Read"}},
@@ -163,7 +163,7 @@ func TestPrepareAnthropic_AddsToolChangesBeta(t *testing.T) {
 	env, err := translate.ParseAnthropic(body)
 	require.NoError(t, err)
 	prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{
-		TargetModel:    "z-ai/glm-5.2",
+		TargetModel:    "z-ai/glm-5.3",
 		TargetProvider: providers.ProviderAIAND,
 	})
 	require.NoError(t, err)
@@ -172,7 +172,7 @@ func TestPrepareAnthropic_AddsToolChangesBeta(t *testing.T) {
 
 func TestPrepareAnthropicPassthrough_AddsToolChangesBeta(t *testing.T) {
 	body := []byte(`{
-		"model": "z-ai/glm-5.2",
+		"model": "z-ai/glm-5.3",
 		"max_tokens": 1024,
 		"messages": [{"role": "user", "content": [
 			{"type": "tool_removal", "tool": {"type": "tool_reference", "name": "Edit"}},
@@ -188,7 +188,7 @@ func TestPrepareAnthropicPassthrough_AddsToolChangesBeta(t *testing.T) {
 
 func TestPrepareAnthropic_LeavesOrdinaryMessagesUnchanged(t *testing.T) {
 	body := []byte(`{
-		"model": "z-ai/glm-5.2",
+		"model": "z-ai/glm-5.3",
 		"max_tokens": 1024,
 		"system": "rules",
 		"messages": [{"role": "user", "content": "hello"}]
@@ -211,7 +211,7 @@ func TestPrepareAnthropic_LeavesOrdinaryMessagesUnchanged(t *testing.T) {
 
 func TestPrepareAnthropic_ModelSwitchKeepsSystemMessageBeforeAssistantWhenThinkingOnlyTurnDropped(t *testing.T) {
 	body := []byte(`{
-		"model": "z-ai/glm-5.2",
+		"model": "z-ai/glm-5.3",
 		"max_tokens": 1024,
 		"messages": [
 			{"role": "user", "content": "start"},
@@ -225,7 +225,7 @@ func TestPrepareAnthropic_ModelSwitchKeepsSystemMessageBeforeAssistantWhenThinki
 	}`)
 	env, err := translate.ParseAnthropic(body)
 	require.NoError(t, err)
-	prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "z-ai/glm-5.2", ModelSwitched: true})
+	prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "z-ai/glm-5.3", ModelSwitched: true})
 	require.NoError(t, err)
 
 	msgs := gjson.GetBytes(prep.Body, "messages").Array()
@@ -240,7 +240,7 @@ func TestPrepareAnthropic_ModelSwitchKeepsSystemMessageBeforeAssistantWhenThinki
 
 func TestPrepareAnthropic_ModelSwitchMovesSystemMessageToNextAssistantTurn(t *testing.T) {
 	body := []byte(`{
-		"model": "z-ai/glm-5.2",
+		"model": "z-ai/glm-5.3",
 		"max_tokens": 1024,
 		"messages": [
 			{"role": "user", "content": "start"},
@@ -253,7 +253,7 @@ func TestPrepareAnthropic_ModelSwitchMovesSystemMessageToNextAssistantTurn(t *te
 	}`)
 	env, err := translate.ParseAnthropic(body)
 	require.NoError(t, err)
-	prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "z-ai/glm-5.2", ModelSwitched: true})
+	prep, err := env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "z-ai/glm-5.3", ModelSwitched: true})
 	require.NoError(t, err)
 
 	var roles []string

@@ -31,7 +31,7 @@ func (s *recordingUsageSink) RecordOutputLimitReached() { s.limit = true }
 
 func TestResponsesWriter_NativeComputerCallIsUsable(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesWriter(rec, "moonshotai/kimi-k2.7")
+	w := translate.NewResponsesWriter(rec, "moonshotai/kimi-k3")
 	w.SetPassthrough()
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
@@ -44,7 +44,7 @@ func TestResponsesWriter_NativeComputerCallIsUsable(t *testing.T) {
 
 func TestResponsesWriter_NativeRefusalIsUsable(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesWriter(rec, "moonshotai/kimi-k2.7")
+	w := translate.NewResponsesWriter(rec, "moonshotai/kimi-k3")
 	w.SetPassthrough()
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
@@ -56,7 +56,7 @@ func TestResponsesWriter_NativeRefusalIsUsable(t *testing.T) {
 
 func TestResponsesWriter_QueuedBackgroundIsNotEmpty(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesWriter(rec, "moonshotai/kimi-k2.7")
+	w := translate.NewResponsesWriter(rec, "moonshotai/kimi-k3")
 	w.SetPassthrough()
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
@@ -69,7 +69,7 @@ func TestResponsesWriter_QueuedBackgroundIsNotEmpty(t *testing.T) {
 
 func TestResponsesWriter_FragmentedNativeSSEDoesNotForwardPartialEvent(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesWriter(rec, "moonshotai/kimi-k2.7")
+	w := translate.NewResponsesWriter(rec, "moonshotai/kimi-k3")
 	w.SetPassthrough()
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.WriteHeader(200)
@@ -85,7 +85,7 @@ func TestResponsesWriter_FragmentedNativeSSEDoesNotForwardPartialEvent(t *testin
 
 func TestResponsesWriter_NativeAPIErrorPreservesEnvelope(t *testing.T) {
 	rec := httptest.NewRecorder()
-	w := translate.NewResponsesWriter(rec, "moonshotai/kimi-k2.7")
+	w := translate.NewResponsesWriter(rec, "moonshotai/kimi-k3")
 	w.SetPassthrough()
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(400)
@@ -99,7 +99,7 @@ func TestResponsesWriter_NativeAPIErrorPreservesEnvelope(t *testing.T) {
 func TestResponsesToOpenAIChatWriter_EmptyTerminalRecordsUsage(t *testing.T) {
 	rec := httptest.NewRecorder()
 	sink := &recordingUsageSink{}
-	w := translate.NewResponsesToOpenAIChatWriter(rec, "moonshotai/kimi-k2.7", sink)
+	w := translate.NewResponsesToOpenAIChatWriter(rec, "moonshotai/kimi-k3", sink)
 	require.NoError(t, w.Prelude(true))
 	_, err := w.Write([]byte("event: response.incomplete\ndata: {\"type\":\"response.incomplete\",\"response\":{\"id\":\"resp_empty\",\"status\":\"incomplete\",\"incomplete_details\":{\"reason\":\"max_output_tokens\"},\"output\":[],\"usage\":{\"input_tokens\":100,\"output_tokens\":8192}}}\n\n"))
 	require.ErrorIs(t, err, providers.ErrUpstreamEmptyCompletion)
@@ -111,7 +111,7 @@ func TestResponsesToOpenAIChatWriter_EmptyTerminalRecordsUsage(t *testing.T) {
 func TestResponsesToAnthropicWriter_EmptyTerminalRecordsUsage(t *testing.T) {
 	rec := httptest.NewRecorder()
 	sink := &recordingUsageSink{}
-	w := translate.NewResponsesToAnthropicWriter(rec, "z-ai/glm-5.2", sink)
+	w := translate.NewResponsesToAnthropicWriter(rec, "z-ai/glm-5.3", sink)
 	require.NoError(t, w.Prelude(true))
 	_, err := w.Write([]byte("event: response.incomplete\ndata: {\"type\":\"response.incomplete\",\"response\":{\"id\":\"resp_empty\",\"status\":\"incomplete\",\"incomplete_details\":{\"reason\":\"max_output_tokens\"},\"output\":[],\"usage\":{\"input_tokens\":100,\"output_tokens\":8192}}}\n\n"))
 	require.ErrorIs(t, err, providers.ErrUpstreamEmptyCompletion)

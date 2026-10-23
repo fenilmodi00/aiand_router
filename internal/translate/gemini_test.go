@@ -444,7 +444,7 @@ func TestPrepareGemini_FromAnthropic_ToolUseSignatureSurvivesUnknownFieldStrippi
 
 	// Turn 3: client sends history back. Router translates Anthropic → Gemini.
 	req := map[string]any{
-		"model": "z-ai/glm-5.2",
+		"model": "z-ai/glm-5.3",
 		"messages": []any{
 			map[string]any{"role": "user", "content": "list files"},
 			map[string]any{"role": "assistant", "content": []any{tu}},

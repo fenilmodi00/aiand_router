@@ -11,7 +11,7 @@ import (
 
 func TestConversationMessagesForRoutingConvertsAtProxyBoundary(t *testing.T) {
 	env, err := translate.ParseAnthropic([]byte(`{
-		"model":"z-ai/glm-5.2",
+		"model":"z-ai/glm-5.3",
 		"messages":[
 			{
 				"role":"assistant",

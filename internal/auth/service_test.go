@@ -870,13 +870,13 @@ func TestService_SetInstallationExcludedModels(t *testing.T) {
 	installRepo := &fakeInstallationRepository{}
 	svc := auth.NewService(installRepo, &fakeAPIKeyRepository{byHash: map[string]fakeKeyRow{}}, nil, nil, auth.NoOpAPIKeyCache{}, nil, frozenClock())
 
-	allowed := map[string]struct{}{"gpt-4o": {}, "z-ai/glm-5.2": {}}
+	allowed := map[string]struct{}{"gpt-4o": {}, "z-ai/glm-5.3": {}}
 
 	t.Run("persists deduped list scoped by external_id", func(t *testing.T) {
-		out, err := svc.SetInstallationExcludedModels(context.Background(), "ext-1", "inst-1", []string{"gpt-4o", "gpt-4o", "z-ai/glm-5.2"}, allowed)
+		out, err := svc.SetInstallationExcludedModels(context.Background(), "ext-1", "inst-1", []string{"gpt-4o", "gpt-4o", "z-ai/glm-5.3"}, allowed)
 		require.NoError(t, err)
-		assert.Equal(t, []string{"gpt-4o", "z-ai/glm-5.2"}, out, "duplicates collapsed; order preserved")
-		assert.Equal(t, []string{"gpt-4o", "z-ai/glm-5.2"}, installRepo.excludedModelsByID["inst-1"])
+		assert.Equal(t, []string{"gpt-4o", "z-ai/glm-5.3"}, out, "duplicates collapsed; order preserved")
+		assert.Equal(t, []string{"gpt-4o", "z-ai/glm-5.3"}, installRepo.excludedModelsByID["inst-1"])
 		assert.Equal(t, "ext-1", installRepo.excludedModelsExternalByID["inst-1"],
 			"external_id must be propagated to the repo for cross-tenant scoping")
 	})

@@ -449,7 +449,7 @@ func TestDebitForInference_SubscriptionDebitsNothing(t *testing.T) {
 	balance, err := svc.DebitForInference(context.Background(), billing.DebitInferenceParams{
 		OrganizationID:     "org_sub",
 		RouterRequestID:    "req_sub",
-		Model:              "z-ai/glm-5.2",
+		Model:              "z-ai/glm-5.3",
 		Provider:           providers.ProviderAIAND,
 		InputTokens:        1_000_000,
 		OutputTokens:       250_000,
@@ -472,7 +472,7 @@ func TestDebitForInference_OverrideBeatsSubscription(t *testing.T) {
 	p := catalog.Pricing{InputUSDPer1M: 3.00, OutputUSDPer1M: 15.00, CacheReadMultiplier: 0.10}
 	balance, err := svc.DebitForInference(context.Background(), billing.DebitInferenceParams{
 		OrganizationID:     "org_internal",
-		Model:              "z-ai/glm-5.2",
+		Model:              "z-ai/glm-5.3",
 		Provider:           providers.ProviderAIAND,
 		InputTokens:        1_000_000,
 		OutputTokens:       250_000,
@@ -569,7 +569,7 @@ func TestDebitForInference_SubscriptionLeavesKeySpendFlat(t *testing.T) {
 	p := catalog.Pricing{InputUSDPer1M: 3.00, OutputUSDPer1M: 15.00, CacheReadMultiplier: 0.10}
 	_, err := svc.DebitForInference(context.Background(), billing.DebitInferenceParams{
 		OrganizationID:     "org_sub",
-		Model:              "z-ai/glm-5.2",
+		Model:              "z-ai/glm-5.3",
 		Provider:           providers.ProviderAIAND,
 		InputTokens:        1_000_000,
 		OutputTokens:       250_000,

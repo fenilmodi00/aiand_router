@@ -15,13 +15,13 @@ func TestParseOverridesValid(t *testing.T) {
 	o, err := flags.ParseOverrides([]byte(`{
 		"struggle_shadow_enabled": false,
 		"loop_escalation_holdout_pct": 25,
-		"cyber_refusal_fallback_model": "z-ai/glm-5.2"
+		"cyber_refusal_fallback_model": "z-ai/glm-5.3"
 	}`))
 	require.NoError(t, err)
 
 	assert.False(t, o.Bools[flags.KeyStruggleShadowEnabled])
 	assert.Equal(t, 25, o.Ints[flags.KeyLoopEscalationHoldoutPct])
-	assert.Equal(t, "z-ai/glm-5.2", o.Strings[flags.KeyCyberRefusalFallback])
+	assert.Equal(t, "z-ai/glm-5.3", o.Strings[flags.KeyCyberRefusalFallback])
 	assert.False(t, o.IsEmpty())
 }
 
@@ -124,7 +124,7 @@ func TestValidateOverridesAcceptsTypedValues(t *testing.T) {
 	o := flags.Overrides{
 		Bools:   map[flags.Key]bool{flags.KeyLoopEscalationEnabled: true},
 		Ints:    map[flags.Key]int{flags.KeyLoopEscalationHoldoutPct: 50},
-		Strings: map[flags.Key]string{flags.KeyCyberRefusalFallback: "z-ai/glm-5.2"},
+		Strings: map[flags.Key]string{flags.KeyCyberRefusalFallback: "z-ai/glm-5.3"},
 	}
 	require.NoError(t, flags.ValidateOverrides(o))
 }

@@ -36,7 +36,7 @@
       "proxy_note": "ai&-only roster: deepseek/deepseek-v4-pro-0813 reuses deepseek/deepseek-v4-pro's trained column."
     },
     {
-      "model": "moonshotai/kimi-k2.7",
+      "model": "moonshotai/kimi-k3",
       "provider": "aiand",
       "bench_column": "moonshotai/kimi-k2.6",
       "proxy": true,
@@ -50,7 +50,7 @@
       "proxy_note": "ai&-only roster: moonshotai/kimi-k3 reuses moonshotai/kimi-k2.6's trained column."
     },
     {
-      "model": "z-ai/glm-5.2",
+      "model": "z-ai/glm-5.3",
       "provider": "aiand",
       "bench_column": "claude-haiku-4-5",
       "proxy": true,

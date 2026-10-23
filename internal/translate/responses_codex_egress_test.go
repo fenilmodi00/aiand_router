@@ -20,7 +20,7 @@ func TestResponsesWriter_RestoresCodexCustomToolFromSplitChatArguments(t *testin
 		"ww_custom_exec": {Alias: "ww_custom_exec", Name: "exec", Custom: true},
 	})
 	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("x-router-model", "moonshotai/kimi-k2.7")
+	w.Header().Set("x-router-model", "moonshotai/kimi-k3")
 	w.WriteHeader(200)
 
 	for _, chunk := range []string{

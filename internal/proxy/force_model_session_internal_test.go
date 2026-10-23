@@ -141,17 +141,17 @@ func TestRunTurnLoop_ForceModelSessionPinAppliesAcrossChildThreads(t *testing.T)
 	const (
 		apiKeyID      = "api-key"
 		clientSession = "client-session"
-		forcedModel   = "z-ai/glm-5.2"
+		forcedModel   = "z-ai/glm-5.3"
 	)
 	installationID := uuid.New()
 	ctx := context.WithValue(context.Background(), ClientIdentityContextKey{}, ClientIdentity{SessionID: clientSession})
 	parent, err := translate.ParseAnthropic([]byte(`{
-		"model":"z-ai/glm-5.2",
+		"model":"z-ai/glm-5.3",
 		"messages":[{"role":"user","content":"parent task"}]
 	}`))
 	require.NoError(t, err)
 	child, err := translate.ParseAnthropic([]byte(`{
-		"model":"z-ai/glm-5.2",
+		"model":"z-ai/glm-5.3",
 		"messages":[{"role":"user","content":"different child task"}]
 	}`))
 	require.NoError(t, err)
@@ -211,7 +211,7 @@ func TestRunTurnLoop_ClearTombstoneBlocksLegacyForce(t *testing.T) {
 	ctx := context.WithValue(context.Background(), ClientIdentityContextKey{}, ClientIdentity{SessionID: "client-session"})
 	ctx = router.WithStrategy(ctx, router.StrategyCluster)
 	env, err := translate.ParseAnthropic([]byte(`{
-		"model":"z-ai/glm-5.2",
+		"model":"z-ai/glm-5.3",
 		"messages":[{"role":"user","content":"task after unforce"}]
 	}`))
 	require.NoError(t, err)
@@ -230,7 +230,7 @@ func TestRunTurnLoop_ClearTombstoneBlocksLegacyForce(t *testing.T) {
 	store.pins[forceModelMapKey(threadKey, forceModelHistoryRole(role))] = sessionpin.Pin{
 		SessionKey:      threadKey,
 		Role:            forceModelHistoryRole(role),
-		LastServedModel: "z-ai/glm-5.2",
+		LastServedModel: "z-ai/glm-5.3",
 		LastTurnEndedAt: time.Now(),
 		PinnedUntil:     pinNeverExpires,
 	}
@@ -246,7 +246,7 @@ func TestRunTurnLoop_ClearTombstoneBlocksLegacyForce(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "z-ai/glm-5.3-flash", result.Decision.Model)
 	assert.NotEqual(t, translate.ReasonUserForceModel, result.Decision.Reason)
-	assert.Equal(t, "z-ai/glm-5.2", result.PriorServedModel)
+	assert.Equal(t, "z-ai/glm-5.3", result.PriorServedModel)
 	assert.NotEmpty(t, freshRouter.captured)
 }
 
@@ -255,7 +255,7 @@ func TestRunTurnLoop_SessionForceOverridesAuxiliaryHardPin(t *testing.T) {
 	installationID := uuid.New()
 	ctx := context.WithValue(context.Background(), ClientIdentityContextKey{}, ClientIdentity{SessionID: "client-session"})
 	env, err := translate.ParseAnthropic([]byte(`{
-		"model":"z-ai/glm-5.2",
+		"model":"z-ai/glm-5.3",
 		"system":"Your task is to create a detailed summary of the conversation so far.",
 		"messages":[{"role":"user","content":"summarize"}]
 	}`))
@@ -268,7 +268,7 @@ func TestRunTurnLoop_SessionForceOverridesAuxiliaryHardPin(t *testing.T) {
 		Role:           forceModelSessionRole,
 		InstallationID: installationID,
 		Provider:       providers.ProviderAIAND,
-		Model:          "z-ai/glm-5.2",
+		Model:          "z-ai/glm-5.3",
 		Reason:         translate.ReasonUserForceModel,
 		PinnedUntil:    pinNeverExpires,
 	}
@@ -281,7 +281,7 @@ func TestRunTurnLoop_SessionForceOverridesAuxiliaryHardPin(t *testing.T) {
 		RequestedModel: features.Model,
 	})
 	require.NoError(t, err)
-	assert.Equal(t, "z-ai/glm-5.2", result.Decision.Model)
+	assert.Equal(t, "z-ai/glm-5.3", result.Decision.Model)
 	assert.Equal(t, translate.ReasonUserForceModel, result.Decision.Reason)
 	assert.False(t, result.HardPinned)
 	assert.Equal(t, threadKey, result.SessionKey)
@@ -294,12 +294,12 @@ func TestRecordTurnUsage_ForcedDecisionWritesThreadHistoryOnly(t *testing.T) {
 		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil)
 	threadKey := [sessionpin.SessionKeyLen]byte{1}
 	controlKey := [sessionpin.SessionKeyLen]byte{2}
-	role := roleForTier(catalog.TierFor("z-ai/glm-5.2"))
+	role := roleForTier(catalog.TierFor("z-ai/glm-5.3"))
 	store.pins[forceModelMapKey(controlKey, forceModelSessionRole)] = sessionpin.Pin{
 		SessionKey: controlKey,
 		Role:       forceModelSessionRole,
 		Provider:   providers.ProviderAIAND,
-		Model:      "z-ai/glm-5.2",
+		Model:      "z-ai/glm-5.3",
 		Reason:     translate.ReasonUserForceModel,
 	}
 	store.pins[forceModelMapKey(threadKey, forceModelHistoryRole(role))] = sessionpin.Pin{
@@ -312,10 +312,10 @@ func TestRecordTurnUsage_ForcedDecisionWritesThreadHistoryOnly(t *testing.T) {
 		PinRole:    role,
 		Decision: router.Decision{
 			Provider: providers.ProviderAIAND,
-			Model:    "z-ai/glm-5.2",
+			Model:    "z-ai/glm-5.3",
 			Reason:   translate.ReasonUserForceModel,
 		},
-	}, providers.ProviderAIAND, "z-ai/glm-5.2", 100, 10, 0, 0, false)
+	}, providers.ProviderAIAND, "z-ai/glm-5.3", 100, 10, 0, 0, false)
 
 	store.mu.Lock()
 	defer store.mu.Unlock()

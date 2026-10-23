@@ -87,9 +87,9 @@ func TestStringFlagOverride(t *testing.T) {
 	assert.Equal(t, "deepseek/deepseek-v4-pro", svc.ResolveCyberRefusalFallbackModel(context.Background()))
 
 	ctx := flags.WithOverrides(context.Background(), flags.Overrides{
-		Strings: map[flags.Key]string{flags.KeyCyberRefusalFallback: "z-ai/glm-5.2"},
+		Strings: map[flags.Key]string{flags.KeyCyberRefusalFallback: "z-ai/glm-5.3"},
 	})
-	assert.Equal(t, "z-ai/glm-5.2", svc.ResolveCyberRefusalFallbackModel(ctx))
+	assert.Equal(t, "z-ai/glm-5.3", svc.ResolveCyberRefusalFallbackModel(ctx))
 }
 
 func TestHeaderOverrideBeatsPerOrgOverride(t *testing.T) {
