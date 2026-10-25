@@ -34,6 +34,12 @@ type Config struct {
 	TopP           int
 	MaxPromptChars int
 	EmbedTimeout   time.Duration
+	// TrivialGate overrides the blend argmax with the cheap-tier model for
+	// requests whose primary cluster is a known-trivial lane.
+	TrivialGate GateConfig
+	// DifficultyGate escalates hard-lane requests carrying a hard signal
+	// (prompt length or code register) to the frontier model.
+	DifficultyGate DifficultyGateConfig
 }
 
 // DefaultConfig returns production defaults.
@@ -839,6 +845,22 @@ func (s *Scorer) Route(ctx context.Context, req router.Request) (router.Decision
 	chosenModel, chosenScore := argmax(scores, eligibleModels)
 	scoreUs := time.Since(scoreStart).Microseconds()
 
+	// Selection-policy gates (trivial, then difficulty; cluster sets are
+	// disjoint so difficulty wins if both could apply). A gate only fires
+	// when its model is in the request's eligible pool, and takes its score
+	// from the computed blend so ChosenScore stays consistent with
+	// CandidateScores. topClusters is sorted ascending by id, so the primary
+	// cluster is recomputed from the embedding.
+	gateName, gateFromModel := "", ""
+	if s.cfg.TrivialGate.Enabled || s.cfg.DifficultyGate.Enabled {
+		gateModel, gate := applyGates(s.cfg.TrivialGate, s.cfg.DifficultyGate, nearestCluster(vec, s.centroids), len(req.PromptText), text, eligibleModels)
+		if gateModel != "" {
+			gateName, gateFromModel = gate, chosenModel
+			chosenModel = gateModel
+			chosenScore = scores[gateModel]
+		}
+	}
+
 	if chosenModel == "" {
 		// Defensive: only reachable if rankings.json contains NaN scores.
 		log.Error(
@@ -930,6 +952,8 @@ func (s *Scorer) Route(ctx context.Context, req router.Request) (router.Decision
 			PairedModel:    pairedModel,
 			PairedProvider: pairedProvider,
 			PairedScore:    pairedScore,
+			Gate:           gateName,
+			GateFromModel:  gateFromModel,
 		},
 	}
 	log.Info(
@@ -938,6 +962,8 @@ func (s *Scorer) Route(ctx context.Context, req router.Request) (router.Decision
 		"decision_model", decision.Model,
 		"decision_provider", decision.Provider,
 		"decision_reason", decision.Reason,
+		"gate", gateName,
+		"gate_from_model", gateFromModel,
 		"paired_model", pairedModel,
 		"paired_provider", pairedProvider,
 		"paired_score", pairedScore,
