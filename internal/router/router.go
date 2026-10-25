@@ -418,6 +418,11 @@ type RoutingMetadata struct {
 	PairedModel    string
 	PairedProvider string
 	PairedScore    float32
+	// Gate names the selection-policy gate that overrode the blend argmax
+	// ("trivial", "difficulty"); empty when plain argmax won. GateFromModel is
+	// the model argmax would have chosen before the override, for analytics.
+	Gate          string
+	GateFromModel string
 	// ArmScores is the router-selected preference-adjusted score map for the
 	// cluster this decision was drawn from. Absent on fixed/legacy rosters.
 	ArmScores map[string]float32

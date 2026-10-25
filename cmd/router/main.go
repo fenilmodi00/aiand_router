@@ -1378,6 +1378,33 @@ func buildClusterScorer(availableProviders map[string]struct{}) (router.Router, 
 			logger.Info("Cluster top_p overridden", "top_p", n)
 		}
 	}
+	// v0.89 hybrid selection gates. Enabled by default; flipping the ENABLED
+	// env to false is the rollback. Applies to every served bundle version.
+	cfg.TrivialGate = cluster.GateConfig{
+		Enabled:         strings.EqualFold(config.GetOr("ROUTER_TRIVIAL_GATE_ENABLED", "true"), "true"),
+		PrimaryClusters: parseEnvIntList(logger, "ROUTER_TRIVIAL_GATE_CLUSTERS", "2,4,9"),
+		Model:           config.GetOr("ROUTER_TRIVIAL_GATE_MODEL", string(catalog.ModelIDGLM53Flash)),
+	}
+	cfg.DifficultyGate = cluster.DifficultyGateConfig{
+		Enabled:                 strings.EqualFold(config.GetOr("ROUTER_DIFFICULTY_GATE_ENABLED", "true"), "true"),
+		PrimaryClusters:         parseEnvIntList(logger, "ROUTER_DIFFICULTY_GATE_CLUSTERS", "0"),
+		Model:                   config.GetOr("ROUTER_DIFFICULTY_GATE_MODEL", string(catalog.ModelIDGLM53)),
+		HardMinChars:            parseEnvInt("ROUTER_DIFFICULTY_GATE_MIN_CHARS", 2000),
+		HardCodeMinChars:        parseEnvInt("ROUTER_DIFFICULTY_GATE_CODE_MIN_CHARS", 1000),
+		HardInstructionMinChars: parseEnvInt("ROUTER_DIFFICULTY_GATE_INSTRUCTION_MIN_CHARS", 40),
+	}
+	logger.Info(
+		"Cluster routing gates configured",
+		"trivial_gate_enabled", cfg.TrivialGate.Enabled,
+		"trivial_gate_clusters", cfg.TrivialGate.PrimaryClusters,
+		"trivial_gate_model", cfg.TrivialGate.Model,
+		"difficulty_gate_enabled", cfg.DifficultyGate.Enabled,
+		"difficulty_gate_clusters", cfg.DifficultyGate.PrimaryClusters,
+		"difficulty_gate_model", cfg.DifficultyGate.Model,
+		"difficulty_gate_min_chars", cfg.DifficultyGate.HardMinChars,
+		"difficulty_gate_code_min_chars", cfg.DifficultyGate.HardCodeMinChars,
+		"difficulty_gate_instruction_min_chars", cfg.DifficultyGate.HardInstructionMinChars,
+	)
 	scorers := make(map[string]*cluster.Scorer, len(versions))
 	var defaultEmbedderID string
 	for _, v := range versions {
@@ -1508,6 +1535,30 @@ func buildOtelEmitter(deploymentMode string) (*otel.Emitter, error) {
 // the var is unset, empty, or unparseable. Logs a warning on bad values.
 func parseEnvInt(key string, fallback int) int {
 	return parseEnvIntAtLeast(key, fallback, 1)
+}
+
+// parseEnvIntList reads a comma-separated list of integers (e.g. "2,4,9").
+// Returns fallback when unset/empty; invalid items are dropped with a warning
+// so one bad entry shrinks the set visibly instead of aborting boot.
+func parseEnvIntList(logger *slog.Logger, key, fallback string) []int {
+	raw := config.GetOr(key, "")
+	if raw == "" {
+		raw = fallback
+	}
+	var out []int
+	for _, part := range strings.Split(raw, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		n, err := strconv.Atoi(part)
+		if err != nil {
+			logger.Warn("Invalid env list item; dropping", "key", key, "item", part)
+			continue
+		}
+		out = append(out, n)
+	}
+	return out
 }
 
 // parseEnvNonNegativeInt reads an env var as an integer for which 0 is a
