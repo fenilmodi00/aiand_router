@@ -136,7 +136,7 @@ services:
       # the published port below remains host-loopback-only.
       ROUTER_HTTP_CAPTURE_LISTEN_HOST: "0.0.0.0"
       # Use the v0.88-relabel cluster bundle with refreshed measured quality cells
-      ROUTER_CLUSTER_VERSION: v0.89-hybrid
+      ROUTER_CLUSTER_VERSION: v0.88-relabel
       # Exclude deepseek-v4-flash from automatic routing (deprecation)
       ROUTER_EXCLUDED_MODELS: deepseek/deepseek-v4-flash
     volumes:
