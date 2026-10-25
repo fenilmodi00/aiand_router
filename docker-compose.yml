@@ -83,7 +83,7 @@ services:
     restart: "no"
 
   server:
-    image: router-server:v0.88-relabel
+    image: router-server:v1.0
     build:
       context: .
     depends_on:
@@ -135,8 +135,8 @@ services:
       # The server listens on the container interface when capture is enabled;
       # the published port below remains host-loopback-only.
       ROUTER_HTTP_CAPTURE_LISTEN_HOST: "0.0.0.0"
-      # Use the v0.88-relabel cluster bundle with refreshed measured quality cells
-      ROUTER_CLUSTER_VERSION: v0.89
+      # Serve the v1.0 cluster bundle (hybrid design in cells+knobs only)
+      ROUTER_CLUSTER_VERSION: v1.0
       # Exclude deepseek-v4-flash from automatic routing (deprecation)
       ROUTER_EXCLUDED_MODELS: deepseek/deepseek-v4-flash
     volumes:

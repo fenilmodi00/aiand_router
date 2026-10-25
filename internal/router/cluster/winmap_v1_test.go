@@ -10,19 +10,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const winmapV089Version = "v0.89"
+const winmapV1Version = "v1.0"
 
-// TestV089WinMap walks all 16 clusters of the v0.89 bundle (loaded by explicit
+// TestV1WinMap walks all 16 clusters of the v1.0 bundle (loaded by explicit
 // version, not the latest pointer) through blendScoresV2 + argmax and asserts
-// the full expected winner map. v0.89 expresses the hybrid gating design in
+// the full expected winner map. v1.0 expresses the hybrid gating design in
 // cells + knobs only: trivial lanes {2,4,9,10,11} -> glm-5.3-flash, hard
 // lanes {0,7,8,12,13} -> glm-5.3, diversity lanes qwen (c6), motif (c14),
 // v4-pro (c3,c5), v4.1-flash (c1,c15). kimi-k3 is roster-listed but wins no
 // cluster (cost keeps it out of every lane, matching the hybrid reference).
-func TestV089WinMap(t *testing.T) {
-	version, err := ResolveVersion(winmapV089Version)
+func TestV1WinMap(t *testing.T) {
+	version, err := ResolveVersion(winmapV1Version)
 	require.NoError(t, err)
-	require.Equal(t, winmapV089Version, version)
+	require.Equal(t, winmapV1Version, version)
 	bundle, err := LoadBundle(version)
 	require.NoError(t, err)
 	s, err := NewScorer(bundle, DefaultConfig(), &fakeEmbedder{dim: bundle.Centroids.Dim}, map[string]struct{}{providers.ProviderAIAND: {}})
@@ -52,13 +52,13 @@ func TestV089WinMap(t *testing.T) {
 		require.Equalf(t, want, wins[m], "winner clusters for %s", m)
 	}
 	require.Equal(t, len(expected), len(wins), "distinct winner count: got "+fmt.Sprint(wins))
-	require.Empty(t, wins[string(catalog.ModelIDKimiK3)], "kimi-k3 must not win any cluster in v0.89")
+	require.Empty(t, wins[string(catalog.ModelIDKimiK3)], "kimi-k3 must not win any cluster in v1.0")
 }
 
-// TestV089FeaturesMatchQualityMeans is the psi_probe == quality_means parity
-// gate for the v0.89 bundle.
-func TestV089FeaturesMatchQualityMeans(t *testing.T) {
-	version, err := ResolveVersion(winmapV089Version)
+// TestV1FeaturesMatchQualityMeans is the psi_probe == quality_means parity
+// gate for the v1.0 bundle.
+func TestV1FeaturesMatchQualityMeans(t *testing.T) {
+	version, err := ResolveVersion(winmapV1Version)
 	require.NoError(t, err)
 	bundle, err := LoadBundle(version)
 	require.NoError(t, err)
