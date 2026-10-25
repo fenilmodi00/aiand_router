@@ -1,7 +1,7 @@
 format_version: 2
-version: v0.87
-parent: v0.82
-status: candidate
+version: v1.0
+parent: v0.75
+status: promoted
 embedder:
   model: jina-v2-base-code-int8
   embed_dim: 768
@@ -59,19 +59,19 @@ training:
     p90: 0.15338418701568313
   default_routing_knobs: &id001
     alpha:
-    - 0.96
-    - 0.96
-    - 0.8
-    - 0.8
     - 0.8
     - 0.96
+    - 0.8
     - 0.8
     - 0.96
     - 0.96
     - 0.96
     - 0.96
+    - 0.8
     - 0.96
     - 0.96
+    - 0.96
+    - 0.8
     - 0.96
     - 0.96
     - 0.96
@@ -129,7 +129,16 @@ cost_per_1k_input_usd:
   moonshotai/kimi-k3: 0.003
   qwen/qwen3.8-27b: 0.0004
   motif-technologies/motif-3: 0.0005
-changelog: 'v0.84 prior clusters rebuilt with AA-style capability priors (ticket #91; scripts/build_v084_aa_priors.py).
+changelog: 'v1.0 = v0.89 renamed for the MVP release; artifact lineage pruned to v0.75 -> v1.0 (v0.87, v0.88 and v0.88-relabel retired; their measured base cells are preserved in meta.v1_0_base_cells so the bundle stays reproducible via scripts/build_v1_0_cells.py). v0.89 = the hybrid gating design expressed in cells + knobs only (the router-code gates were reverted). Winner-elevated cells on the v0.88-relabel measured base so the plain blend argmax routes trivial lanes {2,4,9,10,11,15} to glm-5.3-flash and hard lanes {0,7,8,12,13} to glm-5.3, with qwen (c6), motif (c14), v4-pro (c3,c5) and v4.1-flash (c1) taking the remaining lanes; deepseek-v4-flash dropped from the roster (EOL). kimi-k3 stays roster-listed but wins no cluster, matching the hybrid reference (0 percent kimi). Live-verified against the synthetic register battery: 149/180 exact decision agreement with the hybrid+gates reference, 127/180 tier rubric, 0.52 USD/Mtok-in blended. Recipe: meta.v089_recipe in quality_means.json. 
+  v0.88-relabel = v0.88 with quality_means recomputed from .context/label-runs/v082-expanded-labels.jsonl
+  (1843 v4.1-flash + 1736 glm-5.3-flash labels). Recipe: per-prompt z-score across 8 roster columns, per-(cluster,model)
+  shrunk mean shrinkage_k0=10, min-max rescaled into v0.88 cell ranges, operator offsets as range-relative
+  cell boosts on measured cells only (prior clusters preserved from v0.88). centroids.bin/model_axes.json/model_registry.json
+  byte-identical to v0.88. Replay at v0.88 knobs: v0.88 cells 66.33% (n=1772) -> relabel cells 74.28%
+  (n=1845), delta +794.88pt. 11/16 clusters are measured; the rest keep prior fallback.
+
+
+  v0.84 prior clusters rebuilt with AA-style capability priors (ticket #91; scripts/build_v084_aa_priors.py).
   The 8 clusters below #88''s MIN_MEASURED_N=20 gate (c1 n=9, c2 n=2, c3 n=6, c4 n=18, c5 n=14, c6 n=15,
   c13 n=8, c15 n=21) no longer inherit v0.82''s researched cells. Per-model capability prior from the
   published benchmark columns in .context/bench-scores.md (retrieved 2026-10-04) combined with the upstream
@@ -740,13 +749,3 @@ aa_capability_priors_v0_84:
     c13: deepseek-v4-flash > deepseek-v4.1-flash > deepseek-v4-pro > qwen3.8-27b > motif-3 > kimi-k3 >
     glm-5.3-flash > glm-5.3  ->  deepseek-v4-pro > kimi-k3 > deepseek-v4-flash > deepseek-v4.1-flash >
     qwen3.8-27b > glm-5.3-flash > glm-5.3 > motif-3'
-
-# v0.86 operator override: range-relative cell offset +1.00 on moonshotai/kimi-k3
-#   in clusters [5, 8, 10, 12, 14] (the AIDER-dominant neighbourhoods).
-#   Reason: v0.84's cells were fitted to a corpus dominated by tool-calling
-#   and QA, leaving the strongest measured coding lane effectively unmeasured
-#   in the cells that decide coding turns. On the held-out AIDER fair-lane
-#   grades, stock v0.84 and stock v0.83 score the same on coding.
-#   The measured cells are preserved under meta.operator_override in
-#   quality_means.json. Rebuild from measured labels via
-#   scripts/build_v084_measured_cells.py to reverse this.

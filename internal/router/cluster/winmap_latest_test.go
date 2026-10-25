@@ -37,9 +37,9 @@ func TestLatestWinMapLive(t *testing.T) {
 			t.Fatal(msg)
 		}
 	}
-	// The v0.89 mix (cells-only hybrid design): trivial lanes -> glm-5.3-flash,
+	// The v1.0 mix (cells-only hybrid design): trivial lanes -> glm-5.3-flash,
 	// hard lanes -> glm-5.3, diversity lanes keep qwen/motif/v4-pro/v4.1-flash.
-	// kimi-k3 is roster-listed but wins no cluster. winmap_v089_test.go pins
+	// kimi-k3 is roster-listed but wins no cluster. winmap_v1_test.go pins
 	// the same map by explicit version.
 	expect := map[string][]int{
 		"deepseek/deepseek-v4-pro":     {3, 5},
