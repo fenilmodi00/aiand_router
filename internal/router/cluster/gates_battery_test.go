@@ -53,10 +53,16 @@ func TestRegisterTierBatteryV089Hybrid(t *testing.T) {
 	disabled := f.scorer(t, gateTestConfig(false))
 
 	c0HardSeen, chatC0Seen := 0, 0
+	cfg := gateTestConfig(true)
 	for _, p := range f.probes {
 		vec := f.byText[TailTruncate(p.Text, gateMaxPromptChars)]
 		require.NotNilf(t, vec, "probe %s has no cached embedding", p.ID)
-		primary := nearestCluster(vec, gated.centroids)
+		top := topPNearest(vec, gated.centroids, gated.cfg.TopP)
+		inC0 := gateMatchesAnyCluster(cfg.DifficultyGate.PrimaryClusters, top)
+		inTrivial := gateMatchesAnyCluster(cfg.TrivialGate.PrimaryClusters, top)
+		hard := hardSignal(len(p.Text), TailTruncate(p.Text, gateMaxPromptChars),
+			cfg.DifficultyGate.HardMinChars, cfg.DifficultyGate.HardCodeMinChars,
+			cfg.DifficultyGate.HardInstructionMinChars)
 		isHard := p.Register == "hard_code" || p.Register == "agentic_tool"
 		isChat := p.Register == "trivial_nl" || p.Register == "conversational"
 
@@ -64,12 +70,14 @@ func TestRegisterTierBatteryV089Hybrid(t *testing.T) {
 		require.NoErrorf(t, err, "probe %s", p.ID)
 
 		switch {
-		case isHard && primary == 0:
-			c0HardSeen++
+		case inC0 && hard:
+			if isHard {
+				c0HardSeen++
+			}
 			require.Equalf(t, catalog.ModelIDGLM53.String(), dec.Model,
-				"c0 hard probe %s (%s) must escalate via the difficulty gate", p.ID, p.Register)
+				"c0 hard-signal probe %s (%s) must escalate via the difficulty gate", p.ID, p.Register)
 			require.Equalf(t, GateDifficulty, dec.Metadata.Gate, "probe %s gate metadata", p.ID)
-		case isChat && primary == 0:
+		case inC0 && isChat && !inTrivial:
 			chatC0Seen++
 			plain, err := disabled.Route(context.Background(), router.Request{PromptText: p.Text})
 			require.NoError(t, err)
@@ -78,11 +86,7 @@ func TestRegisterTierBatteryV089Hybrid(t *testing.T) {
 			require.Equalf(t, "", dec.Metadata.Gate, "probe %s must carry no gate metadata", p.ID)
 			require.NotEqualf(t, "HIGH", batteryTier(dec.Model),
 				"c0 chat probe %s routed to premium model %q", p.ID, dec.Model)
-		}
-
-		// Trivial gate: any probe whose primary is a trivial lane must land
-		// on the cheap gate model regardless of register.
-		if primary == 2 || primary == 4 || primary == 9 {
+		case inTrivial:
 			require.Equalf(t, catalog.ModelIDGLM53Flash.String(), dec.Model,
 				"trivial-lane probe %s routed %q", p.ID, dec.Model)
 		}

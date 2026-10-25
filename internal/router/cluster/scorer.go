@@ -845,15 +845,15 @@ func (s *Scorer) Route(ctx context.Context, req router.Request) (router.Decision
 	chosenModel, chosenScore := argmax(scores, eligibleModels)
 	scoreUs := time.Since(scoreStart).Microseconds()
 
-	// Selection-policy gates (trivial, then difficulty; cluster sets are
-	// disjoint so difficulty wins if both could apply). A gate only fires
-	// when its model is in the request's eligible pool, and takes its score
-	// from the computed blend so ChosenScore stays consistent with
-	// CandidateScores. topClusters is sorted ascending by id, so the primary
-	// cluster is recomputed from the embedding.
+	// Selection-policy gates (difficulty, then trivial; the hard signal is
+	// the discriminator when a request's top clusters span both lanes). A
+	// gate matches on the request's top-P cluster set — the same set the
+	// blend scored over — and only fires when its model is in the request's
+	// eligible pool, taking its score from the computed blend so
+	// ChosenScore stays consistent with CandidateScores.
 	gateName, gateFromModel := "", ""
 	if s.cfg.TrivialGate.Enabled || s.cfg.DifficultyGate.Enabled {
-		gateModel, gate := applyGates(s.cfg.TrivialGate, s.cfg.DifficultyGate, nearestCluster(vec, s.centroids), len(req.PromptText), text, eligibleModels)
+		gateModel, gate := applyGates(s.cfg.TrivialGate, s.cfg.DifficultyGate, topClusters, len(req.PromptText), text, eligibleModels)
 		if gateModel != "" {
 			gateName, gateFromModel = gate, chosenModel
 			chosenModel = gateModel

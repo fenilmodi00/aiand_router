@@ -174,6 +174,50 @@ func gateBlendWinner(s *Scorer, vec []float32) string {
 	return best
 }
 
+// nearestCluster returns the single centroid closest to vec by cosine
+// similarity (dot product on L2-normed vectors), tie-breaking by lower index.
+// topPNearest returns its result sorted ascending by cluster id, so a
+// fixture's nearest cluster cannot be read off topClusters[0]. Test-only:
+// production gates match on top-P membership, not the nearest centroid.
+func nearestCluster(vec []float32, c *Centroids) int {
+	best, bestSim := 0, float32(-1e30)
+	for k := 0; k < c.K; k++ {
+		row := c.Row(k)
+		var sim float32
+		for i, v := range row {
+			sim += v * vec[i]
+		}
+		if sim > bestSim {
+			best, bestSim = k, sim
+		}
+	}
+	return best
+}
+
+// TestGatePrecedenceDifficultyOverTrivial: when a request's top clusters span
+// both lanes, the hard signal decides — a hard-looking request escalates, a
+// plain one trivializes.
+func TestGatePrecedenceDifficultyOverTrivial(t *testing.T) {
+	cfg := gateTestConfig(true)
+	trivial, difficulty := cfg.TrivialGate, cfg.DifficultyGate
+	spanning := []int{0, 2, 4, 9}
+	eligible := []string{trivial.Model, difficulty.Model}
+
+	m, g := applyGates(trivial, difficulty, spanning, len("Implement idempotent retry handling for the checkout worker so double-submits are deduped"), "Implement idempotent retry handling for the checkout worker so double-submits are deduped", eligible)
+	if m != difficulty.Model || g != GateDifficulty {
+		t.Fatalf("hard-signal request must take the difficulty gate, got %s/%s", m, g)
+	}
+
+	m, g = applyGates(trivial, difficulty, spanning, len("hey what is up, how did the deploy go?"), "hey what is up, how did the deploy go?", eligible)
+	if m != trivial.Model || g != GateTrivial {
+		t.Fatalf("signal-free request must take the trivial gate, got %s/%s", m, g)
+	}
+
+	if m, g := applyGates(trivial, difficulty, []int{7, 10}, 40, "hey what is up, how did the deploy go?", eligible); m != "" || g != "" {
+		t.Fatalf("request outside both lanes must not gate, got %s/%s", m, g)
+	}
+}
+
 // findProbeByPrimary locates a corpus probe whose primary cluster passes pred.
 // failWhenMissing keeps the test honest: the fixture must keep containing
 // probes in the gated lanes.

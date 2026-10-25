@@ -553,9 +553,9 @@ metadata) live under `internal/router/cluster/artifacts/v<X.Y>/`. The
 ## Cluster selection gates
 
 On top of the blend argmax, the cluster scorer applies two selection-policy
-gates (the v0.89 hybrid design). A gate fires when the request's **primary
-cluster** (the single closest centroid, recomputed from the embedding) is in
-the gate's cluster list, and overrides the chosen model with the gate's
+gates (the v0.89 hybrid design). A gate fires when any of the request's
+**top-P nearest clusters** (default 4 — the same set the blend scores over)
+is in the gate's cluster list, and overrides the chosen model with the gate's
 model. A gate never routes to a model outside the request's eligible pool
 (provider-resolved, exclusion-filtered), so removing a provider key or
 excluding the gate model degrades that gate to a no-op rather than failing
@@ -599,8 +599,9 @@ kill-switch/rollback.
    - `ROUTER_DIFFICULTY_GATE_INSTRUCTION_MIN_CHARS` (default `40`; `0`
      disables the instruction-register path)
 
-Trivial is evaluated first; the cluster sets are disjoint by configuration
-so the difficulty gate wins if both could apply. Gated decisions carry
+The difficulty gate is evaluated first: when a request's top clusters span
+both lanes, the hard signal is the discriminator — a hard-looking request
+escalates rather than trivializing. Gated decisions carry
 `Gate` (`trivial`/`difficulty`) and `GateFromModel` (the argmax model the
 gate displaced) in `RoutingMetadata`, and `Cluster routing decision` log
 lines include `gate` / `gate_from_model`.
