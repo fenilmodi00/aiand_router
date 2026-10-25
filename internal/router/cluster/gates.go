@@ -2,10 +2,10 @@ package cluster
 
 import "strings"
 
-// GateConfig routes requests whose primary cluster falls in PrimaryClusters
-// to the fixed Model, overriding the blend argmax. A gate never routes to a
-// model outside the request's eligible pool, so a disabled or excluded gate
-// model degrades to plain argmax.
+// GateConfig routes requests whose top-P cluster set includes any of
+// PrimaryClusters to the fixed Model, overriding the blend argmax. A gate
+// never routes to a model outside the request's eligible pool, so a disabled
+// or excluded gate model degrades to plain argmax.
 type GateConfig struct {
 	Enabled         bool
 	PrimaryClusters []int
@@ -13,10 +13,10 @@ type GateConfig struct {
 }
 
 // DifficultyGateConfig is a GateConfig plus the hard-signal thresholds: a
-// request gated by primary cluster is only escalated when its prompt is long
-// enough on its own (HardMinChars), carries code-register markers at half
-// that bar (HardCodeMinChars), or carries instruction-register markers above
-// the short-prompt floor (HardInstructionMinChars).
+// request gated by cluster membership is only escalated when its prompt is
+// long enough on its own (HardMinChars), carries code-register markers at
+// half that bar (HardCodeMinChars), or carries instruction-register markers
+// above the short-prompt floor (HardInstructionMinChars).
 type DifficultyGateConfig struct {
 	Enabled                 bool
 	PrimaryClusters         []int
@@ -33,29 +33,35 @@ const (
 )
 
 // applyGates resolves the selection-policy gate for a scored request.
-// Trivial is checked first; difficulty wins if both could apply (their
-// cluster sets are disjoint by configuration). Returns ("", "") when no gate
-// fires, meaning plain argmax stands.
-func applyGates(trivial GateConfig, difficulty DifficultyGateConfig, primaryCluster, promptChars int, embeddedText string, eligible []string) (model, gate string) {
-	if trivial.Enabled &&
-		gateMatchesCluster(trivial.PrimaryClusters, primaryCluster) &&
-		gateModelEligible(trivial.Model, eligible) {
-		return trivial.Model, GateTrivial
-	}
+// Difficulty is checked first: its hard-signal requirement is the
+// discriminator when a request's top clusters span both lanes, so a
+// hard-looking request escalates rather than trivializing. A gate matches
+// when any configured cluster is in the request's top-P nearest set — the
+// same set blendScoresV2 blends over. Returns ("", "") when no gate fires,
+// meaning plain argmax stands.
+func applyGates(trivial GateConfig, difficulty DifficultyGateConfig, topClusters []int, promptChars int, embeddedText string, eligible []string) (model, gate string) {
 	if difficulty.Enabled &&
-		gateMatchesCluster(difficulty.PrimaryClusters, primaryCluster) &&
+		gateMatchesAnyCluster(difficulty.PrimaryClusters, topClusters) &&
 		gateModelEligible(difficulty.Model, eligible) &&
 		hardSignal(promptChars, embeddedText, difficulty.HardMinChars, difficulty.HardCodeMinChars, difficulty.HardInstructionMinChars) {
 		return difficulty.Model, GateDifficulty
 	}
+	if trivial.Enabled &&
+		gateMatchesAnyCluster(trivial.PrimaryClusters, topClusters) &&
+		gateModelEligible(trivial.Model, eligible) {
+		return trivial.Model, GateTrivial
+	}
 	return "", ""
 }
 
-// gateMatchesCluster reports whether c is one of the configured clusters.
-func gateMatchesCluster(clusters []int, c int) bool {
+// gateMatchesAnyCluster reports whether any of the request's top clusters is
+// one of the configured clusters.
+func gateMatchesAnyCluster(clusters, top []int) bool {
 	for _, k := range clusters {
-		if k == c {
-			return true
+		for _, t := range top {
+			if k == t {
+				return true
+			}
 		}
 	}
 	return false
@@ -243,23 +249,4 @@ func isScreamingSnakeAround(text string, i int) bool {
 	prevUpper := i > 0 && text[i-1] >= 'A' && text[i-1] <= 'Z'
 	nextUpper := i+1 < len(text) && text[i+1] >= 'A' && text[i+1] <= 'Z'
 	return prevUpper && nextUpper
-}
-
-// nearestCluster returns the single centroid closest to vec by cosine
-// similarity (dot product on L2-normed vectors), tie-breaking by lower index.
-// topPNearest returns its result sorted ascending by cluster id, so the
-// primary cluster cannot be read off topClusters[0].
-func nearestCluster(vec []float32, c *Centroids) int {
-	best, bestSim := 0, float32(-1e30)
-	for k := 0; k < c.K; k++ {
-		row := c.Row(k)
-		var sim float32
-		for i, v := range row {
-			sim += v * vec[i]
-		}
-		if sim > bestSim {
-			best, bestSim = k, sim
-		}
-	}
-	return best
 }
