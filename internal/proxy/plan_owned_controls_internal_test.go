@@ -72,7 +72,7 @@ func TestBoostServingAllowsForceModelHeader(t *testing.T) {
 	ctx, forced, err := (&Service{}).applyForceModelHeader(request.Context(), request, uuid.Nil, [sessionpin.SessionKeyLen]byte{})
 	require.NoError(t, err)
 	assert.Equal(t, "z-ai/glm-5.3", forced)
-	assert.True(t, planOwnedServingRequest(ctx))
+	assert.True(t, planHasDedicatedServingPolicy(ctx))
 }
 
 func TestBoostServingKeepsLegacyForceModelPinActive(t *testing.T) {
