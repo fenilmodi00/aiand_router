@@ -1028,7 +1028,7 @@ func (s *Service) excludedModelsFor(ctx context.Context, allowed map[string]stru
 	// Plan-owned serving drops the installation's positive routing controls,
 	// but an explicit exclusion is the customer's hard opt-out and always applies.
 	excluded := installationExcludedModelsFromContext(ctx)
-	out := make(map[string]struct{}, len(excluded)+len(ineligible))
+	out := make(map[string]struct{}, len(excluded))
 	for _, m := range excluded {
 		out[m] = struct{}{}
 	}
@@ -1131,7 +1131,7 @@ func (s *Service) excludedProvidersForRequest(ctx context.Context) map[string]st
 	if len(sessionDisabled) == 0 {
 		return base
 	}
-	out := make(map[string]struct{}, len(base)+len(sessionDisabled))
+	out := make(map[string]struct{}, len(base))
 	for p := range base {
 		out[p] = struct{}{}
 	}
@@ -1267,7 +1267,7 @@ func excludeContextOverflowModels(est, sigSavings, outputReserve int, enabledPro
 			continue
 		}
 		if out == nil {
-			out = make(map[string]struct{}, len(excluded)+1)
+			out = make(map[string]struct{}, len(excluded))
 			for k := range excluded {
 				out[k] = struct{}{}
 			}
@@ -2985,7 +2985,10 @@ func newRefusalObserver(inner http.ResponseWriter) *refusalObserver {
 
 func (o *refusalObserver) Header() http.Header { return o.inner.Header() }
 
-func (o *refusalObserver) WriteHeader(status int) { o.inner.WriteHeader(status) }
+func (o *refusalObserver) WriteHeader(status int) {
+	sse.PrepareJSONResponse(o.inner)
+	o.inner.WriteHeader(status)
+}
 
 func (o *refusalObserver) Write(p []byte) (int, error) {
 	// Accumulate up to refusalScanCap so signals split across SSE chunks are caught.
@@ -3010,7 +3013,7 @@ func (o *refusalObserver) Write(p []byte) (int, error) {
 			o.category = refusalCategory(o.buf)
 		}
 	}
-	return o.inner.Write(p)
+	return sse.WriteJSONChunk(o.inner, p)
 }
 
 func (o *refusalObserver) Flush() {

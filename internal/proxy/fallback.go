@@ -16,6 +16,7 @@ import (
 	"aiand-os/router/internal/router/catalog"
 	"aiand-os/router/internal/router/cluster"
 	"aiand-os/router/internal/router/policy"
+	"aiand-os/router/internal/sse"
 	"aiand-os/router/internal/subscriptions/entitlement"
 	"aiand-os/router/internal/translate"
 )
@@ -55,14 +56,14 @@ func (b *preludeBuffer) Header() http.Header { return b.inner.Header() }
 
 func (b *preludeBuffer) Write(p []byte) (int, error) {
 	if b.committed.Load() {
-		return b.inner.Write(p)
+		return sse.WriteJSONChunk(b.inner, p)
 	}
 	if b.sealed {
 		// Post-Seal first write: commit buffered prelude, then pass through.
 		if err := b.commit(); err != nil {
 			return 0, err
 		}
-		return b.inner.Write(p)
+		return sse.WriteJSONChunk(b.inner, p)
 	}
 	// Pre-Seal: buffer.
 	return b.bufBody.Write(p)
@@ -70,6 +71,7 @@ func (b *preludeBuffer) Write(p []byte) (int, error) {
 
 func (b *preludeBuffer) WriteHeader(status int) {
 	if b.committed.Load() {
+		sse.PrepareJSONResponse(b.inner)
 		b.inner.WriteHeader(status)
 		return
 	}
@@ -104,10 +106,11 @@ func (b *preludeBuffer) PreludeSent() bool { return b.preludeSent }
 // attempt committed. A later provider error can still be retried or fail over.
 func (b *preludeBuffer) CommitPrelude() error {
 	if !b.preludeSent && b.bufStatus != 0 {
+		sse.PrepareJSONResponse(b.inner)
 		b.inner.WriteHeader(b.bufStatus)
 	}
 	if b.bufBody.Len() > 0 {
-		if _, err := b.inner.Write(b.bufBody.Bytes()); err != nil {
+		if _, err := sse.WriteJSONChunk(b.inner, b.bufBody.Bytes()); err != nil {
 			return err
 		}
 	}
@@ -153,10 +156,11 @@ func (b *preludeBuffer) commit() error {
 	}
 	if !b.preludeSent {
 		if b.bufStatus != 0 {
+			sse.PrepareJSONResponse(b.inner)
 			b.inner.WriteHeader(b.bufStatus)
 		}
 		if b.bufBody.Len() > 0 {
-			if _, err := b.inner.Write(b.bufBody.Bytes()); err != nil {
+			if _, err := sse.WriteJSONChunk(b.inner, b.bufBody.Bytes()); err != nil {
 				return err
 			}
 		}
@@ -476,7 +480,7 @@ func emitAnthropicSSEErrorEvent(sink http.ResponseWriter, err error) error {
 		body = anthropicErrorFrameBody(cls)
 	}
 	_, _ = sink.Write([]byte("event: error\ndata: "))
-	_, _ = sink.Write(body)
+	_, _ = sse.WriteJSONChunk(sink, body)
 	_, _ = sink.Write([]byte("\n\n"))
 	if f, ok := sink.(http.Flusher); ok {
 		f.Flush()
@@ -503,7 +507,7 @@ func emitOpenAISSEErrorEvent(sink http.ResponseWriter, err error) error {
 		body = openAIErrorFrameBody(cls)
 	}
 	_, _ = sink.Write([]byte("data: "))
-	_, _ = sink.Write(body)
+	_, _ = sse.WriteJSONChunk(sink, body)
 	_, _ = sink.Write([]byte("\n\n"))
 	if f, ok := sink.(http.Flusher); ok {
 		f.Flush()

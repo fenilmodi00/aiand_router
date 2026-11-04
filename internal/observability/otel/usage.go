@@ -64,6 +64,7 @@ func (u *UsageExtractor) WriteHeader(statusCode int) {
 	if u.inner == nil {
 		return
 	}
+	sse.PrepareJSONResponse(u.inner)
 	u.inner.WriteHeader(statusCode)
 }
 
@@ -74,7 +75,7 @@ func (u *UsageExtractor) Write(p []byte) (int, error) {
 	}
 	u.leftover = append(u.leftover, p...)
 	u.scanBuffer()
-	return u.inner.Write(p)
+	return sse.WriteJSONChunk(u.inner, p)
 }
 
 func (u *UsageExtractor) Flush() {
