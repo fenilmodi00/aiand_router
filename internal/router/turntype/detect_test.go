@@ -148,6 +148,18 @@ func TestDetectFromEnvelope_Anthropic(t *testing.T) {
 			want: turntype.SubAgentDispatch,
 		},
 		{
+			// The security monitor wraps its payload in <transcript> too; the
+			// classifier shape, not the Agent-tool envelope, decides it.
+			name: "security monitor with <transcript> payload is classifier",
+			body: `{"model":"claude-sonnet-5","max_tokens":64,"thinking":{"type":"disabled"},"messages":[{"role":"user","content":"<transcript>\n {\"user\":\"run the tests\"}\n</transcript>"}],"system":"You are a security monitor for autonomous AI coding agents."}`,
+			want: turntype.Classifier,
+		},
+		{
+			name: "explicit sub-agent metadata outranks the classifier shape",
+			body: `{"model":"claude-haiku-4-5","max_tokens":64,"metadata":{"user_id":"subagent:Explore"},"messages":[{"role":"user","content":"<transcript>\nUser: find it\n</transcript>"}]}`,
+			want: turntype.SubAgentDispatch,
+		},
+		{
 			// Regression guard: detection only sniffs a 64-byte prefix, so a
 			// "<transcript>" mention deep in a long prompt must not trip it.
 			name: "long main_loop with embedded <transcript> deep in body stays main_loop",
