@@ -542,7 +542,7 @@ func TestConvertResponsesToChatCompletionsWithOptions_PortableCodexUnknownStaysN
 	body := []byte(`{
 		"model":"deepseek/deepseek-v4-pro",
 		"input":[{"type":"computer_call","id":"comp_1","action":{"type":"click"}}],
-		"tools":[{"type":"web_search","search_context_size":"medium"}]
+		"tools":[{"type":"image_generation"}]
 	}`)
 
 	converted, err := translate.ConvertResponsesToChatCompletionsWithOptions(body, translate.ResponsesConversionOptions{PortableCodex: true})

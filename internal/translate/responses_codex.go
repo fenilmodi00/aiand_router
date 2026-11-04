@@ -44,6 +44,7 @@ type portableCodexResponsesConverter struct {
 	toolAliases     map[responsesToolIdentity]string
 	declaredAliases map[string]struct{}
 	tools           []map[string]any
+	hostedWebSearch bool
 }
 
 func codexFeedbackSkillInvocation(input gjson.Result) bool {
@@ -198,6 +199,7 @@ func convertPortableCodexResponses(body []byte) (ResponsesConversion, error) {
 	}
 
 	converter.collectDeclaredTools(root)
+	converter.requireNativeForForcedWebSearch(root.Get("tool_choice"))
 	converter.result.CodexFeedbackSkill = codexFeedbackSkillInvocation(root.Get("input"))
 	converter.result.CodexModelSwitch = codexModelSwitchPresent(root.Get("input"))
 	messages := converter.convertInput(root.Get("input"))
@@ -268,6 +270,11 @@ func (c *portableCodexResponsesConverter) collectToolArray(tools gjson.Result, n
 			c.collectFunctionTool(tool, namespace, toolPath)
 		case "custom":
 			c.collectCustomTool(tool, namespace, toolPath)
+		case "web_search", "web_search_preview":
+			// OpenAI executes hosted search itself; scoped CitationsOrSearch keeps
+			// turns that actually searched on OpenAI, so other targets drop it.
+			c.hostedWebSearch = true
+			c.report("responses_hosted_web_search_dropped", "dropped", toolPath)
 		default:
 			c.result.Requirements.CustomTools = true
 			c.markNativeOnly("responses_unknown_tool_native_only", toolPath)
@@ -418,6 +425,8 @@ func (c *portableCodexResponsesConverter) convertInput(input gjson.Result) []map
 			c.appendToolCall(&messages, item, path, false)
 		case "custom_tool_call":
 			c.appendToolCall(&messages, item, path, true)
+		case "web_search_call":
+			c.report("responses_web_search_call_dropped", "dropped", path)
 		case "function_call_output", "custom_tool_call_output":
 			if message, images, ok := c.convertToolOutput(item, path); ok {
 				messages = append(messages, message)
@@ -860,6 +869,19 @@ func (c *portableCodexResponsesConverter) ensureToolMapping(name, namespace stri
 
 func (c *portableCodexResponsesConverter) report(code, action, path string) {
 	c.result.Report = append(c.result.Report, ResponseTransform{Code: code, Action: action, Path: path})
+}
+
+// requireNativeForForcedWebSearch keeps a turn native when its tool choice can
+// only be satisfied by the hosted search the portable projection drops.
+func (c *portableCodexResponsesConverter) requireNativeForForcedWebSearch(toolChoice gjson.Result) {
+	if !c.hostedWebSearch {
+		return
+	}
+	forcesSearch := strings.HasPrefix(toolChoice.Get("type").Str, "web_search")
+	requiresDroppedTool := toolChoice.Str == "required" && len(c.tools) == 0
+	if forcesSearch || requiresDroppedTool {
+		c.markNativeOnly("responses_forced_web_search_native_only", "tool_choice")
+	}
 }
 
 func (c *portableCodexResponsesConverter) markNativeOnly(code, path string) {
