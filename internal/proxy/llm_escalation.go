@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/tidwall/gjson"
 	"aiand-os/router/internal/flags"
 	"aiand-os/router/internal/observability"
 	"aiand-os/router/internal/providers"
@@ -103,6 +104,16 @@ func (s *Service) beginLLMEscalation(ctx context.Context, env *translate.Request
 	activation := escalationActivationID(ctx, res.InstallationID, fmt.Sprintf("%s/%s/%s/%d/%s", sessionCredentialIdentity(ctx, apiKeyID), res.Strategy, mode, selection.Epoch, config.Digest))
 	observation, err := env.EscalationObservation()
 	original, isNativeResponses := ctx.Value(nativeResponsesBodyContextKey{}).([]byte)
+	model := env.Model()
+	if isNativeResponses {
+		model = gjson.GetBytes(original, "model").String()
+	}
+	// Side requests share the session key but are not agent turns; counting
+	// them pushes the turn counter past the history and blinds the classifier.
+	if turntype.IsSideRequest(model, env.LastUserMessage().Text) {
+		observability.FromContext(ctx).Info("LLM escalation skipped", "reason", "side_request")
+		return nil
+	}
 	if isNativeResponses {
 		observation, err = translate.ParseResponsesEscalationObservation(original)
 	}

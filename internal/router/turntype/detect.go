@@ -244,7 +244,30 @@ func isCodexCompaction(lastUserText string) bool {
 // harness <system-reminder> blocks) so a user quoting it mid-message stays
 // MainLoop. Only the trailing turn is checked: once the recap renders, later
 // real turns carry it in history and must stay MainLoop.
+//
+// promptSuggestionMarkerPhrase opens Claude Code's next-prompt suggestion
+// instruction, which it appends as the trailing user message of a forked copy
+// of the conversation.
+const promptSuggestionMarkerPhrase = "[suggestion mode: suggest what the user might naturally type next"
+
+// codexAutoReviewModel is the model Codex requests for its approval reviewer,
+// a separate agent that judges the main agent's pending action.
+const codexAutoReviewModel = "codex-auto-review"
+
 func isRecap(lastUserText string) bool {
+	return trailingMessageOpensWith(lastUserText, recapMarkerPhrase)
+}
+
+// IsSideRequest reports a harness request that forks or reviews the
+// conversation without advancing it: Claude Code's prompt suggestion and
+// Codex's approval reviewer.
+func IsSideRequest(model, lastUserText string) bool {
+	return model == codexAutoReviewModel || trailingMessageOpensWith(lastUserText, promptSuggestionMarkerPhrase)
+}
+
+// trailingMessageOpensWith reports whether the trailing user message opens with
+// phrase after any harness <system-reminder> blocks.
+func trailingMessageOpensWith(lastUserText, phrase string) bool {
 	if len(lastUserText) > compactionSniffLen {
 		lastUserText = lastUserText[:compactionSniffLen]
 	}
@@ -256,7 +279,7 @@ func isRecap(lastUserText string) bool {
 		}
 		text = strings.TrimSpace(text[end+len(systemReminderClose):])
 	}
-	return strings.HasPrefix(strings.ToLower(text), recapMarkerPhrase)
+	return strings.HasPrefix(strings.ToLower(text), phrase)
 }
 
 // isSubAgentDispatch reports whether the request originates from a sub-agent:
