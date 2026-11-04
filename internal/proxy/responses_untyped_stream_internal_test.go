@@ -36,7 +36,7 @@ func (untypedResponsesStreamProvider) Passthrough(context.Context, providers.Pre
 type untypedResponsesRouter struct{}
 
 func (untypedResponsesRouter) Route(context.Context, router.Request) (router.Decision, error) {
-	return router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-5.6-sol", Reason: "scored"}, nil
+	return router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3", Reason: "scored"}, nil
 }
 
 // The Codex subscription backend streams Responses SSE without Content-Type.
@@ -47,12 +47,12 @@ func TestCodexCompactionPreservesUntypedResponsesStream(t *testing.T) {
 		forceModel string
 	}{
 		{name: "compaction hard pin"},
-		{name: "forced model", forceModel: "gpt-5.6-sol"},
+		{name: "forced model", forceModel: "z-ai/glm-5.3"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			svc := NewService(untypedResponsesRouter{}, map[string]providers.Client{providers.ProviderAIAND: untypedResponsesStreamProvider{}},
-				nil, false, nil, nil, false, providers.ProviderAIAND, "gpt-5.6-luna", nil)
-			body := []byte(`{"model":"gpt-5.6-sol","stream":true,"input":[` +
+				nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.3", nil)
+			body := []byte(`{"model":"z-ai/glm-5.3","stream":true,"input":[` +
 				`{"type":"message","role":"user","content":[{"type":"input_text","text":"Fix the bug."}]},` +
 				`{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Working."}]},` +
 				`{"type":"message","role":"user","content":[{"type":"input_text","text":"You are performing a CONTEXT CHECKPOINT COMPACTION. Create a handoff summary."}]}]}`)
