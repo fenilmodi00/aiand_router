@@ -4,6 +4,9 @@ import (
 	"context"
 	"net/http"
 	"strings"
+	"unicode/utf8"
+
+	"golang.org/x/text/encoding/charmap"
 
 	"aiand-os/router/internal/auth"
 	"aiand-os/router/internal/observability"
@@ -266,6 +269,12 @@ func NormalizeDisplayName(s string) string {
 	s = strings.TrimSpace(s)
 	if s == "" || len(s) > MaxDisplayNameLen {
 		return ""
+	}
+	// Node clients (Claude Code) send header values as Latin-1 bytes, not UTF-8.
+	if !utf8.ValidString(s) {
+		if decoded, err := charmap.ISO8859_1.NewDecoder().String(s); err == nil {
+			s = decoded
+		}
 	}
 	var b strings.Builder
 	b.Grow(len(s))
