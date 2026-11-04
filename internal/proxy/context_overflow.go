@@ -1,13 +1,18 @@
 package proxy
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"net/http"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/policy"
+	"aiand-os/router/internal/router/turntype"
 )
 
 // contextOverflowMessage leads with Anthropic's own wording: Claude Code keys
@@ -84,6 +89,99 @@ func OpenAIErrorCode(kind DispatchErrorKind) string {
 		return openAIContextOverflowCode
 	}
 	return ""
+}
+
+// CompactionUnservableError reports a harness compaction turn that overflowed
+// every summarizer the request could reach. It deliberately does not unwrap to
+// the overflow: answering a compaction turn with prompt-too-long tells the
+// client to compact, which is the request that just failed.
+type CompactionUnservableError struct {
+	Provider string
+	Model    string
+	Cause    error
+	// Tokens and Limit are the upstream's prompt-too-long counts, set only
+	// for a client that trims its own compaction from them.
+	Tokens int
+	Limit  int
+}
+
+func (e *CompactionUnservableError) Error() string {
+	return fmt.Sprintf("compaction exceeded the context window of every reachable summarizer (last %s via %s): %v", e.Model, e.Provider, e.Cause)
+}
+
+var compactionUnservableClass = DispatchErrorClass{
+	Kind:          DispatchErrorCompactionUnservable,
+	Status:        http.StatusBadGateway,
+	Message:       "The upstream provider rejected this compaction request as too long for every model available to it. Retrying will not help until a larger-window model is available; start a new session to continue.",
+	LogLevel:      "error",
+	LogMessage:    "Compaction turn overflowed every reachable summarizer",
+	NoClientRetry: true,
+}
+
+// compactionUnservableClassFor answers an unservable compaction that carries
+// token counts with the prompt-too-long those counts describe; without them
+// it stays the terminal 502.
+func compactionUnservableClassFor(unservable *CompactionUnservableError) DispatchErrorClass {
+	if unservable.Tokens == 0 {
+		return compactionUnservableClass
+	}
+	class := contextWindowExceededClass
+	class.Message = fmt.Sprintf("prompt is too long: %d tokens > %d maximum", unservable.Tokens, unservable.Limit)
+	class.LogMessage = "Compaction turn overflowed every reachable summarizer; returned the token counts for the client to trim"
+	return class
+}
+
+// upstreamPromptTooLongCounts matches Anthropic's and the aiand upstream's
+// overflow body, whose JSON encoder may escape '>' as \u003e.
+var upstreamPromptTooLongCounts = regexp.MustCompile(`(?i)prompt is too long[^0-9]*(\d+)\s*tokens?\s*(?:>|\\u003e)\s*(\d+)`)
+
+func promptTooLongCounts(err error) (tokens, limit int, ok bool) {
+	var resp *providers.UpstreamErrorResponse
+	if !errors.As(err, &resp) {
+		return 0, 0, false
+	}
+	m := upstreamPromptTooLongCounts.FindSubmatch(resp.Body)
+	if m == nil {
+		return 0, 0, false
+	}
+	tokens, _ = strconv.Atoi(string(m[1]))
+	limit, _ = strconv.Atoi(string(m[2]))
+	return tokens, limit, limit > 0 && tokens > limit
+}
+
+// withClientTrimCounts gives Claude Code the token counts of a compaction no
+// reachable model could summarize. From the gap it drops the oldest rounds and
+// retries, giving up after a bounded number of head truncations; a count-free
+// prompt-too-long makes it retry nearly the same request round by round, so
+// without counts, and for every other client, the terminal 502 stays.
+func withClientTrimCounts(ctx context.Context, err, primaryErr error) error {
+	var unservable *CompactionUnservableError
+	if ClientIdentityFrom(ctx).ClientApp != ClientAppClaudeCode || !errors.As(err, &unservable) {
+		return err
+	}
+	for _, cause := range []error{primaryErr, unservable.Cause} {
+		if tokens, limit, ok := promptTooLongCounts(cause); ok {
+			unservable.Tokens, unservable.Limit = tokens, limit
+			break
+		}
+	}
+	return err
+}
+
+// rescuesCompactionOverflow reports whether a pre-commit failure on a harness
+// compaction turn should walk the compaction rescue list: an overflow there
+// means this summarizer is too small, not that the client should compact.
+func rescuesCompactionOverflow(turnType turntype.TurnType, err error) bool {
+	return turnType == turntype.Compaction && isContextOverflow(err)
+}
+
+// asCompactionUnservable replaces a compaction turn's final overflow with a
+// provider-attributed failure once the rescue walk has run out.
+func asCompactionUnservable(turnType turntype.TurnType, decision router.Decision, err error) error {
+	if !rescuesCompactionOverflow(turnType, err) {
+		return err
+	}
+	return &CompactionUnservableError{Provider: decision.Provider, Model: decision.Model, Cause: err}
 }
 
 // A validated force pin delegates estimated overflow to the provider, including

@@ -4591,6 +4591,8 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	if siblingRescueOwed && proxyErr != nil && !preludeBuf.Committed() {
 		flushDeferredErr()
 	}
+	proxyErr = asCompactionUnservable(routeRes.TurnType, decision, proxyErr)
+	proxyErr = withClientTrimCounts(ctx, proxyErr, rescuedPrimaryErr)
 
 	finalProvider := primaryProvider
 	if subscriptionStateWinnerProvider != "" {
@@ -7146,6 +7148,8 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	if siblingRescueOwed && proxyErr != nil && !preludeBuf.Committed() {
 		flushDeferredErr()
 	}
+	proxyErr = asCompactionUnservable(routeRes.TurnType, decision, proxyErr)
+	proxyErr = withClientTrimCounts(ctx, proxyErr, rescuedPrimaryErr)
 
 	finalProvider := decision.Provider
 	if subscriptionStateWinnerProvider != "" {

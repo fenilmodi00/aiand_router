@@ -70,6 +70,7 @@ const (
 	DispatchErrorClassifierUnavailable
 	DispatchErrorSpendCapReached
 	DispatchErrorDecisionModelUnavailable
+	DispatchErrorCompactionUnservable
 )
 
 // DispatchErrorClass is the format-agnostic classification of a dispatch
@@ -87,6 +88,9 @@ type DispatchErrorClass struct {
 	// buffered UpstreamStatusError, or a routine client-input problem).
 	LogLevel   string
 	LogMessage string
+	// NoClientRetry marks a terminal failure: retrying the same request can
+	// never succeed, so clients must not loop on it.
+	NoClientRetry bool
 }
 
 // ClassifyDispatchError maps the sentinel errors shared by every dispatch
@@ -107,6 +111,7 @@ func ClassifyDispatchError(err error) (DispatchErrorClass, bool) {
 	var passthroughUnknown *PassthroughModelUnknownError
 	var forcedClusterStrategy *ForcedClusterUnsupportedStrategyError
 	var forcedClusterUnservable *policy.ForcedClusterUnservableError
+	var compactionUnservable *CompactionUnservableError
 	var resolution *policy.ResolutionError
 	switch {
 	case errors.Is(err, policy.ErrClassifierWarming):
@@ -217,6 +222,8 @@ func ClassifyDispatchError(err error) (DispatchErrorClass, bool) {
 	// its native shape, not as an opaque upstream failure.
 	case isContextOverflow(err):
 		return contextWindowExceededClass, true
+	case errors.As(err, &compactionUnservable):
+		return compactionUnservableClassFor(compactionUnservable), true
 	case errors.As(err, &statusErr):
 		return DispatchErrorClass{
 			Kind:    DispatchErrorUpstreamStatus,
