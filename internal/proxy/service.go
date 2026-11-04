@@ -241,7 +241,6 @@ type Service struct {
 	// Refusal detection itself is unconditional — the flag gates only the action.
 	cyberRefusalRepin bool
 
-
 	// siblingFailover is the kill switch (ROUTER_SIBLING_FAILOVER, default on)
 	// for degrading to a same-cluster candidate when every binding of the
 	// routed model fails with a transient upstream fault.
@@ -1494,18 +1493,19 @@ func NewService(r router.Router, providerMap map[string]providers.Client, emitte
 			TierUpgradeEnabled:     DefaultPlannerTierUpgradeEnabled,
 		},
 		hmmUpgradeConfidenceThreshold: DefaultHMMUpgradeConfidenceThreshold,
+		hmmDowngradeHysteresisTurns:   DefaultHMMDowngradeHysteresisTurns,
 		authoritativeUpgradeGate:      true,
 		authoritativeUpgradePolicy:    flags.AuthoritativeUpgradePolicyScore,
 		authoritativeUpgradeVotes:     3,
 		authorityCacheShadow:          true,
 		plannerEnabled:                true,
-		scoreToolResultTurns:           true,
+		scoreToolResultTurns:          true,
 		loopEscalationEnabled:         true,
-		cyberRefusalRepin:              true,
-		siblingFailover:                true,
-		openAIResponsesBroad:           true,
-		nativeOpenAIResponseSignals:    true,
-		cyberRefusalFallbackModel:      "deepseek/deepseek-v4-pro",
+		cyberRefusalRepin:             true,
+		siblingFailover:               true,
+		openAIResponsesBroad:          true,
+		nativeOpenAIResponseSignals:   true,
+		cyberRefusalFallbackModel:     "deepseek/deepseek-v4-pro",
 	}
 }
 
@@ -1564,7 +1564,6 @@ func (s *Service) WithCyberRefusalRepin(enabled bool) *Service {
 	s.cyberRefusalRepin = enabled
 	return s
 }
-
 
 // WithSiblingFailover is the kill switch for same-cluster model failover
 // (ROUTER_SIBLING_FAILOVER); see siblingFailover.
@@ -3534,6 +3533,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		return routeErr
 	}
 	ctx = requestcontext.WithCallerModelPassthrough(ctx, routeRes.CallerModelPassthrough)
+	ctx = s.withTurnOverloadProbe(ctx, routeRes)
 	if preparingHandoff(ctx) {
 		return s.finishHandoffPreparation(ctx, w, env, req, routeRes)
 	}
@@ -3955,6 +3955,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 						WithEstimatedInputTokens(feats.Tokens).
 						WithRequestHadTools(feats.HasTools).
 						WithThinkTagReasoning(false).
+						WithSeedToolCallMarkup(env.SeedToolCallNames(prep.ResponseToolNames)).
 						WithEscapeNormalize(s.escapeNormalize).
 						WithToolValidator(toolValidator)
 					if providers.OutputExcludesReasoning(d.Provider) {
@@ -6274,6 +6275,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		return err
 	}
 	ctx = requestcontext.WithCallerModelPassthrough(ctx, routeRes.CallerModelPassthrough)
+	ctx = s.withTurnOverloadProbe(ctx, routeRes)
 	if len(routeRes.SessionDisabledProviders) > 0 {
 		ctx = context.WithValue(ctx, SessionDisabledProvidersContextKey{}, routeRes.SessionDisabledProviders)
 	}
@@ -6397,12 +6399,12 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	otel.Flush(ctx)
 
 	opts := translate.EmitOptions{
-		TargetModel:              decision.Model,
-		TargetProvider:           decision.Provider,
-		Capabilities:             router.Lookup(decision.Model),
-		IncludeStreamUsage:       s.usageRequired(),
-		SessionAffinity:          sessionAffinityHint(routeRes.SessionKey),
-		ModelSwitched:            routeRes.modelSwitched(),
+		TargetModel:        decision.Model,
+		TargetProvider:     decision.Provider,
+		Capabilities:       router.Lookup(decision.Model),
+		IncludeStreamUsage: s.usageRequired(),
+		SessionAffinity:    sessionAffinityHint(routeRes.SessionKey),
+		ModelSwitched:      routeRes.modelSwitched(),
 	}
 	effortServed := s.resolveEffort(ctx, decision, opts.Capabilities, routeRes.EscalateEffort)
 	effortServed.apply(&opts)
@@ -6667,6 +6669,13 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 					return fmt.Errorf("emit OpenAI router notice: %w", noticeErr)
 				}
 				var attemptSink http.ResponseWriter = noticeSink
+				var seedToolCalls *translate.SeedToolCallChatWriter
+				if surface == surfaceChat {
+					if names := env.SeedToolCallNames(prep.ResponseToolNames); len(names) > 0 {
+						seedToolCalls = translate.NewSeedToolCallChatWriter(attemptSink, names)
+						attemptSink = seedToolCalls
+					}
+				}
 				proxyWriter := attemptSink
 				// A translated attempt reads Responses SSE, which the chat-shaped
 				// usage extractor can't parse â€” the translator records usage instead.
@@ -6721,6 +6730,15 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 					preludeBuf.Seal()
 				}
 				err := p.Proxy(actx, d, prep, proxyWriter, r)
+				if seedToolCalls != nil {
+					err = finalizeAfterProxy(err, seedToolCalls.Finalize)
+					if n := seedToolCalls.ConvertedToolCalls(); n > 0 {
+						log.Warn("Recovered tool calls from Seed text markup",
+							"model", d.Model,
+							"provider", d.Provider,
+							"tool_calls", n)
+					}
+				}
 				if err == nil && chatTerminal != nil {
 					err = chatTerminal.streamErr()
 				}

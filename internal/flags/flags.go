@@ -106,6 +106,7 @@ const (
 	KeyRescuedFailureArmDemotion            Key = "rescued_failure_arm_demotion"
 	KeyTransientRateLimit                   Key = "transient_rate_limit"
 	KeyRateLimitCooldownSeconds             Key = "rate_limit_cooldown_seconds"
+	KeyProviderOverloaded                   Key = "provider_overloaded"
 	KeyNativeOpenAIResponseSignals          Key = "native_openai_response_signals"
 )
 
@@ -149,7 +150,7 @@ type Definition struct {
 // RegistryVersion changes whenever Registry's membership changes. Publish uses
 // it to make pruning safe during rolling deploys: a revision with an older
 // registry version may not delete definitions published by a newer revision.
-const RegistryVersion = 24
+const RegistryVersion = 25
 
 // Registry is the curated allowlist of flags that may carry a per-organization
 // override. It is deliberately explicit rather than derived from the env var
@@ -273,7 +274,7 @@ var Registry = []Definition{
 		Key:            KeyHMMDowngradeHysteresisTurns,
 		EnvVar:         "ROUTER_HMM_DOWNGRADE_HYSTERESIS_TURNS",
 		Kind:           KindInt,
-		Description:    "Consecutive authoritative-per-turn classifier votes for a cheaper-than-pin model required before the downgrade is applied. 0 (default) downgrades on the first vote; 3 is the value a rollout would start from.",
+		Description:    "Consecutive authoritative-per-turn classifier votes for a cheaper-than-pin model required before the downgrade is applied. 2 by default; 0 downgrades on the first vote.",
 		OrgOverridable: true,
 	},
 	{
@@ -379,6 +380,13 @@ var Registry = []Definition{
 		EnvVar:         "ROUTER_RATE_LIMIT_COOLDOWN_SECONDS",
 		Kind:           KindInt,
 		Description:    "Seconds a model stays out of a session's automatic selection after a rescued 429 while transient_rate_limit is on. Default 45.",
+		OrgOverridable: true,
+	},
+	{
+		Key:            KeyProviderOverloaded,
+		EnvVar:         "ROUTER_PROVIDER_OVERLOADED",
+		Kind:           KindBool,
+		Description:    "Per-model 529 circuit breaker: provider overloaded responses from every organization open a shared circuit, which withdraws the model from automatic selection only for organizations that have each observed overloads themselves. Probed again after a backoff. On by default; kill switch for the breaker.",
 		OrgOverridable: true,
 	},
 	{

@@ -193,6 +193,12 @@ func (s *Service) ProxyGeminiGenerateContent(ctx context.Context, body []byte, w
 		return err
 	}
 	ctx = requestcontext.WithCallerModelPassthrough(ctx, routeRes.CallerModelPassthrough)
+	// The Gemini ingress has no sibling rescue, so it never dispatches with a
+	// held probe; free the slot for a rescuable request instead.
+	if routeRes.OverloadProbe != nil {
+		s.overloadBreaker.ReleaseProbe(*routeRes.OverloadProbe)
+		routeRes.OverloadProbe = nil
+	}
 	if len(routeRes.SessionDisabledProviders) > 0 {
 		ctx = context.WithValue(ctx, SessionDisabledProvidersContextKey{}, routeRes.SessionDisabledProviders)
 	}

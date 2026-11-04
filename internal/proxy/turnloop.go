@@ -460,6 +460,11 @@ const hmmHistoryReason = "hmm_history"
 // every other group combined.
 const DefaultHMMUpgradeConfidenceThreshold = 0.50
 
+// DefaultHMMDowngradeHysteresisTurns is how many consecutive cheaper-than-pin
+// authoritative votes a downgrade needs; half of all cheaper runs are a single
+// turn HMM reverses on the next one.
+const DefaultHMMDowngradeHysteresisTurns = 2
+
 const (
 	hmmReasonConfidentUpgrade        = "hmm_confident_upgrade"
 	hmmReasonUpgradeConfidenceLow    = "hmm_upgrade_confidence_low"
@@ -863,6 +868,19 @@ func (s *Service) runTurnLoop(
 		}
 		forceModelPin.Provider = binding
 		req.ExcludedModels = s.readmitForcedModel(ctx, req, env, feats, forceModelPin)
+	}
+	// A due overload circuit readmits its model for this one request; the
+	// ordinary selection paths decide whether the probe actually reaches it,
+	// and an unexercised slot is released when the request ends. Only main
+	// and tool-result turns that can sibling-rescue probe, so a failed probe
+	// never reaches the client.
+	if !forceModelFound && authoritativePolicyTurn(res.TurnType) {
+		if probe, release, claimed := s.claimOverloadProbe(ctx, req); claimed {
+			ctx = withOverloadProbe(ctx, probe)
+			res.OverloadProbe = &probe
+			res.CooldownProbeReleases = append(res.CooldownProbeReleases, release)
+			req.AutomaticExcludedModels = s.globalAutomaticExcludedModels(ctx)
+		}
 	}
 	if auth.RoutingPassthroughFrom(ctx) && !forceModelFound {
 		decision, err := s.callerModelPassthroughDecision(ctx, req)
