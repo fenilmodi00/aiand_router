@@ -25,8 +25,8 @@ import (
 
 const (
 	admissionTestRoot       = "gs://admission-fixture/registry"
-	admissionTestModel      = "gpt-5.6-sol"
-	admissionTestArm        = providers.ProviderAIAND + "/" + admissionTestModel
+	admissionTestModel      = "z-ai/glm-5.3"
+	admissionTestArm        = admissionTestModel
 	admissionTestClass      = "low"
 	admissionTestCredential = "rk_admission-fixture"
 	admissionTestBody       = "{ \"model\":\"auto\",\n \"messages\":[{\"role\":\"user\",\"content\":\"hello\"}] }"
@@ -274,4 +274,63 @@ func TestDirectAdmissionRejectsOtherFleet(t *testing.T) {
 	cfg.Identity.Target = policyregistry.TargetInternal
 	response := runAdmissionMiddleware(t, cfg, admitted, func(c *gin.Context) { t.Fatal("cross-fleet dispatch") })
 	require.Equal(t, http.StatusForbidden, response.Code)
+}
+
+// Ported from upstream 10414f15 (#1906).
+func TestDirectAdmissionRetainsPolicyAcrossWorkerCodeRelease(t *testing.T) {
+	cfg, admitted, _, _ := admissionMiddlewareFixture(t)
+	primary := &directAdmissionStore{assertion: admitted}
+	var err error
+	cfg.Decisions, err = policyregistry.NewAdmissionDecisionCache(primary, 10, time.Minute, time.Now)
+	require.NoError(t, err)
+	cfg.Identity.Revision = "worker-0002"
+	cfg.Identity.ImageDigest = "sha256:" + strings.Repeat("e", 64)
+	cfg.Attribution = admissionAttributionFunc(func(_ context.Context, _ string, got policyregistry.ServingAssertion) error {
+		require.Equal(t, admitted.Admission, got.Admission)
+		return nil
+	})
+	for range 2 {
+		response := runAdmissionMiddleware(t, cfg, admitted, func(c *gin.Context) {
+			require.NotNil(t, policyregistry.ServingSnapshotFromContext(c.Request.Context()))
+			body, err := io.ReadAll(c.Request.Body)
+			require.NoError(t, err)
+			require.Equal(t, admissionTestBody, string(body))
+			c.Status(http.StatusNoContent)
+		})
+		require.Equal(t, http.StatusNoContent, response.Code, response.Body.String())
+	}
+	// The fixture sends no session ID; its first-message fingerprint lets turn two reuse the admission.
+	require.Equal(t, 1, primary.calls)
+}
+
+func TestDirectConversationIDFallsBackToConversationFingerprint(t *testing.T) {
+	messagesRequest := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	firstTurn := []byte(`{"model":"auto","system":"turn one","messages":[{"role":"user","content":[{"type":"text","text":"<current_datetime>2026-10-30T15:40:06</current_datetime> fix the build"}]}]}`)
+	laterTurn := []byte(`{"model":"auto","system":"turn two","messages":[{"role":"user","content":[{"type":"text","text":"<current_datetime>2026-10-30T15:40:06</current_datetime> fix the build","cache_control":{"type":"ephemeral"}}]},{"role":"assistant","content":"ok"},{"role":"user","content":"next"}]}`)
+	otherConversation := []byte(`{"model":"auto","messages":[{"role":"user","content":"<current_datetime>2026-10-30T16:02:11</current_datetime> fix the build"}]}`)
+
+	first := directConversationID(messagesRequest, firstTurn)
+	require.NotEmpty(t, first, "session-less clients need a stable conversation identity")
+	assert.Equal(t, first, directConversationID(messagesRequest, laterTurn))
+	assert.NotEqual(t, first, directConversationID(messagesRequest, otherConversation))
+	stringOpener := []byte(`{"model":"auto","messages":[{"role":"user","content":"<current_datetime>2026-10-30T15:40:06</current_datetime> fix the build"}]}`)
+	assert.Equal(t, first, directConversationID(messagesRequest, stringOpener), "string and single-block openers must match")
+
+	responses := httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	responsesTurn := []byte(`{"model":"auto","input":[{"role":"developer","content":"sys"},{"role":"user","content":[{"type":"input_text","text":"fix the build"}]}]}`)
+	require.NotEmpty(t, directConversationID(responses, responsesTurn))
+	assert.Equal(t, "prompt_cache_key:cache-1", directConversationID(responses, []byte(`{"model":"auto","prompt_cache_key":"cache-1","input":"fix the build"}`)))
+
+	omittedRoleConversationID := directConversationID(responses, []byte(`{"model":"auto","input":[{"type":"message","content":"hello"}]}`))
+	assert.Equal(t, omittedRoleConversationID, directConversationID(responses, []byte(`{"model":"auto","input":[{"type":"message","role":"user","content":"hello"}]}`)), "Responses message items default to the user role")
+	gemini := httptest.NewRequest(http.MethodPost, "/v1beta/models/auto:generateContent", nil)
+	assert.Equal(t,
+		directConversationID(gemini, []byte(`{"contents":[{"role":"user","parts":[{"text":"hello"}]}]}`)),
+		directConversationID(gemini, []byte(`{"contents":[{"parts":[{"text":"hello"}]}]}`)),
+		"Gemini contents default to the user role")
+	require.NotEmpty(t, directConversationID(gemini, []byte(`{"contents":[{"parts":[{"text":"hello"}]}]}`)))
+
+	explicit := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	explicit.Header.Set("Session-Id", "client-session")
+	assert.Equal(t, "client-session", directConversationID(explicit, firstTurn))
 }
