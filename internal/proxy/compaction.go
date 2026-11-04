@@ -3,7 +3,9 @@ package proxy
 import (
 	"context"
 	"slices"
+	"time"
 
+	"aiand-os/router/internal/observability"
 	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/catalog"
@@ -109,11 +111,20 @@ func (s *Service) compactionSessionModel(ctx context.Context, sessionKey [sessio
 	if s.pinStore == nil {
 		return "", "", false
 	}
-	threadPin, active := s.loadPin(ctx, sessionKey, role)
-	if !active {
-		threadPin = sessionpin.Pin{}
+	// Compaction follows the served model, not the classifier that chose it.
+	// Auxiliary requests can overwrite these rows under another strategy.
+	var served sessionpin.Pin
+	for _, pinRole := range []string{role, hmmHistoryRole(role)} {
+		pin, found, err := s.pinStore.Get(ctx, sessionKey, pinRole)
+		if err != nil {
+			observability.FromContext(ctx).Error("Compaction session history unavailable", "role", pinRole, "err", err)
+			continue
+		}
+		if !found || (pinRole == role && !pin.PinnedUntil.After(time.Now())) {
+			continue
+		}
+		served = latestServedPin(served, pin)
 	}
-	served := latestServedPin(threadPin, s.loadHMMHistory(ctx, sessionKey, role))
 	model = served.LastServedModel
 	if model == "" {
 		model = served.Model
@@ -124,8 +135,9 @@ func (s *Service) compactionSessionModel(ctx context.Context, sessionKey [sessio
 		if !known || m.Tier == catalog.TierLow {
 			return false
 		}
-		binding, bound := s.servedBinding(candidate, served.Provider, req)
-		if !bound || binding.Provider == providers.ProviderAIAND {
+		// v0 serves only the aiand OpenAI-compatible provider, so there is no
+		// second family to upgrade into; require the served binding itself.
+		if _, bound := s.servedBinding(candidate, served.Provider, req); !bound {
 			return false
 		}
 		if s.availableModels != nil {
