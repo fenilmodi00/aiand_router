@@ -634,3 +634,44 @@ func registerProfileFixture(t *testing.T, store *servingMemoryStore, base policy
 	bindingRef := store.publish(t, policyregistry.ServingBindings, binding)
 	return policyregistry.ServingSelection{Release: releaseRef, Binding: bindingRef, Profile: &profileRef}
 }
+
+// Ported from upstream b97b0fb2 (#1803).
+func TestRoutingControlsChangeRebindsPinnedConversation(t *testing.T) {
+	firstSet, secondSet := fixtureSet("one"), fixtureSet("two")
+	firstProfile, secondProfile := namespaceRef(policyregistry.ServingProfiles, "profile-one"), namespaceRef(policyregistry.ServingProfiles, "profile-two")
+	firstSet.Profiles[profileKeyOne] = policyregistry.ServingSelection{Release: namespaceRef(policyregistry.ServingReleases, "custom-one"), Binding: namespaceRef(policyregistry.ServingBindings, "custom-one"), Profile: &firstProfile}
+	secondSet.Profiles[profileKeyOne] = policyregistry.ServingSelection{Release: namespaceRef(policyregistry.ServingReleases, "custom-two"), Binding: namespaceRef(policyregistry.ServingBindings, "custom-two"), Profile: &secondProfile}
+	first, _ := activateFixture(t, policyregistry.ServingStateSnapshot{}, firstSet, servingEpoch)
+	second, _ := activateFixture(t, first, secondSet, servingEpoch.Add(time.Minute))
+	sets := map[string]policyregistry.SelectionSetView{servingRef(t, policyregistry.ServingSelectionSets, firstSet).SHA256: firstSet.View(), servingRef(t, policyregistry.ServingSelectionSets, secondSet).SHA256: secondSet.View()}
+	before := policyregistry.RoutingControlsDigest([]string{"z-ai/glm-5.3", "deepseek/deepseek-v4-pro"}, nil, []string{"openai"}, nil)
+	projection := policyregistry.AdmissionProjection{Target: policyregistry.TargetStable, ProfileKey: profileKeyOne, AssignmentGeneration: 1, RoutingControlsDigest: before}
+	initial, err := policyregistry.SelectSessionRelease(nil, projection, first, sets, testRegistryRoot, servingEpoch)
+	require.NoError(t, err)
+	require.Equal(t, first.State.CurrentActivationID, initial.ActivationID)
+	assert.Equal(t, before, initial.RoutingControlsDigest)
+	now := servingEpoch.Add(2 * time.Minute)
+
+	projection.RoutingControlsDigest = policyregistry.RoutingControlsDigest([]string{"deepseek/deepseek-v4-pro", "z-ai/glm-5.3", "deepseek/deepseek-v4-pro"}, nil, []string{"openai"}, nil)
+	retained, err := policyregistry.SelectSessionRelease(&initial, projection, second, sets, testRegistryRoot, now)
+	require.NoError(t, err)
+	assert.Equal(t, initial.ActivationID, retained.ActivationID, "reordering the same controls must keep the pin")
+	assert.Equal(t, initial.BindingGeneration, retained.BindingGeneration)
+
+	after := policyregistry.RoutingControlsDigest([]string{"z-ai/glm-5.3", "deepseek/deepseek-v4-pro", "deepseek/deepseek-v4.1-flash"}, nil, []string{"openai"}, nil)
+	require.NotEqual(t, before, after)
+	projection.RoutingControlsDigest = after
+	rebound, err := policyregistry.SelectSessionRelease(&initial, projection, second, sets, testRegistryRoot, now)
+	require.NoError(t, err)
+	assert.Equal(t, second.State.CurrentActivationID, rebound.ActivationID)
+	assert.Equal(t, secondSet.Profiles[profileKeyOne], rebound.Selection)
+	assert.Equal(t, initial.BindingGeneration+1, rebound.BindingGeneration)
+	assert.Equal(t, after, rebound.RoutingControlsDigest)
+	assert.Equal(t, initial.CreatedAt, rebound.CreatedAt)
+
+	legacy := initial
+	legacy.RoutingControlsDigest = ""
+	kept, err := policyregistry.SelectSessionRelease(&legacy, projection, second, sets, testRegistryRoot, now)
+	require.NoError(t, err)
+	assert.Equal(t, initial.ActivationID, kept.ActivationID, "bindings persisted before the digest existed must not mass-rebind on deploy")
+}
