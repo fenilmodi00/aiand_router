@@ -71,6 +71,13 @@ func (s *Service) ResolveAuthoritativeUpgradeGate(ctx context.Context) bool {
 	return flags.BoolOr(ctx, flags.KeyAuthoritativeUpgradeGate, s.authoritativeUpgradeGate)
 }
 
+// ResolveAuthoritativeUpgradeSlidingThreshold reports whether per-group
+// probability bands bypass the confidence floor on authoritative upgrades.
+// Off by default; with the flag off, routing is unchanged.
+func (s *Service) ResolveAuthoritativeUpgradeSlidingThreshold(ctx context.Context) bool {
+	return flags.BoolOr(ctx, flags.KeyAuthoritativeUpgradeSlidingThreshold, s.authoritativeUpgradeSlidingThreshold)
+}
+
 func (s *Service) ResolveAuthoritativeUpgradePolicy(ctx context.Context) flags.AuthoritativeUpgradePolicy {
 	defaultPolicy := s.authoritativeUpgradePolicy
 	if defaultPolicy == "" {
