@@ -70,6 +70,26 @@ func (r *userRepo) UpsertByAccountUUID(ctx context.Context, params auth.UpsertUs
 	return toAuthUser(row), nil
 }
 
+func (r *userRepo) UpsertByCredentialSubject(ctx context.Context, params auth.UpsertUserByCredentialSubjectParams) (*auth.User, error) {
+	installationID, err := uuid.Parse(params.InstallationID)
+	if err != nil {
+		return nil, err
+	}
+	credentialSubjectID, err := uuid.Parse(params.CredentialSubjectID)
+	if err != nil {
+		return nil, err
+	}
+	row, err := dbbudget.Queries(r.tx).UpsertModelRouterUserByCredentialSubject(ctx, sqlc.UpsertModelRouterUserByCredentialSubjectParams{
+		InstallationID:      installationID,
+		CredentialSubjectID: credentialSubjectID,
+		DisplayName:         nullableTextArg(params.DisplayName),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return toAuthUser(row), nil
+}
+
 func toAuthUser(row sqlc.RouterModelRouterUser) *auth.User {
 	user := &auth.User{
 		ID:             row.ID.String(),

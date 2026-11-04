@@ -19,6 +19,7 @@ import (
 type captureUserRepo struct {
 	emailUpserts   []auth.UpsertUserParams
 	accountUpserts []auth.UpsertUserByAccountUUIDParams
+	subjectUpserts []auth.UpsertUserByCredentialSubjectParams
 }
 
 type assignedRoutingPolicyRepo struct{ assignmentReads int }
@@ -39,6 +40,10 @@ func (r *captureUserRepo) UpsertByEmail(ctx context.Context, p auth.UpsertUserPa
 func (r *captureUserRepo) UpsertByAccountUUID(ctx context.Context, p auth.UpsertUserByAccountUUIDParams) (*auth.User, error) {
 	r.accountUpserts = append(r.accountUpserts, p)
 	return &auth.User{ID: "user-from-account"}, nil
+}
+func (r *captureUserRepo) UpsertByCredentialSubject(ctx context.Context, p auth.UpsertUserByCredentialSubjectParams) (*auth.User, error) {
+	r.subjectUpserts = append(r.subjectUpserts, p)
+	return &auth.User{ID: "user-from-key-owner"}, nil
 }
 // newTestAuthSvc wires a Service with only what ResolveAndStashUser touches.
 func newTestAuthSvc(users auth.UserRepository) *auth.Service {
@@ -155,7 +160,7 @@ func TestResolveUserFromContext_AccountUUIDOnlyReachesUpsert(t *testing.T) {
 	ctx := context.WithValue(context.Background(), proxy.ClientIdentityContextKey{}, proxy.ClientIdentity{
 		AccountID: "2c2aace8-82e9-4cb1-8d1f-2f822da43177",
 	})
-	ctx = proxy.ResolveUserFromContext(ctx, svc, inst)
+	ctx = proxy.ResolveUserFromContext(ctx, svc, inst, nil)
 
 	assert.Empty(t, repo.emailUpserts, "no email signal: must not hit the email-keyed upsert")
 	require.Len(t, repo.accountUpserts, 1, "account_uuid alone must still reach UpsertByAccountUUID")
@@ -171,7 +176,7 @@ func TestResolveUserFromContext_EmailOnlyReachesEmailUpsert(t *testing.T) {
 	ctx := context.WithValue(context.Background(), proxy.ClientIdentityContextKey{}, proxy.ClientIdentity{
 		Email: "alice@example.com",
 	})
-	ctx = proxy.ResolveUserFromContext(ctx, svc, inst)
+	ctx = proxy.ResolveUserFromContext(ctx, svc, inst, nil)
 
 	require.Len(t, repo.emailUpserts, 1)
 	assert.Empty(t, repo.accountUpserts)
@@ -256,7 +261,7 @@ func TestResolveUserFromContext_BothMissingIsNoOp(t *testing.T) {
 	inst := &auth.Installation{ID: "inst-1"}
 
 	ctx := context.WithValue(context.Background(), proxy.ClientIdentityContextKey{}, proxy.ClientIdentity{})
-	ctx = proxy.ResolveUserFromContext(ctx, svc, inst)
+	ctx = proxy.ResolveUserFromContext(ctx, svc, inst, nil)
 
 	assert.Empty(t, repo.emailUpserts)
 	assert.Empty(t, repo.accountUpserts)
@@ -341,4 +346,52 @@ func TestClientIdentityFromHeaders_SessionIDSources(t *testing.T) {
 	t.Run("no session headers", func(t *testing.T) {
 		assert.Equal(t, "", proxy.ClientIdentityFromHeaders(http.Header{}).SessionID)
 	})
+}
+
+func TestResolveUserFromContext_NoClientIdentityAttributesToPersonalKeyOwner(t *testing.T) {
+	repo := &captureUserRepo{}
+	svc := newTestAuthSvc(repo)
+	inst := &auth.Installation{ID: "inst-1"}
+	key := &auth.APIKey{ID: "key-1", InstallationID: "inst-1", CredentialSubjectID: "61f77e74-0000-4000-8000-000000000001"}
+
+	ctx := context.WithValue(context.Background(), proxy.ClientIdentityContextKey{}, proxy.ClientIdentity{DisplayName: "Alice Liddell"})
+	ctx = proxy.ResolveUserFromContext(ctx, svc, inst, key)
+
+	assert.Empty(t, repo.emailUpserts)
+	assert.Empty(t, repo.accountUpserts)
+	require.Len(t, repo.subjectUpserts, 1)
+	assert.Equal(t, "inst-1", repo.subjectUpserts[0].InstallationID)
+	assert.Equal(t, "61f77e74-0000-4000-8000-000000000001", repo.subjectUpserts[0].CredentialSubjectID)
+	require.NotNil(t, repo.subjectUpserts[0].DisplayName)
+	assert.Equal(t, "Alice Liddell", *repo.subjectUpserts[0].DisplayName)
+	assert.Equal(t, "user-from-key-owner", auth.UserIDFrom(ctx))
+}
+
+func TestResolveUserFromContext_ClientIdentityBeatsPersonalKeyOwner(t *testing.T) {
+	repo := &captureUserRepo{}
+	svc := newTestAuthSvc(repo)
+	inst := &auth.Installation{ID: "inst-1"}
+	key := &auth.APIKey{ID: "key-1", InstallationID: "inst-1", CredentialSubjectID: "61f77e74-0000-4000-8000-000000000001"}
+
+	ctx := context.WithValue(context.Background(), proxy.ClientIdentityContextKey{}, proxy.ClientIdentity{Email: "alice@example.com"})
+	ctx = proxy.ResolveUserFromContext(ctx, svc, inst, key)
+
+	require.Len(t, repo.emailUpserts, 1)
+	assert.Empty(t, repo.subjectUpserts)
+	assert.Equal(t, "user-from-email", auth.UserIDFrom(ctx))
+}
+
+func TestResolveUserFromContext_SharedKeyWithoutClientIdentityStaysUnattributed(t *testing.T) {
+	repo := &captureUserRepo{}
+	svc := newTestAuthSvc(repo)
+	inst := &auth.Installation{ID: "inst-1"}
+	key := &auth.APIKey{ID: "key-1", InstallationID: "inst-1"}
+
+	ctx := context.WithValue(context.Background(), proxy.ClientIdentityContextKey{}, proxy.ClientIdentity{})
+	ctx = proxy.ResolveUserFromContext(ctx, svc, inst, key)
+
+	assert.Empty(t, repo.emailUpserts)
+	assert.Empty(t, repo.accountUpserts)
+	assert.Empty(t, repo.subjectUpserts)
+	assert.Equal(t, "", auth.UserIDFrom(ctx))
 }
