@@ -2431,6 +2431,9 @@ func (t *ResponsesWriter) emitFunctionCallItemAdded(item *responsesToolItem) err
 		"call_id":   item.callID,
 		"name":      item.name,
 		"arguments": "",
+		// Codex treats absent/null as encrypted collaboration arguments. Calls
+		// synthesized from Chat providers contain plaintext, including tasks.
+		"encrypted_function_args": []string{},
 	}
 	if item.mapping.Namespace != "" {
 		call["namespace"] = item.mapping.Namespace
@@ -2499,6 +2502,7 @@ func (t *ResponsesWriter) emitFunctionCallItemDone(item *responsesToolItem) erro
 	call := map[string]any{
 		"id": item.itemID, "type": "function_call", "status": "completed",
 		"call_id": item.callID, "name": item.name, "arguments": item.call.Arguments,
+		"encrypted_function_args": []string{},
 	}
 	if item.mapping.Namespace != "" {
 		call["namespace"] = item.mapping.Namespace
@@ -2578,12 +2582,13 @@ func (t *ResponsesWriter) assembleOutput() []any {
 			continue
 		}
 		call := map[string]any{
-			"id":        item.itemID,
-			"type":      "function_call",
-			"status":    "completed",
-			"call_id":   item.callID,
-			"name":      item.name,
-			"arguments": item.call.Arguments,
+			"id":                      item.itemID,
+			"type":                    "function_call",
+			"status":                  "completed",
+			"call_id":                 item.callID,
+			"name":                    item.name,
+			"arguments":               item.call.Arguments,
+			"encrypted_function_args": []string{},
 		}
 		if item.mapping.Namespace != "" {
 			call["namespace"] = item.mapping.Namespace
@@ -2663,6 +2668,7 @@ func chatCompletionToResponse(body []byte, responseID, model string, createdAt i
 		} else {
 			item["type"] = "function_call"
 			item["arguments"] = call.Arguments
+			item["encrypted_function_args"] = []string{}
 		}
 		output = append(output, item)
 	}
