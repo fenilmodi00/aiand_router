@@ -5,12 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"net/http/httptest"
+	"slices"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 	"aiand-os/router/internal/flags"
 	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/router"
@@ -19,6 +18,8 @@ import (
 	"aiand-os/router/internal/router/policy"
 	"aiand-os/router/internal/router/turntype"
 	"aiand-os/router/internal/translate"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 )
 
 type llmEscalationStoreStub struct {
@@ -284,6 +285,43 @@ func TestQwenEscalationReadsCodexToolOutcomesFromNativeResponses(t *testing.T) {
 			turn := service.beginLLMEscalation(ctx, env, router.Request{}, &requestResult, "test-key")
 			require.NotNil(t, turn)
 			require.Equal(t, tc.codex, turn.observation.CodexToolResults)
+		})
+	}
+}
+
+func TestLLMEscalationSkipsCheckpointsUntilAgentActsOnLatestPrompt(t *testing.T) {
+	prompt := func(text string) translate.EscalationMessage {
+		return translate.EscalationMessage{Role: translate.EscalationRoleUser, Blocks: []translate.EscalationBlock{{Type: translate.EscalationBlockText, Text: text}}}
+	}
+	toolResult := translate.EscalationMessage{Role: translate.EscalationRoleUser, Blocks: []translate.EscalationBlock{{Type: translate.EscalationBlockToolResult, ContentJSON: `"ok"`}}}
+	act := translate.EscalationMessage{Role: translate.EscalationRoleAssistant, Blocks: []translate.EscalationBlock{{Type: translate.EscalationBlockToolCall, Name: "Bash", ArgumentsJSON: `{"command":"make test"}`}}}
+	history := []translate.EscalationMessage{prompt("fix the build"), act}
+	for range 10 {
+		history = append(history, toolResult, act)
+	}
+	const toolCallResponse = `{"id":"response","content":[{"type":"tool_use","id":"call","name":"Bash","input":{"command":"make test"}}],"stop_reason":"tool_use"}`
+
+	for _, tc := range []struct {
+		name    string
+		latest  translate.EscalationMessage
+		failure llmescalation.FailureCode
+	}{
+		{name: "new prompt", latest: prompt("use the staging config instead"), failure: llmescalation.FailureRecentUserPrompt},
+		{name: "tool loop", latest: toolResult, failure: llmescalation.FailureNone},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store := &llmEscalationStoreStub{}
+			service := (&Service{}).WithLLMEscalation(store).WithQwenEscalation(&blockingEscalationJudge{})
+			turn := &llmEscalationTurn{
+				observation: translate.EscalationObservation{Messages: append(slices.Clone(history), tc.latest)},
+				session:     llmescalation.Session{CompletedTurns: 11, Config: llmescalation.Config{Cadence: 3, Classifier: flags.EscalationClassifierLLM}},
+			}
+			capture := newCaptureWriter(httptest.NewRecorder(), escalationHistoryMaxBytes)
+			_, err := capture.Write([]byte(toolCallResponse))
+			require.NoError(t, err)
+			service.completeLLMEscalation(context.Background(), turnLoopResult{llmEscalation: turn}, nil, capture, translate.EscalationResponseAnthropic)
+			require.Equal(t, 1, store.completeCalls)
+			require.Equal(t, tc.failure, store.completionRequest.IntervalFailure)
 		})
 	}
 }
