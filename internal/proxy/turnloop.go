@@ -768,6 +768,7 @@ func (s *Service) runTurnLoop(
 	reqHeaders http.Header,
 	req router.Request,
 ) (res turnLoopResult, routeErr error) {
+	subAgentHint = subAgentHintForRequest(ctx, subAgentHint)
 	defer func() {
 		if routeErr == nil {
 			routeErr = policyPinServed(ctx, res)
