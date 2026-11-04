@@ -271,3 +271,39 @@ func TestArmSelectorForceClusterPreservesPreferenceRanking(t *testing.T) {
 		"z-ai/glm-5.3": 20,
 	}, decision.Metadata.ArmScores)
 }
+
+// Ported from upstream 8e8d32e5 (#1980).
+func TestArmSelectorPreviewAcceptsEffortQualifiedArms(t *testing.T) {
+	adapter := policy.NewSidecarRouter(policy.SidecarRouterConfig{
+		Strategy:    router.StrategyHMM,
+		Unavailable: errors.New("selection unavailable"),
+	}, &recordingPolicy{preview: policy.PreviewResult{
+		SchemaVersion:        policy.SchemaVersionV4,
+		PolicyArtifactID:     "hmm-prod",
+		PolicyArtifactSHA256: "sha256:artifact",
+		ClassOrder:           []string{"high", "low"},
+		ClassProbabilities:   map[string]float64{"high": 0.8, "low": 0.2},
+	}}, policy.NewResolver(
+		set("z-ai/glm-5.3"),
+		set(providers.ProviderAIAND),
+		func(model catalog.Model) string { return model.ID },
+	))
+	adapter.WithArmSelector(func(_ context.Context, _ policy.SelectionInput) (policy.SelectionPick, error) {
+		return policy.SelectionPick{
+			Group: "high",
+			Arm:   "z-ai/glm-5.3:high",
+			RankedFallback: []policy.PreviewGroup{{
+				Group:        "high",
+				Probability:  0.8,
+				RosterArms:   []string{"z-ai/glm-5.3:high"},
+				EligibleArms: []string{"z-ai/glm-5.3:high"},
+			}},
+		}, nil
+	})
+
+	result, err := adapter.PreviewRoute(context.Background(), router.Request{})
+
+	require.NoError(t, err)
+	assert.Equal(t, "high", result.SelectedGroup)
+	assert.Equal(t, []string{"z-ai/glm-5.3:high"}, result.EligibleRosterIDs)
+}
