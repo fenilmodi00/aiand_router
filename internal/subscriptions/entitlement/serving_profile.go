@@ -9,21 +9,31 @@ type ServingProfile struct {
 	Strategy router.Strategy
 }
 
+// LegacyBoostProfileKey is accepted only when reading old installation
+// assignments; new Boost traffic always uses the target's default policy.
+const LegacyBoostProfileKey = "32acfab2-7d79-55c7-8d63-e8535fb66027"
+
 var servingProfiles = map[Plan]ServingProfile{
 	PlanMax: {
 		Name:     "max-default",
 		Key:      "75018458-5306-5d29-9911-ec06c5376a9f",
 		Strategy: router.StrategyHMM,
 	},
-	PlanBoost: {
-		Name:     "boost-default",
-		Key:      "32acfab2-7d79-55c7-8d63-e8535fb66027",
-		Strategy: router.StrategyHMM,
-	},
 }
 
-// ServingProfileFor returns the server-owned profile for a recognized plan.
+// ServingProfileFor returns a plan-specific routing profile when the plan owns
+// one. Recognized plans without a profile use the target's default policy.
 func ServingProfileFor(plan Plan) (ServingProfile, bool) {
-	profile, ok := servingProfiles[plan]
-	return profile, ok
+	if !plan.Valid() {
+		return ServingProfile{}, false
+	}
+	return servingProfiles[plan], true
+}
+
+// PlanHasServingProfile reports whether the plan has a policy separate from
+// the target's default. Plan-specific routing restrictions follow this policy
+// ownership, not subscription status.
+func PlanHasServingProfile(plan Plan) bool {
+	profile, ok := ServingProfileFor(plan)
+	return ok && profile.Key != ""
 }

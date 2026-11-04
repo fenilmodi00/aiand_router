@@ -5,6 +5,7 @@ import (
 
 	"aiand-os/router/internal/observability"
 	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/subscriptions/entitlement"
 	"aiand-os/router/internal/router"
 
 	"github.com/gin-gonic/gin"
@@ -23,7 +24,7 @@ const PolicyPinOverrideHeader = "x-aiand-policy-pin"
 // router can select (or refuse) the pinned artifact and roster.
 func WithPolicyPinOverride() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if identity, managed := requestcontext.ServingIdentityFromContext(c.Request.Context()); managed && identity.Plan != "" {
+		if identity, managed := requestcontext.ServingIdentityFromContext(c.Request.Context()); managed && entitlement.PlanHasServingProfile(entitlement.Plan(identity.Plan)) {
 			c.Next()
 			return
 		}

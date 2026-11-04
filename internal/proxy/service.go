@@ -915,7 +915,7 @@ func installationSubscriptionModelsWhenInactiveFromContext(ctx context.Context) 
 // set: the installation policy allowlist further narrowed by a request-level
 // AllowedModelsHeader subset when one is present. Nil = no policy.
 func allowedModelsForRequest(ctx context.Context) map[string]struct{} {
-	if planOwnedServingRequest(ctx) && !subscriptionStateModelsEnabled(ctx) {
+	if planHasDedicatedServingPolicy(ctx) && !subscriptionStateModelsEnabled(ctx) {
 		return nil
 	}
 	policy := installationAllowedModelSet(ctx)
@@ -941,7 +941,7 @@ func allowedModelsForRequest(ctx context.Context) map[string]struct{} {
 // selects it.
 func installationAllowedModelSet(ctx context.Context) map[string]struct{} {
 	var allowed map[string]struct{}
-	if !planOwnedServingRequest(ctx) || subscriptionStateModelsEnabled(ctx) {
+	if !planHasDedicatedServingPolicy(ctx) || subscriptionStateModelsEnabled(ctx) {
 		if base := installationAllowedModelsFromContext(ctx); len(base) > 0 {
 			allowed = modelSet(base)
 		}
@@ -1015,7 +1015,7 @@ func hideTerminalSurfacesForRequest(ctx context.Context) bool {
 // wins; otherwise the authed installation's persisted preference applies;
 // otherwise nil leaves the scorer on its tuned bundle defaults.
 func routingKnobsForRequest(ctx context.Context) *router.Overrides {
-	if planOwnedServingRequest(ctx) {
+	if planHasDedicatedServingPolicy(ctx) {
 		return nil
 	}
 	if k := router.RoutingKnobsFromContext(ctx); k != nil {
@@ -1101,7 +1101,7 @@ func (s *Service) productIneligibleModels(ctx context.Context) map[string]struct
 }
 
 func installationExcludedProvidersFromContext(ctx context.Context) []string {
-	if planOwnedServingRequest(ctx) && !subscriptionStateModelsEnabled(ctx) {
+	if planHasDedicatedServingPolicy(ctx) && !subscriptionStateModelsEnabled(ctx) {
 		return nil
 	}
 	v := ctx.Value(InstallationExcludedProvidersContextKey{})
@@ -1206,7 +1206,7 @@ func (s *Service) preferredModelsForRequest(ctx context.Context) []string {
 	if subscriptionStateModelsEnabled(ctx) {
 		preferred = slices.Clone(installationSubscriptionModelsWhenActiveFromContext(ctx))
 	}
-	if planOwnedServingRequest(ctx) {
+	if planHasDedicatedServingPolicy(ctx) {
 		return preferred
 	}
 	for _, model := range installationPreferredModelsFromContext(ctx) {
@@ -1222,7 +1222,7 @@ func (s *Service) preferredModelsForRequest(ctx context.Context) []string {
 // with the resolved user's own selection — see mergeClusterOverrides for the
 // composition rule. Only consumed by the HMM sidecar router.
 func clusterArmOverridesForRequest(ctx context.Context) map[string][]string {
-	if planOwnedServingRequest(ctx) {
+	if planHasDedicatedServingPolicy(ctx) {
 		return nil
 	}
 	v := ctx.Value(ClusterModelListsContextKey{})
@@ -1231,7 +1231,7 @@ func clusterArmOverridesForRequest(ctx context.Context) map[string][]string {
 	return mergeClusterOverrides(keyScoped, userScoped)
 }
 
-func planOwnedServingRequest(ctx context.Context) bool {
+func planHasDedicatedServingPolicy(ctx context.Context) bool {
 	identity, managed := requestcontext.ServingIdentityFromContext(ctx)
 	return managed && identity.Plan != ""
 }

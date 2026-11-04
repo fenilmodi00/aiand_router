@@ -21,10 +21,11 @@ type planOwnedAllowedModelsGate struct{}
 
 func (planOwnedAllowedModelsGate) ResolveAllowedModelsHeader(context.Context) bool { return true }
 
-func TestPlanOwnedServingForcesProfileStrategyAndIgnoresCustomerHeaders(t *testing.T) {
+func TestMaxServingForcesProfileStrategyAndIgnoresCustomerHeaders(t *testing.T) {
 	t.Parallel()
 
-	for _, plan := range []entitlement.Plan{entitlement.PlanMax, entitlement.PlanBoost} {
+	plan := entitlement.PlanMax
+	{
 		t.Run(string(plan), func(t *testing.T) {
 			engine := gin.New()
 			engine.Use(func(c *gin.Context) {

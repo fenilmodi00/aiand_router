@@ -8,6 +8,7 @@ import (
 
 	"aiand-os/router/internal/observability"
 	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/subscriptions/entitlement"
 	"aiand-os/router/internal/router"
 
 	"github.com/gin-gonic/gin"
@@ -78,7 +79,7 @@ func detectAPIFormat(path string) apiFormat {
 // WithRoutingKnobsOverride parses the x-aiand-routing-* headers and stashes them on the request context.
 func WithRoutingKnobsOverride() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if identity, managed := requestcontext.ServingIdentityFromContext(c.Request.Context()); managed && identity.Plan != "" {
+		if identity, managed := requestcontext.ServingIdentityFromContext(c.Request.Context()); managed && entitlement.PlanHasServingProfile(entitlement.Plan(identity.Plan)) {
 			c.Next()
 			return
 		}

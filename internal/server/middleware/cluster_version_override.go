@@ -6,6 +6,7 @@ import (
 	"aiand-os/router/internal/observability"
 	"aiand-os/router/internal/requestcontext"
 	"aiand-os/router/internal/router/cluster"
+	"aiand-os/router/internal/subscriptions/entitlement"
 
 	"github.com/gin-gonic/gin"
 )
@@ -16,7 +17,7 @@ const ClusterVersionOverrideHeader = "x-aiand-cluster-version"
 // WithClusterVersionOverride stashes the requested cluster version on the request context when the header is set.
 func WithClusterVersionOverride() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if identity, managed := requestcontext.ServingIdentityFromContext(c.Request.Context()); managed && identity.Plan != "" {
+		if identity, managed := requestcontext.ServingIdentityFromContext(c.Request.Context()); managed && entitlement.PlanHasServingProfile(entitlement.Plan(identity.Plan)) {
 			c.Next()
 			return
 		}
