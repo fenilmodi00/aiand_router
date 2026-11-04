@@ -1330,7 +1330,7 @@ func TestService_NewService_HMMUpgradeConfidenceDefaults(t *testing.T) {
 		"anthropic", "z-ai/glm-5.3-flash",
 		nil,
 	)
-	assert.Equal(t, defaultHMMUpgradeConfidenceThreshold, svc.hmmUpgradeConfidenceThreshold)
+	assert.Equal(t, DefaultHMMUpgradeConfidenceThreshold, svc.hmmUpgradeConfidenceThreshold)
 }
 
 func TestService_WithHMMUpgradeConfidenceThreshold(t *testing.T) {

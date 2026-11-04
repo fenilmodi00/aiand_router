@@ -29,6 +29,7 @@ import (
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/bandit"
 	"aiand-os/router/internal/router/bandswap"
+	"aiand-os/router/internal/router/breaker"
 	"aiand-os/router/internal/router/cache"
 	"aiand-os/router/internal/router/catalog"
 	"aiand-os/router/internal/router/cluster"
@@ -270,6 +271,11 @@ type Service struct {
 	// ROUTER_RATE_LIMIT_COOLDOWN_SECONDS; see ResolveTransientRateLimit.
 	transientRateLimit       bool
 	rateLimitCooldownSeconds int
+	// providerOverloaded is the deployment default for
+	// ROUTER_PROVIDER_OVERLOADED; overloadBreaker is the replica's per-model
+	// 529 circuit registry. See ResolveProviderOverloaded.
+	providerOverloaded bool
+	overloadBreaker    *breaker.Registry
 	// sseKeepalive is the client-silence budget before a ping is injected
 	// (ROUTER_SSE_KEEPALIVE_INTERVAL_SECONDS; 0 disables). See sse.KeepaliveWriter.
 	sseKeepalive time.Duration
@@ -1487,7 +1493,7 @@ func NewService(r router.Router, providerMap map[string]providers.Client, emitte
 			ExpectedRemainingTurns: DefaultPlannerExpectedRemainingTurns,
 			TierUpgradeEnabled:     DefaultPlannerTierUpgradeEnabled,
 		},
-		hmmUpgradeConfidenceThreshold: defaultHMMUpgradeConfidenceThreshold,
+		hmmUpgradeConfidenceThreshold: DefaultHMMUpgradeConfidenceThreshold,
 		authoritativeUpgradeGate:      true,
 		authoritativeUpgradePolicy:    flags.AuthoritativeUpgradePolicyScore,
 		authoritativeUpgradeVotes:     3,

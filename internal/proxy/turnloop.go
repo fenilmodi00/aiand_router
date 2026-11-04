@@ -19,6 +19,7 @@ import (
 	"aiand-os/router/internal/observability/otel"
 	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/breaker"
 	"aiand-os/router/internal/router/catalog"
 	"aiand-os/router/internal/router/cluster"
 	"aiand-os/router/internal/router/escalation"
@@ -311,8 +312,12 @@ type turnLoopResult struct {
 	// candidate. Empty unless transient_rate_limit is on.
 	SessionCooldownModels map[string]time.Time
 	// CooldownProbeReleases hold one half-open probe slot per expired model
-	// until provider dispatch completes.
+	// until provider dispatch completes, plus any overload-circuit probe.
 	CooldownProbeReleases []func()
+	// OverloadProbe is the overload-circuit probe this request holds, if
+	// any; the ingress carries it to dispatch so only its outcome resolves
+	// the circuit.
+	OverloadProbe *breaker.Probe
 	// CooldownProbes maps each model this request holds a recovery probe for
 	// to the cooldown expiry it observed, so a successful turn clears exactly
 	// that cooldown and leaves a newer one alone.
@@ -449,7 +454,11 @@ func isHMMDecision(dec router.Decision) bool {
 }
 
 const hmmHistoryReason = "hmm_history"
-const defaultHMMUpgradeConfidenceThreshold = 0.85
+
+// DefaultHMMUpgradeConfidenceThreshold is the top-class classifier probability
+// an upgrade must reach: with four groups, 0.50 means the winner outweighs
+// every other group combined.
+const DefaultHMMUpgradeConfidenceThreshold = 0.50
 
 const (
 	hmmReasonConfidentUpgrade        = "hmm_confident_upgrade"
