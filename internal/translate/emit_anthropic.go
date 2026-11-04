@@ -66,7 +66,9 @@ func (e *RequestEnvelope) PrepareAnthropic(in http.Header, opts EmitOptions) (pr
 	if err != nil {
 		return providers.PreparedRequest{}, err
 	}
-	body, err = dropUnsupportedCacheControlFields(body, opts.TargetProvider == providers.ProviderAnthropic, in.Get("anthropic-beta"))
+	// v0 serves only aiand (no first-party Anthropic), so first-party
+	// cache_control fields are always dropped rather than beta-gated.
+	body, err = dropUnsupportedCacheControlFields(body, false, "")
 	if err != nil {
 		return providers.PreparedRequest{}, err
 	}

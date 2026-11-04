@@ -3,7 +3,6 @@ package translate_test
 import (
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"maps"
 	"net/http"
 	"slices"
@@ -94,21 +93,22 @@ func TestAnthropicSameFormat_RejectsExplicitTTLOrderViolation(t *testing.T) {
 func TestAnthropicSameFormat_FirstPartyCacheControlFields(t *testing.T) {
 	body := []byte(`{"model":"claude-opus-4-8","max_tokens":1024,"system":[{"type":"text","text":"sys","cache_control":{"type":"ephemeral","ttl":"1h","scope":"global","evict_on_complete":true}}],"messages":[{"role":"user","content":"hi"}]}`)
 	bothBetas := "prompt-caching-scope-2026-01-05,prompt-caching-evict-2026-05-12"
+	// v0 drops first-party fields unconditionally (aiand-only, no
+	// first-party Anthropic serving), regardless of beta header.
 	cases := []struct {
-		name     string
-		provider string
-		beta     string
-		want     map[string]any
+		name string
+		beta string
+		want map[string]any
 	}{
-		{"anthropic with both betas keeps both", providers.ProviderAnthropic, bothBetas, map[string]any{"type": "ephemeral", "ttl": "1h", "scope": "global", "evict_on_complete": true}},
-		{"anthropic drops a field without its beta", providers.ProviderAnthropic, "prompt-caching-scope-2026-01-05", map[string]any{"type": "ephemeral", "ttl": "1h", "scope": "global"}},
-		{"gateway drops both", providers.ProviderAnthropicGateway, bothBetas, map[string]any{"type": "ephemeral", "ttl": "1h"}},
+		{"drops both with both betas", bothBetas, map[string]any{"type": "ephemeral", "ttl": "1h"}},
+		{"drops both with scope beta", "prompt-caching-scope-2026-01-05", map[string]any{"type": "ephemeral", "ttl": "1h"}},
+		{"drops both without betas", "", map[string]any{"type": "ephemeral", "ttl": "1h"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			env, err := translate.ParseAnthropic(body)
 			require.NoError(t, err)
-			p, err := env.PrepareAnthropic(http.Header{"Anthropic-Beta": {tc.beta}}, translate.EmitOptions{TargetModel: "claude-opus-4-8", TargetProvider: tc.provider, Capabilities: router.Lookup("claude-opus-4-8")})
+			p, err := env.PrepareAnthropic(http.Header{"Anthropic-Beta": {tc.beta}}, translate.EmitOptions{TargetModel: "claude-opus-4-8", Capabilities: router.Lookup("claude-opus-4-8")})
 			require.NoError(t, err)
 			var out map[string]any
 			require.NoError(t, json.Unmarshal(p.Body, &out))
@@ -134,7 +134,7 @@ func TestAnthropicSameFormat_ValidatesFirstPartyCacheControlFields(t *testing.T)
 		t.Run(tc.policy, func(t *testing.T) {
 			env, err := translate.ParseAnthropic([]byte(`{"model":"claude-opus-4-8","max_tokens":1024,"messages":[{"role":"user","content":[{"type":"text","text":"hi","cache_control":` + tc.policy + `}]}]}`))
 			require.NoError(t, err)
-			_, err = env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "claude-opus-4-8", TargetProvider: providers.ProviderAnthropic, Capabilities: router.Lookup("claude-opus-4-8")})
+			_, err = env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "claude-opus-4-8", Capabilities: router.Lookup("claude-opus-4-8")})
 			if tc.valid {
 				require.NoError(t, err)
 			} else {
