@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"aiand-os/router/internal/dispatch"
@@ -33,4 +34,13 @@ func (s *Service) withSubscriptionFundingAuthorization(ctx context.Context, head
 func (s *Service) subscriptionAPIAuthorization(ctx context.Context, provider, model string) error {
 	ctx = s.withSubscriptionFundingAuthorization(ctx, nil)
 	return dispatch.AuthorizationFromContext(ctx)(clearCredentials(ctx), inference.Target{Provider: provider, CatalogID: model})
+}
+
+// credentialRejectionStands reports whether the caller's own subscription
+// credential was rejected and funding authorization then refused the paid
+// retry before any upstream I/O. The rejection is the turn's answer: it tells
+// the client to re-authenticate, where a pool sentinel would render as a
+// retryable outage.
+func credentialRejectionStands(subscriptionErr, retryErr error, credentialRejected func(error) bool) bool {
+	return errors.Is(retryErr, dispatch.ErrAuthorizationDenied) && credentialRejected(subscriptionErr)
 }
