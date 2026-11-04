@@ -187,7 +187,8 @@ via `cluster.FastestModelForRequest`.
 generation uses `routeWithoutPin`, without consulting or updating the conversation's
 automatic pin or emitting a routing marker. Default provider/quota probes use the
 requested model and do not cross-model fail over. An automatic probe with no
-concrete requested model is scored independently without a session pin.
+concrete requested model (empty, `auto`, or an `aiand-*` routing model) is scored
+independently without a session pin.
 Same-model credential fallback
 still applies, so a successful probe does not prove subscription-specific quota.
 An explicit `ROUTER_HARD_PIN_MODEL`
