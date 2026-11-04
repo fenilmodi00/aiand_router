@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/policy"
 )
 
@@ -83,4 +84,15 @@ func OpenAIErrorCode(kind DispatchErrorKind) string {
 		return openAIContextOverflowCode
 	}
 	return ""
+}
+
+// A validated force pin delegates estimated overflow to the provider, including
+// when subscription funding or a compaction turn rebuilds eligibility.
+func readmitForcedContextEstimate(req router.Request, model string) router.Request {
+	if _, estimateOnly := req.ContextWindowExcludedModels[model]; !estimateOnly {
+		return req
+	}
+	req.ExcludedModels = withoutModels(req.ExcludedModels, []string{model})
+	req.SafetyExcludedModels = withoutModels(req.SafetyExcludedModels, []string{model})
+	return req
 }
