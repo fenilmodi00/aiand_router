@@ -101,7 +101,7 @@ func upgradeTestFresh() router.Decision {
 	margin := 0.2
 	return router.Decision{
 		Model: upgradeTestFreshModel, Provider: providers.ProviderAIAND, Reason: "hmm_policy",
-		Metadata: &router.RoutingMetadata{Strategy: string(router.StrategyHMM), PolicyGroup: string(escalation.High), ChosenScore: 0.7, ClassifierMargin: &margin},
+		Metadata: &router.RoutingMetadata{Strategy: string(router.StrategyHMM), PolicyGroup: string(escalation.High), ChosenScore: 0.45, ClassifierMargin: &margin},
 	}
 }
 
@@ -177,11 +177,11 @@ func TestUpgradeShadowPreservesServingAndPinWrites(t *testing.T) {
 		cold      bool
 		wantModel string
 	}{
-		{"warm blocked upgrade", 0.7, true, false, upgradeTestPinModel},
-		{"cold blocked upgrade", 0.7, true, true, upgradeTestPinModel},
+		{"warm blocked upgrade", 0.45, true, false, upgradeTestPinModel},
+		{"cold blocked upgrade", 0.45, true, true, upgradeTestPinModel},
 		{"confident upgrade", 0.91, true, false, upgradeTestFreshModel},
 		{"unscored upgrade", 0, true, false, upgradeTestFreshModel},
-		{"gate off", 0.7, false, false, upgradeTestFreshModel},
+		{"gate off", 0.45, false, false, upgradeTestFreshModel},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var control turnLoopResult

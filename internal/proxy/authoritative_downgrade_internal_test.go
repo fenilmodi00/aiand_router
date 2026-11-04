@@ -85,8 +85,8 @@ func TestAuthoritativeDowngradeGuards(t *testing.T) {
 	cheapFresh := router.Decision{
 		Provider: providers.ProviderAIAND,
 		Model:    "z-ai/glm-5.3-flash",
-		Reason:   "hmm_policy(classifier 'fast' (p=0.50))",
-		Metadata: &router.RoutingMetadata{ChosenScore: 0.5},
+		Reason:   "hmm_policy(classifier 'fast' (p=0.30))",
+		Metadata: &router.RoutingMetadata{ChosenScore: 0.3},
 	}
 	confidentCheapFresh := router.Decision{
 		Provider: providers.ProviderAIAND,
@@ -230,8 +230,8 @@ func TestAuthoritativeDowngradeShadow(t *testing.T) {
 	cheapFresh := router.Decision{
 		Provider: providers.ProviderAIAND,
 		Model:    "z-ai/glm-5.3-flash",
-		Reason:   "hmm_policy(classifier 'fast' (p=0.50))",
-		Metadata: &router.RoutingMetadata{ChosenScore: 0.5},
+		Reason:   "hmm_policy(classifier 'fast' (p=0.30))",
+		Metadata: &router.RoutingMetadata{ChosenScore: 0.3},
 	}
 	confidentCheapFresh := router.Decision{
 		Provider: providers.ProviderAIAND,
@@ -312,6 +312,7 @@ func TestAuthoritativeDowngradeShadow(t *testing.T) {
 			store.getFound = true
 			store.getPin = authoritativeDowngradePin(test.pinModel, 0)
 			svc := authoritativeDowngradeService(store, test.fresh).
+				WithHMMDowngradeHysteresisTurns(0).
 				WithHMMDowngradeHysteresisShadowTurns(test.shadowTurns)
 
 			result := runAuthoritativeDowngradeTurn(t, svc)
@@ -352,8 +353,8 @@ func TestAuthoritativeDowngradeHysteresisAcrossTurns(t *testing.T) {
 	cheaper := router.Decision{
 		Provider: providers.ProviderAIAND,
 		Model:    "z-ai/glm-5.3-flash",
-		Reason:   "hmm_policy(classifier 'fast' (p=0.50))",
-		Metadata: &router.RoutingMetadata{ChosenScore: 0.5},
+		Reason:   "hmm_policy(classifier 'fast' (p=0.30))",
+		Metadata: &router.RoutingMetadata{ChosenScore: 0.3},
 	}
 	confirming := router.Decision{
 		Provider: providers.ProviderAIAND,
@@ -389,6 +390,43 @@ func TestAuthoritativeDowngradeHysteresisAcrossTurns(t *testing.T) {
 		assert.Equal(t, turn.wantTier, result.PinTier, "turn %d tier", i+1)
 		require.Len(t, store.upserts, 1)
 		assert.Equal(t, turn.wantVotes, store.upserts[0].ConsecutiveDowngradeVotes, "turn %d votes", i+1)
+
+		pin = store.upserts[0]
+		pin.PinnedUntil = time.Now().Add(time.Hour)
+	}
+}
+
+// TestAuthoritativeDowngradeDefaultHysteresisHoldsSingleVote proves the
+// deployment default (2 turns) keeps serving the pin on the first cheaper
+// vote instead of switching immediately.
+func TestAuthoritativeDowngradeDefaultHysteresisHoldsSingleVote(t *testing.T) {
+	cheaper := router.Decision{
+		Provider: providers.ProviderAIAND,
+		Model:    "z-ai/glm-5.3-flash",
+		Reason:   "hmm_policy:tool_execution(classifier 'low' (p=0.30))",
+		Metadata: &router.RoutingMetadata{ChosenScore: 0.3},
+	}
+
+	pin := authoritativeDowngradePin("z-ai/glm-5.3", 0)
+	for i, want := range []struct {
+		model string
+		tier  string
+		votes int
+	}{
+		{model: "z-ai/glm-5.3", tier: "authoritative_hmm_downgrade_hysteresis", votes: 1},
+		{model: "z-ai/glm-5.3-flash", tier: "authoritative_per_turn", votes: 0},
+	} {
+		store := newStubPinStore()
+		store.getFound = true
+		store.getPin = pin
+		svc := authoritativeDowngradeService(store, cheaper)
+
+		result := runAuthoritativeDowngradeTurn(t, svc)
+
+		assert.Equal(t, want.model, result.Decision.Model, "turn %d model", i+1)
+		assert.Equal(t, want.tier, result.PinTier, "turn %d tier", i+1)
+		require.Len(t, store.upserts, 1)
+		assert.Equal(t, want.votes, store.upserts[0].ConsecutiveDowngradeVotes, "turn %d votes", i+1)
 
 		pin = store.upserts[0]
 		pin.PinnedUntil = time.Now().Add(time.Hour)
