@@ -465,7 +465,7 @@ type nativeResponsesToolHashContextKey struct{}
 type codexFeedbackSkillContextKey struct{}
 
 // responsesFooterEchoedContextKey is set when the original Responses input
-// already carries a rating hint after the last human turn.
+// already carries a rating hint.
 type responsesFooterEchoedContextKey struct{}
 
 // codexTitleGenerationContextKey carries the native Responses title signal
@@ -3195,9 +3195,9 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	// Best-effort: log-and-continue on failure rather than abort over cosmetic
 	// cleanup, matching the OpenAI chat path. The echo check must read the body
 	// before the strip erases its evidence.
-	footerEchoedSinceHumanTurn := translate.FeedbackFooterSinceLastHumanTurn(body)
+	footerEchoed := translate.FeedbackFooterInHistory(body)
 	if echoed, _ := ctx.Value(responsesFooterEchoedContextKey{}).(bool); echoed {
-		footerEchoedSinceHumanTurn = true
+		footerEchoed = true
 	}
 	if strippedBody, ferr := translate.StripFeedbackFooterFromMessages(body); ferr != nil {
 		log.Error("Failed to strip feedback footer from inbound messages", "err", ferr)
@@ -3826,7 +3826,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 			defer keepalive.Close()
 			clientSink = keepalive
 		}
-		if footer := s.feedbackFooter(ctx, ClientIdentityFrom(ctx).ClientApp, routeRes.TurnType, footerEchoedSinceHumanTurn); footer != "" {
+		if footer := s.feedbackFooter(ctx, ClientIdentityFrom(ctx).ClientApp, routeRes.TurnType, footerEchoed); footer != "" {
 			clientSink = translate.NewAnthropicRoutingFooterWriter(clientSink, footer)
 		}
 	}
@@ -5983,9 +5983,9 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	// Best-effort: log-and-continue on failure rather than abort over cosmetic
 	// cleanup, matching the Anthropic Messages path. The echo check must read
 	// the body before the strip erases its evidence.
-	footerEchoedSinceHumanTurn := translate.FeedbackFooterSinceLastHumanTurn(body)
+	footerEchoed := translate.FeedbackFooterInHistory(body)
 	if echoed, _ := ctx.Value(responsesFooterEchoedContextKey{}).(bool); echoed {
-		footerEchoedSinceHumanTurn = true
+		footerEchoed = true
 	}
 	strippedBody, stripErr = translate.StripFeedbackFooterFromMessages(body)
 	if stripErr != nil {
@@ -6449,7 +6449,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	// special-casing — /v1/responses footers are a follow-up.
 	clientSink := w
 	if _, isResponses := w.(*translate.ResponsesWriter); env.Stream() && !isResponses {
-		if footer := s.feedbackFooter(ctx, ClientIdentityFrom(ctx).ClientApp, routeRes.TurnType, footerEchoedSinceHumanTurn); footer != "" {
+		if footer := s.feedbackFooter(ctx, ClientIdentityFrom(ctx).ClientApp, routeRes.TurnType, footerEchoed); footer != "" {
 			clientSink = translate.NewOpenAIRoutingFooterWriter(w, footer)
 		}
 	}
@@ -6475,7 +6475,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	// ResponsesWriter's legacy badge that ignored suppression and never showed the routing reason.
 	verbatimPassthrough := responsesPassthrough && decision.Provider == providers.ProviderAIAND
 	if rw, ok := w.(*translate.ResponsesWriter); ok {
-		if footer := s.feedbackFooter(ctx, clientID.ClientApp, routeRes.TurnType, footerEchoedSinceHumanTurn); footer != "" {
+		if footer := s.feedbackFooter(ctx, clientID.ClientApp, routeRes.TurnType, footerEchoed); footer != "" {
 			rw.SetFooterText(footer)
 		}
 	}
@@ -6533,7 +6533,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 			// marker already carries the depleted-credits warning when terminal
 			// surfaces are enabled.
 			// Parse native SSE when this client needs a badge and/or footer.
-			if supportsResponsesTerminalSurfaces(clientID.ClientApp) && (marker != "" || s.feedbackFooter(ctx, clientID.ClientApp, routeRes.TurnType, footerEchoedSinceHumanTurn) != "") {
+			if supportsResponsesTerminalSurfaces(clientID.ClientApp) && (marker != "" || s.feedbackFooter(ctx, clientID.ClientApp, routeRes.TurnType, footerEchoed) != "") {
 				rw.SetPassthroughBadge()
 			} else {
 				rw.SetPassthrough()
@@ -7352,7 +7352,7 @@ func (s *Service) ProxyOpenAIResponses(ctx context.Context, body []byte, w http.
 	clientApp := ClientIdentityFrom(ctx).ClientApp
 	portableCodex := clientApp == ClientAppCodex
 	terminalResponses := supportsResponsesTerminalSurfaces(clientApp)
-	if translate.FeedbackFooterSinceLastHumanTurnInResponses(body) {
+	if translate.FeedbackFooterInResponsesHistory(body) {
 		ctx = context.WithValue(ctx, responsesFooterEchoedContextKey{}, true)
 	}
 	ctx = withSubscriptionOnlyWarningEcho(ctx, body)
