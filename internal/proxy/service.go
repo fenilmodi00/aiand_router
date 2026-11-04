@@ -474,6 +474,14 @@ type codexFeedbackSkillContextKey struct{}
 // already carries a rating hint.
 type responsesFooterEchoedContextKey struct{}
 
+// responsesLastAnnouncedModelContextKey carries the model named by the latest
+// routing announcement in terminal-surface Responses history.
+type responsesLastAnnouncedModelContextKey struct{}
+
+// responsesReplayedModelContextKey carries the model named by the latest
+// routing announcement in non-terminal Responses history.
+type responsesReplayedModelContextKey struct{}
+
 // codexTitleGenerationContextKey carries the native Responses title signal
 // into the shared Chat Completions turn loop. It is set only after the request
 // is identified as coming from Codex, so other clients' structured outputs are
@@ -608,6 +616,16 @@ func suppressMarkerIfRequested(ctx context.Context, h http.Header, marker string
 		return ""
 	}
 	return marker
+}
+
+// announcementTurnFor falls back to the model the client last saw announced
+// when the server has no served-model history for the conversation, as for a
+// client that sends no session identity.
+func announcementTurnFor(res turnLoopResult, replayedModel string) turnLoopResult {
+	if res.PriorServedModel == "" {
+		res.PriorServedModel = replayedModel
+	}
+	return res
 }
 
 // routingMarkerFor builds the "brand → model · note" snippet emitted when the
@@ -3225,6 +3243,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	// clients echo it back verbatim, so left in place it accumulates in
 	// upstream context every turn.
 	ctx = withSubscriptionOnlyWarningEcho(ctx, body)
+	replayedModel := translate.LastAnnouncedMessagesModel(body)
 	body, stripErr := stripRoutingMarkerFromMessages(body)
 	if stripErr != nil {
 		log.Error("Failed to strip routing marker from inbound messages", "err", stripErr)
@@ -3922,7 +3941,8 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	// request body. Zero for Anthropic-native passthrough.
 	var reqStats providers.RequestMutationStats
 
-	marker := suppressMarkerIfRequested(ctx, r.Header, modelSelectionMarkerForRequest(ctx, routeRes, routingMarkerFor(routeRes), decision.Model, ""))
+	announcementTurn := announcementTurnFor(routeRes, replayedModel)
+	marker := suppressMarkerIfRequested(ctx, r.Header, modelSelectionMarkerForRequest(ctx, announcementTurn, routingMarkerFor(announcementTurn), decision.Model, ""))
 	marker = routerNoticeForRequest(ctx, r.Header, decision.Model, marker).Text
 	// toolValidator compiles the request's tool schemas once (LRU-cached);
 	// translators validate/repair model tool calls against it. Nil if no tools.
@@ -6121,6 +6141,10 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	clientID := ClientIdentityFrom(ctx)
 
 	ctx = withSubscriptionOnlyWarningEcho(ctx, body)
+	replayedModel := translate.LastAnnouncedMessagesModel(body)
+	if replayedModel == "" {
+		replayedModel, _ = ctx.Value(responsesReplayedModelContextKey{}).(string)
+	}
 	strippedBody, stripErr := stripRoutingMarkerFromMessages(body)
 	if stripErr != nil {
 		log.Error("Failed to strip routing marker from OpenAI messages", "err", stripErr)
@@ -6607,7 +6631,11 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	clientSink, escalationCapture = s.captureEscalationResponse(clientSink, routeRes)
 	contentSink, contentCap := s.maybeCaptureResponse(ctx, clientSink)
 
-	marker := suppressMarkerIfRequested(ctx, r.Header, modelSelectionMarkerForRequest(ctx, routeRes, routingMarkerFor(routeRes), decision.Model, ""))
+	announcementTurn := announcementTurnFor(routeRes, replayedModel)
+	if announcedModel, ok := ctx.Value(responsesLastAnnouncedModelContextKey{}).(string); ok {
+		announcementTurn.PriorServedModel = announcedModel
+	}
+	marker := suppressMarkerIfRequested(ctx, r.Header, modelSelectionMarkerForRequest(ctx, announcementTurn, routingMarkerFor(announcementTurn), decision.Model, ""))
 	marker = routerNoticeForRequest(ctx, r.Header, decision.Model, marker).Text
 
 	// A /v1/responses caller's original bytes serve it natively — the client
@@ -7530,6 +7558,7 @@ func (s *Service) ProxyOpenAIResponses(ctx context.Context, body []byte, w http.
 	conversionBody := body
 	var err error
 	if terminalResponses {
+		ctx = context.WithValue(ctx, responsesLastAnnouncedModelContextKey{}, translate.LastAnnouncedResponsesModel(body))
 		nativeBody, err = stripResponsesTerminalArtifacts(body)
 		if err != nil {
 			return err
@@ -7541,6 +7570,8 @@ func (s *Service) ProxyOpenAIResponses(ctx context.Context, body []byte, w http.
 		if err != nil {
 			return err
 		}
+	} else {
+		ctx = context.WithValue(ctx, responsesReplayedModelContextKey{}, translate.LastReplayedResponsesModel(body))
 	}
 	conversion, err := translate.ConvertResponsesToChatCompletionsWithOptions(conversionBody, translate.ResponsesConversionOptions{
 		PortableCodex: portableCodex,
