@@ -105,13 +105,13 @@ func twoClusterArtifacts(t *testing.T) (centroidsBlob, rankingsBlob, registryBlo
 
 	rankingsBlob = []byte(`{
 		"rankings": {
-			"0": {"moonshotai/kimi-k3": 0.9, "z-ai/glm-5.3-flash": 0.1},
-			"1": {"moonshotai/kimi-k3": 0.1, "z-ai/glm-5.3-flash": 0.9}
+			"0": {"moonshotai/kimi-k3.1-pro": 0.9, "z-ai/glm-5.3-flash": 0.1},
+			"1": {"moonshotai/kimi-k3.1-pro": 0.1, "z-ai/glm-5.3-flash": 0.9}
 		}
 	}`)
 	registryBlob = []byte(`{
 		"deployed_models": [
-			{"model": "moonshotai/kimi-k3", "provider": "aiand", "bench_column": "routerarena_moonshotai/kimi-k3", "proxy": true},
+			{"model": "moonshotai/kimi-k3.1-pro", "provider": "aiand", "bench_column": "routerarena_moonshotai/kimi-k3.1-pro", "proxy": true},
 			{"model": "z-ai/glm-5.3-flash", "provider": "aiand", "bench_column": "routerarena_z-ai/glm-5.3-flash", "proxy": true}
 		]
 	}`)
@@ -160,10 +160,10 @@ func TestScorer_PicksClusterAlignedModel(t *testing.T) {
 		PromptText: strings.Repeat("x", 100),
 	})
 	require.NoError(t, err)
-	assert.Equal(t, "moonshotai/kimi-k3", got.Model)
+	assert.Equal(t, "moonshotai/kimi-k3.1-pro", got.Model)
 	assert.Equal(t, providers.ProviderAIAND, got.Provider)
 	assert.Contains(t, got.Reason, "cluster:v-test top_p=[0]")
-	assert.Contains(t, got.Reason, "model=moonshotai/kimi-k3")
+	assert.Contains(t, got.Reason, "model=moonshotai/kimi-k3.1-pro")
 }
 
 // TestScorer_PreferredModelSoftNudge: a preferred model wins a close call
@@ -181,7 +181,7 @@ func TestScorer_PreferredModelSoftNudge(t *testing.T) {
 	closeReq := router.Request{PromptText: prompt, RoutingKnobs: alpha(0.55)}
 	base, err := s.Route(ctx, closeReq)
 	require.NoError(t, err)
-	require.Equal(t, "moonshotai/kimi-k3", base.Model, "no preference: quality-favored model wins the close call")
+	require.Equal(t, "moonshotai/kimi-k3.1-pro", base.Model, "no preference: quality-favored model wins the close call")
 
 	// Preferring the trailing model flips the close call — the rank-0 bonus
 	// (~0.15) exceeds the ~0.10 margin.
@@ -196,7 +196,7 @@ func TestScorer_PreferredModelSoftNudge(t *testing.T) {
 	clearReq := router.Request{PromptText: prompt, RoutingKnobs: alpha(0.9), PreferredModels: []string{"z-ai/glm-5.3-flash"}}
 	clear, err := s.Route(ctx, clearReq)
 	require.NoError(t, err)
-	assert.Equal(t, "moonshotai/kimi-k3", clear.Model, "preference must not override a clearly-better model")
+	assert.Equal(t, "moonshotai/kimi-k3.1-pro", clear.Model, "preference must not override a clearly-better model")
 
 	// Stale / unknown preference is ignored: routes identically to no preference.
 	staleReq := closeReq
@@ -217,7 +217,7 @@ func TestScorer_PopulatesRoutingMetadata(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, got.Metadata, "scorer must populate Metadata for cluster-routed decisions")
 	assert.Equal(t, "v-test", got.Metadata.ClusterRouterVersion)
-	assert.ElementsMatch(t, []string{"moonshotai/kimi-k3", "z-ai/glm-5.3-flash"}, got.Metadata.CandidateModels,
+	assert.ElementsMatch(t, []string{"moonshotai/kimi-k3.1-pro", "z-ai/glm-5.3-flash"}, got.Metadata.CandidateModels,
 		"candidate_models must mirror the eligible argmax set")
 	assert.NotZero(t, got.Metadata.ChosenScore, "chosen_score must be non-zero for a real decision")
 	assert.Equal(t, []int{0}, got.Metadata.ClusterIDs,
@@ -235,7 +235,7 @@ func TestScorer_PopulatesBandPair(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, got.Metadata)
-	require.Equal(t, "moonshotai/kimi-k3", got.Model, "chosen must be the cluster-preferred model")
+	require.Equal(t, "moonshotai/kimi-k3.1-pro", got.Model, "chosen must be the cluster-preferred model")
 	assert.Equal(t, "z-ai/glm-5.3-flash", got.Metadata.PairedModel,
 		"paired must be the runner-up, not the chosen model")
 	assert.Equal(t, providers.ProviderAIAND, got.Metadata.PairedProvider)
@@ -251,15 +251,15 @@ func TestScorer_BandPairEmptyForSingleModel(t *testing.T) {
 	c0 := make([]float32, dim)
 	c0[0] = 1
 	cb := buildCentroidsBlob(t, 1, dim, c0)
-	rb := []byte(`{"rankings": {"0": {"moonshotai/kimi-k3": 0.9}}}`)
-	regb := []byte(`{"deployed_models": [{"model": "moonshotai/kimi-k3", "provider": "aiand", "bench_column": "z-ai/glm-5.3", "proxy": true}]}`)
+	rb := []byte(`{"rankings": {"0": {"moonshotai/kimi-k3.1-pro": 0.9}}}`)
+	regb := []byte(`{"deployed_models": [{"model": "moonshotai/kimi-k3.1-pro", "provider": "aiand", "bench_column": "z-ai/glm-5.3", "proxy": true}]}`)
 	s, err := NewScorer(bundleFromBlobs(t, "v-test", cb, rb, regb), cfgForTest(), &fakeEmbedder{vec: makeOpusVec()}, map[string]struct{}{providers.ProviderAIAND: {}})
 	require.NoError(t, err)
 
 	got, err := s.Route(context.Background(), router.Request{PromptText: strings.Repeat("x", 100)})
 	require.NoError(t, err)
 	require.NotNil(t, got.Metadata)
-	assert.Equal(t, "moonshotai/kimi-k3", got.Model)
+	assert.Equal(t, "moonshotai/kimi-k3.1-pro", got.Model)
 	assert.Empty(t, got.Metadata.PairedModel, "single-model pool must surface no pair")
 	assert.Empty(t, got.Metadata.PairedProvider)
 }
@@ -285,13 +285,13 @@ func imageFilterArtifacts(t *testing.T) (centroidsBlob, rankingsBlob, registryBl
 	centroidsBlob = buildCentroidsBlob(t, 1, dim, c0)
 	rankingsBlob = []byte(`{
 		"rankings": {
-			"0": {"z-ai/glm-5.3": 0.9, "moonshotai/kimi-k3": 0.1}
+			"0": {"z-ai/glm-5.3": 0.9, "moonshotai/kimi-k3.1-pro": 0.1}
 		}
 	}`)
 	registryBlob = []byte(`{
 		"deployed_models": [
 			{"model": "z-ai/glm-5.3", "provider": "aiand", "bench_column": "x", "proxy": true},
-			{"model": "moonshotai/kimi-k3", "provider": "aiand", "bench_column": "y", "proxy": true}
+			{"model": "moonshotai/kimi-k3.1-pro", "provider": "aiand", "bench_column": "y", "proxy": true}
 		]
 	}`)
 	return
@@ -312,11 +312,11 @@ func TestScorer_DropsTextOnlyModelOnImageTurn(t *testing.T) {
 	// Image present: glm-5.1 is dropped, opus is the only image-capable candidate.
 	imageTurn, err := s.Route(context.Background(), router.Request{PromptText: strings.Repeat("x", 100), HasImages: true})
 	require.NoError(t, err)
-	assert.Equal(t, "moonshotai/kimi-k3", imageTurn.Model, "image turn must skip the text-only model")
+	assert.Equal(t, "moonshotai/kimi-k3.1-pro", imageTurn.Model, "image turn must skip the text-only model")
 	assert.NotContains(t, imageTurn.Metadata.CandidateModels, "z-ai/glm-5.3",
 		"text-only model must be absent from the image-turn candidate set")
 	assert.NotContains(t, imageTurn.Metadata.ScorerRescuePool, "z-ai/glm-5.3")
-	assert.Contains(t, imageTurn.Metadata.ScorerRescuePool, "moonshotai/kimi-k3")
+	assert.Contains(t, imageTurn.Metadata.ScorerRescuePool, "moonshotai/kimi-k3.1-pro")
 }
 
 func TestScorer_KeepsTextOnlyPoolWhenNoImageCapableCandidate(t *testing.T) {
@@ -406,14 +406,14 @@ func TestScorer_TopPSumsAcrossClusters(t *testing.T) {
 
 	rankingsBlob := []byte(`{
 		"rankings": {
-			"0": {"moonshotai/kimi-k3": 0.6, "z-ai/glm-5.3-flash": 0.0},
-			"1": {"moonshotai/kimi-k3": 0.6, "z-ai/glm-5.3-flash": 0.0},
-			"2": {"moonshotai/kimi-k3": 0.0, "z-ai/glm-5.3-flash": 5.0}
+			"0": {"moonshotai/kimi-k3.1-pro": 0.6, "z-ai/glm-5.3-flash": 0.0},
+			"1": {"moonshotai/kimi-k3.1-pro": 0.6, "z-ai/glm-5.3-flash": 0.0},
+			"2": {"moonshotai/kimi-k3.1-pro": 0.0, "z-ai/glm-5.3-flash": 5.0}
 		}
 	}`)
 	registryBlob := []byte(`{
 		"deployed_models": [
-			{"model": "moonshotai/kimi-k3", "provider": "aiand", "bench_column": "z-ai/glm-5.3", "proxy": true},
+			{"model": "moonshotai/kimi-k3.1-pro", "provider": "aiand", "bench_column": "z-ai/glm-5.3", "proxy": true},
 			{"model": "z-ai/glm-5.3-flash", "provider": "aiand", "bench_column": "z-ai/glm-5.3-flash", "proxy": true}
 		]
 	}`)
@@ -430,8 +430,8 @@ func TestScorer_TopPSumsAcrossClusters(t *testing.T) {
 		want    string
 		comment string
 	}{
-		{1, "moonshotai/kimi-k3", "top-1 lands on cluster 0 (sorted-ascending tie-break), prefers Opus"},
-		{2, "moonshotai/kimi-k3", "top-2 sums clusters 0+1, both prefer Opus"},
+		{1, "moonshotai/kimi-k3.1-pro", "top-1 lands on cluster 0 (sorted-ascending tie-break), prefers Opus"},
+		{2, "moonshotai/kimi-k3.1-pro", "top-2 sums clusters 0+1, both prefer Opus"},
 		{3, "z-ai/glm-5.3-flash", "top-3 includes cluster 2 with 5.0 Haiku score; sum overwhelms 1.2 Opus"},
 	} {
 		t.Run(tc.comment, func(t *testing.T) {
@@ -508,13 +508,13 @@ func TestScorer_QwenBundleRoutes(t *testing.T) {
 	cb := buildCentroidsBlob(t, 2, dim, full)
 	rb := []byte(`{
 		"rankings": {
-			"0": {"moonshotai/kimi-k3": 0.9, "z-ai/glm-5.3-flash": 0.1},
-			"1": {"moonshotai/kimi-k3": 0.1, "z-ai/glm-5.3-flash": 0.9}
+			"0": {"moonshotai/kimi-k3.1-pro": 0.9, "z-ai/glm-5.3-flash": 0.1},
+			"1": {"moonshotai/kimi-k3.1-pro": 0.1, "z-ai/glm-5.3-flash": 0.9}
 		}
 	}`)
 	regb := []byte(`{
 		"deployed_models": [
-			{"model": "moonshotai/kimi-k3", "provider": "aiand", "bench_column": "z-ai/glm-5.3", "proxy": true},
+			{"model": "moonshotai/kimi-k3.1-pro", "provider": "aiand", "bench_column": "z-ai/glm-5.3", "proxy": true},
 			{"model": "z-ai/glm-5.3-flash", "provider": "aiand", "bench_column": "z-ai/glm-5.3-flash", "proxy": true}
 		]
 	}`)
@@ -531,7 +531,7 @@ func TestScorer_QwenBundleRoutes(t *testing.T) {
 
 	d, err := s.Route(context.Background(), router.Request{PromptText: "design a distributed system"})
 	require.NoError(t, err)
-	assert.Equal(t, "moonshotai/kimi-k3", d.Model)
+	assert.Equal(t, "moonshotai/kimi-k3.1-pro", d.Model)
 	assert.Equal(t, providers.ProviderAIAND, d.Provider)
 }
 
@@ -540,10 +540,10 @@ func TestNewScorer_RejectsRankingsMissingDeployedModel(t *testing.T) {
 	c0 := make([]float32, dim)
 	c0[0] = 1
 	cb := buildCentroidsBlob(t, 1, dim, c0)
-	rb := []byte(`{"rankings": {"0": {"moonshotai/kimi-k3": 1.0}}}`)
+	rb := []byte(`{"rankings": {"0": {"moonshotai/kimi-k3.1-pro": 1.0}}}`)
 	regb := []byte(`{
 		"deployed_models": [
-			{"model": "moonshotai/kimi-k3", "provider": "aiand", "bench_column": "z-ai/glm-5.3", "proxy": true},
+			{"model": "moonshotai/kimi-k3.1-pro", "provider": "aiand", "bench_column": "z-ai/glm-5.3", "proxy": true},
 			{"model": "z-ai/glm-5.3-flash", "provider": "aiand", "bench_column": "z-ai/glm-5.3-flash", "proxy": true}
 		]
 	}`)
@@ -605,12 +605,12 @@ func TestScorer_MultiBindingPrefersPrimaryWhenBothAvailable(t *testing.T) {
 	c0[0] = 1
 	cb := buildCentroidsBlob(t, 1, dim, c0)
 	rb := []byte(`{"rankings": {"0": {
-		"moonshotai/kimi-k3": 0.9,
+		"moonshotai/kimi-k3.1-pro": 0.9,
 		"z-ai/glm-5.3-flash": 0.1
 	}}}`)
 	regb := []byte(`{
 		"deployed_models": [
-			{"model": "moonshotai/kimi-k3", "provider": "aiand", "bench_column": "routerarena_moonshotai/kimi-k2.5"},
+			{"model": "moonshotai/kimi-k3.1-pro", "provider": "aiand", "bench_column": "routerarena_moonshotai/kimi-k2.5"},
 			{"model": "z-ai/glm-5.3-flash", "provider": "aiand", "bench_column": "routerarena_claude-haiku-4-5"}
 		]
 	}`)
@@ -622,7 +622,7 @@ func TestScorer_MultiBindingPrefersPrimaryWhenBothAvailable(t *testing.T) {
 	require.NoError(t, err)
 	got, err := s.Route(context.Background(), router.Request{PromptText: strings.Repeat("x", 100)})
 	require.NoError(t, err)
-	assert.Equal(t, "moonshotai/kimi-k3", got.Model)
+	assert.Equal(t, "moonshotai/kimi-k3.1-pro", got.Model)
 	assert.Equal(t, providers.ProviderAIAND, got.Provider, "with both providers wired, the primary binding wins")
 }
 
@@ -632,13 +632,13 @@ func TestScorer_DedupesDuplicateRegistryEntries(t *testing.T) {
 	c0[0] = 1
 	cb := buildCentroidsBlob(t, 1, dim, c0)
 	rb := []byte(`{"rankings": {"0": {
-		"moonshotai/kimi-k3": 0.35,
+		"moonshotai/kimi-k3.1-pro": 0.35,
 		"z-ai/glm-5.3-flash": 0.6
 	}}}`)
 	regb := []byte(`{
 		"deployed_models": [
-			{"model": "moonshotai/kimi-k3", "provider": "aiand", "bench_column": "z-ai/glm-5.3", "proxy": true},
-			{"model": "moonshotai/kimi-k3", "provider": "aiand", "bench_column": "claude-opus-4-5", "proxy": true},
+			{"model": "moonshotai/kimi-k3.1-pro", "provider": "aiand", "bench_column": "z-ai/glm-5.3", "proxy": true},
+			{"model": "moonshotai/kimi-k3.1-pro", "provider": "aiand", "bench_column": "claude-opus-4-5", "proxy": true},
 			{"model": "z-ai/glm-5.3-flash", "provider": "aiand", "bench_column": "z-ai/glm-5.3-flash", "proxy": true}
 		]
 	}`)
@@ -654,7 +654,7 @@ func TestScorer_DedupesDuplicateRegistryEntries(t *testing.T) {
 	for m, n := range counts {
 		assert.Equalf(t, 1, n, "model %q appears %d times in s.models — duplicate registry entries must dedupe", m, n)
 	}
-	assert.ElementsMatch(t, []string{"moonshotai/kimi-k3", "z-ai/glm-5.3-flash"}, s.models)
+	assert.ElementsMatch(t, []string{"moonshotai/kimi-k3.1-pro", "z-ai/glm-5.3-flash"}, s.models)
 
 	got, err := s.Route(context.Background(), router.Request{PromptText: strings.Repeat("x", 100)})
 	require.NoError(t, err)
@@ -745,13 +745,13 @@ func twoProviderArtifacts(t *testing.T) (centroidsBlob, rankingsBlob, registryBl
 
 	rankingsBlob = []byte(`{
 		"rankings": {
-			"0": {"moonshotai/kimi-k3": 0.5, "deepseek/deepseek-v4-pro": 0.9},
-			"1": {"moonshotai/kimi-k3": 0.1, "deepseek/deepseek-v4-pro": 0.05}
+			"0": {"moonshotai/kimi-k3.1-pro": 0.5, "deepseek/deepseek-v4-pro": 0.9},
+			"1": {"moonshotai/kimi-k3.1-pro": 0.1, "deepseek/deepseek-v4-pro": 0.05}
 		}
 	}`)
 	registryBlob = []byte(`{
 		"deployed_models": [
-			{"model": "moonshotai/kimi-k3", "provider": "aiand", "bench_column": "z-ai/glm-5.3", "proxy": true},
+			{"model": "moonshotai/kimi-k3.1-pro", "provider": "aiand", "bench_column": "z-ai/glm-5.3", "proxy": true},
 			{"model": "deepseek/deepseek-v4-pro", "provider": "aiand", "bench_column": "z-ai/glm-5.3"}
 		]
 	}`)
@@ -835,7 +835,7 @@ func TestScorer_ExcludedModelsRemovesFromArgmax(t *testing.T) {
 	})
 	require.NoError(t, err)
 	// Without exclusion deepseek-v4-pro wins; excluding it forces argmax onto kimi-k3.
-	assert.Equal(t, "moonshotai/kimi-k3", got.Model)
+	assert.Equal(t, "moonshotai/kimi-k3.1-pro", got.Model)
 	assert.Equal(t, providers.ProviderAIAND, got.Provider)
 	assert.NotContains(t, got.Metadata.ScorerRescuePool, "deepseek/deepseek-v4-pro")
 }
@@ -849,7 +849,7 @@ func TestScorer_AutomaticExcludedModelsRemovesFromArgmax(t *testing.T) {
 		AutomaticExcludedModels: map[string]struct{}{"deepseek/deepseek-v4-pro": {}},
 	})
 	require.NoError(t, err)
-	assert.Equal(t, "moonshotai/kimi-k3", got.Model)
+	assert.Equal(t, "moonshotai/kimi-k3.1-pro", got.Model)
 	assert.Equal(t, providers.ProviderAIAND, got.Provider)
 	assert.NotContains(t, got.Metadata.CandidateModels, "deepseek/deepseek-v4-pro")
 	assert.Contains(t, got.Metadata.ScorerRescuePool, "deepseek/deepseek-v4-pro")
@@ -865,7 +865,7 @@ func TestScorer_AutomaticExcludedModelsEmptyingPoolStillRoutes(t *testing.T) {
 		PromptText: strings.Repeat("x", 100),
 		AutomaticExcludedModels: map[string]struct{}{
 			"z-ai/glm-5.3":       {},
-			"moonshotai/kimi-k3": {},
+			"moonshotai/kimi-k3.1-pro": {},
 		},
 	})
 	require.NoError(t, err)
@@ -882,7 +882,7 @@ func TestScorer_ExcludedModelsEmptyingPoolReturnsErrNoEligibleProvider(t *testin
 		PromptText: strings.Repeat("x", 100),
 		Exclusions: router.RequestedExclusions(map[string]struct{}{
 			"deepseek/deepseek-v4-pro": {},
-			"moonshotai/kimi-k3":       {},
+			"moonshotai/kimi-k3.1-pro":       {},
 		}),
 	})
 	require.Error(t, err)
@@ -902,7 +902,7 @@ func TestScorer_AllowlistEmptyingPoolReturnsErrAllowlistEmptiesPool(t *testing.T
 		// only names the cause.
 		Exclusions: router.RequestedExclusions(map[string]struct{}{
 			"deepseek/deepseek-v4-pro": {},
-			"moonshotai/kimi-k3":       {},
+			"moonshotai/kimi-k3.1-pro":       {},
 		}),
 		AllowedModels: map[string]struct{}{"some-retired-model": {}},
 	})
@@ -982,13 +982,13 @@ func TestScorer_DeployedModelsReturnsBootCandidates(t *testing.T) {
 	}
 	// Two-provider scorer fixture has deepseek-v4-pro + kimi-k3.
 	assert.Contains(t, models, "deepseek/deepseek-v4-pro")
-	assert.Contains(t, models, "moonshotai/kimi-k3")
+	assert.Contains(t, models, "moonshotai/kimi-k3.1-pro")
 }
 
 // A bundle is frozen at training time, so its registry keeps naming models
 // the catalog has since retired (untiered). Those must not stay routable.
 func TestScorer_DropsCatalogRetiredRegistryEntries(t *testing.T) {
-	const retired = "deepseek/deepseek-v4-pro-0813"
+	const retired = "deepseek/deepseek-v4.1-flash"
 	m, ok := catalog.ByID(retired)
 	require.True(t, ok, "test premise: retired model is still in the catalog for passthrough")
 	require.Equal(t, catalog.TierUnknown, m.Tier, "test premise: retired model is untiered")
@@ -998,13 +998,13 @@ func TestScorer_DropsCatalogRetiredRegistryEntries(t *testing.T) {
 	c0[0] = 1
 	cb := buildCentroidsBlob(t, 1, dim, c0)
 	rb := []byte(`{"rankings": {"0": {
-		"deepseek/deepseek-v4-pro-0813": 0.99,
-		"deepseek/deepseek-v4.1-flash": 0.50
+		"deepseek/deepseek-v4.1-flash": 0.99,
+		"deepseek/deepseek-v4.1-flash-1017": 0.50
 	}}}`)
 	regb := []byte(`{
 		"deployed_models": [
-			{"model": "deepseek/deepseek-v4-pro-0813", "provider": "aiand", "bench_column": "x", "proxy": true},
-			{"model": "deepseek/deepseek-v4.1-flash", "provider": "aiand", "bench_column": "y", "proxy": true}
+			{"model": "deepseek/deepseek-v4.1-flash", "provider": "aiand", "bench_column": "x", "proxy": true},
+			{"model": "deepseek/deepseek-v4.1-flash-1017", "provider": "aiand", "bench_column": "y", "proxy": true}
 		]
 	}`)
 	cfg := cfgForTest()
@@ -1017,10 +1017,10 @@ func TestScorer_DropsCatalogRetiredRegistryEntries(t *testing.T) {
 		assert.NotEqual(t, retired, e.Model, "retired catalog model must not be a cluster candidate")
 	}
 
-	// It outranks flash in the bundle, so it would win argmax if eligible.
+	// It outranks the 1017 flash in the bundle, so it would win argmax if eligible.
 	got, err := s.Route(context.Background(), router.Request{PromptText: strings.Repeat("x", 100)})
 	require.NoError(t, err)
-	assert.Equal(t, "deepseek/deepseek-v4.1-flash", got.Model)
+	assert.Equal(t, "deepseek/deepseek-v4.1-flash-1017", got.Model)
 }
 
 // The approved auto pool is the scorer's only candidate universe: a model
@@ -1064,7 +1064,7 @@ func TestScorer_V2DynamicScoring(t *testing.T) {
 	emb := &fakeEmbedder{vec: makeOpusVec()}
 	regBlob := []byte(`{
 		"deployed_models": [
-			{"model": "moonshotai/kimi-k3", "provider": "aiand", "bench_column": "z-ai/glm-5.3", "proxy": true},
+			{"model": "moonshotai/kimi-k3.1-pro", "provider": "aiand", "bench_column": "z-ai/glm-5.3", "proxy": true},
 			{"model": "z-ai/glm-5.3-flash", "provider": "aiand", "bench_column": "z-ai/glm-5.3-flash", "proxy": true}
 		]
 	}`)
@@ -1082,8 +1082,8 @@ func TestScorer_V2DynamicScoring(t *testing.T) {
 	require.NoError(t, err)
 
 	qualityMeans := Rankings{
-		0: map[string]float32{"moonshotai/kimi-k3": 0.9, "z-ai/glm-5.3-flash": 0.1},
-		1: map[string]float32{"moonshotai/kimi-k3": 0.1, "z-ai/glm-5.3-flash": 0.9},
+		0: map[string]float32{"moonshotai/kimi-k3.1-pro": 0.9, "z-ai/glm-5.3-flash": 0.1},
+		1: map[string]float32{"moonshotai/kimi-k3.1-pro": 0.1, "z-ai/glm-5.3-flash": 0.9},
 	}
 
 	opusInputPrice := 0.015
@@ -1100,7 +1100,7 @@ func TestScorer_V2DynamicScoring(t *testing.T) {
 	haikuVerbosity := 1000.0
 
 	modelAxes := map[string]ModelAxis{
-		"moonshotai/kimi-k3": {
+		"moonshotai/kimi-k3.1-pro": {
 			InputPer1KUSD:   &opusInputPrice,
 			OutputPer1KUSD:  &opusOutputPrice,
 			TTFTSeconds:     &opusTTFT,
@@ -1167,7 +1167,7 @@ func TestScorer_V2DynamicScoring(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	assert.Equal(t, "moonshotai/kimi-k3", decQuality.Model)
+	assert.Equal(t, "moonshotai/kimi-k3.1-pro", decQuality.Model)
 
 	// Test case 3: Override alpha to 0.0 (extreme cost-preferring).
 	alphaValZero := 0.0
@@ -1217,7 +1217,7 @@ func newV2BundleForTest(t *testing.T, emb Embedder, opts v2BundleOpts) *Scorer {
 
 	registry, err := loadRegistry([]byte(`{
 		"deployed_models": [
-			{"model": "moonshotai/kimi-k3", "provider": "aiand", "bench_column": "z-ai/glm-5.3", "proxy": true},
+			{"model": "moonshotai/kimi-k3.1-pro", "provider": "aiand", "bench_column": "z-ai/glm-5.3", "proxy": true},
 			{"model": "z-ai/glm-5.3-flash", "provider": "aiand", "bench_column": "z-ai/glm-5.3-flash", "proxy": true}
 		]
 	}`))
@@ -1226,8 +1226,8 @@ func newV2BundleForTest(t *testing.T, emb Embedder, opts v2BundleOpts) *Scorer {
 	qm := opts.qualityMeans
 	if qm == nil {
 		qm = Rankings{
-			0: {"moonshotai/kimi-k3": 0.9, "z-ai/glm-5.3-flash": 0.1},
-			1: {"moonshotai/kimi-k3": 0.1, "z-ai/glm-5.3-flash": 0.9},
+			0: {"moonshotai/kimi-k3.1-pro": 0.9, "z-ai/glm-5.3-flash": 0.1},
+			1: {"moonshotai/kimi-k3.1-pro": 0.1, "z-ai/glm-5.3-flash": 0.9},
 		}
 	}
 
@@ -1242,7 +1242,7 @@ func newV2BundleForTest(t *testing.T, emb Embedder, opts v2BundleOpts) *Scorer {
 		haikuTTFT := 0.2
 		haikuTPS := 120.0
 		axes = map[string]ModelAxis{
-			"moonshotai/kimi-k3": {
+			"moonshotai/kimi-k3.1-pro": {
 				InputPer1KUSD:  &opusInputP,
 				OutputPer1KUSD: &opusOutputP,
 				TTFTSeconds:    &opusTTFT,
@@ -1305,8 +1305,8 @@ func newV2BundleForTest(t *testing.T, emb Embedder, opts v2BundleOpts) *Scorer {
 func TestDegenerateRangeFallthrough(t *testing.T) {
 	emb := &fakeEmbedder{vec: makeOpusVec()}
 	tied := Rankings{
-		0: {"moonshotai/kimi-k3": 0.5, "z-ai/glm-5.3-flash": 0.5},
-		1: {"moonshotai/kimi-k3": 0.5, "z-ai/glm-5.3-flash": 0.5},
+		0: {"moonshotai/kimi-k3.1-pro": 0.5, "z-ai/glm-5.3-flash": 0.5},
+		1: {"moonshotai/kimi-k3.1-pro": 0.5, "z-ai/glm-5.3-flash": 0.5},
 	}
 	scorer := newV2BundleForTest(t, emb, v2BundleOpts{
 		qualityMeans: tied,
@@ -1334,7 +1334,7 @@ func TestSpeedRangeZeroFallsBackToTwoAxis(t *testing.T) {
 	opusTTFT := 0.8
 	opusTPS := 60.0
 	axes := map[string]ModelAxis{
-		"moonshotai/kimi-k3": {
+		"moonshotai/kimi-k3.1-pro": {
 			InputPer1KUSD:  &opusInputP,
 			OutputPer1KUSD: &opusOutputP,
 			TTFTSeconds:    &opusTTFT,
@@ -1359,7 +1359,7 @@ func TestSpeedRangeZeroFallsBackToTwoAxis(t *testing.T) {
 	require.NoError(t, err)
 	// With s_range==0, both models hit redistribution; Opus wins on
 	// quality (cluster 0, opus=0.9 vs haiku=0.1).
-	assert.Equal(t, "moonshotai/kimi-k3", dec.Model, "s_range==0 must not crash; quality still decides")
+	assert.Equal(t, "moonshotai/kimi-k3.1-pro", dec.Model, "s_range==0 must not crash; quality still decides")
 }
 
 // Overrides equal to the bundle defaults must yield the same decision as
@@ -1409,7 +1409,7 @@ func TestAlphaScalarReplacesVector(t *testing.T) {
 	// At default knobs, vec aligned with cluster 0, alpha[0]=0.9 → quality dominates → Opus.
 	decDefault, err := scorer.Route(context.Background(), router.Request{PromptText: "test"})
 	require.NoError(t, err)
-	assert.Equal(t, "moonshotai/kimi-k3", decDefault.Model, "alpha[0]=0.9 + cluster 0 should pick Opus")
+	assert.Equal(t, "moonshotai/kimi-k3.1-pro", decDefault.Model, "alpha[0]=0.9 + cluster 0 should pick Opus")
 
 	// Override alpha=0.0 (scalar). Both clusters get alpha=0 → cost dominates → Haiku.
 	zero := 0.0
@@ -1430,7 +1430,7 @@ func TestZeroAATimingFallback(t *testing.T) {
 	haikuInputP := 0.00025
 	haikuOutputP := 0.00125
 	axes := map[string]ModelAxis{
-		"moonshotai/kimi-k3": {
+		"moonshotai/kimi-k3.1-pro": {
 			InputPer1KUSD:  &opusInputP,
 			OutputPer1KUSD: &opusOutputP,
 			// No TTFT or TPS.
@@ -1452,7 +1452,7 @@ func TestZeroAATimingFallback(t *testing.T) {
 	dec, err := scorer.Route(context.Background(), router.Request{PromptText: "test"})
 	require.NoError(t, err)
 	// No timing data, w_s redistributed; quality dominates redistribution → Opus.
-	assert.Equal(t, "moonshotai/kimi-k3", dec.Model)
+	assert.Equal(t, "moonshotai/kimi-k3.1-pro", dec.Model)
 }
 
 // With alpha=0, w_s=1 (pure speed) and no AA timing data, total weight
@@ -1464,7 +1464,7 @@ func TestPureSpeedMissingTimingFallsBackToQuality(t *testing.T) {
 	opusInputP := 0.015
 	opusOutputP := 0.075
 	axes := map[string]ModelAxis{
-		"moonshotai/kimi-k3": {
+		"moonshotai/kimi-k3.1-pro": {
 			// No AA timing data.
 			InputPer1KUSD:  &opusInputP,
 			OutputPer1KUSD: &opusOutputP,
@@ -1488,7 +1488,7 @@ func TestPureSpeedMissingTimingFallsBackToQuality(t *testing.T) {
 	require.NoError(t, err)
 	// With alpha=0, w_s=1, total fallback kicks in; raw qNorm wins. Opus
 	// has qNorm=1 in cluster 0; Haiku has 0. Opus must win.
-	assert.Equal(t, "moonshotai/kimi-k3", dec.Model)
+	assert.Equal(t, "moonshotai/kimi-k3.1-pro", dec.Model)
 }
 
 // TestInvalidEffectiveKnobs covers the validation paths that must return

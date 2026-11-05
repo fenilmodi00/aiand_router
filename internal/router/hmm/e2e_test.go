@@ -32,11 +32,11 @@ func TestHTTPRouterEndToEndWithSidecar(t *testing.T) {
 		case "/route":
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&gotRoute))
 			require.NotEmpty(t, gotRoute.RouteID)
-			require.Contains(t, gotRoute.CandidateModels, "moonshotai/kimi-k3")
-		require.NotContains(t, gotRoute.CandidateModels, "z-ai/glm-5.2")
-			require.Equal(t, providers.ProviderAIAND, gotRoute.CandidateProviders["moonshotai/kimi-k3"])
+			require.Contains(t, gotRoute.CandidateModels, "moonshotai/kimi-k3.1-pro")
+			require.NotContains(t, gotRoute.CandidateModels, "z-ai/glm-5.2")
+			require.Equal(t, providers.ProviderAIAND, gotRoute.CandidateProviders["moonshotai/kimi-k3.1-pro"])
 			_ = json.NewEncoder(w).Encode(map[string]interface{}{
-				"route_id": gotRoute.RouteID, "model": "moonshotai/kimi-k3", "score": 0.72,
+				"route_id": gotRoute.RouteID, "model": "moonshotai/kimi-k3.1-pro", "score": 0.72,
 				"score_kind": "policy_confidence", "reason": "policy delegated_work", "policy_group": "delegated",
 				"policy_label": "delegated_work", "propensity": 0.5, "display_marker": "Aiand Router: delegated_work",
 			})
@@ -63,7 +63,7 @@ func TestHTTPRouterEndToEndWithSidecar(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, decision.Metadata)
-	assert.Equal(t, "moonshotai/kimi-k3", decision.Model)
+	assert.Equal(t, "moonshotai/kimi-k3.1-pro", decision.Model)
 	assert.Equal(t, providers.ProviderAIAND, decision.Provider)
 	assert.Equal(t, "hmm", decision.Metadata.Strategy)
 	assert.Equal(t, float32(0.5), decision.Metadata.Propensity)
@@ -81,5 +81,5 @@ func TestHTTPRouterEndToEndWithSidecar(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, decision.Metadata.RouteID, gotOutcome["route_id"])
-	assert.Equal(t, "moonshotai/kimi-k3", gotOutcome["served_model"])
+	assert.Equal(t, "moonshotai/kimi-k3.1-pro", gotOutcome["served_model"])
 }

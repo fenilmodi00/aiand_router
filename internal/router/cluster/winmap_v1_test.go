@@ -15,10 +15,15 @@ const winmapV1Version = "v1.0"
 // TestV1WinMap walks all 16 clusters of the v1.0 bundle (loaded by explicit
 // version, not the latest pointer) through blendScoresV2 + argmax and asserts
 // the full expected winner map. v1.0 expresses the hybrid gating design in
-// cells + knobs only: trivial lanes {2,4,9,10,11} -> glm-5.3-flash, hard
+// cells + knobs only: trivial lanes {2,4,9,10,11,15} -> glm-5.3-flash, hard
 // lanes {0,7,8,12,13} -> glm-5.3, diversity lanes qwen (c6), motif (c14),
-// v4-pro (c3,c5), v4.1-flash (c1,c15). kimi-k3 is roster-listed but wins no
-// cluster (cost keeps it out of every lane, matching the hybrid reference).
+// v4-pro (c3,c5), flash (c1).
+//
+// The v1.0 registry still names deepseek/deepseek-v4.1-flash and
+// moonshotai/kimi-k3, but both are pin-only catalog rows since the v1.2
+// refresh (untiered), so the scorer's untiered filter drops them and glm-5.3
+// takes c1. On the served v1.2 bundle the 1017 clone inherits the lane by the
+// same-column swap (winmap_latest_test.go pins that map).
 func TestV1WinMap(t *testing.T) {
 	version, err := ResolveVersion(winmapV1Version)
 	require.NoError(t, err)
@@ -40,19 +45,24 @@ func TestV1WinMap(t *testing.T) {
 		t.Logf("  %-35s wins clusters %v", m, cls)
 	}
 
+	// The v1.0 bundle's flash column is named deepseek/deepseek-v4.1-flash, a
+	// pin-only row since the v1.2 refresh, so the scorer's untiered filter
+	// drops it and glm-5.3 takes c1 (the 1017 clone inherits the lane on the
+	// served v1.2 bundle by the same-column swap). kimi-k3 and muse-spark
+	// columns are likewise dropped (untiered / never a winner).
 	expected := map[string][]int{
-		string(catalog.ModelIDDeepSeekV4Pro):    {3, 5},
-		string(catalog.ModelIDDeepSeekV41Flash): {1},
-		string(catalog.ModelIDMotif3):           {14},
-		string(catalog.ModelIDQwen3827B):        {6},
-		string(catalog.ModelIDGLM53):            {0, 7, 8, 12, 13},
-		string(catalog.ModelIDGLM53Flash):       {2, 4, 9, 10, 11, 15},
+		string(catalog.ModelIDDeepSeekV4Pro): {3, 5},
+		string(catalog.ModelIDMotif3):        {14},
+		string(catalog.ModelIDQwen3827B):     {6},
+		string(catalog.ModelIDGLM53):         {0, 1, 7, 8, 12, 13},
+		string(catalog.ModelIDGLM53Flash):    {2, 4, 9, 10, 11, 15},
 	}
 	for m, want := range expected {
 		require.Equalf(t, want, wins[m], "winner clusters for %s", m)
 	}
 	require.Equal(t, len(expected), len(wins), "distinct winner count: got "+fmt.Sprint(wins))
 	require.Empty(t, wins[string(catalog.ModelIDKimiK3)], "kimi-k3 must not win any cluster in v1.0")
+	require.Empty(t, wins[string(catalog.ModelIDKimiK31Pro)], "kimi-k3.1-pro must not win any cluster in v1.0")
 }
 
 // TestV1FeaturesMatchQualityMeans is the psi_probe == quality_means parity

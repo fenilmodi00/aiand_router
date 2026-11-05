@@ -88,15 +88,15 @@ func TestEarlyStopGate_DiscardStartsTheNextAttemptClean(t *testing.T) {
 
 func TestHigherTierCandidates_TopTierFirst(t *testing.T) {
 	got := higherTierCandidates(catalog.TierLow,
-		[]string{"z-ai/glm-5.3-flash", "deepseek/deepseek-v4-pro", "z-ai/glm-5.3", "moonshotai/kimi-k3"},
-		map[string]float32{"z-ai/glm-5.3": 0.9, "moonshotai/kimi-k3": 0.4, "deepseek/deepseek-v4-pro": 0.99})
-	assert.Equal(t, []string{"z-ai/glm-5.3", "moonshotai/kimi-k3", "deepseek/deepseek-v4-pro"}, got)
+		[]string{"z-ai/glm-5.3-flash", "deepseek/deepseek-v4-pro", "z-ai/glm-5.3", "moonshotai/kimi-k3.1-pro"},
+		map[string]float32{"z-ai/glm-5.3": 0.9, "moonshotai/kimi-k3.1-pro": 0.4, "deepseek/deepseek-v4-pro": 0.99})
+	assert.Equal(t, []string{"z-ai/glm-5.3", "moonshotai/kimi-k3.1-pro", "deepseek/deepseek-v4-pro"}, got)
 	assert.Empty(t, higherTierCandidates(catalog.TierHigh, []string{"z-ai/glm-5.3-flash", "z-ai/glm-5.3"}, nil))
 }
 
 func TestLowerTierCandidates(t *testing.T) {
 	assert.Equal(t, []string{"z-ai/glm-5.3-flash", "deepseek/deepseek-v4-pro"},
-		lowerTierCandidates("z-ai/glm-5.3", []string{"z-ai/glm-5.3-flash", "deepseek/deepseek-v4-pro", "z-ai/glm-5.3", "moonshotai/kimi-k3"}))
+		lowerTierCandidates("z-ai/glm-5.3", []string{"z-ai/glm-5.3-flash", "deepseek/deepseek-v4-pro", "z-ai/glm-5.3", "moonshotai/kimi-k3.1-pro"}))
 }
 
 // syncRecorder is an httptest recorder safe to read while the hold timer writes.

@@ -91,12 +91,12 @@ func TestRefreshPin_CarriesEffortForward(t *testing.T) {
 func TestOrderBandPair_AnchoredHalfKeepsEffort(t *testing.T) {
 	large, small := orderBandPair(sessionpin.Pin{
 		Provider:       providers.ProviderAIAND,
-		Model:          "moonshotai/kimi-k3",
+		Model:          "moonshotai/kimi-k3.1-pro",
 		Effort:         "high",
 		PairedProvider: providers.ProviderAIAND,
 		PairedModel:    "z-ai/glm-5.3-flash",
 	})
-	assert.Equal(t, "moonshotai/kimi-k3", large.Model)
+	assert.Equal(t, "moonshotai/kimi-k3.1-pro", large.Model)
 	assert.Equal(t, "high", large.Effort)
 	assert.Empty(t, small.Effort)
 }

@@ -1,6 +1,6 @@
 {
   "schema_version": "inference_policy_registry_v2",
-  "registry_revision": "sha256:f8effc31233fe9db61388511493794df2eee7f93f72d8ef1294fff4a4e09c512",
+  "registry_revision": "sha256:38f0ee012c1b3875ce996c075e13f89a4ba7bf1dafde990166b1bcedefe820ee",
   "policies": [
     {
       "purpose": "agent_shadow_evaluation",
@@ -166,7 +166,7 @@
       "fixed_catalog_models": [
         "z-ai/glm-5.3",
         "deepseek/deepseek-v4-pro",
-        "moonshotai/kimi-k3"
+        "moonshotai/kimi-k3.1-pro"
       ],
       "hard_constraints": [
         "catalog_binding",
@@ -448,7 +448,7 @@
       "fixed_catalog_models": [
         "z-ai/glm-5.3",
         "deepseek/deepseek-v4-pro",
-        "moonshotai/kimi-k3"
+        "moonshotai/kimi-k3.1-pro"
       ],
       "hard_constraints": [
         "catalog_binding",

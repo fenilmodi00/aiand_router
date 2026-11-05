@@ -392,7 +392,10 @@ func TestFixedCatalogTargetSetIncludesTheReviewedModels(t *testing.T) {
 	available := providerSet(providers.ProviderAIAND)
 	targets := policy.DefaultRegistry().FixedCatalogTargetSet(available)
 	assert.Contains(t, targets, "z-ai/glm-5.3")
-	assert.Contains(t, targets, "moonshotai/kimi-k3")
+	assert.Contains(t, targets, "moonshotai/kimi-k3.1-pro")
+	// kimi-k3 is a pin-only row since the v1.2 refresh: still dispatchable
+	// via session pins, never a fixed-catalog routing target.
+	assert.NotContains(t, targets, "moonshotai/kimi-k3")
 	// Every fixed-catalog target is a tiered routing target, so the fixed set
 	// is a subset of the generic routing universe.
 	for id := range targets {
@@ -415,7 +418,7 @@ func TestPlanResolverResolvesUntieredPrecompactionSummarizer(t *testing.T) {
 		deployed, available, func(m catalog.Model) string { return m.ID }))
 	require.NoError(t, err)
 
-	for _, model := range []string{"z-ai/glm-5.3", "moonshotai/kimi-k3"} {
+	for _, model := range []string{"z-ai/glm-5.3", "moonshotai/kimi-k3.1-pro"} {
 		plan, err := plans.Resolve(policy.ResolutionRequest{
 			Purpose:       policy.PurposePrecompactionSummary,
 			RouterRequest: router.Request{AllowedModels: modelSet(model)},

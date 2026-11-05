@@ -14,15 +14,15 @@ import (
 )
 
 const (
-	// modelTop is the expensive, high-tier model: $3.00 input / $12.50 output
-	// per 1M, cache-read multiplier 0.50/3.00.
-	modelTop = "moonshotai/kimi-k3"
+	// modelTop is the expensive, high-tier model: $2.00 input / $10.00 output
+	// per 1M, cache-read multiplier 0.20/2.00.
+	modelTop = "moonshotai/kimi-k3.1-pro"
 	// modelMid is the mid-tier model: $1.00 input / $2.50 output per 1M,
 	// cache-read multiplier 0.25.
-	modelMid = "deepseek/deepseek-v4-pro-0813"
+	modelMid = "deepseek/deepseek-v4-pro"
 	// modelLow is the cheap, low-tier model: $0.30 input / $0.60 output per
 	// 1M, cache-read multiplier 0.02/0.30.
-	modelLow = "deepseek/deepseek-v4.1-flash"
+	modelLow = "deepseek/deepseek-v4.1-flash-1017"
 	// modelAlt is a second, differently-priced model ($1.00 input / $4.00
 	// output, cache-read multiplier 0.30) used where a case needs a model
 	// other than modelTop on the fresh side.
@@ -85,11 +85,11 @@ func TestDecide_UsesNamedProviderBindings(t *testing.T) {
 		},
 	}
 
-	// modelLow cached at 0.30*0.0667=$0.02/Mtok vs modelTop at 3.00*0.1667=$0.50/Mtok:
-	//   savingsPerTurn=-$0.48 x3 turns = -$1.44, evictionCost=$2.50.
+	// modelLow cached at 0.30*0.0667=$0.02/Mtok vs modelTop at 2.00*0.10=$0.20/Mtok:
+	//   savingsPerTurn=-$0.18 x3 turns = -$0.54, evictionCost=2.00*0.90=$1.80.
 	named := planner.Decide(base, planner.EVConfig{ExpectedRemainingTurns: 3})
-	assert.InDelta(t, -1.44, named.ExpectedSavingsUSD, 1e-9)
-	assert.InDelta(t, 2.50, named.EvictionCostUSD, 1e-9)
+	assert.InDelta(t, -0.54, named.ExpectedSavingsUSD, 1e-9)
+	assert.InDelta(t, 1.80, named.EvictionCostUSD, 1e-9)
 	assert.False(t, named.PinPriceFallback)
 	assert.False(t, named.FreshPriceFallback)
 
@@ -287,12 +287,12 @@ func TestDecide(t *testing.T) {
 			want: planner.Decision{Outcome: planner.OutcomeStay, Reason: planner.ReasonPricingMissing},
 		},
 		{
-			// kimi-k3 -> deepseek-v4.1-flash, 50k tokens, 3 turns.
-			//   cached pin 3.00*0.1667=$0.50/Mtok, cached fresh 0.30*0.0667=$0.02/Mtok
-			//   savingsPerTurn=$0.48 -> expectedSavings=$1.44
+			// kimi-k3.1-pro -> deepseek-v4.1-flash-1017, 50k tokens, 3 turns.
+			//   cached pin 2.00*0.10=$0.20/Mtok, cached fresh 0.30*0.0667=$0.02/Mtok
+			//   savingsPerTurn=(0.20-0.02)*50k=$0.009 -> expectedSavings=$0.027
 			//   evictionCost=0.30*(1-0.0667)*50k=$0.014
-			//   delta=$1.426 -> Switch.
-			name: "ev_positive: kimi-k3 -> deepseek-v4.1-flash on a large prompt",
+			//   delta=$0.013 -> Switch.
+			name: "ev_positive: kimi-k3.1-pro -> deepseek-v4.1-flash-1017 on a large prompt",
 			in: planner.Inputs{
 				Pin:                  pinWithUsage(modelTop),
 				Fresh:                router.Decision{Model: modelLow},
@@ -302,14 +302,14 @@ func TestDecide(t *testing.T) {
 			cfg:                    defaultCfg,
 			want:                   planner.Decision{Outcome: planner.OutcomeSwitch, Reason: planner.ReasonEVPositive},
 			expectEVMath:           true,
-			wantExpectedSavingsUSD: 0.072,
+			wantExpectedSavingsUSD: 0.027,
 			wantEvictionCostUSD:    0.014,
 		},
 		{
-			// Symmetric flip: deepseek-v4.1-flash pin, kimi-k3 fresh.
-			//   expectedSavings=-$0.072 evictionCost=3.00*(1-0.1667)*50k=$0.125
-			//   delta=-$0.197 -> Stay.
-			name: "ev_negative: deepseek-v4.1-flash -> kimi-k3 is a huge net loss",
+			// Symmetric flip: deepseek-v4.1-flash-1017 pin, kimi-k3.1-pro fresh.
+			//   expectedSavings=-$0.027 evictionCost=2.00*(1-0.10)*50k=$0.09
+			//   delta=-$0.117 -> Stay.
+			name: "ev_negative: deepseek-v4.1-flash-1017 -> kimi-k3.1-pro is a huge net loss",
 			in: planner.Inputs{
 				Pin:                  pinWithUsage(modelLow),
 				Fresh:                router.Decision{Model: modelTop},
@@ -319,48 +319,50 @@ func TestDecide(t *testing.T) {
 			cfg:                    defaultCfg,
 			want:                   planner.Decision{Outcome: planner.OutcomeStay, Reason: planner.ReasonEVNegative},
 			expectEVMath:           true,
-			wantExpectedSavingsUSD: -0.072,
-			wantEvictionCostUSD:    0.125,
+			wantExpectedSavingsUSD: -0.027,
+			wantEvictionCostUSD:    0.09,
 		},
 		{
-			// kimi-k3 -> deepseek-v4.1-flash, tuned to land just below
-			// threshold: net=(1.44-0.28)*860/1M=$0.0009976 vs the $0.001
-			// threshold, 0.24% below -> Stay.
+			// kimi-k3.1-pro -> deepseek-v4.1-flash-1017, tuned to land just
+			// below threshold: warm rate gap $0.54/Mtok, eviction $0.28/Mtok,
+			// so 3846 tokens nets 3846*(0.54-0.28)/1M=$0.00099996, a hair
+			// below the $0.001 threshold -> Stay.
 			name: "ev_near_threshold: just below threshold stays stable",
 			in: planner.Inputs{
 				Pin:                  pinWithUsage(modelTop),
 				Fresh:                router.Decision{Model: modelLow},
-				EstimatedInputTokens: 860,
+				EstimatedInputTokens: 3846,
 				AvailableModels:      availableAll,
 			},
 			cfg:                    defaultCfg,
 			want:                   planner.Decision{Outcome: planner.OutcomeStay, Reason: planner.ReasonEVNegative},
 			expectEVMath:           true,
-			wantExpectedSavingsUSD: 0.0012384,
-			wantEvictionCostUSD:    0.0002408,
+			wantExpectedSavingsUSD: 0.00207684,
+			wantEvictionCostUSD:    0.00107688,
 		},
 		{
-			// Same math, four extra tokens (864) nudges net to $0.00100224,
-			// 0.22% above threshold -> Switch.
+			// Same math, one extra token (3847) nudges net to $0.00100022,
+			// a hair above threshold -> Switch.
 			name: "ev_near_threshold: just above threshold flips to switch",
 			in: planner.Inputs{
 				Pin:                  pinWithUsage(modelTop),
 				Fresh:                router.Decision{Model: modelLow},
-				EstimatedInputTokens: 864,
+				EstimatedInputTokens: 3847,
 				AvailableModels:      availableAll,
 			},
 			cfg:                    defaultCfg,
 			want:                   planner.Decision{Outcome: planner.OutcomeSwitch, Reason: planner.ReasonEVPositive},
 			expectEVMath:           true,
-			wantExpectedSavingsUSD: 0.00124416,
-			wantEvictionCostUSD:    0.00024192,
+			wantExpectedSavingsUSD: 0.00207738,
+			wantEvictionCostUSD:    0.00107716,
 		},
 		{
-			// Second price class: kimi-k3 -> glm-5.2, 50k prompt. glm-5.2 is
-			// cheaper per-token in cache steady-state (cached $0.30 vs $0.50,
-			// expectedSavings=$0.03), but evicting kimi-k3's warm cache to
-			// refill glm-5.2's cold one costs more (evictionCost=$0.035) -> Stay.
-			name: "ev_cross_provider: kimi-k3 -> glm-5.2 stays under per-model math",
+			// Second price class: kimi-k3.1-pro -> glm-5.3, 50k prompt. The
+			// pin is cheaper in cache steady-state (cached $0.20 vs $0.30,
+			// expectedSavings=(0.20-0.30)*50k*3=-$0.015), so no cache-driven
+			// incentive; the eviction cost ($0.035) is irrelevant to the
+			// negative verdict -> Stay.
+			name: "ev_cross_provider: kimi-k3.1-pro -> glm-5.3 stays under per-model math",
 			in: planner.Inputs{
 				Pin:                  pinWithUsage(modelTop),
 				Fresh:                router.Decision{Model: modelAlt},
@@ -370,7 +372,7 @@ func TestDecide(t *testing.T) {
 			cfg:                    defaultCfg,
 			want:                   planner.Decision{Outcome: planner.OutcomeStay, Reason: planner.ReasonEVNegative},
 			expectEVMath:           true,
-			wantExpectedSavingsUSD: 0.03,
+			wantExpectedSavingsUSD: -0.015,
 			wantEvictionCostUSD:    0.035,
 		},
 		{
@@ -386,12 +388,12 @@ func TestDecide(t *testing.T) {
 			cfg:                    defaultCfg, // TierUpgradeEnabled = false
 			want:                   planner.Decision{Outcome: planner.OutcomeStay, Reason: planner.ReasonEVNegative},
 			expectEVMath:           true,
-			wantExpectedSavingsUSD: -0.072,
-			wantEvictionCostUSD:    0.125,
+			wantExpectedSavingsUSD: -0.027,
+			wantEvictionCostUSD:    0.09,
 		},
 		{
-			// Same EV-loss as above; tier guard flips it since kimi-k3 (High)
-			// outranks deepseek-v4.1-flash (Low).
+			// Same EV-loss as above; tier guard flips it since kimi-k3.1-pro
+			// (High) outranks deepseek-v4.1-flash-1017 (Low).
 			name: "tier_upgrade: low -> high flips stay into switch",
 			in: planner.Inputs{
 				Pin:                  pinWithUsage(modelLow),
@@ -402,11 +404,11 @@ func TestDecide(t *testing.T) {
 			cfg:                    tierUpgradeCfg,
 			want:                   planner.Decision{Outcome: planner.OutcomeSwitch, Reason: planner.ReasonTierUpgrade},
 			expectEVMath:           true,
-			wantExpectedSavingsUSD: -0.072,
-			wantEvictionCostUSD:    0.125,
+			wantExpectedSavingsUSD: -0.027,
+			wantEvictionCostUSD:    0.09,
 		},
 		{
-			// deepseek-v4-pro-0813 (Mid) -> deepseek-v4.1-flash (Low) is a
+			// deepseek-v4-pro (Mid) -> deepseek-v4.1-flash-1017 (Low) is a
 			// downgrade; guard must not fire, EV math governs.
 			name: "tier_upgrade: downgrade does not trigger guard",
 			in: planner.Inputs{
@@ -427,9 +429,9 @@ func TestDecide(t *testing.T) {
 		{
 			// Cold pin: cache TTL lapsed, both sides price uncached, so this
 			// switches on raw input price rather than the cache-read delta.
-			// expectedSavings=(3.00-0.30)*50k*3=$0.405, evictionCost=$0
+			// expectedSavings=(2.00-0.30)*50k*3=$0.255, evictionCost=$0
 			// (nothing warm to evict).
-			name: "cold_ev_positive: kimi-k3 -> deepseek-v4.1-flash prices uncached",
+			name: "cold_ev_positive: kimi-k3.1-pro -> deepseek-v4.1-flash-1017 prices uncached",
 			in: planner.Inputs{
 				Pin:                  pinWithUsage(modelTop),
 				Fresh:                router.Decision{Model: modelLow},
@@ -440,13 +442,16 @@ func TestDecide(t *testing.T) {
 			cfg:                    defaultCfg,
 			want:                   planner.Decision{Outcome: planner.OutcomeSwitch, Reason: planner.ReasonEVPositive},
 			expectEVMath:           true,
-			wantExpectedSavingsUSD: 0.405,
+			wantExpectedSavingsUSD: 0.255,
 			wantEvictionCostUSD:    0,
 		},
 		{
 			// Cold twin of ev_cross_provider (which STAYS): with no warm cache
-			// to preserve, raw $3.00 vs $1.00 input price wins and it switches.
-			name: "cold_cross_provider: kimi-k3 -> glm-5.2 switches once cache is cold",
+			// to preserve, the raw $2.00 vs $1.00 input price gap wins
+			// (expectedSavings=(1.00-2.00)*50k*3=-$0.15 under the warm-rate
+			// frame, but cold prices both sides uncached: (2.00-1.00)*50k*3=
+			// $0.15) and it switches.
+			name: "cold_cross_provider: kimi-k3.1-pro -> glm-5.3 switches once cache is cold",
 			in: planner.Inputs{
 				Pin:                  pinWithUsage(modelTop),
 				Fresh:                router.Decision{Model: modelAlt},
@@ -457,13 +462,13 @@ func TestDecide(t *testing.T) {
 			cfg:                    defaultCfg,
 			want:                   planner.Decision{Outcome: planner.OutcomeSwitch, Reason: planner.ReasonEVPositive},
 			expectEVMath:           true,
-			wantExpectedSavingsUSD: 0.30,
+			wantExpectedSavingsUSD: 0.15,
 			wantEvictionCostUSD:    0,
 		},
 		{
 			// Cold pin on the cheaper model: no cache to preserve, but switching
 			// to the pricier fresh model is still a raw-price loss -> Stay.
-			name: "cold_ev_negative: deepseek-v4.1-flash -> kimi-k3 stays on raw price",
+			name: "cold_ev_negative: deepseek-v4.1-flash-1017 -> kimi-k3.1-pro stays on raw price",
 			in: planner.Inputs{
 				Pin:                  pinWithUsage(modelLow),
 				Fresh:                router.Decision{Model: modelTop},
@@ -474,13 +479,13 @@ func TestDecide(t *testing.T) {
 			cfg:                    defaultCfg,
 			want:                   planner.Decision{Outcome: planner.OutcomeStay, Reason: planner.ReasonEVNegative},
 			expectEVMath:           true,
-			wantExpectedSavingsUSD: -0.405,
+			wantExpectedSavingsUSD: -0.255,
 			wantEvictionCostUSD:    0,
 		},
 		{
 			// Cold pin does not disable the tier-upgrade guard: EV alone would
-			// stay, but kimi-k3 (High) outranks deepseek-v4.1-flash (Low) so
-			// it still switches.
+			// stay, but kimi-k3.1-pro (High) outranks deepseek-v4.1-flash-1017
+			// (Low) so it still switches.
 			name: "cold_tier_upgrade: guard still fires when cache is cold",
 			in: planner.Inputs{
 				Pin:                  pinWithUsage(modelLow),
@@ -492,7 +497,7 @@ func TestDecide(t *testing.T) {
 			cfg:                    tierUpgradeCfg,
 			want:                   planner.Decision{Outcome: planner.OutcomeSwitch, Reason: planner.ReasonTierUpgrade},
 			expectEVMath:           true,
-			wantExpectedSavingsUSD: -0.405,
+			wantExpectedSavingsUSD: -0.255,
 			wantEvictionCostUSD:    0,
 		},
 	}

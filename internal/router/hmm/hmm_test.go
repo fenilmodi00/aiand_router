@@ -194,9 +194,9 @@ func TestCatalogRoutingTargetsResolveCurrentHMMRosterArmsToProviders(t *testing.
 		gotRosterIDs = append(gotRosterIDs, candidate.RosterID)
 	}
 	for _, rosterID := range []string{
-		"deepseek/deepseek-v4.1-flash",
+		"deepseek/deepseek-v4.1-flash-1017",
 		"deepseek/deepseek-v4-pro",
-		"moonshotai/kimi-k3",
+		"moonshotai/kimi-k3.1-pro",
 		"z-ai/glm-5.3",
 		"z-ai/glm-5.3-flash",
 	} {
@@ -205,6 +205,8 @@ func TestCatalogRoutingTargetsResolveCurrentHMMRosterArmsToProviders(t *testing.
 	// The pin-only rows carry no tier, so they are not routing targets.
 	for _, rosterID := range []string{
 		"deepseek/deepseek-v4-pro-0813",
+		"deepseek/deepseek-v4.1-flash",
+		"moonshotai/kimi-k3",
 	} {
 		assert.NotContains(t, gotRosterIDs, rosterID)
 	}
@@ -245,7 +247,7 @@ func TestRosterIDForKeepsSlashFormCatalogIDs(t *testing.T) {
 
 func TestRouterOffersAndSelectsKimiK3WithoutLegacyDeployedSet(t *testing.T) {
 	decider := &fakeDecider{res: Result{
-		Model:    "moonshotai/kimi-k3",
+		Model:    "moonshotai/kimi-k3.1-pro",
 		Provider: providers.ProviderAIAND,
 	}}
 	r := New(decider, map[string]struct{}{providers.ProviderAIAND: {}})
@@ -253,9 +255,9 @@ func TestRouterOffersAndSelectsKimiK3WithoutLegacyDeployedSet(t *testing.T) {
 	decision, err := r.Route(context.Background(), router.Request{PromptText: "solve this"})
 
 	require.NoError(t, err)
-	assert.Equal(t, "moonshotai/kimi-k3", decision.Model)
+	assert.Equal(t, "moonshotai/kimi-k3.1-pro", decision.Model)
 	assert.Equal(t, providers.ProviderAIAND, decision.Provider)
-	assert.Contains(t, candidateRosterIDs(decider.query.Candidates), "moonshotai/kimi-k3")
+	assert.Contains(t, candidateRosterIDs(decider.query.Candidates), "moonshotai/kimi-k3.1-pro")
 }
 
 

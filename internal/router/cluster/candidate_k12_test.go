@@ -48,7 +48,11 @@ func TestCandidateK12Loads(t *testing.T) {
 		}
 	}
 
-	// The roster must carry the ai& models the router can dispatch.
+	// The frozen k12 bundle predates the v1.2 refresh: its registry still
+	// names kimi-k3 and v4.1-flash (now pin-only catalog rows), so the
+	// roster check below uses those historical names; the v1.2 successors
+	// (kimi-k3.1-pro, 1017 flash) only join when a bundle carries their
+	// columns.
 	for _, m := range []string{
 		catalog.ModelIDGLM53.String(),
 		catalog.ModelIDGLM53Flash.String(),
@@ -72,22 +76,30 @@ func TestCandidateK12Loads(t *testing.T) {
 	s, err := NewScorer(bundle, DefaultConfig(), &fakeEmbedder{dim: bundle.Centroids.Dim}, providers)
 	require.NoError(t, err, "candidate-k12 must construct a Scorer")
 
-	// Every tiered ai& model in the roster is routable.
+	// The frozen k12 bundle predates the v1.2 refresh: its registry columns
+	// are the historical names (kimi-k3, v4.1-flash), which are pin-only
+	// catalog rows now, so the scorer's untiered filter drops them. The
+	// still-tiered columns stay routable.
 	routable := RoutableModelSet(bundle.Registry, providers)
 	for _, m := range []string{
 		catalog.ModelIDGLM53.String(),
 		catalog.ModelIDGLM53Flash.String(),
-		catalog.ModelIDKimiK3.String(),
 		catalog.ModelIDDeepSeekV4Pro.String(),
-		catalog.ModelIDDeepSeekV41Flash.String(),
 	} {
 		_, ok := routable[m]
 		assert.Truef(t, ok, "%s must be routable", m)
 	}
+	for _, m := range []string{
+		catalog.ModelIDKimiK3.String(),
+		catalog.ModelIDDeepSeekV41Flash.String(),
+	} {
+		_, ok := routable[m]
+		assert.Falsef(t, ok, "a pin-only (untiered) model must not be a cluster target: %s", m)
+	}
 	// The untiered passthrough rows are never cluster targets; a registry
 	// entry the catalog no longer knows (deepseek-v4-flash, removed upstream)
-	// is not routable either. z-ai/glm-5.3 and moonshotai/kimi-k3 are TierHigh
-	// in the catalog and must remain routable.
+	// is not routable either. z-ai/glm-5.3 is TierHigh in the catalog and
+	// must remain routable.
 	for _, m := range []string{"deepseek/deepseek-v4-pro-0813", "deepseek/deepseek-v4-flash"} {
 		_, untieredRoutable := routable[m]
 		assert.Falsef(t, untieredRoutable, "an untiered model must not be a cluster target: %s", m)

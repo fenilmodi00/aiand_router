@@ -306,8 +306,8 @@ func TestCheapestModel(t *testing.T) {
 	registry := &ModelRegistry{
 		DeployedModels: []DeployedEntry{
 			{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND},
-			{Model: "deepseek/deepseek-v4.1-flash", Provider: providers.ProviderAIAND},
-			{Model: "moonshotai/kimi-k3", Provider: providers.ProviderAIAND},
+			{Model: "deepseek/deepseek-v4.1-flash-1017", Provider: providers.ProviderAIAND},
+			{Model: "moonshotai/kimi-k3.1-pro", Provider: providers.ProviderAIAND},
 		},
 	}
 	available := map[string]struct{}{providers.ProviderAIAND: {}}
@@ -316,7 +316,7 @@ func TestCheapestModel(t *testing.T) {
 		p, m, ok := CheapestModel(registry, available)
 		require.True(t, ok)
 		assert.Equal(t, providers.ProviderAIAND, p)
-		assert.Equal(t, "deepseek/deepseek-v4.1-flash", m)
+		assert.Equal(t, "deepseek/deepseek-v4.1-flash-1017", m)
 	})
 
 	t.Run("returns false when no provider matches", func(t *testing.T) {
@@ -328,13 +328,13 @@ func TestCheapestModel(t *testing.T) {
 		unpriced := &ModelRegistry{
 			DeployedModels: []DeployedEntry{
 				{Model: "not-in-catalog", Provider: providers.ProviderAIAND},
-				{Model: "deepseek/deepseek-v4.1-flash", Provider: providers.ProviderAIAND},
+				{Model: "deepseek/deepseek-v4.1-flash-1017", Provider: providers.ProviderAIAND},
 			},
 		}
 		p, m, ok := CheapestModel(unpriced, available)
 		require.True(t, ok)
 		assert.Equal(t, providers.ProviderAIAND, p)
-		assert.Equal(t, "deepseek/deepseek-v4.1-flash", m)
+		assert.Equal(t, "deepseek/deepseek-v4.1-flash-1017", m)
 	})
 }
 
@@ -342,18 +342,18 @@ func TestCheapestModelInSet(t *testing.T) {
 	registry := &ModelRegistry{
 		DeployedModels: []DeployedEntry{
 			{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND},
-			{Model: "deepseek/deepseek-v4.1-flash", Provider: providers.ProviderAIAND},
-			{Model: "moonshotai/kimi-k3", Provider: providers.ProviderAIAND},
+			{Model: "deepseek/deepseek-v4.1-flash-1017", Provider: providers.ProviderAIAND},
+			{Model: "moonshotai/kimi-k3.1-pro", Provider: providers.ProviderAIAND},
 		},
 	}
 	available := map[string]struct{}{providers.ProviderAIAND: {}}
 
 	t.Run("respects allowSet — cheapest within allow", func(t *testing.T) {
-		allow := map[string]struct{}{"z-ai/glm-5.3": {}, "moonshotai/kimi-k3": {}}
+		allow := map[string]struct{}{"z-ai/glm-5.3": {}, "moonshotai/kimi-k3.1-pro": {}}
 		p, m, ok := CheapestModelInSet(registry, available, nil, allow)
 		require.True(t, ok)
 		assert.Equal(t, providers.ProviderAIAND, p)
-		assert.Equal(t, "z-ai/glm-5.3", m, "kimi-k3 is cheaper but excluded by allowSet")
+		assert.Equal(t, "z-ai/glm-5.3", m, "kimi-k3.1-pro is cheaper but excluded by allowSet")
 	})
 
 	t.Run("ok=false when allowSet has no available model", func(t *testing.T) {
@@ -366,21 +366,21 @@ func TestCheapestModelInSet(t *testing.T) {
 		p, m, ok := CheapestModelInSet(registry, available, nil, nil)
 		require.True(t, ok)
 		assert.Equal(t, providers.ProviderAIAND, p)
-		assert.Equal(t, "deepseek/deepseek-v4.1-flash", m)
+		assert.Equal(t, "deepseek/deepseek-v4.1-flash-1017", m)
 	})
 
 	t.Run("denySet excludes models even when allowed by allowSet", func(t *testing.T) {
 		// Guards PR #100: tier clamping bypassed the request's denylist.
-		allow := map[string]struct{}{"z-ai/glm-5.3": {}, "moonshotai/kimi-k3": {}}
+		allow := map[string]struct{}{"z-ai/glm-5.3": {}, "moonshotai/kimi-k3.1-pro": {}}
 		deny := map[string]struct{}{"z-ai/glm-5.3": {}}
 		p, m, ok := CheapestModelInSet(registry, available, deny, allow)
 		require.True(t, ok)
 		assert.Equal(t, providers.ProviderAIAND, p)
-		assert.Equal(t, "moonshotai/kimi-k3", m, "glm-5.3 is cheaper but denylisted")
+		assert.Equal(t, "moonshotai/kimi-k3.1-pro", m, "glm-5.3 is cheaper but denylisted")
 	})
 
 	t.Run("denySet emptying pool yields ok=false", func(t *testing.T) {
-		deny := map[string]struct{}{"z-ai/glm-5.3": {}, "deepseek/deepseek-v4.1-flash": {}, "moonshotai/kimi-k3": {}}
+		deny := map[string]struct{}{"z-ai/glm-5.3": {}, "deepseek/deepseek-v4.1-flash-1017": {}, "moonshotai/kimi-k3.1-pro": {}}
 		_, _, ok := CheapestModelInSet(registry, available, deny, nil)
 		assert.False(t, ok)
 	})
@@ -392,7 +392,7 @@ func TestFastestModel(t *testing.T) {
 	registry := &ModelRegistry{
 		DeployedModels: []DeployedEntry{
 			{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND},
-			{Model: "deepseek/deepseek-v4.1-flash", Provider: providers.ProviderAIAND},
+			{Model: "deepseek/deepseek-v4.1-flash-1017", Provider: providers.ProviderAIAND},
 		},
 	}
 
@@ -401,7 +401,7 @@ func TestFastestModel(t *testing.T) {
 		p, m, ok := FastestModel(registry, available)
 		require.True(t, ok)
 		assert.Equal(t, providers.ProviderAIAND, p)
-		assert.Equal(t, "deepseek/deepseek-v4.1-flash", m)
+		assert.Equal(t, "deepseek/deepseek-v4.1-flash-1017", m)
 	})
 
 	t.Run("ok=false when no provider matches", func(t *testing.T) {
@@ -413,28 +413,28 @@ func TestFastestModel(t *testing.T) {
 func TestFastestModelInSet(t *testing.T) {
 	registry := &ModelRegistry{
 		DeployedModels: []DeployedEntry{
-			{Model: "deepseek/deepseek-v4.1-flash", Provider: providers.ProviderAIAND},
+			{Model: "deepseek/deepseek-v4.1-flash-1017", Provider: providers.ProviderAIAND},
 			{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND},
-			{Model: "moonshotai/kimi-k3", Provider: providers.ProviderAIAND},
+			{Model: "moonshotai/kimi-k3.1-pro", Provider: providers.ProviderAIAND},
 		},
 	}
 	available := map[string]struct{}{providers.ProviderAIAND: {}}
 
 	t.Run("low-tier clamp picks the cheapest in-ceiling model", func(t *testing.T) {
-		allow := map[string]struct{}{"deepseek/deepseek-v4.1-flash": {}, "z-ai/glm-5.3": {}}
+		allow := map[string]struct{}{"deepseek/deepseek-v4.1-flash-1017": {}, "z-ai/glm-5.3": {}}
 		p, m, ok := FastestModelInSet(registry, available, nil, allow)
 		require.True(t, ok)
 		assert.Equal(t, providers.ProviderAIAND, p)
-		assert.Equal(t, "deepseek/deepseek-v4.1-flash", m)
+		assert.Equal(t, "deepseek/deepseek-v4.1-flash-1017", m)
 	})
 
 	t.Run("denySet excludes the pick, falls to the next cheapest", func(t *testing.T) {
-		allow := map[string]struct{}{"deepseek/deepseek-v4.1-flash": {}, "z-ai/glm-5.3": {}}
-		deny := map[string]struct{}{"deepseek/deepseek-v4.1-flash": {}}
+		allow := map[string]struct{}{"deepseek/deepseek-v4.1-flash-1017": {}, "z-ai/glm-5.3": {}}
+		deny := map[string]struct{}{"deepseek/deepseek-v4.1-flash-1017": {}}
 		p, m, ok := FastestModelInSet(registry, available, deny, allow)
 		require.True(t, ok)
 		assert.Equal(t, providers.ProviderAIAND, p)
-		assert.Equal(t, "z-ai/glm-5.3", m, "v4.1-flash is cheaper but denylisted")
+		assert.Equal(t, "z-ai/glm-5.3", m, "1017 flash is cheaper but denylisted")
 	})
 
 	t.Run("ok=false when allowSet has no available model", func(t *testing.T) {
@@ -470,7 +470,7 @@ func TestFastestModel_RealLatestBundle_LowTierResolves(t *testing.T) {
 // must not widen the candidate roster: only the bundle's roster is pickable.
 func TestFastestModelForRequest_CustomBindingsDoNotWidenRoster(t *testing.T) {
 	const aliased = "z-ai/glm-5.3-flash"
-	const unaliased = "moonshotai/kimi-k3"
+	const unaliased = "moonshotai/kimi-k3.1-pro"
 	registry := &ModelRegistry{
 		DeployedModels: []DeployedEntry{
 			{Model: aliased, Provider: providers.ProviderAIAND},
@@ -491,7 +491,7 @@ func TestFastestModelForRequest_CustomBindingsDoNotWidenRoster(t *testing.T) {
 	t.Run("custom bindings must not widen the roster for direct-vendor keys", func(t *testing.T) {
 		_, m, ok := FastestModelForRequest(registry,
 			map[string]struct{}{providers.ProviderAIAND: {}}, nil, nil, RequestBindings{
-				Custom: map[string][]string{"moonshotai/kimi-k3": {providers.ProviderAIAND}},
+				Custom: map[string][]string{"moonshotai/kimi-k3.1-pro": {providers.ProviderAIAND}},
 			})
 		require.True(t, ok)
 		assert.Equal(t, aliased, m, "custom bindings must not widen the roster for direct-vendor keys")

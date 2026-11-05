@@ -51,7 +51,7 @@ const (
 var compactionSummarizerModels = []string{
 	PrecompactionDefaultModel,
 	PrecompactionLargeWindowModel,
-	"moonshotai/kimi-k3",
+	"moonshotai/kimi-k3.1-pro",
 }
 
 // FallbackSpec declares the only fallback family and fixed alternatives a policy permits.
