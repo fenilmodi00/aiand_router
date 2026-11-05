@@ -12,9 +12,9 @@ package catalog
 // coupling: an unapproved model gaining a tier or entering a served
 // model_registry.json without being added here fails the build.
 var ApprovedAutoRoutedModels = []ModelID{
-	ModelIDDeepSeekV41Flash,
+	ModelIDDeepSeekV41Flash1017,
 	ModelIDDeepSeekV4Pro,
-	ModelIDKimiK3,
+	ModelIDKimiK31Pro,
 	ModelIDGLM53,
 	ModelIDGLM53Flash,
 	ModelIDMotif3,

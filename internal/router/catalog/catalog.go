@@ -167,12 +167,16 @@ type ModelID string
 const (
 	// ModelIDDeepSeekV41Flash is the DeepSeek V4.1 Flash routing ID.
 	ModelIDDeepSeekV41Flash ModelID = "deepseek/deepseek-v4.1-flash"
+	// ModelIDDeepSeekV41Flash1017 is the DeepSeek V4.1 Flash 1017 routing ID.
+	ModelIDDeepSeekV41Flash1017 ModelID = "deepseek/deepseek-v4.1-flash-1017"
 	// ModelIDDeepSeekV4Pro is the DeepSeek V4 Pro routing ID.
 	ModelIDDeepSeekV4Pro ModelID = "deepseek/deepseek-v4-pro"
 	// ModelIDDeepSeekV4Pro0813 is the dated DeepSeek V4 Pro routing ID.
 	ModelIDDeepSeekV4Pro0813 ModelID = "deepseek/deepseek-v4-pro-0813"
 	// ModelIDKimiK3 is the Kimi K3 routing ID.
 	ModelIDKimiK3 ModelID = "moonshotai/kimi-k3"
+	// ModelIDKimiK31Pro is the Kimi K3.1 Pro routing ID.
+	ModelIDKimiK31Pro ModelID = "moonshotai/kimi-k3.1-pro"
 	// ModelIDGLM53 is the GLM-5.3 routing ID.
 	ModelIDGLM53 ModelID = "z-ai/glm-5.3"
 	// ModelIDGLM53Flash is the GLM-5.3 Flash routing ID.
@@ -235,11 +239,12 @@ type Model struct {
 // Reasoning-effort menus, least to most expensive. Shared by the rows that
 // accept the same upstream menu, so the spelling lives in one place.
 var (
-	effortsNoneHighMax        = []string{"none", "high", "max"}
-	effortsLowHighMax         = []string{"low", "high", "max"}
-	effortsNoneHigh           = []string{"none", "high"}
-	effortsNoneLowMediumXHigh = []string{"none", "low", "medium", "xhigh"}
-	effortsLowMediumHighXHigh = []string{"low", "medium", "high", "xhigh"}
+	effortsNoneHighMax         = []string{"none", "high", "max"}
+	effortsLowHighMax          = []string{"low", "high", "max"}
+	effortsNoneHigh            = []string{"none", "high"}
+	effortsNoneLowHighXHighMax = []string{"none", "low", "high", "xhigh", "max"}
+	effortsNoneLowMediumXHigh  = []string{"none", "low", "medium", "xhigh"}
+	effortsLowMediumHighXHigh  = []string{"low", "medium", "high", "xhigh"}
 )
 
 // Effort level names shared with the router's canonical effort vocabulary.
@@ -277,8 +282,17 @@ var Models = []Model{
 
 	// V4.1-Flash: 552B MoE (8B active prefill / 16B decode), natively
 	// multimodal, 1M context.
-	{ID: ModelIDDeepSeekV41Flash.String(), Source: SourceOpenSource, Tier: TierLow, ContextWindow: 1_048_576, ReasoningEfforts: effortsNoneHighMax, DefaultEffort: effortHigh, Providers: []ProviderBinding{
+	// Pin-only: upstream deprecation pending; 1017 release is the auto-routed
+	// flash.
+	{ID: ModelIDDeepSeekV41Flash.String(), Source: SourceOpenSource, ContextWindow: 1_048_576, ReasoningEfforts: effortsNoneHighMax, DefaultEffort: effortHigh, Providers: []ProviderBinding{
 		{Provider: providers.ProviderAIAND, UpstreamID: "deepseek-ai/deepseek-v4.1-flash",
+			Price: Pricing{InputUSDPer1M: 0.300, OutputUSDPer1M: 0.600, CacheReadMultiplier: 0.02 / 0.300}},
+	}},
+	// The 1017 release of the V4.1-Flash line: same 552B MoE shape, newer
+	// weights, identical price; the auto-routed flash. Effort menu widens to
+	// none/low/high/xhigh/max, default high.
+	{ID: ModelIDDeepSeekV41Flash1017.String(), Source: SourceOpenSource, Tier: TierLow, ContextWindow: 1_048_576, ReasoningEfforts: effortsNoneLowHighXHighMax, DefaultEffort: effortHigh, Providers: []ProviderBinding{
+		{Provider: providers.ProviderAIAND, UpstreamID: "deepseek-ai/deepseek-v4.1-flash-1017",
 			Price: Pricing{InputUSDPer1M: 0.300, OutputUSDPer1M: 0.600, CacheReadMultiplier: 0.02 / 0.300}},
 	}},
 	// The bare alias is the OLD 0423 release; the dated 0813 entry below is
@@ -296,12 +310,18 @@ var Models = []Model{
 		{Provider: providers.ProviderAIAND, UpstreamID: "deepseek-ai/deepseek-v4-pro",
 			Price: Pricing{InputUSDPer1M: 1.000, OutputUSDPer1M: 2.500, CacheReadMultiplier: 0.25 / 1.000}},
 	}},
-	// kimi-k3 is a separate price class from k2.7 ($3/$12.50 vs $0.75/$3.50).
-	// First multimodal Kimi, so unlike k2.5-k2.7 it carries no
-	// ImageInputUnsupported.
-	{ID: ModelIDKimiK3.String(), Source: SourceOpenSource, Tier: TierHigh, ContextWindow: 1_048_576, ReasoningEfforts: effortsLowHighMax, DefaultEffort: effortMax, Providers: []ProviderBinding{
+	// Pin-only: k3.1-pro supersedes it on the premium lane. Still priced and
+	// bound so session pins and /force-model dispatch.
+	{ID: ModelIDKimiK3.String(), Source: SourceOpenSource, ContextWindow: 1_048_576, ReasoningEfforts: effortsLowHighMax, DefaultEffort: effortMax, Providers: []ProviderBinding{
 		{Provider: providers.ProviderAIAND, UpstreamID: "moonshotai/kimi-k3",
 			Price: Pricing{InputUSDPer1M: 3.000, OutputUSDPer1M: 12.500, CacheReadMultiplier: 0.50 / 3.000}},
+	}},
+	// Kimi K3.1 Pro: first multimodal K3.1, the premium auto-routed lane.
+	// AA II 55, Terminal-Bench 4.0 67% (best of any model), GDPval-AA 1846 Elo
+	// (2026-10-23).
+	{ID: ModelIDKimiK31Pro.String(), Source: SourceOpenSource, Tier: TierHigh, ContextWindow: 1_048_576, ReasoningEfforts: effortsLowHighMax, DefaultEffort: effortMax, Providers: []ProviderBinding{
+		{Provider: providers.ProviderAIAND, UpstreamID: "moonshotai/kimi-k3.1-pro",
+			Price: Pricing{InputUSDPer1M: 2.000, OutputUSDPer1M: 10.000, CacheReadMultiplier: 0.20 / 2.000}},
 	}},
 	// GLM-5.3: text-only (AA inputModalityImage=false). ContextWindow is
 	// 1,048,576, not 1,310,720 (Cloudflare-only) — overstating causes

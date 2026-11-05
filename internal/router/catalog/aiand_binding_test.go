@@ -13,18 +13,20 @@ import (
 // rows it serves. ai& names models vendor-prefixed ("deepseek-ai/deepseek-v4.1-flash"),
 // so a binding without an UpstreamID would dispatch a slug the upstream 404s on.
 var aiandUpstreamIDs = map[string]string{
-	"deepseek/deepseek-v4.1-flash":  "deepseek-ai/deepseek-v4.1-flash",
-	"deepseek/deepseek-v4-pro":      "deepseek-ai/deepseek-v4-pro",
-	"deepseek/deepseek-v4-pro-0813": "deepseek-ai/deepseek-v4-pro",
-	"moonshotai/kimi-k3":            "moonshotai/kimi-k3",
-	"z-ai/glm-5.3":                  "zai-org/glm-5.3",
-	"z-ai/glm-5.3-flash":            "zai-org/glm-5.3-flash",
-	"motif/motif-3":                 "motif-technologies/motif-3",
-	"meta/muse-spark":               "meta/muse-spark-open",
-	"qwen/qwen3.8-27b":              "qwen/qwen3.8-27b",
-	"qwen/qwen3.6-27b":              "qwen/qwen3.6-27b",
-	"google/gemma-4-31b":            "google/gemma-4-31b-it",
-	"openai/gpt-oss-120b":           "openai/gpt-oss-120b",
+	"deepseek/deepseek-v4.1-flash":      "deepseek-ai/deepseek-v4.1-flash",
+	"deepseek/deepseek-v4.1-flash-1017": "deepseek-ai/deepseek-v4.1-flash-1017",
+	"deepseek/deepseek-v4-pro":          "deepseek-ai/deepseek-v4-pro",
+	"deepseek/deepseek-v4-pro-0813":     "deepseek-ai/deepseek-v4-pro",
+	"moonshotai/kimi-k3":                "moonshotai/kimi-k3",
+	"moonshotai/kimi-k3.1-pro":          "moonshotai/kimi-k3.1-pro",
+	"z-ai/glm-5.3":                      "zai-org/glm-5.3",
+	"z-ai/glm-5.3-flash":                "zai-org/glm-5.3-flash",
+	"motif/motif-3":                     "motif-technologies/motif-3",
+	"meta/muse-spark":                   "meta/muse-spark-open",
+	"qwen/qwen3.8-27b":                  "qwen/qwen3.8-27b",
+	"qwen/qwen3.6-27b":                  "qwen/qwen3.6-27b",
+	"google/gemma-4-31b":                "google/gemma-4-31b-it",
+	"openai/gpt-oss-120b":               "openai/gpt-oss-120b",
 }
 
 // TestResolveBinding_AIANDCarriesUpstreamID pins ai&'s upstream IDs for every
