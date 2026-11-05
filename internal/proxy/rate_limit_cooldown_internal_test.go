@@ -208,6 +208,88 @@ func TestMergeDemotionCooldowns_KeepsLaterExpiry(t *testing.T) {
 	assert.Equal(t, []string{"b", "a", "c"}, cooldownsByExpiry(merged))
 }
 
+// A leftover cooldown never outranks a session-lifetime strike on the same
+// model, and an image-bearing turn cannot readmit a text-only arm.
+func TestReadmittableCooldowns_DropsPermanentAndImageUnsafeArms(t *testing.T) {
+	// v0 image capabilities: z-ai/glm-5.3-flash is multimodal, z-ai/glm-5.3 is
+	// ImageInputUnsupported, deepseek/deepseek-v4-pro is text-only too.
+	until := rateLimitTestNow.Add(30 * time.Second)
+	cooling := map[string]time.Time{
+		"z-ai/glm-5.3-flash": until,
+		"z-ai/glm-5.3":       until,
+		"qwen/qwen3.6-27b":   until,
+	}
+
+	assert.Equal(t, map[string]time.Time{"z-ai/glm-5.3-flash": until, "qwen/qwen3.6-27b": until},
+		readmittableCooldowns(cooling, []string{"z-ai/glm-5.3"}, 0),
+		"a leftover cooldown never outranks the session-lifetime strike on glm-5.3")
+	assert.Equal(t, map[string]time.Time{"z-ai/glm-5.3-flash": until},
+		readmittableCooldowns(cooling, []string{"z-ai/glm-5.3"}, 1),
+		"an image-bearing turn cannot readmit a text-only arm")
+	assert.Nil(t, readmittableCooldowns(map[string]time.Time{"z-ai/glm-5.3": until}, []string{"z-ai/glm-5.3"}, 0))
+}
+
+// Exhausted pool: every candidate but the failed arm is cooling down, so the
+// rescue readmits the cooling arms, the one that has cooled longest first,
+// and never the arm that just 429'd. A session-lifetime demotion stays out.
+// Exhaustion is recorded only when the walk actually dispatches one.
+func TestRescueDecisions_ExhaustedPoolReadmitsCoolingArms(t *testing.T) {
+	s := siblingService(providers.ProviderAIAND, providers.ProviderAIAND)
+	md := &router.RoutingMetadata{
+		CandidateModels: []string{"z-ai/glm-5.3", "z-ai/glm-5.3-flash", "deepseek/deepseek-v4-pro", "qwen/qwen3.8-27b"},
+		CandidateProviders: map[string]string{
+			"z-ai/glm-5.3-flash":       providers.ProviderAIAND,
+			"deepseek/deepseek-v4-pro": providers.ProviderAIAND,
+			"qwen/qwen3.8-27b":         providers.ProviderAIAND,
+		},
+	}
+	cooling := map[string]time.Time{
+		"z-ai/glm-5.3-flash":       rateLimitTestNow.Add(40 * time.Second),
+		"deepseek/deepseek-v4-pro": rateLimitTestNow.Add(5 * time.Second),
+	}
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, SessionDemotedModelsContextKey{}, []string{"z-ai/glm-5.3-flash", "deepseek/deepseek-v4-pro", "qwen/qwen3.8-27b"})
+	ctx = context.WithValue(ctx, SessionCooldownModelsContextKey{}, cooling)
+	ctx, turn := withRateLimitTurn(ctx)
+
+	got := s.siblingFailoverDecisions(ctx, overloadedDecision(md), 1_000, 0, 0)
+
+	assert.Equal(t, []string{"deepseek/deepseek-v4-pro", "z-ai/glm-5.3-flash"}, siblingModels(got),
+		"soonest-to-recover first; the permanently demoted haiku and the failed opus stay out")
+	assert.NotContains(t, turn.completionLogFields(), true, "nothing dispatched yet")
+
+	s.noteRescueReadmission(ctx, overloadedDecision(md), got[0])
+	fields := turn.completionLogFields()
+	assert.Contains(t, fields, "rescue_pool_exhausted")
+	assert.Contains(t, fields, true)
+	assert.Contains(t, fields, []string{"deepseek/deepseek-v4-pro"})
+}
+
+// A cooling arm ranks behind every eligible candidate: the walk reaches it
+// only after they all failed, and dispatching the eligible one records no
+// exhaustion.
+func TestRescueDecisions_CoolingArmRanksBehindEligibleCandidates(t *testing.T) {
+	s := siblingService(providers.ProviderAIAND, providers.ProviderAIAND)
+	md := &router.RoutingMetadata{
+		CandidateModels: []string{"z-ai/glm-5.3", "deepseek/deepseek-v4-pro", "z-ai/glm-5.3-flash"},
+		CandidateProviders: map[string]string{
+			"z-ai/glm-5.3-flash":       providers.ProviderAIAND,
+			"deepseek/deepseek-v4-pro": providers.ProviderAIAND,
+		},
+	}
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, SessionDemotedModelsContextKey{}, []string{"deepseek/deepseek-v4-pro"})
+	ctx = context.WithValue(ctx, SessionCooldownModelsContextKey{}, map[string]time.Time{"deepseek/deepseek-v4-pro": rateLimitTestNow.Add(time.Minute)})
+	ctx, turn := withRateLimitTurn(ctx)
+
+	got := s.siblingFailoverDecisions(ctx, overloadedDecision(md), 1_000, 0, 0)
+
+	assert.Equal(t, []string{"z-ai/glm-5.3-flash", "deepseek/deepseek-v4-pro"}, siblingModels(got))
+	s.noteRescueReadmission(ctx, overloadedDecision(md), got[0])
+	assert.Contains(t, turn.completionLogFields(), false)
+	assert.NotContains(t, turn.completionLogFields(), true)
+}
+
 // Without cooldowns on ctx (flag off, or nothing cooling) an exhausted pool
 // is what it was: no candidate.
 func TestRescueDecisions_ExhaustedPoolWithoutCooldownsStaysEmpty(t *testing.T) {

@@ -53,6 +53,51 @@ func TestSidecarRouter_OrdersRescueBySelectedGroupAndForceCluster(t *testing.T) 
 	assert.Equal(t, []string{"z-ai/glm-5.3-flash", "z-ai/glm-5.3"}, forced.Metadata.RescueModels)
 }
 
+func TestSidecarRouterReportsImageLimitWhenNoBindingCanServe(t *testing.T) {
+	// v0 adaptation: use a text-only aiand catalog row (deepseek-v4-pro has
+	// ImageInputUnsupported), mirroring upstream's capped-provider scenario
+	// without a second provider.
+	model := "deepseek/deepseek-v4-pro"
+	resolver := policy.NewResolver(
+		set(model),
+		set(providers.ProviderAIAND),
+		catalogRosterID,
+	)
+	adapter := policy.NewSidecarRouter(policy.SidecarRouterConfig{Strategy: router.StrategyHMM}, &recordingPolicy{}, resolver)
+
+	// v0 adaptation: no aiand binding declares MaxImagesPerRequest, and the
+	// imageLow soft filter fails open rather than emptying the pool, so the
+	// bare image-heavy request keeps its single candidate and Route fails at
+	// the sidecar's empty selection with ErrStrategyUnavailable; the reachable
+	// ErrImageLimitExceeded only surfaces from the proxy's pre-filtered
+	// request below.
+	_, err := adapter.Route(context.Background(), router.Request{
+		EnabledProviders: set(providers.ProviderAIAND),
+		ImageCount:       17,
+		HasImages:        true,
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, router.ErrStrategyUnavailable)
+
+	prefiltered := router.Request{
+		EnabledProviders:         set(providers.ProviderAIAND),
+		ExcludedModels:           set(model),
+		ImageLimitExcludedModels: set(model),
+		ImageCount:               17,
+	}
+	resolved := resolver.Resolve(prefiltered)
+	assert.Empty(t, resolved.Candidates)
+	assert.Contains(t, resolved.Diagnostics, policy.Diagnostic{
+		CatalogID: model,
+		RosterID:  model,
+		Reason:    policy.ExclusionImageLimit,
+	})
+	_, err = adapter.Route(context.Background(), prefiltered)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, policy.ErrImageLimitExceeded)
+	assert.ErrorIs(t, err, policy.ErrNoRoutableModels)
+}
+
 func TestSidecarRouter_CoolingRescuePoolStaysWithinEligibleGroups(t *testing.T) {
 	models := []string{
 		"z-ai/glm-5.3-flash",

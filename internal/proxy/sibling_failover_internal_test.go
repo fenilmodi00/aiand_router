@@ -9,6 +9,7 @@ import (
 	"aiand-os/router/internal/router"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func siblingService(keyed ...string) *Service {
@@ -42,6 +43,79 @@ func siblingModels(decisions []router.Decision) []string {
 		models = append(models, d.Model)
 	}
 	return models
+}
+
+func TestSiblingFailoverSelectsImageCompatibleBinding(t *testing.T) {
+	// v0 adaptation: a single aiand provider means the per-binding-cap split
+	// (capped DeepInfra vs uncapped OpenRouter) has no live counterpart; the
+	// surviving assertion is that an image-capable arm stays selectable.
+	const model = "z-ai/glm-5.3-flash"
+	s := siblingService(providers.ProviderAIAND)
+	failed := overloadedDecision(&router.RoutingMetadata{
+		CandidateModels: []string{"z-ai/glm-5.3", model},
+		CandidateProviders: map[string]string{
+			model: providers.ProviderAIAND,
+		},
+	})
+
+	for _, tc := range []struct {
+		name         string
+		imageCount   int
+		wantProvider string
+	}{
+		{name: "image-capable arm serves image turns", imageCount: 17, wantProvider: providers.ProviderAIAND},
+		{name: "no images", imageCount: 0, wantProvider: providers.ProviderAIAND},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := withRequestImageCount(context.Background(), tc.imageCount)
+			got, ok := firstSibling(s, ctx, failed, 1_000, 0, 0)
+			require.True(t, ok)
+			assert.Equal(t, model, got.Model)
+			assert.Equal(t, tc.wantProvider, got.Provider)
+		})
+	}
+}
+
+func TestSiblingProviderPreservesCompatibleResolvedBinding(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		model        string
+		resolved     map[string]string
+		available    map[string]struct{}
+		imageCount   int
+		wantProvider string
+	}{
+		{
+			name:         "resolved binding wins over catalog order",
+			model:        "moonshotai/kimi-k3",
+			resolved:     map[string]string{"moonshotai/kimi-k3": providers.ProviderAIAND},
+			available:    map[string]struct{}{providers.ProviderAIAND: {}},
+			imageCount:   17,
+			wantProvider: providers.ProviderAIAND,
+		},
+		{
+			name:         "compatible resolved binding stays selected",
+			model:        "z-ai/glm-5.3-flash",
+			resolved:     map[string]string{"z-ai/glm-5.3-flash": providers.ProviderAIAND},
+			available:    map[string]struct{}{providers.ProviderAIAND: {}},
+			imageCount:   3,
+			wantProvider: providers.ProviderAIAND,
+		},
+		{
+			name:         "unknown binding has no known image cap",
+			model:        "custom-model",
+			resolved:     map[string]string{"custom-model": providers.ProviderAIAND},
+			available:    map[string]struct{}{providers.ProviderAIAND: {}},
+			imageCount:   17,
+			wantProvider: providers.ProviderAIAND,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			provider, ok := siblingProvider(tc.model, tc.resolved, tc.available, tc.imageCount)
+			require.True(t, ok)
+			assert.Equal(t, tc.wantProvider, provider)
+		})
+	}
 }
 
 func TestRescueBasisForTurnKeepsHeldPrimaryIdentity(t *testing.T) {
@@ -142,8 +216,8 @@ func TestNoteRescueReadmission_RecordsStruckOutArm(t *testing.T) {
 func TestImageSafeModels_DropsTextOnlyArmsOnImageTurns(t *testing.T) {
 	// z-ai/glm-5.2 is text-only in the catalog; z-ai/glm-5.3-flash takes images.
 	models := []string{"z-ai/glm-5.3", "z-ai/glm-5.3-flash"}
-	assert.Equal(t, models, imageSafeModels(models, false))
-	assert.Equal(t, []string{"z-ai/glm-5.3-flash"}, imageSafeModels(models, true))
+	assert.Equal(t, models, imageSafeModels(models, 0))
+	assert.Equal(t, []string{"z-ai/glm-5.3-flash"}, imageSafeModels(models, 1))
 }
 
 // A struck arm is readmitted by the sibling rescue: the session still gets

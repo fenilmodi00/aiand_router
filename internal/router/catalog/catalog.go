@@ -113,6 +113,9 @@ type ProviderBinding struct {
 	UpstreamID string
 	// Price is the per-provider pricing for this binding.
 	Price Pricing
+	// MaxImagesPerRequest is the maximum image parts this deployment accepts
+	// in one request. Zero means no known limit.
+	MaxImagesPerRequest int
 	// ContextWindow overrides the model-level ContextWindow for this binding.
 	// Zero means inherit. Use when the served window differs by provider.
 	ContextWindow int

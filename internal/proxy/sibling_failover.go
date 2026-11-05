@@ -5,6 +5,7 @@ import (
 	"maps"
 	"slices"
 	"sort"
+	"strings"
 	"time"
 
 	"aiand-os/router/internal/observability"
@@ -15,6 +16,16 @@ import (
 // ReasonSiblingFailover marks a turn served by a same-cluster candidate after
 // the routed model's own bindings were exhausted.
 const ReasonSiblingFailover = "sibling_failover"
+
+type rescueSkipReason string
+
+const (
+	rescueSkipExcluded          rescueSkipReason = "excluded"
+	rescueSkipAutomaticExcluded rescueSkipReason = "automatic_excluded"
+	rescueSkipImageLimit        rescueSkipReason = "image_limit"
+	rescueSkipNoBinding         rescueSkipReason = "no_binding"
+	rescueSkipContextWindow     rescueSkipReason = "context_window"
+)
 
 // rescueBasisForTurn gives a held automatic pin this request's scored rescue
 // shortlist without changing the primary decision's selected arm or binding.
@@ -110,8 +121,9 @@ func (s *Service) rescueDecisions(ctx context.Context, failed router.Decision, c
 	// The rescue picks a stand-in on the router's own initiative, so a disabled
 	// model must not be resurrected here after the pool already excluded it.
 	automaticExcluded := s.rescueExcludedModels(ctx)
+	imageCount := requestImageCountFromContext(ctx)
 	providerFor := func(id string) (string, bool) {
-		return siblingProvider(id, candidateProviders, available)
+		return siblingProvider(id, candidateProviders, available, imageCount)
 	}
 	return s.rescueWalkOrReadmitCooling(ctx, failed, candidates, excludedModels, automaticExcluded, est, sigSavings, outputReserve, providerFor)
 }
@@ -140,7 +152,18 @@ func (s *Service) rescueWalkOrReadmitCooling(
 	est, sigSavings, outputReserve int,
 	providerFor func(id string) (string, bool),
 ) []router.Decision {
-	decisions := walkRescueCandidates(failed, candidates, excludedModels, automaticExcluded, est, sigSavings, outputReserve, providerFor)
+	var skipped []string
+	decisions := walkRescueCandidates(failed, candidates, requestImageCountFromContext(ctx), excludedModels, automaticExcluded, est, sigSavings, outputReserve, providerFor, func(model string, why rescueSkipReason) {
+		skipped = append(skipped, model+":"+string(why))
+	})
+	if len(skipped) > 0 {
+		observability.FromContext(ctx).Info("Rescue candidates skipped",
+			"failed_model", failed.Model,
+			"rescue_reason", "sibling_failover",
+			"context_estimate", est,
+			"skipped", strings.Join(skipped, ","),
+		)
+	}
 	decisions = append(decisions, s.readmitCoolingRescueCandidates(ctx, failed, candidates, excludedModels, est, sigSavings, outputReserve, providerFor)...)
 	if len(decisions) > 0 {
 		return decisions
@@ -210,7 +233,7 @@ func (s *Service) readmissionWalk(
 			readmitExcluded[model] = struct{}{}
 		}
 	}
-	return walkRescueCandidates(failed, pool, excludedModels, readmitExcluded, est, sigSavings, outputReserve, providerFor)
+	return walkRescueCandidates(failed, pool, requestImageCountFromContext(ctx), excludedModels, readmitExcluded, est, sigSavings, outputReserve, providerFor, nil)
 }
 
 // rosterRescueAdmits bounds readmission on a roster-failover turn to the
@@ -273,26 +296,43 @@ func (s *Service) noteRescueReadmission(ctx context.Context, failed, rescuer rou
 func walkRescueCandidates(
 	failed router.Decision,
 	candidates []string,
+	imageCount int,
 	excludedModels, automaticExcluded map[string]struct{},
 	est, sigSavings, outputReserve int,
 	providerFor func(id string) (string, bool),
+	skip func(model string, reason rescueSkipReason),
 ) []router.Decision {
+	if skip == nil {
+		skip = func(string, rescueSkipReason) {}
+	}
 	var ordered, crossProvider, sameProvider []router.Decision
 	for _, id := range candidates {
 		if id == "" || id == failed.Model {
 			continue
 		}
 		if _, drop := excludedModels[id]; drop {
+			skip(id, rescueSkipExcluded)
 			continue
 		}
 		if _, disabled := automaticExcluded[id]; disabled {
+			skip(id, rescueSkipAutomaticExcluded)
+			continue
+		}
+		if !catalog.AcceptsImageCount(id, imageCount, nil) {
+			skip(id, rescueSkipImageLimit)
 			continue
 		}
 		provider, ok := providerFor(id)
 		if !ok {
+			skip(id, rescueSkipNoBinding)
+			continue
+		}
+		if binding, found := catalog.BindingFor(id, provider); found && !binding.AcceptsImageCount(imageCount) {
+			skip(id, rescueSkipImageLimit)
 			continue
 		}
 		if !siblingFitsContext(id, provider, est, sigSavings, outputReserve) {
+			skip(id, rescueSkipContextWindow)
 			continue
 		}
 		candidate := rescueDecisionFor(failed, id, provider)
@@ -359,14 +399,24 @@ func siblingCandidateOrder(md *router.RoutingMetadata) []string {
 	return order
 }
 
-// siblingProvider resolves the provider a candidate dispatches to, preferring
-// the one the routing decision resolved for it and falling back to catalog
-// binding order.
-func siblingProvider(model string, resolved map[string]string, available map[string]struct{}) (string, bool) {
+// siblingProvider preserves a compatible resolved binding before considering
+// available alternatives in catalog order.
+func siblingProvider(model string, resolved map[string]string, available map[string]struct{}, imageCount int) (string, bool) {
 	if p, ok := resolved[model]; ok && p != "" {
 		if _, keyed := available[p]; keyed {
-			return p, true
+			binding, known := catalog.BindingFor(model, p)
+			if !known || binding.AcceptsImageCount(imageCount) {
+				return p, true
+			}
 		}
+	}
+	if imageCount > 0 {
+		for _, binding := range catalog.EnumerateBindings(model, available) {
+			if binding.AcceptsImageCount(imageCount) {
+				return binding.Provider, true
+			}
+		}
+		return "", false
 	}
 	binding, ok := catalog.ResolveBinding(model, available)
 	if !ok {

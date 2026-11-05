@@ -38,6 +38,7 @@ const (
 	DispatchErrorNoEligibleProvider
 	DispatchErrorAllowlistEmptiesPool
 	DispatchErrorContextWindowExceeded
+	DispatchErrorImageLimitExceeded
 	DispatchErrorInvalidRoutingKnobs
 	DispatchErrorRLPolicyUnavailable
 	DispatchErrorBanditUnavailable
@@ -356,6 +357,14 @@ func ClassifyDispatchError(err error) (DispatchErrorClass, bool) {
 		}, true
 	// Must precede every policy-unavailable case: ErrNoRoutableModels
 	// also wraps ErrHMMUnavailable, and the more-specific sentinel wins.
+	case errors.Is(err, policy.ErrImageLimitExceeded):
+		return DispatchErrorClass{
+			Kind:       DispatchErrorImageLimitExceeded,
+			Status:     http.StatusBadRequest,
+			Message:    "This request carries more images than any model available to it accepts in one request. Send fewer images (or start a new conversation without earlier screenshots).",
+			LogLevel:   "warn",
+			LogMessage: "Request image count exceeds every eligible model's limit",
+		}, true
 	case errors.Is(err, policy.ErrNoRoutableModels):
 		return DispatchErrorClass{
 			Kind:       DispatchErrorNoRoutableModels,
@@ -483,7 +492,7 @@ func (k DispatchErrorKind) IsClientError() bool {
 	switch k {
 	case DispatchErrorClassifierHistory, DispatchErrorClassifierInputTooLong:
 		return true
-	case DispatchErrorRequestNotJSONObject, DispatchErrorResponsesChatCompletionsBody, DispatchErrorNoEligibleProvider, DispatchErrorAllowlistEmptiesPool, DispatchErrorContextWindowExceeded, DispatchErrorInvalidRoutingKnobs, DispatchErrorTranslationIntrinsicallyIncompatible, DispatchErrorAnthropicCacheControlInvalid, DispatchErrorForcedModelExcluded, DispatchErrorForcedModelUnknown, DispatchErrorPassthroughModelUnknown, DispatchErrorForcedClusterUnsupportedStrategy, DispatchErrorForcedClusterUnservable, DispatchErrorNoRoutableModels, DispatchErrorPlanOverrideRejected, DispatchErrorProductIneligible:
+	case DispatchErrorRequestNotJSONObject, DispatchErrorResponsesChatCompletionsBody, DispatchErrorNoEligibleProvider, DispatchErrorAllowlistEmptiesPool, DispatchErrorContextWindowExceeded, DispatchErrorImageLimitExceeded, DispatchErrorInvalidRoutingKnobs, DispatchErrorTranslationIntrinsicallyIncompatible, DispatchErrorAnthropicCacheControlInvalid, DispatchErrorForcedModelExcluded, DispatchErrorForcedModelUnknown, DispatchErrorPassthroughModelUnknown, DispatchErrorForcedClusterUnsupportedStrategy, DispatchErrorForcedClusterUnservable, DispatchErrorNoRoutableModels, DispatchErrorPlanOverrideRejected, DispatchErrorProductIneligible:
 		return true
 	default:
 		return false

@@ -38,6 +38,41 @@ func DefaultEffortFor(id string) string {
 	return m.DefaultEffort
 }
 
+// AcceptsImageCount reports whether this binding accepts n image parts in one
+// request. A zero cap means the limit is unknown.
+func (b ProviderBinding) AcceptsImageCount(n int) bool {
+	return b.MaxImagesPerRequest == 0 || n <= b.MaxImagesPerRequest
+}
+
+// AcceptsImageCount reports whether a model can accept n image parts through
+// any enabled routable binding. Unknown models and models without an enabled
+// catalog binding have no known limit.
+func AcceptsImageCount(id string, n int, enabledProviders map[string]struct{}) bool {
+	if n == 0 {
+		return true
+	}
+	m, ok := ByID(id)
+	if !ok {
+		return true
+	}
+	if m.ImageInput == ImageInputUnsupported {
+		return false
+	}
+	foundEnabledBinding := false
+	for _, binding := range m.Providers {
+		if len(enabledProviders) > 0 {
+			if _, enabled := enabledProviders[binding.Provider]; !enabled {
+				continue
+			}
+		}
+		foundEnabledBinding = true
+		if binding.AcceptsImageCount(n) {
+			return true
+		}
+	}
+	return !foundEnabledBinding
+}
+
 // ByID returns the model with the given ID. If the exact ID isn't found,
 // retries after stripping a trailing Anthropic (-20251001) or OpenAI (-2024-08-06) date suffix.
 func ByID(id string) (Model, bool) {
@@ -50,6 +85,20 @@ func ByID(id string) (Model, bool) {
 		}
 	}
 	return Model{}, false
+}
+
+// BindingFor returns the model's binding for provider.
+func BindingFor(id, provider string) (ProviderBinding, bool) {
+	m, ok := ByID(id)
+	if !ok {
+		return ProviderBinding{}, false
+	}
+	for _, b := range m.Providers {
+		if b.Provider == provider {
+			return b, true
+		}
+	}
+	return ProviderBinding{}, false
 }
 
 // ResolveBinding returns the first ProviderBinding whose Provider is in
