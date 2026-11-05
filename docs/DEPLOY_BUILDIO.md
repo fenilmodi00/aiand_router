@@ -176,26 +176,35 @@ emulator only serves the one dyno it lives in. Scale deliberately:
 | Trigger | Action |
 | --- | --- |
 | Sustained load with p95 latency within budget | Stay on `schema-to-go:basic` ($9, 10 GiB/2 GiB). |
-| p95 DB latency rising under load | Upgrade the addon: `bld addons:upgrade schema-to-go:standard-0` ($50/mo). |
+| p95 DB latency rising under load | Change the addon plan from the dashboard's add-on management page for the app (there is no `bld` command for plan changes): switch `schema-to-go` from `basic` to `standard-0` ($50/mo). If you instead destroy and re-create the addon, its connection strings rotate — update `DATABASE_URL` (and any derived config vars) with `bld config:set` before the next boot. |
 | Need a 2nd web dyno | The localhost emulator cannot broadcast invalidation across replicas. Migrate to real GCP Pub/Sub: create a GCP project, topic and subscription, then set the `PUBSUB_*` env vars (project ID, topic, subscription, credentials) per [docs/CONFIGURATION.md](CONFIGURATION.md#server) and unset `PUBSUB_EMULATOR_HOST`. The upgrade is env-var-only; no code change. |
 | Embedder CPU-bound | The ONNX Jina embedder runs in-process per routing decision and needs real CPU — keep `performance-m` (2.5 GB RAM, 100% dedicated CPU) or larger. Standard 512 MB dynos cannot hold server + emulator + embedder. |
 
 ## Rollback
 
-build.io keeps previous deployments; re-deploying a prior build is a
-listing + redeploy, not a git revert:
+build.io keeps previous deployments; rolling back means listing history and
+either using the dashboard's one-click rollback or re-pushing the old commit
+— the CLI has no command to deploy an old build:
 
 ```bash
-# List recent builds/deployments for the app
+# List recent builds/deployments for the app (deployments list marks the
+# currently-running one with *)
 bld builds --app aiand-router
 bld deployments --app aiand-router
-
-# Redeploy the previous known-good build/deployment by ID
-bld deployments:redeploy --app aiand-router <DEPLOYMENT_ID>
 ```
+
+Then, from the dashboard:
+
+- **Activity tab**: locate the previous successful build and click
+  **"Rollback to here"**.
+- **Deploy tab**: use **"Deploy Branch"** against the known-good branch or
+  commit to build and run the same code.
+
+Alternatively, re-push the known-good commit from your checkout
+(`git push buildio <known-good-sha>:main` or similar), which triggers a fresh
+build of the old code.
 
 Config-var changes are part of rollback too: if a rollback pairs with a
 downgrade (e.g. older `ROUTER_CLUSTER_VERSION`), restore the matching
-values with `bld config:set` before redeploying. Migrations are idempotent
-and additive; the boot-time `migrate up` is safe across restarts and
-rollbacks.
+values with `bld config:set`. Migrations are idempotent and additive; the
+boot-time `migrate up` is safe across restarts and rollbacks.
