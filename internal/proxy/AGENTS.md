@@ -11,7 +11,6 @@ Routing/dispatch service. Per-action orchestrator that composes scorer, planner,
 - `Route` — returns `router.Decision`
 - `ProxyMessages` — Anthropic Messages surface
 - `ProxyOpenAIChatCompletion` — OpenAI Chat Completions
-- `ProxyGemini` — Gemini native generateContent
 
 Plus the action loop, handover adapter, cache writer, and session-key derivation in sibling files.
 
@@ -134,7 +133,7 @@ Primary selection already treats a demotion as soft (an emptied pool reroutes
 onto the excluded model), so a session that has struck out every arm keeps
 being served on one. The rescue walk used to treat the same strikes as hard,
 so once both arms of a two-model roster were demoted every pre-commit failure
-reached the client unrescued (Snowflake Cortex, prod 2026-10: hundreds of
+reached the client unrescued (prod 2026-10: hundreds of
 header-timeout 502s with the other arm never tried). `runTurnLoop` now carries
 the strikes as `SessionStrikeReadmitModels` (image-unsafe arms, and
 ToolUseLow/AgenticLow arms on tool turns, dropped), and
@@ -257,11 +256,11 @@ works, and switches to an in-stream error frame once output is committed.
 
 ## Runtime provider fallback
 
-Multi-binding models (deepseek/qwen/moonshot with Fireworks/Makora/Bedrock primary + OpenRouter fallback in [`catalog.Model.Providers`](../router/catalog/catalog.go)) dispatch through [`dispatchWithFallback`](fallback.go). The helper walks the ordered binding list, retries on `providers.IsRetryable` errors (5xx/408/429 buffered responses, transport errors, `httputil.ErrUpstreamIdleTimeout`), and on exhaustion writes the final upstream error envelope via a format-specific renderer (`flushUpstreamErrorAsAnthropic` for ProxyMessages, `flushBufferedIfPresent` for ProxyOpenAIChatCompletion).
+Catalog models bind to the single `aiand` upstream via [`catalog.Model.Providers`](../router/catalog/catalog.go); most carry one binding, so dispatch through [`dispatchWithFallback`](fallback.go) usually has nowhere to walk. The helper still walks the ordered binding list when a model carries several, retries on `providers.IsRetryable` errors (5xx/408/429 buffered responses, transport errors, `httputil.ErrUpstreamIdleTimeout`), and on exhaustion writes the final upstream error envelope via a format-specific renderer (`flushUpstreamErrorAsAnthropic` for ProxyMessages, `flushBufferedIfPresent` for ProxyOpenAIChatCompletion).
 
 **Model-not-found 404 → cross-binding failover (only).** A buffered upstream 404 (`providers.IsUpstreamModelNotFound`) means the chosen provider doesn't serve the model — a stale/wrong upstream id or a provider with no active endpoints. It is deliberately *not* in `IsRetryable`: re-hitting the same provider is futile (so it never triggers same-binding retry), but a different provider binding may carry the model, so it triggers one cross-binding hop. This rescues a request that would otherwise hard-fail at the client as "selected model may not exist." On the last binding the 404 still flushes.
 
-**Billing-blocked 402 → cross-binding failover (only).** Same shape as the 404 (`providers.IsUpstreamProviderBillingBlocked`): the provider refuses this account — credits exhausted, or the endpoint moved behind a billing plan we're not on, which is how Makora EOL'd DeepSeek-V4-Pro (402 `insufficient_credits` on every turn while Together/Fireworks kept serving it). Same-binding retry would just re-bill the same rejection, so it walks to the next binding and flushes on the last one.
+**Billing-blocked 402 → cross-binding failover (only).** Same shape as the 404 (`providers.IsUpstreamProviderBillingBlocked`): the upstream refuses this account — credits exhausted, or the endpoint moved behind a billing plan we're not on. Same-binding retry would just re-bill the same rejection, so it walks to the next binding and flushes on the last one.
 
 **Same-cluster model failover ([`sibling_failover.go`](sibling_failover.go)).** Provider-level failover assumes the model has somewhere else to run; a single-binding model on an overloaded provider does not (prod's `claude-opus-5` 529 storm: three attempts, one dark Anthropic endpoint, client eats the 529). When every binding is exhausted pre-commit on a retryable/404/402 fault, `ProxyMessages` re-dispatches a *different* model drawn from `Decision.Metadata.CandidateModels` — the pool the policy already scored for this turn, so the rescue stays inside the accepted quality band — preferring a candidate on a provider other than the one that just failed. It runs last in the rescue chain (after baseline and subscription failover), rebuilds the request through `buildAttempt` for the candidate's translation family, re-resolves credentials and bindings, and attributes pricing/telemetry/pin usage to the model that actually served. Gated by `ROUTER_SIBLING_FAILOVER` (default on) and skipped for `/force-model`, shadow mode, and subscription-only balances. BYOK (`shouldFailover`) normally disables it too, with one carve-out: a BYOK-gateway turn may rescue onto a candidate that one of the request's own gateway keys aliases (`gatewaySiblingDecision`) — same credentials, so no cross-provider 401 risk.
 
@@ -269,7 +268,7 @@ Multi-binding models (deepseek/qwen/moonshot with Fireworks/Makora/Bedrock prima
 
 **Claude subscription third-party refusal ([`subscription_model_access.go`](subscription_model_access.go)).** `anthropicSubscriptionThirdPartyRefused` narrowly matches Anthropic's 400 `invalid_request_error` saying third-party apps draw from extra usage, not plan limits. It triggers included-seat recovery, never paid authorization. A refused managed account is denied for that `client_app` only, for `subscriptionThirdPartyDenialTTL`; it is not cooled down, exhausted, or marked reconnect-required. Successful subscription traffic from other clients is not contradicted by this scoped refusal. Its cause must be established from matched requests, not inferred from client names or speculative missing headers. The router does not forge provider attestation headers.
 
-**Single-binding same-binding retry.** Most catalog models carry one binding (Anthropic/OpenAI/Google), so cross-binding failover has nowhere to walk — a sole-provider 5xx/timeout would kill the request. For these, `dispatchWithFallback` retries the *same* binding in place up to `maxSameBindingRetries` (2) with exponential backoff (`sameBindingBackoff`: 250ms, 500ms), pre-commit only, abortable on ctx cancel (`sleepWithContext`). Multi-binding models skip in-place retry (`len(bindings) > 1` breaks the inner loop) and fail straight over to the next provider — a different upstream beats re-hitting the flaky one. Tests inject `Service.retrySleep` to keep the backoff instant.
+**Single-binding same-binding retry.** Most catalog models carry one binding (the single `aiand` upstream), so cross-binding failover has nowhere to walk — a sole-provider 5xx/timeout would kill the request. For these, `dispatchWithFallback` retries the *same* binding in place up to `maxSameBindingRetries` (2) with exponential backoff (`sameBindingBackoff`: 250ms, 500ms), pre-commit only, abortable on ctx cancel (`sleepWithContext`). Multi-binding models skip in-place retry (`len(bindings) > 1` breaks the inner loop) and fail straight over to the next binding — a different upstream beats re-hitting the flaky one. Tests inject `Service.retrySleep` to keep the backoff instant.
 
 **Same-binding retries are bounded by count and wall-clock.** `maxSameBindingRetries` caps repeated attempts against one binding; the executor's 10s wall-clock budget limits identical retries after slow failures. Subscription seat selection uses a separate leasing-only admission budget: slow inference on one seat must not prevent another seat from being tried. Tests express simulated durations as absolute values, never multiples of the budget constant.
 
@@ -279,7 +278,7 @@ Multi-binding models (deepseek/qwen/moonshot with Fireworks/Makora/Bedrock prima
 
 `preludeBuffer` wraps the client writer on every request and separates a synthetic prelude from provider-output commitment. OpenAI responses use `CommitPrelude()` to flush the routing marker immediately after the decision while leaving `Committed()` false. Anthropic responses keep the prelude buffered until provider output arrives, preserving an HTTP error status when every attempt fails before output. `Discard()` clears a failed attempt, and continuation-aware writers emit a corrected marker when fallback changes the serving model. Once provider output flips `Committed()`, no further retry is allowed.
 
-Per-attempt body rebuild: each closure constructs `EmitOptions` with `TargetProvider = d.Provider` so the OpenRouter-only gates in [`emit_openai.go`](../translate/emit_openai.go) (`provider` hint, `reasoning: {enabled:false}`, system reminder for tool turns, tool-temp override) fire on the OpenRouter attempt but not on Fireworks/etc. Otherwise OpenRouter would load-balance to non-DeepSeek-native hosts (no prefix caching) and reasoning would burn the max_tokens budget on hidden thinking.
+Per-attempt body rebuild: each closure constructs `EmitOptions` with `TargetProvider = d.Provider`, so the OpenAI-compat gates in [`emit_openai.go`](../translate/emit_openai.go) (session-affinity hint, system reminder for tool turns, tool-temp override) apply to the dispatched attempt. Retries rebuild the whole chain, so a failover attempt never reuses a previous attempt's translator state.
 
 **Invariants:**
 - Unconditional wrap: `preludeBuffer` engages on every request (single- and multi-binding alike). OpenAI routing markers are released at the completed decision boundary; Anthropic markers wait for the first provider output so a pre-output failure retains its HTTP status. `Committed()` is the retry gate for both cross-binding failover and single-binding in-place retry. A failure after provider output is represented as a protocol-valid in-stream error because HTTP status is already committed.
@@ -327,7 +326,7 @@ forwards them).
 
 Only the Anthropic Messages surface is wrapped today — that is where the failure
 was observed. `KeepaliveWriter` takes the frame as a parameter, so adding the
-OpenAI/Gemini surfaces is a wiring change plus their own frame.
+OpenAI surfaces is a wiring change plus their own frame.
 
 ## Upstream response-header observation
 

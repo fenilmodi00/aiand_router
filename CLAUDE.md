@@ -49,8 +49,8 @@ Three concentric layers. Imports flow inward only.
 |  |                            /admin/v1/*)                     |  |
 |  |  internal/api/anthropic   (/v1/messages, passthrough,       |  |
 |  |                            /v1/route)                       |  |
-|  |  internal/api/openai      (/v1/chat/completions)            |  |
-|  |  internal/api/gemini      (/v1beta/models/:modelAction)     |  |
+|  |  internal/api/openai      (/v1/chat/completions,            |  |
+|  |                            /v1/responses)                   |  |
 |  |  internal/api/feedback    (/f/<token> no-login feedback     |  |
 |  |                            page; deliberately no auth       |  |
 |  |                            middleware)                      |  |
@@ -98,8 +98,8 @@ Three concentric layers. Imports flow inward only.
 |  |  |                      internal/postgres)                |  |  |
 |  |  |  internal/proxy     (routing/dispatch service:        |  |  |
 |  |  |                      Route, ProxyMessages,            |  |  |
-|  |  |                      ProxyOpenAIChatCompletion,       |  |  |
-|  |  |                      ProxyGemini; action loop,          |  |  |
+|  |  |                      ProxyOpenAIChatCompletion;       |  |  |
+|  |  |                      action loop,                    |  |  |
 |  |  |                      handover adapter, cache writer,  |  |  |
 |  |  |                      session-key derivation)          |  |  |
 |  |  |  internal/proxy/usage (Anthropic unified-limit        |  |  |
@@ -123,8 +123,8 @@ Three concentric layers. Imports flow inward only.
 |  |  |  internal/providers (Client iface + types + canonical |  |  |
 |  |  |                      Provider* name constants)        |  |  |
 |  |  |  internal/translate (cross-format wire-format         |  |  |
-|  |  |                      conversion: OpenAI <-> Anthropic |  |  |
-|  |  |                      <-> Gemini; pure, no I/O)        |  |  |
+|  |  |                      conversion: OpenAI <-> Anthropic; |  |  |
+|  |  |                      pure, no I/O)                 |  |  |
 |  |  |  internal/sse       (zero-alloc SSE framing helpers)  |  |  |
 |  |  |  internal/websearch (Anthropic native web-search      |  |  |
 |  |  |                      server tool: detection only;      |  |  |
@@ -273,7 +273,7 @@ A helper that logs on the request path takes `ctx` and calls `observability.From
 - **`selfhosted`** (default): full dashboard at `/ui/*`, `/admin/v1/*` API (auth, metrics, keys, provider-keys, config, excluded-models), dashboard cookie auth all mounted. Provider keys read from env vars; missing keys keep providers registered for client-passthrough but exclude from hard-pin resolution.
 - **`managed`**: dashboard + `/admin/v1/*` not mounted; the control plane is separate. Billing is enabled when its tables exist (a transient billing health-check error also keeps billing enabled). With billing, deployment keys are loaded and platform requests are balance-gated. Only a managed deployment without billing stays BYOK-only and registers empty deployment keys. Inspect `cmd/router/main.go` and the incident's boot configuration rather than inferring credentials from the mode alone. Any other mode value panics at boot. BYOK remains **opt-in per installation** (`byok_enabled`): `withAPIKey` strips external keys until enabled; opted-in BYOK debits no inference cost, though `BYOK_FEE_RATE` may add a separate platform-fee ledger row.
 
-When adding new endpoint, put inside `selfhosted` block in `server.Register` unless part of product surface (`/v1/*`, `/v1beta/*`, `/health`, `/validate`). Do not re-expose admin surface in managed mode.
+When adding new endpoint, put inside `selfhosted` block in `server.Register` unless part of product surface (`/v1/*`, `/health`, `/validate`). Do not re-expose admin surface in managed mode.
 
 ## Eval harness (sibling `router-internal/eval/`)
 

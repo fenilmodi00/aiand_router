@@ -15,7 +15,7 @@ Router PRs [#884](https://github.com/aiand-os/router/pull/884) and [#792](https:
 | Anthropic Messages | `anthropic_messages` | main inference | `proxy.Service.ProxyMessages` | Phase 8 |
 | OpenAI Chat Completions | `openai_chat_completions` | main inference | `proxy.Service.ProxyOpenAIChatCompletion` | Phase 8 |
 | OpenAI Responses | `openai_responses` | main inference | OpenAI conversion and dispatch branches in `proxy.Service` | Phase 8 |
-| Gemini Generate Content | `gemini_generate_content` | main inference | `proxy.Service.ProxyGeminiGenerateContent` | Phase 8 |
+| Gemini Generate Content | `gemini_generate_content` | main inference | registered in the policy registry but no dispatch owner — the `/v1beta` ingress was removed, so no request reaches it | Phase 8 |
 | Switch handover summary | `handover_summary` | auxiliary inference | `proxy.ProviderSummarizer` | Phase 6 |
 | Proactive compaction summary | `precompaction_summary` | auxiliary inference | not invoked (router compaction removed); its reviewed catalog set gates the Claude Code compaction-turn pin | Phase 7 |
 | Post-trim compaction handover | `compaction_handover_summary` | auxiliary inference | `proxy.Service.runCompactionHandover` | Phase 7 |
@@ -40,10 +40,8 @@ These are the complete production `providers.Client.Proxy`/`Passthrough` call si
 | File / symbol | Operation |
 | --- | --- |
 | `internal/proxy/service.go` — `Service.PassthroughToNamedProvider` | metadata/passthrough (`providers.Client.Passthrough`) |
-| `internal/proxy/service.go` — `Service.anthropicNativeAttempt` | Anthropic-native main inference |
 | `internal/proxy/service.go` — one call in `Service.ProxyMessages` | OpenAI-compatible translation of an Anthropic-Messages request |
 | `internal/proxy/service.go` — one call in `Service.ProxyOpenAIChatCompletion` | Chat Completions / Responses translation |
-| `internal/proxy/gemini.go` — `Service.ProxyGeminiGenerateContent` | Gemini main inference |
 
 Handover and compaction-handover summaries call the provider through
 `internal/dispatch.Buffered`, and `internal/dispatch` owns the
@@ -70,7 +68,7 @@ These clients are explicitly classified so they cannot be mistaken for inference
 | `internal/router/rl/client.go` | legacy policy-sidecar decision I/O |
 | `internal/observability/otel/emitter.go` | telemetry export |
 
-The checker flags raw `net/http` calls outside provider adapters when their compile-time URL targets a known inference route (`/v1/messages`, `/v1/chat/completions`, `/v1/responses`, or Gemini generate content). Other HTTP clients remain subject to the repository's ordinary layer rules.
+The checker flags raw `net/http` calls outside provider adapters when their compile-time URL targets a known inference route (`/v1/messages`, `/v1/chat/completions`, or `/v1/responses`). Other HTTP clients remain subject to the repository's ordinary layer rules.
 
 ## Feature-Owned Target Baseline
 
@@ -80,7 +78,7 @@ The reviewed exception manifest records the current utility hard pin, handover m
 
 The migration baseline is covered by:
 
-- fallback and binding behavior: `internal/proxy/fallback_test.go`, `baseline_failover_integration_test.go`, `sibling_failover_integration_test.go`
+- fallback and binding behavior: `internal/proxy/fallback_test.go`, `sibling_failover_integration_test.go`
 - compaction and handover: `internal/proxy/compaction_test.go`, `handover_internal_test.go`, `internal/translate/compaction_test.go`, `handover_test.go`
 - translation and streaming: `internal/proxy/conformance_*_test.go`, `internal/translate/stream_*_test.go`, `responses_to_anthropic_writer_stream_test.go`
 - BYOK and gateways: `internal/proxy/gateway_*_test.go`, provider credential tests

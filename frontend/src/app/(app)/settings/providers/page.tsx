@@ -1,6 +1,6 @@
 "use client";
 
-import { ProviderKeysPanel } from "@/components/settings/ProviderKeysPanel";
+import { AiandAccountPanel } from "@/components/settings/AiandAccountPanel";
 import { SettingsPage, SettingsSection } from "@/components/settings/SettingsPage";
 import { Plug } from "lucide-react";
 
@@ -9,10 +9,10 @@ export default function ProviderKeysSettingsPage() {
     <SettingsPage href="/settings/providers">
       <SettingsSection
         icon={<Plug className="size-4" />}
-        title="Provider API keys"
-        description="Bring your own key for ai&."
+        title="Aiand account"
+        description="Sign in to the Aiand account that supplies this router's upstream key."
       >
-        <ProviderKeysPanel />
+        <AiandAccountPanel />
       </SettingsSection>
     </SettingsPage>
   );

@@ -14,7 +14,7 @@ export interface SettingsNavItem {
  */
 export const SETTINGS_NAV: SettingsNavItem[] = [
   { href: "/settings", label: "General", icon: <KeyRound size={16} /> },
-  { href: "/settings/providers", label: "Provider keys", icon: <Plug size={16} /> },
+  { href: "/settings/providers", label: "Aiand account", icon: <Plug size={16} /> },
   { href: "/settings/models", label: "Models & routing", icon: <SlidersHorizontal size={16} /> },
 ];
 

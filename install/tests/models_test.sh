@@ -70,7 +70,6 @@ fi
 
 catalog='{"models":[{"model":"claude-opus-5","provider":"anthropic"},{"model":"gpt-5.6","provider":"openai"}]}'
 models='[{"model":"claude-opus-5","provider":"anthropic","enabled":true},{"model":"claude-haiku-4-5","provider":"anthropic","enabled":false},{"model":"gpt-5.6","provider":"openai","enabled":true}]'
-providers='[{"provider":"anthropic","enabled":true},{"provider":"openai","enabled":false}]'
 
 case "$path" in
   /v1/router/models) emit 200 "$catalog" ;;
@@ -82,7 +81,6 @@ fi
 
 case "$path" in
   /admin/v1/models)                  emit 200 "$models" ;;
-  /admin/v1/providers)               emit 200 "$providers" ;;
   /admin/v1/preferred-models)        emit 200 '{"preferred":["claude-opus-5"]}' ;;
 esac
 
@@ -93,7 +91,6 @@ esac
 
 case "$path" in
   /admin/v1/excluded-models*)        emit 200 '{"available":[],"excluded":["gpt-5.6"],"env_override_active":false}' ;;
-  /admin/v1/excluded-providers*)     emit 200 '{"available":[],"excluded":["openai"],"env_override_active":false}' ;;
   *)                                 emit 404 '{"error":"404 page not found"}' ;;
 esac
 FAKE_CURL
@@ -199,10 +196,6 @@ check "--json emits the raw payload" \
 # it anyway" warnings must not fire — they would also corrupt a piped --json.
 check "--json writes nothing to stderr" "$errout" ""
 
-run_models "$home" -- providers --claude
-contains "providers list marks an enabled provider" "$out" "[x] anthropic"
-contains "providers list marks a disabled provider" "$out" "[ ] openai"
-
 # ---------- editing ----------
 
 : >"$REQUEST_LOG"
@@ -239,11 +232,6 @@ check "disable accepts several models in one call" \
   "$(grep -c '^POST /admin/v1/excluded-models ' "$REQUEST_LOG")" "2"
 
 : >"$REQUEST_LOG"
-run_models "$home" -- providers disable openai --claude
-check "providers disable hits the provider endpoint" \
-  "$(grep -c '^POST /admin/v1/excluded-providers {"provider":"openai"}$' "$REQUEST_LOG")" "1"
-
-: >"$REQUEST_LOG"
 run_models "$home" -- prefer claude-opus-5 gpt-5.6 --claude
 check "prefer replaces the whole ranking" \
   "$(grep -c '^PUT /admin/v1/preferred-models {"preferred":\["claude-opus-5","gpt-5.6"\]}$' "$REQUEST_LOG")" "1"
@@ -256,7 +244,7 @@ check "prefer clear empties the ranking" \
 # --json is a contract about stdout: a scripted caller parses it. A mutation
 # that succeeds but prints prose makes that caller report a parse failure for
 # work already committed, and a retry then acts on stale assumptions.
-for mutation in "disable gpt-5.6" "enable gpt-5.6" "providers disable openai" \
+for mutation in "disable gpt-5.6" "enable gpt-5.6" \
                 "prefer claude-opus-5" "prefer clear"; do
   # shellcheck disable=SC2086
   run_models_stdout "$home" -- $mutation --claude --json
@@ -292,25 +280,6 @@ esac
 run_models "$home" -- disable gpt-5.6 --claude
 check "editing against a router without the API fails" "$rc" "1"
 contains "the failure names the dashboard" "$out" "router.workaiand.ai/models"
-
-# `models providers` is read-only, same as `models list` — it must degrade the
-# same way on a 404 rather than hard-failing while listing still succeeds.
-run_models "$home" -- providers --claude
-check "providers list against a router without the API still exits 0" "$rc" "0"
-contains "providers list falls back to the public catalog" "$out" "anthropic"
-contains "providers list says where selection lives" "$out" "router.workaiand.ai/models"
-case "$out" in
-  *"[x]"*|*"[ ]"*) no "the providers fallback claims no on/off state" "no checkbox markers" "$out" ;;
-  *)               ok "the providers fallback claims no on/off state" ;;
-esac
-
-run_models_stdout "$home" -- providers --claude --json
-check "providers list --json against a router without the API emits the provider names" \
-  "$(printf '%s' "$out" | jq -c 'sort')" '["anthropic","openai"]'
-
-run_models "$home" -- providers disable openai --claude
-check "editing providers against a router without the API still fails" "$rc" "1"
-contains "the providers failure names the dashboard" "$out" "router.workaiand.ai/models"
 
 ROUTER_MODE="full"
 

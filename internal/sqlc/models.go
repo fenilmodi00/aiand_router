@@ -9,6 +9,21 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+// Installation-wide Aiand upstream credential from the dashboard device flow or a pasted key; ciphertexts are Tink-sealed with AAD (installation external ID, aiand)
+type RouterAiandCredential struct {
+	ID                     uuid.UUID
+	InstallationID         uuid.UUID
+	AccessTokenCiphertext  []byte
+	RefreshTokenCiphertext []byte
+	ExpiresAt              pgtype.Timestamptz
+	Origin                 string
+	UserEmail              *string
+	OrgID                  *string
+	OrgName                *string
+	CreatedAt              pgtype.Timestamptz
+	UpdatedAt              pgtype.Timestamptz
+}
+
 type RouterBlindRouterExperimentAssignment struct {
 	RouterUserID        uuid.UUID
 	InstallationID      uuid.UUID

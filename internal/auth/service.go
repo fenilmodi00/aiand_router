@@ -92,6 +92,17 @@ type Service struct {
 	adminLoginMu       sync.Mutex
 
 	onboarding OnboardingObserver
+
+	// aiand* hold the dashboard's Aiand device-flow login state. The gateway
+	// client and credential repository arrive via WithAiandGateway; the
+	// pending map is nil (and every aiand method refuses) until wired.
+	aiandGateway       AiandGateway
+	aiandCredentials   AiandCredentialRepository
+	aiandHostname      string
+	aiandMu            sync.Mutex
+	aiandPending       map[string]*pendingAiandLogin
+	aiandRotationMu    sync.Mutex
+	aiandRotationLocks map[string]*sync.Mutex
 }
 
 // WithCredentialSubjectLookup wires the current eligibility projection used by read-only key checks.

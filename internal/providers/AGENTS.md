@@ -18,22 +18,26 @@ Provider adapters read per-request credentials (`Credentials`, `EffectiveBaseURL
 
 ## Adding a second upstream
 
+There is one upstream today (`ProviderAIAND`, the `ai&` OpenAI-compatible
+Chat Completions surface). To wire a second upstream:
+
 1. **Reuse [`openaicompat`](openaicompat)** if the upstream speaks OpenAI Chat Completions — add a sibling `*BaseURL` constant and register it in `cmd/router/main.go`. A new adapter directory is only warranted for a different wire format.
-2. **Add a canonical name constant** to [`provider.go`](provider.go) (the `Provider*` block) + register the matching env-var name in `APIKeyEnvVars` **and** a `ProviderFamilies` entry (see the "THREE-map edit" comment above the `Provider*` block in `provider.go`). Today's wired key: `"aiand"`. The composition root reads `APIKeyEnvVars`, so the admin `/config` view can't drift from actual wiring. Skipping the `ProviderFamilies` entry is the failure mode that silently 502s at request time (`ErrProviderNotConfigured`) instead of at boot — `families_test.go`'s table test catches this at boot.
-3. **Check the non-family-based dispatch switches.** Most cross-format dispatch in `internal/proxy/service.go` keys off `providers.FamilyFor` (the `TranslationFamily` enum), so a new provider reusing an existing family needs no edit there. Two switches still key off literal `Provider*` constants and are **not** driven by `ProviderFamilies`, so review whether the new provider needs its own case:
-   - [`internal/translate/emit_openai.go`](../translate/emit_openai.go)'s `applySessionAffinity` — picks the upstream prompt-cache stickiness mechanism (header vs. body field vs. none) per provider. Unlisted OpenAI-compat providers fall through to the generic `x-session-affinity` header default.
-   - [`internal/router/rl/mapping.go`](../router/rl/mapping.go)'s `rosterIDFor` — maps a catalog model to the RL policy artifact's roster slug. Unlisted providers fall through to the bare model ID (best-effort; the sidecar drops candidates it doesn't recognize).
+2. **Add a canonical name constant** to [`provider.go`](provider.go) next to `ProviderAIAND`, then register it in the two maps beside it: `APIKeyEnvVars` (its deployment-level env key) and `FamilyFor` (its `TranslationFamily`). The composition root reads `APIKeyEnvVars`, so the admin `/config` view can't drift from actual wiring. Skipping the `FamilyFor` case is the failure mode that silently 502s at request time (`ErrProviderNotConfigured`) instead of at boot — `families_test.go` pins the family of every provider in `AllProviders()` and `ValidateDispatchable` rejects a registered-but-unknown name.
+3. **Check the non-family-based dispatch switches.** Cross-format dispatch in `internal/proxy/service.go` keys off `providers.FamilyFor` (the `TranslationFamily` enum), so a new provider reusing an existing family needs no edit there. Two switches still key off literal `Provider*` constants and are **not** driven by the family, so review whether the new provider needs its own case:
 4. **Wire in `../../cmd/router/main.go`.** Only place that imports the provider package directly. The provider must be added to `providerMap` regardless of mode; `envKeyedProviders` (parallel set) tracks which providers have a deployment-level key configured.
 
 ## Ingress formats vs. the upstream
 
-The clients still speak the wire formats they always did: Anthropic Messages, OpenAI Chat Completions / Responses, and Google Gemini GenerateContent. `internal/api/{anthropic,openai,gemini}` and `internal/translate`'s request parsing are **client-facing ingress** and translate those formats into the internal envelope; `internal/translate`'s emitters then render the one upstream's format. Do not delete an ingress path because no upstream speaks that format — the client does.
-
+The clients speak Anthropic Messages and OpenAI Chat Completions / Responses.
+`internal/api/{anthropic,openai}` and `internal/translate`'s request parsing
+are **client-facing ingress** and translate those formats into the internal
+envelope; `internal/translate`'s emitters then render the one upstream's
+OpenAI-compat format. The client chooses the wire format, not the upstream.
 ## What is load-bearing
 
 - **The training script is the only writer of `rankings.json`.** Hand-editing breaks the cluster geometry guarantee (`scorer.go`'s sorted-candidate ordering must match what training produced). Re-run `train_cluster_router.py` after touching `model_registry.json` + commit the regenerated artifact.
 - **Cluster scorer is availability-aware at boot, not request time.** Filter happens in `NewScorer`; runtime argmax unchanged. Empty filtered set = hard boot error so misconfigured deploys fail loud.
-- **`ProviderFamilies` must cover every `Provider*` constant.** A provider without a family entry 502s silently at request time instead of at boot.
+- **`FamilyFor` must cover every `Provider*` constant.** A provider without a family entry 502s silently at request time instead of at boot.
 
 ## What to NOT do
 

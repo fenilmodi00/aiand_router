@@ -196,8 +196,8 @@ mode; clear it with `$ufm` to resume automatic routing. The native selection
 itself does not write a persistent `$fm` pin.
 
 `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, and `gpt-6-sol` can use the
-active ChatGPT OAuth plan. Other OpenAI, Anthropic, Gemini, and
-OpenAI-compatible models use their matching WorkAiand deployment or BYOK
+active ChatGPT OAuth plan. Other OpenAI, Anthropic, and OpenAI-compatible
+models use their matching WorkAiand deployment or BYOK
 credentials, just as they do when routed from Claude Code.
 
 Codex does not load third-party Markdown slash commands, and reserves `/…` for
@@ -388,8 +388,8 @@ gets a 404 from the admin API on a managed router and degrades to the plain
 catalog, which is why it has to print "this router does not report which of
 them your installation has enabled". The installation's exclusions are on the
 request, so the router marks each row `[x]`/`[ ]` instead. Anything with
-arguments (`enable`, `disable`, `prefer`, `providers`) still goes to the skill:
-those hit `/admin/v1/*`, which requires an admin session and rejects the `rk_`
+arguments (`enable`, `disable`, `prefer`) still goes to the skill: those hit
+`/admin/v1/*`, which requires an admin session and rejects the `rk_`
 data-plane key a chat request carries — deliberately, so a leaked key cannot
 rewrite routing config. The registry still lists it as `local-toggle` because
 that column names the adapter its mutating path needs.
@@ -555,8 +555,6 @@ npx @aiand-os/router models --claude                          # every model, wit
 npx @aiand-os/router models --codex                           # same, for a Codex install
 npx @aiand-os/router models disable gpt-5.6 --claude          # take a model out of rotation
 npx @aiand-os/router models enable gpt-5.6 --claude           # put it back
-npx @aiand-os/router models providers --claude                # same, one row per provider
-npx @aiand-os/router models providers disable openai --claude # drop a whole provider
 npx @aiand-os/router models prefer claude-opus-5 --claude     # priority ranking ('clear' to drop it)
 npx @aiand-os/router models list --json --claude              # machine-readable, for scripts
 ```
@@ -587,9 +585,8 @@ Editing requires a router that serves the model-selection API (self-hosted and
 local routers do). The Aiand-hosted router keeps model selection with the
 organization instead, so there `models` lists what the router can pick from and
 points you at <https://router.workaiand.ai/models>. If your
-deployment pins the lists via `ROUTER_EXCLUDED_MODELS` /
-`ROUTER_EXCLUDED_PROVIDERS`, the router refuses the edit and says so — clear the
-env var to make the setting editable.
+deployment pins the list via `ROUTER_EXCLUDED_MODELS`, the router refuses the
+edit and says so — clear the env var to make the setting editable.
 
 ## Verifying
 

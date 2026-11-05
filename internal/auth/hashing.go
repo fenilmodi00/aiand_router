@@ -22,3 +22,14 @@ func APITokenFingerprint(token string) (hashHex, prefix, suffix string) {
 	}
 	return hashHex, token[:APITokenPrefixLen], token[len(token)-APITokenSuffixLen:]
 }
+
+// MaskAiandKey renders the dashboard-safe form of an Aiand key: first 8 and
+// last 4 characters separated by an ellipsis. This is the only safe form
+// outside memory; full keys are never logged or echoed.
+func MaskAiandKey(key string) string {
+	_, prefix, suffix := APITokenFingerprint(key)
+	if suffix == "" {
+		return prefix + "…"
+	}
+	return prefix + "…" + suffix
+}

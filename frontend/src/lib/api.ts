@@ -1,6 +1,28 @@
 const BASE = "/admin/v1";
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+/**
+ * HTTP 428 from a device-flow poll: the backend is telling us to slow down,
+ * not that polling failed. `retry_after_s` mirrors the Retry-After header in
+ * seconds, or null when absent/unparseable (caller then applies its own
+ * backoff floor).
+ */
+export class SlowDownError extends Error {
+  retry_after_s: number | null;
+  constructor(retry_after_s: number | null) {
+    super("slow_down");
+    this.name = "SlowDownError";
+    this.retry_after_s = retry_after_s;
+  }
+}
+
+// Endpoints whose own contract defines a 401 body (e.g. paste-key's
+// invalid_key) pass authRedirect: false so a rejected credential surfaces to
+// the caller instead of bouncing the browser to the login page.
+interface RequestOptions extends RequestInit {
+  authRedirect?: boolean;
+}
+
+async function request<T>(path: string, init?: RequestOptions): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...((init?.headers as Record<string, string>) ?? {}),
@@ -10,7 +32,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     credentials: "include",
     headers,
   });
-  if (res.status === 401 && typeof window !== "undefined") {
+  if (res.status === 401 && (init?.authRedirect ?? true) && typeof window !== "undefined") {
     // Session expired or never authenticated — bounce to login. The
     // (app) layout's auth gate handles the same case on initial load,
     // but in-flight calls (chart refreshes, mutations) need their own
@@ -28,6 +50,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
   if (!res.ok) {
     const body = await res.text();
+    // The device-flow poll endpoint signals slow_down with HTTP 428 and a
+    // Retry-After header instead of a status body, so callers can keep
+    // waiting rather than treat it as a failure. `retry_after_s` is in
+    // seconds per HTTP spec; absent/invalid falls back to null and the
+    // caller applies its own minimum.
+    if (res.status === 428) {
+      const retryAfter = res.headers.get("Retry-After");
+      const seconds = retryAfter == null ? NaN : Number(retryAfter.trim());
+      throw new SlowDownError(Number.isFinite(seconds) && seconds >= 0 ? seconds : null);
+    }
     throw new Error(`${res.status}: ${body}`);
   }
   if (res.status === 204) return undefined as T;
@@ -155,10 +187,48 @@ export interface ExcludedModelsResponse {
   env_override_active: boolean;
 }
 
-export interface ExcludedProvidersResponse {
-  available: string[];
-  excluded: string[];
-  env_override_active: boolean;
+// Connection between this router installation and the Aiand account that
+// supplies the upstream provider key. The raw key is never exposed here —
+// only a masked fingerprint.
+export interface AiandAuthStatus {
+  connected: boolean;
+  email?: string;
+  org_name?: string;
+  key_masked?: string;
+  expires_at?: string;
+  // The backend sends this as an untyped string (device | paste today);
+  // typed as string so unknown future values still render.
+  origin?: string;
+}
+
+export interface AiandDeviceStartResponse {
+  user_code: string;
+  verification_uri: string;
+  /** Seconds until the user code expires. */
+  expires_in: number;
+  /** Seconds to wait between polls; the backend already applies slow_down. */
+  interval: number;
+}
+
+export type AiandDevicePollStatus = "pending" | "authorized" | "expired" | "denied" | "error";
+
+export interface AiandDevicePollResponse {
+  status: AiandDevicePollStatus;
+  email?: string;
+  org_name?: string;
+  key_masked?: string;
+  /** Seconds to wait before the next poll; present only on a 428 slow_down response. */
+  retry_after_s?: number;
+}
+
+export interface AiandPasteKeyResponse {
+  email: string;
+  org_name: string;
+  key_masked: string;
+}
+
+export interface AiandDisconnectResponse {
+  disconnected: boolean;
 }
 
 export interface RoutingPreferencesResponse {
@@ -268,13 +338,22 @@ export const api = {
         body: JSON.stringify({ excluded }),
       }),
   },
-  excludedProviders: {
-    get: () => request<ExcludedProvidersResponse>("/excluded-providers"),
-    update: (excluded: string[]) =>
-      request<ExcludedProvidersResponse>("/excluded-providers", {
-        method: "PUT",
-        body: JSON.stringify({ excluded }),
+  aiandAuth: {
+    status: () => request<AiandAuthStatus>("/aiand-auth/status"),
+    startDevice: () =>
+      request<AiandDeviceStartResponse>("/aiand-auth/device", { method: "POST" }),
+    pollDevice: () =>
+      request<AiandDevicePollResponse>("/aiand-auth/device/poll", { method: "POST" }),
+    pasteKey: (key: string) =>
+      request<AiandPasteKeyResponse>("/aiand-auth/paste", {
+        method: "POST",
+        body: JSON.stringify({ key }),
+        // The endpoint's own 401 means a rejected key, not a dead session —
+        // the panel must see it to render "Invalid key." rather than bounce.
+        authRedirect: false,
       }),
+    disconnect: () =>
+      request<AiandDisconnectResponse>("/aiand-auth/disconnect", { method: "POST" }),
   },
   routingPreferences: {
     get: () => request<RoutingPreferencesResponse>("/routing-preferences"),

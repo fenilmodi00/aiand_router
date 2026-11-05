@@ -20,7 +20,7 @@
 
 **One endpoint. Every model. Always the right one.**
 
-A drop-in proxy for Anthropic, OpenAI, and Gemini that picks the best model
+A drop-in proxy for Anthropic and OpenAI clients that picks the best model
 for *every* request: using a tiny on-box embedder, not a vibes-based prompt.
 
 [![Aiand Badge](https://img.shields.io/endpoint?url=https%3A%2F%2Fapp.workaiand.ai%2Fapi%2Frepository%2Fbadge%2Forg_QWsHDcRQWQEs6RpkdEZrlFK8%2F1222789989%2Fhttps%253A%252F%252Fgithub.com&cacheSeconds=3600)](https://app.workaiand.ai/reports/repository/org_QWsHDcRQWQEs6RpkdEZrlFK8/https%3A%2F%2Fgithub.com/1222789989)
@@ -45,11 +45,11 @@ Point Claude Code, Codex, Cursor, or your own app at `localhost:8080`. The route
 
 - 🎯 **Routes per action.** A cluster scorer derived from
   [Avengers-Pro](https://arxiv.org/abs/2508.12631) [^1] picks the right
-  model from your enabled providers, for every upstream API request.
+  model for every upstream API request.
   (See [docs/SEMANTICS.md](docs/SEMANTICS.md) for the canonical terminology:
   the router routes per **action**, not per **turn**.)
-- 🔌 **Speaks everyone's API.** Anthropic Messages, OpenAI Chat Completions,
-  Gemini native. Streaming, tools, vision, the works.
+- 🔌 **Speaks everyone's API.** Anthropic Messages and OpenAI Chat
+  Completions. Streaming, tools, vision, the works.
 - 🧠 **Knows OSS too.** DeepSeek, Kimi, GLM, Qwen, Llama, Mistral through
   ai&'s OpenAI-compatible Chat Completions surface.
 - 🔒 **BYOK by default.** Provider keys stay on your box, encrypted at rest.
@@ -136,7 +136,7 @@ provider you configured, never to Aiand.
 ```mermaid
 flowchart LR
     client["Claude Code, Codex, opencode,<br/>pi, Cursor, your own app"]
-    router["Router :8080<br/>/v1/messages · /v1/chat/completions<br/>/v1beta/models · /v1/route"]
+    router["Router :8080<br/>/v1/messages · /v1/chat/completions<br/>/v1/responses · /v1/route"]
     scorer["Cluster scorer<br/>in-process ONNX embedder"]
     hmm["HMM policy sidecar :8093<br/>optional, make up-hmm"]
     pg[("Postgres<br/>installations, rk_ keys,<br/>encrypted BYOK keys, usage")]
@@ -241,7 +241,7 @@ dashboard, where selection is an organization-wide setting. See
 [install/README.md](install/README.md#choosing-which-models-the-router-may-pick).
 
 > Two keys, don't mix them up:
-> - `sk-or-...` / `sk-ant-...` / `sk-...` = your **upstream** provider key. Lives in `.env.local`.
+> - `sk-...` = your **upstream** ai& key (`AIAND_API_KEY`). Lives in `.env.local`.
 > - `rk_...` = your **router** key. Clients send this as a Bearer token.
 
 ## Endpoints
@@ -250,7 +250,7 @@ dashboard, where selection is an organization-wide setting. See
 | ------------------------------ | ---------------------------------------- |
 | `POST /v1/messages`            | Anthropic Messages, routed               |
 | `POST /v1/chat/completions`    | OpenAI Chat Completions, routed          |
-| `POST /v1beta/models/:action`  | Gemini `generateContent`, routed         |
+| `POST /v1/responses`           | OpenAI Responses, routed                 |
 | `POST /v1/route`               | Returns the decision, no upstream call   |
 | `GET /v1/models` &nbsp;·&nbsp; `POST /v1/messages/count_tokens` | Anthropic passthrough |
 | `GET /livez` &nbsp;·&nbsp; `GET /startupz` | process responsive check + completed initialization |

@@ -7,11 +7,11 @@ import (
 	"errors"
 	"time"
 
-	"github.com/google/uuid"
 	"aiand-os/router/internal/postgres/dbbudget"
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/sessionpin"
 	"aiand-os/router/internal/sqlc"
+	"github.com/google/uuid"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -320,13 +320,4 @@ func demotionCooldowns(raw []byte) map[string]time.Time {
 		return nil
 	}
 	return cooldowns
-}
-
-// timestamptzOrZero mirrors timestampOrZero for TIMESTAMPTZ columns:
-// NULL becomes the zero value instead of a pointer.
-func timestamptzOrZero(t pgtype.Timestamptz) time.Time {
-	if !t.Valid {
-		return time.Time{}
-	}
-	return t.Time
 }

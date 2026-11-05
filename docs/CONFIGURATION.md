@@ -26,10 +26,6 @@ This page is the exhaustive reference; the [README](../README.md) has the
 
 - [Routing](#routing)
 
-- [Provider and model exclusions](#provider-and-model-exclusions)
-  - [The approved auto-routing roster](#the-approved-auto-routing-roster)
-  - [The allowed-models header](#the-allowed-models-header)
-
 - [Policy sidecars](#policy-sidecars)
 
 - [Task-domain classifier](#task-domain-classifier)
@@ -68,9 +64,9 @@ admission, inference limits, caching/failure semantics and staged-model validati
 
 The router dispatches to exactly one upstream, ai&'s OpenAI-compatible Chat
 
-Completions surface, registered as the provider `aiand`. Anthropic, OpenAI, and
+Completions surface, registered as the provider `aiand`. Anthropic and OpenAI
 
-Gemini ingress requests are translated onto it. The provider is always
+ingress requests are translated onto it. The provider is always
 
 registered; `AIAND_API_KEY` is what makes it usable with deployment-level
 
@@ -402,7 +398,7 @@ the admission caches using the same Pub/Sub project and topic.
 
 | `ROUTER_SUBAGENT_PROVIDER`        | *(none)*                     | Pair with `ROUTER_SUBAGENT_MODEL`. |
 
-| `ROUTER_TRANSLATION_COMPATIBILITY_MODE` | `shadow` | Translation representability rollout: `off` disables broad filtering, `shadow` records candidate exclusions without changing routes, and `enforce` makes declared semantic requirements hard routing constraints. Native search remains enforced in every mode because another provider family cannot preserve its tool/result blocks; advertised-only search tools are scoped out separately. Other native-only safety paths (such as unsupported Responses tool unions and native Gemini ingress) remain protected unless mode is `off`. |
+| `ROUTER_TRANSLATION_COMPATIBILITY_MODE` | `shadow` | Translation representability rollout: `off` disables broad filtering, `shadow` records candidate exclusions without changing routes, and `enforce` makes declared semantic requirements hard routing constraints. Native search remains enforced in every mode because another provider family cannot preserve its tool/result blocks; advertised-only search tools are scoped out separately. Other native-only safety paths (such as unsupported Responses tool unions) remain protected unless mode is `off`. |
 
 | `ROUTER_SCOPED_SEARCH_REQUIREMENT` | `true` | Scopes the citations/search native-capability requirement to sessions that actually used a web-search tool this turn or recently, instead of every turn that merely advertises one. Advertised-only turns return to normal policy routing. |
 
@@ -474,122 +470,7 @@ holdout, outcome, reason, margin, votes, and served model.
 
 
 
-## Provider and model exclusions
-
-
-
-Exclusions keep traffic away from a provider or model. The router dispatches to
-
-a single provider, `aiand`, so `ROUTER_EXCLUDED_PROVIDERS` is a switch for
-
-"talk to no upstream at all" — useful to drain a deployment without taking it
-
-down. Model exclusions are the everyday control: they take individual catalog
-
-models out of rotation while the rest keep serving.
-
-
-
-| Variable                     | Default  | Purpose |
-
-| ---------------------------- | -------- | ------- |
-
-| `ROUTER_EXCLUDED_PROVIDERS`  | *(none)* | Comma-separated provider names no request may be routed to. Pins the list deployment-wide: per-installation edits are refused (403) while it is set. |
-
-| `ROUTER_EXCLUDED_MODELS`     | *(none)* | Comma-separated model IDs no request may be routed to, same deployment-wide pinning. |
-
-
-
-Without either env var the lists come from the installation, editable in the
-
-dashboard or through `PUT /admin/v1/excluded-providers` and
-
-`PUT /admin/v1/excluded-models`.
-
-
-
-From a terminal, `npx @aiand-os/router models --claude` lists every deployed
-
-model with its on/off state and `models enable` / `models disable` edit it,
-
-reading the endpoint and key from the Claude Code install already on disk.
-
-Claude Code gets the same thing as `/router-models` (alias `/models`). While
-
-either env var is set the CLI surfaces the 403 verbatim rather than pretending
-
-the edit landed. See [install/README.md](../install/README.md#choosing-which-models-the-router-may-pick).
-
-
-
-Exclusions are authoritative, not a preference. An excluded model is
-
-subtracted from the request's eligible set before anything routes, so the
-
-scorer, the turn-type hard pins, session pins, and the hand-over and
-
-compaction model choices all stay off it. An excluded provider is subtracted
-
-the same way — including when the caller holds their own BYOK key for it.
-
-
-
-That extends to explicit forcing. `/force-model` and the `x-aiand-force-model`
-
-header are refused when the model is excluded: the command answers with the
-
-reason and leaves routing (and any prior pin) alone, and the header fails the
-
-request with HTTP 400. A live session whose forced pin is later excluded fails
-
-the same way rather than quietly reverting to automatic routing — clear it
-
-with `/unforce-model`. The same holds a level up: exclusions that empty a
-
-forced routing cluster fail the request too (see [Forcing a model or a routing
-
-cluster](#forcing-a-model-or-a-routing-cluster)).
-
-
-
-Excluding every model a request could have picked leaves requests with nowhere
-
-to go, so exclude deliberately. The failure is loud, never a silent fallback to
-another model: the scorer returns "no eligible candidates" and the request is
-refused with HTTP 400 (not 503) — a config-driven empty pool is the operator's
-decision, not a router outage. Utility hard pins (probe, title-gen, compaction)
-are the one soft spot: an automatic-routing exclusion that empties a hard pin's
-candidate set is ignored for that turn rather than failing the background call,
-while hard exclusions still fail it.
-
-### The approved auto-routing roster
-
-Automatic ("auto") mode can only ever serve an approved model. The approved
-pool is the explicit `ApprovedAutoRoutedModels` list in
-`internal/router/catalog/roster.go`; every other catalog row is pin-only by
-construction — reachable through `/force-model`, the `x-aiand-force-model`
-header, or a session pin, but never selected automatically. Structural tests
-keep the lists coupled: every approved model must be tiered and deployed in the
-served bundle's `model_registry.json`, every bundle-deployed model must be
-approved, and an unapproved model gaining a tier or entering the registry
-without being added to the roster fails the build. Adding a model to auto
-rotation is therefore a three-place edit — the catalog row (tier), the roster
-list, and the bundle registry — enforced by the roster tests in
-`internal/router/catalog` and `internal/router/cluster`.
-
-### The allowed-models header
-
-A client may narrow its own routing with the `x-aiand-allowed-models` header
-(comma-separated catalog IDs, bare names, or aliases). The header is
-narrowing-only: it intersects with the organization's persisted
-allowed-model list and never widens it — an organization restriction always
-wins. Authorization is explicit: the request is refused with HTTP 403
-(`allowed_models_header_not_authorized`) unless the installation has policy
-headers enabled or the org has the `allowed_models_header` flag on. An
-unknown alias fails the request with HTTP 400
-(`allowed_models_header_invalid`), as does an intersection that leaves no
-model eligible — neither falls back to the full roster.
-
+
 ## Forcing a model or a routing cluster
 
 
@@ -978,9 +859,9 @@ log records are emitted and behavior is unchanged.
 
 
 
-Captured bodies are in the client's native wire format (Anthropic / OpenAI /
+Captured bodies are in the client's native wire format (Anthropic / OpenAI,
 
-Gemini, matching the inbound surface). The `router.deployment_mode` resource
+matching the inbound surface). The `router.deployment_mode` resource
 
 attribute (`selfhosted` / `managed`) is stamped on every export so a collector
 
@@ -1162,7 +1043,7 @@ The estimate describes input to this Router request. The window describes the bi
 
 
 
-Anthropic Messages, OpenAI Chat Completions/Responses through the HTTP adapter, Gemini, and semantic-cache replies carry this contract. Cache replies compute estimates from the current request rather than replaying stored headers. Non-HTTP transports that cannot preserve headers must omit the display.
+Anthropic Messages, OpenAI Chat Completions/Responses through the HTTP adapter, and semantic-cache replies carry this contract. Cache replies compute estimates from the current request rather than replaying stored headers. Non-HTTP transports that cannot preserve headers must omit the display.
 
 
 

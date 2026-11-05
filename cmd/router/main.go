@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	"aiand-os/router/internal/aiandauth"
 	"aiand-os/router/internal/analytics"
 	"aiand-os/router/internal/api/admin"
 	"aiand-os/router/internal/auth"
@@ -327,7 +328,13 @@ func main() {
 		WithUserClusterModelLists(repo.UserClusterModelLists, userClusterCache).
 		WithBlindExperiments(repo.BlindExperiments, blindExperimentCache).
 		WithRoutingPolicies(repo.RoutingPolicies, routingPolicyCache).
-		WithFlagOverridesDisabled(flagOverridesDisabled)
+		WithFlagOverridesDisabled(flagOverridesDisabled).
+		// The installation's Aiand credential serves the data plane in BOTH
+		// deployment modes; only the dashboard login surface is selfhosted-only.
+		// Empty AIAND_AUTH_URL selects the production gateway, nil keeps the
+		// client's bounded-timeout HTTP transport, and an empty hostname makes
+		// the service label minted keys with os.Hostname().
+		WithAiandGateway(aiandauth.NewClient(config.GetOr("AIAND_AUTH_URL", aiandauth.DefaultAuthURL), nil), repo.AiandCredentials, "")
 	// Fans out Pub/Sub invalidations to this replica's cache; the 5-min TTL
 	// is the safety net if the listener falls behind.
 	subCtx, subCancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -401,6 +408,9 @@ func main() {
 
 	sessionTurnClock := postgres.NewSessionTurnClockRepo(pool)
 	safeGo(logger, "session-turn-clock-sweep", func() { runSessionTurnClockSweep(context.Background(), sessionTurnClock) })
+
+	safeGo(logger, "aiand-credential-rotation-sweep", func() { runAiandCredentialRotationSweep(context.Background(), authSvc) })
+	logger.Info("Aiand credential rotation sweep started (72h look-ahead, hourly)")
 
 	hardPinExplore := config.GetOr("ROUTER_HARD_PIN_EXPLORE", "true") == "true"
 	hardPinOverrideConfigured := strings.TrimSpace(config.GetOr("ROUTER_HARD_PIN_MODEL", "")) != ""
@@ -1777,6 +1787,35 @@ func runSessionTurnClockSweep(ctx context.Context, store *postgres.SessionTurnCl
 			sweepCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 			if err := store.SweepExpired(sweepCtx); err != nil {
 				observability.FromContext(ctx).Error("Session turn clock sweep failed", "err", err)
+			}
+			cancel()
+		}
+	}
+}
+
+// aiandSweepWindow is the look-ahead the rotation sweep passes to the auth
+// service; it matches the dashboard's aiandRotateWindow so a credential the
+// UI flags as expiring is refreshed by the next hourly tick.
+const aiandSweepWindow = 72 * time.Hour
+
+// runAiandCredentialRotationSweep refreshes installation Aiand credentials
+// that expire within the rotation window on an hourly cadence. Device-origin
+// refresh tokens are single-use, so the auth service serializes rotation per
+// installation; the sweep is only the trigger. Context.Background() keeps
+// the sweep draining during graceful shutdown, matching the other idempotent
+// sweeps.
+func runAiandCredentialRotationSweep(ctx context.Context, authSvc *auth.Service) {
+	logger := observability.Get()
+	ticker := time.NewTicker(1 * time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			sweepCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			if _, err := authSvc.SweepExpiringAiandCredentials(sweepCtx, aiandSweepWindow); err != nil {
+				logger.Error("Aiand credential rotation sweep failed", "err", err)
 			}
 			cancel()
 		}

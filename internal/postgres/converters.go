@@ -134,6 +134,13 @@ func timestamptzPtr(t pgtype.Timestamptz) *time.Time {
 	return &out
 }
 
+func timestamptzOrZero(t pgtype.Timestamptz) time.Time {
+	if !t.Valid {
+		return time.Time{}
+	}
+	return t.Time
+}
+
 // stringPtrOrNil returns nil for empty strings so SQLC's nullable columns receive NULL instead of "".
 func stringPtrOrNil(s string) *string {
 	if s == "" {

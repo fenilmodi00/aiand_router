@@ -8,8 +8,7 @@ must survive the selected wire-format path.
 Current requirements cover source format and endpoint, function/custom tools,
 reasoning replay and signatures, media, citations/search, structured output,
 prompt-cache controls, and detailed usage. The initial hard checks are native
-Responses extension unions, native Gemini ingress, and image input on known
-text-only models.
+Responses extension unions and image input on known text-only models.
 
 ## Rollout modes
 
@@ -24,8 +23,7 @@ text-only models.
 Native Responses requirements select the OpenAI-compatible family and forward
 the original client body with only the routed model changed. This preserves
 custom, namespace, built-in, and unknown Responses unions instead of reducing
-them to function tools. Gemini ingress selects the native Gemini family before
-routing; it no longer reaches the late unsupported-cross-format path.
+them to function tools.
 
 ## Observability
 

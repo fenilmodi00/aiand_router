@@ -25,11 +25,10 @@ exact model ids — the user selects models by id.
 
 Then:
 
-- If the user named models or providers, work out whether they want them on or
+- If the user named models, work out whether they want them on or
   off from how they phrased it, and apply it with
   `aiand-router models enable <id>... --codex{{SCOPE}}` or
-  `aiand-router models disable <id>... --codex{{SCOPE}}` (add `providers` before
-  `enable`/`disable` to switch a whole provider). Several ids can go in one
+  `aiand-router models disable <id>... --codex{{SCOPE}}`. Several ids can go in one
   call. Then re-run the list and show the result.
 - If they named nothing, stop after the list and ask which ones to change.
   Never change anything they did not ask for.
@@ -39,7 +38,6 @@ Other things they might ask for:
 - Rank models by preference:
   `aiand-router models prefer <id> <id>... --codex{{SCOPE}}` (order matters), or
   `aiand-router models prefer clear --codex{{SCOPE}}` to drop the ranking.
-- Providers only: `aiand-router models providers --codex{{SCOPE}}`.
 
 If the command reports that this router doesn't expose model selection, that's a
 Aiand-hosted router: model selection belongs to the whole organization there, so

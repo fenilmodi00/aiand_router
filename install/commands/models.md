@@ -1,6 +1,6 @@
 ---
 description: Alias for /router-models — list the models the Aiand Router may route to, and turn them on or off.
-argument-hint: [model or provider to enable/disable]
+argument-hint: [model to enable/disable]
 allowed-tools: Bash(npx:*)
 ---
 
@@ -19,11 +19,10 @@ grouping and the exact model ids — I select models by id.
 
 Then:
 
-- If I named models or providers in `$ARGUMENTS`, work out whether I want them
-  on or off from how I phrased it, and apply it with
+- If I named models in `$ARGUMENTS`, work out whether I want them on or off
+  from how I phrased it, and apply it with
   `npx @aiand-os/router models enable <id>... --claude{{SCOPE}}` or
-  `npx @aiand-os/router models disable <id>... --claude{{SCOPE}}` (add
-  `providers` before `enable`/`disable` to switch a whole provider). Several
+  `npx @aiand-os/router models disable <id>... --claude{{SCOPE}}`. Several
   ids can go in one call. Then re-run the list and show me the result.
 - If I named nothing, stop after the list and ask which ones I want to change.
   Don't change anything I didn't ask for.
@@ -34,7 +33,6 @@ Other things I might ask for:
   `npx @aiand-os/router models prefer <id> <id>... --claude{{SCOPE}}` (order
   matters), or `npx @aiand-os/router models prefer clear --claude{{SCOPE}}` to
   drop the ranking.
-- Providers only: `npx @aiand-os/router models providers --claude{{SCOPE}}`.
 
 If the command reports that this router doesn't expose model selection, that's
 a Aiand-hosted router: model selection belongs to the whole organization there,

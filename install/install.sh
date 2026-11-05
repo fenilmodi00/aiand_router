@@ -89,8 +89,6 @@
 #   npx @aiand-os/router models --claude                            # every model, with its on/off state
 #   npx @aiand-os/router models disable gpt-5.6 --claude            # take a model out of rotation
 #   npx @aiand-os/router models enable gpt-5.6 --claude             # put it back
-#   npx @aiand-os/router models providers --claude                  # same, one row per provider
-#   npx @aiand-os/router models providers disable openai --claude   # drop a whole provider
 #   npx @aiand-os/router models prefer claude-opus-5 --claude       # set the preferred-model ranking
 #   npx @aiand-os/router models list --json --claude                # machine-readable, for scripts
 # Editing needs a router that mounts the model-selection API (self-hosted and
@@ -490,7 +488,7 @@ AIAND_CODEX_END_MARKER="# <<< aiand-router managed <<<"
 # ---------- identity helpers ----------
 #
 # The router parses X-Aiand-User-Email and X-Aiand-User-Name on every protocol
-# (Anthropic, OpenAI, Gemini) and persists them onto router.model_router_users
+# (Anthropic, OpenAI) and persists them onto router.model_router_users
 # so customers can attribute traffic to a person even when many people share
 # one API key. Claude Code's metadata.user_id carries only account_uuid (no
 # email), so without these headers the router only ever sees anonymous UUIDs.
@@ -3174,18 +3172,6 @@ models_render_list() {
   '
 }
 
-# models_render_providers prints the [{provider,enabled}] payload.
-models_render_providers() {
-  local payload="$1"
-  printf "%s%sAiand Router providers%s %s· %s%s\n\n" "$C_BOLD" "$C_BRAND" "$C_RESET" "$C_DIM" "$base_url" "$C_RESET"
-  printf '%s' "$payload" | jq -r --arg on "$C_GREEN" --arg off "$C_DIM" --arg reset "$C_RESET" '
-    .[] | if .enabled
-          then "  " + $on + "[x]" + $reset + " " + .provider
-          else "  " + $off + "[ ] " + .provider + $reset
-          end
-  '
-}
-
 # models_print_preferred appends the priority ranking when one is set. Absent
 # is the norm (the router picks per turn), so silence is the right output.
 models_print_preferred() {
@@ -3201,33 +3187,19 @@ models_print_preferred() {
 # Deliberately not rendered as a checklist — this endpoint reports the deployed
 # catalog, not the installation's selection, so marking every row [x] would
 # claim models are enabled that the dashboard may well have excluded.
-#
-# $1 selects what to print from the same catalog payload: "models" (the
-# default) or "providers" — `models providers` hits this same 404 and must
-# degrade the same way `models list` does rather than hard-failing, since both
-# are read-only listing commands.
 models_list_catalog() {
-  local what="${1:-models}"
-  models_api GET "$MODELS_CATALOG_PATH" || models_fail "listing $what"
+  models_api GET "$MODELS_CATALOG_PATH" || models_fail "listing models"
   if [ "$models_json" = "true" ]; then
-    if [ "$what" = "providers" ]; then
-      printf '%s' "$models_http_body" | jq -c '[.models[].provider] | unique'
-    else
-      printf '%s\n' "$models_http_body"
-    fi
+    printf '%s\n' "$models_http_body"
     return 0
   fi
-  printf "%s%sAiand Router %s%s %s· %s%s\n" "$C_BOLD" "$C_BRAND" "$what" "$C_RESET" "$C_DIM" "$base_url" "$C_RESET"
+  printf "%s%sAiand Router models%s %s· %s%s\n" "$C_BOLD" "$C_BRAND" "$C_RESET" "$C_DIM" "$base_url" "$C_RESET"
   printf "%severything this router can route to%s\n\n" "$C_DIM" "$C_RESET"
-  if [ "$what" = "providers" ]; then
-    printf '%s' "$models_http_body" | jq -r '[.models[].provider] | unique[] | "  " + .'
-  else
-    printf '%s' "$models_http_body" | jq -r --arg reset "$C_RESET" --arg bold "$C_BOLD" '
-      .models | group_by(.provider)[]
-      | ($bold + .[0].provider + $reset),
-        (.[] | "  " + .model)
-    '
-  fi
+  printf '%s' "$models_http_body" | jq -r --arg reset "$C_RESET" --arg bold "$C_BOLD" '
+    .models | group_by(.provider)[]
+    | ($bold + .[0].provider + $reset),
+      (.[] | "  " + .model)
+  '
   printf "\n%sThis router does not report which of them your installation has enabled:%s\n" "$C_DIM" "$C_RESET"
   printf "%sselection is an organization-wide setting here. See it, and change it, at%s\n" "$C_DIM" "$C_RESET"
   printf "%s%s%s\n" "$C_DIM" "$MODELS_DASHBOARD_URL" "$C_RESET"
@@ -3250,33 +3222,13 @@ models_list() {
   printf "%sDisable a model:%s npx $npm_package_name models disable <id> --%s\n" "$C_DIM" "$C_RESET" "$target"
 }
 
-models_providers_list() {
-  if ! models_api GET "/admin/v1/providers"; then
-    # Same 404 degrade as models_list: a router with no model-selection API
-    # still answers the unauthed catalog, and this is a read-only listing
-    # command same as `models list` — no reason to hard-fail one and not
-    # the other.
-    [ "$models_http_status" = "404" ] || models_fail "listing providers"
-    models_list_catalog providers
-    return 0
-  fi
-  if [ "$models_json" = "true" ]; then
-    printf '%s\n' "$models_http_body"
-    return 0
-  fi
-  models_render_providers "$models_http_body"
-}
-
-# models_toggle KIND ACTION IDS — flip one or more models/providers on or off.
+# models_toggle ACTION IDS — flip one or more models on or off.
 # Each id is its own request so a typo in the third id can't roll back the two
 # that already applied, and so the report names exactly what changed.
 models_toggle() {
-  local kind="$1" action="$2" ids="$3"
-  local path body id label doing
-  case "$kind" in
-    model)    path="/admin/v1/excluded-models"    ; label="model"    ;;
-    provider) path="/admin/v1/excluded-providers" ; label="provider" ;;
-  esac
+  local action="$1" ids="$2"
+  local path body id doing
+  path="/admin/v1/excluded-models"
   # Enabling means dropping the id from the exclusion list, disabling means
   # adding it — the API's remove/add endpoints, inverted here so the CLI reads
   # the way the dashboard's checkboxes do.
@@ -3290,9 +3242,9 @@ models_toggle() {
   # where models_fail's exit only kills that subshell.
   while IFS= read -r id; do
     [ -n "$id" ] || continue
-    body="$(jq -nc --arg v "$id" --arg k "$label" '{($k): $v}')"
+    body="$(jq -nc --arg v "$id" --arg k "model" '{($k): $v}')"
     if ! models_api POST "$path" "$body"; then
-      models_fail "$doing $label '$id'"
+      models_fail "$doing model '$id'"
     fi
     # Under --json the router's own response body is the output: a scripted
     # caller parses stdout, and printing prose there makes it report a parse
@@ -3300,9 +3252,9 @@ models_toggle() {
     if [ "$models_json" = "true" ]; then
       printf '%s\n' "$models_http_body"
     elif [ "$action" = "enable" ]; then
-      printf "%s✓%s %s %s%s%s is enabled\n" "$C_GREEN" "$C_RESET" "$label" "$C_BOLD" "$id" "$C_RESET"
+      printf "%s✓%s %s %s%s%s is enabled\n" "$C_GREEN" "$C_RESET" "model" "$C_BOLD" "$id" "$C_RESET"
     else
-      printf "%s✓%s %s %s%s%s is disabled — the router will not pick it\n" "$C_GREEN" "$C_RESET" "$label" "$C_BOLD" "$id" "$C_RESET"
+      printf "%s✓%s %s %s%s%s is disabled — the router will not pick it\n" "$C_GREEN" "$C_RESET" "model" "$C_BOLD" "$id" "$C_RESET"
     fi
   done <<<"$ids"
 }
@@ -3339,8 +3291,6 @@ models_usage() {
     "  npx $npm_package_name models $c                          # list models" \
     "  npx $npm_package_name models enable  <id> [<id>…] $c" \
     "  npx $npm_package_name models disable <id> [<id>…] $c" \
-    "  npx $npm_package_name models providers $c                # list providers" \
-    "  npx $npm_package_name models providers disable <name> $c" \
     "  npx $npm_package_name models prefer <id> [<id>…] $c      # ranking ('clear' to drop)" >&2
   exit 2
 }
@@ -3350,7 +3300,6 @@ run_models() {
   verb="$(printf '%s' "$models_args" | head -n 1)"
   operands="$(printf '%s' "$models_args" | tail -n +2)"
 
-  # `models providers …` shifts one more word: the sub-verb is the second word.
   case "$verb" in
     ""|list)
       [ -z "$operands" ] || models_usage "'models $verb' takes no arguments."
@@ -3358,28 +3307,11 @@ run_models() {
       ;;
     enable|disable)
       [ -n "$operands" ] || models_usage "'models $verb' needs at least one model id."
-      models_toggle model "$verb" "$operands"
+      models_toggle "$verb" "$operands"
       ;;
     prefer)
       [ -n "$operands" ] || models_usage "'models prefer' needs model ids, or 'clear'."
       models_prefer "$operands"
-      ;;
-    providers)
-      local sub rest
-      sub="$(printf '%s' "$operands" | head -n 1)"
-      rest="$(printf '%s' "$operands" | tail -n +2)"
-      case "$sub" in
-        ""|list)
-          models_providers_list
-          ;;
-        enable|disable)
-          [ -n "$rest" ] || models_usage "'models providers $sub' needs at least one provider name."
-          models_toggle provider "$sub" "$rest"
-          ;;
-        *)
-          models_usage "Unknown providers sub-command: '$sub'."
-          ;;
-      esac
       ;;
     *)
       models_usage "Unknown models sub-command: '$verb'."
@@ -3659,7 +3591,7 @@ fi
 # ---------- identity (user email + name) ----------
 #
 # The router parses X-Aiand-User-Email and X-Aiand-User-Name on every protocol
-# (Anthropic, OpenAI/Codex, Gemini) and persists them onto
+# (Anthropic, OpenAI/Codex) and persists them onto
 # router.model_router_users so customers can attribute traffic to a person even
 # when many people share one API key. We plant the headers at install time
 # because Claude Code's metadata.user_id payload carries only account_uuid (no
