@@ -172,9 +172,9 @@ func TestLoadRegistry_Roundtrip(t *testing.T) {
 	got, err := loadRegistry(raw)
 	require.NoError(t, err)
 	require.Len(t, got.DeployedModels, 2)
-	assert.Equal(t, "aiand", got.DeployedModels[0].Provider)
+	assert.Equal(t, providers.ProviderAIAND, got.DeployedModels[0].Provider)
 	assert.Equal(t, "moonshotai/kimi-k3", got.DeployedModels[0].Model)
-	assert.Equal(t, "aiand", got.DeployedModels[1].Provider)
+	assert.Equal(t, providers.ProviderAIAND, got.DeployedModels[1].Provider)
 	assert.ElementsMatch(t, []string{"moonshotai/kimi-k3", "z-ai/glm-5.3-flash"}, got.Models())
 }
 
@@ -461,7 +461,7 @@ func TestFastestModel_RealLatestBundle_LowTierResolves(t *testing.T) {
 	_, cheapM, ok := CheapestModelInSet(bundle.Registry, available, nil, allow)
 	require.True(t, ok)
 
-	assert.Equal(t, "aiand", fastP)
+	assert.Equal(t, providers.ProviderAIAND, fastP)
 	assert.NotEmpty(t, fastM, "fastest low-tier model")
 	assert.Equal(t, cheapM, fastM, "with no throughput table the fastest pick is the cheapest")
 }

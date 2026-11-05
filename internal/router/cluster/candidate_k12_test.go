@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/router/catalog"
 )
 
@@ -63,7 +64,7 @@ func TestCandidateK12Loads(t *testing.T) {
 
 	// ai& is the only upstream, so the deploy's provider set is a single key.
 	providers := map[string]struct{}{
-		"aiand": {},
+		providers.ProviderAIAND: {},
 	}
 
 	// Build a real Scorer through the jina-v2 fake embedder (matches id/dim, so

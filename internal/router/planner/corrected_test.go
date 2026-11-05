@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/catalog"
 	"aiand-os/router/internal/router/planner"
@@ -30,10 +31,10 @@ func correctedInputs(pinModel, freshModel string, tokens, prefix, priorOut int, 
 	return planner.Inputs{
 		Pin: sessionpin.Pin{
 			Model:           pinModel,
-			Provider:        "aiand",
+			Provider:        providers.ProviderAIAND,
 			LastTurnEndedAt: time.Now().Add(-time.Minute),
 		},
-		Fresh:                 router.Decision{Model: freshModel, Provider: "aiand"},
+		Fresh:                 router.Decision{Model: freshModel, Provider: providers.ProviderAIAND},
 		EstimatedInputTokens:  tokens,
 		CacheablePrefixTokens: prefix,
 		CachePrefixKnown:      true,

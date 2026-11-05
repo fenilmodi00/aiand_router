@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/router/catalog"
 
 	"github.com/stretchr/testify/assert"
@@ -296,10 +297,10 @@ func TestRoutingDistribution_ExcludedProviderDropsSingleBindingModels(t *testing
 		c, ok := catalog.ByID(m)
 		require.Truef(t, ok, "mix model %q must be a catalog model", m)
 		require.Lenf(t, c.Providers, 1, "mix model %q must have exactly one binding", m)
-		require.Equal(t, "aiand", c.Providers[0].Provider)
+		require.Equal(t, providers.ProviderAIAND, c.Providers[0].Provider)
 	}
 
-	_, err = s.RoutingDistribution(21, nil, map[string]struct{}{"aiand": {}})
+	_, err = s.RoutingDistribution(21, nil, map[string]struct{}{providers.ProviderAIAND: {}})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrNoEligibleProvider)
 }

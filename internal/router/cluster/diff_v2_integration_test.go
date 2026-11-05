@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/router"
 )
 
@@ -72,14 +73,14 @@ func TestV2MatchesV1(t *testing.T) {
 	cfg := DefaultConfig()
 	// Single-shot decisions — both scorers see the same top-p clusters.
 	available := map[string]struct{}{
-		"aiand":  {},
-		"aiand":     {},
-		"aiand":     {},
-		"aiand": {},
-		"aiand":  {},
-		"aiand":     {},
-		"aiand":   {},
-		"aiand":    {},
+		providers.ProviderAIAND: {},
+		providers.ProviderAIAND: {},
+		providers.ProviderAIAND: {},
+		providers.ProviderAIAND: {},
+		providers.ProviderAIAND: {},
+		providers.ProviderAIAND: {},
+		providers.ProviderAIAND: {},
+		providers.ProviderAIAND: {},
 	}
 	v1Scorer, err := NewScorer(v1Bundle, cfg, emb, available)
 	require.NoError(t, err)

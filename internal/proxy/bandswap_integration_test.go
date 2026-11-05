@@ -23,16 +23,16 @@ func TestOrderBandPair_ByTier(t *testing.T) {
 	}
 
 	anchorLarge := sessionpin.Pin{
-		Provider: "aiand", Model: "deepseek/deepseek-v4-pro",
-		PairedProvider: "aiand", PairedModel: "z-ai/glm-5.3-flash",
+		Provider: providers.ProviderAIAND, Model: "deepseek/deepseek-v4-pro",
+		PairedProvider: providers.ProviderAIAND, PairedModel: "z-ai/glm-5.3-flash",
 	}
 	l, s := orderBandPair(anchorLarge)
 	want(l, s, "deepseek/deepseek-v4-pro", "z-ai/glm-5.3-flash")
 
 	// Same pair, anchor and runner-up swapped -> identical large/small split.
 	anchorSmall := sessionpin.Pin{
-		Provider: "aiand", Model: "z-ai/glm-5.3-flash",
-		PairedProvider: "aiand", PairedModel: "deepseek/deepseek-v4-pro",
+		Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3-flash",
+		PairedProvider: providers.ProviderAIAND, PairedModel: "deepseek/deepseek-v4-pro",
 	}
 	l, s = orderBandPair(anchorSmall)
 	want(l, s, "deepseek/deepseek-v4-pro", "z-ai/glm-5.3-flash")

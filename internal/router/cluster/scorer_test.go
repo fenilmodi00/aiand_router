@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/catalog"
 )
@@ -119,7 +120,7 @@ func twoClusterArtifacts(t *testing.T) (centroidsBlob, rankingsBlob, registryBlo
 
 func allProviders() map[string]struct{} {
 	return map[string]struct{}{
-		"aiand": {},
+		providers.ProviderAIAND: {},
 	}
 }
 
@@ -160,7 +161,7 @@ func TestScorer_PicksClusterAlignedModel(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "moonshotai/kimi-k3", got.Model)
-	assert.Equal(t, "aiand", got.Provider)
+	assert.Equal(t, providers.ProviderAIAND, got.Provider)
 	assert.Contains(t, got.Reason, "cluster:v-test top_p=[0]")
 	assert.Contains(t, got.Reason, "model=moonshotai/kimi-k3")
 }
@@ -237,7 +238,7 @@ func TestScorer_PopulatesBandPair(t *testing.T) {
 	require.Equal(t, "moonshotai/kimi-k3", got.Model, "chosen must be the cluster-preferred model")
 	assert.Equal(t, "z-ai/glm-5.3-flash", got.Metadata.PairedModel,
 		"paired must be the runner-up, not the chosen model")
-	assert.Equal(t, "aiand", got.Metadata.PairedProvider)
+	assert.Equal(t, providers.ProviderAIAND, got.Metadata.PairedProvider)
 	assert.NotEqual(t, got.Model, got.Metadata.PairedModel, "the pair must be two distinct models")
 	assert.Less(t, got.Metadata.PairedScore, got.Metadata.ChosenScore,
 		"the runner-up must score below the chosen model")
@@ -252,7 +253,7 @@ func TestScorer_BandPairEmptyForSingleModel(t *testing.T) {
 	cb := buildCentroidsBlob(t, 1, dim, c0)
 	rb := []byte(`{"rankings": {"0": {"moonshotai/kimi-k3": 0.9}}}`)
 	regb := []byte(`{"deployed_models": [{"model": "moonshotai/kimi-k3", "provider": "aiand", "bench_column": "z-ai/glm-5.3", "proxy": true}]}`)
-	s, err := NewScorer(bundleFromBlobs(t, "v-test", cb, rb, regb), cfgForTest(), &fakeEmbedder{vec: makeOpusVec()}, map[string]struct{}{"aiand": {}})
+	s, err := NewScorer(bundleFromBlobs(t, "v-test", cb, rb, regb), cfgForTest(), &fakeEmbedder{vec: makeOpusVec()}, map[string]struct{}{providers.ProviderAIAND: {}})
 	require.NoError(t, err)
 
 	got, err := s.Route(context.Background(), router.Request{PromptText: strings.Repeat("x", 100)})
@@ -299,7 +300,7 @@ func imageFilterArtifacts(t *testing.T) (centroidsBlob, rankingsBlob, registryBl
 func TestScorer_DropsTextOnlyModelOnImageTurn(t *testing.T) {
 	cb, rb, regb := imageFilterArtifacts(t)
 	bundle := bundleFromBlobs(t, "v-test", cb, rb, regb)
-	available := map[string]struct{}{"aiand": {}}
+	available := map[string]struct{}{providers.ProviderAIAND: {}}
 	s, err := NewScorer(bundle, cfgForTest(), &fakeEmbedder{vec: makeOpusVec()}, available)
 	require.NoError(t, err)
 
@@ -326,7 +327,7 @@ func TestScorer_KeepsTextOnlyPoolWhenNoImageCapableCandidate(t *testing.T) {
 	rb := []byte(`{"rankings": {"0": {"z-ai/glm-5.3": 0.9}}}`)
 	regb := []byte(`{"deployed_models": [{"model": "z-ai/glm-5.3", "provider": "aiand", "bench_column": "x", "proxy": true}]}`)
 	bundle := bundleFromBlobs(t, "v-test", cb, rb, regb)
-	s, err := NewScorer(bundle, cfgForTest(), &fakeEmbedder{vec: makeOpusVec()}, map[string]struct{}{"aiand": {}})
+	s, err := NewScorer(bundle, cfgForTest(), &fakeEmbedder{vec: makeOpusVec()}, map[string]struct{}{providers.ProviderAIAND: {}})
 	require.NoError(t, err)
 
 	// No image-capable candidate deployed: the scorer still returns a
@@ -531,7 +532,7 @@ func TestScorer_QwenBundleRoutes(t *testing.T) {
 	d, err := s.Route(context.Background(), router.Request{PromptText: "design a distributed system"})
 	require.NoError(t, err)
 	assert.Equal(t, "moonshotai/kimi-k3", d.Model)
-	assert.Equal(t, "aiand", d.Provider)
+	assert.Equal(t, providers.ProviderAIAND, d.Provider)
 }
 
 func TestNewScorer_RejectsRankingsMissingDeployedModel(t *testing.T) {
@@ -589,12 +590,12 @@ func TestScorer_FiltersOutUnregisteredProvider(t *testing.T) {
 
 	// With ai& wired, the highest-scoring deployed model wins.
 	s, err := NewScorer(bundleFromBlobs(t, "v-test", cb, rb, regb), cfg, &fakeEmbedder{vec: makeOpusVec()},
-		map[string]struct{}{"aiand": {}})
+		map[string]struct{}{providers.ProviderAIAND: {}})
 	require.NoError(t, err)
 	got, err := s.Route(context.Background(), router.Request{PromptText: strings.Repeat("x", 100)})
 	require.NoError(t, err)
 	assert.Equal(t, "deepseek/deepseek-v4-pro", got.Model)
-	assert.Equal(t, "aiand", got.Provider)
+	assert.Equal(t, providers.ProviderAIAND, got.Provider)
 	assert.Contains(t, got.Reason, "provider=aiand")
 }
 
@@ -617,12 +618,12 @@ func TestScorer_MultiBindingPrefersPrimaryWhenBothAvailable(t *testing.T) {
 	cfg.TopP = 1
 
 	s, err := NewScorer(bundleFromBlobs(t, "v-test", cb, rb, regb), cfg, &fakeEmbedder{vec: makeOpusVec()},
-		map[string]struct{}{"aiand": {}})
+		map[string]struct{}{providers.ProviderAIAND: {}})
 	require.NoError(t, err)
 	got, err := s.Route(context.Background(), router.Request{PromptText: strings.Repeat("x", 100)})
 	require.NoError(t, err)
 	assert.Equal(t, "moonshotai/kimi-k3", got.Model)
-	assert.Equal(t, "aiand", got.Provider, "with both providers wired, the primary binding wins")
+	assert.Equal(t, providers.ProviderAIAND, got.Provider, "with both providers wired, the primary binding wins")
 }
 
 func TestScorer_DedupesDuplicateRegistryEntries(t *testing.T) {
@@ -761,7 +762,7 @@ func newTwoProviderScorer(t *testing.T, emb Embedder) *Scorer {
 	t.Helper()
 	cb, rb, regb := twoProviderArtifacts(t)
 	bundle := bundleFromBlobs(t, "v-test-2p", cb, rb, regb)
-	available := map[string]struct{}{"aiand": {}}
+	available := map[string]struct{}{providers.ProviderAIAND: {}}
 	s, err := NewScorer(bundle, cfgForTest(), emb, available)
 	require.NoError(t, err)
 	return s
@@ -779,7 +780,7 @@ func TestScorer_NilEnabledProvidersPreservesBootBehavior(t *testing.T) {
 	require.NoError(t, err)
 	// Cluster 0 ranks deepseek-v4-pro above kimi-k3; without gating, it wins.
 	assert.Equal(t, "deepseek/deepseek-v4-pro", got.Model)
-	assert.Equal(t, "aiand", got.Provider)
+	assert.Equal(t, providers.ProviderAIAND, got.Provider)
 }
 
 // Load-bearing: restricting EnabledProviders to the wired provider keeps
@@ -791,11 +792,11 @@ func TestScorer_EnabledProvidersGatesArgmax(t *testing.T) {
 
 	got, err := s.Route(context.Background(), router.Request{
 		PromptText:       strings.Repeat("x", 100),
-		EnabledProviders: map[string]struct{}{"aiand": {}},
+		EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}},
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "deepseek/deepseek-v4-pro", got.Model)
-	assert.Equal(t, "aiand", got.Provider)
+	assert.Equal(t, providers.ProviderAIAND, got.Provider)
 
 	_, err = s.Route(context.Background(), router.Request{
 		PromptText:       strings.Repeat("x", 100),
@@ -829,13 +830,13 @@ func TestScorer_ExcludedModelsRemovesFromArgmax(t *testing.T) {
 	s := newTwoProviderScorer(t, emb)
 
 	got, err := s.Route(context.Background(), router.Request{
-		PromptText:     strings.Repeat("x", 100),
+		PromptText: strings.Repeat("x", 100),
 		Exclusions: router.RequestedExclusions(map[string]struct{}{"deepseek/deepseek-v4-pro": {}}),
 	})
 	require.NoError(t, err)
 	// Without exclusion deepseek-v4-pro wins; excluding it forces argmax onto kimi-k3.
 	assert.Equal(t, "moonshotai/kimi-k3", got.Model)
-	assert.Equal(t, "aiand", got.Provider)
+	assert.Equal(t, providers.ProviderAIAND, got.Provider)
 	assert.NotContains(t, got.Metadata.ScorerRescuePool, "deepseek/deepseek-v4-pro")
 }
 
@@ -849,7 +850,7 @@ func TestScorer_AutomaticExcludedModelsRemovesFromArgmax(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "moonshotai/kimi-k3", got.Model)
-	assert.Equal(t, "aiand", got.Provider)
+	assert.Equal(t, providers.ProviderAIAND, got.Provider)
 	assert.NotContains(t, got.Metadata.CandidateModels, "deepseek/deepseek-v4-pro")
 	assert.Contains(t, got.Metadata.ScorerRescuePool, "deepseek/deepseek-v4-pro")
 }
@@ -863,7 +864,7 @@ func TestScorer_AutomaticExcludedModelsEmptyingPoolStillRoutes(t *testing.T) {
 	got, err := s.Route(context.Background(), router.Request{
 		PromptText: strings.Repeat("x", 100),
 		AutomaticExcludedModels: map[string]struct{}{
-			"z-ai/glm-5.3":           {},
+			"z-ai/glm-5.3":       {},
 			"moonshotai/kimi-k3": {},
 		},
 	})
@@ -930,7 +931,7 @@ func TestScorer_HasToolsFallsBackWhenAgenticFilterEmptiesPool(t *testing.T) {
 	cfg := cfgForTest()
 	cfg.TopP = 1
 	s, err := NewScorer(bundleFromBlobs(t, "v-test-agenticfallback", cb, rb, regb), cfg, &fakeEmbedder{vec: makeOpusVec()},
-		map[string]struct{}{"aiand": {}})
+		map[string]struct{}{providers.ProviderAIAND: {}})
 	require.NoError(t, err)
 
 	// has_tools=true: filter would empty the pool, so we keep minimax-m3
@@ -958,7 +959,7 @@ func TestScorer_HasToolsFallsBackWhenFilterEmptiesPool(t *testing.T) {
 	cfg := cfgForTest()
 	cfg.TopP = 1
 	s, err := NewScorer(bundleFromBlobs(t, "v-test-fallback", cb, rb, regb), cfg, &fakeEmbedder{vec: makeOpusVec()},
-		map[string]struct{}{"aiand": {}})
+		map[string]struct{}{providers.ProviderAIAND: {}})
 	require.NoError(t, err)
 
 	// has_tools=true: filter would empty the pool, so we keep qwen3-235b
@@ -1009,7 +1010,7 @@ func TestScorer_DropsCatalogRetiredRegistryEntries(t *testing.T) {
 	cfg := cfgForTest()
 	cfg.TopP = 1
 	s, err := NewScorer(bundleFromBlobs(t, "v-test-retired", cb, rb, regb), cfg, &fakeEmbedder{vec: makeOpusVec()},
-		map[string]struct{}{"aiand": {}})
+		map[string]struct{}{providers.ProviderAIAND: {}})
 	require.NoError(t, err)
 
 	for _, e := range s.DeployedModels() {
