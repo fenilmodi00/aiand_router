@@ -86,6 +86,14 @@ func main() {
 		logger.Error("Failed to parse postgres DSN", "err", err)
 		panic(err)
 	}
+	// Defense-in-depth: pin every connection to the router schema so a missing
+	// `?search_path=router` in DATABASE_URL can't leak into public.*.
+	// Assigned before ConfigureTimeouts so its pooler-compat hook can wrap
+	// this one (AfterConnect composition order is set-once).
+	cfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		_, err := conn.Exec(ctx, "SET search_path TO router, public")
+		return err
+	}
 	poolconfig.ConfigureTimeouts(cfg)
 	clientTLS, err := pgtls.Configure(cfg)
 	if err != nil {
@@ -101,12 +109,6 @@ func main() {
 		panic(err)
 	}
 	cfg.ConnConfig.Tracer = dbTracer
-	// Defense-in-depth: pin every connection to the router schema so a missing
-	// `?search_path=router` in DATABASE_URL can't leak into public.*.
-	cfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
-		_, err := conn.Exec(ctx, "SET search_path TO router, public")
-		return err
-	}
 	// 6 conns covers MarkUsed writes plus session-pin traffic (auth-cache and
 	// the in-proc LRU absorb most reads). If pgxpool wait p95 climbs above 1ms
 	// with pinning on, that's the migrate-to-Memorystore signal, not a bigger pool.

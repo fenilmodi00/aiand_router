@@ -2,13 +2,13 @@ package auth
 
 import (
 	"bytes"
-	"testing"
-
+	"encoding/base64"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tink-crypto/tink-go/v2/aead"
 	"github.com/tink-crypto/tink-go/v2/insecurecleartextkeyset"
 	"github.com/tink-crypto/tink-go/v2/keyset"
+	"testing"
 )
 
 // TestAADFor_GoldenBytes pins the AAD format. The matching test in
@@ -32,6 +32,30 @@ func TestTinkEncryptor_RoundTrip(t *testing.T) {
 	got, err := enc.Decrypt(ciphertext, externalID, provider)
 	require.NoError(t, err)
 	assert.Equal(t, plaintext, got)
+}
+
+// TestTinkEncryptor_Base64Keyset verifies the base64 fallback: config-var
+// stores that strip embedded double quotes mangle raw keyset JSON, so the
+// keyset must survive a base64 round-trip. Values that are already keyset
+// JSON are used verbatim (covered by RoundTrip above).
+func TestTinkEncryptor_Base64Keyset(t *testing.T) {
+	var buf bytes.Buffer
+	handle, err := keyset.NewHandle(aead.AES256GCMKeyTemplate())
+	require.NoError(t, err)
+	require.NoError(t, insecurecleartextkeyset.Write(handle, keyset.NewJSONWriter(&buf)))
+
+	encoded := base64.StdEncoding.EncodeToString(buf.Bytes())
+	enc, err := NewTinkEncryptor(encoded)
+	require.NoError(t, err)
+
+	ciphertext, err := enc.Encrypt([]byte("sk-secret"), "org_test", "anthropic")
+	require.NoError(t, err)
+	plaintext, err := enc.Decrypt(ciphertext, "org_test", "anthropic")
+	require.NoError(t, err)
+	assert.Equal(t, []byte("sk-secret"), plaintext)
+
+	_, err = NewTinkEncryptor("not-base64-$$$")
+	require.Error(t, err)
 }
 
 // TestTinkEncryptor_DecryptRejectsMismatchedAAD is the core security

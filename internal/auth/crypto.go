@@ -2,7 +2,9 @@ package auth
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
+	"strings"
 
 	"github.com/tink-crypto/tink-go/v2/aead"
 	"github.com/tink-crypto/tink-go/v2/insecurecleartextkeyset"
@@ -23,8 +25,19 @@ type tinkEncryptor struct {
 	aead tink.AEAD
 }
 
-// NewTinkEncryptor creates an Encryptor from a Tink keyset JSON.
+// NewTinkEncryptor creates an Encryptor from a Tink keyset JSON. The keyset
+// may alternatively be supplied base64-encoded (standard encoding): some
+// config-var stores mangle embedded double quotes in raw JSON, so operators
+// can round-trip the keyset through base64 to survive them. Values that
+// already parse as keyset JSON are used verbatim.
 func NewTinkEncryptor(keysetJSON string) (Encryptor, error) {
+	if !strings.HasPrefix(strings.TrimSpace(keysetJSON), "{") {
+		decoded, err := base64.StdEncoding.DecodeString(strings.TrimSpace(keysetJSON))
+		if err != nil {
+			return nil, fmt.Errorf("decode base64 keyset: %w", err)
+		}
+		keysetJSON = string(decoded)
+	}
 	reader := keyset.NewJSONReader(bytes.NewBufferString(keysetJSON))
 	handle, err := insecurecleartextkeyset.Read(reader)
 	if err != nil {
