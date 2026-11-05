@@ -294,3 +294,17 @@ The eval harness is a sibling uv project, **not in this repo** — lives at `rou
 - **"Should I commit `internal/sqlc/`?"** Yes. Dockerfile + CI builds depend on generated code being present. Run `make generate` before committing migration or query changes.
 - **"How do I run one-off query against local DB?"** `docker compose exec postgres psql -U router -d router`. Migrate step has already applied schema. (Router lives in `router` schema; pool's `AfterConnect` hook pins `search_path` so accidental writes to `public.*` are impossible.)
 - **"How do I add new OpenAI-compatible upstream?"** Add `*BaseURL` constant to `internal/providers/openaicompat`, provider-name constant + env-var entry to `internal/providers/provider.go`, registration block in `cmd/router/main.go`. No new adapter package. See [internal/providers/CLAUDE.md](internal/providers/CLAUDE.md).
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in this repo's GitHub Issues (`gh` CLI, `fenilmodi00/aiand_router`). See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Five canonical triage roles; the label string equals the role name (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one root `CONTEXT.md` plus `docs/adr/`. See `docs/agents/domain.md`.
