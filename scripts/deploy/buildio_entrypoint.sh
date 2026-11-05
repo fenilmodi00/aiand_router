@@ -104,16 +104,19 @@ if [ "${ROUTER_RUN_MIGRATIONS:-1}" != "0" ]; then
   log "Pre-creating schema router (migrate's bookkeeping table needs it)"
   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c 'CREATE SCHEMA IF NOT EXISTS router;'
 
-  # golang-migrate takes no search_path flag; append it to the DSN.
-  # DATABASE_URL may or may not already carry a query string
-  # (e.g. postgres://…?sslmode=require).
-  case "$DATABASE_URL" in
-    *\?*) dsn="${DATABASE_URL}&search_path=router" ;;
-    *)    dsn="${DATABASE_URL}?search_path=router" ;;
-  esac
+  # The migrate bookkeeping table must land in the router schema. Some
+  # managed Postgres endpoints front a pooler (e.g. PgBouncer) that
+  # rejects `search_path` as a DSN startup parameter, so instead of
+  # appending it to the URL, set it as the role's session default —
+  # ALTER ROLE ... SET applies to every future connection regardless of
+  # pooler. The migrations' DDL is fully router.-qualified, so only the
+  # schema_migrations table actually depends on this default.
+  db_user=$(psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -tAc 'SELECT current_user;')
+  psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
+    -c "ALTER ROLE ${db_user} SET search_path TO router;"
 
   log "Running migrations from /migrations"
-  migrate -path /migrations -database "$dsn" up
+  migrate -path /migrations -database "$DATABASE_URL" up
   log "Migrations applied"
 else
   log "ROUTER_RUN_MIGRATIONS=0; skipping migrations"
