@@ -179,6 +179,8 @@ const (
 	ModelIDGLM53Flash ModelID = "z-ai/glm-5.3-flash"
 	// ModelIDMotif3 is the Motif 3 routing ID.
 	ModelIDMotif3 ModelID = "motif/motif-3"
+	// ModelIDMuseSpark is the Muse Spark routing ID.
+	ModelIDMuseSpark ModelID = "meta/muse-spark"
 	// ModelIDQwen3827B is the Qwen 3.8 27B routing ID.
 	ModelIDQwen3827B ModelID = "qwen/qwen3.8-27b"
 	// ModelIDQwen3627B is the Qwen 3.6 27B routing ID.
@@ -237,6 +239,7 @@ var (
 	effortsLowHighMax         = []string{"low", "high", "max"}
 	effortsNoneHigh           = []string{"none", "high"}
 	effortsNoneLowMediumXHigh = []string{"none", "low", "medium", "xhigh"}
+	effortsLowMediumHighXHigh = []string{"low", "medium", "high", "xhigh"}
 )
 
 // Effort level names shared with the router's canonical effort vocabulary.
@@ -317,6 +320,14 @@ var Models = []Model{
 	{ID: ModelIDMotif3.String(), Source: SourceOpenSource, Tier: TierMid, ContextWindow: 262_144, ImageInput: ImageInputUnsupported, ReasoningEfforts: effortsNoneHigh, DefaultEffort: effortHigh, Providers: []ProviderBinding{
 		{Provider: providers.ProviderAIAND, UpstreamID: "motif-technologies/motif-3",
 			Price: Pricing{InputUSDPer1M: 0.500, OutputUSDPer1M: 2.000, CacheReadMultiplier: 0.20 / 0.500}},
+	}},
+	// Muse Spark: day-0 multimodal (image+video) Meta open-weights model;
+	// ImageInput stays default. High-tier lane; proxied onto kimi-k3's
+	// quality column in bundle v1.1, so like kimi-k3 it wins no cluster
+	// (its $1.25/$4.25 pricing keeps it out of every lane).
+	{ID: ModelIDMuseSpark.String(), Source: SourceOpenSource, Tier: TierHigh, ContextWindow: 1_048_576, ReasoningEfforts: effortsLowMediumHighXHigh, DefaultEffort: effortXHigh, Providers: []ProviderBinding{
+		{Provider: providers.ProviderAIAND, UpstreamID: "meta/muse-spark-open",
+			Price: Pricing{InputUSDPer1M: 1.250, OutputUSDPer1M: 4.250, CacheReadMultiplier: 0.15 / 1.250}},
 	}},
 	// Qwen 3.8 27B: mid-tier multimodal reasoner; the only catalog model that
 	// accepts the "xhigh" effort level.

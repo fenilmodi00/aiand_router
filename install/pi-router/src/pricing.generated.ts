@@ -7,13 +7,14 @@ export interface ModelPricing {
 	cacheReadMultiplier: number;
 }
 
-export const PRICING_VERSION = "catalog-sha256:b082e32330471fe4";
+export const PRICING_VERSION = "catalog-sha256:fca92ebafa5e8f6e";
 
 export const MODEL_PRICING: Readonly<Record<string, ModelPricing>> = Object.freeze({
 	"deepseek/deepseek-v4-pro": { inputUsdPerMillion: 1, outputUsdPerMillion: 2.5, cacheReadMultiplier: 0.25 },
 	"deepseek/deepseek-v4-pro-0813": { inputUsdPerMillion: 1, outputUsdPerMillion: 2.5, cacheReadMultiplier: 0.25 },
 	"deepseek/deepseek-v4.1-flash": { inputUsdPerMillion: 0.3, outputUsdPerMillion: 0.6, cacheReadMultiplier: 0.06666666666666667 },
 	"google/gemma-4-31b": { inputUsdPerMillion: 0.2, outputUsdPerMillion: 0.5, cacheReadMultiplier: 0.5 },
+	"meta/muse-spark": { inputUsdPerMillion: 1.25, outputUsdPerMillion: 4.25, cacheReadMultiplier: 0.12 },
 	"moonshotai/kimi-k3": { inputUsdPerMillion: 3, outputUsdPerMillion: 12.5, cacheReadMultiplier: 0.16666666666666666 },
 	"motif/motif-3": { inputUsdPerMillion: 0.5, outputUsdPerMillion: 2, cacheReadMultiplier: 0.4 },
 	"openai/gpt-oss-120b": { inputUsdPerMillion: 0.15, outputUsdPerMillion: 0.6, cacheReadMultiplier: 0.5 },

@@ -79,5 +79,5 @@ func TestApprovedRosterMatchesTieredRows(t *testing.T) {
 		assert.Containsf(t, approved, m.ID,
 			"tiered model %q is not in ApprovedAutoRoutedModels — it would auto-route without operator approval", m.ID)
 	}
-	assert.Len(t, ApprovedAutoRoutedModels, 7, "approved roster size")
+	assert.Len(t, ApprovedAutoRoutedModels, 8, "approved roster size")
 }

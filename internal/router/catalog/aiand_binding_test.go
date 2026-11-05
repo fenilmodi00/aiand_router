@@ -20,6 +20,7 @@ var aiandUpstreamIDs = map[string]string{
 	"z-ai/glm-5.3":                  "zai-org/glm-5.3",
 	"z-ai/glm-5.3-flash":            "zai-org/glm-5.3-flash",
 	"motif/motif-3":                 "motif-technologies/motif-3",
+	"meta/muse-spark":               "meta/muse-spark-open",
 	"qwen/qwen3.8-27b":              "qwen/qwen3.8-27b",
 	"qwen/qwen3.6-27b":              "qwen/qwen3.6-27b",
 	"google/gemma-4-31b":            "google/gemma-4-31b-it",

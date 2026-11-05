@@ -1,5 +1,5 @@
 {
-  "pricing_version": "catalog-sha256:b082e32330471fe4",
+  "pricing_version": "catalog-sha256:fca92ebafa5e8f6e",
   "models": {
     "deepseek/deepseek-v4-pro": {
       "input_usd_per_million": 1,
@@ -23,6 +23,12 @@
       "input_usd_per_million": 0.2,
       "output_usd_per_million": 0.5,
       "cache_read_multiplier": 0.5,
+      "cache_write_multiplier": 1.25
+    },
+    "meta/muse-spark": {
+      "input_usd_per_million": 1.25,
+      "output_usd_per_million": 4.25,
+      "cache_read_multiplier": 0.12,
       "cache_write_multiplier": 1.25
     },
     "moonshotai/kimi-k3": {

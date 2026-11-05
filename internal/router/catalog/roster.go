@@ -18,6 +18,7 @@ var ApprovedAutoRoutedModels = []ModelID{
 	ModelIDGLM53,
 	ModelIDGLM53Flash,
 	ModelIDMotif3,
+	ModelIDMuseSpark,
 	ModelIDQwen3827B,
 }
 

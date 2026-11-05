@@ -113,8 +113,8 @@ func TestRoutingTargetSet_FiltersByTierAndRegisteredProviders(t *testing.T) {
 	assert.NotContains(t, targets, "openai/gpt-oss-120b", "untiered pin-only models must not become routing targets")
 }
 
-// The catalog is 11 rows: 7 tiered routing targets and 4 pin-only rows.
-func TestCatalog_TierSplitIsSevenRoutingFourPinOnly(t *testing.T) {
+// The catalog is 12 rows: 8 tiered routing targets and 4 pin-only rows.
+func TestCatalog_TierSplitIsEightRoutingFourPinOnly(t *testing.T) {
 	tiered, untiered := 0, 0
 	for _, m := range Models {
 		if m.Tier == TierUnknown {
@@ -123,9 +123,9 @@ func TestCatalog_TierSplitIsSevenRoutingFourPinOnly(t *testing.T) {
 		}
 		tiered++
 	}
-	assert.Equal(t, 7, tiered, "routing (tiered) models")
+	assert.Equal(t, 8, tiered, "routing (tiered) models")
 	assert.Equal(t, 4, untiered, "pin-only (untiered) models")
-	assert.Len(t, Models, 11)
+	assert.Len(t, Models, 12)
 }
 
 func TestRoutingTargetSet_ExcludesUnregisteredProviders(t *testing.T) {
@@ -246,4 +246,14 @@ func TestGLM53FlashPricing(t *testing.T) {
 	assert.InDelta(t, 0.150, p.InputUSDPer1M, 1e-9)
 	assert.InDelta(t, 0.500, p.OutputUSDPer1M, 1e-9)
 	assert.InDelta(t, 0.03/0.150, p.CacheReadMultiplier, 1e-9)
+}
+
+// TestMuseSparkPricing pins the muse-spark row's list prices against the
+// ai& models list (input $1.25, output $4.25, cache read $0.15 per 1M).
+func TestMuseSparkPricing(t *testing.T) {
+	p, ok := PriceFor(providers.ProviderAIAND, "meta/muse-spark")
+	require.True(t, ok)
+	assert.InDelta(t, 1.250, p.InputUSDPer1M, 1e-9)
+	assert.InDelta(t, 4.250, p.OutputUSDPer1M, 1e-9)
+	assert.InDelta(t, 0.15/1.25, p.CacheReadMultiplier, 1e-9)
 }
