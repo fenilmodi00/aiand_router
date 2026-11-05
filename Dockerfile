@@ -69,7 +69,10 @@ ARG ROUTER_PR=unknown
 # can pull the matching native ONNX Runtime + libtokenizers tarball.
 # Without this, building on Apple Silicon / Graviton picks up x86_64
 # binaries and the linker rejects them as "incompatible".
-ARG TARGETARCH
+# Default amd64: buildx injects TARGETARCH automatically, but build.io's
+# builder (kaniko) does not, and its /bin/sh aborts on the unset arg.
+# Build.io build infrastructure is amd64.
+ARG TARGETARCH=amd64
 
 # Pull the ONNX Runtime + libtokenizers release tarballs in one layer,
 # selecting the right arch per TARGETARCH. The CGO build needs
