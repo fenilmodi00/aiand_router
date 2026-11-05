@@ -2,6 +2,8 @@ package main
 
 import (
 	"testing"
+
+	"aiand-os/router/internal/router/catalog"
 )
 
 // Paths relative to this test's working directory (cmd/routing-report).
@@ -65,6 +67,17 @@ func TestReportRunsOnLatest(t *testing.T) {
 	for i, m := range res.chosen {
 		if m == "" {
 			t.Fatalf("probe %s (%s) routed to empty model", probes[i].ID, probes[i].Register)
+		}
+	}
+	// Approved-roster invariant: every model the scorer chose across every
+	// complexity register must be in the operator-approved auto pool. This is
+	// the same assertion routeCorpus enforces (non-zero exit on violation);
+	// re-checking the returned choices here keeps the guard true even if the
+	// in-loop check were bypassed.
+	approved := catalog.ApprovedAutoRoutedSet()
+	for i, m := range res.chosen {
+		if _, ok := approved[m]; !ok {
+			t.Fatalf("approved-roster violation: probe %s (register %s) routed to %q, which is not in catalog.ApprovedAutoRoutedModels", probes[i].ID, probes[i].Register, m)
 		}
 	}
 }

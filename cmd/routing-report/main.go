@@ -33,6 +33,7 @@ import (
 	"strings"
 
 	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/catalog"
 	"aiand-os/router/internal/router/cluster"
 )
 
@@ -219,6 +220,10 @@ func routeCorpus(artifactsDir, version string, probes []probe, embedder *staticE
 	if err != nil {
 		return nil, fmt.Errorf("new scorer: %w", err)
 	}
+	approved := catalog.ApprovedAutoRoutedSet()
+	if len(approved) == 0 {
+		return nil, fmt.Errorf("catalog approved auto-roster is empty")
+	}
 
 	res := &routeResult{
 		version:     version,
@@ -236,6 +241,11 @@ func routeCorpus(artifactsDir, version string, probes []probe, embedder *staticE
 		dec, err := scorer.Route(ctx, router.Request{PromptText: p.Text, RoutingKnobs: knobs})
 		if err != nil {
 			return nil, fmt.Errorf("route probe %s: %w", p.ID, err)
+		}
+		if _, ok := approved[dec.Model]; !ok {
+			return nil, fmt.Errorf(
+				"approved-roster violation: probe %s (register %s) routed to %q, which is not in catalog.ApprovedAutoRoutedModels — auto mode must only serve approved models",
+				p.ID, p.Register, dec.Model)
 		}
 		res.chosen[i] = dec.Model
 		if dec.Metadata != nil {

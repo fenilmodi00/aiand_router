@@ -1023,6 +1023,43 @@ func TestScorer_DropsCatalogRetiredRegistryEntries(t *testing.T) {
 	assert.Equal(t, "deepseek/deepseek-v4.1-flash", got.Model)
 }
 
+// The approved auto pool is the scorer's only candidate universe: a model
+// outside catalog.ApprovedAutoRoutedModels is pin-only even when the catalog
+// still tiers it by mistake — the scorer must not offer it. Together with
+// TestScorer_DropsCatalogRetiredRegistryEntries (untiered ⇒ dropped) this
+// makes "auto serves approved models only" a scored-path property, not just
+// a table check.
+func TestScorer_NeverOffersUnapprovedTieredModel(t *testing.T) {
+	// Premise: some catalog row is tiered but outside the approved roster.
+	// Today the roster covers every tiered row, so simulate the future
+	// regression by pinning the invariant against whatever tiered rows exist.
+	var tiered []string
+	for _, m := range catalog.Models {
+		if m.Tier != catalog.TierUnknown {
+			tiered = append(tiered, m.ID)
+		}
+	}
+	require.NotEmpty(t, tiered, "test premise: catalog has tiered rows")
+	for _, id := range tiered {
+		assert.Truef(t, catalog.IsApprovedAutoRouted(id),
+			"tiered model %q must be in the approved auto pool (catalog.ApprovedAutoRoutedModels)", id)
+	}
+
+	// And the scorer's boot candidates over the served bundle stay inside it.
+	version, err := ResolveVersion(LatestVersion)
+	require.NoError(t, err)
+	bundle, err := LoadBundle(version)
+	require.NoError(t, err)
+	s, err := NewScorer(bundle, DefaultConfig(), &fakeEmbedder{dim: bundle.Centroids.Dim},
+		map[string]struct{}{providers.ProviderAIAND: {}})
+	require.NoError(t, err)
+	approved := catalog.ApprovedAutoRoutedSet()
+	for _, e := range s.DeployedModels() {
+		assert.Containsf(t, approved, e.Model,
+			"scorer would offer %q, which is not operator-approved for auto routing", e.Model)
+	}
+}
+
 func TestScorer_V2DynamicScoring(t *testing.T) {
 	emb := &fakeEmbedder{vec: makeOpusVec()}
 	regBlob := []byte(`{
