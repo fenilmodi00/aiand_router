@@ -177,6 +177,7 @@ func summarizerRequest(scope router.Request, env *translate.RequestEnvelope) rou
 	request := router.Request{
 		EnabledProviders: scope.EnabledProviders,
 		ExcludedModels:   scope.ExcludedModels,
+		Exclusions:       scope.Exclusions,
 		CustomBindings:   scope.CustomBindings,
 	}
 	if env != nil {
@@ -198,11 +199,14 @@ func (s *ProviderSummarizer) resolve(ctx context.Context, request policy.Resolut
 		if request.RouterRequest.ExcludedModels == nil {
 			request.RouterRequest.ExcludedModels = make(map[string]struct{})
 		}
+		notPermitted := make(map[string]struct{})
 		for _, model := range catalog.Models {
 			if _, permitted := allowed[model.ID]; !permitted {
 				request.RouterRequest.ExcludedModels[model.ID] = struct{}{}
+				notPermitted[model.ID] = struct{}{}
 			}
 		}
+		request.RouterRequest.Exclusions = request.RouterRequest.Exclusions.ExcludeSet(notPermitted, router.ExclusionRequested)
 	}
 	plan, err := s.plans.Resolve(request)
 	if err != nil {

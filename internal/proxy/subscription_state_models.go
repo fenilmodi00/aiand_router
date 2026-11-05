@@ -50,7 +50,9 @@ func (s *Service) subscriptionStateRequest(ctx context.Context, req router.Reque
 	}
 	ctx = context.WithValue(ctx, subscriptionStateAllowedModelsKey{}, allowed)
 	req.AllowedModels = allowed
-	req.ExcludedModels = mergeExcludedModels(req.ExcludedModels, s.excludedModelsForRequest(ctx))
+	merged := s.excludedModelsForRequest(ctx)
+	req.Exclusions = req.Exclusions.ExcludeSet(merged, router.ExclusionRequested)
+	req.ExcludedModels = mergeExcludedModels(req.ExcludedModels, merged)
 	return ctx, req
 }
 
@@ -100,6 +102,7 @@ func (s *Service) dispatchSubscriptionStateModels(ctx context.Context, in failov
 		}
 		if permitted {
 			request.ExcludedModels = mergeExcludedModels(request.ExcludedModels, map[string]struct{}{target.Model: {}})
+			request.Exclusions = request.Exclusions.ExcludeModel(target.Model, router.ExclusionRequested)
 			paidCtx, paidReq = s.subscriptionStateRequest(paidCtx, request, paidModels)
 		}
 		if len(paidReq.AllowedModels) == 0 {

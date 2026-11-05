@@ -309,6 +309,7 @@ func (s *Service) applyTranslationPlan(ctx context.Context, req router.Request) 
 	}
 	if plan.ExcludedModels != nil {
 		req.ExcludedModels = plan.ExcludedModels
+		req.Exclusions = req.Exclusions.ExcludeSet(plan.ExcludedModels, router.ExclusionRequested)
 	}
 	for _, exclusion := range plan.Exclusions {
 		apm.RecordTranslationCompatibility(ctx,

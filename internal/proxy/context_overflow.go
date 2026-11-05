@@ -215,6 +215,7 @@ func readmitForcedContextEstimate(req router.Request, model string) router.Reque
 	if _, estimateOnly := req.ContextWindowExcludedModels[model]; !estimateOnly {
 		return req
 	}
+	req.Exclusions, _ = req.Exclusions.ReadmitForcedContextEstimate(model)
 	req.ExcludedModels = withoutModels(req.ExcludedModels, []string{model})
 	req.SafetyExcludedModels = withoutModels(req.SafetyExcludedModels, []string{model})
 	return req
