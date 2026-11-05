@@ -205,11 +205,6 @@ func (s *Service) ResolveRateLimitCooldown(ctx context.Context) time.Duration {
 	return time.Duration(seconds) * time.Second
 }
 
-// ResolveProviderOverloaded reports the ROUTER_PROVIDER_OVERLOADED flag: on,
-// the request's dispatch outcomes feed the per-model 529 circuit breaker and
-// its routing honours open circuits as deployment-wide automatic exclusions.
-// Defined in overload_breaker.go alongside the breaker wiring it gates.
-
 // ResolveNativeOpenAIResponseSignals reports the
 // ROUTER_NATIVE_OPENAI_RESPONSE_SIGNALS flag: whether an OpenAI-native turn
 // records its observed finish_reason and tool-call count on the telemetry row.

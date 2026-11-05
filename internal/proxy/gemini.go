@@ -139,14 +139,7 @@ func (s *Service) ProxyGeminiGenerateContent(ctx context.Context, body []byte, w
 		outputReserve = feats.MaxTokens
 	}
 	customBindings := s.customBindingsForRequest(ctx)
-	excluded, imageLimitExcluded := excludeImageLimitModels(feats.ImageCount, enabledProviders, customBindings, excluded, s.availableModels)
-	if len(imageLimitExcluded) > 0 {
-		log.Info("image limit pre-filter: excluded models whose bindings cap images below the request count",
-			"image_count", feats.ImageCount,
-			"excluded_models", strings.Join(imageLimitExcluded, ","),
-		)
-	}
-	hardExcluded := append([]string(nil), imageLimitExcluded...)
+	excluded, hardExcluded := applyImageLimitPrefilter(ctx, feats.ImageCount, enabledProviders, customBindings, excluded, s.availableModels)
 	overflowEstimate := env.ContextOverflowTokenEstimate()
 	excluded, ctxOverflowed := excludeContextOverflowModels(overflowEstimate, env.SignatureTokenSavings(), outputReserve, enabledProviders, excluded, s.availableModels)
 	overflowAdmitted := admitWidestOnTotalOverflow(excluded, ctxOverflowed, s.availableModels, enabledProviders, cluster.RequestBindings{Custom: s.customBindingsForRequest(ctx)})
@@ -182,7 +175,7 @@ func (s *Service) ProxyGeminiGenerateContent(ctx context.Context, body []byte, w
 		AllowedModels:                 allowedModelsForRequest(ctx),
 		SafetyExcludedModels:          withoutModelsKeep(s.safetyExcludedModels(env, outputReserve, enabledProviders, customBindings), overflowAdmitted, hardExcluded),
 		ContextWindowExcludedModels:   contextWindowOnlyExclusions(ctxOverflowed, overflowAdmitted, hardExcluded),
-		ImageLimitExcludedModels:      modelSet(imageLimitExcluded),
+		ImageLimitExcludedModels:      modelSet(hardExcluded),
 		OverflowAdmittedModels:        modelSet(overflowAdmitted),
 		PreferredModels:               s.preferredModelsForRequest(ctx),
 		RoutingKnobs:                  router.RoutingKnobsFromContext(ctx),

@@ -3,7 +3,9 @@ package proxy
 import (
 	"context"
 	"sort"
+	"strings"
 
+	"aiand-os/router/internal/observability"
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/catalog"
 )
@@ -66,4 +68,26 @@ func excludeImageLimitModels(
 	}
 	sort.Strings(removed)
 	return out, removed
+}
+
+// applyImageLimitPrefilter runs the image-limit pre-filter over a request's
+// available pool and performs the boilerplate every ingress surface shared:
+// the request-scoped log line when something was excluded, and the defensive
+// copy of the removed list that the exclusion-reporting request fields
+// (Safety/ContextWindow/ImageLimit sets) consume downstream.
+func applyImageLimitPrefilter(
+	ctx context.Context,
+	imageCount int,
+	enabledProviders map[string]struct{},
+	customBindings map[string][]string,
+	excluded, available map[string]struct{},
+) (map[string]struct{}, []string) {
+	excluded, imageLimitExcluded := excludeImageLimitModels(imageCount, enabledProviders, customBindings, excluded, available)
+	if len(imageLimitExcluded) > 0 {
+		observability.FromContext(ctx).Info("image limit pre-filter: excluded models whose bindings cap images below the request count",
+			"image_count", imageCount,
+			"excluded_models", strings.Join(imageLimitExcluded, ","),
+		)
+	}
+	return excluded, append([]string(nil), imageLimitExcluded...)
 }

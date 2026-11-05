@@ -1,14 +1,18 @@
 package proxy
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"aiand-os/router/internal/observability"
 	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/catalog"
 	"aiand-os/router/internal/translate"
 )
 
@@ -48,6 +52,21 @@ func TestExcludeImageLimitModels(t *testing.T) {
 		assert.Nil(t, excluded)
 		assert.Empty(t, removed)
 	})
+	t.Run("model with no enabled binding has no known cap", func(t *testing.T) {
+		// catalog.AcceptsImageCount treats "no enabled binding" as "no known
+		// limit": an enabled-provider set matching none of a model's bindings
+		// must not silently empty the pool on an image-heavy request.
+		const unboundProvider = "test-unbound-provider"
+		excluded, removed := excludeImageLimitModels(
+			17,
+			map[string]struct{}{unboundProvider: {}},
+			nil,
+			nil,
+			map[string]struct{}{catalog.ModelIDKimiK3.String(): {}},
+		)
+		assert.Nil(t, excluded)
+		assert.Empty(t, removed)
+	})
 	t.Run("existing exclusions are preserved copy-on-write", func(t *testing.T) {
 		existing := map[string]struct{}{"already-excluded": {}}
 		excluded, removed := excludeImageLimitModels(
@@ -63,6 +82,37 @@ func TestExcludeImageLimitModels(t *testing.T) {
 		// real exclusion); nothing is reported removed.
 		assert.Equal(t, map[string]struct{}{"already-excluded": {}}, excluded)
 		assert.Empty(t, removed)
+	})
+}
+
+func TestApplyImageLimitPrefilter(t *testing.T) {
+	// The consolidated ingress helper must behave like the raw filter plus the
+	// per-surface boilerplate it replaced: narrowed pool, a copy of the
+	// removed list for the hard-exclusion request fields, and the
+	// request-scoped log line only when something was actually excluded.
+	available := map[string]struct{}{imageCappedTestModel: {}}
+
+	t.Run("fail-open request keeps pool, returns nil list, stays quiet", func(t *testing.T) {
+		var buf bytes.Buffer
+		ctx := observability.WithLogger(context.Background(), slog.New(slog.NewTextHandler(&buf, nil)))
+		excluded, hardExcluded := applyImageLimitPrefilter(
+			ctx, 17, map[string]struct{}{providers.ProviderAIAND: {}}, nil, nil, available,
+		)
+		assert.Nil(t, excluded)
+		assert.Nil(t, hardExcluded)
+		assert.NotContains(t, buf.String(), "image limit pre-filter",
+			"no exclusion fires, so the request-scoped logger must not be touched")
+	})
+	t.Run("caller's exclusion set passes through copy-on-write", func(t *testing.T) {
+		var buf bytes.Buffer
+		ctx := observability.WithLogger(context.Background(), slog.New(slog.NewTextHandler(&buf, nil)))
+		existing := map[string]struct{}{"already-excluded": {}}
+		excluded, hardExcluded := applyImageLimitPrefilter(
+			ctx, 17, map[string]struct{}{providers.ProviderAIAND: {}}, nil, existing, available,
+		)
+		assert.Equal(t, existing, excluded, "caller's set never mutated")
+		assert.Nil(t, hardExcluded)
+		assert.NotContains(t, buf.String(), "image limit pre-filter")
 	})
 }
 
