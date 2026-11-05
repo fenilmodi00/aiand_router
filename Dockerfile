@@ -289,14 +289,17 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# gcloud CLI + bundled Pub/Sub emulator (includes the emulator's
-# bundled Python under /google-cloud-sdk/platform/bundledpythonunix).
-COPY --from=gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators /google-cloud-sdk /google-cloud-sdk
-# JRE the emulator runs on (gcloud's pubsub emulator launches java;
-# /usr/bin/java resolves into /usr/lib/jvm/java-25-openjdk-amd64).
-COPY --from=gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators /usr/lib/jvm /usr/lib/jvm
-ENV PATH="/google-cloud-sdk/bin:${PATH}" \
-    JAVA_HOME="/usr/lib/jvm/java-25-openjdk-amd64"
+# Pub/Sub emulator distribution from the gcloud emulators image; the
+# entrypoint runs its jar directly. We deliberately do NOT reuse the
+# image's bundled JRE — it targets a newer glibc than bookworm and
+# fails with "GLIBC_2.38 not found" — and skip the 844 MB gcloud CLI,
+# which only exists to shell out to `java -jar` anyway.
+COPY --from=gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators \
+  /google-cloud-sdk/platform/pubsub-emulator /opt/pubsub-emulator
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends default-jre-headless \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 # Server binary + dynamic ONNX Runtime library (linker search path),
 # mirroring build-release-stage.

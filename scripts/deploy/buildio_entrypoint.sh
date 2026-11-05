@@ -20,7 +20,7 @@
 #
 # Environment:
 #   PUBSUB_EMULATOR_HOST              set => skip emulator boot
-#   PUBSUB_EMULATOR_PORT              emulator port (default 8085)
+#   PUBSUB_EMULATOR_PORT              emulator port (default 18085)
 #   PUBSUB_PROJECT_ID                 GCP project id (default router-build)
 #   PUBSUB_TOPIC_ROUTER_INVALIDATION  topic to pre-create (main.go requires it)
 #   ROUTER_RUN_MIGRATIONS             0 disables migrations (default: run)
@@ -33,7 +33,7 @@ log() {
 
 # --- 1. Embedded Pub/Sub emulator (only when nothing provides one) ---
 if [ "${PUBSUB_EMULATOR_HOST:-}" = "" ]; then
-  port="${PUBSUB_EMULATOR_PORT:-8085}"
+  port="${PUBSUB_EMULATOR_PORT:-18085}"
   project="${PUBSUB_PROJECT_ID:-router-build}"
   topic="${PUBSUB_TOPIC_ROUTER_INVALIDATION:-}"
   log "PUBSUB_EMULATOR_HOST unset; booting embedded Pub/Sub emulator on 127.0.0.1:${port} (project ${project})"
@@ -41,8 +41,11 @@ if [ "${PUBSUB_EMULATOR_HOST:-}" = "" ]; then
   # /var/log may not exist on some minimal bases; keep the emulator's
   # output around for the failure path below.
   mkdir -p /var/log
-  gcloud beta emulators pubsub start \
-    --host-port="127.0.0.1:${port}" \
+  # Run the emulator jar directly (skipping the gcloud wrapper): the
+  # wrapper only execs java anyway, and the gcloud image's bundled JRE
+  # targets a newer glibc than this base image.
+  java -jar /opt/pubsub-emulator/lib/cloud-pubsub-emulator-*-all.jar \
+    --host=127.0.0.1 --port="${port}" \
     --project="${project}" \
     &> /var/log/pubsub-emulator.log &
 
