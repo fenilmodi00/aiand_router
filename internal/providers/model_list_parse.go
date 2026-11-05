@@ -37,13 +37,12 @@ func NewModelListStatusError(status int) error {
 }
 
 // ParseModelIDs extracts sorted, deduplicated model IDs from a model-list body.
-// It accepts the OpenAI/Anthropic shape ({"data":[{"id":...}]}) and the bare
-// array gateways publish instead, e.g. Snowflake Cortex's {"models":["..."]},
-// whose entries may be plain strings or objects keyed by id/name/model.
+// It accepts the OpenAI/Anthropic shape ({"data":[{"id":...}]}) and a top-level
+// bare array of model IDs or objects keyed by id/name/model.
 func ParseModelIDs(body []byte) ([]string, error) {
 	entries := gjson.GetBytes(body, "data")
 	if !entries.IsArray() {
-		entries = gjson.GetBytes(body, "models")
+		entries = gjson.ParseBytes(body)
 	}
 	if !entries.IsArray() {
 		return nil, ErrUnknownModelListShape

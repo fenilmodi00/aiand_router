@@ -20,10 +20,9 @@ import (
 )
 
 // DispatchErrorKind identifies which sentinel a dispatch error (from
-// ProxyMessages, ProxyOpenAIChatCompletion, ProxyOpenAIResponses, or
-// ProxyGeminiGenerateContent) matched, so a format-specific handler can pick
-// its own error-envelope "type"/"status" string without re-deriving the
-// classification itself.
+// ProxyMessages, ProxyOpenAIChatCompletion, or ProxyOpenAIResponses) matched,
+// so a format-specific handler can pick its own error-envelope
+// "type"/"status" string without re-deriving the classification itself.
 type DispatchErrorKind int
 
 const (
@@ -95,15 +94,14 @@ type DispatchErrorClass struct {
 }
 
 // ClassifyDispatchError maps the sentinel errors shared by every dispatch
-// entry point (ProxyMessages, ProxyOpenAIChatCompletion, ProxyOpenAIResponses,
-// ProxyGeminiGenerateContent) to a DispatchErrorClass. The second return value
+// entry point (ProxyMessages, ProxyOpenAIChatCompletion, ProxyOpenAIResponses)
+// to a DispatchErrorClass. The second return value
 // is false when err doesn't match any known sentinel, meaning the caller
 // should fall back to its own generic upstream-failure response.
 //
 // Callers must check c.Writer.Written() (mid-stream failure) before calling
 // this — that's HTTP-plumbing, not classification — and must handle
-// format-specific sentinels (e.g. proxy.ErrGeminiCrossFormatUnsupported)
-// themselves before falling through here.
+// format-specific sentinels themselves before falling through here.
 func ClassifyDispatchError(err error) (DispatchErrorClass, bool) {
 	var statusErr *providers.UpstreamStatusError
 	var bufferedErr *providers.UpstreamErrorResponse

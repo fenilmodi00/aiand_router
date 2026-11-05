@@ -5,8 +5,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/tidwall/gjson"
 	"aiand-os/router/internal/translate/toolcheck"
+
+	"github.com/tidwall/gjson"
 )
 
 // ToolCallEntry is one stable, client-visible tool call assembled from a

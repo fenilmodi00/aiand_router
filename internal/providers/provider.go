@@ -17,11 +17,8 @@ import (
 	"aiand-os/router/internal/router"
 )
 
-// Adding a provider is a THREE-map edit: the Provider* constant here, its
-// APIKeyEnvVars entry, and its ProviderFamilies entry. Omitting the family
-// entry makes dispatch fall through to ErrProviderNotConfigured — a silent 502
-// even though the provider looked "enabled" at boot. ValidateDispatchable and
-// the table test catch this at boot instead of in production.
+// This router dispatches to Aiand only; the Provider* constant is the single
+// canonical upstream name.
 const (
 	// ProviderAIAND is ai&'s OpenAI-compatible Chat Completions surface
 	// (api.aiand.com/v1), bearer auth. It is the only upstream this router
@@ -31,29 +28,24 @@ const (
 
 // TranslationFamily is the wire-format family a provider speaks; the proxy
 // dispatches cross-format translation off this instead of enumerated
-// provider-name lists, so a new OpenAI-compatible provider routes correctly
-// as soon as it gets a ProviderFamilies entry.
+// provider-name lists.
 type TranslationFamily int
 
 const (
-	// FamilyUnknown is the zero value (no ProviderFamilies entry).
-	// ValidateDispatchable panics at boot if a registered provider maps to it.
+	// FamilyUnknown is the zero value: no usable wire-format family.
 	FamilyUnknown TranslationFamily = iota
 	// FamilyOpenAICompat speaks the OpenAI Chat Completions wire format, the
 	// only upstream surface this router dispatches to.
 	FamilyOpenAICompat
 )
 
-// ProviderFamilies is the single source of truth for cross-format dispatch;
-// keep it covering EVERY Provider* constant (see the three-map note above).
-var ProviderFamilies = map[string]TranslationFamily{
-	ProviderAIAND: FamilyOpenAICompat,
-}
-
-// FamilyFor returns the translation family for a provider, or FamilyUnknown
-// when the provider has no ProviderFamilies entry.
+// FamilyFor returns the translation family for a provider: FamilyOpenAICompat
+// for the Aiand upstream, FamilyUnknown otherwise.
 func FamilyFor(provider string) TranslationFamily {
-	return ProviderFamilies[provider]
+	if provider == ProviderAIAND {
+		return FamilyOpenAICompat
+	}
+	return FamilyUnknown
 }
 
 // IsOpenAICompat reports whether the provider speaks the OpenAI Chat
@@ -62,20 +54,16 @@ func IsOpenAICompat(provider string) bool {
 	return FamilyFor(provider) == FamilyOpenAICompat
 }
 
-// AllProviders returns every known Provider* constant (every ProviderFamilies
-// key), sorted for deterministic iteration and display order.
+// AllProviders returns every known Provider* constant, sorted for
+// deterministic iteration and display order.
 func AllProviders() []string {
-	out := make([]string, 0, len(ProviderFamilies))
-	for p := range ProviderFamilies {
-		out = append(out, p)
-	}
-	sort.Strings(out)
-	return out
+	return []string{ProviderAIAND}
 }
 
-// ValidateDispatchable reports an error if any registered provider is missing
-// from ProviderFamilies (would silently 502 at request time). Called at boot;
-// the composition root panics on error so this fails loudly, not in prod.
+// ValidateDispatchable reports an error if any registered provider is not
+// dispatchable (no translation family, so it would silently 502 at request
+// time). Called at boot; the composition root panics on error so this fails
+// loudly, not in prod.
 func ValidateDispatchable(registered []string) error {
 	missing := make([]string, 0)
 	for _, p := range registered {
@@ -87,7 +75,7 @@ func ValidateDispatchable(registered []string) error {
 		return nil
 	}
 	sort.Strings(missing)
-	return fmt.Errorf("providers missing a ProviderFamilies entry (add them to internal/providers/provider.go): %s", strings.Join(missing, ", "))
+	return fmt.Errorf("providers with no translation family: %s", strings.Join(missing, ", "))
 }
 
 // APIKeyEnvVars maps provider name to the env var providing its deployment-level upstream API key.
@@ -109,25 +97,12 @@ func OutputExcludesReasoning(provider string) bool {
 	return false
 }
 
-// CacheTTL is the best-effort upstream prompt-cache lifetime per provider.
-// OpenAI-compatible upstreams cache on an undocumented minutes-scale window,
+// CacheTTLFor returns the best-effort upstream prompt-cache lifetime. The
+// OpenAI-compatible upstream caches on an undocumented minutes-scale window,
 // so a pin can outlive the cache — the planner uses this to stop crediting a
 // stale pin a cache-read discount it no longer earns.
-var CacheTTL = map[string]time.Duration{
-	ProviderAIAND: 5 * time.Minute,
-}
-
-// DefaultCacheTTL is the conservative fallback cache lifetime for providers
-// absent from CacheTTL.
-const DefaultCacheTTL = 5 * time.Minute
-
-// CacheTTLFor returns the best-effort prompt-cache lifetime for a provider,
-// falling back to DefaultCacheTTL for unknown providers.
 func CacheTTLFor(provider string) time.Duration {
-	if ttl, ok := CacheTTL[provider]; ok {
-		return ttl
-	}
-	return DefaultCacheTTL
+	return 5 * time.Minute
 }
 
 // HopByHopHeaders are stripped from upstream responses per RFC 7230 §6.1.
@@ -425,7 +400,7 @@ func IsUpstreamCapabilityRejection(err error) bool {
 // binding CAN accept the same schemas. Keep phrases narrow: a loose match
 // rescues a genuinely malformed request onto another provider, masking the bug.
 var schemaRejectionPhrases = []string{
-	// Fireworks grammar-compiler conflict across tool schemas.
+	// Grammar-compiler conflict across tool schemas.
 	"conflict in schema definitions",
 	// Generic grammar/structured-output rejection phrasings.
 	"failed to compile grammar",
@@ -438,10 +413,10 @@ var schemaRejectionPhrases = []string{
 }
 
 // IsUpstreamSchemaRejection reports whether err is a buffered upstream 400 from
-// the provider's tool-schema/grammar compilation — the class behind the
-// Fireworks "Conflict in schema definitions" dead turns. Cross-binding
-// retryable (a different provider's compiler accepts the same schemas); not a
-// same-binding retry signal (identical re-POST 400s identically).
+// the upstream's tool-schema/grammar compilation ("Conflict in schema
+// definitions"). Cross-binding retryable (a different provider's compiler
+// accepts the same schemas); not a same-binding retry signal (identical
+// re-POST 400s identically).
 func IsUpstreamSchemaRejection(err error) bool {
 	var buffered *UpstreamErrorResponse
 	if !errors.As(err, &buffered) || buffered.Status != http.StatusBadRequest {
@@ -541,8 +516,8 @@ func IsUpstreamPromptCacheKeyRejection(err error) bool {
 
 // responsesUnsupportedPhrases are prose bodies meaning the gateway does not
 // serve /v1/responses at all (as opposed to rejecting this particular body).
-// Snowflake Cortex gates the surface per account and answers 400/403 rather
-// than 404, so status alone can't classify it.
+// The upstream gates the surface per account and answers 400/403 rather than
+// 404, so status alone can't classify it.
 var responsesUnsupportedPhrases = []string{
 	"responses rest api not enabled",
 	"responses api not enabled",

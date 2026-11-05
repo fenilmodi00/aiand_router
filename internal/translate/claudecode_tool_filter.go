@@ -20,7 +20,7 @@ import (
 // 27% clustering on the empty-patch failure subset.
 //
 // The filter applies only on Anthropic→non-Anthropic emit paths
-// (buildOpenAIFromAnthropic and the Anthropic case of PrepareGemini). The
+// (buildOpenAIFromAnthropic; the Gemini emit path has been removed). The
 // Anthropic→Anthropic passthrough preserves them.
 //
 // Scheduling / wake-up tools (ScheduleWakeup, CronCreate/Delete/List, Monitor)

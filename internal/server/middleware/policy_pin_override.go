@@ -5,8 +5,8 @@ import (
 
 	"aiand-os/router/internal/observability"
 	"aiand-os/router/internal/requestcontext"
-	"aiand-os/router/internal/subscriptions/entitlement"
 	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/subscriptions/entitlement"
 
 	"github.com/gin-gonic/gin"
 )
@@ -63,15 +63,6 @@ func abortMalformedPolicyPin(c *gin.Context, message string) {
 				"type":    "invalid_request_error",
 				"code":    code,
 				"message": message,
-			},
-		})
-	case apiFormatGemini:
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
-			"error": gin.H{
-				"code":    http.StatusBadRequest,
-				"message": message,
-				"status":  "INVALID_ARGUMENT",
-				"details": []gin.H{{"reason": code}},
 			},
 		})
 	default:

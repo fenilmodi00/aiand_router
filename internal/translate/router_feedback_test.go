@@ -477,19 +477,6 @@ func TestExtractRouterFeedbackCommand_ArrayContentMultipleTextBlocks(t *testing.
 	assert.Equal(t, "", second["text"], "the directive-bearing text block must be stripped")
 }
 
-func TestExtractRouterFeedbackCommand_GeminiFormatIgnored(t *testing.T) {
-	body := mustMarshalJSON(t, map[string]any{
-		"contents": []any{
-			map[string]any{"role": "user", "parts": []any{map[string]any{"text": "/router-feedback bad"}}},
-		},
-	})
-	env, err := translate.ParseGemini(body)
-	require.NoError(t, err)
-
-	_, found := env.ExtractRouterFeedbackCommand()
-	assert.False(t, found, "Gemini format should not be scanned for router-feedback commands")
-}
-
 // emit.sh forwards "$*", so a multi-line note arrives under one "Output:" preamble; parsing only the first line would truncate the note and leak the rest upstream.
 func TestExtractRouterFeedbackCommand_CodexExecMultiLineNote(t *testing.T) {
 	body := mustMarshalJSON(t, map[string]any{

@@ -77,17 +77,3 @@ func TestRoutingKnobsOverride_EnvelopeAnthropic(t *testing.T) {
 		})
 	}
 }
-
-// TestRoutingKnobsOverride_EnvelopeGemini verifies the Google-style envelope
-// (error.{code,message,status}) is emitted for /v1beta/* routes, matching
-// the Gemini handler.
-func TestRoutingKnobsOverride_EnvelopeGemini(t *testing.T) {
-	status, body := runInvalidKnob(t, "/v1beta/models/gemini-2.5-pro:generateContent")
-	assert.Equal(t, http.StatusBadRequest, status)
-
-	errObj, ok := body["error"].(map[string]any)
-	require.True(t, ok, "Gemini envelope must have nested 'error' object")
-	assert.EqualValues(t, http.StatusBadRequest, errObj["code"], "Gemini envelope echoes HTTP status as numeric 'code'")
-	assert.Equal(t, "INVALID_ARGUMENT", errObj["status"], "Gemini envelope must include machine-readable 'status'")
-	assert.Contains(t, errObj["message"], middleware.HeaderAlpha)
-}

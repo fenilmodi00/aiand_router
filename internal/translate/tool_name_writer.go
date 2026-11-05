@@ -9,9 +9,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/tidwall/gjson"
 	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/sse"
+
+	"github.com/tidwall/gjson"
 )
 
 var (

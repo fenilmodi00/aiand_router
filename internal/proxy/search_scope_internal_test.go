@@ -115,11 +115,3 @@ func TestScopeSearchRequirement_RecentUseDecays(t *testing.T) {
 	got = svc.scopeSearchRequirement(key, advertisedOnlyEnv(t), reqs)
 	assert.False(t, got.CitationsOrSearch, "requirement decays after N turns without use")
 }
-
-func TestScopeSearchRequirement_GeminiUnscoped(t *testing.T) {
-	env, err := translate.ParseGemini([]byte(`{"contents":[{"role":"user","parts":[{"text":"hi"}]}]}`))
-	require.NoError(t, err)
-	reqs := router.TranslationRequirements{SourceFormat: router.WireFormatGemini, CitationsOrSearch: true}
-	got := scopeService(true).scopeSearchRequirement([sessionpin.SessionKeyLen]byte{3}, env, reqs)
-	assert.True(t, got.CitationsOrSearch)
-}

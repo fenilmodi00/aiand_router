@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/cache"
 	"aiand-os/router/internal/translate"
+	"github.com/stretchr/testify/require"
 )
 
 func TestContextEstimateHeadersProtocols(t *testing.T) {
@@ -21,7 +21,6 @@ func TestContextEstimateHeadersProtocols(t *testing.T) {
 	}{
 		{"anthropic", translate.ParseAnthropic, `{"model":"deepseek/deepseek-v4-pro","max_tokens":16000,"messages":[{"role":"user","content":"inspect the build failure"}]}`},
 		{"openai", translate.ParseOpenAI, `{"model":"gpt-5.6-sol","max_tokens":16000,"messages":[{"role":"user","content":"inspect the build failure"}]}`},
-		{"gemini", translate.ParseGemini, `{"contents":[{"role":"user","parts":[{"text":"inspect the build failure"}]}],"generationConfig":{"maxOutputTokens":16000}}`},
 	}
 	for _, fixture := range fixtures {
 		t.Run(fixture.name, func(t *testing.T) {

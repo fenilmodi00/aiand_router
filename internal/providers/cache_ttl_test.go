@@ -16,8 +16,4 @@ func TestCacheTTLFor(t *testing.T) {
 	// window; the pin TTL is sized to that.
 	assert.Equal(t, 5*time.Minute, providers.CacheTTLFor(providers.ProviderAIAND),
 		"ai& should report the short best-effort window")
-
-	// Unknown providers fall back to the conservative default.
-	assert.Equal(t, providers.DefaultCacheTTL, providers.CacheTTLFor("nonexistent-provider"),
-		"unknown provider should fall back to the default TTL")
 }

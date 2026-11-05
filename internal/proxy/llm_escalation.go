@@ -6,11 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"slices"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/tidwall/gjson"
 	"aiand-os/router/internal/flags"
 	"aiand-os/router/internal/observability"
 	"aiand-os/router/internal/providers"
@@ -20,6 +17,8 @@ import (
 	"aiand-os/router/internal/router/policy"
 	"aiand-os/router/internal/router/turntype"
 	"aiand-os/router/internal/translate"
+	"github.com/google/uuid"
+	"github.com/tidwall/gjson"
 )
 
 const llmEscalationBookkeepingTimeout = 100 * time.Millisecond
@@ -79,10 +78,6 @@ func (s *Service) beginLLMEscalation(ctx context.Context, env *translate.Request
 		judge = s.qwenEscalationJudge
 	}
 	if (!active && !shadow) || s.llmEscalationStore == nil || judge == nil || (active && res.Strategy != router.StrategyHMMEmbedding) || req.ShadowMode || req.ForceModel != "" || req.ForceCluster != "" || res.InstallationID == uuid.Nil || (res.TurnType != turntype.MainLoop && res.TurnType != turntype.ToolResult) {
-		return nil
-	}
-	if classifier == flags.EscalationClassifierSwitchyard && slices.Contains(installationExcludedProvidersFromContext(ctx), providers.ProviderAIAND) {
-		observability.FromContext(ctx).Info("LLM escalation skipped", "reason", "provider_restricted")
 		return nil
 	}
 	if req.Exclusions.Excludes(policy.EscalationJudgeModel) && classifier == flags.EscalationClassifierSwitchyard {

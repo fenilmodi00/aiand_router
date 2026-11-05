@@ -1160,20 +1160,6 @@ func main() {
 		logger.Info("Model exclusion override active", "excluded_models", cleaned)
 	}
 
-	// ROUTER_EXCLUDED_PROVIDERS pins a deployment-wide provider exclusion
-	// list, overriding per-installation DB state. Empty / unset → DB takes over.
-	if excludedRaw := strings.TrimSpace(config.GetOr("ROUTER_EXCLUDED_PROVIDERS", "")); excludedRaw != "" {
-		parts := strings.Split(excludedRaw, ",")
-		cleaned := make([]string, 0, len(parts))
-		for _, p := range parts {
-			if trimmed := strings.TrimSpace(p); trimmed != "" {
-				cleaned = append(cleaned, trimmed)
-			}
-		}
-		proxySvc = proxySvc.WithExcludedProvidersOverride(cleaned)
-		logger.Info("Provider exclusion override active", "excluded_providers", cleaned)
-	}
-
 	trafficCapture, err := newTrafficCaptureFromEnvironment()
 	if err != nil {
 		logger.Error("Unable to initialize local HTTP traffic capture", "err", err)

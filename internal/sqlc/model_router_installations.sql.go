@@ -302,39 +302,6 @@ func (q *Queries) UpdateModelRouterInstallationExcludedModels(ctx context.Contex
 	return result.RowsAffected(), nil
 }
 
-const updateModelRouterInstallationExcludedProviders = `-- name: UpdateModelRouterInstallationExcludedProviders :execrows
-UPDATE router.model_router_installations
-SET excluded_providers = $1::text[],
-    updated_at = NOW()
-WHERE id = $2::uuid
-  AND external_id = $3::varchar
-  AND deleted_at IS NULL
-`
-
-type UpdateModelRouterInstallationExcludedProvidersParams struct {
-	ExcludedProviders []string
-	ID                uuid.UUID
-	ExternalID        string
-}
-
-// Replaces the per-installation provider exclusion list, scoped to an
-// external_id to prevent cross-tenant updates. Empty array means "no
-// exclusion". Bumps updated_at so dashboards see the change.
-//
-//	UPDATE router.model_router_installations
-//	SET excluded_providers = $1::text[],
-//	    updated_at = NOW()
-//	WHERE id = $2::uuid
-//	  AND external_id = $3::varchar
-//	  AND deleted_at IS NULL
-func (q *Queries) UpdateModelRouterInstallationExcludedProviders(ctx context.Context, arg UpdateModelRouterInstallationExcludedProvidersParams) (int64, error) {
-	result, err := q.db.Exec(ctx, updateModelRouterInstallationExcludedProviders, arg.ExcludedProviders, arg.ID, arg.ExternalID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const updateModelRouterInstallationFlagOverrides = `-- name: UpdateModelRouterInstallationFlagOverrides :execrows
 UPDATE router.model_router_installations
 SET flag_overrides = $1::jsonb,

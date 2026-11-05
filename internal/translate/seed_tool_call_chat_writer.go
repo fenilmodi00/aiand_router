@@ -5,10 +5,11 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/tidwall/gjson"
-	"github.com/tidwall/sjson"
 	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/sse"
+
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 var (

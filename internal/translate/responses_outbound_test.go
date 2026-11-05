@@ -305,60 +305,6 @@ func TestResponsesToAnthropicResponse_StopReasons(t *testing.T) {
 	require.Error(t, err)
 }
 
-// Anthropic's numeric thinking budget must be normalized to Gemini 3.x's named
-// thinkingLevel before generic capability validation, otherwise a valid HMM
-// route to Gemini fails locally before any upstream call.
-func TestPrepareGemini_ThinkingBudgetToThinkingConfig(t *testing.T) {
-	for _, tc := range []struct {
-		budget int
-		level  string
-	}{
-		{budget: 2048, level: "low"},
-		{budget: 8192, level: "medium"},
-		{budget: 31999, level: "high"},
-	} {
-		t.Run(tc.level, func(t *testing.T) {
-			body := []byte(`{"model":"z-ai/glm-5.3","max_tokens":1024,"messages":[{"role":"user","content":"hi"}],"thinking":{"type":"enabled","budget_tokens":` + itoa(tc.budget) + `}}`)
-			env, err := translate.ParseAnthropic(body)
-			require.NoError(t, err)
-			prep, err := env.PrepareGemini(nil, translate.EmitOptions{
-				TargetModel:  "gemini-3.7-flash",
-				Capabilities: alwaysOnSpec,
-			})
-			require.NoError(t, err)
-
-			var out map[string]any
-			require.NoError(t, json.Unmarshal(prep.Body, &out))
-			gen, ok := out["generationConfig"].(map[string]any)
-			require.True(t, ok, "generationConfig present")
-			thinking, ok := gen["thinkingConfig"].(map[string]any)
-			require.True(t, ok, "thinkingConfig set from thinking budget")
-			assert.Equal(t, tc.level, thinking["thinkingLevel"])
-			assert.NotContains(t, thinking, "thinkingBudget")
-		})
-	}
-}
-
-// gemini-2.5 (legacy) keeps the numeric thinkingBudget — thinkingLevel is 3.x only.
-func TestPrepareGemini_ThinkingBudget_Legacy25(t *testing.T) {
-	body := []byte(`{"model":"z-ai/glm-5.3","max_tokens":1024,"messages":[{"role":"user","content":"hi"}],"thinking":{"type":"enabled","budget_tokens":31999}}`)
-	env, err := translate.ParseAnthropic(body)
-	require.NoError(t, err)
-	prep, err := env.PrepareGemini(nil, translate.EmitOptions{
-		TargetModel:  "gemini-2.5-pro",
-		Capabilities: reasoningSpec,
-	})
-	require.NoError(t, err)
-	var out map[string]any
-	require.NoError(t, json.Unmarshal(prep.Body, &out))
-	gen, _ := out["generationConfig"].(map[string]any)
-	tc, ok := gen["thinkingConfig"].(map[string]any)
-	require.True(t, ok, "thinkingConfig set from thinking budget")
-	assert.EqualValues(t, 31999, tc["thinkingBudget"], "budget must be preserved exactly")
-	_, hasLevel := tc["thinkingLevel"]
-	assert.False(t, hasLevel, "gemini-2.5 must NOT send thinkingLevel")
-}
-
 // An Anthropic image block must survive the Responses emit as a typed
 // input_image part — a non-reasoning model now routes here too, so images can
 // no longer be skipped.

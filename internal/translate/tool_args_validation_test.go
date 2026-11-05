@@ -185,9 +185,9 @@ func TestAnthropicSSETranslator_TextOnlyTurnNudge_SkippedOnVisibleThinkingThenAn
 
 func TestAnthropicSSETranslator_TextOnlyTurnNudge_SuppressedOnGemini3x(t *testing.T) {
 	// The synthetic Bash block has no thoughtSignature. On Gemini-3.x the next
-	// turn drops the entire tool_use/tool_result history (dropToolBlocks in
-	// emit_gemini.go), wiping context and looping to the turn ceiling — so the
-	// nudge must be suppressed on Gemini-3.x even though the upstream leaked a tool call as text.
+	// turn drops the entire tool_use/tool_result history, wiping context and
+	// looping to the turn ceiling — so the nudge must be suppressed on
+	// Gemini-3.x even though the upstream leaked a tool call as text.
 	body, summary := driveAnthropicSSEWithTools(t, "gemini-3.1-pro-preview", true, []string{
 		`data: {"id":"c1","choices":[{"index":0,"delta":{"content":"<tool_call>{\"name\":\"Read\",\"path\":\"a.go\"}</tool_call>"},"finish_reason":null}]}` + "\n\n",
 		`data: {"id":"c1","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":40,"completion_tokens":15}}` + "\n\n",

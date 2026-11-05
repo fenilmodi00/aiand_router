@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"aiand-os/router/internal/observability"
 	"aiand-os/router/internal/policyregistry"
@@ -42,13 +41,9 @@ func WriteRetiredBetaRequest(w http.ResponseWriter, r *http.Request, body []byte
 	case "/v1/responses":
 		surface = requestcontext.ConversationResponses
 	default:
-		if strings.HasPrefix(r.URL.Path, "/v1beta/models/") {
-			surface = requestcontext.ConversationGemini
-		} else {
-			return false, nil
-		}
+		return false, nil
 	}
-	return translate.WriteRetiredBetaRequest(w, r, body, surface)
+	return translate.WriteRetiredBetaRequest(w, body, surface)
 }
 
 type betaArtifactHistoryContextKey struct{}

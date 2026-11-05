@@ -216,14 +216,3 @@ func TestSanitizeOrphanedToolCalls_Anthropic_OrphanedToolResultBesideOtherConten
 	assert.Equal(t, "text", blocks[0].Get("type").String())
 	assert.Equal(t, "keep me", blocks[0].Get("text").String())
 }
-
-func TestSanitizeOrphanedToolCalls_Gemini_NoOp(t *testing.T) {
-	body := `{"contents":[{"role":"user","parts":[{"text":"go"}]}]}`
-	e, err := ParseGemini([]byte(body))
-	require.NoError(t, err)
-	before := string(e.body)
-
-	sanitized := e.SanitizeOrphanedToolCalls()
-	assert.Equal(t, 0, sanitized, "Gemini doesn't validate tool-call pairing; sanitization is a no-op")
-	assert.Equal(t, before, string(e.body))
-}

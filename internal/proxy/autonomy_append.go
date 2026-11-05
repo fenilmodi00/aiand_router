@@ -33,8 +33,8 @@ func (s *Service) autonomySystemAppendApplies(ctx context.Context, body []byte, 
 }
 
 // autonomyAppendFired reports whether the served attempt actually carried the
-// append. translate.PrepareGemini ignores the option, so a turn that failed
-// over onto a Gemini binding is recorded as not fired.
+// append. Non-OpenAI-compat targets do not carry the option, so a turn that
+// failed over onto such a binding is recorded as not fired.
 func autonomyAppendFired(opts translate.EmitOptions, servedProvider string) bool {
 	return opts.AppendAutonomySystem && providers.FamilyFor(servedProvider) != providers.FamilyOpenAICompat
 }

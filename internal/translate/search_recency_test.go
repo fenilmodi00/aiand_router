@@ -94,9 +94,3 @@ func TestSearchToolUseRecency_OpenAIResponsesWebSearchCall(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, env.SearchToolUseRecency())
 }
-
-func TestSearchToolUseRecency_GeminiUnsupported(t *testing.T) {
-	env, err := ParseGemini([]byte(`{"contents":[{"role":"user","parts":[{"text":"hi"}]}]}`))
-	require.NoError(t, err)
-	assert.Equal(t, -1, env.SearchToolUseRecency())
-}

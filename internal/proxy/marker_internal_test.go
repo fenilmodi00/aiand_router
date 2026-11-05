@@ -42,7 +42,6 @@ func TestModelSelectionReasoningOnlyForNewlyServedModel(t *testing.T) {
 	marker := routingMarkerFor(turn)
 	assert.Contains(t, modelSelectionMarkerForRequest(ctx, turn, marker, turn.Decision.Model, ""), " · best pick for this turn\n\n")
 	assert.Contains(t, modelSelectionMarkerForRequest(ctx, turn, siblingRoutingMarkerFor(turn, "overloaded-model", "rescue-model"), "rescue-model", siblingMarkerReason("overloaded-model")), " · switched after overloaded-model was overloaded\n\n")
-	assert.Contains(t, modelSelectionMarkerForRequest(ctx, turn, baselineRoutingMarkerFor(turn, "baseline-model"), "baseline-model", markerReasonBaseline), " · "+markerReasonBaseline+"\n\n")
 
 	turn.PriorServedModel = "new-model"
 	assert.Equal(t, "✦ **Aiand Router** → new-model\n\n", modelSelectionMarkerForRequest(ctx, turn, "✦ **Aiand Router** → new-model\n\n", turn.Decision.Model, ""))
@@ -191,13 +190,6 @@ func TestRoutingMarkerFor_SidecarDisplayMarkerShownOnGenuineSwitch(t *testing.T)
 		PriorServedModel: "deepseek/deepseek-v4-pro",
 	})
 	assert.Equal(t, "✦ **Aiand Router** → deepseek/deepseek-v4.1-flash · fast route for this turn\n\n", got)
-}
-
-func TestBaselineRoutingMarkerFor_SuppressedWhenBaselineAlreadyServing(t *testing.T) {
-	got := baselineRoutingMarkerFor(turnLoopResult{
-		PriorServedModel: "z-ai/glm-5.3",
-	}, "z-ai/glm-5.3")
-	assert.Empty(t, got, "a failover that lands back on the model already serving must stay quiet")
 }
 
 func TestHumanReasonFromPlanner_UnknownCodeIsSilenced(t *testing.T) {

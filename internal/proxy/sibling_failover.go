@@ -112,7 +112,7 @@ func (s *Service) rescueDecisions(ctx context.Context, failed router.Decision, c
 	if s.deploymentKeyedProviders == nil {
 		return nil
 	}
-	available := s.keyedProvidersExcluding(s.excludedProvidersForRequest(ctx))
+	available := s.deploymentKeyedProviders
 	excludedModels := s.excludedModelsForRequest(ctx)
 	var candidateProviders map[string]string
 	if failed.Metadata != nil {
@@ -443,22 +443,6 @@ func rescueDecisionFor(failed router.Decision, model, provider string) router.De
 		md.SelectedUpstreamID = ""
 		md.BindingIndex = 0
 		out.Metadata = &md
-	}
-	return out
-}
-
-// keyedProvidersExcluding returns the deployment-keyed providers minus the
-// installation's excluded ones, or nil in legacy (unset) mode.
-func (s *Service) keyedProvidersExcluding(excluded map[string]struct{}) map[string]struct{} {
-	if s.deploymentKeyedProviders == nil {
-		return nil
-	}
-	out := make(map[string]struct{}, len(s.deploymentKeyedProviders))
-	for p := range s.deploymentKeyedProviders {
-		if _, drop := excluded[p]; drop {
-			continue
-		}
-		out[p] = struct{}{}
 	}
 	return out
 }

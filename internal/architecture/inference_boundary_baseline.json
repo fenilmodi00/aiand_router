@@ -39,18 +39,6 @@
       "removal_phase": "8"
     },
     {
-      "id": "direct_provider_call|internal/proxy/gemini.go|Service.ProxyGeminiGenerateContent|aiand-os/router/internal/providers.Proxy|1",
-      "kind": "direct_provider_call",
-      "file": "internal/proxy/gemini.go",
-      "line": 291,
-      "symbol": "Service.ProxyGeminiGenerateContent",
-      "detail": "aiand-os/router/internal/providers.Proxy",
-      "owner": "@steventohme",
-      "rationale": "Existing Gemini public-surface dispatch remains in proxy until the executor compatibility boundary is proven.",
-      "operation_class": "main_inference",
-      "removal_phase": "8"
-    },
-    {
       "id": "feature_target_constant|internal/proxy/loop_detection.go|proxy.package|escalateModel|1",
       "kind": "feature_target_constant",
       "file": "internal/proxy/loop_detection.go",
@@ -85,18 +73,6 @@
       "rationale": "Metadata passthrough remains explicit in proxy until the executor exposes a separate non-selection method.",
       "operation_class": "metadata_passthrough",
       "removal_phase": "5"
-    },
-    {
-      "id": "direct_provider_call|internal/proxy/service.go|Service.anthropicNativeAttempt|aiand-os/router/internal/providers.Proxy|1",
-      "kind": "direct_provider_call",
-      "file": "internal/proxy/service.go",
-      "line": 2726,
-      "symbol": "Service.anthropicNativeAttempt",
-      "detail": "aiand-os/router/internal/providers.Proxy",
-      "owner": "@steventohme",
-      "rationale": "Existing Anthropic native dispatch remains in proxy until the public Messages surface migrates.",
-      "operation_class": "main_inference",
-      "removal_phase": "8"
     },
     {
       "id": "direct_provider_call|internal/proxy/service.go|Service.ProxyMessages|aiand-os/router/internal/providers.Proxy|1",

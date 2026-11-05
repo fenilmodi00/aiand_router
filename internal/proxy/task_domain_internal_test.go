@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"aiand-os/router/internal/requestcontext"
 	"aiand-os/router/internal/router/taskdomain"
 	"aiand-os/router/internal/router/turntype"
 	"aiand-os/router/internal/translate"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTaskInputIgnoresInjectedBlocksWithoutChangingRoot(t *testing.T) {
@@ -94,7 +94,6 @@ func TestTaskInputAcrossFormatsAndResume(t *testing.T) {
 		{"anthropic decorated command", `{"messages":[{"role":"user","content":[{"type":"text","text":"<system-reminder>workspace setup</system-reminder>"},{"type":"text","text":"<command-name>/status</command-name>"}]},{"role":"assistant","content":"Status ready"},{"role":"user","content":"Review parser"}]}`, translate.ParseAnthropic, "Review parser", false},
 		{"anthropic truncated", `{"messages":[{"role":"user","content":"<system-reminder>workspace setup</system-reminder>"},{"role":"assistant","content":"Earlier work"},{"role":"user","content":"continue"}]}`, translate.ParseAnthropic, "", true},
 		{"anthropic later command", `{"messages":[{"role":"assistant","content":"Earlier work"},{"role":"user","content":"<command-name>/status</command-name>"},{"role":"assistant","content":"Status ready"},{"role":"user","content":"continue"}]}`, translate.ParseAnthropic, "", true},
-		{"gemini", `{"contents":[{"role":"user","parts":[{"text":"Review parser"}]},{"role":"model","parts":[{"text":"Working"}]}]}`, translate.ParseGemini, "Review parser", false},
 		{"path", `{"messages":[{"role":"user","content":"/src/parser.go needs tests"}]}`, translate.ParseOpenAI, "/src/parser.go needs tests", false},
 		{"codex resume", `{"messages":[{"role":"user","content":"Another language model started to solve this problem and produced a summary of its thinking process. Summary: parser changes"}]}`, translate.ParseOpenAI, "", true},
 		{"pi resume", `{"messages":[{"role":"user","content":"The conversation history before this point was compacted into the following summary: parser changes"}]}`, translate.ParseAnthropic, "", true},

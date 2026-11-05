@@ -4,9 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
-
-	"aiand-os/router/internal/router/catalog"
 )
 
 // ErrForcedModelExcluded is returned when a caller forces a model the
@@ -30,10 +27,6 @@ func (e *ForcedModelExcludedError) Unwrap() error { return ErrForcedModelExclude
 // forcedModelBinding resolves the provider a forced model should pin to
 // under exclusion policy. reason is "" when servable; provider is returned
 // as-is for passthrough IDs the catalog doesn't carry.
-//
-// The returned binding is not always the input provider: forcing resolves to
-// a model's primary, so an excluded primary whose fallback is permitted must
-// pin the fallback — otherwise the eligibility check in runTurnLoop drops it.
 func (s *Service) forcedModelBinding(ctx context.Context, model, provider string) (binding, reason string) {
 	// Checked directly, not via the exclusion set: a forced model may be
 	// passthrough-only and so never enters the desugared exclusions.
@@ -43,64 +36,8 @@ func (s *Service) forcedModelBinding(ctx context.Context, model, provider string
 	if _, drop := s.policyExcludedModels(ctx)[model]; drop {
 		return "", fmt.Sprintf("%s is excluded on this installation", model)
 	}
-	excluded := s.policyExcludedProviders(ctx)
-	bindings := s.servableBindings(model, provider)
-	if len(excluded) == 0 {
-		for _, binding := range bindings {
-			if binding == provider {
-				return provider, ""
-			}
-		}
-		return bindings[0], ""
-	}
-	permitted := make([]string, 0, len(bindings))
-	for _, b := range bindings {
-		if _, drop := excluded[b]; !drop {
-			permitted = append(permitted, b)
-		}
-	}
-	switch {
-	case len(permitted) == 0 && len(bindings) == 1:
-		return "", fmt.Sprintf(
-			"%s is only served by %s, which is excluded on this installation",
-			model, bindings[0],
-		)
-	case len(permitted) == 0:
-		return "", fmt.Sprintf(
-			"every provider serving %s (%s) is excluded on this installation",
-			model, strings.Join(bindings, ", "),
-		)
-	}
-	for _, b := range permitted {
-		if b == provider {
-			return provider, ""
-		}
-	}
-	return permitted[0], ""
-}
-
-// servableBindings returns the catalog bindings for model that hold a
-// deployment key, in catalog preference order, or [provider] for passthrough
-// IDs. Unkeyed bindings are excluded — they can't be dispatched to, so
-// shouldn't count as an escape hatch.
-func (s *Service) servableBindings(model, provider string) []string {
-	m, ok := catalog.ByID(model)
-	if !ok || len(m.Providers) == 0 {
-		return []string{provider}
-	}
-	out := make([]string, 0, len(m.Providers))
-	for _, b := range m.Providers {
-		if s.deploymentKeyedProviders != nil {
-			if _, keyed := s.deploymentKeyedProviders[b.Provider]; !keyed {
-				continue
-			}
-		}
-		out = append(out, b.Provider)
-	}
-	if len(out) == 0 {
-		// No keyed binding at all: exclusions aren't the reason this can't be
-		// served, so leave it to the paths that own "nothing to dispatch to".
-		return []string{provider}
-	}
-	return out
+	// Provider exclusions no longer exist: with a single provider, excluding
+	// it would serve nothing, so the requested provider is always servable
+	// (passthrough IDs included).
+	return provider, ""
 }

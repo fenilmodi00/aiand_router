@@ -38,26 +38,6 @@ func isSubscriptionPoolError(err error) bool {
 	return errors.Is(err, ErrSubscriptionPoolExhausted) || errors.Is(err, ErrSubscriptionPoolUnavailable)
 }
 
-// anthropicFallbackKeyAvailable reports whether a non-subscription Anthropic
-// credential is configured to serve a Claude turn when the caller's subscription
-// is spent: a per-request BYOK Anthropic key, or the deployment's own
-// ANTHROPIC_API_KEY (tracked in deploymentKeyedProviders). Without one, dropping
-// the subscription token would leave the turn with no Anthropic credential and
-// 400 — strictly worse than the 429 — so the caller keeps using the subscription.
-func (s *Service) anthropicFallbackKeyAvailable(ctx context.Context) bool {
-	if byok := BuildCredentialsMap(externalKeysFromContext(ctx)); byok != nil {
-		if _, ok := byok[providers.ProviderAIAND]; ok {
-			return true
-		}
-	}
-	if s.deploymentKeyedProviders != nil {
-		if _, ok := s.deploymentKeyedProviders[providers.ProviderAIAND]; ok {
-			return true
-		}
-	}
-	return false
-}
-
 // anthropicOAuthCredentialRejected reports whether err is a buffered Anthropic
 // 401 authentication_error or 403 permission_error — a rejected subscription
 // OAuth token that gates the failover onto the BYOK/deployment key. Narrow by

@@ -76,24 +76,6 @@ func TestWorkspaceAppend_BothAppendsKeepOrder(t *testing.T) {
 	assert.Less(t, autonomy, workspace, "workspace text is the final append")
 }
 
-func TestWorkspaceAppend_GeminiSystemInstructionCarriesTheText(t *testing.T) {
-	env, err := translate.ParseAnthropic([]byte(claudeCodeCachedSystemBody))
-	require.NoError(t, err)
-
-	for _, model := range []string{"gemini-2.5-pro", "gemini-3-pro-preview"} {
-		on, err := env.PrepareGemini(nil, translate.EmitOptions{TargetModel: model, AppendWorkspaceSystem: true})
-		require.NoError(t, err)
-		sys := gjson.GetBytes(on.Body, "systemInstruction.parts.0.text").String()
-		assert.Contains(t, sys, "ask for confirmation before proceeding", "client prompt still carried for %s", model)
-		assert.Contains(t, sys, translate.WorkspaceSystemText, "append reaches systemInstruction for %s", model)
-		assert.Less(t, strings.Index(sys, "ask for confirmation before proceeding"), strings.Index(sys, workspaceMarker), "append follows the client prompt for %s", model)
-
-		off, err := env.PrepareGemini(nil, translate.EmitOptions{TargetModel: model})
-		require.NoError(t, err)
-		assert.NotContains(t, gjson.GetBytes(off.Body, "systemInstruction.parts.0.text").String(), workspaceMarker, "flag off leaves %s untouched", model)
-	}
-}
-
 func TestWorkspaceAppend_HasWorkspaceSystemText(t *testing.T) {
 	plain, err := translate.ParseAnthropic([]byte(claudeCodeCachedSystemBody))
 	require.NoError(t, err)

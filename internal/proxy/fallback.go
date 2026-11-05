@@ -351,19 +351,8 @@ func (s *Service) resolveBindingsForDispatch(ctx context.Context, decision route
 		}
 		return []catalog.ProviderBinding{primary}
 	}
-	// Exclusions must hold during failover too, or a fallback binding could
-	// resurrect a provider the scorer already filtered out.
-	excluded := s.excludedProvidersForRequest(ctx)
-	if len(excluded) > 0 {
-		filtered := make(map[string]struct{}, len(available))
-		for p := range available {
-			if _, drop := excluded[p]; !drop {
-				filtered[p] = struct{}{}
-			}
-		}
-		available = filtered
-	}
-	_, primaryExcluded := excluded[decision.Provider]
+	// An image-unfit primary binding must not re-enter the walk later via
+	// the bindings list — the scorer already ruled it out.
 	indexedBindings := catalog.EnumerateBindings(decision.Model, available)
 	unfilteredBindings := indexedBindings
 	imagePrimaryExcluded := false
@@ -382,14 +371,13 @@ func (s *Service) resolveBindingsForDispatch(ctx context.Context, decision route
 		}
 		indexedBindings = filtered
 	}
+	primaryExcluded := imagePrimaryExcluded
 	if imageFiltered && len(indexedBindings) == 0 {
 		if isUserForcedReason(decision.Reason) {
 			indexedBindings = unfilteredBindings
 		} else {
 			return nil
 		}
-	} else {
-		primaryExcluded = primaryExcluded || imagePrimaryExcluded
 	}
 	bindings := make([]catalog.ProviderBinding, 0, len(indexedBindings))
 	for _, binding := range indexedBindings {
@@ -397,9 +385,9 @@ func (s *Service) resolveBindingsForDispatch(ctx context.Context, decision route
 	}
 	if len(bindings) == 0 {
 		if primaryExcluded {
-			// Decision names an excluded provider with no other bindings (a
-			// bug upstream) — return nil so dispatch 502s instead of
-			// dispatching to the forbidden provider.
+			// The decision's provider cannot take this turn's images and no
+			// other binding exists — return nil so dispatch 502s instead of
+			// dispatching to a binding that rejects the request.
 			return nil
 		}
 		if decision.Reason == translate.ReasonUserForceModel {
@@ -426,7 +414,8 @@ func (s *Service) resolveBindingsForDispatch(ctx context.Context, decision route
 	}
 	// Defensive: if the runtime decision's provider differs from
 	// bindings[0], keep the decision's as primary and dedupe the rest —
-	// unless it's excluded, in which case serve only eligible bindings.
+	// unless it cannot take this turn's images, in which case serve only
+	// image-fit bindings.
 	if bindings[0].Provider != decision.Provider {
 		if primaryExcluded {
 			return bindings
@@ -580,15 +569,6 @@ func errorFrameType(cls DispatchErrorClass) string {
 		return "invalid_request_error"
 	}
 	return "api_error"
-}
-
-// emitGeminiSSEErrorEvent writes a terminal error frame to a committed
-// Gemini stream; called only on post-commit transport or truncation failure.
-func emitGeminiSSEErrorEvent(sink http.ResponseWriter) {
-	_, _ = sink.Write([]byte("data: {\"error\":{\"code\":\"UNAVAILABLE\",\"message\":\"upstream stream failed\"}}\n\n"))
-	if f, ok := sink.(http.Flusher); ok {
-		f.Flush()
-	}
 }
 
 // flushUpstreamErrorAsAnthropic is ProxyMessages' flushErr: translates the

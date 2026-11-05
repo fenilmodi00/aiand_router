@@ -656,7 +656,7 @@ func TestRoutingControlsChangeRebindsPinnedConversation(t *testing.T) {
 	first, _ := activateFixture(t, policyregistry.ServingStateSnapshot{}, firstSet, servingEpoch)
 	second, _ := activateFixture(t, first, secondSet, servingEpoch.Add(time.Minute))
 	sets := map[string]policyregistry.SelectionSetView{servingRef(t, policyregistry.ServingSelectionSets, firstSet).SHA256: firstSet.View(), servingRef(t, policyregistry.ServingSelectionSets, secondSet).SHA256: secondSet.View()}
-	before := policyregistry.RoutingControlsDigest([]string{"z-ai/glm-5.3", "deepseek/deepseek-v4-pro"}, nil, []string{"openai"}, nil)
+	before := policyregistry.RoutingControlsDigest([]string{"z-ai/glm-5.3", "deepseek/deepseek-v4-pro"}, nil, nil)
 	projection := policyregistry.AdmissionProjection{Target: policyregistry.TargetStable, ProfileKey: profileKeyOne, AssignmentGeneration: 1, RoutingControlsDigest: before}
 	initial, err := policyregistry.SelectSessionRelease(nil, projection, first, sets, testRegistryRoot, servingEpoch)
 	require.NoError(t, err)
@@ -664,13 +664,13 @@ func TestRoutingControlsChangeRebindsPinnedConversation(t *testing.T) {
 	assert.Equal(t, before, initial.RoutingControlsDigest)
 	now := servingEpoch.Add(2 * time.Minute)
 
-	projection.RoutingControlsDigest = policyregistry.RoutingControlsDigest([]string{"deepseek/deepseek-v4-pro", "z-ai/glm-5.3", "deepseek/deepseek-v4-pro"}, nil, []string{"openai"}, nil)
+	projection.RoutingControlsDigest = policyregistry.RoutingControlsDigest([]string{"deepseek/deepseek-v4-pro", "z-ai/glm-5.3", "deepseek/deepseek-v4-pro"}, nil, nil)
 	retained, err := policyregistry.SelectSessionRelease(&initial, projection, second, sets, testRegistryRoot, now)
 	require.NoError(t, err)
 	assert.Equal(t, initial.ActivationID, retained.ActivationID, "reordering the same controls must keep the pin")
 	assert.Equal(t, initial.BindingGeneration, retained.BindingGeneration)
 
-	after := policyregistry.RoutingControlsDigest([]string{"z-ai/glm-5.3", "deepseek/deepseek-v4-pro", "deepseek/deepseek-v4.1-flash"}, nil, []string{"openai"}, nil)
+	after := policyregistry.RoutingControlsDigest([]string{"z-ai/glm-5.3", "deepseek/deepseek-v4-pro", "deepseek/deepseek-v4.1-flash"}, nil, nil)
 	require.NotEqual(t, before, after)
 	projection.RoutingControlsDigest = after
 	rebound, err := policyregistry.SelectSessionRelease(&initial, projection, second, sets, testRegistryRoot, now)

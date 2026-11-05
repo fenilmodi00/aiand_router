@@ -79,26 +79,3 @@ func TestCoalesceDuplicateToolResults_CodexNotifyHistoryEmitsOneAnthropicToolRes
 		last = idx
 	}
 }
-
-func TestCoalesceDuplicateToolResults_CodexNotifyHistoryEmitsOneGeminiFunctionResponse(t *testing.T) {
-	env := codexNotifyHistory(t)
-	require.Positive(t, env.CoalesceDuplicateToolResults())
-
-	out, err := env.PrepareGemini(nil, translate.EmitOptions{TargetModel: "gemini-2.5-pro"})
-	require.NoError(t, err)
-	calls, responses := 0, 0
-	gjson.GetBytes(out.Body, "contents").ForEach(func(_, c gjson.Result) bool {
-		c.Get("parts").ForEach(func(_, p gjson.Result) bool {
-			if p.Get("functionCall").Exists() {
-				calls++
-			}
-			if p.Get("functionResponse").Exists() {
-				responses++
-			}
-			return true
-		})
-		return true
-	})
-	assert.Equal(t, 1, calls)
-	assert.Equal(t, calls, responses, "Gemini requires one functionResponse per functionCall")
-}

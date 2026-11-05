@@ -18,7 +18,6 @@ const (
 	trafficCaptureAnthropicMessagesPath = "/v1/messages"
 	trafficCaptureOpenAIChatPath        = "/v1/chat/completions"
 	trafficCaptureOpenAIResponsesPath   = "/v1/responses"
-	trafficCaptureGeminiModelsPrefix    = "/v1beta/models/"
 	trafficCaptureRoutePrefix           = "/v1/route"
 )
 
@@ -155,7 +154,6 @@ func isConversationRequest(method, path string) bool {
 		strings.HasPrefix(path, trafficCaptureAnthropicMessagesPath+"/") ||
 		path == trafficCaptureOpenAIChatPath ||
 		path == trafficCaptureOpenAIResponsesPath ||
-		strings.HasPrefix(path, trafficCaptureGeminiModelsPrefix) ||
 		path == trafficCaptureRoutePrefix ||
 		strings.HasPrefix(path, trafficCaptureRoutePrefix+"/")
 }

@@ -9,10 +9,11 @@ import (
 )
 
 func TestSanitizeToolUseID_PreservesLongThoughtSignatureID(t *testing.T) {
-	// Regression: sanitizeToolUseID is shared by the Anthropic and Gemini emit
-	// paths. A Gemini thoughtSignature smuggled into the id makes it >64 bytes;
-	// it must survive verbatim so extractSignatureFromID can recover it on the
-	// next Gemini turn. Length must NOT be clamped here.
+	// Regression: sanitizeToolUseID runs on ids that carry a Gemini
+	// thoughtSignature smuggled in by an earlier Gemini-served turn, making
+	// them >64 bytes; the signature must survive verbatim so
+	// extractSignatureFromID can recover it on the next turn. Length must NOT
+	// be clamped here.
 	id := embedSignatureInID("toolu_abc", strings.Repeat("sig", 100))
 	require.Greater(t, len(id), maxToolCallIDLen)
 	assert.Equal(t, id, sanitizeToolUseID(id), "thought-signature id preserved on the shared path")

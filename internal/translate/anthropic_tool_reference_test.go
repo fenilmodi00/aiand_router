@@ -5,9 +5,10 @@ import (
 	"strings"
 	"testing"
 
+	"aiand-os/router/internal/translate"
+
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
-	"aiand-os/router/internal/translate"
 )
 
 func TestAnthropicToolReferencesFollowDeclarationAliases(t *testing.T) {

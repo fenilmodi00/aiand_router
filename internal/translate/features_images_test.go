@@ -113,56 +113,6 @@ func TestHasImages_Anthropic(t *testing.T) {
 	}
 }
 
-func TestHasImages_Gemini(t *testing.T) {
-	cases := []struct {
-		name      string
-		body      string
-		wantCount int
-	}{
-		{
-			name:      "inlineData part",
-			body:      `{"contents":[{"role":"user","parts":[{"text":"what is this"},{"inlineData":{"mimeType":"image/png","data":"AAA"}}]}]}`,
-			wantCount: 1,
-		},
-		{
-			name:      "fileData part",
-			body:      `{"contents":[{"role":"user","parts":[{"fileData":{"mimeType":"image/png","fileUri":"gs://x"}}]}]}`,
-			wantCount: 1,
-		},
-		{
-			name:      "snake_case inline_data",
-			body:      `{"contents":[{"role":"user","parts":[{"inline_data":{"mime_type":"image/png","data":"AAA"}}]}]}`,
-			wantCount: 1,
-		},
-		{
-			name:      "snake_case file_data",
-			body:      `{"contents":[{"role":"user","parts":[{"file_data":{"mime_type":"image/png","file_uri":"gs://x"}}]}]}`,
-			wantCount: 1,
-		},
-		{
-			name:      "text parts only",
-			body:      `{"contents":[{"role":"user","parts":[{"text":"hello"}]}]}`,
-			wantCount: 0,
-		},
-		{
-			name:      "multiple image parts",
-			body:      `{"contents":[{"role":"user","parts":[{"inlineData":{"mimeType":"image/png","data":"one"}},{"file_data":{"mime_type":"image/png","file_uri":"gs://two"}},{"inline_data":{"mime_type":"image/png","data":"three"}}]}]}`,
-			wantCount: 3,
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			env, err := translate.ParseGemini([]byte(tc.body))
-			require.NoError(t, err)
-			features := env.RoutingFeatures(false)
-			assert.Equal(t, tc.wantCount > 0, env.HasImages())
-			assert.Equal(t, tc.wantCount > 0, features.HasImages)
-			assert.Equal(t, tc.wantCount, env.ImageCount())
-			assert.Equal(t, tc.wantCount, features.ImageCount)
-		})
-	}
-}
-
 func TestImageCountAcrossConversationHistory(t *testing.T) {
 	t.Run("openai multiple messages", func(t *testing.T) {
 		env, err := translate.ParseOpenAI([]byte(`{"model":"gpt-5.5","messages":[
@@ -181,14 +131,6 @@ func TestImageCountAcrossConversationHistory(t *testing.T) {
 				{"type":"image","source":{"type":"base64","media_type":"image/png","data":"two"}},
 				{"type":"image","source":{"type":"base64","media_type":"image/png","data":"three"}}
 			]}]}
-		]}`))
-		require.NoError(t, err)
-		assert.Equal(t, 3, env.ImageCount())
-	})
-	t.Run("gemini multiple media parts", func(t *testing.T) {
-		env, err := translate.ParseGemini([]byte(`{"contents":[
-			{"role":"user","parts":[{"inlineData":{"mimeType":"image/png","data":"one"}}]},
-			{"role":"model","parts":[{"fileData":{"mimeType":"image/png","fileUri":"gs://two"}},{"inline_data":{"mime_type":"image/png","data":"three"}}]}
 		]}`))
 		require.NoError(t, err)
 		assert.Equal(t, 3, env.ImageCount())

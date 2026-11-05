@@ -145,16 +145,14 @@ func (f *fakeExternalAPIKeyRepo) UpdateModelAliases(ctx context.Context, install
 func (f *fakeExternalAPIKeyRepo) MarkUsed(ctx context.Context, id string) error { return nil }
 
 type fakeInstallationRepository struct {
-	excludedModelsByID              map[string][]string
-	excludedModelsExternalByID      map[string]string
-	allowedModelsByID               map[string][]string
-	allowedModelsExternalByID       map[string]string
-	excludedProvidersByID           map[string][]string
-	excludedProvidersExternalByID   map[string]string
-	routingQualityByID              map[string]*float64
-	contentCaptureModeByID          map[string]*string
-	hideTerminalSurfacesByID        map[string]bool
-	flagOverridesByID               map[string]flags.Overrides
+	excludedModelsByID         map[string][]string
+	excludedModelsExternalByID map[string]string
+	allowedModelsByID          map[string][]string
+	allowedModelsExternalByID  map[string]string
+	routingQualityByID         map[string]*float64
+	contentCaptureModeByID     map[string]*string
+	hideTerminalSurfacesByID   map[string]bool
+	flagOverridesByID          map[string]flags.Overrides
 	// firstRequestServedIDs counts MarkFirstRequestServed calls per installation.
 	firstRequestServedIDs map[string]int
 	mu                    sync.Mutex
@@ -215,20 +213,6 @@ func (f *fakeInstallationRepository) UpdateAllowedModels(ctx context.Context, ex
 	}
 	f.allowedModelsByID[id] = append([]string{}, models...)
 	f.allowedModelsExternalByID[id] = externalID
-	return nil
-}
-func (f *fakeInstallationRepository) UpdateExcludedProviders(ctx context.Context, externalID, id string, providerNames []string) error {
-	if f.updateErr != nil {
-		return f.updateErr
-	}
-	if f.excludedProvidersByID == nil {
-		f.excludedProvidersByID = map[string][]string{}
-	}
-	if f.excludedProvidersExternalByID == nil {
-		f.excludedProvidersExternalByID = map[string]string{}
-	}
-	f.excludedProvidersByID[id] = append([]string{}, providerNames...)
-	f.excludedProvidersExternalByID[id] = externalID
 	return nil
 }
 func (f *fakeInstallationRepository) UpdateRoutingPreference(ctx context.Context, externalID, id string, qualityWeight *float64) error {
@@ -901,41 +885,6 @@ func TestService_SetInstallationExcludedModels(t *testing.T) {
 	})
 }
 
-func TestService_SetInstallationExcludedProviders(t *testing.T) {
-	installRepo := &fakeInstallationRepository{}
-	svc := auth.NewService(installRepo, &fakeAPIKeyRepository{byHash: map[string]fakeKeyRow{}}, nil, nil, auth.NoOpAPIKeyCache{}, nil, frozenClock())
-
-	allowed := map[string]struct{}{"anthropic": {}, "fireworks": {}}
-
-	t.Run("persists deduped list scoped by external_id", func(t *testing.T) {
-		out, err := svc.SetInstallationExcludedProviders(context.Background(), "ext-1", "inst-1", []string{"fireworks", "fireworks", "anthropic"}, allowed)
-		require.NoError(t, err)
-		assert.Equal(t, []string{"fireworks", "anthropic"}, out, "duplicates collapsed; order preserved")
-		assert.Equal(t, []string{"fireworks", "anthropic"}, installRepo.excludedProvidersByID["inst-1"])
-		assert.Equal(t, "ext-1", installRepo.excludedProvidersExternalByID["inst-1"],
-			"external_id must be propagated to the repo for cross-tenant scoping")
-	})
-
-	t.Run("rejects unknown provider with ErrUnknownProvider", func(t *testing.T) {
-		_, err := svc.SetInstallationExcludedProviders(context.Background(), "ext-1", "inst-1", []string{"acme-cloud"}, allowed)
-		require.Error(t, err)
-		assert.True(t, errors.Is(err, auth.ErrUnknownProvider))
-	})
-
-	t.Run("nil allowed skips validation", func(t *testing.T) {
-		out, err := svc.SetInstallationExcludedProviders(context.Background(), "ext-2", "inst-2", []string{"anything-goes"}, nil)
-		require.NoError(t, err)
-		assert.Equal(t, []string{"anything-goes"}, out)
-	})
-
-	t.Run("nil providers persists empty slice", func(t *testing.T) {
-		out, err := svc.SetInstallationExcludedProviders(context.Background(), "ext-3", "inst-3", nil, allowed)
-		require.NoError(t, err)
-		assert.Equal(t, []string{}, out)
-		assert.Equal(t, []string{}, installRepo.excludedProvidersByID["inst-3"])
-	})
-}
-
 func TestService_SetInstallationRoutingPreference(t *testing.T) {
 	installRepo := &fakeInstallationRepository{}
 	svc := auth.NewService(installRepo, &fakeAPIKeyRepository{byHash: map[string]fakeKeyRow{}}, nil, nil, auth.NoOpAPIKeyCache{}, nil, frozenClock())
@@ -1032,10 +981,6 @@ func TestService_SetInstallation_NotFoundDoesNotInvalidate(t *testing.T) {
 	}{
 		{"ExcludedModels", func(ctx context.Context, svc *auth.Service) error {
 			_, err := svc.SetInstallationExcludedModels(ctx, "ext-1", "missing-inst", []string{"opus"}, nil)
-			return err
-		}},
-		{"ExcludedProviders", func(ctx context.Context, svc *auth.Service) error {
-			_, err := svc.SetInstallationExcludedProviders(ctx, "ext-1", "missing-inst", []string{"openai"}, nil)
 			return err
 		}},
 		{"RoutingPreference", func(ctx context.Context, svc *auth.Service) error {

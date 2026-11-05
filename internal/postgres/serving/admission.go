@@ -97,7 +97,7 @@ func (r *ServingAdmissionRepo) Admit(ctx context.Context, installationID, apiKey
 			return err
 		}
 		projection := enrollmentProjection(lane, subject)
-		projection.RoutingControlsDigest = policyregistry.RoutingControlsDigest(installation.AllowedModels, installation.ExcludedModels, installation.ExcludedProviders, installation.RoutingStrategy)
+		projection.RoutingControlsDigest = policyregistry.RoutingControlsDigest(installation.AllowedModels, installation.ExcludedModels, installation.RoutingStrategy)
 		identity := apiKeyID
 		if subject != nil {
 			identity = subject.ID

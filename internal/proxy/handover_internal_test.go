@@ -65,7 +65,7 @@ func (f *fakeHandoverProvider) Passthrough(_ context.Context, _ providers.Prepar
 	return nil
 }
 
-// newTestSummarizer wires fake as the only Anthropic client behind a plan
+// newTestSummarizer wires fake as the only upstream client behind a plan
 // resolver whose deployed set contains model, mirroring composition.
 func newTestSummarizer(t *testing.T, fake providers.Client, model string, timeout time.Duration) *ProviderSummarizer {
 	t.Helper()
@@ -83,7 +83,7 @@ func newTestSummarizer(t *testing.T, fake providers.Client, model string, timeou
 }
 
 // sampleConversation is the test fixture used across the cases. Both
-// system and a couple of message turns so buildHandoverRequestBody has
+// system and a couple of message turns so buildSummaryRequestBody has
 // real content to flatten.
 const sampleConversation = `{
   "model": "z-ai/glm-5.3",
@@ -95,19 +95,17 @@ const sampleConversation = `{
   ]
 }`
 
-// canonicalAnthropicResponse is what a real non-streaming Anthropic
-// /v1/messages response looks like. The summarizer's job is to extract
-// the text from the content[] blocks.
-const canonicalAnthropicResponse = `{
-  "id": "msg_test_001",
-  "type": "message",
-  "role": "assistant",
+// canonicalChatCompletionsResponse is what a real non-streaming Chat
+// Completions response looks like. The summarizer's job is to extract the
+// text from choices[].message.content.
+const canonicalChatCompletionsResponse = `{
+  "id": "chatcmpl_test_001",
+  "object": "chat.completion",
   "model": "z-ai/glm-5.3-flash",
-  "stop_reason": "end_turn",
-  "content": [
-    {"type": "text", "text": "Refactor in progress: step 1 done, step 2 pending."}
+  "choices": [
+    {"index": 0, "finish_reason": "stop", "message": {"role": "assistant", "content": "Refactor in progress: step 1 done, step 2 pending."}}
   ],
-  "usage": {"input_tokens": 42, "output_tokens": 17}
+  "usage": {"prompt_tokens": 42, "completion_tokens": 17, "total_tokens": 59}
 }`
 
 func TestProviderSummarizer_SuccessReturnsAssistantText(t *testing.T) {
@@ -117,7 +115,7 @@ func TestProviderSummarizer_SuccessReturnsAssistantText(t *testing.T) {
 	require.NoError(t, err)
 
 	fake := &fakeHandoverProvider{
-		respBody:   canonicalAnthropicResponse,
+		respBody:   canonicalChatCompletionsResponse,
 		respStatus: http.StatusOK,
 	}
 	s := newTestSummarizer(t, fake, "", 200*time.Millisecond)
@@ -134,7 +132,7 @@ func TestProviderSummarizer_TimeoutReturnsError(t *testing.T) {
 	require.NoError(t, err)
 
 	fake := &fakeHandoverProvider{
-		respBody: canonicalAnthropicResponse,
+		respBody: canonicalChatCompletionsResponse,
 		// Sleep longer than the summarizer's timeout.
 		sleep: 200 * time.Millisecond,
 	}
@@ -172,10 +170,9 @@ func TestProviderSummarizer_EmptyContentReturnsErrEmptySummary(t *testing.T) {
 	env, err := translate.ParseAnthropic([]byte(sampleConversation))
 	require.NoError(t, err)
 
-	// Successful 200 but no text blocks (e.g. truncated, or a stop
-	// reason with empty content[]).
+	// Successful 200 but no choices (e.g. truncated).
 	fake := &fakeHandoverProvider{
-		respBody:   `{"id":"msg_empty","content":[]}`,
+		respBody:   `{"id":"chatcmpl_empty","choices":[]}`,
 		respStatus: http.StatusOK,
 	}
 	s := newTestSummarizer(t, fake, "", 200*time.Millisecond)
@@ -202,7 +199,7 @@ func TestProviderSummarizer_WireModelMatchesPlanTarget(t *testing.T) {
 	env, err := translate.ParseAnthropic([]byte(sampleConversation))
 	require.NoError(t, err)
 
-	fake := &fakeHandoverProvider{respBody: canonicalAnthropicResponse, respStatus: http.StatusOK}
+	fake := &fakeHandoverProvider{respBody: canonicalChatCompletionsResponse, respStatus: http.StatusOK}
 	s := newTestSummarizer(t, fake, "", 200*time.Millisecond)
 
 	_, usage, err := s.Summarize(context.Background(), env, router.Request{})
@@ -221,7 +218,7 @@ func TestProviderSummarizer_UnreviewedModelFailsBeforeIO(t *testing.T) {
 	env, err := translate.ParseAnthropic([]byte(sampleConversation))
 	require.NoError(t, err)
 
-	fake := &fakeHandoverProvider{respBody: canonicalAnthropicResponse, respStatus: http.StatusOK}
+	fake := &fakeHandoverProvider{respBody: canonicalChatCompletionsResponse, respStatus: http.StatusOK}
 	// claude-opus-4-7 is deployed but not in the handover policy's reviewed set.
 	s := newTestSummarizer(t, fake, "z-ai/glm-5.3", 200*time.Millisecond)
 
@@ -254,7 +251,7 @@ func TestProviderSummarizer_AttemptEventsCarryRequestID(t *testing.T) {
 	env, err := translate.ParseAnthropic([]byte(sampleConversation))
 	require.NoError(t, err)
 
-	fake := &fakeHandoverProvider{respBody: canonicalAnthropicResponse, respStatus: http.StatusOK}
+	fake := &fakeHandoverProvider{respBody: canonicalChatCompletionsResponse, respStatus: http.StatusOK}
 	available := map[string]struct{}{providers.ProviderAIAND: {}}
 	deployed := map[string]struct{}{policy.HandoverSummaryDefaultModel: {}}
 	plans, err := policy.NewPlanResolver(policy.DefaultRegistry(), policy.NewResolver(
@@ -302,7 +299,7 @@ func TestProviderSummarizer_CompactionHandoverUsesCompactionPolicy(t *testing.T)
 	env, err := translate.ParseAnthropic([]byte(sampleConversation))
 	require.NoError(t, err)
 
-	fake := &fakeHandoverProvider{respBody: canonicalAnthropicResponse, respStatus: http.StatusOK}
+	fake := &fakeHandoverProvider{respBody: canonicalChatCompletionsResponse, respStatus: http.StatusOK}
 	s := newTestCompactionSummarizer(t, fake, policy.PrecompactionDefaultModel, policy.PrecompactionDefaultModel)
 
 	got, usage, err := s.CompactionHandover().Summarize(context.Background(), env, router.Request{})

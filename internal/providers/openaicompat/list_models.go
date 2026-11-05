@@ -1,7 +1,6 @@
 package openaicompat
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -49,9 +48,8 @@ func (c *Client) ListModels(ctx context.Context) ([]string, error) {
 }
 
 // modelListURLs returns catalog URLs to try for baseURL, likeliest first.
-// For gateways that mount their catalog above /v1 (e.g. Snowflake Cortex:
-// /api/v2/cortex/models vs /api/v2/cortex/v1/chat/completions), also
-// includes one segment up.
+// When baseURL ends in "/v1", also includes the URL one segment up, for
+// gateways that mount their catalog above the versioned API root.
 func modelListURLs(baseURL string) ([]string, error) {
 	primary, err := url.JoinPath(baseURL, "models")
 	if err != nil {
@@ -75,28 +73,15 @@ func modelListURLs(baseURL string) ([]string, error) {
 }
 
 // listModelsAt reads one model-list URL, also reporting the upstream status so
-// the caller can decide whether another path is worth trying. A gateway that
-// demands an entity on the catalog GET is retried once with an empty JSON body.
+// the caller can decide whether another path is worth trying.
 func (c *Client) listModelsAt(ctx context.Context, listURL string) ([]string, int, error) {
-	ids, status, err := c.getModelList(ctx, listURL, false)
-	if !providers.ModelListNeedsEntity(status) {
-		return ids, status, err
-	}
-	return c.getModelList(ctx, listURL, true)
+	return c.getModelList(ctx, listURL)
 }
 
-func (c *Client) getModelList(ctx context.Context, listURL string, withEntity bool) ([]string, int, error) {
-	var entity io.Reader
-	if withEntity {
-		entity = bytes.NewReader(providers.EmptyJSONEntity)
-	}
-	upstream, err := http.NewRequestWithContext(ctx, http.MethodGet, listURL, entity)
+func (c *Client) getModelList(ctx context.Context, listURL string) ([]string, int, error) {
+	upstream, err := http.NewRequestWithContext(ctx, http.MethodGet, listURL, nil)
 	if err != nil {
 		return nil, 0, providers.ErrModelDiscoveryDestination
-	}
-	if withEntity {
-		upstream.Header.Set("Content-Type", "application/json")
-		upstream.Header.Set("Accept", "application/json")
 	}
 	c.setAuth(ctx, upstream)
 	requestcontext.ApplyIdentityHeader(ctx, upstream)

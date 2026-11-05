@@ -2,7 +2,6 @@ package openaicompat_test
 
 import (
 	"context"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -89,8 +88,8 @@ func TestListModels_MalformedBody(t *testing.T) {
 	require.Error(t, err)
 }
 
-// Cortex serves /api/v2/cortex/models next to /api/v2/cortex/v1/chat/completions,
-// so a key whose base URL ends in /v1 must be retried one segment up.
+// A gateway catalog mounted above /v1 is served one segment up, so a key
+// whose base URL ends in /v1 must be retried one segment up.
 func TestListModels_FallsBackAboveV1On404(t *testing.T) {
 	var gotPaths []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -99,7 +98,7 @@ func TestListModels_FallsBackAboveV1On404(t *testing.T) {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
-		_, _ = w.Write([]byte(`{"models":["openai-gpt-5.2","z-ai/glm-5.3"]}`))
+		_, _ = w.Write([]byte(`["openai-gpt-5.2","z-ai/glm-5.3"]`))
 	}))
 	defer srv.Close()
 
@@ -108,28 +107,6 @@ func TestListModels_FallsBackAboveV1On404(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"openai-gpt-5.2", "z-ai/glm-5.3"}, models)
 	assert.Equal(t, []string{"/api/v2/cortex/v1/models", "/api/v2/cortex/models"}, gotPaths)
-}
-
-func TestListModels_RetriesWithEntityWhenGatewayDemandsOne(t *testing.T) {
-	var attempts []string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		attempts = append(attempts, string(body))
-		if len(body) == 0 {
-			http.Error(w, `{"code":"391910","message":"Invalid input value. null"}`, http.StatusUnsupportedMediaType)
-			return
-		}
-		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
-		assert.Equal(t, "application/json", r.Header.Get("Accept"))
-		_, _ = w.Write([]byte(`{"models":["claude-4-sonnet","openai-gpt-5"]}`))
-	}))
-	defer srv.Close()
-
-	c := openaicompat.NewGatewayClient("token", srv.URL, openaicompat.WithModelListHTTPClient(openAICompatibleDiscoveryClient(t, srv.URL)))
-	models, err := c.ListModels(context.Background())
-	require.NoError(t, err)
-	assert.Equal(t, []string{"claude-4-sonnet", "openai-gpt-5"}, models)
-	assert.Equal(t, []string{"", "{}"}, attempts)
 }
 
 // A nil option value must not strip the constructor's destination-checked

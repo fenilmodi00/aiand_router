@@ -11,14 +11,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tidwall/gjson"
-	"github.com/tidwall/sjson"
 	"aiand-os/router/internal/observability"
 	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/providers/httputil"
 	"aiand-os/router/internal/requestcontext"
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/timing"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 const (
@@ -270,9 +270,9 @@ func (c *Client) Proxy(ctx context.Context, decision router.Decision, prep provi
 	baseURL := c.effectiveBaseURL(ctx)
 
 	// EndpointResponses is the Responses surface: reasoning models reject a tool
-	// turn on chat/completions, and gateways that mount /v1/responses (Snowflake
-	// Cortex) serve it there. The proxy re-emits onto chat/completions when the
-	// gateway answers that it has no such surface.
+	// turn on chat/completions, and the upstream serves it there when mounted.
+	// The proxy re-emits onto chat/completions when the gateway answers that it
+	// has no such surface.
 	suffix := "/chat/completions"
 	if prep.Endpoint == providers.EndpointResponses {
 		suffix = "/responses"

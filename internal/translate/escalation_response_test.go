@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"testing"
 
+	"aiand-os/router/internal/translate"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"aiand-os/router/internal/translate"
 )
 
 func TestEscalationResponsesCompletionReconstructsContinuation(t *testing.T) {

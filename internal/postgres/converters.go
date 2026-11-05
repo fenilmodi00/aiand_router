@@ -32,10 +32,6 @@ func toAuthInstallation(row sqlc.RouterModelRouterInstallation) *auth.Installati
 	if excluded == nil {
 		excluded = []string{}
 	}
-	excludedProviders := row.ExcludedProviders
-	if excludedProviders == nil {
-		excludedProviders = []string{}
-	}
 	preferred := row.PreferredModels
 	if preferred == nil {
 		preferred = []string{}
@@ -76,7 +72,6 @@ func toAuthInstallation(row sqlc.RouterModelRouterInstallation) *auth.Installati
 		ModelsWhenSubscriptionActive:   modelsWhenSubscriptionActive,
 		ModelsWhenSubscriptionInactive: modelsWhenSubscriptionInactive,
 		SubscriptionStateModelsEnabled: row.SubscriptionStateModelsEnabled,
-		ExcludedProviders:              excludedProviders,
 		PreferredModels:                preferred,
 		RoutingQualityWeight:           row.RoutingQualityWeight,
 		RoutingStrategy:                router.Strategy(derefString(row.RoutingStrategy)),
@@ -99,20 +94,20 @@ func toAuthInstallation(row sqlc.RouterModelRouterInstallation) *auth.Installati
 
 func toAuthAPIKey(row sqlc.RouterModelRouterAPIKey) *auth.APIKey {
 	return &auth.APIKey{
-		ID:                                row.ID.String(),
-		InstallationID:                    row.InstallationID.String(),
-		ExternalID:                        row.ExternalID,
-		Name:                              row.Name,
-		KeyPrefix:                         row.KeyPrefix,
-		KeyHash:                           row.KeyHash,
-		KeySuffix:                         row.KeySuffix,
-		Scope:                             auth.APIKeyScope(row.Scope),
-		CredentialSubjectID:               uuidString(row.CredentialSubjectID),
-		Harness:                           derefString(row.Harness),
-		LastUsedAt:                        timestampPtr(row.LastUsedAt),
-		CreatedAt:                         timestampOrZero(row.CreatedAt),
-		DeletedAt:                         timestampPtr(row.DeletedAt),
-		CreatedBy:                         row.CreatedBy,
+		ID:                  row.ID.String(),
+		InstallationID:      row.InstallationID.String(),
+		ExternalID:          row.ExternalID,
+		Name:                row.Name,
+		KeyPrefix:           row.KeyPrefix,
+		KeyHash:             row.KeyHash,
+		KeySuffix:           row.KeySuffix,
+		Scope:               auth.APIKeyScope(row.Scope),
+		CredentialSubjectID: uuidString(row.CredentialSubjectID),
+		Harness:             derefString(row.Harness),
+		LastUsedAt:          timestampPtr(row.LastUsedAt),
+		CreatedAt:           timestampOrZero(row.CreatedAt),
+		DeletedAt:           timestampPtr(row.DeletedAt),
+		CreatedBy:           row.CreatedBy,
 	}
 }
 

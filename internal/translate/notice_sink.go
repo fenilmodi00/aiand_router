@@ -5,8 +5,9 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/tidwall/gjson"
 	"aiand-os/router/internal/sse"
+
+	"github.com/tidwall/gjson"
 )
 
 type protocolNoticeSink struct {

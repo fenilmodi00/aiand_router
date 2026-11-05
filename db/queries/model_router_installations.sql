@@ -49,17 +49,6 @@ WHERE id = @id::uuid
   AND external_id = @external_id::varchar
   AND deleted_at IS NULL;
 
--- Replaces the per-installation provider exclusion list, scoped to an
--- external_id to prevent cross-tenant updates. Empty array means "no
--- exclusion". Bumps updated_at so dashboards see the change.
--- name: UpdateModelRouterInstallationExcludedProviders :execrows
-UPDATE router.model_router_installations
-SET excluded_providers = @excluded_providers::text[],
-    updated_at = NOW()
-WHERE id = @id::uuid
-  AND external_id = @external_id::varchar
-  AND deleted_at IS NULL;
-
 -- Sets the routing preference quality weight (a normalized fraction in [0, 1]),
 -- scoped to an external_id to prevent cross-tenant updates. NULL clears the
 -- preference so the scorer reverts to its tuned defaults.

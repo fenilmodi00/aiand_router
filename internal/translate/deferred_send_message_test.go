@@ -1,12 +1,12 @@
 package translate_test
 
 import (
-	"net/http"
 	"testing"
+
+	"aiand-os/router/internal/translate"
 
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
-	"aiand-os/router/internal/translate"
 )
 
 func TestDeferredSendMessageSchemaSurvivesCrossVendorEmit(t *testing.T) {
@@ -29,11 +29,5 @@ func TestDeferredSendMessageSchemaSurvivesCrossVendorEmit(t *testing.T) {
 		require.Contains(t, emittedToolNames(t, out.Body), "SendMessage")
 		tool := gjson.GetBytes(out.Body, `tools.#(function.name=="SendMessage").function`)
 		require.Equal(t, "string", tool.Get("parameters.properties.to.type").String())
-	})
-	t.Run("Gemini", func(t *testing.T) {
-		opts.TargetModel = "gemini-2.5-pro"
-		out, err := env.PrepareGemini(http.Header{}, opts)
-		require.NoError(t, err)
-		require.Contains(t, emittedGeminiToolNames(t, out.Body), "SendMessage")
 	})
 }

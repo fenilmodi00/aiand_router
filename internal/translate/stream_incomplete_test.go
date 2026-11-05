@@ -11,19 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGeminiToOpenAISSETranslator_IncompleteEOFEmitsFailureNotStop(t *testing.T) {
-	rec := httptest.NewRecorder()
-	w := translate.NewGeminiToOpenAISSETranslator(rec, "gemini-x", nil)
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.WriteHeader(http.StatusOK)
-	_, err := w.Write([]byte("data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"partial\"}]}}]}\n\n"))
-	require.NoError(t, err)
-	require.ErrorIs(t, w.Finalize(), translate.ErrStreamIncomplete)
-	assert.Contains(t, rec.Body.String(), `"type":"api_error"`)
-	assert.NotContains(t, rec.Body.String(), "finish_reason\":\"stop")
-	assert.NotContains(t, rec.Body.String(), "[DONE]")
-}
-
 func TestSSETranslator_IncompleteEOFEmitsFailureNotDone(t *testing.T) {
 	rec := httptest.NewRecorder()
 	w := translate.NewSSETranslator(rec, "gpt-x", nil)

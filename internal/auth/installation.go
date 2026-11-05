@@ -34,9 +34,6 @@ type Installation struct {
 	// ModelsWhenSubscriptionInactive is the catalog minus the exhausted-state
 	// exclusions: the limit for paid fallback. Empty refuses paid fallback when enabled.
 	ModelsWhenSubscriptionInactive []string
-	// ExcludedProviders is the per-installation provider exclusion list.
-	// Empty means no exclusion.
-	ExcludedProviders []string
 	// PreferredModels is the per-installation model priority ranking, in
 	// descending preference (index 0 = first preference). The scorer lifts each
 	// preferred model's score by a small, rank-decaying additive bonus so a
@@ -112,9 +109,6 @@ type InstallationRepository interface {
 	// UpdateAllowedModels replaces the positive model allowlist.
 	// Empty (or nil) means no restriction — NOT "no models routable".
 	UpdateAllowedModels(ctx context.Context, externalID, id string, models []string) error
-	// UpdateExcludedProviders replaces the per-installation provider
-	// exclusion list. An empty (or nil) slice clears the list.
-	UpdateExcludedProviders(ctx context.Context, externalID, id string, providerNames []string) error
 	// UpdateRoutingPreference sets the routing quality weight (a normalized
 	// fraction in [0, 1]). Passing nil clears the preference so the scorer
 	// reverts to its tuned per-cluster defaults.

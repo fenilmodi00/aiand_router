@@ -79,11 +79,6 @@ func applyRoutingModel(c *gin.Context, body []byte, available StrategyAvailabili
 	return true
 }
 
-// requestedModel follows Gemini's authoritative URL model; its handler replaces
-// body.model before dispatch. Other protocols select through the body field.
 func requestedModel(c *gin.Context, body []byte) string {
-	if model, _, _ := strings.Cut(c.Param("modelAction"), ":"); model != "" {
-		return model
-	}
 	return gjson.GetBytes(body, "model").String()
 }

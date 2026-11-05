@@ -13,14 +13,6 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-func TestUsageProjection_GeminiBufferedCacheDetails(t *testing.T) {
-	body := []byte(`{"candidates":[{"content":{"parts":[{"text":"ok"}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":100,"candidatesTokenCount":7,"thoughtsTokenCount":3,"cachedContentTokenCount":80,"totalTokenCount":110}}`)
-	out, err := translate.GeminiToOpenAIResponse(body, "synthetic-model")
-	require.NoError(t, err)
-	assert.EqualValues(t, 80, gjson.GetBytes(out, "usage.prompt_tokens_details.cached_tokens").Int())
-	assert.EqualValues(t, 3, gjson.GetBytes(out, "usage.completion_tokens_details.reasoning_tokens").Int())
-}
-
 func TestUsageProjection_AnthropicCacheDetails(t *testing.T) {
 	body := []byte(`{"id":"msg_synthetic","content":[{"type":"text","text":"ok"}],"stop_reason":"end_turn","usage":{"input_tokens":20,"output_tokens":10,"cache_creation_input_tokens":30,"cache_read_input_tokens":50}}`)
 	out, err := translate.AnthropicToOpenAIResponse(body, "synthetic-model")

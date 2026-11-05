@@ -52,7 +52,7 @@ func TestClassifierThreadHTTPContract(t *testing.T) {
 	ctx = router.WithStrategy(ctx, router.StrategyHMMEmbedding)
 	engine := gin.New()
 	engine.POST("/v1/router/threads", classifier.StartThreadHandler(svc))
-	for _, path := range []string{"/v1/messages", "/v1/chat/completions", "/v1/responses", "/v1beta/models/:modelAction", "/v1/route/handoff", "/v1/route", "/v1/route/preview"} {
+	for _, path := range []string{"/v1/messages", "/v1/chat/completions", "/v1/responses", "/v1/route/handoff", "/v1/route", "/v1/route/preview"} {
 		engine.POST(path, middleware.WithClassifierThread(svc, svc.PolicyStrategyAvailable), func(c *gin.Context) {
 			body, err := io.ReadAll(c.Request.Body)
 			require.NoError(t, err)
@@ -87,7 +87,7 @@ func TestClassifierThreadHTTPContract(t *testing.T) {
 	foreign := context.WithValue(ctx, proxy.InstallationIDContextKey{}, uuid.NewString())
 	require.Equal(t, http.StatusForbidden, request(foreign, "/v1/router/threads", start, "").Code)
 	require.Equal(t, http.StatusForbidden, request(context.Background(), "/v1/router/threads", start, "").Code)
-	for _, path := range []string{"/v1/messages", "/v1/chat/completions", "/v1/responses", "/v1beta/models/test:generateContent"} {
+	for _, path := range []string{"/v1/messages", "/v1/chat/completions", "/v1/responses"} {
 		t.Run(path, func(t *testing.T) {
 			denied := request(ctx, path, `{}`, proxy.ClassifierThreadUnavailableToken)
 			require.Equal(t, http.StatusBadRequest, denied.Code)

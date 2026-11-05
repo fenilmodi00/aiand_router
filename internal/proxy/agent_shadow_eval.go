@@ -63,16 +63,11 @@ func (s *Service) runAgentShadowEvaluationRoute(
 	if req.EnabledProviders != nil {
 		if _, enabled := req.EnabledProviders[provider]; !enabled {
 			// Planned provider may be disabled; fall back to the first available catalog binding.
-			provider = ""
-			for _, binding := range catalog.AvailableBindings(model, req.EnabledProviders) {
-				if _, excludedProvider := s.excludedProvidersForRequest(ctx)[binding.Provider]; !excludedProvider {
-					provider = binding.Provider
-					break
-				}
-			}
-			if provider == "" {
+			bindings := catalog.AvailableBindings(model, req.EnabledProviders)
+			if len(bindings) == 0 {
 				return turnLoopResult{}, fmt.Errorf("agent-shadow model %q has no enabled provider: %w", model, cluster.ErrNoEligibleProvider)
 			}
+			provider = bindings[0].Provider
 		}
 	}
 	if _, err := s.provider(provider); err != nil {

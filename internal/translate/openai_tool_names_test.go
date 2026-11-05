@@ -7,10 +7,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-	"github.com/tidwall/gjson"
 	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/translate"
+
+	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 func TestPrepareOpenAIAliasesLongToolNamesReversibly(t *testing.T) {

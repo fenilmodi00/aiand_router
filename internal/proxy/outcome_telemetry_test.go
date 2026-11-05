@@ -15,22 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGeminiTelemetryRecordsSuccessfulOutcomeCoverage(t *testing.T) {
-	telem := newCaptureTelemetry()
-	svc := proxy.NewService(
-		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gemini-2.5-pro"}},
-		map[string]providers.Client{providers.ProviderAIAND: &fakeProvider{}},
-		nil, false, nil, nil, false, providers.ProviderAIAND, "gemini-2.5-flash", telem,
-	)
-	req := httptest.NewRequest(http.MethodPost, "/v1beta/models/gemini-1.5-pro:generateContent", nil)
-	require.NoError(t, svc.ProxyGeminiGenerateContent(authedCtx("55555555-5555-5555-5555-555555555555"), []byte(geminiInjectedBody), httptest.NewRecorder(), req))
-	row := telem.firstRow(t)
-	require.NotNil(t, row.UserPrompt, "successful requests must be represented in the outcome denominator")
-	assert.True(t, *row.UserPrompt)
-	assert.Empty(t, row.ErrorClass)
-	assert.Nil(t, row.LatestToolCallCounts, "Gemini does not expose the Anthropic tool-error contract")
-}
-
 func TestBypassTelemetryRecordsOutcomeAndIncomingTools(t *testing.T) {
 	for _, rejected := range []bool{false, true} {
 		t.Run(map[bool]string{false: "success", true: "rejected"}[rejected], func(t *testing.T) {

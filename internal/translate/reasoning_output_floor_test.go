@@ -22,28 +22,6 @@ const classifierStage1Body = `{
 	"messages":[{"role":"user","content":"Respond with <severity>N</severity> ONLY."}]
 }`
 
-func geminiGenConfig(t *testing.T, target string) map[string]any {
-	t.Helper()
-	env, err := translate.ParseAnthropic([]byte(classifierStage1Body))
-	require.NoError(t, err)
-	prep, err := env.PrepareGemini(http.Header{}, translate.EmitOptions{
-		TargetModel:  target,
-		Capabilities: reasoningSpec,
-	})
-	require.NoError(t, err)
-	out := mustUnmarshal(t, prep.Body)
-	return out["generationConfig"].(map[string]any)
-}
-
-// Gemini 2.5 honors thinking:disabled as thinkingBudget 0, so no thought
-// tokens compete with the caller's budget and it passes through unchanged.
-func TestPrepareGemini_TinyBudgetKeptWhenThinkingDisabled(t *testing.T) {
-	gc := geminiGenConfig(t, "gemini-2.5-flash")
-	assert.Equal(t, float64(64), gc["maxOutputTokens"])
-	tc := gc["thinkingConfig"].(map[string]any)
-	assert.EqualValues(t, 0, tc["thinkingBudget"])
-}
-
 // Effort "none" disables reasoning, so the caller's budget is all visible text.
 func TestPrepareOpenAI_FromAnthropic_TinyBudgetKeptWhenEffortNone(t *testing.T) {
 	env, err := translate.ParseAnthropic([]byte(classifierStage1Body))

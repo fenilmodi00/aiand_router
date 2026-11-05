@@ -18,7 +18,6 @@ const (
 	ConversationAnthropic ConversationSurface = "anthropic_messages"
 	ConversationChat      ConversationSurface = "openai_chat"
 	ConversationResponses ConversationSurface = "openai_responses"
-	ConversationGemini    ConversationSurface = "gemini"
 )
 
 // MaxRequestBodyBytes matches Anthropic's 32 MiB limit across gateway and worker ingress.
@@ -179,8 +178,6 @@ func firstUserMessageText(body []byte, surface ConversationSurface) string {
 		if messages.Type == gjson.String {
 			return messages.String()
 		}
-	case ConversationGemini:
-		messages, contentField = gjson.GetBytes(body, "contents"), "parts"
 	}
 	var text string
 	messages.ForEach(func(_, message gjson.Result) bool {
@@ -193,8 +190,8 @@ func firstUserMessageText(body []byte, surface ConversationSurface) string {
 	return text
 }
 
-// isUserMessage applies the role defaults the Responses and Gemini parsers use:
-// a Responses message item and a Gemini content without a role are user turns.
+// isUserMessage applies the role default the Responses parser uses: a
+// Responses message item without a role is a user turn.
 func isUserMessage(message gjson.Result, surface ConversationSurface) bool {
 	role := message.Get("role").String()
 	if role == "user" {
@@ -206,8 +203,6 @@ func isUserMessage(message gjson.Result, surface ConversationSurface) bool {
 	switch surface {
 	case ConversationResponses:
 		return message.Get("type").String() == "message"
-	case ConversationGemini:
-		return true
 	}
 	return false
 }

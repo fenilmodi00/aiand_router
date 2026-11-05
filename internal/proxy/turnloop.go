@@ -299,12 +299,13 @@ type turnLoopResult struct {
 	PinTurnCount     int
 	PinFirstPinnedAt time.Time
 	// SessionDisabledProviders are providers struck out by repeated 529
-	// exhaustion. Stashed on ctx so resolveBindingsForDispatch's failover
-	// walk also honors the exclusion, not just this turn's scorer.
+	// exhaustion. The same turn's scorer filter drops them from
+	// req.EnabledProviders below; nothing else consumes the set.
 	SessionDisabledProviders []string
-	// SessionDemotedModels are models struck out after a committed upstream
-	// stream failure. Stashed on ctx so the in-turn rescue walk honors the
-	// exclusion too, not just this turn's scorer.
+	// SessionDemotedModels are models struck out after an upstream failure
+	// ([]string): a committed-stream cut or a pre-commit failure handed to
+	// a sibling. Stashed after runTurnLoop so the in-turn rescue walk does
+	// not resurrect an arm the session already demoted.
 	SessionDemotedModels []string
 	// SessionCooldownModels are the rate-limit cooldowns still in force
 	// (model → expiry). Also listed in SessionDemotedModels; kept apart so

@@ -2,7 +2,6 @@ package translate_test
 
 import (
 	"encoding/json"
-	"net/http"
 	"os"
 	"testing"
 
@@ -168,18 +167,6 @@ func TestStripCCTools_AnthropicSourceOpenAITarget_DropsCCOnlyKeepsReal(t *testin
 	}
 }
 
-func TestStripCCTools_AnthropicSourceGeminiTarget_DropsCCOnlyKeepsReal(t *testing.T) {
-	env, err := translate.ParseAnthropic([]byte(claudeCodeMixedToolBody))
-	require.NoError(t, err)
-
-	out, err := env.PrepareGemini(http.Header{}, translate.EmitOptions{TargetModel: "gemini-3.1-pro-preview"})
-	require.NoError(t, err)
-
-	names := emittedGeminiToolNames(t, out.Body)
-	assert.ElementsMatch(t, keptOnNonAnthropicDefault, names,
-		"Anthropic→Gemini keeps scheduling tools and drops CC-only control-plane schemas")
-}
-
 func TestStripCCTools_AnthropicSourceAnthropicTarget_KeepsCCOnly(t *testing.T) {
 	// Anthropic models DO know how to dispatch Task/Skill/etc. via the
 	// client. The Anthropic→Anthropic passthrough must not strip them.
@@ -272,29 +259,6 @@ func TestKeepOrchestrationTools_OpenAITarget_NormalizesTypelessAnyOf(t *testing.
 		"OpenAI requires every anyOf branch to declare a type")
 }
 
-func TestKeepOrchestrationTools_GeminiTarget_KeepsOrchestrationDropsRest(t *testing.T) {
-	env, err := translate.ParseAnthropic([]byte(claudeCodeMixedToolBody))
-	require.NoError(t, err)
-
-	out, err := env.PrepareGemini(http.Header{}, translate.EmitOptions{
-		TargetModel:                       "gemini-3.1-pro-preview",
-		KeepCrossVendorOrchestrationTools: true,
-	})
-	require.NoError(t, err)
-
-	names := emittedGeminiToolNames(t, out.Body)
-	assert.ElementsMatch(t, []string{
-		"Read", "Edit", "Write", "Bash", "NotebookEdit",
-		"ScheduleWakeup", "CronCreate", "CronDelete", "CronList", "Monitor", "BashOutput", "KillShell",
-		"Task", "Agent", "SendMessage",
-		"EnterPlanMode", "ExitPlanMode", "UpdatePlan", "Skill", "Workflow",
-		"ToolSearch",
-	}, names, "Anthropic→Gemini keeps orchestration + scheduling tools when the flag is on")
-	assert.Contains(t, names, "SendMessage")
-	assert.NotContains(t, names, "AskUserQuestion")
-	assert.Contains(t, names, "ToolSearch")
-}
-
 func TestDeferredMCPToolSearchSurvivesCrossVendorEmit(t *testing.T) {
 	src, err := os.ReadFile("testdata/anthropic_deferred_mcp_tool_search.json")
 	require.NoError(t, err)
@@ -331,12 +295,6 @@ func TestDeferredMCPToolSearchSurvivesCrossVendorEmit(t *testing.T) {
 		assert.Equal(t, 1, out.Stats.CCOnlyToolsStripped, "Skill is stripped but ToolSearch is not counted")
 	})
 
-	t.Run("Gemini", func(t *testing.T) {
-		out, err := env.PrepareGemini(http.Header{}, translate.EmitOptions{TargetModel: "gemini-3.1-pro-preview"})
-		require.NoError(t, err)
-		assert.ElementsMatch(t, []string{"Read", "Bash", "ToolSearch"}, emittedGeminiToolNames(t, out.Body))
-		assert.Equal(t, 1, out.Stats.CCOnlyToolsStripped, "Skill is stripped but ToolSearch is not counted")
-	})
 }
 
 func TestKeepOrchestrationTools_EmitOptionsZeroValue_StripsAll(t *testing.T) {

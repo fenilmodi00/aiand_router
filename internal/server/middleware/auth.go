@@ -1,11 +1,11 @@
 package middleware
 
 import (
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/requestcontext"
 	"context"
 	"errors"
 	"net/http"
-	"aiand-os/router/internal/policyregistry"
-	"aiand-os/router/internal/requestcontext"
 
 	"aiand-os/router/internal/auth"
 	"aiand-os/router/internal/flags"
@@ -158,9 +158,6 @@ func withAPIKey(svc *auth.Service, byokRequiresOptIn bool, serving ...*ServingAd
 			}
 			if len(installation.ModelsWhenSubscriptionInactive) > 0 {
 				ctx = context.WithValue(ctx, proxy.InstallationSubscriptionModelsWhenInactiveContextKey{}, installation.ModelsWhenSubscriptionInactive)
-			}
-			if len(installation.ExcludedProviders) > 0 {
-				ctx = context.WithValue(ctx, proxy.InstallationExcludedProvidersContextKey{}, installation.ExcludedProviders)
 			}
 			if len(installation.PreferredModels) > 0 {
 				ctx = context.WithValue(ctx, proxy.InstallationPreferredModelsContextKey{}, installation.PreferredModels)

@@ -18,8 +18,9 @@ import (
 
 // RoutingDistributionSource projects the per-installation "quality vs price"
 // dial's model mix across a grid of dial positions, over the eligible pool left
-// by excludedModels / excludedProviders. Implemented by *cluster.Multiversion
-// in production; callers can pass a fake in tests.
+// by excludedModels. Implemented by *cluster.Multiversion
+// in production; callers can pass a fake in tests. The excludedProviders
+// argument is always nil: provider exclusions are no longer configurable.
 type RoutingDistributionSource interface {
 	DefaultRoutingDistribution(gridN int, excludedModels, excludedProviders map[string]struct{}) ([]cluster.DistributionPoint, error)
 }
@@ -47,10 +48,10 @@ type routingDistributionResponse struct {
 // `grid` (optional) sets the number of dial positions in [2, 101]; omitted
 // leaves the scorer on its default grid.
 //
-// `excluded_models` / `excluded_providers` (optional, comma-separated) narrow
+// `excluded_models` (optional, comma-separated) narrows
 // the eligible pool so the preview matches what Route would do for an
 // installation with those exclusions — the control plane passes the requesting
-// org's lists, keeping the endpoint unauthed/global while still org-correct.
+// org's list, keeping the endpoint unauthed/global while still org-correct.
 func RoutingDistributionHandler(dist RoutingDistributionSource, hmmRosters ...*rosterdata.Roster) gin.HandlerFunc {
 	return routingDistributionHandler(dist, nil, hmmRosters)
 }
@@ -72,7 +73,6 @@ func routingDistributionHandler(dist RoutingDistributionSource, admitted Admitte
 			gridN = n
 		}
 		excludedModels := parseCSVSet(c.Query("excluded_models"))
-		excludedProviders := parseCSVSet(c.Query("excluded_providers"))
 		strategy := router.Strategy(strings.ToLower(strings.TrimSpace(c.Query("strategy"))))
 		var points []cluster.DistributionPoint
 		var err error
@@ -87,19 +87,19 @@ func routingDistributionHandler(dist RoutingDistributionSource, admitted Admitte
 				c.JSON(http.StatusServiceUnavailable, gin.H{"error": "admitted routing distribution unavailable"})
 				return
 			}
-			points, err = hmmselection.RoutingDistribution(roster, gridN, excludedModels, excludedProviders)
+			points, err = hmmselection.RoutingDistribution(roster, gridN, excludedModels, nil)
 		} else if router.IsHMMStrategy(strategy) {
 			if len(hmmRosters) == 0 || hmmRosters[0] == nil {
 				c.JSON(http.StatusServiceUnavailable, gin.H{"error": "hmm routing distribution unavailable"})
 				return
 			}
-			points, err = hmmselection.RoutingDistribution(hmmRosters[0], gridN, excludedModels, excludedProviders)
+			points, err = hmmselection.RoutingDistribution(hmmRosters[0], gridN, excludedModels, nil)
 		} else {
 			if dist == nil {
 				c.JSON(http.StatusServiceUnavailable, gin.H{"error": "routing distribution unavailable"})
 				return
 			}
-			points, err = dist.DefaultRoutingDistribution(gridN, excludedModels, excludedProviders)
+			points, err = dist.DefaultRoutingDistribution(gridN, excludedModels, nil)
 		}
 		if err != nil {
 			// An exclusion set that empties the eligible pool is a client

@@ -15,7 +15,6 @@ import (
 // Codex resends the history every turn, so one such call bricks the session.
 // A later assistant call that reuses an id starts a new group. Returns the
 // number of duplicate results removed; the body is untouched when zero.
-// Gemini-format envelopes are left alone.
 func (e *RequestEnvelope) CoalesceDuplicateToolResults() int {
 	if e == nil {
 		return 0

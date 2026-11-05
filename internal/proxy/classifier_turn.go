@@ -43,8 +43,6 @@ func (s *Service) withClassifierInput(ctx context.Context, body []byte, endpoint
 		env, err = translate.ParseAnthropic(body)
 	case router.EndpointOpenAIChat:
 		env, err = translate.ParseOpenAI(body)
-	case router.EndpointGeminiGenerate:
-		env, err = translate.ParseGemini(body)
 	case router.EndpointOpenAIResponses:
 		observation, err = translate.ParseResponsesEscalationObservation(body)
 	default:

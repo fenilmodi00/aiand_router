@@ -200,20 +200,6 @@ func (e *RequestEnvelope) buildOpenAIFromOpenAI(opts EmitOptions) ([]byte, error
 			return nil, fmt.Errorf("set reasoning_effort: %w", err)
 		}
 	}
-	if targetIsOpenRouter(opts) {
-		if hint := openRouterProviderHint(opts.TargetModel); hint != nil {
-			body, err = sjson.SetBytes(body, "provider", hint)
-			if err != nil {
-				return nil, fmt.Errorf("set openrouter provider hint: %w", err)
-			}
-		}
-		if reasoning := openRouterReasoningHint(opts.TargetModel); reasoning != nil {
-			body, err = sjson.SetBytes(body, "reasoning", reasoning)
-			if err != nil {
-				return nil, fmt.Errorf("set openrouter reasoning hint: %w", err)
-			}
-		}
-	}
 	body, err = applyQwen3SamplersIfNeeded(body, opts)
 	if err != nil {
 		return nil, err
@@ -229,12 +215,42 @@ func (e *RequestEnvelope) buildOpenAIFromOpenAI(opts EmitOptions) ([]byte, error
 	return body, nil
 }
 
-// targetIsOpenRouter reports whether the emit target is OpenRouter. The single
-// upstream is a direct vendor, not OpenRouter, so OpenRouter-only body fields
-// (`provider`/`reasoning`) must not be sent — they are rejected downstream.
-func targetIsOpenRouter(opts EmitOptions) bool {
-	return false
+// isGLM51 reports whether the model id is z-ai/glm-5.1. GLM-5.1's streaming
+// tool-call fix is opt-in (tool_stream=true, docs.z.ai/guides/capabilities/stream-tool);
+// without it tool_call envelopes arrive with empty arguments like GLM-5. We
+// also disable thinking-mode on the vLLM path (Fireworks/Together) so
+// reasoning doesn't leak into the stream.
+func isGLM51(model string) bool {
+	return model == "z-ai/glm-5.1"
 }
+
+// isGLM53Flash reports whether the model id is z-ai/glm-5.3-flash. Like
+// GLM-5.1 it needs tool_stream=true opted in (docs.z.ai/guides/vlm/glm-5.3-flash).
+// Unlike GLM-5.1, thinking can't be disabled, so it gets no
+// chat_template_kwargs handling.
+func isGLM53Flash(model string) bool {
+	return model == "z-ai/glm-5.3-flash"
+}
+
+// isQwen3Family reports whether the model id belongs to the qwen3.x family.
+// These variants drift into tool-call/thinking loops without the model
+// card's recommended sampling defaults, which we layer in when unset.
+func isQwen3Family(model string) bool {
+	return strings.HasPrefix(model, "qwen/qwen3")
+}
+
+// Qwen3 sampling defaults from the official model card
+// (huggingface.co/Qwen/Qwen3-235B-A22B-Instruct-2507), applied only when the
+// client hasn't set the field. presence_penalty=1.5 suppresses the
+// "same tool, same args, N times" loop the Instruct variant is prone to.
+// qwen3RepetitionPenalty is skipped on Fireworks targets — see
+// applyQwen3SamplersIfNeeded.
+const (
+	qwen3Temperature       = 0.7
+	qwen3TopP              = 0.8
+	qwen3PresencePenalty   = 1.5
+	qwen3RepetitionPenalty = 1.05
+)
 
 func (e *RequestEnvelope) buildOpenAIFromAnthropic(opts EmitOptions) ([]byte, providers.RequestMutationStats, error) {
 	var stats providers.RequestMutationStats
@@ -327,8 +343,7 @@ func (e *RequestEnvelope) buildOpenAIFromAnthropic(opts EmitOptions) ([]byte, pr
 //     loop (docs/investigations/2026-05-26-glm5-empty-tool-loop.md).
 //   - chat_template_kwargs.enable_thinking=false — disables the vLLM chat
 //     template's default-on thinking mode (Fireworks/Together) so reasoning
-//     doesn't leak into the response stream. Skipped for OpenRouter, which
-//     disables thinking via its own reasoning={enabled:false} hint instead.
+//     doesn't leak into the response stream.
 func applyGLM51FlagsIfNeeded(body []byte, opts EmitOptions) ([]byte, error) {
 	if !isGLM51(opts.TargetModel) {
 		return body, nil

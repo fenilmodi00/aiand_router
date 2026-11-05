@@ -88,17 +88,6 @@ func TestTitleNeverEmitsDroppedForceDiagnostic(t *testing.T) {
 	}))
 }
 
-func TestBaselineMarkerNeverPrefixesMachineConsumedTurns(t *testing.T) {
-	for _, turnType := range []turntype.TurnType{turntype.TitleGen, turntype.Probe, turntype.Classifier} {
-		t.Run(string(turnType), func(t *testing.T) {
-			assert.Empty(t, baselineRoutingMarkerFor(turnLoopResult{
-				TurnType:         turnType,
-				PriorServedModel: catalog.ModelIDGLM53.String(),
-			}, catalog.ModelIDGLM53.String()))
-		})
-	}
-}
-
 func TestAutomaticProbeWithoutConcreteTargetScoresWithoutPinning(t *testing.T) {
 	for _, requestedModel := range []string{
 		automaticProbeModel, "",

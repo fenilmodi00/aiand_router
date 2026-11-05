@@ -1247,8 +1247,7 @@ func leadsWithToolishMarkup(content string) bool {
 //
 // Gemini-3.x is excluded entirely: the synthesized tool_use has no
 // thoughtSignature, and Gemini-3.x requires one on every functionCall across
-// turns. A sig-less nudge makes writeGeminiFromAnthropic drop the whole
-// tool_use/tool_result history (emit_gemini.go dropToolBlocks), wiping prior
+// turns. A sig-less nudge would poison next-turn history, wiping prior
 // context and looping the model to the turn ceiling — empirically far worse
 // (≥90-turn loops 4→46 in the v0.59 bake-off). OpenAI-compat models this was
 // built for have no such guard and still benefit.

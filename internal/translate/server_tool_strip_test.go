@@ -2,7 +2,6 @@ package translate_test
 
 import (
 	"encoding/json"
-	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -43,18 +42,6 @@ func TestServerTools_AnthropicSourceOpenAITarget_Stripped(t *testing.T) {
 	names := emittedToolNames(t, out.Body)
 	assert.ElementsMatch(t, []string{"Read"}, names,
 		"client tools survive; Anthropic native server tools are dropped on Anthropic→OpenAI")
-	assert.Equal(t, 2, out.Stats.ServerToolsStripped)
-}
-
-func TestServerTools_AnthropicSourceGeminiTarget_Stripped(t *testing.T) {
-	env, err := translate.ParseAnthropic([]byte(anthropicServerToolBody))
-	require.NoError(t, err)
-
-	out, err := env.PrepareGemini(http.Header{}, translate.EmitOptions{TargetModel: "gemini-3.1-pro-preview"})
-	require.NoError(t, err)
-
-	names := emittedGeminiToolNames(t, out.Body)
-	assert.ElementsMatch(t, []string{"Read"}, names)
 	assert.Equal(t, 2, out.Stats.ServerToolsStripped)
 }
 

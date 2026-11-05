@@ -180,33 +180,6 @@ func (e *RequestEnvelope) EscalationObservation() (EscalationObservation, error)
 			}
 			observation.Messages = append(observation.Messages, EscalationMessage{Role: role, Blocks: blocks, HasOmittedMedia: hasOmittedMedia})
 		}
-	case FormatGemini:
-		system := root.Get("systemInstruction")
-		if !system.Exists() {
-			system = root.Get("system_instruction")
-		}
-		if system.Exists() {
-			blocks, hasOmittedMedia, err := escalationGeminiBlocks(system.Get("parts"))
-			if err != nil {
-				return observation, err
-			}
-			observation.Messages = append(observation.Messages, EscalationMessage{Role: EscalationRoleSystem, Blocks: blocks, HasOmittedMedia: hasOmittedMedia})
-		}
-		for _, message := range root.Get("contents").Array() {
-			roleName := message.Get("role").String()
-			if roleName == "" {
-				roleName = string(EscalationRoleUser)
-			}
-			role, err := escalationSemanticRole(roleName)
-			if err != nil {
-				return observation, err
-			}
-			blocks, hasOmittedMedia, err := escalationGeminiBlocks(message.Get("parts"))
-			if err != nil {
-				return observation, err
-			}
-			observation.Messages = append(observation.Messages, EscalationMessage{Role: role, Blocks: blocks, HasOmittedMedia: hasOmittedMedia})
-		}
 	default:
 		return observation, fmt.Errorf("unsupported escalation request format %d", e.format)
 	}

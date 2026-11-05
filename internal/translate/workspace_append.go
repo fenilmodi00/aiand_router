@@ -20,8 +20,7 @@ func (e *RequestEnvelope) HasWorkspaceSystemText() bool {
 // withWorkspaceSystemAppended is the non-Anthropic counterpart of
 // withAutonomySystemAppended: same final-uncached-block position, same
 // Anthropic-source-only rule, but never applied by PrepareAnthropic, since a
-// Claude-served turn already inspects the workspace on its own. Unlike the
-// autonomy text it is also carried into Gemini's systemInstruction.
+// Claude-served turn already inspects the workspace on its own.
 func (e *RequestEnvelope) withWorkspaceSystemAppended(opts EmitOptions) (*RequestEnvelope, error) {
 	if !opts.AppendWorkspaceSystem || e.format != FormatAnthropic {
 		return e, nil

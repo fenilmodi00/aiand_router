@@ -6,8 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tidwall/gjson"
 	"aiand-os/router/internal/translate"
+
+	"github.com/tidwall/gjson"
 )
 
 var responsesCleanupBenchmarkSink []byte

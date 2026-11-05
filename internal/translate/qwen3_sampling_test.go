@@ -66,8 +66,8 @@ func TestQwen3Samplers_AnthropicCrossFormat_InjectedForQwen3(t *testing.T) {
 
 func TestQwen3Samplers_AppliedOnBedrockTarget(t *testing.T) {
 	// Production bedrock-mantle traffic was previously skipping the qwen3
-	// sampler block because the targetIsOpenRouter gate excluded it. With
-	// the model-keyed application, samplers now reach Bedrock too.
+	// sampler block. With the model-keyed application, samplers now reach
+	// Bedrock too.
 	body := []byte(`{
 		"model": "z-ai/glm-5.3",
 		"max_tokens": 256,

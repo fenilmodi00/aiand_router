@@ -53,7 +53,7 @@ func assistantToolCallArgsPreview(entries []assistantToolCallEntry, offset, maxL
 // loop signals: some OSS models (notably qwen3) fail to recognize task
 // completion and alternate/repeat calls indefinitely, which counting
 // signature occurrences in a recent window can characterize. Returns nil for
-// Gemini-format requests (unsupported) or no assistant tool calls.
+// requests with no assistant tool calls.
 func (e *RequestEnvelope) AssistantToolCallSignatures() []ToolCallSig {
 	switch e.format {
 	case FormatAnthropic:

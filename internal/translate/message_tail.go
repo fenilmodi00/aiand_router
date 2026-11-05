@@ -36,8 +36,6 @@ func (e *RequestEnvelope) MessageTailPreview(n, maxLen int) []MessagePreview {
 		return anthropicMessageTailPreview(e.body, n, maxLen)
 	case FormatOpenAI:
 		return openAIMessageTailPreview(e.body, n, maxLen)
-	case FormatGemini:
-		return geminiMessageTailPreview(e.body, n, maxLen)
 	default:
 		return nil
 	}
@@ -177,64 +175,6 @@ func openAIMessageTailPreview(body []byte, n, maxLen int) []MessagePreview {
 		out = append(out, mp)
 	}
 	return out
-}
-
-func geminiMessageTailPreview(body []byte, n, maxLen int) []MessagePreview {
-	contents := gjson.GetBytes(body, "contents")
-	if !contents.IsArray() {
-		return nil
-	}
-	all := contents.Array()
-	if len(all) == 0 {
-		return nil
-	}
-	start := len(all) - n
-	if start < 0 {
-		start = 0
-	}
-	out := make([]MessagePreview, 0, len(all)-start)
-	for _, msg := range all[start:] {
-		mp := MessagePreview{Role: msg.Get("role").String()}
-		parts := msg.Get("parts")
-		if parts.IsArray() {
-			parts.ForEach(func(_, part gjson.Result) bool {
-				mp.Blocks = append(mp.Blocks, geminiPartPreview(part, maxLen))
-				return true
-			})
-		}
-		out = append(out, mp)
-	}
-	return out
-}
-
-func geminiPartPreview(part gjson.Result, maxLen int) MessageBlockPreview {
-	if text := part.Get("text").String(); text != "" {
-		if part.Get("thought").Bool() {
-			return MessageBlockPreview{Type: "thinking", Preview: observability.Preview(text, maxLen)}
-		}
-		return MessageBlockPreview{Type: "text", Preview: observability.Preview(text, maxLen)}
-	}
-	if fc := part.Get("functionCall"); fc.Exists() {
-		return MessageBlockPreview{
-			Type:    "tool_use",
-			Name:    observability.Preview(fc.Get("name").String(), blockNameMaxLen),
-			Preview: observability.Preview(fc.Get("args").Raw, maxLen),
-		}
-	}
-	if fr := part.Get("functionResponse"); fr.Exists() {
-		return MessageBlockPreview{
-			Type:    "tool_result",
-			Name:    observability.Preview(fr.Get("name").String(), blockNameMaxLen),
-			Preview: observability.Preview(fr.Get("response").Raw, maxLen),
-		}
-	}
-	if inlineData := part.Get("inlineData"); inlineData.Exists() {
-		return MessageBlockPreview{Type: "image", Name: observability.Preview(inlineData.Get("mimeType").String(), blockNameMaxLen)}
-	}
-	if fileData := part.Get("fileData"); fileData.Exists() {
-		return MessageBlockPreview{Type: "file", Name: observability.Preview(fileData.Get("mimeType").String(), blockNameMaxLen)}
-	}
-	return MessageBlockPreview{Type: "part"}
 }
 
 // SystemTextTail returns the system-prompt length plus head and tail

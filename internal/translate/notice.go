@@ -8,8 +8,9 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/google/uuid"
 	"aiand-os/router/internal/sse"
+
+	"github.com/google/uuid"
 )
 
 type NoticeKind string

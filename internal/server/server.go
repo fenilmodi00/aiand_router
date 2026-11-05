@@ -15,7 +15,6 @@ import (
 	anthropicapi "aiand-os/router/internal/api/anthropic"
 	classifierapi "aiand-os/router/internal/api/classifier"
 	feedbackapi "aiand-os/router/internal/api/feedback"
-	geminiapi "aiand-os/router/internal/api/gemini"
 	openaiapi "aiand-os/router/internal/api/openai"
 	"aiand-os/router/internal/auth"
 	"aiand-os/router/internal/billing"
@@ -318,8 +317,6 @@ func RegisterWithFeatures(engine *gin.Engine, authSvc *auth.Service, proxySvc *p
 			mgmt.PUT("/excluded-models", admin.UpdateExcludedModelsHandler(authSvc, deployedModels, proxySvc))
 			mgmt.GET("/allowed-models", admin.GetAllowedModelsHandler(authSvc, deployedModels))
 			mgmt.PUT("/allowed-models", admin.UpdateAllowedModelsHandler(authSvc, deployedModels, proxySvc))
-			mgmt.GET("/excluded-providers", admin.GetExcludedProvidersHandler(authSvc, deployedModels, proxySvc))
-			mgmt.PUT("/excluded-providers", admin.UpdateExcludedProvidersHandler(authSvc, deployedModels, proxySvc))
 		}
 	}
 
@@ -389,8 +386,6 @@ func RegisterWithFeatures(engine *gin.Engine, authSvc *auth.Service, proxySvc *p
 	// translated internally to chat completions so the turn loop is reused.
 	chatCompletionWithoutPolicyPinGroup := engine.Group("", chatCompletionWithoutPolicyPin...)
 	chatCompletionWithoutPolicyPinGroup.POST("/v1/responses", openaiapi.ResponsesHandler(proxySvc, authSvc))
-	// Action suffix (:generateContent or :streamGenerateContent) lives inside modelAction because Gin treats `:` outside the leading position as a literal.
-	chatCompletionWithoutPolicyPinGroup.POST("/v1beta/models/:modelAction", geminiapi.GenerateContentHandler(proxySvc, authSvc))
 
 	// Passthrough endpoints cost no upstream tokens, so they stay open even
 	// with billing enabled — count_tokens is the SDK's pre-flight call before

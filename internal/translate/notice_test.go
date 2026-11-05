@@ -10,10 +10,11 @@ import (
 	"sync"
 	"testing"
 
+	"aiand-os/router/internal/translate"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
-	"aiand-os/router/internal/translate"
 )
 
 const syntheticNoticeKind translate.NoticeKind = "synthetic_status"

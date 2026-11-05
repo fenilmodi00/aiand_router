@@ -101,22 +101,21 @@ func (q *Queries) GetServingCredentialForAdmission(ctx context.Context, arg GetS
 }
 
 const getServingInstallationForAdmission = `-- name: GetServingInstallationForAdmission :one
-SELECT id, allowed_models, excluded_models, excluded_providers, routing_strategy FROM router.model_router_installations
+SELECT id, allowed_models, excluded_models, routing_strategy FROM router.model_router_installations
 WHERE id = $1::uuid AND deleted_at IS NULL
 FOR SHARE
 `
 
 type GetServingInstallationForAdmissionRow struct {
-	ID                uuid.UUID
-	AllowedModels     []string
-	ExcludedModels    []string
-	ExcludedProviders []string
-	RoutingStrategy   *string
+	ID              uuid.UUID
+	AllowedModels   []string
+	ExcludedModels  []string
+	RoutingStrategy *string
 }
 
 // Admission shares the installation lock; assignment changes take its exclusive lock first.
 //
-//	SELECT id, allowed_models, excluded_models, excluded_providers, routing_strategy FROM router.model_router_installations
+//	SELECT id, allowed_models, excluded_models, routing_strategy FROM router.model_router_installations
 //	WHERE id = $1::uuid AND deleted_at IS NULL
 //	FOR SHARE
 func (q *Queries) GetServingInstallationForAdmission(ctx context.Context, installationID uuid.UUID) (GetServingInstallationForAdmissionRow, error) {
@@ -126,7 +125,6 @@ func (q *Queries) GetServingInstallationForAdmission(ctx context.Context, instal
 		&i.ID,
 		&i.AllowedModels,
 		&i.ExcludedModels,
-		&i.ExcludedProviders,
 		&i.RoutingStrategy,
 	)
 	return i, err

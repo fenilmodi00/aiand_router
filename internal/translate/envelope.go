@@ -55,9 +55,9 @@ type EmitOptions struct {
 	// in thinking block". When set, the emit path strips thinking blocks.
 	ModelSwitched bool
 	// ForceReasoningEffort, when non-empty, overrides the request-derived
-	// reasoning effort for gpt-5.x (Responses API) / gemini-3.x (thinkingConfig).
+	// reasoning effort for gpt-5.x (Responses API).
 	// Set by the proxy's escalate-on-failure policy: gpt-5.x starts "low", goes
-	// "high" after a failed/no-progress turn; gemini stays "low" (effort-immune).
+	// "high" after a failed/no-progress turn.
 	ForceReasoningEffort string
 	// ForceEffort, when non-empty, is the user-requested effort level
 	// (x-aiand-effort header / :level suffix). Wins over ForceReasoningEffort;
@@ -87,12 +87,6 @@ type EmitOptions struct {
 	// gateways are documented to serve the knob (Cortex does), so the proxy sets
 	// this only on a one-shot retry after one 400s on it.
 	StripOutputConfigFormat bool
-	// DowngradeGeminiValidatedToAuto emits functionCallingConfig.mode=AUTO
-	// instead of VALIDATED for Gemini 3.x. VALIDATED compiles tool schemas into
-	// a decode-time grammar and 400s INVALID_ARGUMENT if one won't compile; the
-	// proxy sets this on a one-shot retry after such a 400 since AUTO skips
-	// compilation. No-op when VALIDATED wouldn't have been used.
-	DowngradeGeminiValidatedToAuto bool
 	// ReasoningReplayScope identifies the upstream account+model this request
 	// dispatches to, so encrypted reasoning carried on the history is replayed
 	// only where it was minted (see openai_reasoning_signature.go). Empty
@@ -132,15 +126,6 @@ func ParseAnthropic(body []byte) (*RequestEnvelope, error) {
 	return &RequestEnvelope{body: body, format: FormatAnthropic}, nil
 }
 
-// ParseGemini validates body as a JSON object and wraps it in a RequestEnvelope
-// sourced from Gemini's native generateContent shape.
-func ParseGemini(body []byte) (*RequestEnvelope, error) {
-	if err := validateJSONObject(body); err != nil {
-		return nil, err
-	}
-	return &RequestEnvelope{body: body, format: FormatGemini}, nil
-}
-
 // validateJSONObject rejects arrays, scalars, and null.
 func validateJSONObject(body []byte) error {
 	if !gjson.ValidBytes(body) {
@@ -155,7 +140,6 @@ func validateJSONObject(body []byte) error {
 func (e *RequestEnvelope) SourceFormat() Format { return e.format }
 
 // Stream reports whether the request has "stream": true. Rejects numeric coercion.
-// For Gemini ingress, the handler injects a synthetic "stream": true.
 func (e *RequestEnvelope) Stream() bool {
 	r := gjson.GetBytes(e.body, "stream")
 	if r.Type == gjson.Number {
@@ -184,8 +168,6 @@ func (e *RequestEnvelope) ClientSessionID() string {
 	switch e.format {
 	case FormatAnthropic:
 		return requestcontext.BodySessionID(e.body, requestcontext.ConversationAnthropic)
-	case FormatGemini:
-		return requestcontext.BodySessionID(e.body, requestcontext.ConversationGemini)
 	case FormatOpenAI:
 		return requestcontext.BodySessionID(e.body, requestcontext.ConversationChat)
 	}
@@ -199,8 +181,6 @@ func (e *RequestEnvelope) SystemText() string {
 		return systemTextGJSON(gjson.GetBytes(e.body, "system"))
 	case FormatOpenAI:
 		return openAISystemText(e.body)
-	case FormatGemini:
-		return geminiSystemText(e.body)
 	default:
 		return ""
 	}
@@ -239,8 +219,6 @@ func (e *RequestEnvelope) LastUserMessage() LastUserMessageInfo {
 		return anthropicLastUserMessage(e.body)
 	case FormatOpenAI:
 		return openAILastUserMessage(e.body)
-	case FormatGemini:
-		return geminiLastUserMessage(e.body)
 	default:
 		return LastUserMessageInfo{}
 	}
@@ -249,9 +227,6 @@ func (e *RequestEnvelope) LastUserMessage() LastUserMessageInfo {
 // FirstUserMessageText returns the text of the first user-authored message.
 // Returns "" if there is no first user message.
 func (e *RequestEnvelope) FirstUserMessageText() string {
-	if e.format == FormatGemini {
-		return geminiFirstUserMessageText(e.body)
-	}
 	first := gjson.GetBytes(e.body, "messages.0")
 	if !first.Exists() {
 		return ""
@@ -328,8 +303,6 @@ func (e *RequestEnvelope) ImageCount() int {
 		return anthropicImageCount(e.body)
 	case FormatOpenAI:
 		return openAIImageCount(e.body)
-	case FormatGemini:
-		return geminiImageCount(e.body)
 	default:
 		return 0
 	}
@@ -1011,10 +984,10 @@ func stripPatternFromMessages(body []byte, pattern *regexp.Regexp) ([]byte, erro
 }
 
 // StripFeedbackFooterFromGeminiContents removes the one-click thumbs footer from
-// every text part in contents[*].parts[*]. The Gemini footer is emitted as its
-// own model text part on egress (see GeminiRoutingFooterWriter), so clients echo
-// it back as a standalone part on the next turn; stripping it on ingress keeps
-// it out of upstream context. Parts whose text becomes empty are dropped.
+// every text part in contents[*].parts[*]. The Gemini footer was emitted as its
+// own model text part on egress, so clients echo it back as a standalone part
+// on the next turn; stripping it on ingress keeps it out of upstream context.
+// Parts whose text becomes empty are dropped.
 func StripFeedbackFooterFromGeminiContents(body []byte) ([]byte, error) {
 	return stripPatternFromGeminiContents(body, feedbackFooterPattern)
 }

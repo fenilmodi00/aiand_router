@@ -48,10 +48,6 @@ func TestReadPrefixes_NonAnthropicTargetsGetUnambiguousSeparator(t *testing.T) {
 			p, err := env.PrepareOpenAI(http.Header{}, translate.EmitOptions{TargetModel: "grok-4.6"})
 			return p.Body, err
 		},
-		"gemini": func() ([]byte, error) {
-			p, err := env.PrepareGemini(http.Header{}, translate.EmitOptions{TargetModel: "gemini-2.5-pro"})
-			return p.Body, err
-		},
 	} {
 		body, err := prepare()
 		require.NoError(t, err, name)

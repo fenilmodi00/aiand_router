@@ -106,12 +106,11 @@ func (s *Service) withTurnOverloadProbe(ctx context.Context, res turnLoopResult)
 }
 
 // overloadProbeRescuable reports whether a 529 on the probe would be absorbed
-// by the sibling rescue instead of reaching the client: the Gemini ingress
-// and caller-model passthrough never rescue, and the others only when
-// siblingRescueAllowed holds.
+// by the sibling rescue instead of reaching the client: caller-model
+// passthrough never rescues, and the others only when siblingRescueAllowed
+// holds.
 func (s *Service) overloadProbeRescuable(ctx context.Context, req router.Request) bool {
-	return req.TranslationRequirements.Endpoint != router.EndpointGeminiGenerate &&
-		!auth.RoutingPassthroughFrom(ctx) &&
+	return !auth.RoutingPassthroughFrom(ctx) &&
 		s.siblingRescueAllowed(ctx)
 }
 

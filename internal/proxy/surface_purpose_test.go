@@ -11,13 +11,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tidwall/gjson"
 	"aiand-os/router/internal/dispatch"
 	"aiand-os/router/internal/inference"
 	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/proxy"
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/catalog"
+	"github.com/tidwall/gjson"
 )
 
 type purposeSink struct{ events []inference.AttemptEvent }
@@ -73,15 +73,6 @@ func TestPublicSurfaces_DispatchThroughResolvedPlan(t *testing.T) {
 				body := []byte(`{"model":"gpt-5.5","input":"hi"}`)
 				return svc.ProxyOpenAIResponses(context.Background(), body, w,
 					httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader("")))
-			},
-		},
-		"gemini generate content": {
-			provider: providers.ProviderAIAND, model: "gemini-2.5-pro",
-			purpose: inference.PurposeGeminiGenerateContent, policyID: "main-gemini-generate-content",
-			upstream: jsonUpstream(`{"candidates":[{"content":{"role":"model","parts":[{"text":"hi"}]}}]}`),
-			run: func(svc *proxy.Service, w http.ResponseWriter) error {
-				return svc.ProxyGeminiGenerateContent(authedCtx("00000000-0000-0000-0000-000000000001"), []byte(geminiInjectedBody), w,
-					httptest.NewRequest(http.MethodPost, "/v1beta/models/gemini-1.5-pro:generateContent", strings.NewReader("")))
 			},
 		},
 	}

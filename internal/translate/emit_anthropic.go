@@ -1325,9 +1325,9 @@ func writeAnthropicTextBlock(jw *jsonWriter, text string) {
 // sanitizeToolUseID replaces characters Anthropic rejects in tool_use.id
 // (must match ^[a-zA-Z0-9_-]+$). Non-Anthropic upstreams (e.g. Kimi-k2.6) emit
 // IDs with dots/colons that 400 if a session switches back to Anthropic.
-// Length is not clamped: this is shared with the Gemini emit path, where
-// embedSignatureInID intentionally pushes ids past 64 bytes; OpenAI's 64-char
-// limit is enforced separately in clampOpenAIToolCallID.
+// Length is not clamped: ids may carry a Gemini thoughtSignature embedded by
+// embedSignatureInID that intentionally pushes them past 64 bytes; OpenAI's
+// 64-char limit is enforced separately in clampOpenAIToolCallID.
 func sanitizeToolUseID(id string) string {
 	if id == "" {
 		return id
@@ -1353,11 +1353,10 @@ func sanitizeToolUseID(id string) string {
 // response so ids pair within a turn. Idempotent; empty id gets synthetic one.
 //
 // id may already carry a Gemini thoughtSignature embedded by embedSignatureInID
-// (the Gemini->OpenAI emit path embeds it before this ever runs). The
-// signature is extracted first and re-embedded after nonce-ing the clean id —
-// appending the nonce directly to an already-embedded id would land it inside
-// the base64 payload, corrupting the length (and thus the signature) rather
-// than the id.
+// by an earlier Gemini-served turn. The signature is extracted first and
+// re-embedded after nonce-ing the clean id — appending the nonce directly to
+// an already-embedded id would land it inside the base64 payload, corrupting
+// the length (and thus the signature) rather than the id.
 func uniqueToolUseIDWithNonce(id, nonce string) string {
 	cleanID, sig := extractSignatureFromID(id)
 	return embedSignatureInID(uniqueSanitizedIDWithNonce(cleanID, nonce), sig)

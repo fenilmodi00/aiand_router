@@ -102,8 +102,6 @@ func translationEndpointFor(env *translate.RequestEnvelope) router.TranslationEn
 		return router.EndpointAnthropicMessages
 	case translate.FormatOpenAI:
 		return router.EndpointOpenAIChat
-	case translate.FormatGemini:
-		return router.EndpointGeminiGenerate
 	default:
 		return ""
 	}
@@ -130,7 +128,7 @@ func (s *Service) planTranslation(req router.Request) TranslationPlan {
 	// advertised-only tools from this requirement.
 	plan.Enforced = requirements.CitationsOrSearch ||
 		s.translationCompatibilityMode == TranslationCompatibilityEnforce ||
-		((requirements.NativeOnly || requirements.SourceFormat == router.WireFormatGemini) && s.translationCompatibilityMode != TranslationCompatibilityOff)
+		(requirements.NativeOnly && s.translationCompatibilityMode != TranslationCompatibilityOff)
 	constraints, valid := translationConstraints(requirements)
 	if !valid {
 		plan.Intrinsic = plan.Enforced
@@ -168,8 +166,8 @@ func (s *Service) planTranslation(req router.Request) TranslationPlan {
 }
 
 // translationConstraints is the compatibility matrix. Native source routing
-// uses a family for Messages/Chat/GenerateContent, but Responses is exact-
-// provider because only the OpenAI adapter currently implements EndpointResponses.
+// uses a family for Messages/Chat, but Responses is exact-provider because
+// only the OpenAI adapter currently implements EndpointResponses.
 func translationConstraints(req router.TranslationRequirements) ([]translationConstraint, bool) {
 	constraints := make([]translationConstraint, 0, 8)
 	addSourceNative := func(code string) bool {
@@ -181,11 +179,6 @@ func translationConstraints(req router.TranslationRequirements) ([]translationCo
 	}
 
 	if req.NativeOnly && !addSourceNative("native_wire_family_required") {
-		return nil, false
-	}
-	// Native Gemini emission is the only implemented Gemini path; do not let a
-	// shadow rollout turn this into an accidental cross-format request.
-	if req.SourceFormat == router.WireFormatGemini && !req.NativeOnly && !addSourceNative("native_wire_family_required") {
 		return nil, false
 	}
 
@@ -210,7 +203,7 @@ func translationConstraints(req router.TranslationRequirements) ([]translationCo
 
 func sourceNativeConstraint(req router.TranslationRequirements, code string) (translationConstraint, bool) {
 	switch req.SourceFormat {
-	case router.WireFormatAnthropic, router.WireFormatOpenAI, router.WireFormatGemini:
+	case router.WireFormatAnthropic, router.WireFormatOpenAI:
 		return translationConstraint{Code: code, TargetFamily: providers.FamilyOpenAICompat, ExactProviders: singletonProviderSet(providers.ProviderAIAND)}, true
 	default:
 		return translationConstraint{}, false

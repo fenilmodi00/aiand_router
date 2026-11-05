@@ -64,14 +64,14 @@ var DefaultResponsesSSEIdleTimeout = idleTimeoutFromEnv("ROUTER_RESPONSES_SSE_ID
 var DefaultResponsesOutputStallTimeout = idleTimeoutFromEnv("ROUTER_RESPONSES_OUTPUT_STALL_TIMEOUT_SECONDS", 240*time.Second)
 
 // DefaultOutputStallTimeout is the Chat-Completions analogue of
-// DefaultResponsesOutputStallTimeout, for the generic OpenAI-compatible
-// adapter (OpenRouter/Fireworks/DeepInfra/Bedrock). DefaultSSEIdleTimeout
-// resets on any byte, so a provider that stays byte-alive via keepalive
-// comments or empty/role-only deltas while emitting zero output content would
-// otherwise ride to the request cap (prod incident 2026-06-19: a DeepInfra
-// stream did this for ~10min, then the client retry hit a 404). Fed by the
-// OpenAI→Anthropic SSE translator on output-bearing deltas, including streamed
-// reasoning_content. Responses translators report reasoning separately.
+// DefaultResponsesOutputStallTimeout for the OpenAI-compatible adapter that
+// serves the Aiand upstream. DefaultSSEIdleTimeout resets on any byte, so an
+// upstream that stays byte-alive via keepalive comments or empty/role-only
+// deltas while emitting zero output content would otherwise ride to the
+// request cap (prod incident 2026-06-19: a stream did this for ~10min, then
+// the client retry hit a 404). Fed by the OpenAI→Anthropic SSE translator on
+// output-bearing deltas, including streamed reasoning_content. Responses
+// translators report reasoning separately.
 // Tunable via ROUTER_OUTPUT_STALL_TIMEOUT_SECONDS.
 var DefaultOutputStallTimeout = idleTimeoutFromEnv("ROUTER_OUTPUT_STALL_TIMEOUT_SECONDS", 240*time.Second)
 

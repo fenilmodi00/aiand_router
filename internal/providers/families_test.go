@@ -9,57 +9,28 @@ import (
 	"aiand-os/router/internal/providers"
 )
 
-// TestEveryProviderHasFamilyAndEnvVar guards the three-map invariant: every
-// provider AllProviders reports must have a concrete translation family and a
-// non-empty deployment env-var entry. It fails if a new Provider* constant is
-// added to ProviderFamilies without its APIKeyEnvVars entry (or vice versa),
-// which is the omission that let makora/together silently 502.
-func TestEveryProviderHasFamilyAndEnvVar(t *testing.T) {
-	all := providers.AllProviders()
-	require.NotEmpty(t, all, "AllProviders returned no providers")
+// TestValidateDispatchableAcceptsAiand asserts the boot guard accepts the one
+// wired provider and still rejects a registered-but-unknown provider name,
+// surfacing it in the error.
+func TestValidateDispatchable(t *testing.T) {
+	require.NoError(t, providers.ValidateDispatchable([]string{providers.ProviderAIAND}))
 
-	for _, p := range all {
-		assert.NotEqualf(t, providers.FamilyUnknown, providers.FamilyFor(p),
-			"provider %q has no ProviderFamilies entry (FamilyUnknown)", p)
-		assert.NotEmptyf(t, providers.APIKeyEnvVar(p),
-			"provider %q has no APIKeyEnvVars entry", p)
-	}
-}
-
-// TestValidateDispatchableRejectsUnknown asserts the boot guard flags a
-// registered provider that has no family — the exact condition that would
-// otherwise fall through the dispatch switches to ErrProviderNotConfigured.
-func TestValidateDispatchableRejectsUnknown(t *testing.T) {
-	// All real providers pass.
-	require.NoError(t, providers.ValidateDispatchable(providers.AllProviders()))
-
-	// A registered-but-unmapped provider is rejected, and its name surfaces in
-	// the error so the dev knows which one to add.
 	err := providers.ValidateDispatchable([]string{providers.ProviderAIAND, "brand-new-provider"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "brand-new-provider")
 }
 
-// TestFamilyForKnownProviders pins the expected family of each provider so a
-// mis-assignment (e.g. flipping an OpenAI-compat provider to Anthropic) fails.
+// TestFamilyForKnownProviders pins the expected family of the provider so a
+// mis-assignment (e.g. flipping it off OpenAI-compat) fails.
 func TestFamilyForKnownProviders(t *testing.T) {
-	cases := map[string]providers.TranslationFamily{
-		providers.ProviderAIAND: providers.FamilyOpenAICompat,
-	}
-	for p, want := range cases {
-		assert.Equalf(t, want, providers.FamilyFor(p), "family for %q", p)
-		assert.Equalf(t, want == providers.FamilyOpenAICompat, providers.IsOpenAICompat(p),
-			"IsOpenAICompat for %q", p)
-	}
+	assert.Equal(t, providers.FamilyOpenAICompat, providers.FamilyFor(providers.ProviderAIAND))
+	assert.True(t, providers.IsOpenAICompat(providers.ProviderAIAND))
 }
 
-// TestAllProvidersSorted asserts AllProviders returns a deterministic sorted
-// slice (relied on for stable dashboard display order).
-func TestAllProvidersSorted(t *testing.T) {
-	all := providers.AllProviders()
-	for i := 1; i < len(all); i++ {
-		assert.LessOrEqualf(t, all[i-1], all[i], "AllProviders not sorted at index %d", i)
-	}
+// TestAllProvidersSorted asserts AllProviders returns the single known
+// provider (deterministic display order for the dashboard).
+func TestAllProvidersReturnsAiandOnly(t *testing.T) {
+	assert.Equal(t, []string{providers.ProviderAIAND}, providers.AllProviders())
 }
 
 // TestFamilyForUnknownIsZero asserts an unmapped provider name reports

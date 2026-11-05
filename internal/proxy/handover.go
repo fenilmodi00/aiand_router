@@ -249,23 +249,22 @@ func (s *ProviderSummarizer) run(ctx context.Context, env *translate.RequestEnve
 	return text, usage, nil
 }
 
-// prepareSummaryCall builds the non-streaming Anthropic Messages request for
-// target; dispatch checks the wire model against the plan before any I/O.
+// prepareSummaryCall builds the non-streaming OpenAI Chat Completions request
+// for target; dispatch checks the wire model against the plan before any I/O.
 func prepareSummaryCall(env *translate.RequestEnvelope, target inference.Target, instruction string, maxTokens int) (providers.PreparedRequest, *http.Request, error) {
 	body, err := buildSummaryRequestBody(env, target.CatalogID, instruction, maxTokens)
 	if err != nil {
 		return providers.PreparedRequest{}, nil, fmt.Errorf("build summary request: %w", err)
 	}
 	prep := providers.PreparedRequest{Body: body, Headers: make(http.Header)}
-	prep.Headers.Set("anthropic-version", "2023-06-01")
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
 	req.Header.Set("content-type", "application/json")
 	return prep, req, nil
 }
 
 // summaryFromResponse extracts the assistant text and usage from a buffered
-// non-streaming Anthropic response, reporting non-2xx as an upstream status
-// error so the executor can classify it.
+// non-streaming Chat Completions response, reporting non-2xx as an upstream
+// status error so the executor can classify it.
 func summaryFromResponse(resp *http.Response, target inference.Target) (string, handover.Usage, error) {
 	defer resp.Body.Close()
 	if resp.StatusCode >= 400 {
@@ -275,47 +274,41 @@ func summaryFromResponse(resp *http.Response, target inference.Target) (string, 
 	if err != nil {
 		return "", handover.Usage{}, fmt.Errorf("read summary response: %w", err)
 	}
-	text := extractAnthropicAssistantText(respBody)
+	text := extractOpenAIAssistantText(respBody)
 	if text == "" {
 		return "", handover.Usage{}, ErrEmptySummary
 	}
-	usage := extractAnthropicUsage(respBody)
+	usage := extractOpenAIUsage(respBody)
 	usage.Model = target.CatalogID
 	usage.Provider = target.Provider
 	return text, usage, nil
 }
 
-// extractAnthropicUsage pulls the usage block from an Anthropic non-streaming
-// Messages response. Missing fields are zero; we don't distinguish "absent".
-func extractAnthropicUsage(body []byte) handover.Usage {
+// extractOpenAIUsage pulls the usage block from a Chat Completions
+// non-streaming response. Missing fields are zero; we don't distinguish
+// "absent".
+func extractOpenAIUsage(body []byte) handover.Usage {
 	if !gjson.ValidBytes(body) {
 		return handover.Usage{}
 	}
-	facts := usage.ParseAnthropic(gjson.GetBytes(body, "usage"))
+	facts := usage.ParseOpenAI(gjson.GetBytes(body, "usage"))
 	return handover.Usage{
-		InputTokens:     facts.Input.Value,
-		OutputTokens:    facts.Output.Value,
-		CacheCreation:   facts.CacheWrite.Value,
-		CacheRead:       facts.CacheRead.Value,
-		CacheCreation1h: facts.CacheWrite1h.Value,
-		InferenceGeo:    string(facts.InferenceGeo),
+		InputTokens:  facts.Input.Value,
+		OutputTokens: facts.Output.Value,
+		CacheRead:    facts.CacheRead.Value,
 	}
 }
 
-// buildSummaryRequestBody builds a non-streaming Anthropic Messages request
-// from the envelope's prior conversation, injecting the given summary
-// instruction and overriding model/max_tokens/stream.
+// buildSummaryRequestBody builds a non-streaming Chat Completions request from
+// the envelope's prior conversation, injecting the given summary instruction
+// and overriding model/max_tokens/stream.
 func buildSummaryRequestBody(env *translate.RequestEnvelope, model, instruction string, maxTokens int) ([]byte, error) {
-	prep, err := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: model})
+	prep, err := env.PrepareOpenAI(nil, translate.EmitOptions{TargetModel: model, TargetProvider: providers.ProviderAIAND})
 	if err != nil {
-		return nil, fmt.Errorf("prepare anthropic body: %w", err)
+		return nil, fmt.Errorf("prepare openai body: %w", err)
 	}
 	body := prep.Body
 
-	body, err = sjson.SetBytes(body, "model", model)
-	if err != nil {
-		return nil, fmt.Errorf("set model: %w", err)
-	}
 	body, err = sjson.SetBytes(body, "stream", false)
 	if err != nil {
 		return nil, fmt.Errorf("set stream: %w", err)
@@ -330,7 +323,7 @@ func buildSummaryRequestBody(env *translate.RequestEnvelope, model, instruction 
 		return nil, fmt.Errorf("append instruction: %w", err)
 	}
 
-	for _, key := range []string{"tools", "tool_choice", "thinking", "context_management", "effort", "output_config", "metadata"} {
+	for _, key := range []string{"tools", "tool_choice", "parallel_tool_calls", "reasoning_effort", "stop", "metadata"} {
 		body, _ = sjson.DeleteBytes(body, key)
 	}
 
@@ -340,10 +333,8 @@ func buildSummaryRequestBody(env *translate.RequestEnvelope, model, instruction 
 // appendUserInstruction appends a role=user text message to the messages array.
 func appendUserInstruction(body []byte, text string) ([]byte, error) {
 	msg := map[string]any{
-		"role": "user",
-		"content": []any{
-			map[string]any{"type": "text", "text": text},
-		},
+		"role":    "user",
+		"content": text,
 	}
 	raw, err := json.Marshal(msg)
 	if err != nil {
@@ -352,22 +343,15 @@ func appendUserInstruction(body []byte, text string) ([]byte, error) {
 	return sjson.SetRawBytes(body, "messages.-1", raw)
 }
 
-// extractAnthropicAssistantText pulls concatenated text from an Anthropic
-// Messages non-streaming response. All text blocks are joined with newlines.
-func extractAnthropicAssistantText(body []byte) string {
+// extractOpenAIAssistantText pulls the assistant text from a Chat Completions
+// non-streaming response. Multiple choices are joined with newlines.
+func extractOpenAIAssistantText(body []byte) string {
 	if !gjson.ValidBytes(body) {
 		return ""
 	}
-	content := gjson.GetBytes(body, "content")
-	if !content.IsArray() {
-		return ""
-	}
 	var out bytes.Buffer
-	content.ForEach(func(_, block gjson.Result) bool {
-		if block.Get("type").String() != "text" {
-			return true
-		}
-		text := block.Get("text").String()
+	gjson.GetBytes(body, "choices").ForEach(func(_, choice gjson.Result) bool {
+		text := choice.Get("message.content").String()
 		if text == "" {
 			return true
 		}

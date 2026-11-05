@@ -8,8 +8,8 @@ import (
 
 	"aiand-os/router/internal/observability"
 	"aiand-os/router/internal/requestcontext"
-	"aiand-os/router/internal/subscriptions/entitlement"
 	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/subscriptions/entitlement"
 
 	"github.com/gin-gonic/gin"
 )
@@ -24,7 +24,7 @@ const (
 
 // abortInvalidKnob writes a 400 with the error envelope matching the route's
 // API format. Without this, every route returned the OpenAI shape, breaking
-// Anthropic and Gemini clients that parse their native envelopes.
+// Anthropic clients that parse their native envelope.
 func abortInvalidKnob(c *gin.Context, message string) {
 	switch detectAPIFormat(c.Request.URL.Path) {
 	case apiFormatAnthropic:
@@ -33,14 +33,6 @@ func abortInvalidKnob(c *gin.Context, message string) {
 			"error": gin.H{
 				"type":    "invalid_request_error",
 				"message": message,
-			},
-		})
-	case apiFormatGemini:
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
-			"error": gin.H{
-				"code":    http.StatusBadRequest,
-				"message": message,
-				"status":  "INVALID_ARGUMENT",
 			},
 		})
 	default:
@@ -60,15 +52,12 @@ type apiFormat int
 const (
 	apiFormatOpenAI apiFormat = iota
 	apiFormatAnthropic
-	apiFormatGemini
 )
 
 // detectAPIFormat picks the envelope shape based on the request path. Mirrors
 // the routes mounted in internal/server/server.go.
 func detectAPIFormat(path string) apiFormat {
 	switch {
-	case strings.HasPrefix(path, "/v1beta/"):
-		return apiFormatGemini
 	case strings.HasPrefix(path, "/v1/messages"), strings.HasPrefix(path, "/v1/route"):
 		return apiFormatAnthropic
 	default:

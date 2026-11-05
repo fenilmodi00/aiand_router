@@ -264,8 +264,8 @@ type AdmissionProjection struct {
 	EntitlementVersion   int64
 	EnrollmentGeneration int64
 	AssignmentGeneration int64
-	// RoutingControlsDigest changes when the installation's model or provider
-	// controls change, so a pinned conversation cannot keep a roster that no
+	// RoutingControlsDigest changes when the installation's model controls
+	// change, so a pinned conversation cannot keep a roster that no
 	// longer overlaps them.
 	RoutingControlsDigest string
 }
@@ -369,7 +369,7 @@ func sameSelection(left, right ServingSelection) bool {
 
 // RoutingControlsDigest fingerprints the installation controls that shape the
 // candidate set; order and duplicates are not significant.
-func RoutingControlsDigest(allowedModels, excludedModels, excludedProviders []string, routingStrategy *string) string {
+func RoutingControlsDigest(allowedModels, excludedModels []string, routingStrategy *string) string {
 	canonical := func(values []string) []string {
 		out := slices.Clone(values)
 		slices.Sort(out)
@@ -379,6 +379,6 @@ func RoutingControlsDigest(allowedModels, excludedModels, excludedProviders []st
 	if routingStrategy != nil {
 		strategy = *routingStrategy
 	}
-	encoded, _ := json.Marshal([]any{canonical(allowedModels), canonical(excludedModels), canonical(excludedProviders), strategy})
+	encoded, _ := json.Marshal([]any{canonical(allowedModels), canonical(excludedModels), strategy})
 	return Digest(encoded)
 }

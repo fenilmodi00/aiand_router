@@ -6,12 +6,12 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gin-gonic/gin"
-	"github.com/tidwall/gjson"
 	"aiand-os/router/internal/auth"
 	"aiand-os/router/internal/policyregistry"
 	"aiand-os/router/internal/requestcontext"
 	"aiand-os/router/internal/router"
+	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 )
 
 var errServingFleetMismatch = errors.New("serving admission belongs to another fleet")
@@ -86,11 +86,7 @@ func directRoutingModel(r *http.Request, body []byte) (router.RoutingModel, bool
 	switch r.URL.Path {
 	case "/v1/messages", "/v1/chat/completions", "/v1/responses", "/v1/route", "/v1/route/preview", "/v1/route/handoff":
 	default:
-		if !strings.HasPrefix(r.URL.Path, "/v1beta/models/") || (!strings.HasSuffix(r.URL.Path, ":generateContent") && !strings.HasSuffix(r.URL.Path, ":streamGenerateContent")) {
-			return "", false
-		}
-		// Gemini's handler injects this URL model over any synthetic body.model.
-		model, _, _ = strings.Cut(strings.TrimPrefix(r.URL.Path, "/v1beta/models/"), ":")
+		return "", false
 	}
 	if model == "" {
 		return router.ModelAutomatic, true
@@ -111,10 +107,6 @@ func directConversationID(r *http.Request, body []byte) string {
 		surface = requestcontext.ConversationAnthropic
 	case "/v1/responses":
 		surface = requestcontext.ConversationResponses
-	default:
-		if strings.HasPrefix(r.URL.Path, "/v1beta/models/") {
-			surface = requestcontext.ConversationGemini
-		}
 	}
 	if id := requestcontext.CanonicalConversationID(r.Header, body, surface); id != "" {
 		return id
@@ -133,6 +125,5 @@ func directTestSurface(r *http.Request) bool {
 	case "/v1/messages", "/v1/messages/count_tokens", "/v1/route", "/v1/route/preview", "/v1/chat/completions", "/v1/responses", "/v1/router/threads":
 		return true
 	}
-	return strings.HasPrefix(r.URL.Path, "/v1beta/models/") &&
-		(strings.HasSuffix(r.URL.Path, ":generateContent") || strings.HasSuffix(r.URL.Path, ":streamGenerateContent"))
+	return false
 }

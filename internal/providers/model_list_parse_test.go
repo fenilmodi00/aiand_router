@@ -12,9 +12,9 @@ import (
 func TestParseModelIDs_AcceptsGatewayShapes(t *testing.T) {
 	for name, body := range map[string]string{
 		"openai list":  `{"object":"list","data":[{"id":"b"},{"id":"a"},{"id":"b"},{"id":""}]}`,
-		"string array": `{"models":["b","a","b",""]}`,
-		"object array": `{"models":[{"name":"b"},{"name":"a"},{"name":"b"}]}`,
-		"model keyed":  `{"models":[{"model":"b"},{"model":"a"}]}`,
+		"string array": `["b","a","b",""]`,
+		"object array": `[{"name":"b"},{"name":"a"},{"name":"b"}]`,
+		"model keyed":  `[{"model":"b"},{"model":"a"}]`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			ids, err := providers.ParseModelIDs([]byte(body))

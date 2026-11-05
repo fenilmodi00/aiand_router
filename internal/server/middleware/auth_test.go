@@ -127,10 +127,6 @@ func (fakeInstallationRepository) UpdateAllowedModels(ctx context.Context, exter
 	return errors.New("not used")
 }
 
-func (fakeInstallationRepository) UpdateExcludedProviders(ctx context.Context, externalID, id string, providerNames []string) error {
-	return errors.New("not used")
-}
-
 func (fakeInstallationRepository) UpdateRoutingPreference(ctx context.Context, externalID, id string, qualityWeight *float64) error {
 	return errors.New("not used")
 }

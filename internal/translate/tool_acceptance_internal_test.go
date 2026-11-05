@@ -131,8 +131,4 @@ func TestAcceptedCallsBufferedAdaptersSuppressNameless(t *testing.T) {
 	for _, item := range gjson.GetBytes(resp, "output").Array() {
 		assert.NotEqual(t, "function_call", item.Get("type").String())
 	}
-	gemini, err := GeminiToOpenAIResponse([]byte(`{"candidates":[{"finishReason":"STOP","content":{"parts":[{"text":"synthetic answer"},{"functionCall":{"name":"","args":{}}}]}}]}`), "synthetic")
-	require.NoError(t, err)
-	assert.Empty(t, gjson.GetBytes(gemini, "choices.0.message.tool_calls").Array())
-	assert.Equal(t, "stop", gjson.GetBytes(gemini, "choices.0.finish_reason").String())
 }

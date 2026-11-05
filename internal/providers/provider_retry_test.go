@@ -141,8 +141,8 @@ func TestIsUpstreamCapabilityRejection(t *testing.T) {
 	assert.False(t, providers.IsUpstreamCapabilityRejection(fmt.Errorf("transport blew up")))
 }
 
-// TestIsUpstreamSchemaRejection pins the phrase set for the Fireworks
-// grammar-compiler 400 ("Conflict in schema definitions") and asserts the class
+// TestIsUpstreamSchemaRejection pins the phrase set for the grammar-compiler
+// 400 ("Conflict in schema definitions") and asserts the class
 // is NOT treated as same-binding-retryable, model-not-found, or a capability
 // rejection — it is a cross-binding rescue signal only.
 func TestIsUpstreamSchemaRejection(t *testing.T) {
@@ -427,9 +427,9 @@ func TestIsUpstreamResponsesUnsupported(t *testing.T) {
 			want:   true,
 		},
 		{
-			name:   "cortex reports the api is off for the account",
+			name:   "gateway reports the api is off for the account",
 			status: http.StatusBadRequest,
-			body:   `{"message":"Cortex OpenAI Responses REST API not enabled","request_id":"x"}`,
+			body:   `{"message":"Gateway OpenAI Responses REST API not enabled","request_id":"x"}`,
 			want:   true,
 		},
 		{
