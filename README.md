@@ -124,6 +124,9 @@ curl -sS http://localhost:8080/v1/chat/completions \
 curl -sS http://localhost:8080/v1/route -H "Authorization: Bearer rk_..." -d '...'
 ```
 
+For managed deploys on build.io, see
+[docs/DEPLOY_BUILDIO.md](docs/DEPLOY_BUILDIO.md).
+
 ### What that stack looks like
 
 Only the grey boxes are off your machine. The router, the scorer, Postgres, and

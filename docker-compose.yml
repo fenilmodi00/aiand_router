@@ -86,6 +86,12 @@ services:
     image: router-server:v1.0
     build:
       context: .
+      # Pinned to the plain release image: the file's last stage is the
+      # build.io variant (embedded emulator + boot migrations), which
+      # would double up with this stack's own pubsub-emulator and
+      # migrate sidecars. Explicit target keeps `docker compose up
+      # --build` byte-identical to before that stage was appended.
+      target: build-release-stage
     depends_on:
       postgres:
         condition: service_healthy

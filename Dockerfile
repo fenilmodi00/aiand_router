@@ -249,3 +249,72 @@ ARG VERSION
 ENV VERSION=$VERSION
 
 ENTRYPOINT ["/server"]
+
+# --- build.io variant: fetch the golang-migrate binary ---
+# The buildio-release stage runs schema migrations at boot (dockerfile
+# stacks have no release phase). Pull the pinned migrate binary from
+# the official release tarball; version must match the compose sidecar
+# (migrate/migrate:v4.17.1).
+FROM debian:bookworm-slim AS migrate-fetch
+ARG MIGRATE_VERSION=v4.17.1
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl tar \
+    && rm -rf /var/lib/apt/lists/* \
+    && curl --fail --silent --show-error --location \
+      "https://github.com/golang-migrate/migrate/releases/download/${MIGRATE_VERSION}/migrate.linux-amd64.tar.gz" \
+      -o /tmp/migrate.tar.gz \
+    && tar -xzf /tmp/migrate.tar.gz -C /usr/local/bin migrate \
+    && chmod +x /usr/local/bin/migrate \
+    && rm /tmp/migrate.tar.gz
+
+# --- build.io release stage ---
+# Self-contained runtime for build.io's dockerfile stack: embeds the
+# Pub/Sub emulator (the router panics at boot without Pub/Sub and
+# there is no compose-style sidecar), runs boot-time DB migrations via
+# golang-migrate, then execs the server. Everything else mirrors
+# build-release-stage above.
+#
+# NOTE: this stage is intentionally LAST in the file only because
+# build.io's dockerfile stack requires the runtime stage it deploys to
+# be the final one. Consumers that must keep building the plain
+# release image (docker-compose.yml, docker-bake.smoke.hcl) are pinned
+# to `target: build-release-stage`. Do not add stages after this one.
+FROM debian:bookworm-slim AS buildio-release
+
+# bash/curl for the entrypoint; postgresql-client for the schema
+# pre-create (migrate cannot CREATE SCHEMA itself).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+      bash curl ca-certificates postgresql-client \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# gcloud CLI + bundled Pub/Sub emulator (includes the emulator's
+# bundled Python under /google-cloud-sdk/platform/bundledpythonunix).
+COPY --from=gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators /google-cloud-sdk /google-cloud-sdk
+# JRE the emulator runs on (gcloud's pubsub emulator launches java;
+# /usr/bin/java resolves into /usr/lib/jvm/java-25-openjdk-amd64).
+COPY --from=gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators /usr/lib/jvm /usr/lib/jvm
+ENV PATH="/google-cloud-sdk/bin:${PATH}" \
+    JAVA_HOME="/usr/lib/jvm/java-25-openjdk-amd64"
+
+# Server binary + dynamic ONNX Runtime library (linker search path),
+# mirroring build-release-stage.
+COPY --from=build-stage /server /server
+COPY --from=build-stage /opt/onnxruntime/lib/libonnxruntime.so* /usr/lib/
+
+# Cluster-scorer embedder assets + the mini UI static export.
+COPY --from=build-stage /opt/router/assets/ /opt/router/assets/
+COPY --from=build-stage /app/assets/ui ./assets/ui
+
+# Schema migrations applied at boot by the entrypoint.
+COPY db/migrations /migrations
+
+# golang-migrate binary + boot entrypoint.
+COPY --from=migrate-fetch /usr/local/bin/migrate /usr/local/bin/migrate
+COPY scripts/deploy/buildio_entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+EXPOSE 8080
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
