@@ -49,44 +49,47 @@ if [ "${PUBSUB_EMULATOR_HOST:-}" = "" ]; then
     --project="${project}" \
     &> /var/log/pubsub-emulator.log &
 
-  ready=0
-  for _ in $(seq 1 60); do
-    if curl -sf "http://127.0.0.1:${port}" > /dev/null; then
-      ready=1
-      break
-    fi
-    sleep 1
-  done
-  if [ "$ready" != "1" ]; then
-    log "ERROR: Pub/Sub emulator did not become ready within 60s; emulator log follows"
-    cat /var/log/pubsub-emulator.log || true
-    exit 1
-  fi
-  log "Pub/Sub emulator is ready on 127.0.0.1:${port}"
-
-  export PUBSUB_EMULATOR_HOST="127.0.0.1:${port}"
-
-  # Pre-create the invalidation topic. The gcppubsub client does not
-  # create topics; main.go panics if the topic is missing. Retry a few
-  # times in case the emulator's REST front-end settles late.
+  # The emulator's gRPC/REST front-ends come up well after the socket
+  # accepts (10-20s+ on a cold dyno), so don't probe the bare port:
+  # poll the actual requirement — creating the invalidation topic.
+  # 409 (already exists) also proves the API is serving.
   if [ -n "$topic" ]; then
     topic_url="http://127.0.0.1:${port}/v1/projects/${project}/topics/${topic}"
-    created=0
-    for _ in $(seq 1 5); do
-      if curl -sf -X PUT "$topic_url" > /dev/null; then
-        created=1
+    ready=0
+    for _ in $(seq 1 90); do
+      status=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$topic_url" || true)
+      if [ "$status" = "200" ] || [ "$status" = "409" ]; then
+        ready=1
         break
       fi
       sleep 1
     done
-    if [ "$created" != "1" ]; then
-      log "ERROR: could not create Pub/Sub topic ${topic} on the emulator"
+    if [ "$ready" != "1" ]; then
+      log "ERROR: emulator or topic ${topic} not ready within 90s; emulator log follows"
+      cat /var/log/pubsub-emulator.log || true
       exit 1
     fi
-    log "Pub/Sub topic ${topic} is ready"
+    log "Pub/Sub emulator is up; topic ${topic} is ready"
   else
+    # No topic configured: fall back to a plain port probe.
+    ready=0
+    for _ in $(seq 1 90); do
+      if curl -sf "http://127.0.0.1:${port}" > /dev/null; then
+        ready=1
+        break
+      fi
+      sleep 1
+    done
+    if [ "$ready" != "1" ]; then
+      log "ERROR: Pub/Sub emulator did not become ready within 90s; emulator log follows"
+      cat /var/log/pubsub-emulator.log || true
+      exit 1
+    fi
+    log "Pub/Sub emulator is ready on 127.0.0.1:${port}"
     log "WARNING: PUBSUB_TOPIC_ROUTER_INVALIDATION unset; skipping topic pre-create"
   fi
+
+  export PUBSUB_EMULATOR_HOST="127.0.0.1:${port}"
 else
   log "PUBSUB_EMULATOR_HOST=${PUBSUB_EMULATOR_HOST} preset; skipping embedded emulator"
 fi
