@@ -520,10 +520,10 @@ func (s *Scorer) Route(ctx context.Context, req router.Request) (router.Decision
 	}
 
 	// Model exclusion composes with provider gating.
-	if len(req.ExcludedModels) > 0 {
+	if len(req.Exclusions.Union()) > 0 {
 		filtered := eligibleModels[:0:0]
 		for _, m := range eligibleModels {
-			if _, drop := req.ExcludedModels[m]; !drop {
+			if !req.Exclusions.Excludes(m) {
 				filtered = append(filtered, m)
 			}
 		}
@@ -540,10 +540,10 @@ func (s *Scorer) Route(ctx context.Context, req router.Request) (router.Decision
 			}
 			log.Warn(
 				"Cluster scorer: exclusion list empties eligible pool; returning ErrNoEligibleProvider",
-				"excluded_models", sortedKeys(req.ExcludedModels),
+				"excluded_models", sortedKeys(req.Exclusions.Union()),
 				"requested_model", req.RequestedModel,
 			)
-			return router.Decision{}, fmt.Errorf("excluded models %v leave no eligible candidates: %w", sortedKeys(req.ExcludedModels), ErrNoEligibleProvider)
+			return router.Decision{}, fmt.Errorf("excluded models %v leave no eligible candidates: %w", sortedKeys(req.Exclusions.Union()), ErrNoEligibleProvider)
 		}
 		eligibleModels = filtered
 	}

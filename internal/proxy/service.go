@@ -2727,7 +2727,7 @@ func (s *Service) routeFor(ctx context.Context, req router.Request) (router.Deci
 	var err error
 	if denied, _ := ctx.Value(SessionCooldownProbeDeniedModelsContextKey{}).([]string); len(denied) > 0 {
 		for _, model := range denied {
-			req.ExcludedModels = excludingModel(req.ExcludedModels, model)
+			req.Exclusions = req.Exclusions.ExcludeModel(model, router.ExclusionRequested)
 		}
 	}
 	req, err = s.applyTranslationPlan(ctx, req)
@@ -2800,7 +2800,7 @@ func (s *Service) withPolicyRequestContext(ctx context.Context, req router.Reque
 	// exclusions so routers that build their own candidate pools drop
 	// ineligible models without each having to know about products.
 	req.ProductEligibility = entitlement.ModelBoundaryFromContext(ctx)
-	req.ExcludedModels = mergeExcludedModels(req.ExcludedModels, s.productIneligibleModels(ctx))
+	req.Exclusions = req.Exclusions.ExcludeSet(s.productIneligibleModels(ctx), router.ExclusionRequested)
 	req.OrganizationID, _ = ctx.Value(ExternalIDContextKey{}).(string)
 	req.InstallationID = ""
 	if installationID := installationIDFromContext(ctx); installationID != uuid.Nil {
@@ -3561,11 +3561,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		EnabledProviders:              enabledProviders,
 		CustomBindings:                customBindings,
 		Exclusions:                    ingressExclusions(excluded, withoutModelsKeep(s.safetyExcludedModels(env, outputReserve, enabledProviders, customBindings), overflowAdmitted, hardExcluded), contextWindowOnlyExclusions(ctxOverflowed, overflowAdmitted, hardExcluded), modelSet(hardExcluded)),
-		ExcludedModels:                excluded,
 		AllowedModels:                 allowedModelsForRequest(ctx),
-		SafetyExcludedModels:          withoutModelsKeep(s.safetyExcludedModels(env, outputReserve, enabledProviders, customBindings), overflowAdmitted, hardExcluded),
-		ContextWindowExcludedModels:   contextWindowOnlyExclusions(ctxOverflowed, overflowAdmitted, hardExcluded),
-		ImageLimitExcludedModels:      modelSet(hardExcluded),
 		OverflowAdmittedModels:        modelSet(overflowAdmitted),
 		PreferredModels:               s.preferredModelsForRequest(ctx),
 		RoutingKnobs:                  routingKnobsForRequest(ctx),
@@ -5508,10 +5504,7 @@ func (s *Service) policyDeadlineDefaultDecision(req router.Request) (router.Deci
 	if s.policyDeadlineDefaultModel == "" {
 		return router.Decision{}, false
 	}
-	if _, excluded := req.ExcludedModels[s.policyDeadlineDefaultModel]; excluded {
-		return router.Decision{}, false
-	}
-	if _, excluded := req.SafetyExcludedModels[s.policyDeadlineDefaultModel]; excluded {
+	if req.Exclusions.Excludes(s.policyDeadlineDefaultModel) {
 		return router.Decision{}, false
 	}
 
@@ -6433,11 +6426,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		EnabledProviders:              enabledProviders,
 		CustomBindings:                customBindingsOAI,
 		Exclusions:                    ingressExclusions(excludedOAI, withoutModelsKeep(s.safetyExcludedModels(env, outputReserveOAI, enabledProviders, customBindingsOAI), overflowAdmittedOAI, hardExcludedOAI), contextWindowOnlyExclusions(ctxOverflowedOAI, overflowAdmittedOAI, hardExcludedOAI), modelSet(hardExcludedOAI)),
-		ExcludedModels:                excludedOAI,
 		AllowedModels:                 allowedModelsForRequest(ctx),
-		SafetyExcludedModels:          withoutModelsKeep(s.safetyExcludedModels(env, outputReserveOAI, enabledProviders, customBindingsOAI), overflowAdmittedOAI, hardExcludedOAI),
-		ContextWindowExcludedModels:   contextWindowOnlyExclusions(ctxOverflowedOAI, overflowAdmittedOAI, hardExcludedOAI),
-		ImageLimitExcludedModels:      modelSet(hardExcludedOAI),
 		OverflowAdmittedModels:        modelSet(overflowAdmittedOAI),
 		PreferredModels:               s.preferredModelsForRequest(ctx),
 		RoutingKnobs:                  routingKnobsForRequest(ctx),

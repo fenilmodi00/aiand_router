@@ -92,7 +92,7 @@ func TestRouteExcludesRequestedExclusions(t *testing.T) {
 	_, err := r.Route(context.Background(), router.Request{
 		PromptText:       "hi",
 		EnabledProviders: enabled(providers.ProviderAIAND),
-		ExcludedModels:   map[string]struct{}{"moonshotai/kimi-k3": {}},
+		Exclusions:       router.RequestedExclusions(map[string]struct{}{"moonshotai/kimi-k3": {}}),
 	})
 	require.NoError(t, err)
 	for _, c := range dec.got.Candidates {

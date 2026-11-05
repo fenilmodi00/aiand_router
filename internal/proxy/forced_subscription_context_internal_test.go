@@ -26,43 +26,46 @@ func TestForcedSubscriptionContextEstimatePreservesHardExclusions(t *testing.T) 
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			request := router.Request{
-				ExcludedModels:       modelSet([]string{testOpus}),
-				SafetyExcludedModels: modelSet([]string{testOpus}),
+				Exclusions: router.Exclusions{}.
+					ExcludeModel(testOpus, router.ExclusionRequested).
+					ExcludeModel(testOpus, router.ExclusionSafety),
 			}
 			if scenario.forced {
 				request.ForceModel = testOpus
 			}
 			if scenario.estimate {
-				request.ContextWindowExcludedModels = modelSet([]string{testOpus})
+				request.Exclusions = request.Exclusions.ExcludeModel(testOpus, router.ExclusionContextWindow)
 			}
 			if scenario.unsignedHistory {
-				request.UnsignedHistoryExcludedModels = modelSet([]string{testOpus})
+				request.Exclusions = request.Exclusions.ExcludeModel(testOpus, router.ExclusionUnsignedHistory)
 			}
 			_, narrowed := (&Service{}).subscriptionStateRequest(context.Background(), request, []string{testOpus})
 			_, allowed := narrowed.AllowedModels[testOpus]
 			assert.Equal(t, scenario.wantServed, allowed)
-			assert.Contains(t, request.ExcludedModels, testOpus, "state routing must not mutate the original request")
-			assert.Contains(t, request.SafetyExcludedModels, testOpus)
+			assert.True(t, request.Exclusions.Excludes(testOpus), "state routing must not mutate the original request")
+			assert.True(t, request.Exclusions.SafetyExcludes(testOpus))
 		})
 	}
 }
 
 func TestForcedContextEstimateReadmitsForcedPin(t *testing.T) {
+	request := router.Exclusions{}.
+		ExcludeModel(testOpus, router.ExclusionRequested).
+		ExcludeModel(testOpus, router.ExclusionSafety).
+		ExcludeModel(testOpus, router.ExclusionContextWindow).
+		ExcludeModel(testOpus, router.ExclusionUnsignedHistory)
 	req := router.Request{
-		ForceModel:                    testOpus,
-		ExcludedModels:                modelSet([]string{testOpus}),
-		SafetyExcludedModels:          modelSet([]string{testOpus}),
-		ContextWindowExcludedModels:   modelSet([]string{testOpus}),
-		UnsignedHistoryExcludedModels: modelSet([]string{testOpus}),
+		ForceModel: testOpus,
+		Exclusions: request,
 	}
 	readmitted := readmitForcedContextEstimate(req, req.ForceModel)
-	assert.NotContains(t, readmitted.ExcludedModels, testOpus)
-	assert.NotContains(t, readmitted.SafetyExcludedModels, testOpus)
-	assert.Contains(t, readmitted.ContextWindowExcludedModels, testOpus, "the estimate marker itself is preserved")
-	assert.Contains(t, readmitted.UnsignedHistoryExcludedModels, testOpus, "unsigned-history exclusion still holds")
+	assert.False(t, readmitted.Exclusions.Excludes(testOpus))
+	assert.False(t, readmitted.Exclusions.SafetyExcludes(testOpus))
+	assert.True(t, readmitted.Exclusions.ContextWindowExcludes(testOpus), "the estimate marker itself is preserved")
+	assert.True(t, readmitted.Exclusions.UnsignedHistoryExcludes(testOpus), "unsigned-history exclusion still holds")
 	// An automatic estimate for a model the request does not force stays excluded.
-	assert.Contains(t, readmitForcedContextEstimate(req, "other-model").ExcludedModels, testOpus)
+	assert.True(t, readmitForcedContextEstimate(req, "other-model").Exclusions.Excludes(testOpus))
 	// An explicit (non-estimate) exclusion is never lifted.
-	explicit := router.Request{ForceModel: testOpus, ExcludedModels: modelSet([]string{testOpus})}
-	assert.Contains(t, readmitForcedContextEstimate(explicit, testOpus).ExcludedModels, testOpus)
+	explicit := router.Request{ForceModel: testOpus, Exclusions: router.Exclusions{}.ExcludeModel(testOpus, router.ExclusionRequested)}
+	assert.True(t, readmitForcedContextEstimate(explicit, testOpus).Exclusions.Excludes(testOpus))
 }

@@ -173,41 +173,16 @@ type Request struct {
 	// (from a key's model_aliases). They rank after catalog bindings, so a
 	// wired direct vendor still wins.
 	CustomBindings map[string][]string
-	// Per-request model exclusion — nil or empty means no exclusion.
-	// If filtering empties eligible set, scorer returns ErrNoEligibleProvider.
-	// Full union: installation excluded_models plus request-time safety filters.
-	//
-	// Deprecated: superseded by Exclusions; kept until every reader migrates.
-	ExcludedModels map[string]struct{}
 	// Exclusions carries the request's hard model exclusions: the union set
 	// every consumer membership-tests, plus per-kind markers used only for
 	// diagnostics attribution and explicit-force re-admission. Zero value
-	// excludes nothing. The old flat fields above mirror its content during
-	// migration; Exclusions is authoritative once they are gone.
+	// excludes nothing.
 	Exclusions Exclusions
 	// AllowedModels is the org's positive model allowlist as a set; nil means no
-	// restriction. Enforcement is via ExcludedModels (proxy desugars the allowlist
+	// restriction. Enforcement is via Exclusions (proxy desugars the allowlist
 	// into it); this field lets scorer/resolver NAME the constraint in errors
 	// rather than reporting a large exclusion list.
 	AllowedModels map[string]struct{}
-	// SafetyExcludedModels holds only the hard request-time constraints a model
-	// physically cannot satisfy: context-window overflow and gemini-unsigned
-	// history — not the installation's excluded_models policy. The bypass gate
-	// consults this so policy exclusions don't block pass-through, but physical
-	// constraints still do.
-	SafetyExcludedModels map[string]struct{}
-	// ContextWindowExcludedModels is the subset of ExcludedModels that only the
-	// context-window pre-filter's byte-based estimate ruled out: never
-	// policy-excluded, admitted-on-total-overflow, or gemini-unsigned models.
-	// A /force-model pin on one of these is still dispatched, so the provider's
-	// exact token count decides instead of the estimate.
-	ContextWindowExcludedModels map[string]struct{}
-	// ImageLimitExcludedModels is the subset of ExcludedModels removed only
-	// because every binding caps images below ImageCount.
-	ImageLimitExcludedModels map[string]struct{}
-	// UnsignedHistoryExcludedModels holds models excluded because they cannot
-	// accept this request's unsigned tool-call history.
-	UnsignedHistoryExcludedModels map[string]struct{}
 	// OverflowAdmittedModels is the set the context-window pre-filter kept
 	// when its byte estimate ruled out every model: the widest-window ones,
 	// sent anyway so the provider's exact count decides and a real overflow

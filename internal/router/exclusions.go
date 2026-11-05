@@ -295,8 +295,12 @@ func (e Exclusions) containsAny(models []string) bool {
 	return false
 }
 
-// withModel returns a fresh map with model added; the input map is never
+// WithModel returns a fresh map with model added; the input map is never
 // mutated, so values sharing it stay isolated.
+func WithModel(set map[string]struct{}, model string) map[string]struct{} {
+	return withModel(set, model)
+}
+
 func withModel(set map[string]struct{}, model string) map[string]struct{} {
 	out := make(map[string]struct{}, len(set)+1)
 	for k := range set {

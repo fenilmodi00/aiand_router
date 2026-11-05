@@ -80,10 +80,11 @@ func TestSidecarRouterReportsImageLimitWhenNoBindingCanServe(t *testing.T) {
 	assert.ErrorIs(t, err, router.ErrStrategyUnavailable)
 
 	prefiltered := router.Request{
-		EnabledProviders:         set(providers.ProviderAIAND),
-		ExcludedModels:           set(model),
-		ImageLimitExcludedModels: set(model),
-		ImageCount:               17,
+		EnabledProviders: set(providers.ProviderAIAND),
+		Exclusions: router.Exclusions{}.
+			ExcludeSet(set(model), router.ExclusionRequested).
+			ExcludeSet(set(model), router.ExclusionImageLimit),
+		ImageCount: 17,
 	}
 	resolved := resolver.Resolve(prefiltered)
 	assert.Empty(t, resolved.Candidates)
@@ -122,7 +123,7 @@ func TestSidecarRouter_CoolingRescuePoolStaysWithinEligibleGroups(t *testing.T) 
 		// Kimi K3 is only withdrawn from automatic selection, so it stays a
 		// cooling-rescue candidate. V4 Pro 0813 is excluded outright.
 		AutomaticExcludedModels: set("moonshotai/kimi-k3", "deepseek/deepseek-v4.1-flash"),
-		ExcludedModels:          set("deepseek/deepseek-v4-pro-0813"),
+		Exclusions:              router.RequestedExclusions(set("deepseek/deepseek-v4-pro-0813")),
 	}
 
 	decision, err := adapter.Route(context.Background(), req)
@@ -416,7 +417,7 @@ func TestSidecarRouterPreviewRecordsZeroEligibleArms(t *testing.T) {
 	)).WithCapabilities(policy.Capabilities{SupportsPreview: true})
 
 	result, err := adapter.PreviewRoute(context.Background(), router.Request{
-		ExcludedModels: set("z-ai/glm-5.3"),
+		Exclusions: router.RequestedExclusions(set("z-ai/glm-5.3")),
 	})
 
 	require.NoError(t, err)

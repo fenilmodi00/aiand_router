@@ -84,7 +84,7 @@ func TestWithPolicyRequestContext_CarriesAutomaticExclusionsSeparately(t *testin
 	req := svc.withPolicyRequestContext(context.Background(), router.Request{})
 
 	assert.Equal(t, map[string]struct{}{"z-ai/glm-5.3": {}}, req.AutomaticExcludedModels)
-	assert.Empty(t, req.ExcludedModels)
+	assert.True(t, req.Exclusions.IsEmpty())
 }
 
 func automaticallyDisabledRequest(model string) router.Request {

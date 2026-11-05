@@ -176,7 +176,6 @@ func (c compactionHandoverSummarizer) Summarize(ctx context.Context, env *transl
 func summarizerRequest(scope router.Request, env *translate.RequestEnvelope) router.Request {
 	request := router.Request{
 		EnabledProviders: scope.EnabledProviders,
-		ExcludedModels:   scope.ExcludedModels,
 		Exclusions:       scope.Exclusions,
 		CustomBindings:   scope.CustomBindings,
 	}
@@ -195,14 +194,9 @@ func (s *ProviderSummarizer) resolve(ctx context.Context, request policy.Resolut
 		// authorize their paid inference as a side effect of switching models.
 		paidCtx := context.WithValue(ctx, subscriptionStateAllowedModelsKey{}, modelSet(installationSubscriptionModelsWhenInactiveFromContext(ctx)))
 		allowed := allowedModelsForRequest(paidCtx)
-		request.RouterRequest.ExcludedModels = cloneStringSet(request.RouterRequest.ExcludedModels)
-		if request.RouterRequest.ExcludedModels == nil {
-			request.RouterRequest.ExcludedModels = make(map[string]struct{})
-		}
 		notPermitted := make(map[string]struct{})
 		for _, model := range catalog.Models {
 			if _, permitted := allowed[model.ID]; !permitted {
-				request.RouterRequest.ExcludedModels[model.ID] = struct{}{}
 				notPermitted[model.ID] = struct{}{}
 			}
 		}

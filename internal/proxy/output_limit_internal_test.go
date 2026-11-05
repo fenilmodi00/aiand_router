@@ -111,7 +111,7 @@ type outputLimitSequenceRouter struct {
 func (r *outputLimitSequenceRouter) Route(_ context.Context, req router.Request) (router.Decision, error) {
 	r.requests = append(r.requests, req)
 	for _, model := range r.choices {
-		if _, excluded := req.ExcludedModels[model]; excluded {
+		if req.Exclusions.Excludes(model) {
 			continue
 		}
 		return router.Decision{Provider: providers.ProviderAIAND, Model: model, Reason: "hmm_policy(label=maximum)",

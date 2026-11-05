@@ -27,8 +27,8 @@ func TestCompactionCrossStrategyHistoryHonorsEligibility(t *testing.T) {
 		req       router.Request
 		available map[string]struct{}
 	}{
-		{name: "provider disabled", req: router.Request{EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}}, ExcludedModels: map[string]struct{}{compactionStrategyModel: {}}}},
-		{name: "model excluded", req: router.Request{ExcludedModels: map[string]struct{}{compactionStrategyModel: {}}}},
+		{name: "provider disabled", req: router.Request{EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}}, Exclusions: router.RequestedExclusions(map[string]struct{}{compactionStrategyModel: {}})}},
+		{name: "model excluded", req: router.Request{Exclusions: router.RequestedExclusions(map[string]struct{}{compactionStrategyModel: {}})}},
 		{name: "model automatically disabled", req: router.Request{AutomaticExcludedModels: map[string]struct{}{compactionStrategyModel: {}}}},
 		{name: "model unavailable", available: map[string]struct{}{"z-ai/other-model": {}}},
 	} {

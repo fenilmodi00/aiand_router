@@ -29,16 +29,10 @@ func (s *Service) subscriptionStateRequest(ctx context.Context, req router.Reque
 	req = readmitForcedContextEstimate(req, req.ForceModel)
 	allowed := make(map[string]struct{})
 	for _, model := range models {
-		if _, excluded := req.ExcludedModels[model]; excluded {
+		if req.Exclusions.Excludes(model) || req.Exclusions.UnsignedHistoryExcludes(model) {
 			continue
 		}
 		if _, excluded := req.AutomaticExcludedModels[model]; excluded && model != req.ForceModel {
-			continue
-		}
-		if _, excluded := req.SafetyExcludedModels[model]; excluded {
-			continue
-		}
-		if _, excluded := req.UnsignedHistoryExcludedModels[model]; excluded {
 			continue
 		}
 		if req.AllowedModels != nil && model != req.ForceModel {
@@ -50,9 +44,7 @@ func (s *Service) subscriptionStateRequest(ctx context.Context, req router.Reque
 	}
 	ctx = context.WithValue(ctx, subscriptionStateAllowedModelsKey{}, allowed)
 	req.AllowedModels = allowed
-	merged := s.excludedModelsForRequest(ctx)
-	req.Exclusions = req.Exclusions.ExcludeSet(merged, router.ExclusionRequested)
-	req.ExcludedModels = mergeExcludedModels(req.ExcludedModels, merged)
+	req.Exclusions = req.Exclusions.ExcludeSet(s.excludedModelsForRequest(ctx), router.ExclusionRequested)
 	return ctx, req
 }
 
@@ -101,7 +93,6 @@ func (s *Service) dispatchSubscriptionStateModels(ctx context.Context, in failov
 			return -1, cluster.ErrAllowlistEmptiesPool
 		}
 		if permitted {
-			request.ExcludedModels = mergeExcludedModels(request.ExcludedModels, map[string]struct{}{target.Model: {}})
 			request.Exclusions = request.Exclusions.ExcludeModel(target.Model, router.ExclusionRequested)
 			paidCtx, paidReq = s.subscriptionStateRequest(paidCtx, request, paidModels)
 		}

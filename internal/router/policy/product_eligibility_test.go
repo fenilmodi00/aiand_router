@@ -72,7 +72,7 @@ func TestMaxBoundaryIsHardEvenWhenItEmptiesThePool(t *testing.T) {
 func TestEligibleModelStillReportsRequestedExclusion(t *testing.T) {
 	resolved := maxResolver().Resolve(router.Request{
 		ProductEligibility: eligibility.MaxOpenSourceOnly,
-		ExcludedModels:     set("deepseek/deepseek-v4-pro"),
+		Exclusions:         router.RequestedExclusions(set("deepseek/deepseek-v4-pro")),
 	})
 
 	assert.NotContains(t, catalogIDs(resolved.Candidates), "deepseek/deepseek-v4-pro")

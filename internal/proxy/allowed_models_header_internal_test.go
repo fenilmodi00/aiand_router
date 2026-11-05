@@ -85,14 +85,14 @@ func TestReadmitForcedModel_LiftsSubsetOnlyExclusion(t *testing.T) {
 	ctx := ctxWithRequestSubset(context.Background(), testSol)
 	env, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.3","max_tokens":16,"messages":[{"role":"user","content":"hi"}]}`))
 	require.NoError(t, err)
-	req := router.Request{ExcludedModels: s.excludedModelsForRequest(ctx)}
-	require.Contains(t, req.ExcludedModels, testTerra)
+	req := router.Request{Exclusions: router.RequestedExclusions(s.excludedModelsForRequest(ctx))}
+	require.True(t, req.Exclusions.Excludes(testTerra))
 
 	pin := sessionpin.Pin{Model: testTerra, Provider: providers.ProviderAIAND}
 	got := s.readmitForcedModel(ctx, req, env, translate.RoutingFeatures{MaxTokens: 16}, pin)
-	assert.NotContains(t, got, testTerra)
-	assert.Contains(t, got, testOpus)
-	assert.Contains(t, req.ExcludedModels, testTerra, "input map must not be mutated")
+	assert.False(t, got.Exclusions.Excludes(testTerra))
+	assert.True(t, got.Exclusions.Excludes(testOpus))
+	assert.True(t, req.Exclusions.Excludes(testTerra), "input must not be mutated")
 }
 
 func TestReadmitForcedModel_KeepsPolicyExclusion(t *testing.T) {
@@ -100,18 +100,18 @@ func TestReadmitForcedModel_KeepsPolicyExclusion(t *testing.T) {
 	ctx := ctxWithRequestSubset(ctxWithAllowedModels(testSol, testTerra), testSol)
 	env, err := translate.ParseAnthropic([]byte(`{"model":"z-ai/glm-5.3","max_tokens":16,"messages":[{"role":"user","content":"hi"}]}`))
 	require.NoError(t, err)
-	req := router.Request{ExcludedModels: s.excludedModelsForRequest(ctx)}
+	req := router.Request{Exclusions: router.RequestedExclusions(s.excludedModelsForRequest(ctx))}
 
 	pin := sessionpin.Pin{Model: testOpus, Provider: providers.ProviderAIAND}
 	got := s.readmitForcedModel(ctx, req, env, translate.RoutingFeatures{MaxTokens: 16}, pin)
-	assert.Contains(t, got, testOpus)
+	assert.True(t, got.Exclusions.Excludes(testOpus))
 }
 
 func TestReadmitForcedModel_NoSubsetIsNoOp(t *testing.T) {
 	s := &Service{availableModels: map[string]struct{}{testSol: {}, testTerra: {}}}
-	req := router.Request{ExcludedModels: map[string]struct{}{testTerra: {}}}
+	req := router.Request{Exclusions: router.RequestedExclusions(map[string]struct{}{testTerra: {}})}
 	got := s.readmitForcedModel(context.Background(), req, nil, translate.RoutingFeatures{}, sessionpin.Pin{Model: testTerra})
-	assert.Contains(t, got, testTerra)
+	assert.True(t, got.Exclusions.Excludes(testTerra))
 }
 
 func TestModelInRequestSubset(t *testing.T) {
@@ -154,7 +154,7 @@ func TestTurnLoop_StickyPinOutsideRequestSubsetReroutes(t *testing.T) {
 	svc := newSvc(fr)
 	ctx := ctxWithRequestSubset(context.Background(), "gpt-5.4-mini")
 	res, err := svc.runTurnLoop(ctx, env, feats, "key-1", uuid.New(), "", nil,
-		router.Request{RequestedModel: feats.Model, ExcludedModels: svc.excludedModelsForRequest(ctx)})
+		router.Request{RequestedModel: feats.Model, Exclusions: router.RequestedExclusions(svc.excludedModelsForRequest(ctx))})
 	require.NoError(t, err)
 	assert.Equal(t, "gpt-5.4-mini", res.Decision.Model)
 	assert.False(t, res.StickyHit)
@@ -163,7 +163,7 @@ func TestTurnLoop_StickyPinOutsideRequestSubsetReroutes(t *testing.T) {
 	svc = newSvc(fr)
 	ctx = ctxWithRequestSubset(context.Background(), testOpus, "gpt-5.4-mini")
 	res, err = svc.runTurnLoop(ctx, env, feats, "key-1", uuid.New(), "", nil,
-		router.Request{RequestedModel: feats.Model, ExcludedModels: svc.excludedModelsForRequest(ctx)})
+		router.Request{RequestedModel: feats.Model, Exclusions: router.RequestedExclusions(svc.excludedModelsForRequest(ctx))})
 	require.NoError(t, err)
 	assert.Equal(t, testOpus, res.Decision.Model)
 }

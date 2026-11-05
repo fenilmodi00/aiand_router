@@ -151,16 +151,15 @@ func (s *Service) readmitForcedModel(
 	env *translate.RequestEnvelope,
 	feats translate.RoutingFeatures,
 	pin sessionpin.Pin,
-) map[string]struct{} {
-	excluded := req.ExcludedModels
+) router.Request {
 	if modelInRequestSubset(ctx, pin.Model) {
-		return excluded
+		return req
 	}
-	if _, ok := excluded[pin.Model]; !ok {
-		return excluded
+	if !req.Exclusions.Excludes(pin.Model) {
+		return req
 	}
 	if _, ok := s.policyExcludedModels(ctx)[pin.Model]; ok {
-		return excluded
+		return req
 	}
 	outputReserve := contextWindowOutputReserve
 	if feats.MaxTokens > outputReserve {
@@ -171,14 +170,10 @@ func (s *Service) readmitForcedModel(
 		estimate -= env.SignatureTokenSavings()
 	}
 	if estimate+outputReserve > contextWindowForRequest(pin.Model, pin.Provider) {
-		return excluded
+		return req
 	}
-	out := make(map[string]struct{}, len(excluded))
-	for m := range excluded {
-		out[m] = struct{}{}
-	}
-	delete(out, pin.Model)
-	return out
+	req.Exclusions = req.Exclusions.ReadmitUnionOnly(pin.Model)
+	return req
 }
 
 // requestAllowedModelsPresent reports whether the request carries an

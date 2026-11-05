@@ -95,7 +95,7 @@ func constraintViolation(constraint Constraint, request router.Request, budget B
 			return "request does not fit the model context window"
 		}
 	case ConstraintModelExclusions:
-		if _, excluded := request.ExcludedModels[binding.CatalogID]; excluded {
+		if request.Exclusions.Excludes(binding.CatalogID) {
 			return "model is excluded by the request"
 		}
 		if len(request.AllowedModels) > 0 {

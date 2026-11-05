@@ -13,12 +13,11 @@ import (
 type requestImageCountContextKey struct{}
 
 func readmitForcedImageLimit(req router.Request, model string) router.Request {
-	_, imageLimitExcluded := req.ImageLimitExcludedModels[model]
+	updated, imageLimitExcluded := req.Exclusions.ReadmitForcedImageLimit(model)
 	if !imageLimitExcluded {
 		return req
 	}
-	req.Exclusions, _ = req.Exclusions.ReadmitForcedImageLimit(model)
-	req.ExcludedModels = withoutModels(req.ExcludedModels, []string{model})
+	req.Exclusions = updated
 	req.ImageCount = 0
 	return req
 }

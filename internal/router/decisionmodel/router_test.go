@@ -108,7 +108,7 @@ func TestHighTaskEscalatesOnlyAfterFastModel(t *testing.T) {
 func TestUnavailableModelFallsBackThroughLineup(t *testing.T) {
 	classifier := &scriptedClassifier{answers: map[decisionmodel.QuestionID]decisionmodel.Choice{decisionmodel.QuestionTaskComplexity: decisionmodel.ChoiceLow, decisionmodel.QuestionCallComplexity: decisionmodel.ChoiceHigh}}
 	req := request("", 1)
-	req.ExcludedModels = map[string]struct{}{"z-ai/glm-5.3": {}}
+	req.Exclusions = router.RequestedExclusions(map[string]struct{}{"z-ai/glm-5.3": {}})
 	decision, err := decisionmodel.New(classifier).Route(context.Background(), req)
 	require.NoError(t, err)
 	require.Equal(t, "moonshotai/kimi-k3", decision.Model, "the excluded judgment model must fall back through the lineup")
@@ -118,14 +118,14 @@ func TestJudgmentFallbackToTopDoesNotEscalate(t *testing.T) {
 	classifier := &scriptedClassifier{answers: map[decisionmodel.QuestionID]decisionmodel.Choice{decisionmodel.QuestionTaskComplexity: decisionmodel.ChoiceLow, decisionmodel.QuestionCallComplexity: decisionmodel.ChoiceHigh}}
 	decisionRouter := decisionmodel.New(classifier)
 	first := request("", 1)
-	first.ExcludedModels = map[string]struct{}{"z-ai/glm-5.3": {}}
+	first.Exclusions = router.RequestedExclusions(map[string]struct{}{"z-ai/glm-5.3": {}})
 	decision, err := decisionRouter.Route(context.Background(), first)
 	require.NoError(t, err)
 	require.Equal(t, "moonshotai/kimi-k3", decision.Model)
 
 	classifier.answers[decisionmodel.QuestionCallComplexity] = decisionmodel.ChoiceLow
 	second := request("", 2)
-	second.ExcludedModels = first.ExcludedModels
+	second.Exclusions = first.Exclusions
 	second.PolicyTurnContext = &router.PolicyTurnContext{PreviousServedModel: decision.Model}
 	decision, err = decisionRouter.Route(context.Background(), second)
 	require.NoError(t, err)

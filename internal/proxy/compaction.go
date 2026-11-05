@@ -89,7 +89,7 @@ func (s *Service) compactionHardPin(ctx context.Context, sessionKey [sessionpin.
 				return false
 			}
 		}
-		if _, excluded := req.ExcludedModels[m]; excluded {
+		if req.Exclusions.Excludes(m) {
 			return false
 		}
 		return !automaticallyDisabled(req, m)
@@ -145,7 +145,7 @@ func (s *Service) compactionSessionModel(ctx context.Context, sessionKey [sessio
 				return false
 			}
 		}
-		if _, excluded := req.ExcludedModels[candidate]; excluded {
+		if req.Exclusions.Excludes(candidate) {
 			return false
 		}
 		return !automaticallyDisabled(req, candidate)

@@ -115,7 +115,6 @@ func (s *Service) anthropicRoutingRequest(
 		EnabledProviders:             enabledProviders,
 		CustomBindings:               s.customBindingsForRequest(ctx),
 		Exclusions:                   router.RequestedExclusions(excluded),
-		ExcludedModels:               excluded,
 		AllowedModels:                allowedModelsForRequest(ctx),
 		PreferredModels:              s.preferredModelsForRequest(ctx),
 		RoutingKnobs:                 routingKnobsForRequest(ctx),

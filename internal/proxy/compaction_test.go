@@ -49,10 +49,10 @@ func TestTurnLoop_CompactionHardPinContextOverflowIsNotRoutingOutage(t *testing.
 		require.NoError(t, err)
 		features := env.RoutingFeatures(false)
 		_, err = s.runTurnLoop(context.Background(), env, features, "test-key", uuid.Nil, "", nil, router.Request{
-			RequestedModel:              features.Model,
-			EnabledProviders:            map[string]struct{}{providers.ProviderAIAND: {}},
-			ExcludedModels:              map[string]struct{}{summarizer: {}, policy.PrecompactionDefaultModel: {}},
-			ContextWindowExcludedModels: contextWindowExcluded,
+			RequestedModel:   features.Model,
+			EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}},
+			Exclusions: router.RequestedExclusions(map[string]struct{}{summarizer: {}, policy.PrecompactionDefaultModel: {}}).
+				ExcludeSet(contextWindowExcluded, router.ExclusionContextWindow),
 		})
 		return err
 	}

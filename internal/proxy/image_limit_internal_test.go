@@ -116,7 +116,7 @@ func TestApplyImageLimitPrefilter(t *testing.T) {
 	})
 }
 
-func TestSafetyExcludedModelsIncludesImageLimits(t *testing.T) {
+func TestSafetyExclusionsIncludeImageLimits(t *testing.T) {
 	// Five images: past any per-binding cap the filter could see, though the
 	// v0 catalog carries no cap, so nothing is excluded. The test pins the
 	// shape: the safety set re-runs the image filter against an empty base.

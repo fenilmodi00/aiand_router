@@ -212,11 +212,6 @@ func asCompactionUnservable(turnType turntype.TurnType, decision router.Decision
 // A validated force pin delegates estimated overflow to the provider, including
 // when subscription funding or a compaction turn rebuilds eligibility.
 func readmitForcedContextEstimate(req router.Request, model string) router.Request {
-	if _, estimateOnly := req.ContextWindowExcludedModels[model]; !estimateOnly {
-		return req
-	}
 	req.Exclusions, _ = req.Exclusions.ReadmitForcedContextEstimate(model)
-	req.ExcludedModels = withoutModels(req.ExcludedModels, []string{model})
-	req.SafetyExcludedModels = withoutModels(req.SafetyExcludedModels, []string{model})
 	return req
 }

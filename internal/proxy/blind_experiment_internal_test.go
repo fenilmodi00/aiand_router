@@ -147,9 +147,9 @@ func TestCallerModelPassthroughHonorsExcludedModels(t *testing.T) {
 		http.Header{},
 		router.Request{
 			RequestedModel: "deepseek/deepseek-v4.1-flash",
-			ExcludedModels: map[string]struct{}{
+			Exclusions: router.RequestedExclusions(map[string]struct{}{
 				"deepseek/deepseek-v4.1-flash": {},
-			},
+			}),
 		},
 	)
 

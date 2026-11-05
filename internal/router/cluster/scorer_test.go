@@ -830,7 +830,7 @@ func TestScorer_ExcludedModelsRemovesFromArgmax(t *testing.T) {
 
 	got, err := s.Route(context.Background(), router.Request{
 		PromptText:     strings.Repeat("x", 100),
-		ExcludedModels: map[string]struct{}{"deepseek/deepseek-v4-pro": {}},
+		Exclusions: router.RequestedExclusions(map[string]struct{}{"deepseek/deepseek-v4-pro": {}}),
 	})
 	require.NoError(t, err)
 	// Without exclusion deepseek-v4-pro wins; excluding it forces argmax onto kimi-k3.
@@ -879,10 +879,10 @@ func TestScorer_ExcludedModelsEmptyingPoolReturnsErrNoEligibleProvider(t *testin
 
 	_, err := s.Route(context.Background(), router.Request{
 		PromptText: strings.Repeat("x", 100),
-		ExcludedModels: map[string]struct{}{
+		Exclusions: router.RequestedExclusions(map[string]struct{}{
 			"deepseek/deepseek-v4-pro": {},
 			"moonshotai/kimi-k3":       {},
-		},
+		}),
 	})
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, ErrNoEligibleProvider))
@@ -897,12 +897,12 @@ func TestScorer_AllowlistEmptyingPoolReturnsErrAllowlistEmptiesPool(t *testing.T
 
 	_, err := s.Route(context.Background(), router.Request{
 		PromptText: strings.Repeat("x", 100),
-		// The proxy desugars the allowlist into ExcludedModels; AllowedModels
+		// The proxy desugars the allowlist into Exclusions; AllowedModels
 		// only names the cause.
-		ExcludedModels: map[string]struct{}{
+		Exclusions: router.RequestedExclusions(map[string]struct{}{
 			"deepseek/deepseek-v4-pro": {},
 			"moonshotai/kimi-k3":       {},
-		},
+		}),
 		AllowedModels: map[string]struct{}{"some-retired-model": {}},
 	})
 	require.Error(t, err)

@@ -57,7 +57,7 @@ func (s *Service) runAgentShadowEvaluationRoute(
 	if err := catalog.CheckEligibility(req.ProductEligibility, model); err != nil {
 		return turnLoopResult{}, fmt.Errorf("agent-shadow planned model %q: %w", model, err)
 	}
-	if _, excluded := req.ExcludedModels[model]; excluded {
+	if req.Exclusions.Excludes(model) {
 		return turnLoopResult{}, fmt.Errorf("agent-shadow planned model %q is no longer eligible: %w", model, cluster.ErrNoEligibleProvider)
 	}
 	if req.EnabledProviders != nil {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"math"
 	"slices"
 	"strings"
@@ -700,15 +699,9 @@ func (r *SidecarRouter) RouteWithoutUserText(ctx context.Context, req router.Req
 	if r.armSelector == nil {
 		return router.Decision{}, fmt.Errorf("%s: no promoted roster for unscorable turn: %w", r.config.Strategy, r.config.Unavailable)
 	}
-	if len(req.SafetyExcludedModels) > 0 {
-		req.ExcludedModels = maps.Clone(req.ExcludedModels)
-		if req.ExcludedModels == nil {
-			req.ExcludedModels = make(map[string]struct{}, len(req.SafetyExcludedModels))
-		}
-		for model := range req.SafetyExcludedModels {
-			req.ExcludedModels[model] = struct{}{}
-		}
-	}
+	// Safety exclusions are already part of the union in req.Exclusions, so
+	// the unscorable continuation honors every hard request-time constraint
+	// without a separate merge step.
 	resolved := r.resolver.Resolve(req)
 	if len(resolved.Candidates) == 0 {
 		return router.Decision{}, fmt.Errorf("%s: no eligible candidate for unscorable turn: %w", r.config.Strategy, emptyCandidateError(resolved.Diagnostics))

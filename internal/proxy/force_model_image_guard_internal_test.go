@@ -86,14 +86,15 @@ func TestRunTurnLoop_ForcedImageCapModel_ReachesProvider(t *testing.T) {
 
 	excludedModels := map[string]struct{}{model: {}}
 	req := router.Request{
-		RequestedModel:           feats.Model,
-		ForceModel:               model,
-		HasImages:                true,
-		ImageCount:               imageCount,
-		EnabledProviders:         map[string]struct{}{providers.ProviderAIAND: {}},
-		ExcludedModels:           excludedModels,
-		ImageLimitExcludedModels: excludedModels,
-		SafetyExcludedModels:     excludedModels,
+		RequestedModel: feats.Model,
+		ForceModel:     model,
+		HasImages:      true,
+		ImageCount:     imageCount,
+		EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}},
+		Exclusions: router.Exclusions{}.
+			ExcludeSet(excludedModels, router.ExclusionRequested).
+			ExcludeSet(excludedModels, router.ExclusionImageLimit).
+			ExcludeSet(excludedModels, router.ExclusionSafety),
 	}
 	pin := sessionpin.Pin{Provider: providers.ProviderAIAND, Model: model}
 	assert.True(t, forcedPinEligible(pin, req), "the explicit force must survive an image-count-only exclusion")
@@ -113,19 +114,19 @@ func TestRunTurnLoop_ForcedImageCapModel_ReachesProvider(t *testing.T) {
 
 func TestReadmitForcedImageLimitCopiesExcludedModels(t *testing.T) {
 	const model = textOnlyForcedModel
-	excluded := map[string]struct{}{model: {}, "other-model": {}}
 	req := router.Request{
-		ImageCount:               17,
-		ExcludedModels:           excluded,
-		ImageLimitExcludedModels: map[string]struct{}{model: {}},
+		ImageCount: 17,
+		Exclusions: router.Exclusions{}.
+			ExcludeSet(map[string]struct{}{model: {}, "other-model": {}}, router.ExclusionRequested).
+			ExcludeModel(model, router.ExclusionImageLimit),
 	}
 
 	readmitted := readmitForcedImageLimit(req, model)
 
 	assert.Zero(t, readmitted.ImageCount)
-	assert.NotContains(t, readmitted.ExcludedModels, model)
-	assert.Contains(t, readmitted.ExcludedModels, "other-model")
-	assert.Contains(t, req.ExcludedModels, model, "readmission must not mutate the caller's exclusion set")
+	assert.False(t, readmitted.Exclusions.Excludes(model))
+	assert.True(t, readmitted.Exclusions.Excludes("other-model"))
+	assert.True(t, req.Exclusions.Excludes(model), "readmission must not mutate the caller's exclusion set")
 	assert.Equal(t, 17, req.ImageCount, "readmission must not mutate the caller's request")
 }
 

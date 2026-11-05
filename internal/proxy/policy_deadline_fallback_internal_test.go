@@ -145,19 +145,12 @@ func runPolicyDeadlineFallbackTurnLoop(
 	require.NoError(t, err)
 	features := env.RoutingFeatures(false)
 	ctx := router.WithStrategy(context.Background(), strategy)
-	var excluded map[string]struct{}
-	if len(excludedModels) > 0 {
-		excluded = make(map[string]struct{}, len(excludedModels))
-		for _, model := range excludedModels {
-			excluded[model] = struct{}{}
-		}
-	}
 	req := router.Request{
 		RequestedModel:       features.Model,
 		EstimatedInputTokens: features.Tokens,
 		HasTools:             features.HasTools,
 		ConversationMessages: conversationMessagesForRouting(env),
-		ExcludedModels:       excluded,
+		Exclusions:           router.RequestedExclusions(modelSet(excludedModels)),
 	}
 	return svc.runTurnLoop(ctx, env, features, "api-key", uuid.New(), "", http.Header{}, req)
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"net/http"
 	"slices"
 	"sort"
@@ -665,25 +664,11 @@ func forcedPinServesImages(pin sessionpin.Pin, req router.Request) bool {
 	return !req.HasImages || catalog.AcceptsImages(pin.Model)
 }
 
-// excludingModel returns excluded plus model, copying instead of mutating the
-// caller's map.
-func excludingModel(excluded map[string]struct{}, model string) map[string]struct{} {
-	if _, ok := excluded[model]; ok {
-		return excluded
-	}
-	out := make(map[string]struct{}, len(excluded)+1)
-	for k := range excluded {
-		out[k] = struct{}{}
-	}
-	out[model] = struct{}{}
-	return out
-}
-
 func pinEligible(pin sessionpin.Pin, req router.Request) bool {
 	if pin.Model == "" || pin.Provider == "" {
 		return false
 	}
-	if _, excluded := req.ExcludedModels[pin.Model]; excluded {
+	if req.Exclusions.Excludes(pin.Model) {
 		return false
 	}
 	if !pinServesImages(pin, req) {
@@ -875,7 +860,7 @@ func (s *Service) runTurnLoop(
 			return res, &ForcedModelExcludedError{Model: forceModelPin.Model, Reason: reason}
 		}
 		forceModelPin.Provider = binding
-		req.ExcludedModels = s.readmitForcedModel(ctx, req, env, feats, forceModelPin)
+		req = s.readmitForcedModel(ctx, req, env, feats, forceModelPin)
 	}
 	// A due overload circuit readmits its model for this one request; the
 	// ordinary selection paths decide whether the probe actually reaches it,
@@ -947,7 +932,7 @@ func (s *Service) runTurnLoop(
 			}
 			legacyPin.Provider = binding
 			forceModelPin, forceModelFound = legacyPin, true
-			req.ExcludedModels = s.readmitForcedModel(ctx, req, env, feats, forceModelPin)
+			req = s.readmitForcedModel(ctx, req, env, feats, forceModelPin)
 		}
 	}
 	// Current force-model state wins over the experiment. Otherwise resolve the
@@ -1055,7 +1040,7 @@ func (s *Service) runTurnLoop(
 		case s.hardPinResolver != nil && !useSubAgentOverride:
 			hardPinReq := HardPinRequest{
 				EnabledProviders: req.EnabledProviders,
-				ExcludedModels:   req.ExcludedModels,
+				ExcludedModels:   req.Exclusions.Union(),
 				CustomBindings:   req.CustomBindings,
 			}
 			p, m, ok := s.hardPinResolver(withAutomaticExclusions(hardPinReq, req.AutomaticExcludedModels))
@@ -1093,7 +1078,7 @@ func (s *Service) runTurnLoop(
 					return res, fmt.Errorf("hard-pin provider %q is ineligible for %s: %w", provider, res.TurnType, cluster.ErrNoEligibleProvider)
 				}
 			}
-			if _, excluded := req.ExcludedModels[model]; excluded {
+			if req.Exclusions.Excludes(model) {
 				return res, fmt.Errorf("hard-pin model %q is ineligible for %s: %w", model, res.TurnType, cluster.ErrNoEligibleProvider)
 			}
 			if automaticallyDisabled(req, model) {
@@ -1130,8 +1115,7 @@ func (s *Service) runTurnLoop(
 		// No session strikes yet: the pin rows are read further down, and the
 		// branch below passes the baseline model through unrouted.
 		passthroughModel := s.baselineFor(req.RequestedModel)
-		_, excluded := req.ExcludedModels[passthroughModel]
-		_, safetyExcluded := req.SafetyExcludedModels[passthroughModel]
+		excluded := req.Exclusions.Excludes(passthroughModel)
 		_, allowlisted := req.AllowedModels[passthroughModel]
 		allowed := req.AllowedModels == nil || allowlisted
 		binding, bindingFound := catalog.ResolveBindingWithCustom(
@@ -1139,7 +1123,7 @@ func (s *Service) runTurnLoop(
 			req.EnabledProviders,
 			req.CustomBindings,
 		)
-		if !excluded && !safetyExcluded && allowed && bindingFound && binding.Provider == providers.ProviderAIAND {
+		if !excluded && allowed && bindingFound && binding.Provider == providers.ProviderAIAND {
 			res.SessionKey = threadSessionKey
 			res.Decision = router.Decision{
 				Provider: binding.Provider,
@@ -1212,7 +1196,7 @@ func (s *Service) runTurnLoop(
 		}
 		pin.Provider = binding
 		forceModelPin, forceModelFound = pin, true
-		req.ExcludedModels = s.readmitForcedModel(ctx, req, env, feats, forceModelPin)
+		req = s.readmitForcedModel(ctx, req, env, feats, forceModelPin)
 	}
 	if forceModelCleared && pinFound && isUserForcedReason(pin.Reason) {
 		pinFound = false
@@ -1320,7 +1304,7 @@ func (s *Service) runTurnLoop(
 			}
 			demoted = mergeSessionStrikes(demoted, []string{model})
 			res.CooldownProbeDeniedModels = append(res.CooldownProbeDeniedModels, model)
-			req.ExcludedModels = excludingModel(req.ExcludedModels, model)
+			req.Exclusions = req.Exclusions.ExcludeModel(model, router.ExclusionRequested)
 			ctx = context.WithValue(ctx, SessionCooldownProbeDeniedModelsContextKey{}, res.CooldownProbeDeniedModels)
 		}
 	}
@@ -1371,7 +1355,7 @@ func (s *Service) runTurnLoop(
 	// TierUnknown = no constraint.
 	forcedTierFloor := catalog.TierUnknown
 	if forceModelFound {
-		_, excluded := req.ExcludedModels[forceModelPin.Model]
+		excluded := req.Exclusions.Excludes(forceModelPin.Model)
 		_, providerEnabled := req.EnabledProviders[forceModelPin.Provider]
 		providerEligible := req.EnabledProviders == nil || providerEnabled
 		imageCapable := forcedPinServesImages(forceModelPin, req)
@@ -1380,7 +1364,7 @@ func (s *Service) runTurnLoop(
 		// provider as the client's native prompt-too-long error, which makes
 		// the client compact; rerouting instead would leave a client that
 		// believes it has room never compacting.
-		if _, estimateOnly := req.ContextWindowExcludedModels[forceModelPin.Model]; excluded && estimateOnly {
+		if excluded && req.Exclusions.ContextWindowExcludes(forceModelPin.Model) {
 			log.Info("Forced session pin dispatched past the context-window estimate; the provider decides",
 				"pin_model", forceModelPin.Model,
 				"pin_provider", forceModelPin.Provider,
@@ -1388,7 +1372,7 @@ func (s *Service) runTurnLoop(
 			)
 			excluded = false
 		}
-		if _, imageLimitExcluded := req.ImageLimitExcludedModels[forceModelPin.Model]; imageLimitExcluded {
+		if req.Exclusions.ImageLimitExcludes(forceModelPin.Model) {
 			log.Info("Forced session pin dispatched past the image-count cap; the provider decides",
 				"pin_model", forceModelPin.Model,
 				"pin_provider", forceModelPin.Provider,
@@ -1422,7 +1406,7 @@ func (s *Service) runTurnLoop(
 			forcedTierFloor = catalog.TierFor(forceModelPin.Model)
 		}
 		if !imageCapable {
-			req.ExcludedModels = excludingModel(req.ExcludedModels, forceModelPin.Model)
+			req.Exclusions = req.Exclusions.ExcludeModel(forceModelPin.Model, router.ExclusionRequested)
 		}
 		if !sessionForceControlFound || isUserForcedReason(pin.Reason) {
 			pinFound = false
@@ -1430,7 +1414,7 @@ func (s *Service) runTurnLoop(
 		}
 	}
 	if pinFound && (isUserForcedReason(pin.Reason) || pin.Reason == translate.ReasonLoopEscalation) {
-		_, excluded := req.ExcludedModels[pin.Model]
+		excluded := req.Exclusions.Excludes(pin.Model)
 		_, providerEnabled := req.EnabledProviders[pin.Provider]
 		providerEligible := req.EnabledProviders == nil || providerEnabled
 		imageCapable := pinServesImages(pin, req)
@@ -1491,7 +1475,7 @@ func (s *Service) runTurnLoop(
 			// The scorer's own image filter fails open when no image-capable
 			// candidate survives, so make the drop explicit here instead of
 			// letting the same text-only model be re-picked.
-			req.ExcludedModels = excludingModel(req.ExcludedModels, pin.Model)
+			req.Exclusions = req.Exclusions.ExcludeModel(pin.Model, router.ExclusionRequested)
 		}
 		// Treat as missing so downstream sticky branches don't dispatch to an
 		// unauthorized provider. The row stays in storage — a later request
@@ -1536,17 +1520,10 @@ func (s *Service) runTurnLoop(
 			"maxed_model", maxedModel,
 			"last_output_tokens", pin.LastOutputTokens,
 		)
-		// Defensive copy: callers may share the ExcludedModels map across requests.
-		excluded := make(map[string]struct{}, len(req.ExcludedModels)+1)
-		for k := range req.ExcludedModels {
-			excluded[k] = struct{}{}
-		}
-		excluded[maxedModel] = struct{}{}
-		req.ExcludedModels = excluded
+		req.Exclusions = req.Exclusions.ExcludeModel(maxedModel, router.ExclusionSafety)
 		// Also bar it from usage bypass — the maxed-out exclusion is a hard
 		// loop-breaking constraint; without it, an auto-continue turn re-requesting
 		// the saturated model would bypass back to it and reopen the loop.
-		req.SafetyExcludedModels = addToSet(req.SafetyExcludedModels, maxedModel)
 		pinFound = false
 		pin = sessionpin.Pin{}
 	}
@@ -1558,15 +1535,9 @@ func (s *Service) runTurnLoop(
 			"maxed_model", maxedModel,
 			"last_output_tokens", hmmHistory.LastOutputTokens,
 		)
-		excluded := make(map[string]struct{}, len(req.ExcludedModels)+1)
-		for k := range req.ExcludedModels {
-			excluded[k] = struct{}{}
-		}
-		excluded[maxedModel] = struct{}{}
-		req.ExcludedModels = excluded
+		req.Exclusions = req.Exclusions.ExcludeModel(maxedModel, router.ExclusionSafety)
 		// See the active-pin path above: the maxed-out model must also block usage
 		// bypass, or an auto-continue turn re-requesting it reopens the loop.
-		req.SafetyExcludedModels = addToSet(req.SafetyExcludedModels, maxedModel)
 		// HMM usage lives in history, not the active pin. Drop a matching anchor
 		// before its context-fit recovery can lift this non-context exclusion.
 		if pinFound && baseModelOf(pin.Model) == maxedModel {
@@ -1582,7 +1553,7 @@ func (s *Service) runTurnLoop(
 	// correctly excluded could be judged to fit here, un-excluding the pin and
 	// hitting the same context-overflow 400 the pre-filter prevents.
 	if pinFound {
-		if _, overCapacity := req.ExcludedModels[pin.Model]; overCapacity {
+		if req.Exclusions.Excludes(pin.Model) {
 			outputReserveForPin := contextWindowOutputReserve
 			if feats.MaxTokens > outputReserveForPin {
 				outputReserveForPin = feats.MaxTokens
@@ -1613,19 +1584,10 @@ func (s *Service) runTurnLoop(
 				compatibilityExcludes := req.TranslationRequirements.Images && !catalog.AcceptsImages(pin.Model) ||
 					req.ImageCount > 0 && !catalog.AcceptsImageCount(pin.Model, req.ImageCount, req.EnabledProviders)
 				if !policyExcludes && !compatibilityExcludes {
-					if len(req.ExcludedModels) > 0 {
-						pruned := make(map[string]struct{}, len(req.ExcludedModels)-1)
-						for k := range req.ExcludedModels {
-							if k != pin.Model {
-								pruned[k] = struct{}{}
-							}
-						}
-						req.ExcludedModels = pruned
-					}
-					// Keep SafetyExcludedModels consistent: the fit-check just
-					// cleared this model's context-overflow exclusion, so it must
-					// not linger in the safety set and block usage bypass.
-					delete(req.SafetyExcludedModels, pin.Model)
+					// The fit-check just cleared this model's context-overflow
+					// exclusion, so it must not linger in the safety set and
+					// block usage bypass.
+					req.Exclusions = req.Exclusions.Readmit(pin.Model)
 				}
 				log.Info("Session pin preserved despite context-window pre-filter exclusion",
 					"pin_model", pin.Model,
@@ -1795,9 +1757,9 @@ func (s *Service) runTurnLoop(
 		var fresh router.Decision
 		routed := false
 		if forcedTierFloor != catalog.TierUnknown {
-			if constrained, ok := s.restrictToTier(req.ExcludedModels, forcedTierFloor); ok {
+			if constrained, ok := s.restrictToTier(req.Exclusions.Union(), forcedTierFloor); ok {
 				tierReq := req
-				tierReq.ExcludedModels = constrained
+				tierReq.Exclusions = router.RequestedExclusions(constrained)
 				if dec, derr := s.routeFor(ctx, tierReq); derr == nil {
 					fresh, routed = dec, true
 					log.Info("user-forced model evicted; rerouted to next-best in same tier",
@@ -2133,7 +2095,7 @@ func (s *Service) runTurnLoop(
 			pinTier := catalog.TierFor(pin.Model)
 			freshTier := catalog.TierFor(fresh.Model)
 			if pinTier != catalog.TierUnknown && freshTier != catalog.TierUnknown && freshTier <= pinTier {
-				if _, excluded := req.ExcludedModels[pin.Model]; !excluded && !automaticallyDisabled(req, pin.Model) {
+				if !req.Exclusions.Excludes(pin.Model) && !automaticallyDisabled(req, pin.Model) {
 					if _, available := s.availableModels[pin.Model]; available {
 						_, providerOK := req.EnabledProviders[pin.Provider]
 						if req.EnabledProviders == nil || providerOK {
@@ -2200,7 +2162,7 @@ func (s *Service) runTurnLoop(
 			anchor := pinDecision(pin)
 			// Band swap picks which half of the pinned pair serves this turn; the
 			// pin itself stays anchored (refreshed below) so we can swap again next turn.
-			served := s.bandSwapServed(ctx, res.TurnType, pin, fresh, req.HasImages, req.ImageCount, req.EnabledProviders, req.ExcludedModels)
+			served := s.bandSwapServed(ctx, res.TurnType, pin, fresh, req.HasImages, req.ImageCount, req.EnabledProviders, req.Exclusions.Union())
 			res.Decision = served
 			res.StickyHit = true
 			res.PinTier = "postgres_stay_" + decision.Reason
@@ -2308,7 +2270,7 @@ func (s *Service) runTurnLoop(
 }
 
 func modelExcludedForRecoveryProbe(req router.Request, model string) bool {
-	if _, excluded := req.ExcludedModels[model]; excluded || automaticallyDisabled(req, model) {
+	if req.Exclusions.Excludes(model) || automaticallyDisabled(req, model) {
 		return true
 	}
 	if req.EnabledProviders != nil && len(catalog.EnumerateBindingsWithCustom(model, req.EnabledProviders, req.CustomBindings)) == 0 {
@@ -2588,10 +2550,8 @@ func (s *Service) normalizeHMMStayPin(req router.Request, p sessionpin.Pin) (ses
 	if maxedOutServedModel(p) != "" {
 		return sessionpin.Pin{}, false
 	}
-	if req.ExcludedModels != nil {
-		if _, excluded := req.ExcludedModels[model]; excluded {
-			return sessionpin.Pin{}, false
-		}
+	if req.Exclusions.Excludes(model) {
+		return sessionpin.Pin{}, false
 	}
 	// An HMM stay is the policy re-choosing the incumbent, so a deployment-wide
 	// disable applies to it exactly as it does to a fresh selection.
@@ -2665,7 +2625,7 @@ func maxedOutServedModel(pin sessionpin.Pin) string {
 	if model == "" {
 		model = pin.Model
 	}
-	// ExcludedModels / SafetyExcludedModels key on bare catalog IDs; strip effort
+	// Exclusions key on bare catalog IDs; strip effort
 	// so the exclusion matches. Exclusion is model-level: saturate at any effort
 	// and the model is barred at every effort for this turn.
 	return baseModelOf(model)
@@ -2973,22 +2933,18 @@ func sortedEnabledKeys(m map[string]struct{}) []string {
 // compaction turn rechecks its own summarizer path too, which can reach models
 // the generic resolver cannot.
 func (s *Service) hardPinBlockedByContextWindow(ctx context.Context, sessionKey [sessionpin.SessionKeyLen]byte, res turnLoopResult, hardPinReq HardPinRequest, req router.Request) bool {
-	if len(req.ContextWindowExcludedModels) == 0 {
+	if !req.Exclusions.HasContextWindowExclusions() {
 		return false
 	}
-	nonSizeExcluded := maps.Clone(req.ExcludedModels)
-	maps.DeleteFunc(nonSizeExcluded, func(model string, _ struct{}) bool {
-		_, sized := req.ContextWindowExcludedModels[model]
-		return sized
-	})
+	nonSizeExcluded := req.Exclusions.WithoutContextWindow()
 	if s.compactionHardPinEnabled && res.TurnType == turntype.Compaction {
 		sizeFree := req
-		sizeFree.ExcludedModels = nonSizeExcluded
+		sizeFree.Exclusions = nonSizeExcluded
 		if _, _, _, ok := s.compactionHardPin(ctx, sessionKey, res.PinRole, sizeFree); ok {
 			return true
 		}
 	}
-	hardPinReq.ExcludedModels = nonSizeExcluded
+	hardPinReq.ExcludedModels = nonSizeExcluded.Union()
 	_, _, ok := s.hardPinResolver(hardPinReq)
 	return ok
 }

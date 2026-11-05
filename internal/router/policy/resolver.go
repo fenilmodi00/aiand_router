@@ -303,10 +303,10 @@ func (r *Resolver) Resolve(req router.Request) ResolvedCandidates {
 			diagnostics = append(diagnostics, Diagnostic{CatalogID: id, Reason: ExclusionProductIneligible})
 			continue
 		}
-		_, unsignedHistoryExcluded := req.UnsignedHistoryExcludedModels[id]
-		_, contextWindowExcluded := req.ContextWindowExcludedModels[id]
-		_, imageLimitExcluded := req.ImageLimitExcludedModels[id]
-		if _, excluded := req.ExcludedModels[id]; excluded && !unsignedHistoryExcluded && !contextWindowExcluded && !imageLimitExcluded {
+		unsignedHistoryExcluded := req.Exclusions.UnsignedHistoryExcludes(id)
+		contextWindowExcluded := req.Exclusions.ContextWindowExcludes(id)
+		imageLimitExcluded := req.Exclusions.ImageLimitExcludes(id)
+		if req.Exclusions.Excludes(id) && !unsignedHistoryExcluded && !contextWindowExcluded && !imageLimitExcluded {
 			diagnostics = append(diagnostics, Diagnostic{CatalogID: id, Reason: ExclusionRequested})
 			continue
 		}

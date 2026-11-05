@@ -31,7 +31,7 @@ func (r *tierProbeRouter) Route(_ context.Context, req router.Request) (router.D
 	best := ""
 	bestTier := catalog.TierHigh + 1
 	for m := range r.available {
-		if _, excluded := req.ExcludedModels[m]; excluded {
+		if req.Exclusions.Excludes(m) {
 			continue
 		}
 		if t := catalog.TierFor(m); best == "" || t < bestTier {

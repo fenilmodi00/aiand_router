@@ -65,7 +65,7 @@ func (s *Service) semanticCacheRequestAllowed(ctx context.Context, req router.Re
 			return false
 		}
 	}
-	return len(req.AllowedModels) == 0 && len(req.ExcludedModels) == 0 && len(req.AutomaticExcludedModels) == 0 &&
+	return req.Exclusions.IsEmpty() && len(req.AllowedModels) == 0 && len(req.AutomaticExcludedModels) == 0 &&
 		!req.HasTools && !req.HasImages && semanticCacheRequirementsAllowed(requirements)
 }
 

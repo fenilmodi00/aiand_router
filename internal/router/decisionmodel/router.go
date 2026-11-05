@@ -136,10 +136,8 @@ func resolve(req router.Request, model string, lineup Lineup) (router.Decision, 
 // dispatchProvider returns the first provider that can serve model for req,
 // honoring exclusions, allowlists, image support and custom bindings.
 func dispatchProvider(req router.Request, model string) (string, bool) {
-	for _, excluded := range []map[string]struct{}{req.ExcludedModels, req.SafetyExcludedModels, req.ContextWindowExcludedModels, req.UnsignedHistoryExcludedModels} {
-		if _, found := excluded[model]; found {
-			return "", false
-		}
+	if req.Exclusions.Excludes(model) {
+		return "", false
 	}
 	if _, allowed := req.AllowedModels[model]; len(req.AllowedModels) > 0 && !allowed {
 		return "", false

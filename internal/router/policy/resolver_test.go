@@ -280,9 +280,10 @@ func TestResolverPreservesUnsignedHistoryExclusionAfterOverflowAdmission(t *test
 	)
 
 	resolved := resolver.Resolve(router.Request{
-		ExcludedModels:                set(model),
-		OverflowAdmittedModels:        set(model),
-		UnsignedHistoryExcludedModels: set(model),
+		Exclusions: router.Exclusions{}.
+			ExcludeSet(set(model), router.ExclusionRequested).
+			ExcludeSet(set(model), router.ExclusionUnsignedHistory),
+		OverflowAdmittedModels: set(model),
 	})
 
 	assert.Empty(t, resolved.Candidates)
@@ -302,8 +303,9 @@ func TestResolverDoesNotCallUnmappedOverflowCandidateAContextExclusion(t *testin
 	)
 
 	resolved := resolver.Resolve(router.Request{
-		ExcludedModels:              set(model),
-		ContextWindowExcludedModels: set(model),
+		Exclusions: router.Exclusions{}.
+			ExcludeSet(set(model), router.ExclusionRequested).
+			ExcludeSet(set(model), router.ExclusionContextWindow),
 	})
 
 	assert.Empty(t, resolved.Candidates)
@@ -376,10 +378,10 @@ func TestResolverReportsNotAllowlistedSeparatelyFromRequestedExclusion(t *testin
 
 	resolved := resolver.Resolve(router.Request{
 		// Both are excluded on the wire; only one is an explicit exclusion.
-		ExcludedModels: map[string]struct{}{
+		Exclusions: router.RequestedExclusions(map[string]struct{}{
 			"moonshotai/kimi-k3":  {},
 			"z-ai/glm-5.3-flash": {},
-		},
+		}),
 		AllowedModels: map[string]struct{}{"z-ai/glm-5.3-flash": {}},
 	})
 
@@ -402,7 +404,7 @@ func TestResolverKeepsRequestedExclusionWhenNoAllowlist(t *testing.T) {
 	)
 
 	resolved := resolver.Resolve(router.Request{
-		ExcludedModels: map[string]struct{}{"moonshotai/kimi-k3": {}},
+		Exclusions: router.RequestedExclusions(map[string]struct{}{"moonshotai/kimi-k3": {}}),
 	})
 
 	assert.Contains(t, resolved.Diagnostics, policy.Diagnostic{

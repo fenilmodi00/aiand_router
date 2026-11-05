@@ -115,7 +115,7 @@ func TestPiHandoffRevalidatesSessionConfigurationAndEligibility(t *testing.T) {
 		{"tools", func(r *router.Request) { r.ToolConfigurationSHA256 = "changed" }},
 		{"reasoning", func(r *router.Request) { r.ReasoningConfigurationSHA256 = "changed" }},
 		{"model", func(r *router.Request) { r.RequestedModel = "z-ai/glm-5.3-flash" }},
-		{"excluded", func(r *router.Request) { r.ExcludedModels = map[string]struct{}{prepared.Model: {}} }},
+		{"excluded", func(r *router.Request) { r.Exclusions = r.Exclusions.ExcludeModel(prepared.Model, router.ExclusionRequested) }},
 		{"provider", func(r *router.Request) { r.EnabledProviders = map[string]struct{}{} }},
 	} {
 		t.Run(mutation.name, func(t *testing.T) {

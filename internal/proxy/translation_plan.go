@@ -117,7 +117,7 @@ func (s *Service) planTranslation(req router.Request) TranslationPlan {
 	if req.EnabledProviders != nil {
 		plan.EnabledProviders = cloneStringSet(req.EnabledProviders)
 	}
-	plan.ExcludedModels = cloneStringSet(req.ExcludedModels)
+	plan.ExcludedModels = req.Exclusions.Union()
 
 	requirements := req.TranslationRequirements
 	if requirements.IsZero() {
@@ -160,10 +160,7 @@ func (s *Service) planTranslation(req router.Request) TranslationPlan {
 				Code: "image_input_unsupported", Model: model, Enforced: plan.Enforced,
 			})
 			if plan.Enforced {
-				if plan.ExcludedModels == nil {
-					plan.ExcludedModels = make(map[string]struct{})
-				}
-				plan.ExcludedModels[model] = struct{}{}
+				plan.ExcludedModels = router.WithModel(plan.ExcludedModels, model)
 			}
 		}
 	}
@@ -307,10 +304,7 @@ func (s *Service) applyTranslationPlan(ctx context.Context, req router.Request) 
 	if plan.EnabledProviders != nil {
 		req.EnabledProviders = plan.EnabledProviders
 	}
-	if plan.ExcludedModels != nil {
-		req.ExcludedModels = plan.ExcludedModels
-		req.Exclusions = req.Exclusions.ExcludeSet(plan.ExcludedModels, router.ExclusionRequested)
-	}
+	req.Exclusions = req.Exclusions.ExcludeSet(plan.ExcludedModels, router.ExclusionRequested)
 	for _, exclusion := range plan.Exclusions {
 		apm.RecordTranslationCompatibility(ctx,
 			exclusion.Code,
