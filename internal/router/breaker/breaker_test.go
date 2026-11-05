@@ -12,9 +12,9 @@ import (
 const (
 	overloadedModel = "claude-opus-5"
 	otherModel      = "gpt-5.6-luna"
-	orgOrg        = "org-aiand"
-	musinsaOrg      = "org-musinsa"
-	cortexOrg       = "org-cortex"
+	orgA            = "org-a"
+	orgB            = "org-b"
+	orgC            = "org-c"
 )
 
 type clock struct{ now time.Time }
@@ -64,12 +64,12 @@ func strike(r *Registry, org, model string, isolated bool, times int) Transition
 	return last
 }
 
-// openShared opens the shared circuit for overloadedModel with orgOrg's
-// failures alone, which also confirms it for orgOrg.
+// openShared opens the shared circuit for overloadedModel with orgA's
+// failures alone, which also confirms it for orgA.
 func openShared(t *testing.T, r *Registry) {
 	t.Helper()
-	strike(r, orgOrg, overloadedModel, false, 3)
-	require.Equal(t, StateOpen, stateOf(r, orgOrg, overloadedModel, false))
+	strike(r, orgA, overloadedModel, false, 3)
+	require.Equal(t, StateOpen, stateOf(r, orgA, overloadedModel, false))
 }
 
 func claim(t *testing.T, r *Registry, org string) Probe {
@@ -83,33 +83,33 @@ func TestSharedCircuitOpensOnStrikesFromAnyOrganization(t *testing.T) {
 	c := newClock()
 	r := newRegistry(c)
 
-	r.RecordOverload(orgOrg, overloadedModel, false)
-	r.RecordOverload(musinsaOrg, overloadedModel, false)
-	assert.Equal(t, StateClosed, stateOf(r, orgOrg, overloadedModel, false))
+	r.RecordOverload(orgA, overloadedModel, false)
+	r.RecordOverload(orgB, overloadedModel, false)
+	assert.Equal(t, StateClosed, stateOf(r, orgA, overloadedModel, false))
 
-	opened := r.RecordOverload(cortexOrg, overloadedModel, false)
+	opened := r.RecordOverload(orgC, overloadedModel, false)
 
 	assert.Equal(t, StateOpen, opened.To)
 	assert.Equal(t, 30*time.Second, opened.RecoveryAfter)
 }
 
-// Aiand opening the shared circuit does not withdraw the model from Musinsa
-// until Musinsa has observed its own overloads.
+// Opening the shared circuit for org A does not withdraw the model from org B
+// until org B has itself observed enough overloads.
 func TestOpenSharedCircuitWithdrawsOnlyFromConfirmedOrganizations(t *testing.T) {
 	c := newClock()
 	r := newRegistry(c)
 	openShared(t, r)
 
-	assert.True(t, withdrawnFrom(r, orgOrg, overloadedModel))
-	assert.False(t, withdrawnFrom(r, musinsaOrg, overloadedModel))
+	assert.True(t, withdrawnFrom(r, orgA, overloadedModel))
+	assert.False(t, withdrawnFrom(r, orgB, overloadedModel))
 
-	first := r.RecordOverload(musinsaOrg, overloadedModel, false)
+	first := r.RecordOverload(orgB, overloadedModel, false)
 	assert.False(t, first.Confirmed)
-	assert.False(t, withdrawnFrom(r, musinsaOrg, overloadedModel), "one failure is below the confirmation threshold")
+	assert.False(t, withdrawnFrom(r, orgB, overloadedModel), "one failure is below the confirmation threshold")
 
-	second := r.RecordOverload(musinsaOrg, overloadedModel, false)
+	second := r.RecordOverload(orgB, overloadedModel, false)
 	assert.True(t, second.Confirmed)
-	assert.True(t, withdrawnFrom(r, musinsaOrg, overloadedModel))
+	assert.True(t, withdrawnFrom(r, orgB, overloadedModel))
 }
 
 // An organization's failures from just before the circuit opened count toward
@@ -118,36 +118,36 @@ func TestFailuresBeforeTheOpenCountTowardConfirmation(t *testing.T) {
 	c := newClock()
 	r := newRegistry(c)
 
-	strike(r, musinsaOrg, overloadedModel, false, 2)
+	strike(r, orgB, overloadedModel, false, 2)
 	c.Advance(30 * time.Second)
-	r.RecordOverload(orgOrg, overloadedModel, false)
+	r.RecordOverload(orgA, overloadedModel, false)
 
-	assert.True(t, withdrawnFrom(r, musinsaOrg, overloadedModel))
-	assert.False(t, withdrawnFrom(r, orgOrg, overloadedModel), "a single failure does not confirm")
+	assert.True(t, withdrawnFrom(r, orgB, overloadedModel))
+	assert.False(t, withdrawnFrom(r, orgA, overloadedModel), "a single failure does not confirm")
 }
 
 func TestOrgFailuresOlderThanTheEpisodeDoNotConfirm(t *testing.T) {
 	c := newClock()
 	r := newRegistry(c)
 
-	r.RecordOverload(musinsaOrg, overloadedModel, false)
+	r.RecordOverload(orgB, overloadedModel, false)
 	c.Advance(3 * time.Minute)
 	openShared(t, r)
-	r.RecordOverload(musinsaOrg, overloadedModel, false)
+	r.RecordOverload(orgB, overloadedModel, false)
 
-	assert.False(t, withdrawnFrom(r, musinsaOrg, overloadedModel))
+	assert.False(t, withdrawnFrom(r, orgB, overloadedModel))
 }
 
 func TestStrikesOutsideWindowAgeOut(t *testing.T) {
 	c := newClock()
 	r := newRegistry(c)
 
-	strike(r, orgOrg, overloadedModel, false, 2)
+	strike(r, orgA, overloadedModel, false, 2)
 	c.Advance(2*time.Minute + time.Second)
-	r.RecordOverload(orgOrg, overloadedModel, false)
+	r.RecordOverload(orgA, overloadedModel, false)
 
-	assert.Equal(t, StateClosed, stateOf(r, orgOrg, overloadedModel, false))
-	assert.Nil(t, r.Withdrawn(orgOrg))
+	assert.Equal(t, StateClosed, stateOf(r, orgA, overloadedModel, false))
+	assert.Nil(t, r.Withdrawn(orgA))
 }
 
 // A gateway organization's circuit is its own: its failures never move the
@@ -156,14 +156,14 @@ func TestIsolatedCircuitStaysWithItsOrganization(t *testing.T) {
 	c := newClock()
 	r := newRegistry(c)
 
-	opened := strike(r, cortexOrg, overloadedModel, true, 3)
+	opened := strike(r, orgC, overloadedModel, true, 3)
 
 	assert.Equal(t, StateOpen, opened.To)
 	assert.True(t, opened.Isolated)
-	assert.True(t, withdrawnFrom(r, cortexOrg, overloadedModel), "the owner needs no further confirmation")
-	assert.Equal(t, StateClosed, stateOf(r, cortexOrg, overloadedModel, false), "the shared circuit is untouched")
-	assert.False(t, withdrawnFrom(r, orgOrg, overloadedModel))
-	assert.Equal(t, StateClosed, stateOf(r, orgOrg, overloadedModel, true))
+	assert.True(t, withdrawnFrom(r, orgC, overloadedModel), "the owner needs no further confirmation")
+	assert.Equal(t, StateClosed, stateOf(r, orgC, overloadedModel, false), "the shared circuit is untouched")
+	assert.False(t, withdrawnFrom(r, orgA, overloadedModel))
+	assert.Equal(t, StateClosed, stateOf(r, orgA, overloadedModel, true))
 }
 
 // Shared evidence does not reach a gateway organization's own circuit either.
@@ -172,8 +172,8 @@ func TestSharedCircuitDoesNotTouchIsolatedCircuits(t *testing.T) {
 	r := newRegistry(c)
 	openShared(t, r)
 
-	assert.Equal(t, StateClosed, stateOf(r, cortexOrg, overloadedModel, true))
-	assert.False(t, withdrawnFrom(r, cortexOrg, overloadedModel))
+	assert.Equal(t, StateClosed, stateOf(r, orgC, overloadedModel, true))
+	assert.False(t, withdrawnFrom(r, orgC, overloadedModel))
 }
 
 func TestOpenCircuitIsNotDueBeforeRecoveryTimeout(t *testing.T) {
@@ -182,7 +182,7 @@ func TestOpenCircuitIsNotDueBeforeRecoveryTimeout(t *testing.T) {
 	openShared(t, r)
 
 	c.Advance(29 * time.Second)
-	_, _, ok := r.ClaimProbe(orgOrg, anyModel)
+	_, _, ok := r.ClaimProbe(orgA, anyModel)
 
 	assert.False(t, ok)
 }
@@ -196,7 +196,7 @@ func TestHalfOpenAdmitsExactlyOneProbe(t *testing.T) {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	claims := 0
-	for _, org := range []string{orgOrg, musinsaOrg, orgOrg, musinsaOrg, orgOrg, musinsaOrg, orgOrg, musinsaOrg} {
+	for _, org := range []string{orgA, orgB, orgA, orgB, orgA, orgB, orgA, orgB} {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -210,8 +210,8 @@ func TestHalfOpenAdmitsExactlyOneProbe(t *testing.T) {
 	wg.Wait()
 
 	assert.Equal(t, 1, claims)
-	assert.Equal(t, StateHalfOpen, stateOf(r, orgOrg, overloadedModel, false))
-	assert.True(t, withdrawnFrom(r, orgOrg, overloadedModel), "half-open stays withdrawn for everyone but the prober")
+	assert.Equal(t, StateHalfOpen, stateOf(r, orgA, overloadedModel, false))
+	assert.True(t, withdrawnFrom(r, orgA, overloadedModel), "half-open stays withdrawn for everyone but the prober")
 }
 
 // A served probe closes the shared circuit for every organization and clears
@@ -220,16 +220,16 @@ func TestServedProbeClosesForEveryOrganization(t *testing.T) {
 	c := newClock()
 	r := newRegistry(c)
 	openShared(t, r)
-	strike(r, musinsaOrg, overloadedModel, false, 2)
+	strike(r, orgB, overloadedModel, false, 2)
 	c.Advance(30 * time.Second)
 
-	closed := r.ProbeSucceeded(claim(t, r, musinsaOrg))
+	closed := r.ProbeSucceeded(claim(t, r, orgB))
 
 	assert.Equal(t, StateClosed, closed.To)
-	assert.Nil(t, r.Withdrawn(orgOrg))
-	assert.Nil(t, r.Withdrawn(musinsaOrg))
-	strike(r, orgOrg, overloadedModel, false, 2)
-	assert.Equal(t, StateClosed, stateOf(r, orgOrg, overloadedModel, false), "strikes from before the outage do not carry over")
+	assert.Nil(t, r.Withdrawn(orgA))
+	assert.Nil(t, r.Withdrawn(orgB))
+	strike(r, orgA, overloadedModel, false, 2)
+	assert.Equal(t, StateClosed, stateOf(r, orgA, overloadedModel, false), "strikes from before the outage do not carry over")
 }
 
 // An organization that never confirmed may still probe, so a shared circuit
@@ -240,7 +240,7 @@ func TestUnconfirmedOrganizationMayProbeSharedCircuit(t *testing.T) {
 	openShared(t, r)
 	c.Advance(30 * time.Second)
 
-	probe := claim(t, r, musinsaOrg)
+	probe := claim(t, r, orgB)
 
 	assert.Equal(t, overloadedModel, probe.Model)
 }
@@ -248,16 +248,16 @@ func TestUnconfirmedOrganizationMayProbeSharedCircuit(t *testing.T) {
 func TestOnlyTheOwnerProbesAnIsolatedCircuit(t *testing.T) {
 	c := newClock()
 	r := newRegistry(c)
-	strike(r, cortexOrg, overloadedModel, true, 3)
+	strike(r, orgC, overloadedModel, true, 3)
 	c.Advance(30 * time.Second)
 
-	_, _, claimedByOther := r.ClaimProbe(orgOrg, anyModel)
-	owner, _, ok := r.ClaimProbe(cortexOrg, anyModel)
+	_, _, claimedByOther := r.ClaimProbe(orgA, anyModel)
+	owner, _, ok := r.ClaimProbe(orgC, anyModel)
 
 	assert.False(t, claimedByOther)
 	require.True(t, ok)
 	assert.Equal(t, StateClosed, r.ProbeSucceeded(owner).To)
-	assert.Nil(t, r.Withdrawn(cortexOrg))
+	assert.Nil(t, r.Withdrawn(orgC))
 }
 
 func TestFailedProbeReopensWithBackoffUpToCap(t *testing.T) {
@@ -268,14 +268,14 @@ func TestFailedProbeReopensWithBackoffUpToCap(t *testing.T) {
 	for _, want := range []time.Duration{time.Minute, 2 * time.Minute, 2 * time.Minute} {
 		c.Advance(5 * time.Minute)
 
-		reopened := r.ProbeFailed(claim(t, r, orgOrg))
+		reopened := r.ProbeFailed(claim(t, r, orgA))
 
 		assert.Equal(t, StateOpen, reopened.To)
 		assert.Equal(t, want, reopened.RecoveryAfter)
-		assert.True(t, withdrawnFrom(r, orgOrg, overloadedModel), "confirmations carry over a failed probe")
+		assert.True(t, withdrawnFrom(r, orgA, overloadedModel), "confirmations carry over a failed probe")
 	}
 	c.Advance(2*time.Minute - time.Second)
-	_, _, ok := r.ClaimProbe(orgOrg, anyModel)
+	_, _, ok := r.ClaimProbe(orgA, anyModel)
 	assert.False(t, ok, "the capped recovery timeout still applies")
 }
 
@@ -286,11 +286,11 @@ func TestOverloadWhileHalfOpenLeavesProbeInCharge(t *testing.T) {
 	r := newRegistry(c)
 	openShared(t, r)
 	c.Advance(30 * time.Second)
-	probe := claim(t, r, orgOrg)
+	probe := claim(t, r, orgA)
 
-	r.RecordOverload(orgOrg, overloadedModel, false)
+	r.RecordOverload(orgA, overloadedModel, false)
 
-	assert.Equal(t, StateHalfOpen, stateOf(r, orgOrg, overloadedModel, false))
+	assert.Equal(t, StateHalfOpen, stateOf(r, orgA, overloadedModel, false))
 	assert.Equal(t, StateClosed, r.ProbeSucceeded(probe).To)
 }
 
@@ -300,8 +300,8 @@ func TestReleasedProbeIsDueAgain(t *testing.T) {
 	openShared(t, r)
 	c.Advance(30 * time.Second)
 
-	released := r.ReleaseProbe(claim(t, r, orgOrg))
-	again := claim(t, r, orgOrg)
+	released := r.ReleaseProbe(claim(t, r, orgA))
+	again := claim(t, r, orgA)
 
 	assert.Equal(t, StateOpen, released.To)
 	assert.Equal(t, overloadedModel, again.Model)
@@ -314,13 +314,13 @@ func TestReleasedProbeYieldsToUnofferedCircuit(t *testing.T) {
 	r := newRegistry(c)
 	openShared(t, r)
 	c.Advance(time.Second)
-	strike(r, orgOrg, otherModel, false, 3)
+	strike(r, orgA, otherModel, false, 3)
 	c.Advance(30 * time.Second)
 
-	first := claim(t, r, orgOrg)
+	first := claim(t, r, orgA)
 	require.Equal(t, overloadedModel, first.Model, "the longest-open circuit is offered first")
 	r.ReleaseProbe(first)
-	second := claim(t, r, orgOrg)
+	second := claim(t, r, orgA)
 
 	assert.Equal(t, otherModel, second.Model)
 }
@@ -330,14 +330,14 @@ func TestStaleProbeCannotResolveCircuit(t *testing.T) {
 	r := newRegistry(c)
 	openShared(t, r)
 	c.Advance(30 * time.Second)
-	stale := claim(t, r, orgOrg)
+	stale := claim(t, r, orgA)
 	r.ProbeFailed(stale)
 	c.Advance(time.Minute)
-	current := claim(t, r, orgOrg)
+	current := claim(t, r, orgA)
 
 	assert.False(t, r.ProbeSucceeded(stale).Changed(), "a resolved probe cannot close the circuit")
 	assert.False(t, r.ReleaseProbe(stale).Changed())
-	assert.Equal(t, StateHalfOpen, stateOf(r, orgOrg, overloadedModel, false))
+	assert.Equal(t, StateHalfOpen, stateOf(r, orgA, overloadedModel, false))
 	assert.Equal(t, StateClosed, r.ProbeSucceeded(current).To)
 }
 
@@ -346,12 +346,12 @@ func TestAbandonedProbeIsReclaimedAfterLease(t *testing.T) {
 	r := newRegistry(c)
 	openShared(t, r)
 	c.Advance(30 * time.Second)
-	stale := claim(t, r, orgOrg)
+	stale := claim(t, r, orgA)
 
 	c.Advance(probeLease - time.Second)
-	_, _, early := r.ClaimProbe(orgOrg, anyModel)
+	_, _, early := r.ClaimProbe(orgA, anyModel)
 	c.Advance(time.Second)
-	_, _, late := r.ClaimProbe(orgOrg, anyModel)
+	_, _, late := r.ClaimProbe(orgA, anyModel)
 
 	assert.False(t, early)
 	assert.True(t, late)
@@ -364,10 +364,10 @@ func TestClaimSkipsIneligibleModels(t *testing.T) {
 	openShared(t, r)
 	c.Advance(30 * time.Second)
 
-	_, _, ok := r.ClaimProbe(orgOrg, func(string) bool { return false })
+	_, _, ok := r.ClaimProbe(orgA, func(string) bool { return false })
 
 	assert.False(t, ok)
-	assert.Equal(t, StateOpen, stateOf(r, orgOrg, overloadedModel, false), "an ineligible request leaves the circuit due for the next one")
+	assert.Equal(t, StateOpen, stateOf(r, orgA, overloadedModel, false), "an ineligible request leaves the circuit due for the next one")
 }
 
 // An organization with withdrawals of its own still never sees another
@@ -375,13 +375,13 @@ func TestClaimSkipsIneligibleModels(t *testing.T) {
 func TestIsolatedCircuitDoesNotLeakIntoOtherOrganizationsWithdrawals(t *testing.T) {
 	c := newClock()
 	r := newRegistry(c)
-	strike(r, orgOrg, otherModel, false, 3)
-	require.True(t, withdrawnFrom(r, orgOrg, otherModel))
+	strike(r, orgA, otherModel, false, 3)
+	require.True(t, withdrawnFrom(r, orgA, otherModel))
 
-	strike(r, cortexOrg, overloadedModel, true, 3)
+	strike(r, orgC, overloadedModel, true, 3)
 
-	assert.Equal(t, map[string]struct{}{otherModel: {}}, r.Withdrawn(orgOrg))
-	assert.Equal(t, map[string]struct{}{overloadedModel: {}}, r.Withdrawn(cortexOrg))
+	assert.Equal(t, map[string]struct{}{otherModel: {}}, r.Withdrawn(orgA))
+	assert.Equal(t, map[string]struct{}{overloadedModel: {}}, r.Withdrawn(orgC))
 }
 
 // Claiming and releasing a probe run on every eligible request while a
@@ -396,9 +396,9 @@ func TestClaimAndReleaseDoNotTakeTheLock(t *testing.T) {
 
 	done := make(chan bool)
 	go func() {
-		probe, _, ok := r.ClaimProbe(orgOrg, anyModel)
+		probe, _, ok := r.ClaimProbe(orgA, anyModel)
 		released := r.ReleaseProbe(probe).Changed()
-		withdrawn := r.Withdrawn(orgOrg) != nil
+		withdrawn := r.Withdrawn(orgA) != nil
 		done <- ok && released && withdrawn
 	}()
 
@@ -415,16 +415,16 @@ func TestClaimAndReleaseDoNotTakeTheLock(t *testing.T) {
 func TestAgedOutClosedCircuitsAreSwept(t *testing.T) {
 	c := newClock()
 	r := newRegistry(c)
-	r.RecordOverload(cortexOrg, overloadedModel, true)
-	r.RecordOverload(orgOrg, otherModel, true)
+	r.RecordOverload(orgC, overloadedModel, true)
+	r.RecordOverload(orgA, otherModel, true)
 	c.Advance(time.Minute)
-	r.RecordOverload(orgOrg, otherModel, true)
+	r.RecordOverload(orgA, otherModel, true)
 	c.Advance(time.Minute + time.Second)
 
-	r.RecordOverload(musinsaOrg, otherModel, true)
+	r.RecordOverload(orgB, otherModel, true)
 
-	_, staleKept := r.circuits[circuitKey(cortexOrg, overloadedModel, true)]
-	_, liveKept := r.circuits[circuitKey(orgOrg, otherModel, true)]
+	_, staleKept := r.circuits[circuitKey(orgC, overloadedModel, true)]
+	_, liveKept := r.circuits[circuitKey(orgA, otherModel, true)]
 	assert.False(t, staleKept, "a closed circuit whose strikes all aged out is dropped")
 	assert.True(t, liveKept, "a closed circuit with a strike inside the window is kept")
 }
