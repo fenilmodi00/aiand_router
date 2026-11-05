@@ -1,6 +1,6 @@
 import { Text } from "@/components/atoms/Text";
 import { Card } from "@/components/molecules/Card";
-import { cn } from "@/tools/cn";
+import { cn } from "@/lib/cn";
 
 import React from "react";
 

@@ -40,7 +40,7 @@ function addMonths(d: Date, n: number): Date {
 }
 
 /**
- * Mirrors WorkAiand's default date filter set (week- and month-anchored
+ * Mirrors Aiand's default date filter set (week- and month-anchored
  * windows ending at "now"), trimmed to the granularities the router
  * supports.
  */

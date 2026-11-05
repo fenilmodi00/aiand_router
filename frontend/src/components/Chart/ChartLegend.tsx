@@ -1,5 +1,5 @@
 import { Tooltip } from "@/components/molecules/Tooltip";
-import { cn } from "@/tools/cn";
+import { cn } from "@/lib/cn";
 
 import * as Recharts from "recharts";
 

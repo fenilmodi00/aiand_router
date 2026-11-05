@@ -1,5 +1,5 @@
 import { Text } from "@/components/atoms/Text";
-import { cn } from "@/tools/cn";
+import { cn } from "@/lib/cn";
 import { LoadState } from "@/tools/LoadState";
 
 export interface StatisticProps {

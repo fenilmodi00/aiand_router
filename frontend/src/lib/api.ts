@@ -141,20 +141,6 @@ export interface IssueAPIKeyResponse {
   token: string;
 }
 
-export interface ExternalKey {
-  id: string;
-  provider: string;
-  name: string | null;
-  key_prefix: string;
-  key_suffix: string;
-  // Endpoint this key is scoped to; absent when the provider's default is used.
-  base_url?: string;
-  // Catalog model ID -> the ID this endpoint publishes it under; absent when it
-  // uses catalog names directly.
-  model_aliases?: Record<string, string>;
-  last_used_at: string | null;
-  created_at: string;
-}
 
 export interface RouterConfig {
   cluster_version: string;
@@ -285,44 +271,6 @@ export const api = {
     rotate: (id: string) =>
       request<IssueAPIKeyResponse>(`/keys/${id}/rotate`, { method: "POST" }),
     delete: (id: string) => request<void>(`/keys/${id}`, { method: "DELETE" }),
-  },
-  providerKeys: {
-    list: () => request<{ keys: ExternalKey[] }>("/provider-keys"),
-    upsert: (
-      provider: string,
-      key: string,
-      name?: string,
-      baseURL?: string,
-      modelAliases?: Record<string, string>,
-    ) =>
-      request<ExternalKey>("/provider-keys", {
-        method: "POST",
-        body: JSON.stringify({
-          provider,
-          key,
-          name,
-          base_url: baseURL,
-          model_aliases: modelAliases,
-        }),
-      }),
-    // Replaces the alias map in place; the stored secret is untouched, so
-    // retargeting model names doesn't need the credential re-entered.
-    updateModelAliases: (id: string, modelAliases: Record<string, string>) =>
-      request<ExternalKey>(`/provider-keys/${id}/model-aliases`, {
-        method: "PUT",
-        body: JSON.stringify({ model_aliases: modelAliases }),
-      }),
-    delete: (id: string) => request<void>(`/provider-keys/${id}`, { method: "DELETE" }),
-    // Lists the model IDs a saved key's endpoint publishes.
-    listUpstreamModels: (id: string) =>
-      request<{ models: string[] }>(`/provider-keys/${id}/models`),
-    // Lists an endpoint's models before the key is saved; the credential is
-    // used for the one upstream call and never persisted.
-    discoverModels: (provider: string, key: string, baseURL?: string) =>
-      request<{ models: string[] }>("/provider-keys/discover-models", {
-        method: "POST",
-        body: JSON.stringify({ provider, key, base_url: baseURL }),
-      }),
   },
   config: {
     get: () => request<RouterConfig>("/config"),

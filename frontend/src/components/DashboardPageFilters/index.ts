@@ -1,2 +1,2 @@
-export * from "./DashboardPageFilters";
-export * from "./useDashboardFilters";
+export { DashboardPageFilters } from "./DashboardPageFilters";
+export { useDashboardFilters } from "./useDashboardFilters";

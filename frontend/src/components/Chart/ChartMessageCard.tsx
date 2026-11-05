@@ -1,6 +1,6 @@
 import { Card, CardProps } from "@/components/molecules/Card";
 import { Intent } from "@/components/types";
-import { cn } from "@/tools/cn";
+import { cn } from "@/lib/cn";
 
 import { Loader2, TriangleAlert } from "lucide-react";
 import React from "react";

@@ -11,7 +11,7 @@ import {
   type HarnessID,
   type InstallScope,
   defaultInstallShell,
-  harness,
+  harnessInfo,
   installCommand,
   routerOrigin,
 } from "@/lib/installCommands";
@@ -241,7 +241,7 @@ function ScopeStep({
   onBack: () => void;
   onSelect: (scope: InstallScope) => void;
 }) {
-  const selected = harness(harnessID);
+  const selected = harnessInfo(harnessID);
   const options: { value: InstallScope; label: string; detail: string; icon: typeof User }[] = [
     {
       value: "user",
@@ -313,7 +313,7 @@ function InstallStep({
   onSkip: () => void;
 }) {
   const origin = routerOrigin();
-  const selected = harness(harnessID);
+  const selected = harnessInfo(harnessID);
   const pinged = useFirstRequest();
   const [shell, setShell] = useState(defaultInstallShell);
 

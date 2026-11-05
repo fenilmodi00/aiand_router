@@ -6,7 +6,7 @@
 // self-hoster's traffic off-box. `--base-url` is always passed explicitly for
 // the same reason — install.sh otherwise falls back to the hosted default.
 
-/** A harness the installer can configure, in the order the picker shows them. */
+/** A coding harness the installer can configure. */
 export type HarnessID = "claude" | "codex" | "pi";
 
 /** Whether the installer writes machine-wide config or repo-local config. */
@@ -26,7 +26,8 @@ export function defaultInstallShell(): InstallShell {
   return /windows/i.test(navigator.userAgent) ? "powershell" : "posix";
 }
 
-export interface HarnessInfo {
+/** Everything the install pickers need to render one harness option. */
+interface InstallHarness {
   id: HarnessID;
   label: string;
   /** What the installer touches, shown under the label in the picker. */
@@ -35,7 +36,8 @@ export interface HarnessInfo {
   projectDetail: string;
 }
 
-export const HARNESSES: HarnessInfo[] = [
+/** Harnesses the installer can configure, in picker display order. */
+export const HARNESSES: InstallHarness[] = [
   {
     id: "claude",
     label: "Claude Code",
@@ -56,7 +58,8 @@ export const HARNESSES: HarnessInfo[] = [
   },
 ];
 
-export function harness(id: HarnessID): HarnessInfo {
+/** Metadata for one harness by ID; throws on an unknown ID. */
+export function harnessInfo(id: HarnessID): InstallHarness {
   const found = HARNESSES.find(h => h.id === id);
   if (found == null) throw new Error(`unknown harness: ${id}`);
   return found;

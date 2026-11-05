@@ -1,4 +1,4 @@
-import { cn } from "@/tools/cn";
+import { cn } from "@/lib/cn";
 
 import { useLayoutEffect, useRef } from "react";
 import * as Recharts from "recharts";

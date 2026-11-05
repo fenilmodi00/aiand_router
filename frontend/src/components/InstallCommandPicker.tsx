@@ -10,7 +10,7 @@ import {
   type HarnessID,
   type InstallScope,
   defaultInstallShell,
-  harness,
+  harnessInfo,
   installCommand,
   routerOrigin,
 } from "@/lib/installCommands";
@@ -39,7 +39,7 @@ export function InstallCommandPicker({ token }: InstallCommandPickerProps) {
   const [scope, setScope] = useState<InstallScope>("user");
   const [shell, setShell] = useState(defaultInstallShell);
   const origin = routerOrigin();
-  const selected = harness(harnessID);
+  const selected = harnessInfo(harnessID);
 
   return (
     <div className="flex flex-col gap-3">

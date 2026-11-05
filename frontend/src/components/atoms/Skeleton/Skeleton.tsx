@@ -1,4 +1,4 @@
-import { cn } from "@/tools/cn";
+import { cn } from "@/lib/cn";
 
 export interface SkeletonProps extends React.ComponentProps<"div"> {
   /**
