@@ -176,7 +176,15 @@ type Request struct {
 	// Per-request model exclusion — nil or empty means no exclusion.
 	// If filtering empties eligible set, scorer returns ErrNoEligibleProvider.
 	// Full union: installation excluded_models plus request-time safety filters.
+	//
+	// Deprecated: superseded by Exclusions; kept until every reader migrates.
 	ExcludedModels map[string]struct{}
+	// Exclusions carries the request's hard model exclusions: the union set
+	// every consumer membership-tests, plus per-kind markers used only for
+	// diagnostics attribution and explicit-force re-admission. Zero value
+	// excludes nothing. The old flat fields above mirror its content during
+	// migration; Exclusions is authoritative once they are gone.
+	Exclusions Exclusions
 	// AllowedModels is the org's positive model allowlist as a set; nil means no
 	// restriction. Enforcement is via ExcludedModels (proxy desugars the allowlist
 	// into it); this field lets scorer/resolver NAME the constraint in errors
