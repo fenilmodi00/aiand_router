@@ -357,7 +357,6 @@ func main() {
 		logger.Error("Failed to build login service", "err", err)
 		panic(err)
 	}
-	_ = loginSvc // T7 consumes this for the /account/v1 handlers.
 	// Fans out Pub/Sub invalidations to this replica's cache; the 5-min TTL
 	// is the safety net if the listener falls behind.
 	subCtx, subCancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -1268,6 +1267,9 @@ func main() {
 		PolicyPinEnabled:    policyPinEnabled,
 		ServingAdmission:    servingAdmission,
 		SubscriberAllowance: subscriberAllowanceSvc,
+		// SaaS login surface: mounted only in selfhosted mode (the feature is
+		// gated again inside server.RegisterWithFeatures).
+		LoginSvc: loginSvc,
 	}
 	if trafficCapture != nil {
 		serverFeatures.TrafficCapture = trafficCapture

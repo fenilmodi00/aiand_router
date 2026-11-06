@@ -5,11 +5,13 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"aiand-os/router/internal/analytics"
+	"aiand-os/router/internal/auth"
 	"aiand-os/router/internal/policyregistry"
 	"aiand-os/router/internal/router/cluster"
 	"aiand-os/router/internal/server"
@@ -122,6 +124,76 @@ func TestRegister_DeploymentMode(t *testing.T) {
 		got := routeSet(engine)
 		assert.NotContains(t, got, "GET /v1/router/models", "catalog endpoint must not mount without a deployed-models source")
 	})
+}
+
+// The SaaS login surface is selfhosted-only and public by design (the
+// first-ever visitor bootstraps here, so no auth middleware may guard it).
+func TestRegister_AccountAuthRoutes(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	accountRoutes := []string{
+		"POST /account/v1/auth/device/start",
+		"POST /account/v1/auth/device/poll",
+		"POST /account/v1/auth/paste",
+		"GET /account/v1/auth/me",
+		"POST /account/v1/auth/logout",
+	}
+
+	t.Run("selfhosted mounts all five account auth routes", func(t *testing.T) {
+		engine := gin.New()
+		server.RegisterWithFeatures(engine, nil, nil, nil, nil, server.DeploymentModeSelfHosted, nil, nil, nil, nil, server.Features{LoginSvc: loginFake{}})
+		got := routeSet(engine)
+		for _, want := range accountRoutes {
+			assert.Contains(t, got, want, "account auth route missing in selfhosted mode")
+		}
+	})
+
+	t.Run("managed mounts none of /account/v1", func(t *testing.T) {
+		engine := gin.New()
+		server.RegisterWithFeatures(engine, nil, nil, nil, nil, server.DeploymentModeManaged, nil, nil, nil, nil, server.Features{LoginSvc: loginFake{}})
+		got := routeSet(engine)
+		for path := range got {
+			assert.False(t, strings.HasPrefix(path, "/account/v1"), "managed mode must not mount %s", path)
+		}
+	})
+
+	t.Run("nil LoginSvc leaves the surface unmounted in selfhosted", func(t *testing.T) {
+		engine := gin.New()
+		server.Register(engine, nil, nil, nil, nil, server.DeploymentModeSelfHosted, nil, nil, nil, nil)
+		got := routeSet(engine)
+		for path := range got {
+			assert.False(t, strings.HasPrefix(path, "/account/v1"), "nil LoginSvc must not mount %s", path)
+		}
+	})
+
+	t.Run("nil LoginSvc in selfhosted leaves the admin auth routes intact", func(t *testing.T) {
+		// T9 deletes /admin/v1/auth/*; until then the legacy password surface
+		// and the new account surface coexist.
+		engine := gin.New()
+		server.Register(engine, nil, nil, nil, nil, server.DeploymentModeSelfHosted, nil, nil, nil, nil)
+		got := routeSet(engine)
+		for _, want := range []string{"POST /admin/v1/auth/login", "POST /admin/v1/auth/logout", "GET /admin/v1/auth/me"} {
+			assert.Contains(t, got, want)
+		}
+	})
+}
+
+// loginFake is a no-op stand-in for the login service; registration tests
+// only inspect engine.Routes(), never invoke the handlers.
+type loginFake struct{}
+
+func (loginFake) StartDeviceLogin(context.Context) (auth.LoginDeviceStart, error) {
+	return auth.LoginDeviceStart{}, nil
+}
+func (loginFake) PollDeviceLogin(context.Context, string) (auth.LoginPollOutcome, error) {
+	return auth.LoginPollOutcome{}, nil
+}
+func (loginFake) LoginWithKey(context.Context, string) (auth.LoginSessionGrant, error) {
+	return auth.LoginSessionGrant{}, nil
+}
+func (loginFake) Logout(context.Context, string) error { return nil }
+func (loginFake) VerifySessionToken(string) (*auth.ActiveSession, error) {
+	return nil, nil
 }
 
 // The export is a product surface, so it must reach managed installations too
