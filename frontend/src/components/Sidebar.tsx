@@ -11,6 +11,10 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode } from "react";
 
+// Matches the storage listener in (app)/layout.tsx: writing a timestamp makes
+// every sibling tab bounce to /login.
+const LOGOUT_STORAGE_KEY = "aiand-router:logout";
+
 interface NavItem {
   href: string;
   label: string;
@@ -56,6 +60,14 @@ export function Sidebar() {
       // Best-effort: even if the network call fails, redirect to /login so
       // the user is no longer in a half-authed state.
     }
+    // Sibling tabs watch this key via the storage event in (app)/layout.tsx
+    // and follow to /login.
+    try {
+      window.localStorage.setItem(LOGOUT_STORAGE_KEY, String(Date.now()));
+    } catch {
+      // Non-fatal: this tab still redirects; other tabs recover on their own
+      // next 401.
+    }
     router.replace("/login");
   }
 
@@ -76,21 +88,25 @@ export function Sidebar() {
           <Button
             href="/settings"
             appearance={Appearance.Hollow}
+            aria-label="Settings"
             className={sidebarFooterButton}
           >
             <Settings className="size-4" />
+            <span className="hidden whitespace-nowrap text-xs md:inline">Settings</span>
           </Button>
         </Tooltip>
 
         <Tooltip content="Sign out" side="left" interactiveChild>
           <Button
             appearance={Appearance.Hollow}
+            aria-label="Sign out"
             className={sidebarFooterButton}
             onClick={() => {
               void handleSignOut();
             }}
           >
-            <LogOut className="size-4" />
+            <LogOut className="size-4 shrink-0" />
+            <span className="hidden whitespace-nowrap text-xs md:inline">Sign out</span>
           </Button>
         </Tooltip>
       </div>
@@ -99,7 +115,7 @@ export function Sidebar() {
 }
 
 // Identical visual treatment for both footer buttons so the only difference
-// the user sees is the icon. Kept as a constant to guarantee the two stay in
-// lockstep when the design changes.
+// the user sees is the icon. Fixed size while collapsed; on md+ the sidebar is
+// wide enough for the labelled row, so width and alignment open up.
 const sidebarFooterButton =
-  "size-8 shrink-0 justify-center rounded-md border border-border-darker bg-muted p-0 text-muted-foreground hover:bg-border-darker hover:text-foreground";
+  "size-8 shrink-0 justify-center rounded-md border border-border-darker bg-muted p-0 text-muted-foreground hover:bg-border-darker hover:text-foreground md:h-8 md:w-full md:justify-start md:px-3";

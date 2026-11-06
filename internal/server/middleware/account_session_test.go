@@ -314,3 +314,58 @@ func assertAccountSessionRequired(t *testing.T, rr *httptest.ResponseRecorder) {
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
 	assert.Equal(t, "account_session_required", body.Error)
 }
+
+// TestAccountSessionOrAPIKeyCookieRunsHandlerExactlyOnce is the regression
+// test for the T14 isolation-suite finding: the shared session core used to
+// call c.Next() internally, so every cookie-authenticated request through
+// WithAccountSessionOrAPIKey ran the downstream handler once via the session
+// leg and then fell through to the bearer leg too — appending a second
+// {"error":"invalid_key"} chunk to the response body and clobbering the
+// session ctx keys mid-request. The restructured tryAccountSession never
+// advances the chain, so exactly one branch owns c.Next().
+func TestAccountSessionOrAPIKeyCookieRunsHandlerExactlyOnce(t *testing.T) {
+	verifier := &fakeSessionVerifier{byToken: map[string]*auth.ActiveSession{}}
+	const token = "sess-token-orkey"
+	verifier.byToken[token] = newActiveSession(time.Now())
+	cache := middleware.NewSessionLRUCache()
+
+	apiKeyRepo := &fakeAPIKeyRepository{byHash: map[string]fakeKeyRow{}}
+	svc := auth.NewService(fakeInstallationRepository{}, apiKeyRepo, nil, nil, auth.NoOpAPIKeyCache{}, nil, func() time.Time { return time.Now() })
+
+	var handlerCalls atomic.Int64
+	var probeAccount *auth.Account
+	var probeInstallation *auth.Installation
+
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.Use(middleware.WithAccountSessionOrAPIKey(verifier, cache, svc, false))
+	engine.GET("/probe", func(c *gin.Context) {
+		handlerCalls.Add(1)
+		probeAccount = middleware.AccountFrom(c)
+		probeInstallation = middleware.InstallationFrom(c)
+		c.JSON(http.StatusOK, gin.H{"acct": probeAccount != nil, "inst": "inst-1", "ok": true})
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/probe", nil)
+	req.AddCookie(&http.Cookie{Name: auth.LoginSessionCookieName, Value: token})
+	rr := httptest.NewRecorder()
+	engine.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, int64(1), handlerCalls.Load(), "cookie-authenticated request must run the downstream handler exactly once")
+	assert.Equal(t, int64(1), verifier.callCount(), "the session branch must run once: a single verifier round-trip")
+
+	// Identity must be intact inside the handler: the bearer leg must never
+	// have run after the session leg.
+	require.NotNil(t, probeAccount, "AccountFrom(c) must be non-nil inside the handler for a cookie-authenticated request")
+	assert.Equal(t, "acct-1", probeAccount.ID)
+	require.NotNil(t, probeInstallation, "InstallationFrom(c) must be non-nil inside the handler")
+	assert.Equal(t, "inst-1", probeInstallation.ID)
+
+	// The response body must be a single clean JSON object with no appended
+	// error fragment from a second (bearer) leg.
+	assert.JSONEq(t, `{"acct":true,"inst":"inst-1","ok":true}`, rr.Body.String(),
+		"response body must be exactly the handler's JSON, with no appended bearer-leg error chunk")
+	assert.NotContains(t, rr.Body.String(), "invalid_key")
+	assert.NotContains(t, rr.Body.String(), "error")
+}

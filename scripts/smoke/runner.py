@@ -239,6 +239,11 @@ class SmokeRun:
             "PUBSUB_PROJECT_ID": "router-local",
             "PUBSUB_TOPIC_ROUTER_INVALIDATION": "router-installation-invalidate",
             "PUBSUB_SUBSCRIPTION_ROUTER_INVALIDATION": "router-installation-invalidate",
+            # Plain-HTTP loopback: the dashboard session cookie must ride the
+            # smoke client's http:// requests (Secure cookies are dropped by
+            # Go's cookie jar over http). Internal-only network, loopback-only
+            # ingress port; never a production deployment shape.
+            "ROUTER_COOKIE_INSECURE": "true",
             "HTTPS_PROXY": "http://mitmproxy:8888",
             "HTTP_PROXY": "http://mitmproxy:8888",
             "NO_PROXY": "pubsub-emulator,postgres,localhost,127.0.0.1",

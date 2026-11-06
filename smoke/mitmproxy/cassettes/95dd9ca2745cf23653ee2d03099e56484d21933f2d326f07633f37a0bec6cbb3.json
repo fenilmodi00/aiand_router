@@ -1,0 +1,9 @@
+{
+  "method": "GET",
+  "path": "/api/user",
+  "status_code": 200,
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "body": "{\"id\":\"00000000-0000-4000-8000-00000000000a\",\"email\":\"smoke-login-a@example.invalid\"}"
+}

@@ -26,3 +26,12 @@ or a suspected upstream API shape change).
 
 Do not hand-edit these files — regenerate them so the recorded shape matches
 something the real API actually returned.
+
+**Exception — identity cassettes.** The `GET /api/user` cassettes for the
+paste-login scenario (`smoke/login_test.go`) are hand-authored: device/paste
+flow is not cassette-safe to record (the pasted credential is synthetic by
+contract, never live). They are keyed by (method, path, Authorization) — see
+`identityPaths` in `../store.go` — so one directory carries two distinct
+synthetic identities for the second-account isolation check. Every field is
+synthetic (`example.invalid` emails, fixed synthetic UUID ids); nothing here
+was captured from the live gateway.

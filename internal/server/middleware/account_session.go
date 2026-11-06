@@ -90,7 +90,13 @@ func (noopSessionCache) Put(string, *auth.ActiveSession)        {}
 // a revoked session may still authenticate for up to sessionCacheTTL after
 // the revoke commits, then fails on the next verifier round-trip.
 func WithAccountSession(verifier auth.SessionVerifier, cache AccountSessionCache) gin.HandlerFunc {
-	return withAccountSession(verifier, cache, false)
+	return func(c *gin.Context) {
+		if tryAccountSession(c, verifier, cache) == nil {
+			abortAccountSessionRequired(c)
+			return
+		}
+		c.Next()
+	}
 }
 
 // WithAccountSessionOrAPIKey accepts EITHER a valid account session cookie OR
@@ -104,60 +110,64 @@ func WithAccountSession(verifier auth.SessionVerifier, cache AccountSessionCache
 // dashboard surfaces only, and a bearer key must not gain dashboard
 // capabilities through this middleware.
 func WithAccountSessionOrAPIKey(verifier auth.SessionVerifier, cache AccountSessionCache, svc *auth.Service, byokRequiresOptIn bool) gin.HandlerFunc {
-	sessionMW := withAccountSession(verifier, cache, true)
 	apiKeyMW := withAPIKey(svc, byokRequiresOptIn)
 	return func(c *gin.Context) {
-		sessionMW(c)
-		if c.IsAborted() {
+		if tryAccountSession(c, verifier, cache) != nil {
+			c.Next()
 			return
 		}
 		// No session identity on the request: fall through to bearer.
 		// withAPIKey fully owns the response from here (sets
 		// ctxKeyInstallation/ctxKeyAPIKey on success, 401/503 on failure).
+		// This is the ONLY downstream advance: exactly one of the session
+		// and bearer branches reaches c.Next().
 		apiKeyMW(c)
 	}
 }
 
-// withAccountSession is the shared body of WithAccountSession and the session
-// branch of WithAccountSessionOrAPIKey. With fallback true, a failed session
-// lookup writes nothing so the caller can fall through to bearer auth; with
-// fallback false it short-circuits 401 account_session_required.
-func withAccountSession(verifier auth.SessionVerifier, cache AccountSessionCache, fallback bool) gin.HandlerFunc {
+// tryAccountSession is the shared "try" leg of WithAccountSession and the
+// session branch of WithAccountSessionOrAPIKey. It reads the session cookie,
+// verifies it through the supplied auth.SessionVerifier (via the positive
+// cache), stashes BOTH the resolved installation (ctxKeyInstallation — the
+// same accessor WithAuth uses) and the account (ctxKeyAccount) on the request
+// context, and applies the sliding-touch + cookie re-mint. It NEVER calls
+// c.Next() and NEVER writes a response, so the caller fully owns chain
+// advancement.
+//
+// It returns the resolved *auth.ActiveSession, or nil when the cookie is
+// missing, invalid, expired, or revoked (nothing has been written; the caller
+// decides between 401 and fall-through to bearer auth).
+func tryAccountSession(c *gin.Context, verifier auth.SessionVerifier, cache AccountSessionCache) *auth.ActiveSession {
 	if cache == nil {
 		cache = noopSessionCache{}
 	}
-	return func(c *gin.Context) {
-		token, err := c.Cookie(auth.LoginSessionCookieName)
-		if err == nil {
-			token = strings.TrimSpace(token)
-		}
-		if err != nil || token == "" {
-			abortAccountSessionRequired(c, fallback)
-			return
-		}
-		tokenHash := auth.HashAPIKeySHA256(token)
-
-		var (
-			active *auth.ActiveSession
-			cached bool
-		)
-		active, cached = cache.Get(tokenHash)
-		if !cached {
-			active, err = verifier.VerifySessionToken(token)
-			if err != nil {
-				observability.FromGin(c).Debug("Account session verify failed", "err", err)
-				abortAccountSessionRequired(c, fallback)
-				return
-			}
-			cache.Put(tokenHash, active)
-		}
-
-		c.Set(ctxKeyInstallation, active.Installation)
-		c.Set(ctxKeyAccount, active.Account)
-
-		slideAccountSession(c, verifier, token, tokenHash, &active.Session)
-		c.Next()
+	token, err := c.Cookie(auth.LoginSessionCookieName)
+	if err == nil {
+		token = strings.TrimSpace(token)
 	}
+	if err != nil || token == "" {
+		return nil
+	}
+	tokenHash := auth.HashAPIKeySHA256(token)
+
+	var active *auth.ActiveSession
+	active, cached := cache.Get(tokenHash)
+	if !cached {
+		active, err = verifier.VerifySessionToken(token)
+		if err != nil {
+			observability.FromGin(c).Debug("Account session verify failed", "err", err)
+			return nil
+		}
+		cache.Put(tokenHash, active)
+	}
+
+	c.Set(ctxKeyInstallation, active.Installation)
+	// Account is stored by pointer: AccountFrom asserts *auth.Account, and a
+	// value copy here would make that assertion fail for every request.
+	c.Set(ctxKeyAccount, &active.Account)
+
+	slideAccountSession(c, verifier, token, tokenHash, &active.Session)
+	return active
 }
 
 // slideAccountSession re-mints the cookie and touches the session row when
@@ -189,12 +199,8 @@ func slideAccountSession(c *gin.Context, verifier auth.SessionVerifier, token, t
 
 // abortAccountSessionRequired is the uniform 401 for missing, invalid,
 // expired, and revoked account sessions. The dashboard's fetch layer reads
-// this code and bounces to login. With fallback set, nothing is written so
-// WithAccountSessionOrAPIKey can hand the request to the bearer branch.
-func abortAccountSessionRequired(c *gin.Context, fallback bool) {
-	if fallback {
-		return
-	}
+// this code and bounces to login.
+func abortAccountSessionRequired(c *gin.Context) {
 	c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "account_session_required"})
 }
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import Link from "next/link";
 
 import { SettingsSidebar } from "@/components/SettingsSidebar";
 import { Sidebar } from "@/components/Sidebar";
@@ -10,10 +11,34 @@ import { api } from "@/lib/api";
 
 type AuthState = "checking" | "authed" | "anonymous";
 
+// Sidebar sign-out writes this key so sibling tabs (which don't share in-page
+// state) bounce to /login via the storage listener below.
+const LOGOUT_STORAGE_KEY = "aiand-router:logout";
+// The account panel dispatches this after a disconnect so the banner updates
+// without waiting for the next poll.
+const AUTH_CHANGED_EVENT = "aiand-router:auth-changed";
+const STATUS_POLL_MS = 30_000;
+
+function DisconnectedBanner() {
+  return (
+    <div className="flex items-center justify-between gap-3 border-b border-danger/30 bg-danger/5 px-4 py-2 text-xs text-danger">
+      <span>Aiand disconnected — requests are failing.</span>
+      <Link
+        href="/settings/providers"
+        className="shrink-0 font-medium underline underline-offset-2 hover:opacity-80"
+      >
+        Reconnect
+      </Link>
+    </div>
+  );
+}
+
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [state, setState] = useState<AuthState>("checking");
+  // null until the first status probe lands; false renders the banner.
+  const [aiandConnected, setAiandConnected] = useState<boolean | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -40,11 +65,58 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     };
   }, [pathname, router]);
 
+  // Upstream-credential state drives the disconnected banner: polled so a
+  // credential expiring in another tab still surfaces, re-probed on navigation
+  // (returning from the login reconnect flow) and on the panel's event.
+  useEffect(() => {
+    if (state !== "authed") return;
+    let cancelled = false;
+    function refresh() {
+      api.aiandAuth
+        .status()
+        .then((s) => {
+          if (!cancelled) setAiandConnected(s.connected);
+        })
+        // Non-fatal: a failed probe just keeps the previous banner state.
+        .catch(() => undefined);
+    }
+    refresh();
+    const interval = window.setInterval(refresh, STATUS_POLL_MS);
+    window.addEventListener(AUTH_CHANGED_EVENT, refresh);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      window.removeEventListener(AUTH_CHANGED_EVENT, refresh);
+    };
+  }, [state, pathname]);
+
+  // Signed out in another tab → follow it to /login.
+  useEffect(() => {
+    function onStorage(e: StorageEvent) {
+      if (e.key === LOGOUT_STORAGE_KEY && e.newValue != null) {
+        router.replace("/login");
+      }
+    }
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [router]);
+
   if (state !== "authed") {
     return <SidebarLayout sidebar={<div className="md:w-[244px]" />}>{null}</SidebarLayout>;
   }
 
   const sidebar = pathname.startsWith("/settings") ? <SettingsSidebar /> : <Sidebar />;
 
-  return <SidebarLayout sidebar={sidebar}>{children}</SidebarLayout>;
+  return (
+    <SidebarLayout sidebar={sidebar}>
+      {aiandConnected === false ? (
+        <div className="flex h-full flex-col">
+          <DisconnectedBanner />
+          <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+        </div>
+      ) : (
+        children
+      )}
+    </SidebarLayout>
+  );
 }

@@ -289,6 +289,7 @@ func (s *LoginService) completeLoginTx(ctx context.Context, attemptID string, id
 	accountID := GenerateID(AccountIDPrefix)
 	var grant *LoginSessionGrant
 	var credentialExpiresAt time.Time
+	var winnerInstallationID string
 	err := s.txRunner.InTx(ctx, func(tx Tx) error {
 		installation, err := s.ensureInstallation(ctx, tx, accountID)
 		if err != nil {
@@ -298,8 +299,13 @@ func (s *LoginService) completeLoginTx(ctx context.Context, attemptID string, id
 		if err != nil {
 			return err
 		}
-		accountID = account.ID
-		expiresAt, err := s.writeCredentialAndKey(ctx, tx, account.ID, identity, token)
+		winnerInstallationID = account.InstallationID
+		// The credential/key writes need BOTH identities: the AAD external id
+		// (account id) and the installation row UUID the foreign keys point
+		// at. On the arbitration-loss path the winner's account (and hence
+		// its installation) won, so the UUID must come from the returned
+		// account — the local installation row was soft-deleted.
+		expiresAt, err := s.writeCredentialAndKey(ctx, tx, account, account.InstallationID, account.ID, identity, token)
 		if err != nil {
 			return err
 		}
@@ -320,7 +326,9 @@ func (s *LoginService) completeLoginTx(ctx context.Context, attemptID string, id
 		return nil, nil, err
 	}
 	// Only on commit: peers must never invalidate ahead of the durable write.
-	s.notifier.NotifyInstallationChanged(accountID)
+	// The invalidation carries the installation UUID — the identity every
+	// cache/routing listener keys on (matching the legacy aiand flow).
+	s.notifier.NotifyInstallationChanged(winnerInstallationID)
 	return grant, &credentialExpiresAt, nil
 }
 
@@ -391,19 +399,29 @@ func (s *LoginService) ensureAccount(ctx context.Context, tx Tx, identity AiandI
 // bookkeeping-only) and propagates the access token as the installation's
 // aiand external key so BYOK dispatch serves it unchanged. Both writes land
 // inside the caller's transaction.
-func (s *LoginService) writeCredentialAndKey(ctx context.Context, tx Tx, accountID string, identity AiandIdentity, token AiandTokenResponse) (time.Time, error) {
+//
+// Two identities, deliberately distinct:
+//   - aadExternalID (account.ID): the AAD every ciphertext is sealed with.
+//     The installation's external_id IS the account id, so this matches the
+//     legacy flow's aiandExternalID(installation).
+//   - installationID (account.InstallationID): the installation row UUID the
+//     credential and external-key foreign keys point at. The login flow
+//     passes the WINNING account's installation: on the arbitration-loss
+//     path account.InstallationID names the winner's row, while the local
+//     installation this transaction ensured was soft-deleted.
+func (s *LoginService) writeCredentialAndKey(ctx context.Context, tx Tx, account *Account, installationID, aadExternalID string, identity AiandIdentity, token AiandTokenResponse) (time.Time, error) {
 	// external_id immutability (AAD lifetime): the installation's external_id
 	// IS the account id and is sealed into every credential/key ciphertext as
 	// AAD. It is set once at installation creation and never renamed — a
 	// rename would orphan the sealed material (unsealing fails under a
 	// changed AAD). See Account's doc comment.
-	accessCipher, err := s.encryptor.Encrypt([]byte(token.AccessToken), accountID, providers.ProviderAIAND)
+	accessCipher, err := s.encryptor.Encrypt([]byte(token.AccessToken), aadExternalID, providers.ProviderAIAND)
 	if err != nil {
 		return time.Time{}, fmt.Errorf("seal aiand access token: %w", err)
 	}
 	var refreshCipher []byte
 	if token.RefreshToken != "" {
-		refreshCipher, err = s.encryptor.Encrypt([]byte(token.RefreshToken), accountID, providers.ProviderAIAND)
+		refreshCipher, err = s.encryptor.Encrypt([]byte(token.RefreshToken), aadExternalID, providers.ProviderAIAND)
 		if err != nil {
 			return time.Time{}, fmt.Errorf("seal aiand refresh token: %w", err)
 		}
@@ -424,7 +442,7 @@ func (s *LoginService) writeCredentialAndKey(ctx context.Context, tx Tx, account
 		orgID, orgName = token.Org.ID, token.Org.Name
 	}
 	if _, err := tx.AiandCredentials.Upsert(ctx, UpsertAiandCredentialParams{
-		InstallationID:         accountID,
+		InstallationID:         installationID,
 		AccessTokenCiphertext:  accessCipher,
 		RefreshTokenCiphertext: refreshCipher,
 		ExpiresAt:              expiresAt,
@@ -435,7 +453,7 @@ func (s *LoginService) writeCredentialAndKey(ctx context.Context, tx Tx, account
 	}); err != nil {
 		return time.Time{}, err
 	}
-	create, err := externalAPIKeyCreateParamsWith(s.encryptor, accountID, UpsertExternalAPIKeyParams{
+	create, err := externalAPIKeyCreateParamsWith(s.encryptor, installationID, UpsertExternalAPIKeyParams{
 		Provider: providers.ProviderAIAND,
 		RawKey:   token.AccessToken,
 	})

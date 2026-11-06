@@ -17,14 +17,10 @@ import { PageHeader } from "@/components/PageHeader";
 import { ResponsiveGrid } from "@/components/ResponsiveGrid";
 import { RouterOnboarding } from "@/components/RouterOnboarding";
 import { Statistic } from "@/components/Statistic";
-import {
-  api,
-  type MetricsSummary,
-  type ModelBreakdownBucket,
-  type TimeseriesBucket,
-} from "@/lib/api";
+import { api, type MetricsSummary, type ModelBreakdownBucket, type TimeseriesBucket } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { LoadState } from "@/tools/LoadState";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 function formatUSD(v: number): string {
@@ -43,15 +39,26 @@ function formatNumber(v: number): string {
 // lands.
 type OnboardingState = "checking" | "needed" | "done";
 
+// Connection state from aiandAuth.status(): "checking" until the first probe
+// lands, then the live upstream-credential state.
+type ConnectionState = "checking" | "connected" | "disconnected";
+
 // Set when the user chooses "Skip to dashboard". Persisted rather than held in
 // memory so a refresh doesn't drop them back into a flow they opted out of;
 // the server-side flag still takes over for good once a request is served.
-const SKIP_ONBOARDING_KEY = "aiand-router.onboarding-skipped";
+// Namespaced by installation id so a shared browser doesn't leak the skip
+// between workspaces — an installation without an id (shouldn't happen while
+// authed) gets its own key rather than falling back to a global one.
+const SKIP_ONBOARDING_PREFIX = "aiand-router.onboarding-skipped:";
 
-function onboardingSkipped(): boolean {
+function skipOnboardingKey(externalId: string | undefined): string {
+  return externalId == null ? `${SKIP_ONBOARDING_PREFIX}default` : `${SKIP_ONBOARDING_PREFIX}${externalId}`;
+}
+
+function onboardingSkipped(key: string): boolean {
   if (typeof window === "undefined") return false;
   try {
-    return window.localStorage.getItem(SKIP_ONBOARDING_KEY) === "true";
+    return window.localStorage.getItem(key) === "true";
   } catch {
     // Private-mode/blocked storage: treat as not skipped rather than throwing
     // on the render path.
@@ -59,9 +66,9 @@ function onboardingSkipped(): boolean {
   }
 }
 
-function rememberOnboardingSkipped() {
+function rememberOnboardingSkipped(key: string) {
   try {
-    window.localStorage.setItem(SKIP_ONBOARDING_KEY, "true");
+    window.localStorage.setItem(key, "true");
   } catch {
     // Non-fatal: the skip just won't survive this reload.
   }
@@ -76,20 +83,55 @@ export default function DashboardPage() {
   const [modelBuckets, setModelBuckets] = useState<ModelBreakdownBucket[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [onboarding, setOnboarding] = useState<OnboardingState>("checking");
+  const [connection, setConnection] = useState<ConnectionState>("checking");
+  // Installation id that namespaces the localStorage skip key; captured by the
+  // me()/onboarding probe so the skip button persists under the same key the
+  // gate read.
+  const [externalId, setExternalId] = useState<string | undefined>(undefined);
+
+  // Upstream-credential state gates the empty-state split and suppresses
+  // onboarding while serving is off.
+  useEffect(() => {
+    let cancelled = false;
+    api.aiandAuth
+      .status()
+      .then(s => {
+        if (cancelled) return;
+        setConnection(s.connected ? "connected" : "disconnected");
+      })
+      // Non-fatal: a failed probe shows the dashboard rather than the
+      // disconnected state.
+      .catch(() => {
+        if (!cancelled) setConnection("connected");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // A router that has never served a request has nothing to chart, so a fresh
   // install lands in onboarding instead of on six empty charts. The gate is the
   // installation-level first_request_served_at, not a key's last_used_at:
   // that flag survives rotation, so rotating the key that served the first
-  // request can't send an established install back through onboarding.
+  // request can't send an established install back through onboarding. The
+  // skip key is namespaced by installation id, so the probe supplies it.
   useEffect(() => {
+    if (connection === "disconnected") return;
     let cancelled = false;
-    api.onboarding
-      .get()
-      .then(res => {
+    api.auth
+      .me()
+      .then(me => {
         if (cancelled) return;
-        const served = res.first_request_served_at != null;
-        setOnboarding(served || onboardingSkipped() ? "done" : "needed");
+        setExternalId(me.installation?.external_id);
+        return api.onboarding.get().then(res => {
+          if (cancelled) return;
+          const served = res.first_request_served_at != null;
+          setOnboarding(
+            served || onboardingSkipped(skipOnboardingKey(me.installation?.external_id))
+              ? "done"
+              : "needed",
+          );
+        });
       })
       // Non-fatal: on a failed probe show the dashboard rather than trapping
       // an established install in onboarding.
@@ -99,7 +141,11 @@ export default function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [connection]);
+
+  function rememberSkip() {
+    rememberOnboardingSkipped(skipOnboardingKey(externalId));
+  }
 
   useEffect(() => {
     if (onboarding !== "done") return;
@@ -125,13 +171,50 @@ export default function DashboardPage() {
     };
   }, [fromISO, toISO, granularity, onboarding]);
 
-  if (onboarding === "checking") return null;
+  if (onboarding === "checking" || connection === "checking") return null;
+  // No upstream credential: serving is off, so onboarding (which needs a key
+  // and a served request) can't progress. Show the disconnected state instead.
+  if (connection === "disconnected") {
+    return (
+      <Page
+        header={
+          <PageHeader
+            left={
+              <Text
+                variant="h4"
+                as="h2"
+                className="flex flex-row items-center gap-1 whitespace-nowrap"
+              >
+                Dashboard
+              </Text>
+            }
+          />
+        }
+      >
+        <Page.Section>
+          <div className="rounded-lg border-2 border-dashed border-border-darker px-5 py-8 text-center">
+            <Text className="text-xs font-medium text-foreground">Serving is off</Text>
+            <Text className="mt-2 text-2xs text-muted-foreground">
+              Aiand is disconnected, so requests to this router are failing. Reconnect your account
+              to start serving again.
+            </Text>
+            <Link
+              href="/settings/providers"
+              className="mt-4 inline-block rounded-md bg-brand px-4 py-2 text-xs font-medium text-white hover:opacity-90"
+            >
+              Reconnect
+            </Link>
+          </div>
+        </Page.Section>
+      </Page>
+    );
+  }
   if (onboarding === "needed") {
     return (
       <RouterOnboarding
         onComplete={() => setOnboarding("done")}
         onSkip={() => {
-          rememberOnboardingSkipped();
+          void rememberSkip();
           setOnboarding("done");
         }}
       />

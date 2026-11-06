@@ -79,7 +79,7 @@ func (p *proxy) serveOne(conn net.Conn, host string) error {
 		return fmt.Errorf("read request body: %w", err)
 	}
 
-	key := requestKey(req.Method, req.URL.Path, body)
+	key := requestKey(req.Method, req.URL.Path, body, req.Header.Get("Authorization"))
 	log.Printf("mitmproxy: %s %s%s key=%s mode=%s", req.Method, host, req.URL.Path, key[:12], p.cfg.mode)
 
 	c, err := p.resolve(host, req, body, key)

@@ -60,15 +60,32 @@ func newStore(dir string) (*store, error) {
 	return &store{dir: dir}, nil
 }
 
+// identityPaths are gateway endpoints whose response depends on the caller's
+// credential, not on the request body (paste login sends no body). Keying
+// them on the Authorization value lets one cassette directory replay several
+// distinct pasted-key identities (e.g. the login scenario's second-account
+// isolation check) without colliding. Values are synthetic in committed
+// cassettes; recording never persists the Authorization header itself.
+var identityPaths = map[string]struct{}{
+	"/api/user": {},
+	"/api/orgs": {},
+}
+
 // requestKey hashes method + path + a normalized body. The smoke fixtures are
 // byte-deterministic (stable system prompt, fixed user text per scenario), so
 // identical scenarios hash identically across runs and across machines.
-func requestKey(method, path string, body []byte) string {
+// identity is the request's Authorization value; it only participates for the
+// identityPaths endpoints (empty elsewhere) and is never persisted.
+func requestKey(method, path string, body []byte, identity string) string {
 	h := sha256.New()
 	h.Write([]byte(method))
 	h.Write([]byte{0})
 	h.Write([]byte(path))
 	h.Write([]byte{0})
+	if _, identityPath := identityPaths[path]; identityPath {
+		h.Write([]byte{1})
+		h.Write([]byte(identity))
+	}
 	h.Write(normalizeRequestBody(body))
 	return hex.EncodeToString(h.Sum(nil))
 }

@@ -73,9 +73,11 @@ func (f *loginFakeGateway) ValidateKey(_ context.Context, key string) (auth.Aian
 	return f.validateUser, f.validateErr
 }
 
-// loginFakeAccounts is an in-memory auth.AccountRepository. When
-// convergeTo is set, the second same-identity upsert returns that account
-// (the concurrent-login winner), exercising the arbitration re-read path.
+// loginFakeAccounts is an in-memory auth.AccountRepository mirroring the SQL
+// adapter's UpsertAccountOnLogin: a fresh insert returns the given
+// InstallationID (what the new row persisted); when the identity pair already
+// exists (concurrent-login arbitration), the EXISTING row — and its original
+// installation — wins, exactly like the SQL 23505 → re-read.
 type loginFakeAccounts struct {
 	mu         sync.Mutex
 	byID       map[string]*auth.Account
@@ -91,11 +93,19 @@ func (f *loginFakeAccounts) UpsertAccountOnLogin(_ context.Context, params auth.
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.upserts = append(f.upserts, params)
+	// Identity-pair arbitration (mirrors the postgres adapter's unique-index
+	// loser re-reading the winner): an existing row for the same (user, org)
+	// identity wins over the params' fresh installation pointer.
 	if f.convergeTo != nil {
-		// Second same-identity insert: the winner's account is returned.
+		// Scripted convergence takes precedence (explicit test wiring).
 		out := f.convergeTo
 		f.convergeTo = nil
 		return out, nil
+	}
+	for _, row := range f.byID {
+		if row.AiandUserID == params.AiandUserID && row.AiandOrgID == params.AiandOrgID {
+			return row, nil
+		}
 	}
 	id := params.ID
 	if id == "" {
@@ -110,6 +120,17 @@ func (f *loginFakeAccounts) UpsertAccountOnLogin(_ context.Context, params auth.
 	}
 	f.byID[id] = row
 	return row, nil
+}
+
+// LastUpsertInstallationID reports the installation id the most recent upsert
+// carried (what a real account row would persist as installation_id).
+func (f *loginFakeAccounts) LastUpsertInstallationID() string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.upserts) == 0 {
+		return ""
+	}
+	return f.upserts[len(f.upserts)-1].InstallationID
 }
 
 func (f *loginFakeAccounts) GetAccountByIdentity(_ context.Context, aiandUserID, aiandOrgID string) (*auth.Account, error) {
@@ -263,7 +284,9 @@ func (f *loginFakeAttempts) DeleteExpiredLoginAttempts(_ context.Context, now ti
 }
 
 // loginFakeInstallations is an in-memory auth.InstallationRepository limited
-// to what the login service exercises.
+// to what the login service exercises. Created rows get UUID-shaped ids
+// (the production adapter parses them), so tests can assert the credential
+// FK carries the installation UUID, never the acct_ external id.
 type loginFakeInstallations struct {
 	mu         sync.Mutex
 	byExternal map[string][]*auth.Installation
@@ -283,7 +306,7 @@ func (f *loginFakeInstallations) Create(_ context.Context, params auth.CreateIns
 	}
 	f.created = append(f.created, params)
 	row := &auth.Installation{
-		ID:         fmt.Sprintf("inst-%d", len(f.created)),
+		ID:         fmt.Sprintf("00000000-0000-4000-8000-%012d", len(f.created)),
 		ExternalID: params.ExternalID,
 		Name:       params.Name,
 	}
@@ -592,11 +615,15 @@ func TestPollDeviceLogin_HappyPathCreatesAllArtifactsInOneTx(t *testing.T) {
 	assert.Equal(t, up.ID, inst.ExternalID)
 	assert.Equal(t, up.ID, inst.Name)
 
-	// Credential: device origin, sealed with AAD external_id = account id,
+	// Credential: device origin, FK = the installation UUID the account
+	// upsert persisted, sealed with AAD external_id = account id,
 	// empty-slice refresh normalization NOT applied (refresh token present).
 	require.Len(t, f.credentials.upserts, 1)
 	cred := f.credentials.upserts[0]
-	assert.Equal(t, up.ID, cred.InstallationID)
+	assert.Equal(t, up.InstallationID, cred.InstallationID,
+		"credential FK must carry the installation UUID, never the acct_ external id")
+	assert.NotEqual(t, up.ID, cred.InstallationID,
+		"the account id is the AAD identity, not the installation FK")
 	assert.Equal(t, "sk-aiand-topsecret", string(cred.AccessTokenCiphertext))
 	assert.Equal(t, "rt-secret-value", string(cred.RefreshTokenCiphertext))
 	assert.Equal(t, auth.AiandOriginDevice, cred.Origin)
@@ -605,11 +632,13 @@ func TestPollDeviceLogin_HappyPathCreatesAllArtifactsInOneTx(t *testing.T) {
 	wantExpiry := time.Unix(0, 0).Add(3600 * time.Second)
 	assert.Equal(t, wantExpiry, cred.ExpiresAt)
 
-	// External key: the access token propagates as the aiand provider key.
+	// External key: the access token propagates as the aiand provider key,
+	// against the same installation UUID.
 	require.Len(t, f.externalKeys.created, 1)
 	key := f.externalKeys.created[0]
 	assert.Equal(t, providers.ProviderAIAND, key.Provider)
-	assert.Equal(t, up.ID, key.InstallationID)
+	assert.Equal(t, up.InstallationID, key.InstallationID,
+		"external key FK must carry the installation UUID")
 	assert.Equal(t, "sk-aiand-topsecret", string(key.KeyCiphertext))
 
 	// Session: 32-byte crypto/rand token, hash + display prefix stored.
@@ -691,11 +720,12 @@ func TestPollDeviceLogin_ConcurrentSameIdentityConverges(t *testing.T) {
 	// Second device login for the SAME identity: the accounts fake replays
 	// the winner's account on the second upsert (the unique-index loser's
 	// re-read); the installations fake returns the winner's row on re-list.
+	winnerInstallationID := f.accounts.upserts[0].InstallationID
 	winnerAccount := &auth.Account{
 		ID:             f.accounts.upserts[0].ID,
 		AiandUserID:    "user-1",
 		AiandOrgID:     "org-1",
-		InstallationID: "inst-1",
+		InstallationID: winnerInstallationID,
 	}
 	f.accounts.convergeTo = winnerAccount
 	f.gateway.startCode = auth.AiandDeviceCode{
@@ -725,6 +755,20 @@ func TestPollDeviceLogin_ConcurrentSameIdentityConverges(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, winnerAccount.ID, active.Session.AccountID)
 	}
+
+	// The arbitration loser's credential + external key are written against
+	// the WINNER's installation UUID (account.InstallationID), never the
+	// soft-deleted local installation — and the AAD stays the shared
+	// account id.
+	require.Len(t, f.credentials.upserts, 2)
+	losingCred := f.credentials.upserts[1]
+	assert.Equal(t, winnerInstallationID, losingCred.InstallationID,
+		"the losing transaction writes its credential onto the winner's installation UUID")
+	require.Len(t, f.externalKeys.created, 2)
+	assert.Equal(t, winnerInstallationID, f.externalKeys.created[1].InstallationID)
+	// The AAD itself is proven with the real Tink encryptor in
+	// TestLogin_CredentialExternalIDIsAccountID (the NoOp encryptor never
+	// sees the AAD param).
 }
 
 // TestPollDeviceLogin_TxFailureKeepsAttemptPollable asserts the attempt is
@@ -886,14 +930,21 @@ func TestLogin_CredentialExternalIDIsAccountID(t *testing.T) {
 	pollAuthorized(t, f, start.LoginID)
 
 	accountID := f.accounts.upserts[0].ID
+	installationID := f.accounts.upserts[0].InstallationID
 	require.Len(t, f.credentials.upserts, 1)
 	cred := f.credentials.upserts[0]
-	assert.Equal(t, accountID, cred.InstallationID)
+	assert.Equal(t, installationID, cred.InstallationID,
+		"credential FK is the installation UUID; the account id is only the AAD identity")
 
-	// Unseal with the account id: succeeds.
+	// Unseal with the account id (the AAD external id): succeeds.
 	plaintext, err := encryptor.Decrypt(cred.AccessTokenCiphertext, accountID, providers.ProviderAIAND)
 	require.NoError(t, err)
 	assert.Equal(t, "sk-aiand-topsecret", string(plaintext))
+
+	// Unseal under the installation UUID: AAD mismatch fails closed — the
+	// ciphertext is bound to the account id, not the FK UUID.
+	_, err = encryptor.Decrypt(cred.AccessTokenCiphertext, installationID, providers.ProviderAIAND)
+	assert.Error(t, err, "the AAD must be the account id, never the installation UUID")
 
 	// Unseal under any other external id: AAD mismatch fails closed.
 	_, err = encryptor.Decrypt(cred.AccessTokenCiphertext, "some-other-id", providers.ProviderAIAND)
@@ -910,15 +961,17 @@ func TestLogin_CredentialExternalIDIsAccountID(t *testing.T) {
 }
 
 // TestLogin_NotifierExactlyOnceWithInstallationID asserts the invalidation
-// fires exactly once after the commit, with the new installation's account id.
+// fires exactly once after the commit, with the installation UUID — the
+// identity every cache/routing listener keys on (matching the legacy aiand
+// flow's invalidateInstallation(installation.ID)).
 func TestLogin_NotifierExactlyOnceWithInstallationID(t *testing.T) {
 	f := makeLoginService(t, authorizedGateway)
 	start := startDevice(t, f)
 	pollAuthorized(t, f, start.LoginID)
 
 	require.Len(t, f.notifier.called, 1, "exactly one invalidation per committed login")
-	assert.Equal(t, f.accounts.upserts[0].ID, f.notifier.called[0],
-		"the invalidation names the login's installation id")
+	assert.Equal(t, f.accounts.upserts[0].InstallationID, f.notifier.called[0],
+		"the invalidation names the installation UUID, never the acct_ external id")
 
 	// Paste path: same exactly-once contract.
 	f2 := makeLoginService(t, func(f *loginFixture) {
