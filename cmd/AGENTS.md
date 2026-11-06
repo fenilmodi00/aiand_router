@@ -25,7 +25,7 @@ Composition root. Only place that constructs concrete adapters + wires them toge
 
 `ROUTER_DEPLOYMENT_MODE` is read at boot:
 
-- `selfhosted` (default): mounts dashboard at `/ui/*`, `/admin/v1/*` API, dashboard cookie auth. Provider keys read from env vars.
+- `selfhosted` (default): mounts dashboard at `/ui/*`, `/account/v1/*` public auth, `/admin/v1/*` API behind `WithAccountSession`, and the `router_account_session` cookie auth. Provider keys read from env vars.
 - `managed`: dashboard + `/admin/v1/*` not mounted. Billing-backed managed deployments load platform keys and enforce balance checks. Only managed deployments without billing remain BYOK-only with empty deployment keys; a billing boot-check error defaults to billing-enabled, not BYOK-only.
 - Any other value → panic at boot.
 

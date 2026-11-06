@@ -200,7 +200,7 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 feat(proxy): add session pinning for multi-turn coherence
 fix(auth): clear API key cache on installation deletion
 refactor(translate): extract OpenAI envelope builder
-docs: clarify ROUTER_ADMIN_PASSWORD requirement
+docs: document dashboard account login
 ```
 
 Common types: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `ci`.

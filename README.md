@@ -96,16 +96,19 @@ If you want the router (and dashboard) running on your own box:
 # 1. Drop a provider key in. ai& is the only upstream the router dispatches to.
 echo "AIAND_API_KEY=sk-..." >> .env.local
 
-# 2. Set a dashboard password. Without one, inference still runs but
-# dashboard administration is disabled.
-echo "ROUTER_ADMIN_PASSWORD=replace-with-a-strong-password" >> .env.local
-
-# 3. Boot Postgres + router on :8080 and seed an rk_ key.
+# 2. Boot Postgres + router on :8080 and seed an rk_ key.
 make full-setup
 ```
 
 The router is up at <http://localhost:8080>, the dashboard at
 <http://localhost:8080/ui/>, and your `rk_...` key prints in the logs.
+
+Sign in to the dashboard with your ai& account: the device flow starts
+automatically (approve the code at ai&), or paste an existing Aiand `sk-` key
+at <http://localhost:8080/login?mode=paste>. Your first login creates your own
+isolated router workspace — account, installation, upstream credential, and
+`rk_` keys — with no extra environment variables. Upgrading from a
+pre-account-login deployment? See the [legacy runbook](docs/CONFIGURATION.md#dashboard-login-accountv1-adminv1).
 
 ```bash
 # Call it like Anthropic

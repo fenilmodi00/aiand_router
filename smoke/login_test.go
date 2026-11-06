@@ -180,7 +180,14 @@ func (c *dashboardClient) messagesTurn(t *testing.T, key string) response {
 	if err != nil {
 		t.Fatalf("messages: read body: %v", err)
 	}
-	return response{status: resp.StatusCode, headers: resp.Header, body: raw}
+	out := response{status: resp.StatusCode, headers: resp.Header, body: raw}
+	// Non-streamed bodies carry the terminal message as plain JSON; parse it
+	// the same way doCall does so requireOKMessage can assert on it.
+	var msg anthropicMessage
+	if len(raw) > 0 && json.Unmarshal(raw, &msg) == nil {
+		out.message = &msg
+	}
+	return out
 }
 
 // logout performs POST /account/v1/auth/logout, asserting the 200.

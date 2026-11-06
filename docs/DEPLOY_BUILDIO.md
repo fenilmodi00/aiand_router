@@ -69,8 +69,10 @@ Key properties:
 - **Ports.** The router listens on `$PORT` (default 8080); Build routes
   external HTTPS traffic to it. Procfile is not used under the dockerfile
   stack — the image CMD/ENTRYPOINT governs.
-- **Dashboard** is served at `/ui/` (selfhosted mode) and gated by
-  `ROUTER_ADMIN_PASSWORD`.
+- **Dashboard** is served at `/ui/` (selfhosted mode) and gated by ai&
+  account login: device flow first (approve the code at ai&), or paste an
+  existing Aiand `sk-` key at `/login?mode=paste`. The first login bootstraps
+  a dedicated account + installation; no password or env var is required.
 
 ## Provisioning
 
@@ -91,7 +93,6 @@ bld addons:create schema-to-go:basic
 # 4. Set config vars
 bld config:set \
   ROUTER_DEPLOYMENT_MODE=selfhosted \
-  ROUTER_ADMIN_PASSWORD=<ROUTER_ADMIN_PASSWORD> \
   EXTERNAL_KEY_ENCRYPTION_KEY=<TINK_AES_256_GCM_KEYSET_JSON> \
   AIAND_API_KEY=<AIAND_API_KEY> \
   AIAND_BASE_URL=<AIAND_BASE_URL> \
@@ -151,7 +152,7 @@ curl -sS -o /dev/null -w '%{http_code}\n' https://<app-hostname>/startupz
 # Version (should show the commit stamp you pushed)
 curl -sS https://<app-hostname>/v1/version
 
-# Dashboard (selfhosted mode; password-gated)
+# Dashboard (selfhosted mode; ai& account login at /login)
 curl -sS -o /dev/null -w '%{http_code}\n' https://<app-hostname>/ui/
 
 # Inference smoke test through the router

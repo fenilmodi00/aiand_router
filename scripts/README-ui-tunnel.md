@@ -52,18 +52,22 @@ first, then:
 sudo systemctl enable --now router-ui-tunnel
 ```
 
-## Enable dashboard login (VM side, once)
+## Log into the dashboard (VM side, once)
+
+No password is needed: the first login through the device flow (or a pasted
+Aiand `sk-` key at `/login?mode=paste`) creates your own isolated router
+workspace. You only need to relax the session cookie for plain-HTTP tunnels:
 
 ```
 cat >> .env.local <<'EOT'
-ROUTER_ADMIN_PASSWORD=<local password>
 ROUTER_COOKIE_INSECURE=true
 EOT
 docker compose up -d server
 ```
 
-Without `ROUTER_COOKIE_INSECURE=true` the login cookie is marked Secure and is
-dropped over plain HTTP, so the dashboard keeps bouncing back to `/ui/login`.
+Without `ROUTER_COOKIE_INSECURE=true` the account session cookie
+(`router_account_session`) is marked Secure and is dropped over plain HTTP, so
+the dashboard keeps bouncing back to the login page.
 
 ## Checklist when "can't reach this page"
 
