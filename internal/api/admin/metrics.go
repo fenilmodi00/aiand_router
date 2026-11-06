@@ -29,39 +29,29 @@ type metricsTimeseriesResponse struct {
 	Buckets []timeseriesBucket `json:"buckets"`
 }
 
-// metricsScope resolves whether the caller may see metrics across all installations
-// (admin cookie) or must be scoped to their own installation (bearer auth). When
-// neither applies, it aborts the request with 401 and returns ok=false.
-func metricsScope(c *gin.Context) (allInstallations bool, installationID string, ok bool) {
-	if admin := middleware.AdminPrincipalFrom(c); admin != nil {
-		return true, "", true
-	}
+// metricsScope resolves the caller's installation-scoped metrics view. Dashboard
+// sessions and bearer keys are both installation identities (set by the auth
+// middleware); when neither is present, it aborts the request with 401 and
+// returns ok=false.
+func metricsScope(c *gin.Context) (installationID string, ok bool) {
 	installation := middleware.InstallationFrom(c)
 	if installation == nil {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid_key"})
-		return false, "", false
+		return "", false
 	}
-	return false, installation.ID, true
+	return installation.ID, true
 }
 
 func MetricsSummaryHandler(proxySvc *proxy.Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		from, to := parseTimeWindow(c)
 
-		allInstallations, installationID, ok := metricsScope(c)
+		installationID, ok := metricsScope(c)
 		if !ok {
 			return
 		}
 
-		var (
-			summary proxy.TelemetrySummary
-			err     error
-		)
-		if allInstallations {
-			summary, err = proxySvc.MetricsSummaryAll(c.Request.Context(), from, to)
-		} else {
-			summary, err = proxySvc.MetricsSummary(c.Request.Context(), installationID, from, to)
-		}
+		summary, err := proxySvc.MetricsSummary(c.Request.Context(), installationID, from, to)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch metrics."})
 			return
@@ -85,20 +75,12 @@ func MetricsTimeseriesHandler(proxySvc *proxy.Service) gin.HandlerFunc {
 		}
 		from, to := parseTimeWindow(c)
 
-		allInstallations, installationID, ok := metricsScope(c)
+		installationID, ok := metricsScope(c)
 		if !ok {
 			return
 		}
 
-		var (
-			buckets []proxy.TelemetryBucket
-			err     error
-		)
-		if allInstallations {
-			buckets, err = proxySvc.MetricsTimeseriesAll(c.Request.Context(), from, to, granularity)
-		} else {
-			buckets, err = proxySvc.MetricsTimeseries(c.Request.Context(), installationID, from, to, granularity)
-		}
+		buckets, err := proxySvc.MetricsTimeseries(c.Request.Context(), installationID, from, to, granularity)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch timeseries."})
 			return
@@ -138,20 +120,12 @@ func MetricsModelBreakdownHandler(proxySvc *proxy.Service) gin.HandlerFunc {
 		}
 		from, to := parseTimeWindow(c)
 
-		allInstallations, installationID, ok := metricsScope(c)
+		installationID, ok := metricsScope(c)
 		if !ok {
 			return
 		}
 
-		var (
-			buckets []proxy.TelemetryModelBucket
-			err     error
-		)
-		if allInstallations {
-			buckets, err = proxySvc.MetricsModelBreakdownAll(c.Request.Context(), from, to, granularity)
-		} else {
-			buckets, err = proxySvc.MetricsModelBreakdown(c.Request.Context(), installationID, from, to, granularity)
-		}
+		buckets, err := proxySvc.MetricsModelBreakdown(c.Request.Context(), installationID, from, to, granularity)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch model breakdown."})
 			return
@@ -213,20 +187,12 @@ func MetricsDetailsHandler(proxySvc *proxy.Service) gin.HandlerFunc {
 			}
 		}
 
-		allInstallations, installationID, ok := metricsScope(c)
+		installationID, ok := metricsScope(c)
 		if !ok {
 			return
 		}
 
-		var (
-			rows []proxy.TelemetryRow
-			err  error
-		)
-		if allInstallations {
-			rows, err = proxySvc.MetricsRowsAll(c.Request.Context(), from, to, limit)
-		} else {
-			rows, err = proxySvc.MetricsRows(c.Request.Context(), installationID, from, to, limit)
-		}
+		rows, err := proxySvc.MetricsRows(c.Request.Context(), installationID, from, to, limit)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch details."})
 			return

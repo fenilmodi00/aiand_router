@@ -12,7 +12,6 @@ import (
 	"aiand-os/router/internal/flags"
 	"aiand-os/router/internal/observability"
 
-	"github.com/hashicorp/golang-lru/v2/expirable"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -82,14 +81,6 @@ type Service struct {
 	// overrides are not applied to any request, so an incident rollback via env
 	// var cannot be defeated by a stored per-org row.
 	flagOverridesDisabled bool
-
-	// adminPassword and adminSessionKey are empty when admin login is disabled.
-	adminPassword   string
-	adminSessionKey []byte
-
-	// adminLoginFailures throttles per-IP brute-force login attempts.
-	adminLoginFailures *expirable.LRU[string, int]
-	adminLoginMu       sync.Mutex
 
 	onboarding OnboardingObserver
 

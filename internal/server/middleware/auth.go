@@ -19,7 +19,6 @@ import (
 const (
 	ctxKeyInstallation      = "router_installation"
 	ctxKeyAPIKey            = "router_api_key"
-	ctxKeyAdminPrincipal    = "router_admin_principal"
 	ctxKeySubscriptionOwner = "router_subscription_owner"
 )
 
@@ -34,40 +33,8 @@ func WithAuth(svc *auth.Service, byokRequiresOptIn bool, serving ...*ServingAdmi
 	return withAPIKey(svc, byokRequiresOptIn, serving...)
 }
 
-// WithAdminOrAuth accepts either a signed admin session cookie OR a bearer rk_ token.
-// Don't use on `/v1/*` data-plane routes (a cookie shouldn't call provider proxy endpoints)
-// or on control-plane mutations (a leaked rk_ shouldn't mint keys or rotate credentials —
-// use WithAdminOnly there). See WithAuth for byokRequiresOptIn.
-func WithAdminOrAuth(svc *auth.Service, byokRequiresOptIn bool) gin.HandlerFunc {
-	apiKeyMW := withAPIKey(svc, byokRequiresOptIn)
-	return func(c *gin.Context) {
-		if principal := tryAdminCookie(c, svc); principal != nil {
-			c.Set(ctxKeyAdminPrincipal, principal)
-			c.Next()
-			return
-		}
-		apiKeyMW(c)
-	}
-}
-
-// WithAdminOnly requires a valid admin session cookie; bearer rk_ tokens are rejected so a leaked installation API key can't mint credentials or rotate provider keys.
-func WithAdminOnly(svc *auth.Service) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if !svc.AdminLoginEnabled() {
-			c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"error": "admin_login_disabled"})
-			return
-		}
-		principal := tryAdminCookie(c, svc)
-		if principal == nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "admin_session_required"})
-			return
-		}
-		c.Set(ctxKeyAdminPrincipal, principal)
-		c.Next()
-	}
-}
-
-// withAPIKey is the bearer-only auth path shared by WithAuth and the fall-through branch of WithAdminOrAuth.
+// withAPIKey is the bearer-only auth path used by WithAuth and the bearer
+// fall-through of WithAccountSessionOrAPIKey.
 //
 // When byokRequiresOptIn is true, BYOK rows from svc.VerifyAPIKey are dropped
 // unless the installation set ByokEnabled. Every downstream BYOK consumer
@@ -237,23 +204,6 @@ func isAuthFailure(err error) bool {
 		errors.Is(err, auth.ErrWrongKeyScope) || errors.Is(err, auth.ErrPersonalCredentialRequired)
 }
 
-// tryAdminCookie returns nil so callers fall through to bearer auth when the cookie is absent, admin login is disabled, or the cookie is invalid.
-func tryAdminCookie(c *gin.Context, svc *auth.Service) *auth.AdminPrincipal {
-	if !svc.AdminLoginEnabled() {
-		return nil
-	}
-	cookie, err := c.Cookie(auth.AdminSessionCookieName)
-	if err != nil || cookie == "" {
-		return nil
-	}
-	principal, err := svc.VerifyAdminSession(cookie)
-	if err != nil {
-		// Stale/tampered cookie: don't fail — caller may still have a valid rk_ bearer.
-		return nil
-	}
-	return principal
-}
-
 // extractToken pulls the router token from RouterKeyHeader first, then falls back to Authorization: Bearer or x-api-key.
 func extractToken(c *gin.Context) string {
 	return auth.RoutingTokenFromHeaders(c.Request.Header)
@@ -284,7 +234,7 @@ func handleAuthError(c *gin.Context, err error) {
 	c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid_key"})
 }
 
-// InstallationFrom retrieves the authed installation set by WithAuth. Returns nil for admin-cookie sessions and unauthed requests.
+// InstallationFrom retrieves the authed installation set by WithAuth or WithAccountSession. Returns nil for unauthed requests.
 func InstallationFrom(c *gin.Context) *auth.Installation {
 	v, ok := c.Get(ctxKeyInstallation)
 	if !ok {
@@ -328,14 +278,4 @@ func subscriptionOwnerForRequest(c *gin.Context, apiKey *auth.APIKey) auth.Subsc
 		return auth.SubscriptionOwner{}
 	}
 	return auth.SubscriptionOwnerForKey(apiKey)
-}
-
-// AdminPrincipalFrom retrieves the admin principal set when the request authenticated via the session cookie. Returns nil for rk_-keyed or unauthed requests.
-func AdminPrincipalFrom(c *gin.Context) *auth.AdminPrincipal {
-	v, ok := c.Get(ctxKeyAdminPrincipal)
-	if !ok {
-		return nil
-	}
-	principal, _ := v.(*auth.AdminPrincipal)
-	return principal
 }

@@ -132,9 +132,15 @@ type Features struct {
 	// org/prepaid billing gates alone.
 	SubscriberAllowance *entitlement.Service
 	// LoginSvc is the SaaS dashboard login service (auth.LoginService). Set
-	// in selfhosted mode, it mounts the public /account/v1 auth surface; nil
-	// leaves it unmounted (tests, managed mode, not-yet-migrated embedders).
-	LoginSvc account.LoginAPI
+	// in selfhosted mode, it mounts the public /account/v1 auth surface AND
+	// authenticates the dashboard's /admin/v1 groups through its session
+	// cookies (WithAccountSession / WithAccountSessionOrAPIKey); nil leaves
+	// both unmounted-with-auth (tests, managed mode, not-yet-migrated
+	// embedders).
+	LoginSvc interface {
+		account.LoginAPI
+		auth.SessionVerifier
+	}
 }
 
 // RegisterWithFeatures is Register with optional request features enabled.
@@ -283,32 +289,27 @@ func RegisterWithFeatures(engine *gin.Engine, authSvc *auth.Service, proxySvc *p
 		engine.GET("/", func(c *gin.Context) { c.Redirect(http.StatusFound, "/ui") })
 		registerUIStatic(engine, "./assets/ui")
 
-		// Public — mounting inside WithAuth would be a chicken-and-egg
-		// deadlock for users who don't yet have a cookie.
-		authPublic := engine.Group("/admin/v1/auth", middleware.WithTimeout(adminTimeout))
-		authPublic.POST("/login", admin.LoginHandler(authSvc))
-		authPublic.POST("/logout", admin.LogoutHandler())
-		authPublic.GET("/me", admin.MeHandler(authSvc))
-
 		// SaaS login surface (device flow / pasted Aiand key): public and
 		// unauthenticated by design — the first-ever visitor bootstraps here.
 		// Per-IP failure limiting lives inside the handlers. LoginSvc is nil
 		// when the login service isn't wired (tests), leaving the surface
-		// unmounted rather than serving 500s.
+		// unmounted rather than serving 500s. The dashboard groups below
+		// authenticate through the same service's sessions, so they mount
+		// alongside it.
 		if features.LoginSvc != nil {
 			accountGroup := engine.Group("/account/v1", middleware.WithTimeout(adminTimeout))
 			account.NewHandlers(features.LoginSvc).Register(accountGroup)
 		}
 
-		// Read-only metrics: dashboard cookie OR rk_ bearer so an installation can fetch its own data for monitoring scripts. Per-installation scoping is enforced inside the handlers.
-		metrics := engine.Group("/admin/v1", middleware.WithTimeout(adminTimeout), middleware.WithAdminOrAuth(authSvc, byokRequiresOptIn))
+		// Read-only metrics: dashboard session cookie OR rk_ bearer so an installation can fetch its own data for monitoring scripts. Per-installation scoping is enforced inside the handlers.
+		metrics := engine.Group("/admin/v1", middleware.WithTimeout(adminTimeout), middleware.WithAccountSessionOrAPIKey(features.LoginSvc, middleware.NewSessionLRUCache(), authSvc, byokRequiresOptIn))
 		metrics.GET("/metrics/summary", admin.MetricsSummaryHandler(proxySvc))
 		metrics.GET("/metrics/timeseries", admin.MetricsTimeseriesHandler(proxySvc))
 		metrics.GET("/metrics/details", admin.MetricsDetailsHandler(proxySvc))
 		metrics.GET("/metrics/model-breakdown", admin.MetricsModelBreakdownHandler(proxySvc))
 
-		// Mutations: admin cookie REQUIRED. rk_ tokens are rejected so a leaked data-plane key can't mint fresh router keys or rotate provider credentials.
-		mgmt := engine.Group("/admin/v1", middleware.WithTimeout(adminTimeout), middleware.WithAdminOnly(authSvc))
+		// Mutations: dashboard session REQUIRED. rk_ tokens are rejected so a leaked data-plane key can't mint fresh router keys or rotate provider credentials.
+		mgmt := engine.Group("/admin/v1", middleware.WithTimeout(adminTimeout), middleware.WithAccountSession(features.LoginSvc, middleware.NewSessionLRUCache()))
 		mgmt.GET("/keys", admin.ListAPIKeysHandler(authSvc))
 		mgmt.POST("/keys", admin.IssueAPIKeyHandler(authSvc))
 		mgmt.POST("/keys/:id/rotate", admin.RotateAPIKeyHandler(authSvc))
@@ -328,7 +329,7 @@ func RegisterWithFeatures(engine *gin.Engine, authSvc *auth.Service, proxySvc *p
 		mgmt.GET("/content-capture", admin.GetContentCaptureHandler(authSvc, proxySvc))
 		mgmt.PUT("/content-capture", admin.UpdateContentCaptureHandler(authSvc, proxySvc))
 		// Aiand credential surface: device-flow login, pasted key, status, disconnect.
-		// Gateway calls ride the group's adminTimeout; every route requires the admin cookie.
+		// Gateway calls ride the group's adminTimeout; every route requires the dashboard session.
 		mgmt.POST("/aiand-auth/device", admin.StartAiandDeviceLoginHandler(authSvc))
 		mgmt.POST("/aiand-auth/device/poll", admin.PollAiandDeviceLoginHandler(authSvc))
 		mgmt.POST("/aiand-auth/paste", admin.PasteAiandKeyHandler(authSvc))

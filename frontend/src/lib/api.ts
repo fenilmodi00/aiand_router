@@ -1,33 +1,42 @@
-const BASE = "/admin/v1";
+// Session/login surface (device flow, pasted key, me, logout). Deliberately
+// unauthenticated by design — the first-ever visitor bootstraps here — and
+// backed by the router_account_session cookie.
+const ACCOUNT_BASE = "/account/v1";
+// Dashboard settings/metrics surface, backed by the admin session cookie.
+const ADMIN_BASE = "/admin/v1";
 
 /**
  * HTTP 428 from a device-flow poll: the backend is telling us to slow down,
- * not that polling failed. `retry_after_s` mirrors the Retry-After header in
+ * not that polling failed. `retrySeconds` mirrors the Retry-After header in
  * seconds, or null when absent/unparseable (caller then applies its own
  * backoff floor).
  */
 export class SlowDownError extends Error {
-  retry_after_s: number | null;
-  constructor(retry_after_s: number | null) {
+  retrySeconds: number | null;
+  constructor(retrySeconds: number | null) {
     super("slow_down");
     this.name = "SlowDownError";
-    this.retry_after_s = retry_after_s;
+    this.retrySeconds = retrySeconds;
   }
 }
 
-// Endpoints whose own contract defines a 401 body (e.g. paste-key's
-// invalid_key) pass authRedirect: false so a rejected credential surfaces to
-// the caller instead of bouncing the browser to the login page.
 interface RequestOptions extends RequestInit {
+  /**
+   * False on every login-path call (device start/poll, paste, me, logout) so
+   * a 401 surfaces to the caller instead of bouncing the browser to the
+   * login page — a redirect here would destroy in-flight device-flow state.
+   * me() itself answers "am I logged in?" with 200 {authenticated:false}, so
+   * it never sees a 401 in the first place and never redirects either way.
+   */
   authRedirect?: boolean;
 }
 
-async function request<T>(path: string, init?: RequestOptions): Promise<T> {
+async function rawRequest<T>(base: string, path: string, init?: RequestOptions): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...((init?.headers as Record<string, string>) ?? {}),
   };
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetch(`${base}${path}`, {
     ...init,
     credentials: "include",
     headers,
@@ -52,9 +61,9 @@ async function request<T>(path: string, init?: RequestOptions): Promise<T> {
     const body = await res.text();
     // The device-flow poll endpoint signals slow_down with HTTP 428 and a
     // Retry-After header instead of a status body, so callers can keep
-    // waiting rather than treat it as a failure. `retry_after_s` is in
-    // seconds per HTTP spec; absent/invalid falls back to null and the
-    // caller applies its own minimum.
+    // waiting rather than treat it as a failure. The value is in seconds per
+    // HTTP spec; absent/invalid falls back to null and the caller applies
+    // its own minimum.
     if (res.status === 428) {
       const retryAfter = res.headers.get("Retry-After");
       const seconds = retryAfter == null ? NaN : Number(retryAfter.trim());
@@ -64,6 +73,17 @@ async function request<T>(path: string, init?: RequestOptions): Promise<T> {
   }
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
+}
+
+// Login-path request: never 401-bounces, whatever the backend answers.
+function accountRequest<T>(path: string, init?: RequestOptions): Promise<T> {
+  return rawRequest<T>(ACCOUNT_BASE, path, { ...init, authRedirect: false });
+}
+
+// Settings/metrics request against /admin/v1. Default 401 behavior: bounce
+// to the login page (login-path calls use accountRequest instead).
+function request<T>(path: string, init?: RequestOptions): Promise<T> {
+  return rawRequest<T>(ADMIN_BASE, path, init);
 }
 
 export interface MetricsSummary {
@@ -157,9 +177,16 @@ export interface OnboardingStatus {
   first_request_served_at: string | null;
 }
 
+// Session state from GET /account/v1/auth/me. Never 401s: the backend
+// answers 200 {authenticated:false} when there is no live session, so this
+// call is safe from the login page and can never trip the 401 bounce.
 export interface MeResponse {
   authenticated: boolean;
-  subject?: string;
+  email?: string;
+  org_name?: string;
+  installation?: {
+    external_id: string;
+  };
 }
 
 export interface DeployedModel {
@@ -187,9 +214,16 @@ export interface AiandAuthStatus {
   origin?: string;
 }
 
+// GET (device flow) — device start/poll/paste now answer with the account
+// identity directly; the panel's own AiandAuthStatus view stays on
+// /admin/v1/aiand-auth/status.
+
+/** Response of POST /account/v1/auth/device/start. */
 export interface AiandDeviceStartResponse {
+  login_id: string;
   user_code: string;
   verification_uri: string;
+  verification_uri_complete: string;
   /** Seconds until the user code expires. */
   expires_in: number;
   /** Seconds to wait between polls; the backend already applies slow_down. */
@@ -198,19 +232,17 @@ export interface AiandDeviceStartResponse {
 
 export type AiandDevicePollStatus = "pending" | "authorized" | "expired" | "denied" | "error";
 
+/** Response of POST /account/v1/auth/device/poll (body of a 200, never a 428). */
 export interface AiandDevicePollResponse {
   status: AiandDevicePollStatus;
   email?: string;
   org_name?: string;
-  key_masked?: string;
-  /** Seconds to wait before the next poll; present only on a 428 slow_down response. */
-  retry_after_s?: number;
 }
 
+/** Response of POST /account/v1/auth/paste. */
 export interface AiandPasteKeyResponse {
   email: string;
   org_name: string;
-  key_masked: string;
 }
 
 export interface AiandDisconnectResponse {
@@ -225,13 +257,30 @@ export interface RoutingPreferencesResponse {
 
 export const api = {
   auth: {
-    me: () => request<MeResponse>("/auth/me"),
-    login: (password: string) =>
-      request<{ ok: boolean; expires_at: string }>("/auth/login", {
+    // All five of these run against /account/v1/auth/* and never 401-bounce:
+    // me/logout answer the login page itself, and start/poll/paste would
+    // lose in-flight device state to a redirect. A dead session surfaces to
+    // the caller as a rejected promise, not as navigation.
+    me: () => accountRequest<MeResponse>("/auth/me"),
+    startDeviceLogin: () => accountRequest<AiandDeviceStartResponse>("/auth/device/start", { method: "POST" }),
+    // One poll against the gateway. A 428 slow_down throws SlowDownError
+    // (Retry-After seconds on it); 404 login_not_found / 502
+    // gateway_unavailable / 500 poll_failed reject with plain Errors the
+    // caller can branch on by status prefix.
+    pollDeviceLogin: (login_id: string) =>
+      accountRequest<AiandDevicePollResponse>("/auth/device/poll", {
         method: "POST",
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ login_id }),
       }),
-    logout: () => request<{ ok: boolean }>("/auth/logout", { method: "POST" }),
+    // 401 here means a rejected key (invalid_key), not a dead session — the
+    // login page must see the rejection to render "Invalid key.", never a
+    // redirect. 502 gateway_unavailable rejects with a plain Error too.
+    pasteKey: (key: string) =>
+      accountRequest<AiandPasteKeyResponse>("/auth/paste", {
+        method: "POST",
+        body: JSON.stringify({ key }),
+      }),
+    logout: () => accountRequest<{ ok: boolean }>("/auth/logout", { method: "POST" }),
   },
   metrics: {
     summary: (from?: string, to?: string) => {
@@ -288,20 +337,10 @@ export const api = {
   },
   aiandAuth: {
     status: () => request<AiandAuthStatus>("/aiand-auth/status"),
-    startDevice: () =>
-      request<AiandDeviceStartResponse>("/aiand-auth/device", { method: "POST" }),
-    pollDevice: () =>
-      request<AiandDevicePollResponse>("/aiand-auth/device/poll", { method: "POST" }),
-    pasteKey: (key: string) =>
-      request<AiandPasteKeyResponse>("/aiand-auth/paste", {
-        method: "POST",
-        body: JSON.stringify({ key }),
-        // The endpoint's own 401 means a rejected key, not a dead session —
-        // the panel must see it to render "Invalid key." rather than bounce.
-        authRedirect: false,
-      }),
     disconnect: () =>
       request<AiandDisconnectResponse>("/aiand-auth/disconnect", { method: "POST" }),
+    // Device start/poll/paste moved to the /account/v1 session surface —
+    // see api.auth.startDeviceLogin/pollDeviceLogin/pasteKey above.
   },
   routingPreferences: {
     get: () => request<RoutingPreferencesResponse>("/routing-preferences"),

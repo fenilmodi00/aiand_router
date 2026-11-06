@@ -24,7 +24,7 @@ type configResponse struct {
 }
 
 func ConfigHandler(c *gin.Context) {
-	if middleware.AdminPrincipalFrom(c) == nil && middleware.InstallationFrom(c) == nil {
+	if middleware.InstallationFrom(c) == nil {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid_key"})
 		return
 	}

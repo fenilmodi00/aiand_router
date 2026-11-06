@@ -73,9 +73,6 @@ func TestRegister_DeploymentMode(t *testing.T) {
 		"GET /",
 		"GET /ui/*filepath",
 		"HEAD /ui/*filepath",
-		"POST /admin/v1/auth/login",
-		"POST /admin/v1/auth/logout",
-		"GET /admin/v1/auth/me",
 		"GET /admin/v1/metrics/summary",
 		"GET /admin/v1/metrics/timeseries",
 		"GET /admin/v1/keys",
@@ -165,17 +162,6 @@ func TestRegister_AccountAuthRoutes(t *testing.T) {
 			assert.False(t, strings.HasPrefix(path, "/account/v1"), "nil LoginSvc must not mount %s", path)
 		}
 	})
-
-	t.Run("nil LoginSvc in selfhosted leaves the admin auth routes intact", func(t *testing.T) {
-		// T9 deletes /admin/v1/auth/*; until then the legacy password surface
-		// and the new account surface coexist.
-		engine := gin.New()
-		server.Register(engine, nil, nil, nil, nil, server.DeploymentModeSelfHosted, nil, nil, nil, nil)
-		got := routeSet(engine)
-		for _, want := range []string{"POST /admin/v1/auth/login", "POST /admin/v1/auth/logout", "GET /admin/v1/auth/me"} {
-			assert.Contains(t, got, want)
-		}
-	})
 }
 
 // loginFake is a no-op stand-in for the login service; registration tests
@@ -195,6 +181,7 @@ func (loginFake) Logout(context.Context, string) error { return nil }
 func (loginFake) VerifySessionToken(string) (*auth.ActiveSession, error) {
 	return nil, nil
 }
+func (loginFake) TouchSessionLastSeen(string) error { return nil }
 
 // The export is a product surface, so it must reach managed installations too
 // — mounting it inside the selfhosted block would strand every managed customer.

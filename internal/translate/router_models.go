@@ -16,12 +16,13 @@ var routerModelsTokens = [...]string{
 //
 // Bare only, and that restriction is load-bearing. Listing is a read the
 // router can answer from the request it is already holding. Mutating the
-// selection (`enable`/`disable`/`prefer`/`providers`) is an admin operation:
-// those endpoints sit behind WithAdminOnly, which rejects the rk_ data-plane
-// key a chat request carries precisely so a leaked key cannot rewrite routing
-// config. Answering an argument form here would either be a no-op or a hole
-// through that boundary, so anything with arguments falls through to the
-// skill, which shells out to the installer and authenticates properly.
+// selection (`enable`/`disable`/`prefer`/`providers`) is a dashboard
+// operation: those endpoints sit behind WithAccountSession, which rejects the
+// rk_ data-plane key a chat request carries precisely so a leaked key cannot
+// rewrite routing config. Answering an argument form here would either be a
+// no-op or a hole through that boundary, so anything with arguments falls
+// through to the skill, which shells out to the installer and authenticates
+// properly.
 func (env *RequestEnvelope) ExtractRouterModelsCommand() bool {
 	return env.extractLeadingCommand(parseRouterModelsCommand)
 }

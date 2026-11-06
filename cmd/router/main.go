@@ -383,14 +383,6 @@ func main() {
 	}()
 	safeGo(logger, "invalidation-listener", func() { listener.Run(listenerCtx) })
 
-	// Managed mode doesn't mount the dashboard, so this only matters selfhosted.
-	if deploymentMode == server.DeploymentModeSelfHosted {
-		adminPassword := config.GetOr("ROUTER_ADMIN_PASSWORD", "")
-		if adminPassword == "" {
-			logger.Warn("ROUTER_ADMIN_PASSWORD not set; dashboard administration is disabled. Set ROUTER_ADMIN_PASSWORD to enable it.")
-		}
-		authSvc.WithAdminPassword(adminPassword)
-	}
 	embedOnlyUser := config.GetOr("ROUTER_EMBED_ONLY_USER_MESSAGE", "true") == "true"
 	if embedOnlyUser {
 		logger.Info("Cluster scorer embedding user-role text only (ROUTER_EMBED_ONLY_USER_MESSAGE=true)")
