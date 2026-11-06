@@ -20,10 +20,11 @@ import (
 // capture records one incoming gateway request so tests can assert the exact
 // wire contract the gateway (and its CLI twin) expects.
 type capture struct {
-	Method string
-	Path   string
-	Header http.Header
-	Body   []byte
+	Method    string
+	Path      string
+	Header    http.Header
+	Body      []byte
+	ServerURL string
 }
 
 func captureServer(t *testing.T, status int, response string) (*aiandauth.Client, *capture) {
@@ -32,12 +33,13 @@ func captureServer(t *testing.T, status int, response string) (*aiandauth.Client
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
-		got = capture{Method: r.Method, Path: r.URL.Path, Header: r.Header.Clone(), Body: body}
+		got.Method, got.Path, got.Header, got.Body = r.Method, r.URL.Path, r.Header.Clone(), body
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(status)
 		_, _ = w.Write([]byte(response))
 	}))
 	t.Cleanup(server.Close)
+	got.ServerURL = server.URL
 	return aiandauth.NewClient(server.URL, server.Client()), &got
 }
 
@@ -71,6 +73,27 @@ func TestDeviceCodeStart_SendsClientIDAndKeyName(t *testing.T) {
 	assert.Equal(t, "https://api.aiand.com/device?code=ABCD-EFGH", code.VerificationURIComplete)
 	assert.Equal(t, 900, code.ExpiresIn)
 	assert.Equal(t, 5, code.Interval)
+}
+
+// The live gateway returns gateway-relative verification links; they must
+// come back absolute or the dashboard's "Enter this code at …" href is
+// unclickable.
+func TestDeviceCodeStart_ResolvesRelativeVerificationURI(t *testing.T) {
+	client, got := captureServer(t, http.StatusOK, `{
+		"device_code": "dc-1",
+		"user_code": "W8LB-SFZN",
+		"verification_uri": "/auth/device",
+		"verification_uri_complete": "/auth/device?user_code=W8LB-SFZN",
+		"expires_in": 900,
+		"interval": 5
+	}`)
+
+	code, err := client.DeviceCodeStart(context.Background(), "aiand-router@router-host")
+	require.NoError(t, err)
+
+	assert.Equal(t, "/auth/device/code", got.Path)
+	assert.Equal(t, got.ServerURL+"/auth/device", code.VerificationURI)
+	assert.Equal(t, got.ServerURL+"/auth/device?user_code=W8LB-SFZN", code.VerificationURIComplete)
 }
 
 func TestPollToken_UsesDeviceGrant(t *testing.T) {

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -76,6 +77,25 @@ type User struct {
 	Email string `json:"email"`
 }
 
+// resolveVerificationURIs makes the gateway's verification links absolute.
+// The live gateway returns gateway-relative paths ("/auth/device"), which the
+// dashboard renders as a clickable href; RFC 8628 §3.3 requires the
+// verification URI to be absolute or resolvable against the authorization
+// server's base URL.
+func resolveVerificationURIs(authURL string, out DeviceCode) DeviceCode {
+	base, err := url.Parse(authURL)
+	if err != nil || base.Host == "" {
+		return out
+	}
+	if ref, err := url.Parse(out.VerificationURI); err == nil && !ref.IsAbs() && ref.Path != "" {
+		out.VerificationURI = base.ResolveReference(ref).String()
+	}
+	if ref, err := url.Parse(out.VerificationURIComplete); err == nil && !ref.IsAbs() && ref.Path != "" {
+		out.VerificationURIComplete = base.ResolveReference(ref).String()
+	}
+	return out
+}
+
 // DeviceCodeStart opens a device-login session. keyName labels the key the
 // gateway will mint (e.g. "aiand-router@<hostname>").
 func (c *Client) DeviceCodeStart(ctx context.Context, keyName string) (DeviceCode, error) {
@@ -87,7 +107,7 @@ func (c *Client) DeviceCodeStart(ctx context.Context, keyName string) (DeviceCod
 	if err := c.postJSON(ctx, "/auth/device/code", body, &out); err != nil {
 		return DeviceCode{}, err
 	}
-	return out, nil
+	return resolveVerificationURIs(c.authURL, out), nil
 }
 
 // PollToken exchanges a device code for tokens exactly once. The caller owns
