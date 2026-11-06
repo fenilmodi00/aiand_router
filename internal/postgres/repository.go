@@ -26,6 +26,9 @@ type Repository struct {
 	BlindExperiments      auth.BlindExperimentRepository
 	RoutingPolicies       auth.RoutingPolicyRepository
 	AiandCredentials      auth.AiandCredentialRepository
+	Accounts              auth.AccountRepository
+	Sessions              auth.SessionRepository
+	LoginAttempts         auth.LoginAttemptRepository
 	Telemetry             *TelemetryRepo
 	Feedback              *FeedbackRepo
 	Analytics             *AnalyticsRepo
@@ -48,6 +51,9 @@ func NewRepository(tx sqlc.DBTX, encryptor auth.Encryptor) *Repository {
 		BlindExperiments:          NewBlindExperimentRepo(tx),
 		RoutingPolicies:           NewRoutingPolicyRepo(tx),
 		AiandCredentials:          NewAiandCredentialRepo(tx),
+		Accounts:                  NewAccountRepo(tx),
+		Sessions:                  NewAccountSessionRepo(tx),
+		LoginAttempts:             NewLoginAttemptRepo(tx),
 		Telemetry:                 NewTelemetryRepo(tx),
 		Feedback:                  NewFeedbackRepo(tx),
 		Analytics:                 NewAnalyticsRepo(tx),

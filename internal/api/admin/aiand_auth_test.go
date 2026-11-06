@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"aiand-os/router/internal/aiandauth"
 	"aiand-os/router/internal/api/admin"
 	"aiand-os/router/internal/auth"
 	"aiand-os/router/internal/providers"
@@ -21,38 +20,55 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// pollStep is one scripted PollToken outcome.
+type pollStep struct {
+	token auth.AiandTokenResponse
+	err   error
+}
+
 // handlerFakeGateway is a minimal auth.AiandGateway for handler tests.
 type handlerFakeGateway struct {
 	mu sync.Mutex
 
-	startCode aiandauth.DeviceCode
+	startCode auth.AiandDeviceCode
 	startErr  error
 
-	pollToken aiandauth.TokenResponse
+	pollToken auth.AiandTokenResponse
 	pollErr   error
 
-	refreshToken aiandauth.TokenResponse
+	// pollScript, when non-empty, is consumed step by step by PollToken
+	// before falling back to pollErr/pollToken; pollCalls counts calls.
+	pollScript []pollStep
+	pollCalls  int
+
+	refreshToken auth.AiandTokenResponse
 	refreshErr   error
 
 	revokeErr error
 
-	validateUser aiandauth.User
+	validateUser auth.AiandUser
 	validateErr  error
 }
 
-func (f *handlerFakeGateway) DeviceCodeStart(context.Context, string) (aiandauth.DeviceCode, error) {
+func (f *handlerFakeGateway) DeviceCodeStart(context.Context, string) (auth.AiandDeviceCode, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.startCode, f.startErr
 }
 
-func (f *handlerFakeGateway) PollToken(context.Context, string) (aiandauth.TokenResponse, error) {
+func (f *handlerFakeGateway) PollToken(context.Context, string) (auth.AiandTokenResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.pollCalls++
+	if len(f.pollScript) > 0 {
+		step := f.pollScript[0]
+		f.pollScript = f.pollScript[1:]
+		return step.token, step.err
+	}
 	return f.pollToken, f.pollErr
 }
 
-func (f *handlerFakeGateway) RefreshToken(context.Context, string) (aiandauth.TokenResponse, error) {
+func (f *handlerFakeGateway) RefreshToken(context.Context, string) (auth.AiandTokenResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.refreshToken, f.refreshErr
@@ -64,7 +80,7 @@ func (f *handlerFakeGateway) Revoke(context.Context, string) error {
 	return f.revokeErr
 }
 
-func (f *handlerFakeGateway) ValidateKey(context.Context, string) (aiandauth.User, error) {
+func (f *handlerFakeGateway) ValidateKey(context.Context, string) (auth.AiandUser, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.validateUser, f.validateErr
@@ -189,7 +205,7 @@ func doJSON(t *testing.T, engine *gin.Engine, method, path, body string) (int, m
 }
 
 func TestStartAiandDeviceLoginHandler_ReturnsUserCodeContract(t *testing.T) {
-	gateway := &handlerFakeGateway{startCode: aiandauth.DeviceCode{
+	gateway := &handlerFakeGateway{startCode: auth.AiandDeviceCode{
 		UserCode: "ABCD-1234", VerificationURI: "https://api.aiand.com/device", ExpiresIn: 900, Interval: 5,
 	}}
 	engine := aiandEngine(newAiandService(gateway))
@@ -204,7 +220,7 @@ func TestStartAiandDeviceLoginHandler_ReturnsUserCodeContract(t *testing.T) {
 }
 
 func TestStartAiandDeviceLoginHandler_GatewayDownIs502(t *testing.T) {
-	gateway := &handlerFakeGateway{startErr: aiandauth.ErrGateway}
+	gateway := &handlerFakeGateway{startErr: auth.ErrAiandGateway}
 	engine := aiandEngine(newAiandService(gateway))
 	code, body := doJSON(t, engine, http.MethodPost, "/admin/v1/aiand/device/start", "")
 	assert.Equal(t, http.StatusBadGateway, code)
@@ -212,9 +228,9 @@ func TestStartAiandDeviceLoginHandler_GatewayDownIs502(t *testing.T) {
 }
 
 func TestPollAiandDeviceLoginHandler_Statuses(t *testing.T) {
-	setup := func(pollErr error, token aiandauth.TokenResponse) (*gin.Engine, *handlerFakeGateway) {
+	setup := func(pollErr error, token auth.AiandTokenResponse) (*gin.Engine, *handlerFakeGateway) {
 		gateway := &handlerFakeGateway{
-			startCode: aiandauth.DeviceCode{DeviceCode: "dc-1", Interval: 5},
+			startCode: auth.AiandDeviceCode{DeviceCode: "dc-1", Interval: 5},
 			pollErr:   pollErr,
 			pollToken: token,
 		}
@@ -225,16 +241,16 @@ func TestPollAiandDeviceLoginHandler_Statuses(t *testing.T) {
 	}
 
 	t.Run("pending", func(t *testing.T) {
-		engine, _ := setup(aiandauth.ErrAuthorizationPending, aiandauth.TokenResponse{})
+		engine, _ := setup(auth.ErrAiandAuthorizationPending, auth.AiandTokenResponse{})
 		code, body := doJSON(t, engine, http.MethodPost, "/admin/v1/aiand/device/poll", "")
 		assert.Equal(t, http.StatusOK, code)
 		assert.Equal(t, "pending", body["status"])
 	})
 
 	t.Run("authorized carries masked key", func(t *testing.T) {
-		engine, _ := setup(nil, aiandauth.TokenResponse{
+		engine, _ := setup(nil, auth.AiandTokenResponse{
 			AccessToken: "sk-aiand-123456789", RefreshToken: "rt", ExpiresIn: 60,
-			Org: &aiandauth.Org{ID: "org-1", Name: "Acme"},
+			Org: &auth.AiandOrg{ID: "org-1", Name: "Acme"},
 		})
 		code, body := doJSON(t, engine, http.MethodPost, "/admin/v1/aiand/device/poll", "")
 		assert.Equal(t, http.StatusOK, code)
@@ -245,14 +261,14 @@ func TestPollAiandDeviceLoginHandler_Statuses(t *testing.T) {
 	})
 
 	t.Run("denied", func(t *testing.T) {
-		engine, _ := setup(aiandauth.ErrAccessDenied, aiandauth.TokenResponse{})
+		engine, _ := setup(auth.ErrAiandAccessDenied, auth.AiandTokenResponse{})
 		code, body := doJSON(t, engine, http.MethodPost, "/admin/v1/aiand/device/poll", "")
 		assert.Equal(t, http.StatusOK, code)
 		assert.Equal(t, "denied", body["status"])
 	})
 
 	t.Run("expired", func(t *testing.T) {
-		engine, _ := setup(aiandauth.ErrExpiredToken, aiandauth.TokenResponse{})
+		engine, _ := setup(auth.ErrAiandExpiredToken, auth.AiandTokenResponse{})
 		code, body := doJSON(t, engine, http.MethodPost, "/admin/v1/aiand/device/poll", "")
 		assert.Equal(t, http.StatusOK, code)
 		assert.Equal(t, "expired", body["status"])
@@ -261,8 +277,8 @@ func TestPollAiandDeviceLoginHandler_Statuses(t *testing.T) {
 
 func TestPollAiandDeviceLoginHandler_SlowDownIs428WithRetryAfter(t *testing.T) {
 	gateway := &handlerFakeGateway{
-		startCode: aiandauth.DeviceCode{DeviceCode: "dc-1", Interval: 5},
-		pollErr:   aiandauth.ErrSlowDown,
+		startCode: auth.AiandDeviceCode{DeviceCode: "dc-1", Interval: 5},
+		pollErr:   auth.ErrAiandSlowDown,
 	}
 	engine := aiandEngine(newAiandService(gateway))
 	code, _ := doJSON(t, engine, http.MethodPost, "/admin/v1/aiand/device/start", "")
@@ -271,12 +287,63 @@ func TestPollAiandDeviceLoginHandler_SlowDownIs428WithRetryAfter(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/admin/v1/aiand/device/poll", nil)
 	rec := httptest.NewRecorder()
 	engine.ServeHTTP(rec, req)
-	assert.Equal(t, http.StatusTooManyRequests, rec.Code)
+	assert.Equal(t, http.StatusPreconditionRequired, rec.Code)
 	assert.Equal(t, "10", rec.Header().Get("Retry-After"), "interval 5s + gateway-required 5s")
 	var body map[string]any
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
 	assert.Equal(t, "slow_down", body["error"])
-	assert.InEpsilon(t, float64(10), body["retry_after_seconds"], 0)
+	assert.NotContains(t, body, "retry_after_seconds", "Retry-After header is the single source for the raised interval")
+}
+
+// TestPollAiandDeviceLoginHandler_SlowDownIsNonTerminal walks the full poll
+// sequence through the handler: pending, then a gateway slow-down (428, the
+// dashboard keeps polling at the raised interval), then a successful
+// authorization — proving a slow-down response does not end the login.
+func TestPollAiandDeviceLoginHandler_SlowDownIsNonTerminal(t *testing.T) {
+	gateway := &handlerFakeGateway{
+		startCode: auth.AiandDeviceCode{DeviceCode: "dc-1", Interval: 5},
+		pollScript: []pollStep{
+			{err: auth.ErrAiandAuthorizationPending},
+			{err: auth.ErrAiandSlowDown},
+			{token: auth.AiandTokenResponse{
+				AccessToken: "sk-aiand-123456789", RefreshToken: "rt", ExpiresIn: 60,
+				Org: &auth.AiandOrg{ID: "org-1", Name: "Acme"},
+			}},
+		},
+	}
+	engine := aiandEngine(newAiandService(gateway))
+	code, _ := doJSON(t, engine, http.MethodPost, "/admin/v1/aiand/device/start", "")
+	require.Equal(t, http.StatusOK, code)
+
+	poll := func() (int, map[string]any, http.Header) {
+		req := httptest.NewRequest(http.MethodPost, "/admin/v1/aiand/device/poll", nil)
+		rec := httptest.NewRecorder()
+		engine.ServeHTTP(rec, req)
+		var body map[string]any
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+		return rec.Code, body, rec.Header()
+	}
+
+	// First poll: still pending; the dashboard keeps its loop.
+	code, body, _ := poll()
+	assert.Equal(t, http.StatusOK, code)
+	assert.Equal(t, "pending", body["status"])
+
+	// Second poll: gateway slow-down. 428 + Retry-After only; the poll
+	// loop must survive this response.
+	code, body, header := poll()
+	assert.Equal(t, http.StatusPreconditionRequired, code)
+	assert.Equal(t, "slow_down", body["error"])
+	assert.Equal(t, "10", header.Get("Retry-After"), "interval 5s + gateway-required 5s")
+	assert.NotContains(t, body, "retry_after_seconds")
+
+	// Third poll: authorization completes normally after the slow-down.
+	code, body, _ = poll()
+	assert.Equal(t, http.StatusOK, code)
+	assert.Equal(t, "authorized", body["status"])
+	assert.Equal(t, "sk-aiand…6789", body["key_masked"])
+	assert.Equal(t, "Acme", body["org_name"])
+	assert.Equal(t, 3, gateway.pollCalls, "three gateway polls exercised the full sequence")
 }
 
 func TestPollAiandDeviceLoginHandler_NoPendingLoginIs409(t *testing.T) {
@@ -288,7 +355,7 @@ func TestPollAiandDeviceLoginHandler_NoPendingLoginIs409(t *testing.T) {
 
 func TestPasteAiandKeyHandler(t *testing.T) {
 	t.Run("valid key stores and returns masked summary", func(t *testing.T) {
-		gateway := &handlerFakeGateway{validateUser: aiandauth.User{ID: "u1", Email: "ops@example.com"}}
+		gateway := &handlerFakeGateway{validateUser: auth.AiandUser{ID: "u1", Email: "ops@example.com"}}
 		engine := aiandEngine(newAiandService(gateway))
 		code, body := doJSON(t, engine, http.MethodPost, "/admin/v1/aiand/paste", `{"key": "sk-aiand-123456789"}`)
 		assert.Equal(t, http.StatusOK, code)
@@ -297,7 +364,7 @@ func TestPasteAiandKeyHandler(t *testing.T) {
 	})
 
 	t.Run("rejected key is 401 invalid_key", func(t *testing.T) {
-		gateway := &handlerFakeGateway{validateErr: aiandauth.ErrInvalidKey}
+		gateway := &handlerFakeGateway{validateErr: auth.ErrAiandInvalidKey}
 		engine := aiandEngine(newAiandService(gateway))
 		code, body := doJSON(t, engine, http.MethodPost, "/admin/v1/aiand/paste", `{"key": "sk-bad"}`)
 		assert.Equal(t, http.StatusUnauthorized, code)
@@ -311,7 +378,7 @@ func TestPasteAiandKeyHandler(t *testing.T) {
 	})
 
 	t.Run("gateway outage is 502", func(t *testing.T) {
-		gateway := &handlerFakeGateway{validateErr: aiandauth.ErrGateway}
+		gateway := &handlerFakeGateway{validateErr: auth.ErrAiandGateway}
 		engine := aiandEngine(newAiandService(gateway))
 		code, body := doJSON(t, engine, http.MethodPost, "/admin/v1/aiand/paste", `{"key": "sk-fine"}`)
 		assert.Equal(t, http.StatusBadGateway, code)
@@ -328,7 +395,7 @@ func TestAiandAuthStatusHandler(t *testing.T) {
 	})
 
 	t.Run("connected hides the raw key", func(t *testing.T) {
-		gateway := &handlerFakeGateway{validateUser: aiandauth.User{Email: "ops@example.com"}}
+		gateway := &handlerFakeGateway{validateUser: auth.AiandUser{Email: "ops@example.com"}}
 		engine := aiandEngine(newAiandService(gateway))
 		code, _ := doJSON(t, engine, http.MethodPost, "/admin/v1/aiand/paste", `{"key": "sk-aiand-abcdefgh"}`)
 		require.Equal(t, http.StatusOK, code)
@@ -346,7 +413,7 @@ func TestDisconnectAiandAuthHandler(t *testing.T) {
 	external := &handlerFakeExternalKeyRepo{}
 	svc := auth.NewService(nil, nil, external, nil, auth.NoOpAPIKeyCache{}, nil, func() time.Time { return time.Unix(0, 0) }).
 		WithEncryptor(auth.NoOpEncryptor{}).
-		WithAiandGateway(&handlerFakeGateway{validateUser: aiandauth.User{Email: "ops@example.com"}},
+		WithAiandGateway(&handlerFakeGateway{validateUser: auth.AiandUser{Email: "ops@example.com"}},
 			&handlerFakeCredentialRepo{rows: map[string]*auth.AiandCredential{}}, "router-host")
 	engine := aiandEngine(svc)
 

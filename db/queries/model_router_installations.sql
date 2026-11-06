@@ -11,6 +11,15 @@ VALUES (
 )
 RETURNING *;
 
+-- The session-middleware and login-path lookup by id. Unlike the
+-- external_id-scoped updates below, this is the trusted internal read:
+-- accounts.installation_id is router-owned, so no external_id guard applies.
+-- Includes soft-deleted rows so callers can decide their own failure mode.
+-- name: GetInstallationByID :one
+SELECT *
+FROM router.model_router_installations
+WHERE id = @id::uuid;
+
 -- name: ListModelRouterInstallationsForExternalID :many
 SELECT *
 FROM router.model_router_installations

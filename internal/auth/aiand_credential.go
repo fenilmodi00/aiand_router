@@ -91,8 +91,6 @@ var (
 	ErrAiandLoginPending = errors.New("aiand device login not started")
 	// ErrAiandLoginExpired means the device code expired before the user approved it.
 	ErrAiandLoginExpired = errors.New("aiand device login expired")
-	// ErrAiandAccessDenied means the user rejected the login in the browser.
-	ErrAiandAccessDenied = errors.New("aiand device login denied")
 	// ErrAiandGatewayUnavailable wraps every gateway transport/HTTP failure;
 	// handlers render it as 502 so operators see an upstream problem, not a
 	// router bug.

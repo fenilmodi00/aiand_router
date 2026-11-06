@@ -13,6 +13,11 @@ const APIKeyPrefix = "rk"
 // without requiring a DB lookup on the token alone.
 const AnalyticsAPIKeyPrefix = "ra"
 
+// AccountIDPrefix fronts a SaaS dashboard account id: "acct_<24 random chars>".
+// The id also initializes the installation's external_id (the Tink AAD
+// identity), so it is immutable for the account's lifetime.
+const AccountIDPrefix = "acct"
+
 const (
 	idLength               = 24
 	alphaNumericCharacters = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"

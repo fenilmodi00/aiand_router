@@ -8,11 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"aiand-os/router/internal/aiandauth"
 	"aiand-os/router/internal/observability"
 	"aiand-os/router/internal/providers"
 )
-
 
 // aiandRotateWindow is the default look-ahead for RotateAiandCredentialIfExpiring.
 const aiandRotateWindow = 72 * time.Hour
@@ -27,15 +25,7 @@ const aiandPasteTokenLifetime = 365 * 24 * time.Hour
 const aiandDeviceCodeTimeout = 15 * time.Minute
 
 // AiandGateway wraps the gateway calls the credential lifecycle needs.
-// *aiandauth.Client satisfies it; tests inject fakes.
-type AiandGateway interface {
-	DeviceCodeStart(ctx context.Context, keyName string) (aiandauth.DeviceCode, error)
-	PollToken(ctx context.Context, deviceCode string) (aiandauth.TokenResponse, error)
-	RefreshToken(ctx context.Context, refreshToken string) (aiandauth.TokenResponse, error)
-	Revoke(ctx context.Context, refreshToken string) error
-	ValidateKey(ctx context.Context, key string) (aiandauth.User, error)
-}
-
+// The HTTP adapter in internal/aiandauth satisfies it; tests inject fakes.
 // pendingAiandLogin is one in-flight device login. The device code is a
 // bearer-equivalent handshake value: it lives only in memory and is never logged.
 type pendingAiandLogin struct {
@@ -83,6 +73,9 @@ const (
 	AiandPollStatusAuthorized = "authorized"
 	AiandPollStatusExpired    = "expired"
 	AiandPollStatusDenied     = "denied"
+	// AiandPollStatusSlowDown is not a returned outcome status (slow_down
+	// surfaces as *AiandSlowDownError); it labels the poll-outcome log line.
+	AiandPollStatusSlowDown = "slow_down"
 )
 
 // AiandPollOutcome is one poll result. KeyMask/ExpiresAt are populated only
@@ -177,27 +170,40 @@ func (s *Service) PollAiandDeviceLogin(ctx context.Context, installation *Instal
 	token, err := s.aiandGateway.PollToken(ctx, pending.deviceCode)
 	if err != nil {
 		switch {
-		case errors.Is(err, aiandauth.ErrAuthorizationPending):
+		case errors.Is(err, ErrAiandAuthorizationPending):
+			s.logAiandPollOutcome(ctx, AiandPollStatusPending, nil)
 			return AiandPollOutcome{Status: AiandPollStatusPending}, nil
-		case errors.Is(err, aiandauth.ErrSlowDown):
+		case errors.Is(err, ErrAiandSlowDown):
 			// RFC 8628: the client must increase its interval by 5 seconds.
 			s.bumpAiandInterval(installationID, 5)
+			s.logAiandPollOutcome(ctx, AiandPollStatusSlowDown, nil)
 			return AiandPollOutcome{}, &AiandSlowDownError{RetryAfter: time.Duration(interval+5) * time.Second}
-		case errors.Is(err, aiandauth.ErrAccessDenied):
+		case errors.Is(err, ErrAiandAccessDenied):
+			// Terminal: the user rejected the login, so the attempt is
+			// worthless and is dropped immediately.
 			s.clearAiandPending(installationID)
+			s.logAiandPollOutcome(ctx, AiandPollStatusDenied, nil)
 			return AiandPollOutcome{Status: AiandPollStatusDenied}, nil
-		case errors.Is(err, aiandauth.ErrExpiredToken):
+		case errors.Is(err, ErrAiandExpiredToken):
+			// Terminal: the device code expired, so the attempt is
+			// worthless and is dropped immediately.
 			s.clearAiandPending(installationID)
+			s.logAiandPollOutcome(ctx, AiandPollStatusExpired, nil)
 			return AiandPollOutcome{Status: AiandPollStatusExpired}, nil
 		}
 		return AiandPollOutcome{}, aiandGatewayError(err)
 	}
 
-	s.clearAiandPending(installationID)
+	// The attempt stays pollable until the full persistence transaction
+	// succeeds: a transient gateway/DB failure must not convert retries into
+	// ErrAiandLoginPending. Only a committed completion consumes it.
 	credential, err := s.completeAiandCredential(ctx, installation, pending.externalID, token, AiandOriginDevice, "")
 	if err != nil {
+		s.logAiandPollOutcome(ctx, aiandPollStatusFailed, err)
 		return AiandPollOutcome{}, err
 	}
+	s.clearAiandPending(installationID)
+	s.logAiandPollOutcome(ctx, AiandPollStatusAuthorized, nil)
 	expiresAt := credential.ExpiresAt
 	return AiandPollOutcome{
 		Status:    AiandPollStatusAuthorized,
@@ -206,6 +212,22 @@ func (s *Service) PollAiandDeviceLogin(ctx context.Context, installation *Instal
 		KeyMask:   MaskAiandKey(string(credential.Plaintext)),
 		ExpiresAt: &expiresAt,
 	}, nil
+}
+
+// aiandPollStatusFailed marks the debug outcome line for a poll whose token
+// exchange succeeded but whose persistence failed; the attempt stays
+// pollable, so the dashboard's next poll can complete the login.
+const aiandPollStatusFailed = "failed"
+
+// logAiandPollOutcome emits one DEBUG line per poll outcome at the service
+// boundary. It never carries the device code, user code, or token material —
+// only the coarse outcome and, for failures, the error.
+func (s *Service) logAiandPollOutcome(ctx context.Context, status string, err error) {
+	if err != nil {
+		observability.FromContext(ctx).Debug("aiand: device login poll outcome", "poll_status", status, "err", err)
+		return
+	}
+	observability.FromContext(ctx).Debug("aiand: device login poll outcome", "poll_status", status)
 }
 
 // bumpAiandInterval records a gateway slow_down so the pending login's
@@ -235,12 +257,12 @@ func (s *Service) CompleteAiandPasteLogin(ctx context.Context, installation *Ins
 	}
 	user, err := s.aiandGateway.ValidateKey(ctx, key)
 	if err != nil {
-		if errors.Is(err, aiandauth.ErrInvalidKey) {
+		if errors.Is(err, ErrAiandInvalidKey) {
 			return nil, ErrInvalidAiandKey
 		}
 		return nil, aiandGatewayError(err)
 	}
-	token := aiandauth.TokenResponse{AccessToken: key}
+	token := AiandTokenResponse{AccessToken: key}
 	return s.completeAiandCredential(ctx, installation, aiandExternalID(installation), token, AiandOriginPaste, user.Email)
 }
 
@@ -248,11 +270,15 @@ func (s *Service) CompleteAiandPasteLogin(ctx context.Context, installation *Ins
 // propagates the access token as the installation's aiand provider key so the
 // existing BYOK dispatch serves every router user with it. userEmail comes
 // from the paste-login validation; the device flow fills it in separately.
+// The credential row and the propagated external key are written in ONE
+// transaction via TxRunner when wired: a failure between the two writes must
+// roll both back, never leave a stored credential with no dispatch key.
+// Cache invalidation fires only after the commit.
 func (s *Service) completeAiandCredential(
 	ctx context.Context,
 	installation *Installation,
 	externalID string,
-	token aiandauth.TokenResponse,
+	token AiandTokenResponse,
 	origin AiandCredentialOrigin,
 	userEmail string,
 ) (*AiandCredential, error) {
@@ -280,6 +306,9 @@ func (s *Service) completeAiandCredential(
 			return nil, fmt.Errorf("seal aiand refresh token: %w", err)
 		}
 	}
+	if refreshCipher == nil {
+		refreshCipher = []byte{} // empty bytea, never SQL NULL (refresh_token_ciphertext NOT NULL)
+	}
 	orgID, orgName := "", ""
 	if token.Org != nil {
 		orgID, orgName = token.Org.ID, token.Org.Name
@@ -288,7 +317,7 @@ func (s *Service) completeAiandCredential(
 	if origin == AiandOriginDevice && token.ExpiresIn > 0 {
 		expiresAt = s.now().Add(time.Duration(token.ExpiresIn) * time.Second)
 	}
-	credential, err := s.aiandCredentials.Upsert(ctx, UpsertAiandCredentialParams{
+	credentialParams := UpsertAiandCredentialParams{
 		InstallationID:         installation.ID,
 		AccessTokenCiphertext:  accessCipher,
 		RefreshTokenCiphertext: refreshCipher,
@@ -297,11 +326,67 @@ func (s *Service) completeAiandCredential(
 		UserEmail:              userEmail,
 		OrgID:                  orgID,
 		OrgName:                orgName,
+	}
+	if s.txRunner != nil {
+		return s.completeAiandCredentialTx(ctx, installation.ID, credentialParams, token)
+	}
+	return s.completeAiandCredentialLegacy(ctx, credentialParams, token)
+}
+
+// completeAiandCredentialTx writes the credential row and the propagated
+// external key on one transaction. Only a successful commit returns the
+// credential; the cache invalidation happens after it.
+func (s *Service) completeAiandCredentialTx(
+	ctx context.Context,
+	installationID string,
+	credentialParams UpsertAiandCredentialParams,
+	token AiandTokenResponse,
+) (*AiandCredential, error) {
+	var credential *AiandCredential
+	err := s.txRunner.InTx(ctx, func(tx Tx) error {
+		upserted, err := tx.AiandCredentials.Upsert(ctx, credentialParams)
+		if err != nil {
+			return err
+		}
+		create, err := s.externalAPIKeyCreateParams(installationID, UpsertExternalAPIKeyParams{
+			Provider: providers.ProviderAIAND,
+			RawKey:   token.AccessToken,
+		})
+		if err != nil {
+			return err
+		}
+		if _, err := tx.ExternalAPIKeys.Create(ctx, create); err != nil {
+			return fmt.Errorf("propagate aiand access token: %w", err)
+		}
+		credential = upserted
+		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	if _, err := s.UpsertExternalAPIKey(ctx, installation.ID, UpsertExternalAPIKeyParams{
+	s.invalidateInstallation(installationID)
+	// Plaintext fields are the in-memory view of the just-minted pair; the
+	// row's ciphertext fields stay as stored.
+	credential.Plaintext = []byte(token.AccessToken)
+	if token.RefreshToken != "" {
+		credential.PlainRefresh = []byte(token.RefreshToken)
+	}
+	return credential, nil
+}
+
+// completeAiandCredentialLegacy is the pre-TxRunner write order (credential
+// row, then external key, each on the pool). Kept for callers that wire no
+// TxRunner; production wires one.
+func (s *Service) completeAiandCredentialLegacy(
+	ctx context.Context,
+	credentialParams UpsertAiandCredentialParams,
+	token AiandTokenResponse,
+) (*AiandCredential, error) {
+	credential, err := s.aiandCredentials.Upsert(ctx, credentialParams)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := s.UpsertExternalAPIKey(ctx, credentialParams.InstallationID, UpsertExternalAPIKeyParams{
 		Provider: providers.ProviderAIAND,
 		RawKey:   token.AccessToken,
 	}); err != nil {
@@ -384,6 +469,9 @@ func (s *Service) DisconnectAiandCredential(ctx context.Context, installation *I
 	if err := s.externalKeys.SoftDeleteByProvider(ctx, installationID, providers.ProviderAIAND); err != nil {
 		return err
 	}
+	// An approval started before this disconnect must not silently reconnect
+	// afterward: drop any in-flight device login for the installation.
+	s.clearAiandPending(installationID)
 	s.invalidateInstallation(installationID)
 	return nil
 }

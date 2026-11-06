@@ -98,6 +98,7 @@ type Service struct {
 	// pending map is nil (and every aiand method refuses) until wired.
 	aiandGateway       AiandGateway
 	aiandCredentials   AiandCredentialRepository
+	txRunner           TxRunner
 	aiandHostname      string
 	aiandMu            sync.Mutex
 	aiandPending       map[string]*pendingAiandLogin
@@ -420,26 +421,53 @@ type UpsertExternalAPIKeyParams struct {
 
 // UpsertExternalAPIKey replaces the provider's key for the installation.
 func (s *Service) UpsertExternalAPIKey(ctx context.Context, installationID string, params UpsertExternalAPIKeyParams) (*ExternalAPIKey, error) {
+	create, err := s.externalAPIKeyCreateParams(installationID, params)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.externalKeys.SoftDeleteByProvider(ctx, installationID, create.Provider); err != nil {
+		return nil, err
+	}
+	key, err := s.externalKeys.Create(ctx, create)
+	if err != nil {
+		return nil, err
+	}
+	s.invalidateInstallation(installationID)
+	return key, nil
+}
+
+// externalAPIKeyCreateParams normalizes and seals one BYOK key upsert into
+// the repository create params. Split from UpsertExternalAPIKey so the
+// transactional credential-completion path performs the identical
+// normalization + sealing without the non-transactional repo writes.
+func (s *Service) externalAPIKeyCreateParams(installationID string, params UpsertExternalAPIKeyParams) (CreateExternalAPIKeyParams, error) {
+	return externalAPIKeyCreateParamsWith(s.encryptor, installationID, params)
+}
+
+// externalAPIKeyCreateParamsWith is the encryptor-parameterized core of
+// externalAPIKeyCreateParams, shared with LoginService's transactional
+// credential-completion path.
+func externalAPIKeyCreateParamsWith(encryptor Encryptor, installationID string, params UpsertExternalAPIKeyParams) (CreateExternalAPIKeyParams, error) {
 	provider, rawKey := params.Provider, params.RawKey
 	normalizedBaseURL, err := NormalizeBaseURL(params.BaseURL)
 	if err != nil {
-		return nil, err
+		return CreateExternalAPIKeyParams{}, err
 	}
 	normalizedAliases, err := NormalizeModelAliases(params.ModelAliases, params.AllowedModels)
 	if err != nil {
-		return nil, err
+		return CreateExternalAPIKeyParams{}, err
 	}
 	identityHeader, identityFormat, err := NormalizeIdentityHeader(params.IdentityHeader, params.IdentityHeaderFormat)
 	if err != nil {
-		return nil, err
+		return CreateExternalAPIKeyParams{}, err
 	}
 	forwardedHeaders, err := NormalizeForwardedClientHeaders(params.ForwardedClientHeaders)
 	if err != nil {
-		return nil, err
+		return CreateExternalAPIKeyParams{}, err
 	}
 	baggageHeader, err := NormalizeBaggageHeader(params.BaggageHeader)
 	if err != nil {
-		return nil, err
+		return CreateExternalAPIKeyParams{}, err
 	}
 	baggageName := ""
 	if baggageHeader != nil {
@@ -450,23 +478,20 @@ func (s *Service) UpsertExternalAPIKey(ctx context.Context, installationID strin
 		identityName = *identityHeader
 	}
 	if err := ValidateForwardingHeaderConfiguration(forwardedHeaders, baggageName, identityName); err != nil {
-		return nil, err
+		return CreateExternalAPIKeyParams{}, err
 	}
 	authType, err := NormalizeAuthType(params.AuthType)
 	if err != nil {
-		return nil, err
+		return CreateExternalAPIKeyParams{}, err
 	}
 	// Generate external ID first so it binds into the ciphertext as AAD.
 	externalID := GenerateID("ekid")
-	ciphertext, err := s.encryptor.Encrypt([]byte(rawKey), externalID, provider)
+	ciphertext, err := encryptor.Encrypt([]byte(rawKey), externalID, provider)
 	if err != nil {
-		return nil, err
-	}
-	if err := s.externalKeys.SoftDeleteByProvider(ctx, installationID, provider); err != nil {
-		return nil, err
+		return CreateExternalAPIKeyParams{}, err
 	}
 	hash, prefix, suffix := APITokenFingerprint(rawKey)
-	key, err := s.externalKeys.Create(ctx, CreateExternalAPIKeyParams{
+	return CreateExternalAPIKeyParams{
 		InstallationID: installationID,
 		ExternalID:     externalID,
 		Provider:       provider,
@@ -485,12 +510,7 @@ func (s *Service) UpsertExternalAPIKey(ctx context.Context, installationID strin
 
 		AuthType:  authType,
 		CreatedBy: params.CreatedBy,
-	})
-	if err != nil {
-		return nil, err
-	}
-	s.invalidateInstallation(installationID)
-	return key, nil
+	}, nil
 }
 
 // SetExternalAPIKeyModelAliases replaces a BYOK key's alias map; nil allowed skips catalog validation.

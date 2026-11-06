@@ -70,7 +70,7 @@ func PollAiandDeviceLoginHandler(authSvc *auth.Service) gin.HandlerFunc {
 			var slow *auth.AiandSlowDownError
 			if errors.As(err, &slow) {
 				c.Header("Retry-After", formatSeconds(slow.RetryAfter))
-				c.JSON(http.StatusTooManyRequests, gin.H{"error": "slow_down", "retry_after_seconds": int(slow.RetryAfter / time.Second)})
+				c.JSON(http.StatusPreconditionRequired, gin.H{"error": "slow_down"})
 				return
 			}
 			writeAiandAuthError(c, err)

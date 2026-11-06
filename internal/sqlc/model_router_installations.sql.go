@@ -86,6 +86,62 @@ func (q *Queries) CreateModelRouterInstallation(ctx context.Context, arg CreateM
 	return i, err
 }
 
+const getInstallationByID = `-- name: GetInstallationByID :one
+SELECT id, external_id, name, created_at, updated_at, deleted_at, created_by, excluded_models, excluded_providers, routing_quality_weight, preferred_models, routing_strategy, routing_rollout_id, policy_shadow_strategy, policy_debug_enabled, policy_header_overrides_enabled, policy_routing_intent, ai_training_allowed, byok_enabled, content_capture_mode, hide_terminal_surfaces, allowed_models, first_request_served_at, flag_overrides, models_when_subscription_active, models_when_subscription_inactive, trial_capture_enabled, trial_enrollment_id, trial_shadow_sample_rate, trial_shadow_daily_ceiling_usd_micros, show_model_selection_reasoning, subscription_state_models_enabled, models_excluded_when_subscription_active, models_excluded_when_subscription_inactive
+FROM router.model_router_installations
+WHERE id = $1::uuid
+`
+
+// The session-middleware and login-path lookup by id. Unlike the
+// external_id-scoped updates below, this is the trusted internal read:
+// accounts.installation_id is router-owned, so no external_id guard applies.
+// Includes soft-deleted rows so callers can decide their own failure mode.
+//
+//	SELECT id, external_id, name, created_at, updated_at, deleted_at, created_by, excluded_models, excluded_providers, routing_quality_weight, preferred_models, routing_strategy, routing_rollout_id, policy_shadow_strategy, policy_debug_enabled, policy_header_overrides_enabled, policy_routing_intent, ai_training_allowed, byok_enabled, content_capture_mode, hide_terminal_surfaces, allowed_models, first_request_served_at, flag_overrides, models_when_subscription_active, models_when_subscription_inactive, trial_capture_enabled, trial_enrollment_id, trial_shadow_sample_rate, trial_shadow_daily_ceiling_usd_micros, show_model_selection_reasoning, subscription_state_models_enabled, models_excluded_when_subscription_active, models_excluded_when_subscription_inactive
+//	FROM router.model_router_installations
+//	WHERE id = $1::uuid
+func (q *Queries) GetInstallationByID(ctx context.Context, id uuid.UUID) (RouterModelRouterInstallation, error) {
+	row := q.db.QueryRow(ctx, getInstallationByID, id)
+	var i RouterModelRouterInstallation
+	err := row.Scan(
+		&i.ID,
+		&i.ExternalID,
+		&i.Name,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.CreatedBy,
+		&i.ExcludedModels,
+		&i.ExcludedProviders,
+		&i.RoutingQualityWeight,
+		&i.PreferredModels,
+		&i.RoutingStrategy,
+		&i.RoutingRolloutID,
+		&i.PolicyShadowStrategy,
+		&i.PolicyDebugEnabled,
+		&i.PolicyHeaderOverridesEnabled,
+		&i.PolicyRoutingIntent,
+		&i.AiTrainingAllowed,
+		&i.ByokEnabled,
+		&i.ContentCaptureMode,
+		&i.HideTerminalSurfaces,
+		&i.AllowedModels,
+		&i.FirstRequestServedAt,
+		&i.FlagOverrides,
+		&i.ModelsWhenSubscriptionActive,
+		&i.ModelsWhenSubscriptionInactive,
+		&i.TrialCaptureEnabled,
+		&i.TrialEnrollmentID,
+		&i.TrialShadowSampleRate,
+		&i.TrialShadowDailyCeilingUsdMicros,
+		&i.ShowModelSelectionReasoning,
+		&i.SubscriptionStateModelsEnabled,
+		&i.ModelsExcludedWhenSubscriptionActive,
+		&i.ModelsExcludedWhenSubscriptionInactive,
+	)
+	return i, err
+}
+
 const listModelRouterInstallationsForExternalID = `-- name: ListModelRouterInstallationsForExternalID :many
 SELECT id, external_id, name, created_at, updated_at, deleted_at, created_by, excluded_models, excluded_providers, routing_quality_weight, preferred_models, routing_strategy, routing_rollout_id, policy_shadow_strategy, policy_debug_enabled, policy_header_overrides_enabled, policy_routing_intent, ai_training_allowed, byok_enabled, content_capture_mode, hide_terminal_surfaces, allowed_models, first_request_served_at, flag_overrides, models_when_subscription_active, models_when_subscription_inactive, trial_capture_enabled, trial_enrollment_id, trial_shadow_sample_rate, trial_shadow_daily_ceiling_usd_micros, show_model_selection_reasoning, subscription_state_models_enabled, models_excluded_when_subscription_active, models_excluded_when_subscription_inactive
 FROM router.model_router_installations

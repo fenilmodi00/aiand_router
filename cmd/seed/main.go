@@ -21,14 +21,18 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// Seed into the admin installation so the seeded rk_... key (and any
+// BYOK provider keys added through the dashboard) all live on the same
+// installation. Using a separate "local-dev" installation made the
+// seeded key invisible to the dashboard and made dashboard-added BYOK
+// keys invisible to requests authenticated with the seeded token.
+//
+// These values must stay in sync with the dashboard-owned installation
+// identity the admin auth flow creates (issue #115): the seed's
+// ON CONFLICT (external_id, name) upsert relies on matching it.
 const (
-	// Seed into the admin installation so the seeded rk_... key (and any
-	// BYOK provider keys added through the dashboard) all live on the same
-	// installation. Using a separate "local-dev" installation made the
-	// seeded key invisible to the dashboard and made dashboard-added BYOK
-	// keys invisible to requests authenticated with the seeded token.
-	defaultOrgID = auth.AdminInstallationExternalID
-	defaultName  = auth.AdminInstallationName
+	defaultOrgID = "__router_admin__"
+	defaultName  = "Dashboard"
 	createdBy    = "make seed"
 	baseURL      = "http://localhost:8080"
 )

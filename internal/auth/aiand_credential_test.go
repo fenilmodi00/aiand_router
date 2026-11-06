@@ -3,6 +3,7 @@ package auth_test
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -11,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"aiand-os/router/internal/aiandauth"
 	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/observability"
 	"aiand-os/router/internal/providers"
 
 	"github.com/stretchr/testify/assert"
@@ -32,7 +33,7 @@ type fakeAiandGateway struct {
 	// fail one installation's rotation without failing every row's.
 	refreshFailsFor map[string]bool
 	revokeErr       error
-	validateUser    aiandauth.User
+	validateUser    auth.AiandUser
 	validateErr     error
 
 	starts  []string // key_name arguments
@@ -42,45 +43,45 @@ type fakeAiandGateway struct {
 }
 
 type startResult struct {
-	code aiandauth.DeviceCode
+	code auth.AiandDeviceCode
 	err  error
 }
 
 type pollResult struct {
-	token aiandauth.TokenResponse
+	token auth.AiandTokenResponse
 	err   error
 }
 
-func (f *fakeAiandGateway) DeviceCodeStart(_ context.Context, keyName string) (aiandauth.DeviceCode, error) {
+func (f *fakeAiandGateway) DeviceCodeStart(_ context.Context, keyName string) (auth.AiandDeviceCode, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.starts = append(f.starts, keyName)
 	if len(f.startResponses) == 0 {
-		return aiandauth.DeviceCode{}, errors.New("no scripted start response")
+		return auth.AiandDeviceCode{}, errors.New("no scripted start response")
 	}
 	out := f.startResponses[0]
 	f.startResponses = f.startResponses[1:]
 	return out.code, out.err
 }
 
-func (f *fakeAiandGateway) PollToken(_ context.Context, deviceCode string) (aiandauth.TokenResponse, error) {
+func (f *fakeAiandGateway) PollToken(_ context.Context, deviceCode string) (auth.AiandTokenResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.polls = append(f.polls, deviceCode)
 	if len(f.pollResponses) == 0 {
-		return aiandauth.TokenResponse{}, errors.New("no scripted poll response")
+		return auth.AiandTokenResponse{}, errors.New("no scripted poll response")
 	}
 	out := f.pollResponses[0]
 	f.pollResponses = f.pollResponses[1:]
 	return out.token, out.err
 }
 
-func (f *fakeAiandGateway) RefreshToken(_ context.Context, refreshToken string) (aiandauth.TokenResponse, error) {
+func (f *fakeAiandGateway) RefreshToken(_ context.Context, refreshToken string) (auth.AiandTokenResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.refresh = append(f.refresh, refreshToken)
 	if f.refreshFailsFor[refreshToken] {
-		return aiandauth.TokenResponse{}, aiandauth.ErrGateway
+		return auth.AiandTokenResponse{}, auth.ErrAiandGateway
 	}
 	return f.refreshResult.token, f.refreshErr
 }
@@ -92,7 +93,7 @@ func (f *fakeAiandGateway) Revoke(_ context.Context, refreshToken string) error 
 	return f.revokeErr
 }
 
-func (f *fakeAiandGateway) ValidateKey(_ context.Context, key string) (aiandauth.User, error) {
+func (f *fakeAiandGateway) ValidateKey(_ context.Context, key string) (auth.AiandUser, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.validateUser, f.validateErr
@@ -246,7 +247,7 @@ var testInstallation = &auth.Installation{ID: "inst-1", ExternalID: "ext-1"}
 
 func TestStartAiandDeviceLogin_ReturnsUserCodeAndRecordsPending(t *testing.T) {
 	gateway := &fakeAiandGateway{startResponses: []startResult{{
-		code: aiandauth.DeviceCode{
+		code: auth.AiandDeviceCode{
 			DeviceCode: "dc-secret", UserCode: "ABCD-1234",
 			VerificationURI: "https://api.aiand.com/device", ExpiresIn: 900, Interval: 5,
 		},
@@ -263,14 +264,13 @@ func TestStartAiandDeviceLogin_ReturnsUserCodeAndRecordsPending(t *testing.T) {
 	assert.Equal(t, 5, login.Interval)
 	require.Len(t, gateway.starts, 1)
 	assert.Equal(t, "aiand-router@router-host", gateway.starts[0], "gateway key_name must label this router host")
-	assert.Equal(t, aiandauth.ClientID, "aiand-router")
 
 	// A second start replaces the pending one (singleton per installation).
-	gateway.startResponses = []startResult{{code: aiandauth.DeviceCode{DeviceCode: "dc-2", UserCode: "ZZZZ-9999", Interval: 5}}}
+	gateway.startResponses = []startResult{{code: auth.AiandDeviceCode{DeviceCode: "dc-2", UserCode: "ZZZZ-9999", Interval: 5}}}
 	_, err = svc.StartAiandDeviceLogin(context.Background(), testInstallation)
 	require.NoError(t, err)
 
-	gateway.pollResponses = []pollResult{{token: aiandauth.TokenResponse{AccessToken: "sk-a", RefreshToken: "r", ExpiresIn: 60}}}
+	gateway.pollResponses = []pollResult{{token: auth.AiandTokenResponse{AccessToken: "sk-a", RefreshToken: "r", ExpiresIn: 60}}}
 	outcome, err := svc.PollAiandDeviceLogin(context.Background(), testInstallation)
 	require.NoError(t, err)
 	require.Equal(t, auth.AiandPollStatusAuthorized, outcome.Status)
@@ -287,8 +287,8 @@ func TestPollAiandDeviceLogin_NoPendingLoginIsError(t *testing.T) {
 func TestPollAiandDeviceLogin_OutcomeStatuses(t *testing.T) {
 	t.Run("pending stays pending", func(t *testing.T) {
 		gateway := &fakeAiandGateway{
-			startResponses: []startResult{{code: aiandauth.DeviceCode{DeviceCode: "dc-1", Interval: 5}}},
-			pollResponses:  []pollResult{{err: aiandauth.ErrAuthorizationPending}},
+			startResponses: []startResult{{code: auth.AiandDeviceCode{DeviceCode: "dc-1", Interval: 5}}},
+			pollResponses:  []pollResult{{err: auth.ErrAiandAuthorizationPending}},
 		}
 		svc := makeAiandService(t, gateway, newFakeAiandCredentialRepo(), &recordingExternalKeyRepo{})
 		_, err := svc.StartAiandDeviceLogin(context.Background(), testInstallation)
@@ -300,8 +300,8 @@ func TestPollAiandDeviceLogin_OutcomeStatuses(t *testing.T) {
 
 	t.Run("slow_down raises interval by five", func(t *testing.T) {
 		gateway := &fakeAiandGateway{
-			startResponses: []startResult{{code: aiandauth.DeviceCode{DeviceCode: "dc-1", Interval: 5}}},
-			pollResponses:  []pollResult{{err: aiandauth.ErrSlowDown}},
+			startResponses: []startResult{{code: auth.AiandDeviceCode{DeviceCode: "dc-1", Interval: 5}}},
+			pollResponses:  []pollResult{{err: auth.ErrAiandSlowDown}},
 		}
 		svc := makeAiandService(t, gateway, newFakeAiandCredentialRepo(), &recordingExternalKeyRepo{})
 		_, err := svc.StartAiandDeviceLogin(context.Background(), testInstallation)
@@ -315,8 +315,8 @@ func TestPollAiandDeviceLogin_OutcomeStatuses(t *testing.T) {
 
 	t.Run("denied clears pending", func(t *testing.T) {
 		gateway := &fakeAiandGateway{
-			startResponses: []startResult{{code: aiandauth.DeviceCode{DeviceCode: "dc-1", Interval: 5}}},
-			pollResponses:  []pollResult{{err: aiandauth.ErrAccessDenied}},
+			startResponses: []startResult{{code: auth.AiandDeviceCode{DeviceCode: "dc-1", Interval: 5}}},
+			pollResponses:  []pollResult{{err: auth.ErrAiandAccessDenied}},
 		}
 		svc := makeAiandService(t, gateway, newFakeAiandCredentialRepo(), &recordingExternalKeyRepo{})
 		_, err := svc.StartAiandDeviceLogin(context.Background(), testInstallation)
@@ -330,8 +330,8 @@ func TestPollAiandDeviceLogin_OutcomeStatuses(t *testing.T) {
 
 	t.Run("expired clears pending", func(t *testing.T) {
 		gateway := &fakeAiandGateway{
-			startResponses: []startResult{{code: aiandauth.DeviceCode{DeviceCode: "dc-1", Interval: 5}}},
-			pollResponses:  []pollResult{{err: aiandauth.ErrExpiredToken}},
+			startResponses: []startResult{{code: auth.AiandDeviceCode{DeviceCode: "dc-1", Interval: 5}}},
+			pollResponses:  []pollResult{{err: auth.ErrAiandExpiredToken}},
 		}
 		svc := makeAiandService(t, gateway, newFakeAiandCredentialRepo(), &recordingExternalKeyRepo{})
 		_, err := svc.StartAiandDeviceLogin(context.Background(), testInstallation)
@@ -343,8 +343,8 @@ func TestPollAiandDeviceLogin_OutcomeStatuses(t *testing.T) {
 
 	t.Run("gateway failure is 502-shaped error", func(t *testing.T) {
 		gateway := &fakeAiandGateway{
-			startResponses: []startResult{{code: aiandauth.DeviceCode{DeviceCode: "dc-1", Interval: 5}}},
-			pollResponses:  []pollResult{{err: aiandauth.ErrGateway}},
+			startResponses: []startResult{{code: auth.AiandDeviceCode{DeviceCode: "dc-1", Interval: 5}}},
+			pollResponses:  []pollResult{{err: auth.ErrAiandGateway}},
 		}
 		svc := makeAiandService(t, gateway, newFakeAiandCredentialRepo(), &recordingExternalKeyRepo{})
 		_, err := svc.StartAiandDeviceLogin(context.Background(), testInstallation)
@@ -356,10 +356,10 @@ func TestPollAiandDeviceLogin_OutcomeStatuses(t *testing.T) {
 
 func TestPollAiandDeviceLogin_AuthorizedPersistsAndPropagates(t *testing.T) {
 	gateway := &fakeAiandGateway{
-		startResponses: []startResult{{code: aiandauth.DeviceCode{DeviceCode: "dc-1", Interval: 5}}},
-		pollResponses: []pollResult{{token: aiandauth.TokenResponse{
+		startResponses: []startResult{{code: auth.AiandDeviceCode{DeviceCode: "dc-1", Interval: 5}}},
+		pollResponses: []pollResult{{token: auth.AiandTokenResponse{
 			AccessToken: "sk-aiand-123456789", RefreshToken: "rt-1", ExpiresIn: 3600,
-			Org: &aiandauth.Org{ID: "org-1", Name: "Acme"},
+			Org: &auth.AiandOrg{ID: "org-1", Name: "Acme"},
 		}}},
 	}
 	creds := newFakeAiandCredentialRepo()
@@ -397,7 +397,7 @@ func TestPollAiandDeviceLogin_AuthorizedPersistsAndPropagates(t *testing.T) {
 }
 
 func TestCompleteAiandPasteLogin_RejectedKeyIsInvalidSentinel(t *testing.T) {
-	gateway := &fakeAiandGateway{validateErr: aiandauth.ErrInvalidKey}
+	gateway := &fakeAiandGateway{validateErr: auth.ErrAiandInvalidKey}
 	creds := newFakeAiandCredentialRepo()
 	svc := makeAiandService(t, gateway, creds, &recordingExternalKeyRepo{})
 
@@ -407,7 +407,7 @@ func TestCompleteAiandPasteLogin_RejectedKeyIsInvalidSentinel(t *testing.T) {
 }
 
 func TestCompleteAiandPasteLogin_SuccessStoresPasteOriginWithoutRefresh(t *testing.T) {
-	gateway := &fakeAiandGateway{validateUser: aiandauth.User{ID: "user-1", Email: "ops@example.com"}}
+	gateway := &fakeAiandGateway{validateUser: auth.AiandUser{ID: "user-1", Email: "ops@example.com"}}
 	creds := newFakeAiandCredentialRepo()
 	external := &recordingExternalKeyRepo{}
 	svc := makeAiandService(t, gateway, creds, external)
@@ -420,7 +420,8 @@ func TestCompleteAiandPasteLogin_SuccessStoresPasteOriginWithoutRefresh(t *testi
 	require.Len(t, creds.upserts, 1)
 	up := creds.upserts[0]
 	assert.Equal(t, auth.AiandOriginPaste, up.Origin)
-	assert.Empty(t, up.RefreshTokenCiphertext, "pasted keys have no refresh token")
+	assert.NotNil(t, up.RefreshTokenCiphertext, "empty bytea sentinel, never nil (refresh_token_ciphertext NOT NULL)")
+	assert.Equal(t, []byte{}, up.RefreshTokenCiphertext, "empty bytea sentinel, never nil (refresh_token_ciphertext NOT NULL)")
 	assert.Equal(t, []byte("sk-pasted-key-9999"), up.AccessTokenCiphertext)
 	require.Len(t, external.upserts, 1)
 	assert.Equal(t, "sk-pasted-key-9999", external.upserts[0].rawKey)
@@ -428,7 +429,7 @@ func TestCompleteAiandPasteLogin_SuccessStoresPasteOriginWithoutRefresh(t *testi
 
 func TestAiandCredentialStatus_MasksKeyAndReportsFields(t *testing.T) {
 	creds := newFakeAiandCredentialRepo()
-	svc := makeAiandService(t, &fakeAiandGateway{validateUser: aiandauth.User{Email: "ops@example.com"}}, creds, &recordingExternalKeyRepo{})
+	svc := makeAiandService(t, &fakeAiandGateway{validateUser: auth.AiandUser{Email: "ops@example.com"}}, creds, &recordingExternalKeyRepo{})
 
 	status, err := svc.AiandCredentialStatus(context.Background(), testInstallation)
 	require.NoError(t, err)
@@ -447,8 +448,8 @@ func TestAiandCredentialStatus_MasksKeyAndReportsFields(t *testing.T) {
 
 func TestDisconnectAiandCredential_RevokesDeviceTokenAndDeletesRow(t *testing.T) {
 	gateway := &fakeAiandGateway{
-		startResponses: []startResult{{code: aiandauth.DeviceCode{DeviceCode: "dc-1", Interval: 5}}},
-		pollResponses: []pollResult{{token: aiandauth.TokenResponse{
+		startResponses: []startResult{{code: auth.AiandDeviceCode{DeviceCode: "dc-1", Interval: 5}}},
+		pollResponses: []pollResult{{token: auth.AiandTokenResponse{
 			AccessToken: "sk-1", RefreshToken: "rt-revoke-me", ExpiresIn: 60,
 		}}},
 	}
@@ -470,7 +471,7 @@ func TestDisconnectAiandCredential_RevokesDeviceTokenAndDeletesRow(t *testing.T)
 	assert.Equal(t, providers.ProviderAIAND, external.deleted[len(external.deleted)-1], "the propagated aiand key must go with it")
 
 	// Paste-origin credentials have no refresh token to revoke.
-	pasteSvc := makeAiandService(t, &fakeAiandGateway{validateUser: aiandauth.User{Email: "x@y.z"}}, creds, external)
+	pasteSvc := makeAiandService(t, &fakeAiandGateway{validateUser: auth.AiandUser{Email: "x@y.z"}}, creds, external)
 	_, err = pasteSvc.CompleteAiandPasteLogin(context.Background(), testInstallation, "sk-2")
 	require.NoError(t, err)
 	require.NoError(t, svc.DisconnectAiandCredential(context.Background(), testInstallation))
@@ -479,9 +480,9 @@ func TestDisconnectAiandCredential_RevokesDeviceTokenAndDeletesRow(t *testing.T)
 
 func TestDisconnectAiandCredential_RevocationFailureIsNotFatal(t *testing.T) {
 	gateway := &fakeAiandGateway{
-		startResponses: []startResult{{code: aiandauth.DeviceCode{DeviceCode: "dc-1", Interval: 5}}},
-		pollResponses:  []pollResult{{token: aiandauth.TokenResponse{AccessToken: "sk-1", RefreshToken: "rt-1", ExpiresIn: 60}}},
-		revokeErr:      aiandauth.ErrGateway,
+		startResponses: []startResult{{code: auth.AiandDeviceCode{DeviceCode: "dc-1", Interval: 5}}},
+		pollResponses:  []pollResult{{token: auth.AiandTokenResponse{AccessToken: "sk-1", RefreshToken: "rt-1", ExpiresIn: 60}}},
+		revokeErr:      auth.ErrAiandGateway,
 	}
 	creds := newFakeAiandCredentialRepo()
 	svc := makeAiandService(t, gateway, creds, &recordingExternalKeyRepo{})
@@ -497,12 +498,12 @@ func TestDisconnectAiandCredential_RevocationFailureIsNotFatal(t *testing.T) {
 
 func TestRotateAiandCredentialIfExpiring(t *testing.T) {
 	deviceToken := func(access, refresh string) pollResult {
-		return pollResult{token: aiandauth.TokenResponse{AccessToken: access, RefreshToken: refresh, ExpiresIn: 3600}}
+		return pollResult{token: auth.AiandTokenResponse{AccessToken: access, RefreshToken: refresh, ExpiresIn: 3600}}
 	}
 
 	t.Run("rotates inside the window and re-propagates", func(t *testing.T) {
 		gateway := &fakeAiandGateway{
-			startResponses: []startResult{{code: aiandauth.DeviceCode{DeviceCode: "dc-1", Interval: 5}}},
+			startResponses: []startResult{{code: auth.AiandDeviceCode{DeviceCode: "dc-1", Interval: 5}}},
 			pollResponses:  []pollResult{deviceToken("sk-old", "rt-old")},
 			refreshResult:  deviceToken("sk-new", "rt-new"),
 		}
@@ -528,7 +529,7 @@ func TestRotateAiandCredentialIfExpiring(t *testing.T) {
 
 	t.Run("skips when expiry is outside the window", func(t *testing.T) {
 		gateway := &fakeAiandGateway{
-			startResponses: []startResult{{code: aiandauth.DeviceCode{DeviceCode: "dc-1", Interval: 5}}},
+			startResponses: []startResult{{code: auth.AiandDeviceCode{DeviceCode: "dc-1", Interval: 5}}},
 			pollResponses:  []pollResult{deviceToken("sk-old", "rt-old")},
 		}
 		creds := newFakeAiandCredentialRepo()
@@ -546,7 +547,7 @@ func TestRotateAiandCredentialIfExpiring(t *testing.T) {
 
 	t.Run("paste-origin credentials never rotate", func(t *testing.T) {
 		creds := newFakeAiandCredentialRepo()
-		gateway := &fakeAiandGateway{validateUser: aiandauth.User{Email: "x@y.z"}}
+		gateway := &fakeAiandGateway{validateUser: auth.AiandUser{Email: "x@y.z"}}
 		svc := makeAiandService(t, gateway, creds, &recordingExternalKeyRepo{})
 		_, err := svc.CompleteAiandPasteLogin(context.Background(), testInstallation, "sk-paste")
 		require.NoError(t, err)
@@ -597,8 +598,8 @@ func TestSweepExpiringAiandCredentials(t *testing.T) {
 	seedDeviceCredential := func(t *testing.T, svc *auth.Service, creds *fakeAiandCredentialRepo, outer *fakeAiandGateway, installation *auth.Installation) {
 		t.Helper()
 		gateway := &fakeAiandGateway{
-			startResponses: []startResult{{code: aiandauth.DeviceCode{DeviceCode: "dc-" + installation.ID, Interval: 5}}},
-			pollResponses:  []pollResult{{token: aiandauth.TokenResponse{AccessToken: "sk-" + installation.ID, RefreshToken: "rt-" + installation.ID, ExpiresIn: 60}}},
+			startResponses: []startResult{{code: auth.AiandDeviceCode{DeviceCode: "dc-" + installation.ID, Interval: 5}}},
+			pollResponses:  []pollResult{{token: auth.AiandTokenResponse{AccessToken: "sk-" + installation.ID, RefreshToken: "rt-" + installation.ID, ExpiresIn: 60}}},
 		}
 		// Swap the gateway in for the device login, then restore the one the
 		// sweep under test should drive.
@@ -612,7 +613,7 @@ func TestSweepExpiringAiandCredentials(t *testing.T) {
 
 	t.Run("rotates expiring rows and counts them", func(t *testing.T) {
 		gateway := &fakeAiandGateway{
-			refreshResult: pollResult{token: aiandauth.TokenResponse{AccessToken: "sk-new", RefreshToken: "rt-new", ExpiresIn: 3600}},
+			refreshResult: pollResult{token: auth.AiandTokenResponse{AccessToken: "sk-new", RefreshToken: "rt-new", ExpiresIn: 3600}},
 		}
 		creds := newFakeAiandCredentialRepo()
 		external := &recordingExternalKeyRepo{}
@@ -633,7 +634,7 @@ func TestSweepExpiringAiandCredentials(t *testing.T) {
 
 	t.Run("skips paste-origin rows without error", func(t *testing.T) {
 		creds := newFakeAiandCredentialRepo()
-		svc := makeAiandService(t, &fakeAiandGateway{validateUser: aiandauth.User{Email: "x@y.z"}}, creds, &recordingExternalKeyRepo{})
+		svc := makeAiandService(t, &fakeAiandGateway{validateUser: auth.AiandUser{Email: "x@y.z"}}, creds, &recordingExternalKeyRepo{})
 		_, err := svc.CompleteAiandPasteLogin(context.Background(), testInstallation, "sk-paste")
 		require.NoError(t, err)
 
@@ -645,7 +646,7 @@ func TestSweepExpiringAiandCredentials(t *testing.T) {
 	t.Run("continues past a failing installation", func(t *testing.T) {
 		other := &auth.Installation{ID: "inst-2", ExternalID: "ext-2"}
 		gateway := &fakeAiandGateway{
-			refreshResult: pollResult{token: aiandauth.TokenResponse{AccessToken: "sk-new-2", RefreshToken: "rt-new-2", ExpiresIn: 3600}},
+			refreshResult: pollResult{token: auth.AiandTokenResponse{AccessToken: "sk-new-2", RefreshToken: "rt-new-2", ExpiresIn: 3600}},
 		}
 		creds := newFakeAiandCredentialRepo()
 		svc := makeAiandService(t, gateway, creds, &recordingExternalKeyRepo{})
@@ -674,4 +675,230 @@ func TestSweepExpiringAiandCredentials(t *testing.T) {
 		_, err := svc.SweepExpiringAiandCredentials(context.Background(), 72*time.Hour)
 		assert.ErrorIs(t, err, auth.ErrAiandGatewayUnavailable)
 	})
+}
+
+// fakeTxRunner drives InTx through a fixed repo set and can fail a chosen
+// invocation, simulating a transient gateway/DB failure inside the
+// persistence transaction.
+type fakeTxRunner struct {
+	mu       sync.Mutex
+	runs     int
+	failRun  int // 1-based; 0 never fails
+	failWith error
+	tx       auth.Tx
+}
+
+func (f *fakeTxRunner) InTx(_ context.Context, fn func(auth.Tx) error) error {
+	f.mu.Lock()
+	f.runs++
+	fail := f.failRun > 0 && f.runs == f.failRun
+	f.mu.Unlock()
+	if fail {
+		return f.failWith
+	}
+	return fn(f.tx)
+}
+
+func (f *fakeTxRunner) runCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.runs
+}
+
+// startAndScriptToken starts a device login and scripts one successful token
+// exchange, leaving the service one completion away from authorized.
+func startAndScriptToken(t *testing.T, svc *auth.Service, gateway *fakeAiandGateway) {
+	t.Helper()
+	gateway.startResponses = []startResult{{code: auth.AiandDeviceCode{
+		DeviceCode: "dc-secret-value-xyz", UserCode: "ABCD-1234", Interval: 5,
+	}}}
+	gateway.pollResponses = []pollResult{{token: auth.AiandTokenResponse{
+		AccessToken: "sk-aiand-topsecret", RefreshToken: "rt-secret-value", ExpiresIn: 3600,
+	}}}
+	_, err := svc.StartAiandDeviceLogin(context.Background(), testInstallation)
+	require.NoError(t, err)
+}
+
+// TestPollAiandDeviceLogin_FailedCompletionKeepsAttemptPollable proves the
+// #116 lifecycle fix: a persistence failure after the token exchange does not
+// consume the attempt — the retry completes without ErrAiandLoginPending —
+// and the change notifier fires exactly once, only after the commit.
+func TestPollAiandDeviceLogin_FailedCompletionKeepsAttemptPollable(t *testing.T) {
+	gateway := &fakeAiandGateway{}
+	creds := newFakeAiandCredentialRepo()
+	external := &recordingExternalKeyRepo{}
+	notifier := &recordingNotifier{}
+	runner := &fakeTxRunner{
+		tx:       auth.Tx{AiandCredentials: creds, ExternalAPIKeys: external},
+		failRun:  1,
+		failWith: errors.New("db connection reset"),
+	}
+	svc := makeAiandService(t, gateway, creds, external).
+		WithTxRunner(runner).
+		WithInstallationChangeNotifier(notifier)
+	startAndScriptToken(t, svc, gateway)
+	gateway.pollResponses = append(gateway.pollResponses, pollResult{token: auth.AiandTokenResponse{
+		AccessToken: "sk-aiand-topsecret", RefreshToken: "rt-secret-value", ExpiresIn: 3600,
+	}})
+
+	// First poll: token exchange succeeds, the transaction fails.
+	_, err := svc.PollAiandDeviceLogin(context.Background(), testInstallation)
+	require.Error(t, err)
+
+	// The attempt is still pollable: retry succeeds without the pending error.
+	outcome, err := svc.PollAiandDeviceLogin(context.Background(), testInstallation)
+	require.NoError(t, err)
+	assert.Equal(t, auth.AiandPollStatusAuthorized, outcome.Status,
+		"the retry must complete the login, not surface ErrAiandLoginPending")
+
+	// Notifier fired exactly once, after the commit, with the installation id.
+	assert.Equal(t, []string{"inst-1"}, notifier.snapshot(),
+		"exactly one invalidation after the committed completion")
+	assert.Equal(t, 2, runner.runCount(), "one failed transaction, one committed")
+}
+
+// TestPollAiandDeviceLogin_TerminalOutcomesClearPendingImmediately proves
+// denial and expiry consume the attempt even when a tx runner is wired:
+// terminal outcomes never depend on the persistence path.
+func TestPollAiandDeviceLogin_TerminalOutcomesClearPendingImmediately(t *testing.T) {
+	t.Run("denied", func(t *testing.T) {
+		gateway := &fakeAiandGateway{}
+		creds := newFakeAiandCredentialRepo()
+		external := &recordingExternalKeyRepo{}
+		runner := &fakeTxRunner{tx: auth.Tx{AiandCredentials: creds, ExternalAPIKeys: external}}
+		svc := makeAiandService(t, gateway, creds, external).WithTxRunner(runner)
+		gateway.startResponses = []startResult{{code: auth.AiandDeviceCode{DeviceCode: "dc-1", Interval: 5}}}
+		gateway.pollResponses = []pollResult{{err: auth.ErrAiandAccessDenied}}
+		_, err := svc.StartAiandDeviceLogin(context.Background(), testInstallation)
+		require.NoError(t, err)
+		outcome, err := svc.PollAiandDeviceLogin(context.Background(), testInstallation)
+		require.NoError(t, err)
+		assert.Equal(t, auth.AiandPollStatusDenied, outcome.Status)
+		_, err = svc.PollAiandDeviceLogin(context.Background(), testInstallation)
+		assert.ErrorIs(t, err, auth.ErrAiandLoginPending, "denied must clear the attempt immediately")
+	})
+	t.Run("expired", func(t *testing.T) {
+		gateway := &fakeAiandGateway{}
+		creds := newFakeAiandCredentialRepo()
+		external := &recordingExternalKeyRepo{}
+		runner := &fakeTxRunner{tx: auth.Tx{AiandCredentials: creds, ExternalAPIKeys: external}}
+		svc := makeAiandService(t, gateway, creds, external).WithTxRunner(runner)
+		gateway.startResponses = []startResult{{code: auth.AiandDeviceCode{DeviceCode: "dc-1", Interval: 5}}}
+		gateway.pollResponses = []pollResult{{err: auth.ErrAiandExpiredToken}}
+		_, err := svc.StartAiandDeviceLogin(context.Background(), testInstallation)
+		require.NoError(t, err)
+		outcome, err := svc.PollAiandDeviceLogin(context.Background(), testInstallation)
+		require.NoError(t, err)
+		assert.Equal(t, auth.AiandPollStatusExpired, outcome.Status)
+		_, err = svc.PollAiandDeviceLogin(context.Background(), testInstallation)
+		assert.ErrorIs(t, err, auth.ErrAiandLoginPending, "expired must clear the attempt immediately")
+	})
+}
+
+// TestDisconnectAiandCredential_ClearsInFlightPending proves a browser
+// approval started before a disconnect cannot silently reconnect afterward.
+func TestDisconnectAiandCredential_ClearsInFlightPending(t *testing.T) {
+	creds := newFakeAiandCredentialRepo()
+	svc := makeAiandService(t, &fakeAiandGateway{}, creds, &recordingExternalKeyRepo{})
+	gateway := &fakeAiandGateway{startResponses: []startResult{{code: auth.AiandDeviceCode{
+		DeviceCode: "dc-1", Interval: 5,
+	}}}}
+	svc.WithAiandGateway(gateway, creds, "router-host")
+	_, err := svc.StartAiandDeviceLogin(context.Background(), testInstallation)
+	require.NoError(t, err)
+
+	require.NoError(t, svc.DisconnectAiandCredential(context.Background(), testInstallation))
+
+	_, err = svc.PollAiandDeviceLogin(context.Background(), testInstallation)
+	assert.ErrorIs(t, err, auth.ErrAiandLoginPending,
+		"a pending approval must not survive a disconnect")
+}
+
+// captureLogHandler records each emitted line whole, message plus attrs.
+type captureLogHandler struct {
+	mu    sync.Mutex
+	lines []string
+}
+
+func (h *captureLogHandler) Enabled(context.Context, slog.Level) bool { return true }
+
+func (h *captureLogHandler) Handle(_ context.Context, r slog.Record) error {
+	var b strings.Builder
+	b.WriteString(r.Message)
+	r.Attrs(func(a slog.Attr) bool {
+		b.WriteString(" " + a.Key + "=")
+		if err, ok := a.Value.Any().(error); ok {
+			b.WriteString(err.Error())
+		} else {
+			b.WriteString(a.Value.String())
+		}
+		return true
+	})
+	h.mu.Lock()
+	h.lines = append(h.lines, b.String())
+	h.mu.Unlock()
+	return nil
+}
+
+func (h *captureLogHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
+func (h *captureLogHandler) WithGroup(string) slog.Handler      { return h }
+
+// TestPollAiandDeviceLogin_OutcomeLoggedWithoutSecrets drives every poll
+// outcome through a capture handler and asserts each outcome is logged at
+// debug while no device code, user code, or token material reaches any line.
+func TestPollAiandDeviceLogin_OutcomeLoggedWithoutSecrets(t *testing.T) {
+	type testCase struct {
+		name           string
+		poll           pollResult
+		failTxRun      int
+		expectedStatus string
+	}
+	cases := []testCase{
+		{name: "pending", poll: pollResult{err: auth.ErrAiandAuthorizationPending}, expectedStatus: "pending"},
+		{name: "slow_down", poll: pollResult{err: auth.ErrAiandSlowDown}, expectedStatus: "slow_down"},
+		{name: "denied", poll: pollResult{err: auth.ErrAiandAccessDenied}, expectedStatus: "denied"},
+		{name: "expired", poll: pollResult{err: auth.ErrAiandExpiredToken}, expectedStatus: "expired"},
+		{name: "authorized", poll: pollResult{token: auth.AiandTokenResponse{
+			AccessToken: "sk-aiand-topsecret", RefreshToken: "rt-secret-value", ExpiresIn: 3600,
+		}}, expectedStatus: "authorized"},
+		{name: "failed completion", poll: pollResult{token: auth.AiandTokenResponse{
+			AccessToken: "sk-aiand-topsecret", RefreshToken: "rt-secret-value", ExpiresIn: 3600,
+		}}, failTxRun: 1, expectedStatus: "failed"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			handler := &captureLogHandler{}
+			logger := slog.New(handler)
+			ctx := observability.WithLogger(context.Background(), logger)
+
+			gateway := &fakeAiandGateway{}
+			creds := newFakeAiandCredentialRepo()
+			external := &recordingExternalKeyRepo{}
+			runner := &fakeTxRunner{
+				tx:       auth.Tx{AiandCredentials: creds, ExternalAPIKeys: external},
+				failRun:  tc.failTxRun,
+				failWith: errors.New("db connection reset"),
+			}
+			svc := makeAiandService(t, gateway, creds, external).WithTxRunner(runner)
+			startAndScriptToken(t, svc, gateway)
+			gateway.pollResponses = []pollResult{tc.poll}
+
+			_, _ = svc.PollAiandDeviceLogin(ctx, testInstallation)
+
+			require.NotEmpty(t, handler.lines, "every poll outcome must be logged")
+			found := false
+			for _, line := range handler.lines {
+				assert.Contains(t, line, "aiand: device login poll outcome")
+				assert.Contains(t, line, "poll_status="+tc.expectedStatus)
+				for _, secret := range []string{"dc-secret-value-xyz", "ABCD-1234", "sk-aiand-topsecret", "rt-secret-value", "secret"} {
+					assert.NotContains(t, line, secret, "no device code, user code, or token material may reach the logs")
+				}
+				assert.NotContains(t, line, "device_code")
+				assert.NotContains(t, line, "user_code")
+				assert.NotContains(t, line, "access_token")
+				found = true
+			}
+			assert.True(t, found)
+		})
+	}
 }

@@ -334,7 +334,30 @@ func main() {
 		// Empty AIAND_AUTH_URL selects the production gateway, nil keeps the
 		// client's bounded-timeout HTTP transport, and an empty hostname makes
 		// the service label minted keys with os.Hostname().
-		WithAiandGateway(aiandauth.NewClient(config.GetOr("AIAND_AUTH_URL", aiandauth.DefaultAuthURL), nil), repo.AiandCredentials, "")
+		WithAiandGateway(aiandauth.NewClient(config.GetOr("AIAND_AUTH_URL", aiandauth.DefaultAuthURL), nil), repo.AiandCredentials, "").
+		WithTxRunner(postgres.NewTxRunner(pool, encryptor))
+	// SaaS dashboard login (device flow + paste key): a separate service from
+	// authSvc by design — see docs/plans/2026-11-06-saas-auth-reform-design.md
+	// §Backend 2. The gateway client is shared: it is stateless. The same
+	// postgres TxRunner carries the login unit of work's tx-scoped repos.
+	loginSvc, err := auth.NewLoginService(
+		repo.Accounts,
+		repo.Sessions,
+		repo.LoginAttempts,
+		repo.Installations,
+		repo.AiandCredentials,
+		repo.ExternalAPIKeys,
+		aiandauth.NewClient(config.GetOr("AIAND_AUTH_URL", aiandauth.DefaultAuthURL), nil),
+		encryptor,
+		postgres.NewTxRunner(pool, encryptor),
+		time.Now,
+		notifier,
+	)
+	if err != nil {
+		logger.Error("Failed to build login service", "err", err)
+		panic(err)
+	}
+	_ = loginSvc // T7 consumes this for the /account/v1 handlers.
 	// Fans out Pub/Sub invalidations to this replica's cache; the 5-min TTL
 	// is the safety net if the listener falls behind.
 	subCtx, subCancel := context.WithTimeout(context.Background(), 30*time.Second)

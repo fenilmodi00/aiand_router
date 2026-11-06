@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"aiand-os/router/internal/aiandauth"
+	"aiand-os/router/internal/auth"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -126,11 +127,11 @@ func TestPollToken_ErrorVariantsMapToSentinels(t *testing.T) {
 		body    string
 		wantErr error
 	}{
-		{"authorization_pending", http.StatusBadRequest, `{"error": "authorization_pending", "error_description": "still waiting"}`, aiandauth.ErrAuthorizationPending},
-		{"slow_down", http.StatusBadRequest, `{"error": "slow_down"}`, aiandauth.ErrSlowDown},
-		{"access_denied", http.StatusForbidden, `{"error": "access_denied", "error_description": "no"}`, aiandauth.ErrAccessDenied},
-		{"expired_token", http.StatusBadRequest, `{"error": "expired_token"}`, aiandauth.ErrExpiredToken},
-		{"unrecognized_error_code", http.StatusBadRequest, `{"error": "mystery"}`, aiandauth.ErrGateway},
+		{"authorization_pending", http.StatusBadRequest, `{"error": "authorization_pending", "error_description": "still waiting"}`, auth.ErrAiandAuthorizationPending},
+		{"slow_down", http.StatusBadRequest, `{"error": "slow_down"}`, auth.ErrAiandSlowDown},
+		{"access_denied", http.StatusForbidden, `{"error": "access_denied", "error_description": "no"}`, auth.ErrAiandAccessDenied},
+		{"expired_token", http.StatusBadRequest, `{"error": "expired_token"}`, auth.ErrAiandExpiredToken},
+		{"unrecognized_error_code", http.StatusBadRequest, `{"error": "mystery"}`, auth.ErrAiandGateway},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -173,7 +174,7 @@ func TestRevoke_PostsRefreshTokenToLogout(t *testing.T) {
 
 func TestRevoke_ServerFailureSurfacesAsError(t *testing.T) {
 	client, _ := captureServer(t, http.StatusInternalServerError, `{"error": "boom"}`)
-	assert.ErrorIs(t, client.Revoke(context.Background(), "rt"), aiandauth.ErrGateway)
+	assert.ErrorIs(t, client.Revoke(context.Background(), "rt"), auth.ErrAiandGateway)
 }
 
 func TestValidateKey_SendsBearerAndReturnsUser(t *testing.T) {
@@ -191,13 +192,13 @@ func TestValidateKey_SendsBearerAndReturnsUser(t *testing.T) {
 func TestValidateKey_RejectedKeyIsSentinelNotGatewayFailure(t *testing.T) {
 	client, _ := captureServer(t, http.StatusUnauthorized, `{"error": "invalid"}`)
 	_, err := client.ValidateKey(context.Background(), "sk-bad")
-	assert.ErrorIs(t, err, aiandauth.ErrInvalidKey)
+	assert.ErrorIs(t, err, auth.ErrAiandInvalidKey)
 }
 
 func TestValidateKey_ServerProblemIsNotKeyRejection(t *testing.T) {
 	client, _ := captureServer(t, http.StatusBadGateway, `<html>no</html>`)
 	_, err := client.ValidateKey(context.Background(), "sk-fine")
-	assert.ErrorIs(t, err, aiandauth.ErrGateway, "5xx must not be read as a verdict on the key")
+	assert.ErrorIs(t, err, auth.ErrAiandGateway, "5xx must not be read as a verdict on the key")
 }
 
 func TestListOrgs_DecodesArray(t *testing.T) {
@@ -217,14 +218,14 @@ func TestUnreachableGatewayIsErrGateway(t *testing.T) {
 	// depending on external network state.
 	client := aiandauth.NewClient("http://127.0.0.1:1", &http.Client{Timeout: 2 * time.Second})
 	_, err := client.DeviceCodeStart(context.Background(), "aiand-router@x")
-	assert.ErrorIs(t, err, aiandauth.ErrGateway)
+	assert.ErrorIs(t, err, auth.ErrAiandGateway)
 }
 
 func TestInvalidJSONResponseIsErrGateway(t *testing.T) {
 	client, _ := captureServer(t, http.StatusOK, `{"access_token": `)
 	_, err := client.PollToken(context.Background(), "dc-1")
 	require.Error(t, err)
-	assert.ErrorIs(t, err, aiandauth.ErrGateway)
+	assert.ErrorIs(t, err, auth.ErrAiandGateway)
 	assert.True(t, strings.Contains(err.Error(), "/auth/device/token"), "decode failures name the endpoint")
 }
 
@@ -238,7 +239,7 @@ func TestResponseIsBounded(t *testing.T) {
 	client, _ := captureServer(t, http.StatusOK, big.String())
 	_, err := client.PollToken(context.Background(), "dc-1")
 	require.Error(t, err, "oversized responses must not be trusted as tokens")
-	assert.ErrorIs(t, err, aiandauth.ErrGateway)
+	assert.ErrorIs(t, err, auth.ErrAiandGateway)
 }
 
 func TestDefaultAuthURL(t *testing.T) {
@@ -259,8 +260,8 @@ func TestNewClientTrimsTrailingSlash(t *testing.T) {
 // Compile-time guard: sentinel errors stay distinct for errors.Is dispatch.
 func TestSentinelsDistinct(t *testing.T) {
 	errs := []error{
-		aiandauth.ErrGateway, aiandauth.ErrAuthorizationPending, aiandauth.ErrSlowDown,
-		aiandauth.ErrAccessDenied, aiandauth.ErrExpiredToken, aiandauth.ErrInvalidKey,
+		auth.ErrAiandGateway, auth.ErrAiandAuthorizationPending, auth.ErrAiandSlowDown,
+		auth.ErrAiandAccessDenied, auth.ErrAiandExpiredToken, auth.ErrAiandInvalidKey,
 	}
 	for i, a := range errs {
 		for j, b := range errs {

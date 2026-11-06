@@ -91,6 +91,8 @@ func TestAiandCredentialRepo_GetByInstallation_RejectsNonUUID(t *testing.T) {
 type execCapture struct {
 	queryName string
 	args      []interface{}
+	// row, when set, is replayed through QueryRow for :one queries.
+	row *sqlc.RouterAiandCredential
 }
 
 func (e *execCapture) Exec(_ context.Context, query string, args ...interface{}) (pgconn.CommandTag, error) {
@@ -103,8 +105,60 @@ func (e *execCapture) Query(context.Context, string, ...interface{}) (pgx.Rows, 
 	return nil, errors.New("unexpected Query")
 }
 
-func (e *execCapture) QueryRow(context.Context, string, ...interface{}) pgx.Row {
-	return errorRow{err: errors.New("unexpected QueryRow")}
+func (e *execCapture) QueryRow(_ context.Context, query string, args ...interface{}) pgx.Row {
+	e.queryName = queryNameOf(query)
+	e.args = args
+	if e.row == nil {
+		return errorRow{err: errors.New("unexpected QueryRow")}
+	}
+	return singleRow{row: *e.row}
+}
+
+// singleRow scans a pre-built sqlc row once.
+type singleRow struct {
+	row sqlc.RouterAiandCredential
+}
+
+func (r singleRow) Scan(dest ...any) error {
+	return copyRowInto(&r.row, dest)
+}
+
+// copyRowInto copies the stub row's fields into sqlc's generated Scan
+// targets, following RouterAiandCredential's field order.
+func copyRowInto(row *sqlc.RouterAiandCredential, dest []any) error {
+	if len(dest) != 11 {
+		return fmt.Errorf("scan targets %d, want 11", len(dest))
+	}
+	values := []any{
+		row.ID,
+		row.InstallationID,
+		row.AccessTokenCiphertext,
+		row.RefreshTokenCiphertext,
+		row.ExpiresAt,
+		row.Origin,
+		row.UserEmail,
+		row.OrgID,
+		row.OrgName,
+		row.CreatedAt,
+		row.UpdatedAt,
+	}
+	for i, v := range values {
+		switch target := dest[i].(type) {
+		case *uuid.UUID:
+			*target = v.(uuid.UUID)
+		case *[]byte:
+			*target = v.([]byte)
+		case *string:
+			*target = v.(string)
+		case **string:
+			*target = v.(*string)
+		case *pgtype.Timestamptz:
+			*target = v.(pgtype.Timestamptz)
+		default:
+			return fmt.Errorf("unsupported scan target at %d: %T", i, dest[i])
+		}
+	}
+	return nil
 }
 
 func TestAiandCredentialRepo_Delete_ParsesAndForwards(t *testing.T) {
@@ -119,6 +173,32 @@ func TestAiandCredentialRepo_Delete_ParsesAndForwards(t *testing.T) {
 	assert.Equal(t, id, parsed)
 
 	assert.Error(t, repo.Delete(context.Background(), "garbage"), "unparseable ids must not reach SQLC")
+}
+
+// TestAiandCredentialRepo_Upsert_NormalizesNilRefresh is the defense-in-depth
+// layer for issue #111: even if a caller skips the service-level sentinel,
+// the repo must bind empty bytea, never SQL NULL, for refresh_token_ciphertext.
+func TestAiandCredentialRepo_Upsert_NormalizesNilRefresh(t *testing.T) {
+	capture := &execCapture{}
+	// Upsert uses QueryRow, so answer it with a mapped row.
+	rowStub := aiandRowStub()
+	capture.row = &rowStub
+	repo := NewAiandCredentialRepo(capture)
+
+	_, err := repo.Upsert(context.Background(), auth.UpsertAiandCredentialParams{
+		InstallationID:         rowStub.InstallationID.String(),
+		AccessTokenCiphertext:  []byte("sealed-access"),
+		RefreshTokenCiphertext: nil, // paste shape reaching the repo unnormalized
+		ExpiresAt:              time.Unix(1700000000, 0),
+		Origin:                 auth.AiandOriginPaste,
+	})
+	require.NoError(t, err)
+
+	require.Len(t, capture.args, 8)
+	bound, ok := capture.args[2].([]byte)
+	require.True(t, ok, "refresh ciphertext must reach SQLC as []byte, got %T", capture.args[2])
+	assert.NotNil(t, bound, "nil slice binds as SQL NULL against BYTEA NOT NULL; must be empty bytea")
+	assert.Empty(t, bound, "sentinel is empty bytea, not a real ciphertext")
 }
 
 // queryNameOf extracts the "-- name: X" marker from the emitted SQL comment.

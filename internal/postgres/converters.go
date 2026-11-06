@@ -19,6 +19,19 @@ func parseUUID(value string) (uuid.UUID, error) {
 	return uuid.Parse(value)
 }
 
+// optionalUUID parses an optional id string: an invalid non-empty value is an
+// error, empty stays NULL so the column default applies.
+func optionalUUID(value string) (pgtype.UUID, error) {
+	if value == "" {
+		return pgtype.UUID{}, nil
+	}
+	parsed, err := parseUUID(value)
+	if err != nil {
+		return pgtype.UUID{}, err
+	}
+	return pgtype.UUID{Bytes: parsed, Valid: true}, nil
+}
+
 // derefString returns the pointed-to string or "" for a nil pointer.
 func derefString(value *string) string {
 	if value == nil {

@@ -9,6 +9,41 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+// One row per Aiand identity (user + org); id doubles as the installation external_id used as Tink AAD for credential unsealing
+type RouterAccount struct {
+	ID             string
+	AiandUserID    string
+	AiandOrgID     string
+	Email          *string
+	DisplayName    *string
+	InstallationID uuid.UUID
+	CreatedAt      pgtype.Timestamptz
+	LastLoginAt    pgtype.Timestamptz
+	DeletedAt      pgtype.Timestamptz
+}
+
+// In-flight device-flow logins; device_code is Tink-sealed with AAD (attempt id, aiand-device); consumed rows are kept until GC for audit
+type RouterAccountLoginAttempt struct {
+	ID                     uuid.UUID
+	DeviceCodeCiphertext   []byte
+	GatewayIntervalSeconds int32
+	ExpiresAt              pgtype.Timestamptz
+	ConsumedAt             pgtype.Timestamptz
+	CreatedAt              pgtype.Timestamptz
+}
+
+// Dashboard cookie sessions; token_hash is the SHA-256 hex of the opaque cookie token, expiry slides on verified requests
+type RouterAccountSession struct {
+	ID          uuid.UUID
+	AccountID   string
+	TokenHash   string
+	TokenPrefix string
+	IssuedAt    pgtype.Timestamptz
+	LastSeenAt  pgtype.Timestamptz
+	ExpiresAt   pgtype.Timestamptz
+	RevokedAt   pgtype.Timestamptz
+}
+
 // Installation-wide Aiand upstream credential from the dashboard device flow or a pasted key; ciphertexts are Tink-sealed with AAD (installation external ID, aiand)
 type RouterAiandCredential struct {
 	ID                     uuid.UUID

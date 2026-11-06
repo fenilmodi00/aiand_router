@@ -32,11 +32,15 @@ func (r *AiandCredentialRepo) Upsert(ctx context.Context, params auth.UpsertAian
 	if err != nil {
 		return nil, err
 	}
+	refreshCipher := params.RefreshTokenCiphertext
+	if refreshCipher == nil {
+		refreshCipher = []byte{} // empty bytea, never SQL NULL (refresh_token_ciphertext NOT NULL)
+	}
 	q := dbbudget.Queries(r.tx)
 	row, err := q.UpsertAiandCredential(ctx, sqlc.UpsertAiandCredentialParams{
 		InstallationID:         installationUUID,
 		AccessTokenCiphertext:  params.AccessTokenCiphertext,
-		RefreshTokenCiphertext: params.RefreshTokenCiphertext,
+		RefreshTokenCiphertext: refreshCipher,
 		ExpiresAt:              pgtype.Timestamptz{Time: params.ExpiresAt, Valid: true},
 		Origin:                 string(params.Origin),
 		UserEmail:              stringPtrOrNil(params.UserEmail),
