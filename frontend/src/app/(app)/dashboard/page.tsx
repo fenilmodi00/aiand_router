@@ -171,9 +171,11 @@ export default function DashboardPage() {
     };
   }, [fromISO, toISO, granularity, onboarding]);
 
-  if (onboarding === "checking" || connection === "checking") return null;
+  if (connection === "checking") return null;
   // No upstream credential: serving is off, so onboarding (which needs a key
   // and a served request) can't progress. Show the disconnected state instead.
+  // This must come before the onboarding gate: the onboarding probe returns
+  // early while disconnected, leaving its state at "checking" forever.
   if (connection === "disconnected") {
     return (
       <Page
@@ -209,6 +211,7 @@ export default function DashboardPage() {
       </Page>
     );
   }
+  if (onboarding === "checking") return null;
   if (onboarding === "needed") {
     return (
       <RouterOnboarding
