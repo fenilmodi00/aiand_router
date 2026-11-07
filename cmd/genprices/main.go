@@ -35,9 +35,31 @@ const piPricingPath = "install/pi-router/src/pricing.generated.ts"
 // (bench/) uses to reprice Codex token counts; JSON so it needs no Go toolchain.
 const benchPricingPath = "bench/aiand_bench/prices.generated.json"
 
+// clientPricing is the client-facing list-price table used by the statusline.
+// It covers models a client can select or compare against even when this router
+// does not route them, and mirrors the upstream client prices so a routed
+// provider's local discount does not skew the requested-vs-routed comparison.
+// Values are USD/1M.
+var clientPricing = map[string]otel.Pricing{
+	"claude-opus-5":                 {InputUSDPer1M: 5, OutputUSDPer1M: 25, CacheReadMultiplier: 0.1},
+	"claude-sonnet-4-5":             {InputUSDPer1M: 3, OutputUSDPer1M: 15, CacheReadMultiplier: 0.1},
+	"gpt-5.4":                       {InputUSDPer1M: 2.5, OutputUSDPer1M: 15, CacheReadMultiplier: 0.1},
+	"gpt-5.4-pro":                   {InputUSDPer1M: 30, OutputUSDPer1M: 180, CacheReadMultiplier: 1},
+	"deepseek/deepseek-v4-pro":      {InputUSDPer1M: 1.74, OutputUSDPer1M: 3.48, CacheReadMultiplier: 0.0862},
+	"deepseek/deepseek-v4-pro-0813": {InputUSDPer1M: 1.74, OutputUSDPer1M: 3.48, CacheReadMultiplier: 0.0862},
+}
+
+func statuslinePricingTable() map[string]otel.Pricing {
+	table := otel.AllPricing()
+	for model, price := range clientPricing {
+		table[model] = price
+	}
+	return table
+}
+
 func main() {
 	table := otel.AllPricing()
-	block := buildBlock(table)
+	block := buildBlock(statuslinePricingTable())
 	for _, path := range scriptPaths {
 		if err := spliceFile(path, block); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)

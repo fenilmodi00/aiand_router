@@ -481,11 +481,15 @@ normalize_model() {
 # BEGIN_GENERATED_PRICES
 prices='{
   "input": {
-    "deepseek/deepseek-v4-pro":          0.001,
-    "deepseek/deepseek-v4-pro-0813":     0.001,
+    "claude-opus-5":                     0.005,
+    "claude-sonnet-4-5":                 0.003,
+    "deepseek/deepseek-v4-pro":          0.00174,
+    "deepseek/deepseek-v4-pro-0813":     0.00174,
     "deepseek/deepseek-v4.1-flash":      0.0003,
     "deepseek/deepseek-v4.1-flash-1017": 0.0003,
     "google/gemma-4-31b":                0.0002,
+    "gpt-5.4":                           0.0025,
+    "gpt-5.4-pro":                       0.03,
     "meta/muse-spark":                   0.00125,
     "moonshotai/kimi-k3":                0.003,
     "moonshotai/kimi-k3.1-pro":          0.002,
@@ -497,11 +501,15 @@ prices='{
     "z-ai/glm-5.3-flash":                0.00015
   },
   "output": {
-    "deepseek/deepseek-v4-pro":          0.0025,
-    "deepseek/deepseek-v4-pro-0813":     0.0025,
+    "claude-opus-5":                     0.025,
+    "claude-sonnet-4-5":                 0.015,
+    "deepseek/deepseek-v4-pro":          0.00348,
+    "deepseek/deepseek-v4-pro-0813":     0.00348,
     "deepseek/deepseek-v4.1-flash":      0.0006,
     "deepseek/deepseek-v4.1-flash-1017": 0.0006,
     "google/gemma-4-31b":                0.0005,
+    "gpt-5.4":                           0.015,
+    "gpt-5.4-pro":                       0.18,
     "meta/muse-spark":                   0.00425,
     "moonshotai/kimi-k3":                0.0125,
     "moonshotai/kimi-k3.1-pro":          0.01,
@@ -513,11 +521,15 @@ prices='{
     "z-ai/glm-5.3-flash":                0.0005
   },
   "cache_read": {
-    "deepseek/deepseek-v4-pro":          0.25,
-    "deepseek/deepseek-v4-pro-0813":     0.25,
+    "claude-opus-5":                     0.1,
+    "claude-sonnet-4-5":                 0.1,
+    "deepseek/deepseek-v4-pro":          0.0862,
+    "deepseek/deepseek-v4-pro-0813":     0.0862,
     "deepseek/deepseek-v4.1-flash":      0.06666666666666667,
     "deepseek/deepseek-v4.1-flash-1017": 0.06666666666666667,
     "google/gemma-4-31b":                0.5,
+    "gpt-5.4":                           0.1,
+    "gpt-5.4-pro":                       1,
     "meta/muse-spark":                   0.12,
     "moonshotai/kimi-k3":                0.16666666666666666,
     "moonshotai/kimi-k3.1-pro":          0.1,
