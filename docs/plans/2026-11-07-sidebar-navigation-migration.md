@@ -1,6 +1,6 @@
 # Sidebar Navigation Migration — settings pages become top-level pages
 
-Status: **plan for approval** — nothing below is implemented yet.
+Status: **implementation in progress** on `feat/sidebar-navigation`.
 
 Goal: every panel currently reachable through `/settings` becomes a first-class
 sidebar page, and the settings shell (`SettingsSidebar`, `SETTINGS_NAV`,
@@ -64,18 +64,11 @@ page title are coupled through `/settings` hrefs.
 9. **No frontend test runner.** CI gates are `npm run typegen` and
    `npm run typecheck`; the meaningful artifact check is a successful static
    export with the new HTML routes present and the settings HTML routes absent.
-10. **The working tree has unrelated user edits** (theme cleanup in
-    `globals.css`/`tailwind.config.ts`, removed `info` accent, removed layout
-    auth event, removed root-page `safeNext`). Do not revert or fold them into
-    this migration.
-11. **Baseline typecheck is currently red from a concurrent Chart refactor.**
-    `frontend/src/components/Chart/Chart.tsx` is mid-edit and
-    `ChartTick.tsx`/`ChartReferenceLineLabel.tsx` are deleted, leaving missing
-    identifiers (`ChartTick`, `hideAxes`, `emptyData`, `activeSeries`, …).
-    Navigation work must not touch `frontend/src/components/Chart/**`. Final
-    green verification waits for the user's Chart edit to settle; until then,
-    compare typecheck output against this baseline rather than treating those
-    errors as a navigation regression.
+10. **The baseline includes unrelated cleanup** (commit `00f6b6e3`: theme/CSS
+    pruning, removed `info` accent, removed layout auth event, removed
+    root-page `safeNext`). Do not revert or fold it into this migration.
+11. **Baseline typecheck is green** (`npm run typegen && npm run typecheck`).
+    Navigation work must not touch `frontend/src/components/Chart/**`.
 
 ## Target navigation
 
