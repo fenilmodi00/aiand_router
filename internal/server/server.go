@@ -509,17 +509,27 @@ func RegisterWithFeatures(engine *gin.Engine, authSvc *auth.Service, proxySvc *p
 	}
 }
 
+// legacyUIPathRedirects maps the pre-migration settings routes to their
+// top-level dashboard pages (sidebar navigation migration:
+// docs/plans/2026-11-07-sidebar-navigation-migration.md).
+var legacyUIPathRedirects = map[string]string{
+	"settings":           "/ui/keys",
+	"settings/providers": "/ui/account",
+	"settings/models":    "/ui/models",
+}
+
 // registerUIStatic mounts the exported Next.js dashboard at /ui with
 // clean-URL semantics (no trailing slash, no .html extension).
 //
-// Next's static export (trailingSlash:false) writes `settings.html`, not
-// `settings/index.html`, so plain gin.Static/http.FileServer would 404 or
-// redirect wrong on `/ui/settings`. Resolution order for `/ui/<path>`:
+// Next's static export (trailingSlash:false) writes `keys.html`, not
+// `keys/index.html`, so plain gin.Static/http.FileServer would 404 or
+// redirect wrong on `/ui/keys`. Resolution order for `/ui/<path>`:
 //  1. Trailing slash -> redirect to slashless form (308).
-//  2. Empty or `index` -> serve index.html.
-//  3. `<path>` exists as a file -> serve it.
-//  4. `<path>.html` exists -> serve that.
-//  5. Otherwise 404.
+//  2. Legacy settings path -> redirect to the new page (308).
+//  3. Empty or `index` -> serve index.html.
+//  4. `<path>` exists as a file -> serve it.
+//  5. `<path>.html` exists -> serve that.
+//  6. Otherwise 404.
 //
 // Resolved paths are clamped under `root` via filepath.Clean against `..` traversal.
 func registerUIStatic(engine *gin.Engine, root string) {
@@ -531,10 +541,20 @@ func registerUIStatic(engine *gin.Engine, root string) {
 		raw := c.Param("filepath")
 		raw = strings.TrimPrefix(raw, "/")
 
-		// Strip trailing slash so bookmarked /ui/settings/ collapses to
-		// /ui/settings. The matched param does not include the /ui prefix.
+		// Strip trailing slash so bookmarked /ui/keys/ collapses to
+		// /ui/keys. The matched param does not include the /ui prefix.
 		if strings.HasSuffix(raw, "/") && raw != "" {
 			target := "/ui/" + strings.TrimSuffix(raw, "/")
+			c.Redirect(http.StatusPermanentRedirect, target)
+			return
+		}
+
+		// Legacy settings routes redirect to their top-level pages,
+		// keeping any query string (e.g. /ui/settings?tab=keys).
+		if target, ok := legacyUIPathRedirects[raw]; ok {
+			if q := c.Request.URL.RawQuery; q != "" {
+				target += "?" + q
+			}
 			c.Redirect(http.StatusPermanentRedirect, target)
 			return
 		}
@@ -556,7 +576,7 @@ func registerUIStatic(engine *gin.Engine, root string) {
 			http.ServeFile(c.Writer, c.Request, fullPath)
 			return
 		}
-		// Clean-URL fallback: /ui/settings → assets/ui/settings.html.
+		// Clean-URL fallback: /ui/keys → assets/ui/keys.html.
 		htmlPath := fullPath + ".html"
 		if info, statErr := os.Stat(htmlPath); statErr == nil && !info.IsDir() {
 			http.ServeFile(c.Writer, c.Request, htmlPath)
