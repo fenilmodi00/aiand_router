@@ -21,7 +21,7 @@ Analytics keys are read-only. They carry the `ra_` prefix, they authenticate
 resolve provider credentials, or spend money. A key that is stolen from an ETL
 config can read telemetry and nothing else.
 
-**Self-hosted:** Settings → API keys → *Issue key* → scope **Analytics
+**Self-hosted:** **API keys** → *Issue key* → scope **Analytics
 (read-only)**.
 
 **Managed:** ask your Aiand contact, or issue one from the dashboard's API-keys

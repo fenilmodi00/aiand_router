@@ -591,7 +591,7 @@ clients use. At cutover:
    ```
 
    Adjust column names to your schema; the dashboard
-   (**Settings → API keys → revoke**) does the same for `rk_` keys, and the
+   (**API keys → revoke**) does the same for `rk_` keys, and the
    legacy ai& credential can be revoked from the Aiand dashboard.
 
 ## Managed serving (`ROUTER_SERVING_*`)
