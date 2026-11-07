@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"aiand-os/router/internal/router/taskdomain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"aiand-os/router/internal/router/taskdomain"
 )
 
 func TestTaskDomainTransportValidatesPinnedFacts(t *testing.T) {

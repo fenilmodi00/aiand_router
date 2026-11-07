@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"aiand-os/router/internal/router"
+	"github.com/stretchr/testify/require"
 )
 
 func TestClassifierContextJoinsOnlyRecordedPredictions(t *testing.T) {

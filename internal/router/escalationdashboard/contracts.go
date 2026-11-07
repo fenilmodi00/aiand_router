@@ -9,8 +9,8 @@ import (
 	"math"
 	"time"
 
-	"github.com/google/uuid"
 	"aiand-os/router/internal/router/escalation"
+	"github.com/google/uuid"
 )
 
 const (

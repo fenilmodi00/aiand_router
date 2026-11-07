@@ -20,9 +20,9 @@ type ProviderPrice struct {
 	CacheWriteMultiplier float64 `json:"cache_write_multiplier"`
 	// CacheWrite1hMultiplier prices the cache_creation_1h_tokens share of
 	// cache writes; cache_write_multiplier prices the rest.
-	CacheWrite1hMultiplier float64 `json:"cache_write_1h_multiplier"`
-	CacheReadMultiplier    float64 `json:"cache_read_multiplier"`
-	LongContext           *LongContextPrice `json:"long_context,omitempty"`
+	CacheWrite1hMultiplier float64           `json:"cache_write_1h_multiplier"`
+	CacheReadMultiplier    float64           `json:"cache_read_multiplier"`
+	LongContext            *LongContextPrice `json:"long_context,omitempty"`
 }
 
 // LongContextPrice is the alternate rate tier above ThresholdTokens.

@@ -1,6 +1,7 @@
 package proxy_test
 
 import (
+	"aiand-os/router/internal/router/catalog"
 	"context"
 	"fmt"
 	"math"
@@ -9,14 +10,13 @@ import (
 	"strings"
 	"testing"
 	"time"
-	"aiand-os/router/internal/router/catalog"
 
-	"github.com/tidwall/sjson"
 	"aiand-os/router/internal/feedback"
 	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/proxy"
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/cache"
+	"github.com/tidwall/sjson"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

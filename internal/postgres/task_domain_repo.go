@@ -6,12 +6,12 @@ import (
 	"errors"
 	"time"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"golang.org/x/sync/semaphore"
 	"aiand-os/router/internal/postgres/dbbudget"
 	"aiand-os/router/internal/router/taskdomain"
 	"aiand-os/router/internal/sqlc"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/sync/semaphore"
 )
 
 // ErrTaskProfileCapacity reports that every inference transaction slot stayed busy for the

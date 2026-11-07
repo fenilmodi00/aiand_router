@@ -6,12 +6,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"aiand-os/router/internal/observability"
 	"aiand-os/router/internal/policyregistry"
 	"aiand-os/router/internal/requestcontext"
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/policy"
+	"github.com/stretchr/testify/require"
 )
 
 type admittedTestRouter struct {

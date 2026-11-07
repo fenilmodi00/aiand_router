@@ -135,6 +135,7 @@ var forceModelAliases = map[string]string{
 	"glm-5.3-flash": "z-ai/glm-5.3-flash",
 	"glm-5.3":       "z-ai/glm-5.3",
 }
+
 // forceModelExamples follows the family aliases so the unknown-model hint
 // never names a retired release.
 var forceModelExamples = fmt.Sprintf("opus, %s, or %s",

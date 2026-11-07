@@ -1,6 +1,7 @@
 package main
 
 import (
+	"aiand-os/router/internal/providers"
 	"bytes"
 	"context"
 	"errors"
@@ -13,7 +14,6 @@ import (
 	"testing"
 	"testing/synctest"
 	"time"
-	"aiand-os/router/internal/providers"
 )
 
 func TestStartupEgressRejectsInvalidOrigins(t *testing.T) {

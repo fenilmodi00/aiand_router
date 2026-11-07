@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"aiand-os/router/internal/translate"
+	"github.com/stretchr/testify/require"
 )
 
 func transcriptMessage(role translate.EscalationRole, text string) translate.EscalationMessage {

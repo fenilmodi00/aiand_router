@@ -7,9 +7,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"aiand-os/router/internal/escalationmodal"
 	"aiand-os/router/internal/router/llmescalation"
+	"github.com/stretchr/testify/require"
 )
 
 func TestJudgeAcceptsOnlyPinnedDigitVerdict(t *testing.T) {

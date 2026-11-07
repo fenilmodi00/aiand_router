@@ -9,9 +9,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"aiand-os/router/internal/flags"
 	"aiand-os/router/internal/postgres/dbbudget"
 	"aiand-os/router/internal/providers"
@@ -19,6 +16,9 @@ import (
 	"aiand-os/router/internal/router/llmescalation"
 	"aiand-os/router/internal/router/policy"
 	"aiand-os/router/internal/sqlc"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // LLMEscalationRepo persists short claims separately from XGBoost observations.

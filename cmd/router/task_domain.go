@@ -13,8 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"cloud.google.com/go/storage"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"aiand-os/router/internal/observability"
 	"aiand-os/router/internal/policyclient"
 	"aiand-os/router/internal/policyregistry"
@@ -23,6 +21,8 @@ import (
 	"aiand-os/router/internal/router/hmm/rosterdata"
 	"aiand-os/router/internal/router/hmm/selection"
 	"aiand-os/router/internal/router/taskdomain"
+	"cloud.google.com/go/storage"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type taskDomainBinding struct {

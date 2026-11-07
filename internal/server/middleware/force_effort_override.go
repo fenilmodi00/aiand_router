@@ -5,8 +5,8 @@ import (
 
 	"aiand-os/router/internal/observability"
 	"aiand-os/router/internal/requestcontext"
-	"aiand-os/router/internal/subscriptions/entitlement"
 	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/subscriptions/entitlement"
 
 	"github.com/gin-gonic/gin"
 )

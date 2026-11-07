@@ -1,14 +1,14 @@
 package cache_test
 
 import (
+	"aiand-os/router/internal/router/catalog"
 	"fmt"
 	"testing"
-	"aiand-os/router/internal/router/catalog"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/router/cache"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func provenanceScope() cache.ProvenanceScope {

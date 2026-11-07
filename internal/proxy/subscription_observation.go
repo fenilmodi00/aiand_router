@@ -46,4 +46,3 @@ func WithManagedSubscriptionUsage(ctx context.Context) context.Context {
 	}
 	return context.WithValue(ctx, ManagedSubscriptionUsageContextKey{}, &ManagedSubscriptionUsage{})
 }
-

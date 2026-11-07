@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/policy"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // turnFactsQuery populates every Go-owned turn fact so the wire fixture below

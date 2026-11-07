@@ -7,13 +7,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"aiand-os/router/internal/flags"
 	"aiand-os/router/internal/observability"
 	"aiand-os/router/internal/proxy"
 	"aiand-os/router/internal/router/escalationdashboard"
 	"aiand-os/router/internal/router/llmescalation"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 func InternalEscalationDashboardHandler(service *proxy.Service) gin.HandlerFunc {

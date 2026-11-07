@@ -3,9 +3,9 @@ package policyclient
 import (
 	"context"
 
-	"golang.org/x/sync/errgroup"
 	"aiand-os/router/internal/router/policy"
 	"aiand-os/router/internal/router/taskdomain"
+	"golang.org/x/sync/errgroup"
 )
 
 // WithTaskDomain joins optional task inference before Go consumes complexity facts.

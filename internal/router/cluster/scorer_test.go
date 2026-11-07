@@ -864,7 +864,7 @@ func TestScorer_AutomaticExcludedModelsEmptyingPoolStillRoutes(t *testing.T) {
 	got, err := s.Route(context.Background(), router.Request{
 		PromptText: strings.Repeat("x", 100),
 		AutomaticExcludedModels: map[string]struct{}{
-			"z-ai/glm-5.3":       {},
+			"z-ai/glm-5.3":             {},
 			"moonshotai/kimi-k3.1-pro": {},
 		},
 	})
@@ -882,7 +882,7 @@ func TestScorer_ExcludedModelsEmptyingPoolReturnsErrNoEligibleProvider(t *testin
 		PromptText: strings.Repeat("x", 100),
 		Exclusions: router.RequestedExclusions(map[string]struct{}{
 			"deepseek/deepseek-v4-pro": {},
-			"moonshotai/kimi-k3.1-pro":       {},
+			"moonshotai/kimi-k3.1-pro": {},
 		}),
 	})
 	require.Error(t, err)
@@ -902,7 +902,7 @@ func TestScorer_AllowlistEmptyingPoolReturnsErrAllowlistEmptiesPool(t *testing.T
 		// only names the cause.
 		Exclusions: router.RequestedExclusions(map[string]struct{}{
 			"deepseek/deepseek-v4-pro": {},
-			"moonshotai/kimi-k3.1-pro":       {},
+			"moonshotai/kimi-k3.1-pro": {},
 		}),
 		AllowedModels: map[string]struct{}{"some-retired-model": {}},
 	})

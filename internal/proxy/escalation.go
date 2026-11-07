@@ -10,8 +10,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
-	"github.com/google/uuid"
 	"aiand-os/router/internal/flags"
 	"aiand-os/router/internal/observability"
 	"aiand-os/router/internal/providers"
@@ -20,6 +18,8 @@ import (
 	"aiand-os/router/internal/router/escalation"
 	"aiand-os/router/internal/router/turntype"
 	"aiand-os/router/internal/translate"
+	"github.com/cenkalti/backoff/v5"
+	"github.com/google/uuid"
 )
 
 const escalationTimeout = 500 * time.Millisecond

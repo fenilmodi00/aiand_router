@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"aiand-os/router/internal/policyregistry"
 	"aiand-os/router/internal/postgres/serving"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func TestFixtureDSNRequiresLoopback(t *testing.T) {

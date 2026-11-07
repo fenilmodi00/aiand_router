@@ -4,9 +4,9 @@ import (
 	"log/slog"
 
 	"aiand-os/router/internal/config"
+	openaiCompatProvider "aiand-os/router/internal/providers/openaicompat"
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/decisionmodel"
-	openaiCompatProvider "aiand-os/router/internal/providers/openaicompat"
 )
 
 const defaultDecisionModelBaseURL = openaiCompatProvider.AIANDBaseURL

@@ -6,9 +6,9 @@ import (
 	"errors"
 	"testing"
 
+	"aiand-os/router/internal/router/escalation"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"aiand-os/router/internal/router/escalation"
 )
 
 type escalationCommitTestStore struct {

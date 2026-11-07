@@ -7,11 +7,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-	"github.com/tidwall/gjson"
 	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/proxy"
 	"aiand-os/router/internal/router"
+	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 func TestProxyMessages_OpenAIToolAliasRoundTrip(t *testing.T) {

@@ -1,18 +1,18 @@
 package proxy
 
 import (
+	"aiand-os/router/internal/router/catalog"
 	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"aiand-os/router/internal/router/catalog"
 
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/cache"
 	"aiand-os/router/internal/router/policy"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 )
 
 func escalationCompletionContext() context.Context {

@@ -5,11 +5,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"aiand-os/router/internal/router/hmm/selection"
 	"aiand-os/router/internal/router/policy"
 	"aiand-os/router/internal/router/taskdomain"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestLiveSelectorTaskCorrectionPreservesComplexityAndEligibility(t *testing.T) {

@@ -1,11 +1,11 @@
 package postgres
 
 import (
+	"aiand-os/router/internal/postgres/dbbudget"
+	"aiand-os/router/internal/sqlc"
 	"context"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"aiand-os/router/internal/postgres/dbbudget"
-	"aiand-os/router/internal/sqlc"
 )
 
 // LLMEscalationCheckFixture confines expiry injection to one disposable installation.

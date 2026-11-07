@@ -107,14 +107,14 @@ func (r *ModelRegistry) Models() []string {
 // ArtifactMetadata is the parsed metadata.yaml. Informational at runtime;
 // routing decisions depend only on centroids + rankings + registry.
 type ArtifactMetadata struct {
-	FormatVersion     int                `yaml:"format_version,omitempty"`
-	Version           string             `yaml:"version"`
-	Parent            string             `yaml:"parent,omitempty"`
-	Status            string             `yaml:"status,omitempty"`
-	PromotedDate      string             `yaml:"promoted_date,omitempty"`
-	FrozenDate        string             `yaml:"frozen_date,omitempty"`
-	Embedder ArtifactEmbedder `yaml:"embedder"`
-	Training ArtifactTraining `yaml:"training"`
+	FormatVersion int              `yaml:"format_version,omitempty"`
+	Version       string           `yaml:"version"`
+	Parent        string           `yaml:"parent,omitempty"`
+	Status        string           `yaml:"status,omitempty"`
+	PromotedDate  string           `yaml:"promoted_date,omitempty"`
+	FrozenDate    string           `yaml:"frozen_date,omitempty"`
+	Embedder      ArtifactEmbedder `yaml:"embedder"`
+	Training      ArtifactTraining `yaml:"training"`
 	// Changelog is the bundle's human-readable history.
 	Changelog string `yaml:"changelog,omitempty"`
 	// CacheConfig carries per-version semantic-cache knobs.

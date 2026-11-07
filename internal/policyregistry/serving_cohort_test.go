@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"aiand-os/router/internal/policyregistry"
 	"aiand-os/router/internal/router"
+	"github.com/stretchr/testify/require"
 )
 
 func cohortCache(t *testing.T, store *servingMemoryStore) *policyregistry.ServingRuntimeCache {
