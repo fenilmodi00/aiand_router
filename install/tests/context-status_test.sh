@@ -2,7 +2,18 @@
 set -euo pipefail
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
+# A context refresh is disowned by design and can still be finishing its atomic
+# write when the last assertion returns. Retry teardown instead of turning that
+# harmless race into a suite failure.
+cleanup() {
+  local i
+  for i in $(seq 1 50); do
+    rm -rf "$work" 2>/dev/null && return 0
+    sleep 0.1
+  done
+  rm -rf "$work"
+}
+trap cleanup EXIT
 export HOME="$work/home" XDG_CACHE_HOME="$work/cache"
 export AIAND_STATUSLINE_UPDATE=0 AIAND_CODEX_STATUS_UPDATE=0 AIAND_COMMANDS_UPDATE=0
 mkdir -p "$HOME/.codex" "$work/helpers"
