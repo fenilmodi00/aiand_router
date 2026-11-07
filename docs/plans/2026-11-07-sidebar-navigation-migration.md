@@ -1,6 +1,6 @@
 # Sidebar Navigation Migration — settings pages become top-level pages
 
-Status: **implementation in progress** on `feat/sidebar-navigation`.
+Status: **implemented** on `feat/sidebar-navigation` (PR #127).
 
 Goal: every panel currently reachable through `/settings` becomes a first-class
 sidebar page, and the settings shell (`SettingsSidebar`, `SETTINGS_NAV`,
