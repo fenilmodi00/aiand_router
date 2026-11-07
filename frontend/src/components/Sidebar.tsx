@@ -1,37 +1,23 @@
 "use client";
 
 import { Logo } from "./Logo";
+import { APP_NAV, type AppNavItem } from "./nav";
 import { Button } from "@/components/molecules/Button";
 import { Tooltip } from "@/components/molecules/Tooltip";
 import { Appearance } from "@/components/types";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/cn";
-import { BarChart2, LogOut, Settings } from "lucide-react";
+import { LogOut } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { type ReactNode } from "react";
 
 // Matches the storage listener in (app)/layout.tsx: writing a timestamp makes
 // every sibling tab bounce to /login.
 const LOGOUT_STORAGE_KEY = "aiand-router:logout";
 
-interface NavItem {
-  href: string;
-  label: string;
-  icon: ReactNode;
-  matchPrefix?: string;
-}
-
-const PRIMARY_NAV: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: <BarChart2 size={16} /> },
-];
-
-function NavLink({ item }: { item: NavItem }) {
+function NavLink({ item }: { item: AppNavItem }) {
   const pathname = usePathname();
-  const active =
-    item.matchPrefix != null
-      ? pathname.startsWith(item.matchPrefix)
-      : pathname === item.href || pathname.startsWith(item.href + "/");
+  const active = pathname === item.href || pathname.startsWith(item.href + "/");
 
   return (
     <Link
@@ -78,24 +64,12 @@ export function Sidebar() {
       </header>
 
       <nav className="relative z-10 flex w-full flex-1 flex-col gap-1 overflow-y-auto md:p-2 md:pt-0">
-        {PRIMARY_NAV.map(item => (
+        {APP_NAV.map(item => (
           <NavLink key={item.href} item={item} />
         ))}
       </nav>
 
       <div className="relative z-10 flex w-full flex-col items-stretch gap-2 p-2">
-        <Tooltip content="Settings" side="right" interactiveChild>
-          <Button
-            href="/settings"
-            appearance={Appearance.Hollow}
-            aria-label="Settings"
-            className={sidebarFooterButton}
-          >
-            <Settings className="size-4" />
-            <span className="hidden whitespace-nowrap text-xs md:inline">Settings</span>
-          </Button>
-        </Tooltip>
-
         <Tooltip content="Sign out" side="left" interactiveChild>
           <Button
             appearance={Appearance.Hollow}
@@ -114,8 +88,7 @@ export function Sidebar() {
   );
 }
 
-// Identical visual treatment for both footer buttons so the only difference
-// the user sees is the icon. Fixed size while collapsed; on md+ the sidebar is
-// wide enough for the labelled row, so width and alignment open up.
+// Fixed size while collapsed; on md+ the sidebar is wide enough for the
+// labelled row, so width and alignment open up.
 const sidebarFooterButton =
   "size-8 shrink-0 justify-center rounded-md border border-border-darker bg-muted p-0 text-muted-foreground hover:bg-border-darker hover:text-foreground md:h-8 md:w-full md:justify-start md:px-3";

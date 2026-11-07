@@ -100,7 +100,7 @@ export interface TimeseriesBucket {
   actual_cost_usd: number;
 }
 
-export interface MetricsTimeseries {
+interface MetricsTimeseries {
   buckets: TimeseriesBucket[];
 }
 
@@ -112,7 +112,7 @@ export interface ModelBreakdownBucket {
   actual_cost_usd: number;
 }
 
-export interface MetricsModelBreakdown {
+interface MetricsModelBreakdown {
   buckets: ModelBreakdownBucket[];
 }
 
@@ -138,7 +138,7 @@ export interface MetricsDetailRow {
   user_email: string;
 }
 
-export interface MetricsDetails {
+interface MetricsDetails {
   rows: MetricsDetailRow[];
 }
 
@@ -173,14 +173,14 @@ export interface RouterConfig {
 // Whether this installation has ever served a routed request. Set once and
 // never cleared, so it survives key rotation — the dashboard gates first-run
 // onboarding on this rather than on a key's last_used_at.
-export interface OnboardingStatus {
+interface OnboardingStatus {
   first_request_served_at: string | null;
 }
 
 // Session state from GET /account/v1/auth/me. Never 401s: the backend
 // answers 200 {authenticated:false} when there is no live session, so this
 // call is safe from the login page and can never trip the 401 bounce.
-export interface MeResponse {
+interface MeResponse {
   authenticated: boolean;
   email?: string;
   org_name?: string;
@@ -194,7 +194,7 @@ export interface DeployedModel {
   provider: string;
 }
 
-export interface ExcludedModelsResponse {
+interface ExcludedModelsResponse {
   available: DeployedModel[];
   excluded: string[];
   env_override_active: boolean;
@@ -230,17 +230,17 @@ export interface AiandDeviceStartResponse {
   interval: number;
 }
 
-export type AiandDevicePollStatus = "pending" | "authorized" | "expired" | "denied" | "error";
+type AiandDevicePollStatus = "pending" | "authorized" | "expired" | "denied" | "error";
 
 /** Response of POST /account/v1/auth/device/poll (body of a 200, never a 428). */
-export interface AiandDevicePollResponse {
+interface AiandDevicePollResponse {
   status: AiandDevicePollStatus;
   email?: string;
   org_name?: string;
 }
 
 /** Response of POST /account/v1/auth/paste. */
-export interface AiandPasteKeyResponse {
+interface AiandPasteKeyResponse {
   email: string;
   org_name: string;
 }
@@ -251,25 +251,25 @@ export interface AiandPasteKeyResponse {
  * URL, and sets the short-lived router_browser_login cookie that the
  * exchange step validates state against.
  */
-export interface AiandBrowserStartResponse {
+interface AiandBrowserStartResponse {
   authorize_url: string;
   /** Seconds until the pending browser sign-in (and its cookie) expires. */
   expires_in: number;
 }
 
 /** Response of POST /account/v1/auth/browser/exchange. */
-export interface AiandBrowserExchangeResponse {
+interface AiandBrowserExchangeResponse {
   email?: string;
   org_name?: string;
   /** Internal path to land on after sign-in (e.g. /dashboard). */
   next: string;
 }
 
-export interface AiandDisconnectResponse {
+interface AiandDisconnectResponse {
   disconnected: boolean;
 }
 
-export interface RoutingPreferencesResponse {
+interface RoutingPreferencesResponse {
   quality: number;
   price: number;
   is_default: boolean;

@@ -1,14 +1,14 @@
 package proxy
 
 import (
+	"aiand-os/router/internal/router/catalog"
 	"context"
 	"testing"
-	"aiand-os/router/internal/router/catalog"
 
-	"github.com/stretchr/testify/assert"
 	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/requestcontext"
 	"aiand-os/router/internal/router"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestSemanticCacheStoreRejectsChangedCredential(t *testing.T) {

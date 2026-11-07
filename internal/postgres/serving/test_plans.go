@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"aiand-os/router/internal/policyregistry"
 	"aiand-os/router/internal/postgres/dbbudget"
 	"aiand-os/router/internal/sqlc"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // TestPlanRepo reads eligible subjects and stores grant digests on the primary database.

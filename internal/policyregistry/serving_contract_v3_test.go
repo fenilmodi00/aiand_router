@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"aiand-os/router/internal/policyregistry"
 	"aiand-os/router/internal/router/hmm/rosterdata"
+	"github.com/stretchr/testify/require"
 )
 
 const alternateRosterArm = "openai/gpt-6-sol"

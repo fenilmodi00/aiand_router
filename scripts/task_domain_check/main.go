@@ -14,11 +14,11 @@ import (
 	"sync/atomic"
 	"time"
 
+	"aiand-os/router/internal/postgres"
+	"aiand-os/router/internal/router/taskdomain"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/sync/errgroup"
-	"aiand-os/router/internal/postgres"
-	"aiand-os/router/internal/router/taskdomain"
 )
 
 func main() {

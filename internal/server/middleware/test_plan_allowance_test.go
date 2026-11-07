@@ -1,15 +1,15 @@
 package middleware
 
 import (
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/requestcontext"
+	"aiand-os/router/internal/subscriptions/entitlement"
 	"context"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"aiand-os/router/internal/auth"
-	"aiand-os/router/internal/requestcontext"
-	"aiand-os/router/internal/subscriptions/entitlement"
 )
 
 func TestVerifiedInternalTestSkipsAllSubscriberAllowanceAndProductReads(t *testing.T) {

@@ -89,42 +89,6 @@ export const LoadState = {
   isReady: <T>(state: LoadState<T>): state is LoadStateLoaded<T> | LoadStateReloading<T> =>
     state.type === LOADED || state.type === RELOADING,
 
-  /**
-   * Converts a load state of a load state to a single level of load state.
-   */
-  flatten: <T>(state: LoadState<LoadState<T>>): LoadState<T> => {
-    if (LoadState.isLoaded(state)) return state.value;
-    if (LoadState.isReloading(state) && LoadState.isError(state.value)) return state.value;
-    if (LoadState.isReloading(state)) return LoadState.mapMaybeReloading(state.value);
-    if (LoadState.isError(state)) {
-      return LoadState.error(
-        state.error,
-        state.previousValue != null ? LoadState.unwrap(state.previousValue) : undefined,
-      );
-    }
-
-    return state;
-  },
-
-  /**
-   * Returns a new `LoadState` that is the same as the given `state`, but either loading or
-   * reloading.
-   */
-  mapMaybeReloading: <T>(state: LoadState<T>): LoadState<T> => {
-    if (LoadState.isReady(state)) return LoadState.reloading(state.value);
-    return LoadState.loading();
-  },
-
-  /**
-   * Returns the value if the state is ready, or the `previousValue` if the state is an error
-   * with previous data. Returns `undefined` otherwise.
-   */
-  availableValue: <T>(state: LoadState<T>): T | undefined => {
-    if (LoadState.isReady(state)) return state.value;
-    if (LoadState.isError(state)) return state.previousValue;
-    return undefined;
-  },
-
   map,
 
   unwrap,

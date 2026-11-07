@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"aiand-os/router/internal/router/escalationdashboard"
+	"github.com/stretchr/testify/require"
 )
 
 type escalationDashboardStoreStub struct {

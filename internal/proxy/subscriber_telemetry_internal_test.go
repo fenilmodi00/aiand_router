@@ -81,7 +81,7 @@ func TestApplySubscriberTelemetryCapacitySources(t *testing.T) {
 				assert.Equal(t, string(entitlement.PlanBoost), telemetry.SubscriberPlan)
 				assert.Nil(t, telemetry.RetailUsageMicros)
 				assert.Nil(t, telemetry.IncludedUsageMicros)
-							return
+				return
 			}
 			require.NotNil(t, telemetry.RetailUsageMicros)
 			assert.Equal(t, int64(1_000_000), *telemetry.RetailUsageMicros)

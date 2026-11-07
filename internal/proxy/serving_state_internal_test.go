@@ -6,12 +6,12 @@ import (
 	"crypto/sha256"
 	"testing"
 
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 	"aiand-os/router/internal/policyregistry"
 	"aiand-os/router/internal/requestcontext"
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/translate"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 )
 
 func TestEscalationActivationPreservesLegacyIdentityAndIsolatesManagedState(t *testing.T) {

@@ -29,11 +29,30 @@ const nextConfig: NextConfig = {
         // this; in `next dev` requests hit Next directly and never
         // reach the Go backend, so we replicate it here.
         async redirects() {
+          // Legacy /settings paths → their new top-level pages (see
+          // docs/plans/2026-11-07-sidebar-navigation-migration.md). Next
+          // prefixes both source and destination with the basePath (/ui);
+          // production equivalents live in the Go static handler.
           return [
             {
               source: "/",
               destination: "/ui/",
               basePath: false,
+              permanent: false,
+            },
+            {
+              source: "/settings",
+              destination: "/keys",
+              permanent: false,
+            },
+            {
+              source: "/settings/providers",
+              destination: "/account",
+              permanent: false,
+            },
+            {
+              source: "/settings/models",
+              destination: "/models",
               permanent: false,
             },
           ];
@@ -48,8 +67,6 @@ const nextConfig: NextConfig = {
       }),
   basePath: "/ui",
   devIndicators: false,
-  images: { unoptimized: true },
-  trailingSlash: false,
 };
 
 export default nextConfig;

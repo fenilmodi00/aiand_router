@@ -13,8 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 	"aiand-os/router/internal/flags"
 	"aiand-os/router/internal/policyclient"
 	"aiand-os/router/internal/providers"
@@ -25,6 +23,8 @@ import (
 	"aiand-os/router/internal/router/sessionpin"
 	"aiand-os/router/internal/router/turntype"
 	"aiand-os/router/internal/translate"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 )
 
 type escalationTestStore struct {

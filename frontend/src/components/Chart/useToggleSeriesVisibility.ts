@@ -6,8 +6,6 @@ import { ChartDataKeyType } from "./types";
 
 interface UseToggleSeriesVisibilityOptions<TDependentKey extends ChartDataKeyType> {
   dependentKeys: LoadState<readonly TDependentKey[]>;
-  hiddenSeriesExternal?: ReadonlySet<TDependentKey>;
-  setHiddenSeriesExternal?: React.Dispatch<React.SetStateAction<ReadonlySet<TDependentKey>>>;
 }
 
 interface UseToggleSeriesVisibilityResult<TDependentKey extends ChartDataKeyType> {
@@ -17,19 +15,8 @@ interface UseToggleSeriesVisibilityResult<TDependentKey extends ChartDataKeyType
 
 export function useToggleSeriesVisibility<TDependentKey extends ChartDataKeyType>({
   dependentKeys,
-  hiddenSeriesExternal,
-  setHiddenSeriesExternal,
 }: UseToggleSeriesVisibilityOptions<TDependentKey>): UseToggleSeriesVisibilityResult<TDependentKey> {
-  if ((hiddenSeriesExternal == null) !== (setHiddenSeriesExternal == null)) {
-    throw new Error("hiddenSeries and setHiddenSeries must be provided together");
-  }
-
-  const [hiddenSeriesInternal, setHiddenSeriesInternal] = useState<ReadonlySet<TDependentKey>>(
-    new Set(),
-  );
-  const isControlled = hiddenSeriesExternal != null && setHiddenSeriesExternal != null;
-  const hiddenSeries = isControlled ? hiddenSeriesExternal : hiddenSeriesInternal;
-  const setHiddenSeries = isControlled ? setHiddenSeriesExternal : setHiddenSeriesInternal;
+  const [hiddenSeries, setHiddenSeries] = useState<ReadonlySet<TDependentKey>>(new Set());
 
   const allKeys = useMemo(
     () => (LoadState.isReady(dependentKeys) ? [...dependentKeys.value] : []),

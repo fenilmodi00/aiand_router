@@ -12,13 +12,13 @@ import (
 	"strings"
 	"testing"
 
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/router/hmm/rosterdata"
+	"aiand-os/router/internal/router/taskdomain"
 	"cloud.google.com/go/storage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/option"
-	"aiand-os/router/internal/policyregistry"
-	"aiand-os/router/internal/router/hmm/rosterdata"
-	"aiand-os/router/internal/router/taskdomain"
 )
 
 func TestTaskBindingRequiresAdmittedAndLoadedRelease(t *testing.T) {

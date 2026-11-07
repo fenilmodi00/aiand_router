@@ -268,7 +268,7 @@ func TestArmSelectorForceClusterPreservesPreferenceRanking(t *testing.T) {
 	assert.Equal(t, "low", decision.Metadata.PolicyGroup)
 	assert.Equal(t, map[string]float32{
 		"moonshotai/kimi-k3": 10,
-		"z-ai/glm-5.3": 20,
+		"z-ai/glm-5.3":       20,
 	}, decision.Metadata.ArmScores)
 }
 

@@ -171,9 +171,11 @@ export default function DashboardPage() {
     };
   }, [fromISO, toISO, granularity, onboarding]);
 
-  if (onboarding === "checking" || connection === "checking") return null;
+  if (connection === "checking") return null;
   // No upstream credential: serving is off, so onboarding (which needs a key
   // and a served request) can't progress. Show the disconnected state instead.
+  // This must come before the onboarding gate: the onboarding probe returns
+  // early while disconnected, leaving its state at "checking" forever.
   if (connection === "disconnected") {
     return (
       <Page
@@ -199,7 +201,7 @@ export default function DashboardPage() {
               to start serving again.
             </Text>
             <Link
-              href="/settings/providers"
+              href="/account"
               className="mt-4 inline-block rounded-md bg-brand px-4 py-2 text-xs font-medium text-white hover:opacity-90"
             >
               Reconnect
@@ -209,6 +211,7 @@ export default function DashboardPage() {
       </Page>
     );
   }
+  if (onboarding === "checking") return null;
   if (onboarding === "needed") {
     return (
       <RouterOnboarding
@@ -415,7 +418,7 @@ interface MetricCardProps {
   label: string;
   value: string;
   sub?: string;
-  accent?: "default" | "success" | "danger" | "info";
+  accent?: "default" | "success" | "danger";
 }
 
 function MetricCard({ className, label, value, sub, accent = "default" }: MetricCardProps) {
@@ -424,9 +427,7 @@ function MetricCard({ className, label, value, sub, accent = "default" }: Metric
       ? "text-success"
       : accent === "danger"
         ? "text-danger"
-        : accent === "info"
-          ? "text-primary"
-          : "text-foreground";
+        : "text-foreground";
 
   return (
     <Card size="sm" className={className}>
@@ -438,7 +439,7 @@ function MetricCard({ className, label, value, sub, accent = "default" }: Metric
       <Card.Content>
         <Text
           className={cn(
-            "font-display text-2xl font-semibold tabular-nums tracking-tight",
+            "font-sans text-2xl font-semibold tabular-nums tracking-tight",
             accentClass,
           )}
         >

@@ -62,7 +62,6 @@ func spendLimitCheck(s *Service, ctx context.Context) error {
 	return err
 }
 
-
 func TestCheckUserMonthlySpendLimit_NoBillingSkips(t *testing.T) {
 	s := &Service{}
 	assert.NoError(t, spendLimitCheck(s, spendLimitCtx("u1", "org-1")))
@@ -106,11 +105,6 @@ func TestCheckUserMonthlySpendLimit_OverrideSkips(t *testing.T) {
 	assert.NoError(t, spendLimitCheck(s, ctx))
 }
 
-
-
-
-
-
 func TestCheckUserMonthlySpendLimit_ExemptsSubscriberAllowanceCoveredTurn(t *testing.T) {
 	// A turn admitted against an individual Max/Boost allowance debits 0 and
 	// settles against that allowance, so it never adds to the engineer's paid
@@ -134,4 +128,3 @@ func TestCheckUserMonthlySpendLimit_AppliesToSubscriberPaidFallback(t *testing.T
 	require.Error(t, err)
 	assert.ErrorIs(t, err, billing.ErrUserMonthlySpendLimitReached)
 }
-

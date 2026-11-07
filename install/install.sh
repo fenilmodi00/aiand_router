@@ -5535,10 +5535,9 @@ aiand_hidden_gate() {
   (
     exec </dev/null
 
-    # Take the per-cache-key mutex, or bail. mkdir is the portable atomic
-    # test-and-set. A crashed holder would otherwise block refreshes forever,
-    # so a lock older than the fetch timeout is treated as abandoned and
-    # reclaimed. Releasing from a trap covers every exit path below.
+    # Take the per-cache-key mutex, or bail. Old locks are reclaimed so a
+    # crashed holder cannot block refreshes forever. Releasing from a trap
+    # covers every exit path below.
     lock="$cache.lock"
     if ! mkdir "$lock" 2>/dev/null; then
       lock_mtime="$(stat -c %Y "$lock" 2>/dev/null || stat -f %m "$lock" 2>/dev/null)" || lock_mtime=0
@@ -5562,7 +5561,10 @@ aiand_hidden_gate() {
       rm -rf "$dead" 2>/dev/null
       mkdir "$lock" 2>/dev/null || exit 0
     fi
-    trap 'rmdir "$lock" 2>/dev/null' EXIT
+    # Some mkdir implementations return success to both racing creators.
+    # Shell noclobber supplies the exclusive claim independently of mkdir.
+    (set -C; : > "$lock/owner") 2>/dev/null || exit 0
+    trap 'rm -f "$lock/owner"; rmdir "$lock" 2>/dev/null' EXIT
 
     self_dir="$(cd "$(dirname "$self")" 2>/dev/null && pwd)"
     settings_base="$HOME"
@@ -5650,11 +5652,15 @@ normalize_model() {
 # BEGIN_GENERATED_PRICES
 prices='{
   "input": {
-    "deepseek/deepseek-v4-pro":          0.001,
-    "deepseek/deepseek-v4-pro-0813":     0.001,
+    "claude-opus-5":                     0.005,
+    "claude-sonnet-4-5":                 0.003,
+    "deepseek/deepseek-v4-pro":          0.00174,
+    "deepseek/deepseek-v4-pro-0813":     0.00174,
     "deepseek/deepseek-v4.1-flash":      0.0003,
     "deepseek/deepseek-v4.1-flash-1017": 0.0003,
     "google/gemma-4-31b":                0.0002,
+    "gpt-5.4":                           0.0025,
+    "gpt-5.4-pro":                       0.03,
     "meta/muse-spark":                   0.00125,
     "moonshotai/kimi-k3":                0.003,
     "moonshotai/kimi-k3.1-pro":          0.002,
@@ -5666,11 +5672,15 @@ prices='{
     "z-ai/glm-5.3-flash":                0.00015
   },
   "output": {
-    "deepseek/deepseek-v4-pro":          0.0025,
-    "deepseek/deepseek-v4-pro-0813":     0.0025,
+    "claude-opus-5":                     0.025,
+    "claude-sonnet-4-5":                 0.015,
+    "deepseek/deepseek-v4-pro":          0.00348,
+    "deepseek/deepseek-v4-pro-0813":     0.00348,
     "deepseek/deepseek-v4.1-flash":      0.0006,
     "deepseek/deepseek-v4.1-flash-1017": 0.0006,
     "google/gemma-4-31b":                0.0005,
+    "gpt-5.4":                           0.015,
+    "gpt-5.4-pro":                       0.18,
     "meta/muse-spark":                   0.00425,
     "moonshotai/kimi-k3":                0.0125,
     "moonshotai/kimi-k3.1-pro":          0.01,
@@ -5682,11 +5692,15 @@ prices='{
     "z-ai/glm-5.3-flash":                0.0005
   },
   "cache_read": {
-    "deepseek/deepseek-v4-pro":          0.25,
-    "deepseek/deepseek-v4-pro-0813":     0.25,
+    "claude-opus-5":                     0.1,
+    "claude-sonnet-4-5":                 0.1,
+    "deepseek/deepseek-v4-pro":          0.0862,
+    "deepseek/deepseek-v4-pro-0813":     0.0862,
     "deepseek/deepseek-v4.1-flash":      0.06666666666666667,
     "deepseek/deepseek-v4.1-flash-1017": 0.06666666666666667,
     "google/gemma-4-31b":                0.5,
+    "gpt-5.4":                           0.1,
+    "gpt-5.4-pro":                       1,
     "meta/muse-spark":                   0.12,
     "moonshotai/kimi-k3":                0.16666666666666666,
     "moonshotai/kimi-k3.1-pro":          0.1,

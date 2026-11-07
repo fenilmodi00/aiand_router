@@ -45,6 +45,7 @@ func (r *captureUserRepo) UpsertByCredentialSubject(ctx context.Context, p auth.
 	r.subjectUpserts = append(r.subjectUpserts, p)
 	return &auth.User{ID: "user-from-key-owner"}, nil
 }
+
 // newTestAuthSvc wires a Service with only what ResolveAndStashUser touches.
 func newTestAuthSvc(users auth.UserRepository) *auth.Service {
 	return auth.NewService(nil, nil, nil, users, nil, auth.NoOpUserCache{}, nil)

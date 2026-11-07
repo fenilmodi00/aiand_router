@@ -107,8 +107,8 @@ func checkWorker(ctx context.Context, binary, dsn, pubsubAddress, token string, 
 		"PUBSUB_PROJECT_ID=legacy-runtime-fixture",
 		"PUBSUB_TOPIC_ROUTER_INVALIDATION=legacy-invalidation",
 		"PUBSUB_SUBSCRIPTION_ROUTER_INVALIDATION=legacy-invalidation",
-		"OPENAI_API_KEY=fixture-never-sent-to-provider",
-		"OPENAI_BASE_URL=http://127.0.0.1:1",
+		"AIAND_API_KEY=fixture-never-sent-to-provider",
+		"AIAND_BASE_URL=http://127.0.0.1:1",
 		"ROUTER_SEMANTIC_CACHE_ENABLED=false",
 		"GIN_MODE=release",
 	}
@@ -182,7 +182,10 @@ func checkWorker(ctx context.Context, binary, dsn, pubsubAddress, token string, 
 			return err
 		}
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/v1/route", bytes.NewBufferString(`{"model":"deepseek/deepseek-v4.1-flash","max_tokens":32,"messages":[{"role":"user","content":"Explain a binary search."}]}`))
+	// Use the auto-routed 1017 release: the bare v4.1-flash alias is
+	// pin-only and absent from the v1.2 cluster roster, so /v1/route would
+	// have no eligible model in this dependency-free fixture.
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/v1/route", bytes.NewBufferString(`{"model":"deepseek/deepseek-v4.1-flash-1017","max_tokens":32,"messages":[{"role":"user","content":"Explain a binary search."}]}`))
 	if err != nil {
 		return err
 	}

@@ -1,13 +1,13 @@
 package serving
 
 import (
+	"aiand-os/router/internal/billing"
+	"aiand-os/router/internal/postgres/dbbudget"
+	"aiand-os/router/internal/sqlc"
 	"context"
 	"errors"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"aiand-os/router/internal/billing"
-	"aiand-os/router/internal/postgres/dbbudget"
-	"aiand-os/router/internal/sqlc"
 )
 
 // InternalTestBook owns isolated test balances and inference settlement.

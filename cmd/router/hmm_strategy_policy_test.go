@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"aiand-os/router/internal/policyclient"
 	"aiand-os/router/internal/policyregistry"
 	"aiand-os/router/internal/providers"
@@ -17,6 +16,7 @@ import (
 	"aiand-os/router/internal/router/catalog"
 	"aiand-os/router/internal/router/hmm/rosterdata"
 	"aiand-os/router/internal/router/policy"
+	"github.com/stretchr/testify/require"
 )
 
 func TestThreeHMMClassifiersSelectPinnedRostersThroughTheSharedSidecar(t *testing.T) {

@@ -86,10 +86,10 @@ func TestRunTurnLoop_ForcedImageCapModel_ReachesProvider(t *testing.T) {
 
 	excludedModels := map[string]struct{}{model: {}}
 	req := router.Request{
-		RequestedModel: feats.Model,
-		ForceModel:     model,
-		HasImages:      true,
-		ImageCount:     imageCount,
+		RequestedModel:   feats.Model,
+		ForceModel:       model,
+		HasImages:        true,
+		ImageCount:       imageCount,
 		EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}},
 		Exclusions: router.Exclusions{}.
 			ExcludeSet(excludedModels, router.ExclusionRequested).

@@ -19,12 +19,6 @@ const CALLBACK_COPY = {
   retryDevice: "Sign in with a device code",
 } as const;
 
-function safeNext(raw: string | null | undefined): string {
-  if (raw == null || !raw.startsWith("/")) return "/dashboard";
-  if (raw.startsWith("//") || raw.startsWith("/\\")) return "/dashboard";
-  return raw;
-}
-
 function CallbackInner() {
   const router = useRouter();
   const params = useSearchParams();

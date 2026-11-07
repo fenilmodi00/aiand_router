@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
-	"golang.org/x/sync/errgroup"
 	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/providers/httputil"
+	"github.com/cenkalti/backoff/v5"
+	"golang.org/x/sync/errgroup"
 )
 
 const startupEgressTimeout = 10 * time.Second

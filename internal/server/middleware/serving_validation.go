@@ -5,9 +5,9 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/gin-gonic/gin"
 	"aiand-os/router/internal/observability"
 	"aiand-os/router/internal/policyregistry"
+	"github.com/gin-gonic/gin"
 )
 
 // ServingValidationHandler is mounted only on the private managed worker.

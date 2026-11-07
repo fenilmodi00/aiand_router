@@ -57,7 +57,6 @@ func TestManagedResolverUsesTheOnlyRemainingProvider(t *testing.T) {
 	assert.Equal(t, "zai-org/glm-5.3", byID["z-ai/glm-5.3"].UpstreamID)
 }
 
-
 func TestResolverDefaultsUpstreamIDToCatalogID(t *testing.T) {
 	resolver := policy.NewResolver(
 		set("moonshotai/kimi-k3"),
@@ -379,7 +378,7 @@ func TestResolverReportsNotAllowlistedSeparatelyFromRequestedExclusion(t *testin
 	resolved := resolver.Resolve(router.Request{
 		// Both are excluded on the wire; only one is an explicit exclusion.
 		Exclusions: router.RequestedExclusions(map[string]struct{}{
-			"moonshotai/kimi-k3":  {},
+			"moonshotai/kimi-k3": {},
 			"z-ai/glm-5.3-flash": {},
 		}),
 		AllowedModels: map[string]struct{}{"z-ai/glm-5.3-flash": {}},

@@ -30,8 +30,6 @@ export function AiandAccountPanel() {
   const [status, setStatus] = useState<AiandAuthStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [disconnecting, setDisconnecting] = useState(false);
-  // The panel mounts on the landing from /settings/providers?connect=1; only
-  // the first load opens the inline confirm card.
   const [confirming, setConfirming] = useState(false);
 
   useEffect(() => {
@@ -42,10 +40,6 @@ export function AiandAccountPanel() {
         if (cancelled) return;
         setStatus(s);
         setView(s.connected ? "connected" : "disconnected");
-        if (s.connected) {
-          const params = new URLSearchParams(window.location.search);
-          if (params.get("connect") === "1") setConfirming(true);
-        }
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -169,7 +163,7 @@ export function AiandAccountPanel() {
           </Text>
           <div className="flex flex-wrap items-center justify-center gap-2">
             <Button
-              href="/login"
+              href="/login?next=%2Faccount"
               appearance={Appearance.Filled}
               intent={Intent.Primary}
               className="!border-brand !bg-brand !text-white hover:!bg-brand/90"
@@ -177,7 +171,7 @@ export function AiandAccountPanel() {
               Reconnect via Aiand sign-in
             </Button>
             <Link
-              href="/login?mode=paste"
+              href="/login?mode=paste&next=%2Faccount"
               className="text-2xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
             >
               Paste an API key instead

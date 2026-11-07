@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 
-import { SettingsSidebar } from "@/components/SettingsSidebar";
 import { Sidebar } from "@/components/Sidebar";
 import { SidebarLayout } from "@/components/SidebarLayout";
 import { api } from "@/lib/api";
@@ -14,9 +13,6 @@ type AuthState = "checking" | "authed" | "anonymous";
 // Sidebar sign-out writes this key so sibling tabs (which don't share in-page
 // state) bounce to /login via the storage listener below.
 const LOGOUT_STORAGE_KEY = "aiand-router:logout";
-// The account panel dispatches this after a disconnect so the banner updates
-// without waiting for the next poll.
-const AUTH_CHANGED_EVENT = "aiand-router:auth-changed";
 const STATUS_POLL_MS = 30_000;
 
 function DisconnectedBanner() {
@@ -24,7 +20,7 @@ function DisconnectedBanner() {
     <div className="flex items-center justify-between gap-3 border-b border-danger/30 bg-danger/5 px-4 py-2 text-xs text-danger">
       <span>Aiand disconnected — requests are failing.</span>
       <Link
-        href="/settings/providers"
+        href="/account"
         className="shrink-0 font-medium underline underline-offset-2 hover:opacity-80"
       >
         Reconnect
@@ -66,8 +62,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }, [pathname, router]);
 
   // Upstream-credential state drives the disconnected banner: polled so a
-  // credential expiring in another tab still surfaces, re-probed on navigation
-  // (returning from the login reconnect flow) and on the panel's event.
+  // credential expiring in another tab still surfaces, and re-probed on
+  // navigation (returning from the login reconnect flow).
   useEffect(() => {
     if (state !== "authed") return;
     let cancelled = false;
@@ -82,11 +78,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     refresh();
     const interval = window.setInterval(refresh, STATUS_POLL_MS);
-    window.addEventListener(AUTH_CHANGED_EVENT, refresh);
     return () => {
       cancelled = true;
       window.clearInterval(interval);
-      window.removeEventListener(AUTH_CHANGED_EVENT, refresh);
     };
   }, [state, pathname]);
 
@@ -105,10 +99,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return <SidebarLayout sidebar={<div className="md:w-[244px]" />}>{null}</SidebarLayout>;
   }
 
-  const sidebar = pathname.startsWith("/settings") ? <SettingsSidebar /> : <Sidebar />;
-
   return (
-    <SidebarLayout sidebar={sidebar}>
+    <SidebarLayout sidebar={<Sidebar />}>
       {aiandConnected === false ? (
         <div className="flex h-full flex-col">
           <DisconnectedBanner />

@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"aiand-os/router/internal/policyregistry"
 	"aiand-os/router/internal/postgres/dbbudget"
 	"aiand-os/router/internal/sqlc"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // RequestAttributionRepo writes the admitted tuple before any worker side effect.

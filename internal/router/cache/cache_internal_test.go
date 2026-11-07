@@ -1,11 +1,11 @@
 package cache
 
 import (
+	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/router/catalog"
 	"net/http"
 	"testing"
 	"time"
-	"aiand-os/router/internal/providers"
-	"aiand-os/router/internal/router/catalog"
 
 	lru "github.com/hashicorp/golang-lru/v2"
 

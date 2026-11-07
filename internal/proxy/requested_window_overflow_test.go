@@ -25,7 +25,6 @@ const requestedWindowModel = "z-ai/glm-5.3"
 // pastRequestedWindowPrompt estimates past the requested model's window.
 var pastRequestedWindowPrompt = strings.Repeat("overflow ", 500_000)
 
-
 func proxyRequestedWindowOverflow(t *testing.T, prompt string, stream bool, upstreamErr error) (*httptest.ResponseRecorder, error, *fakeProvider) {
 	t.Helper()
 	upstream := &fakeProvider{proxyErr: upstreamErr}

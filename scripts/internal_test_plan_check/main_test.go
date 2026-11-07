@@ -1,6 +1,9 @@
 package main
 
 import (
+	"aiand-os/router/internal/billing"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/postgres/serving"
 	"context"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -9,9 +12,6 @@ import (
 	"os"
 	"testing"
 	"time"
-	"aiand-os/router/internal/billing"
-	"aiand-os/router/internal/policyregistry"
-	"aiand-os/router/internal/postgres/serving"
 )
 
 func TestInternalTestBookAndGrantIsolation(t *testing.T) {

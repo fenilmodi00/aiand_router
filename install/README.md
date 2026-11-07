@@ -545,7 +545,7 @@ URL** and turn the override (`<base-url>/v1`) on or off there.
 
 `models` reads and edits the model selection for the installation whose key is
 on disk — the same list, and the same stored setting, as the checkboxes on the
-router dashboard's settings page. It writes nothing locally: the endpoint and
+router dashboard's **Models & routing** page. It writes nothing locally: the endpoint and
 router key both come from the install already configured, so a self-hosted
 install talks to its own router with its own key, and the key is never passed
 as a command-line argument.

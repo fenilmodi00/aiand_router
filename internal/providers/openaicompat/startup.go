@@ -1,8 +1,8 @@
 package openaicompat
 
 import (
-	"context"
 	"aiand-os/router/internal/providers/httputil"
+	"context"
 )
 
 // WarmTransport initializes the configured origin using the serving transports.

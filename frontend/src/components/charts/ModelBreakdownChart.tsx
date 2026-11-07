@@ -29,7 +29,7 @@ const MODEL_COLORS: readonly ChartColor[] = [
   ChartColor.Scale1,
   ChartColor.Scale2,
   ChartColor.Green,
-  ChartColor.Orange2,
+  ChartColor.Gray2,
   ChartColor.Scale3,
   ChartColor.GoalLine,
   ChartColor.Benchmark1,

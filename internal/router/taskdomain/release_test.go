@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	"aiand-os/router/internal/router/taskdomain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"aiand-os/router/internal/router/taskdomain"
 )
 
 func digest(payload []byte) string { sum := sha256.Sum256(payload); return hex.EncodeToString(sum[:]) }

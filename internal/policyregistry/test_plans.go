@@ -7,8 +7,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/google/uuid"
 	"aiand-os/router/internal/subscriptions/entitlement"
+	"github.com/google/uuid"
 )
 
 // TestPlan selects request behavior without granting a subscriber entitlement.

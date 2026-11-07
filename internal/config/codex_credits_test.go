@@ -1,9 +1,9 @@
 package config_test
 
 import (
+	"aiand-os/router/internal/config"
 	"github.com/stretchr/testify/require"
 	"testing"
-	"aiand-os/router/internal/config"
 )
 
 func TestCodexExtraCreditsOptIn(t *testing.T) {

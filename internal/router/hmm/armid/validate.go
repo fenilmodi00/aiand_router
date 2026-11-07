@@ -39,4 +39,3 @@ func ValidateWithCatalog(rosterIDs []string, models []catalog.Model) []Diagnosti
 	}
 	return diagnostics
 }
-

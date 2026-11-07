@@ -1,0 +1,9 @@
+{
+  "method": "GET",
+  "path": "/api/orgs",
+  "status_code": 200,
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "body": "[{\"id\":\"00000000-0000-4000-8000-0000000000b1\",\"name\":\"Smoke Org B\"}]"
+}

@@ -9,8 +9,8 @@ const textVariants = cva("leading-normal", {
   },
   variants: {
     variant: {
-      h1: "font-display text-4xl font-semibold",
-      h2: "font-display text-2xl font-semibold",
+      h1: "font-sans text-4xl font-semibold",
+      h2: "font-sans text-2xl font-semibold",
       h3: "text-xl font-medium leading-relaxed",
       h4: "text-base font-medium",
       p: "text-base",

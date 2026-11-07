@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"aiand-os/router/internal/policyregistry"
 	"aiand-os/router/internal/subscriptions/entitlement"
+	"github.com/google/uuid"
 )
 
 type testLaunchRepo struct {

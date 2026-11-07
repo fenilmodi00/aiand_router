@@ -9,10 +9,10 @@ export enum ChartColor {
   GoalLine = "#7b70c9",
   Green = "#3FB950",
   /* eslint-disable @typescript-eslint/no-duplicate-enum-values*/
-  Orange1 = "#EC6341",
-  Orange2 = "#EC9C41",
+  Gray1 = "#171717",
+  Gray2 = "#737373",
   Red = "#DA3633",
-  Scale1 = "#FF6C47",
+  Scale1 = "#A3A3A3",
   Scale2 = "#1D5C83",
   Scale3 = "#358CC2",
   /* eslint-enable */

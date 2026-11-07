@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"aiand-os/router/internal/dispatch"
 	"context"
 	"errors"
 	"fmt"
@@ -9,7 +10,6 @@ import (
 	"net/url"
 	"testing"
 	"time"
-	"aiand-os/router/internal/dispatch"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

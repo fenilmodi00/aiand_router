@@ -10,7 +10,7 @@ description: "List the models the Aiand Router may route to, and turn them on or
 When the user invokes `$router-models`, show which models this
 installation lets the router pick from, and change that selection when asked.
 This is the same list — and the same stored setting — as the checkboxes on the
-router dashboard's settings page.
+router dashboard's **Models & routing** page.
 
 Start by running:
 

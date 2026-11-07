@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"aiand-os/router/internal/router/policy"
 	"aiand-os/router/internal/router/taskdomain"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type taskResolverFunc func(context.Context, taskdomain.Input) taskdomain.Outcome

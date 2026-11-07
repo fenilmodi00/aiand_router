@@ -8,8 +8,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"aiand-os/router/internal/providers/httputil"
+	"github.com/stretchr/testify/require"
 )
 
 func TestWarmTransportRetainsConnectionWithoutCredentials(t *testing.T) {

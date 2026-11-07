@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"aiand-os/router/internal/router/llmescalation"
 	"aiand-os/router/internal/translate"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRenderQwenIntervalUsesLastFiveCompletedTurns(t *testing.T) {

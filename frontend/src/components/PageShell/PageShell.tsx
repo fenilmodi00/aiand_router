@@ -1,19 +1,20 @@
 "use client";
 
-import { settingsNavItem } from "./nav";
+import { appNavItem } from "@/components/nav";
 import { Text } from "@/components/atoms/Text";
 import { Page } from "@/components/Page";
 import { PageHeader } from "@/components/PageHeader";
 import { type ReactNode } from "react";
 
-export interface SettingsPageProps {
+export interface PageShellProps {
   href: string;
+  description?: ReactNode;
   children: ReactNode;
 }
 
-/** Shell for a single settings tab: header sourced from the shared nav config. */
-export function SettingsPage({ href, children }: SettingsPageProps) {
-  const item = settingsNavItem(href);
+/** Shell for a top-level page: header sourced from the shared nav config. */
+export function PageShell({ href, description, children }: PageShellProps) {
+  const item = appNavItem(href);
   return (
     <Page
       header={
@@ -31,19 +32,29 @@ export function SettingsPage({ href, children }: SettingsPageProps) {
         />
       }
     >
-      <div className="flex w-full max-w-text-width flex-col gap-2">{children}</div>
+      <div className="flex w-full max-w-text-width flex-col gap-2">
+        {description != null && (
+          <Text className="text-xs text-muted-foreground">{description}</Text>
+        )}
+        {children}
+      </div>
     </Page>
   );
 }
 
-export interface SettingsSectionProps {
+export interface PageShellSectionProps {
   icon: ReactNode;
   title: string;
   description: ReactNode;
   children: ReactNode;
 }
 
-export function SettingsSection({ children, description, icon, title }: SettingsSectionProps) {
+export function PageShellSection({
+  children,
+  description,
+  icon,
+  title,
+}: PageShellSectionProps) {
   return (
     <Page.Section
       className="py-3"
@@ -61,3 +72,5 @@ export function SettingsSection({ children, description, icon, title }: Settings
     </Page.Section>
   );
 }
+
+PageShell.Section = PageShellSection;

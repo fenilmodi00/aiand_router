@@ -1,6 +1,8 @@
 package main
 
 import (
+	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/router/catalog"
 	"context"
 	"io"
 	"net/http"
@@ -9,8 +11,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"aiand-os/router/internal/router"
-	"aiand-os/router/internal/router/catalog"
 )
 
 func TestWarmupIncludesEveryModelWithSupportedEffort(t *testing.T) {

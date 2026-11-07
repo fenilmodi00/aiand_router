@@ -9,8 +9,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"aiand-os/router/internal/sse"
+	"github.com/stretchr/testify/require"
 )
 
 func TestWriteJSONChunkPreservesFragmentedSSE(t *testing.T) {
