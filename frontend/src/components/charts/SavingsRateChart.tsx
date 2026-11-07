@@ -30,7 +30,7 @@ interface Props {
 
 const SERIES_CONFIG: Partial<Record<DependentKey, ChartSeriesConfig<DateTime, number>>> = {
   [RATE_KEY]: {
-    color: ChartColor.Orange1,
+    color: ChartColor.Gray1,
     formatValue: v => `${(typeof v === "number" ? v : v[0]).toFixed(1)}%`,
     label: "Savings rate",
     type: ChartSeriesType.Line,

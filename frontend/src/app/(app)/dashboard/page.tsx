@@ -438,7 +438,7 @@ function MetricCard({ className, label, value, sub, accent = "default" }: Metric
       <Card.Content>
         <Text
           className={cn(
-            "font-display text-2xl font-semibold tabular-nums tracking-tight",
+            "font-sans text-2xl font-semibold tabular-nums tracking-tight",
             accentClass,
           )}
         >

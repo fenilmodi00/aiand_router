@@ -5,7 +5,7 @@ const SERIES_COLORS: readonly string[] = [
   ChartColor.Scale2,
   ChartColor.Green,
   ChartColor.GoalLine,
-  ChartColor.Orange2,
+  ChartColor.Gray2,
   ChartColor.Benchmark1,
   ChartColor.Red,
   ChartColor.Benchmark3,

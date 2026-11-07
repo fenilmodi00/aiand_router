@@ -64,17 +64,19 @@ const config: Config = {
     },
     extend: {
       fontFamily: {
-        sans: ["var(--font-inter)", "Inter", "system-ui", "sans-serif"],
-        display: ["var(--font-inter-display)", "var(--font-inter)", "Inter", "system-ui", "sans-serif"],
+        sans: ["var(--font-geist)", "Geist", "system-ui", "sans-serif"],
       },
       fontSize: {
         "2xs": ["0.75rem", "0.875rem"],
         xs: ["0.8125rem", "1rem"],
       },
       borderRadius: {
-        lg: "0.5rem",
-        md: "calc(0.5rem - 2px)",
-        sm: "calc(0.5rem - 4px)",
+        lg: "0.625rem",
+        md: "0.5rem",
+        sm: "0.375rem",
+        xl: "0.75rem",
+        "2xl": "1rem",
+        full: "9999px",
       },
       boxShadow: {
         "fake-border": "inset 0 -1px 0 hsl(var(--border))",
