@@ -1272,6 +1272,13 @@ func TestStartBrowserLogin_SanitizesNext(t *testing.T) {
 		{"/\\evil.co", "/dashboard"},
 		{"dashboard", "/dashboard"},
 		{"/" + strings.Repeat("x", 600), "/dashboard"},
+		// Legacy settings destinations map to the new top-level pages
+		// (docs/plans/2026-11-07-sidebar-navigation-migration.md).
+		{"/settings", "/keys"},
+		{"/settings/providers", "/account"},
+		{"/settings/models", "/models"},
+		{"/settings?tab=keys", "/keys?tab=keys"},
+		{"/settings/unknown", "/settings/unknown"},
 	}
 	for _, tc := range cases {
 		start, flow := startBrowser(t, f, "http://127.0.0.1:3000", tc.next)

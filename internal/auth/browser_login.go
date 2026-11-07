@@ -89,7 +89,10 @@ type LoginBrowserResult struct {
 // empty or malformed values fall back to /dashboard, only same-origin
 // absolute paths survive (a leading single slash, never // or /\, which
 // browsers treat as protocol-relative), and the value stays bounded so a
-// hostile Next cannot bloat the sealed cookie.
+// hostile Next cannot bloat the sealed cookie. Stale legacy settings paths
+// (a tab open across the sidebar-navigation deploy) map to their new
+// top-level pages, query preserved; see
+// docs/plans/2026-11-07-sidebar-navigation-migration.md.
 func sanitizeBrowserNext(next string) string {
 	if len(next) > browserNextMaxLen {
 		return browserNextDefault
@@ -97,7 +100,22 @@ func sanitizeBrowserNext(next string) string {
 	if !strings.HasPrefix(next, "/") || strings.HasPrefix(next, "//") || strings.HasPrefix(next, "/\\") {
 		return browserNextDefault
 	}
+	path := next
+	query := ""
+	if i := strings.IndexByte(next, '?'); i >= 0 {
+		path, query = next[:i], next[i:]
+	}
+	if target, ok := legacyBrowserNextPaths[path]; ok {
+		return target + query
+	}
 	return next
+}
+
+// legacyBrowserNextPaths mirrors the frontend login page's LEGACY_NEXT map.
+var legacyBrowserNextPaths = map[string]string{
+	"/settings":           "/keys",
+	"/settings/providers": "/account",
+	"/settings/models":    "/models",
 }
 
 // browserRedirectOrigin validates and normalizes the request Origin header
