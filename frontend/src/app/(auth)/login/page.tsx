@@ -63,16 +63,29 @@ const LOGIN_COPY = {
   authorizing: "Setting up your workspace…",
 } as const;
 
+// Legacy settings paths, kept so a stale post-login destination (an open tab
+// from before the deploy, a stored device attempt) lands on the new page.
+// Same table as the Go legacy redirects; see
+// docs/plans/2026-11-07-sidebar-navigation-migration.md.
+const LEGACY_NEXT: Record<string, string> = {
+  "/settings": "/keys",
+  "/settings/providers": "/account",
+  "/settings/models": "/models",
+};
+
 /**
  * Reject anything that isn't a same-origin internal path (e.g. `javascript:`,
  * `//attacker.com`, `https://...`). After basePath stripping in api.ts the
- * value should look like `/dashboard` or `/settings?tab=keys`.
+ * value should look like `/dashboard` or `/keys?tab=manage`.
  */
 function safeNext(raw: string | null): string {
   if (raw == null) return "/dashboard";
   if (!raw.startsWith("/")) return "/dashboard";
   if (raw.startsWith("//") || raw.startsWith("/\\")) return "/dashboard";
-  return raw;
+  const [path, query] = raw.split("?", 2);
+  const mapped = LEGACY_NEXT[path];
+  if (mapped == null) return raw;
+  return query != null ? `${mapped}?${query}` : mapped;
 }
 
 // sessionStorage key for the in-flight device attempt: one JSON value with
