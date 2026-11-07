@@ -43,6 +43,13 @@ type fakeLoginAPI struct {
 	verifyCalls   int
 	verifySession *auth.ActiveSession
 	verifyErr     error
+
+	browserStart        auth.LoginBrowserStart
+	browserStartErr     error
+	browserStarts       []string // received Origin values, one per start call
+	browserResults      map[string]auth.LoginBrowserResult
+	browserExchangeErrs map[string]error
+	browserExchanges    []string // received state values, one per exchange call
 }
 
 func (f *fakeLoginAPI) StartDeviceLogin(context.Context) (auth.LoginDeviceStart, error) {
@@ -78,6 +85,26 @@ func (f *fakeLoginAPI) LoginWithKey(context.Context, string) (auth.LoginSessionG
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.grant, f.grantErr
+}
+
+func (f *fakeLoginAPI) StartBrowserLogin(_ context.Context, origin, _ string) (auth.LoginBrowserStart, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.browserStarts = append(f.browserStarts, origin)
+	return f.browserStart, f.browserStartErr
+}
+
+func (f *fakeLoginAPI) ExchangeBrowserLogin(_ context.Context, state, _ string, _ []byte) (auth.LoginBrowserResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.browserExchanges = append(f.browserExchanges, state)
+	if err, ok := f.browserExchangeErrs[state]; ok {
+		return auth.LoginBrowserResult{}, err
+	}
+	if result, ok := f.browserResults[state]; ok {
+		return result, nil
+	}
+	return auth.LoginBrowserResult{}, auth.ErrBrowserFlowState
 }
 
 func (f *fakeLoginAPI) Logout(_ context.Context, token string) error {
@@ -490,4 +517,215 @@ func TestCookieInsecureEnvFlipsSecureOff(t *testing.T) {
 	t.Setenv("ROUTER_COOKIE_INSECURE", "")
 	account.ConfigureCookieSecurityFromEnv()
 	assert.True(t, account.CookieSecure())
+}
+
+// ---- browser flow ----
+
+const browserTestOrigin = "http://127.0.0.1:3000"
+
+func browserTestStart() auth.LoginBrowserStart {
+	return auth.LoginBrowserStart{
+		AuthorizeURL: "https://aiand.example/auth/authorize?client_id=aiand-cli&response_type=code",
+		ExpiresIn:    600,
+		Sealed:       []byte("sealed-flow-blob"),
+	}
+}
+
+func browserTestResult(state string) auth.LoginBrowserResult {
+	return auth.LoginBrowserResult{
+		Grant: &auth.LoginSessionGrant{
+			Token:     "browser-sess-1",
+			ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
+			Account:   auth.Account{ID: "acct_abc", Email: "ops@example.com"},
+		},
+		Email:   "ops@example.com",
+		OrgName: "Example Org",
+		Next:    "/dashboard",
+	}
+}
+
+func findCookie(t *testing.T, w *httptest.ResponseRecorder, name string) *http.Cookie {
+	t.Helper()
+	for _, ck := range w.Result().Cookies() {
+		if ck.Name == name {
+			return ck
+		}
+	}
+	return nil
+}
+
+func TestBrowserStartReturnsAuthorizeURLAndSetsCookie(t *testing.T) {
+	svc := &fakeLoginAPI{browserStart: browserTestStart()}
+	engine := newRouter(svc)
+	req := httptest.NewRequest(http.MethodPost, "/account/v1/auth/browser/start", strings.NewReader(`{"next":"/dashboard"}`))
+	req.RemoteAddr = peerA + ":41234"
+	req.Header.Set("Origin", browserTestOrigin)
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+	var resp map[string]any
+	require.NoError(t, jsonUnmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, browserTestStart().AuthorizeURL, resp["authorize_url"])
+	assert.Equal(t, float64(600), resp["expires_in"])
+
+	cookie := findCookie(t, w, auth.LoginBrowserCookieName)
+	require.NotNil(t, cookie, "start must set the flow cookie")
+	assert.Equal(t, "sealed-flow-blob", cookie.Value)
+	assert.True(t, cookie.HttpOnly)
+	assert.Equal(t, http.SameSiteLaxMode, cookie.SameSite)
+	assert.Equal(t, "/", cookie.Path)
+	assert.Equal(t, 600, cookie.MaxAge)
+
+	svc.mu.Lock()
+	origins := append([]string(nil), svc.browserStarts...)
+	svc.mu.Unlock()
+	require.Equal(t, []string{browserTestOrigin}, origins, "the Origin header is the redirect URI")
+}
+
+func TestBrowserStartWithoutOriginIs400(t *testing.T) {
+	engine := newRouter(&fakeLoginAPI{})
+	w := doJSON(engine, http.MethodPost, "/account/v1/auth/browser/start", peerA, `{}`)
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	assert.JSONEq(t, `{"error":"missing_origin"}`, w.Body.String())
+}
+
+func TestBrowserStartUnsupportedIs501WithoutCountingFailure(t *testing.T) {
+	svc := &fakeLoginAPI{browserStartErr: auth.ErrAiandBrowserUnsupported}
+	engine := newRouter(svc)
+	req := httptest.NewRequest(http.MethodPost, "/account/v1/auth/browser/start", strings.NewReader(`{}`))
+	req.RemoteAddr = peerA + ":41234"
+	req.Header.Set("Origin", browserTestOrigin)
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, req)
+	require.Equal(t, http.StatusNotImplemented, w.Code)
+	assert.JSONEq(t, `{"error":"browser_unsupported"}`, w.Body.String())
+	// The fallback path must stay available: five more unsupported starts
+	// must not trip the limiter.
+	for range 5 {
+		req = httptest.NewRequest(http.MethodPost, "/account/v1/auth/browser/start", strings.NewReader(`{}`))
+		req.RemoteAddr = peerA + ":41234"
+		req.Header.Set("Origin", browserTestOrigin)
+		w = httptest.NewRecorder()
+		engine.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusNotImplemented, w.Code)
+	}
+}
+
+func TestBrowserStartGatewayDownIs502AndCounts(t *testing.T) {
+	svc := &fakeLoginAPI{browserStartErr: auth.ErrAiandGatewayUnavailable}
+	engine := newRouter(svc)
+	req := httptest.NewRequest(http.MethodPost, "/account/v1/auth/browser/start", strings.NewReader(`{}`))
+	req.RemoteAddr = peerA + ":41234"
+	req.Header.Set("Origin", browserTestOrigin)
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, req)
+	require.Equal(t, http.StatusBadGateway, w.Code)
+	assert.JSONEq(t, `{"error":"gateway_unavailable"}`, w.Body.String())
+	// Failures 2-5 still pass through to the service; the 6th hits the cap.
+	for range 4 {
+		req = httptest.NewRequest(http.MethodPost, "/account/v1/auth/browser/start", strings.NewReader(`{}`))
+		req.RemoteAddr = peerA + ":41234"
+		req.Header.Set("Origin", browserTestOrigin)
+		w = httptest.NewRecorder()
+		engine.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadGateway, w.Code)
+	}
+	req = httptest.NewRequest(http.MethodPost, "/account/v1/auth/browser/start", strings.NewReader(`{}`))
+	req.RemoteAddr = peerA + ":41234"
+	req.Header.Set("Origin", browserTestOrigin)
+	w = httptest.NewRecorder()
+	engine.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusTooManyRequests, w.Code, "gateway failures count toward the budget")
+}
+
+func TestBrowserExchangeSetsSessionCookieAndClearsFlowCookie(t *testing.T) {
+	state := "st-123"
+	svc := &fakeLoginAPI{browserResults: map[string]auth.LoginBrowserResult{state: browserTestResult(state)}}
+	engine := newRouter(svc)
+	req := httptest.NewRequest(http.MethodPost, "/account/v1/auth/browser/exchange", strings.NewReader(`{"code":"auth-code","state":"`+state+`"}`))
+	req.RemoteAddr = peerA + ":41234"
+	req.AddCookie(&http.Cookie{Name: auth.LoginBrowserCookieName, Value: "sealed-flow-blob"})
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+	var resp map[string]any
+	require.NoError(t, jsonUnmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, "ops@example.com", resp["email"])
+	assert.Equal(t, "Example Org", resp["org_name"])
+	assert.Equal(t, "/dashboard", resp["next"])
+
+	session := findCookie(t, w, auth.LoginSessionCookieName)
+	require.NotNil(t, session)
+	assert.Equal(t, "browser-sess-1", session.Value)
+	assert.True(t, session.HttpOnly)
+
+	flow := findCookie(t, w, auth.LoginBrowserCookieName)
+	require.NotNil(t, flow, "the flow cookie must be cleared")
+	assert.Equal(t, -1, flow.MaxAge)
+}
+
+func TestBrowserExchangeMissingCookieIs400(t *testing.T) {
+	engine := newRouter(&fakeLoginAPI{})
+	w := doJSON(engine, http.MethodPost, "/account/v1/auth/browser/exchange", peerA, `{"code":"c","state":"s"}`)
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	assert.JSONEq(t, `{"error":"invalid_state"}`, w.Body.String())
+}
+
+func TestBrowserExchangeMissingCodeOrStateIs400(t *testing.T) {
+	engine := newRouter(&fakeLoginAPI{})
+	for _, body := range []string{`{"state":"s"}`, `{"code":"c"}`, `{}`} {
+		w := doJSON(engine, http.MethodPost, "/account/v1/auth/browser/exchange", peerA, body)
+		require.Equal(t, http.StatusBadRequest, w.Code, body)
+		assert.JSONEq(t, `{"error":"invalid_state"}`, w.Body.String())
+	}
+}
+
+func TestBrowserExchangeStateMismatchIs400AndClearsCookie(t *testing.T) {
+	svc := &fakeLoginAPI{}
+	engine := newRouter(svc)
+	req := httptest.NewRequest(http.MethodPost, "/account/v1/auth/browser/exchange", strings.NewReader(`{"code":"c","state":"wrong"}`))
+	req.RemoteAddr = peerA + ":41234"
+	req.AddCookie(&http.Cookie{Name: auth.LoginBrowserCookieName, Value: "sealed"})
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, req)
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	assert.JSONEq(t, `{"error":"invalid_state"}`, w.Body.String())
+	require.NotNil(t, findCookie(t, w, auth.LoginBrowserCookieName), "flow cookie must be cleared on failure")
+}
+
+func TestBrowserExchangeRejectedGrantIs401(t *testing.T) {
+	state := "st-reject"
+	svc := &fakeLoginAPI{browserExchangeErrs: map[string]error{state: auth.ErrAiandInvalidGrant}}
+	engine := newRouter(svc)
+	req := httptest.NewRequest(http.MethodPost, "/account/v1/auth/browser/exchange", strings.NewReader(`{"code":"spent","state":"`+state+`"}`))
+	req.RemoteAddr = peerA + ":41234"
+	req.AddCookie(&http.Cookie{Name: auth.LoginBrowserCookieName, Value: "sealed"})
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, req)
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.JSONEq(t, `{"error":"exchange_rejected"}`, w.Body.String())
+}
+
+func TestBrowserExchangeGatewayDownIs502(t *testing.T) {
+	state := "st-down"
+	svc := &fakeLoginAPI{browserExchangeErrs: map[string]error{state: auth.ErrAiandGatewayUnavailable}}
+	engine := newRouter(svc)
+	req := httptest.NewRequest(http.MethodPost, "/account/v1/auth/browser/exchange", strings.NewReader(`{"code":"c","state":"`+state+`"}`))
+	req.RemoteAddr = peerA + ":41234"
+	req.AddCookie(&http.Cookie{Name: auth.LoginBrowserCookieName, Value: "sealed"})
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, req)
+	require.Equal(t, http.StatusBadGateway, w.Code)
+	assert.JSONEq(t, `{"error":"gateway_unavailable"}`, w.Body.String())
+}
+
+func TestBrowserExchangeNoSessionCookieOnFailure(t *testing.T) {
+	svc := &fakeLoginAPI{}
+	engine := newRouter(svc)
+	req := httptest.NewRequest(http.MethodPost, "/account/v1/auth/browser/exchange", strings.NewReader(`{"code":"c","state":"s"}`))
+	req.RemoteAddr = peerA + ":41234"
+	req.AddCookie(&http.Cookie{Name: auth.LoginBrowserCookieName, Value: "sealed"})
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, req)
+	assert.Nil(t, findCookie(t, w, auth.LoginSessionCookieName), "a failed exchange must never set a session")
 }

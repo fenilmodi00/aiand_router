@@ -355,6 +355,12 @@ func (s *Service) completeAiandCredentialTx(
 		if err != nil {
 			return err
 		}
+		// One active key per (installation, provider): a reconnect/rotation
+		// replaces the previous key instead of tripping the partial unique
+		// index and aborting the transaction.
+		if err := tx.ExternalAPIKeys.SoftDeleteByProvider(ctx, installationID, create.Provider); err != nil {
+			return fmt.Errorf("retire previous aiand key: %w", err)
+		}
 		if _, err := tx.ExternalAPIKeys.Create(ctx, create); err != nil {
 			return fmt.Errorf("propagate aiand access token: %w", err)
 		}

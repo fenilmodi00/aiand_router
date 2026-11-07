@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -39,9 +40,20 @@ type loginFakeGateway struct {
 	pollToken auth.AiandTokenResponse
 	polls     []string
 
-	validateUser auth.AiandUser
-	validateErr  error
-	validated    []string
+	validateUser   auth.AiandUser
+	validateErr    error
+	validated      []string
+	verifyIdentity auth.AiandIdentity
+	verifyErr      error
+	verified       []string
+
+	authorizeParams []auth.AiandAuthorizeParams
+	authorizeURLs   []string
+	preflighted     []string
+	preflightErr    error
+	exchanged       []auth.AiandCodeExchangeParams
+	exchangeToken   auth.AiandTokenResponse
+	exchangeErr     error
 }
 
 func (f *loginFakeGateway) DeviceCodeStart(_ context.Context, keyName string) (auth.AiandDeviceCode, error) {
@@ -58,6 +70,27 @@ func (f *loginFakeGateway) PollToken(_ context.Context, deviceCode string) (auth
 	return f.pollToken, f.pollErr
 }
 
+func (f *loginFakeGateway) AuthorizeURL(params auth.AiandAuthorizeParams) string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.authorizeParams = append(f.authorizeParams, params)
+	return "https://auth.example/authorize?state=" + params.State + "&redirect_uri=" + params.RedirectURI
+}
+
+func (f *loginFakeGateway) BrowserAuthorizeAvailable(_ context.Context, authorizeURL string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.preflighted = append(f.preflighted, authorizeURL)
+	return f.preflightErr
+}
+
+func (f *loginFakeGateway) ExchangeCode(_ context.Context, params auth.AiandCodeExchangeParams) (auth.AiandTokenResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.exchanged = append(f.exchanged, params)
+	return f.pollToken, f.exchangeErr
+}
+
 func (f *loginFakeGateway) RefreshToken(_ context.Context, refreshToken string) (auth.AiandTokenResponse, error) {
 	return auth.AiandTokenResponse{}, errors.New("not used")
 }
@@ -71,6 +104,22 @@ func (f *loginFakeGateway) ValidateKey(_ context.Context, key string) (auth.Aian
 	defer f.mu.Unlock()
 	f.validated = append(f.validated, key)
 	return f.validateUser, f.validateErr
+}
+
+// VerifyKey is the paste-login identity seam. An explicit verifyIdentity wins;
+// otherwise the ValidateKey script is reused with the fixture org so tests
+// that only care about the user keep working.
+func (f *loginFakeGateway) VerifyKey(_ context.Context, key string) (auth.AiandIdentity, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.verified = append(f.verified, key)
+	if f.verifyIdentity.UserID != "" || f.verifyErr != nil {
+		return f.verifyIdentity, f.verifyErr
+	}
+	if f.validateErr != nil {
+		return auth.AiandIdentity{}, f.validateErr
+	}
+	return auth.AiandIdentity{UserID: f.validateUser.ID, OrgID: "org-1", Email: f.validateUser.Email}, nil
 }
 
 // loginFakeAccounts is an in-memory auth.AccountRepository mirroring the SQL
@@ -358,13 +407,26 @@ func (f *loginFakeInstallations) UpdateFlagOverrides(_ context.Context, external
 
 // loginRecordingExternalKeys records the tx-scoped external key creates.
 type loginRecordingExternalKeys struct {
-	mu      sync.Mutex
-	created []auth.CreateExternalAPIKeyParams
+	mu          sync.Mutex
+	created     []auth.CreateExternalAPIKeyParams
+	softDeleted []string
+	// active mirrors the partial unique index (installation, provider) WHERE
+	// deleted_at IS NULL, so a second login that forgets to retire the prior
+	// key fails here exactly as Postgres would.
+	active map[string]bool
 }
 
 func (f *loginRecordingExternalKeys) Create(_ context.Context, params auth.CreateExternalAPIKeyParams) (*auth.ExternalAPIKey, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.active == nil {
+		f.active = map[string]bool{}
+	}
+	slot := params.InstallationID + "|" + params.Provider
+	if f.active[slot] {
+		return nil, errors.New("duplicate active external key")
+	}
+	f.active[slot] = true
 	f.created = append(f.created, params)
 	return &auth.ExternalAPIKey{ID: "ek-1", InstallationID: params.InstallationID, Provider: params.Provider}, nil
 }
@@ -373,7 +435,25 @@ func (f *loginRecordingExternalKeys) GetForInstallation(_ context.Context, insta
 	return nil, errors.New("not used")
 }
 func (f *loginRecordingExternalKeys) SoftDeleteByProvider(_ context.Context, installationID, provider string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.active != nil {
+		f.active[installationID+"|"+provider] = false
+	}
+	f.softDeleted = append(f.softDeleted, installationID+"|"+provider)
 	return nil
+}
+
+func (f *loginRecordingExternalKeys) activeCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	n := 0
+	for _, active := range f.active {
+		if active {
+			n++
+		}
+	}
+	return n
 }
 func (f *loginRecordingExternalKeys) SoftDelete(_ context.Context, installationID, id string) error {
 	return nil
@@ -458,6 +538,7 @@ type loginFixture struct {
 	externalKeys  *loginRecordingExternalKeys
 	runner        *loginTxRunner
 	notifier      *loginRecordingNotifier
+	nowFn         func() time.Time // overridable pinned clock
 	svc           *auth.LoginService
 }
 
@@ -486,11 +567,14 @@ func makeLoginService(t *testing.T, mutate func(*loginFixture)) *loginFixture {
 	if mutate != nil {
 		mutate(f)
 	}
+	if f.nowFn == nil {
+		f.nowFn = func() time.Time { return time.Unix(0, 0) }
+	}
 	if f.svc == nil {
 		svc, err := auth.NewLoginService(
 			f.accounts, f.sessions, f.attempts, f.installations,
 			f.credentials, f.externalKeys, f.gateway,
-			auth.NoOpEncryptor{}, f.runner, func() time.Time { return time.Unix(0, 0) },
+			auth.NoOpEncryptor{}, f.runner, f.nowFn,
 			f.notifier,
 		)
 		require.NoError(t, err)
@@ -663,11 +747,49 @@ func TestPollDeviceLogin_HappyPathCreatesAllArtifactsInOneTx(t *testing.T) {
 	assert.Equal(t, "user-1", outcome.Identity.UserID)
 }
 
+// TestPollDeviceLogin_MissingTokenOrgResolvesFromKey covers gateways whose
+// device token response omits the optional embedded org: the login must still
+// land on the key-scoped org instead of the zero value.
+func TestPollDeviceLogin_MissingTokenOrgResolvesFromKey(t *testing.T) {
+	f := makeLoginService(t, func(f *loginFixture) {
+		authorizedGateway(f)
+		f.gateway.pollToken.Org = nil
+		f.gateway.verifyIdentity = auth.AiandIdentity{
+			UserID: "user-1", OrgID: "org-verified", Email: "ops@example.com", OrgName: "Verified Org",
+		}
+	})
+	start := startDevice(t, f)
+	pollAuthorized(t, f, start.LoginID)
+
+	require.Len(t, f.accounts.upserts, 1)
+	assert.Equal(t, "org-verified", f.accounts.upserts[0].AiandOrgID)
+	require.Len(t, f.credentials.upserts, 1)
+	assert.Equal(t, "org-verified", f.credentials.upserts[0].OrgID)
+}
+
+// TestLoginWithKey_SecondLoginReplacesExternalKey covers logout/login and
+// reconnect: the second login for one account must retire the prior
+// (installation, provider) key before creating the new one, or the partial
+// unique index aborts the transaction.
+func TestLoginWithKey_SecondLoginReplacesExternalKey(t *testing.T) {
+	f := makeLoginService(t, func(f *loginFixture) {
+		f.gateway.verifyIdentity = auth.AiandIdentity{UserID: "user-relogin", OrgID: "org-relogin", Email: "relogin@example.com"}
+	})
+	_, err := f.svc.LoginWithKey(context.Background(), "sk-first")
+	require.NoError(t, err)
+	_, err = f.svc.LoginWithKey(context.Background(), "sk-second")
+	require.NoError(t, err)
+
+	require.Len(t, f.externalKeys.created, 2)
+	require.NotEmpty(t, f.externalKeys.softDeleted, "the prior active key must be retired")
+	assert.Equal(t, 1, f.externalKeys.activeCount(), "exactly one active aiand key per installation")
+}
+
 // TestLoginWithKey_PastePathSameTransaction drives the paste path to the same
 // five-artifact transaction with a paste-origin credential.
 func TestLoginWithKey_PastePathSameTransaction(t *testing.T) {
 	f := makeLoginService(t, func(f *loginFixture) {
-		f.gateway.validateUser = auth.AiandUser{ID: "user-2", Email: "paster@example.com"}
+		f.gateway.verifyIdentity = auth.AiandIdentity{UserID: "user-2", OrgID: "org-paste", Email: "paster@example.com"}
 	})
 	grant, err := f.svc.LoginWithKey(context.Background(), "sk-pasted-key")
 	require.NoError(t, err)
@@ -675,6 +797,8 @@ func TestLoginWithKey_PastePathSameTransaction(t *testing.T) {
 	require.Equal(t, 1, f.runner.runs)
 	require.Len(t, f.accounts.upserts, 1)
 	assert.Equal(t, "user-2", f.accounts.upserts[0].AiandUserID)
+	assert.Equal(t, "org-paste", f.accounts.upserts[0].AiandOrgID,
+		"the pasted key's org must come from the key identity, not an empty value")
 
 	require.Len(t, f.installations.created, 1)
 	assert.Equal(t, f.accounts.upserts[0].ID, f.installations.created[0].ExternalID)
@@ -699,7 +823,7 @@ func TestLoginWithKey_PastePathSameTransaction(t *testing.T) {
 // maps to ErrInvalidAiandKey and persists nothing.
 func TestLoginWithKey_InvalidKeySurfacesSentinel(t *testing.T) {
 	f := makeLoginService(t, func(f *loginFixture) {
-		f.gateway.validateErr = auth.ErrAiandInvalidKey
+		f.gateway.verifyErr = auth.ErrAiandInvalidKey
 	})
 	_, err := f.svc.LoginWithKey(context.Background(), "sk-bad")
 	assert.ErrorIs(t, err, auth.ErrAiandInvalidKey)
@@ -1082,4 +1206,199 @@ func TestPollDeviceLogin_LogsCarryNoSecrets(t *testing.T) {
 func hashToken(token string) string {
 	sum := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(sum[:])
+}
+
+// --- browser flow ---------------------------------------------------------
+
+// browserTestToken is the exchange response the browser tests script: an
+// org-bearing token so resolveIdentity short-circuits past ValidateKey.
+func browserTestToken() auth.AiandTokenResponse {
+	return auth.AiandTokenResponse{
+		AccessToken:  "sk-aiand-browser",
+		RefreshToken: "rt-browser",
+		ExpiresIn:    3600,
+		Org:          &auth.AiandOrg{ID: "org-1", Name: "Example Org"},
+	}
+}
+
+// startBrowser runs StartBrowserLogin and hands back the start plus the
+// unsealed flow payload (the fixture's NoOp encryptor keeps the cookie bytes
+// readable) so tests can pin the state and tamper with it.
+func startBrowser(t *testing.T, f *loginFixture, origin, next string) (auth.LoginBrowserStart, auth.SealedBrowserLogin) {
+	t.Helper()
+	start, err := f.svc.StartBrowserLogin(context.Background(), origin, next)
+	require.NoError(t, err)
+	var flow auth.SealedBrowserLogin
+	require.NoError(t, json.Unmarshal(start.Sealed, &flow))
+	return start, flow
+}
+
+func TestStartBrowserLogin_BuildsPreflightsAndSeals(t *testing.T) {
+	f := makeLoginService(t, nil)
+	authorizedGateway(f)
+
+	start, flow := startBrowser(t, f, "http://127.0.0.1:3000", "/sessions")
+	require.NotEmpty(t, start.AuthorizeURL)
+	assert.Equal(t, 600, start.ExpiresIn)
+
+	// The gateway got the origin as redirect URI, the sealed state, an S256
+	// challenge, and the host-labeled key name.
+	require.Len(t, f.gateway.authorizeParams, 1)
+	params := f.gateway.authorizeParams[0]
+	assert.Equal(t, "http://127.0.0.1:3000", params.RedirectURI)
+	assert.Equal(t, flow.State, params.State)
+	assert.NotEmpty(t, params.CodeChallenge)
+	assert.NotContains(t, params.CodeChallenge, "=", "S256 challenges are raw base64url")
+	assert.True(t, strings.HasPrefix(params.KeyName, "aiand-router@"), "key name must be host-labeled, got %q", params.KeyName)
+	// The preflight saw the exact URL the caller was given.
+	require.Len(t, f.gateway.preflighted, 1)
+	assert.Equal(t, start.AuthorizeURL, f.gateway.preflighted[0])
+
+	// The sealed payload binds verifier/redirect/next and expires within the TTL.
+	assert.Equal(t, params.State, flow.State)
+	assert.NotEmpty(t, flow.Verifier)
+	assert.Equal(t, "http://127.0.0.1:3000", flow.RedirectURI)
+	assert.Equal(t, "/sessions", flow.Next)
+	assert.Equal(t, time.Unix(600, 0).UTC(), flow.ExpiresAt, "pinned epoch clock + 10-minute TTL")
+}
+
+func TestStartBrowserLogin_SanitizesNext(t *testing.T) {
+	f := makeLoginService(t, nil)
+	authorizedGateway(f)
+	cases := []struct{ next, want string }{
+		{"", "/dashboard"},
+		{"/sessions", "/sessions"},
+		{"//evil.co", "/dashboard"},
+		{"/\\evil.co", "/dashboard"},
+		{"dashboard", "/dashboard"},
+		{"/" + strings.Repeat("x", 600), "/dashboard"},
+	}
+	for _, tc := range cases {
+		start, flow := startBrowser(t, f, "http://127.0.0.1:3000", tc.next)
+		require.NotEmpty(t, start.AuthorizeURL, tc.next)
+		assert.Equal(t, tc.want, flow.Next, "next=%q", tc.next)
+	}
+}
+
+func TestStartBrowserLogin_RejectsNonBareOrigin(t *testing.T) {
+	f := makeLoginService(t, nil)
+	for _, origin := range []string{
+		"",
+		"ftp://127.0.0.1:3000",
+		"http://127.0.0.1:3000/ui",
+		"http://127.0.0.1:3000/?x=1",
+		"not a url",
+	} {
+		_, err := f.svc.StartBrowserLogin(context.Background(), origin, "")
+		require.ErrorIs(t, err, auth.ErrBrowserFlowState, "origin=%q", origin)
+	}
+	assert.Empty(t, f.gateway.authorizeParams, "no authorize URL is built for a bad origin")
+}
+
+func TestStartBrowserLogin_PropagatesUnsupported(t *testing.T) {
+	f := makeLoginService(t, func(fx *loginFixture) {
+		fx.gateway.preflightErr = auth.ErrAiandBrowserUnsupported
+	})
+	_, err := f.svc.StartBrowserLogin(context.Background(), "http://127.0.0.1:3000", "")
+	require.ErrorIs(t, err, auth.ErrAiandBrowserUnsupported)
+}
+
+func TestStartBrowserLogin_PreflightGatewayFailureWrapsUnavailable(t *testing.T) {
+	f := makeLoginService(t, func(fx *loginFixture) {
+		fx.gateway.preflightErr = errors.New("connection refused")
+	})
+	_, err := f.svc.StartBrowserLogin(context.Background(), "http://127.0.0.1:3000", "")
+	require.ErrorIs(t, err, auth.ErrAiandGatewayUnavailable)
+}
+
+func TestExchangeBrowserLogin_HappyPath(t *testing.T) {
+	f := makeLoginService(t, func(fx *loginFixture) {
+		fx.gateway.pollToken = browserTestToken()
+	})
+	authorizedGateway(f)
+	start, flow := startBrowser(t, f, "http://127.0.0.1:3000", "/keys")
+
+	result, err := f.svc.ExchangeBrowserLogin(context.Background(), flow.State, "auth-code-1", start.Sealed)
+	require.NoError(t, err)
+	require.NotNil(t, result.Grant)
+	assert.Equal(t, "ops@example.com", result.Email)
+	assert.Equal(t, "Example Org", result.OrgName)
+	assert.Equal(t, "/keys", result.Next)
+	assert.NotEmpty(t, result.Grant.Token)
+
+	// The gateway exchange carried the code, the sealed verifier, and the
+	// original redirect URI.
+	require.Len(t, f.gateway.exchanged, 1)
+	params := f.gateway.exchanged[0]
+	assert.Equal(t, "auth-code-1", params.Code)
+	assert.Equal(t, flow.Verifier, params.CodeVerifier)
+	assert.Equal(t, "http://127.0.0.1:3000", params.RedirectURI)
+
+	// The same login transaction ran: one session minted, notify fired.
+	require.Len(t, f.sessions.inserted, 1)
+	require.Len(t, f.notifier.called, 1)
+	// The token landed as the installation's propagated aiand external key.
+	require.Len(t, f.externalKeys.created, 1)
+}
+
+func TestExchangeBrowserLogin_StateMismatchIsFlowStateError(t *testing.T) {
+	f := makeLoginService(t, nil)
+	start, _ := startBrowser(t, f, "http://127.0.0.1:3000", "")
+	_, err := f.svc.ExchangeBrowserLogin(context.Background(), "attacker-state", "code", start.Sealed)
+	require.ErrorIs(t, err, auth.ErrBrowserFlowState)
+	assert.Empty(t, f.gateway.exchanged, "a mismatched state never reaches the gateway")
+}
+
+func TestExchangeBrowserLogin_ExpiredFlowIsFlowStateError(t *testing.T) {
+	// Mutable clock shared with the service: start at the epoch, then jump
+	// past the 10-minute TTL before the exchange.
+	now := time.Unix(0, 0)
+	f := makeLoginService(t, func(fx *loginFixture) {
+		fx.nowFn = func() time.Time { return now }
+	})
+	start, flow := startBrowser(t, f, "http://127.0.0.1:3000", "")
+	now = time.Unix(3600, 0)
+	_, err := f.svc.ExchangeBrowserLogin(context.Background(), flow.State, "code", start.Sealed)
+	require.ErrorIs(t, err, auth.ErrBrowserFlowState)
+}
+
+func TestExchangeBrowserLogin_TamperedSealedIsFlowStateError(t *testing.T) {
+	f := makeLoginService(t, nil)
+	start, _ := startBrowser(t, f, "http://127.0.0.1:3000", "")
+	tampered := append([]byte(nil), start.Sealed...)
+	tampered[0] ^= 0xFF
+	_, err := f.svc.ExchangeBrowserLogin(context.Background(), flowStateOf(t, start.Sealed), "code", tampered)
+	require.ErrorIs(t, err, auth.ErrBrowserFlowState)
+}
+
+func TestExchangeBrowserLogin_MissingSealedIsFlowStateError(t *testing.T) {
+	f := makeLoginService(t, nil)
+	_, err := f.svc.ExchangeBrowserLogin(context.Background(), "s", "code", nil)
+	require.ErrorIs(t, err, auth.ErrBrowserFlowState)
+}
+
+func TestExchangeBrowserLogin_RejectedGrantSurfacesSentinel(t *testing.T) {
+	f := makeLoginService(t, func(fx *loginFixture) {
+		fx.gateway.exchangeErr = auth.ErrAiandInvalidGrant
+	})
+	start, flow := startBrowser(t, f, "http://127.0.0.1:3000", "")
+	_, err := f.svc.ExchangeBrowserLogin(context.Background(), flow.State, "spent-code", start.Sealed)
+	require.ErrorIs(t, err, auth.ErrAiandInvalidGrant)
+}
+
+func TestExchangeBrowserLogin_GatewayDownWrapsUnavailable(t *testing.T) {
+	f := makeLoginService(t, func(fx *loginFixture) {
+		fx.gateway.exchangeErr = errors.New("connection refused")
+	})
+	start, flow := startBrowser(t, f, "http://127.0.0.1:3000", "")
+	_, err := f.svc.ExchangeBrowserLogin(context.Background(), flow.State, "code", start.Sealed)
+	require.ErrorIs(t, err, auth.ErrAiandGatewayUnavailable)
+}
+
+// flowStateOf unseals the state from a NoOp-sealed blob.
+func flowStateOf(t *testing.T, sealed []byte) string {
+	t.Helper()
+	var flow auth.SealedBrowserLogin
+	require.NoError(t, json.Unmarshal(sealed, &flow))
+	return flow.State
 }

@@ -42,7 +42,7 @@ type LoginService struct {
 	installations InstallationRepository
 	credentials   AiandCredentialRepository
 	externalKeys  ExternalAPIKeyRepository
-	gateway       AiandGateway
+	gateway       AiandLoginGateway
 	encryptor     Encryptor
 	txRunner      TxRunner
 	notifier      InstallationChangeNotifier
@@ -62,7 +62,7 @@ func NewLoginService(
 	installations InstallationRepository,
 	credentials AiandCredentialRepository,
 	externalKeys ExternalAPIKeyRepository,
-	gateway AiandGateway,
+	gateway AiandLoginGateway,
 	encryptor Encryptor,
 	txRunner TxRunner,
 	now Clock,
@@ -169,6 +169,7 @@ type LoginSessionGrant struct {
 // gateway unavailability and wiring gaps are errors. An authorized outcome
 // carries the minted session grant.
 func (s *LoginService) PollDeviceLogin(ctx context.Context, loginID string) (LoginPollOutcome, error) {
+	startedAt := time.Now()
 	attempt, err := s.attempts.GetActiveLoginAttempt(ctx, loginID)
 	if err != nil {
 		return LoginPollOutcome{}, err
@@ -177,7 +178,9 @@ func (s *LoginService) PollDeviceLogin(ctx context.Context, loginID string) (Log
 	if err != nil {
 		return LoginPollOutcome{}, fmt.Errorf("open device code: %w", err)
 	}
+	tokenStartedAt := time.Now()
 	token, err := s.gateway.PollToken(ctx, string(deviceCode))
+	tokenExchange := time.Since(tokenStartedAt)
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrAiandAuthorizationPending):
@@ -212,7 +215,9 @@ func (s *LoginService) PollDeviceLogin(ctx context.Context, loginID string) (Log
 	// Resolve the identity before the unit of work: a failed user lookup is
 	// an incomplete gateway response, not a persistence failure, and the
 	// attempt must stay pollable so the next poll can retry.
+	identityStartedAt := time.Now()
 	identity, err := s.resolveIdentity(ctx, token)
+	identityResolution := time.Since(identityStartedAt)
 	if err != nil {
 		s.logPollOutcome(ctx, aiandPollStatusFailed, err)
 		return LoginPollOutcome{}, err
@@ -221,11 +226,14 @@ func (s *LoginService) PollDeviceLogin(ctx context.Context, loginID string) (Log
 	// The attempt stays pollable until the full persistence transaction
 	// commits: a transient DB failure must not convert retries into
 	// ErrLoginAttemptNotFound. Only a committed completion consumes it.
+	txStartedAt := time.Now()
 	grant, expiresAt, err := s.completeLoginTx(ctx, attempt.ID, identity, token)
+	transaction := time.Since(txStartedAt)
 	if err != nil {
 		s.logPollOutcome(ctx, aiandPollStatusFailed, err)
 		return LoginPollOutcome{}, err
 	}
+	observability.FromContext(ctx).Info("login: device poll authorized", "token_exchange_ms", tokenExchange.Milliseconds(), "identity_ms", identityResolution.Milliseconds(), "transaction_ms", transaction.Milliseconds(), "total_ms", time.Since(startedAt).Milliseconds())
 	s.logPollOutcome(ctx, AiandPollStatusAuthorized, nil)
 	return LoginPollOutcome{
 		Status:    AiandPollStatusAuthorized,
@@ -241,7 +249,10 @@ func (s *LoginService) PollDeviceLogin(ctx context.Context, loginID string) (Log
 // transaction the device flow uses. ErrAiandInvalidKey surfaces for a
 // rejected key; other gateway failures wrap ErrAiandGatewayUnavailable.
 func (s *LoginService) LoginWithKey(ctx context.Context, key string) (LoginSessionGrant, error) {
-	identity, err := s.resolveIdentity(ctx, AiandTokenResponse{AccessToken: key})
+	// A pasted key is org-scoped: VerifyKey resolves the key's org from the
+	// gateway (key-scoped response header, falling back to a sole membership)
+	// so paste and device logins converge on the same account identity.
+	identity, err := s.gateway.VerifyKey(ctx, key)
 	if err != nil {
 		if errors.Is(err, ErrAiandInvalidKey) {
 			return LoginSessionGrant{}, ErrAiandInvalidKey
@@ -268,10 +279,20 @@ func (s *LoginService) resolveIdentity(ctx context.Context, token AiandTokenResp
 		return AiandIdentity{}, fmt.Errorf("%w: gateway returned an empty user id", ErrAiandGateway)
 	}
 	identity := AiandIdentity{UserID: user.ID, Email: user.Email}
-	if token.Org != nil {
+	if token.Org != nil && token.Org.ID != "" {
 		identity.OrgID = token.Org.ID
 		identity.OrgName = token.Org.Name
+		return identity, nil
 	}
+	// Older token responses omit the embedded org. Resolve it from the key
+	// itself so the account still lands on the org the credential is scoped
+	// to, rather than the zero-valued org.
+	verified, err := s.gateway.VerifyKey(ctx, token.AccessToken)
+	if err != nil {
+		return AiandIdentity{}, err
+	}
+	identity.OrgID = verified.OrgID
+	identity.OrgName = verified.OrgName
 	return identity, nil
 }
 
@@ -438,7 +459,7 @@ func (s *LoginService) writeCredentialAndKey(ctx context.Context, tx Tx, account
 		}
 	}
 	orgID, orgName := identity.OrgID, identity.OrgName
-	if token.Org != nil {
+	if token.Org != nil && token.Org.ID != "" {
 		orgID, orgName = token.Org.ID, token.Org.Name
 	}
 	if _, err := tx.AiandCredentials.Upsert(ctx, UpsertAiandCredentialParams{
@@ -459,6 +480,12 @@ func (s *LoginService) writeCredentialAndKey(ctx context.Context, tx Tx, account
 	})
 	if err != nil {
 		return time.Time{}, err
+	}
+	// One active key per (installation, provider). Re-login/reconnect must
+	// retire the previous key before inserting; otherwise the partial unique
+	// index rejects the new key and aborts the whole login transaction.
+	if err := tx.ExternalAPIKeys.SoftDeleteByProvider(ctx, installationID, create.Provider); err != nil {
+		return time.Time{}, fmt.Errorf("retire previous aiand key: %w", err)
 	}
 	if _, err := tx.ExternalAPIKeys.Create(ctx, create); err != nil {
 		return time.Time{}, fmt.Errorf("propagate aiand access token: %w", err)

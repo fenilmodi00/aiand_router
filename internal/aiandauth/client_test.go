@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -120,6 +121,21 @@ func TestPollToken_UsesDeviceGrant(t *testing.T) {
 	assert.Equal(t, "Acme", token.Org.Name)
 }
 
+// A token response with an empty org object must decode as no org, so the
+// login service can fall back to the key-scoped org instead of persisting "".
+func TestPollToken_EmptyOrgIsNil(t *testing.T) {
+	client, _ := captureServer(t, http.StatusOK, `{
+		"access_token": "sk-secret",
+		"token_type": "bearer",
+		"expires_in": 60,
+		"org": {}
+	}`)
+
+	token, err := client.PollToken(context.Background(), "dc-1")
+	require.NoError(t, err)
+	assert.Nil(t, token.Org)
+}
+
 func TestPollToken_ErrorVariantsMapToSentinels(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -160,6 +176,172 @@ func TestRefreshToken_UsesRefreshGrant(t *testing.T) {
 	assert.Equal(t, "rt-current", body["refresh_token"])
 	assert.Equal(t, "sk-next", token.AccessToken)
 	assert.Equal(t, "rt-next", token.RefreshToken)
+}
+
+// --- browser authorization-code flow ---------------------------------------
+
+func TestAuthorizeURL_BuildsBrowserQuery(t *testing.T) {
+	client := aiandauth.NewClient("https://gateway.test", nil)
+
+	raw := client.AuthorizeURL(auth.AiandAuthorizeParams{
+		RedirectURI:   "http://127.0.0.1:8080",
+		State:         "st-123",
+		CodeChallenge: "cc-challenge",
+		KeyName:       "aiand-router@router-host",
+	})
+	u, err := url.Parse(raw)
+	require.NoError(t, err)
+
+	assert.Equal(t, "https://gateway.test", u.Scheme+"://"+u.Host)
+	assert.Equal(t, "/auth/authorize", u.Path, "browser flow uses the gateway's authorize endpoint")
+	q := u.Query()
+	assert.Equal(t, "aiand-cli", q.Get("client_id"), "browser flow must present the public browser client, not the device client")
+	assert.Equal(t, "code", q.Get("response_type"))
+	assert.Equal(t, "http://127.0.0.1:8080", q.Get("redirect_uri"))
+	assert.Equal(t, "st-123", q.Get("state"))
+	assert.Equal(t, "S256", q.Get("code_challenge_method"))
+	assert.Equal(t, "cc-challenge", q.Get("code_challenge"))
+	assert.Equal(t, "aiand-router@router-host", q.Get("key_name"))
+}
+
+func TestAuthorizeURL_OmitsEmptyKeyName(t *testing.T) {
+	client := aiandauth.NewClient("https://gateway.test", nil)
+
+	u, err := url.Parse(client.AuthorizeURL(auth.AiandAuthorizeParams{
+		RedirectURI:   "http://127.0.0.1:8080",
+		State:         "s",
+		CodeChallenge: "cc",
+	}))
+	require.NoError(t, err)
+	assert.False(t, u.Query().Has("key_name"), "an unset key name must not reach the gateway as an empty value")
+}
+
+func TestBrowserAuthorizeAvailable_Accepts302WithoutFollowing(t *testing.T) {
+	// The live gateway 302s straight to its login UI on success; the probe
+	// must treat the redirect as "available", not chase it.
+	client, got := captureServer(t, http.StatusFound, "")
+
+	authorizeURL := aiandauth.NewClient(got.ServerURL, nil).AuthorizeURL(auth.AiandAuthorizeParams{
+		RedirectURI:   "http://127.0.0.1:8080",
+		State:         "probe-state",
+		CodeChallenge: "probe-challenge",
+	})
+	require.NoError(t, client.BrowserAuthorizeAvailable(context.Background(), authorizeURL))
+}
+
+func TestBrowserAuthorizeAvailable_SendsPlainGetWithoutAuthorization(t *testing.T) {
+	var got capture
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got.Method, got.Path, got.Header = r.Method, r.URL.Path, r.Header.Clone()
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(server.Close)
+	client := aiandauth.NewClient(server.URL, server.Client())
+
+	require.NoError(t, client.BrowserAuthorizeAvailable(
+		context.Background(), aiandauth.NewClient(server.URL, nil).AuthorizeURL(auth.AiandAuthorizeParams{
+			RedirectURI:   "http://127.0.0.1:8080",
+			State:         "s",
+			CodeChallenge: "cc",
+		})))
+
+	assert.Equal(t, http.MethodGet, got.Method)
+	assert.Equal(t, "/auth/authorize", got.Path)
+	assert.Empty(t, got.Header.Get("Authorization"), "the preflight runs before any credential exists")
+}
+
+func TestBrowserAuthorizeAvailable_UnsupportedShapesFallBackToDevice(t *testing.T) {
+	cases := []struct {
+		name   string
+		status int
+		body   string
+	}{
+		{"not_found", http.StatusNotFound, `{"error": "not_found"}`},
+		{"not_implemented", http.StatusNotImplemented, ""},
+		{"invalid_request", http.StatusBadRequest, `{"error": "invalid_request", "error_description": "unknown client"}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			client, got := captureServer(t, tc.status, tc.body)
+			authorizeURL := aiandauth.NewClient(got.ServerURL, nil).AuthorizeURL(auth.AiandAuthorizeParams{
+				RedirectURI:   "http://127.0.0.1:8080",
+				State:         "probe-state",
+				CodeChallenge: "probe-challenge",
+			})
+			err := client.BrowserAuthorizeAvailable(context.Background(), authorizeURL)
+			assert.ErrorIs(t, err, auth.ErrAiandBrowserUnsupported, "the login UI must fall back to the device flow")
+			assert.Equal(t, "/auth/authorize", got.Path)
+		})
+	}
+}
+
+func TestBrowserAuthorizeAvailable_OtherFailuresAreGatewayErrors(t *testing.T) {
+	t.Run("bad_request_with_other_code", func(t *testing.T) {
+		// A 400 that is not invalid_request is not a shape verdict; treat it
+		// as a gateway problem rather than silently dropping the browser flow.
+		client, got := captureServer(t, http.StatusBadRequest, `{"error": "server_error"}`)
+		authorizeURL := aiandauth.NewClient(got.ServerURL, nil).AuthorizeURL(auth.AiandAuthorizeParams{
+			RedirectURI:   "http://127.0.0.1:8080",
+			State:         "s",
+			CodeChallenge: "cc",
+		})
+		err := client.BrowserAuthorizeAvailable(context.Background(), authorizeURL)
+		assert.ErrorIs(t, err, auth.ErrAiandGateway)
+		assert.NotErrorIs(t, err, auth.ErrAiandBrowserUnsupported)
+	})
+	t.Run("server_error", func(t *testing.T) {
+		client, got := captureServer(t, http.StatusInternalServerError, `{"error": "boom"}`)
+		authorizeURL := aiandauth.NewClient(got.ServerURL, nil).AuthorizeURL(auth.AiandAuthorizeParams{
+			RedirectURI:   "http://127.0.0.1:8080",
+			State:         "s",
+			CodeChallenge: "cc",
+		})
+		assert.ErrorIs(t, client.BrowserAuthorizeAvailable(context.Background(), authorizeURL), auth.ErrAiandGateway)
+	})
+	t.Run("unreachable_gateway", func(t *testing.T) {
+		client := aiandauth.NewClient("http://127.0.0.1:1", &http.Client{Timeout: 2 * time.Second})
+		assert.ErrorIs(t, client.BrowserAuthorizeAvailable(context.Background(), "http://127.0.0.1:1/auth/authorize"), auth.ErrAiandGateway)
+	})
+}
+
+func TestExchangeCode_UsesAuthorizationCodeGrant(t *testing.T) {
+	client, got := captureServer(t, http.StatusOK, `{
+		"access_token": "sk-browser",
+		"refresh_token": "rt-browser",
+		"token_type": "bearer",
+		"expires_in": 2592000,
+		"org": {"id": "org-9", "name": "Beta"}
+	}`)
+
+	token, err := client.ExchangeCode(context.Background(), auth.AiandCodeExchangeParams{
+		Code:         "ac-code",
+		CodeVerifier: "pkce-verifier",
+		RedirectURI:  "http://127.0.0.1:8080",
+	})
+	require.NoError(t, err)
+
+	body := decodeBody(t, got)
+	assert.Equal(t, http.MethodPost, got.Method)
+	assert.Equal(t, "/auth/device/token", got.Path, "the browser flow exchanges at the gateway's token endpoint")
+	assert.Equal(t, "authorization_code", body["grant_type"])
+	assert.Equal(t, "ac-code", body["code"])
+	assert.Equal(t, "pkce-verifier", body["code_verifier"])
+	assert.Equal(t, "aiand-cli", body["client_id"], "the exchange must present the browser client")
+	assert.Equal(t, "http://127.0.0.1:8080", body["redirect_uri"])
+	assert.Equal(t, "sk-browser", token.AccessToken)
+	assert.Equal(t, "rt-browser", token.RefreshToken)
+	require.NotNil(t, token.Org)
+	assert.Equal(t, "org-9", token.Org.ID)
+	assert.Equal(t, "Beta", token.Org.Name)
+}
+
+func TestExchangeCode_InvalidGrantMapsToSentinel(t *testing.T) {
+	client, got := captureServer(t, http.StatusBadRequest, `{"error": "invalid_grant", "error_description": "code replayed"}`)
+
+	_, err := client.ExchangeCode(context.Background(), auth.AiandCodeExchangeParams{Code: "ac", CodeVerifier: "v", RedirectURI: "http://127.0.0.1:8080"})
+
+	assert.ErrorIs(t, err, auth.ErrAiandInvalidGrant)
+	assert.Equal(t, "/auth/device/token", got.Path)
 }
 
 func TestRevoke_PostsRefreshTokenToLogout(t *testing.T) {
@@ -257,11 +439,16 @@ func TestNewClientTrimsTrailingSlash(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// Compile-time guard: the production client must keep satisfying the full
+// login gateway surface, browser flow included.
+var _ auth.AiandLoginGateway = (*aiandauth.Client)(nil)
+
 // Compile-time guard: sentinel errors stay distinct for errors.Is dispatch.
 func TestSentinelsDistinct(t *testing.T) {
 	errs := []error{
 		auth.ErrAiandGateway, auth.ErrAiandAuthorizationPending, auth.ErrAiandSlowDown,
 		auth.ErrAiandAccessDenied, auth.ErrAiandExpiredToken, auth.ErrAiandInvalidKey,
+		auth.ErrAiandBrowserUnsupported, auth.ErrAiandInvalidGrant,
 	}
 	for i, a := range errs {
 		for j, b := range errs {

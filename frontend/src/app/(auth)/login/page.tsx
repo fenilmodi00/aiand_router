@@ -27,7 +27,9 @@ const LOGIN_COPY = {
   starting: "Starting sign-in…",
   startFailed: "Couldn't start sign-in.",
   startTooMany: "Too many attempts — retry in",
+  startBrowserFailed: "Couldn't start browser sign-in.",
   retry: "Retry",
+  useDeviceCode: "Use a device code",
   device: {
     codeLabel: "Enter this code in Aiand to approve sign-in",
     copy: "Copy code",
@@ -38,6 +40,7 @@ const LOGIN_COPY = {
     cancel: "Cancel",
     waiting: "Waiting for approval…",
     waitingLong: "Still waiting for approval…",
+    checkNow: "I've approved — check now",
     expired: "This code has expired.",
     denied: "Sign-in was denied in Aiand.",
     attemptLost: "This sign-in attempt is no longer valid.",
@@ -78,14 +81,16 @@ function safeNext(raw: string | null): string {
 const ATTEMPT_KEY = "aiand-router-login-attempt";
 // Cumulative pending-poll time after which the waiting line escalates.
 const WAITING_LONG_MS = 15_000;
+// Minimum gap between a focus/visibility wake and the last poll; a wake that
+// arrives while a poll is effectively in flight is ignored. The steady-state
+// cadence remains the gateway's advertised interval (five seconds today).
+const POLL_WAKE_MIN_GAP_MS = 1_000;
 // Fallback poll delay when a slow-down carries no Retry-After seconds.
 const SLOW_DOWN_FALLBACK_S = 5;
 // Fixed countdown offered after a 429 (the backend sends no Retry-After body).
 const RETRY_WINDOW_S = 60;
 // Countdown tick granularity for retry windows.
 const RETRY_TICK_MS = 1_000;
-// 0–500ms of jitter so reloads/restarts across clients never poll in lockstep.
-const POLL_JITTER_MS = 500;
 // How long the copied confirmation stays visible.
 const COPIED_RESET_MS = 2_000;
 // Small paint window so the authorizing skeleton is visible before navigation.
@@ -159,11 +164,21 @@ function formatCountdown(totalSeconds: number): string {
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
-// Awaitable sleep that can't keep the loop alive past cancellation: the
-// caller re-checks the run token after every await.
-function delay(ms: number): Promise<void> {
+// Awaitable sleep that can be woken early when the user returns from the
+// approval tab. The caller re-checks the run token after every await.
+function waitForNextPoll(ms: number, wakeRef: { current: (() => void) | null }): Promise<void> {
   const { promise, resolve } = Promise.withResolvers<void>();
-  window.setTimeout(resolve, ms);
+  let settled = false;
+  let timer = 0;
+  const finish = () => {
+    if (settled) return;
+    settled = true;
+    window.clearTimeout(timer);
+    if (wakeRef.current === finish) wakeRef.current = null;
+    resolve();
+  };
+  timer = window.setTimeout(finish, ms);
+  wakeRef.current = finish;
   return promise;
 }
 
@@ -177,8 +192,28 @@ type DeviceOutcome = "expired" | "denied" | "lost";
 function LoginInner() {
   const router = useRouter();
   const params = useSearchParams();
+  // The backend derives the browser-flow redirect_uri from the request
+  // Origin, and the provider/gateway only accepts 127.0.0.1 (never the
+  // `localhost` spelling). Canonicalize before any sign-in starts: replace
+  // the current URL with the same path+search on 127.0.0.1 and bail — the
+  // reload re-mounts this page on the accepted origin. Guarded so dev
+  // StrictMode's double mount doesn't loop.
+  const localhostRedirectRef = useRef(false);
+  if (
+    typeof window !== "undefined" &&
+    !localhostRedirectRef.current &&
+    window.location.hostname === "localhost"
+  ) {
+    localhostRedirectRef.current = true;
+    const { pathname, search } = window.location;
+    window.location.replace(`http://127.0.0.1${window.location.port ? `:${window.location.port}` : ""}${pathname}${search}`);
+    return null;
+  }
   const next = safeNext(params.get("next"));
   const deepLinkPaste = params.get("mode") === "paste";
+  // Explicit device-fallback request: from the root callback's failure card
+  // (?mode=device) or a prior 501 browser_unsupported redirect.
+  const forceDeviceParam = params.get("mode") === "device";
   const sessionExpired = params.get("reason") === "expired";
 
   const [phase, setPhase] = useState<Phase>("starting");
@@ -197,6 +232,12 @@ function LoginInner() {
   // terminal outcomes). Countdown digits themselves stay aria-live="off".
   const [announce, setAnnounce] = useState<string | null>(null);
 
+  // Warm the post-login route while the user is on the approval screen; in
+  // dev this removes the route-compile stall from the authorized transition.
+  useEffect(() => {
+    router.prefetch(next);
+  }, [router, next]);
+
   const [pasteKey, setPasteKey] = useState("");
   const [pasteError, setPasteError] = useState<string | null>(null);
   const [pasteBanner, setPasteBanner] = useState<string | null>(null);
@@ -209,6 +250,25 @@ function LoginInner() {
   // Poll-loop identity: incrementing cancels any in-flight loop at its next
   // checkpoint (every await re-checks the token).
   const pollRunRef = useRef(0);
+  // Wakes a sleeping poll when the user returns from the approval tab. The
+  // loop still polls no earlier than the advertised interval; a 428 raises it.
+  const pollWakeRef = useRef<(() => void) | null>(null);
+  // Late-bound handle to startDeviceLogin so the browser flow's 501 fallback
+  // can invoke it without a temporal-dead-zone reference between the two
+  // useCallbacks.
+  const startDeviceLoginRef = useRef<(() => Promise<void>) | null>(null);
+  // Same pattern for startBrowserLogin: the mount effect runs before the
+  // useCallback assignment below, so it calls through this ref.
+  const startBrowserLoginRef = useRef<(() => Promise<void>) | null>(null);
+  // Set by the manual "I've approved" action; skips the next sleep even if a
+  // poll was already in flight when the button was pressed.
+  const pollNowRef = useRef(false);
+  const pollDelayRef = useRef(0);
+  const lastPollAtRef = useRef(0);
+  // React StrictMode invokes mount effects twice in development. Without this
+  // guard the second invocation mints a second device code and leaves an
+  // orphan attempt polling alongside the code the user actually approves.
+  const mountStartedRef = useRef(false);
 
   // ---- Countdown ---------------------------------------------------------
   useEffect(() => {
@@ -259,13 +319,26 @@ function LoginInner() {
   const runPollLoop = useCallback(
     (stored: StoredAttempt) => {
       const run = ++pollRunRef.current;
-      let pollDelayMs = stored.interval * 1000;
+      // Vercel's client shape: first poll immediate, then exactly the
+      // advertised interval; a missing/zero interval falls back to RFC 8628's
+      // five-second default instead of busy-looping.
+      let pollDelayMs = stored.interval > 0 ? stored.interval * 1000 : SLOW_DOWN_FALLBACK_S * 1000;
+      pollDelayRef.current = pollDelayMs;
       let pendingMs = 0;
+      let firstPoll = true;
 
       async function loop(): Promise<void> {
         while (pollRunRef.current === run) {
-          await delay(pollDelayMs + Math.random() * POLL_JITTER_MS);
-          if (pollRunRef.current !== run) return;
+          // Poll once immediately, then on the gateway's advertised interval.
+          // A manual check-now or a return-from-approval wake skips the sleep;
+          // a 428 slow_down replaces the cadence with its higher floor.
+          if (!firstPoll && !pollNowRef.current) {
+            await waitForNextPoll(pollDelayMs, pollWakeRef);
+            if (pollRunRef.current !== run) return;
+          }
+          pollNowRef.current = false;
+          firstPoll = false;
+          lastPollAtRef.current = Date.now();
           try {
             const res = await api.auth.pollDeviceLogin(stored.login_id);
             if (pollRunRef.current !== run) return;
@@ -308,9 +381,13 @@ function LoginInner() {
             }
           } catch (err: unknown) {
             if (pollRunRef.current !== run) return;
+            // A manual check must not bypass the slow-down floor or hammer a
+            // failing gateway; the next iteration sleeps before retrying.
+            pollNowRef.current = false;
             if (err instanceof SlowDownError) {
               // Silent: raise the delay, keep waiting, never surface noise.
               pollDelayMs = Math.max(err.retrySeconds ?? SLOW_DOWN_FALLBACK_S, SLOW_DOWN_FALLBACK_S) * 1000;
+              pollDelayRef.current = pollDelayMs;
               pendingMs += pollDelayMs;
               if (pendingMs >= WAITING_LONG_MS) setWaitingLong(true);
               continue;
@@ -335,9 +412,43 @@ function LoginInner() {
     [next],
   );
 
+  // ---- Return-from-approval wake ------------------------------------------
+  // The approval opens in another tab, so this tab is backgrounded while the
+  // user approves and browsers throttle its timers (often to 10s+). When the
+  // user comes back, wake the sleeping loop so the next poll runs immediately.
+  // The gateway interval remains the floor: a wake earlier than the advertised
+  // (or slow_down-raised) interval is ignored.
+  useEffect(() => {
+    if (phase !== "device" || deviceOutcome != null || attempt == null) return;
+    let scheduled = 0;
+    const pollNow = () => {
+      if (document.visibilityState === "hidden") return;
+      const minGap = Math.max(pollDelayRef.current, POLL_WAKE_MIN_GAP_MS);
+      const remaining = minGap - (Date.now() - lastPollAtRef.current);
+      if (remaining > 0) {
+        // A foreground timer still fires if the background one was throttled.
+        window.clearTimeout(scheduled);
+        scheduled = window.setTimeout(pollNow, remaining);
+        return;
+      }
+      pollWakeRef.current?.();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") pollNow();
+    };
+    window.addEventListener("focus", pollNow);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.clearTimeout(scheduled);
+      window.removeEventListener("focus", pollNow);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [phase, deviceOutcome, attempt]);
+
   // ---- Device start / restart ---------------------------------------------
   const startDeviceLogin = useCallback(async () => {
     pollRunRef.current += 1; // cancel any in-flight poll loop
+    pollNowRef.current = false;
     setPhase("starting");
     setStartError(null);
     setStartRetryIn(0);
@@ -364,23 +475,85 @@ function LoginInner() {
     }
   }, [runPollLoop]);
 
-  // Mount: auto-start the device flow unless the visitor deep-linked into
-  // the paste surface. A live stored attempt resumes polling instead of
-  // minting a new code.
+  // Browser (authorization-code) sign-in: ask the backend for the provider
+  // authorize URL and send the top-level browser there. The redirect back
+  // lands on the frontend root page, which exchanges the code and continues
+  // to `next`. 501 browser_unsupported (or any 4xx shape other than rate
+  // limiting) means this origin can't use the browser flow: fall back to the
+  // device flow, honoring any still-live stored attempt from earlier device
+  // starts. Any other failure renders the start-error surface with a browser
+  // retry and an explicit device-code action.
+  const startBrowserLogin = useCallback(async () => {
+    pollRunRef.current += 1; // cancel any in-flight poll loop
+    pollNowRef.current = false;
+    setPhase("starting");
+    setStartError(null);
+    setStartRetryIn(0);
+    setDeviceOutcome(null);
+    setWaitingLong(false);
+    setCopied(false);
+    setAnnounce(null);
+    clearAttempt();
+    setAttempt(null);
+    try {
+      const start = await api.auth.startBrowserLogin(next);
+      window.location.replace(start.authorize_url);
+      // Navigation is happening; keep the skeleton painted until it lands.
+      return;
+    } catch (err: unknown) {
+      const message = errorMessage(err);
+      if (message.startsWith("429")) {
+        setStartRetryIn(RETRY_WINDOW_S);
+        setStartError(LOGIN_COPY.startTooMany);
+      } else if (message.startsWith("501")) {
+        // browser_unsupported: device flow is the sanctioned fallback here,
+        // so resume a live stored attempt before minting a new code.
+        const stored = loadAttempt();
+        if (stored != null) {
+          setAttempt(stored);
+          setSecondsLeft(Math.max(0, Math.round((stored.expires_at - Date.now()) / 1000)));
+          setPhase("device");
+          runPollLoop(stored);
+        } else {
+          await startDeviceLoginRef.current?.();
+        }
+        return;
+      } else {
+        setStartError(LOGIN_COPY.startBrowserFailed);
+      }
+    }
+  }, [next, runPollLoop]);
+
+  startDeviceLoginRef.current = startDeviceLogin;
+  startBrowserLoginRef.current = startBrowserLogin;
+
+  // Mount: browser sign-in is the primary flow. On localhost the backend can
+  // only match a 127.0.0.1 Origin, so canonicalize first and return — the
+  // reload re-enters this page on the right origin. `?mode=device` (from the
+  // root callback's failure card or a prior 501) starts the device fallback
+  // immediately; its first step resumes a live stored attempt before minting
+  // a new code. Everything else starts the browser flow, which clears any
+  // stale device attempt so the 501 fallback never resurrects one.
   useEffect(() => {
+    if (mountStartedRef.current) return;
+    mountStartedRef.current = true;
     if (deepLinkPaste) {
       setPhase("paste");
       return;
     }
-    const stored = loadAttempt();
-    if (stored != null) {
-      setAttempt(stored);
-      setSecondsLeft(Math.max(0, Math.round((stored.expires_at - Date.now()) / 1000)));
-      setPhase("device");
-      runPollLoop(stored);
-    } else {
-      void startDeviceLogin();
+    if (forceDeviceParam) {
+      const stored = loadAttempt();
+      if (stored != null) {
+        setAttempt(stored);
+        setSecondsLeft(Math.max(0, Math.round((stored.expires_at - Date.now()) / 1000)));
+        setPhase("device");
+        runPollLoop(stored);
+      } else {
+        void startDeviceLoginRef.current?.();
+      }
+      return;
     }
+    void startBrowserLoginRef.current?.();
     // Mount-only by design.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -405,6 +578,11 @@ function LoginInner() {
   }, [startCountdownActive]);
 
   // ---- Device screen actions ------------------------------------------------
+  const handleCheckNow = useCallback(() => {
+    pollNowRef.current = true;
+    pollWakeRef.current?.();
+  }, []);
+
   const handleCopy = useCallback(async () => {
     if (attempt == null) return;
     try {
@@ -422,6 +600,15 @@ function LoginInner() {
     clearAttempt();
     void startDeviceLogin();
   }, [startDeviceLogin]);
+
+  // Switch to the paste surface. Stop the waiting loop but keep the stored
+  // attempt so switching back can resume it rather than minting a new code.
+  const handleSwitchToPaste = useCallback(() => {
+    pollRunRef.current += 1;
+    setPasteError(null);
+    setPasteBanner(null);
+    setPhase("paste");
+  }, []);
 
   // Switching back from paste resumes a still-live stored attempt; only a
   // genuinely absent/expired attempt mints a new code.
@@ -510,14 +697,21 @@ function LoginInner() {
             appearance={Appearance.Filled}
             className="min-h-11"
             disabled={startRetryIn > 0}
-            onClick={() => void startDeviceLogin()}
+            onClick={() => void startBrowserLoginRef.current?.()}
           >
             {LOGIN_COPY.retry}
           </Button>
           <button
             type="button"
             className="inline-flex min-h-11 items-center justify-center text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-            onClick={() => setPhase("paste")}
+            onClick={() => void startDeviceLoginRef.current?.()}
+          >
+            {LOGIN_COPY.useDeviceCode}
+          </button>
+          <button
+            type="button"
+            className="inline-flex min-h-11 items-center justify-center text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+            onClick={handleSwitchToPaste}
           >
             {LOGIN_COPY.paste.switchIn}
           </button>
@@ -542,6 +736,14 @@ function LoginInner() {
               <p aria-live="polite" className="text-sm text-muted-foreground">
                 {waitingLong ? LOGIN_COPY.device.waitingLong : LOGIN_COPY.device.waiting}
               </p>
+              <button
+                type="button"
+                data-testid="check-approval"
+                className="self-start text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                onClick={handleCheckNow}
+              >
+                {LOGIN_COPY.device.checkNow}
+              </button>
 
               <div>
                 {/* Hidden second heading so keyboard users (and screen-reader
@@ -591,13 +793,22 @@ function LoginInner() {
                 </a>
               </p>
 
-              <button
-                type="button"
-                className="inline-flex min-h-11 items-center justify-center text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-                onClick={handleCancel}
-              >
-                {LOGIN_COPY.device.cancel}
-              </button>
+              <div className="flex flex-col gap-1">
+                <button
+                  type="button"
+                  className="inline-flex min-h-11 items-center justify-center text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                  onClick={handleCancel}
+                >
+                  {LOGIN_COPY.device.cancel}
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex min-h-11 items-center justify-center text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                  onClick={handleSwitchToPaste}
+                >
+                  {LOGIN_COPY.paste.switchIn}
+                </button>
+              </div>
             </>
           ) : (
             <>
@@ -616,7 +827,7 @@ function LoginInner() {
               <button
                 type="button"
                 className="inline-flex min-h-11 items-center justify-center text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-                onClick={() => setPhase("paste")}
+                onClick={handleSwitchToPaste}
               >
                 {LOGIN_COPY.paste.switchIn}
               </button>

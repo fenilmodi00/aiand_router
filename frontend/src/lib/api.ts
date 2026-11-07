@@ -245,6 +245,26 @@ export interface AiandPasteKeyResponse {
   org_name: string;
 }
 
+/**
+ * Response of POST /account/v1/auth/browser/start. The backend derives the
+ * provider redirect_uri from the request Origin, preflights the authorize
+ * URL, and sets the short-lived router_browser_login cookie that the
+ * exchange step validates state against.
+ */
+export interface AiandBrowserStartResponse {
+  authorize_url: string;
+  /** Seconds until the pending browser sign-in (and its cookie) expires. */
+  expires_in: number;
+}
+
+/** Response of POST /account/v1/auth/browser/exchange. */
+export interface AiandBrowserExchangeResponse {
+  email?: string;
+  org_name?: string;
+  /** Internal path to land on after sign-in (e.g. /dashboard). */
+  next: string;
+}
+
 export interface AiandDisconnectResponse {
   disconnected: boolean;
 }
@@ -279,6 +299,23 @@ export const api = {
       accountRequest<AiandPasteKeyResponse>("/auth/paste", {
         method: "POST",
         body: JSON.stringify({ key }),
+      }),
+    // Browser (authorization-code + PKCE) sign-in. The backend derives the
+    // redirect_uri from the request Origin and preflights the provider
+    // authorize URL; 501 {browser_unsupported} tells the login page to fall
+    // back to the device flow. Login-path: never 401-bounces.
+    startBrowserLogin: (next: string) =>
+      accountRequest<AiandBrowserStartResponse>("/auth/browser/start", {
+        method: "POST",
+        body: JSON.stringify({ next }),
+      }),
+    // Exchanges the provider's ?code&state redirect for the session cookie,
+    // validating state against the router_browser_login cookie. The root
+    // page calls this from the bare origin callback.
+    exchangeBrowserCode: (code: string, state: string) =>
+      accountRequest<AiandBrowserExchangeResponse>("/auth/browser/exchange", {
+        method: "POST",
+        body: JSON.stringify({ code, state }),
       }),
     logout: () => accountRequest<{ ok: boolean }>("/auth/logout", { method: "POST" }),
   },

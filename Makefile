@@ -28,6 +28,8 @@ help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
 
+COMPILEDAEMON ?= $(shell command -v CompileDaemon 2>/dev/null || echo $(shell go env GOPATH 2>/dev/null)/bin/CompileDaemon)
+
 generate: generate-statusline generate-inference-policy ## Regenerate all generated files (SQLC + statusline prices + inference policy)
 	cd db && sqlc generate
 
@@ -158,7 +160,7 @@ db: ## Start the compose Postgres only (port 5433)
 	@echo "Add this to .env.local if not already set:"
 	@echo '  DATABASE_URL=postgresql://router:router@localhost:5433/router?sslmode=disable'
 
-dev: ## Run with hot-reload (CompileDaemon)
+dev: ## Run backend (CompileDaemon) + frontend (next dev :3000) together; Ctrl-C stops both
 	# `-tags ORT` is required for hugot v0.7+ to enable the ONNX Runtime
 	# backend. Without it, cluster.NewEmbedder fails at boot and the
 	# router falls open to the heuristic (Anthropic-only) — which silently
@@ -170,32 +172,21 @@ dev: ## Run with hot-reload (CompileDaemon)
 	# (libonnxruntime) come from .env.local on macOS — see the comments
 	# there for setup. On Linux the brew/.local paths don't apply; the
 	# Dockerfile is the production path.
-	CompileDaemon \
-		-build="go build -tags ORT -o ./bin/server ./cmd/router" \
-		-command="./bin/server" \
-		-exclude-dir="vendor" \
-		-exclude-dir=".vscode" \
-		-exclude-dir="bin" \
-		-exclude-dir=".venv" \
-		-exclude-dir="__pycache__" \
-		-exclude-dir=".pytest_cache" \
-		-exclude-dir=".mypy_cache" \
-		-exclude-dir=".ruff_cache" \
-		-exclude-dir=".bench-cache" \
-		-exclude-dir=".embedding-cache" \
-		-exclude-dir="node_modules" \
-		-exclude-dir="results" \
-		-exclude-dir="logs" \
-		-exclude-dir="assets" \
-		-exclude-dir=".git" \
-		-exclude-dir="eval" \
-		-exclude-dir="scripts" \
-		-exclude-dir="docs" \
-		-exclude-dir=".local" \
-		-exclude-dir="install" \
-		-pattern="(.+\.go|.+\.sql)$$" \
-		-graceful-kill=true \
-		-log-prefix=false
+	# Frontend: next dev proxies API calls to ROUTER_DEV_TARGET
+	# (default http://localhost:8080). Both run under one bash job; when
+	# CompileDaemon exits (Ctrl-C or build failure) the trap stops the
+	# frontend too, so `make dev` never leaves either behind.
+	# Dependencies: the host server needs Postgres + the pubsub emulator
+	# (per-replica invalidation subscription panics at boot without it)
+	# and one migrate run; PORT=3000 overrides the exported PORT=8080 so
+	# next dev never fights the backend for the backend's own port.
+	docker compose up -d postgres pubsub-emulator && \
+	docker compose run --rm migrate
+	@bash scripts/dev-run.sh
+
+dev-down: ## Stop dev servers (backend hot-reload + frontend) started by `make dev`
+	@bash scripts/dev-down.sh
+
 
 up: ## Start the compose stack in the background (no install.sh wiring)
 	docker compose up --build -d
@@ -204,7 +195,8 @@ up-hmm: ## Start the stack with the opt-in frozen HMM policy sidecar
 	docker compose -f docker-compose.yml -f sidecars/hmm/docker-compose.yml \
 		--profile hmm up --build -d
 
-down: ## Stop the compose stack, including the optional HMM sidecar (keeps the postgres volume)
+down: ## Stop dev servers (backend + frontend) AND the compose stack (keeps postgres volume)
+	@bash scripts/dev-down.sh
 	docker compose --profile hmm down
 
 down-hmm: ## Stop the compose stack including the optional HMM sidecar

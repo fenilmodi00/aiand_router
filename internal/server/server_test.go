@@ -177,6 +177,12 @@ func (loginFake) PollDeviceLogin(context.Context, string) (auth.LoginPollOutcome
 func (loginFake) LoginWithKey(context.Context, string) (auth.LoginSessionGrant, error) {
 	return auth.LoginSessionGrant{}, nil
 }
+func (loginFake) StartBrowserLogin(context.Context, string, string) (auth.LoginBrowserStart, error) {
+	return auth.LoginBrowserStart{}, nil
+}
+func (loginFake) ExchangeBrowserLogin(context.Context, string, string, []byte) (auth.LoginBrowserResult, error) {
+	return auth.LoginBrowserResult{}, nil
+}
 func (loginFake) Logout(context.Context, string) error { return nil }
 func (loginFake) VerifySessionToken(string) (*auth.ActiveSession, error) {
 	return nil, nil

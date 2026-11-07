@@ -34,7 +34,31 @@ func (r *AccountRepo) UpsertAccountOnLogin(ctx context.Context, params auth.Upse
 	if err != nil {
 		return nil, err
 	}
+
+	// Re-login fast path: an existing identity is reused without touching the
+	// partial unique index. Without this, the insert raises 23505 inside the
+	// login transaction, which aborts it; the follow-up identity re-read then
+	// fails with 25P02 ("current transaction is aborted").
+	existing, err := r.GetAccountByIdentity(ctx, params.AiandUserID, params.AiandOrgID)
+	if err == nil {
+		return existing, nil
+	}
+	if !errors.Is(err, auth.ErrAccountNotFound) {
+		return nil, err
+	}
+
 	q := dbbudget.Queries(r.tx)
+	// The insert still needs a savepoint for the concurrent-first-login race:
+	// a 23505 poisons the enclosing transaction, so roll back to the
+	// savepoint before the identity re-read. A non-transactional handle
+	// (pool / test fake) needs none.
+	tx, inTx := r.tx.(pgx.Tx)
+	const savepoint = "account_login_insert"
+	if inTx {
+		if _, err := tx.Exec(ctx, "SAVEPOINT "+savepoint); err != nil {
+			return nil, err
+		}
+	}
 	row, err := q.InsertAccount(ctx, sqlc.InsertAccountParams{
 		ID:             stringPtrOrNil(params.ID),
 		GeneratedID:    auth.GenerateID(auth.AccountIDPrefix),
@@ -44,18 +68,28 @@ func (r *AccountRepo) UpsertAccountOnLogin(ctx context.Context, params auth.Upse
 		DisplayName:    stringPtrOrNil(params.DisplayName),
 		InstallationID: installationUUID,
 	})
-	if err != nil {
-		// Concurrent first logins of the same identity arbitrate on the
-		// partial unique index accounts_identity_active_unique: the loser
-		// re-reads by identity and reuses the winner's account +
-		// installation. No conflict error reaches the user.
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return r.GetAccountByIdentity(ctx, params.AiandUserID, params.AiandOrgID)
+	if err == nil {
+		if inTx {
+			if _, err := tx.Exec(ctx, "RELEASE SAVEPOINT "+savepoint); err != nil {
+				return nil, err
+			}
 		}
-		return nil, err
+		return toAccount(row), nil
 	}
-	return toAccount(row), nil
+
+	// Concurrent first logins of the same identity arbitrate on the partial
+	// unique index accounts_identity_active_unique: the loser re-reads by
+	// identity and reuses the winner's account + installation.
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		if inTx {
+			if _, rbErr := tx.Exec(ctx, "ROLLBACK TO SAVEPOINT "+savepoint); rbErr != nil {
+				return nil, rbErr
+			}
+		}
+		return r.GetAccountByIdentity(ctx, params.AiandUserID, params.AiandOrgID)
+	}
+	return nil, err
 }
 
 func (r *AccountRepo) GetAccountByIdentity(ctx context.Context, aiandUserID, aiandOrgID string) (*auth.Account, error) {

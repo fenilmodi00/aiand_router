@@ -579,11 +579,11 @@ func newIsoFixture(t *testing.T) *isoFixture {
 		}
 	}
 
-	// Paste logins carry no token.Org, so the account identity pair is
-	// (gateway user id, empty org) — exactly what production's paste path
-	// writes. Distinct user ids still guarantee distinct accounts.
-	fx.accounts["A"] = seed("user-a", "", "a@example.com")
-	fx.accounts["B"] = seed("user-b", "", "b@example.com")
+	// Paste logins resolve the key's org from the gateway; isoGateway reports
+	// org-iso for every key, exactly as a key-scoped gateway would. Distinct
+	// user ids still guarantee distinct accounts.
+	fx.accounts["A"] = seed("user-a", "org-iso", "a@example.com")
+	fx.accounts["B"] = seed("user-b", "org-iso", "b@example.com")
 	require.NotEqual(t, fx.accounts["A"].installation.ID, fx.accounts["B"].installation.ID,
 		"distinct accounts must hold distinct installations")
 
@@ -639,6 +639,20 @@ func (g *isoGateway) ValidateKey(_ context.Context, _ string) (auth.AiandUser, e
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	return auth.AiandUser{ID: g.userID, Email: g.email}, nil
+}
+
+func (g *isoGateway) VerifyKey(_ context.Context, _ string) (auth.AiandIdentity, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return auth.AiandIdentity{UserID: g.userID, OrgID: "org-iso", Email: g.email}, nil
+}
+
+func (g *isoGateway) AuthorizeURL(auth.AiandAuthorizeParams) string {
+	return "https://auth.example/authorize"
+}
+func (g *isoGateway) BrowserAuthorizeAvailable(context.Context, string) error { return nil }
+func (g *isoGateway) ExchangeCode(context.Context, auth.AiandCodeExchangeParams) (auth.AiandTokenResponse, error) {
+	return auth.AiandTokenResponse{}, auth.ErrAiandGateway
 }
 
 type isoNotifier struct{}

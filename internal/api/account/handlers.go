@@ -29,6 +29,8 @@ import (
 type LoginAPI interface {
 	StartDeviceLogin(ctx context.Context) (auth.LoginDeviceStart, error)
 	PollDeviceLogin(ctx context.Context, loginID string) (auth.LoginPollOutcome, error)
+	StartBrowserLogin(ctx context.Context, origin, next string) (auth.LoginBrowserStart, error)
+	ExchangeBrowserLogin(ctx context.Context, state, code string, sealed []byte) (auth.LoginBrowserResult, error)
 	LoginWithKey(ctx context.Context, key string) (auth.LoginSessionGrant, error)
 	Logout(ctx context.Context, token string) error
 	VerifySessionToken(token string) (*auth.ActiveSession, error)
@@ -48,12 +50,14 @@ func NewHandlers(svc LoginAPI) *Handlers {
 	return &Handlers{svc: svc, limiter: newLoginFailureLimiter()}
 }
 
-// Register mounts the five auth routes on the given group (engine.Group
+// Register mounts the seven auth routes on the given group (engine.Group
 // ("/account/v1")). The group carries no auth middleware by design.
 func (h *Handlers) Register(group *gin.RouterGroup) {
 	authGroup := group.Group("/auth")
 	authGroup.POST("/device/start", h.deviceStart)
 	authGroup.POST("/device/poll", h.devicePoll)
+	authGroup.POST("/browser/start", h.browserStart)
+	authGroup.POST("/browser/exchange", h.browserExchange)
 	authGroup.POST("/paste", h.paste)
 	authGroup.GET("/me", h.me)
 	authGroup.POST("/logout", h.logout)
