@@ -115,6 +115,7 @@ run_install
 # Reinstall must upgrade the legacy 128K managed context limit.
 jq '.provider.aiand.models.auto.limit.context = 128000' "$config" >"$config.tmp"
 mv "$config.tmp" "$config"
+run_install
 [ "$(jq -r '.model' "$config")" = "aiand/auto" ] || fail "install did not activate aiand/auto"
 [ "$(jq -r '.direct_model' "$parked")" = "anthropic/claude-sonnet-4-5" ] || fail "install did not park the previous model"
 [ "$(jq -r '.provider.aiand.models.auto.limit.context' "$config")" = "500000" ] || fail "reinstall did not update the old context limit to 500000"

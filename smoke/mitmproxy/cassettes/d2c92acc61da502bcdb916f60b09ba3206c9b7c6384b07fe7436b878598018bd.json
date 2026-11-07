@@ -1,0 +1,9 @@
+{
+  "method": "GET",
+  "path": "/v1/models",
+  "status_code": 200,
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "body": "{\"object\":\"list\",\"data\":[]}"
+}

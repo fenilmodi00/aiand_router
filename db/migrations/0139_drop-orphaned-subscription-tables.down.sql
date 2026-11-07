@@ -78,13 +78,27 @@ ALTER TABLE router.model_router_subscription_accounts
     ADD COLUMN token_refresh_lease_id UUID,
     ADD COLUMN token_refresh_version BIGINT NOT NULL DEFAULT 0,
     ADD COLUMN subscriber_id UUID REFERENCES router.credential_subjects(id) ON DELETE CASCADE,
-    ADD COLUMN health_state VARCHAR(32) NOT NULL DEFAULT 'healthy',
+    ADD COLUMN health_state VARCHAR NOT NULL DEFAULT 'unknown',
     ADD COLUMN display_name TEXT,
     ADD COLUMN provider_user_id TEXT;
 
+COMMENT ON COLUMN router.model_router_subscription_accounts.display_name IS
+  'Provider-supplied human-readable account label; never used for identity or deduplication.';
+
+ALTER TABLE router.model_router_subscription_accounts
+    ADD CONSTRAINT subscription_provider_user_nonempty
+        CHECK (provider_user_id IS NULL OR provider_user_id <> '');
+
 ALTER TABLE router.model_router_subscription_accounts
     ADD CONSTRAINT model_router_subscription_accounts_health_state_valid
-        CHECK (health_state IN ('healthy', 'reconnect_required', 'disabled'));
+        CHECK (health_state IN (
+          'active',
+          'exhausted',
+          'cooldown',
+          'reconnect_required',
+          'disabled',
+          'unknown'
+        ));
 
 CREATE UNIQUE INDEX model_router_subscription_accounts_subscriber_account_idx
     ON router.model_router_subscription_accounts(subscriber_id, provider, external_account_id)
@@ -97,6 +111,16 @@ CREATE UNIQUE INDEX model_router_subscription_accounts_codex_subscriber_idx
 CREATE UNIQUE INDEX model_router_subscription_accounts_codex_identity_idx
     ON router.model_router_subscription_accounts(external_account_id, provider_user_id)
     WHERE provider = 'codex' AND provider_user_id IS NOT NULL;
+
+-- Restore the pre-0139 indexes too: later rollbacks (0122/0121) drop them and
+-- fail if the table was recreated without them.
+CREATE UNIQUE INDEX model_router_subscription_accounts_active_physical_identity_idx
+    ON router.model_router_subscription_accounts(provider, external_account_id)
+    WHERE enabled AND provider <> 'codex';
+
+CREATE INDEX model_router_subscription_accounts_subscriber_idx
+    ON router.model_router_subscription_accounts(subscriber_id, provider)
+    WHERE subscriber_id IS NOT NULL;
 
 CREATE TABLE router.model_router_subscription_account_installations (
     installation_id UUID NOT NULL REFERENCES router.model_router_installations(id) ON DELETE CASCADE,
