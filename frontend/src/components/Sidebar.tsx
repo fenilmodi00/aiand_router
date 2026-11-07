@@ -83,7 +83,7 @@ export function Sidebar() {
         ))}
       </nav>
 
-      <div className="relative z-10 flex w-full items-center justify-between gap-2 p-2">
+      <div className="relative z-10 flex w-full flex-col items-stretch gap-2 p-2">
         <Tooltip content="Settings" side="right" interactiveChild>
           <Button
             href="/settings"
