@@ -6,7 +6,7 @@ allowed-tools: Bash(npx:*)
 
 Show me which models this installation lets the Aiand Router pick from, and
 change that selection when I ask. This is the same list — and the same stored
-setting — as the checkboxes on the router dashboard's settings page.
+setting — as the checkboxes on the router dashboard's **Models & routing** page.
 
 Start by running:
 

@@ -236,8 +236,8 @@ Settings → Models override above. See [install/README.md](install/README.md#sw
 
 **Choosing which models the router may pick.** `npx @aiand-os/router models
 --claude` lists every deployed model with its on/off state, and `models enable`
-/ `models disable` change it — the same setting as the dashboard's settings
-page, edited from the terminal. Claude Code gets this as `/router-models`
+/ `models disable` change it — the same setting as the dashboard's
+**Models & routing** page, edited from the terminal. Claude Code gets this as `/router-models`
 (alias `/models`). Requires a router that serves the model-selection API;
 against the Aiand-hosted router the list still prints and points you at the
 dashboard, where selection is an organization-wide setting. See
