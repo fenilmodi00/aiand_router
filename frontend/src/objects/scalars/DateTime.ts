@@ -6,7 +6,5 @@ declare const dateTimeBrand: unique symbol;
 export type DateTime = number & { readonly [dateTimeBrand]: "DateTimeScalar" };
 
 export const DateTime = {
-  toDate: (dateTime: DateTime): Date => new Date(dateTime),
   fromDate: (date: Date): DateTime => date.getTime() as DateTime,
-  now: (): DateTime => Date.now() as DateTime,
 };

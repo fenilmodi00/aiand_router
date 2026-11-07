@@ -415,7 +415,7 @@ interface MetricCardProps {
   label: string;
   value: string;
   sub?: string;
-  accent?: "default" | "success" | "danger" | "info";
+  accent?: "default" | "success" | "danger";
 }
 
 function MetricCard({ className, label, value, sub, accent = "default" }: MetricCardProps) {
@@ -424,9 +424,7 @@ function MetricCard({ className, label, value, sub, accent = "default" }: Metric
       ? "text-success"
       : accent === "danger"
         ? "text-danger"
-        : accent === "info"
-          ? "text-primary"
-          : "text-foreground";
+        : "text-foreground";
 
   return (
     <Card size="sm" className={className}>

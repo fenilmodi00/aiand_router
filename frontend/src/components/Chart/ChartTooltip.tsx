@@ -5,8 +5,7 @@ import * as Recharts from "recharts";
 
 import type { ChartProps } from "./Chart";
 import { useChartContext } from "./ChartContext";
-import { TOOLTIP_DATA_KEY } from "./constants";
-import { ChartDataKeyType, ChartDataPoint, ChartDataValueType } from "./types";
+import { ChartDataKeyType, ChartDataValueType } from "./types";
 
 export interface ChartTooltipProps<
   TIndependentKey extends ChartDataKeyType,
@@ -48,12 +47,6 @@ export interface ChartTooltipProps<
    */
   locked?: boolean;
   /**
-   * If provided, used to render additional data in the tooltip.
-   * Receives the tooltip data and the independent value (label) for the hovered data point.
-   */
-  renderTooltipData?: (data: TTooltipData, independentValue: TIndependentValue | null) => React.ReactNode;
-
-  /**
    * If true, inactive series will be faded out.
    *
    * @default true
@@ -78,7 +71,6 @@ export function ChartTooltip<
   label,
   locked = false,
   payload,
-  renderTooltipData,
 }: ChartTooltipProps<
   TIndependentKey,
   TDependentKey,
@@ -141,25 +133,8 @@ export function ChartTooltip<
     : independentValue != null ? String(independentValue)
     : undefined;
 
-  let tooltipData: TTooltipData | undefined;
-
   type PayloadItem = RechartsTooltipPayloadItem<TDependentKey, TDependentValue>;
   const typedPayload = payload as ReadonlyArray<PayloadItem>;
-
-  if (renderTooltipData != null) {
-    tooltipData = typedPayload
-      .map(
-        p =>
-          p.payload as ChartDataPoint<
-            TIndependentKey,
-            TDependentKey,
-            TIndependentValue,
-            TDependentValue,
-            TTooltipData
-          >,
-      )
-      .find(p => p[TOOLTIP_DATA_KEY] != null)?.[TOOLTIP_DATA_KEY];
-  }
 
   const sortedPayload = typedPayload.slice().sort((a, b) => {
     if (activeSeries == null) return 0;
@@ -195,8 +170,6 @@ export function ChartTooltip<
           />
         ))}
       </div>
-
-      {tooltipData != null && renderTooltipData?.(tooltipData, independentValue ?? null)}
     </div>
   );
 }

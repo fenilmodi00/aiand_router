@@ -9,8 +9,6 @@ import { ChartContainer } from "./ChartContainer";
 import { getChartContext } from "./ChartContext";
 import { ChartLegend } from "./ChartLegend";
 import { ChartMessageCard } from "./ChartMessageCard";
-import { ChartReferenceLineLabel } from "./ChartReferenceLineLabel";
-import { ChartTick } from "./ChartTick";
 import { ChartTooltip } from "./ChartTooltip";
 import { X_AXIS_TICK_MARGIN } from "./constants";
 import { getDefaultSeriesColor } from "./helpers/getDefaultSeriesColor";
@@ -118,11 +116,6 @@ export interface ChartProps<
    */
   dependentType?: ChartAxisType;
   /**
-   * If provided, this data will be shown when the chart has no data. This can be useful to ensure
-   * the chart doesn't jump around too much when data is loading.
-   */
-  emptyData?: ChartData<TIndependentKey, TDependentKey, TIndependentValue, TDependentValue>;
-  /**
    * The message to show when the chart has no data.
    *
    * @default
@@ -176,17 +169,6 @@ export interface ChartProps<
    */
   groups?: LoadState<readonly (readonly TDependentKey[])[]>;
   /**
-   * The set of series hidden by legend clicks. If not provided, the chart will manage its own
-   * state internally.
-   */
-  hiddenSeries?: ReadonlySet<TDependentKey>;
-  /**
-   * Hides the axes and ticks.
-   *
-   * @default false
-   */
-  hideAxes?: boolean;
-  /**
    * Label for the independent (X) axis.
    */
   independentAxisLabel?: string;
@@ -194,10 +176,6 @@ export interface ChartProps<
    * The domain of the independent axis. If not provided, the domain will be automatically calculated.
    */
   independentDomain?: ChartAxisDomain<TIndependentValue>;
-  /**
-   * A custom renderer for the independent axis ticks.
-   */
-  independentTick?: (value: TIndependentValue) => React.ReactNode;
   /**
    * The type of the independent values.
    *
@@ -211,20 +189,9 @@ export interface ChartProps<
    */
   legend?: boolean;
   /**
-   * Additional padding above the legend. Useful when overlaying content above the legend.
-   */
-  legendPaddingTop?: number;
-  /**
    * Reference lines to draw on the chart.
    */
   referenceLines?: LoadState<readonly ChartReferenceLine<TIndependentValue, TDependentValue>[]>;
-  /**
-   * If provided, used to render additional data in the tooltip.
-   */
-  renderTooltipData?: (
-    data: TTooltipData,
-    independentValue: TIndependentValue | null,
-  ) => React.ReactNode;
   /**
    * Style to apply to the chart.
    */
@@ -237,16 +204,6 @@ export interface ChartProps<
   tooltip?: boolean;
 
   /**
-   * The series that the user is currently hovering over, if any. If not provided, the chart will
-   * manage its own state internally. If provided, {@link setActiveSeries} must also be provided.
-   */
-  activeSeries?: TDependentKey;
-  /**
-   * If provided, highlights the bar(s) with this independent value by dimming all other bars.
-   * Similar to hover behavior but for a specific independent value.
-   */
-  highlightedIndependentValue?: TIndependentValue;
-  /**
    * If provided, this callback will be called when the user clicks on a data point in the chart
    * (either a bar or a line).
    */
@@ -256,26 +213,6 @@ export interface ChartProps<
    * (not on a bar or line).
    */
   onClickEmpty?: () => void;
-  /**
-   * The setter for the active series. If not provided, the chart will manage its own state
-   * internally. If provided, {@link activeSeries} must also be provided.
-   */
-  setActiveSeries?: React.Dispatch<React.SetStateAction<TDependentKey | undefined>>;
-  /**
-   * The setter for the hidden series. If not provided, the chart will manage its own state
-   * internally. If provided, {@link hiddenSeries} must also be provided.
-   */
-  setHiddenSeries?: React.Dispatch<React.SetStateAction<ReadonlySet<TDependentKey>>>;
-  /**
-   * Optional function to sort the chart data. Called whenever the data or hidden series change,
-   * which lets sort logic react to series visibility (e.g. excluding hidden series from totals).
-   * Receives a mutable copy of the data array — the function may sort in place or return a new
-   * array.
-   */
-  sortData?: (
-    data: ChartData<TIndependentKey, TDependentKey, TIndependentValue, TDependentValue>,
-    hiddenSeries: ReadonlySet<TDependentKey>,
-  ) => ChartData<TIndependentKey, TDependentKey, TIndependentValue, TDependentValue>;
 }
 
 export function Chart<
@@ -285,7 +222,6 @@ export function Chart<
   TDependentValue extends ChartDataValueType,
   TTooltipData = unknown,
 >({
-  activeSeries: activeSeriesExternal,
   allowDependentTickDecimals = false,
   config,
   containerRef,
@@ -294,7 +230,6 @@ export function Chart<
   dependentDomain,
   dependentKeys,
   dependentType = ChartAxisType.Number,
-  emptyData = [],
   emptyDataMessage,
   formatIndependentValue = String,
   formatIndependentValueTooltip,
@@ -302,45 +237,21 @@ export function Chart<
   formatValue = String,
   formatValueTooltip = formatValue,
   groups,
-  hiddenSeries: hiddenSeriesExternal,
-  hideAxes = false,
-  highlightedIndependentValue,
   independentAxisLabel,
   independentDomain,
   independentKey,
-  independentTick,
   independentType = ChartAxisType.Category,
   legend = false,
-  legendPaddingTop = 0,
   onClickDataPoint,
   onClickEmpty,
   referenceLines,
-  renderTooltipData,
-  setActiveSeries: setActiveSeriesExternal,
-  setHiddenSeries: setHiddenSeriesExternal,
-  sortData,
   style,
   tooltip = true,
   ...props
 }: ChartProps<TIndependentKey, TDependentKey, TIndependentValue, TDependentValue, TTooltipData>) {
-  const [activeSeriesInternal, setActiveSeriesInternal] = useState<TDependentKey>();
+  const [activeSeries, setActiveSeries] = useState<TDependentKey>();
 
-  const activeSeries = activeSeriesExternal ?? activeSeriesInternal;
-  const setActiveSeries = setActiveSeriesExternal ?? setActiveSeriesInternal;
-
-  const { hiddenSeries, toggleSeriesVisibility } = useToggleSeriesVisibility({
-    dependentKeys,
-    hiddenSeriesExternal,
-    setHiddenSeriesExternal,
-  });
-
-  // Apply the optional sort callback. Recomputing when hiddenSeries changes lets sort logic
-  // react to users hiding series via the legend (e.g. so bars sorted by total stay sorted by the
-  // total of only the visible series).
-  const sortedData = useMemo(() => {
-    if (sortData == null) return data;
-    return LoadState.map(data, value => sortData([...value], hiddenSeries));
-  }, [data, hiddenSeries, sortData]);
+  const { hiddenSeries, toggleSeriesVisibility } = useToggleSeriesVisibility({ dependentKeys });
 
   const isEmpty = LoadState.isLoaded(data) && data.value.length === 0;
   const ChartContext = getChartContext<TDependentKey, TIndependentValue, TDependentValue>();
@@ -427,8 +338,6 @@ export function Chart<
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [data]);
 
-  const hasCustomTick = independentTick != null;
-
   const maxTickLabelLength = useMemo(() => {
     const unwrappedData = LoadState.unwrap(data);
     const unwrappedKeys = LoadState.unwrap(dependentKeys);
@@ -457,7 +366,6 @@ export function Chart<
   }, [data, dependentKeys, formatValue]);
 
   const dependentAxisWidth = useMemo(() => {
-    if (hideAxes) return 0;
     if (maxTickLabelLength == null) return 40;
 
     const CHAR_WIDTH_PX = 7;
@@ -467,7 +375,7 @@ export function Chart<
       40,
       (maxTickLabelLength + TICK_ROUNDING_BUFFER_CHARS) * CHAR_WIDTH_PX + PADDING_PX,
     );
-  }, [hideAxes, maxTickLabelLength]);
+  }, [maxTickLabelLength]);
 
   // Track whether a data point (bar/line) was just clicked in this event cycle.
   // Used to prevent the chart-level onClick from firing onClickEmpty incorrectly.
@@ -481,7 +389,7 @@ export function Chart<
         <Recharts.ResponsiveContainer debounce={200}>
           <Recharts.ComposedChart
             accessibilityLayer
-            data={isEmpty ? emptyData : LoadState.unwrap(sortedData, emptyData)}
+            data={LoadState.unwrap(data)}
             style={style}
             stackOffset="sign"
             onClick={
@@ -530,21 +438,12 @@ export function Chart<
               scale={independentType === ChartAxisType.Time ? "time" : "auto"}
               domain={getRechartsDomain(independentDomain)}
               minTickGap={20}
-              tick={
-                hideAxes ? false
-                : hasCustomTick ?
-                  <ChartTick renderTick={independentTick} />
-                : undefined
-              }
-              axisLine={hideAxes ? false : undefined}
-              height={hideAxes ? 0 : undefined}
-              interval={hasCustomTick ? 0 : undefined}
               tickMargin={X_AXIS_TICK_MARGIN}
               tickLine={false}
               tickFormatter={formatIndependentValue}
               padding={independentType === ChartAxisType.Time ? { left: 20, right: 20 } : "gap"}
               label={
-                independentAxisLabel != null && !hideAxes ?
+                independentAxisLabel != null ?
                   { offset: 5, position: "bottom", value: independentAxisLabel }
                 : undefined
               }
@@ -574,13 +473,11 @@ export function Chart<
               type={dependentType === ChartAxisType.Category ? "category" : "number"}
               scale={dependentType === ChartAxisType.Time ? "time" : "auto"}
               tickFormatter={formatValue}
-              tick={hideAxes ? false : undefined}
-              axisLine={hideAxes ? false : undefined}
               width={dependentAxisWidth}
               allowDecimals={allowDependentTickDecimals}
               domain={getRechartsDomain(dependentDomain)}
               label={
-                dependentAxisLabel != null && !hideAxes ?
+                dependentAxisLabel != null ?
                   { angle: -90, offset: 10, position: "left", value: dependentAxisLabel }
                 : undefined
               }
@@ -593,8 +490,6 @@ export function Chart<
               type={dependentType === ChartAxisType.Category ? "category" : "number"}
               scale={dependentType === ChartAxisType.Time ? "time" : "auto"}
               tickFormatter={formatValue}
-              tick={hideAxes ? false : undefined}
-              axisLine={hideAxes ? false : undefined}
               width={dependentAxisWidth}
               allowDecimals={allowDependentTickDecimals}
               domain={getRechartsDomain(dependentDomain)}
@@ -656,11 +551,7 @@ export function Chart<
                         />
                       );
 
-                    case ChartSeriesType.Bar: {
-                      // Calculate per-bar opacity when an independent value is highlighted
-                      const chartData = LoadState.unwrap(sortedData, emptyData);
-                      const hasHighlight = highlightedIndependentValue != null;
-
+                    case ChartSeriesType.Bar:
                       return (
                         <Recharts.Bar
                           key={key}
@@ -670,12 +561,7 @@ export function Chart<
                           isAnimationActive={isAnimationActive}
                           xAxisId={layer}
                           yAxisId={dependentAxis}
-                          opacity={
-                            hasHighlight ? undefined
-                            : otherSeriesActive ?
-                              inactiveOpacity
-                            : opacity
-                          }
+                          opacity={otherSeriesActive ? inactiveOpacity : opacity}
                           legendType={legend ? undefined : "none"}
                           fill={color}
                           mask={dashed ? "url(#diagonalLinesMask)" : undefined}
@@ -699,23 +585,8 @@ export function Chart<
                             onClickDataPoint(independentValue, key);
                           }}
                           style={interactive ? { cursor: "pointer" } : {}}
-                        >
-                          {hasHighlight &&
-                            chartData.map((entry, index) => {
-                              const entryIndependentValue = entry[independentKey];
-                              const isHighlighted =
-                                entryIndependentValue === highlightedIndependentValue;
-                              const cellOpacity = isHighlighted ? opacity : inactiveOpacity;
-                              return (
-                                <Recharts.Cell
-                                  key={`cell-${index}`}
-                                  opacity={otherSeriesActive ? inactiveOpacity : cellOpacity}
-                                />
-                              );
-                            })}
-                        </Recharts.Bar>
+                        />
                       );
-                    }
 
                     case ChartSeriesType.Line:
                       return (
@@ -809,7 +680,6 @@ export function Chart<
                     key={line.label ?? `${line.type}-${String(line.value)}`}
                     xAxisId={0}
                     yAxisId={ChartDependentAxis.Left}
-                    label={<ChartReferenceLineLabel label={line.label} side={line.side} />}
                     x={line.type === "independent" ? getValue(line.value) : undefined}
                     y={line.type === "dependent" ? getValue(line.value) : undefined}
                     strokeWidth={1.5}
@@ -827,7 +697,6 @@ export function Chart<
                     formatValue={formatValueTooltip}
                     formatIndependentValue={formatIndependentValueTooltip ?? formatIndependentValue}
                     formatIndependentValueForSeries={formatIndependentValueTooltipForSeries}
-                    renderTooltipData={renderTooltipData}
                   />
                 }
               />
@@ -836,7 +705,7 @@ export function Chart<
             {legend && (
               <Recharts.Legend
                 itemSorter={null} // sorts legend items by the order they appear in the data, instead of alphabetically (default behavior)
-                wrapperStyle={{ paddingTop: (hasCustomTick ? 16 : 0) + legendPaddingTop }}
+                wrapperStyle={{ paddingTop: 0 }}
                 content={props => <ChartLegend payload={props.payload} />}
               />
             )}
