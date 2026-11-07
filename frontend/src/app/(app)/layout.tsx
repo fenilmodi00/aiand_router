@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 
-import { SettingsSidebar } from "@/components/SettingsSidebar";
 import { Sidebar } from "@/components/Sidebar";
 import { SidebarLayout } from "@/components/SidebarLayout";
 import { api } from "@/lib/api";
@@ -21,7 +20,7 @@ function DisconnectedBanner() {
     <div className="flex items-center justify-between gap-3 border-b border-danger/30 bg-danger/5 px-4 py-2 text-xs text-danger">
       <span>Aiand disconnected — requests are failing.</span>
       <Link
-        href="/settings/providers"
+        href="/account"
         className="shrink-0 font-medium underline underline-offset-2 hover:opacity-80"
       >
         Reconnect
@@ -100,10 +99,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return <SidebarLayout sidebar={<div className="md:w-[244px]" />}>{null}</SidebarLayout>;
   }
 
-  const sidebar = pathname.startsWith("/settings") ? <SettingsSidebar /> : <Sidebar />;
-
   return (
-    <SidebarLayout sidebar={sidebar}>
+    <SidebarLayout sidebar={<Sidebar />}>
       {aiandConnected === false ? (
         <div className="flex h-full flex-col">
           <DisconnectedBanner />

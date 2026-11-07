@@ -199,7 +199,7 @@ export default function DashboardPage() {
               to start serving again.
             </Text>
             <Link
-              href="/settings/providers"
+              href="/account"
               className="mt-4 inline-block rounded-md bg-brand px-4 py-2 text-xs font-medium text-white hover:opacity-90"
             >
               Reconnect
