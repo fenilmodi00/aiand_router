@@ -366,10 +366,9 @@ aiand_hidden_gate() {
   (
     exec </dev/null
 
-    # Take the per-cache-key mutex, or bail. mkdir is the portable atomic
-    # test-and-set. A crashed holder would otherwise block refreshes forever,
-    # so a lock older than the fetch timeout is treated as abandoned and
-    # reclaimed. Releasing from a trap covers every exit path below.
+    # Take the per-cache-key mutex, or bail. Old locks are reclaimed so a
+    # crashed holder cannot block refreshes forever. Releasing from a trap
+    # covers every exit path below.
     lock="$cache.lock"
     if ! mkdir "$lock" 2>/dev/null; then
       lock_mtime="$(stat -c %Y "$lock" 2>/dev/null || stat -f %m "$lock" 2>/dev/null)" || lock_mtime=0
@@ -393,7 +392,10 @@ aiand_hidden_gate() {
       rm -rf "$dead" 2>/dev/null
       mkdir "$lock" 2>/dev/null || exit 0
     fi
-    trap 'rmdir "$lock" 2>/dev/null' EXIT
+    # Some mkdir implementations return success to both racing creators.
+    # Shell noclobber supplies the exclusive claim independently of mkdir.
+    (set -C; : > "$lock/owner") 2>/dev/null || exit 0
+    trap 'rm -f "$lock/owner"; rmdir "$lock" 2>/dev/null' EXIT
 
     self_dir="$(cd "$(dirname "$self")" 2>/dev/null && pwd)"
     settings_base="$HOME"
