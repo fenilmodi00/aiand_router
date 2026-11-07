@@ -6,8 +6,8 @@ work="$(mktemp -d)"
 # write when the last assertion returns. Retry teardown instead of turning that
 # harmless race into a suite failure.
 cleanup() {
-  local i
-  for i in $(seq 1 50); do
+  local _
+  for _ in $(seq 1 50); do
     rm -rf "$work" 2>/dev/null && return 0
     sleep 0.1
   done
