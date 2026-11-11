@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 
+	"aiand-os/router/internal/auth"
 	"aiand-os/router/internal/observability"
 	"aiand-os/router/internal/router/sessionpin"
 	"aiand-os/router/internal/translate"
@@ -105,6 +106,10 @@ func (s *Service) handleTextRepetitionBreak(
 			"Aiand Router: repetition loop detected (%s/%s repeated the same response %d times). Stopping and clearing the session pin; send a follow-up to resume on a different model.",
 			decisionModel, decisionProvider, count,
 		)
+	}
+
+	if _, active := auth.BlindExperimentFrom(ctx); active {
+		msg = blindExperimentLoopStopMessage
 	}
 
 	log.Info("Text-repetition loop detected; breaking turn",

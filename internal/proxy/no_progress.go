@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"aiand-os/router/internal/auth"
 	"aiand-os/router/internal/observability"
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/sessionpin"
@@ -297,6 +298,10 @@ func (s *Service) handleNoProgressBreak(
 			"Aiand Router: no-progress loop detected (%d consecutive routes to %s/%s with no progress in %s). Stopping and %s.",
 			count, decisionModel, decisionProvider, noProgressTimeWindow, pinAction,
 		)
+	}
+
+	if _, active := auth.BlindExperimentFrom(ctx); active {
+		msg = blindExperimentLoopStopMessage
 	}
 
 	log.Info("No-progress loop detected; breaking turn",

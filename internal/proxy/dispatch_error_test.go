@@ -301,6 +301,15 @@ func TestClassifyDispatchError_PassthroughModelUnknownIs400(t *testing.T) {
 	assert.NotContains(t, cls.Message, "admin", "blind-experiment passthrough must not blame an org setting it isn't caused by")
 }
 
+func TestClassifyDispatchError_PassthroughModelUnknownOutsideRoutingPolicyIsNeutral(t *testing.T) {
+	cls, ok := proxy.ClassifyDispatchError(&proxy.PassthroughModelUnknownError{Model: "auto"})
+
+	require.True(t, ok)
+	assert.NotContains(t, cls.Message, "as-is", "an experiment subject must not learn the request skipped routing")
+	assert.NotContains(t, cls.Message, "passthrough")
+	assert.NotContains(t, cls.Message, "routing")
+}
+
 func TestClassifyDispatchError_PassthroughModelUnknownFromRoutingPolicyPointsAtAdmin(t *testing.T) {
 	cls, ok := proxy.ClassifyDispatchError(&proxy.PassthroughModelUnknownError{Model: "auto", RoutingPolicyPassthrough: true})
 
@@ -373,6 +382,20 @@ func TestClassifyDispatchError_NoRoutableModels(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, proxy.DispatchErrorNoRoutableModels, cls.Kind)
 	assert.Equal(t, http.StatusBadRequest, cls.Status)
+	assert.False(t, cls.RetryAfter)
+}
+
+func TestClassifyDispatchError_NoProviderCredentials(t *testing.T) {
+	err := fmt.Errorf("hmm_embedding: no eligible candidate: %w: %w",
+		policy.ErrNoProviderCredentials, hmm.ErrHMMUnavailable)
+
+	cls, ok := proxy.ClassifyDispatchError(err)
+
+	require.True(t, ok)
+	assert.Equal(t, proxy.DispatchErrorNoEligibleProvider, cls.Kind)
+	assert.Equal(t, http.StatusBadRequest, cls.Status)
+	assert.Contains(t, cls.Message, "add an Aiand key")
+	assert.Contains(t, cls.Message, "re-enable an excluded provider")
 	assert.False(t, cls.RetryAfter)
 }
 

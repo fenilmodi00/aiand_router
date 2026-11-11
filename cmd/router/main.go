@@ -327,6 +327,7 @@ func main() {
 		WithClusterModelLists(repo.ClusterModelLists).
 		WithUserClusterModelLists(repo.UserClusterModelLists, userClusterCache).
 		WithBlindExperiments(repo.BlindExperiments, blindExperimentCache).
+		WithBlindExperimentSessions(repo.BlindExperimentSessions).
 		WithRoutingPolicies(repo.RoutingPolicies, routingPolicyCache).
 		WithFlagOverridesDisabled(flagOverridesDisabled).
 		// The installation's Aiand credential serves the data plane in BOTH
@@ -749,6 +750,7 @@ func main() {
 	var hmmQwenRouter router.Router
 	var hmmCapabilities policy.Capabilities
 	var hmmReadinessChecker admin.HealthChecker
+	var policyStatus admin.PolicyStatusSource
 	var hmmRosterSources map[router.Strategy]policy.RosterSource
 	var hmmRosterModels admin.HMMRosterSource
 	var hmmBetaCapabilities policy.Capabilities
@@ -871,6 +873,7 @@ func main() {
 		hmmEmbeddingRouter = policyregistry.NewDynamicRouter(stableManager, router.StrategyHMMEmbedding)
 		hmmCapabilities = hmmRouter.(policy.CapabilitySource).CurrentCapabilities()
 		hmmReadinessChecker = stableManager
+		policyStatus = stableManager
 		hmmRosterSources = map[router.Strategy]policy.RosterSource{
 			router.StrategyHMM:          stableManager,
 			router.StrategyHMMEmbedding: stableManager,
@@ -972,6 +975,11 @@ func main() {
 		panic(err)
 	}
 
+	escalationShadowDefault := flags.EscalationClassifier(config.GetOr("ROUTER_ESCALATION_SHADOW_CLASSIFIER_DEFAULT", string(flags.EscalationClassifierNone)))
+	if escalationShadowDefault != flags.EscalationClassifierNone && !flags.IsLLMEscalationClassifier(escalationShadowDefault) {
+		panic("ROUTER_ESCALATION_SHADOW_CLASSIFIER_DEFAULT must be none or llm_escalation")
+	}
+
 	// Publish the compiled-in flag registry, stamped with the defaults this
 	// process actually resolved, so the Aiand control plane can render and
 	// validate the per-org override UI without importing router code. Best
@@ -979,7 +987,7 @@ func main() {
 	// degrades that UI and nothing else.
 	publishFlagRegistry(logger, repo.FlagDefinitions, map[flags.Key]string{
 		flags.KeyEscalationActiveClassifier:           string(flags.EscalationClassifierNone),
-		flags.KeyEscalationShadowClassifier:           string(flags.EscalationClassifierNone),
+		flags.KeyEscalationShadowClassifier:           string(escalationShadowDefault),
 		flags.KeyEscalationCadence:                    strconv.Itoa(llmescalation.DefaultCadence),
 		flags.KeyEscalationEpoch:                      "0",
 		flags.KeyEscalationXGBoostEnabled:             boolDefault(false),
@@ -995,6 +1003,7 @@ func main() {
 		flags.KeyTextRepetitionBreak:                  boolDefault(textRepetitionBreakEnabled),
 		flags.KeyPlannerEnabled:                       boolDefault(plannerEnabled),
 		flags.KeyScoreToolResultTurns:                 boolDefault(scoreToolResultTurns),
+		flags.KeyHMMToolResultHold:                    boolDefault(false),
 		flags.KeyPrefixTrimFreeSwitch:                 boolDefault(prefixTrimFreeSwitch),
 		flags.KeyAuthoritativeUpgradeGate:             boolDefault(authoritativeUpgradeGate),
 		flags.KeyAuthoritativeUpgradePolicy:           string(parsedUpgradePolicy),
@@ -1042,9 +1051,13 @@ func main() {
 		}
 		qwenEscalationJudge = judge
 	}
+	if escalationShadowDefault == flags.EscalationClassifierLLM && qwenEscalationJudge == nil {
+		panic("ROUTER_ESCALATION_SHADOW_CLASSIFIER_DEFAULT names a classifier whose judge is not configured")
+	}
 	servedModels := routingTargets
 
 	proxySvc := proxy.NewService(routeEntry, providerMap, telemetryEmitter, embedOnlyUser, semanticCache, pinStore, hardPinExplore, hardPinProvider, hardPinModel, repo.Telemetry).
+		WithExternalKeyUsageRecorder(authSvc).
 		WithSessionStrategyStore(sessionStrategyStore).
 		WithSessionTurnClock(sessionTurnClock).
 		WithEscalation(escalationStore, escalationObserver).
@@ -1052,6 +1065,7 @@ func main() {
 		WithLLMEscalation(llmEscalationStore).
 		WithQwenEscalation(qwenEscalationJudge).
 		WithEscalationConfiguration(llmEscalationStore, authSvc.InvalidateInstallation).
+		WithEscalationShadowDefault(escalationShadowDefault).
 		WithTranslationCompatibilityMode(proxy.TranslationCompatibilityMode(translationCompatibilityMode)).
 		WithScopedSearchRequirement(scopedSearchRequirement, searchRequirementDecayTurns).
 		WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyRL, Router: rlRouter, Unavailable: rl.ErrPolicyUnavailable}).
@@ -1262,6 +1276,8 @@ func main() {
 		// SaaS login surface: mounted only in selfhosted mode (the feature is
 		// gated again inside server.RegisterWithFeatures).
 		LoginSvc: loginSvc,
+		// PolicyStatus feeds /v1/version's stable policy release fields.
+		PolicyStatus: policyStatus,
 	}
 	if trafficCapture != nil {
 		serverFeatures.TrafficCapture = trafficCapture

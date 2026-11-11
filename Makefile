@@ -75,6 +75,7 @@ test-install: ## Run offline installer regression tests (after make setup-instal
 	@bash install/tests/jq_bootstrap_test.sh
 	@bash install/tests/claude-status_test.sh
 	@bash install/tests/codex_install_test.sh
+	@bash install/tests/build_skill_install_test.sh
 	@bash install/tests/opencode_install_test.sh
 	@python3 -m unittest discover -s install/pi-router/test -p 'test_*.py'
 	@bash install/tests/codex-status_test.sh

@@ -353,13 +353,13 @@ replacement when the bytes are unchanged. The `AIAND_STATUSLINE_*` variables
 above are accepted as fallbacks for users who configure both clients together.
 
 **Codex skill invocations are answered by the router.** `$fm`/`$force-model`, `$force-parent`,
-`$ufm`/`$unforce-model`, `$rf`/`$router-feedback` and `$router-session` reach
-the router; the local toggles do not, and are covered below. Codex sends a
-`$name` invocation as two user messages: the text the user typed, then a second
-message carrying the invoked skill's `SKILL.md`. The router reads the invocation
-from the first one, applies it, and answers with a synthetic response — the same
-short-circuit Claude Code's slash commands take — so it costs no upstream
-inference and the arguments arrive exactly as typed.
+`$ufm`/`$unforce-model`, `$rf`/`$router-feedback`, `$router-session` and
+`$list-models` reach the router; the local toggles do not, and are covered
+below. Codex sends a `$name` invocation as two user messages: the text the user
+typed, then a second message carrying the invoked skill's `SKILL.md`. The router
+reads the invocation from the first one, applies it, and answers with a
+synthetic response — the same short-circuit Claude Code's slash commands take —
+so it costs no upstream inference and the arguments arrive exactly as typed.
 
 0.2.17 shipped a `UserPromptSubmit` hook to do this client-side, before the
 router could see the invocation behind the skill block. It is retired; the hook
@@ -401,6 +401,13 @@ the id as `Session-Id` on every request and stores it for analytics joins, so
 it now answers the directive itself — no inference, and the id is by
 construction the one telemetry recorded rather than a client-side guess at it.
 The skill and its script remain installed as a fallback for older routers.
+
+`$list-models` lists every model `$force-model` accepts, with the shorthands that
+resolve to each one. The router answers it from the request, judging each model
+with the same installation allowlist, exclusion and provider policy a force is
+checked against, so a model marked `[x]` is one a force will pin. This differs
+from `$router-models`, which shows what automatic routing may choose: a model the
+deployment withholds from automatic routing still lists as forceable.
 
 **Codex status integration.** Codex 0.150+ supports lifecycle hooks. The installer enables hooks and adds managed `SessionStart`, `Stop`, and `PreCompact` handlers. They maintain a small local state file and set the terminal title to `Aiand Router · <requested-model> → <routed-model>` when the router provides a routed-model marker. On ordinary turns where the model is unchanged, the title remains the last known routed model; before the first routed response it shows `Aiand Router · active`. The hooks intentionally emit no status messages: Codex renders hook output in the conversation, which makes a persistent router indicator noisy and easy to confuse with model output. It is not a replacement for Codex's requested-model line: that line continues to show the model selected in Codex configuration, while the Aiand status identifies the model that actually served. Existing user and project hooks remain outside the managed block and are preserved on reinstall/uninstall.
 
@@ -487,7 +494,8 @@ Inside Claude Code you can also run the slash commands `/router-off`,
 `/router-on`, `/router-status`, and `/router-session` (which prints the
 session id used for telemetry correlation and transcript lookup) — installed
 alongside `/force-model` (alias `/fm`), `/unforce-model` (alias `/ufm`),
-`/router-feedback` (alias `/rf`), and `/router-models` (alias `/models`).
+`/router-feedback` (alias `/rf`), `/router-models` (alias `/models`), and
+`/list-models`.
 
 ### Which directives each client gets
 
@@ -503,6 +511,7 @@ installer owns the config file.
 | unforce-model (`ufm`) | `/unforce-model` | `$unforce-model` | `/unforce-model` | `/ufm` (native) | manual |
 | router-feedback (`rf`) | `/router-feedback` | `$router-feedback` | `/router-feedback` | — | manual |
 | router-session | `/router-session` | `$router-session` | — | — | — |
+| list-models | `/list-models` | `$list-models` | — | — | — |
 | router-off / on / status | `/router-off` … | `$router-off` … (plus `$disable-routing`) | — | — | — |
 | router-models (`models`) | `/router-models` | `$router-models` | — | — | — |
 

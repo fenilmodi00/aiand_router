@@ -103,3 +103,16 @@ func TestFoldedForceModelNames_AgreeWithExactNames(t *testing.T) {
 		}
 	}
 }
+
+// The Muse Spark Open spellings from upstream #2075 must all resolve to
+// the fork's single Muse Spark catalog row (the meta/muse-spark catalog ID,
+// which serves the upstream meta/muse-spark-open model).
+func TestResolveForceModel_MuseSparkOpenSpellings(t *testing.T) {
+	for _, name := range []string{"muse-spark-open", "musespark-open", "spark-open"} {
+		t.Run(name, func(t *testing.T) {
+			id, _, known := resolveForceModel(name)
+			require.True(t, known, "known")
+			assert.Equal(t, catalog.ModelIDMuseSpark.String(), id)
+		})
+	}
+}

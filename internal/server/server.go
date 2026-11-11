@@ -22,6 +22,7 @@ import (
 	"aiand-os/router/internal/policyclient"
 	"aiand-os/router/internal/policyregistry"
 	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/requestcontext"
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/hmm/rosterdata"
 	"aiand-os/router/internal/router/policy"
@@ -141,6 +142,8 @@ type Features struct {
 		account.LoginAPI
 		auth.SessionVerifier
 	}
+	// PolicyStatus adds the active stable policy release to /v1/version.
+	PolicyStatus admin.PolicyStatusSource
 }
 
 // RegisterWithFeatures is Register with optional request features enabled.
@@ -209,7 +212,7 @@ func RegisterWithFeatures(engine *gin.Engine, authSvc *auth.Service, proxySvc *p
 
 	// /v1/version reports the binary's git commit + build time (via -ldflags),
 	// used by the README's managed-deployment badge. Public build metadata, unauthed like /health.
-	engine.GET("/v1/version", middleware.WithTimeout(healthTimeout), admin.VersionHandler)
+	engine.GET("/v1/version", middleware.WithTimeout(healthTimeout), admin.VersionHandler(features.PolicyStatus))
 	var registeredStrategies []router.Strategy
 	var strategyAvailability middleware.StrategyAvailability
 	if proxySvc != nil {
@@ -422,7 +425,15 @@ func RegisterWithFeatures(engine *gin.Engine, authSvc *auth.Service, proxySvc *p
 	passthroughGroup.GET("/v1/models", openaiapi.ModelsHandler(anthropicapi.PassthroughHandler(proxySvc)))
 	passthroughGroup.GET("/v1/models/:model", anthropicapi.PassthroughHandler(proxySvc))
 	// Rides the passthrough group (cheap, no billing middleware) — read-only, no routing side-effects.
-	passthroughGroup.GET("/v1/display-settings", admin.DisplaySettingsHandler)
+	// Resolves the caller the same way inference does so blind-experiment
+	// subjects never see routing surfaces, even on unauthenticated reads.
+	passthroughGroup.GET("/v1/display-settings", admin.DisplaySettingsHandlerFor(
+		func(c *gin.Context) context.Context {
+			return proxy.ResolveUserFromContext(
+				requestcontext.WithClientIdentity(c.Request.Context(), proxy.ClientIdentityFromHeaders(c.Request.Header)),
+				authSvc, middleware.InstallationFrom(c), middleware.APIKeyFrom(c),
+			)
+		}, authSvc))
 
 	// Read-only product surface: the Codex status hook's rk_ key and API clients'
 	// ra_ keys read one installation's committed cost. Deliberately outside

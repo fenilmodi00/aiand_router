@@ -3,6 +3,7 @@ package translate_test
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"maps"
 	"net/http"
 	"slices"
@@ -608,6 +609,22 @@ func TestAnthropicSameFormat_MidConversationSystemMessageDemotedInPlace(t *testi
 		mm, _ := m.(map[string]any)
 		assert.NotEqual(t, "system", mm["role"], "no system role left in messages")
 	}
+}
+
+func TestAnthropicSameFormat_DemotedSystemClearAtRemoved(t *testing.T) {
+	body := []byte(`{"model":"claude-sonnet-4-20250514","messages":[{"role":"user","content":"hi"},{"role":"assistant","content":"hello"},{"role":"user","content":"go"},{"role":"system","content":"turn note","clear_at":"next_user_message"}],"max_tokens":1024}`)
+	opts := translate.EmitOptions{
+		TargetModel:  "z-ai/glm-5.3",
+		Capabilities: router.Lookup("z-ai/glm-5.3"),
+	}
+	out := parseAndEmit(t, body, "anthropic", opts)
+
+	msgs, _ := out["messages"].([]any)
+	require.Len(t, msgs, 4)
+	demoted, _ := msgs[3].(map[string]any)
+	assert.Equal(t, "user", demoted["role"])
+	assert.Contains(t, fmt.Sprint(demoted["content"]), "turn note")
+	assert.NotContains(t, demoted, "clear_at", "system-only clear_at must not remain on a user message")
 }
 
 func TestAnthropicSameFormat_DemotedSystemNullOutputConfigRemoved(t *testing.T) {

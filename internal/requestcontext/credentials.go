@@ -45,6 +45,9 @@ type Credentials struct {
 	// independent of the bytes in APIKey. Non-secret and safe to fingerprint;
 	// empty when the credential is only known by its key material.
 	PrincipalID string
+	// ExternalKeyID is the stored external key row a BYOK credential came
+	// from; empty for every other source.
+	ExternalKeyID string
 }
 
 // UpstreamPrincipal identifies the account this credential authenticates as,

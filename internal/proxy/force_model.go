@@ -134,6 +134,11 @@ var forceModelAliases = map[string]string{
 	"z-ai":          "z-ai/glm-5.3",
 	"glm-5.3-flash": "z-ai/glm-5.3-flash",
 	"glm-5.3":       "z-ai/glm-5.3",
+	// Muse Spark Open spellings (upstream #2075) all resolve to the
+	// fork's single Muse Spark catalog row.
+	"muse-spark-open": catalog.ModelIDMuseSpark.String(),
+	"musespark-open":  catalog.ModelIDMuseSpark.String(),
+	"spark-open":      catalog.ModelIDMuseSpark.String(),
 }
 
 // forceModelExamples follows the family aliases so the unknown-model hint

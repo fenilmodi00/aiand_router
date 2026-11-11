@@ -12,6 +12,11 @@ import (
 // installation's own configuration, not a router fault.
 var ErrNoRoutableModels = errors.New("policy: configuration leaves no routable model")
 
+// ErrNoProviderCredentials is ErrNoRoutableModels narrowed to the unkeyed
+// case: every deployed model was dropped for want of a usable provider.
+var ErrNoProviderCredentials = fmt.Errorf(
+	"policy: no enabled provider can dispatch any deployed model: %w", ErrNoRoutableModels)
+
 // ErrContextWindowExceeded signals that resolution came back empty because the
 // request is too large, so the client receives its native prompt-too-long
 // error and compacts rather than being told to change its configuration.
@@ -34,7 +39,21 @@ func emptyCandidateError(diagnostics []Diagnostic) error {
 	if slices.ContainsFunc(diagnostics, func(d Diagnostic) bool { return d.Reason == ExclusionImageLimit }) {
 		return ErrImageLimitExceeded
 	}
+	if slices.ContainsFunc(diagnostics, isProviderExclusion) &&
+		!slices.ContainsFunc(diagnostics, func(d Diagnostic) bool {
+			// Unmapped/unknown roster drops are structural: no installation setting undoes them.
+			structural := d.Reason == ExclusionUnmappedRoster || d.Reason == ExclusionUnknownCatalogModel
+			return !isProviderExclusion(d) && !structural
+		}) {
+		return ErrNoProviderCredentials
+	}
 	return ErrNoRoutableModels
+}
+
+// isProviderExclusion reports whether the diagnostic names the want of a
+// request-enabled provider rather than a model-selection decision.
+func isProviderExclusion(d Diagnostic) bool {
+	return d.Reason == ExclusionNoProvider
 }
 
 // candidateLogFields flattens a resolution into slog fields so a failed

@@ -65,6 +65,12 @@ func TestBlindExperimentSchemaFieldsAreNullable(t *testing.T) {
 		"blind_experiment_arm":               false,
 		"blind_experiment_assignment_source": false,
 		"blind_experiment_subject_key":       false,
+		"blind_experiment_mode":              false,
+		"blind_experiment_session_key":       false,
+		"blind_experiment_model_source":      false,
+		"blind_experiment_treatment_applied": false,
+		"blind_experiment_baseline_model":    false,
+		"blind_experiment_model_changed":     false,
 	}
 	for _, field := range analytics.Schema() {
 		if _, isExperimentField := experimentFields[field.Name]; !isExperimentField {

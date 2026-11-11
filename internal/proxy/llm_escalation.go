@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"aiand-os/router/internal/flags"
@@ -40,6 +41,7 @@ type llmEscalationTurn struct {
 func (s *Service) WithLLMEscalation(store llmescalation.Store) *Service {
 	s.llmEscalationStore = store
 	s.llmEscalationSlots = make(chan struct{}, llmescalation.MaxWorkers)
+	s.llmEscalationShadowSlots = make(chan struct{}, llmescalation.MaxShadowWorkers)
 	return s
 }
 
@@ -48,8 +50,20 @@ func (s *Service) WithQwenEscalation(judge llmescalation.Judge) *Service {
 	s.qwenEscalationJudge = judge
 	if s.llmEscalationSlots == nil {
 		s.llmEscalationSlots = make(chan struct{}, llmescalation.MaxWorkers)
+		s.llmEscalationShadowSlots = make(chan struct{}, llmescalation.MaxShadowWorkers)
 	}
 	return s
+}
+
+// WithEscalationShadowDefault shadows classifier for every installation without
+// an escalation selection, so shadow verdicts need no per-installation opt-in.
+func (s *Service) WithEscalationShadowDefault(classifier flags.EscalationClassifier) *Service {
+	s.escalationShadowDefault = classifier
+	return s
+}
+
+func (s *Service) escalationSelection(ctx context.Context) flags.EscalationConfig {
+	return flags.EscalationWithDeploymentShadow(ctx, s.escalationShadowDefault)
 }
 
 func (t *llmEscalationTurn) constraint() *escalation.Constraint {
@@ -64,7 +78,7 @@ func (t *llmEscalationTurn) constraint() *escalation.Constraint {
 }
 
 func (s *Service) beginLLMEscalation(ctx context.Context, env *translate.RequestEnvelope, req router.Request, res *turnLoopResult, apiKeyID string) *llmEscalationTurn {
-	selection := flags.EscalationFromContext(ctx)
+	selection := s.escalationSelection(ctx)
 	active := flags.IsLLMEscalationClassifier(selection.Active)
 	shadow := flags.IsLLMEscalationClassifier(selection.Shadow)
 	classifier := selection.Shadow
@@ -91,7 +105,7 @@ func (s *Service) beginLLMEscalation(ctx context.Context, env *translate.Request
 	digest := sha256.Sum256([]byte(fmt.Sprintf("%s/%s/%s/%s/%s/%s/%d", llmescalation.Version, policy.EscalationJudgeModel, providers.ProviderAIAND, llmescalation.SwitchyardRevision, llmescalation.SystemPrompt, llmescalation.ResponseSchema, selection.Cadence)))
 	config := llmescalation.Config{Mode: mode, Epoch: selection.Epoch, Cadence: selection.Cadence, Digest: fmt.Sprintf("%x", digest)}
 	if classifier == flags.EscalationClassifierLLM {
-		digest = sha256.Sum256([]byte(fmt.Sprintf("%s/%s/%s/%s/%d", classifier, llmescalation.QwenModelSHA256, llmescalation.QwenPromptSHA256, llmescalation.QwenRendererVersion, selection.Cadence)))
+		digest = sha256.Sum256([]byte(fmt.Sprintf("%s/%s/%s/%d", classifier, llmescalation.QwenSchemaVersion, llmescalation.QwenRendererVersion, selection.Cadence)))
 		config.Classifier = classifier
 		config.Digest = fmt.Sprintf("%x", digest)
 	}
@@ -231,7 +245,7 @@ func (s *Service) completeLLMEscalation(ctx context.Context, res turnLoopResult,
 	judge := s.qwenEscalationJudge
 	ready := true
 	if turn.session.Config.EffectiveClassifier() == flags.EscalationClassifierLLM {
-		transcript, ready = llmescalation.RenderQwenInterval(messages, turn.session.CompletedTurns+1, turn.observation.CodexToolResults)
+		transcript, ready = llmescalation.RenderQwenInterval(messages, turn.observation.CodexToolResults)
 		if !ready {
 			observability.FromContext(ctx).Info("LLM escalation interval unavailable", "completed_turns", turn.session.CompletedTurns+1)
 		}
@@ -242,11 +256,19 @@ func (s *Service) completeLLMEscalation(ctx context.Context, res turnLoopResult,
 	} else if llmescalation.TurnsSinceUserPrompt(messages) < llmescalation.MinTurnsAfterUserPrompt {
 		ready = false
 		intervalFailure = llmescalation.FailureRecentUserPrompt
+	} else if servedEscalationTarget(ctx, res.Decision.Model) {
+		ready = false
+		intervalFailure = llmescalation.FailureServedTarget
+	}
+	// Separate pools keep shadow judging from starving active checkpoints.
+	slots := s.llmEscalationShadowSlots
+	if turn.active {
+		slots = s.llmEscalationSlots
 	}
 	capacity := false
 	if ready {
 		select {
-		case s.llmEscalationSlots <- struct{}{}:
+		case slots <- struct{}{}:
 			capacity = true
 		default:
 		}
@@ -256,7 +278,7 @@ func (s *Service) completeLLMEscalation(ctx context.Context, res turnLoopResult,
 	cancelCompletion()
 	if err != nil || completion.Job == nil {
 		if capacity {
-			<-s.llmEscalationSlots
+			<-slots
 		}
 		if err != nil {
 			observability.FromContext(ctx).Warn("LLM escalation completion persistence failed", "err", err)
@@ -264,9 +286,9 @@ func (s *Service) completeLLMEscalation(ctx context.Context, res turnLoopResult,
 		return
 	}
 	job := *completion.Job
-	log := observability.FromContext(ctx).With("escalation_job_id", job.ID, "escalation_checkpoint", job.Checkpoint)
+	log := observability.FromContext(ctx).With("escalation_job_id", job.ID, "escalation_checkpoint", job.Checkpoint, "escalation_mode", turn.session.Config.Mode, "escalation_classifier", job.Version, "installation_id", turn.session.InstallationID)
 	observability.SafeGo(log, llmescalation.JudgeTimeout+time.Second, "escalation-judge", func(background context.Context) {
-		defer func() { <-s.llmEscalationSlots }()
+		defer func() { <-slots }()
 		background = observability.WithLogger(background, log)
 		background = observability.WithRequestID(background, turn.requestID)
 		judgeCtx, judgeCancel := context.WithTimeout(background, llmescalation.JudgeTimeout)
@@ -284,11 +306,11 @@ func (s *Service) completeLLMEscalation(ctx context.Context, res turnLoopResult,
 		}
 		persistCtx, persistCancel := context.WithTimeout(background, llmEscalationBookkeepingTimeout)
 		defer persistCancel()
+		job.RecordServedRelease(judgment.Release)
 		if err := s.llmEscalationStore.FinishJob(persistCtx, job, judgment, failure); err != nil {
 			log.Warn("LLM escalation verdict persistence failed", "err", err)
 		}
-		s.recordEscalationJudgeInference(turn.session.InstallationID, turn.requestID, job, judgment)
-		log.Info("LLM escalation checkpoint finished", "failure", failure, "escalate", judgment.Escalate, "usage_known", judgment.Usage.Known, "input_tokens", judgment.Usage.InputTokens, "output_tokens", judgment.Usage.OutputTokens, "cost_usd", judgment.CostUSD)
+		s.recordEscalationJudgeInference(turn.session.InstallationID, turn.requestID, turn.session.Config.Mode, job, judgment, failure)
 	})
 }
 
@@ -303,4 +325,10 @@ func llmEscalationFailure(judgeErr, judgeContextErr error) llmescalation.Failure
 	default:
 		return llmescalation.FailureJudge
 	}
+}
+
+// servedEscalationTarget reports whether the turn already ran on a model the
+// key would promote to, so a verdict could not change routing.
+func servedEscalationTarget(ctx context.Context, model string) bool {
+	return slices.Contains(clusterArmOverridesForRequest(ctx)[escalation.TargetClusterLabel], model)
 }

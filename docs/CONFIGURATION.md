@@ -999,6 +999,50 @@ holdout, outcome, reason, margin, votes, and served model.
 
 
 
+`ROUTER_ESCALATION_SHADOW_CLASSIFIER_DEFAULT` (`none`) shadows an LLM classifier
+
+for installations with no escalation selection and no active classifier.
+
+`llm_escalation` requires `ROUTER_LLM_ESCALATION_URL` and
+
+`ROUTER_LLM_ESCALATION_API_KEY`; startup fails otherwise. Shadow judging uses
+
+its own pool of 8 slots per instance. Each successful verdict is written to the
+
+judge's auxiliary telemetry row (`classifier_predicted_label`); failed judgments
+
+keep their cost row with no label.
+
+
+
+## Escalation target and tool-result hold
+
+
+
+A key-scoped cluster model list labelled `escalation` names the models served
+
+while an escalation verdict or persisted floor constrains a request. It
+
+replaces the effective group's list only on escalated turns, so a key can keep
+
+every unescalated group on one model and promote only escalated sessions. The
+
+LLM escalation judge skips a checkpoint (`served_escalation_target`) when the
+
+turn was already served by one of these models.
+
+
+
+`hmm_tool_result_hold` is an organization-overridable boolean flag, stored in
+
+the installation's flag overrides (no environment variable), default `false`. When on, authoritative per-turn selection
+
+scores only the first call after a user message; that turn's tool-result calls
+
+reuse the session pin unless escalation constrains the request.
+
+
+
 ## Forcing a model or a routing cluster
 
 

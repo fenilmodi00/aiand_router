@@ -190,7 +190,7 @@ func ClassifyDispatchError(err error) (DispatchErrorClass, bool) {
 			LogMessage: "Rejected request: forced model is not a known model",
 		}, true
 	case errors.As(err, &passthroughUnknown):
-		message := "This request is served with the requested model as-is, but " + passthroughUnknown.Error() + ". Request a full model ID (e.g. claude-opus-5-5 or gpt-5.6-sol)."
+		message := passthroughUnknown.Error() + ". Request a full model ID (e.g. claude-opus-5-5 or gpt-5.6-sol)."
 		if passthroughUnknown.RoutingPolicyPassthrough {
 			message = "Automatic routing isn't enabled for you in this organization, so the requested model is served as-is, but " + passthroughUnknown.Error() + ". Request a full model ID (e.g. claude-opus-5-5 or gpt-5.6-sol), or ask your org admin to enable automatic routing."
 		}
@@ -312,13 +312,7 @@ func ClassifyDispatchError(err error) (DispatchErrorClass, bool) {
 			LogMessage: "Model allowlist leaves no eligible candidates",
 		}, true
 	case errors.Is(err, cluster.ErrNoEligibleProvider):
-		return DispatchErrorClass{
-			Kind:       DispatchErrorNoEligibleProvider,
-			Status:     http.StatusBadRequest,
-			Message:    "No provider keys available for any deployed model: register a BYOK key or supply a provider Authorization header.",
-			LogLevel:   "warn",
-			LogMessage: "No eligible provider for request",
-		}, true
+		return noEligibleProviderClass(), true
 	case errors.Is(err, billing.ErrUserMonthlySpendLimitReached):
 		return DispatchErrorClass{
 			Kind:       DispatchErrorUserSpendLimitReached,
@@ -363,6 +357,8 @@ func ClassifyDispatchError(err error) (DispatchErrorClass, bool) {
 			LogLevel:   "warn",
 			LogMessage: "Request image count exceeds every eligible model's limit",
 		}, true
+	case errors.Is(err, policy.ErrNoProviderCredentials):
+		return noEligibleProviderClass(), true
 	case errors.Is(err, policy.ErrNoRoutableModels):
 		return DispatchErrorClass{
 			Kind:       DispatchErrorNoRoutableModels,
@@ -506,5 +502,15 @@ func LogDispatchErrorClass(log *slog.Logger, cls DispatchErrorClass, err error) 
 		log.Warn(cls.LogMessage, "err", err)
 	case "error":
 		log.Error(cls.LogMessage, "err", err)
+	}
+}
+
+func noEligibleProviderClass() DispatchErrorClass {
+	return DispatchErrorClass{
+		Kind:       DispatchErrorNoEligibleProvider,
+		Status:     http.StatusBadRequest,
+		Message:    "No enabled provider can serve any deployed model: add an Aiand key (BYOK or a provider Authorization header), or reconnect your Aiand account / re-enable an excluded provider.",
+		LogLevel:   "warn",
+		LogMessage: "No eligible provider for request",
 	}
 }

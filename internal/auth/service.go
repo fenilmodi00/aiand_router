@@ -12,6 +12,7 @@ import (
 	"aiand-os/router/internal/flags"
 	"aiand-os/router/internal/observability"
 
+	lru "github.com/hashicorp/golang-lru/v2"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -57,24 +58,27 @@ func (NoOpInstallationChangeNotifier) NotifyInstallationChanged(string) {}
 
 // Service authenticates incoming bearer tokens. Identity only; routing/dispatch lives in proxy.Service.
 type Service struct {
-	installations          InstallationRepository
-	apiKeys                APIKeyRepository
-	credentialSubjects     CredentialSubjectLookup
-	externalKeys           ExternalAPIKeyRepository
-	users                  UserRepository
-	clusterModelLists      ClusterModelListRepository
-	userClusterModelLists  UserClusterModelListRepository
-	blindExperiments       BlindExperimentRepository
-	routingPolicies        RoutingPolicyRepository
-	routingPolicyCache     *RoutingPolicyCache
-	cache                  APIKeyCache
-	userCache              UserCache
-	userClusterCache       UserClusterListCache
-	blindExperimentCache   BlindExperimentCache
-	blindExperimentFetches singleflight.Group
-	notifier               InstallationChangeNotifier
-	now                    Clock
-	encryptor              Encryptor
+	installations              InstallationRepository
+	apiKeys                    APIKeyRepository
+	credentialSubjects         CredentialSubjectLookup
+	externalKeys               ExternalAPIKeyRepository
+	users                      UserRepository
+	clusterModelLists          ClusterModelListRepository
+	userClusterModelLists      UserClusterModelListRepository
+	blindExperiments           BlindExperimentRepository
+	routingPolicies            RoutingPolicyRepository
+	routingPolicyCache         *RoutingPolicyCache
+	cache                      APIKeyCache
+	userCache                  UserCache
+	userClusterCache           UserClusterListCache
+	blindExperimentCache       BlindExperimentCache
+	blindExperimentFetches     singleflight.Group
+	blindExperimentSessions    BlindExperimentSessionRepository
+	blindExperimentSessionArms *lru.Cache[string, BlindExperimentArm]
+	notifier                   InstallationChangeNotifier
+	now                        Clock
+	externalKeyMarks           externalKeyMarks
+	encryptor                  Encryptor
 
 	// flagOverridesDisabled is the deployment-wide escape hatch
 	// (ROUTER_FLAG_OVERRIDES_DISABLED). When set, per-organization flag
@@ -211,7 +215,7 @@ func (s *Service) WithRoutingPolicy(ctx context.Context, installationID string) 
 		}
 		if s.routingPolicyCache.generation(installationID) == generation {
 			ctx = context.WithValue(ctx, routingPolicyGenerationContextKey{}, generation)
-			return context.WithValue(ctx, routingPolicyContextKey{}, policy), nil
+			return WithRoutingPolicy(ctx, policy), nil
 		}
 	}
 	return ctx, ErrRoutingPolicyUnavailable

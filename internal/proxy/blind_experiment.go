@@ -144,3 +144,84 @@ func (s *Service) callerModelPassthroughDecision(ctx context.Context, req router
 		Reason:   blindExperimentPublicDecisionReason,
 	}, nil
 }
+
+func blindExperimentModelSource(ctx context.Context, routed *turnLoopResult) auth.BlindExperimentModelSource {
+	switch {
+	case routed == nil || routed.Decision.Model == "":
+		return auth.BlindExperimentModelSourceNotDispatched
+	case isUserForcedReason(routed.Decision.Reason):
+		return auth.BlindExperimentModelSourceForceModel
+	case routed.HardPinned:
+		return auth.BlindExperimentModelSourceHardPin
+	case !routed.CallerModelPassthrough:
+		return auth.BlindExperimentModelSourceRouter
+	case auth.RoutingPassthroughFrom(ctx):
+		return auth.BlindExperimentModelSourceRoutingPolicyPassthrough
+	default:
+		return auth.BlindExperimentModelSourceExperimentPassthrough
+	}
+}
+
+type blindExperimentOutcome struct {
+	source           auth.BlindExperimentModelSource
+	treatmentApplied bool
+	baselineModel    string
+	modelChanged     *bool
+}
+
+func blindExperimentOutcomeFor(ctx context.Context, state auth.BlindExperimentState, routed *turnLoopResult, requestedModel, servedModel string) blindExperimentOutcome {
+	source := blindExperimentModelSource(ctx, routed)
+	outcome := blindExperimentOutcome{
+		source:           source,
+		treatmentApplied: blindExperimentTreatmentApplied(state.Arm, source),
+		baselineModel:    blindExperimentBaselineModel(ctx, requestedModel),
+	}
+	if source != auth.BlindExperimentModelSourceNotDispatched && outcome.baselineModel != "" {
+		if servedModel == "" {
+			servedModel = routed.Decision.Model
+		}
+		modelChanged := servedModel != outcome.baselineModel
+		outcome.modelChanged = &modelChanged
+	}
+	return outcome
+}
+
+// blindExperimentBaselineModel is the model the client would run without
+// routing: its requested model, or "" for an automatic-routing alias whose
+// client default the fork does not resolve.
+func blindExperimentBaselineModel(ctx context.Context, requestedModel string) string {
+	if router.IsRoutingModel(requestedModel) {
+		return ""
+	}
+	return requestedModel
+}
+
+// applyBlindExperimentOutcomeAttrs records the assigned arm and what actually
+// chose the model. Spans are internal, so this does not disclose the arm to clients.
+func applyBlindExperimentOutcomeAttrs(ctx context.Context, b *otel.AttrBuilder, routed *turnLoopResult, requestedModel, servedModel string) {
+	state, active := auth.BlindExperimentFrom(ctx)
+	if !active {
+		return
+	}
+	outcome := blindExperimentOutcomeFor(ctx, state, routed, requestedModel, servedModel)
+	b.String("routing.blind_experiment_arm", string(state.Arm)).
+		String("routing.blind_experiment_assignment_source", string(state.AssignmentSource)).
+		String("routing.blind_experiment_model_source", string(outcome.source)).
+		Bool("routing.blind_experiment_treatment_applied", outcome.treatmentApplied)
+	if outcome.baselineModel != "" {
+		b.String("routing.blind_experiment_baseline_model", outcome.baselineModel)
+	}
+	if outcome.modelChanged != nil {
+		b.Bool("routing.blind_experiment_model_changed", *outcome.modelChanged)
+	}
+}
+
+func blindExperimentTreatmentApplied(arm auth.BlindExperimentArm, source auth.BlindExperimentModelSource) bool {
+	if arm == auth.BlindExperimentArmPassthrough {
+		return source == auth.BlindExperimentModelSourceExperimentPassthrough
+	}
+	return source == auth.BlindExperimentModelSourceRouter
+}
+
+// blindExperimentLoopStopMessage stops a looping turn without naming a model or the router.
+const blindExperimentLoopStopMessage = "Stopped this turn: the last several responses made no progress. Send a follow-up message describing what's still needed.\n\n"

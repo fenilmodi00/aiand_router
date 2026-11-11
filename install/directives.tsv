@@ -9,6 +9,7 @@ router-off||local-toggle|yes|yes|no|no|command,skill
 router-on||local-toggle|yes|yes|no|no|command,skill
 router-status||local-toggle|yes|yes|no|no|command,skill
 router-session||prompt|yes|yes|no|no|command,skill
+list-models||prompt|yes|yes|no|no|command,skill
 router-models|models|local-toggle|yes|yes|no|no|command,skill
 disable-routing||local-toggle|no|yes|no|no|skill
 beta||prompt|yes|no|no|yes|command

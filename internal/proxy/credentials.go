@@ -87,7 +87,8 @@ func BuildCredentialsMap(keys []*auth.ExternalAPIKey) map[string]*Credentials {
 			BaggageHeader:          key.BaggageHeader,
 			// The key row, not its plaintext: the stored secret is the
 			// credential, so the key id names the upstream principal.
-			PrincipalID: strings.Join([]string{"external-key", key.ID}, ":"),
+			PrincipalID:   strings.Join([]string{"external-key", key.ID}, ":"),
+			ExternalKeyID: key.ID,
 		}
 	}
 	if len(m) == 0 {

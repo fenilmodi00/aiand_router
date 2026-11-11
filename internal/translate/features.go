@@ -475,10 +475,17 @@ func previewGJSON(content gjson.Result) string {
 }
 
 func userPromptTextGJSON(content gjson.Result) string {
+	return userPromptTextWithClientWrappers(content, false)
+}
+
+func userPromptTextWithClientWrappers(content gjson.Result, normalizeKnownWrappers bool) string {
 	if !content.Exists() {
 		return ""
 	}
 	if content.Type == gjson.String {
+		if normalizeKnownWrappers {
+			return WithoutLeadingClientInjectedText(content.String())
+		}
 		return content.String()
 	}
 	if !content.IsArray() {
@@ -494,7 +501,13 @@ func userPromptTextGJSON(content gjson.Result) string {
 			return true
 		}
 		if isClaudeCodeInjectedBlock(text) {
-			return true
+			if !normalizeKnownWrappers {
+				return true
+			}
+			text = WithoutLeadingClientInjectedText(text)
+			if text == "" {
+				return true
+			}
 		}
 		if b.Len() > 0 {
 			b.WriteByte('\n')

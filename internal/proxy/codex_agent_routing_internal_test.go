@@ -173,6 +173,13 @@ func (p *codexTitleProvider) Proxy(_ context.Context, _ router.Decision, prep pr
 	p.endpoints = append(p.endpoints, prep.Endpoint)
 	p.models = append(p.models, gjson.GetBytes(prep.Body, "model").String())
 	w.Header().Set("Content-Type", "text/event-stream")
+	// NativeOnly Codex turns (e.g. title generation with additional_tools)
+	// dispatch the original Responses body to the Responses endpoint and
+	// expect native Responses SSE back; chat/completions turns get chat SSE.
+	if prep.Endpoint == providers.EndpointResponses {
+		_, _ = w.Write([]byte("event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_c1\",\"object\":\"response\",\"status\":\"completed\",\"output\":[{\"type\":\"message\",\"role\":\"assistant\",\"status\":\"completed\",\"content\":[{\"type\":\"output_text\",\"text\":\"ok\"}]}]}}\n\n"))
+		return nil
+	}
 	_, _ = w.Write([]byte("data: {\"id\":\"c1\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"ok\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n"))
 	return nil
 }

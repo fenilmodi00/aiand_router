@@ -52,3 +52,27 @@ func TestCandidateLogFields_GroupsExclusionsByReason(t *testing.T) {
 		"excluded_" + string(ExclusionRequested), "moonshotai/kimi-k3,z-ai/glm-5.3",
 	}, fields)
 }
+
+func TestEmptyCandidateError_NamesMissingProviderCredentials(t *testing.T) {
+	// Unkeyed deployments drop every model for want of a provider; telling
+	// the caller to widen a model selection would send them to the wrong setting.
+	err := emptyCandidateError([]Diagnostic{
+		{CatalogID: "z-ai/glm-5.3", Reason: ExclusionNoProvider},
+		{CatalogID: "deepseek/deepseek-v4.1-flash", Reason: ExclusionNoProvider},
+		{CatalogID: "moonshotai/kimi-k3", Reason: ExclusionUnmappedRoster},
+	})
+	assert.ErrorIs(t, err, ErrNoProviderCredentials)
+	assert.ErrorIs(t, err, ErrNoRoutableModels)
+
+	err = emptyCandidateError([]Diagnostic{
+		{CatalogID: "z-ai/glm-5.3", Reason: ExclusionNoProvider},
+		{CatalogID: "moonshotai/kimi-k3", Reason: ExclusionRequested},
+	})
+	assert.ErrorIs(t, err, ErrNoRoutableModels)
+	assert.NotErrorIs(t, err, ErrNoProviderCredentials, "a requested exclusion is a model-selection cause")
+
+	err = emptyCandidateError([]Diagnostic{
+		{CatalogID: "moonshotai/kimi-k3", Reason: ExclusionUnmappedRoster},
+	})
+	assert.NotErrorIs(t, err, ErrNoProviderCredentials)
+}
