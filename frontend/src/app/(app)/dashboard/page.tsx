@@ -17,11 +17,18 @@ import { PageHeader } from "@/components/PageHeader";
 import { ResponsiveGrid } from "@/components/ResponsiveGrid";
 import { RouterOnboarding } from "@/components/RouterOnboarding";
 import { Statistic } from "@/components/Statistic";
-import { api, type MetricsSummary, type ModelBreakdownBucket, type TimeseriesBucket } from "@/lib/api";
+import {
+  useAiandAuthStatus,
+  useMetricsModelBreakdown,
+  useMetricsSummary,
+  useMetricsTimeseries,
+  useOnboardingStatus,
+  useSessionMe,
+} from "@/lib/apiHooks";
 import { cn } from "@/lib/cn";
 import { LoadState } from "@/tools/LoadState";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 function formatUSD(v: number): string {
   if (v === 0) return "$0.00";
@@ -76,100 +83,71 @@ function rememberOnboardingSkipped(key: string) {
 
 export default function DashboardPage() {
   const dashboardFilters = useDashboardFilters("30d");
-  const { fromISO, toISO, granularity, range } = dashboardFilters.filters;
+  const { granularity, range } = dashboardFilters.filters;
 
-  const [summary, setSummary] = useState<MetricsSummary | null>(null);
-  const [buckets, setBuckets] = useState<TimeseriesBucket[]>([]);
-  const [modelBuckets, setModelBuckets] = useState<ModelBreakdownBucket[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [onboarding, setOnboarding] = useState<OnboardingState>("checking");
-  const [connection, setConnection] = useState<ConnectionState>("checking");
-  // Installation id that namespaces the localStorage skip key; captured by the
-  // me()/onboarding probe so the skip button persists under the same key the
-  // gate read.
-  const [externalId, setExternalId] = useState<string | undefined>(undefined);
+  // Set by "Skip to dashboard" / onboarding completion: skips the gate in
+  // this tab until reload, alongside the persisted localStorage flag.
+  const [skip, setSkip] = useState(false);
 
   // Upstream-credential state gates the empty-state split and suppresses
-  // onboarding while serving is off.
-  useEffect(() => {
-    let cancelled = false;
-    api.aiandAuth
-      .status()
-      .then(s => {
-        if (cancelled) return;
-        setConnection(s.connected ? "connected" : "disconnected");
-      })
-      // Non-fatal: a failed probe shows the dashboard rather than the
-      // disconnected state.
-      .catch(() => {
-        if (!cancelled) setConnection("connected");
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  // onboarding while serving is off. Cached under the same key as the app
+  // layout's banner probe, so navigating to/from the dashboard never
+  // refetches it from scratch.
+  const aiandStatus = useAiandAuthStatus();
+  const connection: ConnectionState =
+    aiandStatus.data == null
+      ? "checking"
+      : aiandStatus.data.connected
+        ? "connected"
+        : "disconnected";
+
+  const me = useSessionMe();
+  const onboardingStatus = useOnboardingStatus(
+    connection === "connected" ? 3_000 : undefined,
+  );
 
   // A router that has never served a request has nothing to chart, so a fresh
-  // install lands in onboarding instead of on six empty charts. The gate is the
-  // installation-level first_request_served_at, not a key's last_used_at:
+  // install lands in onboarding instead of on six empty charts. The gate is
+  // the installation-level first_request_served_at, not a key's last_used_at:
   // that flag survives rotation, so rotating the key that served the first
   // request can't send an established install back through onboarding. The
-  // skip key is namespaced by installation id, so the probe supplies it.
-  useEffect(() => {
-    if (connection === "disconnected") return;
-    let cancelled = false;
-    api.auth
-      .me()
-      .then(me => {
-        if (cancelled) return;
-        setExternalId(me.installation?.external_id);
-        return api.onboarding.get().then(res => {
-          if (cancelled) return;
-          const served = res.first_request_served_at != null;
-          setOnboarding(
-            served || onboardingSkipped(skipOnboardingKey(me.installation?.external_id))
-              ? "done"
-              : "needed",
-          );
-        });
-      })
-      // Non-fatal: on a failed probe show the dashboard rather than trapping
-      // an established install in onboarding.
-      .catch(() => {
-        if (!cancelled) setOnboarding("done");
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [connection]);
-
-  function rememberSkip() {
-    rememberOnboardingSkipped(skipOnboardingKey(externalId));
+  // skip key is namespaced by installation id, so the me probe supplies it.
+  let onboarding: OnboardingState = "checking";
+  if (connection === "disconnected") {
+    onboarding = "done";
+  } else if (me.data != null) {
+    const id = me.data.installation?.external_id;
+    if (onboardingStatus.data != null) {
+      const served = onboardingStatus.data.first_request_served_at != null;
+      onboarding =
+        served || skip || onboardingSkipped(skipOnboardingKey(id)) ? "done" : "needed";
+    }
+  } else if (me.error != null) {
+    // Non-fatal: on a failed probe show the dashboard rather than trapping
+    // an established install in onboarding.
+    onboarding = "done";
   }
 
-  useEffect(() => {
-    if (onboarding !== "done") return;
-    let cancelled = false;
-    setError(null);
-    Promise.all([
-      api.metrics.summary(fromISO, toISO),
-      api.metrics.timeseries(granularity, fromISO, toISO),
-      api.metrics.modelBreakdown(granularity, fromISO, toISO),
-    ])
-      .then(([s, ts, mb]) => {
-        if (cancelled) return;
-        setSummary(s);
-        setBuckets(ts.buckets ?? []);
-        setModelBuckets(mb.buckets ?? []);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setError(err instanceof Error ? err.message : "Failed to load metrics.");
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [fromISO, toISO, granularity, onboarding]);
+  function rememberSkip() {
+    rememberOnboardingSkipped(skipOnboardingKey(me.data?.installation?.external_id));
+  }
+
+  // Metric reads share the SWR cache keyed by range id + granularity:
+  // returning to the dashboard renders the previous charts instantly and
+  // revalidates in the background (every 30s) instead of flashing skeletons.
+  const summary = useMetricsSummary(range.id, granularity);
+  const timeseries = useMetricsTimeseries(range.id, granularity);
+  const modelBreakdown = useMetricsModelBreakdown(range.id, granularity);
+
+  const metricsError =
+    summary.error?.message ??
+    timeseries.error?.message ??
+    modelBreakdown.error?.message ??
+    null;
+
+  const summaryData = onboarding === "done" ? (summary.data ?? null) : null;
+  const buckets = onboarding === "done" ? (timeseries.data?.buckets ?? []) : [];
+  const modelBuckets = onboarding === "done" ? (modelBreakdown.data?.buckets ?? []) : [];
 
   if (connection === "checking") return null;
   // No upstream credential: serving is off, so onboarding (which needs a key
@@ -215,16 +193,16 @@ export default function DashboardPage() {
   if (onboarding === "needed") {
     return (
       <RouterOnboarding
-        onComplete={() => setOnboarding("done")}
+        onComplete={() => setSkip(true)}
         onSkip={() => {
           void rememberSkip();
-          setOnboarding("done");
+          setSkip(true);
         }}
       />
     );
   }
 
-  if (error) {
+  if (metricsError != null) {
     return (
       <Page
         header={
@@ -242,8 +220,8 @@ export default function DashboardPage() {
         }
       >
         <Page.Section>
-          <div className="rounded-lg border border-danger/30 bg-danger/5 p-4 text-sm text-danger">
-            {error}
+          <div className="rounded-md border border-danger/30 bg-danger/5 p-4 text-sm text-danger">
+            {metricsError}
           </div>
         </Page.Section>
       </Page>
@@ -251,13 +229,13 @@ export default function DashboardPage() {
   }
 
   const savingsRate =
-    summary == null || summary.total_requested_cost_usd === 0
+    summaryData == null || summaryData.total_requested_cost_usd === 0
       ? 0
-      : (summary.total_savings_usd / summary.total_requested_cost_usd) * 100;
+      : (summaryData.total_savings_usd / summaryData.total_requested_cost_usd) * 100;
   const avgTokensPerReq =
-    summary == null || summary.request_count === 0
+    summaryData == null || summaryData.request_count === 0
       ? 0
-      : summary.total_tokens / summary.request_count;
+      : summaryData.total_tokens / summaryData.request_count;
   const empty = buckets.length === 0;
   const modelEmpty = modelBuckets.length === 0;
 
@@ -283,18 +261,18 @@ export default function DashboardPage() {
           <MetricCard
             className={ResponsiveGrid.Small}
             label="Cost saved"
-            value={summary == null ? "—" : formatUSD(Math.abs(summary.total_savings_usd))}
+            value={summaryData == null ? "—" : formatUSD(Math.abs(summaryData.total_savings_usd))}
             sub={
-              summary == null
+              summaryData == null
                 ? undefined
-                : summary.total_savings_usd >= 0
+                : summaryData.total_savings_usd >= 0
                   ? `${savingsRate.toFixed(1)}% of requested`
                   : "Over requested cost"
             }
             accent={
-              summary == null
+              summaryData == null
                 ? "default"
-                : summary.total_savings_usd >= 0
+                : summaryData.total_savings_usd >= 0
                   ? "success"
                   : "danger"
             }
@@ -302,16 +280,16 @@ export default function DashboardPage() {
           <MetricCard
             className={ResponsiveGrid.Small}
             label="Requests"
-            value={summary == null ? "—" : formatNumber(summary.request_count)}
+            value={summaryData == null ? "—" : formatNumber(summaryData.request_count)}
             sub={
-              summary == null ? undefined : `actual ${formatUSD(summary.total_actual_cost_usd)}`
+              summaryData == null ? undefined : `actual ${formatUSD(summaryData.total_actual_cost_usd)}`
             }
           />
           <MetricCard
             className={ResponsiveGrid.Small}
             label="Tokens"
-            value={summary == null ? "—" : formatNumber(summary.total_tokens)}
-            sub={summary == null ? undefined : `${formatNumber(avgTokensPerReq)} avg / req`}
+            value={summaryData == null ? "—" : formatNumber(summaryData.total_tokens)}
+            sub={summaryData == null ? undefined : `${formatNumber(avgTokensPerReq)} avg / req`}
           />
 
           <ChartCard
@@ -321,13 +299,13 @@ export default function DashboardPage() {
             topRight={
               <Statistic
                 statistic={
-                  summary == null
+                  summaryData == null
                     ? LoadState.loading()
                     : LoadState.loaded({
                         total:
-                          summary.total_savings_usd >= 0
-                            ? `${formatUSD(summary.total_savings_usd)} saved`
-                            : `${formatUSD(Math.abs(summary.total_savings_usd))} extra`,
+                          summaryData.total_savings_usd >= 0
+                            ? `${formatUSD(summaryData.total_savings_usd)} saved`
+                            : `${formatUSD(Math.abs(summaryData.total_savings_usd))} extra`,
                       })
                 }
               />
@@ -422,32 +400,20 @@ interface MetricCardProps {
 }
 
 function MetricCard({ className, label, value, sub, accent = "default" }: MetricCardProps) {
-  const accentClass =
-    accent === "success"
-      ? "text-success"
-      : accent === "danger"
-        ? "text-danger"
-        : "text-foreground";
-
   return (
-    <Card size="sm" className={className}>
-      <Card.Header>
-        <Text className="text-2xs font-medium uppercase tracking-wider text-muted-foreground">
-          {label}
-        </Text>
-      </Card.Header>
+    <Card className={className}>
       <Card.Content>
-        <Text
+        <p className="text-2xs font-medium text-muted-foreground">{label}</p>
+        <p
           className={cn(
-            "font-sans text-2xl font-semibold tabular-nums tracking-tight",
-            accentClass,
+            "mt-2 text-xl font-medium",
+            accent === "success" && "text-success",
+            accent === "danger" && "text-danger",
           )}
         >
           {value}
-        </Text>
-        {sub != null && (
-          <Text className="mt-1 text-2xs text-muted-foreground">{sub}</Text>
-        )}
+        </p>
+        {sub != null && <p className="mt-1 text-2xs text-muted-foreground">{sub}</p>}
       </Card.Content>
     </Card>
   );
@@ -455,11 +421,8 @@ function MetricCard({ className, label, value, sub, accent = "default" }: Metric
 
 function EmptyChart({ height = 240 }: { height?: number }) {
   return (
-    <div
-      className="flex items-center justify-center text-2xs text-muted-foreground"
-      style={{ height }}
-    >
-      No data for this period
+    <div className="flex items-center justify-center" style={{ height }}>
+      <p className="text-2xs text-muted-foreground">No requests in this period</p>
     </div>
   );
 }

@@ -6,8 +6,9 @@ import { Button } from "@/components/molecules/Button";
 import { Card } from "@/components/molecules/Card";
 import { Appearance, Intent } from "@/components/types";
 import { api, type AiandAuthStatus } from "@/lib/api";
+import { invalidateAiandAuthStatus, useAiandAuthStatus } from "@/lib/apiHooks";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 type View = "loading" | "connected" | "disconnected";
 
@@ -26,39 +27,36 @@ function statusRows(status: AiandAuthStatus): { label: string; value: string }[]
 }
 
 export function AiandAccountPanel() {
-  const [view, setView] = useState<View>("loading");
-  const [status, setStatus] = useState<AiandAuthStatus | null>(null);
+  // Shared SWR cache (same key as the app layout's banner probe): navigating
+  // here from the dashboard renders the cached status instantly.
+  const { data, error: loadError } = useAiandAuthStatus();
   const [error, setError] = useState<string | null>(null);
   const [disconnecting, setDisconnecting] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [disconnectedLocally, setDisconnectedLocally] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    api.aiandAuth
-      .status()
-      .then(s => {
-        if (cancelled) return;
-        setStatus(s);
-        setView(s.connected ? "connected" : "disconnected");
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setError(err instanceof Error ? err.message : "Failed to load Aiand account status.");
-        setView("disconnected");
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const status: AiandAuthStatus | null = data ?? null;
+  const view: View =
+    status == null && loadError == null
+      ? "loading"
+      : disconnectedLocally || status == null || !status.connected
+        ? "disconnected"
+        : "connected";
+  const loadErrorBanner =
+    loadError != null
+      ? loadError instanceof Error
+        ? loadError.message
+        : "Failed to load Aiand account status."
+      : null;
 
   async function handleDisconnect() {
     setDisconnecting(true);
     setError(null);
     try {
       await api.aiandAuth.disconnect();
-      setStatus(null);
       setConfirming(false);
-      setView("disconnected");
+      setDisconnectedLocally(true);
+      await invalidateAiandAuthStatus();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to disconnect.");
     } finally {
@@ -151,6 +149,7 @@ export function AiandAccountPanel() {
   return (
     <>
       {error != null && <ErrorBanner>{error}</ErrorBanner>}
+      {error == null && loadErrorBanner != null && <ErrorBanner>{loadErrorBanner}</ErrorBanner>}
       <EmptyHint>
         <div className="flex flex-col items-center gap-3">
           <Text className="text-xs font-medium text-foreground">

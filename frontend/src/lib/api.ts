@@ -173,14 +173,14 @@ export interface RouterConfig {
 // Whether this installation has ever served a routed request. Set once and
 // never cleared, so it survives key rotation — the dashboard gates first-run
 // onboarding on this rather than on a key's last_used_at.
-interface OnboardingStatus {
+export interface OnboardingStatus {
   first_request_served_at: string | null;
 }
 
 // Session state from GET /account/v1/auth/me. Never 401s: the backend
 // answers 200 {authenticated:false} when there is no live session, so this
 // call is safe from the login page and can never trip the 401 bounce.
-interface MeResponse {
+export interface MeResponse {
   authenticated: boolean;
   email?: string;
   org_name?: string;
@@ -194,7 +194,7 @@ export interface DeployedModel {
   provider: string;
 }
 
-interface ExcludedModelsResponse {
+export interface ExcludedModelsResponse {
   available: DeployedModel[];
   excluded: string[];
   env_override_active: boolean;
@@ -269,7 +269,7 @@ interface AiandDisconnectResponse {
   disconnected: boolean;
 }
 
-interface RoutingPreferencesResponse {
+export interface RoutingPreferencesResponse {
   quality: number;
   price: number;
   is_default: boolean;

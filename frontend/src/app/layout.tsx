@@ -1,3 +1,4 @@
+import { SWRProvider } from "@/lib/swr";
 import { TooltipProvider } from "@/components/molecules/Tooltip";
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
@@ -19,7 +20,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={geist.variable}>
       <body className="h-screen overflow-hidden font-sans antialiased">
-        <TooltipProvider>{children}</TooltipProvider>
+        <SWRProvider>
+          <TooltipProvider>{children}</TooltipProvider>
+        </SWRProvider>
       </body>
     </html>
   );

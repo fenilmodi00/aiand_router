@@ -8,8 +8,9 @@ import { Button } from "@/components/molecules/Button";
 import { Card } from "@/components/molecules/Card";
 import { Appearance, Intent } from "@/components/types";
 import { api, type APIKey, type APIKeyScope, type IssueAPIKeyResponse } from "@/lib/api";
+import { useKeys } from "@/lib/apiHooks";
 import { Copy, RotateCw, Search, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 // Show the search box only once the list is long enough that scanning it by eye
 // gets tedious; for a couple of keys a search bar is just noise.
@@ -54,9 +55,13 @@ function keyMatchesQuery(k: APIKey, query: string): boolean {
 }
 
 export function RouterKeysPanel() {
-  const [keys, setKeys] = useState<APIKey[]>([]);
+  // Shared SWR cache: revisiting the keys page renders the previous list
+  // instantly; mutations revalidate the same key so every surface stays in
+  // sync (onboarding reads the same cache).
+  const { data, error: loadError, mutate: reloadKeys } = useKeys();
+  const keys = data?.keys ?? [];
+  const loaded = data != null || loadError != null;
   const [query, setQuery] = useState("");
-  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [scope, setScope] = useState<APIKeyScope>("routing");
@@ -82,19 +87,9 @@ export function RouterKeysPanel() {
     .filter(k => keyMatchesQuery(k, activeQuery));
 
   function load() {
-    api.keys
-      .list()
-      .then(r => {
-        setKeys(r.keys ?? []);
-        setLoaded(true);
-      })
-      .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : "Failed to load keys.");
-        setLoaded(true);
-      });
+    void reloadKeys();
   }
 
-  useEffect(load, []);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -154,7 +149,11 @@ export function RouterKeysPanel() {
 
   return (
     <>
-      {error && <ErrorBanner>{error}</ErrorBanner>}
+      {(error ?? (loadError != null ? (loadError instanceof Error ? loadError.message : "Failed to load keys.") : null)) && (
+        <ErrorBanner>
+          {error ?? (loadError instanceof Error ? loadError.message : "Failed to load keys.")}
+        </ErrorBanner>
+      )}
 
       {issued != null && (
         <div className="flex flex-col gap-3 rounded-lg border border-success/30 bg-success/5 p-4">

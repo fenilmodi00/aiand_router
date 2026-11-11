@@ -8,12 +8,11 @@ import { type ReactNode } from "react";
 
 export interface PageShellProps {
   href: string;
-  description?: ReactNode;
   children: ReactNode;
 }
 
 /** Shell for a top-level page: header sourced from the shared nav config. */
-export function PageShell({ href, description, children }: PageShellProps) {
+export function PageShell({ href, children }: PageShellProps) {
   const item = appNavItem(href);
   return (
     <Page
@@ -33,9 +32,6 @@ export function PageShell({ href, description, children }: PageShellProps) {
       }
     >
       <div className="flex w-full max-w-text-width flex-col gap-2">
-        {description != null && (
-          <Text className="text-xs text-muted-foreground">{description}</Text>
-        )}
         {children}
       </div>
     </Page>

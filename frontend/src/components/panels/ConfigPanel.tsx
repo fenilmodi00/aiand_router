@@ -2,8 +2,8 @@
 
 import { ErrorBanner } from "./shared";
 import { Card } from "@/components/molecules/Card";
-import { api, type RouterConfig } from "@/lib/api";
-import { useEffect, useState } from "react";
+import { type RouterConfig } from "@/lib/api";
+import { useConfig } from "@/lib/apiHooks";
 
 interface ConfigRow {
   label: string;
@@ -37,21 +37,19 @@ function buildRows(cfg: RouterConfig): ConfigRow[] {
 }
 
 export function ConfigPanel() {
-  const [config, setConfig] = useState<RouterConfig | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // Shared SWR cache: revisiting the configuration page renders instantly.
+  const { data: config, error } = useConfig();
 
-  useEffect(() => {
-    api.config
-      .get()
-      .then(setConfig)
-      .catch((err: unknown) =>
-        setError(err instanceof Error ? err.message : "Failed to load config."),
-      );
-  }, []);
+  const loadError =
+    error != null
+      ? error instanceof Error
+        ? error.message
+        : "Failed to load config."
+      : null;
 
   return (
     <>
-      {error && <ErrorBanner>{error}</ErrorBanner>}
+      {loadError != null && <ErrorBanner>{loadError}</ErrorBanner>}
 
       <Card className="p-0">
         <Card.Header className="border-b border-border px-5 py-3">
@@ -60,7 +58,7 @@ export function ConfigPanel() {
         <Card.Content>
           {config == null ? (
             <div className="px-5 py-8 text-center text-2xs text-muted-foreground">
-              {error != null ? "Failed to load" : "Loading…"}
+              {loadError != null ? "Failed to load" : "Loading…"}
             </div>
           ) : (
             <ul className="divide-y divide-border">

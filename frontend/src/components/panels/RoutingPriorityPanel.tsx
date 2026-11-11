@@ -6,6 +6,7 @@ import { Button } from "@/components/molecules/Button";
 import { Card } from "@/components/molecules/Card";
 import { Appearance, Intent } from "@/components/types";
 import { api } from "@/lib/api";
+import { invalidateRoutingPreferences, useRoutingPreferences } from "@/lib/apiHooks";
 import { useEffect, useState } from "react";
 
 // Routing dials, rendered as proportional weights (sum to 100%) — mirrors the
@@ -95,6 +96,9 @@ function DistributionBar({ weights }: { weights: Record<string, number> }) {
 }
 
 export function RoutingPriorityPanel() {
+  // Shared SWR cache: revisiting the models page renders the saved weights
+  // instantly; save/reset revalidate the same key.
+  const { data: savedPrefs, error: loadError } = useRoutingPreferences();
   const [weights, setWeights] = useState<Record<string, number>>({
     quality: DEFAULT_QUALITY,
     price: 100 - DEFAULT_QUALITY,
@@ -106,7 +110,6 @@ export function RoutingPriorityPanel() {
   const [focusedKey, setFocusedKey] = useState<string | null>(null);
   const [focusedValue, setFocusedValue] = useState("");
   const [isDefault, setIsDefault] = useState(true);
-  const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -119,18 +122,14 @@ export function RoutingPriorityPanel() {
     setIsDefault(res.is_default);
   }
 
+  // Sync the editable weights whenever fresh server data lands, unless the
+  // user has unsaved edits in flight.
   useEffect(() => {
-    api.routingPreferences
-      .get()
-      .then(res => {
-        apply(res);
-        setLoaded(true);
-      })
-      .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : "Failed to load routing priority");
-        setLoaded(true);
-      });
-  }, []);
+    if (savedPrefs == null) return;
+    apply(savedPrefs);
+  }, [savedPrefs]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const loaded = savedPrefs != null || loadError != null;
 
   const dirty = weights.quality !== saved.quality;
 
@@ -149,6 +148,7 @@ export function RoutingPriorityPanel() {
     setError(null);
     try {
       apply(await api.routingPreferences.update({ quality: weights.quality, price: weights.price }));
+      await invalidateRoutingPreferences();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to save");
     } finally {
@@ -161,6 +161,7 @@ export function RoutingPriorityPanel() {
     setError(null);
     try {
       apply(await api.routingPreferences.reset());
+      await invalidateRoutingPreferences();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to reset");
     } finally {
@@ -173,7 +174,7 @@ export function RoutingPriorityPanel() {
       <Card className="p-0">
         <Card.Content>
           <div className="px-5 py-8 text-center text-2xs text-muted-foreground">
-            {error != null ? "Failed to load" : "Loading…"}
+            {error != null || loadError != null ? "Failed to load" : "Loading…"}
           </div>
         </Card.Content>
       </Card>

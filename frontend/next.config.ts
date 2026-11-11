@@ -67,6 +67,17 @@ const nextConfig: NextConfig = {
       }),
   basePath: "/ui",
   devIndicators: false,
+  experimental: {
+    // Client Router Cache: reuse page segments on back/forward and Link
+    // navigation so switching pages doesn't rebuild the RSC tree. Data
+    // itself is cached by SWR (src/lib/apiHooks.ts); this keeps the fetched
+    // segments and layouts reusable. The app is a static export, so the
+    // `static` bucket governs; dynamic: 30 restores the Next 14 default.
+    staleTimes: {
+      dynamic: 30,
+      static: 180,
+    },
+  },
 };
 
 export default nextConfig;

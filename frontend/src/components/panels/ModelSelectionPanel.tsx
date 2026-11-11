@@ -5,30 +5,29 @@ import { Button } from "@/components/molecules/Button";
 import { Card } from "@/components/molecules/Card";
 import { Appearance, Intent } from "@/components/types";
 import { api, type DeployedModel } from "@/lib/api";
+import { useExcludedModels } from "@/lib/apiHooks";
 import { useEffect, useState } from "react";
 
 export function ModelSelectionPanel() {
-  const [available, setAvailable] = useState<DeployedModel[] | null>(null);
+  // Shared SWR cache: revisiting the models page renders the previous list
+  // instantly; saving revalidates the same key.
+  const { data, error: loadError } = useExcludedModels();
+  const available = data?.available ?? null;
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
   const [savedExcluded, setSavedExcluded] = useState<Set<string>>(new Set());
   const [envOverrideActive, setEnvOverrideActive] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Sync the editable copy whenever fresh server data lands (first load or
+  // background revalidation), unless the user has unsaved edits.
   useEffect(() => {
-    api.excludedModels
-      .get()
-      .then(res => {
-        setAvailable(res.available);
-        const ex = new Set(res.excluded);
-        setExcluded(ex);
-        setSavedExcluded(ex);
-        setEnvOverrideActive(res.env_override_active);
-      })
-      .catch((err: unknown) =>
-        setError(err instanceof Error ? err.message : "Failed to load models."),
-      );
-  }, []);
+    if (data == null) return;
+    const ex = new Set(data.excluded);
+    setExcluded(prev => (prev.size === savedExcluded.size && Array.from(prev).every(m => savedExcluded.has(m)) ? ex : prev));
+    setSavedExcluded(ex);
+    setEnvOverrideActive(data.env_override_active);
+  }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const dirty =
     excluded.size !== savedExcluded.size ||
@@ -64,7 +63,7 @@ export function ModelSelectionPanel() {
       <Card className="p-0">
         <Card.Content>
           <div className="px-5 py-8 text-center text-2xs text-muted-foreground">
-            {error != null ? "Failed to load" : "Loading…"}
+            {error != null || loadError != null ? "Failed to load" : "Loading…"}
           </div>
         </Card.Content>
       </Card>
