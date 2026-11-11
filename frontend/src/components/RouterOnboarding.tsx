@@ -6,6 +6,7 @@ import { Text } from "@/components/atoms/Text";
 import { Button } from "@/components/molecules/Button";
 import { Appearance } from "@/components/types";
 import { api, type IssueAPIKeyResponse } from "@/lib/api";
+import { useKeys, useOnboardingStatus } from "@/lib/apiHooks";
 import {
   HARNESSES,
   type HarnessID,
@@ -58,6 +59,15 @@ export function RouterOnboarding({ onComplete, onSkip }: RouterOnboardingProps) 
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [existingKeyCount, setExistingKeyCount] = useState<number | null>(null);
+  // Shared SWR cache: the dashboard and keys page read the same key list, so
+  // onboarding must not fetch its own copy.
+  const { data: keysData, error: keysError, mutate: reloadKeys } = useKeys();
+  // Non-fatal: a failed load keeps the setup step, which is still a valid
+  // entry point.
+  const keysLoadFailed = keysData == null && keysError != null;
+  useEffect(() => {
+    if (keysLoadFailed) setExistingKeyCount(0);
+  }, [keysLoadFailed]);
 
   // An install that already holds routing keys shouldn't be offered "issue a
   // key" again as if it were brand new: the raw token of an existing key can
@@ -65,24 +75,11 @@ export function RouterOnboarding({ onComplete, onSkip }: RouterOnboardingProps) 
   // unused rk_ keys. Such a visit lands on the harness step and the install
   // step renders the placeholder command instead of an inlined token.
   useEffect(() => {
-    let cancelled = false;
-    api.keys
-      .list()
-      .then(res => {
-        if (cancelled) return;
-        const routing = (res.keys ?? []).filter(k => k.scope === "routing");
-        setExistingKeyCount(routing.length);
-        setStep(prev => (prev === "setup" && routing.length > 0 ? "harness" : prev));
-      })
-      // Non-fatal: on a failed probe keep the setup step, which is still a
-      // valid entry point.
-      .catch(() => {
-        if (!cancelled) setExistingKeyCount(0);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    if (keysData == null) return;
+    const routing = (keysData.keys ?? []).filter(k => k.scope === "routing");
+    setExistingKeyCount(routing.length);
+    setStep(prev => (prev === "setup" && routing.length > 0 ? "harness" : prev));
+  }, [keysData]);
 
   async function handleGetStarted() {
     setCreating(true);
@@ -91,6 +88,9 @@ export function RouterOnboarding({ onComplete, onSkip }: RouterOnboardingProps) 
       const res = await api.keys.issue(ONBOARDING_KEY_NAME);
       setIssued(res);
       setStep("harness");
+      // Keep the shared key cache (keys page, dashboard) in sync with the
+      // newly minted key.
+      await reloadKeys();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to create key.");
     } finally {
@@ -394,30 +394,6 @@ function InstallStep({
  * did.
  */
 function useFirstRequest(): boolean {
-  const [pinged, setPinged] = useState(false);
-
-  useEffect(() => {
-    if (pinged) return;
-    let cancelled = false;
-
-    function check() {
-      api.onboarding
-        .get()
-        .then(res => {
-          if (cancelled) return;
-          if (res.first_request_served_at != null) setPinged(true);
-        })
-        // Non-fatal: a failed poll just means we try again on the next tick.
-        .catch(() => undefined);
-    }
-
-    check();
-    const interval = setInterval(check, POLL_INTERVAL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, [pinged]);
-
-  return pinged;
+  const { data } = useOnboardingStatus(POLL_INTERVAL_MS);
+  return data?.first_request_served_at != null;
 }
