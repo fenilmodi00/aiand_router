@@ -1,0 +1,75 @@
+# v0 is the deployment branch; main only tracks upstream and never deploys.
+# Every push to v0 is pushed to the build.io app's git remote, whose `main`
+# branch is the only ref that host builds from.
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Deploy to build.io
+
+on:
+  push:
+    branches: [v0]
+  workflow_dispatch:
+
+# Deploys must not overlap: the build remote receives objects before the build
+# starts, so cancelling a run mid-push can leave the app on a half-uploaded ref.
+concurrency:
+  group: deploy-buildio-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Release v0
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # The build remote advertises no refs, so the push carries the whole
+          # history reachable from HEAD; a shallow clone cannot produce that pack.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Push to the build.io git remote
+        env:
+          BUILDIO_TOKEN: ${{ secrets.BUILDIO_TOKEN }}
+          BUILDIO_GIT_URL: https://git.build.io/aiand-router.git
+        run: |
+          set -euo pipefail
+          if [ -z "${BUILDIO_TOKEN:-}" ]; then
+            echo "::error::BUILDIO_TOKEN repository secret is not set; cannot deploy."
+            exit 1
+          fi
+          git push --quiet "https://${BUILDIO_TOKEN}:${BUILDIO_TOKEN}@${BUILDIO_GIT_URL#https://}" HEAD:main
+
+      - name: Wait for the build
+        env:
+          BUILDIO_TOKEN: ${{ secrets.BUILDIO_TOKEN }}
+          BUILDIO_APP: aiand-router
+        run: |
+          set -euo pipefail
+          api="https://app.build.io/api/v1/apps/${BUILDIO_APP}"
+          build_id=""
+          for _ in $(seq 1 60); do
+            build_id=$(curl -fsS -H "Authorization: Bearer ${BUILDIO_TOKEN}" "${api}/builds?limit=1" |
+              jq -r --arg sha "${GITHUB_SHA}" '.[0] | select(.source_blob.version == $sha) | .id')
+            [ -n "$build_id" ] && break
+            sleep 5
+          done
+          if [ -z "$build_id" ]; then
+            echo "::error::No build.io build appeared for ${GITHUB_SHA} within 5 minutes."
+            exit 1
+          fi
+          echo "Watching build ${build_id}"
+          for _ in $(seq 1 120); do
+            state=$(curl -fsS -H "Authorization: Bearer ${BUILDIO_TOKEN}" "${api}/builds/${build_id}" | jq -r '.state')
+            case "$state" in
+              succeeded) echo "Build ${build_id} succeeded."; exit 0 ;;
+              failed|cancelled|errored) echo "::error::Build ${build_id} ended in state ${state}."; exit 1 ;;
+            esac
+            sleep 10
+          done
+          echo "::error::Build ${build_id} did not reach a terminal state within 20 minutes."
+          exit 1

@@ -122,7 +122,16 @@ Notes:
 
 ## Deploy
 
-Deploy via git push directly to Build's git host (no GitHub step needed):
+`v0` is the deployment branch. `main` only carries upstream merges and is
+never shipped, so nothing reaches production from `main`.
+
+A push to `v0` on GitHub is released automatically by
+[`.github/workflows/deploy-buildio.yml`](../.github/workflows/deploy-buildio.yml):
+the workflow pushes the commit to Build's git host and fails unless the
+resulting build reaches `succeeded`. It needs the `BUILDIO_TOKEN` repository
+secret (a Build API token; the same value `bld login` writes to `~/.netrc`).
+
+Manual deploy, when the workflow cannot run:
 
 ```bash
 # Get the git remote for the app
@@ -131,6 +140,9 @@ bld apps:info aiand-router
 git remote add build <git-remote-from-apps-info>
 git push build v0:main
 ```
+
+The host accepts `git-receive-pack` only; fetching from it (`git ls-remote`,
+`git fetch`) returns 403 by design.
 
 Watch the build logs until the push goes green:
 
