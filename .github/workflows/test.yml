@@ -3,10 +3,8 @@ name: Test
 
 on:
   push:
-    branches: [main]
+    branches: [main, v0]
   pull_request:
-  # Called by the deploy workflow so v0 cannot ship untested code.
-  workflow_call:
 
 # A newer commit supersedes an older PR run; stop the older run to free its
 # runner and avoid reporting stale results.

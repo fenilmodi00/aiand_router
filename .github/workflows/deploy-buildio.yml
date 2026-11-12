@@ -1,44 +1,34 @@
-# v0 is the deployment branch; main only tracks upstream and never deploys.
-# Every push to v0 runs the pull-request test suite, then pushes the commit to
-# the build.io app's git remote, whose `main` branch is the only ref that host
-# builds from.
+# build.io auto-deploys aiand-router from GitHub on v0 and waits for the
+# required `Test` check itself. jp-rtr is not GitHub-connected yet, so this
+# workflow covers only the Japan edge: after the primary build succeeds, it
+# pushes the same commit to jp-rtr's git remote. Delete this file (and the
+# BUILDIO_TOKEN secret) once jp-rtr is connected in the build.io dashboard.
 # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
-name: Deploy to build.io
+name: Deploy jp-rtr edge to build.io
 
 on:
   push:
     branches: [v0]
   workflow_dispatch:
 
-# Deploys must not overlap: the build remote receives objects before the build
-# starts, so cancelling a run mid-push can leave the app on a half-uploaded ref.
 concurrency:
-  group: deploy-buildio-production
+  group: deploy-buildio-jp-edge
   cancel-in-progress: false
 
 permissions:
   contents: read
-  pull-requests: read
-  actions: read
 
 jobs:
-  test:
-    # Same suite and gate as pull requests; the deploy below cannot start
-    # until it passes.
-    uses: ./.github/workflows/test.yml
-
   deploy:
-    name: Release v0
-    needs: test
+    name: Release v0 to jp-rtr
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    # Records the release on the repository's Deployments page; the previous
-    # deployment in this environment is marked inactive automatically.
+    timeout-minutes: 60
     environment:
-      name: production
-      url: https://aiand-router-f0eb1883.onbld.com
+      name: jp-production
+      url: https://jp-rtr-f405a0dc.onbld.com
     permissions:
       contents: read
+      checks: read
       deployments: write
     steps:
       - name: Checkout
@@ -49,27 +39,73 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Push to the build.io git remote
+      - name: Wait for the Test check
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for _ in $(seq 1 90); do
+            conclusion=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs?check_name=Test" \
+              --jq '.check_runs[0].conclusion // empty' 2>/dev/null || true)
+            case "$conclusion" in
+              success) echo "Test passed."; exit 0 ;;
+              failure|cancelled|timed_out|action_required) echo "::error::Test concluded ${conclusion}."; exit 1 ;;
+            esac
+            sleep 20
+          done
+          echo "::error::Test did not pass within 30 minutes."
+          exit 1
+
+      - name: Wait for the primary build
         env:
           BUILDIO_TOKEN: ${{ secrets.BUILDIO_TOKEN }}
-          BUILDIO_GIT_URL: https://git.build.io/aiand-router.git
+        run: |
+          set -euo pipefail
+          # A transient API error must not fail the deploy; keep polling.
+          fetch() { curl -fsS -H "Authorization: Bearer ${BUILDIO_TOKEN}" "$1" || true; }
+          api="https://app.build.io/api/v1/apps/aiand-router"
+          build_id=""
+          for _ in $(seq 1 60); do
+            build_id=$(fetch "${api}/builds?limit=10" |
+              jq -r --arg sha "${GITHUB_SHA}" 'map(select(.source_blob.version == $sha)) | .[0].id // empty')
+            [ -n "$build_id" ] && break
+            sleep 10
+          done
+          if [ -z "$build_id" ]; then
+            echo "::error::build.io did not start a primary build for ${GITHUB_SHA}."
+            exit 1
+          fi
+          echo "Watching primary build ${build_id}"
+          for _ in $(seq 1 120); do
+            state=$(fetch "${api}/builds/${build_id}" | jq -r '.state // empty')
+            case "$state" in
+              succeeded) echo "Primary build ${build_id} succeeded."; exit 0 ;;
+              failed|cancelled|errored) echo "::error::Primary build ${build_id} ended in state ${state}."; exit 1 ;;
+            esac
+            sleep 10
+          done
+          echo "::error::Primary build ${build_id} did not reach a terminal state within 20 minutes."
+          exit 1
+
+      - name: Push to the jp-rtr git remote
+        env:
+          BUILDIO_TOKEN: ${{ secrets.BUILDIO_TOKEN }}
         run: |
           set -euo pipefail
           if [ -z "${BUILDIO_TOKEN:-}" ]; then
             echo "::error::BUILDIO_TOKEN repository secret is not set; cannot deploy."
             exit 1
           fi
-          git push --quiet "https://${BUILDIO_TOKEN}:${BUILDIO_TOKEN}@${BUILDIO_GIT_URL#https://}" HEAD:main
+          git push --quiet "https://${BUILDIO_TOKEN}:${BUILDIO_TOKEN}@git.build.io/jp-rtr.git" HEAD:main
 
-      - name: Wait for the build
+      - name: Wait for the jp-rtr build
         env:
           BUILDIO_TOKEN: ${{ secrets.BUILDIO_TOKEN }}
-          BUILDIO_APP: aiand-router
         run: |
           set -euo pipefail
-          api="https://app.build.io/api/v1/apps/${BUILDIO_APP}"
-          # A transient API error must not fail the deploy; keep polling.
           fetch() { curl -fsS -H "Authorization: Bearer ${BUILDIO_TOKEN}" "$1" || true; }
+          api="https://app.build.io/api/v1/apps/jp-rtr"
           build_id=""
           for _ in $(seq 1 60); do
             build_id=$(fetch "${api}/builds?limit=10" |
@@ -78,17 +114,17 @@ jobs:
             sleep 5
           done
           if [ -z "$build_id" ]; then
-            echo "::error::No build.io build appeared for ${GITHUB_SHA} within 5 minutes."
+            echo "::error::No jp-rtr build appeared for ${GITHUB_SHA} within 5 minutes."
             exit 1
           fi
-          echo "Watching build ${build_id}"
+          echo "Watching jp-rtr build ${build_id}"
           for _ in $(seq 1 120); do
             state=$(fetch "${api}/builds/${build_id}" | jq -r '.state // empty')
             case "$state" in
-              succeeded) echo "Build ${build_id} succeeded."; exit 0 ;;
-              failed|cancelled|errored) echo "::error::Build ${build_id} ended in state ${state}."; exit 1 ;;
+              succeeded) echo "jp-rtr build ${build_id} succeeded."; exit 0 ;;
+              failed|cancelled|errored) echo "::error::jp-rtr build ${build_id} ended in state ${state}."; exit 1 ;;
             esac
             sleep 10
           done
-          echo "::error::Build ${build_id} did not reach a terminal state within 20 minutes."
+          echo "::error::jp-rtr build ${build_id} did not reach a terminal state within 20 minutes."
           exit 1
