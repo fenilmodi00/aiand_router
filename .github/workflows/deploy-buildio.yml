@@ -51,10 +51,12 @@ jobs:
         run: |
           set -euo pipefail
           api="https://app.build.io/api/v1/apps/${BUILDIO_APP}"
+          # A transient API error must not fail the deploy; keep polling.
+          fetch() { curl -fsS -H "Authorization: Bearer ${BUILDIO_TOKEN}" "$1" || true; }
           build_id=""
           for _ in $(seq 1 60); do
-            build_id=$(curl -fsS -H "Authorization: Bearer ${BUILDIO_TOKEN}" "${api}/builds?limit=1" |
-              jq -r --arg sha "${GITHUB_SHA}" '.[0] | select(.source_blob.version == $sha) | .id')
+            build_id=$(fetch "${api}/builds?limit=10" |
+              jq -r --arg sha "${GITHUB_SHA}" 'map(select(.source_blob.version == $sha)) | .[0].id // empty')
             [ -n "$build_id" ] && break
             sleep 5
           done
@@ -64,7 +66,7 @@ jobs:
           fi
           echo "Watching build ${build_id}"
           for _ in $(seq 1 120); do
-            state=$(curl -fsS -H "Authorization: Bearer ${BUILDIO_TOKEN}" "${api}/builds/${build_id}" | jq -r '.state')
+            state=$(fetch "${api}/builds/${build_id}" | jq -r '.state // empty')
             case "$state" in
               succeeded) echo "Build ${build_id} succeeded."; exit 0 ;;
               failed|cancelled|errored) echo "::error::Build ${build_id} ended in state ${state}."; exit 1 ;;
