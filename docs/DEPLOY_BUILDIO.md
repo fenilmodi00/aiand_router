@@ -159,18 +159,10 @@ git push origin main
 `v0` is the deployment branch. `main` only carries upstream merges and is
 never shipped, so nothing reaches production from `main`.
 
-The primary app `aiand-router` is connected to `fenilmodi00/aiand_router` in
-build.io and auto-deploys branch `v0`, waiting for the required `Test` check
-before it builds. A red `Test` leaves production untouched, and build.io
-records the build and release on the repository's Deployments page itself.
-
-The Japan edge `jp-rtr` is not GitHub-connected yet, so it is still released
-by [`.github/workflows/deploy-buildio.yml`](../.github/workflows/deploy-buildio.yml):
-that workflow waits for the same `Test` check, then for the primary build to
-succeed (so the US app applies migrations first), and only then pushes the
-commit to `jp-rtr`. It needs the `BUILDIO_TOKEN` repository secret. Once
-`jp-rtr` is connected in the build.io dashboard, delete that workflow and the
-secret; both apps then deploy the same way.
+The app is connected to `fenilmodi00/aiand_router` in build.io and
+auto-deploys branch `v0`, waiting for the required `Test` check before it
+builds. A red `Test` leaves production untouched, and build.io records the
+build and release on the repository's Deployments page itself.
 
 Manual deploy, when the integration cannot run:
 
@@ -221,44 +213,6 @@ Also confirm in the logs that migrations ran at boot:
 ```bash
 bld logs --app aiand-router | grep -i migrate
 ```
-
-## Japan region edge (`jp-rtr`)
-
-`ap-northeast-1` (Tokyo) is a restricted region: the team needs approval before
-creating an app there. The Japan edge is a second app on the same commit, not a
-fork.
-
-| | US primary | Japan edge |
-| --- | --- | --- |
-| App | `aiand-router` | `jp-rtr` |
-| Region | `us-east-1` | `ap-northeast-1` |
-| URL | `https://aiand-router-f0eb1883.onbld.com` | `https://jp-rtr-f405a0dc.onbld.com` |
-| Custom domain | — | `jp.aiand.com` |
-| Database | `schema-to-go` in `us-east-1b` | same database (shared state) |
-
-Both apps run the same `dockerfile` stack and config vars. Sharing the database
-keeps API keys, installations, session pins, and billing state identical, but
-every DB round trip from Tokyo crosses the Pacific (measured at ~150 ms from the
-Japan dyno versus ~0.5 ms from the US dyno). The Japan `performance-m` dyno is
-also smaller than its US counterpart (2 vCPU / 1.5 GB versus 3 vCPU / 3.84 GB),
-so keep `ROUTER_CLUSTER_EMBED_TIMEOUT_MS=5000` on `jp-rtr`; the default 1500 ms
-embed timeout fails on a cold dyno and returns 503 before the scorer completes.
-
-DNS for the short domain is a CNAME to the build.io certificate endpoint:
-
-```text
-jp  CNAME  0cf9de76-ecca-4b9c-bc8f-e40cd06d4b7c.ssl.builddns.com
-```
-
-The primary deploys from build.io's GitHub integration. The Japan edge waits
-for the primary build to succeed before its own push
-([`.github/workflows/deploy-buildio.yml`](../.github/workflows/deploy-buildio.yml)),
-so the US app applies migrations before the edge boots. Connecting `jp-rtr` to
-GitHub in build.io would make both deploys independent and lose that ordering;
-keep the workflow while the edge shares the US database. If Japanese traffic
-becomes the majority, move the database to `ap-northeast-1` and make the US app
-the edge; the shared-US-DB layout adds ~150 ms per session-pin/auth round trip
-to every Japan request.
 
 ## Scaling guidance
 
