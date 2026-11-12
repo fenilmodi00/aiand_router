@@ -1,6 +1,7 @@
 # v0 is the deployment branch; main only tracks upstream and never deploys.
-# Every push to v0 is pushed to the build.io app's git remote, whose `main`
-# branch is the only ref that host builds from.
+# Every push to v0 runs the pull-request test suite, then pushes the commit to
+# the build.io app's git remote, whose `main` branch is the only ref that host
+# builds from.
 # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 name: Deploy to build.io
 
@@ -17,10 +18,18 @@ concurrency:
 
 permissions:
   contents: read
+  pull-requests: read
+  actions: read
 
 jobs:
+  test:
+    # Same suite and gate as pull requests; the deploy below cannot start
+    # until it passes.
+    uses: ./.github/workflows/test.yml
+
   deploy:
     name: Release v0
+    needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:

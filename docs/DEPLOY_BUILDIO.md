@@ -120,6 +120,41 @@ Notes:
 - `ROUTER_STARTUP_EGRESS_ORIGINS` lists `api.aiand.com` only: with the
   embedded emulator, Pub/Sub traffic stays on localhost.
 
+## Branch model and releases
+
+Two long-lived branches, nothing else:
+
+| Branch | Role | Deploys? |
+| --- | --- | --- |
+| `main` | Upstream mirror. Fetch/merge upstream commits here; it is never shipped. | No |
+| `v0` | Product trunk and the only production source. | Yes, on every push |
+
+Rules that keep it that way:
+
+- **No long-lived version branches.** `v1.0`/`v0.1.0`-style branches rot the
+  moment they fall behind `v0`; releases are immutable tags instead
+  (`router-vX.Y.Z`, cut from a green `v0` commit).
+- **Retired branch tips are kept as `archive/<branch>` tags.** Tags are
+  immutable history; branches are not.
+- **`main` and `v0` cannot be deleted or force-pushed** (repository ruleset
+  `protect long-lived branches`). Admins can bypass for break-glass use.
+- **`v0` requires the `Test` check on pull requests** (ruleset
+  `v0 requires tests`).
+- **Nothing ships untested.** A `v0` push runs the same `Test` workflow as a
+  pull request (`.github/workflows/deploy-buildio.yml` calls
+  `test.yml`), and the deploy job only starts if it passes.
+
+Upstream changes flow one way:
+
+```bash
+git switch main
+git fetch <upstream-remote>          # upstream commits land on main
+git merge --ff-only <upstream-remote>/main
+git push origin main
+# then port the commits you want onto v0 (branch, PR, merge); never merge
+# main into v0 wholesale
+```
+
 ## Deploy
 
 `v0` is the deployment branch. `main` only carries upstream merges and is
