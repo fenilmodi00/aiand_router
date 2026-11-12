@@ -32,6 +32,14 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # Records the release on the repository's Deployments page; the previous
+    # deployment in this environment is marked inactive automatically.
+    environment:
+      name: production
+      url: https://aiand-router-f0eb1883.onbld.com
+    permissions:
+      contents: read
+      deployments: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4

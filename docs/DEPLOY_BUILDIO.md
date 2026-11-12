@@ -165,6 +165,8 @@ A push to `v0` on GitHub is released automatically by
 the workflow pushes the commit to Build's git host and fails unless the
 resulting build reaches `succeeded`. It needs the `BUILDIO_TOKEN` repository
 secret (a Build API token; the same value `bld login` writes to `~/.netrc`).
+Each release is recorded on the repository's Deployments page as environment
+`production`, linked to the live app.
 
 Manual deploy, when the workflow cannot run:
 
