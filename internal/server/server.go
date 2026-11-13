@@ -573,6 +573,7 @@ func registerUIStatic(engine *gin.Engine, root string) {
 		}
 
 		if raw == "" || raw == "index" {
+			c.Header("Cache-Control", "no-cache")
 			http.ServeFile(c.Writer, c.Request, filepath.Join(absRoot, "index.html"))
 			return
 		}
@@ -586,12 +587,14 @@ func registerUIStatic(engine *gin.Engine, root string) {
 		}
 
 		if info, statErr := os.Stat(fullPath); statErr == nil && !info.IsDir() {
+			setUICacheControl(c, raw)
 			http.ServeFile(c.Writer, c.Request, fullPath)
 			return
 		}
 		// Clean-URL fallback: /ui/keys → assets/ui/keys.html.
 		htmlPath := fullPath + ".html"
 		if info, statErr := os.Stat(htmlPath); statErr == nil && !info.IsDir() {
+			c.Header("Cache-Control", "no-cache")
 			http.ServeFile(c.Writer, c.Request, htmlPath)
 			return
 		}
@@ -601,4 +604,16 @@ func registerUIStatic(engine *gin.Engine, root string) {
 	engine.HEAD("/ui", handler)
 	engine.GET("/ui/*filepath", handler)
 	engine.HEAD("/ui/*filepath", handler)
+}
+
+// setUICacheControl lets browsers keep Next's content-hashed build output
+// forever, while requiring revalidation for public files and HTML. Without
+// it, a stable asset URL (e.g. /ui/aiand.svg) can stay cached across a
+// rebrand and show the previous logo after deploy.
+func setUICacheControl(c *gin.Context, raw string) {
+	if strings.HasPrefix(raw, "_next/static/") {
+		c.Header("Cache-Control", "public, max-age=31536000, immutable")
+		return
+	}
+	c.Header("Cache-Control", "no-cache")
 }

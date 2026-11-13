@@ -1,13 +1,14 @@
 import Link from "next/link";
+import logo from "../../public/aiand.svg";
 
 interface LogoProps {
   href?: string;
 }
 
-// basePath is "/ui" (see next.config.ts). Hardcoded so it works in both
-// next dev (where next/image's basePath rewrite isn't reliable with our
-// unoptimized + dev-rewrites combo) and the static /ui export.
-const LOGO_SRC = "/ui/aiand.svg";
+// Static import so Next emits a content-hashed URL. A fixed /ui/aiand.svg
+// URL survives rebrands behind browser and intermediary caches, which showed
+// the pre-restyle logo after deploy. Next includes the /ui basePath.
+const LOGO_SRC = logo.src;
 
 export function Logo({ href = "/" }: LogoProps) {
   return (
