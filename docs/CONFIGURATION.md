@@ -822,7 +822,7 @@ the admission caches using the same Pub/Sub project and topic.
 
 
 
-| `ROUTER_CLUSTER_EMBED_TIMEOUT_MS` | `200`                        | Per-request ONNX embed timeout. Increase for slower hosts. |
+| `ROUTER_CLUSTER_EMBED_TIMEOUT_MS` | `3000`                       | Soft per-request ONNX embed budget (warn-only); overall = 2× this default; soft alone does not 503. |
 
 
 

@@ -22,11 +22,16 @@ const defaultAssetsDir = "/opt/router/assets"
 // Real INT8-quantized embedders are >100 MB.
 const minModelSizeBytes = 1 << 20
 
-// onnxEmbedder is the production Embedder for one EmbedderSpec. The pipeline
-// is goroutine-safe (one instance serves all requests); EmbedderSet owns the hugot session.
+// onnxEmbedder is the production Embedder for one EmbedderSpec. EmbedderSet
+// owns the hugot session. Concurrent Embed calls are serialized: ORT on
+// shared CPU cannot usefully parallelize two runs of one pipeline.
 type onnxEmbedder struct {
 	spec     EmbedderSpec
 	pipeline *pipelines.FeatureExtractionPipeline
+	// ponytail: process-wide lock; ceiling = one embed at a time per pipeline.
+	// Upgrade: per-request ORT sessions or a worker pool if multi-core embeds
+	// become worth the memory.
+	mu sync.Mutex
 }
 
 // resolveAssetsDir returns ROUTER_ONNX_ASSETS_DIR if set, else defaultAssetsDir.
@@ -90,8 +95,11 @@ func newONNXEmbedder(session *hugot.Session, spec EmbedderSpec) (*onnxEmbedder, 
 }
 
 // Embed runs the pipeline on a single text. ctx is ignored — hugot v0.7.0's
-// RunPipeline has no ctx param; scorer.Route races this call in a goroutine instead.
+// RunPipeline has no ctx param; scorer.Route races this call in a goroutine
+// against EmbedOverallTimeout instead of canceling/retrying.
 func (e *onnxEmbedder) Embed(_ context.Context, text string) ([]float32, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	out, err := e.pipeline.RunPipeline([]string{text})
 	if err != nil {
 		return nil, fmt.Errorf("pipeline: %w", err)

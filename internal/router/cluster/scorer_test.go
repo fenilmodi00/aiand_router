@@ -674,6 +674,56 @@ func TestScorer_ReturnsErrOnEmbedTimeout(t *testing.T) {
 	assert.True(t, errors.Is(err, ErrClusterUnavailable))
 }
 
+// uncancellableEmbedder ignores ctx like onnxEmbedder: hugot's RunPipeline
+// has no cancellation, so a soft EmbedTimeout must not start a second run.
+type uncancellableEmbedder struct {
+	vec   []float32
+	delay time.Duration
+	calls int
+}
+
+func (u *uncancellableEmbedder) Embed(_ context.Context, _ string) ([]float32, error) {
+	u.calls++
+	time.Sleep(u.delay)
+	return u.vec, nil
+}
+
+func (u *uncancellableEmbedder) ID() string { return EmbedderJinaV2 }
+
+func (u *uncancellableEmbedder) Dim() int { return EmbedDim }
+
+// Regression (2026-09-03): parallel retry on EmbedTimeout starts a second
+// uncancellable ONNX run while the first still burns shared CPU; both miss
+// the soft budget and the request 503s. Soft timeout must keep waiting on
+// the single in-flight result (calls == 1), not launch another Embed.
+func TestScorer_WaitsSingleFlightPastSoftEmbedTimeout(t *testing.T) {
+	emb := &uncancellableEmbedder{vec: makeOpusVec(), delay: 80 * time.Millisecond}
+	cfg := cfgForTest()
+	cfg.EmbedTimeout = 50 * time.Millisecond
+	cfg.EmbedOverallTimeout = 200 * time.Millisecond
+	s := newScorerForTest(t, emb, cfg)
+
+	decision, err := s.Route(context.Background(), router.Request{PromptText: strings.Repeat("x", 100)})
+	require.NoError(t, err, "a late first embed within the overall ceiling must succeed")
+	assert.Equal(t, "moonshotai/kimi-k3.1-pro", decision.Model)
+	assert.Equal(t, 1, emb.calls, "must never start a second Embed while the first runs")
+}
+
+// A persistently-slow uncancellable embed still fails closed at the overall
+// ceiling, and still without a parallel second attempt.
+func TestScorer_FailsClosedOnOverallEmbedTimeout(t *testing.T) {
+	emb := &uncancellableEmbedder{vec: makeOpusVec(), delay: 300 * time.Millisecond}
+	cfg := cfgForTest()
+	cfg.EmbedTimeout = 50 * time.Millisecond
+	cfg.EmbedOverallTimeout = 100 * time.Millisecond
+	s := newScorerForTest(t, emb, cfg)
+
+	_, err := s.Route(context.Background(), router.Request{PromptText: strings.Repeat("x", 100)})
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrClusterUnavailable))
+	assert.Equal(t, 1, emb.calls, "fail-closed must not launch a parallel retry")
+}
+
 type slowEmbedder struct {
 	vec   []float32
 	delay time.Duration
