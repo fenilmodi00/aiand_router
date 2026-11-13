@@ -1,0 +1,133 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+#
+# Deploy verification for the build.io integration.
+#
+# The `Test` check being green on a commit does NOT prove build.io built and
+# released it: build.io builds have sat pending in its builder queue while
+# GitHub showed a passing `Test` check. This workflow verifies the actual
+# GitHub deployment records build.io creates and probes the production URL.
+#
+# It supports both release models:
+#   - Direct build: build.io auto-deploys the `v0` push SHA — verified with
+#     `--sha <sha>` (build-production then production deployment for that SHA).
+#   - Build once, thin deploy: the image workflow publishes a digest-pinned
+#     image to GHCR and republishes the `deploy` branch; build.io builds and
+#     releases that generated image-pin commit, so the pushed `v0` SHA never
+#     gets its own deployment. Verified with `--latest --since-epoch <run
+#     start>`: a production deployment newer than the run must exist and be
+#     healthy. (A `workflow_dispatch` with an explicit `sha` still uses the
+#     `--sha` mode for a point-in-time check.)
+#
+# This workflow only verifies; it never pushes to build.io.
+name: Deploy verification
+
+on:
+  push:
+    branches: [v0]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: 'Commit SHA to verify (defaults to the current sha)'
+        required: false
+        default: ''
+
+concurrency:
+  group: deploy-verify-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  checks: read
+  deployments: read
+
+jobs:
+  dockerfile-preflight:
+    name: Dockerfile preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Dockerfile build check
+        run: |
+          set -euo pipefail; docker build --check -f Dockerfile .
+
+      - name: Assert final stage is buildio-release
+        run: |
+          set -euo pipefail;
+          last_from=$(grep '^FROM ' Dockerfile | tail -1);
+          echo "Final stage: $last_from";
+          if ! grep -q 'AS buildio-release' <<<"$last_from"; then
+            echo "::error::last FROM stage of Dockerfile must be 'AS buildio-release' (build.io builds the final stage); got: $last_from";
+            exit 1;
+          fi
+
+      - name: Assert buildio entrypoint exists and is executable
+        run: |
+          set -euo pipefail;
+          if [ ! -x scripts/deploy/buildio_entrypoint.sh ]; then
+            echo "::error::scripts/deploy/buildio_entrypoint.sh must exist and be executable";
+            exit 1;
+          fi
+
+  verify-release:
+    name: Verify build.io release
+    needs: dockerfile-preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve sha
+        id: sha
+        run: |
+          set -euo pipefail;
+          sha="${{ github.event.inputs.sha || github.sha }}";
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      - name: Record run start
+        id: since
+        run: |
+          set -euo pipefail; echo "epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for Test check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail;
+          sha="${{ steps.sha.outputs.sha }}";
+          deadline=$(( $(date +%s) + 1800 ));
+          while :; do
+            state=$(gh api "repos/$GITHUB_REPOSITORY/commits/$sha/check-runs?check_name=Test" --jq '.check_runs[0].conclusion // .check_runs[0].status // empty' || true);
+            echo "Test check state: ${state:-none}";
+            if [ "$state" = "success" ]; then break; fi;
+            case "$state" in
+              failure|cancelled|timed_out)
+                echo "::error::Test check on $sha concluded '$state'; not verifying a build of a failing commit";
+                exit 1;;
+            esac;
+            if [ "$(date +%s)" -ge "$deadline" ]; then
+              echo "::error::timed out after 30m waiting for the Test check on $sha (last state: ${state:-none})";
+              exit 1;
+            fi;
+            sleep 30;
+          done
+
+      - name: Verify build.io build and release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILDIO_TOKEN: ${{ secrets.BUILDIO_TOKEN }}
+          BUILDIO_APP: aiand-router
+        run: |
+          set -euo pipefail;
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.sha }}" ]; then
+            # Explicit manual SHA: verify that exact commit.
+            scripts/verify_buildio_release.sh --sha "${{ github.event.inputs.sha }}";
+          else
+            # Push (or manual run without a SHA): verify the latest production
+            # release created after this run started. This covers both the
+            # direct v0 build and the thin deploy-branch image-pin commit.
+            scripts/verify_buildio_release.sh --latest --since-epoch "${{ steps.since.outputs.epoch }}";
+          fi

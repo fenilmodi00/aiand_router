@@ -19,6 +19,7 @@ Index of Markdown documentation in the `router/` repo.
 | [SMOKE.md](SMOKE.md) | Pre-merge record/replay smoke-suite scenarios, cassettes, and local workflow. |
 | [CI.md](CI.md) | CI timing baseline, completed improvements, and the remaining optimization backlog. |
 | [DEPLOY_BUILDIO.md](DEPLOY_BUILDIO.md) | Deploying the router to Build.io: dockerfile stack, Postgres addon, config vars, verification. |
+| [DEPLOY_CONTAINER.md](DEPLOY_CONTAINER.md) | Portable container fallback: prebuilt image on any Docker host, health/rollback, cost comparison, first-100-customers checklist. |
 
 For engineering conventions (layer model, package layout, recipes), see the
 root [`CLAUDE.md`](../CLAUDE.md) (and its mirror [`AGENTS.md`](../AGENTS.md)).

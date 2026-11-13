@@ -15,6 +15,9 @@ a build.io deployment needs.
 - [Architecture](#architecture)
 - [Provisioning](#provisioning)
 - [Deploy](#deploy)
+- [Deploy verification](#deploy-verification)
+- [Build once, deploy a prebuilt image](#build-once-deploy-a-prebuilt-image)
+- [Build queue stuck (platform-side)](#build-queue-stuck-platform-side)
 - [Post-deploy verification](#post-deploy-verification)
 - [Scaling guidance](#scaling-guidance)
 - [Rollback](#rollback)
@@ -150,6 +153,16 @@ Rules that keep it that way:
   `v0 requires tests`).
 - **Nothing ships untested.** A `v0` push runs the `Test` workflow, and
   build.io waits for that required check before it builds.
+- **The release gate is the `Deploy verification` workflow**
+  ([.github/workflows/deploy-verify.yml](../.github/workflows/deploy-verify.yml)):
+  build.io auto-deploys `v0` in the direct model, or the generated `deploy`
+  branch (digest-pinned prebuilt image) in the thin model. Deploy
+  verification waits for the `Test` check, verifies the latest production
+  release created after the run started, and probes the live health
+  endpoints; `--sha` remains available for verifying a specific build. A
+  failed verification fails the commit — it must not be mistaken for a
+  repository failure; a red verification is frequently platform-side (see
+  [Build queue stuck (platform-side)](#build-queue-stuck-platform-side)).
 
 Upstream changes flow one way:
 
@@ -191,6 +204,153 @@ Watch the build logs until the push goes green:
 bld builds --app aiand-router
 bld logs --app aiand-router --tail
 ```
+
+## Deploy verification
+
+[.github/workflows/deploy-verify.yml](../.github/workflows/deploy-verify.yml)
+is the release gate that runs after every `v0` push:
+
+1. **Preflight.** It runs `docker build --check -f Dockerfile .` to lint the
+   Dockerfile, and asserts the Dockerfile's last stage is `buildio-release`
+   (the stage build.io actually ships).
+2. **Wait for CI.** It waits for the required `Test` check on the commit.
+3. **Verify the release.** It runs
+   [scripts/verify_buildio_release.sh](../scripts/verify_buildio_release.sh)
+   and probes the live health endpoints
+   `https://<app-hostname>/{livez,readyz,startupz}`.
+
+The verification works for both release models:
+
+- **Direct `v0` build:** build.io deploys the pushed SHA, so the script
+  verifies that SHA's `build-production` and `production` deployments.
+- **Thin `deploy` branch (build once, see below):** build.io releases the
+  generated image-pin commit, not the pushed SHA. By default the script runs
+  `--latest --since-epoch <run start>`: it requires a `production` deployment
+  **newer than the moment the run started** (recorded before the `Test` wait,
+  so a release that lands while CI runs is still counted) and checks its
+  health. A specific commit can still be checked at any time with
+  `--sha <sha>` (also via `workflow_dispatch`'s `sha` input).
+
+**First run after switching the app branch to `deploy`:** expect the gate to
+be red until the thin build actually produces a production release — "no new
+production deployment" is the intended signal that the pipeline has not
+released yet, not a repository failure. It turns green as soon as the thin
+build releases.
+
+A red `Deploy verification` does not automatically mean the code is broken.
+Read the workflow's `::error::` line first — it distinguishes these cases:
+
+- **"no new production deployment since <time>"** (`--latest` mode) — build.io
+  has not released anything since the run started; check the build queue.
+- **"build.io never created a deployment"** — the GitHub integration or the
+  build queue dropped the push; see the troubleshooting section below.
+- **"build failed"** — build.io attempted the Docker build and it failed;
+  check the build logs before touching the Dockerfile.
+- **"build pending past the queue timeout"** — build.io's builder never
+  started; this is platform-side (see below).
+
+## Build once, deploy a prebuilt image
+
+When build.io's builder itself is the failure point (pending builds that never
+reach kaniko), stop asking it to compile. Build the image once on GitHub
+Actions, store it in GHCR, and let build.io deploy that prebuilt artifact:
+
+- [`.github/workflows/image.yml`](../.github/workflows/image.yml) runs on
+  every `v0` push, waits for the required `Test` check on that commit, then
+  builds the `buildio-release` target and pushes the image to
+  `ghcr.io/fenilmodi00/aiand_router`, tagged with the commit SHA and `v0`.
+  Pull requests build the image immediately as validation without pushing;
+  only `v0` pushes wait for `Test` and then publish the digest and update
+  the deploy branch.
+- The workflow's `publish-deploy-branch` job then runs
+  [scripts/deploy/update_buildio_deploy_branch.sh](../scripts/deploy/update_buildio_deploy_branch.sh),
+  which republishes the `deploy` branch with a thin Dockerfile that is only
+  `FROM ghcr.io/fenilmodi00/aiand_router@sha256:<digest>` — the exact image
+  that just passed tests, pinned by digest. The branch also carries a no-op
+  `Test` workflow so build.io's CI gate has a green check on the deploy
+  branch; the real test gate runs on `v0` before the image is published.
+- In the build.io dashboard, set the app's branch to `deploy` (one time).
+  From then on each deploy pulls the digest-pinned image.
+
+  Dashboard steps:
+
+  1. Open the app's **Deploy** tab and find the GitHub connection /
+     **Automatic Deploys** section.
+  2. Select the `deploy` branch and save.
+  3. If the pipeline pushes `deploy` with `GITHUB_TOKEN` (no
+     `DEPLOY_BRANCH_TOKEN` secret), clear the **Wait for CI** option for this
+     branch — the real `Test` gate already ran on `v0` before the image was
+     published. Alternatively add `DEPLOY_BRANCH_TOKEN` so the no-op `Test`
+     workflow runs on `deploy`.
+  4. Use **Manual Deploy → Deploy Branch → `deploy`** for the first thin
+     build. Later image-pin commits redeploy automatically.
+
+build.io has no prebuilt-image deploy API: it still creates a build, but the
+thin Dockerfile only removes compilation. If the account build quota is
+exhausted, the thin build will also fail until support resets it.
+
+**GHCR visibility:** the thin Dockerfile pulls from GHCR without
+credentials, and a package pushed with `GITHUB_TOKEN` is private by
+default. The image contains no secrets (config reaches the dyno via
+config vars), so a public package is acceptable. The workflow attempts to
+flip the package to public after each push; if the API call cannot change
+visibility, set it manually under the package's *Package settings* on
+GitHub, or configure build.io's builder with a GHCR read token — the thin
+build fails with an image-pull auth error otherwise.
+
+**CI gate on the deploy branch:** GitHub suppresses workflow runs for
+pushes made with `GITHUB_TOKEN`, so the deploy branch's no-op `Test`
+workflow does not run when the pipeline pushes with the default token.
+Either add a repository secret `DEPLOY_BRANCH_TOKEN` (a fine-grained PAT
+with `contents: write` and `workflow` permission on this repo — the
+workflow already prefers it, so the push then triggers the no-op check),
+or disable build.io's "wait for CI" gate for the `deploy` branch in the
+dashboard. The real `Test` gate still runs on `v0` before the image is
+published; the deploy-branch check exists only to satisfy build.io's
+gate.
+
+**Rollback:** point the app's branch back to `v0` in the dashboard (git-based
+deploys of the old code), or rerun
+`scripts/deploy/update_buildio_deploy_branch.sh --image <older
+ghcr.io/...@sha256:...>` to republish `deploy` at an older digest. A local
+`--dry-run` prints the generated files without touching git.
+
+## Build queue stuck (platform-side)
+
+Symptoms of a stuck build queue — the builder never starts the Docker build:
+
+- `bld builds -a aiand-router` shows the build `pending` for more than ~5
+  minutes, or flips to `failed` within seconds of being queued.
+- `bld logs -a aiand-router -s build -c 2000` shows the
+  `context.tar.gz ... saved` download but **no** kaniko `INFO[...]` lines
+  afterwards (a healthy build continues with e.g. `Taking snapshot of full
+  filesystem...` and `Pushing layer ...`).
+- The required `Test` check is green and `docker build --check -f Dockerfile .`
+  passes locally.
+
+**Meaning:** build.io's builder did not start the Docker build. This is a
+platform-side builder/queue failure — do **not** revert commits or edit the
+Dockerfile based on this symptom alone.
+
+**Recovery:**
+
+1. Check the provider status page at https://build.betteruptime.com/.
+2. Retry the exact commit — pushing it to the app's git remote triggers a
+   fresh build of the same code:
+
+   ```bash
+   git push buildio <sha>:refs/heads/main
+   ```
+
+3. If the retry also stays pending, contact build.io support
+   (support@build.io; production emergencies: emergency@build.io) with the
+   app name, build IDs, timestamps, and the log observation above
+   (context tarball downloaded, no kaniko lines).
+
+Note: a manual `POST /api/v1/apps/<app>/builds` currently records the
+requested `version` but still sources `refs/heads/main`, so it does not pin
+the commit you asked for — prefer the git-push retry when you need a specific
+commit built.
 
 ## Post-deploy verification
 
