@@ -16,6 +16,7 @@ a build.io deployment needs.
 - [Provisioning](#provisioning)
 - [Deploy](#deploy)
 - [Deploy verification](#deploy-verification)
+- [Build once, deploy a prebuilt image](#build-once-deploy-a-prebuilt-image)
 - [Build queue stuck (platform-side)](#build-queue-stuck-platform-side)
 - [Post-deploy verification](#post-deploy-verification)
 - [Scaling guidance](#scaling-guidance)
@@ -227,6 +228,47 @@ Read the workflow's `::error::` line first — it distinguishes three cases:
   check the build logs before touching the Dockerfile.
 - **"build pending past the queue timeout"** — build.io's builder never
   started; this is platform-side (see below).
+
+## Build once, deploy a prebuilt image
+
+When build.io's builder itself is the failure point (pending builds that never
+reach kaniko), stop asking it to compile. Build the image once on GitHub
+Actions, store it in GHCR, and let build.io deploy that prebuilt artifact:
+
+- [`.github/workflows/image.yml`](../.github/workflows/image.yml) runs on
+  every `v0` push, waits for the required `Test` check on that commit, then
+  builds the `buildio-release` target and pushes the image to
+  `ghcr.io/fenilmodi00/aiand_router`, tagged with the commit SHA and `v0`.
+  Pull requests run the same build as validation without pushing; only `v0`
+  pushes publish the digest and update the deploy branch.
+- The workflow's `publish-deploy-branch` job then runs
+  [scripts/deploy/update_buildio_deploy_branch.sh](../scripts/deploy/update_buildio_deploy_branch.sh),
+  which republishes the `deploy` branch with a thin Dockerfile that is only
+  `FROM ghcr.io/fenilmodi00/aiand_router@sha256:<digest>` — the exact image
+  that just passed tests, pinned by digest. The branch also carries a no-op
+  `Test` workflow so build.io's CI gate has a green check on the deploy
+  branch; the real test gate runs on `v0` before the image is published.
+- In the build.io dashboard, set the app's branch to `deploy` (one time).
+  From then on each deploy pulls the digest-pinned image.
+
+build.io has no prebuilt-image deploy API: it still creates a build, but the
+thin Dockerfile only removes compilation. If the account build quota is
+exhausted, the thin build will also fail until support resets it.
+
+**GHCR visibility:** the thin Dockerfile pulls from GHCR without
+credentials, and a package pushed with `GITHUB_TOKEN` is private by
+default. The image contains no secrets (config reaches the dyno via
+config vars), so a public package is acceptable. The workflow attempts to
+flip the package to public after each push; if the API call cannot change
+visibility, set it manually under the package's *Package settings* on
+GitHub, or configure build.io's builder with a GHCR read token — the thin
+build fails with an image-pull auth error otherwise.
+
+**Rollback:** point the app's branch back to `v0` in the dashboard (git-based
+deploys of the old code), or rerun
+`scripts/deploy/update_buildio_deploy_branch.sh --image <older
+ghcr.io/...@sha256:...>` to republish `deploy` at an older digest. A local
+`--dry-run` prints the generated files without touching git.
 
 ## Build queue stuck (platform-side)
 

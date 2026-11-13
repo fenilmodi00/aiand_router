@@ -1,0 +1,209 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Build image
+
+# Build the production image exactly once per commit, on GitHub Actions,
+# and push it to GHCR. build.io's builder is the failure point (see
+# docs/DEPLOY_BUILDIO.md), so it deploys a digest-pinned prebuilt image
+# from the generated `deploy` branch instead of compiling anything.
+#
+# The workflow file lives on `v0` (not the repository default branch), so a
+# `workflow_run` trigger would never fire; instead every `v0` push waits for
+# the required `Test` check on the pushed commit, then builds. Pull requests
+# run the same build as validation without pushing anything.
+on:
+  push:
+    branches: [v0]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: 'Commit SHA to build and pin (defaults to the pushed/current sha)'
+        required: false
+        default: ''
+
+concurrency:
+  group: image-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+  checks: read
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  # Gate on the required `Test` check for the exact commit before building.
+  wait-for-test:
+    name: Wait for Test check
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      checks: read
+      contents: read
+    outputs:
+      sha: ${{ steps.resolve.outputs.sha }}
+    steps:
+      - name: Resolve commit
+        id: resolve
+        env:
+          # On pull_request, github.sha is the merge commit; the Test check
+          # and the code under review are on the PR head SHA.
+          EVENT_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || inputs.sha || github.sha }}
+        run: echo "sha=${EVENT_SHA}" >>"$GITHUB_OUTPUT"
+
+      - name: Poll Test check conclusion
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.resolve.outputs.sha }}
+          DEADLINE_SECONDS: 1800
+        run: |
+          deadline=$(( $(date +%s) + DEADLINE_SECONDS ))
+          while :; do
+            state="$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/check-runs?check_name=Test" \
+              --jq '.check_runs[0].conclusion // .check_runs[0].status // empty')"
+            case "$state" in
+              success)
+                echo "Test check is green for $SHA"
+                exit 0
+                ;;
+              failure|cancelled|timed_out)
+                echo "::error::Test check for $SHA concluded with '$state'; refusing to build an untested commit"
+                exit 1
+                ;;
+              '')
+                echo "No Test check-run on $SHA yet"
+                ;;
+              *)
+                echo "Test check for $SHA is '$state'"
+                ;;
+            esac
+            if [ "$(date +%s)" -ge "$deadline" ]; then
+              echo "::error::Timed out waiting for the Test check on $SHA after 30m (a manual dispatch of an arbitrary SHA may have no Test run; build it directly or push it to v0)"
+              exit 1
+            fi
+            sleep 30
+          done
+
+  build:
+    name: Build and push image to GHCR
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: wait-for-test
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+      digest: ${{ steps.push.outputs.digest }}
+      pinned: ${{ steps.record.outputs.pinned }}
+      sha: ${{ steps.meta.outputs.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.wait-for-test.outputs.sha }}
+          fetch-depth: 0
+
+      - name: Compute build metadata
+        id: meta
+        env:
+          SHA: ${{ needs.wait-for-test.outputs.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          {
+            echo "sha=${SHA}"
+            echo "build_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "pr=${PR_NUMBER}"
+            echo "image=${IMAGE}"
+          } >>"$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          target: buildio-release
+          push: ${{ github.event_name == 'push' }}
+          tags: |
+            ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.sha }}
+            ${{ steps.meta.outputs.image }}:v0
+          build-args: |
+            ROUTER_SHA=${{ steps.meta.outputs.sha }}
+            ROUTER_BUILD_TIME=${{ steps.meta.outputs.build_time }}
+            ROUTER_PR=${{ steps.meta.outputs.pr }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: true
+
+      - name: Record pinned reference
+        id: record
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+          SHA: ${{ steps.meta.outputs.sha }}
+          IS_PUSH: ${{ github.event_name == 'push' }}
+        run: |
+          if [ "$IS_PUSH" = "true" ] && [ -n "$DIGEST" ]; then
+            pinned="${IMAGE}@${DIGEST}"
+            echo "pinned=${pinned}" >>"$GITHUB_OUTPUT"
+            {
+              echo "### Image published"
+              echo '```'
+              echo "${pinned}"
+              echo '```'
+              echo "digest: ${DIGEST}"
+              echo "sha: ${SHA}"
+            } >>"$GITHUB_STEP_SUMMARY"
+          else
+            echo "pinned=" >>"$GITHUB_OUTPUT"
+            {
+              echo "### Build-only (PR validation)"
+              echo "sha: ${SHA}"
+            } >>"$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Make GHCR package public (best effort)
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          pkg="${GITHUB_REPOSITORY#*/}"
+          if gh api --method PATCH "/user/packages/container/${pkg}/visibility" -f visibility=public >/dev/null 2>&1; then
+            echo "GHCR package ${pkg} is public"
+          else
+            echo "::warning::Could not set GHCR package ${pkg} visibility to public; set it in GitHub package settings or give build.io a GHCR read token."
+          fi
+
+  publish-deploy-branch:
+    name: Publish digest-pinned deploy branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: build
+    if: github.event_name == 'push'
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Update deploy branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE_REF: ${{ needs.build.outputs.pinned }}
+        run: |
+          scripts/deploy/update_buildio_deploy_branch.sh --image "${IMAGE_REF}"
