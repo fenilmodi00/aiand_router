@@ -14,7 +14,7 @@ port, behavior-owning type, or `proxy.Service` field or method; otherwise PASS i
 The five responsibility boundaries are:
 
 - **Inference Execution:** provider calls, retries, failover, target validation and attempt reporting
-  behind `inference.Executor`, implemented by `internal/dispatch`.
+  authorized by `inference.ResolvedPlan`, executed by `internal/dispatch`.
 - **Protocol & Ingress:** Anthropic Messages, OpenAI Chat and OpenAI Responses handling,
   HTTP concerns, response rendering and stream lifecycle.
 - **Routing Policy:** strategy selection, eligibility filtering, planner, policy resolution and
