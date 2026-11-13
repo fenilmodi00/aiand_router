@@ -44,8 +44,10 @@ const (
 	messagesTimeout       = 600 * time.Second
 	chatCompletionTimeout = 600 * time.Second
 	passthroughTimeout    = 10 * time.Second
-	routeTimeout          = 5 * time.Second
-	adminTimeout          = 10 * time.Second
+	// routeTimeout must clear EmbedOverallTimeout (default 6s) plus scoring
+	// overhead; 5s used to cut off a healthy late embed and 503 /v1/route.
+	routeTimeout = 8 * time.Second
+	adminTimeout = 10 * time.Second
 	// catalogModelsTimeout bounds GET /v1/router/models; must exceed the HMM
 	// sidecar client budget (policyclient.DefaultTimeout) or a cold cache 503s.
 	catalogModelsTimeout    = policyclient.DefaultTimeout * 2
