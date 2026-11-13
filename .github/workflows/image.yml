@@ -199,6 +199,9 @@ jobs:
     if: github.event_name == 'push'
     permissions:
       contents: write
+      # Creating .github/workflows/test.yml on the deploy branch is rejected
+      # unless the token may write workflow files.
+      workflows: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
