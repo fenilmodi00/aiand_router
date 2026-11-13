@@ -5,18 +5,8 @@
 # The `Test` check being green on a commit does NOT prove build.io built and
 # released it: build.io builds have sat pending in its builder queue while
 # GitHub showed a passing `Test` check. This workflow verifies the actual
-# GitHub deployment records build.io creates and probes the production URL.
-#
-# It supports both release models:
-#   - Direct build: build.io auto-deploys the `v0` push SHA — verified with
-#     `--sha <sha>` (build-production then production deployment for that SHA).
-#   - Build once, thin deploy: the image workflow publishes a digest-pinned
-#     image to GHCR and republishes the `deploy` branch; build.io builds and
-#     releases that generated image-pin commit, so the pushed `v0` SHA never
-#     gets its own deployment. Verified with `--latest --since-epoch <run
-#     start>`: a production deployment newer than the run must exist and be
-#     healthy. (A `workflow_dispatch` with an explicit `sha` still uses the
-#     `--sha` mode for a point-in-time check.)
+# GitHub deployment records build.io creates for the pushed `v0` commit and
+# probes the production URL.
 #
 # This workflow only verifies; it never pushes to build.io.
 name: Deploy verification
@@ -75,7 +65,7 @@ jobs:
     name: Verify build.io release
     needs: dockerfile-preflight
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    timeout-minutes: 90
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -86,11 +76,6 @@ jobs:
           set -euo pipefail;
           sha="${{ github.event.inputs.sha || github.sha }}";
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
-
-      - name: Record run start
-        id: since
-        run: |
-          set -euo pipefail; echo "epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
 
       - name: Wait for Test check
         env:
@@ -122,12 +107,7 @@ jobs:
           BUILDIO_APP: aiand-router
         run: |
           set -euo pipefail;
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.sha }}" ]; then
-            # Explicit manual SHA: verify that exact commit.
-            scripts/verify_buildio_release.sh --sha "${{ github.event.inputs.sha }}";
-          else
-            # Push (or manual run without a SHA): verify the latest production
-            # release created after this run started. This covers both the
-            # direct v0 build and the thin deploy-branch image-pin commit.
-            scripts/verify_buildio_release.sh --latest --since-epoch "${{ steps.since.outputs.epoch }}";
-          fi
+          scripts/verify_buildio_release.sh \
+            --sha "${{ steps.sha.outputs.sha }}" \
+            --deployment-timeout-seconds 900 \
+            --status-timeout-seconds 2400;
