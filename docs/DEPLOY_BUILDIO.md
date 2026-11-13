@@ -101,6 +101,8 @@ bld config:set \
   PUBSUB_SUBSCRIPTION_ROUTER_INVALIDATION=router-installation-invalidate \
   ROUTER_CLUSTER_VERSION=v1.2 \
   ROUTER_STARTUP_EGRESS_ORIGINS=api.aiand.com \
+  ROUTER_PLANNER_ENABLED=false \
+  ROUTER_SCORE_TOOL_RESULT_TURNS=false \
   LOG_FORMAT=json \
   LOG_LEVEL=info
 ```
@@ -119,6 +121,12 @@ Notes:
   later, see [docs/CONFIGURATION.md](CONFIGURATION.md#telemetry-opentelemetry).
 - `ROUTER_STARTUP_EGRESS_ORIGINS` lists `api.aiand.com` only: with the
   embedded emulator, Pub/Sub traffic stays on localhost.
+- `ROUTER_PLANNER_ENABLED=false` + `ROUTER_SCORE_TOOL_RESULT_TURNS=false`
+  (single-CPU dyno): pinned sessions reuse their decision without re-running
+  the cluster scorer, and tool-result turns reuse the session pin verbatim —
+  together with the boot embed warmup and soft/overall embed budget this cuts
+  most per-turn embed work. Tradeoff: no EV-based mid-session model
+  switching. See "Scaling guidance" below.
 
 ## Branch model and releases
 

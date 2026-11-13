@@ -30,7 +30,7 @@ I/O in every descendant: `internal/router/cluster` and `internal/providers/<adap
 - A provider/model name used outside adapters or catalog data to decide a business rule that
   belongs in a typed capability or catalog property. Show both the identity-dependent decision
   and the semantic property it encodes, not just a string occurrence.
-- New provider execution that semantically bypasses the `inference.Executor` / `internal/dispatch`
+- New provider execution that semantically bypasses the `inference.ResolvedPlan` / `internal/dispatch`
   path, losing resolved-plan authorization, target validation or attempt reporting. Trace the
   changed reachable path to upstream I/O and name the bypassed guarantee.
 
