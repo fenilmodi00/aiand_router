@@ -239,8 +239,9 @@ Actions, store it in GHCR, and let build.io deploy that prebuilt artifact:
   every `v0` push, waits for the required `Test` check on that commit, then
   builds the `buildio-release` target and pushes the image to
   `ghcr.io/fenilmodi00/aiand_router`, tagged with the commit SHA and `v0`.
-  Pull requests run the same build as validation without pushing; only `v0`
-  pushes publish the digest and update the deploy branch.
+  Pull requests build the image immediately as validation without pushing;
+  only `v0` pushes wait for `Test` and then publish the digest and update
+  the deploy branch.
 - The workflow's `publish-deploy-branch` job then runs
   [scripts/deploy/update_buildio_deploy_branch.sh](../scripts/deploy/update_buildio_deploy_branch.sh),
   which republishes the `deploy` branch with a thin Dockerfile that is only
@@ -263,6 +264,17 @@ flip the package to public after each push; if the API call cannot change
 visibility, set it manually under the package's *Package settings* on
 GitHub, or configure build.io's builder with a GHCR read token — the thin
 build fails with an image-pull auth error otherwise.
+
+**CI gate on the deploy branch:** GitHub suppresses workflow runs for
+pushes made with `GITHUB_TOKEN`, so the deploy branch's no-op `Test`
+workflow does not run when the pipeline pushes with the default token.
+Either add a repository secret `DEPLOY_BRANCH_TOKEN` (a fine-grained PAT
+with `contents: write` and `workflow` permission on this repo — the
+workflow already prefers it, so the push then triggers the no-op check),
+or disable build.io's "wait for CI" gate for the `deploy` branch in the
+dashboard. The real `Test` gate still runs on `v0` before the image is
+published; the deploy-branch check exists only to satisfy build.io's
+gate.
 
 **Rollback:** point the app's branch back to `v0` in the dashboard (git-based
 deploys of the old code), or rerun

@@ -9,7 +9,7 @@ name: Build image
 # The workflow file lives on `v0` (not the repository default branch), so a
 # `workflow_run` trigger would never fire; instead every `v0` push waits for
 # the required `Test` check on the pushed commit, then builds. Pull requests
-# run the same build as validation without pushing anything.
+# build the image immediately as validation without pushing anything.
 on:
   push:
     branches: [v0]
@@ -54,6 +54,10 @@ jobs:
         run: echo "sha=${EVENT_SHA}" >>"$GITHUB_OUTPUT"
 
       - name: Poll Test check conclusion
+        # PR builds are validation-only (nothing is pushed or deployed), and
+        # the Test check may be attached to the merge commit rather than the
+        # head SHA, so PRs skip the wait; v0 pushes still gate on Test.
+        if: github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
           SHA: ${{ steps.resolve.outputs.sha }}
@@ -203,7 +207,11 @@ jobs:
 
       - name: Update deploy branch
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # A PAT (repository secret DEPLOY_BRANCH_TOKEN) is preferred: GitHub
+          # suppresses workflow runs for GITHUB_TOKEN pushes, so the no-op
+          # Test workflow on the deploy branch only runs when pushed with a
+          # PAT. Falls back to GITHUB_TOKEN (push works, no-op check won't).
+          GITHUB_TOKEN: ${{ secrets.DEPLOY_BRANCH_TOKEN || secrets.GITHUB_TOKEN }}
           IMAGE_REF: ${{ needs.build.outputs.pinned }}
         run: |
           scripts/deploy/update_buildio_deploy_branch.sh --image "${IMAGE_REF}"
