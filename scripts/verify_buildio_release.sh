@@ -22,16 +22,32 @@ set -euo pipefail
 
 usage() {
   cat >&2 <<'EOF'
-Usage: scripts/verify_buildio_release.sh --sha SHA \
+Usage: scripts/verify_buildio_release.sh (--sha SHA | --latest) \
   [--repo OWNER/REPO] [--app-url URL] \
   [--deployment-timeout-seconds N] [--status-timeout-seconds N] \
   [--release-timeout-seconds N] [--health-retries N] \
-  [--health-interval-seconds N] [--buildio-app APP]
+  [--health-interval-seconds N] [--buildio-app APP] [--since-epoch SECONDS]
+
+Modes (exactly one required):
+  --sha SHA        Verify the release of a specific commit: wait for its
+                   build-production deployment, its success, then a
+                   successful production deployment for the same SHA.
+  --latest         Verify the latest production deployment created at or
+                   after --since-epoch (default 0): build.io may release the
+                   generated `deploy` branch (image-pin commit) rather than
+                   the pushed SHA. Requires only a successful production
+                   deployment; the build-production deployment is reported
+                   in diagnostics when present but is not required.
+Options:
+  --since-epoch S  With --latest: only production deployments created at or
+                   after this epoch second count (default 0).
 EOF
   exit 2
 }
 
 sha=""
+latest=false
+since=0
 repo="${GITHUB_REPOSITORY:-fenilmodi00/aiand_router}"
 app_url="https://aiand-router-f0eb1883.onbld.com"
 deployment_timeout=600
@@ -44,6 +60,8 @@ buildio_app="${BUILDIO_APP:-aiand-router}"
 while [ $# -gt 0 ]; do
   case "$1" in
     --sha) sha="${2:-}"; shift 2 ;;
+    --latest) latest=true; shift ;;
+    --since-epoch) since="${2:-}"; shift 2 ;;
     --repo) repo="${2:-}"; shift 2 ;;
     --app-url) app_url="${2:-}"; shift 2 ;;
     --deployment-timeout-seconds) deployment_timeout="${2:-}"; shift 2 ;;
@@ -57,15 +75,21 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-if [ -z "$sha" ]; then
-  printf '::error::--sha is required\n'
+if { [ -n "$sha" ] && [ "$latest" = true ]; } || { [ -z "$sha" ] && [ "$latest" = false ]; }; then
+  printf '::error::exactly one of --sha SHA or --latest is required\n'
   usage
 fi
-if ! [[ "$sha" =~ ^[0-9a-fA-F]{40}$ ]]; then
-  printf '::error::SHA must be 40 hex characters, got: %s\n' "$sha"
-  exit 1
+if [ "$latest" = true ]; then
+  case "$since" in
+    ''|*[!0-9]*) printf '::error::--since-epoch must be a non-negative integer, got: %s\n' "$since"; exit 1 ;;
+  esac
+else
+  if ! [[ "$sha" =~ ^[0-9a-fA-F]{40}$ ]]; then
+    printf '::error::SHA must be 40 hex characters, got: %s\n' "$sha"
+    exit 1
+  fi
+  sha=$(printf '%s' "$sha" | tr '[:upper:]' '[:lower:]')
 fi
-sha=$(printf '%s' "$sha" | tr '[:upper:]' '[:lower:]')
 
 for tool in gh jq curl; do
   if ! command -v "$tool" >/dev/null 2>&1; then
@@ -85,12 +109,100 @@ gh_api() {
   gh api "$1" --jq "$2" 2>/dev/null
 }
 
-# ---------------------------------------------------------------------------
-# 1. Wait for build.io to create the `build-production` deployment.
-# ---------------------------------------------------------------------------
 log() { printf '[verify-release] %s\n' "$*" >&2; }
 
-deployment_id=""
+# ISO-8601 (e.g. 2026-11-13T09:58:13Z) -> epoch seconds. GNU date is the
+# runner default; fall back to jq with fractional seconds stripped.
+iso_to_epoch() {
+  local ts="$1" out
+  out=$(date -d "$ts" +%s 2>/dev/null) && { printf '%s' "$out"; return 0; }
+  out=$(printf '%s' "$ts" | sed 's/\.[0-9]*//' | jq -r 'fromdateiso8601' 2>/dev/null) || return 1
+  printf '%s' "$out"
+}
+
+# ---------------------------------------------------------------------------
+# --latest mode: verify the newest production deployment created since the
+# run started (build.io thin-deploys the generated `deploy` branch commit,
+# so the pushed SHA never gets its own deployment in that model).
+# ---------------------------------------------------------------------------
+if [ "$latest" = true ]; then
+  since_iso=$(date -u -d "@$since" '+%Y-%m-%dT%H:%M:%SZ')
+  log "mode: latest (production deployments created at/after $since_iso)"
+
+  prod_deployment_id=""
+  prod_created_at=""
+  deadline=$(( $(date +%s) + deployment_timeout ))
+  while :; do
+    line=$(gh_api "repos/$repo/deployments?per_page=100" \
+      '[.[] | select(.environment == "production")] | sort_by(.created_at) | last | (.id|tostring) + " " + .created_at // empty') || line=""
+    if [ -n "$line" ]; then
+      prod_deployment_id="${line%% *}"
+      prod_created_at="${line#* }"
+      prod_epoch=$(iso_to_epoch "$prod_created_at") || prod_epoch=0
+      if [ "$prod_epoch" -ge "$since" ]; then
+        log "found production deployment $prod_deployment_id created $prod_created_at"
+        break
+      fi
+      prod_deployment_id=""; prod_created_at=""
+    fi
+    if [ "$(date +%s)" -ge "$deadline" ]; then
+      printf '::error::no new production deployment for %s since %s; build.io did not release the commit. Check the build queue with: bld builds -a %s\n' "$repo" "$since_iso" "$buildio_app"
+      exit 1
+    fi
+    sleep 5
+  done
+
+  prod_status=""
+  deadline=$(( $(date +%s) + status_timeout ))
+  while :; do
+    prod_status=$(gh_api "repos/$repo/deployments/$prod_deployment_id/statuses?per_page=100" \
+      'sort_by(.created_at) | last | .state // empty') || prod_status=""
+    case "$prod_status" in
+      success|failure|error|inactive)
+        log "production deployment $prod_deployment_id status: $prod_status"
+        break
+        ;;
+    esac
+    if [ "$(date +%s)" -ge "$deadline" ]; then
+      printf '::error::timed out after %ss waiting for a terminal status on production deployment %s; last status: %s\n' "$status_timeout" "$prod_deployment_id" "${prod_status:-none}"
+      exit 1
+    fi
+    sleep 5
+  done
+
+  case "$prod_status" in
+    success) ;;
+    failure|error|inactive)
+      printf '::error::release failed: production deployment %s has status %s. Check the build.io release logs with: bld logs -a %s -s release -c 2000\n' "$prod_deployment_id" "$prod_status" "$buildio_app"
+      exit 1
+      ;;
+    *)
+      printf '::error::production deployment %s has unexpected status %s\n' "$prod_deployment_id" "$prod_status"
+      exit 1
+      ;;
+  esac
+
+  # Diagnostics only: report the build-production deployment for the same
+  # commit when one exists. Thin deploys may not have one; never fail here.
+  prod_commit=$(gh_api "repos/$repo/deployments/$prod_deployment_id" '.sha // empty') || prod_commit=""
+  if [ -n "$prod_commit" ]; then
+    build_dep_id=$(gh_api "repos/$repo/deployments?sha=$prod_commit&per_page=100" \
+      '[.[] | select(.environment == "build-production")] | sort_by(.created_at) | last | .id // empty') || build_dep_id=""
+    if [ -n "$build_dep_id" ]; then
+      build_dep_status=$(gh_api "repos/$repo/deployments/$build_dep_id/statuses?per_page=100" \
+        'sort_by(.created_at) | last | .state // empty') || build_dep_status=""
+      build_id=$(gh_api "repos/$repo/deployments/$build_dep_id" '.payload.build_id // empty') || build_id=""
+      log "build-production deployment $build_dep_id for $prod_commit: status ${build_dep_status:-none}${build_id:+, build_id $build_id}"
+    else
+      log "no build-production deployment for $prod_commit (thin deploy: build ran for the generated deploy-branch commit)"
+    fi
+  fi
+
+  status="$prod_status"
+else
+# ---------------------------------------------------------------------------
+# --sha mode: wait for build.io to create the `build-production` deployment.
+# ---------------------------------------------------------------------------
 deadline=$(( $(date +%s) + deployment_timeout ))
 while :; do
   deployment_id=$(gh_api "repos/$repo/deployments?sha=$sha&per_page=100" \
@@ -214,6 +326,8 @@ while :; do
   sleep 5
 done
 
+fi # latest / sha mode
+
 # ---------------------------------------------------------------------------
 # 4. Health checks against the production URL.
 # ---------------------------------------------------------------------------
@@ -241,6 +355,11 @@ done
 version_body=$(curl -sS -m 15 "$app_url/v1/version" 2>/dev/null || true)
 log "/v1/version: $version_body"
 
-printf '[verify-release] SUCCESS: sha %s — build-production deployment %s status %s; production deployment %s status %s; %s healthy (livez/readyz/startupz all 200)\n' \
-  "$sha" "$deployment_id" "$status" "$prod_deployment_id" "$prod_status" "$app_url"
+if [ "$latest" = true ]; then
+  printf '[verify-release] SUCCESS: latest production deployment %s (created %s) status %s; %s healthy (livez/readyz/startupz all 200)\n' \
+    "$prod_deployment_id" "$prod_created_at" "$prod_status" "$app_url"
+else
+  printf '[verify-release] SUCCESS: sha %s — build-production deployment %s status %s; production deployment %s status %s; %s healthy (livez/readyz/startupz all 200)\n' \
+    "$sha" "$deployment_id" "$status" "$prod_deployment_id" "$prod_status" "$app_url"
+fi
 exit 0

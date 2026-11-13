@@ -155,11 +155,13 @@ Rules that keep it that way:
   build.io waits for that required check before it builds.
 - **The release gate is the `Deploy verification` workflow**
   ([.github/workflows/deploy-verify.yml](../.github/workflows/deploy-verify.yml)):
-  build.io auto-deploys `v0`, and Deploy verification waits for the `Test`
-  check, verifies build.io's `build-production` and `production` GitHub
-  deployments, and probes the live health endpoints. A failed verification
-  fails the commit — it must not be mistaken for a repository failure; a red
-  verification is frequently platform-side (see
+  build.io auto-deploys `v0` in the direct model, or the generated `deploy`
+  branch (digest-pinned prebuilt image) in the thin model. Deploy
+  verification waits for the `Test` check, verifies the latest production
+  release created after the run started, and probes the live health
+  endpoints; `--sha` remains available for verifying a specific build. A
+  failed verification fails the commit — it must not be mistaken for a
+  repository failure; a red verification is frequently platform-side (see
   [Build queue stuck (platform-side)](#build-queue-stuck-platform-side)).
 
 Upstream changes flow one way:
@@ -214,14 +216,32 @@ is the release gate that runs after every `v0` push:
 2. **Wait for CI.** It waits for the required `Test` check on the commit.
 3. **Verify the release.** It runs
    [scripts/verify_buildio_release.sh](../scripts/verify_buildio_release.sh)
-   `--sha <sha>`, which checks build.io's GitHub deployment statuses
-   (`build-production` for the build, `production` for the release) and
-   probes the live health endpoints
+   and probes the live health endpoints
    `https://<app-hostname>/{livez,readyz,startupz}`.
 
-A red `Deploy verification` does not automatically mean the code is broken.
-Read the workflow's `::error::` line first — it distinguishes three cases:
+The verification works for both release models:
 
+- **Direct `v0` build:** build.io deploys the pushed SHA, so the script
+  verifies that SHA's `build-production` and `production` deployments.
+- **Thin `deploy` branch (build once, see below):** build.io releases the
+  generated image-pin commit, not the pushed SHA. By default the script runs
+  `--latest --since-epoch <run start>`: it requires a `production` deployment
+  **newer than the moment the run started** (recorded before the `Test` wait,
+  so a release that lands while CI runs is still counted) and checks its
+  health. A specific commit can still be checked at any time with
+  `--sha <sha>` (also via `workflow_dispatch`'s `sha` input).
+
+**First run after switching the app branch to `deploy`:** expect the gate to
+be red until the thin build actually produces a production release — "no new
+production deployment" is the intended signal that the pipeline has not
+released yet, not a repository failure. It turns green as soon as the thin
+build releases.
+
+A red `Deploy verification` does not automatically mean the code is broken.
+Read the workflow's `::error::` line first — it distinguishes these cases:
+
+- **"no new production deployment since <time>"** (`--latest` mode) — build.io
+  has not released anything since the run started; check the build queue.
 - **"build.io never created a deployment"** — the GitHub integration or the
   build queue dropped the push; see the troubleshooting section below.
 - **"build failed"** — build.io attempted the Docker build and it failed;
