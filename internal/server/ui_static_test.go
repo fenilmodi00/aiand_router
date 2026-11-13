@@ -21,17 +21,21 @@ func TestRegisterUIStatic(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(root, "index.html"), []byte("index"), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(root, "keys.html"), []byte("keys"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "aiand.svg"), []byte("svg"), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "_next", "static", "chunks"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "_next", "static", "chunks", "app.js"), []byte("js"), 0o644))
 
 	engine := gin.New()
 	registerUIStatic(engine, root)
 
 	cases := []struct {
-		name         string
-		path         string
-		wantCode     int
-		wantLocation string
-		wantBody     string
-		wantContain  bool
+		name             string
+		path             string
+		wantCode         int
+		wantLocation     string
+		wantBody         string
+		wantContain      bool
+		wantCacheControl string
 	}{
 		{
 			name:         "legacy settings redirects to keys",
@@ -64,11 +68,34 @@ func TestRegisterUIStatic(t *testing.T) {
 			wantLocation: "/ui/settings",
 		},
 		{
-			name:        "clean URL serves html file",
-			path:        "/ui/keys",
-			wantCode:    http.StatusOK,
-			wantBody:    "keys",
-			wantContain: true,
+			name:             "clean URL serves html file",
+			path:             "/ui/keys",
+			wantCode:         http.StatusOK,
+			wantBody:         "keys",
+			wantContain:      true,
+			wantCacheControl: "no-cache",
+		},
+		{
+			name:             "index revalidates",
+			path:             "/ui",
+			wantCode:         http.StatusOK,
+			wantBody:         "index",
+			wantContain:      true,
+			wantCacheControl: "no-cache",
+		},
+		{
+			name:             "public asset revalidates",
+			path:             "/ui/aiand.svg",
+			wantCode:         http.StatusOK,
+			wantBody:         "svg",
+			wantCacheControl: "no-cache",
+		},
+		{
+			name:             "hashed static asset is immutable",
+			path:             "/ui/_next/static/chunks/app.js",
+			wantCode:         http.StatusOK,
+			wantBody:         "js",
+			wantCacheControl: "public, max-age=31536000, immutable",
 		},
 		{
 			name:     "unknown path 404s",
@@ -85,6 +112,9 @@ func TestRegisterUIStatic(t *testing.T) {
 			require.Equal(t, tc.wantCode, rec.Code, "GET %s", tc.path)
 			if tc.wantLocation != "" {
 				assert.Equal(t, tc.wantLocation, rec.Header().Get("Location"), "GET %s", tc.path)
+			}
+			if tc.wantCacheControl != "" {
+				assert.Equal(t, tc.wantCacheControl, rec.Header().Get("Cache-Control"), "GET %s", tc.path)
 			}
 			if tc.wantBody != "" {
 				if tc.wantContain {

@@ -52,5 +52,7 @@ Dark mode: background #0A0A0A, foreground #FAFAFA, primary #FAFAFA, muted #1A1A1
 - Tailwind: Geist font via next/font/google, variable `--font-geist`
 - CSS vars in `src/app/globals.css` updated to console tokens
 - Radius scale: lg=0.625rem, md=0.5rem, sm=0.375rem
-- Logo: `/ui/aiand.svg` (console logo, no rounding)
+- Logo: source `public/aiand.svg`, imported so Next emits a content-hashed
+  `/ui/_next/static/media/aiand.*.svg` URL (a rebrand cannot be masked by a
+  stale cached `/ui/aiand.svg`)
 EOF
