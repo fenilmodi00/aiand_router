@@ -15,6 +15,8 @@ a build.io deployment needs.
 - [Architecture](#architecture)
 - [Provisioning](#provisioning)
 - [Deploy](#deploy)
+- [Deploy verification](#deploy-verification)
+- [Build queue stuck (platform-side)](#build-queue-stuck-platform-side)
 - [Post-deploy verification](#post-deploy-verification)
 - [Scaling guidance](#scaling-guidance)
 - [Rollback](#rollback)
@@ -150,6 +152,14 @@ Rules that keep it that way:
   `v0 requires tests`).
 - **Nothing ships untested.** A `v0` push runs the `Test` workflow, and
   build.io waits for that required check before it builds.
+- **The release gate is the `Deploy verification` workflow**
+  ([.github/workflows/deploy-verify.yml](../.github/workflows/deploy-verify.yml)):
+  build.io auto-deploys `v0`, and Deploy verification waits for the `Test`
+  check, verifies build.io's `build-production` and `production` GitHub
+  deployments, and probes the live health endpoints. A failed verification
+  fails the commit — it must not be mistaken for a repository failure; a red
+  verification is frequently platform-side (see
+  [Build queue stuck (platform-side)](#build-queue-stuck-platform-side)).
 
 Upstream changes flow one way:
 
@@ -191,6 +201,69 @@ Watch the build logs until the push goes green:
 bld builds --app aiand-router
 bld logs --app aiand-router --tail
 ```
+
+## Deploy verification
+
+[.github/workflows/deploy-verify.yml](../.github/workflows/deploy-verify.yml)
+is the release gate that runs after every `v0` push:
+
+1. **Preflight.** It runs `docker build --check -f Dockerfile .` to lint the
+   Dockerfile, and asserts the Dockerfile's last stage is `buildio-release`
+   (the stage build.io actually ships).
+2. **Wait for CI.** It waits for the required `Test` check on the commit.
+3. **Verify the release.** It runs
+   [scripts/verify_buildio_release.sh](../scripts/verify_buildio_release.sh)
+   `--sha <sha>`, which checks build.io's GitHub deployment statuses
+   (`build-production` for the build, `production` for the release) and
+   probes the live health endpoints
+   `https://<app-hostname>/{livez,readyz,startupz}`.
+
+A red `Deploy verification` does not automatically mean the code is broken.
+Read the workflow's `::error::` line first — it distinguishes three cases:
+
+- **"build.io never created a deployment"** — the GitHub integration or the
+  build queue dropped the push; see the troubleshooting section below.
+- **"build failed"** — build.io attempted the Docker build and it failed;
+  check the build logs before touching the Dockerfile.
+- **"build pending past the queue timeout"** — build.io's builder never
+  started; this is platform-side (see below).
+
+## Build queue stuck (platform-side)
+
+Symptoms of a stuck build queue — the builder never starts the Docker build:
+
+- `bld builds -a aiand-router` shows the build `pending` for more than ~5
+  minutes, or flips to `failed` within seconds of being queued.
+- `bld logs -a aiand-router -s build -c 2000` shows the
+  `context.tar.gz ... saved` download but **no** kaniko `INFO[...]` lines
+  afterwards (a healthy build continues with e.g. `Taking snapshot of full
+  filesystem...` and `Pushing layer ...`).
+- The required `Test` check is green and `docker build --check -f Dockerfile .`
+  passes locally.
+
+**Meaning:** build.io's builder did not start the Docker build. This is a
+platform-side builder/queue failure — do **not** revert commits or edit the
+Dockerfile based on this symptom alone.
+
+**Recovery:**
+
+1. Check the provider status page at https://build.betteruptime.com/.
+2. Retry the exact commit — pushing it to the app's git remote triggers a
+   fresh build of the same code:
+
+   ```bash
+   git push buildio <sha>:refs/heads/main
+   ```
+
+3. If the retry also stays pending, contact build.io support
+   (support@build.io; production emergencies: emergency@build.io) with the
+   app name, build IDs, timestamps, and the log observation above
+   (context tarball downloaded, no kaniko lines).
+
+Note: a manual `POST /api/v1/apps/<app>/builds` currently records the
+requested `version` but still sources `refs/heads/main`, so it does not pin
+the commit you asked for — prefer the git-push retry when you need a specific
+commit built.
 
 ## Post-deploy verification
 
