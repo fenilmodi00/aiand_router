@@ -272,6 +272,19 @@ Actions, store it in GHCR, and let build.io deploy that prebuilt artifact:
 - In the build.io dashboard, set the app's branch to `deploy` (one time).
   From then on each deploy pulls the digest-pinned image.
 
+  Dashboard steps:
+
+  1. Open the app's **Deploy** tab and find the GitHub connection /
+     **Automatic Deploys** section.
+  2. Select the `deploy` branch and save.
+  3. If the pipeline pushes `deploy` with `GITHUB_TOKEN` (no
+     `DEPLOY_BRANCH_TOKEN` secret), clear the **Wait for CI** option for this
+     branch — the real `Test` gate already ran on `v0` before the image was
+     published. Alternatively add `DEPLOY_BRANCH_TOKEN` so the no-op `Test`
+     workflow runs on `deploy`.
+  4. Use **Manual Deploy → Deploy Branch → `deploy`** for the first thin
+     build. Later image-pin commits redeploy automatically.
+
 build.io has no prebuilt-image deploy API: it still creates a build, but the
 thin Dockerfile only removes compilation. If the account build quota is
 exhausted, the thin build will also fail until support resets it.
