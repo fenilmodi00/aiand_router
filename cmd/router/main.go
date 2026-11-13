@@ -1449,6 +1449,7 @@ func buildClusterScorer(availableProviders map[string]struct{}) (router.Router, 
 		}
 	}
 	scorers := make(map[string]*cluster.Scorer, len(versions))
+	warmed := make(map[string]cluster.Embedder)
 	var defaultEmbedderID string
 	for _, v := range versions {
 		bundle, err := cluster.LoadBundle(v)
@@ -1489,6 +1490,7 @@ func buildClusterScorer(availableProviders map[string]struct{}) (router.Router, 
 			logger.Warn("Cluster scorer version skipped; embedder unavailable", "cluster_version", v, "embedder", bundle.EmbedderID(), "err", err)
 			continue
 		}
+		warmed[embedder.ID()] = embedder
 
 		scorer, err := cluster.NewScorer(bundle, cfg, embedder, availableProviders)
 		if err != nil {
@@ -1517,6 +1519,33 @@ func buildClusterScorer(availableProviders map[string]struct{}) (router.Router, 
 		"requested_version", requestedVersion,
 		"build_all_versions", buildAll,
 	)
+
+	// Warmup: burn each embedder's lazy ONNX graph-optimization cost at boot.
+	for id, embedder := range warmed {
+		type warmupResult struct {
+			err error
+		}
+		warmupDone := make(chan warmupResult, 1)
+		go func(e cluster.Embedder) {
+			_, err := e.Embed(context.Background(), "warmup")
+			warmupDone <- warmupResult{err: err}
+		}(embedder)
+		select {
+		case res := <-warmupDone:
+			if res.err != nil {
+				_ = embedders.Close()
+				return nil, "", fmt.Errorf("Warm embedder %q: %w", id, res.err)
+			}
+		case <-time.After(15 * time.Second):
+			// Drain the goroutine before closing to avoid use-after-free.
+			go func() {
+				<-warmupDone
+				_ = embedders.Close()
+			}()
+			return nil, "", fmt.Errorf("Cluster embedder %q warmup timed out after 15s", id)
+		}
+		logger.Info("Cluster embedder warmed", "embedder", id, "embed_dim", embedder.Dim())
+	}
 
 	return multi, defaultEmbedderID, nil
 }
