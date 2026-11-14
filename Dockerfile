@@ -323,4 +323,11 @@ RUN chmod +x /usr/local/bin/entrypoint.sh
 
 EXPOSE 8080
 
+# Single-vCPU dyno also runs the Pub/Sub emulator JVM. Keep OpenMP/BLAS
+# at one thread unless the platform overrides the env at runtime.
+ENV OMP_NUM_THREADS=1 \
+    MKL_NUM_THREADS=1 \
+    OPENBLAS_NUM_THREADS=1 \
+    NUMEXPR_NUM_THREADS=1
+
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

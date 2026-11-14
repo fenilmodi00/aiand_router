@@ -28,10 +28,9 @@ const minModelSizeBytes = 1 << 20
 type onnxEmbedder struct {
 	spec     EmbedderSpec
 	pipeline *pipelines.FeatureExtractionPipeline
-	// ponytail: process-wide lock; ceiling = one embed at a time per pipeline.
-	// Upgrade: per-request ORT sessions or a worker pool if multi-core embeds
-	// become worth the memory.
-	mu sync.Mutex
+	// One RunPipeline at a time. Callers whose ctx expires while the slot
+	// is busy return without queueing another uncancellable run.
+	gate *cpuGate
 }
 
 // resolveAssetsDir returns ROUTER_ONNX_ASSETS_DIR if set, else defaultAssetsDir.
@@ -90,28 +89,32 @@ func newONNXEmbedder(session *hugot.Session, spec EmbedderSpec) (*onnxEmbedder, 
 	if err != nil {
 		return nil, fmt.Errorf("cluster: feature-extraction pipeline for embedder %s: %w", spec.ID, err)
 	}
+	gate, err := newCPUGate()
+	if err != nil {
+		return nil, fmt.Errorf("cluster: embed gate for %s: %w", spec.ID, err)
+	}
 
-	return &onnxEmbedder{spec: spec, pipeline: pipeline}, nil
+	return &onnxEmbedder{spec: spec, pipeline: pipeline, gate: gate}, nil
 }
 
-// Embed runs the pipeline on a single text. ctx is ignored — hugot v0.7.0's
-// RunPipeline has no ctx param; scorer.Route races this call in a goroutine
-// against EmbedOverallTimeout instead of canceling/retrying.
-func (e *onnxEmbedder) Embed(_ context.Context, text string) ([]float32, error) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	out, err := e.pipeline.RunPipeline([]string{text})
-	if err != nil {
-		return nil, fmt.Errorf("pipeline: %w", err)
-	}
-	if len(out.Embeddings) != 1 {
-		return nil, fmt.Errorf("pipeline returned %d embeddings, want 1", len(out.Embeddings))
-	}
-	vec := out.Embeddings[0]
-	if len(vec) != e.spec.Dim {
-		return nil, fmt.Errorf("embedding dim %d, want %d", len(vec), e.spec.Dim)
-	}
-	return vec, nil
+// Embed runs the pipeline on a single text. hugot v0.7.0 RunPipeline cannot
+// observe ctx; the gate refuses to start a run once ctx is done and does not
+// queue a second run behind one that is still inside ORT.
+func (e *onnxEmbedder) Embed(ctx context.Context, text string) ([]float32, error) {
+	return e.gate.Do(ctx, text, func() ([]float32, error) {
+		out, err := e.pipeline.RunPipeline([]string{text})
+		if err != nil {
+			return nil, fmt.Errorf("pipeline: %w", err)
+		}
+		if len(out.Embeddings) != 1 {
+			return nil, fmt.Errorf("pipeline returned %d embeddings, want 1", len(out.Embeddings))
+		}
+		vec := out.Embeddings[0]
+		if len(vec) != e.spec.Dim {
+			return nil, fmt.Errorf("embedding dim %d, want %d", len(vec), e.spec.Dim)
+		}
+		return vec, nil
+	})
 }
 
 // ID returns the embedder model identity.
@@ -137,7 +140,14 @@ type EmbedderSet struct {
 func NewEmbedderSet() (*EmbedderSet, error) {
 	// hugot defaults to /usr/lib (Linux) / /usr/local/lib (macOS);
 	// ROUTER_ONNX_LIBRARY_DIR overrides (macOS brew → /opt/homebrew/lib).
-	var sessOpts []options.WithOption
+	intra := envClamp("ROUTER_ORT_INTRA_OP_THREADS", 1, 1, 8)
+	inter := envClamp("ROUTER_ORT_INTER_OP_THREADS", 1, 1, 8)
+	sessOpts := []options.WithOption{
+		options.WithIntraOpNumThreads(intra),
+		options.WithInterOpNumThreads(inter),
+		options.WithIntraOpSpinning(false),
+		options.WithInterOpSpinning(false),
+	}
 	if dir := os.Getenv("ROUTER_ONNX_LIBRARY_DIR"); dir != "" {
 		sessOpts = append(sessOpts, options.WithOnnxLibraryPath(dir))
 	}

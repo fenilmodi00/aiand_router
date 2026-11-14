@@ -122,5 +122,20 @@ else
   log "ROUTER_RUN_MIGRATIONS=0; skipping migrations"
 fi
 
-# --- 3. Hand off to the server; exec keeps SIGTERM handling intact ---
+# --- 3. Cap native thread pools. The dyno shares a CPU quota with the
+# embedded Pub/Sub JVM; ORT/OpenMP default to host core count and then
+# spin under the cgroup quota. Honor a value the platform already set.
+cap_threads() {
+  name="$1"
+  if [ "${!name:-}" = "" ]; then
+    export "${name}=1"
+  fi
+}
+cap_threads OMP_NUM_THREADS
+cap_threads MKL_NUM_THREADS
+cap_threads OPENBLAS_NUM_THREADS
+cap_threads NUMEXPR_NUM_THREADS
+log "native thread caps: OMP_NUM_THREADS=${OMP_NUM_THREADS} MKL_NUM_THREADS=${MKL_NUM_THREADS} OPENBLAS_NUM_THREADS=${OPENBLAS_NUM_THREADS} NUMEXPR_NUM_THREADS=${NUMEXPR_NUM_THREADS}"
+
+# --- 4. Hand off to the server; exec keeps SIGTERM handling intact ---
 exec /server
