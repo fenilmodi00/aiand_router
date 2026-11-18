@@ -247,11 +247,11 @@ func TestIsolation_Revocation_RevokeAllSessionsForAccount(t *testing.T) {
 
 	verifier := fx.verifier()
 	for _, token := range []string{fx.accounts["A"].token, second} {
-		_, err := verifier.VerifySessionToken(token)
+		_, err := verifier.VerifySessionToken(t.Context(), token)
 		assert.ErrorIs(t, err, auth.ErrSessionNotFound, "every session of the account must die")
 	}
 	// B's session survives.
-	_, err = verifier.VerifySessionToken(fx.accounts["B"].token)
+	_, err = verifier.VerifySessionToken(t.Context(), fx.accounts["B"].token)
 	assert.NoError(t, err, "RevokeAllSessionsForAccount(A) must not touch B")
 }
 
@@ -269,7 +269,7 @@ func TestIsolation_Revocation_DisconnectDoesNotRevokeSession(t *testing.T) {
 
 	// The session still verifies after the disconnect.
 	verifier := fx.verifier()
-	active, err := verifier.VerifySessionToken(fx.accounts["A"].token)
+	active, err := verifier.VerifySessionToken(t.Context(), fx.accounts["A"].token)
 	require.NoError(t, err, "disconnect must NOT revoke the dashboard session")
 	require.Equal(t, fx.accounts["A"].account.ID, active.Account.ID)
 	require.Equal(t, fx.accounts["A"].installation.ID, active.Installation.ID)

@@ -1,6 +1,7 @@
 package middleware_test
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -30,7 +31,7 @@ type fakeSessionVerifier struct {
 	touchErr error
 }
 
-func (f *fakeSessionVerifier) VerifySessionToken(token string) (*auth.ActiveSession, error) {
+func (f *fakeSessionVerifier) VerifySessionToken(_ context.Context, token string) (*auth.ActiveSession, error) {
 	f.calls.Add(1)
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -41,7 +42,7 @@ func (f *fakeSessionVerifier) VerifySessionToken(token string) (*auth.ActiveSess
 	return active, nil
 }
 
-func (f *fakeSessionVerifier) TouchSessionLastSeen(tokenHash string) error {
+func (f *fakeSessionVerifier) TouchSessionLastSeen(_ context.Context, tokenHash string) error {
 	f.touches.Add(1)
 	return f.touchErr
 }

@@ -33,7 +33,7 @@ type LoginAPI interface {
 	ExchangeBrowserLogin(ctx context.Context, state, code string, sealed []byte) (auth.LoginBrowserResult, error)
 	LoginWithKey(ctx context.Context, key string) (auth.LoginSessionGrant, error)
 	Logout(ctx context.Context, token string) error
-	VerifySessionToken(token string) (*auth.ActiveSession, error)
+	VerifySessionToken(ctx context.Context, token string) (*auth.ActiveSession, error)
 }
 
 // Handlers bundles the /account/v1 auth handlers over one LoginAPI. The
@@ -208,7 +208,7 @@ func (h *Handlers) me(c *gin.Context) {
 		c.JSON(http.StatusOK, meResponse{Authenticated: false})
 		return
 	}
-	session, err := h.svc.VerifySessionToken(cookie)
+	session, err := h.svc.VerifySessionToken(c.Request.Context(), cookie)
 	if err != nil {
 		if !errors.Is(err, auth.ErrSessionNotFound) {
 			observability.FromGin(c).Error("Account session verify errored", "err", err)

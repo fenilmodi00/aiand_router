@@ -84,7 +84,7 @@ func TestLoginWithKey_ReprovisionsAfterDisconnect(t *testing.T) {
 	// live, distinct session on the same account.
 	assert.NotEqual(t, first.Token, second.Token)
 	assert.Equal(t, accountID, second.Account.ID)
-	active, err := f.svc.VerifySessionToken(second.Token)
+	active, err := f.svc.VerifySessionToken(t.Context(), second.Token)
 	require.NoError(t, err)
 	assert.Equal(t, accountID, active.Session.AccountID)
 	assert.Equal(t, installationID, second.Account.InstallationID,

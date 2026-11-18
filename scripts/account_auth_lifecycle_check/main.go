@@ -307,7 +307,7 @@ func checkDeviceFlow(ctx context.Context, pool *pgxpool.Pool, t *testAccount) er
 	if outcome.Status != auth.AiandPollStatusAuthorized || outcome.Session == nil {
 		return fmt.Errorf("second poll status = %s, want authorized with a session", outcome.Status)
 	}
-	active, err := svc.VerifySessionToken(outcome.Session.Token)
+	active, err := svc.VerifySessionToken(ctx, outcome.Session.Token)
 	if err != nil {
 		return fmt.Errorf("verify minted session: %w", err)
 	}
@@ -382,7 +382,7 @@ func checkBrowserLogin(ctx context.Context, pool *pgxpool.Pool, t *testAccount) 
 	if result.Grant == nil {
 		return errors.New("browser exchange returned no session grant")
 	}
-	active, err := svc.VerifySessionToken(result.Grant.Token)
+	active, err := svc.VerifySessionToken(ctx, result.Grant.Token)
 	if err != nil {
 		return fmt.Errorf("verify browser session: %w", err)
 	}
@@ -751,7 +751,7 @@ func checkBrowserFlow(ctx context.Context, pool *pgxpool.Pool, t *testAccount) e
 	if result.Grant == nil || result.Email != gw.email || result.Next != "/dashboard" {
 		return fmt.Errorf("browser exchange result incomplete: grant=%v email=%q", result.Grant != nil, result.Email)
 	}
-	active, err := svc.VerifySessionToken(result.Grant.Token)
+	active, err := svc.VerifySessionToken(ctx, result.Grant.Token)
 	if err != nil {
 		return fmt.Errorf("verify browser-minted session: %w", err)
 	}

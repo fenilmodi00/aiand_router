@@ -185,10 +185,10 @@ func (loginFake) ExchangeBrowserLogin(context.Context, string, string, []byte) (
 	return auth.LoginBrowserResult{}, nil
 }
 func (loginFake) Logout(context.Context, string) error { return nil }
-func (loginFake) VerifySessionToken(string) (*auth.ActiveSession, error) {
+func (loginFake) VerifySessionToken(context.Context, string) (*auth.ActiveSession, error) {
 	return nil, nil
 }
-func (loginFake) TouchSessionLastSeen(string) error { return nil }
+func (loginFake) TouchSessionLastSeen(context.Context, string) error { return nil }
 
 // The export is a product surface, so it must reach managed installations too
 // — mounting it inside the selfhosted block would strand every managed customer.
