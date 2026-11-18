@@ -2290,9 +2290,7 @@ func (s *Service) hmmCostGatedDecision(
 	if !ok {
 		return fresh, planner.Decision{Outcome: planner.OutcomeSwitch, Reason: planner.ReasonNoPin}, false, ""
 	}
-	if hmmToolExecutionPhaseChanged(stayPin.Reason, fresh.Reason) {
-		return fresh, planner.Decision{Outcome: planner.OutcomeSwitch, Reason: hmmReasonPhaseChange}, false, stayPin.Model
-	}
+	phaseChanged := hmmToolExecutionPhaseChanged(stayPin.Reason, fresh.Reason)
 
 	cfg := s.planner
 	// HMM owns semantic selection; the shared Go planner owns cache economics
@@ -2310,7 +2308,11 @@ func (s *Service) hmmCostGatedDecision(
 		PinCacheCold:          pinCacheCold(stayPin, prefixBroken),
 	}, cfg)
 
-	if hmmFreshIsMoreExpensive(stayPin.Model, fresh.Model, estimatedInputTokens) {
+	freshIsMoreExpensive := hmmFreshIsMoreExpensive(stayPin.Model, fresh.Model, estimatedInputTokens)
+	if phaseChanged && freshIsMoreExpensive {
+		base.Outcome = planner.OutcomeSwitch
+		base.Reason = hmmReasonPhaseChange
+	} else if freshIsMoreExpensive {
 		confidence, ok := hmmDecisionConfidence(fresh)
 		if ok && confidence >= s.hmmUpgradeConfidenceThreshold {
 			base.Outcome = planner.OutcomeSwitch
@@ -2329,6 +2331,10 @@ func (s *Service) hmmCostGatedDecision(
 			base.Outcome = planner.OutcomeStay
 			base.Reason = planner.ReasonSameTierPinned
 		}
+	}
+
+	if phaseChanged && base.Outcome == planner.OutcomeSwitch && base.Reason == planner.ReasonEVPositive {
+		base.Reason = hmmReasonPhaseChange
 	}
 
 	if base.Outcome == planner.OutcomeStay && stayPin.Model != fresh.Model {
@@ -2366,9 +2372,11 @@ func (s *Service) authorityCacheShadowFor(
 	// consults the clock and a concurrently expiring pin must not pair a stale
 	// binding with the model the gate actually priced.
 	stayProvider := activePin.Provider
+	stayIdentity := stayModel
 	stayPin, stayPinOK := s.hmmStayPin(req, activePin, hmmHistory)
 	if stayPinOK && stayPin.Model == stayModel {
 		stayProvider = stayPin.Provider
+		stayIdentity = pinDecision(stayPin).ServedIdentity()
 	}
 	freshRosterArmID := ""
 	if fresh.Metadata != nil {
@@ -2379,7 +2387,7 @@ func (s *Service) authorityCacheShadowFor(
 		Decision:   plannerDecision,
 		StayModel:  stayModel,
 		Sticky:     sticky,
-		StayScore:  candidateScoreForWithProvider(fresh, stayModel, stayProvider),
+		StayScore:  candidateScoreForWithProvider(fresh, stayIdentity, stayProvider),
 		FreshScore: candidateScoreForWithArm(fresh, fresh.ServedIdentity(), fresh.Provider, freshRosterArmID),
 	}
 	if stayPinOK && stayPin.Model == stayModel {
@@ -2532,10 +2540,11 @@ func hmmToolExecutionPhaseChanged(stayReason, freshReason string) bool {
 }
 
 func (s *Service) normalizeHMMStayPin(req router.Request, p sessionpin.Pin) (sessionpin.Pin, bool) {
-	model := p.LastServedModel
-	if model == "" {
-		model = p.Model
+	served := p.LastServedModel
+	if served == "" {
+		served = p.Model
 	}
+	effort, model := stripEffortSuffix(served)
 	if model == "" {
 		return sessionpin.Pin{}, false
 	}
@@ -2566,6 +2575,9 @@ func (s *Service) normalizeHMMStayPin(req router.Request, p sessionpin.Pin) (ses
 		return sessionpin.Pin{}, false
 	}
 	p.Model = model
+	if effort != "" {
+		p.Effort = effort
+	}
 	providerSet := req.EnabledProviders
 	if providerSet == nil {
 		providerSet = s.clients.NameSet()
