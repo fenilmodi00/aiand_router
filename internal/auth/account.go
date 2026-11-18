@@ -102,9 +102,9 @@ const LoginSessionTTL = 7 * 24 * time.Hour
 type SessionVerifier interface {
 	// VerifySessionToken resolves a live (unrevoked, unexpired,
 	// non-deleted account) session; ErrSessionNotFound otherwise.
-	VerifySessionToken(token string) (*ActiveSession, error)
+	VerifySessionToken(ctx context.Context, token string) (*ActiveSession, error)
 	// TouchSessionLastSeen slides the window of a live session to now + TTL.
-	TouchSessionLastSeen(tokenHash string) error
+	TouchSessionLastSeen(ctx context.Context, tokenHash string) error
 }
 
 // sessionTokenBytes is the raw entropy of one opaque cookie token: 32 random

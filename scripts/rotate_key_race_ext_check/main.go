@@ -71,7 +71,7 @@ func main() {
 	}
 
 	fmt.Println("\n=== 3. HTTP-level rotate race (httptest + injected installation) ===")
-	if err := checkHTTPRotateRace(ctx, pool); err != nil {
+	if err := checkHTTPRotateRace(ctx, newHTTPRotateRace(pool)); err != nil {
 		fail("http rotate race", err)
 	}
 
@@ -328,25 +328,52 @@ func (r *signalListRepo) SoftDelete(ctx context.Context, installationID, id stri
 // 3. HTTP-level race
 // ---------------------------------------------------------------------------
 
-func checkHTTPRotateRace(ctx context.Context, pool *pgxpool.Pool) error {
+// httpRotateRace is the gin harness for checkHTTPRotateRace. It is built
+// outside any ctx-scoped function because gin handlers derive their context
+// from each request rather than from the caller.
+type httpRotateRace struct {
+	n       int
+	repo    *postgres.Repository
+	svc     *auth.Service
+	install *auth.Installation
+	engine  *gin.Engine
+}
+
+func newHTTPRotateRace(pool *pgxpool.Pool) *httpRotateRace {
 	const n = 5
 
 	repo := postgres.NewRepository(pool, auth.NoOpEncryptor{})
 	hold := newListHold(n)
-	svc := auth.NewService(
-		repo.Installations,
-		&holdingAPIKeyRepo{inner: repo.APIKeys, hold: hold},
-		repo.ExternalAPIKeys,
-		repo.Users,
-		auth.NoOpAPIKeyCache{},
-		nil,
-		time.Now,
-	)
-
+	race := &httpRotateRace{
+		n:    n,
+		repo: repo,
+		svc: auth.NewService(
+			repo.Installations,
+			&holdingAPIKeyRepo{inner: repo.APIKeys, hold: hold},
+			repo.ExternalAPIKeys,
+			repo.Users,
+			auth.NoOpAPIKeyCache{},
+			nil,
+			time.Now,
+		),
+	}
 	// Admin-session auth is out of scope for this script (decoupled in
-	// issue #115): create the installation row directly and inject it the
-	// same way WithAuth would, so the handler resolves its owner without
-	// any admin-session machinery.
+	// issue #115): checkHTTPRotateRace creates the installation row directly
+	// and injects it the same way WithAuth would, so the handler resolves its
+	// owner without any admin-session machinery.
+	engine := gin.New()
+	injectInstallation := func(c *gin.Context) {
+		c.Set("router_installation", race.install)
+	}
+	mgmt := engine.Group("/admin/v1", injectInstallation)
+	mgmt.POST("/keys/:id/rotate", admin.RotateAPIKeyHandler(race.svc))
+	race.engine = engine
+	return race
+}
+
+func checkHTTPRotateRace(ctx context.Context, race *httpRotateRace) error {
+	n, repo, svc, engine := race.n, race.repo, race.svc, race.engine
+
 	install, err := repo.Installations.Create(ctx, auth.CreateInstallationParams{
 		ExternalID: "org_rot_http_" + uuid.NewString()[:8],
 		Name:       fmt.Sprintf("rotate http race N=%d", n),
@@ -354,19 +381,13 @@ func checkHTTPRotateRace(ctx context.Context, pool *pgxpool.Pool) error {
 	if err != nil {
 		return fmt.Errorf("create installation: %w", err)
 	}
+	race.install = install
 	name := "http-race-key-" + uuid.NewString()[:8]
 	issued, _, err := svc.IssueAPIKey(ctx, install.ID, &name, nil)
 	if err != nil {
 		return fmt.Errorf("issue key: %w", err)
 	}
 	fmt.Printf("method=httptest+injected-installation installation_id=%s initial_key_id=%s\n", install.ID, issued.ID)
-
-	engine := gin.New()
-	injectInstallation := func(c *gin.Context) {
-		c.Set("router_installation", install)
-	}
-	mgmt := engine.Group("/admin/v1", injectInstallation)
-	mgmt.POST("/keys/:id/rotate", admin.RotateAPIKeyHandler(svc))
 
 	var (
 		ready    sync.WaitGroup

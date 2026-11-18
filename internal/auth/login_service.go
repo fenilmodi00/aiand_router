@@ -532,14 +532,14 @@ func (s *LoginService) Logout(ctx context.Context, token string) error {
 // VerifySessionToken resolves a live session (and its account + installation)
 // by cookie token. ErrSessionNotFound for unknown, expired, or revoked
 // tokens, and for soft-deleted accounts.
-func (s *LoginService) VerifySessionToken(token string) (*ActiveSession, error) {
-	return s.sessions.GetActiveSessionByTokenHash(context.Background(), GetActiveSessionParams{TokenHash: HashAPIKeySHA256(token)})
+func (s *LoginService) VerifySessionToken(ctx context.Context, token string) (*ActiveSession, error) {
+	return s.sessions.GetActiveSessionByTokenHash(ctx, GetActiveSessionParams{TokenHash: HashAPIKeySHA256(token)})
 }
 
 // TouchSessionLastSeen slides the window of a live session to now + TTL; a
 // no-op for revoked or expired sessions.
-func (s *LoginService) TouchSessionLastSeen(tokenHash string) error {
-	return s.sessions.TouchSessionLastSeen(context.Background(), TouchSessionParams{
+func (s *LoginService) TouchSessionLastSeen(ctx context.Context, tokenHash string) error {
+	return s.sessions.TouchSessionLastSeen(ctx, TouchSessionParams{
 		TokenHash: tokenHash,
 		ExpiresAt: s.now().Add(LoginSessionTTL),
 	})

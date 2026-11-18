@@ -146,13 +146,6 @@ func (u *UsageExtractor) ReasoningTokens() int {
 	return u.extractor.ReasoningTokens()
 }
 
-func (u *UsageExtractor) AnthropicResponse() (string, int, bool) {
-	if u == nil {
-		return "", 0, false
-	}
-	return u.extractor.AnthropicResponse()
-}
-
 func (u *UsageExtractor) OpenAIChatResponse() (string, int, bool) {
 	if u == nil {
 		return "", 0, false

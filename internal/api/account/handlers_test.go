@@ -114,7 +114,7 @@ func (f *fakeLoginAPI) Logout(_ context.Context, token string) error {
 	return f.logoutErr
 }
 
-func (f *fakeLoginAPI) VerifySessionToken(string) (*auth.ActiveSession, error) {
+func (f *fakeLoginAPI) VerifySessionToken(context.Context, string) (*auth.ActiveSession, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.verifyCalls++

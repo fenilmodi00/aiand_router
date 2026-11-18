@@ -53,9 +53,7 @@ func TestToAiandCredential_MapsRowAndKeepsCiphertextSealed(t *testing.T) {
 }
 
 // errRowStub answers every QueryRow with a fixed error.
-type errRowStub struct {
-	err error
-}
+type errRowStub struct{}
 
 func (*errRowStub) Exec(context.Context, string, ...interface{}) (pgconn.CommandTag, error) {
 	return pgconn.CommandTag{}, errors.New("unexpected Exec")

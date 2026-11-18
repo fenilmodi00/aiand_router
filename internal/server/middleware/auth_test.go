@@ -93,12 +93,6 @@ func (f *fakeAPIKeyRepository) SoftDelete(ctx context.Context, installationID, i
 
 type fakeInstallationRepository struct{}
 
-type failingCredentialSubjectLookup struct{ err error }
-
-func (r failingCredentialSubjectLookup) GetCredentialSubject(context.Context, string, string) (*auth.CredentialSubject, error) {
-	return nil, r.err
-}
-
 func (fakeInstallationRepository) Create(ctx context.Context, params auth.CreateInstallationParams) (*auth.Installation, error) {
 	return nil, errors.New("not used")
 }

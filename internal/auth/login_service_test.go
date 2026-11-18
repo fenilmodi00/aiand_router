@@ -48,11 +48,9 @@ type loginFakeGateway struct {
 	verified       []string
 
 	authorizeParams []auth.AiandAuthorizeParams
-	authorizeURLs   []string
 	preflighted     []string
 	preflightErr    error
 	exchanged       []auth.AiandCodeExchangeParams
-	exchangeToken   auth.AiandTokenResponse
 	exchangeErr     error
 }
 
@@ -622,9 +620,6 @@ func pollAuthorized(t *testing.T, f *loginFixture, loginID string) auth.LoginPol
 	return outcome
 }
 
-// deviceTestIdentity is the gateway identity the fakes resolve.
-var deviceTestIdentity = auth.AiandIdentity{UserID: "user-1", OrgID: "org-1", Email: "ops@example.com", OrgName: "Example Org"}
-
 // --- tests ----------------------------------------------------------------
 
 // TestStartDeviceLogin_SealsAttemptWithAttemptIDDerivedAAD drives the start
@@ -875,7 +870,7 @@ func TestPollDeviceLogin_ConcurrentSameIdentityConverges(t *testing.T) {
 
 	// Both sessions valid against the shared account.
 	for _, grant := range []*auth.LoginSessionGrant{firstOutcome.Session, secondOutcome.Session} {
-		active, err := f.svc.VerifySessionToken(grant.Token)
+		active, err := f.svc.VerifySessionToken(t.Context(), grant.Token)
 		require.NoError(t, err)
 		assert.Equal(t, winnerAccount.ID, active.Session.AccountID)
 	}
@@ -998,19 +993,19 @@ func TestLogout_RevokesAndVerificationFails(t *testing.T) {
 	outcome := pollAuthorized(t, f, start.LoginID)
 	token := outcome.Session.Token
 
-	active, err := f.svc.VerifySessionToken(token)
+	active, err := f.svc.VerifySessionToken(t.Context(), token)
 	require.NoError(t, err)
 	assert.Equal(t, outcome.Session.Account.ID, active.Session.AccountID)
 
 	require.NoError(t, f.svc.Logout(context.Background(), token))
-	_, err = f.svc.VerifySessionToken(token)
+	_, err = f.svc.VerifySessionToken(t.Context(), token)
 	assert.ErrorIs(t, err, auth.ErrSessionNotFound, "a revoked session must stop resolving")
 
 	// Idempotent: revoking twice is not an error.
 	require.NoError(t, f.svc.Logout(context.Background(), token))
 
 	// Unknown token fails closed.
-	_, err = f.svc.VerifySessionToken("no-such-token")
+	_, err = f.svc.VerifySessionToken(t.Context(), "no-such-token")
 	assert.ErrorIs(t, err, auth.ErrSessionNotFound)
 }
 
@@ -1021,7 +1016,7 @@ func TestLogout_RevokesAndVerificationFails(t *testing.T) {
 func TestVerifySessionToken_ExpiredSessionFails(t *testing.T) {
 	f := makeLoginService(t, authorizedGateway)
 	// A hash that never resolved.
-	_, err := f.svc.VerifySessionToken("expired-token")
+	_, err := f.svc.VerifySessionToken(t.Context(), "expired-token")
 	assert.ErrorIs(t, err, auth.ErrSessionNotFound)
 }
 

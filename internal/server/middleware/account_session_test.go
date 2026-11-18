@@ -1,6 +1,7 @@
 package middleware_test
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -30,7 +31,7 @@ type fakeSessionVerifier struct {
 	touchErr error
 }
 
-func (f *fakeSessionVerifier) VerifySessionToken(token string) (*auth.ActiveSession, error) {
+func (f *fakeSessionVerifier) VerifySessionToken(_ context.Context, token string) (*auth.ActiveSession, error) {
 	f.calls.Add(1)
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -41,7 +42,7 @@ func (f *fakeSessionVerifier) VerifySessionToken(token string) (*auth.ActiveSess
 	return active, nil
 }
 
-func (f *fakeSessionVerifier) TouchSessionLastSeen(tokenHash string) error {
+func (f *fakeSessionVerifier) TouchSessionLastSeen(_ context.Context, tokenHash string) error {
 	f.touches.Add(1)
 	return f.touchErr
 }
@@ -68,8 +69,6 @@ func newActiveSession(lastSeen time.Time) *auth.ActiveSession {
 		Installation: &auth.Installation{ID: "inst-1", ExternalID: "acct-1"},
 	}
 }
-
-func hashToken(token string) string { return auth.HashAPIKeySHA256(token) }
 
 func accountSessionEngine(verifier auth.SessionVerifier, cache middleware.AccountSessionCache) *gin.Engine {
 	gin.SetMode(gin.TestMode)

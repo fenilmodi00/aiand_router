@@ -153,7 +153,7 @@ func tryAccountSession(c *gin.Context, verifier auth.SessionVerifier, cache Acco
 	var active *auth.ActiveSession
 	active, cached := cache.Get(tokenHash)
 	if !cached {
-		active, err = verifier.VerifySessionToken(token)
+		active, err = verifier.VerifySessionToken(c.Request.Context(), token)
 		if err != nil {
 			observability.FromGin(c).Debug("Account session verify failed", "err", err)
 			return nil
@@ -184,7 +184,7 @@ func slideAccountSession(c *gin.Context, verifier auth.SessionVerifier, token, t
 	if seenAge < halfTTL {
 		return
 	}
-	if err := verifier.TouchSessionLastSeen(tokenHash); err != nil {
+	if err := verifier.TouchSessionLastSeen(c.Request.Context(), tokenHash); err != nil {
 		// A failed touch must not fail the request: the session is still
 		// live until its stored ExpiresAt; the next eligible request retries.
 		observability.FromGin(c).Error("Account session touch failed", "err", err, "session_id", session.ID)
