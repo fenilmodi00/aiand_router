@@ -8,6 +8,7 @@ import (
 	"aiand-os/router/internal/auth"
 	"aiand-os/router/internal/observability"
 	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/catalog"
 	"aiand-os/router/internal/router/cluster"
 
@@ -17,7 +18,7 @@ import (
 // DeployedModelsSource exposes the routable models the cluster scorer knows
 // about. Implemented by *cluster.Multiversion; tests can pass a fake.
 type DeployedModelsSource interface {
-	DefaultDeployedModels() []cluster.DeployedEntry
+	DefaultDeployedModels() []router.DeployedEntry
 }
 
 // ExclusionOverrideSource reports the deployment-wide ROUTER_EXCLUDED_MODELS
@@ -47,7 +48,7 @@ func deployedModelsDTO(models DeployedModelsSource) []deployedModelDTO {
 
 // entriesToDTO converts deployed entries to sorted DTO form, shared by the
 // cluster source and the HMM roster source so both wire shapes stay identical.
-func entriesToDTO(entries []cluster.DeployedEntry) []deployedModelDTO {
+func entriesToDTO(entries []router.DeployedEntry) []deployedModelDTO {
 	out := make([]deployedModelDTO, 0, len(entries))
 	for _, e := range entries {
 		out = append(out, catalog.NewModelListing(e.Model, e.Provider))

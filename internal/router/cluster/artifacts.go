@@ -14,6 +14,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/catalog"
 )
 
@@ -76,14 +77,8 @@ type rankingsFile struct {
 	Rankings map[string]map[string]float32 `json:"rankings"`
 }
 
-// DeployedEntry is one routable target: the model and the provider that
-// serves it. The registry's bench_column / proxy / proxy_note keys are
-// training-time provenance (which trained column a row's scores come from);
-// the runtime scores by model name, so they are parsed for validation only.
-type DeployedEntry struct {
-	Model    string `json:"model"`
-	Provider string `json:"provider"`
-}
+// DeployedEntry aliases router.DeployedEntry.
+type DeployedEntry = router.DeployedEntry
 
 // ModelRegistry is the deserialized model_registry.json.
 type ModelRegistry struct {
@@ -635,18 +630,16 @@ func CheapestModelInSet(registry *ModelRegistry, available, denySet, allowSet ma
 	return cheapestModelFiltered(registry, available, denySet, allowSet, RequestBindings{})
 }
 
-// RequestBindings carries a key's model_aliases (Custom).
-type RequestBindings struct {
-	Custom map[string][]string
-}
+// RequestBindings aliases router.RequestBindings.
+type RequestBindings = router.RequestBindings
 
-func (b RequestBindings) resolve(modelID, registryProvider string, available map[string]struct{}) string {
+func resolveBinding(b RequestBindings, modelID, registryProvider string, available map[string]struct{}) string {
 	return resolveProviderWithCustom(modelID, registryProvider, available, b.Custom)
 }
 
 // candidates returns the models these selectors may pick from: the bundle's
 // roster.
-func (b RequestBindings) candidates(registry *ModelRegistry) []DeployedEntry {
+func bindingCandidates(b RequestBindings, registry *ModelRegistry) []DeployedEntry {
 	return registry.DeployedModels
 }
 
@@ -663,8 +656,8 @@ func inputCostPer1K(model string) (float64, bool) {
 
 func cheapestModelFiltered(registry *ModelRegistry, available, denySet, allowSet map[string]struct{}, bindings RequestBindings) (provider, model string, ok bool) {
 	var bestCost float64 = -1
-	for _, e := range bindings.candidates(registry) {
-		resolved := bindings.resolve(e.Model, e.Provider, available)
+	for _, e := range bindingCandidates(bindings, registry) {
+		resolved := resolveBinding(bindings, e.Model, e.Provider, available)
 		if resolved == "" {
 			continue
 		}
@@ -703,8 +696,8 @@ func FastestModelInSet(registry *ModelRegistry, available, denySet, allowSet map
 	return cheapestModelFiltered(registry, available, denySet, allowSet, RequestBindings{})
 }
 
-// FastestModelForRequest is FastestModelInSet with RequestBindings so gateway-only
-// installations (which have no catalog binding) can reach their aliased models.
+// FastestModelForRequest is FastestModelInSet with RequestBindings so a
+// key's model_aliases participate in the fallback pick.
 func FastestModelForRequest(registry *ModelRegistry, available, denySet, allowSet map[string]struct{}, bindings RequestBindings) (provider, model string, ok bool) {
 	return cheapestModelFiltered(registry, available, denySet, allowSet, bindings)
 }

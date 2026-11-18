@@ -8,8 +8,6 @@ import (
 	"aiand-os/router/internal/observability"
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/catalog"
-	"aiand-os/router/internal/router/cluster"
-
 	"github.com/gin-gonic/gin"
 )
 
@@ -20,7 +18,7 @@ type CatalogModelsResponse = catalog.ModelListingResponse
 // HMMRosterSource exposes the HMM sidecar roster arms as catalog entries;
 // its roster differs from the cluster artifact's DeployedModelsSource.
 type HMMRosterSource interface {
-	HMMDeployedModels(ctx context.Context) ([]cluster.DeployedEntry, error)
+	HMMDeployedModels(ctx context.Context) ([]router.DeployedEntry, error)
 }
 
 // CatalogModelsHandler returns the deployed-models catalog for the caller's

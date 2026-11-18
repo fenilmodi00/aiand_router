@@ -13,9 +13,7 @@ import (
 	"aiand-os/router/internal/api/admin"
 	"aiand-os/router/internal/policyregistry"
 	"aiand-os/router/internal/router"
-	"aiand-os/router/internal/router/cluster"
-	"aiand-os/router/internal/router/hmm/rosterdata"
-)
+	"aiand-os/router/internal/router/hmm/rosterdata")
 
 func profileDistributionSnapshot(arm string) *policyregistry.Snapshot {
 	return &policyregistry.Snapshot{Candidate: policyregistry.Candidate{Policy: &rosterdata.Roster{
@@ -43,7 +41,7 @@ func TestAdmittedRoutingDistributionUsesEachRequestsPolicy(t *testing.T) {
 			engine.ServeHTTP(recorder, request)
 			require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
 			var response struct {
-				Points []cluster.DistributionPoint `json:"points"`
+				Points []router.DistributionPoint `json:"points"`
 			}
 			require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &response))
 			require.Len(t, response.Points, 2)
