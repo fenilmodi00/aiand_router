@@ -25,7 +25,8 @@ import (
 	"aiand-os/router/internal/router/llmescalation"
 	"aiand-os/router/internal/router/planner"
 	"aiand-os/router/internal/router/sessionpin"
-	"aiand-os/router/internal/telemetry")
+	"aiand-os/router/internal/telemetry"
+)
 
 func attrsByTelemetryKey(attrs []telemetry.Attr) map[string]telemetry.AttrValue {
 	out := make(map[string]telemetry.AttrValue, len(attrs))

@@ -13,7 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"aiand-os/router/internal/observability"
-	"aiand-os/router/internal/router")
+	"aiand-os/router/internal/router"
+)
 
 type stubRosterFetcher struct {
 	ids      []string

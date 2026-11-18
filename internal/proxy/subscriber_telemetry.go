@@ -7,7 +7,8 @@ import (
 	"aiand-os/router/internal/requestcontext"
 	"aiand-os/router/internal/router/catalog"
 	"aiand-os/router/internal/subscriptions/entitlement"
-	"aiand-os/router/internal/telemetry")
+	"aiand-os/router/internal/telemetry"
+)
 
 // applyServingTelemetry stamps the managed serving identity on every admitted turn.
 func applyServingTelemetry(ctx context.Context, telemetry *InsertTelemetryParams) {

@@ -450,7 +450,8 @@ func main() {
 	var hardPinResolver proxy.HardPinResolver
 	if !hardPinOverrideConfigured {
 		hardPinResolver = proxy.CatalogUtilityHardPin
-		logger.Info("Hard-pin resolver wired (per-request catalog utility target, applies excluded_models)", "default_model", policy.UtilityHardPinDefaultModel, "byok_only", byokOnly)	} else {
+		logger.Info("Hard-pin resolver wired (per-request catalog utility target, applies excluded_models)", "default_model", policy.UtilityHardPinDefaultModel, "byok_only", byokOnly)
+	} else {
 		logger.Info("Hard-pin resolver not wired: ROUTER_HARD_PIN_MODEL operator override is set and absolute by design", "model", hardPinModel)
 	}
 
@@ -666,7 +667,7 @@ func main() {
 	var compactionHandoverSz handover.Summarizer
 	if _, ok := providerMap[handoverProviderName]; ok {
 		ps := proxy.NewProviderSummarizer(inferencePlans, inferenceExecutor, handoverProviderName, handoverModel, handoverTimeout).
-				WithCompactionTimeout(compactionTimeout)
+			WithCompactionTimeout(compactionTimeout)
 		summarizer = ps
 		compactionHandoverSz = ps.CompactionHandover()
 		logger.Info("Handover summarizer wired", "provider", handoverProviderName, "model", handoverModel, "timeout_ms", handoverTimeout.Milliseconds(), "compaction_timeout_ms", compactionTimeout.Milliseconds())
@@ -1908,7 +1909,8 @@ func resolveHardPinModel() (provider, model string, resolutionErr error) {
 	if configuredProvider != "" {
 		return "", "", errors.New("ROUTER_HARD_PIN_PROVIDER requires ROUTER_HARD_PIN_MODEL")
 	}
-	return policy.UtilityHardPinDefaultProvider, policy.UtilityHardPinDefaultModel, nil}
+	return policy.UtilityHardPinDefaultProvider, policy.UtilityHardPinDefaultModel, nil
+}
 
 // envVarHint returns the env var name for a provider's API key, for log
 // warnings; falls back to a readable "unknown provider" string.

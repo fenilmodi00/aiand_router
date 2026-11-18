@@ -4,12 +4,12 @@ import (
 	"context"
 	"time"
 
-	"aiand-os/router/internal/telemetry"
 	"aiand-os/router/internal/requestcontext"
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/cache"
 	"aiand-os/router/internal/router/catalog"
 	"aiand-os/router/internal/subscriptions/entitlement"
+	"aiand-os/router/internal/telemetry"
 )
 
 type cacheMissReason string

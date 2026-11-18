@@ -5,7 +5,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"aiand-os/router/internal/telemetry")
+	"aiand-os/router/internal/telemetry"
+)
 
 func TestAttrBuilder_BuildsCorrectKeyValues(t *testing.T) {
 	b := telemetry.NewAttrBuilder(5)
