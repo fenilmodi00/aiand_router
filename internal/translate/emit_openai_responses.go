@@ -665,26 +665,7 @@ func writeResponsesFunctionTools(jw *jsonWriter, tools []responsesFunctionTool) 
 // Responses tool_choice shape.
 func writeResponsesToolChoiceFromAnthropic(jw *jsonWriter, body []byte) {
 	kind, name := anthropicToolChoice(body)
-	switch kind {
-	case toolChoiceAuto:
-		jw.Key("tool_choice")
-		jw.Str("auto")
-	case toolChoiceRequired:
-		jw.Key("tool_choice")
-		jw.Str("required")
-	case toolChoiceNone:
-		jw.Key("tool_choice")
-		jw.Str("none")
-	case toolChoiceNamed:
-		jw.Key("tool_choice")
-		jw.Obj()
-		jw.Key("type")
-		jw.Str("function")
-		jw.Key("name")
-		jw.Str(sanitizeResponsesToolAlias(name))
-		jw.EndObj()
-	case toolChoiceAbsent, toolChoiceUnrecognized:
-	}
+	writeResponsesToolChoice(jw, kind, name)
 }
 
 func joinNonEmpty(parts []string) string {

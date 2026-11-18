@@ -321,14 +321,20 @@ func stripOrphanedAnthropicToolResults(msgs []gjson.Result) ([]string, int) {
 // collectAnthropicToolUseIDs returns the set of tool_use IDs present in
 // assistant messages.
 func collectAnthropicToolUseIDs(msgs []gjson.Result) map[string]struct{} {
+	return collectAnthropicToolIDs(msgs, "assistant", "tool_use", "id")
+}
+
+// collectAnthropicToolIDs returns the ids of blockType blocks in messages
+// whose role matches, read from idField.
+func collectAnthropicToolIDs(msgs []gjson.Result, role, blockType, idField string) map[string]struct{} {
 	ids := make(map[string]struct{})
 	for _, m := range msgs {
-		if m.Get("role").String() != "assistant" {
+		if m.Get("role").String() != role {
 			continue
 		}
 		m.Get("content").ForEach(func(_, block gjson.Result) bool {
-			if block.Get("type").String() == "tool_use" {
-				if id := block.Get("id").String(); id != "" {
+			if block.Get("type").String() == blockType {
+				if id := block.Get(idField).String(); id != "" {
 					ids[id] = struct{}{}
 				}
 			}
@@ -538,21 +544,7 @@ func (e *RequestEnvelope) sanitizeOrphanedOpenAIToolCalls() int {
 // collectAnthropicToolResultIDs returns the set of tool_use_ids referenced by
 // tool_result blocks in user messages. Reverse of collectAnthropicToolUseIDs.
 func collectAnthropicToolResultIDs(msgs []gjson.Result) map[string]struct{} {
-	ids := make(map[string]struct{})
-	for _, m := range msgs {
-		if m.Get("role").String() != "user" {
-			continue
-		}
-		m.Get("content").ForEach(func(_, block gjson.Result) bool {
-			if block.Get("type").String() == "tool_result" {
-				if id := block.Get("tool_use_id").String(); id != "" {
-					ids[id] = struct{}{}
-				}
-			}
-			return true
-		})
-	}
-	return ids
+	return collectAnthropicToolIDs(msgs, "user", "tool_result", "tool_use_id")
 }
 
 // stripOrphanedAnthropicToolCalls removes tool_use content blocks from
