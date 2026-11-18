@@ -3069,25 +3069,20 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		}
 		translate.StripMessageThreadsBeta(r.Header)
 	}
-	ctx, returnErr = s.withClassifierInput(ctx, body, router.EndpointAnthropicMessages)
+	ctx, returnErr = withTurnInput(ctx, s, body, r.Header, router.EndpointAnthropicMessages)
 	if returnErr != nil {
 		return returnErr
 	}
-	ctx = requestcontext.WithContentLogging(ctx, s.effectiveCaptureMode(ctx) != CaptureOff)
 	ctx, body, err := s.parseHandoff(ctx, body)
 	if err != nil {
 		return err
 	}
-	ctx, err = s.checkUserMonthlySpendLimit(ctx)
+	ctx, turn, err := admitTurn(ctx, s, s.clock, r)
 	if err != nil {
 		return err
 	}
-	ctx = withTurnFailures(ctx)
-	ctx, rateLimit := s.withRateLimitTurn(ctx)
+	rateLimit, facts, requestStart := turn.rateLimit, turn.facts, turn.start
 	log := observability.FromContext(ctx)
-	requestStart := s.clock.Now()
-	facts := requestFactsFrom(ctx, r.Header)
-	ctx = telemetry.WithRecorder(ctx, s.newTelemetryRecorder())
 
 	// Strip the routing marker prior responses injected as assistant text —
 	// clients echo it back verbatim, so left in place it accumulates in
@@ -5740,21 +5735,16 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	w, finishBlindExperimentWriter := withBlindExperimentWriter(ctx, w, body)
 	defer finishBlindExperimentWriter()
 	ctx = s.withSubscriptionFundingAuthorization(ctx, r.Header)
-	ctx, returnErr = s.withClassifierInput(ctx, body, router.EndpointOpenAIChat)
+	ctx, returnErr = withTurnInput(ctx, s, body, r.Header, router.EndpointOpenAIChat)
 	if returnErr != nil {
 		return returnErr
 	}
-	ctx = requestcontext.WithContentLogging(ctx, s.effectiveCaptureMode(ctx) != CaptureOff)
-	ctx, err := s.checkUserMonthlySpendLimit(ctx)
+	ctx, turn, err := admitTurn(ctx, s, s.clock, r)
 	if err != nil {
 		return err
 	}
-	ctx = withTurnFailures(ctx)
-	ctx, rateLimit := s.withRateLimitTurn(ctx)
+	rateLimit, facts, requestStart := turn.rateLimit, turn.facts, turn.start
 	log := observability.FromContext(ctx)
-	requestStart := s.clock.Now()
-	facts := requestFactsFrom(ctx, r.Header)
-	ctx = telemetry.WithRecorder(ctx, s.newTelemetryRecorder())
 
 	ctx = withSubscriptionOnlyWarningEcho(ctx, body)
 	replayedModel := translate.LastAnnouncedMessagesModel(body)
