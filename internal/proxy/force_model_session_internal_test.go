@@ -25,24 +25,6 @@ type forceModelMapStore struct {
 	usageKeys  [][sessionpin.SessionKeyLen]byte
 }
 
-type recoveryForceModelMapStore struct {
-	*forceModelMapStore
-	attempted []string
-}
-
-func (s *recoveryForceModelMapStore) AcquireRecoveryProbe(_ context.Context, _ [sessionpin.SessionKeyLen]byte, model string, _ uuid.UUID, _ time.Duration) (bool, error) {
-	s.attempted = append(s.attempted, model)
-	return true, nil
-}
-
-func (*recoveryForceModelMapStore) ReleaseRecoveryProbe(context.Context, [sessionpin.SessionKeyLen]byte, string, uuid.UUID) error {
-	return nil
-}
-
-func (*recoveryForceModelMapStore) ClearDemotionCooldown(context.Context, [sessionpin.SessionKeyLen]byte, string, string, time.Time) error {
-	return nil
-}
-
 func newForceModelMapStore() *forceModelMapStore {
 	return &forceModelMapStore{pins: make(map[string]sessionpin.Pin)}
 }

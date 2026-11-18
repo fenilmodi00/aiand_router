@@ -413,12 +413,6 @@ func TestThrottleRetryDelay_RecordsHonouredRetryAfter(t *testing.T) {
 	assert.Contains(t, fields, int64(3_000))
 }
 
-func coolingPin(model string, cooldowns map[string]time.Time, demoted ...string) sessionpin.Pin {
-	pin := demotedPin(model, demoted...)
-	pin.DemotionCooldowns = cooldowns
-	return pin
-}
-
 func cooldownTurnLoopService(store sessionpin.Store, transient bool) (*Service, *authoritativeTestRouter) {
 	scorer := &authoritativeTestRouter{decision: router.Decision{
 		Provider: providers.ProviderAIAND,

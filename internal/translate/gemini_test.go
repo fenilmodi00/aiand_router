@@ -21,13 +21,6 @@ func mustUnmarshal(t *testing.T, b []byte) map[string]any {
 	return out
 }
 
-func must(t *testing.T, m map[string]any, k string) any {
-	t.Helper()
-	v, ok := m[k]
-	require.True(t, ok, "missing key %s", k)
-	return v
-}
-
 func TestIsIntrinsicallyIncompatible(t *testing.T) {
 	tests := []struct {
 		name string

@@ -16,7 +16,6 @@ import (
 	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/sessionpin"
-	"aiand-os/router/internal/translate"
 )
 
 const (
@@ -99,58 +98,6 @@ func newRescuedFailureTurnService(store sessionpin.Store, decision router.Decisi
 func rescuedFailureCtx() context.Context {
 	ctx := context.WithValue(context.Background(), APIKeyIDContextKey{}, "key-1")
 	return context.WithValue(ctx, InstallationIDContextKey{}, uuid.New().String())
-}
-
-// assertRescuedFailureStrikes checks that exactly the primary was struck, on
-// the turn's pin role and its HMM history row, and never the rescuer.
-func assertRescuedFailureStrikes(t *testing.T, demotions []demotionCall, wantDemoted bool, wantDemotionReason sessionpin.DemotionReason) {
-	t.Helper()
-	if !wantDemoted {
-		assert.Empty(t, demotions, "the primary must stay eligible")
-		return
-	}
-	require.Len(t, demotions, 2, "the strike must land on the pin row and its HMM history row")
-	assert.Equal(t, hmmHistoryRole(demotions[0].role), demotions[1].role)
-	if wantDemotionReason == "" {
-		wantDemotionReason = sessionpin.DemotionReasonRescuedFailure
-	}
-	for _, d := range demotions {
-		assert.Equal(t, rescuedPrimaryModel, d.model, "only the primary is struck, never the rescuer")
-		assert.Equal(t, wantDemotionReason, d.reason)
-	}
-}
-
-type rescuedFailureTurnCase struct {
-	name               string
-	flagOn             bool
-	withSibling        bool
-	primaryErr         error
-	siblingErr         error
-	reason             string
-	wantTurnErr        bool
-	wantDemoted        bool
-	wantDemotionReason sessionpin.DemotionReason
-}
-
-func rescuedFailureTurnCases(t *testing.T) []rescuedFailureTurnCase {
-	t.Helper()
-	upstream502 := &providers.UpstreamErrorResponse{Status: http.StatusBadGateway, Body: []byte(`{"error":{"type":"api_error","message":"bad gateway"}}`)}
-	overloaded := &providers.UpstreamErrorResponse{Status: providerOverloadedStatus, Body: []byte(`{"error":{"type":"overloaded_error","message":"Overloaded"}}`)}
-	notFound := &providers.UpstreamErrorResponse{Status: http.StatusNotFound, Body: []byte(`{"error":{"type":"not_found_error","message":"model: claude-opus-5"}}`)}
-	headerTimeout := responseHeaderTimeoutErr(t)
-	authoritative := "hmm:authoritative model=" + rescuedPrimaryModel
-	return []rescuedFailureTurnCase{
-		{name: "sibling serves after primary 502", flagOn: true, withSibling: true, primaryErr: upstream502, reason: authoritative, wantDemoted: true},
-		{name: "sibling also fails after primary 502", flagOn: true, withSibling: true, primaryErr: upstream502, siblingErr: upstream502, reason: authoritative, wantTurnErr: true, wantDemoted: true},
-		{name: "sibling serves after primary response header timeout", flagOn: true, withSibling: true, primaryErr: headerTimeout, reason: authoritative, wantDemoted: true, wantDemotionReason: sessionpin.DemotionReasonResponseHeaderTimeout},
-		{name: "sibling also fails after primary response header timeout", flagOn: true, withSibling: true, primaryErr: headerTimeout, siblingErr: upstream502, reason: authoritative, wantTurnErr: true, wantDemoted: true, wantDemotionReason: sessionpin.DemotionReasonResponseHeaderTimeout},
-		{name: "flag off", flagOn: false, withSibling: true, primaryErr: upstream502, reason: authoritative},
-		{name: "no sibling to rescue with", flagOn: true, withSibling: false, primaryErr: upstream502, reason: authoritative, wantTurnErr: true},
-		{name: "unrescued response header timeout", flagOn: true, withSibling: false, primaryErr: headerTimeout, reason: authoritative, wantTurnErr: true, wantDemoted: true, wantDemotionReason: sessionpin.DemotionReasonResponseHeaderTimeout},
-		{name: "primary overloaded 529", flagOn: true, withSibling: true, primaryErr: overloaded, reason: authoritative},
-		{name: "gateway lacks primary", flagOn: true, withSibling: true, primaryErr: notFound, reason: authoritative},
-		{name: "user forced primary", flagOn: true, withSibling: true, primaryErr: upstream502, reason: translate.ReasonUserForceModel, wantTurnErr: true},
-	}
 }
 
 func TestProxyMessages_UnrescuedIdleFailureDemotesPrimary(t *testing.T) {

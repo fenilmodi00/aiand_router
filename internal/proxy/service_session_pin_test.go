@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -209,17 +208,6 @@ func waitForUpsert(t *testing.T, store *fakePinStore) {
 	}
 }
 
-func assertOnlyHMMHistoryUpserts(t *testing.T, store *fakePinStore) {
-	t.Helper()
-	require.NotEmpty(t, store.upserts, "HMM turns should persist switch history")
-	for _, p := range store.upserts {
-		assert.True(t, strings.HasSuffix(p.Role, "_hmm_history"), "HMM must not write the active routing pin role")
-		assert.True(t, p.Reason == "hmm_history" || strings.HasPrefix(strings.TrimSpace(p.Reason), "hmm_policy"), "HMM history must retain an HMM marker")
-		assert.NotEmpty(t, p.Provider, "HMM history rows retain provider for cache TTL math")
-		assert.Empty(t, p.Model, "HMM history rows must not be routable")
-	}
-}
-
 func newPinSvc(fr *fakeRouter, store *fakePinStore) *proxy.Service {
 	return proxy.NewService(
 		fr,
@@ -271,13 +259,6 @@ const pinTestBody = `{
 	"model":"z-ai/glm-5.3",
 	"system":"sys",
 	"messages":[{"role":"user","content":"original prompt"}]
-}`
-
-const nativeWebSearchSubTurnBody = `{
-	"model":"z-ai/glm-5.3",
-	"tools":[{"type":"web_search_20250305","name":"web_search"}],
-	"tool_choice":{"type":"tool","name":"web_search"},
-	"messages":[{"role":"user","content":"Perform a web search for the query: git-ai latest release"}]
 }`
 
 // compactionBody triggers the compaction detector (§3.4).
@@ -614,36 +595,6 @@ func TestService_HardPin_OpenAI_SubAgentHeaderHintRoutesToHardPin(t *testing.T) 
 	assert.Equal(t, "gpt-4o-mini", rec.Header().Get(proxy.HeaderRouterModel))
 }
 
-// haikuClampBody requests haiku (Low); scorer returns opus (High) — router
-// honors the upgrade instead of downgrading to a cheap in-tier model.
-const haikuClampBody = `{
-	"model":"z-ai/glm-5.3-flash",
-	"system":"sys",
-	"messages":[{"role":"user","content":"summarize this"}]
-}`
-
-// buildCyclicLoopBody builds a wide re-read cycle (same files re-Read, no
-// edits) — enough to trip detectCyclicToolCallLoop.
-func buildCyclicLoopBody(t *testing.T, nFiles, total int) []byte {
-	t.Helper()
-	msgs := []any{map[string]any{"role": "user", "content": "do the task"}}
-	for i := 0; i < total; i++ {
-		id := "toolu_" + strconv.Itoa(i)
-		msgs = append(msgs,
-			map[string]any{"role": "assistant", "content": []any{
-				map[string]any{"type": "tool_use", "id": id, "name": "Read",
-					"input": map[string]any{"file_path": "/app/f" + strconv.Itoa(i%nFiles) + ".go"}},
-			}},
-			map[string]any{"role": "user", "content": []any{
-				map[string]any{"type": "tool_result", "tool_use_id": id, "content": "x"},
-			}},
-		)
-	}
-	b, err := json.Marshal(map[string]any{"model": "z-ai/glm-5.3", "max_tokens": 256, "messages": msgs})
-	require.NoError(t, err)
-	return b
-}
-
 // An unrecognized x-aiand-force-model value fails the request: routing on
 // regardless would serve a model the caller never asked for while looking to
 // them like the force took.
@@ -667,19 +618,4 @@ func TestService_ForceModelHeader_UnknownModelRejected(t *testing.T) {
 	store.mu.Lock()
 	defer store.mu.Unlock()
 	assert.Empty(t, store.upserts, "a refused force must not write any pin")
-}
-
-// authedCtxWithGatewayKey attaches an openai_gateway BYOK key, optionally
-// aliasing one catalog model onto it.
-func authedCtxWithGatewayKey(installationID, aliasedModel string) context.Context {
-	key := &auth.ExternalAPIKey{
-		InstallationID: installationID,
-		Provider:       providers.ProviderAIAND,
-		Plaintext:      []byte("gw-token"),
-		BaseURL:        "https://gateway.example.com/v1",
-	}
-	if aliasedModel != "" {
-		key.ModelAliases = map[string]string{aliasedModel: aliasedModel}
-	}
-	return context.WithValue(authedCtx(installationID), proxy.ExternalAPIKeysContextKey{}, []*auth.ExternalAPIKey{key})
 }

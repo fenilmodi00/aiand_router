@@ -21,20 +21,6 @@ func escalationCompletionContext() context.Context {
 	return context.WithValue(ctx, APIKeyIDContextKey{}, "completion-test-key")
 }
 
-type escalationFinalizeFailureWriter struct {
-	*httptest.ResponseRecorder
-	writeErr    error
-	beforeWrite func()
-}
-
-func (w *escalationFinalizeFailureWriter) Write(body []byte) (int, error) {
-	w.beforeWrite()
-	if w.writeErr != nil {
-		return 0, w.writeErr
-	}
-	return w.ResponseRecorder.Write(body)
-}
-
 func TestEscalationTurnsBypassPopulatedSemanticCache(t *testing.T) {
 	for _, tc := range []struct {
 		name   string

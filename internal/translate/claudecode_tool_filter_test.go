@@ -44,33 +44,6 @@ func emittedToolNames(t *testing.T, body []byte) []string {
 	return out
 }
 
-// emittedGeminiToolNames extracts function-declaration names from an emitted
-// Gemini request body.
-func emittedGeminiToolNames(t *testing.T, body []byte) []string {
-	t.Helper()
-	var doc map[string]any
-	require.NoError(t, json.Unmarshal(body, &doc))
-	tools, _ := doc["tools"].([]any)
-	var out []string
-	for _, t := range tools {
-		tool, _ := t.(map[string]any)
-		if tool == nil {
-			continue
-		}
-		decls, _ := tool["functionDeclarations"].([]any)
-		for _, d := range decls {
-			decl, _ := d.(map[string]any)
-			if decl == nil {
-				continue
-			}
-			if name, _ := decl["name"].(string); name != "" {
-				out = append(out, name)
-			}
-		}
-	}
-	return out
-}
-
 // emittedResponsesToolNames extracts flat function-tool names from an OpenAI
 // Responses request body.
 func emittedResponsesToolNames(t *testing.T, body []byte) []string {

@@ -21,13 +21,6 @@ const (
 )
 
 var (
-	anthropicCutFrames = []string{
-		"event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\",\"model\":\"claude-opus-4-8\",\"usage\":{\"input_tokens\":1,\"output_tokens\":0}}}\n\n",
-		"event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"a\"}}\n\n",
-	}
-	anthropicCompleteFrames = append(append([]string{}, anthropicCutFrames...),
-		"event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n")
-
 	chatCutFrames = []string{
 		`data: {"id":"c1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":"partial"},"finish_reason":null}]}` + "\n\n",
 	}
