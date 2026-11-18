@@ -24,7 +24,7 @@ const recoveryOpusModel = "z-ai/glm-5.3"
 func TestLocalRecoveryProbeLeaseExpires(t *testing.T) {
 	svc, _ := cooldownTurnLoopService(&rolePinStore{byRole: map[string]sessionpin.Pin{}}, true)
 	now := rateLimitTestNow
-	svc.now = func() time.Time { return now }
+	svc.clock = func() time.Time { return now }
 	key := nonZeroSessionKey()
 
 	_, acquired := svc.acquireRecoveryProbe(context.Background(), key, recoveryOpusModel)

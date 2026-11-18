@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"context"
-	"time"
 
 	"aiand-os/router/internal/requestcontext"
 	"aiand-os/router/internal/router"
@@ -89,7 +88,7 @@ func (s *Service) semanticCacheStoreAllowed(ctx context.Context, provenance cach
 // recordSemanticCacheMiss exports aggregate activity without replay identities.
 func (s *Service) recordSemanticCacheMiss(ctx context.Context) {
 	stats := s.semanticCache.Stats()
-	now := time.Now()
+	now := s.clock.Now()
 	telemetry.Record(ctx, telemetry.Span{
 		Name: "router.cache_miss", Start: now, End: now,
 		Attrs: telemetry.NewAttrBuilder(6).

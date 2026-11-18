@@ -46,7 +46,7 @@ var rateLimitTestNow = time.Date(2026, 9, 18, 12, 0, 0, 0, time.UTC)
 
 func newRateLimitTestService(store sessionpin.Store, transient bool, cooldownSeconds int) *Service {
 	svc := newRescuedDemotionTestService(store, true).WithTransientRateLimit(transient, cooldownSeconds)
-	svc.now = func() time.Time { return rateLimitTestNow }
+	svc.clock = func() time.Time { return rateLimitTestNow }
 	return svc
 }
 
@@ -428,6 +428,6 @@ func cooldownTurnLoopService(store sessionpin.Store, transient bool) (*Service, 
 	svc := NewService(scorer, nil, nil, false, nil, store, false,
 		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 		WithTransientRateLimit(transient, 45)
-	svc.now = func() time.Time { return rateLimitTestNow }
+	svc.clock = func() time.Time { return rateLimitTestNow }
 	return svc, scorer
 }

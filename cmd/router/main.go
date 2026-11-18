@@ -1038,7 +1038,7 @@ func main() {
 	servedModels := routingTargets
 
 	proxySvc := proxy.NewService(routeEntry, providerMap, telemetryEmitter, embedOnlyUser, semanticCache, pinStore, hardPinExplore, hardPinProvider, hardPinModel, repo.Telemetry).
-		WithTranslationMetrics(otel.NewTranslationMetrics()).
+		WithClock(time.Now).WithTranslationMetrics(otel.NewTranslationMetrics()).
 		WithExternalKeyUsageRecorder(authSvc).
 		WithSessionStrategyStore(sessionStrategyStore).
 		WithSessionTurnClock(sessionTurnClock).

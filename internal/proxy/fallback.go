@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"aiand-os/router/internal/auth"
 	"aiand-os/router/internal/inference"
 	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/router"
@@ -301,13 +302,9 @@ func committed(b *preludeBuffer) bool {
 // header/stream watchdogs and the caller own inference lifetime.
 const subscriptionRotationBudget = 10 * time.Second
 
-// clockNow reads the current time through the injectable clock, falling back
-// to time.Now when no fake is wired.
-func (s *Service) clockNow() time.Time {
-	if s.now != nil {
-		return s.now()
-	}
-	return time.Now()
+func (s *Service) WithClock(clock auth.Clock) *Service {
+	s.clock = clock
+	return s
 }
 
 // shouldFailover reports failover eligibility. Customer-supplied

@@ -7,7 +7,6 @@ import (
 	"errors"
 	"net/http"
 	"strings"
-	"time"
 
 	"aiand-os/router/internal/auth"
 	"aiand-os/router/internal/observability"
@@ -202,7 +201,7 @@ func (s *Service) handleRouterFeedbackCommand(
 		s.reportRouterFeedback(ctx, registered.feedback, strategy, externalID, installationID, sessionKey, role, routerUserID, clientID, env.Model(), servedModel, rating, feedback, cmd.SuggestedLabel, RouterFeedbackSourceUser, trainingDelta, telemetryRequestID, telemetryRouteID)
 	}
 
-	now := time.Now()
+	now := s.clock.Now()
 	attrs := telemetry.NewAttrBuilder(15).
 		String("external_id", externalID).
 		String("router_user_id", routerUserID).
