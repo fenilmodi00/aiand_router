@@ -4014,13 +4014,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 			subscriptionStateWinnerProvider: &subscriptionStateWinnerProvider,
 			alternatives:                    nil,
 			buildAlternative: func(target router.Decision) (dispatchAttempt, error) {
-				alternativeOpts := opts
-				alternativeOpts.TargetModel = target.Model
-				alternativeOpts.TargetProvider = target.Provider
-				alternativeOpts.Capabilities = router.Lookup(target.Model)
-				alternativeOpts.ModelSwitched = true
-				alternativeEffort := s.resolveEffort(ctx, target, alternativeOpts.Capabilities, routeRes.EscalateEffort)
-				alternativeEffort.apply(&alternativeOpts)
+				alternativeOpts, _ := switchedAttemptOptions(ctx, opts, target, routeRes.EscalateEffort, s.resolveEffort)
 				alternativeMarker := subscriptionTargetMarker(ctx, r.Header, routeRes, primaryDecision, target, pickedMarker)
 				return buildAttempt(target, alternativeOpts, alternativeMarker)
 			},
@@ -4072,13 +4066,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 				log:     log,
 				target:  earlyStopTarget,
 				build: func(target router.Decision) (dispatchAttempt, []catalog.ProviderBinding, string, effortResolution, context.Context, error) {
-					redoOpts := opts
-					redoOpts.TargetModel = target.Model
-					redoOpts.TargetProvider = target.Provider
-					redoOpts.Capabilities = router.Lookup(target.Model)
-					redoOpts.ModelSwitched = true
-					redoEffort := s.resolveEffort(ctx, target, redoOpts.Capabilities, routeRes.EscalateEffort)
-					redoEffort.apply(&redoOpts)
+					redoOpts, redoEffort := switchedAttemptOptions(ctx, opts, target, routeRes.EscalateEffort, s.resolveEffort)
 					redoCtx := s.resolveCredentials(subscriptionStatePaidRescueContext(ctx, target.Model), target.Provider, target.Model, r.Header)
 					redoMarker := suppressMarkerIfRequested(ctx, r.Header, modelSelectionMarkerForRequest(ctx, routeRes, siblingRoutingMarkerFor(routeRes, decision.Model, target.Model), target.Model, markerReasonEarlyStop))
 					redoAttempt, buildErr := buildAttempt(target, redoOpts, redoMarker)
@@ -4192,15 +4180,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 			if siblingRescueRan && (proxyErr == nil || preludeBuf.Committed() || ctx.Err() != nil) {
 				break
 			}
-			siblingOpts := opts
-			siblingOpts.TargetModel = siblingDecision.Model
-			siblingOpts.TargetProvider = siblingDecision.Provider
-			siblingOpts.Capabilities = router.Lookup(siblingDecision.Model)
-			// The turn now serves a model the session hasn't seen, so signed
-			// thinking blocks from the prior model must not be replayed verbatim.
-			siblingOpts.ModelSwitched = true
-			siblingEffort := s.resolveEffort(ctx, siblingDecision, siblingOpts.Capabilities, routeRes.EscalateEffort)
-			siblingEffort.apply(&siblingOpts)
+			siblingOpts, siblingEffort := switchedAttemptOptions(ctx, opts, siblingDecision, routeRes.EscalateEffort, s.resolveEffort)
 			siblingCtx := s.resolveCredentials(subscriptionStatePaidRescueContext(ctx, siblingDecision.Model), siblingDecision.Provider, siblingDecision.Model, r.Header)
 			siblingBindings := s.resolveBindingsForDispatch(siblingCtx, siblingDecision)
 			siblingMarker := siblingMarkerFor(ctx, r.Header, routeRes, decision.Model, siblingDecision.Model)
@@ -6350,7 +6330,9 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	// Responses entry point delegates the eager lifecycle and routing badge to
 	// this layer because it has the completed routing decision. Provider output
 	// remains separately buffered so retry and failover stay possible.
-	if rw, ok := w.(*translate.ResponsesWriter); ok {
+	responsesWriter, isResponses := w.(*translate.ResponsesWriter)
+	responseSwitch := responseProtocolSwitch{writer: responsesWriter}
+	if isResponses {
 		// A native OpenAI Responses route streams the original Responses
 		// bytes verbatim; cross-family routes stay in translation mode.
 		//
@@ -6363,17 +6345,14 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 			// marker already carries any funding warning when terminal
 			// surfaces are enabled.
 			// Parse native SSE when this client needs a badge and/or footer.
-			if supportsResponsesTerminalSurfaces(clientID.ClientApp) && (marker != "" || s.feedbackFooter(ctx, clientID.ClientApp, routeRes.TurnType, footerEchoed) != "") {
-				rw.SetPassthroughBadge()
-			} else {
-				rw.SetPassthrough()
-			}
+			responseSwitch.native(supportsResponsesTerminalSurfaces(clientID.ClientApp) &&
+				(marker != "" || s.feedbackFooter(ctx, clientID.ClientApp, routeRes.TurnType, footerEchoed) != ""))
 		}
 		if responsesPreludeWillEmit {
-			if err := rw.Prelude(true); err != nil {
+			if err := responsesWriter.Prelude(true); err != nil {
 				log.Error("Responses prelude failed", "err", err)
 			} else {
-				rw.Flush()
+				responsesWriter.Flush()
 				if err := responsesPreludeBuf.CommitPrelude(); err != nil {
 					return fmt.Errorf("commit Responses prelude: %w", err)
 				}
@@ -6389,7 +6368,6 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		sink = captureW
 	}
 
-	responsesWriter, isResponses := w.(*translate.ResponsesWriter)
 	makeMarkerSink := func(notice translate.RouterNotice) (http.ResponseWriter, error) {
 		if isResponses || verbatimPassthrough {
 			return sink, nil
@@ -6415,17 +6393,16 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	// than measured by a translator, so a count the router never computed stays
 	// unknown on the telemetry row.
 	nativeRespSummary := false
-	// buildAttempt composes the dispatch for one target model: same structure as
+	// buildProviderAttempt composes the dispatch for one target model: same structure as
 	// ProxyMessages', so a rescue on another model rebuilds the whole chain
 	// (emit, translator, marker) instead of reusing the failed model's.
 	//
 	// Dispatch keys off the provider's translation family, not a hardcoded name
 	// list, so a new OpenAI-compat provider routes here as soon as it has a
 	// ProviderFamilies entry (see internal/providers/provider.go).
-	buildAttempt := func(target router.Decision, targetOpts translate.EmitOptions, targetMarker string) (dispatchAttempt, error) {
+	buildProviderAttempt := func(target router.Decision, targetOpts translate.EmitOptions, targetMarker string) (dispatchAttempt, error) {
 		targetNotice := routerNoticeForRequest(ctx, r.Header, target.Model, targetMarker)
-		if rw, ok := w.(*translate.ResponsesWriter); ok {
-			rw.SetRoutedModel(target.Model)
+		if isResponses {
 			if targetMarker != "" && (!verbatimPassthrough || supportsResponsesTerminalSurfaces(clientID.ClientApp)) {
 				_, noticeErr := responsesNotices.prepare(r.Context(), responsesPreludeBuf, responsesPreludeBuf, translate.FormatOpenAIResponses, env.Stream(), targetNotice)
 				if noticeErr != nil {
@@ -6617,6 +6594,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		}
 	}
 
+	buildAttempt := responseSwitch.wrapBuilder(buildProviderAttempt)
 	attempt, attemptBuildErr := buildAttempt(decision, opts, marker)
 	if attemptBuildErr != nil {
 		finishInferenceSpan(inferenceSpan, decision, decision.Provider, -1, attemptBuildErr)
@@ -6684,13 +6662,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		subscriptionStateWinnerProvider: &subscriptionStateWinnerProvider,
 		alternatives:                    nil,
 		buildAlternative: func(target router.Decision) (dispatchAttempt, error) {
-			alternativeOpts := opts
-			alternativeOpts.TargetModel = target.Model
-			alternativeOpts.TargetProvider = target.Provider
-			alternativeOpts.Capabilities = router.Lookup(target.Model)
-			alternativeOpts.ModelSwitched = true
-			alternativeEffort := s.resolveEffort(ctx, target, alternativeOpts.Capabilities, routeRes.EscalateEffort)
-			alternativeEffort.apply(&alternativeOpts)
+			alternativeOpts, _ := switchedAttemptOptions(ctx, opts, target, routeRes.EscalateEffort, s.resolveEffort)
 			alternativeMarker := subscriptionTargetMarker(ctx, r.Header, routeRes, primaryDecision, target, pickedMarker)
 			return buildAttempt(target, alternativeOpts, alternativeMarker)
 		},
@@ -6765,13 +6737,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 			if siblingRescueRan && (proxyErr == nil || preludeBuf.Committed() || ctx.Err() != nil) {
 				break
 			}
-			siblingOpts := opts
-			siblingOpts.TargetModel = siblingDecision.Model
-			siblingOpts.TargetProvider = siblingDecision.Provider
-			siblingOpts.Capabilities = router.Lookup(siblingDecision.Model)
-			siblingOpts.ModelSwitched = true
-			siblingEffort := s.resolveEffort(ctx, siblingDecision, siblingOpts.Capabilities, routeRes.EscalateEffort)
-			siblingEffort.apply(&siblingOpts)
+			siblingOpts, siblingEffort := switchedAttemptOptions(ctx, opts, siblingDecision, routeRes.EscalateEffort, s.resolveEffort)
 			siblingCtx := s.resolveCredentials(subscriptionStatePaidRescueContext(ctx, siblingDecision.Model), siblingDecision.Provider, siblingDecision.Model, r.Header)
 			siblingBindings := s.resolveBindingsForDispatch(siblingCtx, siblingDecision)
 			siblingMarker := siblingMarkerFor(ctx, r.Header, routeRes, decision.Model, siblingDecision.Model)

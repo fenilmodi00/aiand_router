@@ -884,6 +884,10 @@ func (t *ResponsesWriter) SetPassthrough() {
 	t.passthrough = true
 }
 
+// Passthrough reports whether the writer forwards native Responses events
+// rather than translating Chat Completions chunks.
+func (t *ResponsesWriter) Passthrough() bool { return t.passthrough }
+
 // ClearPassthrough returns the writer to translation mode, reporting false
 // after provider output prevents a clean continuation. A visible synthetic
 // prelude remains valid and seeds the translated sequence and output indexes.
@@ -2471,7 +2475,7 @@ func (t *ResponsesWriter) emitFunctionArgsDelta(item *responsesToolItem, delta s
 
 func (t *ResponsesWriter) emitFunctionArgsDone(item *responsesToolItem) error {
 	if item.mapping.Custom {
-		input, err := customToolInput(item.call.Arguments)
+		input, err := truncationAwareCustomToolInput(item.call.Arguments, t.finishReason)
 		if err != nil {
 			return err
 		}
@@ -2496,7 +2500,7 @@ func (t *ResponsesWriter) emitFunctionArgsDone(item *responsesToolItem) error {
 
 func (t *ResponsesWriter) emitFunctionCallItemDone(item *responsesToolItem) error {
 	if item.mapping.Custom {
-		input, err := customToolInput(item.call.Arguments)
+		input, err := truncationAwareCustomToolInput(item.call.Arguments, t.finishReason)
 		if err != nil {
 			return err
 		}
@@ -2608,7 +2612,7 @@ func chatCompletionToResponse(body []byte, responseID, model string, createdAt i
 			item["namespace"] = mapping.Namespace
 		}
 		if mapping.Custom {
-			input, err := customToolInput(call.Arguments)
+			input, err := truncationAwareCustomToolInput(call.Arguments, root.Get("choices.0.finish_reason").Str)
 			if err != nil {
 				return nil, err
 			}
