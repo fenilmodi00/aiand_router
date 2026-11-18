@@ -26,13 +26,8 @@ func TestFundingNoticePolicyAndReplay(t *testing.T) {
 			assert.Equal(t, translate.NoticeFromRouter, notice.Provenance)
 			assert.Equal(t, model, notice.Model)
 			assert.Contains(t, notice.Text, "subscription-only mode")
-			if warning.reason == billing.SubscriptionOnlyCreditsDepleted {
-				assert.Contains(t, notice.Text, "credits are depleted")
-				assert.Contains(t, notice.Text, topUpURL)
-			} else {
-				assert.Contains(t, notice.Text, "spend cap has been reached")
-				assert.NotContains(t, notice.Text, topUpURL)
-			}
+			assert.Contains(t, notice.Text, "spend cap has been reached")
+			assert.NotContains(t, notice.Text, topUpURL)
 			rec := httptest.NewRecorder()
 			caps := translate.NoticeCapabilities{Format: translate.FormatOpenAIResponses, Streaming: true, Presentation: translate.NoticeText}
 			delivery := translate.NewNoticeDelivery(ctx, translate.NewProtocolNoticeSink(rec, caps), caps)

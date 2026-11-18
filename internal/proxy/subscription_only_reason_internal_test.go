@@ -22,7 +22,7 @@ func TestSubscriptionOnlyWarningsForReason(t *testing.T) {
 		"not subscription-only": {context.Background(), ""},
 		"credits depleted": {
 			billing.WithSubscriptionOnly(context.Background(), billing.SubscriptionOnlyCreditsDepleted),
-			subscriptionOnlyWarningMarker,
+			"",
 		},
 		"spend cap reached": {
 			billing.WithSubscriptionOnly(context.Background(), billing.SubscriptionOnlySpendCapReached),
@@ -67,10 +67,6 @@ func TestSubscriptionOnlyWarningShowsOncePerConversation(t *testing.T) {
 	shown := withSubscriptionOnlyWarningEcho(capCtx, shownBody)
 	assert.Empty(t, routerNoticeForRequest(shown, http.Header{}, "model", "").Text,
 		"a warning the conversation already shows must not repeat")
-
-	depleted := billing.WithSubscriptionOnly(shown, billing.SubscriptionOnlyCreditsDepleted)
-	assert.Equal(t, subscriptionOnlyWarningMarker, routerNoticeForRequest(depleted, http.Header{}, "model", "").Text,
-		"a changed reason is new information and must show")
 
 	delegated := withSubscriptionOnlyWarningEcho(shown, []byte(`{"messages":[{"role":"user","content":"stripped"}]}`))
 	assert.Empty(t, routerNoticeForRequest(delegated, http.Header{}, "model", "").Text,

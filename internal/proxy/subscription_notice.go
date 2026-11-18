@@ -63,17 +63,9 @@ func anthropicOAuthCredentialRejected(err error) bool {
 
 // topUpURL is the customer-facing page where org admins buy router credits.
 // Duplicated from middleware.TopUpURL (proxy can't import the middleware
-// adapter without an import cycle) so subscription-only warnings and the
-// credits-exhausted 402 can surface the CTA.
+// adapter without an import cycle) so the credits-exhausted 402 can surface
+// the CTA.
 const topUpURL = "https://app.workaiand.ai/organization/settings/aiand-router"
-
-// subscriptionOnlyWarningMarker is prepended to a subscription-only turn so the
-// customer sees why the router refused to fall back to a paid model and how to
-// restore full routing. The marker is emitted only when terminal surfaces are
-// enabled for the installation and request.
-const subscriptionOnlyWarningMarker = routingMarkerPrefix +
-	"your Aiand router credits are depleted, so this turn is running in subscription-only mode and paid model fallback is disabled. Add credits to restore full routing: " +
-	topUpURL + "\n\n"
 
 // subscriptionSpendCapWarningMarker is prepended to a subscription-only turn
 // a spend cap barred from paid capacity. The organization may still hold
@@ -88,8 +80,6 @@ type subscriptionFundingWarning struct {
 
 func (w subscriptionFundingWarning) text() string {
 	switch w.reason {
-	case billing.SubscriptionOnlyCreditsDepleted:
-		return subscriptionOnlyWarningMarker
 	case billing.SubscriptionOnlySpendCapReached:
 		return subscriptionSpendCapWarningMarker
 	default:
@@ -115,7 +105,6 @@ type subscriptionOnlyWarningsEchoedContextKey struct{}
 // the echo check covers each one. A warning missing from this list repeats on
 // every turn of the same conversation.
 var subscriptionFundingWarnings = []subscriptionFundingWarning{
-	{reason: billing.SubscriptionOnlyCreditsDepleted},
 	{reason: billing.SubscriptionOnlySpendCapReached},
 }
 
