@@ -162,7 +162,7 @@ func runAllowanceMiddlewareWithAuth(
 	})
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", nil)
 	if authHeader != "" {
 		req.Header.Set("Authorization", authHeader)
 	}
@@ -205,7 +205,7 @@ func TestWithSubscriberAllowance_ClaudeOAuthDoesNotRestrictNonSubscriber(t *test
 		c.Status(http.StatusOK)
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", nil)
 	req.Header.Set("Authorization", "Bearer sk-ant-oat-abc123")
 	engine.ServeHTTP(httptest.NewRecorder(), req)
 
@@ -304,7 +304,7 @@ func runSubscriberOrganizationBillingChain(
 	})
 
 	recorder := httptest.NewRecorder()
-	engine.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/v1/messages", nil))
+	engine.ServeHTTP(recorder, httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", nil))
 	return recorder, reached
 }
 
@@ -392,7 +392,7 @@ func TestWithSubscriberAllowance_ExhaustedServesOnOrganizationCredits(t *testing
 		c.Status(http.StatusOK)
 	})
 	w := httptest.NewRecorder()
-	engine.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/v1/messages", nil))
+	engine.ServeHTTP(w, httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", nil))
 
 	assert.True(t, reached, "a spent allowance falls back to organization credits")
 	assert.Equal(t, http.StatusOK, w.Code)
@@ -501,7 +501,7 @@ func TestWithSubscriberAllowance_ChargesTheResolvedCaller(t *testing.T) {
 		c.Status(http.StatusOK)
 	})
 
-	engine.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/v1/messages", nil))
+	engine.ServeHTTP(httptest.NewRecorder(), httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", nil))
 
 	assert.Equal(t, entitlement.SubscriberID(callerSubscriberID), metered)
 }

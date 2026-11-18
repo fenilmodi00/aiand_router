@@ -29,7 +29,7 @@ func TestDirectRoutingModelSelection(t *testing.T) {
 		{name: "unknown selector", method: http.MethodPost, path: "/v1/messages", body: `{"model":"aiand-unknown"}`},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			request := httptest.NewRequest(test.method, test.path, nil)
+			request := httptest.NewRequestWithContext(t.Context(), test.method, test.path, nil)
 			model, selectsRouter := directRoutingModel(request, []byte(test.body))
 			assert.Equal(t, test.model, model)
 			assert.Equal(t, test.selectsRouter, selectsRouter)

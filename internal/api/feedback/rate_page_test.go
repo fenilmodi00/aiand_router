@@ -18,7 +18,7 @@ func TestWoolyWaveHandler_ServesPNG(t *testing.T) {
 	engine.GET("/v1/feedback/assets/wooly-wave.png", feedbackapi.WoolyWaveHandler())
 
 	rec := httptest.NewRecorder()
-	engine.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/feedback/assets/wooly-wave.png", nil))
+	engine.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/feedback/assets/wooly-wave.png", nil))
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	assert.Equal(t, "image/png", rec.Header().Get("Content-Type"))
@@ -31,7 +31,7 @@ func TestAiandLogoHandler_ServesSVG(t *testing.T) {
 	engine.GET("/v1/feedback/assets/aiand.svg", feedbackapi.AiandLogoHandler())
 
 	rec := httptest.NewRecorder()
-	engine.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/feedback/assets/aiand.svg", nil))
+	engine.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/feedback/assets/aiand.svg", nil))
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	assert.Equal(t, "image/svg+xml", rec.Header().Get("Content-Type"))

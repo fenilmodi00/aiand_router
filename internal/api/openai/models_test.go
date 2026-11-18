@@ -32,7 +32,7 @@ func TestModelsHandler_CodexShapeByClientApp(t *testing.T) {
 				c.Status(http.StatusNoContent)
 			}))
 
-			req := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/models", nil)
 			if tc.xApp != "" {
 				req.Header.Set("X-App", tc.xApp)
 			}

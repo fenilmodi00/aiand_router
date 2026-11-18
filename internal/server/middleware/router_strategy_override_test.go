@@ -57,7 +57,7 @@ func runStrategyOverrideWithAvailability(
 		c.Status(http.StatusOK)
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/probe", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/probe", nil)
 	if header != "" {
 		req.Header.Set(middleware.RouterStrategyOverrideHeader, header)
 	}
@@ -114,7 +114,7 @@ func TestRouterStrategyOverride_UsesDeploymentDefaultWithoutInstallationOverride
 		c.Status(http.StatusOK)
 	})
 
-	request := httptest.NewRequest(http.MethodGet, "/probe", nil)
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/probe", nil)
 	engine.ServeHTTP(httptest.NewRecorder(), request)
 
 	assert.Equal(t, router.StrategyHMM, observed)
@@ -140,7 +140,7 @@ func TestRouterStrategyOverride_ExplicitClusterWinsOverDeploymentDefault(t *test
 		c.Status(http.StatusOK)
 	})
 
-	request := httptest.NewRequest(http.MethodGet, "/probe", nil)
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/probe", nil)
 	engine.ServeHTTP(httptest.NewRecorder(), request)
 
 	assert.Equal(t, router.StrategyCluster, observed)
@@ -235,7 +235,7 @@ func TestRouterStrategyOverride_DeploymentDefaultBetaClampsToCluster(t *testing.
 		c.Status(http.StatusOK)
 	})
 
-	engine.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/probe", nil))
+	engine.ServeHTTP(httptest.NewRecorder(), httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/probe", nil))
 
 	assert.Equal(t, router.StrategyCluster, observed, "beta cannot be activated by a deployment default")
 }
@@ -304,7 +304,7 @@ func probeStrategyOverride(t *testing.T, installation *auth.Installation, manage
 	})
 
 	response := httptest.NewRecorder()
-	engine.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/probe", nil))
+	engine.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/probe", nil))
 	probe.status = response.Code
 	probe.body = response.Body.String()
 	return probe

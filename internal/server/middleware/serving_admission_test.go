@@ -142,7 +142,7 @@ func admissionMiddlewareFixture(t *testing.T) (*ServingAdmissionConfig, policyre
 }
 
 func TestDirectConversationIDUsesAnthropicHandoffEnvelope(t *testing.T) {
-	request := httptest.NewRequest(http.MethodPost, "/v1/route/handoff", nil)
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/route/handoff", nil)
 	body := []byte(`{"user":"chat-session","metadata":{"user_id":"{\"session_id\":\"anthropic-session\"}"}}`)
 
 	assert.Equal(t, "anthropic-session", directConversationID(request, body))
@@ -154,7 +154,7 @@ func runAdmissionMiddleware(t *testing.T, cfg *ServingAdmissionConfig, assertion
 
 func runAdmissionMiddlewareWithBody(t *testing.T, cfg *ServingAdmissionConfig, assertion policyregistry.ServingAssertion, body string, handler gin.HandlerFunc) *httptest.ResponseRecorder {
 	t.Helper()
-	request := httptest.NewRequest(http.MethodPost, "/v1/messages?original=1", strings.NewReader(body))
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages?original=1", strings.NewReader(body))
 	request.Header.Set(auth.RouterKeyHeader, admissionTestCredential)
 	request.Header.Set(policyregistry.ServingAssertionHeader, "forged-client-assertion")
 	if assertion.TestPlan != nil {
@@ -203,7 +203,7 @@ func TestServingAdmissionFleetMismatchPreventsSnapshotLoad(t *testing.T) {
 }
 
 func TestServingAdmissionDisabledDoesNotReadBodyOrRequireDependencies(t *testing.T) {
-	request := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(admissionTestBody))
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", strings.NewReader(admissionTestBody))
 	originalBody := &struct{ io.ReadCloser }{request.Body}
 	request.Body = originalBody
 	request.Header.Set(policyregistry.ServingAssertionHeader, "untrusted-legacy-header")
@@ -304,7 +304,7 @@ func TestDirectAdmissionRetainsPolicyAcrossWorkerCodeRelease(t *testing.T) {
 }
 
 func TestDirectConversationIDFallsBackToConversationFingerprint(t *testing.T) {
-	messagesRequest := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	messagesRequest := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", nil)
 	firstTurn := []byte(`{"model":"auto","system":"turn one","messages":[{"role":"user","content":[{"type":"text","text":"<current_datetime>2026-10-30T15:40:06</current_datetime> fix the build"}]}]}`)
 	laterTurn := []byte(`{"model":"auto","system":"turn two","messages":[{"role":"user","content":[{"type":"text","text":"<current_datetime>2026-10-30T15:40:06</current_datetime> fix the build","cache_control":{"type":"ephemeral"}}]},{"role":"assistant","content":"ok"},{"role":"user","content":"next"}]}`)
 	otherConversation := []byte(`{"model":"auto","messages":[{"role":"user","content":"<current_datetime>2026-10-30T16:02:11</current_datetime> fix the build"}]}`)
@@ -316,7 +316,7 @@ func TestDirectConversationIDFallsBackToConversationFingerprint(t *testing.T) {
 	stringOpener := []byte(`{"model":"auto","messages":[{"role":"user","content":"<current_datetime>2026-10-30T15:40:06</current_datetime> fix the build"}]}`)
 	assert.Equal(t, first, directConversationID(messagesRequest, stringOpener), "string and single-block openers must match")
 
-	responses := httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	responses := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/responses", nil)
 	responsesTurn := []byte(`{"model":"auto","input":[{"role":"developer","content":"sys"},{"role":"user","content":[{"type":"input_text","text":"fix the build"}]}]}`)
 	require.NotEmpty(t, directConversationID(responses, responsesTurn))
 	assert.Equal(t, "prompt_cache_key:cache-1", directConversationID(responses, []byte(`{"model":"auto","prompt_cache_key":"cache-1","input":"fix the build"}`)))
@@ -324,7 +324,7 @@ func TestDirectConversationIDFallsBackToConversationFingerprint(t *testing.T) {
 	omittedRoleConversationID := directConversationID(responses, []byte(`{"model":"auto","input":[{"type":"message","content":"hello"}]}`))
 	assert.Equal(t, omittedRoleConversationID, directConversationID(responses, []byte(`{"model":"auto","input":[{"type":"message","role":"user","content":"hello"}]}`)), "Responses message items default to the user role")
 
-	explicit := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	explicit := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", nil)
 	explicit.Header.Set("Session-Id", "client-session")
 	assert.Equal(t, "client-session", directConversationID(explicit, firstTurn))
 }

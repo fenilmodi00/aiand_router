@@ -49,7 +49,7 @@ func TestWithSubscriberAllowance_MaxIgnoresLinkedSubscriptionAndUsesAllowance(t 
 					c.Status(http.StatusOK)
 				})
 
-				request := httptest.NewRequest(http.MethodPost, route.path, nil)
+				request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, route.path, nil)
 				request.Header.Set("Authorization", "Bearer "+route.bearer)
 				response := httptest.NewRecorder()
 				engine.ServeHTTP(response, request)
@@ -74,7 +74,7 @@ func TestWithSubscriberAllowance_MaxExplicitSubscriptionOptOutUsesAllowance(t *t
 		dispatched = true
 	})
 
-	request := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", nil)
 	request.Header.Set("Authorization", "Bearer sk-ant-oat-test")
 	response := httptest.NewRecorder()
 	engine.ServeHTTP(response, request)

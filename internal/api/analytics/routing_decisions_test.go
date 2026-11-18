@@ -66,7 +66,7 @@ func rowsAt(n int) []analytics.Decision {
 }
 
 func get(engine *gin.Engine, target string, headers map[string]string) *httptest.ResponseRecorder {
-	req := httptest.NewRequest(http.MethodGet, target, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, target, nil)
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
