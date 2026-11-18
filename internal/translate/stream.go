@@ -308,6 +308,21 @@ func (t *SSETranslator) handleContentBlockDelta(data []byte) error {
 		t.bw.WriteString("\n\n")
 		return t.flushEvent()
 
+	case "thinking_delta":
+		thinking := gjson.GetBytes(data, "delta.thinking").Str
+		if thinking == "" {
+			return nil
+		}
+		if err := t.lifecycle.Output(0); err != nil {
+			return err
+		}
+		t.writeChunkHeader()
+		t.bw.WriteString(`"choices":[{"index":0,"delta":{"reasoning_content":`)
+		sse.WriteJSONString(t.bw, thinking)
+		t.bw.WriteString(`},"finish_reason":null}]}`)
+		t.bw.WriteString("\n\n")
+		return t.flushEvent()
+
 	case "input_json_delta":
 		if t.currentIsTool {
 			t.toolLedger.AppendArguments(t.currentToolSource, "", "", gjson.GetBytes(data, "delta.partial_json").String())
