@@ -463,9 +463,10 @@ func prioritizeSelectedArmBinding(
 // flushBufferedIfPresent writes an *UpstreamErrorResponse through to the
 // client verbatim. No-op for other error types.
 //
-// Content-Length/Encoding are dropped: MaxBufferedErrorBytes caps the body
-// we hold, so the upstream's advertised length may exceed what we actually
-// write, breaking HTTP framing. net/http recomputes Content-Length itself.
+// Content-Length is dropped: MaxBufferedErrorBytes caps the body we hold, so
+// the upstream's advertised length may exceed what we actually write, breaking
+// HTTP framing. net/http recomputes Content-Length itself. Content-Encoding is
+// kept because these are still the upstream's bytes.
 func flushBufferedIfPresent(w http.ResponseWriter, err error) {
 	var resp *providers.UpstreamErrorResponse
 	// An overflow is left to the ingress handler, which answers in the
@@ -473,20 +474,28 @@ func flushBufferedIfPresent(w http.ResponseWriter, err error) {
 	if !errors.As(err, &resp) || isContextOverflow(err) {
 		return
 	}
-	for k, vs := range resp.Headers {
+	copyReplayedErrorHeaders(w.Header(), resp.Headers, false)
+	w.WriteHeader(resp.Status)
+	_, _ = w.Write(resp.Body)
+}
+
+// copyReplayedErrorHeaders forwards an upstream error's headers, keeping the
+// body's encoding and type only while the bytes written are still the
+// upstream's: once a flush re-renders the body, those headers would mislabel
+// fresh JSON as the upstream's encoded payload.
+func copyReplayedErrorHeaders(dst, upstream http.Header, bodyRewritten bool) {
+	for k, vs := range upstream {
 		canon := http.CanonicalHeaderKey(k)
-		if _, hop := providers.HopByHopHeaders[canon]; hop {
+		if _, hop := providers.HopByHopHeaders[canon]; hop || canon == "Content-Length" {
 			continue
 		}
-		if canon == "Content-Length" || canon == "Content-Encoding" {
+		if bodyRewritten && (canon == "Content-Encoding" || canon == "Content-Type") {
 			continue
 		}
 		for _, v := range vs {
-			w.Header().Add(k, v)
+			dst.Add(k, v)
 		}
 	}
-	w.WriteHeader(resp.Status)
-	_, _ = w.Write(resp.Body)
 }
 
 // emitAnthropicSSEErrorEvent writes an Anthropic-shape `event: error` SSE
@@ -579,21 +588,11 @@ func flushUpstreamErrorAsAnthropic(w http.ResponseWriter, err error) {
 	if !errors.As(err, &resp) || isContextOverflow(err) {
 		return
 	}
-	for k, vs := range resp.Headers {
-		canon := http.CanonicalHeaderKey(k)
-		if _, hop := providers.HopByHopHeaders[canon]; hop {
-			continue
-		}
-		if canon == "Content-Type" || canon == "Content-Length" {
-			continue // body is rewritten below
-		}
-		for _, v := range vs {
-			w.Header().Add(k, v)
-		}
-	}
+	body := translate.OpenAIToAnthropicError(resp.Body)
+	copyReplayedErrorHeaders(w.Header(), resp.Headers, !bytes.Equal(body, resp.Body))
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(resp.Status)
-	_, _ = w.Write(translate.OpenAIToAnthropicError(resp.Body))
+	_, _ = w.Write(body)
 }
 
 // attemptIdxLabel formats i for the x-router-fallback-attempt header.
