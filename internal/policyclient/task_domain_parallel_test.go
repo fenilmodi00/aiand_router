@@ -2,7 +2,6 @@ package policyclient
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -10,6 +9,7 @@ import (
 
 	"aiand-os/router/internal/router/policy"
 	"aiand-os/router/internal/router/taskdomain"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -86,7 +86,9 @@ func TestTaskJoinPreservesComplexityErrorsAndCancellation(t *testing.T) {
 		t.Run(map[bool]string{false: "complexity error", true: "parent cancellation"}[parentCancelled], func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.Error(w, "unavailable", 503) }))
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				http.Error(w, "unavailable", http.StatusServiceUnavailable)
+			}))
 			defer server.Close()
 			client := New(server.URL, server.Client(), 0, WithTaskDomain(taskResolverFunc(func(ctx context.Context, _ taskdomain.Input) taskdomain.Outcome {
 				<-ctx.Done()
@@ -98,7 +100,7 @@ func TestTaskJoinPreservesComplexityErrorsAndCancellation(t *testing.T) {
 			_, err := client.Decide(ctx, policy.Query{ExecutionMode: policy.ExecutionModeServing, TaskDomain: &taskdomain.Input{}})
 			require.Error(t, err)
 			if parentCancelled {
-				assert.True(t, errors.Is(err, context.Canceled))
+				assert.ErrorIs(t, err, context.Canceled)
 			}
 		})
 	}
