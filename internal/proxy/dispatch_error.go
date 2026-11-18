@@ -15,7 +15,8 @@ import (
 	"aiand-os/router/internal/router/hmm"
 	"aiand-os/router/internal/router/policy"
 	"aiand-os/router/internal/router/rl"
-	"aiand-os/router/internal/translate")
+	"aiand-os/router/internal/translate"
+)
 
 // DispatchErrorKind identifies which sentinel a dispatch error (from
 // ProxyMessages, ProxyOpenAIChatCompletion, or ProxyOpenAIResponses) matched,
@@ -427,7 +428,7 @@ func ClassifyDispatchError(err error) (DispatchErrorClass, bool) {
 			Message:    "Router unavailable: no routing policy could serve this request.",
 			RetryAfter: true,
 			LogLevel:   "error",
-			LogMessage: "Routing unavailable",		}, true
+			LogMessage: "Routing unavailable"}, true
 	default:
 		return DispatchErrorClass{}, false
 	}

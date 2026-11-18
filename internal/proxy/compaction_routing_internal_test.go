@@ -20,8 +20,8 @@ import (
 
 const (
 	compactionScoredModel = "z-ai/glm-5.3"
-	codexCompactionBody  = `{"model":"z-ai/glm-5.3","messages":[{"role":"user","content":"You are performing a CONTEXT CHECKPOINT COMPACTION. Create a handoff summary."}]}`
-	claudeCompactionBody = `{"model":"z-ai/glm-5.3","max_tokens":20000,"system":"Your task is to create a detailed summary of the conversation so far.","messages":[{"role":"user","content":"summarize"}]}`
+	codexCompactionBody   = `{"model":"z-ai/glm-5.3","messages":[{"role":"user","content":"You are performing a CONTEXT CHECKPOINT COMPACTION. Create a handoff summary."}]}`
+	claudeCompactionBody  = `{"model":"z-ai/glm-5.3","max_tokens":20000,"system":"Your task is to create a detailed summary of the conversation so far.","messages":[{"role":"user","content":"summarize"}]}`
 )
 
 type compactionScorer struct {
@@ -93,7 +93,7 @@ func TestCompactionWithoutSessionPinUsesScorer(t *testing.T) {
 
 	turn, err := f.run(t, ctx, env, router.Request{
 		EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}},
-		Exclusions:     router.RequestedExclusions(openAIBundleModels(t)),
+		Exclusions:       router.RequestedExclusions(openAIBundleModels(t)),
 	})
 
 	require.NoError(t, err)
@@ -169,7 +169,7 @@ func TestCompactionIneligibleSessionPinUsesScorer(t *testing.T) {
 
 	turn, err := f.run(t, ctx, env, router.Request{
 		EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}},
-		Exclusions:     router.RequestedExclusions(map[string]struct{}{catalog.ModelIDGLM53.String(): {}}),
+		Exclusions:       router.RequestedExclusions(map[string]struct{}{catalog.ModelIDGLM53.String(): {}}),
 	})
 
 	require.NoError(t, err)
