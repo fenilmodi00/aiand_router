@@ -18,7 +18,6 @@ import (
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/breaker"
 	"aiand-os/router/internal/router/catalog"
-	"aiand-os/router/internal/router/cluster"
 	"aiand-os/router/internal/router/escalation"
 	"aiand-os/router/internal/router/handover"
 	"aiand-os/router/internal/router/hmm"
@@ -28,7 +27,6 @@ import (
 	"aiand-os/router/internal/router/turntype"
 	"aiand-os/router/internal/telemetry"
 	"aiand-os/router/internal/translate"
-
 	"github.com/google/uuid"
 )
 
@@ -542,7 +540,6 @@ var utilityPurposes = map[turntype.TurnType]inference.Purpose{
 	turntype.TitleGen:         inference.PurposeTitleGeneration,
 	turntype.Probe:            inference.PurposeProbe,
 	turntype.SubAgentDispatch: inference.PurposeSubAgentDispatch,
-	turntype.Compaction:       inference.PurposeClientCompaction,
 }
 
 // dispatchPurpose is the purpose the turn is authorized under: its own
@@ -578,17 +575,17 @@ func (r turnLoopResult) rescueOrigin() policy.OverrideSource {
 // isHardPinnedTurn reports whether a turn type bypasses pin lookup/write,
 // planner, and scorer entirely. Probes preserve the requested target unless
 // explicitly deployment-pinned; title generation hard-pins only with an
-// explicit deployment override. These turns are
-// also skipped by proactive compaction: they are either tiny (probe/title-gen)
-// or carry their own dedicated flow (Claude Code's compaction turn, whose
-// request the router must not rewrite). SubAgentDispatch hard-pins when an
-// explicit per-sub-agent override is configured (any strategy) or when the
+// explicit deployment override. These turns are also skipped by proactive
+// compaction because they are tiny. Client compaction turns are not hard
+// pinned: routeCompaction keeps them on the session's model or scores them.
+// SubAgentDispatch hard-pins when an explicit per-sub-agent override is
+// configured (any strategy) or when the
 // legacy hardPinExplore is on under the cluster scorer; the HMM classifier
 // selects sub-agent turns like any other turn, so that legacy default does not
 // force them. Classifier turns are scored (see isUnpinnedScoredTurn).
 func (s *Service) isHardPinnedTurn(ctx context.Context, tt turntype.TurnType) bool {
 	switch tt {
-	case turntype.Compaction, turntype.Probe:
+	case turntype.Probe:
 		return true
 	case turntype.TitleGen:
 		return s.explicitUtilityHardPin
@@ -736,7 +733,7 @@ func forcedPinIneligibilityReason(pin sessionpin.Pin, req router.Request) string
 // with a decision the pinned policy did not produce.
 // policyPinServed is the fail-closed guard behind every turn-loop branch:
 // with an honoured pin, only a decision the pinned policy produced may leave
-// the loop. Utility hard pins (probe, title-gen, compaction) are never
+// the loop. Utility hard pins (probe, title-gen, sub-agent) are never
 // policy-scored and stay exempt; they report policy_pin_honoured=false.
 func policyPinServed(ctx context.Context, res turnLoopResult) error {
 	pin, pinned := router.HonouredPolicyPin(ctx)
@@ -1027,18 +1024,7 @@ func (s *Service) runTurnLoop(
 		// per-request against enabled-providers, and apply ExcludedModels
 		// here too — this path bypasses the scorer, the only other place
 		// exclusions are honored.
-		// Claude Code's own compaction turn summarizes the whole session, so
-		// it goes to the session's Anthropic model (warm cache) or the
-		// Sonnet-class compaction model rather than the cheapest utility pin.
-		compactionProvider, compactionModel, compactionPin := "", "", false
-		origin := policy.OverrideSourceDeployment
-		if s.compactionHardPinEnabled && res.TurnType == turntype.Compaction && !useSubAgentOverride {
-			compactionProvider, compactionModel, origin, compactionPin = s.compactionHardPin(ctx, threadSessionKey, res.PinRole, req)
-		}
 		switch {
-		case compactionPin:
-			provider, model = compactionProvider, compactionModel
-			log.Info("Hard-pin: compaction turn on compaction model", "hard_pin_model", model, "hard_pin_provider", provider)
 		case s.hardPinResolver != nil && !useSubAgentOverride:
 			hardPinReq := HardPinRequest{
 				EnabledProviders: req.EnabledProviders,
@@ -1060,9 +1046,11 @@ func (s *Service) runTurnLoop(
 				}
 			}
 			if !ok {
-				// Gateway empty result = no aliases configured (customer fix), not a router fault.
-				hardPinErr := cluster.ErrClusterUnavailable
-				if s.hardPinBlockedByContextWindow(ctx, threadSessionKey, res, hardPinReq, req) {
+				// No servable utility model is a configuration fault the customer
+				// can fix, so it must not surface as a retryable router outage.
+				hardPinErr := router.ErrNoEligibleProvider
+				switch {
+				case s.hardPinBlockedByContextWindow(ctx, threadSessionKey, res, hardPinReq, req):
 					hardPinErr = policy.ErrContextWindowExceeded
 				}
 				log.Warn(
@@ -1077,11 +1065,11 @@ func (s *Service) runTurnLoop(
 		default:
 			if req.EnabledProviders != nil {
 				if _, enabled := req.EnabledProviders[provider]; !enabled {
-					return res, fmt.Errorf("hard-pin provider %q is ineligible for %s: %w", provider, res.TurnType, cluster.ErrNoEligibleProvider)
+					return res, fmt.Errorf("hard-pin provider %q is ineligible for %s: %w", provider, res.TurnType, router.ErrNoEligibleProvider)
 				}
 			}
 			if req.Exclusions.Excludes(model) {
-				return res, fmt.Errorf("hard-pin model %q is ineligible for %s: %w", model, res.TurnType, cluster.ErrNoEligibleProvider)
+				return res, fmt.Errorf("hard-pin model %q is ineligible for %s: %w", model, res.TurnType, router.ErrNoEligibleProvider)
 			}
 			if automaticallyDisabled(req, model) {
 				// A statically configured hard pin has no alternative to fall
@@ -1103,7 +1091,7 @@ func (s *Service) runTurnLoop(
 		res.Decision = hardDecision
 		res.StickyHit = true
 		res.HardPinned = true
-		res.Origin = origin
+		res.Origin = policy.OverrideSourceDeployment
 		res.PinTier = string(res.TurnType) + "_hard_pin"
 		return res, nil
 	}
@@ -1144,6 +1132,9 @@ func (s *Service) runTurnLoop(
 
 	if isUnpinnedScoredTurn(res.TurnType) {
 		return s.routeWithoutPin(ctx, req, res, reqHeaders, forceModelFound, forceModelPin)
+	}
+	if res.TurnType == turntype.Compaction {
+		return s.routeCompaction(ctx, req, res, reqHeaders, threadSessionKey, installationID, forceModelFound, forceModelPin)
 	}
 
 	// res.SessionKey must stay zero in no-pin-store mode, but trim detection
@@ -1894,7 +1885,7 @@ func (s *Service) runTurnLoop(
 					_, available = s.availableModels[rerouted.Model]
 				}
 				if !available || !pinEligible(reroutedPin, rerouteReq) {
-					return res, fmt.Errorf("authoritative policy returned excluded model %q after reroute: %w", rerouted.Model, cluster.ErrNoEligibleProvider)
+					return res, fmt.Errorf("authoritative policy returned excluded model %q after reroute: %w", rerouted.Model, router.ErrNoEligibleProvider)
 				}
 				res.Fresh = rerouted
 				res.Decision = rerouted
@@ -2944,13 +2935,6 @@ func (s *Service) hardPinBlockedByContextWindow(ctx context.Context, sessionKey 
 		return false
 	}
 	nonSizeExcluded := req.Exclusions.WithoutContextWindow()
-	if s.compactionHardPinEnabled && res.TurnType == turntype.Compaction {
-		sizeFree := req
-		sizeFree.Exclusions = nonSizeExcluded
-		if _, _, _, ok := s.compactionHardPin(ctx, sessionKey, res.PinRole, sizeFree); ok {
-			return true
-		}
-	}
 	hardPinReq.ExcludedModels = nonSizeExcluded.Union()
 	_, _, ok := s.hardPinResolver(hardPinReq)
 	return ok

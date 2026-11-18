@@ -143,6 +143,13 @@ var compactionUnservableClass = DispatchErrorClass{
 	NoClientRetry: true,
 }
 
+// rescuesCompactionOverflow reports whether a pre-commit failure on a harness
+// compaction turn should walk the compaction rescue list: an overflow there
+// means this summarizer is too small, not that the client should compact.
+func rescuesCompactionOverflow(turnType turntype.TurnType, err error) bool {
+	return turnType == turntype.Compaction && isContextOverflow(err)
+}
+
 // compactionUnservableClassFor answers an unservable compaction that carries
 // token counts with the prompt-too-long those counts describe; without them
 // it stays the terminal 502.
@@ -195,10 +202,6 @@ func withClientTrimCounts(ctx context.Context, err, primaryErr error) error {
 
 // rescuesCompactionOverflow reports whether a pre-commit failure on a harness
 // compaction turn should walk the compaction rescue list: an overflow there
-// means this summarizer is too small, not that the client should compact.
-func rescuesCompactionOverflow(turnType turntype.TurnType, err error) bool {
-	return turnType == turntype.Compaction && isContextOverflow(err)
-}
 
 // asCompactionUnservable replaces a compaction turn's final overflow with a
 // provider-attributed failure once the rescue walk has run out.
@@ -214,4 +217,11 @@ func asCompactionUnservable(turnType turntype.TurnType, decision router.Decision
 func readmitForcedContextEstimate(req router.Request, model string) router.Request {
 	req.Exclusions, _ = req.Exclusions.ReadmitForcedContextEstimate(model)
 	return req
+}
+
+// overflowRescueDecisions lists stand-in decisions for an upstream overflow.
+// The aiand-only fork has no gateway-held aliases, so there is never a peer
+// window to fall to: compaction overflow is handled by rescuesCompactionOverflow.
+func (s *Service) overflowRescueDecisions(ctx context.Context, failed router.Decision, est, sigSavings, outputReserve int) []router.Decision {
+	return nil
 }

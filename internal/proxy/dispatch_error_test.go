@@ -4,9 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	"aiand-os/router/internal/billing"
+	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/dispatch"
 	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/proxy"
@@ -129,13 +131,48 @@ func TestClassifyDispatchError_UpstreamErrorResponsePreservesStatus(t *testing.T
 	assert.Equal(t, http.StatusTooManyRequests, cls.Status)
 }
 
-func TestClassifyDispatchError_ClusterUnavailableRetriesAndLogsError(t *testing.T) {
-	cls, ok := proxy.ClassifyDispatchError(cluster.ErrClusterUnavailable)
+func TestClassifyDispatchError_RoutingUnavailableRetriesAndLogsError(t *testing.T) {
+	cls, ok := proxy.ClassifyDispatchError(router.ErrRoutingUnavailable)
 
 	require.True(t, ok)
+	assert.NotContains(t, cls.Message, "cluster")
 	assert.Equal(t, http.StatusServiceUnavailable, cls.Status)
 	assert.True(t, cls.RetryAfter)
 	assert.Equal(t, "error", cls.LogLevel)
+}
+
+// The cluster package keeps aliases of the routing sentinels while callers
+// migrate; both spellings and wrapped forms must classify identically.
+func TestClassifyDispatchError_RoutingSentinelsKeepStatusAndKind(t *testing.T) {
+	cases := []struct {
+		name       string
+		err        error
+		kind       proxy.DispatchErrorKind
+		status     int
+		retryAfter bool
+	}{
+		{"no eligible provider", router.ErrNoEligibleProvider, proxy.DispatchErrorNoEligibleProvider, http.StatusBadRequest, false},
+		{"cluster alias no eligible provider", cluster.ErrNoEligibleProvider, proxy.DispatchErrorNoEligibleProvider, http.StatusBadRequest, false},
+		{"allowlist empties pool", router.ErrAllowlistEmptiesPool, proxy.DispatchErrorAllowlistEmptiesPool, http.StatusBadRequest, false},
+		{"cluster alias allowlist empties pool", cluster.ErrAllowlistEmptiesPool, proxy.DispatchErrorAllowlistEmptiesPool, http.StatusBadRequest, false},
+		{"invalid routing knobs", router.ErrInvalidRoutingKnobs, proxy.DispatchErrorInvalidRoutingKnobs, http.StatusBadRequest, false},
+		{"cluster alias invalid routing knobs", cluster.ErrInvalidRoutingKnobs, proxy.DispatchErrorInvalidRoutingKnobs, http.StatusBadRequest, false},
+		{"cluster unavailable", cluster.ErrClusterUnavailable, proxy.DispatchErrorClusterUnavailable, http.StatusServiceUnavailable, true},
+		{"routing unavailable", router.ErrRoutingUnavailable, proxy.DispatchErrorClusterUnavailable, http.StatusServiceUnavailable, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, err := range []error{tc.err, fmt.Errorf("hard-pin: %w", tc.err)} {
+				cls, ok := proxy.ClassifyDispatchError(err)
+				require.True(t, ok, "expected %v to be classified", err)
+				assert.Equal(t, tc.kind, cls.Kind)
+				assert.Equal(t, tc.status, cls.Status)
+				assert.Equal(t, tc.retryAfter, cls.RetryAfter)
+				assert.NotContains(t, strings.ToLower(cls.Message), "cluster")
+				assert.NotContains(t, strings.ToLower(cls.LogMessage), "cluster")
+			}
+		})
+	}
 }
 
 func TestClassifyDispatchError_NoEligibleProviderIsClientErrorAndWarns(t *testing.T) {

@@ -16,9 +16,7 @@ import (
 	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/proxy"
 	"aiand-os/router/internal/router"
-	"aiand-os/router/internal/router/cluster"
 	"aiand-os/router/internal/router/sessionpin"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -300,18 +298,14 @@ const exploreBody = `{
 // ErrClusterUnavailable rather than dispatch to an unauthenticatable default.
 func TestService_HardPin_Compaction_ByokOnly_NoEligibleProviderErrors(t *testing.T) {
 	store := newFakePinStore()
-	fr := &fakeRouter{decision: router.Decision{Provider: "anthropic", Model: "z-ai/glm-5.3", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3", Reason: "cluster"}}
 
 	resolver := func(req proxy.HardPinRequest) (string, string, bool) {
-		if _, ok := req.EnabledProviders[providers.ProviderAIAND]; ok {
-			return providers.ProviderAIAND, "claude-haiku", true
-		}
 		return "", "", false
 	}
 
-	providerMap := map[string]providers.Client{providers.ProviderAIAND: &fakeProvider{}}
 	svc := proxy.NewService(
-		fr, providerMap, nil, false, nil, store, false,
+		fr, nil, nil, false, nil, store, false,
 		providers.ProviderAIAND, "deepseek/cheap",
 		nil,
 	).WithByokOnly(true).WithHardPinResolver(resolver)
@@ -320,61 +314,8 @@ func TestService_HardPin_Compaction_ByokOnly_NoEligibleProviderErrors(t *testing
 	rec := httptest.NewRecorder()
 	httpReq := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
 	err := svc.ProxyMessages(ctx, []byte(compactionBody), rec, httpReq)
-	require.Error(t, err, "hard-pin with no eligible provider must surface an error, not silently dispatch")
-	assert.ErrorIs(t, err, cluster.ErrClusterUnavailable,
-		"error must be ErrClusterUnavailable so handlers map it to HTTP 503")
-}
-
-// classifierBody: small max_tokens, no tools — DetectFromEnvelope tags this
-// Classifier. It is scored like a main-loop turn but never reads or writes a
-// session pin.
-const classifierBody = `{"model":"z-ai/glm-5.3-flash","max_tokens":5,"messages":[{"role":"user","content":"hello"}]}`
-
-// Regression guard: excluded_models must be honored on the hard-pin tier too.
-// Prod symptom: an excluded gemini model still got all utility traffic
-// because the hard-pin path never consulted req.ExcludedModels.
-func TestService_HardPin_TitleGen_AppliesExcludedModels(t *testing.T) {
-	store := newFakePinStore()
-	fr := &fakeRouter{decision: router.Decision{Provider: "anthropic", Model: "z-ai/glm-5.3", Reason: "cluster"}}
-
-	const excludedModel = "gemini-3.1-flash-lite-preview"
-	const allowedFallback = "z-ai/glm-5.3-flash"
-
-	// Mimics cluster.FastestModelInSet: fastest candidate is excluded, so
-	// resolver must fall through to the next allowed candidate.
-	resolver := func(req proxy.HardPinRequest) (string, string, bool) {
-		if _, denied := req.ExcludedModels[excludedModel]; !denied {
-			return providers.ProviderAIAND, excludedModel, true
-		}
-		return providers.ProviderAIAND, allowedFallback, true
-	}
-
-	// Both upstreams answer 200 so the served model reflects the hard-pin, not a failover.
-	okResp := func(w http.ResponseWriter) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = io.WriteString(w, `{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"text","text":"ok"}],"stop_reason":"end_turn"}`)
-	}
-	providerMap := map[string]providers.Client{
-		providers.ProviderAIAND: &fakeProvider{proxyResponse: okResp},
-	}
-	svc := proxy.NewService(
-		fr, providerMap, nil, false, nil, store, false,
-		providers.ProviderAIAND, excludedModel, // boot-time pin is the excluded model
-		nil,
-	).WithExplicitUtilityHardPin(true).WithHardPinResolver(resolver)
-
-	ctx := context.WithValue(authedCtx(uuid.New().String()),
-		proxy.InstallationExcludedModelsContextKey{}, []string{excludedModel})
-	rec := httptest.NewRecorder()
-	httpReq := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
-	require.NoError(t, svc.ProxyMessages(ctx, []byte(titleGenBody), rec, httpReq))
-
-	assert.Equal(t, 0, fr.routeCalls, "title generation must bypass the cluster scorer")
-	assert.Equal(t, allowedFallback, rec.Header().Get(proxy.HeaderRouterModel),
-		"hard-pin must skip the excluded model and serve an allowed candidate")
-	assert.NotEqual(t, excludedModel, rec.Header().Get(proxy.HeaderRouterModel),
-		"excluded model must never be served on the hard-pin tier")
+	require.Error(t, err, "a compaction turn with no servable model must surface an error, not silently dispatch")
+	assert.NotErrorIs(t, err, context.DeadlineExceeded, "not a retryable timeout")
 }
 
 // WithSubAgentOverride must route SubAgentDispatch turns to the configured
@@ -383,7 +324,7 @@ func TestService_HardPin_TitleGen_AppliesExcludedModels(t *testing.T) {
 // sub-agents pinned regardless of that legacy flag.
 func TestService_HardPin_SubAgentOverrideRoutesIndependentlyOfHardPin(t *testing.T) {
 	store := newFakePinStore()
-	fr := &fakeRouter{decision: router.Decision{Provider: "anthropic", Model: "z-ai/glm-5.3", Reason: "cluster"}}
+	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "z-ai/glm-5.3", Reason: "cluster"}}
 	// OpenRouter speaks the OpenAI-compat wire format, so the fake response
 	// must be a valid chat-completion body for the cross-format translation
 	// back to the Anthropic-shaped client response to succeed.

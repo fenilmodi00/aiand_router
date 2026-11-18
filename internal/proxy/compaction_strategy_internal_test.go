@@ -7,7 +7,6 @@ import (
 
 	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/router"
-	"aiand-os/router/internal/router/policy"
 	"aiand-os/router/internal/router/sessionpin"
 
 	"github.com/stretchr/testify/assert"
@@ -39,12 +38,10 @@ func TestCompactionCrossStrategyHistoryHonorsEligibility(t *testing.T) {
 					Strategy: router.StrategyHMMEmbedding, LastTurnEndedAt: time.Now(),
 				},
 			}}
-			svc := NewService(nil, map[string]providers.Client{providers.ProviderAIAND: nil},
-				nil, false, nil, store, false, providers.ProviderAIAND, policy.PrecompactionDefaultModel, nil).
-				WithAvailableModels(test.available)
 			test.req.ClientApp = ClientAppCodex
 			ctx := router.WithStrategy(context.Background(), router.StrategyHMM)
-			_, _, ok := svc.compactionSessionModel(ctx, [sessionpin.SessionKeyLen]byte{}, sessionpin.DefaultRole, test.req)
+			session := compactionSession{pins: store, providers: map[string]struct{}{providers.ProviderAIAND: {}}, available: test.available, now: time.Now()}
+			_, _, ok := session.decision(ctx, [sessionpin.SessionKeyLen]byte{}, sessionpin.DefaultRole, test.req)
 			assert.False(t, ok)
 		})
 	}
@@ -58,17 +55,15 @@ func TestCompactionSessionModelUsesServedHistory(t *testing.T) {
 			Strategy:        router.StrategyHMMEmbedding, LastTurnEndedAt: time.Now(),
 		},
 	}}
-	svc := NewService(nil, map[string]providers.Client{providers.ProviderAIAND: nil},
-		nil, false, nil, store, false, providers.ProviderAIAND, policy.PrecompactionDefaultModel, nil).
-		WithAvailableModels(map[string]struct{}{compactionStrategyModel: {}})
 	ctx := router.WithStrategy(context.Background(), router.StrategyHMM)
 	// An expired thread pin under a different strategy must not block the
 	// served-history readmit (the #1901 fix).
-	provider, model, ok := svc.compactionSessionModel(ctx, [sessionpin.SessionKeyLen]byte{}, sessionpin.DefaultRole, router.Request{
+	session := compactionSession{pins: store, providers: map[string]struct{}{providers.ProviderAIAND: {}}, available: map[string]struct{}{compactionStrategyModel: {}}, now: time.Now()}
+	decision, _, ok := session.decision(ctx, [sessionpin.SessionKeyLen]byte{}, sessionpin.DefaultRole, router.Request{
 		ClientApp:        ClientAppCodex,
 		EnabledProviders: map[string]struct{}{providers.ProviderAIAND: {}},
 	})
 	assert.True(t, ok)
-	assert.Equal(t, providers.ProviderAIAND, provider)
-	assert.Equal(t, compactionStrategyModel, model)
+	assert.Equal(t, providers.ProviderAIAND, decision.Provider)
+	assert.Equal(t, compactionStrategyModel, decision.Model)
 }

@@ -364,15 +364,6 @@ type Service struct {
 	// compactionHandoverSummarizer serves runCompactionHandover under its own
 	// policy purpose; nil reuses summarizer.
 	compactionHandoverSummarizer handover.Summarizer
-	// compactionModel is the Anthropic-family model Claude Code's own
-	// compaction turn is pinned to when the session has no warm Anthropic
-	// pin. Empty means policy.PrecompactionDefaultModel.
-	compactionModel string
-	// compactionHardPinEnabled routes Claude Code's own compaction turn through
-	// compactionHardPin instead of the generic utility hard-pin. Off unless
-	// the composition root enables it (an operator ROUTER_HARD_PIN_MODEL
-	// keeps winning for every hard-pinned turn).
-	compactionHardPinEnabled bool
 	// availableModels is the boot-time set of model names whose providers are
 	// registered. Read by the planner to decide whether a pin's model is still
 	// routable.
@@ -2042,24 +2033,6 @@ func (s *Service) WithCompactionHandoverSummarizer(sz handover.Summarizer) *Serv
 	return s
 }
 
-// WithCompactionModel overrides the Sonnet-class default summarizer for the
-// compaction cascade and Claude Code's native compaction turn
-// (ROUTER_COMPACTION_MODEL). A model with no Anthropic binding is rejected
-// at boot by the caller; empty keeps policy.PrecompactionDefaultModel.
-func (s *Service) WithCompactionModel(model string) *Service {
-	s.compactionModel = model
-	return s
-}
-
-// WithCompactionHardPin enables pinning Claude Code's native compaction turn
-// to the session's Anthropic model (or the compaction model) instead of the
-// generic utility hard-pin. The composition root leaves it off when the
-// operator set an explicit ROUTER_HARD_PIN_MODEL.
-func (s *Service) WithCompactionHardPin(enabled bool) *Service {
-	s.compactionHardPinEnabled = enabled
-	return s
-}
-
 // WithAvailableModels installs the boot-time set of routable model names.
 // The planner consults this set so a pin whose model is no longer
 // available forces a switch. nil treats every model as available.
@@ -2096,7 +2069,8 @@ func (s *Service) WithExplicitUtilityHardPin(enabled bool) *Service {
 
 // WithHardPinResolver installs a per-request hard-pin resolver. nil
 // preserves the boot-time hardPin{Provider,Model} for every request.
-// ok=false signals no eligible provider, surfacing ErrClusterUnavailable.
+// ok=false surfaces router.ErrNoEligibleProvider, or the context-window or
+// gateway sentinel when the request's size or gateway aliases explain the miss.
 func (s *Service) WithHardPinResolver(resolver HardPinResolver) *Service {
 	s.hardPinResolver = resolver
 	return s
@@ -3975,6 +3949,10 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		decision.Reason != translate.ReasonUserForceModel &&
 		s.shouldFailover(ctx) &&
 		(!paidFallbackForbidden(ctx) || subscriptionStateModelsEnabled(ctx))
+	subscriptionOnlySibling := false
+	var overflowRescue []router.Decision
+	overflowRescueViable := false
+	_, _, _ = subscriptionOnlySibling, overflowRescue, overflowRescueViable
 
 	primaryProvider := decision.Provider
 	// Captured before rescue: failover replaces decision.Model, so afterwards
@@ -6664,6 +6642,10 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		!strings.HasPrefix(decision.Reason, translate.ReasonUserForceModel) &&
 		s.shouldFailover(ctx) &&
 		(!paidFallbackForbidden(ctx) || subscriptionStateModelsEnabled(ctx))
+	subscriptionOnlySibling := false
+	var overflowRescue []router.Decision
+	overflowRescueViable := false
+	_, _, _ = subscriptionOnlySibling, overflowRescue, overflowRescueViable
 
 	primaryProvider := decision.Provider
 	primaryModel := decision.Model
