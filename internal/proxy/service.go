@@ -3818,7 +3818,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 			// error plus a finalize thunk so a gateway that rejects Responses can
 			// be re-emitted onto chat/completions before finalize commits the
 			// prelude buffer. Translators are stateful, so the retry calls again.
-			dispatchOpenAICompat := func(actx context.Context, d router.Decision, p providers.Client, useResponses, stripPromptCacheKey bool) (error, func(error) error) {
+			dispatchOpenAICompat := func(actx context.Context, d router.Decision, p providers.Client, useResponses, stripPromptCacheKey bool) (func(error) error, error) {
 				attemptOpts := targetOpts
 				attemptOpts.TargetProvider = d.Provider
 				attemptOpts.StripPromptCacheKey = stripPromptCacheKey
@@ -3834,7 +3834,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 				}
 				if emitErr != nil {
 					log.Error("Failed to translate Anthropic request to OpenAI format", "err", emitErr, "decision_provider", d.Provider, "responses_api", useResponses)
-					return fmt.Errorf("translate anthropic request: %w", emitErr), func(err error) error { return err }
+					return func(err error) error { return err }, fmt.Errorf("translate anthropic request: %w", emitErr)
 				}
 				reqStats = prep.Stats
 				logUpstreamBody(log, routeRes.SessionKey, d, feats, prep.Body)
@@ -3846,7 +3846,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 				var translator translate.ResponseTranslator
 				attemptSink, noticeErr := anthropicPrelude.prepare(r.Context(), sink, preludeBuf, translate.FormatAnthropic, env.Stream(), targetNotice)
 				if noticeErr != nil {
-					return noticeErr, func(err error) error { return err }
+					return func(err error) error { return err }, noticeErr
 				}
 				if useResponses {
 					responsesTranslator := translate.NewResponsesToAnthropicWriter(attemptSink, d.Model, usage).
@@ -3858,7 +3858,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 						responsesTranslator.SetUsageOutputBasis(providerusage.OutputExcludesReasoning)
 					}
 					if err := responsesTranslator.Prelude(env.Stream()); err != nil {
-						return fmt.Errorf("emit Anthropic routing marker: %w", err), func(err error) error { return err }
+						return func(err error) error { return err }, fmt.Errorf("emit Anthropic routing marker: %w", err)
 					}
 					translator = responsesTranslator
 				} else {
@@ -3874,7 +3874,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 						chatTranslator.SetUsageOutputBasis(providerusage.OutputExcludesReasoning)
 					}
 					if err := chatTranslator.Prelude(env.Stream()); err != nil {
-						return fmt.Errorf("emit Anthropic routing marker: %w", err), func(err error) error { return err }
+						return func(err error) error { return err }, fmt.Errorf("emit Anthropic routing marker: %w", err)
 					}
 					translator = chatTranslator
 				}
@@ -3896,7 +3896,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 					respSummary = translator.Summary()
 					return finErr
 				}
-				return rawErr, finalize
+				return finalize, rawErr
 			}
 			return func(actx context.Context, d router.Decision, p providers.Client) error {
 				useResponses := translate.UseOpenAIResponsesAPI(translate.ResponsesRoute{
@@ -3906,7 +3906,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 					ChatOnlyParams: env.RequiresChatCompletionsParams(targetOpts.Capabilities),
 					Broad:          s.ResolveOpenAIResponsesBroad(actx),
 				})
-				rawErr, finalize := dispatchOpenAICompat(actx, d, p, useResponses, false)
+				finalize, rawErr := dispatchOpenAICompat(actx, d, p, useResponses, false)
 				return finalize(rawErr)
 			}, nil
 		default:
@@ -5080,30 +5080,6 @@ func (s *Service) enabledProvidersForRequest(ctx context.Context, surfaceProvide
 	return out
 }
 
-// hasOpenAIInfrastructureCredential reports whether an OpenAI model can be
-// served without the caller's ChatGPT OAuth: deployment key, installation
-// BYOK, or a non-OAuth client credential on an unkeyed passthrough request.
-func (s *Service) hasOpenAIInfrastructureCredential(ctx context.Context, headers http.Header) bool {
-	if byokServedForProvider(ctx, providers.ProviderAIAND) {
-		return true
-	}
-	if !s.byokOnly {
-		if s.deploymentKeyedProviders == nil {
-			if s.clients.Has(providers.ProviderAIAND) {
-				return true
-			}
-		} else if _, keyed := s.deploymentKeyedProviders[providers.ProviderAIAND]; keyed {
-			return true
-		}
-	}
-	if installationIDFromContext(ctx) == uuid.Nil {
-		if ExtractClientCredentials(providers.ProviderAIAND, headers) != nil {
-			return true
-		}
-	}
-	return false
-}
-
 // resolveAndInjectCredentials resolves credentials for the selected provider
 // and model and stashes them on ctx. Codex OAuth applies to the native Codex
 // roster plus catalog-approved subscription-first fallback models. Other
@@ -5920,16 +5896,6 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	effortServed.apply(&opts)
 
 	resolvedCtx := s.resolveCredentials(ctx, decision.Provider, decision.Model, r.Header)
-	openAIResponsesEndpoint := responsesPassthrough
-	if !openAIResponsesEndpoint && decision.Provider == providers.ProviderAIAND {
-		openAIResponsesEndpoint = translate.UseOpenAIResponsesAPI(translate.ResponsesRoute{
-			Provider:       decision.Provider,
-			Capabilities:   opts.Capabilities,
-			HasTools:       feats.HasTools,
-			ChatOnlyParams: env.RequiresChatCompletionsParams(opts.Capabilities),
-			Broad:          s.ResolveOpenAIResponsesBroad(ctx),
-		})
-	}
 	ctx = resolvedCtx
 
 	// See ProxyMessages for the preludeBuffer rationale — wrap unconditionally
@@ -6174,7 +6140,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 				if noticeErr != nil {
 					return fmt.Errorf("emit OpenAI router notice: %w", noticeErr)
 				}
-				var attemptSink http.ResponseWriter = noticeSink
+				var attemptSink = noticeSink
 				var seedToolCalls *translate.SeedToolCallChatWriter
 				if surface == surfaceChat {
 					if names := env.SeedToolCallNames(prep.ResponseToolNames); len(names) > 0 {
@@ -6715,13 +6681,11 @@ func (s *Service) ProxyOpenAIResponses(ctx context.Context, body []byte, w http.
 		ctx = context.WithValue(ctx, responsesFooterEchoedContextKey{}, true)
 	}
 	ctx = withSubscriptionOnlyWarningEcho(ctx, body)
-	nativeBody := body
-	conversionBody := body
-	var err error
 	// Router-authored reasoning items (rs_router_*) are replayed by Responses
 	// clients for continuity only; the native upstream has no use for them and
 	// rejects ids it did not mint.
-	nativeBody, err = translate.StripRouterReasoningFromResponsesInput(body)
+	nativeBody, err := translate.StripRouterReasoningFromResponsesInput(body)
+	conversionBody := body
 	if err != nil {
 		return err
 	}

@@ -2,13 +2,11 @@ package proxy
 
 import (
 	"context"
-	"errors"
 	"maps"
 
 	"aiand-os/router/internal/auth"
 	"aiand-os/router/internal/flags"
 	"aiand-os/router/internal/observability"
-	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/breaker"
 
@@ -112,39 +110,6 @@ func (s *Service) withTurnOverloadProbe(ctx context.Context, res turnLoopResult)
 func (s *Service) overloadProbeRescuable(ctx context.Context, req router.Request) bool {
 	return !auth.RoutingPassthroughFrom(ctx) &&
 		s.siblingRescueAllowed(ctx)
-}
-
-// recordOverloadOutcome feeds one dispatch operation's result to the breaker.
-// model and provider are the binding that produced the outcome. For the model
-// this request holds the probe for, a served operation closes the circuit and
-// a 529 reopens it; otherwise a served operation changes nothing, so a slow
-// request that began before the circuit opened cannot close it. Anything else
-// is no evidence either way.
-func (s *Service) recordOverloadOutcome(ctx context.Context, model, provider string, committed bool, err error) {
-	org := overloadOrg(ctx)
-	if s.overloadBreaker == nil || org == "" || !s.ResolveProviderOverloaded(ctx) {
-		return
-	}
-	overloaded := err != nil && !committed && !errors.Is(err, context.Canceled) && isProviderOverloaded(err)
-	if probe, held := ctx.Value(overloadProbeContextKey{}).(breaker.Probe); held && probe.Model == model {
-		switch {
-		case err == nil:
-			logOverloadTransition(ctx, s.overloadBreaker.ProbeSucceeded(probe))
-		case overloaded:
-			logOverloadTransition(ctx, s.overloadBreaker.ProbeFailed(probe))
-		}
-		return
-	}
-	if overloaded {
-		logOverloadTransition(ctx, s.overloadBreaker.RecordOverload(org, model, false))
-	}
-}
-
-// isProviderOverloaded reports a buffered upstream 529, the status Anthropic's
-// overloaded_error maps to.
-func isProviderOverloaded(err error) bool {
-	var buffered *providers.UpstreamErrorResponse
-	return errors.As(err, &buffered) && buffered.Status == providerOverloadedStatus
 }
 
 func logOverloadTransition(ctx context.Context, transition breaker.Transition) {

@@ -51,7 +51,7 @@ func (m *messagesRescue) armEarlyStop(ctx context.Context) {
 	m.earlyStopMode = s.earlyStopRedoMode(ctx, routeRes, m.decision, env.Stream(), m.agentShadowMode)
 	if m.earlyStopMode != flags.EarlyStopRedoOff {
 		basis := rescueBasisForTurn(m.decision, routeRes)
-		target, found := s.earlyStopRedoTarget(ctx, basis, m.rescueChain.overflowEstimate, env.SignatureTokenSavings(), m.rescueChain.outputReserve)
+		target, found := s.earlyStopRedoTarget(ctx, basis, m.overflowEstimate, env.SignatureTokenSavings(), m.outputReserve)
 		if found && s.siblingRescueAllowed(ctx) && !paidFallbackForbiddenForModel(ctx, target.Model) {
 			m.earlyStopTarget = target
 			m.earlyStopCandidates = basis.Metadata.CandidateModels
@@ -72,7 +72,7 @@ func (m *messagesRescue) dispatchPrimary(ctx context.Context) {
 	// A compaction turn is how the client recovers from overflow; answering it
 	// with prompt-too-long would fail the compaction itself.
 	m.requestedWindowPassed = routeRes.TurnType != turntype.Compaction &&
-		pastRequestedWindow(feats.Model, m.decision.Model, m.rescueChain.overflowEstimate, m.rescueChain.outputReserve)
+		pastRequestedWindow(feats.Model, m.decision.Model, m.overflowEstimate, m.outputReserve)
 	if m.attemptBuildErr != nil {
 		// Nothing was dispatched — enters the rescue chain as if every binding pre-committed failed.
 		m.winnerIdx, m.proxyErr = -1, m.attemptBuildErr

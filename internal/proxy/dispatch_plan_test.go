@@ -173,9 +173,3 @@ func TestDispatchPlanned_UnregisteredPurposeFailsClosed(t *testing.T) {
 	assert.Equal(t, policy.ResolutionErrorUnknownPurpose, resolution.Code)
 	assert.Equal(t, 0, primary.calls)
 }
-
-type recordingAttemptSink struct{ events []inference.AttemptEvent }
-
-func (r *recordingAttemptSink) RecordAttempt(_ context.Context, event inference.AttemptEvent) {
-	r.events = append(r.events, event)
-}

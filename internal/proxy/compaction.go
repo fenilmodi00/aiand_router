@@ -19,14 +19,6 @@ import (
 
 const compactionSessionPinTier = "compaction_session_pin"
 
-// compactionSummarizer is a model a harness compaction turn may be served on,
-// with the override source that authorizes it.
-type compactionSummarizer struct {
-	provider string
-	model    string
-	source   policy.OverrideSource
-}
-
 // routeCompaction serves a client's own compaction turn on the model serving
 // the session, whose prompt cache is warm, and otherwise scores it like any
 // other turn. A utility hard pin is never a fallback: its fixed roster may be

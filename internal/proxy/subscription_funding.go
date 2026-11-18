@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"context"
-	"errors"
 	"net/http"
 
 	"aiand-os/router/internal/dispatch"
@@ -41,6 +40,3 @@ func (s *Service) subscriptionAPIAuthorization(ctx context.Context, provider, mo
 // retry before any upstream I/O. The rejection is the turn's answer: it tells
 // the client to re-authenticate, where a pool sentinel would render as a
 // retryable outage.
-func credentialRejectionStands(subscriptionErr, retryErr error, credentialRejected func(error) bool) bool {
-	return errors.Is(retryErr, dispatch.ErrAuthorizationDenied) && credentialRejected(subscriptionErr)
-}

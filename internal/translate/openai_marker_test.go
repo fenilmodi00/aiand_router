@@ -97,9 +97,6 @@ func TestOpenAIRoutingMarkerWriter_MarkerEmittedOnce(t *testing.T) {
 
 	markerCount := 0
 	for _, e := range events {
-		if strings.Contains(e, "Aiand") {
-			// Not all markers contain "Aiand" — count by the specific marker content.
-		}
 		data := strings.TrimPrefix(e, "data: ")
 		if content := gjson.Get(data, "choices.0.delta.content").String(); strings.Contains(content, "marker") {
 			markerCount++

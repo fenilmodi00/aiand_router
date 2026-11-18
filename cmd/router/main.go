@@ -142,7 +142,7 @@ func main() {
 	switch deploymentMode {
 	case server.DeploymentModeSelfHosted, server.DeploymentModeManaged:
 	default:
-		err := fmt.Errorf("Invalid ROUTER_DEPLOYMENT_MODE %q (expected %q or %q)", deploymentMode, server.DeploymentModeSelfHosted, server.DeploymentModeManaged)
+		err := fmt.Errorf("invalid ROUTER_DEPLOYMENT_MODE %q (expected %q or %q)", deploymentMode, server.DeploymentModeSelfHosted, server.DeploymentModeManaged)
 		logger.Error("Refusing to boot with invalid deployment mode", "err", err)
 		panic(err)
 	}
@@ -1387,7 +1387,7 @@ func buildClusterScorer(availableProviders map[string]struct{}) (router.Router, 
 	requestedVersion := config.GetOr("ROUTER_CLUSTER_VERSION", cluster.LatestVersion)
 	defaultVersion, err := cluster.ResolveVersion(requestedVersion)
 	if err != nil {
-		return nil, "", fmt.Errorf("Resolve cluster version %q: %w", requestedVersion, err)
+		return nil, "", fmt.Errorf("resolve cluster version %q: %w", requestedVersion, err)
 	}
 
 	// Builds only the served version by default. ROUTER_CLUSTER_BUILD_ALL_VERSIONS=true
@@ -1398,7 +1398,7 @@ func buildClusterScorer(availableProviders map[string]struct{}) (router.Router, 
 	if buildAll {
 		versions, err = cluster.ListVersions()
 		if err != nil {
-			return nil, "", fmt.Errorf("List cluster versions: %w", err)
+			return nil, "", fmt.Errorf("list cluster versions: %w", err)
 		}
 	} else {
 		versions = []string{defaultVersion}
@@ -1435,7 +1435,7 @@ func buildClusterScorer(availableProviders map[string]struct{}) (router.Router, 
 		bundle, err := cluster.LoadBundle(v)
 		if err != nil {
 			_ = embedders.Close()
-			return nil, "", fmt.Errorf("Load bundle %s: %w", v, err)
+			return nil, "", fmt.Errorf("load bundle %s: %w", v, err)
 		}
 		if v == defaultVersion {
 			defaultEmbedderID = bundle.EmbedderID()
@@ -1465,7 +1465,7 @@ func buildClusterScorer(availableProviders map[string]struct{}) (router.Router, 
 			// versions degrade like any other per-version build failure.
 			if v == defaultVersion {
 				_ = embedders.Close()
-				return nil, "", fmt.Errorf("Construct embedder %q for default cluster version %s: %w", bundle.EmbedderID(), v, err)
+				return nil, "", fmt.Errorf("construct embedder %q for default cluster version %s: %w", bundle.EmbedderID(), v, err)
 			}
 			logger.Warn("Cluster scorer version skipped; embedder unavailable", "cluster_version", v, "embedder", bundle.EmbedderID(), "err", err)
 			continue
@@ -1483,13 +1483,13 @@ func buildClusterScorer(availableProviders map[string]struct{}) (router.Router, 
 
 	if _, ok := scorers[defaultVersion]; !ok {
 		_ = embedders.Close()
-		return nil, "", fmt.Errorf("Default cluster version %q failed to build (likely no registered provider covers its deployed_models); set ROUTER_CLUSTER_VERSION to a version that does, or register the missing provider key", defaultVersion)
+		return nil, "", fmt.Errorf("default cluster version %q failed to build (likely no registered provider covers its deployed_models); set ROUTER_CLUSTER_VERSION to a version that does, or register the missing provider key", defaultVersion)
 	}
 
 	multi, err := cluster.NewMultiversion(defaultVersion, scorers)
 	if err != nil {
 		_ = embedders.Close()
-		return nil, "", fmt.Errorf("Build multiversion router: %w", err)
+		return nil, "", fmt.Errorf("build multiversion router: %w", err)
 	}
 	logger.Info(
 		"Cluster multiversion router ready",
@@ -1518,14 +1518,14 @@ func buildClusterScorer(availableProviders map[string]struct{}) (router.Router, 
 			case res := <-warmupDone:
 				if res.err != nil {
 					_ = embedders.Close()
-					return nil, "", fmt.Errorf("Warm embedder %q: %w", id, res.err)
+					return nil, "", fmt.Errorf("warm embedder %q: %w", id, res.err)
 				}
 			case <-time.After(15 * time.Second):
 				go func() {
 					<-warmupDone
 					_ = embedders.Close()
 				}()
-				return nil, "", fmt.Errorf("Cluster embedder %q warmup timed out after 15s", id)
+				return nil, "", fmt.Errorf("cluster embedder %q warmup timed out after 15s", id)
 			}
 		}
 		logger.Info("Cluster embedder warmed", "embedder", id, "embed_dim", embedder.Dim(), "warmup_ms", time.Since(warmStart).Milliseconds())
