@@ -18,13 +18,11 @@ import (
 // of the shared sibling rescue.
 type messagesRescue struct {
 	*rescueChain
-	feats            translate.RoutingFeatures
-	agentShadowMode  bool
-	overflowEstimate int
-	outputReserve    int
-	earlyStop        *dispatch.EarlyStopGate
-	streamCut        *streamCutObserver
-	attemptBuildErr  error
+	feats           translate.RoutingFeatures
+	agentShadowMode bool
+	earlyStop       *dispatch.EarlyStopGate
+	streamCut       *streamCutObserver
+	attemptBuildErr error
 
 	compactionHandoverOutcome handoverOutcome
 
@@ -39,30 +37,8 @@ type messagesRescue struct {
 }
 
 func (m *messagesRescue) armRescues(ctx context.Context) context.Context {
-	s := m.svc
-	env := m.env
-	routeRes := m.routeRes
 	_, m.explicitRequestedModel = catalog.ByID(m.req.RequestedModel)
-	// Same-cluster model failover: when the routed model's only binding is dark,
-	// degrade to a peer the policy already scored. Gated out for depleted-credit
-	// turns (a different model incurs the paid spend that mode forbids).
-	m.siblingDecisions = subscriptionStatePaidRescueDecisions(ctx, s.siblingFailoverDecisions(ctx, rescueBasisForTurn(m.decision, routeRes), m.overflowEstimate, env.SignatureTokenSavings(), m.outputReserve))
-	m.siblingViable = s.ResolveSiblingFailover(ctx) &&
-		len(m.siblingDecisions) > 0 &&
-		!m.agentShadowMode &&
-		!routeRes.CallerModelPassthrough &&
-		m.decision.Reason != translate.ReasonUserForceModel &&
-		s.shouldFailover(ctx) &&
-		(!paidFallbackForbidden(ctx) || subscriptionStateModelsEnabled(ctx))
-	m.overflowRescue = s.overflowRescueDecisions(ctx, m.decision, m.overflowEstimate, env.SignatureTokenSavings(), m.outputReserve)
-	m.overflowRescueViable = len(m.overflowRescue) > 0 &&
-		!m.agentShadowMode &&
-		!routeRes.CallerModelPassthrough &&
-		m.decision.Reason != translate.ReasonUserForceModel &&
-		s.siblingRescueAllowed(ctx)
-	// Either rescue holds the primary's error until it knows whether it runs.
-	m.rescueArmed = m.siblingViable || m.overflowRescueViable
-	return ctx
+	return m.armSiblings(ctx, m.agentShadowMode || m.routeRes.CallerModelPassthrough || m.decision.Reason == translate.ReasonUserForceModel)
 }
 
 func (m *messagesRescue) armEarlyStop(ctx context.Context) {
@@ -75,7 +51,7 @@ func (m *messagesRescue) armEarlyStop(ctx context.Context) {
 	m.earlyStopMode = s.earlyStopRedoMode(ctx, routeRes, m.decision, env.Stream(), m.agentShadowMode)
 	if m.earlyStopMode != flags.EarlyStopRedoOff {
 		basis := rescueBasisForTurn(m.decision, routeRes)
-		target, found := s.earlyStopRedoTarget(ctx, basis, m.overflowEstimate, env.SignatureTokenSavings(), m.outputReserve)
+		target, found := s.earlyStopRedoTarget(ctx, basis, m.rescueChain.overflowEstimate, env.SignatureTokenSavings(), m.rescueChain.outputReserve)
 		if found && s.siblingRescueAllowed(ctx) && !paidFallbackForbiddenForModel(ctx, target.Model) {
 			m.earlyStopTarget = target
 			m.earlyStopCandidates = basis.Metadata.CandidateModels
@@ -96,7 +72,7 @@ func (m *messagesRescue) dispatchPrimary(ctx context.Context) {
 	// A compaction turn is how the client recovers from overflow; answering it
 	// with prompt-too-long would fail the compaction itself.
 	m.requestedWindowPassed = routeRes.TurnType != turntype.Compaction &&
-		pastRequestedWindow(feats.Model, m.decision.Model, m.overflowEstimate, m.outputReserve)
+		pastRequestedWindow(feats.Model, m.decision.Model, m.rescueChain.overflowEstimate, m.rescueChain.outputReserve)
 	if m.attemptBuildErr != nil {
 		// Nothing was dispatched — enters the rescue chain as if every binding pre-committed failed.
 		m.winnerIdx, m.proxyErr = -1, m.attemptBuildErr
@@ -261,12 +237,7 @@ func (m *messagesRescue) finish(ctx context.Context) {
 	}
 	m.proxyErr = asRequestedWindowOverflow(m.proxyErr, m.requestedWindowPassed, preludeBuf.Committed())
 
-	m.finalProvider = m.primaryProvider
-	if m.subscriptionStateWinnerProvider != "" {
-		m.finalProvider = m.subscriptionStateWinnerProvider
-	} else if m.winnerIdx >= 0 && m.winnerIdx < len(m.bindings) {
-		m.finalProvider = m.bindings[m.winnerIdx].Provider
-	}
+	m.finalProvider = m.servedProvider(m.primaryProvider)
 	m.decision.Provider = m.finalProvider
 	m.failoverUsed = m.finalProvider != m.primaryProvider || m.siblingFailoverUsed || m.earlyStopRedone
 	m.failoverAttempted = m.failoverUsed || m.siblingRescueRan
