@@ -83,7 +83,12 @@ test("the native installer writes each client's config and keeps existing settin
   assert.equal(reinstalledCodex.profiles.work.instructions, "[not_a_table]\nkeep this text\n");
   assert.equal(reinstalledCodex.model_providers.aiand.http_headers["X-Aiand-User-Email"], "user@example.com");
   assert.equal(JSON.parse(fs.readFileSync(path.join(temporaryHome, ".config", "opencode", "opencode.json"), "utf8")).model, "aiand/auto");
-  assert.equal(JSON.parse(fs.readFileSync(path.join(temporaryHome, ".pi", "agent", "models.json"), "utf8")).providers.aiand.baseUrl, baseUrl);
+  const piModels = JSON.parse(fs.readFileSync(path.join(temporaryHome, ".pi", "agent", "models.json"), "utf8"));
+  assert.equal(piModels.providers.aiand.baseUrl, baseUrl);
+  assert.deepEqual(piModels.providers.aiand.models.map((model) => [model.id, model.name]), [["auto", "Aiand Router"]]);
+  const piSettings = JSON.parse(fs.readFileSync(path.join(temporaryHome, ".pi", "agent", "settings.json"), "utf8"));
+  assert.equal(piSettings.defaultProvider, "aiand");
+  assert.equal(piSettings.defaultModel, "auto");
 });
 
 test("native uninstall removes the managed Claude routing variables", async () => {
