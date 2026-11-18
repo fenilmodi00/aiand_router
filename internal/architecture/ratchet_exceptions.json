@@ -77,6 +77,42 @@
    "metric": "file_lines",
    "max": 1223,
    "reason": "Upstream 56cb3e478 (#2087) terminal-signal summary additions; upstream stream.go is 1650 lines. Owner: fenilmodi00."
+  },
+  {
+   "subject": "internal/auth/service.go",
+   "metric": "file_lines",
+   "max": 785,
+   "reason": "Upstream #2251 port (cacheable flag in verifyAPIKey), aiand-verbatim. Owner: fenilmodi00."
+  },
+  {
+   "subject": "internal/flags/flags.go",
+   "metric": "file_lines",
+   "max": 664,
+   "reason": "Upstream #2289 port (Overlay/overlayValues + DecodeOverrides split). Owner: fenilmodi00."
+  },
+  {
+   "subject": "internal/proxy.Service.ProxyOpenAIResponses",
+   "metric": "cognitive",
+   "max": 31,
+   "reason": "Upstream #2266 port (StripRouterReasoningFromResponsesInput call). Owner: fenilmodi00."
+  },
+  {
+   "subject": "internal/proxy.Service.ProxyOpenAIResponses",
+   "metric": "lines",
+   "max": 102,
+   "reason": "Upstream #2266 port. Owner: fenilmodi00."
+  },
+  {
+   "subject": "internal/proxy/service.go",
+   "metric": "file_lines",
+   "max": 5367,
+   "reason": "Upstream port growth (#2288 emit wiring). Owner: fenilmodi00."
+  },
+  {
+   "subject": "internal/proxy/turnloop.go",
+   "metric": "file_lines",
+   "max": 2232,
+   "reason": "Upstream port growth (#2290 stay pins, #2288 pin exemption, #2146 compat gate). Owner: fenilmodi00."
   }
  ]
 }
