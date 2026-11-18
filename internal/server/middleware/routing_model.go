@@ -16,7 +16,7 @@ import (
 
 // applyRoutingModel runs after classifier admission and reuses its parsed body.
 func applyRoutingModel(c *gin.Context, body []byte, available StrategyAvailability) bool {
-	model := router.CanonicalRoutingModel(requestedModel(c, body))
+	model := router.CanonicalRoutingModel(requestedModel(body))
 	if !router.IsRoutingModel(string(model)) {
 		if strings.HasPrefix(string(model), "aiand-") {
 			observability.FromGin(c).Debug("Unknown routing model rejected")
@@ -79,6 +79,6 @@ func applyRoutingModel(c *gin.Context, body []byte, available StrategyAvailabili
 	return true
 }
 
-func requestedModel(c *gin.Context, body []byte) string {
+func requestedModel(body []byte) string {
 	return gjson.GetBytes(body, "model").String()
 }

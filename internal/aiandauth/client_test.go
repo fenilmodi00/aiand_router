@@ -3,7 +3,6 @@ package aiandauth_test
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -408,7 +407,7 @@ func TestInvalidJSONResponseIsErrGateway(t *testing.T) {
 	_, err := client.PollToken(context.Background(), "dc-1")
 	require.Error(t, err)
 	assert.ErrorIs(t, err, auth.ErrAiandGateway)
-	assert.True(t, strings.Contains(err.Error(), "/auth/device/token"), "decode failures name the endpoint")
+	assert.Contains(t, err.Error(), "/auth/device/token", "decode failures name the endpoint")
 }
 
 func TestResponseIsBounded(t *testing.T) {
@@ -453,7 +452,7 @@ func TestSentinelsDistinct(t *testing.T) {
 	for i, a := range errs {
 		for j, b := range errs {
 			if i != j {
-				assert.False(t, errors.Is(a, b), "%v must not match %v", a, b)
+				assert.NotErrorIs(t, a, b, "%v must not match %v", a, b)
 			}
 		}
 	}

@@ -326,7 +326,7 @@ func (s *LoginService) completeLoginTx(ctx context.Context, attemptID string, id
 		// at. On the arbitration-loss path the winner's account (and hence
 		// its installation) won, so the UUID must come from the returned
 		// account — the local installation row was soft-deleted.
-		expiresAt, err := s.writeCredentialAndKey(ctx, tx, account, account.InstallationID, account.ID, identity, token)
+		expiresAt, err := s.writeCredentialAndKey(ctx, tx, account.InstallationID, account.ID, identity, token)
 		if err != nil {
 			return err
 		}
@@ -430,7 +430,7 @@ func (s *LoginService) ensureAccount(ctx context.Context, tx Tx, identity AiandI
 //     passes the WINNING account's installation: on the arbitration-loss
 //     path account.InstallationID names the winner's row, while the local
 //     installation this transaction ensured was soft-deleted.
-func (s *LoginService) writeCredentialAndKey(ctx context.Context, tx Tx, account *Account, installationID, aadExternalID string, identity AiandIdentity, token AiandTokenResponse) (time.Time, error) {
+func (s *LoginService) writeCredentialAndKey(ctx context.Context, tx Tx, installationID, aadExternalID string, identity AiandIdentity, token AiandTokenResponse) (time.Time, error) {
 	// external_id immutability (AAD lifetime): the installation's external_id
 	// IS the account id and is sealed into every credential/key ciphertext as
 	// AAD. It is set once at installation creation and never renamed — a

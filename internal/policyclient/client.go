@@ -141,7 +141,7 @@ func (c *Client) ReadClassifierHealth(ctx context.Context) (ClassifierHealth, er
 	if err != nil {
 		return ClassifierHealth{}, fmt.Errorf("call policy readiness endpoint: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	payload, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
 		return ClassifierHealth{}, fmt.Errorf("read policy readiness response: %w", err)
@@ -169,7 +169,7 @@ func (c *Client) CheckHealth(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("call policy readiness endpoint: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("policy readiness status %d", resp.StatusCode)
 	}
@@ -196,7 +196,7 @@ func (c *Client) Capabilities(ctx context.Context) (policy.Capabilities, error) 
 	if err != nil {
 		return policy.Capabilities{}, fmt.Errorf("call policy capabilities endpoint: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	payload, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
 		return policy.Capabilities{}, fmt.Errorf("read policy capabilities response: %w", err)
@@ -228,7 +228,7 @@ func (c *Client) post(ctx context.Context, path string, payload map[string]inter
 	if err != nil {
 		return fmt.Errorf("call policy %s endpoint: %w", label, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	payloadBytes, readErr := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if readErr != nil {
 		return fmt.Errorf("read policy %s response: %w", label, readErr)
@@ -1000,14 +1000,14 @@ func (c *Client) doPolicyAttempt(
 		return 0, nil, false, c.attemptError(ctx, attemptCtx, attempt, fmt.Errorf("call policy sidecar: %w", err))
 	}
 	if resp.StatusCode == http.StatusRequestEntityTooLarge {
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		return 0, nil, true, fmt.Errorf(
 			"policy sidecar rejected %d-byte %s request (status %d): %w",
 			len(body), path, resp.StatusCode, policy.ErrContextWindowExceeded,
 		)
 	}
 	payload, readErr := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if readErr != nil {
 		return 0, nil, false, c.attemptError(ctx, attemptCtx, attempt, fmt.Errorf("read policy route response: %w", readErr))
 	}

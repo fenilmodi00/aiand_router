@@ -44,7 +44,7 @@ func publishSelection(
 ) policyregistry.ServingSelection {
 	t.Helper()
 	releaseRef := store.publish(t, policyregistry.ServingReleases, release)
-	binding := *store.object(t, policyregistry.ServingBindings, template.Binding).(*policyregistry.DeploymentBinding)
+	binding := *mustAs[*policyregistry.DeploymentBinding](t, store.object(t, policyregistry.ServingBindings, template.Binding))
 	binding.Release = releaseRef
 	binding.Router = router
 	binding.Classifier = classifier
@@ -96,7 +96,7 @@ func permissiveController(t *testing.T, store *servingMemoryStore) *policyregist
 func heterogeneousLaneFixture(t *testing.T) (*servingMemoryStore, *policyregistry.ServingController, policyregistry.SelectionSet, policyregistry.ActivationResult) {
 	t.Helper()
 	store, _, initialSet := controllerFixture(t)
-	base := *store.object(t, policyregistry.ServingReleases, initialSet.Default.Release).(*policyregistry.ServingRelease)
+	base := *mustAs[*policyregistry.ServingRelease](t, store.object(t, policyregistry.ServingReleases, initialSet.Default.Release))
 	basePolicy := store.policies[policyregistry.ObjectRef{URI: base.Policy.URI, SHA256: base.Policy.SHA256, Generation: base.Policy.Generation}]
 	initialSet.Profiles[profileKeyOne] = registerProfileFixture(t, store, initialSet.Default, profileKeyOne, base.Policy)
 	initialSet.Profiles[profileKeyTwo] = registerProfileFixture(t, store, initialSet.Default, profileKeyTwo, publishChangedPolicy(t, store, basePolicy, 0.55))
@@ -112,7 +112,7 @@ func heterogeneousLaneFixture(t *testing.T) (*servingMemoryStore, *policyregistr
 // alongside a foreign policy and classifier, which a Router-only proposal must ignore.
 func routerOnlySource(t *testing.T, store *servingMemoryStore, initialSet policyregistry.SelectionSet, digit string) (policyregistry.ServingRelease, policyregistry.ObjectRef) {
 	t.Helper()
-	base := *store.object(t, policyregistry.ServingReleases, initialSet.Default.Release).(*policyregistry.ServingRelease)
+	base := *mustAs[*policyregistry.ServingRelease](t, store.object(t, policyregistry.ServingReleases, initialSet.Default.Release))
 	basePolicy := store.policies[policyregistry.ObjectRef{URI: base.Policy.URI, SHA256: base.Policy.SHA256, Generation: base.Policy.Generation}]
 	source := base
 	source.RouterImageDigest = "sha256:" + strings.Repeat(digit, 64)
@@ -126,14 +126,16 @@ func routerOnlySource(t *testing.T, store *servingMemoryStore, initialSet policy
 }
 
 func routerOnlyRelease(t *testing.T, store *servingMemoryStore, previous policyregistry.ServingSelection, source policyregistry.ServingRelease) policyregistry.ServingRelease {
-	release := *store.object(t, policyregistry.ServingReleases, previous.Release).(*policyregistry.ServingRelease)
+	t.Helper()
+	release := *mustAs[*policyregistry.ServingRelease](t, store.object(t, policyregistry.ServingReleases, previous.Release))
 	release.RouterImageDigest = source.RouterImageDigest
 	release.Provenance = source.Provenance
 	return release
 }
 
 func sharedRouterRevision(t *testing.T, store *servingMemoryStore, initialSet policyregistry.SelectionSet, source policyregistry.ServingRelease, name string) policyregistry.RevisionBinding {
-	router := store.object(t, policyregistry.ServingBindings, initialSet.Default.Binding).(*policyregistry.DeploymentBinding).Router
+	t.Helper()
+	router := mustAs[*policyregistry.DeploymentBinding](t, store.object(t, policyregistry.ServingBindings, initialSet.Default.Binding)).Router
 	router.Name = name
 	router.URL = "https://" + name + ".example"
 	router.ImageDigest = source.RouterImageDigest
@@ -144,7 +146,7 @@ func sharedRouterRevision(t *testing.T, store *servingMemoryStore, initialSet po
 // project, region, and classifier revision; new release, binding, and shared Router revision.
 func routerOnlyLane(t *testing.T, store *servingMemoryStore, previous policyregistry.ServingSelection, source policyregistry.ServingRelease, router policyregistry.RevisionBinding) policyregistry.ServingSelection {
 	t.Helper()
-	classifier := store.object(t, policyregistry.ServingBindings, previous.Binding).(*policyregistry.DeploymentBinding).Classifier
+	classifier := mustAs[*policyregistry.DeploymentBinding](t, store.object(t, policyregistry.ServingBindings, previous.Binding)).Classifier
 	return publishSelection(t, store, previous, routerOnlyRelease(t, store, previous, source), router, classifier, previous.Profile)
 }
 

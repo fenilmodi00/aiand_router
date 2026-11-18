@@ -33,7 +33,7 @@ func TestDisplaySettingsHandler(t *testing.T) {
 			}, admin.DisplaySettingsHandlerFor(nil, nil))
 
 			rec := httptest.NewRecorder()
-			engine.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/display-settings", nil))
+			engine.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/display-settings", nil))
 
 			require.Equal(t, http.StatusOK, rec.Code)
 			var body struct {
@@ -58,7 +58,7 @@ func TestDisplaySettingsHandler(t *testing.T) {
 			}, nil))
 
 			rec := httptest.NewRecorder()
-			engine.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/display-settings", nil))
+			engine.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/display-settings", nil))
 
 			require.Equal(t, http.StatusOK, rec.Code)
 			var body struct {
@@ -91,7 +91,7 @@ func TestDisplaySettingsHandler(t *testing.T) {
 			}, fakeExperimentChecker{enabled: tc.experimentEnabled}))
 
 			rec := httptest.NewRecorder()
-			engine.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/display-settings", nil))
+			engine.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/display-settings", nil))
 
 			require.Equal(t, http.StatusOK, rec.Code)
 			var body struct {
@@ -107,7 +107,7 @@ func TestDisplaySettingsHandler(t *testing.T) {
 		engine.GET("/v1/display-settings", admin.DisplaySettingsHandlerFor(nil, nil))
 
 		rec := httptest.NewRecorder()
-		engine.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/display-settings", nil))
+		engine.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/display-settings", nil))
 
 		require.Equal(t, http.StatusUnauthorized, rec.Code)
 	})

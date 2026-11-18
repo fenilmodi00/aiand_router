@@ -97,7 +97,7 @@ func TestLiveGenericPolicySidecarContract(t *testing.T) {
 	assert.Equal(t, "go-live-contract-route", result.RouteID)
 	assert.Contains(t, []string{"z-ai/glm-5.3", "gpt-5.5"}, result.Model)
 	assert.Len(t, result.CandidateScores, 2)
-	assert.Equal(t, 1.0, result.Propensity)
+	assert.InDelta(t, 1.0, result.Propensity, 1e-9)
 	assert.NotEmpty(t, result.PolicyArtifactID)
 	assert.NotEmpty(t, result.PolicyArtifactSHA256)
 	assert.NotEmpty(t, result.RosterVersion)

@@ -213,12 +213,12 @@ func (u *UsageExtractor) scanBuffer() {
 		}
 		data = data[n:]
 
-		eventType, payload := sse.ParseEvent(event)
+		_, payload := sse.ParseEvent(event)
 		if len(payload) == 0 {
 			continue
 		}
 
-		u.extractFromSSEEvent(eventType, payload)
+		u.extractFromSSEEvent(payload)
 	}
 
 	n := copy(u.leftover, data)
@@ -229,10 +229,11 @@ func (u *UsageExtractor) scanBuffer() {
 
 // Dispatch is family-based so Anthropic-spec gateway providers
 // (e.g. anthropic_gateway) are parsed correctly instead of recording zero usage.
-func (u *UsageExtractor) extractFromSSEEvent(eventType []byte, data []byte) {
+func (u *UsageExtractor) extractFromSSEEvent(data []byte) {
 	switch providers.FamilyFor(u.provider) {
 	case providers.FamilyOpenAICompat:
 		u.extractOpenAISSE(data)
+	case providers.FamilyUnknown:
 	}
 }
 
@@ -289,6 +290,7 @@ func (u *UsageExtractor) tryExtractFromJSON() {
 	switch providers.FamilyFor(u.provider) {
 	case providers.FamilyOpenAICompat:
 		u.extractOpenAIChatJSONResponse(u.leftover)
+	case providers.FamilyUnknown:
 	}
 
 	u.RecordProviderUsage(facts)

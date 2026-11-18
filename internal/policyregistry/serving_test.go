@@ -129,16 +129,16 @@ func storedProposal(t *testing.T, store *servingMemoryStore, snapshot policyregi
 // revision, so consecutive activations bind distinct selection sets.
 func variantSet(t *testing.T, store *servingMemoryStore, set policyregistry.SelectionSet, name string) policyregistry.SelectionSet {
 	t.Helper()
-	binding := *store.object(t, policyregistry.ServingBindings, set.Default.Binding).(*policyregistry.DeploymentBinding)
+	binding := *mustAs[*policyregistry.DeploymentBinding](t, store.object(t, policyregistry.ServingBindings, set.Default.Binding))
 	router := binding.Router
 	router.Name = name
 	router.URL = "https://" + name + ".example"
 	next := set
 	next.Profiles = make(map[string]policyregistry.ServingSelection, len(set.Profiles))
-	next.Default = publishSelection(t, store, set.Default, *store.object(t, policyregistry.ServingReleases, set.Default.Release).(*policyregistry.ServingRelease), router, binding.Classifier, set.Default.Profile)
+	next.Default = publishSelection(t, store, set.Default, *mustAs[*policyregistry.ServingRelease](t, store.object(t, policyregistry.ServingReleases, set.Default.Release)), router, binding.Classifier, set.Default.Profile)
 	for key, lane := range set.Profiles {
-		laneBinding := *store.object(t, policyregistry.ServingBindings, lane.Binding).(*policyregistry.DeploymentBinding)
-		next.Profiles[key] = publishSelection(t, store, lane, *store.object(t, policyregistry.ServingReleases, lane.Release).(*policyregistry.ServingRelease), router, laneBinding.Classifier, lane.Profile)
+		laneBinding := *mustAs[*policyregistry.DeploymentBinding](t, store.object(t, policyregistry.ServingBindings, lane.Binding))
+		next.Profiles[key] = publishSelection(t, store, lane, *mustAs[*policyregistry.ServingRelease](t, store.object(t, policyregistry.ServingReleases, lane.Release)), router, laneBinding.Classifier, lane.Profile)
 	}
 	return next
 }
@@ -157,13 +157,13 @@ func v1Proposal(t *testing.T, snapshot policyregistry.ServingStateSnapshot, set 
 
 // storedActivateFixture records an activation whose objects the controller can read back, which
 // history validation and admission both need.
-func storedActivateFixture(t *testing.T, store *servingMemoryStore, snapshot policyregistry.ServingStateSnapshot, set policyregistry.SelectionSet, now time.Time) (policyregistry.ServingStateSnapshot, policyregistry.DeploymentProposalV2) {
+func storedActivateFixture(t *testing.T, store *servingMemoryStore, snapshot policyregistry.ServingStateSnapshot, set policyregistry.SelectionSet, now time.Time) policyregistry.ServingStateSnapshot {
 	t.Helper()
 	proposal := storedProposal(t, store, snapshot, set, now)
 	activated, err := policyregistry.NextServingActivation(snapshot, servingPayload(t, proposal), store.publishArtifact(t, policyregistry.ServingProposal, proposal), testRegistryRoot, "test-workflow", now)
 	require.NoError(t, err)
 	activated.Snapshot.Generation++
-	return activated.Snapshot, proposal
+	return activated.Snapshot
 }
 
 // storedViews projects stored v2 selection sets for admission, keyed as activations declare them.
@@ -171,7 +171,7 @@ func storedViews(t *testing.T, store *servingMemoryStore, refs ...policyregistry
 	t.Helper()
 	views := make(map[string]policyregistry.SelectionSetView, len(refs))
 	for _, ref := range refs {
-		set := store.object(t, policyregistry.ServingSelectionSet, ref).(*policyregistry.SelectionSetV2)
+		set := mustAs[*policyregistry.SelectionSetV2](t, store.object(t, policyregistry.ServingSelectionSet, ref))
 		views[ref.SHA256] = set.View(ref)
 	}
 	return views
@@ -189,7 +189,7 @@ func TestServingContractsRejectMutableTargetsAndReferences(t *testing.T) {
 	}
 	ref := namespaceRef(policyregistry.ServingReleases, "release")
 	require.NoError(t, policyregistry.ValidateServingRef(ref, testRegistryRoot, policyregistry.ServingReleases))
-	assert.Error(t, policyregistry.ValidateServingRef(ref, testRegistryRoot, policyregistry.ServingBindings))
+	require.Error(t, policyregistry.ValidateServingRef(ref, testRegistryRoot, policyregistry.ServingBindings))
 	ref.Generation = 0
 	assert.Error(t, policyregistry.ValidateServingRef(ref, testRegistryRoot, policyregistry.ServingReleases))
 }
@@ -637,11 +637,11 @@ func controllerFixture(t *testing.T) (*servingMemoryStore, *policyregistry.Servi
 
 func registerProfileFixture(t *testing.T, store *servingMemoryStore, base policyregistry.ServingSelection, key string, policy policyregistry.PolicyObject) policyregistry.ServingSelection {
 	t.Helper()
-	release := *store.object(t, policyregistry.ServingReleases, base.Release).(*policyregistry.ServingRelease)
+	release := *mustAs[*policyregistry.ServingRelease](t, store.object(t, policyregistry.ServingReleases, base.Release))
 	release.Policy = policy
 	releaseRef := store.publish(t, policyregistry.ServingReleases, release)
 	profileRef := store.publish(t, policyregistry.ServingProfiles, policyregistry.RoutingProfile{SchemaVersion: policyregistry.ServingProfileV1, ProfileKey: key, Policy: policy, Requirements: release.Requirements})
-	binding := *store.object(t, policyregistry.ServingBindings, base.Binding).(*policyregistry.DeploymentBinding)
+	binding := *mustAs[*policyregistry.DeploymentBinding](t, store.object(t, policyregistry.ServingBindings, base.Binding))
 	binding.Release = releaseRef
 	bindingRef := store.publish(t, policyregistry.ServingBindings, binding)
 	return policyregistry.ServingSelection{Release: releaseRef, Binding: bindingRef, Profile: &profileRef}

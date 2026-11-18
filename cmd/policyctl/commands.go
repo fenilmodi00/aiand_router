@@ -182,7 +182,7 @@ func runPublish(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	defer registry.Close()
+	defer func() { _ = registry.Close() }()
 	policyRef, err := registry.PublishPolicy(ctx, payload)
 	if err != nil {
 		return err
@@ -265,7 +265,7 @@ func runPromote(ctx context.Context, args []string, rollback bool) error {
 	if err != nil {
 		return err
 	}
-	defer registry.Close()
+	defer func() { _ = registry.Close() }()
 	releaseRef, err := registry.ReleaseRef(ctx, *releaseID)
 	if err != nil {
 		return err
@@ -327,7 +327,7 @@ func runStatus(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	defer registry.Close()
+	defer func() { _ = registry.Close() }()
 	if *releaseID != "" {
 		releaseRef, err := registry.ReleaseRef(ctx, *releaseID)
 		if err != nil {

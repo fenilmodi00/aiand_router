@@ -27,7 +27,7 @@ func TestVersionHandler(t *testing.T) {
 	engine := gin.New()
 	engine.GET("/v1/version", admin.VersionHandler(nil))
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/version", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/version", nil)
 	rec := httptest.NewRecorder()
 	engine.ServeHTTP(rec, req)
 
@@ -65,7 +65,7 @@ func TestVersionHandlerReportsActivePolicyRelease(t *testing.T) {
 		ActivePolicySHA256: "abc123",
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/version", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/version", nil)
 	rec := httptest.NewRecorder()
 	engine.ServeHTTP(rec, req)
 

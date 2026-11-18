@@ -56,7 +56,7 @@ func newDistributionEngine(src admin.DistributionRosterSource) *gin.Engine {
 }
 
 func getDistribution(engine *gin.Engine, query string) *httptest.ResponseRecorder {
-	req := httptest.NewRequest(http.MethodGet, "/v1/router/routing-distribution"+query, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/v1/router/routing-distribution"+query, nil)
 	rec := httptest.NewRecorder()
 	engine.ServeHTTP(rec, req)
 	return rec

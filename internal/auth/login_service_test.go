@@ -740,7 +740,7 @@ func TestPollDeviceLogin_HappyPathCreatesAllArtifactsInOneTx(t *testing.T) {
 	assert.True(t, f.attempts.consumed[start.LoginID], "attempt must be consumed once the tx succeeded")
 
 	// Caller-visible grant.
-	assert.Equal(t, outcome.Session.Token, outcome.Session.Token)
+	assert.NotEmpty(t, outcome.Session.Token, "caller receives the raw session token")
 	assert.Equal(t, wantExpiry, *outcome.ExpiresAt)
 	assert.Equal(t, "ops@example.com", outcome.Email)
 	assert.Equal(t, "Example Org", outcome.OrgName)
@@ -1224,9 +1224,9 @@ func browserTestToken() auth.AiandTokenResponse {
 // startBrowser runs StartBrowserLogin and hands back the start plus the
 // unsealed flow payload (the fixture's NoOp encryptor keeps the cookie bytes
 // readable) so tests can pin the state and tamper with it.
-func startBrowser(t *testing.T, f *loginFixture, origin, next string) (auth.LoginBrowserStart, auth.SealedBrowserLogin) {
+func startBrowser(t *testing.T, f *loginFixture, next string) (auth.LoginBrowserStart, auth.SealedBrowserLogin) {
 	t.Helper()
-	start, err := f.svc.StartBrowserLogin(context.Background(), origin, next)
+	start, err := f.svc.StartBrowserLogin(context.Background(), "http://127.0.0.1:3000", next)
 	require.NoError(t, err)
 	var flow auth.SealedBrowserLogin
 	require.NoError(t, json.Unmarshal(start.Sealed, &flow))
@@ -1237,7 +1237,7 @@ func TestStartBrowserLogin_BuildsPreflightsAndSeals(t *testing.T) {
 	f := makeLoginService(t, nil)
 	authorizedGateway(f)
 
-	start, flow := startBrowser(t, f, "http://127.0.0.1:3000", "/sessions")
+	start, flow := startBrowser(t, f, "/sessions")
 	require.NotEmpty(t, start.AuthorizeURL)
 	assert.Equal(t, 600, start.ExpiresIn)
 
@@ -1281,7 +1281,7 @@ func TestStartBrowserLogin_SanitizesNext(t *testing.T) {
 		{"/settings/unknown", "/settings/unknown"},
 	}
 	for _, tc := range cases {
-		start, flow := startBrowser(t, f, "http://127.0.0.1:3000", tc.next)
+		start, flow := startBrowser(t, f, tc.next)
 		require.NotEmpty(t, start.AuthorizeURL, tc.next)
 		assert.Equal(t, tc.want, flow.Next, "next=%q", tc.next)
 	}
@@ -1323,7 +1323,7 @@ func TestExchangeBrowserLogin_HappyPath(t *testing.T) {
 		fx.gateway.pollToken = browserTestToken()
 	})
 	authorizedGateway(f)
-	start, flow := startBrowser(t, f, "http://127.0.0.1:3000", "/keys")
+	start, flow := startBrowser(t, f, "/keys")
 
 	result, err := f.svc.ExchangeBrowserLogin(context.Background(), flow.State, "auth-code-1", start.Sealed)
 	require.NoError(t, err)
@@ -1350,7 +1350,7 @@ func TestExchangeBrowserLogin_HappyPath(t *testing.T) {
 
 func TestExchangeBrowserLogin_StateMismatchIsFlowStateError(t *testing.T) {
 	f := makeLoginService(t, nil)
-	start, _ := startBrowser(t, f, "http://127.0.0.1:3000", "")
+	start, _ := startBrowser(t, f, "")
 	_, err := f.svc.ExchangeBrowserLogin(context.Background(), "attacker-state", "code", start.Sealed)
 	require.ErrorIs(t, err, auth.ErrBrowserFlowState)
 	assert.Empty(t, f.gateway.exchanged, "a mismatched state never reaches the gateway")
@@ -1363,7 +1363,7 @@ func TestExchangeBrowserLogin_ExpiredFlowIsFlowStateError(t *testing.T) {
 	f := makeLoginService(t, func(fx *loginFixture) {
 		fx.nowFn = func() time.Time { return now }
 	})
-	start, flow := startBrowser(t, f, "http://127.0.0.1:3000", "")
+	start, flow := startBrowser(t, f, "")
 	now = time.Unix(3600, 0)
 	_, err := f.svc.ExchangeBrowserLogin(context.Background(), flow.State, "code", start.Sealed)
 	require.ErrorIs(t, err, auth.ErrBrowserFlowState)
@@ -1371,7 +1371,7 @@ func TestExchangeBrowserLogin_ExpiredFlowIsFlowStateError(t *testing.T) {
 
 func TestExchangeBrowserLogin_TamperedSealedIsFlowStateError(t *testing.T) {
 	f := makeLoginService(t, nil)
-	start, _ := startBrowser(t, f, "http://127.0.0.1:3000", "")
+	start, _ := startBrowser(t, f, "")
 	tampered := append([]byte(nil), start.Sealed...)
 	tampered[0] ^= 0xFF
 	_, err := f.svc.ExchangeBrowserLogin(context.Background(), flowStateOf(t, start.Sealed), "code", tampered)
@@ -1388,7 +1388,7 @@ func TestExchangeBrowserLogin_RejectedGrantSurfacesSentinel(t *testing.T) {
 	f := makeLoginService(t, func(fx *loginFixture) {
 		fx.gateway.exchangeErr = auth.ErrAiandInvalidGrant
 	})
-	start, flow := startBrowser(t, f, "http://127.0.0.1:3000", "")
+	start, flow := startBrowser(t, f, "")
 	_, err := f.svc.ExchangeBrowserLogin(context.Background(), flow.State, "spent-code", start.Sealed)
 	require.ErrorIs(t, err, auth.ErrAiandInvalidGrant)
 }
@@ -1397,7 +1397,7 @@ func TestExchangeBrowserLogin_GatewayDownWrapsUnavailable(t *testing.T) {
 	f := makeLoginService(t, func(fx *loginFixture) {
 		fx.gateway.exchangeErr = errors.New("connection refused")
 	})
-	start, flow := startBrowser(t, f, "http://127.0.0.1:3000", "")
+	start, flow := startBrowser(t, f, "")
 	_, err := f.svc.ExchangeBrowserLogin(context.Background(), flow.State, "code", start.Sealed)
 	require.ErrorIs(t, err, auth.ErrAiandGatewayUnavailable)
 }
