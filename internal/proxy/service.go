@@ -3840,7 +3840,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 				if useResponses {
 					prep, emitErr = env.PrepareOpenAIResponses(r.Header, attemptOpts)
 				} else {
-					prep, emitErr = env.PrepareOpenAI(r.Header, attemptOpts)
+					prep, emitErr = prepareOpenAIForTurn(env, r.Header, attemptOpts, routeRes.TurnType)
 				}
 				if emitErr != nil {
 					log.Error("Failed to translate Anthropic request to OpenAI format", "err", emitErr, "decision_provider", d.Provider, "responses_api", useResponses)
@@ -6481,7 +6481,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 					if surface == surfaceResponsesTranslated {
 						prep, emitErr = env.PrepareOpenAIResponses(r.Header, attemptOpts)
 					} else {
-						prep, emitErr = env.PrepareOpenAI(r.Header, attemptOpts)
+						prep, emitErr = prepareOpenAIForTurn(env, r.Header, attemptOpts, routeRes.TurnType)
 					}
 					if emitErr != nil {
 						log.Error("Failed to emit OpenAI body", "err", emitErr,
