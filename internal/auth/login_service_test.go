@@ -48,11 +48,9 @@ type loginFakeGateway struct {
 	verified       []string
 
 	authorizeParams []auth.AiandAuthorizeParams
-	authorizeURLs   []string
 	preflighted     []string
 	preflightErr    error
 	exchanged       []auth.AiandCodeExchangeParams
-	exchangeToken   auth.AiandTokenResponse
 	exchangeErr     error
 }
 
@@ -621,9 +619,6 @@ func pollAuthorized(t *testing.T, f *loginFixture, loginID string) auth.LoginPol
 	require.NotNil(t, outcome.Session)
 	return outcome
 }
-
-// deviceTestIdentity is the gateway identity the fakes resolve.
-var deviceTestIdentity = auth.AiandIdentity{UserID: "user-1", OrgID: "org-1", Email: "ops@example.com", OrgName: "Example Org"}
 
 // --- tests ----------------------------------------------------------------
 

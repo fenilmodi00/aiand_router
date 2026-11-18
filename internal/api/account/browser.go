@@ -17,10 +17,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// browserFlowTTLSeconds mirrors the service's loginBrowserTTL: the start
-// response advertises the same window the sealed cookie's Max-Age carries.
-const browserFlowTTLSeconds = 600
-
 const (
 	browserStateErrMsg = "invalid_state"
 	browserRejectedMsg = "exchange_rejected"

@@ -70,8 +70,6 @@ func newActiveSession(lastSeen time.Time) *auth.ActiveSession {
 	}
 }
 
-func hashToken(token string) string { return auth.HashAPIKeySHA256(token) }
-
 func accountSessionEngine(verifier auth.SessionVerifier, cache middleware.AccountSessionCache) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
