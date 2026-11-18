@@ -97,6 +97,7 @@ func TestSidecarRouterReportsImageLimitWhenNoBindingCanServe(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorIs(t, err, policy.ErrImageLimitExceeded)
 	assert.ErrorIs(t, err, policy.ErrNoRoutableModels)
+	require.NotErrorIs(t, err, router.ErrStrategyUnavailable, "an empty candidate set is not a policy outage")
 }
 
 func TestSidecarRouter_CoolingRescuePoolStaysWithinEligibleGroups(t *testing.T) {

@@ -16,6 +16,7 @@ import (
 	"aiand-os/router/internal/router/cluster"
 	"aiand-os/router/internal/router/decisionmodel"
 	"aiand-os/router/internal/router/hmm"
+	"aiand-os/router/internal/router/hmm/selection"
 	"aiand-os/router/internal/router/policy"
 	"aiand-os/router/internal/router/rl"
 	"aiand-os/router/internal/translate"
@@ -474,4 +475,30 @@ func TestClassifyDispatchError_QwenWarmingIsActionable(t *testing.T) {
 	assert.Equal(t, http.StatusServiceUnavailable, classification.Status)
 	assert.Contains(t, classification.Message, "prepare-model")
 	assert.True(t, classification.RetryAfter)
+}
+
+func TestClassifyDispatchError_NoEligibleArmIsNotAnOutage(t *testing.T) {
+	err := fmt.Errorf("hmm_embedding: arm selection: %w: %w",
+		policy.ErrNoEligibleArm, hmm.ErrHMMUnavailable)
+
+	cls, ok := proxy.ClassifyDispatchError(err)
+
+	require.True(t, ok)
+	assert.Equal(t, http.StatusBadRequest, cls.Status)
+	assert.False(t, cls.RetryAfter, "every retry of the same turn meets the same eligibility")
+	assert.True(t, cls.NoClientRetry)
+	assert.NotContains(t, cls.Message, "Router unavailable")
+	assert.Contains(t, cls.Message, "No model can serve this request")
+}
+
+func TestClassifyDispatchError_InvalidClassifierOutputStaysAnOutage(t *testing.T) {
+	err := fmt.Errorf("hmm_embedding: arm selection: %w: %w",
+		selection.ErrInvalidClassifierOutput, hmm.ErrHMMUnavailable)
+
+	cls, ok := proxy.ClassifyDispatchError(err)
+
+	require.True(t, ok)
+	assert.Equal(t, proxy.DispatchErrorHMMUnavailable, cls.Kind)
+	assert.Equal(t, http.StatusServiceUnavailable, cls.Status)
+	assert.True(t, cls.RetryAfter)
 }
