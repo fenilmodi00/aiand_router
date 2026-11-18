@@ -233,8 +233,8 @@ func (s *ProviderSummarizer) run(ctx context.Context, env *translate.RequestEnve
 	)
 	transport := dispatch.Buffered{
 		Reason: string(plan.Purpose()),
-		Prepare: func(_ context.Context, attempt dispatch.Attempt) (providers.PreparedRequest, *http.Request, error) {
-			return prepareSummaryCall(env, attempt.Target, instruction, maxTokens)
+		Prepare: func(ctx context.Context, attempt dispatch.Attempt) (providers.PreparedRequest, *http.Request, error) {
+			return prepareSummaryCall(ctx, env, attempt.Target, instruction, maxTokens)
 		},
 		Consume: func(_ context.Context, attempt dispatch.Attempt, resp *http.Response) (err error) {
 			text, usage, err = summaryFromResponse(resp, attempt.Target)
@@ -251,13 +251,13 @@ func (s *ProviderSummarizer) run(ctx context.Context, env *translate.RequestEnve
 
 // prepareSummaryCall builds the non-streaming OpenAI Chat Completions request
 // for target; dispatch checks the wire model against the plan before any I/O.
-func prepareSummaryCall(env *translate.RequestEnvelope, target inference.Target, instruction string, maxTokens int) (providers.PreparedRequest, *http.Request, error) {
+func prepareSummaryCall(ctx context.Context, env *translate.RequestEnvelope, target inference.Target, instruction string, maxTokens int) (providers.PreparedRequest, *http.Request, error) {
 	body, err := buildSummaryRequestBody(env, target.CatalogID, instruction, maxTokens)
 	if err != nil {
 		return providers.PreparedRequest{}, nil, fmt.Errorf("build summary request: %w", err)
 	}
 	prep := providers.PreparedRequest{Body: body, Headers: make(http.Header)}
-	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
 	req.Header.Set("content-type", "application/json")
 	return prep, req, nil
 }

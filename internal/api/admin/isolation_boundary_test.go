@@ -126,7 +126,7 @@ func TestIsolation_Boundary_AccountCookieNeverAuthenticatesDataPlane(t *testing.
 	engine.GET("/v1/probe", func(c *gin.Context) { c.Status(http.StatusOK) })
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/probe", nil)
-	req.AddCookie(&http.Cookie{Name: auth.LoginSessionCookieName, Value: fx.accounts["A"].token})
+	req.AddCookie(&http.Cookie{Name: auth.LoginSessionCookieName, Value: fx.accounts["A"].token, Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode})
 	rr := httptest.NewRecorder()
 	engine.ServeHTTP(rr, req)
 
@@ -212,7 +212,7 @@ func TestIsolation_Revocation_LogoutRevokesRowAndStolenCookieDies(t *testing.T) 
 	// The actual logout route semantics: revoke by token hash, then verify.
 	probe := func(token string) *httptest.ResponseRecorder {
 		req := httptest.NewRequest(http.MethodGet, "/admin/v1/keys", nil)
-		req.AddCookie(&http.Cookie{Name: auth.LoginSessionCookieName, Value: token})
+		req.AddCookie(&http.Cookie{Name: auth.LoginSessionCookieName, Value: token, Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode})
 		rr := httptest.NewRecorder()
 		full := fx.engine() // separate engine: cookie-required mgmt group
 		full.ServeHTTP(rr, req)
@@ -300,7 +300,7 @@ func TestIsolation_Revocation_ExpiredCacheEntryStillRejects(t *testing.T) {
 	// pre-revocation positive entry: the verifier's rejection must win.
 	require.NoError(t, fx.loginLogout(fx.accounts["A"].token))
 	req := httptest.NewRequest(http.MethodGet, "/probe", nil)
-	req.AddCookie(&http.Cookie{Name: auth.LoginSessionCookieName, Value: fx.accounts["A"].token})
+	req.AddCookie(&http.Cookie{Name: auth.LoginSessionCookieName, Value: fx.accounts["A"].token, Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode})
 	rr := httptest.NewRecorder()
 	engine.ServeHTTP(rr, req)
 	assert.Equal(t, http.StatusUnauthorized, rr.Code, "revocation must win over any cached positive entry")

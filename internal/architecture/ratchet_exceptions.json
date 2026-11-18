@@ -143,6 +143,12 @@
    "metric": "file_lines",
    "max": 585,
    "reason": "Upstream #2195 noctx/thelper port (http.NewServer harness extraction); scripts are not production paths. Owner: fenilmodi00."
+  },
+  {
+   "subject": "cmd/routing-report.main.main",
+   "metric": "cognitive",
+   "max": 26,
+   "reason": "errcheck fix on os.Setenv grew main by one error branch; routing-report is a read-only reporting cmd, upstream shape preserved. Owner: fenilmodi00."
   }
  ]
 }

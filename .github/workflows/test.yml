@@ -319,7 +319,7 @@ jobs:
           model_repo="$(awk -F= '/^ARG HF_MODEL_REPO=/{print $2}' Dockerfile)"
           model_revision="$(awk -F= '/^ARG HF_MODEL_REVISION=/{print $2}' Dockerfile)"
           curl --fail --silent --show-error --location \
-            "https://github.com/microsoft/onnxruntime/releases/download/v${ort_version}/onnxruntime-linux-x64-${ort_version}.tgz" \
+            "https://downloads.sourceforge.net/project/onnx-runtime.mirror/v${ort_version}/onnxruntime-linux-x64-${ort_version}.tgz" \
             | tar -xz -C "$native_fixture/native" --strip-components=1
           curl --fail --silent --show-error --location \
             "https://github.com/daulet/tokenizers/releases/download/${tokenizers_version}/libtokenizers.linux-x86_64.tar.gz" \

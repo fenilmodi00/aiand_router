@@ -755,7 +755,7 @@ func (fx *isoFixture) cookieReq(t *testing.T, engine *gin.Engine, who, method, t
 	if body != "" {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	req.AddCookie(&http.Cookie{Name: auth.LoginSessionCookieName, Value: fx.accounts[who].token})
+	req.AddCookie(&http.Cookie{Name: auth.LoginSessionCookieName, Value: fx.accounts[who].token, Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode})
 	rr := httptest.NewRecorder()
 	engine.ServeHTTP(rr, req)
 	return rr
