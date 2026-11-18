@@ -131,18 +131,23 @@ func isPublicAddr(address netip.Addr) bool {
 		address.IsLinkLocalMulticast() || address.IsMulticast() || address.IsUnspecified() {
 		return false
 	}
-	if address.Is4() {
-		bytes := address.As4()
-		// None of these have a stdlib predicate: 0.0.0.0/8 is "this host on
-		// this network" (RFC 1122) and resolves to a local service on Linux,
-		// 100.64.0.0/10 is carrier-grade NAT (RFC 6598), and 240.0.0.0/4 is
-		// reserved (RFC 1112) — which also covers the 255.255.255.255
-		// broadcast address.
-		if bytes[0] == 0 || (bytes[0] == 100 && bytes[1] >= 64 && bytes[1] <= 127) || bytes[0] >= 240 {
+	for _, reserved := range nonPublicIPv4 {
+		if reserved.Contains(address) {
 			return false
 		}
 	}
 	return true
+}
+
+// nonPublicIPv4 are the IPv4 ranges with no stdlib predicate: 0.0.0.0/8 is
+// "this host on this network" (RFC 1122) and resolves to a local service on
+// Linux, 100.64.0.0/10 is carrier-grade NAT (RFC 6598), and 240.0.0.0/4 is
+// reserved (RFC 1112) — which also covers the 255.255.255.255 broadcast
+// address.
+var nonPublicIPv4 = []netip.Prefix{
+	netip.MustParsePrefix("0.0.0.0/8"),
+	netip.MustParsePrefix("100.64.0.0/10"),
+	netip.MustParsePrefix("240.0.0.0/4"),
 }
 
 func parseModelDiscoveryPrivateOrigins(raw string) (map[string]struct{}, error) {

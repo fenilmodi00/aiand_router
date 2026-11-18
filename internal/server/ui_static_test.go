@@ -19,11 +19,11 @@ func TestRegisterUIStatic(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	root := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(root, "index.html"), []byte("index"), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(root, "keys.html"), []byte("keys"), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(root, "aiand.svg"), []byte("svg"), 0o644))
-	require.NoError(t, os.MkdirAll(filepath.Join(root, "_next", "static", "chunks"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(root, "_next", "static", "chunks", "app.js"), []byte("js"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "index.html"), []byte("index"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "keys.html"), []byte("keys"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "aiand.svg"), []byte("svg"), 0o600))
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "_next", "static", "chunks"), 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "_next", "static", "chunks", "app.js"), []byte("js"), 0o600))
 
 	engine := gin.New()
 	registerUIStatic(engine, root)
