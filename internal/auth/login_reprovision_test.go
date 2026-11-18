@@ -163,12 +163,12 @@ func TestLoginWithKey_SameUserTwoOrgsPartitionCleanly(t *testing.T) {
 		}
 	}
 	for _, c := range f.credentials.upserts {
-		require.NotEqual(t, seen[c.InstallationID], "credential",
+		require.NotEqual(t, "credential", seen[c.InstallationID],
 			"no installation may hold two credential rows")
 		seen[c.InstallationID] = "credential"
 	}
 	for _, k := range f.externalKeys.created {
-		require.NotEqual(t, seen[k.InstallationID], "external-key",
+		require.NotEqual(t, "external-key", seen[k.InstallationID],
 			"no installation may hold two propagated keys")
 		seen[k.InstallationID] = "external-key"
 	}

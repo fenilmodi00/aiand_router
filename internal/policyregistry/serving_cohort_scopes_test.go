@@ -8,7 +8,7 @@ import (
 
 func expandCohortV2(t *testing.T, store *servingMemoryStore, set policyregistry.SelectionSetV3) policyregistry.SelectionSetV2 {
 	t.Helper()
-	candidate := *store.object(t, policyregistry.ServingCandidate, set.Code.Candidate).(*policyregistry.CandidateV2)
+	candidate := *mustAs[*policyregistry.CandidateV2](t, store.object(t, policyregistry.ServingCandidate, set.Code.Candidate))
 	lane := func(key string, policy policyregistry.PolicyObject) policyregistry.ServingLane {
 		configured := candidate
 		configured.Policy = policy

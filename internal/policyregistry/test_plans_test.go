@@ -48,12 +48,12 @@ func (r *testLaunchRepo) RevokeTestLaunch(context.Context, string) error {
 func testPlanFixture(t *testing.T) (*policyregistry.TestPlanTools, *testLaunchRepo, *servingMemoryStore, *time.Time, policyregistry.SelectionSet) {
 	t.Helper()
 	store, _, set := controllerFixture(t)
-	release := store.object(t, policyregistry.ServingReleases, set.Default.Release).(*policyregistry.ServingRelease)
+	release := mustAs[*policyregistry.ServingRelease](t, store.object(t, policyregistry.ServingReleases, set.Default.Release))
 	for _, plan := range []entitlement.Plan{entitlement.PlanMax, entitlement.PlanBoost} {
 		profile, _ := entitlement.ServingProfileFor(plan)
 		set.Profiles[profile.Key] = registerProfileFixture(t, store, set.Default, profile.Key, release.Policy)
 	}
-	snapshot, _ := storedActivateFixture(t, store, policyregistry.ServingStateSnapshot{}, set, servingEpoch)
+	snapshot := storedActivateFixture(t, store, policyregistry.ServingStateSnapshot{}, set, servingEpoch)
 	store.states[policyregistry.TargetStable] = snapshot
 	now := servingEpoch.Add(time.Minute)
 	repo := &testLaunchRepo{identity: policyregistry.TestPlanIdentity{SubjectID: uuid.NewString(), InstallationID: "test-installation", Label: "Synthetic enrolled internal identity", BalanceMicros: 1000000, EnrollmentGeneration: 3}}

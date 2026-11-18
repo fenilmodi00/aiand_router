@@ -29,7 +29,7 @@ func cohortFixture(t *testing.T) (*servingMemoryStore, policyregistry.SelectionS
 	t.Helper()
 	store, _, legacy := controllerFixture(t)
 	lane := foldLane(t, store, legacy.Default)
-	candidate := store.object(t, policyregistry.ServingCandidate, lane.Candidate).(*policyregistry.CandidateV2)
+	candidate := mustAs[*policyregistry.CandidateV2](t, store.object(t, policyregistry.ServingCandidate, lane.Candidate))
 	set := policyregistry.SelectionSetV3{SchemaVersion: policyregistry.ServingSelectionSetV3, Target: legacy.Target,
 		Code: policyregistry.CodeBinding{Candidate: lane.Candidate, LaneBinding: lane.LaneBinding}, DefaultPolicy: candidate.Policy,
 		Profiles: map[string]policyregistry.PolicyObject{profileKeyOne: candidate.Policy, profileKeyTwo: publishRosterArm(t, store, candidate.Policy, alternateRosterArm)}}

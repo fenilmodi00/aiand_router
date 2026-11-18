@@ -51,8 +51,8 @@ func (f v2Fixture) selection(profileKey string) policyregistry.ServingSelection 
 // foldCandidate publishes the v2 candidate equivalent to a v1 release and its classifier bundle.
 func foldCandidate(t *testing.T, store *servingMemoryStore, releaseRef policyregistry.ObjectRef) policyregistry.ObjectRef {
 	t.Helper()
-	release := store.object(t, policyregistry.ServingReleases, releaseRef).(*policyregistry.ServingRelease)
-	bundle := store.object(t, policyregistry.ServingClassifiers, release.Classifier).(*policyregistry.ClassifierBundle)
+	release := mustAs[*policyregistry.ServingRelease](t, store.object(t, policyregistry.ServingReleases, releaseRef))
+	bundle := mustAs[*policyregistry.ClassifierBundle](t, store.object(t, policyregistry.ServingClassifiers, release.Classifier))
 	candidate := policyregistry.CandidateV2{SchemaVersion: policyregistry.ServingCandidateV2, CandidateComposition: policyregistry.CandidateComposition{
 		RouterImageDigest: release.RouterImageDigest,
 		Policy:            release.Policy,
@@ -66,10 +66,10 @@ func foldCandidate(t *testing.T, store *servingMemoryStore, releaseRef policyreg
 // foldLane expresses a v1 selection (release + binding + optional profile objects) as a v2 lane.
 func foldLane(t *testing.T, store *servingMemoryStore, selection policyregistry.ServingSelection) policyregistry.ServingLane {
 	t.Helper()
-	binding := store.object(t, policyregistry.ServingBindings, selection.Binding).(*policyregistry.DeploymentBinding)
+	binding := mustAs[*policyregistry.DeploymentBinding](t, store.object(t, policyregistry.ServingBindings, selection.Binding))
 	lane := policyregistry.ServingLane{Candidate: foldCandidate(t, store, selection.Release), LaneBinding: policyregistry.LaneBinding{Project: binding.Project, Region: binding.Region, Router: binding.Router, Classifier: binding.Classifier, Attestation: binding.Attestation}}
 	if selection.Profile != nil {
-		profile := store.object(t, policyregistry.ServingProfiles, *selection.Profile).(*policyregistry.RoutingProfile)
+		profile := mustAs[*policyregistry.RoutingProfile](t, store.object(t, policyregistry.ServingProfiles, *selection.Profile))
 		policy, requirements := profile.Policy, profile.Requirements
 		lane.ProfileKey, lane.ProfilePolicy, lane.ProfileRequirements = profile.ProfileKey, &policy, &requirements
 	}
@@ -88,7 +88,7 @@ func foldSelectionSet(t *testing.T, store *servingMemoryStore, set policyregistr
 
 func newV2Fixture(t *testing.T, store *servingMemoryStore, set policyregistry.SelectionSet) v2Fixture {
 	t.Helper()
-	release := store.object(t, policyregistry.ServingReleases, set.Default.Release).(*policyregistry.ServingRelease)
+	release := mustAs[*policyregistry.ServingRelease](t, store.object(t, policyregistry.ServingReleases, set.Default.Release))
 	set.Profiles[profileKeyOne] = registerProfileFixture(t, store, set.Default, profileKeyOne, release.Policy)
 	store.publish(t, policyregistry.ServingSelectionSets, set)
 	v2, setRef := foldSelectionSet(t, store, set)
@@ -102,17 +102,17 @@ func fixtureProposalV2(fixture v2Fixture, previous *policyregistry.ObjectRef) po
 func TestServingRefAcceptsBothLayoutsOnlyForTheKindThatFoldsThem(t *testing.T) {
 	artifact := artifactStoredRef([]byte("object"))
 	for _, kind := range []policyregistry.ServingKind{policyregistry.ServingCandidate, policyregistry.ServingSelectionSet, policyregistry.ServingProposal} {
-		assert.NoError(t, policyregistry.ValidateServingRef(artifact, testRegistryRoot, kind), kind)
+		require.NoError(t, policyregistry.ValidateServingRef(artifact, testRegistryRoot, kind), kind)
 	}
 	for _, kind := range []policyregistry.ServingKind{policyregistry.ServingReleases, policyregistry.ServingClassifiers, policyregistry.ServingBindings, policyregistry.ServingProfiles, policyregistry.ServingSelectionSets, policyregistry.ServingProposals} {
-		assert.ErrorContains(t, policyregistry.ValidateServingRef(artifact, testRegistryRoot, kind), "namespace", kind)
+		require.ErrorContains(t, policyregistry.ValidateServingRef(artifact, testRegistryRoot, kind), "namespace", kind)
 	}
 	folds := map[policyregistry.ServingKind]policyregistry.ServingKind{policyregistry.ServingCandidate: policyregistry.ServingReleases, policyregistry.ServingSelectionSet: policyregistry.ServingSelectionSets, policyregistry.ServingProposal: policyregistry.ServingProposals}
 	for family, legacy := range folds {
-		assert.NoError(t, policyregistry.ValidateServingRef(namespaceRef(legacy, "object"), testRegistryRoot, family))
+		require.NoError(t, policyregistry.ValidateServingRef(namespaceRef(legacy, "object"), testRegistryRoot, family))
 		for _, other := range []policyregistry.ServingKind{policyregistry.ServingReleases, policyregistry.ServingClassifiers, policyregistry.ServingBindings, policyregistry.ServingProfiles, policyregistry.ServingSelectionSets, policyregistry.ServingProposals} {
 			if other != legacy {
-				assert.Error(t, policyregistry.ValidateServingRef(namespaceRef(other, "object"), testRegistryRoot, family), "%s must not accept %s", family, other)
+				require.Error(t, policyregistry.ValidateServingRef(namespaceRef(other, "object"), testRegistryRoot, family), "%s must not accept %s", family, other)
 			}
 		}
 	}

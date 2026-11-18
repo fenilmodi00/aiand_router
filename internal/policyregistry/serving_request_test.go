@@ -97,5 +97,6 @@ func TestAdmittedIdentitySeparatesIncarnationsAndSessionlessRequests(t *testing.
 	assertion.Admission.BindingGeneration++
 	require.NotEqual(t, first.StateNamespace, identity(assertion).StateNamespace)
 	assertion.Scope.Persistent = false
-	require.NotEqual(t, identity(assertion).StateNamespace, identity(assertion).StateNamespace, "missing session ID must not share learned state")
+	unscoped := identity(assertion).StateNamespace
+	require.NotEqual(t, unscoped, identity(assertion).StateNamespace, "missing session ID must not share learned state")
 }

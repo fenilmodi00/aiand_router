@@ -190,8 +190,8 @@ func TestDeviceStartThenPollPendingThenAuthorized(t *testing.T) {
 	assert.Equal(t, "attempt-1", startResp["login_id"])
 	assert.Equal(t, "WDJB-MJHT", startResp["user_code"])
 	assert.Equal(t, "https://aiand.example/activate", startResp["verification_uri"])
-	assert.Equal(t, float64(900), startResp["expires_in"])
-	assert.Equal(t, float64(5), startResp["interval"])
+	assert.InDelta(t, float64(900), startResp["expires_in"], 1e-9)
+	assert.InDelta(t, float64(5), startResp["interval"], 1e-9)
 
 	w = doJSON(engine, http.MethodPost, "/account/v1/auth/device/poll", peerA, `{"login_id":"attempt-1"}`)
 	require.Equal(t, http.StatusOK, w.Code)
@@ -531,7 +531,7 @@ func browserTestStart() auth.LoginBrowserStart {
 	}
 }
 
-func browserTestResult(state string) auth.LoginBrowserResult {
+func browserTestResult() auth.LoginBrowserResult {
 	return auth.LoginBrowserResult{
 		Grant: &auth.LoginSessionGrant{
 			Token:     "browser-sess-1",
@@ -566,7 +566,7 @@ func TestBrowserStartReturnsAuthorizeURLAndSetsCookie(t *testing.T) {
 	var resp map[string]any
 	require.NoError(t, jsonUnmarshal(w.Body.Bytes(), &resp))
 	assert.Equal(t, browserTestStart().AuthorizeURL, resp["authorize_url"])
-	assert.Equal(t, float64(600), resp["expires_in"])
+	assert.InDelta(t, float64(600), resp["expires_in"], 1e-9)
 
 	cookie := findCookie(t, w, auth.LoginBrowserCookieName)
 	require.NotNil(t, cookie, "start must set the flow cookie")
@@ -640,7 +640,7 @@ func TestBrowserStartGatewayDownIs502AndCounts(t *testing.T) {
 
 func TestBrowserExchangeSetsSessionCookieAndClearsFlowCookie(t *testing.T) {
 	state := "st-123"
-	svc := &fakeLoginAPI{browserResults: map[string]auth.LoginBrowserResult{state: browserTestResult(state)}}
+	svc := &fakeLoginAPI{browserResults: map[string]auth.LoginBrowserResult{state: browserTestResult()}}
 	engine := newRouter(svc)
 	req := httptest.NewRequest(http.MethodPost, "/account/v1/auth/browser/exchange", strings.NewReader(`{"code":"auth-code","state":"`+state+`"}`))
 	req.RemoteAddr = peerA + ":41234"
