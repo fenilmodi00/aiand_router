@@ -821,7 +821,7 @@ func TestLoginWithKey_InvalidKeySurfacesSentinel(t *testing.T) {
 		f.gateway.verifyErr = auth.ErrAiandInvalidKey
 	})
 	_, err := f.svc.LoginWithKey(context.Background(), "sk-bad")
-	assert.ErrorIs(t, err, auth.ErrAiandInvalidKey)
+	require.ErrorIs(t, err, auth.ErrAiandInvalidKey)
 	assert.Equal(t, 0, f.runner.runs, "no transaction may run for an invalid key")
 	assert.Empty(t, f.accounts.upserts)
 	assert.Empty(t, f.installations.created)
@@ -936,7 +936,7 @@ func TestPollDeviceLogin_TerminalOutcomesClearAttempt(t *testing.T) {
 			assert.True(t, f.attempts.deleted[start.LoginID], "terminal outcome must clear the attempt")
 			// The attempt no longer resolves.
 			_, err = f.svc.PollDeviceLogin(context.Background(), start.LoginID)
-			assert.ErrorIs(t, err, auth.ErrLoginAttemptNotFound)
+			require.ErrorIs(t, err, auth.ErrLoginAttemptNotFound)
 			assert.Equal(t, 0, f.runner.runs, "no login transaction for a terminal outcome")
 		})
 	}
@@ -999,7 +999,7 @@ func TestLogout_RevokesAndVerificationFails(t *testing.T) {
 
 	require.NoError(t, f.svc.Logout(context.Background(), token))
 	_, err = f.svc.VerifySessionToken(t.Context(), token)
-	assert.ErrorIs(t, err, auth.ErrSessionNotFound, "a revoked session must stop resolving")
+	require.ErrorIs(t, err, auth.ErrSessionNotFound, "a revoked session must stop resolving")
 
 	// Idempotent: revoking twice is not an error.
 	require.NoError(t, f.svc.Logout(context.Background(), token))
@@ -1063,11 +1063,11 @@ func TestLogin_CredentialExternalIDIsAccountID(t *testing.T) {
 	// Unseal under the installation UUID: AAD mismatch fails closed — the
 	// ciphertext is bound to the account id, not the FK UUID.
 	_, err = encryptor.Decrypt(cred.AccessTokenCiphertext, installationID, providers.ProviderAIAND)
-	assert.Error(t, err, "the AAD must be the account id, never the installation UUID")
+	require.Error(t, err, "the AAD must be the account id, never the installation UUID")
 
 	// Unseal under any other external id: AAD mismatch fails closed.
 	_, err = encryptor.Decrypt(cred.AccessTokenCiphertext, "some-other-id", providers.ProviderAIAND)
-	assert.Error(t, err, "ciphertext must be bound to the account id via AAD")
+	require.Error(t, err, "ciphertext must be bound to the account id via AAD")
 
 	// Device code seal: bound to the attempt id, not the account id.
 	require.Len(t, f.attempts.inserted, 1)

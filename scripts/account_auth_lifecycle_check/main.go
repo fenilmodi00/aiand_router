@@ -37,7 +37,9 @@ import (
 
 func main() {
 	created, cleanupCreated := (*testAccount)(nil), func() {}
-	defer cleanupCreated()
+	// Defer through a closure so it invokes the cleanup installed once the
+	// account exists, rather than the initial no-op captured at defer time.
+	defer func() { cleanupCreated() }()
 	dsn := os.Getenv("ROUTER_TEST_DATABASE_URL")
 	if dsn == "" {
 		fmt.Println("ROUTER_TEST_DATABASE_URL not set; skipping live-DB account auth lifecycle check (see file header for usage)")

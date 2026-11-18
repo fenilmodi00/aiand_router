@@ -80,7 +80,7 @@ func withUsageBypassInstallation(c *gin.Context, externalID string) {
 	})
 }
 
-func runMiddleware(t *testing.T, repo billing.Repo, threshold int64, externalID string) (*httptest.ResponseRecorder, bool) {
+func runMiddleware(t *testing.T, repo billing.Repo, threshold int64) (*httptest.ResponseRecorder, bool) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	svc := billing.NewService(repo)
@@ -88,7 +88,7 @@ func runMiddleware(t *testing.T, repo billing.Repo, threshold int64, externalID 
 	reached := false
 	engine.GET("/probe", func(c *gin.Context) {
 		// Synthetic auth: pre-stash the installation the way WithAuth would.
-		withInstallation(c, externalID)
+		withInstallation(c, "org_x")
 		middleware.WithBalanceCheck(svc, threshold)(c)
 		if c.IsAborted() {
 			return
@@ -131,7 +131,7 @@ func runMiddlewareWith(t *testing.T, repo billing.Repo, threshold int64, routePa
 
 func TestWithBalanceCheck_402WhenBelowThreshold(t *testing.T) {
 	repo := &stubBillingRepo{balance: 999_999} // just under $1
-	w, reached := runMiddleware(t, repo, 1_000_000, "org_x")
+	w, reached := runMiddleware(t, repo, 1_000_000)
 	assert.False(t, reached, "handler must not be reached when balance is below threshold")
 	assert.Equal(t, http.StatusPaymentRequired, w.Code)
 
@@ -150,14 +150,14 @@ func TestWithBalanceCheck_402WhenBelowThreshold(t *testing.T) {
 
 func TestWithBalanceCheck_402WhenBalanceRowMissing(t *testing.T) {
 	repo := &stubBillingRepo{balanceErr: billing.ErrBalanceRowMissing}
-	w, reached := runMiddleware(t, repo, 1_000_000, "org_x")
+	w, reached := runMiddleware(t, repo, 1_000_000)
 	assert.False(t, reached)
 	assert.Equal(t, http.StatusPaymentRequired, w.Code)
 }
 
 func TestWithBalanceCheck_PassesWhenAboveThreshold(t *testing.T) {
 	repo := &stubBillingRepo{balance: 50_000_000} // $50
-	_, reached := runMiddleware(t, repo, 1_000_000, "org_x")
+	_, reached := runMiddleware(t, repo, 1_000_000)
 	assert.True(t, reached, "request must reach handler when balance is healthy")
 }
 
@@ -193,7 +193,7 @@ func TestWithBalanceCheck_FailClosedOnRepoError(t *testing.T) {
 	// incurred but no debit is possible. 503 prompts the client to retry
 	// rather than silently spend against an unknown balance.
 	repo := &stubBillingRepo{balanceErr: errors.New("conn refused")}
-	w, reached := runMiddleware(t, repo, 1_000_000, "org_x")
+	w, reached := runMiddleware(t, repo, 1_000_000)
 	assert.False(t, reached, "infra error must not allow request through")
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 
@@ -210,14 +210,14 @@ func TestWithBalanceCheck_AllowsZeroThreshold(t *testing.T) {
 	// minBalanceMicros=0 means "only 402 when the balance is actually
 	// at or below zero". A small positive balance must pass through.
 	repo := &stubBillingRepo{balance: 1}
-	_, reached := runMiddleware(t, repo, 0, "org_x")
+	_, reached := runMiddleware(t, repo, 0)
 	assert.True(t, reached, "positive balance must pass when threshold is zero")
 }
 
 func TestWithBalanceCheck_BlocksAtZeroWhenThresholdIsZero(t *testing.T) {
 	// At threshold=0, balance=0 still trips the ≤ check and returns 402.
 	repo := &stubBillingRepo{balance: 0}
-	w, reached := runMiddleware(t, repo, 0, "org_x")
+	w, reached := runMiddleware(t, repo, 0)
 	assert.False(t, reached)
 	assert.Equal(t, http.StatusPaymentRequired, w.Code)
 }

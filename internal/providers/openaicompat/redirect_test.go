@@ -29,7 +29,9 @@ func redirectFixture(t *testing.T) (upstream *httptest.Server, targetHit *atomic
 	}))
 	t.Cleanup(target.Close)
 	upstream = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, target.URL+r.URL.Path, http.StatusFound)
+		// The Location is fixed: no request-derived bytes reach it, so the
+		// fixture redirects off-host without echoing caller input.
+		http.Redirect(w, r, target.URL+"/v1/chat/completions", http.StatusFound)
 	}))
 	t.Cleanup(upstream.Close)
 	return upstream, &hit

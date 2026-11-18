@@ -10,7 +10,10 @@
 # The mini UI is a Next.js static export built by a Node.js stage and
 # copied into assets/ui/ before the Go binary is assembled.
 
-ARG ONNXRUNTIME_VERSION=1.25.1
+ARG ONNXRUNTIME_VERSION=1.32.0
+# microsoft/onnxruntime left GitHub (repo + release assets 404 since
+# ~2026-11-15); the SourceForge onnx-runtime.mirror project is an exact
+# mirror that keeps the CPU linux tgz for the current release.
 ARG TOKENIZERS_VERSION=v1.27.0
 # Cluster-scorer ONNX is hosted on HuggingFace Hub (pattern mirrors
 # models/v2/). HF_MODEL_REPO points at the repo; HF_MODEL_REVISION
@@ -87,7 +90,7 @@ RUN set -eux; \
     esac; \
     mkdir -p /opt/onnxruntime /opt/libtokenizers; \
     curl --fail --silent --show-error --location \
-      "https://github.com/microsoft/onnxruntime/releases/download/v${ONNXRUNTIME_VERSION}/onnxruntime-linux-${ort_arch}-${ONNXRUNTIME_VERSION}.tgz" \
+      "https://downloads.sourceforge.net/project/onnx-runtime.mirror/v${ONNXRUNTIME_VERSION}/onnxruntime-linux-${ort_arch}-${ONNXRUNTIME_VERSION}.tgz" \
       -o /tmp/onnxruntime.tgz; \
     tar -xzf /tmp/onnxruntime.tgz -C /opt/onnxruntime --strip-components=1; \
     rm /tmp/onnxruntime.tgz; \

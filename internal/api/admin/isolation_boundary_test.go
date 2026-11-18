@@ -248,7 +248,7 @@ func TestIsolation_Revocation_RevokeAllSessionsForAccount(t *testing.T) {
 	verifier := fx.verifier()
 	for _, token := range []string{fx.accounts["A"].token, second} {
 		_, err := verifier.VerifySessionToken(t.Context(), token)
-		assert.ErrorIs(t, err, auth.ErrSessionNotFound, "every session of the account must die")
+		require.ErrorIs(t, err, auth.ErrSessionNotFound, "every session of the account must die")
 	}
 	// B's session survives.
 	_, err = verifier.VerifySessionToken(t.Context(), fx.accounts["B"].token)

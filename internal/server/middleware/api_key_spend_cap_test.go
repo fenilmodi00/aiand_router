@@ -92,10 +92,9 @@ func TestAPIKeySpendCap_NoKeyPassesThrough(t *testing.T) {
 
 // runSpendCapSub drives WithAPIKeySpendCap on routePath with a caller-supplied
 // installation setter, an api key, and an optional Authorization header,
-// returning the recorder, the reached flag, and whether the request context was
-// flagged subscription-only. The gate keys off the api key but reads the
-// installation from context for the subscription exemption.
-func runSpendCapSub(t *testing.T, routePath, keyID string, setInstall func(*gin.Context), authHeader string, repo *stubBillingRepo) (*httptest.ResponseRecorder, bool, bool) {
+// returning the recorder and the reached flag. The gate keys off the api key but
+// reads the installation from context for the subscription exemption.
+func runSpendCapSub(t *testing.T, routePath, keyID string, setInstall func(*gin.Context), authHeader string, repo *stubBillingRepo) (*httptest.ResponseRecorder, bool) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	svc := billing.NewService(repo)
@@ -123,13 +122,13 @@ func runSpendCapSub(t *testing.T, routePath, keyID string, setInstall func(*gin.
 		req.Header.Set("Authorization", authHeader)
 	}
 	engine.ServeHTTP(w, req)
-	return w, reached, subOnly
+	return w, reached
 }
 
 func TestAPIKeySpendCap_CapReachedNoSubscriptionStillRejected(t *testing.T) {
 	repo := &stubBillingRepo{spendFound: true, capMicros: capPtr(1_000_000), spendMicros: 1_000_000}
 	setInstall := func(c *gin.Context) { withUsageBypassInstallation(c, "org_sub") }
-	w, reached, _ := runSpendCapSub(t, "/v1/messages", "k8", setInstall, "", repo)
+	w, reached := runSpendCapSub(t, "/v1/messages", "k8", setInstall, "", repo)
 	assert.False(t, reached, "no subscription credential means the paid path is gated")
 	assert.Equal(t, http.StatusPaymentRequired, w.Code)
 }
@@ -142,7 +141,7 @@ func TestAPIKeySpendCap_ExemptsSubscriberAllowanceCoveredRequest(t *testing.T) {
 		withInstallation(c, "org_subscriber")
 		stashSubscriberCoverage(c)
 	}
-	w, reached, _ := runSpendCapSub(t, "/v1/messages", "k7", setInstall, "", repo)
+	w, reached := runSpendCapSub(t, "/v1/messages", "k7", setInstall, "", repo)
 	assert.True(t, reached, "an allowance-covered turn is not gated on the key's paid spend cap")
 	assert.Equal(t, http.StatusOK, w.Code)
 }

@@ -402,7 +402,7 @@ func TestCompleteAiandPasteLogin_RejectedKeyIsInvalidSentinel(t *testing.T) {
 	svc := makeAiandService(t, gateway, creds, &recordingExternalKeyRepo{})
 
 	_, err := svc.CompleteAiandPasteLogin(context.Background(), testInstallation, "sk-bad")
-	assert.ErrorIs(t, err, auth.ErrInvalidAiandKey)
+	require.ErrorIs(t, err, auth.ErrInvalidAiandKey)
 	assert.Empty(t, creds.upserts, "a rejected key must not be persisted")
 }
 

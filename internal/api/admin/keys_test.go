@@ -591,9 +591,9 @@ func aliasUpdateEngine(svc *auth.Service, models admin.HMMRosterSource) *gin.Eng
 	return engine
 }
 
-func putModelAliases(engine *gin.Engine, id string, aliases map[string]string) *httptest.ResponseRecorder {
+func putModelAliases(engine *gin.Engine, aliases map[string]string) *httptest.ResponseRecorder {
 	body, _ := json.Marshal(map[string]any{"model_aliases": aliases})
-	req := httptest.NewRequestWithContext(context.Background(), http.MethodPut, "/admin/v1/provider-keys/"+id+"/model-aliases", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPut, "/admin/v1/provider-keys/ext-1/model-aliases", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	engine.ServeHTTP(rec, req)
@@ -606,7 +606,7 @@ func TestUpdateExternalKeyAliasesHandler_ReplacesAliasesWithoutTheSecret(t *test
 	}}
 	models := &fakeHMMRoster{entries: []router.DeployedEntry{{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND}}}
 
-	rec := putModelAliases(aliasUpdateEngine(newUpsertKeyService(repo), models), "ext-1", map[string]string{"z-ai/glm-5.3": "gateway-glm-5.3"})
+	rec := putModelAliases(aliasUpdateEngine(newUpsertKeyService(repo), models), map[string]string{"z-ai/glm-5.3": "gateway-glm-5.3"})
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	assert.Equal(t, map[string]string{"z-ai/glm-5.3": "gateway-glm-5.3"}, repo.keys[0].ModelAliases,
@@ -624,7 +624,7 @@ func TestUpdateExternalKeyAliasesHandler_RejectsUnknownCatalogModel(t *testing.T
 	}}
 	models := &fakeHMMRoster{entries: []router.DeployedEntry{{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND}}}
 
-	rec := putModelAliases(aliasUpdateEngine(newUpsertKeyService(repo), models), "ext-1", map[string]string{"z-ai/glm-5.4": "gateway-glm-5.4"})
+	rec := putModelAliases(aliasUpdateEngine(newUpsertKeyService(repo), models), map[string]string{"z-ai/glm-5.4": "gateway-glm-5.4"})
 
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 	assert.Nil(t, repo.keys[0].ModelAliases, "a typo'd catalog id must fail at write time, not silently at runtime")
@@ -645,7 +645,7 @@ func TestExternalKeyHandlers_RosterUnavailableIs503(t *testing.T) {
 	assert.Equal(t, http.StatusServiceUnavailable, upsert.Code)
 	assert.Zero(t, repo.created, "aliases must not be stored unvalidated when the roster is unavailable")
 
-	update := putModelAliases(aliasUpdateEngine(newUpsertKeyService(repo), models), "ext-1", map[string]string{"z-ai/glm-5.3": "gateway-glm-5.3"})
+	update := putModelAliases(aliasUpdateEngine(newUpsertKeyService(repo), models), map[string]string{"z-ai/glm-5.3": "gateway-glm-5.3"})
 	assert.Equal(t, http.StatusServiceUnavailable, update.Code)
 	assert.Nil(t, repo.keys[0].ModelAliases)
 }
@@ -656,7 +656,7 @@ func TestUpdateExternalKeyAliasesHandler_ForeignKeyIsNotFound(t *testing.T) {
 	}}
 	models := &fakeHMMRoster{entries: []router.DeployedEntry{{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND}}}
 
-	rec := putModelAliases(aliasUpdateEngine(newUpsertKeyService(repo), models), "ext-1", map[string]string{"z-ai/glm-5.3": "gateway-glm-5.3"})
+	rec := putModelAliases(aliasUpdateEngine(newUpsertKeyService(repo), models), map[string]string{"z-ai/glm-5.3": "gateway-glm-5.3"})
 
 	assert.Equal(t, http.StatusNotFound, rec.Code, "another tenant's key must read as absent, not as a server error")
 	assert.Nil(t, repo.keys[0].ModelAliases)

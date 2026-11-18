@@ -112,7 +112,9 @@ func main() {
 	// Scorer warns on every alpha>0.9 cluster (~20 lines/probe under deployed
 	// config); quiet unless caller overrides. Must precede first observability.Get().
 	if os.Getenv("LOG_LEVEL") == "" {
-		os.Setenv("LOG_LEVEL", "error")
+		if err := os.Setenv("LOG_LEVEL", "error"); err != nil {
+			fatal("set LOG_LEVEL: %v", err)
+		}
 	}
 	var (
 		artifactsDir = flag.String("artifacts-dir", "internal/router/cluster/artifacts", "path to the artifacts tree")
@@ -172,7 +174,7 @@ func main() {
 		if mErr != nil {
 			fatal("marshal per-prompt: %v", mErr)
 		}
-		if wErr := os.WriteFile(*perPromptOut, buf, 0o644); wErr != nil {
+		if wErr := os.WriteFile(*perPromptOut, buf, 0o600); wErr != nil {
 			fatal("write per-prompt-json: %v", wErr)
 		}
 	}
@@ -189,7 +191,7 @@ func main() {
 	deployChange := base != nil && *target == latest
 	md := render(*target, *baseline, *topP, hdr.EmbedderID, deployChange, probes, tgt, base)
 	if *outPath != "" {
-		if err := os.WriteFile(*outPath, []byte(md), 0o644); err != nil {
+		if err := os.WriteFile(*outPath, []byte(md), 0o600); err != nil {
 			fatal("write out: %v", err)
 		}
 	} else {

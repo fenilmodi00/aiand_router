@@ -81,9 +81,8 @@ func TestOrgMonthlySpendCap_NoInstallationPassesThrough(t *testing.T) {
 
 // runOrgMonthlyCapSub drives WithOrgMonthlySpendCap on routePath with a
 // caller-supplied installation setter and optional Authorization header,
-// returning the recorder, the reached flag, and whether the request context
-// was flagged subscription-only.
-func runOrgMonthlyCapSub(t *testing.T, routePath string, setInstall func(*gin.Context), authHeader string, repo *stubBillingRepo) (*httptest.ResponseRecorder, bool, bool) {
+// returning the recorder and the reached flag.
+func runOrgMonthlyCapSub(t *testing.T, routePath string, setInstall func(*gin.Context), authHeader string, repo *stubBillingRepo) (*httptest.ResponseRecorder, bool) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	svc := billing.NewService(repo)
@@ -110,13 +109,13 @@ func runOrgMonthlyCapSub(t *testing.T, routePath string, setInstall func(*gin.Co
 		req.Header.Set("Authorization", authHeader)
 	}
 	engine.ServeHTTP(w, req)
-	return w, reached, subOnly
+	return w, reached
 }
 
 func TestOrgMonthlySpendCap_CapReachedNoSubscriptionStillRejected(t *testing.T) {
 	repo := &stubBillingRepo{orgMonthSpent: 1_000_000, orgMonthLimit: capPtr(1_000_000)}
 	setInstall := func(c *gin.Context) { withUsageBypassInstallation(c, "org_sub") }
-	w, reached, _ := runOrgMonthlyCapSub(t, "/v1/messages", setInstall, "", repo)
+	w, reached := runOrgMonthlyCapSub(t, "/v1/messages", setInstall, "", repo)
 	assert.False(t, reached, "no subscription credential means the paid path is gated")
 	assert.Equal(t, http.StatusPaymentRequired, w.Code)
 }
@@ -153,7 +152,7 @@ func TestOrgMonthlySpendCap_ExemptsSubscriberAllowanceCoveredRequest(t *testing.
 		withInstallation(c, "org_subscriber")
 		stashSubscriberCoverage(c)
 	}
-	w, reached, _ := runOrgMonthlyCapSub(t, "/v1/messages", setInstall, "", repo)
+	w, reached := runOrgMonthlyCapSub(t, "/v1/messages", setInstall, "", repo)
 	assert.True(t, reached, "an allowance-covered turn is not gated on the org monthly spend cap")
 	assert.Equal(t, http.StatusOK, w.Code)
 }

@@ -23,9 +23,9 @@ type cliReleaseFiles struct {
 	proposal     map[string]any
 }
 
-func cliObject[T policyregistry.ServingManifest](t *testing.T, registry *cliServingRegistry, kind policyregistry.ServingKind, ref policyregistry.ObjectRef) T {
+func cliObject[T policyregistry.ServingManifest](ctx context.Context, t *testing.T, registry *cliServingRegistry, kind policyregistry.ServingKind, ref policyregistry.ObjectRef) T {
 	t.Helper()
-	manifest, _, err := registry.ReadServingObject(context.Background(), kind, ref)
+	manifest, _, err := registry.ReadServingObject(ctx, kind, ref)
 	require.NoError(t, err)
 	typed, ok := manifest.(T)
 	require.True(t, ok, "fixture object %s is not a %T", ref.SHA256, *new(T))
@@ -45,12 +45,12 @@ func cliDocument(t *testing.T, value any) map[string]any {
 // proposal carry no usable generations, which is the only shape a caller can write before the
 // candidate exists. Its provenance differs from the fixture's already-published v2 candidate so
 // the release is genuinely unpublished.
-func cliReleaseFixture(t *testing.T, registry *cliServingRegistry, v1 policyregistry.DeploymentProposal) cliReleaseFiles {
+func cliReleaseFixture(ctx context.Context, t *testing.T, registry *cliServingRegistry, v1 policyregistry.DeploymentProposal) cliReleaseFiles {
 	t.Helper()
-	release := cliObject[*policyregistry.ServingRelease](t, registry, policyregistry.ServingReleases, v1.SourceRelease)
-	bundle := cliObject[*policyregistry.ClassifierBundle](t, registry, policyregistry.ServingClassifiers, release.Classifier)
-	set := cliObject[*policyregistry.SelectionSet](t, registry, policyregistry.ServingSelectionSets, v1.SelectionSet)
-	binding := cliObject[*policyregistry.DeploymentBinding](t, registry, policyregistry.ServingBindings, set.Default.Binding)
+	release := cliObject[*policyregistry.ServingRelease](ctx, t, registry, policyregistry.ServingReleases, v1.SourceRelease)
+	bundle := cliObject[*policyregistry.ClassifierBundle](ctx, t, registry, policyregistry.ServingClassifiers, release.Classifier)
+	set := cliObject[*policyregistry.SelectionSet](ctx, t, registry, policyregistry.ServingSelectionSets, v1.SelectionSet)
+	binding := cliObject[*policyregistry.DeploymentBinding](ctx, t, registry, policyregistry.ServingBindings, set.Default.Binding)
 	candidate := policyregistry.CandidateV2{SchemaVersion: policyregistry.ServingCandidateV2, CandidateComposition: policyregistry.CandidateComposition{
 		RouterImageDigest: release.RouterImageDigest,
 		Policy:            release.Policy,
@@ -94,12 +94,12 @@ func cliCandidateDigest(t *testing.T, files cliReleaseFiles) string {
 // A fresh release is publishable in one invocation: the caller cannot know the generation GCS
 // assigns, so the lane and proposal references come from the objects actually published.
 func TestServingCLIPublishReleaseFillsReferencesFromWhatItPublished(t *testing.T) {
-	registry, _, v1 := cliServingFixture(t)
-	files := cliReleaseFixture(t, registry, v1)
+	ctx := t.Context()
+	registry, _, v1 := cliServingFixture(ctx, t)
+	files := cliReleaseFixture(ctx, t, registry, v1)
 	args := cliReleaseArgs(t, files)
 	var output any
 	dependencies := cliDependencies(registry, nil, &output, nil)
-	ctx := context.Background()
 	seeded := registry.objectWrites
 
 	require.NoError(t, runServingWith(ctx, args, dependencies))
@@ -111,9 +111,9 @@ func TestServingCLIPublishReleaseFillsReferencesFromWhatItPublished(t *testing.T
 		require.Equal(t, policyregistry.Digest(registry.objects[ref]), ref.SHA256)
 		require.GreaterOrEqual(t, ref.Generation, cliFirstGeneration, "the generation comes from the registry, not the input file")
 	}
-	published := cliObject[*policyregistry.SelectionSetV2](t, registry, policyregistry.ServingSelectionSet, refs.SelectionSet)
+	published := cliObject[*policyregistry.SelectionSetV2](ctx, t, registry, policyregistry.ServingSelectionSet, refs.SelectionSet)
 	require.Equal(t, refs.Candidate, published.Default.Candidate, "the published lane names the candidate that was just created")
-	proposal := cliObject[*policyregistry.DeploymentProposalV2](t, registry, policyregistry.ServingProposal, refs.Proposal)
+	proposal := cliObject[*policyregistry.DeploymentProposalV2](ctx, t, registry, policyregistry.ServingProposal, refs.Proposal)
 	require.Equal(t, refs.SelectionSet, proposal.SelectionSet)
 	require.Equal(t, refs.Candidate, proposal.SourceCandidate)
 	require.Zero(t, registry.writes, "publishing a release never touches target state")
@@ -126,11 +126,11 @@ func TestServingCLIPublishReleaseFillsReferencesFromWhatItPublished(t *testing.T
 
 // A release that failed after the candidate was published resumes without republishing it.
 func TestServingCLIPublishReleaseResumesAfterPartialPublish(t *testing.T) {
-	registry, _, v1 := cliServingFixture(t)
-	files := cliReleaseFixture(t, registry, v1)
+	ctx := t.Context()
+	registry, _, v1 := cliServingFixture(ctx, t)
+	files := cliReleaseFixture(ctx, t, registry, v1)
 	var output any
 	dependencies := cliDependencies(registry, nil, &output, nil)
-	ctx := context.Background()
 	candidatePayload, err := json.Marshal(files.candidate)
 	require.NoError(t, err)
 	candidateRef, err := registry.PublishServingManifest(ctx, policyregistry.ServingCandidate, candidatePayload)
@@ -174,8 +174,9 @@ func TestServingCLIPublishReleaseRejectsManifestsNamingAnotherRelease(t *testing
 		},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
-			registry, _, v1 := cliServingFixture(t)
-			files := cliReleaseFixture(t, registry, v1)
+			ctx := t.Context()
+			registry, _, v1 := cliServingFixture(ctx, t)
+			files := cliReleaseFixture(ctx, t, registry, v1)
 			scenario.mutate(files)
 			var output any
 			dependencies := cliDependencies(registry, nil, &output, nil)
@@ -191,9 +192,10 @@ func TestServingCLIPublishReleaseRejectsManifestsNamingAnotherRelease(t *testing
 
 // A lane already pinned to a different, published candidate is left alone.
 func TestServingCLIPublishReleaseLeavesLanesPinnedToAnotherCandidate(t *testing.T) {
-	registry, _, v1 := cliServingFixture(t)
-	files := cliReleaseFixture(t, registry, v1)
-	pinned := cliReleaseFixture(t, registry, v1)
+	ctx := t.Context()
+	registry, _, v1 := cliServingFixture(ctx, t)
+	files := cliReleaseFixture(ctx, t, registry, v1)
+	pinned := cliReleaseFixture(ctx, t, registry, v1)
 	pinned.candidate.Provenance.RouterRevision = strings.Repeat("e", 40)
 	pinnedPayload, err := json.Marshal(pinned.candidate)
 	require.NoError(t, err)
@@ -211,14 +213,15 @@ func TestServingCLIPublishReleaseLeavesLanesPinnedToAnotherCandidate(t *testing.
 
 	require.NoError(t, runServingWith(context.Background(), cliReleaseArgs(t, files), dependencies))
 	refs := mustAs[servingReleaseRefs](t, output)
-	published := cliObject[*policyregistry.SelectionSetV2](t, registry, policyregistry.ServingSelectionSet, refs.SelectionSet)
+	published := cliObject[*policyregistry.SelectionSetV2](ctx, t, registry, policyregistry.ServingSelectionSet, refs.SelectionSet)
 	require.Equal(t, refs.Candidate, published.Default.Candidate)
 	require.Equal(t, pinnedRef, published.Profiles[profileKey].Candidate, "a lane pinned to another candidate keeps it")
 }
 
 func TestServingCLIPublishReleaseDryRunValidatesWithoutOpeningTheRegistry(t *testing.T) {
-	registry, _, v1 := cliServingFixture(t)
-	files := cliReleaseFixture(t, registry, v1)
+	ctx := t.Context()
+	registry, _, v1 := cliServingFixture(ctx, t)
+	files := cliReleaseFixture(ctx, t, registry, v1)
 	opened := 0
 	var output any
 	dependencies := cliDependencies(registry, nil, &output, nil)
@@ -241,8 +244,9 @@ func TestServingCLIPublishReleaseDryRunValidatesWithoutOpeningTheRegistry(t *tes
 // A dry run previews the same release the publish path would accept, so a registry root written
 // with a trailing separator must not turn into an invalid placeholder URI.
 func TestServingCLIPublishReleaseDryRunAcceptsATrailingSlashRegistryRoot(t *testing.T) {
-	registry, _, v1 := cliServingFixture(t)
-	files := cliReleaseFixture(t, registry, v1)
+	ctx := t.Context()
+	registry, _, v1 := cliServingFixture(ctx, t)
+	files := cliReleaseFixture(ctx, t, registry, v1)
 	var output any
 	dependencies := cliDependencies(registry, nil, &output, nil)
 	args := append(cliReleaseArgs(t, files), "--dry-run", "--registry", defaultRegistryURI+"/")
@@ -254,11 +258,11 @@ func TestServingCLIPublishReleaseDryRunAcceptsATrailingSlashRegistryRoot(t *test
 // A caller may state the reference it expects; only the generation is left to this command, so a
 // reference that names another object's URI is rejected rather than overwritten.
 func TestServingCLIPublishReleaseRejectsReferencesNamingAnotherURI(t *testing.T) {
-	registry, _, v1 := cliServingFixture(t)
-	files := cliReleaseFixture(t, registry, v1)
+	ctx := t.Context()
+	registry, _, v1 := cliServingFixture(ctx, t)
+	files := cliReleaseFixture(ctx, t, registry, v1)
 	digest := cliCandidateDigest(t, files)
 	published := defaultRegistryURI + "/artifacts/" + digest + ".json"
-	ctx := context.Background()
 
 	for _, scenario := range []struct {
 		name      string
@@ -280,8 +284,9 @@ func TestServingCLIPublishReleaseRejectsReferencesNamingAnotherURI(t *testing.T)
 		},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
-			registry, _, v1 := cliServingFixture(t)
-			files := cliReleaseFixture(t, registry, v1)
+			ctx := t.Context()
+			registry, _, v1 := cliServingFixture(ctx, t)
+			files := cliReleaseFixture(ctx, t, registry, v1)
 			lane(t, files)["candidate"] = scenario.reference
 			var output any
 			dependencies := cliDependencies(registry, nil, &output, nil)
@@ -319,8 +324,9 @@ func TestServingCLIPublishReleaseRejectsMalformedReferences(t *testing.T) {
 		},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
-			registry, _, v1 := cliServingFixture(t)
-			files := cliReleaseFixture(t, registry, v1)
+			ctx := t.Context()
+			registry, _, v1 := cliServingFixture(ctx, t)
+			files := cliReleaseFixture(ctx, t, registry, v1)
 			scenario.mutate(files, cliCandidateDigest(t, files))
 			var output any
 			dependencies := cliDependencies(registry, nil, &output, nil)
@@ -332,11 +338,11 @@ func TestServingCLIPublishReleaseRejectsMalformedReferences(t *testing.T) {
 }
 
 func TestServingCLIPublishReleaseRequiresEveryManifestFlag(t *testing.T) {
-	registry, _, v1 := cliServingFixture(t)
-	args := cliReleaseArgs(t, cliReleaseFixture(t, registry, v1))
+	ctx := t.Context()
+	registry, _, v1 := cliServingFixture(ctx, t)
+	args := cliReleaseArgs(t, cliReleaseFixture(ctx, t, registry, v1))
 	var output any
 	dependencies := cliDependencies(registry, nil, &output, nil)
-	ctx := context.Background()
 	seeded := registry.objectWrites
 
 	require.ErrorContains(t, runServingWith(ctx, args[:5], dependencies), "requires --candidate, --selection-set and --proposal")
@@ -351,8 +357,9 @@ func lane(t *testing.T, files cliReleaseFiles) map[string]any {
 }
 
 func TestServingCLIPublishReleaseV3BindsOnlySharedCode(t *testing.T) {
-	registry, _, legacy := cliServingFixture(t)
-	files := cliReleaseFixture(t, registry, legacy)
+	ctx := t.Context()
+	registry, _, legacy := cliServingFixture(ctx, t)
+	files := cliReleaseFixture(ctx, t, registry, legacy)
 	files.selectionSet = map[string]any{
 		"schema_version": string(policyregistry.ServingSelectionSetV3), "target": string(policyregistry.TargetStable),
 		"code": files.selectionSet["default"], "default_policy": cliDocument(t, files.candidate.Policy),
@@ -367,7 +374,7 @@ func TestServingCLIPublishReleaseV3BindsOnlySharedCode(t *testing.T) {
 	require.Zero(t, opens)
 	require.NoError(t, runServingWith(context.Background(), args, dependencies))
 	refs := mustAs[servingReleaseRefs](t, output)
-	published := cliObject[*policyregistry.SelectionSetV3](t, registry, policyregistry.ServingSelectionSet, refs.SelectionSet)
+	published := cliObject[*policyregistry.SelectionSetV3](ctx, t, registry, policyregistry.ServingSelectionSet, refs.SelectionSet)
 	require.Equal(t, refs.Candidate, published.Code.Candidate)
 	require.GreaterOrEqual(t, published.Code.Candidate.Generation, cliFirstGeneration)
 	require.Equal(t, files.candidate.Policy, published.DefaultPolicy)

@@ -52,6 +52,10 @@ func applyRoutingModel(c *gin.Context, body []byte, available StrategyAvailabili
 	case router.ModelDecision:
 		selectedStrategy = router.StrategyDecisionModel
 		unavailableMessage = "decision_model_unavailable"
+	case router.ModelAutomatic:
+		// Automatic selection returns above and keeps cluster routing, so it
+		// never reaches per-strategy admission here.
+		return true
 	}
 	identity, managed := requestcontext.ServingIdentityFromContext(c.Request.Context())
 	internal := managed && identity.Target == string(policyregistry.TargetInternal) && identity.ReleaseID != "" && identity.BindingID != "" && identity.CredentialIdentity != "" && identity.Plan == ""

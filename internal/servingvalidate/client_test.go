@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"aiand-os/router/internal/policyregistry"
@@ -21,20 +22,20 @@ func TestPrivateValidationPreservesIAMAudienceAndExactSnapshot(t *testing.T) {
 	worker := policyregistry.WorkerAttestation{Ready: true, Selection: selection.Selection}
 	classifier := policyregistry.ClassifierAttestation{Ready: true, Revision: "classifier-exact"}
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "Bearer private-identity", r.Header.Get("X-Serverless-Authorization"))
-		require.Empty(t, r.Header.Get("Authorization"))
+		assert.Equal(t, "Bearer private-identity", r.Header.Get("X-Serverless-Authorization"))
+		assert.Empty(t, r.Header.Get("Authorization"))
 		switch r.URL.Path {
 		case policyregistry.WorkerValidationPath:
-			require.Equal(t, "worker-secret", r.Header.Get("X-Aiand-Internal-Token"))
-			require.Equal(t, http.MethodPost, r.Method)
+			assert.Equal(t, "worker-secret", r.Header.Get("X-Aiand-Internal-Token"))
+			assert.Equal(t, http.MethodPost, r.Method)
 			var request policyregistry.WorkerValidationRequest
-			require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
-			require.Equal(t, selection, request)
-			require.NoError(t, json.NewEncoder(w).Encode(worker))
+			assert.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+			assert.Equal(t, selection, request)
+			assert.NoError(t, json.NewEncoder(w).Encode(worker))
 		case policyregistry.ClassifierAttestationPath:
-			require.Empty(t, r.Header.Get("X-Aiand-Internal-Token"))
-			require.Equal(t, http.MethodGet, r.Method)
-			require.NoError(t, json.NewEncoder(w).Encode(classifier))
+			assert.Empty(t, r.Header.Get("X-Aiand-Internal-Token"))
+			assert.Equal(t, http.MethodGet, r.Method)
+			assert.NoError(t, json.NewEncoder(w).Encode(classifier))
 		default:
 			t.Errorf("unexpected validation path %q", r.URL.Path)
 			w.WriteHeader(http.StatusNotFound)
@@ -60,9 +61,9 @@ func TestPrivateWorkerValidationPreservesEveryManagedTarget(t *testing.T) {
 	requests := make(chan policyregistry.WorkerValidationRequest, 3)
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var request policyregistry.WorkerValidationRequest
-		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+		assert.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		requests <- request
-		require.NoError(t, json.NewEncoder(w).Encode(policyregistry.WorkerAttestation{Ready: true, Selection: request.Selection}))
+		assert.NoError(t, json.NewEncoder(w).Encode(policyregistry.WorkerAttestation{Ready: true, Selection: request.Selection}))
 	}))
 	defer server.Close()
 	client, err := servingvalidate.New(server.Client(), func(context.Context, string) (string, error) {

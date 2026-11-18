@@ -139,7 +139,7 @@ func TestVerifyKey_RejectedKeyIs401AndStops(t *testing.T) {
 	g := &identityGateway{userStatus: http.StatusUnauthorized}
 	_, err := newIdentityClient(t, g).VerifyKey(context.Background(), "sk-test-key")
 	require.Error(t, err)
-	assert.ErrorIs(t, err, auth.ErrAiandInvalidKey)
+	require.ErrorIs(t, err, auth.ErrAiandInvalidKey)
 	assert.Equal(t, []string{"GET /api/user"}, g.calls, "a rejected key must not probe further")
 }
 

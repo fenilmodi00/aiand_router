@@ -33,7 +33,7 @@ func captureServer(t *testing.T, status int, response string) (*aiandauth.Client
 	var got capture
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		got.Method, got.Path, got.Header, got.Body = r.Method, r.URL.Path, r.Header.Clone(), body
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(status)
@@ -153,7 +153,7 @@ func TestPollToken_ErrorVariantsMapToSentinels(t *testing.T) {
 			client, got := captureServer(t, tc.status, tc.body)
 			_, err := client.PollToken(context.Background(), "dc-1")
 			require.Error(t, err)
-			assert.ErrorIs(t, err, tc.wantErr)
+			require.ErrorIs(t, err, tc.wantErr)
 			assert.Equal(t, "/auth/device/token", got.Path)
 		})
 	}
@@ -268,7 +268,7 @@ func TestBrowserAuthorizeAvailable_UnsupportedShapesFallBackToDevice(t *testing.
 				CodeChallenge: "probe-challenge",
 			})
 			err := client.BrowserAuthorizeAvailable(context.Background(), authorizeURL)
-			assert.ErrorIs(t, err, auth.ErrAiandBrowserUnsupported, "the login UI must fall back to the device flow")
+			require.ErrorIs(t, err, auth.ErrAiandBrowserUnsupported, "the login UI must fall back to the device flow")
 			assert.Equal(t, "/auth/authorize", got.Path)
 		})
 	}
@@ -285,8 +285,8 @@ func TestBrowserAuthorizeAvailable_OtherFailuresAreGatewayErrors(t *testing.T) {
 			CodeChallenge: "cc",
 		})
 		err := client.BrowserAuthorizeAvailable(context.Background(), authorizeURL)
-		assert.ErrorIs(t, err, auth.ErrAiandGateway)
-		assert.NotErrorIs(t, err, auth.ErrAiandBrowserUnsupported)
+		require.ErrorIs(t, err, auth.ErrAiandGateway)
+		require.NotErrorIs(t, err, auth.ErrAiandBrowserUnsupported)
 	})
 	t.Run("server_error", func(t *testing.T) {
 		client, got := captureServer(t, http.StatusInternalServerError, `{"error": "boom"}`)
@@ -295,11 +295,11 @@ func TestBrowserAuthorizeAvailable_OtherFailuresAreGatewayErrors(t *testing.T) {
 			State:         "s",
 			CodeChallenge: "cc",
 		})
-		assert.ErrorIs(t, client.BrowserAuthorizeAvailable(context.Background(), authorizeURL), auth.ErrAiandGateway)
+		require.ErrorIs(t, client.BrowserAuthorizeAvailable(context.Background(), authorizeURL), auth.ErrAiandGateway)
 	})
 	t.Run("unreachable_gateway", func(t *testing.T) {
 		client := aiandauth.NewClient("http://127.0.0.1:1", &http.Client{Timeout: 2 * time.Second})
-		assert.ErrorIs(t, client.BrowserAuthorizeAvailable(context.Background(), "http://127.0.0.1:1/auth/authorize"), auth.ErrAiandGateway)
+		require.ErrorIs(t, client.BrowserAuthorizeAvailable(context.Background(), "http://127.0.0.1:1/auth/authorize"), auth.ErrAiandGateway)
 	})
 }
 
@@ -339,7 +339,7 @@ func TestExchangeCode_InvalidGrantMapsToSentinel(t *testing.T) {
 
 	_, err := client.ExchangeCode(context.Background(), auth.AiandCodeExchangeParams{Code: "ac", CodeVerifier: "v", RedirectURI: "http://127.0.0.1:8080"})
 
-	assert.ErrorIs(t, err, auth.ErrAiandInvalidGrant)
+	require.ErrorIs(t, err, auth.ErrAiandInvalidGrant)
 	assert.Equal(t, "/auth/device/token", got.Path)
 }
 
@@ -355,7 +355,7 @@ func TestRevoke_PostsRefreshTokenToLogout(t *testing.T) {
 
 func TestRevoke_ServerFailureSurfacesAsError(t *testing.T) {
 	client, _ := captureServer(t, http.StatusInternalServerError, `{"error": "boom"}`)
-	assert.ErrorIs(t, client.Revoke(context.Background(), "rt"), auth.ErrAiandGateway)
+	require.ErrorIs(t, client.Revoke(context.Background(), "rt"), auth.ErrAiandGateway)
 }
 
 func TestValidateKey_SendsBearerAndReturnsUser(t *testing.T) {
@@ -373,13 +373,13 @@ func TestValidateKey_SendsBearerAndReturnsUser(t *testing.T) {
 func TestValidateKey_RejectedKeyIsSentinelNotGatewayFailure(t *testing.T) {
 	client, _ := captureServer(t, http.StatusUnauthorized, `{"error": "invalid"}`)
 	_, err := client.ValidateKey(context.Background(), "sk-bad")
-	assert.ErrorIs(t, err, auth.ErrAiandInvalidKey)
+	require.ErrorIs(t, err, auth.ErrAiandInvalidKey)
 }
 
 func TestValidateKey_ServerProblemIsNotKeyRejection(t *testing.T) {
 	client, _ := captureServer(t, http.StatusBadGateway, `<html>no</html>`)
 	_, err := client.ValidateKey(context.Background(), "sk-fine")
-	assert.ErrorIs(t, err, auth.ErrAiandGateway, "5xx must not be read as a verdict on the key")
+	require.ErrorIs(t, err, auth.ErrAiandGateway, "5xx must not be read as a verdict on the key")
 }
 
 func TestListOrgs_DecodesArray(t *testing.T) {
@@ -399,14 +399,14 @@ func TestUnreachableGatewayIsErrGateway(t *testing.T) {
 	// depending on external network state.
 	client := aiandauth.NewClient("http://127.0.0.1:1", &http.Client{Timeout: 2 * time.Second})
 	_, err := client.DeviceCodeStart(context.Background(), "aiand-router@x")
-	assert.ErrorIs(t, err, auth.ErrAiandGateway)
+	require.ErrorIs(t, err, auth.ErrAiandGateway)
 }
 
 func TestInvalidJSONResponseIsErrGateway(t *testing.T) {
 	client, _ := captureServer(t, http.StatusOK, `{"access_token": `)
 	_, err := client.PollToken(context.Background(), "dc-1")
 	require.Error(t, err)
-	assert.ErrorIs(t, err, auth.ErrAiandGateway)
+	require.ErrorIs(t, err, auth.ErrAiandGateway)
 	assert.Contains(t, err.Error(), "/auth/device/token", "decode failures name the endpoint")
 }
 
@@ -420,7 +420,7 @@ func TestResponseIsBounded(t *testing.T) {
 	client, _ := captureServer(t, http.StatusOK, big.String())
 	_, err := client.PollToken(context.Background(), "dc-1")
 	require.Error(t, err, "oversized responses must not be trusted as tokens")
-	assert.ErrorIs(t, err, auth.ErrAiandGateway)
+	require.ErrorIs(t, err, auth.ErrAiandGateway)
 }
 
 func TestDefaultAuthURL(t *testing.T) {
@@ -452,7 +452,7 @@ func TestSentinelsDistinct(t *testing.T) {
 	for i, a := range errs {
 		for j, b := range errs {
 			if i != j {
-				assert.NotErrorIs(t, a, b, "%v must not match %v", a, b)
+				require.NotErrorIs(t, a, b, "%v must not match %v", a, b)
 			}
 		}
 	}

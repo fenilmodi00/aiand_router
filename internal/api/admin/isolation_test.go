@@ -892,7 +892,7 @@ func TestIsolation_IDOR_AiandStatusAndDisconnectAreInstallationScoped(t *testing
 
 	// A's credential + provider key are gone; B's are intact.
 	_, err := fx.credentials.GetByInstallation(context.Background(), fx.accounts["A"].installation.ID)
-	assert.ErrorIs(t, err, auth.ErrAiandCredentialNotFound, "disconnect must clear A's credential")
+	require.ErrorIs(t, err, auth.ErrAiandCredentialNotFound, "disconnect must clear A's credential")
 	bCred, err := fx.credentials.GetByInstallation(context.Background(), fx.accounts["B"].installation.ID)
 	require.NoError(t, err, "B's credential must survive A's disconnect")
 	assert.Equal(t, "b@example.com", bCred.UserEmail)

@@ -53,7 +53,7 @@ func TestLoginWithKey_ReprovisionsAfterDisconnect(t *testing.T) {
 	err = svc.DisconnectAiandCredential(context.Background(), installsBefore[0])
 	require.NoError(t, err)
 	_, err = f.credentials.GetByInstallation(context.Background(), installationID)
-	assert.ErrorIs(t, err, auth.ErrAiandCredentialNotFound, "disconnect must clear the credential row")
+	require.ErrorIs(t, err, auth.ErrAiandCredentialNotFound, "disconnect must clear the credential row")
 
 	// Second login: succeeds and re-provisions BOTH writes against the SAME
 	// installation, with a fresh session.

@@ -129,6 +129,7 @@ func runAllowanceMiddleware(
 	allowances *stubAllowances,
 	apiKey *auth.APIKey,
 ) (*httptest.ResponseRecorder, bool, entitlement.Coverage) {
+	t.Helper()
 	return runAllowanceMiddlewareWithAuth(t, entitlements, allowances, apiKey, "")
 }
 

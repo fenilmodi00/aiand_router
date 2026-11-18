@@ -149,6 +149,7 @@ func TestDirectConversationIDUsesAnthropicHandoffEnvelope(t *testing.T) {
 }
 
 func runAdmissionMiddleware(t *testing.T, cfg *ServingAdmissionConfig, assertion policyregistry.ServingAssertion, handler gin.HandlerFunc) *httptest.ResponseRecorder {
+	t.Helper()
 	return runAdmissionMiddlewareWithBody(t, cfg, assertion, admissionTestBody, handler)
 }
 

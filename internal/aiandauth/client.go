@@ -224,7 +224,7 @@ func (c *Client) BrowserAuthorizeAvailable(ctx context.Context, authorizeURL str
 	if err != nil {
 		return fmt.Errorf("%w: probe authorize: %w", auth.ErrAiandGateway, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	payload, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
 	if err != nil {
 		return fmt.Errorf("%w: read authorize probe: %w", auth.ErrAiandGateway, err)
@@ -366,7 +366,7 @@ func (c *Client) modelsOrgHeader(ctx context.Context, method, key string) (strin
 	if err != nil {
 		return "", fmt.Errorf("%w: probe key org: %w", auth.ErrAiandGateway, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, maxResponseBytes))
 	if resp.StatusCode == http.StatusUnauthorized {
 		return "", auth.ErrAiandInvalidKey
@@ -423,7 +423,7 @@ func (c *Client) do(req *http.Request, out any) error {
 	if err != nil {
 		return fmt.Errorf("%w: %w", auth.ErrAiandGateway, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	payload, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
 	if err != nil {
 		return fmt.Errorf("%w: read response: %w", auth.ErrAiandGateway, err)
