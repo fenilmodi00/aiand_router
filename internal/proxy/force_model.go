@@ -51,7 +51,7 @@ func (e *ForcedModelUnknownError) Unwrap() error { return ErrForcedModelUnknown 
 // target must be a live catalog row: an alias naming a model the upstream
 // no longer publishes would resolve to nothing and fail the request.
 
-var forceModelAliases = map[string]string{
+var forceModelAliases = unversionedAliasesFollowLatestFamilyRelease(map[string]string{
 	// Claude family aliases follow GLM-5.3, the strongest text model in
 	// the catalog.
 	"anthropic":   "z-ai/glm-5.3",
@@ -139,6 +139,22 @@ var forceModelAliases = map[string]string{
 	"muse-spark-open": catalog.ModelIDMuseSpark.String(),
 	"musespark-open":  catalog.ModelIDMuseSpark.String(),
 	"spark-open":      catalog.ModelIDMuseSpark.String(),
+})
+
+func unversionedAliasesFollowLatestFamilyRelease(aliases map[string]string) map[string]string {
+	servable := func(id string) bool {
+		_, ok := servableForceModel(id, "")
+		return ok
+	}
+	for alias, target := range aliases {
+		if strings.ContainsAny(alias, "0123456789") {
+			continue
+		}
+		if latest := catalog.LatestInFamily(target, servable); latest != "" {
+			aliases[alias] = latest
+		}
+	}
+	return aliases
 }
 
 // forceModelExamples follows the family aliases so the unknown-model hint
