@@ -14,8 +14,6 @@ import (
 	"aiand-os/router/internal/flags"
 	"aiand-os/router/internal/inference"
 	"aiand-os/router/internal/observability"
-	"aiand-os/router/internal/observability/apm"
-	"aiand-os/router/internal/observability/otel"
 	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/breaker"
@@ -28,6 +26,7 @@ import (
 	"aiand-os/router/internal/router/policy"
 	"aiand-os/router/internal/router/sessionpin"
 	"aiand-os/router/internal/router/turntype"
+	"aiand-os/router/internal/telemetry"
 	"aiand-os/router/internal/translate"
 
 	"github.com/google/uuid"
@@ -794,17 +793,19 @@ func (s *Service) runTurnLoop(
 	req.ClientApp = ClientIdentityFrom(ctx).ClientApp
 	if transforms, ok := ctx.Value(responsesTransformsContextKey{}).([]translate.ResponseTransform); ok {
 		for _, transform := range transforms {
-			apm.RecordTranslationTransform(
-				ctx,
-				transform.Code,
-				transform.Action,
-				string(req.TranslationRequirements.SourceFormat),
-				string(s.translationCompatibilityMode),
-			)
-			otel.RecordLog(ctx, otel.LogRecord{
+			if metrics := s.translationMetrics; metrics != nil {
+				metrics.RecordTranslationTransform(
+					ctx,
+					transform.Code,
+					transform.Action,
+					string(req.TranslationRequirements.SourceFormat),
+					string(s.translationCompatibilityMode),
+				)
+			}
+			telemetry.RecordLog(ctx, telemetry.LogRecord{
 				Name: "translation.transform",
 				Time: time.Now(),
-				Attrs: otel.NewAttrBuilder(5).
+				Attrs: telemetry.NewAttrBuilder(5).
 					String("translation.code", transform.Code).
 					String("translation.action", transform.Action).
 					String("translation.source_format", string(req.TranslationRequirements.SourceFormat)).
@@ -1115,7 +1116,7 @@ func (s *Service) runTurnLoop(
 	if !forceModelFound && env.IsNativeWebSearchSubTurn() {
 		// No session strikes yet: the pin rows are read further down, and the
 		// branch below passes the baseline model through unrouted.
-		passthroughModel := s.baselineFor(req.RequestedModel)
+		passthroughModel := s.baselineFor(ctx, req.RequestedModel)
 		excluded := req.Exclusions.Excludes(passthroughModel)
 		_, allowlisted := req.AllowedModels[passthroughModel]
 		allowed := req.AllowedModels == nil || allowlisted

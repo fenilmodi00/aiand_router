@@ -6,10 +6,10 @@ import (
 	"fmt"
 
 	"aiand-os/router/internal/auth"
-	"aiand-os/router/internal/observability/otel"
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/catalog"
 	"aiand-os/router/internal/router/cluster"
+	"aiand-os/router/internal/telemetry"
 )
 
 const blindExperimentPublicDecisionReason = "cluster_argmax"
@@ -77,7 +77,7 @@ func callerRoutingState(ctx context.Context) (passthrough bool, source callerRou
 // applyCallerRoutingAttrs records the caller's assigned state, not the turn's
 // outcome: force-model and policy pins still rewrite some experiment-passthrough
 // turns. Spans are internal, so this does not disclose the blind arm to clients.
-func applyCallerRoutingAttrs(ctx context.Context, b *otel.AttrBuilder) *otel.AttrBuilder {
+func applyCallerRoutingAttrs(ctx context.Context, b *telemetry.AttrBuilder) *telemetry.AttrBuilder {
 	passthrough, source := callerRoutingState(ctx)
 	return b.Bool("routing.caller_passthrough", passthrough).
 		String("routing.caller_routing_source", string(source))
@@ -198,7 +198,7 @@ func blindExperimentBaselineModel(ctx context.Context, requestedModel string) st
 
 // applyBlindExperimentOutcomeAttrs records the assigned arm and what actually
 // chose the model. Spans are internal, so this does not disclose the arm to clients.
-func applyBlindExperimentOutcomeAttrs(ctx context.Context, b *otel.AttrBuilder, routed *turnLoopResult, requestedModel, servedModel string) {
+func applyBlindExperimentOutcomeAttrs(ctx context.Context, b *telemetry.AttrBuilder, routed *turnLoopResult, requestedModel, servedModel string) {
 	state, active := auth.BlindExperimentFrom(ctx)
 	if !active {
 		return

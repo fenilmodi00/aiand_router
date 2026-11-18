@@ -21,8 +21,8 @@ import (
 	"aiand-os/router/internal/router/catalog"
 	"aiand-os/router/internal/router/turntype"
 	"aiand-os/router/internal/sse"
-	"aiand-os/router/internal/translate"
-)
+	"aiand-os/router/internal/telemetry"
+	"aiand-os/router/internal/translate")
 
 // ReasonEarlyStopRedo marks a Claude Code tool-result turn re-served on a
 // higher-tier candidate after the routed model ended the agent turn without
@@ -370,24 +370,27 @@ type earlyStopRedo struct {
 
 // earlyStopServed points at ProxyMessages' record of the attempt that served.
 type earlyStopServed struct {
-	decision  *router.Decision
-	bindings  *[]catalog.ProviderBinding
-	marker    *string
-	winnerIdx *int
-	summary   *translate.ResponseSummary
-	reqStats  *providers.RequestMutationStats
-	effort    *effortResolution
+	decision   *router.Decision
+	bindings   *[]catalog.ProviderBinding
+	marker     *string
+	winnerIdx  *int
+	extractor  **telemetry.UsageExtractor
+	summary    *translate.ResponseSummary
+	reqStats   *providers.RequestMutationStats
+	fastServed *bool
+	effort     *effortResolution
 }
 
 type earlyStopServedSnapshot struct {
-	decision  router.Decision
-	bindings  []catalog.ProviderBinding
-	marker    string
-	winnerIdx int
-	summary   translate.ResponseSummary
-	reqStats  providers.RequestMutationStats
-	effort    effortResolution
-}
+	decision   router.Decision
+	bindings   []catalog.ProviderBinding
+	marker     string
+	winnerIdx  int
+	extractor  *telemetry.UsageExtractor
+	summary    translate.ResponseSummary
+	reqStats   providers.RequestMutationStats
+	fastServed bool
+	effort     effortResolution}
 
 func (p *earlyStopServed) save() earlyStopServedSnapshot {
 	return earlyStopServedSnapshot{

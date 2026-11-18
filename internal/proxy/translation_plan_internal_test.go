@@ -12,6 +12,23 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type translationMetricsRecorder struct {
+	compatibility []struct {
+		requirement, sourceFormat, targetFamily, mode string
+		enforced                                      bool
+	}
+}
+
+func (m *translationMetricsRecorder) RecordTranslationCompatibility(_ context.Context, requirement, sourceFormat, targetFamily, mode string, enforced bool) {
+	m.compatibility = append(m.compatibility, struct {
+		requirement, sourceFormat, targetFamily, mode string
+		enforced                                      bool
+	}{requirement, sourceFormat, targetFamily, mode, enforced})
+}
+
+func (*translationMetricsRecorder) RecordTranslationTransform(context.Context, string, string, string, string) {
+}
+
 func compatibilityService(mode TranslationCompatibilityMode) *Service {
 	return &Service{
 		clients: dispatch.NewClients(map[string]providers.Client{

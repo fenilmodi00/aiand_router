@@ -1,8 +1,7 @@
-package otel
+package telemetry
 
 import (
 	"bytes"
-	"net/http"
 
 	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/router/catalog"
@@ -13,22 +12,39 @@ import (
 )
 
 var (
-	_ http.ResponseWriter = (*UsageExtractor)(nil)
-	_ http.Flusher        = (*UsageExtractor)(nil)
-	_ usage.Sink          = (*UsageExtractor)(nil)
+	_ usage.Sink = (*UsageExtractor)(nil)
 )
 
-const openAIFinishLength = "length"
+// Anthropic event names used for terminal and tool observations.
+type anthropicSSEEvent string
 
-// UsageExtractor wraps an http.ResponseWriter and sniffs token usage (SSE or
-// JSON) as bytes flow through. Only the unconsumed tail is retained between writes.
+const (
+	anthropicEventMessageStart      anthropicSSEEvent = "message_start"
+	anthropicEventMessageDelta      anthropicSSEEvent = "message_delta"
+	anthropicEventContentBlockStart anthropicSSEEvent = "content_block_start"
+)
+
+type anthropicBlockType string
+
+const anthropicBlockToolUse anthropicBlockType = "tool_use"
+
+const (
+	anthropicStopMaxTokens = "max_tokens"
+	openAIFinishLength     = "length"
+	geminiFinishMaxTokens  = "MAX_TOKENS"
+)
+
+// UsageExtractor sniffs token usage (SSE or JSON) from response bytes. Only
+// the unconsumed tail is retained between calls.
 type UsageExtractor struct {
-	inner    http.ResponseWriter
 	provider string
 
 	facts              usage.Facts
 	outputLimitReached bool
 	requestCacheTTL1h  func() bool
+
+	stopReason    string
+	toolUseBlocks int
 
 	// finishReason and toolCallIdxs hold the chat-shaped signals. A streaming
 	// turn announces one tool call across many argument fragments, so calls are
@@ -43,62 +59,23 @@ type UsageExtractor struct {
 	framing sse.Scanner
 }
 
-// NewUsageExtractor creates a usage-extracting writer for the given provider's
-// response format. With a nil inner, use only recording/accessor methods,
-// not ResponseWriter methods.
-func NewUsageExtractor(inner http.ResponseWriter, provider string) *UsageExtractor {
+// NewUsageExtractor creates a usage extractor for the given provider's response
+// format.
+func NewUsageExtractor(provider string) *UsageExtractor {
 	return &UsageExtractor{
-		inner:    inner,
 		provider: provider,
 	}
 }
 
-func (u *UsageExtractor) Header() http.Header {
-	if u.inner == nil {
-		return nil
-	}
-	return u.inner.Header()
-}
-
-func (u *UsageExtractor) WriteHeader(statusCode int) {
-	if u.inner == nil {
+// Consume sniffs p for token usage data. Partial writes are safe: bytes are
+// buffered in leftover while incomplete SSE frames await completion; JSON
+// bytes are re-probed on every write.
+func (u *UsageExtractor) Consume(p []byte) {
+	if u == nil {
 		return
-	}
-	sse.PrepareJSONResponse(u.inner)
-	u.inner.WriteHeader(statusCode)
-}
-
-// Write sniffs p for token usage data then delegates to the inner writer.
-func (u *UsageExtractor) Write(p []byte) (int, error) {
-	if u.inner == nil {
-		return len(p), nil
 	}
 	u.leftover = append(u.leftover, p...)
 	u.scanBuffer()
-	return sse.WriteJSONChunk(u.inner, p)
-}
-
-func (u *UsageExtractor) Flush() {
-	if u.inner == nil {
-		return
-	}
-	if f, ok := u.inner.(http.Flusher); ok {
-		f.Flush()
-	}
-}
-
-// ArmOutputProgress forwards the watchdog arm call to inner if it supports it.
-// UsageExtractor can't itself distinguish an output frame from a keepalive, so
-// this must pass through or wrapping would hide the hook from the provider client.
-func (u *UsageExtractor) ArmOutputProgress(mark func()) (armed bool) {
-	if u.inner == nil {
-		return false
-	}
-	arm, ok := u.inner.(interface{ ArmOutputProgress(func()) bool })
-	if !ok {
-		return false
-	}
-	return arm.ArmOutputProgress(mark)
 }
 
 // RecordProviderUsage merges an already parsed provider snapshot.
@@ -202,6 +179,17 @@ func (u *UsageExtractor) ReasoningTokens() int {
 	return u.facts.Reasoning.Value
 }
 
+// AnthropicResponse returns the turn-ending signals sniffed from an
+// Anthropic-format response: the upstream stop_reason and how many tool_use
+// content blocks it carried. observed is false until a stop_reason is seen, so
+// a stream that ends early is never reported as a measured zero-tool turn.
+func (u *UsageExtractor) AnthropicResponse() (stopReason string, toolUseBlocks int, observed bool) {
+	if u == nil {
+		return "", 0, false
+	}
+	return u.stopReason, u.toolUseBlocks, u.stopReason != ""
+}
+
 // OpenAIChatResponse returns the turn-ending signals sniffed from a
 // chat/completions-format response: the upstream finish_reason and how many
 // tool calls it carried. observed is false until a finish_reason is seen, so a
@@ -239,12 +227,39 @@ func (u *UsageExtractor) scanBuffer() {
 	u.tryExtractFromJSON()
 }
 
-// Dispatch is family-based so the upstream's wire format selects the parser.
+// Dispatch is family-based so Anthropic-spec gateway providers
+// (e.g. anthropic_gateway) are parsed correctly instead of recording zero usage.
 func (u *UsageExtractor) extractFromSSEEvent(eventType []byte, data []byte) {
 	switch providers.FamilyFor(u.provider) {
 	case providers.FamilyOpenAICompat:
 		u.extractOpenAISSE(data)
 	}
+}
+
+// message_start carries input_tokens + cache tokens; message_delta carries
+// output_tokens and the stop_reason; content_block_start announces each
+// tool_use block.
+func (u *UsageExtractor) extractAnthropicSSE(eventType []byte, data []byte) {
+	if bytes.Equal(eventType, []byte(anthropicEventContentBlockStart)) {
+		if gjson.GetBytes(data, "content_block.type").String() == string(anthropicBlockToolUse) {
+			u.toolUseBlocks++
+		}
+		return
+	}
+	if !bytes.Equal(eventType, []byte(anthropicEventMessageStart)) && !bytes.Equal(eventType, []byte(anthropicEventMessageDelta)) {
+		return
+	}
+
+	if bytes.Equal(eventType, []byte(anthropicEventMessageDelta)) {
+		if stop := gjson.GetBytes(data, "delta.stop_reason").String(); stop != "" {
+			u.stopReason = stop
+			if stop == anthropicStopMaxTokens {
+				u.RecordOutputLimitReached()
+			}
+		}
+	}
+
+	u.RecordProviderUsage(usage.ParseAnthropic(anthropicUsage(data)))
 }
 
 // Final chunk with stream_options.include_usage=true carries the counts.
@@ -255,7 +270,6 @@ func (u *UsageExtractor) extractOpenAISSE(data []byte) {
 	}
 
 	u.extractOpenAIChatSSEResponse(trimmed)
-
 	u.RecordProviderUsage(u.parseUsage(trimmed))
 }
 
@@ -278,6 +292,25 @@ func (u *UsageExtractor) tryExtractFromJSON() {
 	}
 
 	u.RecordProviderUsage(facts)
+}
+
+// A non-streaming Anthropic body carries stop_reason at the top level and one
+// content entry per emitted block.
+func (u *UsageExtractor) extractAnthropicJSONResponse(data []byte) {
+	stop := gjson.GetBytes(data, "stop_reason").String()
+	if stop == "" {
+		return
+	}
+	u.stopReason = stop
+	if stop == anthropicStopMaxTokens {
+		u.RecordOutputLimitReached()
+	}
+	u.toolUseBlocks = 0
+	for _, block := range gjson.GetBytes(data, "content").Array() {
+		if block.Get("type").String() == string(anthropicBlockToolUse) {
+			u.toolUseBlocks++
+		}
+	}
 }
 
 // A chat/completions chunk states the turn's end on the choice's finish_reason
@@ -328,12 +361,20 @@ func (u *UsageExtractor) observeOpenAIToolCall(index int) {
 }
 
 func (u *UsageExtractor) parseUsage(body []byte) usage.Facts {
-	if providers.FamilyFor(u.provider) != providers.FamilyOpenAICompat {
-		return usage.Facts{}
+	family := providers.FamilyFor(u.provider)
+	if family == providers.FamilyOpenAICompat {
+		object := gjson.GetBytes(body, "usage")
+		if !object.IsObject() {
+			object = gjson.GetBytes(body, "response.usage")
+		}
+		return usage.ParseOpenAI(object)
 	}
-	object := gjson.GetBytes(body, "usage")
-	if !object.IsObject() {
-		object = gjson.GetBytes(body, "response.usage")
+	return usage.Facts{}
+}
+
+func anthropicUsage(body []byte) gjson.Result {
+	if object := gjson.GetBytes(body, "usage"); object.IsObject() {
+		return object
 	}
-	return usage.ParseOpenAI(object)
+	return gjson.GetBytes(body, "message.usage")
 }

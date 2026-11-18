@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -9,22 +10,22 @@ import (
 func TestBaselineFor(t *testing.T) {
 	t.Run("known model returns itself", func(t *testing.T) {
 		s := &Service{defaultBaselineModel: "deepseek/deepseek-v4.1-flash"}
-		assert.Equal(t, "z-ai/glm-5.3", s.baselineFor("z-ai/glm-5.3"))
+		assert.Equal(t, "z-ai/glm-5.3", s.baselineFor(context.Background(), "z-ai/glm-5.3"))
 	})
 
 	t.Run("unknown model returns baseline", func(t *testing.T) {
 		s := &Service{defaultBaselineModel: "deepseek/deepseek-v4.1-flash"}
-		assert.Equal(t, "deepseek/deepseek-v4.1-flash", s.baselineFor("aiand-router"))
+		assert.Equal(t, "deepseek/deepseek-v4.1-flash", s.baselineFor(context.Background(), "aiand-router"))
 	})
 
 	t.Run("empty model returns baseline", func(t *testing.T) {
 		s := &Service{defaultBaselineModel: "deepseek/deepseek-v4.1-flash"}
-		assert.Equal(t, "deepseek/deepseek-v4.1-flash", s.baselineFor(""))
+		assert.Equal(t, "deepseek/deepseek-v4.1-flash", s.baselineFor(context.Background(), ""))
 	})
 
 	t.Run("unknown model with no baseline returns empty", func(t *testing.T) {
 		s := &Service{}
-		assert.Equal(t, "", s.baselineFor("aiand-router"))
+		assert.Equal(t, "", s.baselineFor(context.Background(), "aiand-router"))
 	})
 }
 

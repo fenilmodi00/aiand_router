@@ -17,15 +17,14 @@ import (
 
 	"aiand-os/router/internal/flags"
 	"aiand-os/router/internal/observability"
-	"aiand-os/router/internal/observability/otel"
 	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/catalog"
 	"aiand-os/router/internal/router/escalation"
 	"aiand-os/router/internal/router/policy"
 	"aiand-os/router/internal/router/sessionpin"
-	"aiand-os/router/internal/translate"
-)
+	"aiand-os/router/internal/telemetry"
+	"aiand-os/router/internal/translate")
 
 var (
 	upgradeTestPinModel   = catalog.ModelIDGLM53Flash.String()
@@ -259,7 +258,7 @@ func TestUpgradeShadowCapturesMarginOnStayButNotReplay(t *testing.T) {
 	obs := buildObservationContext(context.Background(), served, fresh, CaptureOff)
 	assert.Equal(t, &zero, obs.FreshClassifierMargin)
 	assert.Equal(t, string(escalation.High), obs.FreshPolicyGroup)
-	builder := otel.NewAttrBuilder(4)
+	builder := telemetry.NewAttrBuilder(4)
 	obs.applySpanAttrs(builder)
 	found := false
 	for _, attr := range builder.Build() {

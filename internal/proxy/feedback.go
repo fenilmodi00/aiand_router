@@ -8,9 +8,8 @@ import (
 	"time"
 
 	"aiand-os/router/internal/feedback"
-	"aiand-os/router/internal/observability/otel"
 	"aiand-os/router/internal/router/turntype"
-
+	"aiand-os/router/internal/telemetry"
 	"github.com/google/uuid"
 )
 
@@ -133,7 +132,7 @@ func (s *Service) emitFeedbackSpan(p SubmitFeedbackParams) {
 		return
 	}
 	now := time.Now()
-	b := otel.NewAttrBuilder(6).
+	b := telemetry.NewAttrBuilder(6).
 		String("external_id", p.ExternalID).
 		String("request_id", p.RequestID).
 		String("feedback.rating", p.Rating).
@@ -144,9 +143,9 @@ func (s *Service) emitFeedbackSpan(p SubmitFeedbackParams) {
 	if p.RouterUserID != "" {
 		b = b.String("router_user_id", p.RouterUserID)
 	}
-	buf := s.newTelemetryBuffer()
-	buf.Record(otel.Span{Name: routerFeedbackSpanName, Start: now, End: now, Attrs: b.Build()})
-	buf.Flush()
+	ctx := telemetry.WithRecorder(context.Background(), s.newTelemetryRecorder())
+	telemetry.Record(ctx, telemetry.Span{Name: routerFeedbackSpanName, Start: now, End: now, Attrs: b.Build()})
+	telemetry.Flush(ctx)
 }
 
 // mintFeedbackToken signs a feedback-link token, or returns "" when the

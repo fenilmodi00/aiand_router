@@ -23,7 +23,6 @@ import (
 	"aiand-os/router/internal/flags"
 	"aiand-os/router/internal/inference"
 	"aiand-os/router/internal/observability"
-	"aiand-os/router/internal/observability/otel"
 	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/requestcontext"
 	"aiand-os/router/internal/router"
@@ -46,6 +45,7 @@ import (
 	"aiand-os/router/internal/router/turntype"
 	"aiand-os/router/internal/sse"
 	"aiand-os/router/internal/subscriptions/entitlement"
+	"aiand-os/router/internal/telemetry"
 	"aiand-os/router/internal/timing"
 	"aiand-os/router/internal/translate"
 	providerusage "aiand-os/router/internal/usage"
@@ -55,12 +55,11 @@ import (
 	"github.com/tidwall/sjson"
 )
 
-// TelemetryEmitter is the narrow interface proxy owns for OTel: a
-// request-scoped span/log buffer. Implemented by *otel.Emitter.
+// TelemetryEmitter is the narrow interface proxy owns for request-scoped
+// spans and logs. Implemented by *otel.Emitter.
 type TelemetryEmitter interface {
-	// NewBuffer returns a request-scoped span/log buffer, or nil when the
-	// emitter itself is disabled.
-	NewBuffer() *otel.Buffer
+	NewRecorder() telemetry.Recorder
+	NewUsageExtractor(http.ResponseWriter, string) (*telemetry.UsageExtractor, http.ResponseWriter)
 }
 
 // Service orchestrates routing decisions and provider dispatch.
@@ -95,6 +94,7 @@ type Service struct {
 	// scopedSearchRequirement.
 	searchUse            *searchUseTracker
 	emitter              TelemetryEmitter
+	translationMetrics   telemetry.TranslationMetrics
 	embedOnlyUserMessage bool
 	semanticCache        *cache.Cache
 	// pinStore persists session-sticky routing decisions. Nil when the feature
@@ -2118,9 +2118,30 @@ func (s *Service) WithSubAgentOverride(provider, model string) *Service {
 	return s
 }
 
-// baselineFor returns requested if it has a pricing entry, otherwise the
-// configured defaultBaselineModel (which may be "").
-func (s *Service) baselineFor(requested string) string {
+// clientRequestedModel resolves a routing model (aiand-auto) to the native
+// model the client would otherwise be running, for the comparisons and
+// passthrough paths that need a concrete requested model.
+func clientRequestedModel(ctx context.Context, requested string) string {
+	if !router.IsRoutingModel(requested) {
+		return requested
+	}
+	if baseline := clientBaselineModel(ctx); baseline != "" {
+		return baseline
+	}
+	return requested
+}
+
+// clientBaselineModel names the native model a client's automatic router row
+// implies. The aiand-only fork has no per-client bundled catalog, so no client
+// carries an implicit baseline; the requested routing model stands.
+func clientBaselineModel(ctx context.Context) string {
+	return ""
+}
+
+// baselineFor returns the client's requested model if it has a pricing entry,
+// otherwise the configured defaultBaselineModel (which may be "").
+func (s *Service) baselineFor(ctx context.Context, requested string) string {
+	requested = clientRequestedModel(ctx, requested)
 	if requested != "" {
 		if _, ok := catalog.PrimaryPriceFor(requested); ok {
 			return requested
@@ -2220,13 +2241,30 @@ func (s *Service) usageRequired() bool {
 	return s.pinStore != nil || s.emitter != nil || s.telemetry != nil || s.billing != nil
 }
 
-// newTelemetryBuffer returns a request-scoped buffer, or nil when OTel is
-// disabled — guards against a nil-interface method-call panic.
-func (s *Service) newTelemetryBuffer() *otel.Buffer {
+// newTelemetryRecorder returns a request-scoped recorder, or nil when
+// telemetry is disabled — guards against a nil-interface method-call panic.
+func (s *Service) newTelemetryRecorder() telemetry.Recorder {
 	if s.emitter == nil {
 		return nil
 	}
-	return s.emitter.NewBuffer()
+	return s.emitter.NewRecorder()
+}
+
+func (s *Service) newUsageExtractor(inner http.ResponseWriter, provider string) (*telemetry.UsageExtractor, http.ResponseWriter) {
+	if s.emitter == nil {
+		return newFallbackUsageExtractor(inner, provider)
+	}
+	return s.emitter.NewUsageExtractor(inner, provider)
+}
+
+
+
+// WithTranslationMetrics installs adapter-backed translation counters on the
+// service and returns it for constructor chaining. A nil value preserves the
+// emitter-backed fallback when one is available.
+func (s *Service) WithTranslationMetrics(metrics telemetry.TranslationMetrics) *Service {
+	s.translationMetrics = metrics
+	return s
 }
 
 // WithBillingService installs the credit-billing service. Nil disables the
@@ -3078,8 +3116,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	log := observability.FromContext(ctx)
 	requestStart := time.Now()
 	requestID := requestIDFor(ctx)
-	buf := s.newTelemetryBuffer()
-	ctx = buf.WithContext(ctx)
+	ctx = telemetry.WithRecorder(ctx, s.newTelemetryRecorder())
 
 	// Strip the routing marker prior responses injected as assistant text —
 	// clients echo it back verbatim, so left in place it accumulates in
@@ -3585,11 +3622,11 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		if resp, hit := s.semanticCache.Lookup(externalID, cache.FormatAnthropic, decision.Metadata.Embedding, decision.Metadata.ClusterIDs, decision.Metadata.ClusterRouterVersion, decision.Metadata.EffectiveKnobsHash, cacheProvenance); hit {
 			setContextEstimateHeaders(w.Header(), overflowEstimate, max(contextWindowOutputReserve, feats.MaxTokens))
 			s.writeCachedResponse(w, resp, decision)
-			otel.Record(ctx, otel.Span{
+			telemetry.Record(ctx, telemetry.Span{
 				Name:  "router.cache_hit",
 				Start: requestStart,
 				End:   time.Now(),
-				Attrs: otel.NewAttrBuilder(7).
+				Attrs: telemetry.NewAttrBuilder(7).
 					String("request_id", requestID).
 					String("external_id", externalID).
 					String("decision.model", decision.Model).
@@ -3599,8 +3636,8 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 					Int64("latency.total_ms", time.Since(requestStart).Milliseconds()).
 					Build(),
 			})
-			otel.Flush(ctx)
-			log.Info("ProxyMessages cache hit", "requested_model", feats.Model, "baseline_model", s.baselineFor(feats.Model), "decision_model", decision.Model, "decision_provider", decision.Provider, "external_id", externalID, "total_ms", time.Since(requestStart).Milliseconds())
+			telemetry.Flush(ctx)
+			log.Info("ProxyMessages cache hit", "requested_model", feats.Model, "baseline_model", s.baselineFor(ctx, feats.Model), "decision_model", decision.Model, "decision_provider", decision.Provider, "external_id", externalID, "total_ms", time.Since(requestStart).Milliseconds())
 			return nil
 		}
 		s.recordSemanticCacheMiss(ctx)
@@ -3619,11 +3656,11 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		return err
 	}
 
-	reqPricing := otel.Lookup(s.baselineFor(feats.Model))
-	actPricing := otel.Lookup(decision.Model)
+	reqPricing, _ := catalog.PrimaryPriceFor(s.baselineFor(ctx, feats.Model))
+	actPricing, _ := catalog.PrimaryPriceFor(decision.Model)
 	reqDecisionPricing := reqPricing.ForInputTokens(feats.Tokens)
 	actDecisionPricing := actPricing.ForInputTokens(feats.Tokens)
-	decisionBuilder := otel.NewAttrBuilder(46).
+	decisionBuilder := telemetry.NewAttrBuilder(46).
 		String("request_id", requestID).
 		String("external_id", externalID).
 		String("router_user_id", auth.UserIDFrom(ctx)).
@@ -3658,13 +3695,13 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	applyRoutingStateAttrs(decisionBuilder, routeRes, decision.ServedIdentity(), sessionKey)
 	applyCallerRoutingAttrs(ctx, decisionBuilder)
 	applyBlindExperimentOutcomeAttrs(ctx, decisionBuilder, &routeRes, feats.Model, routeRes.Decision.Model)
-	otel.Record(ctx, otel.Span{
+	telemetry.Record(ctx, telemetry.Span{
 		Name:  "router.decision",
 		Start: requestStart,
 		End:   time.Now(),
 		Attrs: decisionBuilder.Build(),
 	})
-	otel.Flush(ctx)
+	telemetry.Flush(ctx)
 
 	opts := translate.EmitOptions{
 		TargetModel:                       decision.Model,
@@ -3782,7 +3819,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	defer inferenceSpan.End()
 	var proxyErr error
 	crossFormat := false
-	var extractor *otel.UsageExtractor
+	var extractor *telemetry.UsageExtractor
 	// respSummary captures the winning attempt's response signals for the
 	// completion log. Populated by translator-backed paths; on Anthropic-native
 	// passthrough (no translator) the stop reason and tool_use block count come
@@ -3841,7 +3878,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 				logUpstreamBody(log, routeRes.SessionKey, d, feats, prep.Body)
 				var usage translate.UsageSink
 				if s.usageRequired() || streamCost != nil {
-					extractor = otel.NewUsageExtractor(nil, d.Provider)
+					extractor = telemetry.NewUsageExtractor(d.Provider)
 					usage = extractor
 				}
 				var translator translate.ResponseTranslator
@@ -4307,12 +4344,12 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	in, out := extractor.Tokens()
 	cacheCreation, cacheRead := extractor.CacheTokens()
 	usageMods := extractor.UsageModifiers()
-	baselineWarmPrefill := routeRes.baselineWarmPrefillTokens(requestStart, cacheCreation, cacheRead, decision.Model, s.baselineFor(feats.Model), req.HistoryTruncated)
+	baselineWarmPrefill := routeRes.baselineWarmPrefillTokens(requestStart, cacheCreation, cacheRead, decision.Model, s.baselineFor(ctx, feats.Model), req.HistoryTruncated)
 	requestedInputCost := catalog.CounterfactualInputCost(in, cacheCreation, cacheRead, baselineWarmPrefill, reqPricing, decision.Provider, usageMods)
 	if responseBuffer != nil && proxyErr == nil {
 		setRouterCostHeaders(w.Header(), routerResponseCostFromPricing(actPricing, decision.Provider, in, out, cacheCreation, cacheRead, usageMods))
 	}
-	upstreamBuilder := otel.NewAttrBuilder(41).
+	upstreamBuilder := telemetry.NewAttrBuilder(41).
 		String("request_id", requestID).
 		String("external_id", externalID).
 		String("router_user_id", auth.UserIDFrom(ctx)).
@@ -4377,7 +4414,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	obs := buildObservationContext(ctx, decision, routeRes.Fresh, s.effectiveCaptureMode(ctx))
 	obs.applySpanAttrs(upstreamBuilder)
 
-	otel.Record(ctx, otel.Span{
+	telemetry.Record(ctx, telemetry.Span{
 		Name:  "router.upstream",
 		Start: proxyStart,
 		End:   time.Now(),
@@ -4388,7 +4425,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	if !agentShadowMode {
 		s.recordCallLog(ctx, upstreamBuilder.Build(), routeMs, proxyErr, body, respBody, respTrunc)
 	}
-	otel.Flush(ctx)
+	telemetry.Flush(ctx)
 
 	if !agentShadowMode {
 		s.recordTurnUsage(ctx, routeRes, finalProvider, decision.ServedIdentity(), in, out, cacheCreation, cacheRead, extractor.OutputLimitReached())
@@ -4638,7 +4675,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		streamCut.noteCut(proxyErr)
 	}
 	servedCredentialSource := s.servedCredentialLogValue(ctx)
-	log.Info("ProxyMessages complete", append(append([]any{"requested_model", feats.Model, "baseline_model", s.baselineFor(feats.Model), "decision_model", decision.Model, "decision_provider", decision.Provider, "primary_provider", primaryProvider, "primary_model", primaryModel, "fallback_attempts", winnerIdx, "failover_used", failoverUsed, "failover_attempted", failoverAttempted, "subscription_failover", false, "decision_reason", decision.Reason, "requested_tier", routeRes.RequestedTier.String(), "decision_tier", catalog.TierFor(decision.Model).String(), "embedded_tokens", len(promptText) / 4, "total_input_tokens", feats.Tokens, "has_tools", feats.HasTools, "message_count", feats.MessageCount, "last_kind", feats.LastKind, "last_preview", s.zdrLogField(ctx, feats.LastPreview), "embed_input", embedInput, "cross_format", crossFormat, "sticky_hit", stickyHit, "route_ms", routeMs, "proxy_ms", proxyMs, "proxy_err", proxyErr, "upstream_err_body", s.zdrLogField(ctx, providers.UpstreamErrorBodyMessage(proxyErr)), "upstream_status", upstreamStatus(proxyErr), "upstream_finish_reason", respSummary.UpstreamFinishReason, "resp_stop_reason", respSummary.StopReason, "resp_refusal", refusalObs.refused, "resp_refusal_category", refusalObs.category, "stop_reason_promoted", respSummary.StopReasonPromoted, "tool_use_blocks", respSummary.ToolUseBlocks, "invalid_tool_args_blocks", respSummary.InvalidToolArgsBlocks, "last_tool_use_name", terminalToolUse.Name, "last_tool_use_input_bytes", terminalToolUse.InputBytes, "ended_on_tool_use", endedOnToolUse, "tool_error_counts", toolErrorTally, "text_only_turn_nudged", respSummary.TextOnlyTurnNudged, "stop_reason_demoted", respSummary.StopReasonDemoted, "suppressed_tool_calls", respSummary.SuppressedToolCalls, "tool_call_invalid_blocks", len(respSummary.ToolCallIssues), "cc_only_tools_stripped", reqStats.CCOnlyToolsStripped, "cc_task_reminders_stripped", reqStats.CCTaskRemindersStripped, "gemini_reminder_injected", reqStats.GeminiReminderInjected, "gemini_validated_tool_mode", reqStats.GeminiValidatedToolMode, "resp_output_tokens", respSummary.OutputTokens, "resp_reasoning_tokens", extractor.ReasoningTokens(), "prelude_committed", preludeBuf.Committed(), "routing_marker", marker, "prior_served_model", routeRes.PriorServedModel, "hard_pinned", routeRes.HardPinned, "credential_source", servedCredentialSource}, append(append(append(armStrikeLogFieldsWithPrimaryReason(armDemoted, armDemotionReasonValue, rescuedArmDemoted, rescuedArmDemotionReason), plannerLogFields(routeRes)...), streamCut.completionLogFields()...), rateLimit.completionLogFields()...)...), downgradeShadowLogFields(routeRes)...)...)
+	log.Info("ProxyMessages complete", append(append([]any{"requested_model", feats.Model, "baseline_model", s.baselineFor(ctx, feats.Model), "decision_model", decision.Model, "decision_provider", decision.Provider, "primary_provider", primaryProvider, "primary_model", primaryModel, "fallback_attempts", winnerIdx, "failover_used", failoverUsed, "failover_attempted", failoverAttempted, "subscription_failover", false, "decision_reason", decision.Reason, "requested_tier", routeRes.RequestedTier.String(), "decision_tier", catalog.TierFor(decision.Model).String(), "embedded_tokens", len(promptText) / 4, "total_input_tokens", feats.Tokens, "has_tools", feats.HasTools, "message_count", feats.MessageCount, "last_kind", feats.LastKind, "last_preview", s.zdrLogField(ctx, feats.LastPreview), "embed_input", embedInput, "cross_format", crossFormat, "sticky_hit", stickyHit, "route_ms", routeMs, "proxy_ms", proxyMs, "proxy_err", proxyErr, "upstream_err_body", s.zdrLogField(ctx, providers.UpstreamErrorBodyMessage(proxyErr)), "upstream_status", upstreamStatus(proxyErr), "upstream_finish_reason", respSummary.UpstreamFinishReason, "resp_stop_reason", respSummary.StopReason, "resp_refusal", refusalObs.refused, "resp_refusal_category", refusalObs.category, "stop_reason_promoted", respSummary.StopReasonPromoted, "tool_use_blocks", respSummary.ToolUseBlocks, "invalid_tool_args_blocks", respSummary.InvalidToolArgsBlocks, "last_tool_use_name", terminalToolUse.Name, "last_tool_use_input_bytes", terminalToolUse.InputBytes, "ended_on_tool_use", endedOnToolUse, "tool_error_counts", toolErrorTally, "text_only_turn_nudged", respSummary.TextOnlyTurnNudged, "stop_reason_demoted", respSummary.StopReasonDemoted, "suppressed_tool_calls", respSummary.SuppressedToolCalls, "tool_call_invalid_blocks", len(respSummary.ToolCallIssues), "cc_only_tools_stripped", reqStats.CCOnlyToolsStripped, "cc_task_reminders_stripped", reqStats.CCTaskRemindersStripped, "gemini_reminder_injected", reqStats.GeminiReminderInjected, "gemini_validated_tool_mode", reqStats.GeminiValidatedToolMode, "resp_output_tokens", respSummary.OutputTokens, "resp_reasoning_tokens", extractor.ReasoningTokens(), "prelude_committed", preludeBuf.Committed(), "routing_marker", marker, "prior_served_model", routeRes.PriorServedModel, "hard_pinned", routeRes.HardPinned, "credential_source", servedCredentialSource}, append(append(append(armStrikeLogFieldsWithPrimaryReason(armDemoted, armDemotionReasonValue, rescuedArmDemoted, rescuedArmDemotionReason), plannerLogFields(routeRes)...), streamCut.completionLogFields()...), rateLimit.completionLogFields()...)...), downgradeShadowLogFields(routeRes)...)...)
 	policyRespBody, policyRespTrunc := capturedResponse(policyOutcomeCap)
 	var policyResp *policyOutcomeResponse
 	if policyOutcomeCap != nil {
@@ -4653,7 +4690,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 // applyPlannerAttrs stamps planner and handover attributes onto a span
 // attribute builder. Planner details are omitted when the planner did not run
 // so downstream nullable columns do not turn zero values into false evidence.
-func applyPlannerAttrs(b *otel.AttrBuilder, res turnLoopResult) *otel.AttrBuilder {
+func applyPlannerAttrs(b *telemetry.AttrBuilder, res turnLoopResult) *telemetry.AttrBuilder {
 	if res.PlannerDecision.Reason != "" {
 		b.String("planner.outcome", plannerOutcomeAttr(res)).
 			String("planner.reason", res.PlannerDecision.Reason).
@@ -4696,7 +4733,7 @@ func plannerOutcome(outcome planner.Outcome) string {
 // STAY replaces the decision with a pin (nil Metadata) even when the sidecar ran this turn.
 // Timings and serving stats are independent, separately-nilable payloads on the same
 // Metadata, so each gets its own guard below.
-func applySidecarAttrs(b *otel.AttrBuilder, res turnLoopResult) *otel.AttrBuilder {
+func applySidecarAttrs(b *telemetry.AttrBuilder, res turnLoopResult) *telemetry.AttrBuilder {
 	if res.Fresh.Metadata == nil {
 		return b
 	}
@@ -4737,11 +4774,11 @@ func applySidecarAttrs(b *otel.AttrBuilder, res turnLoopResult) *otel.AttrBuilde
 // ("gpt-5.6-luna:xhigh"), so comparing it against a bare id reports a model
 // change on every effort-qualified turn.
 func applyRoutingStateAttrs(
-	b *otel.AttrBuilder,
+	b *telemetry.AttrBuilder,
 	res turnLoopResult,
 	servedIdentity string,
 	sessionKey [sessionpin.SessionKeyLen]byte,
-) *otel.AttrBuilder {
+) *telemetry.AttrBuilder {
 	return b.String("routing.session_key", sessionKeyHex(sessionKey)).
 		String("routing.pin_role", res.PinRole).
 		String("routing.prior_served_model", res.PriorServedModel).
@@ -5434,7 +5471,7 @@ func resolveAndInjectCredentials(ctx context.Context, provider, model string, he
 }
 
 // addTimingAttrs appends derived latency attributes from the request Timing.
-func addTimingAttrs(ctx context.Context, b *otel.AttrBuilder) {
+func addTimingAttrs(ctx context.Context, b *telemetry.AttrBuilder) {
 	applyServingSpanAttrs(ctx, b)
 	t := timing.TimingFrom(ctx)
 	if t == nil {
@@ -5746,8 +5783,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	log := observability.FromContext(ctx)
 	requestStart := time.Now()
 	requestID := requestIDFor(ctx)
-	buf := s.newTelemetryBuffer()
-	ctx = buf.WithContext(ctx)
+	ctx = telemetry.WithRecorder(ctx, s.newTelemetryRecorder())
 
 	apiKeyID, _ := ctx.Value(APIKeyIDContextKey{}).(string)
 	externalID, _ := ctx.Value(ExternalIDContextKey{}).(string)
@@ -6131,11 +6167,11 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		if resp, hit := s.semanticCache.Lookup(externalID, cache.FormatOpenAI, decision.Metadata.Embedding, decision.Metadata.ClusterIDs, decision.Metadata.ClusterRouterVersion, decision.Metadata.EffectiveKnobsHash, cacheProvenance); hit {
 			setContextEstimateHeaders(w.Header(), env.ContextOverflowTokenEstimate(), max(contextWindowOutputReserve, feats.MaxTokens))
 			s.writeCachedResponse(w, resp, decision)
-			otel.Record(ctx, otel.Span{
+			telemetry.Record(ctx, telemetry.Span{
 				Name:  "router.cache_hit",
 				Start: requestStart,
 				End:   time.Now(),
-				Attrs: otel.NewAttrBuilder(7).
+				Attrs: telemetry.NewAttrBuilder(7).
 					String("request_id", requestID).
 					String("external_id", externalID).
 					String("decision.model", decision.Model).
@@ -6145,8 +6181,8 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 					Int64("latency.total_ms", time.Since(requestStart).Milliseconds()).
 					Build(),
 			})
-			otel.Flush(ctx)
-			log.Info("ProxyOpenAIChatCompletion cache hit", "requested_model", feats.Model, "baseline_model", s.baselineFor(feats.Model), "decision_model", decision.Model, "decision_provider", decision.Provider, "external_id", externalID, "total_ms", time.Since(requestStart).Milliseconds())
+			telemetry.Flush(ctx)
+			log.Info("ProxyOpenAIChatCompletion cache hit", "requested_model", feats.Model, "baseline_model", s.baselineFor(ctx, feats.Model), "decision_model", decision.Model, "decision_provider", decision.Provider, "external_id", externalID, "total_ms", time.Since(requestStart).Milliseconds())
 			return nil
 		}
 		s.recordSemanticCacheMiss(ctx)
@@ -6163,11 +6199,11 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	setContextEstimateHeaders(w.Header(), env.ContextOverflowTokenEstimate(), outputReserveOAI)
 	s.setFeedbackLinkHeader(ctx, w, installationID, externalID, requestID, auth.UserIDFrom(ctx))
 
-	reqPricing := otel.Lookup(s.baselineFor(feats.Model))
-	actPricing := otel.Lookup(decision.Model)
+	reqPricing, _ := catalog.PrimaryPriceFor(s.baselineFor(ctx, feats.Model))
+	actPricing, _ := catalog.PrimaryPriceFor(decision.Model)
 	reqDecisionPricing := reqPricing.ForInputTokens(feats.Tokens)
 	actDecisionPricing := actPricing.ForInputTokens(feats.Tokens)
-	openaiDecisionBuilder := otel.NewAttrBuilder(46).
+	openaiDecisionBuilder := telemetry.NewAttrBuilder(46).
 		String("request_id", requestID).
 		String("external_id", externalID).
 		String("router_user_id", auth.UserIDFrom(ctx)).
@@ -6202,13 +6238,13 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	applyRoutingStateAttrs(openaiDecisionBuilder, routeRes, decision.ServedIdentity(), sessionKey)
 	applyCallerRoutingAttrs(ctx, openaiDecisionBuilder)
 	applyBlindExperimentOutcomeAttrs(ctx, openaiDecisionBuilder, &routeRes, feats.Model, routeRes.Decision.Model)
-	otel.Record(ctx, otel.Span{
+	telemetry.Record(ctx, telemetry.Span{
 		Name:  "router.decision",
 		Start: requestStart,
 		End:   time.Now(),
 		Attrs: openaiDecisionBuilder.Build(),
 	})
-	otel.Flush(ctx)
+	telemetry.Flush(ctx)
 
 	opts := translate.EmitOptions{
 		TargetModel:        decision.Model,
@@ -6395,7 +6431,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	defer inferenceSpan.End()
 	var proxyErr error
 	crossFormat := false
-	var extractor *otel.UsageExtractor
+	var extractor *telemetry.UsageExtractor
 
 	// Overwritten per attempt, so it holds the winning attempt's signals.
 	var respSummary translate.ResponseSummary
@@ -6501,7 +6537,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 				case surface == surfaceResponsesTranslated:
 					var usage translate.UsageSink
 					if s.usageRequired() {
-						extractor = otel.NewUsageExtractor(nil, d.Provider)
+						extractor = telemetry.NewUsageExtractor(d.Provider)
 						usage = extractor
 					}
 					translator = translate.NewResponsesToOpenAIChatWriter(attemptSink, d.Model, usage).
@@ -6522,12 +6558,10 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 					nativeTerminal = newResponsesTerminalObserver(attemptSink)
 					proxyWriter = nativeTerminal
 					if s.usageRequired() {
-						extractor = otel.NewUsageExtractor(nativeTerminal, d.Provider)
-						proxyWriter = extractor
+						extractor, proxyWriter = s.newUsageExtractor(nativeTerminal, d.Provider)
 					}
 				case s.usageRequired() || isResponses:
-					extractor = otel.NewUsageExtractor(attemptSink, d.Provider)
-					proxyWriter = extractor
+					extractor, proxyWriter = s.newUsageExtractor(attemptSink, d.Provider)
 				}
 				if surface == surfaceChat && isResponses {
 					responsesWriter.SetUsageSource(extractor.UsageFacts)
@@ -6859,7 +6893,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	in, out := extractor.Tokens()
 	cacheCreation, cacheRead := extractor.CacheTokens()
 	usageMods := extractor.UsageModifiers()
-	baselineWarmPrefill := routeRes.baselineWarmPrefillTokens(requestStart, cacheCreation, cacheRead, decision.Model, s.baselineFor(feats.Model), routeRequest.HistoryTruncated)
+	baselineWarmPrefill := routeRes.baselineWarmPrefillTokens(requestStart, cacheCreation, cacheRead, decision.Model, s.baselineFor(ctx, feats.Model), routeRequest.HistoryTruncated)
 	requestedInputCost := catalog.CounterfactualInputCost(in, cacheCreation, cacheRead, baselineWarmPrefill, reqPricing, decision.Provider, usageMods)
 	if !env.Stream() && proxyErr == nil {
 		setRouterCostHeaders(w.Header(), routerResponseCostFromPricing(actPricing, decision.Provider, in, out, cacheCreation, cacheRead, usageMods))
@@ -6877,7 +6911,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 			nativeRespSummary = true
 		}
 	}
-	openaiUpstreamBuilder := otel.NewAttrBuilder(41).
+	openaiUpstreamBuilder := telemetry.NewAttrBuilder(41).
 		String("request_id", requestID).
 		String("external_id", externalID).
 		String("router_user_id", auth.UserIDFrom(ctx)).
@@ -6938,7 +6972,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	openaiObs := buildObservationContext(ctx, decision, routeRes.Fresh, s.effectiveCaptureMode(ctx))
 	openaiObs.applySpanAttrs(openaiUpstreamBuilder)
 
-	otel.Record(ctx, otel.Span{
+	telemetry.Record(ctx, telemetry.Span{
 		Name:  "router.upstream",
 		Start: proxyStart,
 		End:   time.Now(),
@@ -6952,7 +6986,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		}
 		respBody, respTrunc := capturedResponse(contentCap)
 		s.recordCallLog(ctx, callLogBase, routeMs, proxyErr, reqBody, respBody, respTrunc)
-		otel.Flush(ctx)
+		telemetry.Flush(ctx)
 	}
 	// The /v1/responses surface (ProxyOpenAIResponses) finalizes its
 	// ResponsesWriter only after this function returns, so the captured body
@@ -7135,7 +7169,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	}
 
 	servedCredentialSource := s.servedCredentialLogValue(ctx)
-	log.Info("ProxyOpenAIChatCompletion complete", append(append([]any{"requested_model", feats.Model, "baseline_model", s.baselineFor(feats.Model), "decision_model", decision.Model, "decision_provider", decision.Provider, "primary_provider", primaryProvider, "primary_model", primaryModel, "fallback_attempts", winnerIdx, "failover_used", failoverUsed, "failover_attempted", failoverAttempted, "subscription_failover", false, "decision_reason", decision.Reason, "requested_tier", routeRes.RequestedTier.String(), "decision_tier", catalog.TierFor(decision.Model).String(), "embedded_tokens", len(promptText) / 4, "total_input_tokens", feats.Tokens, "has_tools", feats.HasTools, "embed_input", embedInput, "cross_format", crossFormat, "sticky_hit", stickyHit, "pin_tier", pinTier, "turn_type", string(tt), "route_ms", routeMs, "proxy_ms", proxyMs, "proxy_err", proxyErr, "upstream_err_body", s.zdrLogField(ctx, providers.UpstreamErrorBodyMessage(proxyErr)), "upstream_status", upstreamStatus(proxyErr), "upstream_finish_reason", respSummary.UpstreamFinishReason, "resp_stop_reason", respSummary.StopReason, "stop_reason_promoted", respSummary.StopReasonPromoted, "tool_use_blocks", respSummary.ToolUseBlocks, "invalid_tool_args_blocks", respSummary.InvalidToolArgsBlocks, "tool_call_invalid_blocks", len(respSummary.ToolCallIssues), "routing_marker", marker, "prior_served_model", routeRes.PriorServedModel, "hard_pinned", routeRes.HardPinned, "credential_source", servedCredentialSource}, append(append(armStrikeLogFieldsWithPrimaryReason(armDemotedOAI, armDemotionReasonOAI, rescuedArmDemotedOAI, rescuedArmDemotionReasonOAI), plannerLogFields(routeRes)...), rateLimit.completionLogFields()...)...), downgradeShadowLogFields(routeRes)...)...)
+	log.Info("ProxyOpenAIChatCompletion complete", append(append([]any{"requested_model", feats.Model, "baseline_model", s.baselineFor(ctx, feats.Model), "decision_model", decision.Model, "decision_provider", decision.Provider, "primary_provider", primaryProvider, "primary_model", primaryModel, "fallback_attempts", winnerIdx, "failover_used", failoverUsed, "failover_attempted", failoverAttempted, "subscription_failover", false, "decision_reason", decision.Reason, "requested_tier", routeRes.RequestedTier.String(), "decision_tier", catalog.TierFor(decision.Model).String(), "embedded_tokens", len(promptText) / 4, "total_input_tokens", feats.Tokens, "has_tools", feats.HasTools, "embed_input", embedInput, "cross_format", crossFormat, "sticky_hit", stickyHit, "pin_tier", pinTier, "turn_type", string(tt), "route_ms", routeMs, "proxy_ms", proxyMs, "proxy_err", proxyErr, "upstream_err_body", s.zdrLogField(ctx, providers.UpstreamErrorBodyMessage(proxyErr)), "upstream_status", upstreamStatus(proxyErr), "upstream_finish_reason", respSummary.UpstreamFinishReason, "resp_stop_reason", respSummary.StopReason, "stop_reason_promoted", respSummary.StopReasonPromoted, "tool_use_blocks", respSummary.ToolUseBlocks, "invalid_tool_args_blocks", respSummary.InvalidToolArgsBlocks, "tool_call_invalid_blocks", len(respSummary.ToolCallIssues), "routing_marker", marker, "prior_served_model", routeRes.PriorServedModel, "hard_pinned", routeRes.HardPinned, "credential_source", servedCredentialSource}, append(append(armStrikeLogFieldsWithPrimaryReason(armDemotedOAI, armDemotionReasonOAI, rescuedArmDemotedOAI, rescuedArmDemotionReasonOAI), plannerLogFields(routeRes)...), rateLimit.completionLogFields()...)...), downgradeShadowLogFields(routeRes)...)...)
 	s.reportPolicyOutcome(ctx, routeRes, decision, effortServed, finalProvider, feats.Tokens, in, out, cacheCreation, cacheRead, usageMods, routeMs, proxyMs, proxyErr, nil)
 
 	// Subscription-only mode disables paid failover by pinning dispatch to the

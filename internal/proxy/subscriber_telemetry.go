@@ -4,11 +4,10 @@ import (
 	"context"
 
 	"aiand-os/router/internal/billing"
-	"aiand-os/router/internal/observability/otel"
 	"aiand-os/router/internal/requestcontext"
 	"aiand-os/router/internal/router/catalog"
 	"aiand-os/router/internal/subscriptions/entitlement"
-)
+	"aiand-os/router/internal/telemetry")
 
 // applyServingTelemetry stamps the managed serving identity on every admitted turn.
 func applyServingTelemetry(ctx context.Context, telemetry *InsertTelemetryParams) {
@@ -127,7 +126,7 @@ func applySubscriptionWinnerTelemetry(ctx context.Context, telemetry *InsertTele
 	}
 }
 
-func (s *Service) applySubscriptionSpanTelemetry(ctx context.Context, attrs *otel.AttrBuilder, requestedModel, selectedModel string) {
+func (s *Service) applySubscriptionSpanTelemetry(ctx context.Context, attrs *telemetry.AttrBuilder, requestedModel, selectedModel string) {
 	if keyID := apiKeyIDFromContext(ctx); keyID != "" {
 		attrs.String("api_key_id", keyID)
 	}
@@ -147,7 +146,7 @@ func (s *Service) applySubscriptionSpanTelemetry(ctx context.Context, attrs *ote
 
 // Decision attribution keeps admitted failures in their original family even
 // when credential selection rejects the request before an upstream span starts.
-func applySubscriptionDecisionSpanTelemetry(ctx context.Context, attrs *otel.AttrBuilder, requestedModel, selectedModel string) {
+func applySubscriptionDecisionSpanTelemetry(ctx context.Context, attrs *telemetry.AttrBuilder, requestedModel, selectedModel string) {
 	if keyID := apiKeyIDFromContext(ctx); keyID != "" {
 		attrs.String("api_key_id", keyID)
 	}

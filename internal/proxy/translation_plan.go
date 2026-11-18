@@ -7,13 +7,11 @@ import (
 	"sort"
 	"time"
 
-	"aiand-os/router/internal/observability/apm"
-	"aiand-os/router/internal/observability/otel"
 	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/catalog"
-	"aiand-os/router/internal/translate"
-)
+	"aiand-os/router/internal/telemetry"
+	"aiand-os/router/internal/translate")
 
 // TranslationCompatibilityMode controls whether broad compatibility filters
 // only report (shadow) or constrain routing (enforce). Native-only safety
@@ -299,17 +297,20 @@ func (s *Service) applyTranslationPlan(ctx context.Context, req router.Request) 
 	}
 	req.Exclusions = req.Exclusions.ExcludeSet(plan.ExcludedModels, router.ExclusionRequested)
 	for _, exclusion := range plan.Exclusions {
-		apm.RecordTranslationCompatibility(ctx,
-			exclusion.Code,
-			string(req.TranslationRequirements.SourceFormat),
-			familyName(plan.TargetFamily),
-			string(s.translationCompatibilityMode),
-			exclusion.Enforced,
-		)
-		otel.RecordLog(ctx, otel.LogRecord{
+		if metrics := s.translationMetrics; metrics != nil {
+			metrics.RecordTranslationCompatibility(
+				ctx,
+				exclusion.Code,
+				string(req.TranslationRequirements.SourceFormat),
+				familyName(plan.TargetFamily),
+				string(s.translationCompatibilityMode),
+				exclusion.Enforced,
+			)
+		}
+		telemetry.RecordLog(ctx, telemetry.LogRecord{
 			Name: "translation.compatibility",
 			Time: time.Now(),
-			Attrs: otel.NewAttrBuilder(7).
+			Attrs: telemetry.NewAttrBuilder(7).
 				String("translation.requirement", exclusion.Code).
 				String("translation.source_format", string(req.TranslationRequirements.SourceFormat)).
 				String("translation.target_family", familyName(plan.TargetFamily)).
