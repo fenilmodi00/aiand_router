@@ -179,132 +179,16 @@ func (s *Service) shouldFailover(ctx context.Context) bool {
 // When failover is disabled or unavailable, returns a single-element
 // slice carrying the already-resolved decision provider.
 func (s *Service) resolveBindingsForDispatch(ctx context.Context, decision router.Decision) []catalog.ProviderBinding {
-	primary := catalog.ProviderBinding{Provider: decision.Provider}
-	imageCount := requestImageCountFromContext(ctx)
-	if !s.shouldFailover(ctx) {
-		if binding, ok := catalog.BindingFor(decision.Model, decision.Provider); ok &&
-			!binding.AcceptsImageCount(imageCount) && !isUserForcedReason(decision.Reason) {
-			return nil
-		}
-		return []catalog.ProviderBinding{primary}
+	req := dispatch.BindingRequest{
+		Decision:   decision,
+		ImageCount: requestImageCountFromContext(ctx),
+		UserForced: isUserForcedReason(decision.Reason),
+		ForceModel: decision.Reason == translate.ReasonUserForceModel,
 	}
-	available := s.deploymentKeyedProviders
-	if available == nil {
-		// Legacy "all registered" mode — fall back to single-attempt to
-		// avoid retrying on providers whose keys aren't actually wired.
-		if binding, ok := catalog.BindingFor(decision.Model, decision.Provider); ok &&
-			!binding.AcceptsImageCount(imageCount) && !isUserForcedReason(decision.Reason) {
-			return nil
-		}
-		return []catalog.ProviderBinding{primary}
+	if s.shouldFailover(ctx) && s.deploymentKeyedProviders != nil {
+		req.DeploymentKeyedProviders = s.deploymentKeyedProviders
 	}
-	// An image-unfit primary binding must not re-enter the walk later via
-	// the bindings list — the scorer already ruled it out.
-	indexedBindings := catalog.EnumerateBindings(decision.Model, available)
-	unfilteredBindings := indexedBindings
-	imagePrimaryExcluded := false
-	imageFiltered := false
-	if imageCount > 0 {
-		filtered := make([]catalog.IndexedBinding, 0, len(indexedBindings))
-		for _, binding := range indexedBindings {
-			if binding.AcceptsImageCount(imageCount) {
-				filtered = append(filtered, binding)
-				continue
-			}
-			imageFiltered = true
-			if binding.Provider == decision.Provider {
-				imagePrimaryExcluded = true
-			}
-		}
-		indexedBindings = filtered
-	}
-	primaryExcluded := imagePrimaryExcluded
-	if imageFiltered && len(indexedBindings) == 0 {
-		if isUserForcedReason(decision.Reason) {
-			indexedBindings = unfilteredBindings
-		} else {
-			return nil
-		}
-	}
-	bindings := make([]catalog.ProviderBinding, 0, len(indexedBindings))
-	for _, binding := range indexedBindings {
-		bindings = append(bindings, binding.ProviderBinding)
-	}
-	if len(bindings) == 0 {
-		if primaryExcluded {
-			// The decision's provider cannot take this turn's images and no
-			// other binding exists — return nil so dispatch 502s instead of
-			// dispatching to a binding that rejects the request.
-			return nil
-		}
-		if decision.Reason == translate.ReasonUserForceModel {
-			if _, known := catalog.ByID(decision.Model); known {
-				return nil
-			}
-		}
-		return []catalog.ProviderBinding{primary}
-	}
-	if decision.Metadata != nil && decision.Metadata.SelectedArmID != "" {
-		bindings, found := prioritizeSelectedArmBinding(
-			indexedBindings,
-			decision.Model,
-			decision.Provider,
-			decision.Metadata.SelectedUpstreamID,
-			decision.Metadata.BindingIndex,
-		)
-		if found {
-			return bindings
-		}
-	}
-	if len(bindings) == 1 && !primaryExcluded {
-		return []catalog.ProviderBinding{primary}
-	}
-	// Defensive: if the runtime decision's provider differs from
-	// bindings[0], keep the decision's as primary and dedupe the rest —
-	// unless it cannot take this turn's images, in which case serve only
-	// image-fit bindings.
-	if bindings[0].Provider != decision.Provider {
-		if primaryExcluded {
-			return bindings
-		}
-		out := []catalog.ProviderBinding{primary}
-		for _, b := range bindings {
-			if b.Provider != decision.Provider {
-				out = append(out, b)
-			}
-		}
-		return out
-	}
-	return bindings
-}
-
-func prioritizeSelectedArmBinding(
-	bindings []catalog.IndexedBinding,
-	catalogID string,
-	provider string,
-	upstreamID string,
-	bindingIndex int,
-) ([]catalog.ProviderBinding, bool) {
-	ordered := make([]catalog.ProviderBinding, 0, len(bindings))
-	for _, binding := range bindings {
-		if binding.Index != bindingIndex || binding.Provider != provider {
-			continue
-		}
-		if catalog.UpstreamIDFor(catalogID, binding.UpstreamID) != upstreamID {
-			return nil, false
-		}
-		ordered = append(ordered, binding.ProviderBinding)
-		break
-	}
-	if len(ordered) == 0 {
-		return nil, false
-	}
-	for _, binding := range bindings {
-		if binding.Index != bindingIndex {
-			ordered = append(ordered, binding.ProviderBinding)
-		}
-	}
-	return ordered, true
+	return dispatch.OrderedBindings(req)
 }
 
 // flushBufferedIfPresent writes an *UpstreamErrorResponse through to the
