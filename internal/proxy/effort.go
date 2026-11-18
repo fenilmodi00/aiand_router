@@ -6,7 +6,8 @@ import (
 
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/telemetry"
-	"aiand-os/router/internal/translate")
+	"aiand-os/router/internal/translate"
+)
 
 // Effort sources, ordered by the precedence resolveEffort applies.
 const (

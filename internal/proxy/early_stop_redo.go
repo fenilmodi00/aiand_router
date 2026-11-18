@@ -22,7 +22,8 @@ import (
 	"aiand-os/router/internal/router/turntype"
 	"aiand-os/router/internal/sse"
 	"aiand-os/router/internal/telemetry"
-	"aiand-os/router/internal/translate")
+	"aiand-os/router/internal/translate"
+)
 
 // ReasonEarlyStopRedo marks a Claude Code tool-result turn re-served on a
 // higher-tier candidate after the routed model ended the agent turn without
@@ -390,7 +391,8 @@ type earlyStopServedSnapshot struct {
 	summary    translate.ResponseSummary
 	reqStats   providers.RequestMutationStats
 	fastServed bool
-	effort     effortResolution}
+	effort     effortResolution
+}
 
 func (p *earlyStopServed) save() earlyStopServedSnapshot {
 	return earlyStopServedSnapshot{

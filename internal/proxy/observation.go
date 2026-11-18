@@ -8,7 +8,8 @@ import (
 	"aiand-os/router/internal/requestcontext"
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/telemetry"
-	"aiand-os/router/internal/timing")
+	"aiand-os/router/internal/timing"
+)
 
 func applyServingSpanAttrs(ctx context.Context, attributes *telemetry.AttrBuilder) {
 	identity, managed := requestcontext.ServingIdentityFromContext(ctx)
