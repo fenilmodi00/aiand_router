@@ -79,6 +79,15 @@ d55e4e02e (lint dup-code gate), f65b514b1 (arch ratchet), 67491bb5d
   fork's default; keep cluster as the fork default. Revisit after the
   HMM sidecar is a real production option.
 
+Post-port disposition (2026-11-18): the fail-closed registry semantics this
+commit brings are already enforced by the fork (main.go panics when
+ROUTER_DEFAULT_STRATEGY names an unwired strategy; the readiness checker
+validates it at boot). The remaining hunks flip the deployment default to
+hmm_embedding and rebuild the smoke stack on an HMM stub — rejected for this
+fork per the owner's decision (production v0 serves via the cluster scorer).
+The ROUTER_EXPLORE_ENABLED wrapper is retained because the fork's default
+router IS the cluster scorer it wraps. Verdict: absorbed, no code change.
+
 ## Non-goals
 
 - No behavior changes beyond what the ported commits carry.

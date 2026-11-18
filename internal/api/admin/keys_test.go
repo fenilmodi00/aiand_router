@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -369,7 +370,7 @@ func upsertKeyEngine(svc *auth.Service) *gin.Engine {
 	return upsertKeyEngineWithModels(svc, nil)
 }
 
-func upsertKeyEngineWithModels(svc *auth.Service, models admin.DeployedModelsSource) *gin.Engine {
+func upsertKeyEngineWithModels(svc *auth.Service, models admin.HMMRosterSource) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 	engine.POST("/admin/v1/provider-keys", func(c *gin.Context) {
@@ -474,23 +475,24 @@ func TestUpsertExternalKeyHandler_PersistsAndReturnsModelAliases(t *testing.T) {
 	t.Setenv(providers.APIKeyEnvVar(providers.ProviderAIAND), "")
 
 	repo := &fakeExternalAPIKeyRepo{}
-	models := fakeDeployedModels{entries: []router.DeployedEntry{
-		{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND}}}
+	models := &fakeHMMRoster{entries: []router.DeployedEntry{
+		{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND},
+	}}
 	rec := postProviderKeyWithAliases(
 		upsertKeyEngineWithModels(newUpsertKeyService(repo), models),
 		providers.ProviderAIAND,
-		map[string]string{"z-ai/glm-5.3": " gateway-claude-fable-5 "},
+		map[string]string{"z-ai/glm-5.3": " gateway-glm-5.3 "},
 	)
 
 	require.Equal(t, http.StatusCreated, rec.Code)
-	assert.Equal(t, map[string]string{"z-ai/glm-5.3": "gateway-claude-fable-5"}, repo.createdAliases,
+	assert.Equal(t, map[string]string{"z-ai/glm-5.3": "gateway-glm-5.3"}, repo.createdAliases,
 		"the alias must reach the repository trimmed, or the endpoint gets a padded model name it can't match")
 
 	var body struct {
 		ModelAliases map[string]string `json:"model_aliases"`
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
-	assert.Equal(t, map[string]string{"z-ai/glm-5.3": "gateway-claude-fable-5"}, body.ModelAliases,
+	assert.Equal(t, map[string]string{"z-ai/glm-5.3": "gateway-glm-5.3"}, body.ModelAliases,
 		"the response must echo the stored aliases so the dashboard can show the mapping")
 }
 
@@ -498,12 +500,13 @@ func TestUpsertExternalKeyHandler_RejectsAliasForUnknownModel(t *testing.T) {
 	t.Setenv(providers.APIKeyEnvVar(providers.ProviderAIAND), "")
 
 	repo := &fakeExternalAPIKeyRepo{}
-	models := fakeDeployedModels{entries: []router.DeployedEntry{
-		{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND}}}
+	models := &fakeHMMRoster{entries: []router.DeployedEntry{
+		{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND},
+	}}
 	rec := postProviderKeyWithAliases(
 		upsertKeyEngineWithModels(newUpsertKeyService(repo), models),
 		providers.ProviderAIAND,
-		map[string]string{"claude-fabel-5": "gateway-claude-fable-5"},
+		map[string]string{"z-ai/glm-5.4": "gateway-glm-5.3"},
 	)
 
 	assert.Equal(t, http.StatusBadRequest, rec.Code,
@@ -579,7 +582,7 @@ func TestUpsertExternalKeyHandler_RejectsCollidingHeaderDestinationsBeforeReplac
 		"invalid effective configuration must leave the active key untouched")
 }
 
-func aliasUpdateEngine(svc *auth.Service, models admin.DeployedModelsSource) *gin.Engine {
+func aliasUpdateEngine(svc *auth.Service, models admin.HMMRosterSource) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 	engine.PUT("/admin/v1/provider-keys/:id/model-aliases", func(c *gin.Context) {
@@ -601,36 +604,59 @@ func TestUpdateExternalKeyAliasesHandler_ReplacesAliasesWithoutTheSecret(t *test
 	repo := &fakeExternalAPIKeyRepo{keys: []*auth.ExternalAPIKey{
 		{ID: "ext-1", InstallationID: "inst-1", Provider: providers.ProviderAIAND},
 	}}
-	models := fakeDeployedModels{entries: []router.DeployedEntry{{Model: "gpt-5", Provider: providers.ProviderAIAND}}}
-	rec := putModelAliases(aliasUpdateEngine(newUpsertKeyService(repo), models), "ext-1", map[string]string{"gpt-5": "openai-gpt-5"})
+	models := &fakeHMMRoster{entries: []router.DeployedEntry{{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND}}}
+
+	rec := putModelAliases(aliasUpdateEngine(newUpsertKeyService(repo), models), "ext-1", map[string]string{"z-ai/glm-5.3": "gateway-glm-5.3"})
 
 	require.Equal(t, http.StatusOK, rec.Code)
-	assert.Equal(t, map[string]string{"gpt-5": "openai-gpt-5"}, repo.keys[0].ModelAliases,
+	assert.Equal(t, map[string]string{"z-ai/glm-5.3": "gateway-glm-5.3"}, repo.keys[0].ModelAliases,
 		"editing aliases must not require re-entering a credential the dashboard can't show")
 	var body struct {
 		ModelAliases map[string]string `json:"model_aliases"`
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
-	assert.Equal(t, map[string]string{"gpt-5": "openai-gpt-5"}, body.ModelAliases)
+	assert.Equal(t, map[string]string{"z-ai/glm-5.3": "gateway-glm-5.3"}, body.ModelAliases)
 }
 
 func TestUpdateExternalKeyAliasesHandler_RejectsUnknownCatalogModel(t *testing.T) {
 	repo := &fakeExternalAPIKeyRepo{keys: []*auth.ExternalAPIKey{
 		{ID: "ext-1", InstallationID: "inst-1", Provider: providers.ProviderAIAND},
 	}}
-	models := fakeDeployedModels{entries: []router.DeployedEntry{{Model: "gpt-5", Provider: providers.ProviderAIAND}}}
-	rec := putModelAliases(aliasUpdateEngine(newUpsertKeyService(repo), models), "ext-1", map[string]string{"gpt-6": "openai-gpt-6"})
+	models := &fakeHMMRoster{entries: []router.DeployedEntry{{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND}}}
+
+	rec := putModelAliases(aliasUpdateEngine(newUpsertKeyService(repo), models), "ext-1", map[string]string{"z-ai/glm-5.4": "gateway-glm-5.4"})
 
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 	assert.Nil(t, repo.keys[0].ModelAliases, "a typo'd catalog id must fail at write time, not silently at runtime")
+}
+
+func TestExternalKeyHandlers_RosterUnavailableIs503(t *testing.T) {
+	t.Setenv(providers.APIKeyEnvVar(providers.ProviderAIAND), "")
+	models := &fakeHMMRoster{err: errors.New("policy not loaded")}
+
+	repo := &fakeExternalAPIKeyRepo{keys: []*auth.ExternalAPIKey{
+		{ID: "ext-1", InstallationID: "inst-1", Provider: providers.ProviderAIAND},
+	}}
+	upsert := postProviderKeyWithAliases(
+		upsertKeyEngineWithModels(newUpsertKeyService(repo), models),
+		providers.ProviderAIAND,
+		map[string]string{"z-ai/glm-5.3": "gateway-glm-5.3"},
+	)
+	assert.Equal(t, http.StatusServiceUnavailable, upsert.Code)
+	assert.Zero(t, repo.created, "aliases must not be stored unvalidated when the roster is unavailable")
+
+	update := putModelAliases(aliasUpdateEngine(newUpsertKeyService(repo), models), "ext-1", map[string]string{"z-ai/glm-5.3": "gateway-glm-5.3"})
+	assert.Equal(t, http.StatusServiceUnavailable, update.Code)
+	assert.Nil(t, repo.keys[0].ModelAliases)
 }
 
 func TestUpdateExternalKeyAliasesHandler_ForeignKeyIsNotFound(t *testing.T) {
 	repo := &fakeExternalAPIKeyRepo{keys: []*auth.ExternalAPIKey{
 		{ID: "ext-1", InstallationID: "inst-2", Provider: providers.ProviderAIAND},
 	}}
-	models := fakeDeployedModels{entries: []router.DeployedEntry{{Model: "gpt-5", Provider: providers.ProviderAIAND}}}
-	rec := putModelAliases(aliasUpdateEngine(newUpsertKeyService(repo), models), "ext-1", map[string]string{"gpt-5": "openai-gpt-5"})
+	models := &fakeHMMRoster{entries: []router.DeployedEntry{{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND}}}
+
+	rec := putModelAliases(aliasUpdateEngine(newUpsertKeyService(repo), models), "ext-1", map[string]string{"z-ai/glm-5.3": "gateway-glm-5.3"})
 
 	assert.Equal(t, http.StatusNotFound, rec.Code, "another tenant's key must read as absent, not as a server error")
 	assert.Nil(t, repo.keys[0].ModelAliases)

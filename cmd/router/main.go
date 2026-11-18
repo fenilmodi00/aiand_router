@@ -676,7 +676,7 @@ func main() {
 	}
 
 	// OFF by default: wraps only the proxy's routing entrypoint, so rtr stays
-	// the *cluster.Multiversion the admin cast and semantic cache reference.
+	// the *cluster.Multiversion the semantic cache references.
 	routeEntry := buildExploringRouter(rtr, logger)
 
 	// Off unless WV_CAPTURE_CONTENT is set; managed deploys set "full". Redactor
@@ -733,6 +733,7 @@ func main() {
 	var policyStatus admin.PolicyStatusSource
 	var hmmRosterSources map[router.Strategy]policy.RosterSource
 	var hmmRosterModels admin.HMMRosterSource
+	var routingDistribution admin.DistributionRosterSource
 	var hmmBetaCapabilities policy.Capabilities
 	var servingAdmission *middleware.ServingAdmissionConfig
 	testPlansEnabled := strings.EqualFold(config.GetOr("ROUTER_TEST_PLANS_ENABLED", "false"), "true")
@@ -859,6 +860,7 @@ func main() {
 			router.StrategyHMMEmbedding: stableManager,
 		}
 		hmmRosterModels = newHMMRosterSource(stableManager, hmmTimeout)
+		routingDistribution = stableManager
 		escalationObserver = stableDynamicRouter
 
 		var betaManager *policyregistry.Manager
@@ -1200,9 +1202,6 @@ func main() {
 		observability.AccessLog(),
 	)
 
-	// Lets the admin model-selection handler surface deployed models; nil
-	// fallback keeps non-cluster routers bootable.
-	deployedModels, _ := rtr.(*cluster.Multiversion)
 	analyticsSvc := analytics.NewService(repo.Analytics, time.Now)
 	readinessChecker := newReadinessChecker(pool, hmmReadinessChecker, proxySvc, server.DefaultStrategyFromEnv())
 	if defaultStrategyErr := readinessChecker.checkDefaultStrategy(); defaultStrategyErr != nil {
@@ -1257,11 +1256,17 @@ func main() {
 		LoginSvc: loginSvc,
 		// PolicyStatus feeds /v1/version's stable policy release fields.
 		PolicyStatus: policyStatus,
+		// RoutingDistribution backs the dial preview with the stable policy
+		// roster; managed serving binds it to the admitted request instead.
+		RoutingDistribution: routingDistribution,
 	}
 	if trafficCapture != nil {
 		serverFeatures.TrafficCapture = trafficCapture
 	}
-	server.RegisterWithFeatures(engine, authSvc, proxySvc, deployedModels, hmmRosterModels, deploymentMode, billingSvc, readinessChecker, hmmRosterSources, analyticsSvc, serverFeatures)
+	if hmmRosterModels == nil && deploymentMode == server.DeploymentModeSelfHosted {
+		hmmRosterModels = catalogRosterSource{}
+	}
+	server.RegisterWithFeatures(engine, authSvc, proxySvc, hmmRosterModels, deploymentMode, billingSvc, readinessChecker, hmmRosterSources, analyticsSvc, serverFeatures)
 
 	port := config.GetOr("PORT", "8080")
 	address := ":" + port

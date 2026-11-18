@@ -24,11 +24,6 @@ var clusterImportRoots = []string{"cmd/router/", "cmd/routing-report/", "interna
 // (2098 -> 2102 -> 2095 -> 2100) has not finished removing; this list captures
 // the fork's current importers and may only shrink.
 var clusterImportAllowlist = []string{
-	"internal/api/admin/catalog_test.go",
-	"internal/api/admin/config.go",
-	"internal/api/admin/excluded_models.go",
-	"internal/api/admin/routing_distribution.go",
-	"internal/api/admin/version.go",
 	"internal/api/anthropic/messages_test.go",
 	"internal/proxy/agent_shadow_eval.go",
 	"internal/proxy/blind_experiment.go",
@@ -40,7 +35,6 @@ var clusterImportAllowlist = []string{
 	"internal/proxy/subscription_state_models.go",
 	"internal/server/middleware/cluster_version_override.go",
 	"internal/server/middleware/cluster_version_override_test.go",
-	"internal/server/server_test.go",
 }
 
 func TestClusterPackageImportsOnlyShrink(t *testing.T) {

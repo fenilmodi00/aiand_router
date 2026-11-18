@@ -23,7 +23,6 @@ import (
 // was added to internal/providers.
 func TestConfigHandler_EnvProviderKeys_IncludesEveryDeployedProvider(t *testing.T) {
 	t.Setenv(providers.APIKeyEnvVar(providers.ProviderAIAND), "dummy-key")
-	t.Setenv(providers.APIKeyEnvVar(providers.ProviderAIAND), "dummy-key")
 
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
@@ -42,5 +41,5 @@ func TestConfigHandler_EnvProviderKeys_IncludesEveryDeployedProvider(t *testing.
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
 	require.Contains(t, body.EnvProviderKeys, providers.ProviderAIAND)
-	require.Contains(t, body.EnvProviderKeys, providers.ProviderAIAND)
+	require.NotContains(t, rec.Body.String(), "cluster_version")
 }
