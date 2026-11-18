@@ -15,10 +15,4 @@ var (
 		router.ReasoningCapabilities{Levels: []string{"low", "medium", "high"}, SupportsBudget: true},
 		router.CapReasoning,
 	)
-	// alwaysOnSpec is a target that always reasons: a disable clamps to its
-	// floor level and it accepts named levels but no budget (Gemini 3.x shape).
-	alwaysOnSpec = router.NewSpecWithReasoning(
-		router.ReasoningCapabilities{Levels: []string{"low", "medium", "high"}, AlwaysOn: true},
-		router.CapReasoning,
-	)
 )

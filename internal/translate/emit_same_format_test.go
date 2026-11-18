@@ -1,7 +1,6 @@
 package translate_test
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -1101,15 +1100,6 @@ func TestAnthropicSameFormat_OutputConfigFormatStrippedOnRequest(t *testing.T) {
 		StripOutputConfigFormat: true,
 	})
 	assert.NotContains(t, out, "output_config", "an emptied output_config must be pruned, not sent as {}")
-}
-
-// openAIReasoningSignature builds the cross-format envelope that
-// encodeOpenAIReasoningSignature mints, for use in test fixtures.
-func openAIReasoningSignature(t *testing.T, id, enc string) string {
-	t.Helper()
-	raw, err := json.Marshal(map[string]any{"v": 1, "provider": "openai", "id": id, "enc": enc})
-	require.NoError(t, err)
-	return base64.StdEncoding.EncodeToString(raw)
 }
 
 func TestAnthropicSameFormat_ForcedToolChoicePreservedForCapableModel(t *testing.T) {

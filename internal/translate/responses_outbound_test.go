@@ -16,8 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func itoa(n int) string { return strconv.Itoa(n) }
-
 func gjsonStopReason(b []byte) string {
 	var m map[string]any
 	_ = json.Unmarshal(b, &m)

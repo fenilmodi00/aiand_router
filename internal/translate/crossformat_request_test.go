@@ -1,7 +1,6 @@
 package translate_test
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -1469,14 +1468,6 @@ func TestSanitizeToolUseIDs_AnthropicToAnthropic(t *testing.T) {
 	user := msgs[1].(map[string]any)
 	result := user["content"].([]any)[0].(map[string]any)
 	assert.Equal(t, "functions_Grep_11", result["tool_use_id"], "tool_use_id must be sanitized in same-format path")
-}
-
-// routerReasoningID builds a tool id carrying a router-minted OpenAI reasoning
-// envelope, the shape the Responses→Anthropic writer emits.
-func routerReasoningID(id string) string {
-	envelope, _ := json.Marshal(map[string]any{"v": 1, "provider": "openai", "id": "rs_1", "enc": strings.Repeat("E", 6000), "scope": "scope"})
-	sig := base64.StdEncoding.EncodeToString(envelope)
-	return id + "__openai_reasoning__" + base64.RawURLEncoding.EncodeToString([]byte(sig))
 }
 
 func TestSanitizeOverlongToolUseNames(t *testing.T) {
