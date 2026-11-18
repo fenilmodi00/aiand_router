@@ -192,6 +192,17 @@ git remote add build <git-remote-from-apps-info>
 git push build v0:main
 ```
 
+**Caveat (verified 2026-11-18):** a direct push like this builds and releases
+the correct commit, but the GitHub App then creates the repository's
+`build-production`/`production` deployment records against the *default
+branch's* sha instead of the pushed v0 sha, so the `Deploy verification`
+workflow fails its record check even though production is healthy. When the
+GitHub integration is available, push to `origin v0` and let the app
+auto-deploy: that path records the correct sha/ref and keeps `Deploy
+verification` green. Use the direct push only when the integration cannot
+run, and read a red verification after one as a record-attribution issue
+first, not a deploy failure.
+
 The host accepts `git-receive-pack` only; fetching from it (`git ls-remote`,
 `git fetch`) returns 403 by design.
 
