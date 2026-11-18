@@ -771,7 +771,7 @@ const (
 	markerReasonStayed           = "stayed on your last pick"
 	markerReasonTierUpgrade      = "upgraded to a stronger tier"
 	markerReasonBestPick         = "best pick for this turn"
-	markerReasonSibling          = "switched after the picked model was overloaded"
+	markerReasonSibling          = "switched after the picked model was unavailable"
 	markerReasonForcedPinDropped = "your force-model pin could not be served this turn"
 )
 
@@ -782,7 +782,7 @@ func siblingMarkerReason(overloadedModel string) string {
 	if overloadedModel == "" {
 		return markerReasonSibling
 	}
-	return "switched after " + overloadedModel + " was overloaded"
+	return "switched after " + overloadedModel + " was unavailable"
 }
 
 // siblingMarkerFor renders the full sibling-rescue badge, including the
