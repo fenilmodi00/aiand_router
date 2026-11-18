@@ -3,11 +3,9 @@ package proxy
 import (
 	"context"
 	"errors"
-	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/sessionpin"
 
@@ -47,17 +45,4 @@ func TestRoutingModelRedirectsLegacyBetaCommandsWithoutChangingPreferences(t *te
 			})
 		}
 	}
-}
-
-type routingModelCaptureProvider struct{ betaCaptureProvider }
-
-func (p *routingModelCaptureProvider) Proxy(ctx context.Context, _ router.Decision, prepared providers.PreparedRequest, w http.ResponseWriter, request *http.Request) error {
-	return p.Passthrough(ctx, prepared, w, request)
-}
-
-func (p *routingModelCaptureProvider) Passthrough(_ context.Context, prepared providers.PreparedRequest, w http.ResponseWriter, _ *http.Request) error {
-	p.body = append([]byte(nil), prepared.Body...)
-	w.Header().Set("Content-Type", "application/json")
-	_, err := w.Write([]byte(`{"id":"synthetic-reply","type":"message","role":"assistant","model":"z-ai/glm-5.3-flash","content":[{"type":"text","text":"selected policy reply"}],"stop_reason":"end_turn","usage":{"input_tokens":1,"output_tokens":1}}`))
-	return err
 }

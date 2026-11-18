@@ -4,14 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"aiand-os/router/internal/auth"
-
 	"github.com/stretchr/testify/assert"
 )
-
-func ctxWithExternalKeys(keys ...*auth.ExternalAPIKey) context.Context {
-	return context.WithValue(context.Background(), ExternalAPIKeysContextKey{}, keys)
-}
 
 func TestServedOnBYOK_KeysOffCredentialSource(t *testing.T) {
 	assert.True(t, servedOnBYOK(ctxWithCreds(&Credentials{Source: credSourceBYOK})),

@@ -10,10 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"aiand-os/router/internal/auth"
 	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/router"
-	"aiand-os/router/internal/router/catalog"
 	"aiand-os/router/internal/router/sessionpin"
 )
 
@@ -107,13 +105,4 @@ func TestRecoveryProbeSkipsModelWithoutEligibleProviderBinding(t *testing.T) {
 
 	assert.Empty(t, store.attempted, "a model with no binding for this request must not consume the recovery lease")
 	assert.Empty(t, result.CooldownProbes)
-}
-
-func twoModelGatewayContext() context.Context {
-	ctx := rescuedFailureCtx()
-	ctx = context.WithValue(ctx, InstallationAllowedModelsContextKey{}, []string{catalog.ModelIDDeepSeekV4Pro.String(), recoveryOpusModel})
-	return context.WithValue(ctx, ExternalAPIKeysContextKey{}, []*auth.ExternalAPIKey{
-		{Provider: providers.ProviderAIAND, Plaintext: []byte("synthetic-key"), ModelAliases: map[string]string{catalog.ModelIDDeepSeekV4Pro.String(): catalog.ModelIDDeepSeekV4Pro.String()}},
-		{Provider: providers.ProviderAIAND, Plaintext: []byte("synthetic-key"), ModelAliases: map[string]string{recoveryOpusModel: recoveryOpusModel}},
-	})
 }

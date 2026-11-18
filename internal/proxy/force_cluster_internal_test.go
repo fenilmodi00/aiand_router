@@ -87,15 +87,3 @@ func TestProxyMessages_ForceClusterOnNonSidecarStrategyRejects(t *testing.T) {
 	assert.Zero(t, fr.routeCalls, "must abort before routing runs")
 	assert.Zero(t, fp.proxyCalls, "must abort before dispatching upstream")
 }
-
-// forceClusterCapturingRouter records the request the turn loop routed with, so
-// the header's journey from ingress to router.Request is provable.
-type forceClusterCapturingRouter struct {
-	captured router.Request
-	decision router.Decision
-}
-
-func (r *forceClusterCapturingRouter) Route(_ context.Context, req router.Request) (router.Decision, error) {
-	r.captured = req
-	return r.decision, nil
-}

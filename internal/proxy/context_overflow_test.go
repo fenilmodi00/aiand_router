@@ -3,7 +3,6 @@ package proxy_test
 import (
 	"context"
 	"errors"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -86,32 +85,6 @@ func TestProxyOpenAIResponses_NonStreamingOverflowIsNativeError(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 	assert.Equal(t, "context_length_exceeded", gjson.GetBytes(rec.Body.Bytes(), "error.code").String())
 	assert.Equal(t, "invalid_request_error", gjson.GetBytes(rec.Body.Bytes(), "error.type").String())
-}
-
-// responsesOverflowClient answers the way OpenAI's Responses API does for an
-// over-window prompt: HTTP 200, then an in-stream error and response.failed.
-type responsesOverflowClient struct {
-	endpoints []providers.Endpoint
-}
-
-func (c *responsesOverflowClient) Proxy(_ context.Context, _ router.Decision, prep providers.PreparedRequest, w http.ResponseWriter, _ *http.Request) error {
-	c.endpoints = append(c.endpoints, prep.Endpoint)
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.WriteHeader(http.StatusOK)
-	for _, payload := range []string{
-		`{"type":"response.created","response":{"id":"resp_1","status":"in_progress","output":[]},"sequence_number":0}`,
-		`{"type":"error","error":{"type":"invalid_request_error","code":"context_length_exceeded","message":"Your input exceeds the context window of this model. Please adjust your input and try again.","param":"input"},"sequence_number":1}`,
-		`{"type":"response.failed","response":{"id":"resp_1","status":"failed","error":{"code":"context_length_exceeded","message":"Your input exceeds the context window of this model. Please adjust your input and try again."},"output":[]},"sequence_number":2}`,
-	} {
-		if _, err := io.WriteString(w, "data: "+payload+"\n\n"); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (c *responsesOverflowClient) Passthrough(context.Context, providers.PreparedRequest, http.ResponseWriter, *http.Request) error {
-	return providers.ErrNotImplemented
 }
 
 // overflowPolicy is a sidecar that always picks the first offered candidate.

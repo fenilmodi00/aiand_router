@@ -1,7 +1,6 @@
 package proxy_test
 
 import (
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -16,7 +15,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tidwall/gjson"
 )
 
 // statusOverloaded is Anthropic's upstream-overload status; net/http has no constant for it.
@@ -40,87 +38,6 @@ func siblingClusterDecision(reason string) router.Decision {
 			},
 		},
 	}
-}
-
-// rankedRescueFixture routes to an Anthropic model that always overloads and
-// names two Fireworks-served candidates, ranked kimi then deepseek; kimi rejects
-// every request so the rescue must hand off to deepseek.
-type rankedRescueFixture struct {
-	svc             *proxy.Service
-	mu              sync.Mutex
-	fireworksModels []string
-}
-
-func newRankedRescueFixture(t *testing.T) *rankedRescueFixture {
-	t.Helper()
-	f := &rankedRescueFixture{}
-
-	anthropicUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.WriteHeader(statusOverloaded)
-		_, _ = w.Write([]byte(overloadedSSE))
-	}))
-	t.Cleanup(anthropicUpstream.Close)
-
-	fireworks := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		model := gjson.GetBytes(body, "model").String()
-		f.mu.Lock()
-		f.fireworksModels = append(f.fireworksModels, model)
-		f.mu.Unlock()
-		if model == "moonshotai/kimi-k2.6" {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
-			_, _ = w.Write([]byte(`{"error":{"message":"unsupported parameter","type":"invalid_request_error"}}`))
-			return
-		}
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.WriteHeader(http.StatusOK)
-		_, _ = io.WriteString(w, `data: {"id":"fw-1","object":"chat.completion.chunk","created":1,"model":"deepseek/deepseek-v4-pro","choices":[{"index":0,"delta":{"role":"assistant","content":"hi"},"finish_reason":null}]}`+"\n\n")
-		_, _ = io.WriteString(w, `data: {"id":"fw-1","object":"chat.completion.chunk","created":1,"model":"deepseek/deepseek-v4-pro","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":5,"completion_tokens":1}}`+"\n\n")
-		_, _ = io.WriteString(w, "data: [DONE]\n\n")
-	}))
-	t.Cleanup(fireworks.Close)
-
-	decision := router.Decision{
-		Provider: providers.ProviderAIAND,
-		Model:    "z-ai/glm-5.3",
-		Metadata: &router.RoutingMetadata{
-			PolicyGroup:    "medium",
-			RosterFailover: true,
-			// The scored pool lists deepseek first; the ranked fallback puts kimi ahead of it.
-			CandidateModels: []string{"deepseek/deepseek-v4-pro", "moonshotai/kimi-k2.6", "z-ai/glm-5.3"},
-			RescueModels:    []string{"z-ai/glm-5.3", "moonshotai/kimi-k2.6", "deepseek/deepseek-v4-pro"},
-			CandidateProviders: map[string]string{
-				"z-ai/glm-5.3":             providers.ProviderAIAND,
-				"moonshotai/kimi-k2.6":     providers.ProviderAIAND,
-				"deepseek/deepseek-v4-pro": providers.ProviderAIAND,
-			},
-		},
-	}
-	f.svc = proxy.NewService(
-		&fakeRouter{decision: decision},
-		map[string]providers.Client{
-			providers.ProviderAIAND: openaicompat.NewClient("test-anthropic-key", anthropicUpstream.URL),
-		},
-		nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
-	).WithDeploymentKeyedProviders(map[string]struct{}{
-		providers.ProviderAIAND: {},
-	}).WithRetrySleep(noRetrySleep)
-	return f
-}
-
-func (f *rankedRescueFixture) assertHandedOffToDeepseek(t *testing.T, rec *httptest.ResponseRecorder, terminalFrame string) {
-	t.Helper()
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	assert.Equal(t, []string{"moonshotai/kimi-k2.6", "deepseek/deepseek-v4-pro"}, f.fireworksModels,
-		"ranked-fallback order, then hand-off after the first rescuer is rejected")
-	respBody := rec.Body.String()
-	assert.Contains(t, respBody, terminalFrame)
-	assert.NotContains(t, respBody, "overloaded_error")
-	assert.NotContains(t, respBody, "unsupported parameter", "the rejected rescuer's error never reaches the client")
-	assert.Equal(t, "deepseek/deepseek-v4-pro", rec.Header().Get(proxy.HeaderRouterModel))
 }
 
 // TestProxyMessages_ForceModelOverloadDoesNotDegrade: an explicit /force-model

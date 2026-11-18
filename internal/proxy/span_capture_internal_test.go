@@ -15,7 +15,6 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"aiand-os/router/internal/providers"
-	"aiand-os/router/internal/router"
 )
 
 // bypassSpanCollector is an in-process OTLP endpoint that records spans by name for assertion.
@@ -89,19 +88,6 @@ func (c *bypassCaptureTelemetry) InsertRequestTelemetry(_ context.Context, p Ins
 	return nil
 }
 
-func spanInt(t *testing.T, sp *tracev1.Span, key string) int64 {
-	t.Helper()
-	for _, kv := range sp.Attributes {
-		if kv.Key == key {
-			iv, ok := kv.Value.Value.(*commonv1.AnyValue_IntValue)
-			require.True(t, ok, "attr %q must be an int", key)
-			return iv.IntValue
-		}
-	}
-	t.Fatalf("attr %q not present on span", key)
-	return 0
-}
-
 // openaiChatBody and anthropicMessagesBody are the two request shapes the
 // proxy ingress tests dispatch.
 func openaiChatBody() []byte {
@@ -121,31 +107,4 @@ func upstreamErr(status int, body string) error {
 // refusal, the shape the model-denial cache keys on.
 func modelAccessError() error {
 	return upstreamErr(http.StatusNotFound, `{"type":"error","error":{"type":"not_found_error","message":"model: z-ai/glm-5.2"}}`)
-}
-
-// bypassFakeProvider is an internal-package fake providers.Client for
-// exercising the proxy surfaces without a live upstream.
-type bypassFakeProvider struct {
-	respBody     string
-	proxyErr     error
-	dispatches   int
-	capturedBody []byte
-}
-
-func (f *bypassFakeProvider) SupportsSubscriptions() bool { return true }
-
-func (f *bypassFakeProvider) Proxy(ctx context.Context, decision router.Decision, prep providers.PreparedRequest, w http.ResponseWriter, r *http.Request) error {
-	f.dispatches++
-	if f.proxyErr != nil {
-		return f.proxyErr
-	}
-	if f.respBody != "" {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(f.respBody))
-	}
-	return nil
-}
-
-func (f *bypassFakeProvider) Passthrough(context.Context, providers.PreparedRequest, http.ResponseWriter, *http.Request) error {
-	return nil
 }

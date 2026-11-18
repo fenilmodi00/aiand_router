@@ -16,13 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// An agent returning a screenshot nests the image inside a tool_result rather
-// than putting it at the top level of the message content.
-const toolResultImageBody = `{"model":"deepseek/deepseek-v4.1-flash","messages":[
-	{"role":"assistant","content":[{"type":"tool_use","id":"toolu_1","name":"Read","input":{"file_path":"/tmp/shot.png"}}]},
-	{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","content":[
-		{"type":"image","source":{"type":"base64","media_type":"image/png","data":"AAA"}}]}]}]}`
-
 // textOnlyForcedModel names a live catalog row with ImageInputUnsupported
 // (qwen/qwen3-coder-next was removed from the aiand catalog with the single-
 // upstream chop; deepseek-v4-pro carries the text-only flag today).
