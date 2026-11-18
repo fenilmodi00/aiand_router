@@ -142,7 +142,7 @@ func main() {
 	switch deploymentMode {
 	case server.DeploymentModeSelfHosted, server.DeploymentModeManaged:
 	default:
-		err := fmt.Errorf("Invalid ROUTER_DEPLOYMENT_MODE %q (expected %q or %q)", deploymentMode, server.DeploymentModeSelfHosted, server.DeploymentModeManaged)
+		err := fmt.Errorf("invalid ROUTER_DEPLOYMENT_MODE %q (expected %q or %q)", deploymentMode, server.DeploymentModeSelfHosted, server.DeploymentModeManaged)
 		logger.Error("Refusing to boot with invalid deployment mode", "err", err)
 		panic(err)
 	}
@@ -184,9 +184,8 @@ func main() {
 	}
 
 	providerMap := make(map[string]providers.Client)
-	// envKeyedProviders = providers with a real deployment-level API key.
-	// Feeds resolveHardPinModel so compaction only lands where deployment
-	// auth actually exists — a BYOK/passthrough-only provider would 401.
+	// envKeyedProviders = providers with a real deployment-level API key; a
+	// BYOK/passthrough-only provider would 401 without request credentials.
 	envKeyedProviders := make(map[string]struct{})
 
 	// Wired by default in managed mode. A boot-time health-check error (e.g.
@@ -294,7 +293,7 @@ func main() {
 		logger.Error("Failed to create Pub/Sub client", "err", err)
 		panic(err)
 	}
-	defer pubsubClient.Close()
+	defer func() { _ = pubsubClient.Close() }()
 
 	publisher := pubsubClient.Publisher(pubsubTopicID)
 	notifier := routerpubsub.NewInvalidationNotifier(publisher)
@@ -429,12 +428,10 @@ func main() {
 
 	hardPinExplore := config.GetOr("ROUTER_HARD_PIN_EXPLORE", "true") == "true"
 	hardPinOverrideConfigured := strings.TrimSpace(config.GetOr("ROUTER_HARD_PIN_MODEL", "")) != ""
-	// Hard-pin compaction runs on every installation, so it must land on a
-	// provider with real deployment auth (env-keyed, excluding BYOK/passthrough)
-	// or it 401s. In managed/byokOnly mode no provider has deployment auth, so
-	// the boot-time pin here is just a fallback — per-request resolution below
-	// does the real work.
-	hardPinProvider, hardPinModel, err := resolveHardPinModel(envKeyedProviders, logger)
+	// The boot-time pin seeds the title-gen, classifier, probe and sub-agent
+	// deployment targets; hard-pinned turns serve it directly only when the
+	// per-request resolver below is not wired (ROUTER_HARD_PIN_MODEL override).
+	hardPinProvider, hardPinModel, err := resolveHardPinModel()
 	if err != nil {
 		logger.Error("Invalid hard-pin model configuration; refusing to boot", "err", err)
 		panic(err)
@@ -444,31 +441,16 @@ func main() {
 	}
 	logger.Info("Hard-pin model resolved", "provider", hardPinProvider, "model", hardPinModel, "byok_only", byokOnly)
 
-	// Per-request hard-pin resolver: closes over the default cluster bundle so
-	// the proxy can resolve per-request against the request's enabled-providers
-	// and the installation's excluded_models (the hard-pin tier bypasses the
-	// scorer, the only component that otherwise applies excluded_models).
-	// nil if the bundle fails to load, falling back to boot-time hardPin{Provider,Model}.
-	// Not wired when ROUTER_HARD_PIN_MODEL is set — an operator override is
-	// absolute and must never be silently rewritten by excluded_models.
+	// Per-request hard-pin resolver: picks the catalog utility target for the
+	// request's enabled providers, excluded_models and bindings (the hard-pin
+	// tier bypasses the scorer, the only component that otherwise applies
+	// excluded_models). Not wired when ROUTER_HARD_PIN_MODEL is set — an
+	// operator override is absolute and must never be silently rewritten by
+	// excluded_models.
 	var hardPinResolver proxy.HardPinResolver
 	if !hardPinOverrideConfigured {
-		reqVersion := config.GetOr("ROUTER_CLUSTER_VERSION", cluster.LatestVersion)
-		if version, vErr := cluster.ResolveVersion(reqVersion); vErr == nil {
-			if bundle, bErr := cluster.LoadBundle(version); bErr == nil {
-				registry := bundle.Registry
-				hardPinResolver = func(req proxy.HardPinRequest) (string, string, bool) {
-					return cluster.FastestModelForRequest(registry, req.EnabledProviders, req.ExcludedModels, nil, cluster.RequestBindings{
-						Custom: req.CustomBindings,
-					})
-				}
-				logger.Info("Hard-pin resolver wired (per-request fastest model from cluster bundle, applies excluded_models)", "version", version, "byok_only", byokOnly)
-			} else {
-				logger.Warn("Hard-pin resolver disabled: cluster bundle failed to load; hard-pin will fall back to boot-time defaults and cannot apply excluded_models", "err", bErr, "version", version)
-			}
-		} else {
-			logger.Warn("Hard-pin resolver disabled: could not resolve cluster version; hard-pin will fall back to boot-time defaults and cannot apply excluded_models", "err", vErr)
-		}
+		hardPinResolver = proxy.CatalogUtilityHardPin
+		logger.Info("Hard-pin resolver wired (per-request catalog utility target, applies excluded_models)", "default_model", policy.UtilityHardPinDefaultModel, "byok_only", byokOnly)
 	} else {
 		logger.Info("Hard-pin resolver not wired: ROUTER_HARD_PIN_MODEL operator override is set and absolute by design", "model", hardPinModel)
 	}
@@ -636,11 +618,10 @@ func main() {
 		subAgentPolicyProvider = hardPinProvider
 		subAgentPolicyModel = hardPinModel
 	}
-	// The client's own compaction turn is served by proxy.compactionHardPin on
-	// the only upstream unless the operator pinned every utility turn explicitly.
-	compactionHardPin := !hardPinOverrideConfigured
+	// Client compaction summaries are authorized under the client-compaction purpose:
+	// on Anthropic unless the operator pinned every utility turn explicitly.
 	clientCompactionProvider, clientCompactionModel := providers.ProviderAIAND, compactionModel
-	if !compactionHardPin {
+	if hardPinOverrideConfigured {
 		clientCompactionProvider, clientCompactionModel = hardPinProvider, hardPinModel
 	}
 	deploymentTargets := []policy.PurposeTargetOverride{
@@ -686,7 +667,6 @@ func main() {
 	var compactionHandoverSz handover.Summarizer
 	if _, ok := providerMap[handoverProviderName]; ok {
 		ps := proxy.NewProviderSummarizer(inferencePlans, inferenceExecutor, handoverProviderName, handoverModel, handoverTimeout).
-			WithCompactionModel(compactionModel).
 			WithCompactionTimeout(compactionTimeout)
 		summarizer = ps
 		compactionHandoverSz = ps.CompactionHandover()
@@ -696,7 +676,7 @@ func main() {
 	}
 
 	// OFF by default: wraps only the proxy's routing entrypoint, so rtr stays
-	// the *cluster.Multiversion the admin cast and semantic cache reference.
+	// the *cluster.Multiversion the semantic cache references.
 	routeEntry := buildExploringRouter(rtr, logger)
 
 	// Off unless WV_CAPTURE_CONTENT is set; managed deploys set "full". Redactor
@@ -753,6 +733,7 @@ func main() {
 	var policyStatus admin.PolicyStatusSource
 	var hmmRosterSources map[router.Strategy]policy.RosterSource
 	var hmmRosterModels admin.HMMRosterSource
+	var routingDistribution admin.DistributionRosterSource
 	var hmmBetaCapabilities policy.Capabilities
 	var servingAdmission *middleware.ServingAdmissionConfig
 	testPlansEnabled := strings.EqualFold(config.GetOr("ROUTER_TEST_PLANS_ENABLED", "false"), "true")
@@ -801,7 +782,6 @@ func main() {
 			hmmRosterSources[router.StrategyHMMBeta] = rosterSource
 			hmmRosterSources[router.StrategyHMMQwen] = rosterSource
 		}
-		hmmRosterModels = admittedHMMRosterSource{}
 		if topic := strings.TrimSpace(config.GetOr("PUBSUB_TOPIC_ROUTER_POLICY_INVALIDATION", "")); topic != "" {
 			subscriptionCtx, cancelSubscription := context.WithTimeout(context.Background(), 30*time.Second)
 			subscriptionName, cleanup, err := routerpubsub.CreateReplicaSubscription(subscriptionCtx, pubsubClient, pubsubProjectID, topic, config.GetOr("PUBSUB_SUBSCRIPTION_ROUTER_POLICY_INVALIDATION", topic))
@@ -839,12 +819,12 @@ func main() {
 				logger.Error("Router policy registry failed to initialize; refusing to boot", "err", registryErr)
 				panic(registryErr)
 			}
-			defer gcsRegistry.Close()
+			defer func() { _ = gcsRegistry.Close() }()
 			policyRegistry = gcsRegistry
 			policyEnvironment = policyregistry.Environment(policyEnvironmentRaw)
 		}
 		hmmTimeout := parseEnvDurationMs("ROUTER_HMM_SIDECAR_TIMEOUT_MS", policyclient.DefaultTimeout)
-		hmmAttemptTimeout := parseEnvAttemptTimeoutMs("ROUTER_HMM_SIDECAR_ATTEMPT_TIMEOUT_MS", policyclient.DeriveAttemptTimeout(hmmTimeout))
+		hmmAttemptTimeout := parseEnvAttemptTimeoutMs(policyclient.DeriveAttemptTimeout(hmmTimeout))
 		hmmAuthMode := config.GetOr("ROUTER_HMM_SIDECAR_AUTH", defaultSidecarAuth)
 		stableManager, managerErr := policyregistry.NewManager(
 			policyRegistry,
@@ -871,7 +851,7 @@ func main() {
 		stableDynamicRouter := policyregistry.NewDynamicRouter(stableManager, router.StrategyHMM)
 		hmmRouter = stableDynamicRouter
 		hmmEmbeddingRouter = policyregistry.NewDynamicRouter(stableManager, router.StrategyHMMEmbedding)
-		hmmCapabilities = hmmRouter.(policy.CapabilitySource).CurrentCapabilities()
+		hmmCapabilities = stableDynamicRouter.CurrentCapabilities()
 		hmmReadinessChecker = stableManager
 		policyStatus = stableManager
 		hmmRosterSources = map[router.Strategy]policy.RosterSource{
@@ -879,6 +859,7 @@ func main() {
 			router.StrategyHMMEmbedding: stableManager,
 		}
 		hmmRosterModels = newHMMRosterSource(stableManager, hmmTimeout)
+		routingDistribution = stableManager
 		escalationObserver = stableDynamicRouter
 
 		var betaManager *policyregistry.Manager
@@ -905,8 +886,8 @@ func main() {
 			cancelBetaRefresh()
 			if betaRefreshErr != nil {
 				logger.Warn("No valid beta router policy snapshot; beta disabled", "err", betaRefreshErr)
-			} else {
-				hmmBetaCapabilities = hmmBetaRouter.(policy.CapabilitySource).CurrentCapabilities()
+			} else if source, ok := hmmBetaRouter.(policy.CapabilitySource); ok {
+				hmmBetaCapabilities = source.CurrentCapabilities()
 			}
 		}
 		policyInvalidationTopic := strings.TrimSpace(config.GetOr("PUBSUB_TOPIC_ROUTER_POLICY_INVALIDATION", ""))
@@ -1057,6 +1038,7 @@ func main() {
 	servedModels := routingTargets
 
 	proxySvc := proxy.NewService(routeEntry, providerMap, telemetryEmitter, embedOnlyUser, semanticCache, pinStore, hardPinExplore, hardPinProvider, hardPinModel, repo.Telemetry).
+		WithClock(time.Now).WithTranslationMetrics(otel.NewTranslationMetrics()).
 		WithExternalKeyUsageRecorder(authSvc).
 		WithSessionStrategyStore(sessionStrategyStore).
 		WithSessionTurnClock(sessionTurnClock).
@@ -1147,8 +1129,6 @@ func main() {
 		WithPlanner(plannerCfg).
 		WithSummarizer(summarizer).
 		WithCompactionHandoverSummarizer(compactionHandoverSz).
-		WithCompactionModel(compactionModel).
-		WithCompactionHardPin(compactionHardPin).
 		WithAvailableModels(servedModels).
 		WithDefaultBaselineModel(resolveDefaultBaselineModel()).
 		WithBillingService(billingSvc)
@@ -1221,9 +1201,6 @@ func main() {
 		observability.AccessLog(),
 	)
 
-	// Lets the admin model-selection handler surface deployed models; nil
-	// fallback keeps non-cluster routers bootable.
-	deployedModels, _ := rtr.(*cluster.Multiversion)
 	analyticsSvc := analytics.NewService(repo.Analytics, time.Now)
 	readinessChecker := newReadinessChecker(pool, hmmReadinessChecker, proxySvc, server.DefaultStrategyFromEnv())
 	if defaultStrategyErr := readinessChecker.checkDefaultStrategy(); defaultStrategyErr != nil {
@@ -1278,11 +1255,14 @@ func main() {
 		LoginSvc: loginSvc,
 		// PolicyStatus feeds /v1/version's stable policy release fields.
 		PolicyStatus: policyStatus,
+		// RoutingDistribution backs the dial preview with the stable policy
+		// roster; managed serving binds it to the admitted request instead.
+		RoutingDistribution: routingDistribution,
 	}
 	if trafficCapture != nil {
 		serverFeatures.TrafficCapture = trafficCapture
 	}
-	server.RegisterWithFeatures(engine, authSvc, proxySvc, deployedModels, hmmRosterModels, deploymentMode, billingSvc, readinessChecker, hmmRosterSources, analyticsSvc, serverFeatures)
+	server.RegisterWithFeatures(engine, authSvc, proxySvc, deployedModelsSource(hmmRosterModels), deploymentMode, billingSvc, readinessChecker, hmmRosterSources, analyticsSvc, serverFeatures)
 
 	port := config.GetOr("PORT", "8080")
 	address := ":" + port
@@ -1407,7 +1387,7 @@ func buildClusterScorer(availableProviders map[string]struct{}) (router.Router, 
 	requestedVersion := config.GetOr("ROUTER_CLUSTER_VERSION", cluster.LatestVersion)
 	defaultVersion, err := cluster.ResolveVersion(requestedVersion)
 	if err != nil {
-		return nil, "", fmt.Errorf("Resolve cluster version %q: %w", requestedVersion, err)
+		return nil, "", fmt.Errorf("resolve cluster version %q: %w", requestedVersion, err)
 	}
 
 	// Builds only the served version by default. ROUTER_CLUSTER_BUILD_ALL_VERSIONS=true
@@ -1418,7 +1398,7 @@ func buildClusterScorer(availableProviders map[string]struct{}) (router.Router, 
 	if buildAll {
 		versions, err = cluster.ListVersions()
 		if err != nil {
-			return nil, "", fmt.Errorf("List cluster versions: %w", err)
+			return nil, "", fmt.Errorf("list cluster versions: %w", err)
 		}
 	} else {
 		versions = []string{defaultVersion}
@@ -1455,7 +1435,7 @@ func buildClusterScorer(availableProviders map[string]struct{}) (router.Router, 
 		bundle, err := cluster.LoadBundle(v)
 		if err != nil {
 			_ = embedders.Close()
-			return nil, "", fmt.Errorf("Load bundle %s: %w", v, err)
+			return nil, "", fmt.Errorf("load bundle %s: %w", v, err)
 		}
 		if v == defaultVersion {
 			defaultEmbedderID = bundle.EmbedderID()
@@ -1485,7 +1465,7 @@ func buildClusterScorer(availableProviders map[string]struct{}) (router.Router, 
 			// versions degrade like any other per-version build failure.
 			if v == defaultVersion {
 				_ = embedders.Close()
-				return nil, "", fmt.Errorf("Construct embedder %q for default cluster version %s: %w", bundle.EmbedderID(), v, err)
+				return nil, "", fmt.Errorf("construct embedder %q for default cluster version %s: %w", bundle.EmbedderID(), v, err)
 			}
 			logger.Warn("Cluster scorer version skipped; embedder unavailable", "cluster_version", v, "embedder", bundle.EmbedderID(), "err", err)
 			continue
@@ -1503,13 +1483,13 @@ func buildClusterScorer(availableProviders map[string]struct{}) (router.Router, 
 
 	if _, ok := scorers[defaultVersion]; !ok {
 		_ = embedders.Close()
-		return nil, "", fmt.Errorf("Default cluster version %q failed to build (likely no registered provider covers its deployed_models); set ROUTER_CLUSTER_VERSION to a version that does, or register the missing provider key", defaultVersion)
+		return nil, "", fmt.Errorf("default cluster version %q failed to build (likely no registered provider covers its deployed_models); set ROUTER_CLUSTER_VERSION to a version that does, or register the missing provider key", defaultVersion)
 	}
 
 	multi, err := cluster.NewMultiversion(defaultVersion, scorers)
 	if err != nil {
 		_ = embedders.Close()
-		return nil, "", fmt.Errorf("Build multiversion router: %w", err)
+		return nil, "", fmt.Errorf("build multiversion router: %w", err)
 	}
 	logger.Info(
 		"Cluster multiversion router ready",
@@ -1538,14 +1518,14 @@ func buildClusterScorer(availableProviders map[string]struct{}) (router.Router, 
 			case res := <-warmupDone:
 				if res.err != nil {
 					_ = embedders.Close()
-					return nil, "", fmt.Errorf("Warm embedder %q: %w", id, res.err)
+					return nil, "", fmt.Errorf("warm embedder %q: %w", id, res.err)
 				}
 			case <-time.After(15 * time.Second):
 				go func() {
 					<-warmupDone
 					_ = embedders.Close()
 				}()
-				return nil, "", fmt.Errorf("Cluster embedder %q warmup timed out after 15s", id)
+				return nil, "", fmt.Errorf("cluster embedder %q warmup timed out after 15s", id)
 			}
 		}
 		logger.Info("Cluster embedder warmed", "embedder", id, "embed_dim", embedder.Dim(), "warmup_ms", time.Since(warmStart).Milliseconds())
@@ -1741,11 +1721,11 @@ func parseEnvDurationMs(key string, fallback time.Duration) time.Duration {
 // parseEnvAttemptTimeoutMs is parseEnvDurationMs with 0 kept as a real value:
 // it is how an operator disables the per-attempt bound, which the shared parser
 // would otherwise reject and invert into the derived bound.
-func parseEnvAttemptTimeoutMs(key string, fallback time.Duration) time.Duration {
-	if ms, err := strconv.Atoi(config.GetOr(key, "")); err == nil && ms == 0 {
+func parseEnvAttemptTimeoutMs(fallback time.Duration) time.Duration {
+	if ms, err := strconv.Atoi(config.GetOr(hmmAttemptTimeoutEnv, "")); err == nil && ms == 0 {
 		return 0
 	}
-	return parseEnvDurationMs(key, fallback)
+	return parseEnvDurationMs(hmmAttemptTimeoutEnv, fallback)
 }
 
 // buildSemanticCache constructs the cross-request semantic cache, or nil when
@@ -1831,7 +1811,7 @@ func runSessionPinSweep(ctx context.Context, store sessionpin.Store) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			sweepCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			sweepCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 			if err := store.SweepExpired(sweepCtx); err != nil {
 				logger.Error("Session pin sweep failed", "err", err)
 			}
@@ -1879,7 +1859,7 @@ func runAiandCredentialRotationSweep(ctx context.Context, authSvc *auth.Service)
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			sweepCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			sweepCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Minute)
 			if _, err := authSvc.SweepExpiringAiandCredentials(sweepCtx, aiandSweepWindow); err != nil {
 				logger.Error("Aiand credential rotation sweep failed", "err", err)
 			}
@@ -1915,11 +1895,10 @@ func resolveCompactionModel(summarizerProvider string) (string, error) {
 	return m, nil
 }
 
-// resolveHardPinModel returns the (provider, model) for Explore and utility
-// hard-pins (Claude Code's compaction turn prefers the compaction model):
-// operator override wins, else the fastest available model in the default
-// bundle, else the policy-owned utility hard-pin default.
-func resolveHardPinModel(available map[string]struct{}, logger *slog.Logger) (provider, model string, resolutionErr error) {
+// resolveHardPinModel returns the boot-time (provider, model) for Explore and
+// utility hard pins: the operator override, else the policy-owned utility
+// hard-pin default.
+func resolveHardPinModel() (provider, model string, resolutionErr error) {
 	configuredModel := strings.TrimSpace(config.GetOr("ROUTER_HARD_PIN_MODEL", ""))
 	configuredProvider := strings.TrimSpace(config.GetOr("ROUTER_HARD_PIN_PROVIDER", ""))
 	if configuredModel != "" {
@@ -1931,24 +1910,7 @@ func resolveHardPinModel(available map[string]struct{}, logger *slog.Logger) (pr
 	if configuredProvider != "" {
 		return "", "", errors.New("ROUTER_HARD_PIN_PROVIDER requires ROUTER_HARD_PIN_MODEL")
 	}
-
-	reqVersion := config.GetOr("ROUTER_CLUSTER_VERSION", cluster.LatestVersion)
-	defaultVersion, err := cluster.ResolveVersion(reqVersion)
-	if err != nil {
-		logger.Warn("Hard-pin model: could not resolve cluster version; using default", "err", err, "default_model", policy.UtilityHardPinDefaultModel)
-		return policy.UtilityHardPinDefaultProvider, policy.UtilityHardPinDefaultModel, nil
-	}
-	bundle, err := cluster.LoadBundle(defaultVersion)
-	if err != nil {
-		logger.Warn("Hard-pin model: could not load bundle; using default", "err", err, "default_model", policy.UtilityHardPinDefaultModel)
-		return policy.UtilityHardPinDefaultProvider, policy.UtilityHardPinDefaultModel, nil
-	}
-	p, m, ok := cluster.FastestModel(bundle.Registry, available)
-	if !ok {
-		logger.Warn("Hard-pin model: no model found for available providers; using default", "default_model", policy.UtilityHardPinDefaultModel)
-		return policy.UtilityHardPinDefaultProvider, policy.UtilityHardPinDefaultModel, nil
-	}
-	return p, m, nil
+	return policy.UtilityHardPinDefaultProvider, policy.UtilityHardPinDefaultModel, nil
 }
 
 // envVarHint returns the env var name for a provider's API key, for log

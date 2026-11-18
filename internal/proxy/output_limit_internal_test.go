@@ -2,9 +2,7 @@ package proxy
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"net/http"
 	"testing"
 	"time"
 
@@ -15,7 +13,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tidwall/gjson"
 )
 
 const (
@@ -101,48 +98,4 @@ func TestRefreshPin_PreservesOutputLimitEvidence(t *testing.T) {
 		router.Decision{Provider: providers.ProviderAIAND, Model: outputLimitSecondModel})
 	require.Len(t, store.upserts, 1)
 	assert.Equal(t, outputLimitFirstModel, maxedOutServedModel(store.upserts[0]), "refreshing the anchor cannot lose the prior served outcome")
-}
-
-type outputLimitSequenceRouter struct {
-	choices  []string
-	requests []router.Request
-}
-
-func (r *outputLimitSequenceRouter) Route(_ context.Context, req router.Request) (router.Decision, error) {
-	r.requests = append(r.requests, req)
-	for _, model := range r.choices {
-		if req.Exclusions.Excludes(model) {
-			continue
-		}
-		return router.Decision{Provider: providers.ProviderAIAND, Model: model, Reason: "hmm_policy(label=maximum)",
-			Metadata: &router.RoutingMetadata{Strategy: string(router.StrategyHMM)}}, nil
-	}
-	return router.Decision{}, errors.New("no eligible test model")
-}
-
-type outputLimitSequenceProvider struct {
-	stopReason string
-	output     int
-}
-
-func (p *outputLimitSequenceProvider) Proxy(_ context.Context, _ router.Decision, prep providers.PreparedRequest, w http.ResponseWriter, _ *http.Request) error {
-	if gjson.GetBytes(prep.Body, "stream").Bool() {
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.WriteHeader(http.StatusOK)
-		_, err := fmt.Fprintf(w, "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\",\"content\":[],\"usage\":{\"input_tokens\":160000}}}\n\n"+
-			"event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"tool_use\",\"id\":\"call_1\",\"name\":\"Read\",\"input\":{}}}\n\n"+
-			"event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"{}\"}}\n\n"+
-			"event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n"+
-			"event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":%q},\"usage\":{\"output_tokens\":%d}}\n\n"+
-			"event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n", p.stopReason, p.output)
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_, err := fmt.Fprintf(w, `{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"tool_use","id":"call_1","name":"Read","input":{}}],"stop_reason":%q,"usage":{"input_tokens":160000,"output_tokens":%d}}`, p.stopReason, p.output)
-	return err
-}
-
-func (*outputLimitSequenceProvider) Passthrough(context.Context, providers.PreparedRequest, http.ResponseWriter, *http.Request) error {
-	return errors.New("unexpected passthrough")
 }

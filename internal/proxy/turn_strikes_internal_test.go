@@ -2,14 +2,11 @@ package proxy
 
 import (
 	"context"
-	"io"
 	"net/http"
 	"sync"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/router"
@@ -42,32 +39,6 @@ func (s *turnStrikePinStore) ClearTurnStrikes(_ context.Context, _ [sessionpin.S
 }
 
 var _ sessionpin.TurnStrikeStore = (*turnStrikePinStore)(nil)
-
-const toolResultTurnBody = `{"model":"z-ai/glm-5.3","messages":[` +
-	`{"role":"user","content":"fix the build"},` +
-	`{"role":"assistant","content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"make"}}]},` +
-	`{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"ok"}]}]}`
-
-func runTurnLoopWithBody(t *testing.T, svc *Service, body string) turnLoopResult {
-	t.Helper()
-	env, err := translate.ParseAnthropic([]byte(body))
-	require.NoError(t, err)
-	features := env.RoutingFeatures(false)
-	res, err := svc.runTurnLoop(context.Background(), env, features, "api-key", uuid.New(), "", http.Header{}, router.Request{
-		RequestedModel:       features.Model,
-		EstimatedInputTokens: features.Tokens,
-		HasTools:             features.HasTools,
-		ConversationMessages: conversationMessagesForRouting(env),
-	})
-	require.NoError(t, err)
-	return res
-}
-
-func turnStrikePin() sessionpin.Pin {
-	pin := demotedPin(freshTurnModel)
-	pin.TurnStrikes = []string{demotedPinModel}
-	return pin
-}
 
 // With session-lifetime demotion off, a rescued primary failure is still kept
 // out for the agent turn on every row the next request merges.
@@ -110,28 +81,4 @@ func TestTurnStrikeSkippedWhenTurnFailedOrPinned(t *testing.T) {
 			assert.Empty(t, store.strikes)
 		})
 	}
-}
-
-const siblingAnthropicStream = "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"sibling\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"claude-sonnet-5-5\",\"content\":[],\"usage\":{\"input_tokens\":11,\"output_tokens\":0}}}\n\n" +
-	"event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"rescued\"}}\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n" +
-	"event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":7}}\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"
-
-// siblingChainClient fails the listed models and serves every other model.
-type siblingChainClient struct {
-	failing map[string]bool
-	failed  []string
-}
-
-func (c *siblingChainClient) Proxy(_ context.Context, decision router.Decision, _ providers.PreparedRequest, w http.ResponseWriter, _ *http.Request) error {
-	if c.failing[decision.Model] {
-		c.failed = append(c.failed, decision.Model)
-		return &providers.UpstreamErrorResponse{Status: http.StatusServiceUnavailable, Body: []byte(`{"type":"error","error":{"type":"overloaded_error"}}`)}
-	}
-	w.Header().Set("Content-Type", "text/event-stream")
-	_, _ = io.WriteString(w, siblingAnthropicStream)
-	return nil
-}
-
-func (c *siblingChainClient) Passthrough(context.Context, providers.PreparedRequest, http.ResponseWriter, *http.Request) error {
-	return providers.ErrNotImplemented
 }

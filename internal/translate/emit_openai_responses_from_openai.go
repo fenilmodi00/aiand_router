@@ -43,6 +43,7 @@ func (e *RequestEnvelope) buildResponsesFromOpenAI(opts EmitOptions) ([]byte, er
 			eff = intent.Level
 		case ReasoningBudget:
 			eff = effortForBudget(intent.BudgetTokens)
+		case ReasoningDisabled, ReasoningAuto:
 		}
 		if eff != "" {
 			jw.Key("reasoning")
@@ -297,6 +298,12 @@ func writeResponsesToolsFromOpenAI(jw *jsonWriter, body []byte) {
 // Responses tool_choice shape.
 func writeResponsesToolChoiceFromOpenAI(jw *jsonWriter, body []byte) {
 	kind, name := openAIToolChoice(body)
+	writeResponsesToolChoice(jw, kind, name)
+}
+
+// writeResponsesToolChoice emits the Responses tool_choice object for a
+// source-format tool choice; both source formats share the vocabulary.
+func writeResponsesToolChoice(jw *jsonWriter, kind toolChoiceKind, name string) {
 	switch kind {
 	case toolChoiceAuto:
 		jw.Key("tool_choice")
@@ -315,6 +322,7 @@ func writeResponsesToolChoiceFromOpenAI(jw *jsonWriter, body []byte) {
 		jw.Key("name")
 		jw.Str(sanitizeResponsesToolAlias(name))
 		jw.EndObj()
+	case toolChoiceAbsent, toolChoiceUnrecognized:
 	}
 }
 

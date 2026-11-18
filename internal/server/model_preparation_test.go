@@ -28,7 +28,7 @@ func TestModelPreparationMountedOnlyWithManagedAdmissionAndRequiresAuth(t *testi
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			engine := gin.New()
-			server.RegisterWithFeatures(engine, nil, nil, nil, nil, tc.mode, nil, nil, nil, nil, server.Features{ServingAdmission: tc.admission})
+			server.RegisterWithFeatures(engine, nil, nil, nil, tc.mode, nil, nil, nil, nil, server.Features{ServingAdmission: tc.admission})
 			routes := routeSet(engine)
 			for _, route := range []string{"POST /v1/router/models/:model/prepare", "GET /v1/router/models/:model/prepare/:operation"} {
 				_, mounted := routes[route]
@@ -43,7 +43,7 @@ func TestModelPreparationMountedOnlyWithManagedAdmissionAndRequiresAuth(t *testi
 					path += "/fc-synthetic1"
 				}
 				response := httptest.NewRecorder()
-				engine.ServeHTTP(response, httptest.NewRequest(method, path, strings.NewReader(`{}`)))
+				engine.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), method, path, strings.NewReader(`{}`)))
 				require.Equal(t, http.StatusUnauthorized, response.Code)
 			}
 		})

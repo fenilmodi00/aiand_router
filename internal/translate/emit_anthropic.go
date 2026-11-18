@@ -1,7 +1,7 @@
 package translate
 
 import (
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -45,10 +45,7 @@ func (e *RequestEnvelope) PrepareAnthropic(in http.Header, opts EmitOptions) (pr
 	var err error
 	switch e.format {
 	case FormatOpenAI:
-		body, err = e.buildAnthropicFromOpenAI(opts)
-		if err != nil {
-			return providers.PreparedRequest{}, fmt.Errorf("build anthropic from openai: %w", err)
-		}
+		body = e.buildAnthropicFromOpenAI(opts)
 	case FormatAnthropic:
 		body, err = e.buildAnthropicFromAnthropic(opts)
 		if err != nil {
@@ -72,9 +69,11 @@ func (e *RequestEnvelope) PrepareAnthropic(in http.Header, opts EmitOptions) (pr
 	if err != nil {
 		return providers.PreparedRequest{}, err
 	}
-	body, err = normalizeAnthropicFinalAssistant(body)
+	// The fork serves only aiand, which accepts prefill, so the deleted
+	// CapAssistantPrefillUnsupported arm folds to its false arm: never drop.
+	body, err = prepareAnthropicMessageTail(body, true)
 	if err != nil {
-		return providers.PreparedRequest{}, fmt.Errorf("normalize anthropic final assistant: %w", err)
+		return providers.PreparedRequest{}, err
 	}
 	body, err = applyAnthropicCachePolicy(body, true)
 	if err != nil {
@@ -97,7 +96,7 @@ func (e *RequestEnvelope) PrepareAnthropic(in http.Header, opts EmitOptions) (pr
 	if maxOutputTokens := modelMaxOutputTokens[router.StripDateSuffix(opts.TargetModel)]; maxOutputTokens > 0 {
 		body = clampFieldBytes(body, "max_tokens", int64(maxOutputTokens))
 	}
-	return providers.PreparedRequest{Body: body, Headers: deriveAnthropicHeaders(in, opts, body), ResponseToolNames: toolAliases}, nil
+	return providers.PreparedRequest{Body: body, Headers: deriveAnthropicHeaders(in, body), ResponseToolNames: toolAliases}, nil
 }
 
 // applyAnthropicSessionAffinity sets metadata.user_id to the session-affinity
@@ -107,7 +106,7 @@ func applyAnthropicSessionAffinity(body []byte, opts EmitOptions) ([]byte, error
 	return body, nil
 }
 
-func deriveAnthropicHeaders(in http.Header, opts EmitOptions, body []byte) http.Header {
+func deriveAnthropicHeaders(in http.Header, body []byte) http.Header {
 	h := make(http.Header)
 	if v := in.Get("anthropic-version"); v != "" {
 		h.Set("anthropic-version", v)
@@ -195,7 +194,7 @@ func joinKept(beta string, keep func(string) bool) string {
 	return strings.Join(kept, ",")
 }
 
-func (e *RequestEnvelope) buildAnthropicFromOpenAI(opts EmitOptions) ([]byte, error) {
+func (e *RequestEnvelope) buildAnthropicFromOpenAI(opts EmitOptions) []byte {
 	jw := newJSONWriter()
 	jw.Obj()
 	jw.Key("model")
@@ -220,7 +219,7 @@ func (e *RequestEnvelope) buildAnthropicFromOpenAI(opts EmitOptions) ([]byte, er
 		writeAnthropicToolChoice(jw, e.body)
 	}
 	jw.EndObj()
-	return jw.Bytes(), nil
+	return jw.Bytes()
 }
 
 // writeAnthropicSystemAndMessages extracts the leading run of system-role
@@ -346,16 +345,9 @@ func writeAnthropicSystemAndMessages(jw *jsonWriter, body []byte) {
 	}
 }
 
-// cacheControlMember is the router-generated Anthropic prompt-cache breakpoint.
-const cacheControlMember = `"cache_control":{"type":"ephemeral"}`
-
-// appendCacheControl inserts the cache_control marker into a raw JSON content
+// appendCacheControlRaw inserts a cache_control policy into a raw JSON content
 // block we constructed (final byte is the closing brace); guard fails open on
 // anything unexpected.
-func appendCacheControl(block string) string {
-	return appendCacheControlRaw(block, `{"type":"ephemeral"}`)
-}
-
 func appendCacheControlRaw(block, policy string) string {
 	if len(block) < 2 || block[len(block)-1] != '}' || !strings.Contains(block, ":") {
 		return block
@@ -366,13 +358,9 @@ func appendCacheControlRaw(block, policy string) string {
 	return block[:len(block)-1] + `,"cache_control":` + policy + "}"
 }
 
-// cacheControlOnLastBlock adds a cache_control breakpoint to a message's final
-// content block, promoting string content to a text block to carry it
-// (Anthropic treats "x" and [{"type":"text","text":"x"}] identically).
-func cacheControlOnLastBlock(msg string) string {
-	return cacheControlOnLastBlockWithPolicy(msg, `{"type":"ephemeral"}`)
-}
-
+// cacheControlOnLastBlockWithPolicy adds a cache_control breakpoint to a
+// message's final content block, promoting string content to a text block to
+// carry it (Anthropic treats "x" and [{"type":"text","text":"x"}] identically).
 func cacheControlOnLastBlockWithPolicy(msg, policy string) string {
 	if policy == "" {
 		return msg
@@ -1088,8 +1076,8 @@ func sanitizeAnthropicToolNamesBytes(body []byte) ([]byte, map[string]string, er
 }
 
 func sanitizedAnthropicToolName(name string) string {
-	nameHash := sha1.Sum([]byte(name))
-	return fmt.Sprintf("invalid_tool_%x", nameHash)
+	nameHash := sha256.Sum256([]byte(name))
+	return fmt.Sprintf("invalid_tool_%x", nameHash[:20])
 }
 
 func uniqueSanitizedAnthropicToolName(name string, reservedNames map[string]struct{}) string {
@@ -1342,7 +1330,7 @@ func sanitizeToolUseID(id string) string {
 	b := []byte(id)
 	changed := false
 	for i, c := range b {
-		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-') {
+		if !isIdentifierChar(rune(c)) {
 			b[i] = '_'
 			changed = true
 		}

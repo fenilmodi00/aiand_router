@@ -38,10 +38,10 @@ type handoffPreparationKey struct{}
 type handoffClaimsKey struct{}
 
 // ErrHandoffUnavailable means the deployment has no shared signing secret.
-var ErrHandoffUnavailable = errors.New("Pi handoff requires a shared ROUTER_PI_HANDOFF_SECRET of at least 32 bytes")
+var ErrHandoffUnavailable = errors.New("pi handoff requires a shared ROUTER_PI_HANDOFF_SECRET of at least 32 bytes")
 
 // ErrHandoffInvalid rejects tickets whose identity or selection is no longer valid.
-var ErrHandoffInvalid = errors.New("Pi handoff expired or no longer matches this request; prepare the route again")
+var ErrHandoffInvalid = errors.New("pi handoff expired or no longer matches this request; prepare the route again")
 
 type handoffClaims struct {
 	jwt.RegisteredClaims
@@ -112,7 +112,7 @@ func (s *Service) parseHandoff(ctx context.Context, body []byte) (context.Contex
 	claims := &handoffClaims{}
 	_, err = jwt.ParseWithClaims(encoded.String(), claims, func(_ *jwt.Token) (any, error) {
 		return s.piHandoffSecret, nil
-	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}), jwt.WithExpirationRequired(), jwt.WithIssuer("aiand-pi-handoff-v1"))
+	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}), jwt.WithExpirationRequired(), jwt.WithIssuer("aiand-pi-handoff-v1"), jwt.WithTimeFunc(s.clock.Now))
 	apiKeyID, _ := ctx.Value(APIKeyIDContextKey{}).(string)
 	if err != nil || apiKeyID == "" || claims.APIKeyID != apiKeyID ||
 		claims.Route.InstallationID != installationIDFromContext(ctx) ||
@@ -125,7 +125,7 @@ func (s *Service) parseHandoff(ctx context.Context, body []byte) (context.Contex
 
 func (s *Service) mintHandoff(claims handoffClaims) (string, error) {
 	claims.RegisteredClaims = jwt.RegisteredClaims{
-		Issuer: "aiand-pi-handoff-v1", ExpiresAt: jwt.NewNumericDate(time.Now().Add(piHandoffTTL)),
+		Issuer: "aiand-pi-handoff-v1", ExpiresAt: jwt.NewNumericDate(s.clock.Now().Add(piHandoffTTL)),
 	}
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(s.piHandoffSecret)
 }

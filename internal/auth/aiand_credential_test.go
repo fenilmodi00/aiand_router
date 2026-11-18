@@ -309,7 +309,7 @@ func TestPollAiandDeviceLogin_OutcomeStatuses(t *testing.T) {
 		_, err = svc.PollAiandDeviceLogin(context.Background(), testInstallation)
 		require.Error(t, err)
 		var slow *auth.AiandSlowDownError
-		require.True(t, errors.As(err, &slow), "slow_down must surface as AiandSlowDownError")
+		require.ErrorAs(t, err, &slow, "slow_down must surface as AiandSlowDownError")
 		assert.Equal(t, 10*time.Second, slow.RetryAfter, "gateway contract: interval + 5s")
 	})
 

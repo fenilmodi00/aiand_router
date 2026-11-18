@@ -2,13 +2,8 @@ package policyregistry_test
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
-	"errors"
-	"io"
-	"log/slog"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -18,7 +13,6 @@ import (
 
 	"aiand-os/router/internal/policyregistry"
 	"aiand-os/router/internal/router"
-	"aiand-os/router/internal/router/hmm/rosterdata"
 	"aiand-os/router/internal/subscriptions/entitlement"
 )
 
@@ -38,12 +32,12 @@ func servingPayload(t *testing.T, manifest policyregistry.ServingManifest) []byt
 	return payload
 }
 
-func servingRef(t *testing.T, kind policyregistry.ServingKind, manifest policyregistry.ServingManifest) policyregistry.ObjectRef {
+func servingRef(t *testing.T, manifest policyregistry.ServingManifest) policyregistry.ObjectRef {
 	t.Helper()
 	payload := servingPayload(t, manifest)
-	_, err := policyregistry.DecodeServingManifest(payload, testRegistryRoot, kind)
+	_, err := policyregistry.DecodeServingManifest(payload, testRegistryRoot, policyregistry.ServingSelectionSets)
 	require.NoError(t, err)
-	return servingStoredRef(t, kind, payload)
+	return servingStoredRef(t, policyregistry.ServingSelectionSets, payload)
 }
 
 func servingStoredRef(t *testing.T, kind policyregistry.ServingKind, payload []byte) policyregistry.ObjectRef {
@@ -114,69 +108,6 @@ func activateFixture(t *testing.T, snapshot policyregistry.ServingStateSnapshot,
 	return activated.Snapshot, proposal
 }
 
-// storedProposal folds the fixture set into the artifacts/ layout, publishes the v2 objects a new
-// activation must name, and proposes them for the given incumbent snapshot.
-func storedProposal(t *testing.T, store *servingMemoryStore, snapshot policyregistry.ServingStateSnapshot, set policyregistry.SelectionSet, now time.Time) policyregistry.DeploymentProposalV2 {
-	t.Helper()
-	proposal := fixtureProposal(t, snapshot, set, now)
-	_, setRef := foldSelectionSet(t, store, set)
-	proposal.SelectionSet = setRef
-	proposal.SourceCandidate = foldCandidate(t, store, set.Default.Release)
-	return proposal
-}
-
-// variantSet publishes a successor set that differs from its predecessor only in the shared Router
-// revision, so consecutive activations bind distinct selection sets.
-func variantSet(t *testing.T, store *servingMemoryStore, set policyregistry.SelectionSet, name string) policyregistry.SelectionSet {
-	t.Helper()
-	binding := *store.object(t, policyregistry.ServingBindings, set.Default.Binding).(*policyregistry.DeploymentBinding)
-	router := binding.Router
-	router.Name = name
-	router.URL = "https://" + name + ".example"
-	next := set
-	next.Profiles = make(map[string]policyregistry.ServingSelection, len(set.Profiles))
-	next.Default = publishSelection(t, store, set.Default, *store.object(t, policyregistry.ServingReleases, set.Default.Release).(*policyregistry.ServingRelease), router, binding.Classifier, set.Default.Profile)
-	for key, lane := range set.Profiles {
-		laneBinding := *store.object(t, policyregistry.ServingBindings, lane.Binding).(*policyregistry.DeploymentBinding)
-		next.Profiles[key] = publishSelection(t, store, lane, *store.object(t, policyregistry.ServingReleases, lane.Release).(*policyregistry.ServingRelease), router, laneBinding.Classifier, lane.Profile)
-	}
-	return next
-}
-
-// v1Proposal builds the historical v1 proposal shape, which validation still accepts for
-// pre-floor history even though new activations must name an artifacts/ selection set.
-func v1Proposal(t *testing.T, snapshot policyregistry.ServingStateSnapshot, set policyregistry.SelectionSet, now time.Time) policyregistry.DeploymentProposal {
-	t.Helper()
-	proposal := policyregistry.DeploymentProposal{SchemaVersion: policyregistry.ServingProposalV1, Target: set.Target, ExpectedGeneration: snapshot.Generation, SelectionSet: servingRef(t, policyregistry.ServingSelectionSets, set), SourceRelease: set.Default.Release, Scope: policyregistry.ChangeFull, Actor: "test-operator", Reason: "release validation", RequestID: uuid.NewString(), CreatedAt: now, Evidence: []policyregistry.ObjectRef{artifactRef("evidence")}, WithdrawActivations: []string{}}
-	if snapshot.Generation > 0 {
-		previous := snapshot.State.Activations[snapshot.State.CurrentActivationID].SelectionSet
-		proposal.PreviousSelectionSet = &previous
-	}
-	return proposal
-}
-
-// storedActivateFixture records an activation whose objects the controller can read back, which
-// history validation and admission both need.
-func storedActivateFixture(t *testing.T, store *servingMemoryStore, snapshot policyregistry.ServingStateSnapshot, set policyregistry.SelectionSet, now time.Time) (policyregistry.ServingStateSnapshot, policyregistry.DeploymentProposalV2) {
-	t.Helper()
-	proposal := storedProposal(t, store, snapshot, set, now)
-	activated, err := policyregistry.NextServingActivation(snapshot, servingPayload(t, proposal), store.publishArtifact(t, policyregistry.ServingProposal, proposal), testRegistryRoot, "test-workflow", now)
-	require.NoError(t, err)
-	activated.Snapshot.Generation++
-	return activated.Snapshot, proposal
-}
-
-// storedViews projects stored v2 selection sets for admission, keyed as activations declare them.
-func storedViews(t *testing.T, store *servingMemoryStore, refs ...policyregistry.ObjectRef) map[string]policyregistry.SelectionSetView {
-	t.Helper()
-	views := make(map[string]policyregistry.SelectionSetView, len(refs))
-	for _, ref := range refs {
-		set := store.object(t, policyregistry.ServingSelectionSet, ref).(*policyregistry.SelectionSetV2)
-		views[ref.SHA256] = set.View(ref)
-	}
-	return views
-}
-
 func TestServingContractsRejectMutableTargetsAndReferences(t *testing.T) {
 	for _, target := range []policyregistry.ServingTarget{"beta", "prod/beta", "stable", "staging/aiand-internal", "../stable"} {
 		_, err := target.Environment()
@@ -189,7 +120,7 @@ func TestServingContractsRejectMutableTargetsAndReferences(t *testing.T) {
 	}
 	ref := namespaceRef(policyregistry.ServingReleases, "release")
 	require.NoError(t, policyregistry.ValidateServingRef(ref, testRegistryRoot, policyregistry.ServingReleases))
-	assert.Error(t, policyregistry.ValidateServingRef(ref, testRegistryRoot, policyregistry.ServingBindings))
+	require.Error(t, policyregistry.ValidateServingRef(ref, testRegistryRoot, policyregistry.ServingBindings))
 	ref.Generation = 0
 	assert.Error(t, policyregistry.ValidateServingRef(ref, testRegistryRoot, policyregistry.ServingReleases))
 }
@@ -338,7 +269,7 @@ func TestSessionReleaseIdleBoundary(t *testing.T) {
 	firstSet, secondSet := fixtureSet("one"), fixtureSet("two")
 	first, _ := activateFixture(t, policyregistry.ServingStateSnapshot{}, firstSet, servingEpoch)
 	second, _ := activateFixture(t, first, secondSet, servingEpoch.Add(time.Minute))
-	sets := map[string]policyregistry.SelectionSetView{servingRef(t, policyregistry.ServingSelectionSets, firstSet).SHA256: firstSet.View(), servingRef(t, policyregistry.ServingSelectionSets, secondSet).SHA256: secondSet.View()}
+	sets := map[string]policyregistry.SelectionSetView{servingRef(t, firstSet).SHA256: firstSet.View(), servingRef(t, secondSet).SHA256: secondSet.View()}
 	projection := policyregistry.AdmissionProjection{Target: policyregistry.TargetStable}
 	initial, err := policyregistry.SelectSessionRelease(nil, projection, first, sets, testRegistryRoot, servingEpoch)
 	require.NoError(t, err)
@@ -375,7 +306,7 @@ func TestSessionReleaseIdleBoundary(t *testing.T) {
 func TestEmergencyWithdrawalRebindsNextAdmissionButDoesNotMutateInFlight(t *testing.T) {
 	set := fixtureSet("one")
 	first, _ := activateFixture(t, policyregistry.ServingStateSnapshot{}, set, servingEpoch)
-	sets := map[string]policyregistry.SelectionSetView{servingRef(t, policyregistry.ServingSelectionSets, set).SHA256: set.View()}
+	sets := map[string]policyregistry.SelectionSetView{servingRef(t, set).SHA256: set.View()}
 	projection := policyregistry.AdmissionProjection{Target: policyregistry.TargetStable}
 	inFlight, err := policyregistry.SelectSessionRelease(nil, projection, first, sets, testRegistryRoot, servingEpoch)
 	require.NoError(t, err)
@@ -407,8 +338,8 @@ func TestEmergencyWithdrawalPreservesSubscriberPlanAndProfile(t *testing.T) {
 			}
 			first, _ := activateFixture(t, policyregistry.ServingStateSnapshot{}, previousSet, servingEpoch)
 			sets := map[string]policyregistry.SelectionSetView{
-				servingRef(t, policyregistry.ServingSelectionSets, previousSet).SHA256:    previousSet.View(),
-				servingRef(t, policyregistry.ServingSelectionSets, replacementSet).SHA256: replacementSet.View(),
+				servingRef(t, previousSet).SHA256:    previousSet.View(),
+				servingRef(t, replacementSet).SHA256: replacementSet.View(),
 			}
 			projection := policyregistry.AdmissionProjection{Target: policyregistry.TargetStable, ProfileKey: tc.profileKey, ProfileName: tc.profileName, Plan: tc.plan, EntitlementVersion: 3, EnrollmentGeneration: 2, AssignmentGeneration: 4}
 			inFlight, err := policyregistry.SelectSessionRelease(nil, projection, first, sets, testRegistryRoot, servingEpoch)
@@ -443,7 +374,7 @@ func TestProfileAssignmentsDoNotFallBackAndGenerationChangesRebind(t *testing.T)
 	profile := namespaceRef(policyregistry.ServingProfiles, "profile")
 	set.Profiles[profileKeyOne] = policyregistry.ServingSelection{Release: namespaceRef(policyregistry.ServingReleases, "custom"), Binding: namespaceRef(policyregistry.ServingBindings, "custom"), Profile: &profile}
 	first, _ := activateFixture(t, policyregistry.ServingStateSnapshot{}, set, servingEpoch)
-	sets := map[string]policyregistry.SelectionSetView{servingRef(t, policyregistry.ServingSelectionSets, set).SHA256: set.View()}
+	sets := map[string]policyregistry.SelectionSetView{servingRef(t, set).SHA256: set.View()}
 	projection := policyregistry.AdmissionProjection{Target: policyregistry.TargetStable, ProfileKey: profileKeyOne, AssignmentGeneration: 1}
 	initial, err := policyregistry.SelectSessionRelease(nil, projection, first, sets, testRegistryRoot, servingEpoch)
 	require.NoError(t, err)
@@ -468,7 +399,7 @@ func TestSubscriberPlanProfileMustMatchServerOwnedMapping(t *testing.T) {
 	profileRef := namespaceRef(policyregistry.ServingProfiles, "max-profile")
 	set.Profiles[profile.Key] = policyregistry.ServingSelection{Release: namespaceRef(policyregistry.ServingReleases, "max"), Binding: namespaceRef(policyregistry.ServingBindings, "max"), Profile: &profileRef}
 	snapshot, _ := activateFixture(t, policyregistry.ServingStateSnapshot{}, set, servingEpoch)
-	sets := map[string]policyregistry.SelectionSetView{servingRef(t, policyregistry.ServingSelectionSets, set).SHA256: set.View()}
+	sets := map[string]policyregistry.SelectionSetView{servingRef(t, set).SHA256: set.View()}
 	projection := policyregistry.AdmissionProjection{
 		Target:               policyregistry.TargetStable,
 		ProfileKey:           profile.Key,
@@ -493,160 +424,6 @@ func TestSubscriberPlanProfileMustMatchServerOwnedMapping(t *testing.T) {
 	require.ErrorContains(t, err, "subscriber plan profile projection is invalid")
 }
 
-type servingMemoryStore struct {
-	mu       sync.Mutex
-	objects  map[policyregistry.ObjectRef][]byte
-	policies map[policyregistry.ObjectRef]*rosterdata.Roster
-	states   map[policyregistry.ServingTarget]policyregistry.ServingStateSnapshot
-	// legacyStates models runtime_state/... objects: read only when no state/ object exists, never written.
-	legacyStates map[policyregistry.ServingTarget]policyregistry.ServingStateSnapshot
-	readErr      error
-	casErr       error
-	casCalls     int
-	artifacts    map[policyregistry.ObjectRef][]byte
-}
-
-func newServingMemoryStore() *servingMemoryStore {
-	artifacts := make(map[policyregistry.ObjectRef][]byte)
-	for _, label := range []string{"build-attestation", "binding-attestation", "evidence"} {
-		artifacts[artifactRef(label)] = []byte(label)
-	}
-	return &servingMemoryStore{objects: make(map[policyregistry.ObjectRef][]byte), policies: make(map[policyregistry.ObjectRef]*rosterdata.Roster), states: make(map[policyregistry.ServingTarget]policyregistry.ServingStateSnapshot), legacyStates: make(map[policyregistry.ServingTarget]policyregistry.ServingStateSnapshot), artifacts: artifacts}
-}
-
-func (s *servingMemoryStore) VerifyServingArtifact(_ context.Context, ref policyregistry.ObjectRef) error {
-	payload, exists := s.artifacts[ref]
-	if !exists {
-		return policyregistry.ErrNotFound
-	}
-	if policyregistry.Digest(payload) != ref.SHA256 {
-		return errors.New("artifact digest mismatch")
-	}
-	return nil
-}
-
-func (s *servingMemoryStore) RootURI() string { return testRegistryRoot }
-func (s *servingMemoryStore) ReadServingObject(_ context.Context, kind policyregistry.ServingKind, ref policyregistry.ObjectRef) (policyregistry.ServingManifest, []byte, error) {
-	payload, exists := s.objects[ref]
-	if !exists {
-		return nil, nil, policyregistry.ErrNotFound
-	}
-	manifest, err := policyregistry.DecodeServingObject(payload, testRegistryRoot, kind, ref)
-	if err != nil {
-		return nil, nil, err
-	}
-	return manifest, payload, nil
-}
-func (s *servingMemoryStore) ReadServingPolicy(_ context.Context, ref policyregistry.ObjectRef) (*rosterdata.Roster, error) {
-	policy, exists := s.policies[ref]
-	if !exists {
-		return nil, policyregistry.ErrNotFound
-	}
-	return policy, nil
-}
-func (s *servingMemoryStore) ReadServingState(_ context.Context, target policyregistry.ServingTarget) (policyregistry.ServingStateSnapshot, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.readErr != nil {
-		return policyregistry.ServingStateSnapshot{}, s.readErr
-	}
-	if snapshot, exists := s.states[target]; exists {
-		return snapshot, nil
-	}
-	if snapshot, exists := s.legacyStates[target]; exists {
-		snapshot.LegacyPath = true
-		return snapshot, nil
-	}
-	return policyregistry.ServingStateSnapshot{}, policyregistry.ErrNotFound
-}
-func (s *servingMemoryStore) CompareAndSwapServingState(_ context.Context, next policyregistry.ServingControlState, expected int64) (policyregistry.ServingStateSnapshot, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.casCalls++
-	if s.casErr != nil {
-		return policyregistry.ServingStateSnapshot{}, s.casErr
-	}
-	if s.states[next.Target].Generation != expected {
-		return policyregistry.ServingStateSnapshot{}, policyregistry.ErrConflict
-	}
-	snapshot := policyregistry.ServingStateSnapshot{State: next, Generation: expected + 1}
-	s.states[next.Target] = snapshot
-	return snapshot, nil
-}
-func (s *servingMemoryStore) publish(t *testing.T, kind policyregistry.ServingKind, manifest policyregistry.ServingManifest) policyregistry.ObjectRef {
-	t.Helper()
-	ref := servingRef(t, kind, manifest)
-	payload, err := policyregistry.CanonicalBytes(manifest)
-	require.NoError(t, err)
-	s.putRaw(ref, payload)
-	return ref
-}
-
-// putRaw stores arbitrary bytes under a reference without publish-time validation.
-func (s *servingMemoryStore) putRaw(ref policyregistry.ObjectRef, payload []byte) {
-	s.objects[ref] = payload
-}
-
-// object decodes a stored payload for test assertions without going through ServingStore reads.
-func (s *servingMemoryStore) object(t *testing.T, kind policyregistry.ServingKind, ref policyregistry.ObjectRef) policyregistry.ServingManifest {
-	t.Helper()
-	manifest, _, err := s.ReadServingObject(context.Background(), kind, ref)
-	require.NoError(t, err)
-	return manifest
-}
-
-type preparedValidator func(context.Context, policyregistry.PreparedSelection) error
-
-func (f preparedValidator) ValidatePreparedSelection(ctx context.Context, selection policyregistry.PreparedSelection) error {
-	return f(ctx, selection)
-}
-
-func controllerFixture(t *testing.T) (*servingMemoryStore, *policyregistry.ServingController, policyregistry.SelectionSet) {
-	t.Helper()
-	store := newServingMemoryStore()
-	legacy := validLoader(t)
-	policyBytes, err := rosterdata.CanonicalBytes(legacy.policy)
-	require.NoError(t, err)
-	policyDigest := policyregistry.Digest(policyBytes)
-	policyRef := policyregistry.ObjectRef{URI: testRegistryRoot + "/router_policy/v1/policies/sha256/" + policyDigest + ".json", SHA256: policyDigest, Generation: 1}
-	store.policies[policyRef] = legacy.policy
-	packageRef := artifactRef("classifier-package")
-	identity := legacy.release.Classifier
-	identity.PackageSHA256 = packageRef.SHA256
-	bundle := policyregistry.ClassifierBundle{SchemaVersion: policyregistry.ServingClassifierV1, Identity: identity, Package: packageRef, Configuration: artifactRef("classifier-config"), AuxiliaryModels: map[string]policyregistry.ObjectRef{"escalation": artifactRef("escalation")}}
-	bundleRef := store.publish(t, policyregistry.ServingClassifiers, bundle)
-	release := policyregistry.ServingRelease{SchemaVersion: policyregistry.ServingReleaseV1, RouterImageDigest: "sha256:" + strings.Repeat("1", 64), Policy: policyregistry.PolicyObject{URI: policyRef.URI, SHA256: policyRef.SHA256, Generation: policyRef.Generation, SchemaVersion: legacy.policy.SchemaVersion}, Classifier: bundleRef, Requirements: policyregistry.ServingRequirements{RuntimeContract: policyregistry.ManagedRuntimeContractV1, PolicySchema: legacy.policy.SchemaVersion, ClassifierWireSchema: identity.WireSchema, TaxonomySHA256: identity.TaxonomySHA256}, Provenance: policyregistry.ServingProvenance{RouterRevision: strings.Repeat("2", 40), AiandRevision: strings.Repeat("3", 40), BuildAttestation: artifactRef("build-attestation")}}
-	releaseRef := store.publish(t, policyregistry.ServingReleases, release)
-	binding := policyregistry.DeploymentBinding{SchemaVersion: policyregistry.ServingBindingV1, Target: policyregistry.TargetStable, Project: "test-project", Region: "test-region", Release: releaseRef, Router: policyregistry.RevisionBinding{Name: "worker-0001", URL: "https://worker-0001.example", Audience: "https://worker.example", ImageDigest: release.RouterImageDigest, Configuration: artifactRef("worker-config")}, Classifier: policyregistry.RevisionBinding{Name: "classifier-0001", URL: "https://classifier-0001.example", Audience: "https://classifier.example", ImageDigest: identity.ImageDigest, Configuration: bundle.Configuration}, ClassifierBundleSHA256: bundleRef.SHA256, Attestation: artifactRef("binding-attestation")}
-	bindingRef := store.publish(t, policyregistry.ServingBindings, binding)
-	set := policyregistry.SelectionSet{SchemaVersion: policyregistry.ServingSelectionSetV1, Target: policyregistry.TargetStable, Default: policyregistry.ServingSelection{Release: releaseRef, Binding: bindingRef}, Profiles: map[string]policyregistry.ServingSelection{}}
-	store.publish(t, policyregistry.ServingSelectionSets, set)
-	validator := preparedValidator(func(_ context.Context, selection policyregistry.PreparedSelection) error {
-		if selection.Binding.Router.ImageDigest != "sha256:"+strings.Repeat("1", 64) {
-			return errors.New("worker attestation mismatch")
-		}
-		if selection.Candidate.Classifier.AuxiliaryModels["escalation"] != artifactRef("escalation") {
-			return errors.New("auxiliary model mismatch")
-		}
-		return nil
-	})
-	controller, err := policyregistry.NewServingController(store, validator, func() time.Time { return servingEpoch }, slog.New(slog.NewTextHandler(io.Discard, nil)))
-	require.NoError(t, err)
-	return store, controller, set
-}
-
-func registerProfileFixture(t *testing.T, store *servingMemoryStore, base policyregistry.ServingSelection, key string, policy policyregistry.PolicyObject) policyregistry.ServingSelection {
-	t.Helper()
-	release := *store.object(t, policyregistry.ServingReleases, base.Release).(*policyregistry.ServingRelease)
-	release.Policy = policy
-	releaseRef := store.publish(t, policyregistry.ServingReleases, release)
-	profileRef := store.publish(t, policyregistry.ServingProfiles, policyregistry.RoutingProfile{SchemaVersion: policyregistry.ServingProfileV1, ProfileKey: key, Policy: policy, Requirements: release.Requirements})
-	binding := *store.object(t, policyregistry.ServingBindings, base.Binding).(*policyregistry.DeploymentBinding)
-	binding.Release = releaseRef
-	bindingRef := store.publish(t, policyregistry.ServingBindings, binding)
-	return policyregistry.ServingSelection{Release: releaseRef, Binding: bindingRef, Profile: &profileRef}
-}
-
 // Ported from upstream b97b0fb2 (#1803).
 func TestRoutingControlsChangeRebindsPinnedConversation(t *testing.T) {
 	firstSet, secondSet := fixtureSet("one"), fixtureSet("two")
@@ -655,7 +432,7 @@ func TestRoutingControlsChangeRebindsPinnedConversation(t *testing.T) {
 	secondSet.Profiles[profileKeyOne] = policyregistry.ServingSelection{Release: namespaceRef(policyregistry.ServingReleases, "custom-two"), Binding: namespaceRef(policyregistry.ServingBindings, "custom-two"), Profile: &secondProfile}
 	first, _ := activateFixture(t, policyregistry.ServingStateSnapshot{}, firstSet, servingEpoch)
 	second, _ := activateFixture(t, first, secondSet, servingEpoch.Add(time.Minute))
-	sets := map[string]policyregistry.SelectionSetView{servingRef(t, policyregistry.ServingSelectionSets, firstSet).SHA256: firstSet.View(), servingRef(t, policyregistry.ServingSelectionSets, secondSet).SHA256: secondSet.View()}
+	sets := map[string]policyregistry.SelectionSetView{servingRef(t, firstSet).SHA256: firstSet.View(), servingRef(t, secondSet).SHA256: secondSet.View()}
 	before := policyregistry.RoutingControlsDigest([]string{"z-ai/glm-5.3", "deepseek/deepseek-v4-pro"}, nil, nil)
 	projection := policyregistry.AdmissionProjection{Target: policyregistry.TargetStable, ProfileKey: profileKeyOne, AssignmentGeneration: 1, RoutingControlsDigest: before}
 	initial, err := policyregistry.SelectSessionRelease(nil, projection, first, sets, testRegistryRoot, servingEpoch)

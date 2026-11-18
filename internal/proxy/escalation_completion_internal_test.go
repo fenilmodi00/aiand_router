@@ -21,37 +21,6 @@ func escalationCompletionContext() context.Context {
 	return context.WithValue(ctx, APIKeyIDContextKey{}, "completion-test-key")
 }
 
-func newEscalationCompletionService(store *escalationTestStore, observer *escalationTestObserver, clients map[string]providers.Client) *Service {
-	return NewService(nil, clients, nil, false, nil, newStubPinStore(), false, providers.ProviderAIAND, "z-ai/glm-5.3", nil).
-		WithEscalation(store, observer).
-		WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyHMMEmbedding, Router: escalationDispatchRouter{}, Capabilities: policy.Capabilities{SchemaVersion: policy.SchemaVersionV1, AuthoritativePerTurnSelection: true}})
-}
-
-type escalationCompletionProvider struct {
-	writeResponse func(http.ResponseWriter) error
-}
-
-func (p escalationCompletionProvider) Proxy(_ context.Context, _ router.Decision, _ providers.PreparedRequest, w http.ResponseWriter, _ *http.Request) error {
-	return p.writeResponse(w)
-}
-func (p escalationCompletionProvider) Passthrough(_ context.Context, _ providers.PreparedRequest, w http.ResponseWriter, _ *http.Request) error {
-	return p.writeResponse(w)
-}
-
-type escalationFinalizeFailureWriter struct {
-	*httptest.ResponseRecorder
-	writeErr    error
-	beforeWrite func()
-}
-
-func (w *escalationFinalizeFailureWriter) Write(body []byte) (int, error) {
-	w.beforeWrite()
-	if w.writeErr != nil {
-		return 0, w.writeErr
-	}
-	return w.ResponseRecorder.Write(body)
-}
-
 func TestEscalationTurnsBypassPopulatedSemanticCache(t *testing.T) {
 	for _, tc := range []struct {
 		name   string

@@ -88,6 +88,7 @@ func nativeServerTool(tool gjson.Result, format Format) (name, typ string, ok bo
 			name = typ
 		}
 		return name, typ, true
+	case FormatOpenAIResponses, FormatGemini:
 	}
 	return "", "", false
 }

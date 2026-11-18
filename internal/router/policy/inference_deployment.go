@@ -95,6 +95,7 @@ func (r Registry) ValidateDeployment(config DeploymentPolicyConfig) error {
 			if !hasOverride {
 				return fmt.Errorf("deployment inference policy %q requires a typed deployment target", spec.PolicyID)
 			}
+		case SelectionStrategyClientAuthoritative, SelectionStrategyPassthrough, SelectionStrategyNone:
 		}
 	}
 	return nil

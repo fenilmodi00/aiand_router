@@ -1,0 +1,148 @@
+{
+ "exceptions": [
+  {
+   "subject": "internal/proxy.Service.ProxyMessages",
+   "metric": "cognitive",
+   "max": 346,
+   "reason": "2026-11-18 upstream port 1ee9c0d9..051efc1cd (#2098/#2095/#1997) grew this already-over-limit function by upstream-verbatim hunks; splitting would diverge the fork from upstream main. Owner: fenilmodi00."
+  },
+  {
+   "subject": "internal/proxy.Service.ProxyMessages",
+   "metric": "lines",
+   "max": 1269,
+   "reason": "Upstream-verbatim port growth (#2095/#1997). Owner: fenilmodi00."
+  },
+  {
+   "subject": "internal/proxy.Service.ProxyOpenAIChatCompletion",
+   "metric": "cognitive",
+   "max": 412,
+   "reason": "Upstream-verbatim port growth (#1997 telemetry). Owner: fenilmodi00."
+  },
+  {
+   "subject": "internal/proxy.Service.ProxyOpenAIChatCompletion",
+   "metric": "lines",
+   "max": 1180,
+   "reason": "Upstream-verbatim port growth (#1997). Owner: fenilmodi00."
+  },
+  {
+   "subject": "internal/proxy.Service.routeCompaction",
+   "metric": "params",
+   "max": 8,
+   "reason": "Upstream 1509de351 (#2095) signature: one context passed end-to-end for session-keyed compaction decisions. Owner: fenilmodi00."
+  },
+  {
+   "subject": "internal/proxy.Service.runTurnLoop",
+   "metric": "cognitive",
+   "max": 517,
+   "reason": "Upstream-verbatim port growth (#2102/#2095). Owner: fenilmodi00."
+  },
+  {
+   "subject": "internal/proxy/service.go",
+   "metric": "file_lines",
+   "max": 5365,
+   "reason": "Upstream-verbatim port growth; upstream service.go is 9522 lines with the same limit. Owner: fenilmodi00."
+  },
+  {
+   "subject": "internal/router/cluster/scorer.go",
+   "metric": "file_lines",
+   "max": 1030,
+   "reason": "Sentinel-move port 40272112b (#2098) added alias doc lines. Owner: fenilmodi00."
+  },
+  {
+   "subject": "internal/translate.RequestEnvelope.StripHistoricalCommands",
+   "metric": "cognitive",
+   "max": 32,
+   "reason": "Upstream 6d9bcc591 (#1836) verbatim. Owner: fenilmodi00."
+  },
+  {
+   "subject": "internal/translate.StripHistoricalCommandsFromResponsesInput",
+   "metric": "cognitive",
+   "max": 33,
+   "reason": "Upstream 6d9bcc591 (#1836) verbatim. Owner: fenilmodi00."
+  },
+  {
+   "subject": "internal/translate.stripDirectiveFromMessage",
+   "metric": "cognitive",
+   "max": 31,
+   "reason": "Upstream 6d9bcc591 (#1836) verbatim. Owner: fenilmodi00."
+  },
+  {
+   "subject": "internal/translate.stripHistoricalSkillToolMessage",
+   "metric": "cognitive",
+   "max": 38,
+   "reason": "Upstream 6d9bcc591 (#1836) verbatim. Owner: fenilmodi00."
+  },
+  {
+   "subject": "internal/translate/stream.go",
+   "metric": "file_lines",
+   "max": 1223,
+   "reason": "Upstream 56cb3e478 (#2087) terminal-signal summary additions; upstream stream.go is 1650 lines. Owner: fenilmodi00."
+  },
+  {
+   "subject": "internal/auth/service.go",
+   "metric": "file_lines",
+   "max": 785,
+   "reason": "Upstream #2251 port (cacheable flag in verifyAPIKey), aiand-verbatim. Owner: fenilmodi00."
+  },
+  {
+   "subject": "internal/flags/flags.go",
+   "metric": "file_lines",
+   "max": 664,
+   "reason": "Upstream #2289 port (Overlay/overlayValues + DecodeOverrides split). Owner: fenilmodi00."
+  },
+  {
+   "subject": "internal/proxy.Service.ProxyOpenAIResponses",
+   "metric": "cognitive",
+   "max": 31,
+   "reason": "Upstream #2266 port (StripRouterReasoningFromResponsesInput call). Owner: fenilmodi00."
+  },
+  {
+   "subject": "internal/proxy.Service.ProxyOpenAIResponses",
+   "metric": "lines",
+   "max": 102,
+   "reason": "Upstream #2266 port. Owner: fenilmodi00."
+  },
+  {
+   "subject": "internal/proxy/service.go",
+   "metric": "file_lines",
+   "max": 5367,
+   "reason": "Upstream port growth (#2288 emit wiring). Owner: fenilmodi00."
+  },
+  {
+   "subject": "internal/proxy/turnloop.go",
+   "metric": "file_lines",
+   "max": 2232,
+   "reason": "Upstream port growth (#2290 stay pins, #2288 pin exemption, #2146 compat gate). Owner: fenilmodi00."
+  },
+  {
+   "subject": "internal/postgres.scanExpiringTargets",
+   "metric": "cognitive",
+   "max": 42,
+   "reason": "Upstream #2190/#2197 mechanical lint port grew this already-deep scan; splitting would diverge from upstream's shape. Owner: fenilmodi00."
+  },
+  {
+   "subject": "internal/proxy.Service.recordHMMTurnHistory",
+   "metric": "params",
+   "max": 9,
+   "reason": "Upstream #2201 port: ctx param added to the request-threaded fire-and-forget history write. Owner: fenilmodi00."
+  },
+  {
+   "subject": "internal/router/policy/inference_plan.go",
+   "metric": "file_lines",
+   "max": 508,
+   "reason": "Upstream #2194/#2197 lint hunks; one-line growth. Owner: fenilmodi00."
+  },
+  {
+   "subject": "internal/translate.translate_test.streamFamilies",
+   "metric": "lines",
+   "max": 197,
+   "reason": "Upstream #2197 testifylint port grew the fork-family table; upstream's own test exceeds the limit too. Owner: fenilmodi00."
+  },
+  {
+   "subject": "scripts/rotate_key_race_ext_check/main.go",
+   "metric": "file_lines",
+   "max": 585,
+   "reason": "Upstream #2195 noctx/thelper port (http.NewServer harness extraction); scripts are not production paths. Owner: fenilmodi00."
+  }
+ ]
+}

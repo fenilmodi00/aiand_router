@@ -42,13 +42,13 @@ func (r *spendLimitRepo) GetAutopayConfig(context.Context, billing.Owner) (bool,
 }
 func (r *spendLimitRepo) BillingTablesExist(context.Context) (bool, error) { return true, nil }
 
-func spendLimitCtx(userID, orgID string) context.Context {
+func spendLimitCtx(userID string) context.Context {
 	ctx := context.Background()
 	if userID != "" {
 		ctx = context.WithValue(ctx, auth.UserIDContextKey{}, userID)
 	}
-	if orgID != "" {
-		ctx = context.WithValue(ctx, ExternalIDContextKey{}, orgID)
+	if "org-1" != "" {
+		ctx = context.WithValue(ctx, ExternalIDContextKey{}, "org-1")
 	}
 	return ctx
 }
@@ -64,35 +64,35 @@ func spendLimitCheck(s *Service, ctx context.Context) error {
 
 func TestCheckUserMonthlySpendLimit_NoBillingSkips(t *testing.T) {
 	s := &Service{}
-	assert.NoError(t, spendLimitCheck(s, spendLimitCtx("u1", "org-1")))
+	assert.NoError(t, spendLimitCheck(s, spendLimitCtx("u1")))
 }
 
 func TestCheckUserMonthlySpendLimit_NoIdentitySkips(t *testing.T) {
 	s := &Service{billing: billing.NewService(&spendLimitRepo{spent: 10, limit: micros(1), err: errors.New("must not be called")})}
-	assert.NoError(t, spendLimitCheck(s, spendLimitCtx("", "org-1")),
+	assert.NoError(t, spendLimitCheck(s, spendLimitCtx("")),
 		"a request with no resolvable user identity passes through")
 }
 
 func TestCheckUserMonthlySpendLimit_NoLimitPasses(t *testing.T) {
 	s := &Service{billing: billing.NewService(&spendLimitRepo{spent: 999_999_999, limit: nil})}
-	assert.NoError(t, spendLimitCheck(s, spendLimitCtx("u1", "org-1")))
+	assert.NoError(t, spendLimitCheck(s, spendLimitCtx("u1")))
 }
 
 func TestCheckUserMonthlySpendLimit_UnderLimitPasses(t *testing.T) {
 	s := &Service{billing: billing.NewService(&spendLimitRepo{spent: 999_999, limit: micros(1_000_000)})}
-	assert.NoError(t, spendLimitCheck(s, spendLimitCtx("u1", "org-1")))
+	assert.NoError(t, spendLimitCheck(s, spendLimitCtx("u1")))
 }
 
 func TestCheckUserMonthlySpendLimit_AtLimitRejected(t *testing.T) {
 	s := &Service{billing: billing.NewService(&spendLimitRepo{spent: 1_000_000, limit: micros(1_000_000)})}
-	err := spendLimitCheck(s, spendLimitCtx("u1", "org-1"))
+	err := spendLimitCheck(s, spendLimitCtx("u1"))
 	require.Error(t, err)
 	assert.ErrorIs(t, err, billing.ErrUserMonthlySpendLimitReached)
 }
 
 func TestCheckUserMonthlySpendLimit_ReadErrorFailsClosed(t *testing.T) {
 	s := &Service{billing: billing.NewService(&spendLimitRepo{err: errors.New("pg down")})}
-	err := spendLimitCheck(s, spendLimitCtx("u1", "org-1"))
+	err := spendLimitCheck(s, spendLimitCtx("u1"))
 	require.Error(t, err)
 	assert.ErrorIs(t, err, billing.ErrSpendLimitCheckUnavailable)
 }
@@ -101,7 +101,7 @@ func TestCheckUserMonthlySpendLimit_OverrideSkips(t *testing.T) {
 	// Even over the limit (and with a repo that would error), a billing-override
 	// request bypasses engineer enforcement — WithBalanceCheck already let it in.
 	s := &Service{billing: billing.NewService(&spendLimitRepo{spent: 1_000_000, limit: micros(1_000_000), err: errors.New("must not be called")})}
-	ctx := context.WithValue(spendLimitCtx("u1", "org-1"), billing.HasOverrideContextKey, true)
+	ctx := context.WithValue(spendLimitCtx("u1"), billing.HasOverrideContextKey, true)
 	assert.NoError(t, spendLimitCheck(s, ctx))
 }
 
@@ -110,7 +110,7 @@ func TestCheckUserMonthlySpendLimit_ExemptsSubscriberAllowanceCoveredTurn(t *tes
 	// settles against that allowance, so it never adds to the engineer's paid
 	// spend and a reached cap must not 402 it.
 	s := &Service{billing: billing.NewService(&spendLimitRepo{spent: 1_000_000, limit: micros(1_000_000)})}
-	ctx := entitlement.WithCoverage(spendLimitCtx("u1", "org-1"), entitlement.Coverage{
+	ctx := entitlement.WithCoverage(spendLimitCtx("u1"), entitlement.Coverage{
 		SubscriberID:       "cs_max",
 		EntitlementVersion: 1,
 		Plan:               entitlement.PlanMax,
@@ -121,7 +121,7 @@ func TestCheckUserMonthlySpendLimit_ExemptsSubscriberAllowanceCoveredTurn(t *tes
 
 func TestCheckUserMonthlySpendLimit_AppliesToSubscriberPaidFallback(t *testing.T) {
 	s := &Service{billing: billing.NewService(&spendLimitRepo{spent: 1_000_000, limit: micros(1_000_000)})}
-	ctx := entitlement.WithProductScope(spendLimitCtx("u1", "org-1"), entitlement.PlanMax)
+	ctx := entitlement.WithProductScope(spendLimitCtx("u1"), entitlement.PlanMax)
 
 	_, err := s.checkUserMonthlySpendLimit(ctx)
 

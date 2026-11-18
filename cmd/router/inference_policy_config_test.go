@@ -1,8 +1,6 @@
 package main
 
 import (
-	"io"
-	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -44,7 +42,7 @@ func TestResolveHardPinModelRejectsProviderWithoutModel(t *testing.T) {
 	t.Setenv("ROUTER_HARD_PIN_MODEL", "")
 	t.Setenv("ROUTER_HARD_PIN_PROVIDER", providers.ProviderAIAND)
 
-	_, _, err := resolveHardPinModel(nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	_, _, err := resolveHardPinModel()
 	assert.ErrorContains(t, err, "requires ROUTER_HARD_PIN_MODEL")
 }
 
@@ -52,7 +50,7 @@ func TestResolveHardPinModelUsesDefaultProviderForExplicitModel(t *testing.T) {
 	t.Setenv("ROUTER_HARD_PIN_MODEL", "z-ai/glm-5.3-flash")
 	t.Setenv("ROUTER_HARD_PIN_PROVIDER", "")
 
-	provider, model, err := resolveHardPinModel(nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	provider, model, err := resolveHardPinModel()
 	require.NoError(t, err)
 	assert.Equal(t, providers.ProviderAIAND, provider)
 	assert.Equal(t, "z-ai/glm-5.3-flash", model)

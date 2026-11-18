@@ -110,9 +110,9 @@ func TestPinCacheCold_OrdinaryAndHMMShareTheSameRule(t *testing.T) {
 	cold := warm
 	cold.LastTurnEndedAt = time.Now().Add(-2 * time.Hour)
 
-	assert.False(t, pinCacheCold(warm, false), "a warm unmodified prefix remains cache-eligible")
-	assert.True(t, pinCacheCold(warm, true), "a prefix break makes a warm pin cold")
-	assert.True(t, pinCacheCold(cold, false), "an expired pin is cold without a prefix break")
+	assert.False(t, pinCacheCold(warm, false, time.Now()), "a warm unmodified prefix remains cache-eligible")
+	assert.True(t, pinCacheCold(warm, true, time.Now()), "a prefix break makes a warm pin cold")
+	assert.True(t, pinCacheCold(cold, false, time.Now()), "an expired pin is cold without a prefix break")
 }
 
 func TestConsumePostCommandContinuation_RequiresEffectiveStrategy(t *testing.T) {
@@ -139,7 +139,7 @@ func TestApplyPinEvidence_UsesAvailablePriorTurnData(t *testing.T) {
 	applyPinEvidence(&zeroTimestamp, sessionpin.Pin{
 		Provider: providers.ProviderAIAND,
 		Model:    "z-ai/glm-5.3-flash",
-	})
+	}, time.Now())
 	assert.Equal(t, providers.ProviderAIAND, zeroTimestamp.PinProvider)
 	assert.Nil(t, zeroTimestamp.PriorTurnGapMS)
 
@@ -149,11 +149,11 @@ func TestApplyPinEvidence_UsesAvailablePriorTurnData(t *testing.T) {
 		Model:           "accounts/fireworks/models/qwen3-235b-a22b",
 		PolicyGroup:     "high",
 		LastTurnEndedAt: time.Now().Add(-time.Second),
-	})
+	}, time.Now())
 	assert.Equal(t, providers.ProviderAIAND, withHistory.PinProvider)
 	assert.Equal(t, "high", withHistory.PinPolicyGroup)
 	require.NotNil(t, withHistory.PriorTurnGapMS)
-	assert.Greater(t, *withHistory.PriorTurnGapMS, int64(0))
+	assert.Positive(t, *withHistory.PriorTurnGapMS)
 
 	clearPinEvidence(&withHistory)
 	assert.Empty(t, withHistory.PinModel)
@@ -727,7 +727,7 @@ func TestHMMCostGate_SameTierPinDoesNotBlockConfidentUpgrade(t *testing.T) {
 	assert.Equal(t, hmmReasonConfidentUpgrade, plan.Reason)
 }
 
-func TestHMMCostGate_PhaseChangeFollowsFreshDecision(t *testing.T) {
+func TestHMMCostGate_PhaseChangeFollowsFreshDecisionWhenEVPositive(t *testing.T) {
 	svc := NewService(
 		nil,
 		map[string]providers.Client{providers.ProviderAIAND: nil},
@@ -763,7 +763,7 @@ func TestHMMCostGate_PhaseChangeFollowsFreshDecision(t *testing.T) {
 		activePin,
 		sessionpin.Pin{},
 		fresh,
-		100,
+		10_000,
 		false,
 	)
 
@@ -774,7 +774,7 @@ func TestHMMCostGate_PhaseChangeFollowsFreshDecision(t *testing.T) {
 	assert.Equal(t, hmmReasonPhaseChange, plan.Reason)
 }
 
-func TestHMMCostGate_HistoryPhaseChangeFollowsFreshDecision(t *testing.T) {
+func TestHMMCostGate_HistoryPhaseChangeFollowsFreshDecisionWhenEVPositive(t *testing.T) {
 	svc := NewService(
 		nil,
 		map[string]providers.Client{providers.ProviderAIAND: nil},
@@ -809,7 +809,7 @@ func TestHMMCostGate_HistoryPhaseChangeFollowsFreshDecision(t *testing.T) {
 		sessionpin.Pin{},
 		history,
 		fresh,
-		100,
+		10_000,
 		false,
 	)
 
@@ -1330,7 +1330,7 @@ func TestService_NewService_HMMUpgradeConfidenceDefaults(t *testing.T) {
 		"anthropic", "z-ai/glm-5.3-flash",
 		nil,
 	)
-	assert.Equal(t, DefaultHMMUpgradeConfidenceThreshold, svc.hmmUpgradeConfidenceThreshold)
+	assert.InDelta(t, DefaultHMMUpgradeConfidenceThreshold, svc.hmmUpgradeConfidenceThreshold, 1e-9)
 }
 
 func TestService_WithHMMUpgradeConfidenceThreshold(t *testing.T) {
@@ -1347,16 +1347,16 @@ func TestService_WithHMMUpgradeConfidenceThreshold(t *testing.T) {
 	)
 
 	svc.WithHMMUpgradeConfidenceThreshold(0.50)
-	assert.Equal(t, 0.50, svc.hmmUpgradeConfidenceThreshold)
+	assert.InDelta(t, 0.50, svc.hmmUpgradeConfidenceThreshold, 1e-9)
 
 	svc.WithHMMUpgradeConfidenceThreshold(-0.10)
-	assert.Equal(t, 0.50, svc.hmmUpgradeConfidenceThreshold)
+	assert.InDelta(t, 0.50, svc.hmmUpgradeConfidenceThreshold, 1e-9)
 
 	svc.WithHMMUpgradeConfidenceThreshold(1.50)
-	assert.Equal(t, 0.50, svc.hmmUpgradeConfidenceThreshold)
+	assert.InDelta(t, 0.50, svc.hmmUpgradeConfidenceThreshold, 1e-9)
 
 	svc.WithHMMUpgradeConfidenceThreshold(0.0)
-	assert.Equal(t, 0.0, svc.hmmUpgradeConfidenceThreshold)
+	assert.InDelta(t, 0.0, svc.hmmUpgradeConfidenceThreshold, 1e-9)
 }
 
 func TestHMMCostGate_UpgradeThresholdConfigurable(t *testing.T) {

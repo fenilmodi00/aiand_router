@@ -5,17 +5,15 @@ import (
 
 	"aiand-os/router/internal/config"
 	"aiand-os/router/internal/providers"
-	"aiand-os/router/internal/router/cluster"
 	"aiand-os/router/internal/server/middleware"
 
 	"github.com/gin-gonic/gin"
 )
 
 type configResponse struct {
-	ClusterVersion       string `json:"cluster_version"`
-	EmbedOnlyUserMsg     bool   `json:"embed_only_user_message"`
-	OtelEnabled          bool   `json:"otel_enabled"`
-	SemanticCacheEnabled bool   `json:"semantic_cache_enabled"`
+	EmbedOnlyUserMsg     bool `json:"embed_only_user_message"`
+	OtelEnabled          bool `json:"otel_enabled"`
+	SemanticCacheEnabled bool `json:"semantic_cache_enabled"`
 	// EnvProviderKeys lists provider names whose upstream API key is set
 	// via env var on the deployment (e.g. OPENAI_API_KEY). The dashboard
 	// renders these as read-only entries — they aren't stored in Postgres
@@ -39,7 +37,6 @@ func ConfigHandler(c *gin.Context) {
 		}
 	}
 	c.JSON(http.StatusOK, configResponse{
-		ClusterVersion:       config.GetOr("ROUTER_CLUSTER_VERSION", cluster.LatestVersion),
 		EmbedOnlyUserMsg:     config.GetOr("ROUTER_EMBED_ONLY_USER_MESSAGE", "true") == "true",
 		OtelEnabled:          config.GetOr("OTEL_EXPORTER_OTLP_ENDPOINT", "") != "",
 		SemanticCacheEnabled: config.GetOr("ROUTER_SEMANTIC_CACHE_ENABLED", "true") == "true",

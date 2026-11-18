@@ -107,7 +107,7 @@ func decisionSpanEmbed(t *testing.T, svc *Service, collector *bypassSpanCollecto
 	httpReq := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
 	require.NoError(t, svc.ProxyMessages(context.Background(), embedTurnBody(), rec, httpReq))
 
-	em := svc.emitter.(*otel.Emitter)
+	em := mustAs[*otel.Emitter](t, svc.emitter)
 	require.NoError(t, em.Shutdown(context.Background()))
 
 	collector.mu.Lock()
@@ -261,7 +261,7 @@ func TestDecisionSpan_RolloutIDFromClientIdentity(t *testing.T) {
 	})
 	require.NoError(t, svc.ProxyMessages(ctx, embedTurnBody(), rec, httpReq))
 
-	em := svc.emitter.(*otel.Emitter)
+	em := mustAs[*otel.Emitter](t, svc.emitter)
 	require.NoError(t, em.Shutdown(context.Background()))
 
 	collector.mu.Lock()

@@ -99,6 +99,9 @@ type EmitOptions struct {
 type RequestEnvelope struct {
 	body   []byte
 	format Format
+	// threadDiscriminator is the opening user text as the client sent it,
+	// captured before router-only history is stripped from body.
+	threadDiscriminator *string
 }
 
 // Clone returns an independent copy of the envelope; mutations to either
@@ -107,7 +110,7 @@ func (e *RequestEnvelope) Clone() *RequestEnvelope {
 	if e == nil {
 		return nil
 	}
-	return &RequestEnvelope{body: append([]byte(nil), e.body...), format: e.format}
+	return &RequestEnvelope{body: append([]byte(nil), e.body...), format: e.format, threadDiscriminator: e.threadDiscriminator}
 }
 
 // ParseOpenAI validates body as a JSON object and wraps it in a RequestEnvelope.
@@ -170,6 +173,7 @@ func (e *RequestEnvelope) ClientSessionID() string {
 		return requestcontext.BodySessionID(e.body, requestcontext.ConversationAnthropic)
 	case FormatOpenAI:
 		return requestcontext.BodySessionID(e.body, requestcontext.ConversationChat)
+	case FormatOpenAIResponses, FormatGemini:
 	}
 	return ""
 }
@@ -243,6 +247,24 @@ func (e *RequestEnvelope) FirstUserMessageText() string {
 	default:
 		return ""
 	}
+}
+
+// ThreadDiscriminatorText is the opening user text the session key hashes.
+// Once StripHistoricalCommands has run it is the pre-strip text, so removing an
+// opening directive from the model-visible body does not re-key the thread.
+func (e *RequestEnvelope) ThreadDiscriminatorText() string {
+	if e.threadDiscriminator != nil {
+		return *e.threadDiscriminator
+	}
+	return e.FirstUserMessageText()
+}
+
+func (e *RequestEnvelope) captureThreadDiscriminator() {
+	if e.threadDiscriminator != nil {
+		return
+	}
+	text := e.FirstUserMessageText()
+	e.threadDiscriminator = &text
 }
 
 // HasTools reports whether the request has a non-empty tools array.
@@ -710,31 +732,10 @@ func rewriteMessageBlocks(
 		return body, nil
 	}
 	if droppedMessage {
-		msgRaws = keepSystemMessagesBeforeAssistant(msgRaws)
+		msgRaws, _ = placeAnthropicSystemMessages(msgRaws)
 	}
 
 	return sjson.SetRawBytes(body, "messages", []byte("["+strings.Join(msgRaws, ",")+"]"))
-}
-
-// keepSystemMessagesBeforeAssistant moves each run of role:"system" messages
-// that no longer directly precedes an assistant turn to just before the next
-// one, or to the end. Anthropic 400s on a system message followed by a user
-// message, which a dropped assistant turn can leave behind.
-func keepSystemMessagesBeforeAssistant(msgRaws []string) []string {
-	out := make([]string, 0, len(msgRaws))
-	var pending []string
-	for _, raw := range msgRaws {
-		switch gjson.Get(raw, "role").String() {
-		case "system":
-			pending = append(pending, raw)
-			continue
-		case "assistant":
-			out = append(out, pending...)
-			pending = pending[:0]
-		}
-		out = append(out, raw)
-	}
-	return append(out, pending...)
 }
 
 // stripThinkingBlocksBytes removes thinking/redacted_thinking blocks from
@@ -870,7 +871,7 @@ var routingMarkerPattern = routerOwnedNoticePattern
 // responses (see proxy.Service.feedbackFooter), absorbing leading newlines
 // and everything to end of line since there's no fixed end-anchor. Keep the
 // sentinel in sync with proxy.feedbackFooterText.
-var feedbackFooterPattern = regexp.MustCompile("\\n*_Aiand Router feedback:_ [^\\n]*")
+var feedbackFooterPattern = regexp.MustCompile(`\n*_Aiand Router feedback:_ [^\n]*`)
 
 // StripRoutingMarkerFromMessages removes the routing-marker snippet from every
 // text block in messages[*].content[*]. Stripping on ingress keeps it out of
@@ -1193,12 +1194,6 @@ func ResolveForceEffort(caps router.ModelSpec, level string) string {
 		}
 	}
 	return canonical
-}
-
-// resolveForceEffort is the package-private variant of ResolveForceEffort;
-// exists so call sites inside EmitOptions don't repeat caps + level extraction.
-func resolveForceEffort(opts EmitOptions) string {
-	return ResolveForceEffort(opts.Capabilities, opts.ForceEffort)
 }
 
 func resolveAnthropicOverrides(body []byte, opts EmitOptions) EmitOverrides {

@@ -3,7 +3,7 @@ package translate
 // routerModelsTokens are the spellings of the router-models directive and its
 // `models` alias, in both sigils. Codex reserves `/…` for its own built-ins
 // and exposes the directive as a `$name` skill, so both are accepted for the
-// same reason parseForceModelCommand accepts both.
+// same reason parseForceModelCommandFromSource accepts both.
 var routerModelsTokens = [...]string{
 	"/router-models",
 	"$router-models",
@@ -23,8 +23,8 @@ var routerModelsTokens = [...]string{
 // no-op or a hole through that boundary, so anything with arguments falls
 // through to the skill, which shells out to the installer and authenticates
 // properly.
-func (env *RequestEnvelope) ExtractRouterModelsCommand() bool {
-	return env.extractLeadingCommand(parseRouterModelsCommand)
+func (e *RequestEnvelope) ExtractRouterModelsCommand() bool {
+	return e.extractLeadingCommand(parseRouterModelsCommand)
 }
 
 // parseRouterModelsCommand recognizes the bare directive; parseBareDirective holds the

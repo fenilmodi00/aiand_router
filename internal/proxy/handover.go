@@ -266,7 +266,7 @@ func prepareSummaryCall(env *translate.RequestEnvelope, target inference.Target,
 // non-streaming Chat Completions response, reporting non-2xx as an upstream
 // status error so the executor can classify it.
 func summaryFromResponse(resp *http.Response, target inference.Target) (string, handover.Usage, error) {
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 400 {
 		return "", handover.Usage{}, fmt.Errorf("handover: %w", &providers.UpstreamStatusError{Status: resp.StatusCode})
 	}
@@ -403,7 +403,7 @@ func (s *Service) runCompactionHandover(ctx context.Context, env *translate.Requ
 		out.FallbackToFullHistory = true
 		log.Info("Compaction handover: summarizer skipped (tenant boundary); preserved compacted body instead", "decision_model", decisionModel)
 	default:
-		summCtx := ctx
+		var summCtx context.Context
 		if sumCreds != nil {
 			summCtx = context.WithValue(ctx, CredentialsContextKey{}, sumCreds)
 		} else {
@@ -412,9 +412,9 @@ func (s *Service) runCompactionHandover(ctx context.Context, env *translate.Requ
 			// inheriting one that could 401 or cross a tenant boundary.
 			summCtx = clearCredentials(ctx)
 		}
-		start := time.Now()
+		start := s.clock.Now()
 		summary, summaryUsage, sumErr := summarizer.Summarize(summCtx, env, scope)
-		out.LatencyMS = time.Since(start).Milliseconds()
+		out.LatencyMS = s.clock.Now().Sub(start).Milliseconds()
 		switch {
 		case sumErr != nil:
 			out.FallbackToFullHistory = true

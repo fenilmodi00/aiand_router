@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -148,9 +147,7 @@ func ConvertResponsesToChatCompletions(body []byte) (ResponsesConversion, error)
 				result.Requirements.FunctionTools = true
 			}
 			if itemType == "reasoning" {
-				result.Requirements.ReasoningReplay = true
-				result.Requirements.NativeOnly = true
-				result.Report = append(result.Report, ResponseTransform{Code: "responses_reasoning_native_only", Action: "preserved", Path: "input." + strconv.Itoa(index)})
+				result.addReasoningInput(item, "input."+strconv.Itoa(index))
 				continue
 			}
 			msgs, err := responsesInputItemToMessages(item)
@@ -332,7 +329,7 @@ func StripRoutingBadgeFromResponsesInput(body []byte) ([]byte, error) {
 	changed := false
 	for _, item := range itemRaws {
 		itemType := item.Get("type").Str
-		if itemType != "message" && !(itemType == "" && item.Get("role").Str != "") {
+		if itemType != "message" && (itemType != "" || item.Get("role").Str == "") {
 			newItemRaws = append(newItemRaws, item.Raw)
 			continue
 		}
@@ -428,7 +425,7 @@ func StripFeedbackFooterFromResponsesInput(body []byte) ([]byte, error) {
 	changed := false
 	for _, item := range itemRaws {
 		itemType := item.Get("type").Str
-		if itemType != "message" && !(itemType == "" && item.Get("role").Str != "") {
+		if itemType != "message" && (itemType != "" || item.Get("role").Str == "") {
 			newItemRaws = append(newItemRaws, item.Raw)
 			continue
 		}
@@ -695,7 +692,6 @@ type ResponsesWriter struct {
 	nativeSequenceShift         int64
 	outputIndexOffset           int
 	footerText                  string
-	footerEmitted               bool
 	sawToolCall                 bool
 	hasUpstreamOutput           bool
 	nativeHeldEvents            [][]byte
@@ -703,6 +699,8 @@ type ResponsesWriter struct {
 	finalized                   bool
 	nativeEmptyRejected         bool
 	textItem                    *responsesTextItem
+	reasoningItems              []*responsesSummaryItem
+	pendingReasoning            strings.Builder
 	toolItems                   map[int]*responsesToolItem
 	finishReason                string
 	lifecycle                   *StreamLifecycle
@@ -869,6 +867,9 @@ func (t *ResponsesWriter) ResetAttempt() {
 	t.nativeEmptyRejected = false
 	t.finishReason = ""
 	t.toolItems = map[int]*responsesToolItem{}
+	t.pendingReasoning.Reset()
+	t.reasoningItems = nil
+	t.lifecycle.RewindOutput(t.nextOutputIndex())
 	t.providerUsageState = providerUsageState{}
 	t.toolLedger = NewToolCallLedger()
 	// Keep headersEmitted, textItem, and prelude lifecycle so a retried
@@ -882,6 +883,10 @@ func (t *ResponsesWriter) SetPassthrough() {
 	t.resetSSEScanState()
 	t.passthrough = true
 }
+
+// Passthrough reports whether the writer forwards native Responses events
+// rather than translating Chat Completions chunks.
+func (t *ResponsesWriter) Passthrough() bool { return t.passthrough }
 
 // ClearPassthrough returns the writer to translation mode, reporting false
 // after provider output prevents a clean continuation. A visible synthetic
@@ -1764,19 +1769,6 @@ func (t *ResponsesWriter) writeNativeResponsesEvent(event, delimiter []byte) err
 	return t.writeNativeResponsesFrame(rewritten, delimiter)
 }
 
-func (t *ResponsesWriter) shouldHoldNativeEvent(eventType responsesEventType, itemType responsesItemType) bool {
-	if t.footerText == "" || t.sawToolCall {
-		return false
-	}
-	switch eventType {
-	case responsesOutputTextDone, responsesContentPartDone:
-		return true
-	case responsesOutputItemDone:
-		return itemType == responsesMessageItem || itemType == ""
-	}
-	return false
-}
-
 func (t *ResponsesWriter) flushNativeHeldEvents(commitFooter bool) error {
 	if len(t.nativeHeldEvents) == 0 {
 		return nil
@@ -2044,6 +2036,7 @@ func (t *ResponsesWriter) translateChunk(raw []byte) error {
 		return nil
 	}
 	delta := choice.Get("delta")
+	t.pendingReasoning.WriteString(chatDeltaReasoning(delta))
 
 	if content := delta.Get("content"); content.Type == gjson.String && content.Str != "" {
 		t.hasUpstreamOutput = true
@@ -2123,6 +2116,9 @@ func (t *ResponsesWriter) openTextItem() error {
 	if t.textItem != nil {
 		return nil
 	}
+	if err := t.flushReasoning(); err != nil {
+		return err
+	}
 	t.textItem = &responsesTextItem{
 		itemID: newResponsesID("msg"),
 	}
@@ -2169,6 +2165,9 @@ func (t *ResponsesWriter) appendToolCall(idx int, tc gjson.Result) error {
 	if _, opened := t.toolItems[idx]; opened {
 		return nil
 	}
+	if err := t.flushReasoning(); err != nil {
+		return err
+	}
 	if err := t.ensureBadgeItem(); err != nil {
 		return err
 	}
@@ -2191,7 +2190,7 @@ func (t *ResponsesWriter) appendToolCall(idx int, tc gjson.Result) error {
 }
 
 func (t *ResponsesWriter) nextOutputIndex() int {
-	count := 0
+	count := len(t.reasoningItems)
 	if t.textItem != nil {
 		count++
 	}
@@ -2214,18 +2213,12 @@ func (t *ResponsesWriter) computeBadgeText() string {
 }
 
 func (t *ResponsesWriter) closeOpenItems() error {
-	for _, entry := range t.toolLedger.Entries() {
-		var call AcceptedToolCall
-		if mapping, mapped := t.toolMappings[entry.Name]; mapped && mapping.Custom {
-			call = entry.acceptRaw()
-		} else {
-			call = entry.Accept(nil)
-		}
-		if item, exists := t.toolItems[entry.SourceIndex]; exists {
-			item.call = call
-			t.sawToolCall = true
+	if t.hasUpstreamOutput && t.lifecycle.State() == StreamStarted {
+		if err := t.flushReasoning(); err != nil {
+			return err
 		}
 	}
+	t.acceptLedgerCalls()
 
 	if t.textItem != nil && !t.textItem.closed {
 		if t.footerText != "" && !t.sawToolCall && t.finishReason == "stop" && !feedbackFooterPattern.MatchString(t.textItem.text.String()) {
@@ -2469,7 +2462,7 @@ func (t *ResponsesWriter) emitFunctionArgsDelta(item *responsesToolItem, delta s
 
 func (t *ResponsesWriter) emitFunctionArgsDone(item *responsesToolItem) error {
 	if item.mapping.Custom {
-		input, err := customToolInput(item.call.Arguments)
+		input, err := truncationAwareCustomToolInput(item.call.Arguments, t.finishReason)
 		if err != nil {
 			return err
 		}
@@ -2494,7 +2487,7 @@ func (t *ResponsesWriter) emitFunctionArgsDone(item *responsesToolItem) error {
 
 func (t *ResponsesWriter) emitFunctionCallItemDone(item *responsesToolItem) error {
 	if item.mapping.Custom {
-		input, err := customToolInput(item.call.Arguments)
+		input, err := truncationAwareCustomToolInput(item.call.Arguments, t.finishReason)
 		if err != nil {
 			return err
 		}
@@ -2542,70 +2535,6 @@ func (t *ResponsesWriter) emitFailed() error {
 	})
 }
 
-func (t *ResponsesWriter) assembleOutput() []any {
-	out := make([]any, 0, len(t.toolItems))
-	if t.textItem != nil {
-		out = append(out, map[string]any{
-			"id":     t.textItem.itemID,
-			"type":   "message",
-			"status": "completed",
-			"role":   "assistant",
-			"content": []any{map[string]any{
-				"type":        "output_text",
-				"text":        t.textItem.text.String(),
-				"annotations": []any{},
-			}},
-		})
-	}
-	// Tool items in upstream index order. Upstream indices may be
-	// non-contiguous (e.g. {0, 2}), so iterate the sorted keys rather than
-	// counting up to len.
-	indices := make([]int, 0, len(t.toolItems))
-	for idx := range t.toolItems {
-		indices = append(indices, idx)
-	}
-	sort.Ints(indices)
-	for _, idx := range indices {
-		item := t.toolItems[idx]
-		if len(t.toolMappings) > 0 && !item.opened {
-			continue
-		}
-		if item.mapping.Custom {
-			input, err := customToolInput(item.call.Arguments)
-			if err != nil {
-				continue
-			}
-			call := map[string]any{
-				"id":      item.itemID,
-				"type":    "custom_tool_call",
-				"status":  "completed",
-				"call_id": item.callID,
-				"name":    item.name,
-				"input":   input,
-			}
-			if item.mapping.Namespace != "" {
-				call["namespace"] = item.mapping.Namespace
-			}
-			out = append(out, call)
-			continue
-		}
-		call := map[string]any{
-			"id":                      item.itemID,
-			"type":                    "function_call",
-			"status":                  "completed",
-			"call_id":                 item.callID,
-			"name":                    item.name,
-			"arguments":               item.call.Arguments,
-			"encrypted_function_args": []string{},
-		}
-		if item.mapping.Namespace != "" {
-			call["namespace"] = item.mapping.Namespace
-		}
-		out = append(out, call)
-	}
-	return out
-}
-
 // chatCompletionToResponse converts a buffered chat-completions JSON body into
 // a Responses-shaped JSON body. Only used when the client requested
 // stream:false; Codex always streams, but other clients may not. A non-empty
@@ -2629,7 +2558,10 @@ func chatCompletionToResponse(body []byte, responseID, model string, createdAt i
 	}
 
 	choice := root.Get("choices.0.message")
-	output := make([]any, 0, 2)
+	output := []any{}
+	if reasoning := chatDeltaReasoning(choice); reasoning != "" {
+		output = append(output, reasoningOutputItem(newResponsesID(routerReasoningItemIDPrefix), reasoning))
+	}
 	text := badge
 	text += chatContentText(choice.Get("content"))
 	calls, _ := acceptedChatToolCallsWithMappings(choice.Get("tool_calls"), nil, false, mappings)
@@ -2667,7 +2599,7 @@ func chatCompletionToResponse(body []byte, responseID, model string, createdAt i
 			item["namespace"] = mapping.Namespace
 		}
 		if mapping.Custom {
-			input, err := customToolInput(call.Arguments)
+			input, err := truncationAwareCustomToolInput(call.Arguments, root.Get("choices.0.finish_reason").Str)
 			if err != nil {
 				return nil, err
 			}

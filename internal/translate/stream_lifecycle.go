@@ -71,6 +71,10 @@ func (l *StreamLifecycle) Output(index int) error {
 	return nil
 }
 
+func (l *StreamLifecycle) RewindOutput(lastIndex int) {
+	l.lastOutputIdx = lastIndex
+}
+
 // Terminal records exactly one protocol-defined success terminal.
 func (l *StreamLifecycle) Terminal() error {
 	if l.state != StreamStarted {

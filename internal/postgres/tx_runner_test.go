@@ -145,17 +145,29 @@ func copyExternalKeyRowInto(row *sqlc.RouterModelRouterExternalAPIKey, dest []an
 	for i, v := range values {
 		switch target := dest[i].(type) {
 		case *uuid.UUID:
-			*target = v.(uuid.UUID)
+			if err := setFrom(target, v); err != nil {
+				return err
+			}
 		case *[]byte:
-			*target = v.([]byte)
+			if err := setFrom(target, v); err != nil {
+				return err
+			}
 		case *string:
-			*target = v.(string)
+			if err := setFrom(target, v); err != nil {
+				return err
+			}
 		case **string:
-			*target = v.(*string)
+			if err := setFrom(target, v); err != nil {
+				return err
+			}
 		case *[]string:
-			*target = v.([]string)
+			if err := setFrom(target, v); err != nil {
+				return err
+			}
 		case *pgtype.Timestamp:
-			*target = v.(pgtype.Timestamp)
+			if err := setFrom(target, v); err != nil {
+				return err
+			}
 		default:
 			return errors.New("unsupported scan target type")
 		}

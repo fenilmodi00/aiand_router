@@ -7,18 +7,16 @@ import (
 	"errors"
 	"net/http"
 	"strings"
-	"time"
 
 	"aiand-os/router/internal/auth"
 	"aiand-os/router/internal/observability"
-	"aiand-os/router/internal/observability/otel"
 	"aiand-os/router/internal/requestcontext"
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/catalog"
 	"aiand-os/router/internal/router/policy"
 	"aiand-os/router/internal/router/sessionpin"
+	"aiand-os/router/internal/telemetry"
 	"aiand-os/router/internal/translate"
-
 	"github.com/google/uuid"
 )
 
@@ -162,9 +160,9 @@ func (s *Service) handleRouterFeedbackCommand(
 			RequestID:      telemetryRequestID,
 			RouteID:        telemetryRouteID,
 		}
-		// context.Background(): ctx may already be canceled (client disconnected
+		// context.WithoutCancel: ctx may already be canceled (client disconnected
 		// mid-command); don't drop feedback the user explicitly typed.
-		if err := s.feedbackStore.InsertRouterFeedback(context.Background(), event); err != nil {
+		if err := s.feedbackStore.InsertRouterFeedback(context.WithoutCancel(ctx), event); err != nil {
 			log.Error("/router-feedback: feedback insert failed", "err", err)
 			return err
 		}
@@ -181,7 +179,7 @@ func (s *Service) handleRouterFeedbackCommand(
 			Source:         "router-feedback-command",
 			RouterUserID:   routerUserID,
 		}
-		if err := s.feedbackRepo.Upsert(context.Background(), upsertParams); err != nil {
+		if err := s.feedbackRepo.Upsert(context.WithoutCancel(ctx), upsertParams); err != nil {
 			log.Error("/router-feedback: request_feedback upsert failed", "rated_request_id", telemetryRequestID, "err", err)
 		}
 	}
@@ -203,8 +201,8 @@ func (s *Service) handleRouterFeedbackCommand(
 		s.reportRouterFeedback(ctx, registered.feedback, strategy, externalID, installationID, sessionKey, role, routerUserID, clientID, env.Model(), servedModel, rating, feedback, cmd.SuggestedLabel, RouterFeedbackSourceUser, trainingDelta, telemetryRequestID, telemetryRouteID)
 	}
 
-	now := time.Now()
-	attrs := otel.NewAttrBuilder(15).
+	now := s.clock.Now()
+	attrs := telemetry.NewAttrBuilder(15).
 		String("external_id", externalID).
 		String("router_user_id", routerUserID).
 		String("client.device_id", clientID.DeviceID).
@@ -224,13 +222,13 @@ func (s *Service) handleRouterFeedbackCommand(
 	if telemetryRouteID != "" {
 		attrs = attrs.String("feedback.route_id", telemetryRouteID)
 	}
-	otel.Record(ctx, otel.Span{
+	telemetry.Record(ctx, telemetry.Span{
 		Name:  routerFeedbackCommandSpanName,
 		Start: now,
 		End:   now,
 		Attrs: attrs.Build(),
 	})
-	otel.Flush(ctx)
+	telemetry.Flush(ctx)
 
 	log.Info("router.feedback.command",
 		"rating", rating,

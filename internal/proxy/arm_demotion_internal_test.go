@@ -437,7 +437,8 @@ func (s *rowBackedPinStore) ExpireAndDemoteModel(ctx context.Context, expired se
 		s.rows[expired.Role] = expired
 		return nil
 	}
-	if !(row.Strategy == expired.Strategy || (row.Strategy == "" && expired.Strategy != router.StrategyHMMBeta)) {
+	sameStrategy := row.Strategy == expired.Strategy || (row.Strategy == "" && expired.Strategy != router.StrategyHMMBeta)
+	if !sameStrategy {
 		return nil
 	}
 	demoted := row.DemotedModels
@@ -553,7 +554,6 @@ func TestMaybeDemoteArmAfterRescuedFailure_Classification(t *testing.T) {
 				rescuedPrimaryDecision("hmm:authoritative model=claude-opus-4-7"),
 				installationID,
 				nonZeroSessionKey(),
-				sessionpin.DefaultRole, sessionpin.DefaultRole,
 			)
 
 			if !tc.want {
@@ -614,7 +614,7 @@ func TestRescuedAndCommittedDemotionsAreIndependentlyFlagged(t *testing.T) {
 				context.Background(), true, false,
 				&providers.UpstreamErrorResponse{Status: http.StatusBadGateway},
 				rescuedPrimaryDecision("hmm:authoritative model=claude-opus-4-7"),
-				installationID, key, sessionpin.DefaultRole, sessionpin.DefaultRole,
+				installationID, key,
 			)
 
 			assert.Equal(t, tc.wantCommited, committed)
@@ -662,7 +662,6 @@ func TestMaybeDemoteArmAfterRescuedFailure_PinnedPrimarySkipped(t *testing.T) {
 				rescuedPrimaryDecision(tc.reason),
 				uuid.New(),
 				nonZeroSessionKey(),
-				sessionpin.DefaultRole, sessionpin.DefaultRole,
 			)
 
 			assert.Empty(t, demoted)
@@ -702,7 +701,6 @@ func TestMaybeDemoteArmAfterRescuedFailure_ClusterAllowlistPinSkipped(t *testing
 				rescuedPrimaryDecision("hmm:authoritative model=claude-opus-4-7"),
 				uuid.New(),
 				nonZeroSessionKey(),
-				sessionpin.DefaultRole, sessionpin.DefaultRole,
 			)
 
 			if !tc.wantDemoted {
@@ -731,7 +729,6 @@ func TestMaybeDemoteArmAfterRescuedFailure_PersistsWithoutExistingRow(t *testing
 		rescuedPrimaryDecision("hmm:authoritative model=claude-opus-4-7"),
 		uuid.New(),
 		nonZeroSessionKey(),
-		sessionpin.DefaultRole, sessionpin.DefaultRole,
 	)
 
 	assert.Equal(t, demotedArm, demoted)
@@ -893,12 +890,6 @@ func TestIsCommittedStreamFailure_SSEErrorFrameKeepsCause(t *testing.T) {
 			})
 		}
 	}
-}
-
-// The completion line's reason field is only populated on a real demotion.
-func TestArmDemotionReason(t *testing.T) {
-	assert.Equal(t, "", armDemotionReason(""))
-	assert.Equal(t, "committed_stream_failure", armDemotionReason(demotedArm))
 }
 
 // arm_demoted names the committed-stream strike when it landed and the

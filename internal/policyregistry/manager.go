@@ -2,10 +2,11 @@ package policyregistry
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"log/slog"
-	"math/rand/v2"
+	"math/big"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -268,6 +269,16 @@ func (m *Manager) AllRosterArms() ([]string, error) {
 // Roster returns the active harness-aware arm union for deployed-model discovery.
 func (m *Manager) Roster(context.Context) ([]string, error) { return m.AllRosterArms() }
 
+// DistributionRoster exposes the active policy for the dial preview.
+func (m *Manager) DistributionRoster(ctx context.Context) (*rosterdata.Roster, error) {
+	snapshot := m.Active()
+	if snapshot == nil || snapshot.Policy == nil {
+		return nil, ErrNoActivePolicy
+	}
+	roster, _ := snapshot.policyForStrategy(router.StrategyFromContext(ctx))
+	return roster, nil
+}
+
 // DynamicRouter loads one snapshot once per operation and delegates to its bound router.
 type DynamicRouter struct {
 	manager  *Manager
@@ -440,7 +451,8 @@ func jitteredInterval(base time.Duration) time.Duration {
 	if quarter == 0 {
 		return base
 	}
-	return base - quarter + time.Duration(rand.Int64N(int64(quarter*2)+1))
+	offset, _ := rand.Int(rand.Reader, big.NewInt(int64(quarter*2)+1))
+	return base - quarter + time.Duration(offset.Int64())
 }
 
 var _ router.Router = (*DynamicRouter)(nil)

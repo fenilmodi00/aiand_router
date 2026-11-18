@@ -2,15 +2,13 @@ package proxy
 
 import (
 	"context"
-	"time"
-
-	"aiand-os/router/internal/observability/otel"
 
 	"aiand-os/router/internal/requestcontext"
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/cache"
 	"aiand-os/router/internal/router/catalog"
 	"aiand-os/router/internal/subscriptions/entitlement"
+	"aiand-os/router/internal/telemetry"
 )
 
 type cacheMissReason string
@@ -90,10 +88,10 @@ func (s *Service) semanticCacheStoreAllowed(ctx context.Context, provenance cach
 // recordSemanticCacheMiss exports aggregate activity without replay identities.
 func (s *Service) recordSemanticCacheMiss(ctx context.Context) {
 	stats := s.semanticCache.Stats()
-	now := time.Now()
-	otel.Record(ctx, otel.Span{
+	now := s.clock.Now()
+	telemetry.Record(ctx, telemetry.Span{
 		Name: "router.cache_miss", Start: now, End: now,
-		Attrs: otel.NewAttrBuilder(6).
+		Attrs: telemetry.NewAttrBuilder(6).
 			Bool("cache.hit", false).
 			String("cache.reason", string(cacheMissNoCompatibleEntry)).
 			Int64("cache.hits", int64(stats.Hits)).

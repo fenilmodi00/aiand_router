@@ -25,7 +25,7 @@ const requestedWindowModel = "z-ai/glm-5.3"
 // pastRequestedWindowPrompt estimates past the requested model's window.
 var pastRequestedWindowPrompt = strings.Repeat("overflow ", 500_000)
 
-func proxyRequestedWindowOverflow(t *testing.T, prompt string, stream bool, upstreamErr error) (*httptest.ResponseRecorder, error, *fakeProvider) {
+func proxyRequestedWindowOverflow(t *testing.T, prompt string, stream bool, upstreamErr error) error {
 	t.Helper()
 	upstream := &fakeProvider{proxyErr: upstreamErr}
 	svc := proxy.NewService(
@@ -40,7 +40,7 @@ func proxyRequestedWindowOverflow(t *testing.T, prompt string, stream bool, upst
 	body := []byte(`{"model":"` + requestedWindowModel + `","max_tokens":1024,"stream":` + streamField + `,"messages":[{"role":"user","content":"` + prompt + `"}]}`)
 	rec := httptest.NewRecorder()
 	err := svc.ProxyMessages(authedCtx(overflowInstallationID), body, rec, httptest.NewRequest(http.MethodPost, "/v1/messages", nil))
-	return rec, err, upstream
+	return err
 }
 
 func requireDispatchKind(t *testing.T, err error) proxy.DispatchErrorKind {
@@ -53,7 +53,7 @@ func requireDispatchKind(t *testing.T, err error) proxy.DispatchErrorKind {
 
 // Rate limits are a throttle, not a size signal: compaction would not fix them.
 func TestProxyMessages_RateLimitPastRequestedWindowIsNotOverflow(t *testing.T) {
-	_, err, _ := proxyRequestedWindowOverflow(t, pastRequestedWindowPrompt, false, &providers.UpstreamErrorResponse{Status: http.StatusTooManyRequests})
+	err := proxyRequestedWindowOverflow(t, pastRequestedWindowPrompt, false, &providers.UpstreamErrorResponse{Status: http.StatusTooManyRequests})
 
 	assert.NotEqual(t, proxy.DispatchErrorContextWindowExceeded, requireDispatchKind(t, err))
 }
@@ -61,7 +61,7 @@ func TestProxyMessages_RateLimitPastRequestedWindowIsNotOverflow(t *testing.T) {
 // While the history still fits the requested model, the client's own budget is
 // accurate and a 5xx is transient; compacting would discard context for nothing.
 func TestProxyMessages_PreOutputFailureWithinRequestedWindowIsNotOverflow(t *testing.T) {
-	_, err, _ := proxyRequestedWindowOverflow(t, "hi", false, &providers.UpstreamErrorResponse{Status: http.StatusBadGateway})
+	err := proxyRequestedWindowOverflow(t, "hi", false, &providers.UpstreamErrorResponse{Status: http.StatusBadGateway})
 
 	assert.NotEqual(t, proxy.DispatchErrorContextWindowExceeded, requireDispatchKind(t, err))
 }

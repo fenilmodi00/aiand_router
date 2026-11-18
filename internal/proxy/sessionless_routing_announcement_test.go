@@ -104,17 +104,6 @@ func TestSessionlessRoutingAnnouncementMessages(t *testing.T) {
 	}
 }
 
-func announcementReplayBody(t *testing.T, history ...string) []byte {
-	t.Helper()
-	input := []map[string]any{{"role": "user", "content": "Repository instructions for a synthetic parent and child."}}
-	for _, text := range history {
-		input = append(input, map[string]any{"role": "assistant", "content": []map[string]string{{"type": "output_text", "text": text}}})
-	}
-	body, err := json.Marshal(map[string]any{"model": "auto", "stream": true, "instructions": "Complete the requested task.", "input": input})
-	require.NoError(t, err)
-	return body
-}
-
 // The upstream #1908 Responses end-to-end case (TestSessionlessRoutingAnnouncementResponses)
 // was dropped: upstream exercises it through a non-passthrough (OpenRouter)
 // decision where the routing badge reaches the client through the translating

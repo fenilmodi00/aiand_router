@@ -47,9 +47,9 @@ var RouterFeedbackLabels = map[string]struct{}{
 // command from env.body and returns the feedback text. A bare command still
 // matches (found=true, empty Feedback) so user-issued commands can receive
 // usage guidance. Returns (zero, false) when no command is present.
-func (env *RequestEnvelope) ExtractRouterFeedbackCommand() (RouterFeedbackResult, bool) {
+func (e *RequestEnvelope) ExtractRouterFeedbackCommand() (RouterFeedbackResult, bool) {
 	var res RouterFeedbackResult
-	found, fromToolResult := env.extractLeadingCommandWithSource(func(text string, _ bool) (bool, string) {
+	found, fromToolResult := e.extractLeadingCommandWithSource(func(text string, _ bool) (bool, string) {
 		r, ok, stripped := parseRouterFeedbackCommand(text)
 		if ok {
 			res = r
@@ -63,13 +63,13 @@ func (env *RequestEnvelope) ExtractRouterFeedbackCommand() (RouterFeedbackResult
 // StripRouterFeedbackArtifacts removes prior router-feedback command turns and
 // synthetic ack turns from model-visible history. The current trailing user
 // command is preserved so ExtractRouterFeedbackCommand can still record it.
-func (env *RequestEnvelope) StripRouterFeedbackArtifacts() int {
-	switch env.format {
+func (e *RequestEnvelope) StripRouterFeedbackArtifacts() int {
+	switch e.format {
 	case FormatAnthropic, FormatOpenAI:
 	default:
 		return 0
 	}
-	msgs := gjson.GetBytes(env.body, "messages")
+	msgs := gjson.GetBytes(e.body, "messages")
 	if !msgs.IsArray() {
 		return 0
 	}
@@ -110,12 +110,12 @@ func (env *RequestEnvelope) StripRouterFeedbackArtifacts() int {
 	if removed == 0 {
 		return 0
 	}
-	return env.setMessages(rebuilt, removed)
+	return e.setMessages(rebuilt, removed)
 }
 
 // parseRouterFeedbackCommand scans text for a /router-feedback (alias /rf)
 // directive on the first non-empty line, applying the same leading-line +
-// injected-prefix guards as parseForceModelCommand (see that function for the
+// injected-prefix guards as parseForceModelCommandFromSource (see that function for the
 // rationale; the router-side alias serves clients without local slash-command
 // expansion). Codex exec results get a narrow exception for their known
 // "Script completed" preamble. Unlike /force-model, everything after the
@@ -183,34 +183,10 @@ func parseRouterFeedbackCommand(text string) (res RouterFeedbackResult, found bo
 }
 
 func isRouterFeedbackCommandOnlyContent(content gjson.Result) bool {
-	switch {
-	case content.Type == gjson.String:
-		_, found, stripped := parseRouterFeedbackCommand(content.String())
-		return found && isOnlyInjectedCommandText(stripped)
-	case content.Type == gjson.JSON && content.IsArray():
-		seenCommand := false
-		allSynthetic := true
-		content.ForEach(func(_, block gjson.Result) bool {
-			if block.Get("type").String() != "text" {
-				allSynthetic = false
-				return false
-			}
-			text := block.Get("text").String()
-			if strings.TrimSpace(text) == "" || isClaudeCodeInjectedBlock(text) {
-				return true
-			}
-			_, found, stripped := parseRouterFeedbackCommand(text)
-			if found && isOnlyInjectedCommandText(stripped) {
-				seenCommand = true
-				return true
-			}
-			allSynthetic = false
-			return false
-		})
-		return seenCommand && allSynthetic
-	default:
-		return false
-	}
+	return commandOnlyContent(content, func(text string) (bool, string) {
+		_, found, stripped := parseRouterFeedbackCommand(text)
+		return found, stripped
+	})
 }
 
 func isOnlyInjectedCommandText(text string) bool {
@@ -219,32 +195,7 @@ func isOnlyInjectedCommandText(text string) bool {
 }
 
 func isRouterFeedbackAckOnlyContent(content gjson.Result) bool {
-	switch {
-	case content.Type == gjson.String:
-		return isRouterFeedbackAckText(content.String())
-	case content.Type == gjson.JSON && content.IsArray():
-		seenAck := false
-		allSynthetic := true
-		content.ForEach(func(_, block gjson.Result) bool {
-			if block.Get("type").String() != "text" {
-				allSynthetic = false
-				return false
-			}
-			text := block.Get("text").String()
-			if strings.TrimSpace(text) == "" {
-				return true
-			}
-			if isRouterFeedbackAckText(text) {
-				seenAck = true
-				return true
-			}
-			allSynthetic = false
-			return false
-		})
-		return seenAck && allSynthetic
-	default:
-		return false
-	}
+	return ackOnlyContent(content, isRouterFeedbackAckText)
 }
 
 func isRouterFeedbackAckText(text string) bool {

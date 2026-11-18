@@ -72,7 +72,7 @@ func (c *ca) writePublicCert(dir string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	return pem.Encode(f, &pem.Block{Type: "CERTIFICATE", Bytes: c.cert.Raw})
 }
 
@@ -122,6 +122,7 @@ func (c *ca) leafFor(host string) (*tls.Certificate, error) {
 // GetCertificate, so SNI selects the right identity per CONNECT target.
 func (c *ca) tlsConfigFor() *tls.Config {
 	return &tls.Config{
+		MinVersion: tls.VersionTLS12,
 		GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 			host := hello.ServerName
 			if host == "" {

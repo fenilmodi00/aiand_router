@@ -342,6 +342,7 @@ func (t *ResponsesToOpenAIChatWriter) translateEvent(raw []byte) error {
 		}
 		t.captureFinalResponse(resp)
 		return nil
+	default:
 	}
 	return nil
 }
@@ -377,6 +378,7 @@ func (t *ResponsesToOpenAIChatWriter) handleOutputItemDone(data []byte) error {
 			return nil
 		}
 		return t.emitReasoningDelta(oi, joinReasoningSummary(item.Get("summary")))
+	case responsesCustomToolCallItem, responsesComputerCallItem:
 	}
 	return nil
 }
@@ -393,17 +395,7 @@ func (t *ResponsesToOpenAIChatWriter) bufferToolArgs(data []byte, field string, 
 
 // settleTools reconciles unfinished calls before committing the stream terminal.
 func (t *ResponsesToOpenAIChatWriter) settleTools(resp gjson.Result) error {
-	for index, item := range resp.Get("output").Array() {
-		if responsesItemType(item.Get("type").String()) == responsesFunctionCallItem {
-			t.toolLedger.Close(index, item.Get("call_id").String(), item.Get("name").String(), item.Get("arguments").String())
-		}
-	}
-	for _, entry := range t.toolLedger.Entries() {
-		if err := t.emitToolCall(entry.SourceIndex); err != nil {
-			return err
-		}
-	}
-	return nil
+	return settleResponseToolCalls(t.toolLedger, resp, t.emitToolCall)
 }
 
 // captureFinalResponse records usage + finish reason from a terminal event's
@@ -728,27 +720,6 @@ func (t *ResponsesToOpenAIChatWriter) writeChunkHeader() {
 
 func (t *ResponsesToOpenAIChatWriter) flushEvent() error {
 	return sse.FlushWriter(t.bw, t.flusher)
-}
-
-// openAIErrorBody builds a chat/completions-shape error envelope.
-func openAIErrorBody(errType, msg string) []byte {
-	if errType == "" {
-		errType = "api_error"
-	}
-	if msg == "" {
-		msg = "upstream Responses request failed"
-	}
-	jw := newJSONWriter()
-	jw.Obj()
-	jw.Key("error")
-	jw.Obj()
-	jw.Key("message")
-	jw.Str(msg)
-	jw.Key("type")
-	jw.Str(errType)
-	jw.EndObj()
-	jw.EndObj()
-	return jw.Bytes()
 }
 
 var (

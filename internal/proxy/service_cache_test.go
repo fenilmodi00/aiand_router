@@ -42,15 +42,11 @@ func embeddingFixture(seed float32) []float32 {
 }
 
 // anthropicBody uses an ordinary text prompt with a MainLoop output budget.
-func anthropicBody(prompt string, stream bool) []byte {
-	streamLit := "false"
-	if stream {
-		streamLit = "true"
-	}
+func anthropicBody(prompt string) []byte {
 	return []byte(`{
 		"model":"` + catalog.ModelIDGLM53.String() + `",
 		"max_tokens":4096,
-		"stream":` + streamLit + `,
+		"stream":false,
 		"messages":[{"role":"user","content":"` + prompt + `"}]
 	}`)
 }
@@ -88,7 +84,7 @@ func TestService_Cache_HeuristicDecisionBypasses(t *testing.T) {
 	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: provider}, nil, false, c, nil, false, providers.ProviderAIAND, catalog.ModelIDGLM53Flash.String(), nil)
 
 	ctx := proxyContextWithExternalID(t, "tenant-1")
-	body := anthropicBody("ask", false)
+	body := anthropicBody("ask")
 
 	rec1 := httptest.NewRecorder()
 	httpReq1 := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
@@ -110,7 +106,7 @@ func TestService_Cache_MissingExternalIDBypasses(t *testing.T) {
 	c := cache.New(cache.DefaultConfig())
 	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: provider}, nil, false, c, nil, false, providers.ProviderAIAND, catalog.ModelIDGLM53Flash.String(), nil)
 
-	body := anthropicBody("ask", false)
+	body := anthropicBody("ask")
 
 	// No externalID → cache bypassed (per-tenant scope is the only isolation).
 	ctx := context.Background()
@@ -147,7 +143,7 @@ func TestService_Cache_HitOmitsFeedbackLink(t *testing.T) {
 		WithFeedback(nil, signer, "https://router.example.com")
 
 	ctx := context.WithValue(proxyContextWithExternalID(t, "tenant-1"), proxy.InstallationIDContextKey{}, uuid.New().String())
-	body := anthropicBody("ping", false)
+	body := anthropicBody("ping")
 
 	rec1 := httptest.NewRecorder()
 	require.NoError(t, svc.ProxyMessages(ctx, body, rec1, httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))))
@@ -170,7 +166,7 @@ func TestService_Cache_DisabledByNilCache(t *testing.T) {
 	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: provider}, nil, false, nil, nil, false, providers.ProviderAIAND, catalog.ModelIDGLM53Flash.String(), nil)
 
 	ctx := proxyContextWithExternalID(t, "tenant-1")
-	body := anthropicBody("ask", false)
+	body := anthropicBody("ask")
 
 	rec1 := httptest.NewRecorder()
 	httpReq1 := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
@@ -192,7 +188,7 @@ type cacheTestSurface struct {
 
 func cacheTestSurfaces() []cacheTestSurface {
 	return []cacheTestSurface{
-		{"messages", anthropicBody("prompt", false), (*proxy.Service).ProxyMessages},
+		{"messages", anthropicBody("prompt"), (*proxy.Service).ProxyMessages},
 		{"chat", []byte(`{"model":"auto","max_tokens":4096,"messages":[{"role":"user","content":"prompt"}]}`), (*proxy.Service).ProxyOpenAIChatCompletion},
 	}
 }

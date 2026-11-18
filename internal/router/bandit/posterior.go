@@ -54,7 +54,7 @@ func LoadPosterior(path string) (*Posterior, error) {
 			if a.Variance < 0 {
 				return nil, fmt.Errorf("bandit: negative variance for cluster %d model %q", cid, model)
 			}
-			cell[model] = Arm{Mean: a.Mean, Variance: a.Variance}
+			cell[model] = Arm(a)
 		}
 		cells[cid] = cell
 	}

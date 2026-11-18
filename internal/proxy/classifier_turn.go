@@ -89,6 +89,7 @@ func (s *Service) runClassifierTurn(ctx context.Context, request router.Request,
 	case turntype.TitleGen, turntype.Probe, turntype.Compaction, turntype.Classifier:
 		observability.FromContext(ctx).Warn("Classifier thread rejects utility request", "turn_type", turn.TurnType)
 		return turn, router.ErrClassifierHistoryUnavailable
+	case turntype.MainLoop, turntype.ToolResult, turntype.SubAgentDispatch, turntype.Recap:
 	}
 	input, ok := ctx.Value(classifierInputContextKey{}).(router.ClassifierContext)
 	if !ok || request.ForceModel != "" || request.ForceCluster != "" {
@@ -105,7 +106,7 @@ func (s *Service) runClassifierTurn(ctx context.Context, request router.Request,
 		turn.SessionKey = sessionKey
 	}
 	turn.AuthoritativePerTurn = true
-	request.PolicyTurnContext = buildPolicyTurnContext(request, turn, sessionpin.Pin{}, sessionpin.Pin{})
+	request.PolicyTurnContext = buildPolicyTurnContext(request, turn, sessionpin.Pin{}, sessionpin.Pin{}, s.clock.Now())
 	decision, err := s.routeFor(ctx, request)
 	if err != nil {
 		return turn, err

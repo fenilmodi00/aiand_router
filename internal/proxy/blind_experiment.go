@@ -6,10 +6,10 @@ import (
 	"fmt"
 
 	"aiand-os/router/internal/auth"
-	"aiand-os/router/internal/observability/otel"
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/catalog"
 	"aiand-os/router/internal/router/cluster"
+	"aiand-os/router/internal/telemetry"
 )
 
 const blindExperimentPublicDecisionReason = "cluster_argmax"
@@ -58,28 +58,30 @@ const (
 
 // callerRoutingState mirrors withUserSettings precedence: an explicit routing
 // policy suppresses the blind experiment, which otherwise decides the arm.
+// The experiment's assigned state is labeled before the default, so its
+// passthrough (control) group is never reported as an unassigned turn.
 func callerRoutingState(ctx context.Context) (passthrough bool, source callerRoutingSource) {
 	mode := auth.RoutingPolicyFrom(ctx).Mode
 	if mode == auth.RoutingPolicyPassthrough || mode == auth.RoutingPolicyAssigned {
 		return auth.RoutingPassthroughFrom(ctx), callerRoutingSourceRoutingPolicy
 	}
 	state, active := auth.BlindExperimentFrom(ctx)
-	if !active {
-		return false, callerRoutingSourceDefault
+	if active {
+		source = callerRoutingSourceExperiment
+		if state.CohortExperimentID != "" {
+			source = callerRoutingSourceCohort
+		}
+		return state.Arm == auth.BlindExperimentArmPassthrough, source
 	}
-	source = callerRoutingSourceExperiment
-	if state.CohortExperimentID != "" {
-		source = callerRoutingSourceCohort
-	}
-	return state.Arm == auth.BlindExperimentArmPassthrough, source
+	return false, callerRoutingSourceDefault
 }
 
 // applyCallerRoutingAttrs records the caller's assigned state, not the turn's
 // outcome: force-model and policy pins still rewrite some experiment-passthrough
 // turns. Spans are internal, so this does not disclose the blind arm to clients.
-func applyCallerRoutingAttrs(ctx context.Context, b *otel.AttrBuilder) *otel.AttrBuilder {
+func applyCallerRoutingAttrs(ctx context.Context, b *telemetry.AttrBuilder) {
 	passthrough, source := callerRoutingState(ctx)
-	return b.Bool("routing.caller_passthrough", passthrough).
+	b.Bool("routing.caller_passthrough", passthrough).
 		String("routing.caller_routing_source", string(source))
 }
 
@@ -174,7 +176,7 @@ func blindExperimentOutcomeFor(ctx context.Context, state auth.BlindExperimentSt
 	outcome := blindExperimentOutcome{
 		source:           source,
 		treatmentApplied: blindExperimentTreatmentApplied(state.Arm, source),
-		baselineModel:    blindExperimentBaselineModel(ctx, requestedModel),
+		baselineModel:    blindExperimentBaselineModel(requestedModel),
 	}
 	if source != auth.BlindExperimentModelSourceNotDispatched && outcome.baselineModel != "" {
 		if servedModel == "" {
@@ -189,7 +191,7 @@ func blindExperimentOutcomeFor(ctx context.Context, state auth.BlindExperimentSt
 // blindExperimentBaselineModel is the model the client would run without
 // routing: its requested model, or "" for an automatic-routing alias whose
 // client default the fork does not resolve.
-func blindExperimentBaselineModel(ctx context.Context, requestedModel string) string {
+func blindExperimentBaselineModel(requestedModel string) string {
 	if router.IsRoutingModel(requestedModel) {
 		return ""
 	}
@@ -198,7 +200,7 @@ func blindExperimentBaselineModel(ctx context.Context, requestedModel string) st
 
 // applyBlindExperimentOutcomeAttrs records the assigned arm and what actually
 // chose the model. Spans are internal, so this does not disclose the arm to clients.
-func applyBlindExperimentOutcomeAttrs(ctx context.Context, b *otel.AttrBuilder, routed *turnLoopResult, requestedModel, servedModel string) {
+func applyBlindExperimentOutcomeAttrs(ctx context.Context, b *telemetry.AttrBuilder, routed *turnLoopResult, requestedModel, servedModel string) {
 	state, active := auth.BlindExperimentFrom(ctx)
 	if !active {
 		return

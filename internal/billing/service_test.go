@@ -50,7 +50,6 @@ type fakeRepo struct {
 	autopayEnabled   bool
 	autopayThreshold int64
 	autopayErr       error
-	autopayOwners    []billing.Owner
 	userMonthSpent   int64
 	userMonthLimit   *int64
 	userMonthErr     error
@@ -115,18 +114,11 @@ func (r *fakeRepo) GetOrgMonthlySpendAndLimit(_ context.Context, _ string) (int6
 
 func (r *fakeRepo) GetAutopayConfig(_ context.Context, owner billing.Owner) (bool, int64, error) {
 	r.mu.Lock()
-	r.autopayOwners = append(r.autopayOwners, owner)
-	r.mu.Unlock()
+	defer r.mu.Unlock()
 	if r.autopayErr != nil {
 		return false, 0, r.autopayErr
 	}
 	return r.autopayEnabled, r.autopayThreshold, nil
-}
-
-func (r *fakeRepo) autopayConfigOwners() []billing.Owner {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return append([]billing.Owner(nil), r.autopayOwners...)
 }
 
 // fakeAutopayNotifier records the owners the service asked to recharge.
@@ -695,4 +687,33 @@ func TestDebitForInference_ByokFeeCrossingSignalsAutopay(t *testing.T) {
 	// Pre-debit 1_000_000 (>= 975_000), post-debit 950_000 (< 975_000) = a crossing.
 	assert.Equal(t, []billing.Owner{billing.OrganizationOwner("org_byok")}, notifier.calls(),
 		"a BYOK fee that crosses the autopay threshold must signal a recharge")
+}
+
+func TestDebitForInference_UnfundedTurnChargesNoByokFee(t *testing.T) {
+	// A turn the organization cannot pay for runs on the customer's own key;
+	// the fee must not deepen a depleted balance or push spend past a cap.
+	for reason, wantFee := range map[billing.SubscriptionOnlyReason]int64{
+		billing.SubscriptionOnlyCreditsDepleted: 0,
+		billing.SubscriptionOnlySpendCapReached: 0,
+		billing.SubscriptionOnlyLinkedFirst:     -5_000_000,
+	} {
+		t.Run(string(reason), func(t *testing.T) {
+			repo := &fakeRepo{balanceRowExists: true, balanceMicros: 1_000_000_000}
+			svc := billing.NewService(repo).WithByokFeeRate(0.05)
+			_, err := svc.DebitForInference(billing.WithSubscriptionOnly(context.Background(), reason), billing.DebitInferenceParams{
+				OrganizationID:  "org_byok",
+				RouterRequestID: "req_unfunded",
+				Model:           "m",
+				Provider:        providers.ProviderAIAND,
+				InputTokens:     100_000_000,
+				Pricing:         catalog.Pricing{InputUSDPer1M: 1.00},
+				ByokServed:      true,
+			})
+			require.NoError(t, err)
+			require.Len(t, repo.ledgerCalls, 1)
+			assert.Equal(t, int64(0), repo.ledgerCalls[0].DeltaUsdMicros)
+			assert.Equal(t, int64(100_000_000), repo.ledgerCalls[0].NotionalCostMicros, "the notional trail is kept")
+			assert.Equal(t, wantFee, repo.ledgerCalls[0].FeeUsdMicros)
+		})
+	}
 }

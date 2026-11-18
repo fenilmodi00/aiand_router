@@ -21,7 +21,7 @@ func TestForceModelHeader_PersistsEffortOnPin(t *testing.T) {
 		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil)
 
 	env := forceCommandEnv(t)
-	req, err := http.NewRequest(http.MethodPost, "/v1/messages", nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", nil)
 	require.NoError(t, err)
 	req.Header.Set(ForceModelHeader, "opus:high")
 

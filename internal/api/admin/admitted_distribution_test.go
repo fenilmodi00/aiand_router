@@ -13,7 +13,6 @@ import (
 	"aiand-os/router/internal/api/admin"
 	"aiand-os/router/internal/policyregistry"
 	"aiand-os/router/internal/router"
-	"aiand-os/router/internal/router/cluster"
 	"aiand-os/router/internal/router/hmm/rosterdata"
 )
 
@@ -30,20 +29,20 @@ func profileDistributionSnapshot(arm string) *policyregistry.Snapshot {
 func TestAdmittedRoutingDistributionUsesEachRequestsPolicy(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
-	engine.GET("/v1/router/routing-distribution", admin.AdmittedRoutingDistributionHandler(policyregistry.AdmittedRosterSource{}))
+	engine.GET("/v1/router/routing-distribution", admin.RoutingDistributionHandler(policyregistry.AdmittedRosterSource{}))
 	for _, profile := range []struct{ arm, model string }{
 		{"deepseek/deepseek-v4-pro", "deepseek/deepseek-v4-pro"},
 		{"z-ai/glm-5.3", "z-ai/glm-5.3"},
 		{"deepseek/deepseek-v4-pro", "deepseek/deepseek-v4-pro"},
 	} {
 		for _, strategy := range []router.Strategy{"", router.StrategyHMM, router.StrategyHMMEmbedding} {
-			request := httptest.NewRequest(http.MethodGet, "/v1/router/routing-distribution?grid=2&strategy="+string(strategy), nil)
+			request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/router/routing-distribution?grid=2&strategy="+string(strategy), nil)
 			request = request.WithContext(policyregistry.WithServingSnapshot(request.Context(), profileDistributionSnapshot(profile.arm)))
 			recorder := httptest.NewRecorder()
 			engine.ServeHTTP(recorder, request)
 			require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
 			var response struct {
-				Points []cluster.DistributionPoint `json:"points"`
+				Points []router.DistributionPoint `json:"points"`
 			}
 			require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &response))
 			require.Len(t, response.Points, 2)
@@ -58,9 +57,9 @@ func TestAdmittedRoutingDistributionUsesEachRequestsPolicy(t *testing.T) {
 func TestAdmittedRoutingDistributionFailsClosedWithoutSnapshot(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
-	engine.GET("/v1/router/routing-distribution", admin.AdmittedRoutingDistributionHandler(policyregistry.AdmittedRosterSource{}))
+	engine.GET("/v1/router/routing-distribution", admin.RoutingDistributionHandler(policyregistry.AdmittedRosterSource{}))
 	for _, strategy := range []router.Strategy{"", router.StrategyHMM, router.StrategyHMMEmbedding} {
-		request := httptest.NewRequest(http.MethodGet, "/v1/router/routing-distribution?strategy="+string(strategy), nil)
+		request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/router/routing-distribution?strategy="+string(strategy), nil)
 		recorder := httptest.NewRecorder()
 		engine.ServeHTTP(recorder, request)
 		assert.Equal(t, http.StatusServiceUnavailable, recorder.Code)
@@ -70,10 +69,10 @@ func TestAdmittedRoutingDistributionFailsClosedWithoutSnapshot(t *testing.T) {
 func TestAdmittedRoutingDistributionRejectsNonHMMAndAppliesExclusions(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
-	engine.GET("/v1/router/routing-distribution", admin.AdmittedRoutingDistributionHandler(policyregistry.AdmittedRosterSource{}))
+	engine.GET("/v1/router/routing-distribution", admin.RoutingDistributionHandler(policyregistry.AdmittedRosterSource{}))
 	for _, query := range []string{"strategy=" + string(router.StrategyCluster), "strategy=" + string(router.StrategyRL), "strategy=" + string(router.StrategyHMMBeta), "strategy=unknown", "excluded_models=deepseek/deepseek-v4-pro", "grid=102"} {
-		request := httptest.NewRequest(http.MethodGet, "/v1/router/routing-distribution?"+query, nil)
-		request = request.WithContext(policyregistry.WithServingSnapshot(request.Context(), profileDistributionSnapshot("openai/gpt-5.6-luna")))
+		request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/router/routing-distribution?"+query, nil)
+		request = request.WithContext(policyregistry.WithServingSnapshot(request.Context(), profileDistributionSnapshot("deepseek/deepseek-v4-pro")))
 		recorder := httptest.NewRecorder()
 		engine.ServeHTTP(recorder, request)
 		assert.Equal(t, http.StatusBadRequest, recorder.Code, query)

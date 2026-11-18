@@ -3,11 +3,6 @@ package proxy_test
 import (
 	"io"
 	"net/http"
-
-	"aiand-os/router/internal/providers"
-	"aiand-os/router/internal/proxy"
-	"aiand-os/router/internal/router"
-	"aiand-os/router/internal/router/cache"
 )
 
 // responsesTextUpstream answers a text-only Responses stream whose usage
@@ -21,16 +16,4 @@ func responsesTextUpstream(w http.ResponseWriter) {
 	} {
 		_, _ = io.WriteString(w, "data: "+frame+"\n\n")
 	}
-}
-
-const chatCacheableTurnBody = `{"model":"auto","stream":false,"max_tokens":4096,
-  "messages":[{"role":"user","content":"summarize the release notes"}],
-  "reasoning_effort":"medium"}`
-
-func openAIChatServiceWithDecision(provider providers.Client, decision router.Decision, c *cache.Cache) *proxy.Service {
-	return proxy.NewService(
-		&fakeRouter{decision: decision},
-		map[string]providers.Client{providers.ProviderAIAND: provider},
-		nil, false, c, nil, false, providers.ProviderAIAND, "gpt-5.6-sol", nil,
-	)
 }

@@ -203,7 +203,7 @@ func (f *isoSessions) GetActiveSessionByTokenHash(ctx context.Context, params au
 	return f.getActiveLocked(ctx, params)
 }
 
-func (f *isoSessions) getActiveLocked(_ context.Context, params auth.GetActiveSessionParams) (*auth.ActiveSession, error) {
+func (f *isoSessions) getActiveLocked(ctx context.Context, params auth.GetActiveSessionParams) (*auth.ActiveSession, error) {
 	if f.revoked[params.TokenHash] {
 		return nil, auth.ErrSessionNotFound
 	}
@@ -212,11 +212,11 @@ func (f *isoSessions) getActiveLocked(_ context.Context, params auth.GetActiveSe
 		return nil, auth.ErrSessionNotFound
 	}
 	// Join account + installation (the SQL query's INNER JOINs).
-	account, err := f.accounts.GetAccountByID(context.Background(), row.AccountID)
+	account, err := f.accounts.GetAccountByID(ctx, row.AccountID)
 	if err != nil {
 		return nil, auth.ErrSessionNotFound
 	}
-	installations, err := f.installations.ListForExternalID(context.Background(), account.InstallationID)
+	installations, err := f.installations.ListForExternalID(ctx, account.InstallationID)
 	if err != nil || len(installations) == 0 {
 		return nil, auth.ErrSessionNotFound
 	}
@@ -669,14 +669,14 @@ type isoVerifier struct {
 	sessions *isoSessions
 }
 
-func (v *isoVerifier) VerifySessionToken(token string) (*auth.ActiveSession, error) {
-	return v.sessions.GetActiveSessionByTokenHash(context.Background(), auth.GetActiveSessionParams{
+func (v *isoVerifier) VerifySessionToken(ctx context.Context, token string) (*auth.ActiveSession, error) {
+	return v.sessions.GetActiveSessionByTokenHash(ctx, auth.GetActiveSessionParams{
 		TokenHash: auth.HashAPIKeySHA256(token),
 	})
 }
 
-func (v *isoVerifier) TouchSessionLastSeen(tokenHash string) error {
-	return v.sessions.TouchSessionLastSeen(context.Background(), auth.TouchSessionParams{TokenHash: tokenHash})
+func (v *isoVerifier) TouchSessionLastSeen(ctx context.Context, tokenHash string) error {
+	return v.sessions.TouchSessionLastSeen(ctx, auth.TouchSessionParams{TokenHash: tokenHash})
 }
 
 // engine mounts the admin surface the way server.go's selfhosted block does.
@@ -943,13 +943,13 @@ func TestIsolation_IDOR_SessionNeverResolvesToAnotherInstallation(t *testing.T) 
 	fx := newIsoFixture(t)
 	verifier := fx.verifier()
 
-	activeA, err := verifier.VerifySessionToken(fx.accounts["A"].token)
+	activeA, err := verifier.VerifySessionToken(t.Context(), fx.accounts["A"].token)
 	require.NoError(t, err)
 	require.Equal(t, fx.accounts["A"].account.ID, activeA.Account.ID)
 	require.Equal(t, fx.accounts["A"].installation.ID, activeA.Installation.ID)
 	require.NotEqual(t, fx.accounts["B"].installation.ID, activeA.Installation.ID)
 
-	activeB, err := verifier.VerifySessionToken(fx.accounts["B"].token)
+	activeB, err := verifier.VerifySessionToken(t.Context(), fx.accounts["B"].token)
 	require.NoError(t, err)
 	require.Equal(t, fx.accounts["B"].installation.ID, activeB.Installation.ID)
 }

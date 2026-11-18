@@ -117,11 +117,11 @@ func TestLoadCentroids_SizeMismatch(t *testing.T) {
 	// Header K=2 but only 1 centroid of data follows.
 	var b bytes.Buffer
 	b.WriteString(centroidsMagic)
-	binary.Write(&b, binary.LittleEndian, centroidsVersion)
-	binary.Write(&b, binary.LittleEndian, uint32(2))
-	binary.Write(&b, binary.LittleEndian, uint32(EmbedDim))
-	for i := 0; i < EmbedDim; i++ {
-		binary.Write(&b, binary.LittleEndian, math.Float32bits(0))
+	require.NoError(t, binary.Write(&b, binary.LittleEndian, centroidsVersion))
+	require.NoError(t, binary.Write(&b, binary.LittleEndian, uint32(2)))
+	require.NoError(t, binary.Write(&b, binary.LittleEndian, uint32(EmbedDim)))
+	for range EmbedDim {
+		require.NoError(t, binary.Write(&b, binary.LittleEndian, math.Float32bits(0)))
 	}
 	_, err := loadCentroids(b.Bytes())
 	require.Error(t, err)

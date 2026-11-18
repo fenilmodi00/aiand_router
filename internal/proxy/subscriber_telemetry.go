@@ -4,10 +4,10 @@ import (
 	"context"
 
 	"aiand-os/router/internal/billing"
-	"aiand-os/router/internal/observability/otel"
 	"aiand-os/router/internal/requestcontext"
 	"aiand-os/router/internal/router/catalog"
 	"aiand-os/router/internal/subscriptions/entitlement"
+	"aiand-os/router/internal/telemetry"
 )
 
 // applyServingTelemetry stamps the managed serving identity on every admitted turn.
@@ -51,6 +51,8 @@ func applySubscriberTelemetry(ctx context.Context, telemetry *InsertTelemetryPar
 	switch source {
 	case entitlement.CapacitySourceIncludedRouter:
 		telemetry.IncludedUsageMicros = &retail
+	case entitlement.CapacitySourcePrepaid, entitlement.CapacitySourceBillingOverride:
+		// Prepaid funds and billing overrides never draw on the included allowance.
 	}
 }
 
@@ -72,6 +74,8 @@ func markSubscriberTelemetryUnsettled(telemetry *InsertTelemetryParams) {
 	case entitlement.CapacitySourceIncludedRouter:
 		failed := true
 		telemetry.SettlementFailed = &failed
+	case entitlement.CapacitySourcePrepaid, entitlement.CapacitySourceBillingOverride:
+		// Only the included allowance is reconciled after the turn.
 	}
 }
 
@@ -80,6 +84,8 @@ func applySubscriberSettlementTelemetry(state subscriberSettlementState, telemet
 	case entitlement.CapacitySourceIncludedRouter:
 		failed := state.includedFailed
 		telemetry.SettlementFailed = &failed
+	case entitlement.CapacitySourcePrepaid, entitlement.CapacitySourceBillingOverride:
+		// Only the included allowance is reconciled after the turn.
 	}
 }
 
@@ -127,7 +133,7 @@ func applySubscriptionWinnerTelemetry(ctx context.Context, telemetry *InsertTele
 	}
 }
 
-func (s *Service) applySubscriptionSpanTelemetry(ctx context.Context, attrs *otel.AttrBuilder, requestedModel, selectedModel string) {
+func (s *Service) applySubscriptionSpanTelemetry(ctx context.Context, attrs *telemetry.AttrBuilder, requestedModel, selectedModel string) {
 	if keyID := apiKeyIDFromContext(ctx); keyID != "" {
 		attrs.String("api_key_id", keyID)
 	}
@@ -147,7 +153,7 @@ func (s *Service) applySubscriptionSpanTelemetry(ctx context.Context, attrs *ote
 
 // Decision attribution keeps admitted failures in their original family even
 // when credential selection rejects the request before an upstream span starts.
-func applySubscriptionDecisionSpanTelemetry(ctx context.Context, attrs *otel.AttrBuilder, requestedModel, selectedModel string) {
+func applySubscriptionDecisionSpanTelemetry(ctx context.Context, attrs *telemetry.AttrBuilder, requestedModel, selectedModel string) {
 	if keyID := apiKeyIDFromContext(ctx); keyID != "" {
 		attrs.String("api_key_id", keyID)
 	}

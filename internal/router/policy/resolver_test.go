@@ -330,10 +330,10 @@ func TestResolverIncludesLiveCandidateEconomics(t *testing.T) {
 	require.Len(t, resolved.Candidates, 1)
 	candidate := resolved.Candidates[0]
 	// kimi-k3: $3.00 input / $12.50 output per 1M, cache read at 0.50/3.00.
-	assert.Equal(t, 0.50/3.00, candidate.CacheReadMultiplier)
-	assert.Equal(t, 1.0, candidate.MarginalCostFactor)
-	assert.Equal(t, 3.0, candidate.EffectiveInputUSDPer1M)
-	assert.Equal(t, 12.5, candidate.EffectiveOutputUSDPer1M)
+	assert.InDelta(t, 0.50/3.00, candidate.CacheReadMultiplier, 1e-9)
+	assert.InDelta(t, 1.0, candidate.MarginalCostFactor, 1e-9)
+	assert.InDelta(t, 3.0, candidate.EffectiveInputUSDPer1M, 1e-9)
+	assert.InDelta(t, 12.5, candidate.EffectiveOutputUSDPer1M, 1e-9)
 	assert.InDelta(t, candidate.EstimatedCostUSD, candidate.EffectiveEstimatedCostUSD, 1e-12)
 }
 
@@ -354,8 +354,8 @@ func TestResolverUsesLongContextPricing(t *testing.T) {
 
 	require.Len(t, resolved.Candidates, 1)
 	candidate := resolved.Candidates[0]
-	assert.Equal(t, 1.00, candidate.InputUSDPer1M)
-	assert.Equal(t, 4.00, candidate.OutputUSDPer1M)
+	assert.InDelta(t, 1.00, candidate.InputUSDPer1M, 1e-9)
+	assert.InDelta(t, 4.00, candidate.OutputUSDPer1M, 1e-9)
 }
 
 func set(values ...string) map[string]struct{} {

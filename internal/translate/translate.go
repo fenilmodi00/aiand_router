@@ -25,12 +25,13 @@ func clientFacingModel(requestModel, upstreamModel string) string {
 
 // AnthropicToOpenAIResponse converts a non-streaming Anthropic response to OpenAI format.
 func AnthropicToOpenAIResponse(body []byte, requestModel string) ([]byte, error) {
-	return anthropicToOpenAIResponse(body, requestModel, usage.ParseAnthropic(gjson.GetBytes(body, "usage")))
+	translated, _, err := anthropicToOpenAIResponse(body, requestModel, usage.ParseAnthropic(gjson.GetBytes(body, "usage")), NewToolCallLedger())
+	return translated, err
 }
 
-func anthropicToOpenAIResponse(body []byte, requestModel string, facts usage.Facts) ([]byte, error) {
+func anthropicToOpenAIResponse(body []byte, requestModel string, facts usage.Facts, ledger *ToolCallLedger) ([]byte, []toolcheck.Issue, error) {
 	if !gjson.ValidBytes(body) {
-		return nil, fmt.Errorf("unmarshal anthropic response: invalid JSON")
+		return nil, nil, fmt.Errorf("unmarshal anthropic response: invalid JSON")
 	}
 	msgID := gjson.GetBytes(body, "id").String()
 	model := clientFacingModel(requestModel, gjson.GetBytes(body, "model").String())
@@ -52,7 +53,7 @@ func anthropicToOpenAIResponse(body []byte, requestModel string, facts usage.Fac
 	jw.Key("index")
 	jw.Int(0)
 	jw.Key("message")
-	acceptedCount := writeOpenAIMessageFromAnthropic(jw, gjson.GetBytes(body, "content"))
+	acceptedCount, issues := writeOpenAIMessageFromAnthropic(jw, gjson.GetBytes(body, "content"), ledger)
 	stopReason = reconciledChatToolFinish(stopReason, acceptedCount)
 	jw.Key("finish_reason")
 	jw.Str(stopReason)
@@ -61,17 +62,18 @@ func anthropicToOpenAIResponse(body []byte, requestModel string, facts usage.Fac
 	jw.Key("usage")
 	writeChatUsage(jw, facts)
 	jw.EndObj()
-	return jw.Bytes(), nil
+	return jw.Bytes(), issues, nil
 }
 
-func writeOpenAIMessageFromAnthropic(jw *jsonWriter, content gjson.Result) int {
+func writeOpenAIMessageFromAnthropic(jw *jsonWriter, content gjson.Result, ledger *ToolCallLedger) (int, []toolcheck.Issue) {
 	jw.Obj()
 	jw.Key("role")
 	jw.Str("assistant")
 
 	var textParts []string
+	var thinkingParts []string
 	var toolCallBlocks []AcceptedToolCall
-	ledger := NewToolCallLedger()
+	var issues []toolcheck.Issue
 
 	content.ForEach(func(index, block gjson.Result) bool {
 		switch block.Get("type").String() {
@@ -79,9 +81,16 @@ func writeOpenAIMessageFromAnthropic(jw *jsonWriter, content gjson.Result) int {
 			if t := block.Get("text").String(); t != "" {
 				textParts = append(textParts, t)
 			}
+		case "thinking":
+			if t := block.Get("thinking").String(); t != "" {
+				thinkingParts = append(thinkingParts, t)
+			}
 		case "tool_use":
 			sourceIndex := int(index.Int())
 			call := ledger.Close(sourceIndex, block.Get("id").String(), block.Get("name").String(), block.Get("input").Raw).Accept(nil)
+			if call.Issue != nil {
+				issues = append(issues, *call.Issue)
+			}
 			if call.Suppression == ToolCallNotSuppressed {
 				call.ID = ledger.ProjectID(sourceIndex, clampOpenAIToolCallID)
 				toolCallBlocks = append(toolCallBlocks, call)
@@ -96,31 +105,51 @@ func writeOpenAIMessageFromAnthropic(jw *jsonWriter, content gjson.Result) int {
 	} else {
 		jw.Null()
 	}
+	if len(thinkingParts) > 0 {
+		jw.Key("reasoning_content")
+		jw.Str(strings.Join(thinkingParts, "\n"))
+	}
 
 	if len(toolCallBlocks) > 0 {
-		jw.Key("tool_calls")
-		jw.Arr()
-		for _, block := range toolCallBlocks {
-			jw.Obj()
-			jw.Key("id")
-			jw.Str(block.ID)
-			jw.Key("type")
-			jw.Str("function")
-			jw.Key("function")
-			jw.Obj()
-			jw.Key("name")
-			jw.Str(block.Name)
-			// Anthropic input is a JSON object; OpenAI arguments is that object serialized as a string.
-			jw.Key("arguments")
-			jw.Str(block.Arguments)
-			jw.EndObj()
-			jw.EndObj()
+		calls := make([]openAIToolCall, len(toolCallBlocks))
+		for i, block := range toolCallBlocks {
+			calls[i] = openAIToolCall{id: block.ID, name: block.Name, args: block.Arguments}
 		}
-		jw.EndArr()
+		writeOpenAIToolCalls(jw, calls)
 	}
 
 	jw.EndObj()
-	return len(toolCallBlocks)
+	return len(toolCallBlocks), issues
+}
+
+// openAIToolCall is one resolved tool call as a chat/completions client sees it.
+type openAIToolCall struct {
+	id   string
+	name string
+	args string
+}
+
+// writeOpenAIToolCalls emits the chat/completions tool_calls array.
+func writeOpenAIToolCalls(jw *jsonWriter, calls []openAIToolCall) {
+	jw.Key("tool_calls")
+	jw.Arr()
+	for _, call := range calls {
+		jw.Obj()
+		jw.Key("id")
+		jw.Str(call.id)
+		jw.Key("type")
+		jw.Str("function")
+		jw.Key("function")
+		jw.Obj()
+		jw.Key("name")
+		jw.Str(call.name)
+		// Anthropic input is a JSON object; OpenAI arguments is that object serialized as a string.
+		jw.Key("arguments")
+		jw.Str(call.args)
+		jw.EndObj()
+		jw.EndObj()
+	}
+	jw.EndArr()
 }
 
 // mapStopReason converts an Anthropic stop_reason to an OpenAI finish_reason.
@@ -414,6 +443,7 @@ func reconciledChatToolFinish(reason string, accepted int) string {
 	switch chatFinishReason(reason) {
 	case chatFinishLength, chatFinishFiltered:
 		return reason
+	case chatFinishStop, chatFinishTools:
 	}
 	if accepted > 0 {
 		return string(chatFinishTools)

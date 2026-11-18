@@ -4,16 +4,19 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	"aiand-os/router/internal/billing"
 	"aiand-os/router/internal/dispatch"
 	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/proxy"
+	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/bandit"
 	"aiand-os/router/internal/router/cluster"
 	"aiand-os/router/internal/router/decisionmodel"
 	"aiand-os/router/internal/router/hmm"
+	"aiand-os/router/internal/router/hmm/selection"
 	"aiand-os/router/internal/router/policy"
 	"aiand-os/router/internal/router/rl"
 	"aiand-os/router/internal/translate"
@@ -129,13 +132,48 @@ func TestClassifyDispatchError_UpstreamErrorResponsePreservesStatus(t *testing.T
 	assert.Equal(t, http.StatusTooManyRequests, cls.Status)
 }
 
-func TestClassifyDispatchError_ClusterUnavailableRetriesAndLogsError(t *testing.T) {
-	cls, ok := proxy.ClassifyDispatchError(cluster.ErrClusterUnavailable)
+func TestClassifyDispatchError_RoutingUnavailableRetriesAndLogsError(t *testing.T) {
+	cls, ok := proxy.ClassifyDispatchError(router.ErrRoutingUnavailable)
 
 	require.True(t, ok)
+	assert.NotContains(t, cls.Message, "cluster")
 	assert.Equal(t, http.StatusServiceUnavailable, cls.Status)
 	assert.True(t, cls.RetryAfter)
 	assert.Equal(t, "error", cls.LogLevel)
+}
+
+// The cluster package keeps aliases of the routing sentinels while callers
+// migrate; both spellings and wrapped forms must classify identically.
+func TestClassifyDispatchError_RoutingSentinelsKeepStatusAndKind(t *testing.T) {
+	cases := []struct {
+		name       string
+		err        error
+		kind       proxy.DispatchErrorKind
+		status     int
+		retryAfter bool
+	}{
+		{"no eligible provider", router.ErrNoEligibleProvider, proxy.DispatchErrorNoEligibleProvider, http.StatusBadRequest, false},
+		{"cluster alias no eligible provider", cluster.ErrNoEligibleProvider, proxy.DispatchErrorNoEligibleProvider, http.StatusBadRequest, false},
+		{"allowlist empties pool", router.ErrAllowlistEmptiesPool, proxy.DispatchErrorAllowlistEmptiesPool, http.StatusBadRequest, false},
+		{"cluster alias allowlist empties pool", cluster.ErrAllowlistEmptiesPool, proxy.DispatchErrorAllowlistEmptiesPool, http.StatusBadRequest, false},
+		{"invalid routing knobs", router.ErrInvalidRoutingKnobs, proxy.DispatchErrorInvalidRoutingKnobs, http.StatusBadRequest, false},
+		{"cluster alias invalid routing knobs", cluster.ErrInvalidRoutingKnobs, proxy.DispatchErrorInvalidRoutingKnobs, http.StatusBadRequest, false},
+		{"cluster unavailable", cluster.ErrClusterUnavailable, proxy.DispatchErrorClusterUnavailable, http.StatusServiceUnavailable, true},
+		{"routing unavailable", router.ErrRoutingUnavailable, proxy.DispatchErrorClusterUnavailable, http.StatusServiceUnavailable, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, err := range []error{tc.err, fmt.Errorf("hard-pin: %w", tc.err)} {
+				cls, ok := proxy.ClassifyDispatchError(err)
+				require.True(t, ok, "expected %v to be classified", err)
+				assert.Equal(t, tc.kind, cls.Kind)
+				assert.Equal(t, tc.status, cls.Status)
+				assert.Equal(t, tc.retryAfter, cls.RetryAfter)
+				assert.NotContains(t, strings.ToLower(cls.Message), "cluster")
+				assert.NotContains(t, strings.ToLower(cls.LogMessage), "cluster")
+			}
+		})
+	}
 }
 
 func TestClassifyDispatchError_NoEligibleProviderIsClientErrorAndWarns(t *testing.T) {
@@ -261,6 +299,7 @@ func TestClassifyDispatchError_AnthropicCacheControlOverflowIs400(t *testing.T) 
 	assert.False(t, cls.RetryAfter)
 	assert.NotContains(t, cls.Message, "emit body:", "the internal wrap-chain prefix must not leak into the client-facing message")
 	assert.Contains(t, cls.Message, "got 5, maximum is 4", "the validator's dynamic detail must survive unwrapping")
+	assert.Equal(t, "Anthropic cache_control breakpoint capacity exceeded: got 5, maximum is 4", cls.Message)
 }
 
 func TestClassifyDispatchError_AnthropicCacheControlInvalidTTLOrderingIs400(t *testing.T) {
@@ -435,6 +474,32 @@ func TestClassifyDispatchError_QwenWarmingIsActionable(t *testing.T) {
 	classification, found := proxy.ClassifyDispatchError(fmt.Errorf("route: %w: %w", policy.ErrClassifierWarming, hmm.ErrHMMUnavailable))
 	require.True(t, found)
 	assert.Equal(t, http.StatusServiceUnavailable, classification.Status)
-	assert.Contains(t, classification.Message, "prepare-model")
+	assert.Equal(t, fmt.Sprintf("Qwen classifier is warming; run wv router prepare-model %s before retrying", router.ModelQwen), classification.Message)
 	assert.True(t, classification.RetryAfter)
+}
+
+func TestClassifyDispatchError_NoEligibleArmIsNotAnOutage(t *testing.T) {
+	err := fmt.Errorf("hmm_embedding: arm selection: %w: %w",
+		policy.ErrNoEligibleArm, hmm.ErrHMMUnavailable)
+
+	cls, ok := proxy.ClassifyDispatchError(err)
+
+	require.True(t, ok)
+	assert.Equal(t, http.StatusBadRequest, cls.Status)
+	assert.False(t, cls.RetryAfter, "every retry of the same turn meets the same eligibility")
+	assert.True(t, cls.NoClientRetry)
+	assert.NotContains(t, cls.Message, "Router unavailable")
+	assert.Contains(t, cls.Message, "No model can serve this request")
+}
+
+func TestClassifyDispatchError_InvalidClassifierOutputStaysAnOutage(t *testing.T) {
+	err := fmt.Errorf("hmm_embedding: arm selection: %w: %w",
+		selection.ErrInvalidClassifierOutput, hmm.ErrHMMUnavailable)
+
+	cls, ok := proxy.ClassifyDispatchError(err)
+
+	require.True(t, ok)
+	assert.Equal(t, proxy.DispatchErrorHMMUnavailable, cls.Kind)
+	assert.Equal(t, http.StatusServiceUnavailable, cls.Status)
+	assert.True(t, cls.RetryAfter)
 }

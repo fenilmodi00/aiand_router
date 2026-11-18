@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/tidwall/gjson"
+
 	"aiand-os/router/internal/providers"
 )
 
@@ -21,6 +23,10 @@ func (e *RequestEnvelope) PrepareAnthropicPassthrough(in http.Header) (providers
 	body, err = normalizeAnthropicSystemOnlyContentBlocks(body)
 	if err != nil {
 		return providers.PreparedRequest{}, fmt.Errorf("normalize system-only content blocks: %w", err)
+	}
+	body, err = placeAnthropicSystemMessagesBytes(body)
+	if err != nil {
+		return providers.PreparedRequest{}, fmt.Errorf("place system messages: %w", err)
 	}
 	return providers.PreparedRequest{Body: body, Headers: AnthropicPassthroughHeadersForBody(in, body)}, nil
 }
@@ -53,4 +59,26 @@ func stripThinkingBetas(beta string) string {
 	return joinKept(beta, func(token string) bool {
 		return !strings.Contains(token, "thinking")
 	})
+}
+
+func (e *RequestEnvelope) PrepareAnthropicVerbatim(in http.Header) providers.PreparedRequest {
+	h := make(http.Header)
+	h.Set("anthropic-version", in.Get("anthropic-version"))
+	if h.Get("anthropic-version") == "" {
+		h.Set("anthropic-version", "2023-06-01")
+	}
+	if beta := in.Get("anthropic-beta"); beta != "" {
+		h.Set("anthropic-beta", beta)
+	}
+	return providers.PreparedRequest{Body: e.body, Headers: h}
+}
+
+func (e *RequestEnvelope) PrepareOpenAIVerbatim(opts EmitOptions) (providers.PreparedRequest, bool) {
+	if e.format != FormatOpenAI || opts.TargetModel != e.Model() || opts.StripPromptCacheKey && gjson.GetBytes(e.body, "prompt_cache_key").Exists() {
+		return providers.PreparedRequest{}, false
+	}
+	if e.Stream() && opts.IncludeStreamUsage && !gjson.GetBytes(e.body, "stream_options.include_usage").Bool() {
+		return providers.PreparedRequest{}, false
+	}
+	return providers.PreparedRequest{Body: e.body, Headers: make(http.Header)}, true
 }

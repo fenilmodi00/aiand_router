@@ -16,8 +16,6 @@ import (
 // obey it literally and spend whole turns on task-list bookkeeping, so when
 // those tools are stripped on cross-vendor emit the nudge must go with them.
 
-const taskReminderText = "<system-reminder>\nThe task tools haven't been used recently. Consider updating task status or creating tasks.\nHere are the existing tasks:\n- #1 [in_progress] Fix the bug\n</system-reminder>"
-
 const taskReminderBody = `{
 	"model":"deepseek/deepseek-v4-pro",
 	"system":"You are Claude Code.",

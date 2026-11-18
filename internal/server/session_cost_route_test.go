@@ -51,8 +51,8 @@ func TestThreadHandshakeRunsServingAdmissionAfterCredentialAuth(t *testing.T) {
 	decisions, err := policyregistry.NewAdmissionDecisionCache(admissionStore, 10, time.Minute, time.Now)
 	require.NoError(t, err)
 	engine := gin.New()
-	server.RegisterWithFeatures(engine, authSvc, nil, nil, nil, server.DeploymentModeManaged, nil, nil, nil, nil, server.Features{ServingAdmission: &middleware.ServingAdmissionConfig{Decisions: decisions}})
-	request := httptest.NewRequest(http.MethodPost, "/v1/router/threads", strings.NewReader(`{}`))
+	server.RegisterWithFeatures(engine, authSvc, nil, nil, server.DeploymentModeManaged, nil, nil, nil, nil, server.Features{ServingAdmission: &middleware.ServingAdmissionConfig{Decisions: decisions}})
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/router/threads", strings.NewReader(`{}`))
 	request.Header.Set(auth.RouterKeyHeader, "rk_thread")
 	response := httptest.NewRecorder()
 	engine.ServeHTTP(response, request)
@@ -113,10 +113,10 @@ func TestSessionCostRouteAcceptsReadKeysWithoutServingAdmission(t *testing.T) {
 	engine := gin.New()
 	engine.UseRawPath = true
 	engine.UnescapePathValues = true
-	server.RegisterWithFeatures(engine, authSvc, proxySvc, nil, nil, server.DeploymentModeManaged, nil, nil, nil, nil, server.Features{ServingAdmission: &middleware.ServingAdmissionConfig{}})
+	server.RegisterWithFeatures(engine, authSvc, proxySvc, nil, server.DeploymentModeManaged, nil, nil, nil, nil, server.Features{ServingAdmission: &middleware.ServingAdmissionConfig{}})
 
 	serve := func(method, path, token string) *httptest.ResponseRecorder {
-		req := httptest.NewRequest(method, path, nil)
+		req := httptest.NewRequestWithContext(t.Context(), method, path, nil)
 		req.Header.Set("Authorization", "Bearer "+token)
 		rec := httptest.NewRecorder()
 		engine.ServeHTTP(rec, req)

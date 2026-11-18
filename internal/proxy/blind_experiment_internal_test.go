@@ -154,7 +154,7 @@ func TestCallerModelPassthroughHonorsExcludedModels(t *testing.T) {
 	)
 
 	require.Error(t, err)
-	assert.ErrorIs(t, err, cluster.ErrNoEligibleProvider)
+	require.ErrorIs(t, err, cluster.ErrNoEligibleProvider)
 	assert.Zero(t, routerSpy.routeCalls, "an excluded requested model must fail directly instead of falling through to automatic routing")
 }
 
@@ -168,7 +168,6 @@ func blindExperimentUtilityTurnBodies() []struct {
 	}{
 		{turntype.Probe, `{"model":"moonshotai/kimi-k3","max_tokens":1,"messages":[{"role":"user","content":"quota"}]}`},
 		{turntype.TitleGen, `{"model":"moonshotai/kimi-k3","max_tokens":1024,"output_config":{"format":{"type":"json_schema","schema":{"type":"object","properties":{"title":{"type":"string"}},"required":["title"]}}},"messages":[{"role":"user","content":"title"}]}`},
-		{turntype.Compaction, `{"model":"moonshotai/kimi-k3","max_tokens":1024,"system":"Your task is to create a detailed summary","messages":[{"role":"user","content":"summary"}]}`},
 		{turntype.SubAgentDispatch, `{"model":"moonshotai/kimi-k3","max_tokens":1024,"metadata":{"user_id":"subagent:Explore"},"messages":[{"role":"user","content":"list go files"}]}`},
 	}
 }
@@ -179,7 +178,6 @@ func runBlindExperimentUtilityTurn(t *testing.T, ctx context.Context, body strin
 	service := NewService(routerSpy, nil, nil, false, nil, newStubPinStore(), false,
 		providers.ProviderAIAND, experimentUtilityHardPinModel, nil).
 		WithExplicitUtilityHardPin(true).
-		WithCompactionHardPin(true).
 		WithSubAgentOverride(providers.ProviderAIAND, experimentSubAgentOverrideModel)
 	envelope, err := translate.ParseAnthropic([]byte(body))
 	require.NoError(t, err)

@@ -1,17 +1,10 @@
 package proxy
 
 import (
-	"context"
-	"net/http"
 	"testing"
-	"time"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"aiand-os/router/internal/providers"
-	"aiand-os/router/internal/router"
-	"aiand-os/router/internal/router/sessionpin"
 	"aiand-os/router/internal/translate"
 )
 
@@ -27,39 +20,4 @@ func demotionTurnLoopEnv(t *testing.T) (*translate.RequestEnvelope, translate.Ro
 	)
 	require.NoError(t, err)
 	return env, env.RoutingFeatures(false)
-}
-
-func runDemotionTurnLoop(t *testing.T, svc *Service, ctx context.Context) turnLoopResult {
-	t.Helper()
-	env, features := demotionTurnLoopEnv(t)
-	res, err := svc.runTurnLoop(
-		ctx,
-		env,
-		features,
-		"api-key",
-		uuid.New(),
-		"",
-		http.Header{},
-		router.Request{
-			RequestedModel:       features.Model,
-			Exclusions:           router.RequestedExclusions(svc.excludedModelsForRequest(ctx)),
-			EstimatedInputTokens: features.Tokens,
-			HasTools:             features.HasTools,
-			ConversationMessages: conversationMessagesForRouting(env),
-		},
-	)
-	require.NoError(t, err)
-	return res
-}
-
-func demotedPin(model string, demoted ...string) sessionpin.Pin {
-	return sessionpin.Pin{
-		Provider:        providers.ProviderAIAND,
-		Model:           model,
-		Reason:          "cluster:v0.2",
-		PinnedUntil:     time.Now().Add(time.Hour),
-		LastTurnEndedAt: time.Now().Add(-time.Minute),
-		LastServedModel: model,
-		DemotedModels:   demoted,
-	}
 }

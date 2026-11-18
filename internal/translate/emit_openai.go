@@ -1,7 +1,7 @@
 package translate
 
 import (
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -33,10 +33,7 @@ func resolveReasoningEffortFor(opts EmitOptions) string {
 // reasoning_effort on /v1/chat/completions. gpt-5.x rejects it (routed through
 // Responses API); other CapReasoning models (OpenRouter OSS) accept it freely.
 func reasoningEffortAcceptedOnChatCompletions(opts EmitOptions) bool {
-	if strings.HasPrefix(opts.TargetModel, "gpt-5") {
-		return false
-	}
-	return true
+	return !strings.HasPrefix(opts.TargetModel, "gpt-5")
 }
 
 // toolTurnNeedsExplicitEffortNone reports whether the target refuses a
@@ -71,8 +68,8 @@ func clampOpenAIToolCallID(id string) string {
 	if len(cleanID) <= maxToolCallIDLen {
 		return cleanID
 	}
-	sum := sha1.Sum([]byte(cleanID))
-	return "tc_" + hex.EncodeToString(sum[:])
+	sum := sha256.Sum256([]byte(cleanID))
+	return "tc_" + hex.EncodeToString(sum[:20])
 }
 
 func hasNonEmptyTools(body []byte) bool {
@@ -116,10 +113,7 @@ func (e *RequestEnvelope) PrepareOpenAI(in http.Header, opts EmitOptions) (provi
 		}
 	}
 	headers := make(http.Header)
-	body, err = applySessionAffinity(body, headers, opts)
-	if err != nil {
-		return providers.PreparedRequest{}, err
-	}
+	body = applySessionAffinity(body, headers, opts)
 	return providers.PreparedRequest{Body: body, Headers: headers, Stats: stats, ResponseToolNames: toolNames}, nil
 }
 
@@ -147,44 +141,14 @@ func (e *RequestEnvelope) PrepareOpenAI(in http.Header, opts EmitOptions) (provi
 // cacheable prefix (system + tools), preserving any caller-supplied key and
 // leaving prefix-less requests unhinted. Without this, an Anthropic→OpenAI
 // route re-bills the full prefix every turn (NULL cache_read in prod).
-func applySessionAffinity(body []byte, headers http.Header, opts EmitOptions) ([]byte, error) {
+func applySessionAffinity(body []byte, headers http.Header, opts EmitOptions) []byte {
 	// The single upstream is an OpenAI-compatible serverless surface, so it
 	// takes the generic x-session-affinity header, gated on a real session key
 	// (see doc comment above).
 	if providers.IsOpenAICompat(opts.TargetProvider) && opts.SessionAffinity != "" {
 		headers.Set("x-session-affinity", opts.SessionAffinity)
 	}
-	return body, nil
-}
-
-// stablePromptCacheKey hashes the request's cacheable prefix (system message
-// + tool definitions) into a deterministic prompt_cache_key, used as a
-// fallback when no session key is available. Returns "" when there's no
-// cacheable prefix, so prefix-less requests stay unhinted rather than all
-// hashing to the same synthetic key.
-func stablePromptCacheKey(body []byte) string {
-	h := sha1.New()
-	var hasPrefix bool
-	gjson.GetBytes(body, "messages").ForEach(func(_, msg gjson.Result) bool {
-		if msg.Get("role").String() == "system" {
-			if content := msg.Get("content"); content.Raw != "" {
-				h.Write([]byte(content.Raw))
-				hasPrefix = true
-			}
-		}
-		return true
-	})
-	h.Write([]byte{0x00})
-	// An empty "tools":[] still has .Exists()==true, so gate on non-empty
-	// to avoid treating it as a cacheable prefix.
-	if hasNonEmptyTools(body) {
-		h.Write([]byte(gjson.GetBytes(body, "tools").Raw))
-		hasPrefix = true
-	}
-	if !hasPrefix {
-		return ""
-	}
-	return "wv_" + hex.EncodeToString(h.Sum(nil))
+	return body
 }
 
 func (e *RequestEnvelope) buildOpenAIFromOpenAI(opts EmitOptions) ([]byte, error) {
@@ -275,7 +239,7 @@ func (e *RequestEnvelope) buildOpenAIFromAnthropic(opts EmitOptions) ([]byte, pr
 	}
 
 	// System + Messages
-	writeOpenAISystemAndMessagesFromAnthropic(jw, body, opts)
+	writeOpenAISystemAndMessagesFromAnthropic(jw, body)
 
 	// Stop sequences — reasoning OpenAI models (gpt-5.x) reject `stop` on
 	// /v1/chat/completions ("Unsupported parameter: 'stop' is not supported").
@@ -420,7 +384,7 @@ func applyQwen3SamplersIfNeeded(body []byte, opts EmitOptions) ([]byte, error) {
 
 // writeOpenAISystemAndMessagesFromAnthropic emits the "messages" key into jw by
 // converting the Anthropic system field and messages array to OpenAI format.
-func writeOpenAISystemAndMessagesFromAnthropic(jw *jsonWriter, body []byte, opts EmitOptions) {
+func writeOpenAISystemAndMessagesFromAnthropic(jw *jsonWriter, body []byte) {
 	systemText := flattenAnthropicSystemGJSON(gjson.GetBytes(body, "system"))
 
 	jw.Key("messages")
@@ -762,36 +726,6 @@ func writeOpenAIToolsFromAnthropic(jw *jsonWriter, body []byte) {
 	jw.EndArr()
 }
 
-// writeOpenAIToolChoiceFromAnthropic emits the "tool_choice" key into jw by
-// converting the Anthropic tool_choice field to OpenAI format.
-func writeOpenAIToolChoiceFromAnthropic(jw *jsonWriter, body []byte) {
-	kind, name := anthropicToolChoice(body)
-	switch kind {
-	case toolChoiceAuto:
-		jw.Key("tool_choice")
-		jw.Str("auto")
-	case toolChoiceRequired:
-		jw.Key("tool_choice")
-		jw.Str("required")
-	case toolChoiceNone:
-		jw.Key("tool_choice")
-		jw.Str("none")
-	case toolChoiceNamed:
-		inner := newJSONWriter()
-		inner.Obj()
-		inner.Key("type")
-		inner.Str("function")
-		inner.Key("function")
-		inner.Obj()
-		inner.Key("name")
-		inner.Str(sanitizeResponsesToolAlias(name))
-		inner.EndObj()
-		inner.EndObj()
-		jw.Key("tool_choice")
-		jw.RawBytes(inner.Bytes())
-	}
-}
-
 // writeOpenAIMaxTokensFromAnthropic emits either "max_tokens" or
 // "max_completion_tokens" (for reasoning-capable models), clamped to the
 // model's output-token cap. max_completion_tokens counts reasoning tokens, so
@@ -999,7 +933,7 @@ func appendSchemaConstraintDescription(node map[string]any, key string, value an
 	// schema — description included — so verbatim patterns in description text
 	// cause "Conflict in schema definitions" 400s. Hashing also prevents leak.
 	raw := compactJSONValue(value)
-	fingerprint := sha1.Sum([]byte(key + "|" + raw))
+	fingerprint := sha256.Sum256([]byte(key + "|" + raw))
 	note := fmt.Sprintf("(%s constraint %s)", key, hex.EncodeToString(fingerprint[:4]))
 	if desc, _ := node["description"].(string); desc != "" {
 		node["description"] = desc + " " + note

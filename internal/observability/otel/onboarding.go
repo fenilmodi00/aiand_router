@@ -1,6 +1,9 @@
 package otel
 
-import "aiand-os/router/internal/auth"
+import (
+	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/telemetry"
+)
 
 // OnboardingObserver exports auth lifecycle facts through the shared span queue.
 type OnboardingObserver struct {
@@ -20,24 +23,37 @@ func (o *OnboardingObserver) APIKeyFirstUsed(event auth.APIKeyFirstUsedEvent) {
 	if buf == nil {
 		return
 	}
-	attrs := NewAttrBuilder(4).
+	attrs := telemetry.NewAttrBuilder(4).
 		String("external_id", event.InstallationExternalID).
 		String("router_api_key_id", event.APIKeyID).
 		String("harness", event.Harness)
 	if event.CredentialSubjectID != "" {
 		attrs = attrs.String("credential_subject_id", event.CredentialSubjectID)
 	}
-	buf.Record(Span{Name: "router.harness_connected", Start: event.OccurredAt, End: event.OccurredAt, Attrs: attrs.Build()})
+	buf.Record(telemetry.Span{Name: "router.harness_connected", Start: event.OccurredAt, End: event.OccurredAt, Attrs: attrs.Build()})
 	buf.Flush()
 }
 
-// HarnessLifecycle records a client-reported off/on/uninstall of a harness.
+// HarnessLifecycle records a client-reported off/on/uninstall of a harness. A
+// reported connection exports as router.harness_connected, the span key first
+// use emits for every other harness.
 func (o *OnboardingObserver) HarnessLifecycle(event auth.HarnessLifecycleEvent) {
+	if event.Action == auth.HarnessLifecycleActionConnected {
+		o.APIKeyFirstUsed(auth.APIKeyFirstUsedEvent{
+			InstallationExternalID: event.InstallationExternalID,
+			CredentialSubjectID:    event.CredentialSubjectID,
+			APIKeyID:               event.APIKeyID,
+			Harness:                string(event.Harness),
+			OccurredAt:             event.OccurredAt,
+		})
+		return
+	}
+	// HarnessLifecycle records a client-reported off/on/uninstall of a harness.
 	buf := o.emitter.NewBuffer()
 	if buf == nil {
 		return
 	}
-	attrs := NewAttrBuilder(5).
+	attrs := telemetry.NewAttrBuilder(5).
 		String("external_id", event.InstallationExternalID).
 		String("router_api_key_id", event.APIKeyID).
 		String("harness", string(event.Harness)).
@@ -45,6 +61,6 @@ func (o *OnboardingObserver) HarnessLifecycle(event auth.HarnessLifecycleEvent) 
 	if event.CredentialSubjectID != "" {
 		attrs = attrs.String("credential_subject_id", event.CredentialSubjectID)
 	}
-	buf.Record(Span{Name: "router.harness_lifecycle", Start: event.OccurredAt, End: event.OccurredAt, Attrs: attrs.Build()})
+	buf.Record(telemetry.Span{Name: "router.harness_lifecycle", Start: event.OccurredAt, End: event.OccurredAt, Attrs: attrs.Build()})
 	buf.Flush()
 }

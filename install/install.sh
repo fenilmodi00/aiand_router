@@ -354,7 +354,13 @@ usage() {
 }
 
 ensure_jq() {
-  command -v jq >/dev/null 2>&1 && return 0
+  if command -v jq >/dev/null 2>&1; then
+    jq_meets_minimum jq && return 0
+    if jq_meets_minimum "$HOME/.aiand/bin/jq"; then
+      export PATH="$HOME/.aiand/bin:$PATH"
+      return 0
+    fi
+  fi
   local asset checksum destination temporary actual_checksum
   case "$(uname -s):$(uname -m)" in
     Darwin:arm64) asset=jq-macos-arm64; checksum=a9fe3ea2f86dfc72f6728417521ec9067b343277152b114f4e98d8cb0e263603 ;;
@@ -362,7 +368,7 @@ ensure_jq() {
     Linux:x86_64) asset=jq-linux-amd64; checksum=020468de7539ce70ef1bceaf7cde2e8c4f2ca6c3afb84642aabc5c97d9fc2a0d ;;
     Linux:aarch64|Linux:arm64) asset=jq-linux-arm64; checksum=6bc62f25981328edd3cfcfe6fe51b073f2d7e7710d7ef7fcdac28d4e384fc3d4 ;;
     MINGW*:x86_64|MSYS*:x86_64|CYGWIN*:x86_64) asset=jq-windows-amd64.exe; checksum=23cb60a1354eed6bcc8d9b9735e8c7b388cd1fdcb75726b93bc299ef22dd9334 ;;
-    *) err "Automatic jq installation is unavailable for $(uname -s)/$(uname -m). Install jq and retry."; exit 1 ;;
+    *) err "Automatic jq installation is unavailable for $(uname -s)/$(uname -m). Install jq 1.6 or newer and retry."; exit 1 ;;
   esac
   require_cmd curl "curl is required to download jq."
   destination="$HOME/.aiand/bin"
@@ -391,7 +397,15 @@ ensure_jq() {
     *) mv -f "$temporary" "$destination/jq" ;;
   esac
   jq_download_tmp=""
+  export PATH="$destination:$PATH"
   jq --version >/dev/null
+}
+
+jq_meets_minimum() {
+  local version
+  version="$("$1" --version 2>/dev/null)" || return 1
+  [[ "$version" =~ ^jq-([0-9]+)\.([0-9]+) ]] || return 1
+  [ "${BASH_REMATCH[1]}" -gt 1 ] || { [ "${BASH_REMATCH[1]}" -eq 1 ] && [ "${BASH_REMATCH[2]}" -ge 6 ]; }
 }
 
 require_cmd() {
@@ -547,8 +561,8 @@ normalize_name() {
 
 # resolve_user_email picks the email to plant in router request headers so the
 # router can attribute traffic to a person even on shared API keys. Priority:
-# explicit --email → AIAND_USER_EMAIL env override → git config user.email →
-# interactive prompt (pre-filled with whatever we found). In --non-interactive
+# explicit --email → AIAND_USER_EMAIL env override → the email already installed
+# for this target → git config user.email → interactive prompt (pre-filled with whatever we found). In --non-interactive
 # mode we never prompt, so unset/invalid means we ship no header (router treats
 # that as account_uuid-only, same as today). Echoes the validated email on stdout.
 resolve_user_email() {
@@ -566,6 +580,9 @@ resolve_user_email() {
     if [ -z "$candidate" ]; then
       warn "AIAND_USER_EMAIL=\"$AIAND_USER_EMAIL\" is not a valid email; ignoring."
     fi
+  fi
+  if [ -z "$candidate" ]; then
+    candidate="$(normalize_email "$(read_installed_header X-Aiand-User-Email)")"
   fi
   if [ -z "$candidate" ]; then
     local git_email
@@ -1262,9 +1279,10 @@ write_pi_models_config() {
     | (if $name  != "" then . + {"X-Aiand-User-Name":  $name } else . end)
   ')"
 
-  # Headline models surfaced in pi's /model picker. The router re-routes every
-  # request regardless, so this list is UX; keep it Anthropic-shaped and in
-  # sync with @aiand-os/router's AIAND_MODELS constant.
+  # One "Aiand Router" entry: the router picks the served model per request
+  # from the organization's enabled models, so listing concrete models only
+  # advertised choices pi never honored. Keep in sync with AIAND_MODELS in
+  # pi-router/src/config.ts, which replaces this list whenever the extension loads.
   #
   # baseUrl is the router ROOT (no /v1): pi's anthropic-messages provider uses
   # @anthropic-ai/sdk, which appends /v1/messages itself. Unlike the codex block
@@ -1282,23 +1300,7 @@ write_pi_models_config() {
       authHeader: false,
       headers: $headers,
       models: [
-        { id: "claude-fable-5-1",  name: "Claude Fable 5.1 (via Aiand Router)",  reasoning: true, input: ["text","image"], contextWindow: 1000000, maxTokens: 128000 },
-        { id: "claude-fable-5",    name: "Claude Fable 5 (via Aiand Router)",    reasoning: true, input: ["text","image"], contextWindow: 1000000, maxTokens: 128000 },
-        { id: "claude-opus-5-5",   name: "Claude Opus 5.5 (via Aiand Router)",   reasoning: true, input: ["text","image"], contextWindow: 1000000, maxTokens: 128000 },
-        { id: "claude-opus-5",     name: "Claude Opus 5 (via Aiand Router)",     reasoning: true, input: ["text","image"], contextWindow: 1000000, maxTokens: 128000 },
-        { id: "claude-sonnet-5-5", name: "Claude Sonnet 5.5 (via Aiand Router)", reasoning: true, input: ["text","image"], contextWindow: 1000000, maxTokens: 128000 },
-        { id: "claude-opus-4-7",   name: "Claude Opus 4.7 (via Aiand Router)",   reasoning: true, input: ["text","image"], contextWindow: 1000000, maxTokens: 64000 },
-        { id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6 (via Aiand Router)", reasoning: true, input: ["text","image"], contextWindow: 1000000, maxTokens: 64000 },
-        { id: "claude-haiku-5-5",  name: "Claude Haiku 5.5 (via Aiand Router)",  reasoning: true, input: ["text","image"], contextWindow: 1000000, maxTokens: 128000 },
-        { id: "claude-haiku-4-5",  name: "Claude Haiku 4.5 (via Aiand Router)",  reasoning: true, input: ["text","image"], contextWindow: 200000, maxTokens: 32000 },
-        { id: "gpt-6-astra",       name: "GPT-6 Astra (via Aiand Router)",       reasoning: true, input: ["text","image"], contextWindow: 1050000, maxTokens: 128000 },
-        { id: "gpt-6-sol",         name: "GPT-6 Sol (via Aiand Router)",         reasoning: true, input: ["text","image"], contextWindow: 1050000, maxTokens: 128000 },
-        { id: "gpt-6.1-sol",       name: "GPT-6.1 Sol (via Aiand Router)",       reasoning: true, input: ["text","image"], contextWindow: 1050000, maxTokens: 128000 },
-        { id: "gpt-6-luna",        name: "GPT-6 Luna (via Aiand Router)",        reasoning: true, input: ["text","image"], contextWindow: 1050000, maxTokens: 128000 },
-        { id: "gpt-5.6-sol",       name: "GPT-5.6 Sol (via Aiand Router)",       reasoning: true, input: ["text","image"], contextWindow: 1050000, maxTokens: 128000 },
-        { id: "grok-4.5",          name: "Grok 4.5 (via Aiand Router)",          reasoning: true, input: ["text","image"], contextWindow: 500000, maxTokens: 131072 },
-        { id: "grok-4.6",          name: "Grok 4.6 (via Aiand Router)",          reasoning: true, input: ["text","image"], contextWindow: 500000, maxTokens: 131072 },
-        { id: "grok-4.7",          name: "Grok 4.7 (via Aiand Router)",          reasoning: true, input: ["text","image"], contextWindow: 500000, maxTokens: 131072 }
+        { id: "auto", name: "Aiand Router", reasoning: true, input: ["text","image"], contextWindow: 1000000, maxTokens: 64000 }
       ]
     }
   ')"
@@ -1316,10 +1318,11 @@ write_pi_models_config() {
   chmod 600 "$config_file"
 }
 
-# write_pi_settings_config makes the `aiand` provider pi's default and loads the
-# npm package named by $npm_package_name. defaultProvider is always set to
-# "aiand" — the installer's job is to route via Aiand; uninstall reverts it.
-# defaultModel is set only when unset (don't clobber a user's model pick). The
+# write_pi_settings_config makes `aiand/auto` pi's default and loads the npm
+# package named by $npm_package_name. defaultProvider is always set to "aiand" —
+# the installer's job is to route via Aiand; uninstall reverts it. defaultModel
+# is always "auto": it is the provider's only model, so any other value would
+# make pi fall back to a different provider. The
 # npm package source is appended to `packages` idempotently — pi auto-installs
 # missing packages on startup — and every known prior Aiand package id
 # (`@workaiand/pi-router`, `@workaiand/router`, `@aiand-os/router`) except the
@@ -1340,12 +1343,12 @@ write_pi_settings_config() {
         ))
       | (if (.packages | index($pkg)) then . else .packages += [$pkg] end)
       | .defaultProvider = "aiand"
-      | (if (.defaultModel // "") == "" then .defaultModel = "claude-sonnet-4-6" else . end)
+      | .defaultModel = "auto"
     ' "$settings_file")"
   else
     merged="$(jq -n --arg pkg "$pkg" '{
       defaultProvider: "aiand",
-      defaultModel: "claude-sonnet-4-6",
+      defaultModel: "auto",
       packages: [$pkg]
     }')"
   fi
@@ -1416,10 +1419,10 @@ install_lsp_servers() {
 }
 
 # resolve_user_name mirrors resolve_user_email but for display name. Priority:
-# AIAND_USER_NAME env override → git config user.name → empty. We don't
-# prompt for name independently: if email prompting yielded nothing, name
-# almost certainly will too, and a second prompt is noise. Echoes the
-# validated name on stdout.
+# AIAND_USER_NAME env override → installed name → git config user.name →
+# empty. We don't prompt for name independently: if email prompting yielded
+# nothing, name almost certainly will too, and a second prompt is noise. Echoes
+# the validated name on stdout.
 resolve_user_name() {
   local candidate=""
   if [ -n "${AIAND_USER_NAME:-}" ]; then
@@ -1427,6 +1430,9 @@ resolve_user_name() {
     if [ -z "$candidate" ]; then
       warn "AIAND_USER_NAME=\"$AIAND_USER_NAME\" is not a usable name; ignoring."
     fi
+  fi
+  if [ -z "$candidate" ]; then
+    candidate="$(normalize_name "$(read_installed_header X-Aiand-User-Name)")"
   fi
   if [ -z "$candidate" ]; then
     local git_name
@@ -2421,6 +2427,56 @@ read_installed_key() {
   esac
 }
 
+# read_installed_header prints the value of identity header $1 (for example
+# X-Aiand-User-Email) from this target's managed config, or nothing. Reading it
+# back keeps a re-run or `update` from dropping the identity an earlier install
+# planted when nothing else on the machine (git config, env) supplies one.
+read_installed_header() {
+  local header="$1" candidate value=""
+  case "$target" in
+    claude)
+      while IFS= read -r candidate; do
+        [ -n "$candidate" ] || continue
+        value="$(json_get "$candidate" '.env.ANTHROPIC_CUSTOM_HEADERS' \
+          | sed -n "s/^[[:space:]]*${header}:[[:space:]]*//p" | head -n 1)"
+        [ -n "$value" ] && break
+      done <<<"$(models_key_file_order)"
+      ;;
+    codex)
+      key_source_is_own "$codex_config_file" || return 0
+      value="$(awk -v header="$header" '
+        /^[[:space:]]*\[/ {
+          in_provider = ($0 ~ /^[[:space:]]*\[[[:space:]]*model_providers[[:space:]]*\.[[:space:]]*aiand[[:space:]]*(\.[^]]*)?\][[:space:]]*(#.*)?$/)
+          next
+        }
+        in_provider && match($0, "\"?" header "\"?[[:space:]]*=[[:space:]]*\"([^\"\\\\]|\\\\.)*\"") {
+          hdr = substr($0, RSTART, RLENGTH)
+          sub(/^[^=]*=[[:space:]]*"/, "", hdr)
+          sub(/"$/, "", hdr)
+          # Undo toml_escape so the writer does not escape the value twice.
+          value = ""
+          for (i = 1; i <= length(hdr); i++) {
+            c = substr(hdr, i, 1)
+            if (c == "\\") { i++; c = substr(hdr, i, 1) }
+            value = value c
+          }
+          print value
+          exit
+        }
+      ' "$codex_config_file" 2>/dev/null || true)"
+      ;;
+    opencode)
+      key_source_is_own "$opencode_config_file" || return 0
+      value="$(json_get "$opencode_config_file" ".provider.aiand.options.headers[\"$header\"]")"
+      ;;
+    pi)
+      key_source_is_own "$pi_models_file" || return 0
+      value="$(json_get "$pi_models_file" ".providers.aiand.headers[\"$header\"]")"
+      ;;
+  esac
+  printf '%s' "$value"
+}
+
 # resolve_installed_base_url prints the router endpoint this Claude Code install
 # already points at, or nothing when none of its files carry a router-shaped
 # one. The parked sidecar comes first: `off` moves the router URL there and
@@ -3067,8 +3123,10 @@ toggle_opencode() {
 # refusal naming the dashboard.
 
 # Public, unauthed catalog of everything the router can route to. Mounted in
-# both deployment modes, so it is the one listing that always works.
-MODELS_CATALOG_PATH="/v1/router/models"
+# both deployment modes, so it is the one listing that always works. The scope
+# is explicit because the unscoped listing is a serving roster, which a managed
+# router cannot resolve without an admitted request.
+MODELS_CATALOG_PATH="/v1/router/models?scope=catalog"
 MODELS_DASHBOARD_URL="https://router.workaiand.ai/models"
 
 # Set by models_api on every call.

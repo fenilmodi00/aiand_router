@@ -86,6 +86,40 @@ test("aggregates restored entry data and rejects malformed entries", () => {
 	assert.equal(isSavingsEntryData({ ...first, usage: { input: -1 } }), false);
 });
 
+test("prices an aiand/auto selection against its wire model, not as unpriced", async () => {
+	type CapturedHandler = (event: unknown, ctx: ExtensionContext) => unknown;
+	const handlers = new Map<string, CapturedHandler>();
+	const appended: Array<{ customType: string; data: unknown }> = [];
+	const pi = {
+		on(event: string, handler: CapturedHandler) {
+			handlers.set(event, handler);
+		},
+		appendEntry(customType: string, data: unknown) {
+			appended.push({ customType, data });
+		},
+	} as unknown as ExtensionAPI;
+	registerRoutedModel(pi);
+	const ctx = {
+		mode: "rpc",
+		hasUI: false,
+		model: { provider: "aiand", id: "auto" },
+		sessionManager: { getBranch: () => [] },
+	} as unknown as ExtensionContext;
+
+	await handlers.get("session_start")?.({ type: "session_start" }, ctx);
+	await handlers.get("after_provider_response")?.(
+		{ type: "after_provider_response", status: 200, headers: { "x-router-model": "z-ai/glm-5.3-flash" } },
+		ctx,
+	);
+	await handlers.get("turn_end")?.({ type: "turn_end", message: { role: "assistant", model: "z-ai/glm-5.3-flash", usage } }, ctx);
+
+	const saved = appended[0]?.data;
+	assert.ok(isSavingsEntryData(saved));
+	assert.equal(saved.requestedModel, "deepseek/deepseek-v4.1-flash");
+	assert.equal(saved.priced, true);
+	assert.ok(Math.abs((saved.savingsUsd ?? 0) - 0.15) < 1e-12);
+});
+
 test("persists routed-response savings in RPC mode", async () => {
 	type CapturedHandler = (event: unknown, ctx: ExtensionContext) => unknown;
 	const handlers = new Map<string, CapturedHandler>();

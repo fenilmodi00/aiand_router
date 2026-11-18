@@ -35,7 +35,7 @@ func TestAnthropicToolReferencesFollowDeclarationAliases(t *testing.T) {
 
 func TestAnthropicToolChangeReferencesFollowCollisionAlias(t *testing.T) {
 	name := strings.Repeat("a", 129)
-	collision := "invalid_tool_d96debf1bdcbc896e6c134ea76e8141f40d78536"
+	collision := "invalid_tool_c12cb024a2e5551cca0e08fce8f1c5e314555cc3"
 	body := []byte(fmt.Sprintf(`{"model":"deepseek/deepseek-v4-pro","max_tokens":1024,"tools":[{"name":%q,"input_schema":{"type":"object"}},{"name":%q,"input_schema":{"type":"object"}}],"system":[{"type":"tool_addition","tool":{"type":"tool_reference","name":%q}}],"messages":[{"role":"user","content":"hello"},{"role":"system","content":[{"type":"tool_removal","tool":{"type":"tool_reference","name":%q}}]},{"role":"user","content":"continue"}]}`, collision, name, name, name))
 	env, err := translate.ParseAnthropic(body)
 	require.NoError(t, err)
@@ -45,7 +45,7 @@ func TestAnthropicToolChangeReferencesFollowCollisionAlias(t *testing.T) {
 	require.NotEqual(t, collision, alias)
 	require.Equal(t, collision, gjson.GetBytes(prep.Body, "tools.0.name").String())
 	require.Equal(t, alias, gjson.GetBytes(prep.Body, "system.0.tool.name").String())
-	require.Equal(t, alias, gjson.GetBytes(prep.Body, "messages.1.content.0.tool.name").String())
+	require.Equal(t, alias, gjson.GetBytes(prep.Body, `messages.#(role=="system").content.0.tool.name`).String())
 	require.Equal(t, name, prep.ResponseToolNames[alias])
 	_, collidingNameAliased := prep.ResponseToolNames[collision]
 	require.False(t, collidingNameAliased)

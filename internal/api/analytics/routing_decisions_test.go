@@ -66,7 +66,7 @@ func rowsAt(n int) []analytics.Decision {
 }
 
 func get(engine *gin.Engine, target string, headers map[string]string) *httptest.ResponseRecorder {
-	req := httptest.NewRequest(http.MethodGet, target, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, target, nil)
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
@@ -154,9 +154,9 @@ func TestRoutingDecisionsStreamsCohortAttribution(t *testing.T) {
 	rows := decodeNDJSON(t, recorder.Body)
 	require.Len(t, rows, 1)
 	require.Equal(t, cohortID, rows[0]["cohort_experiment_id"])
-	require.Equal(t, float64(groupID), rows[0]["cohort_group_id"])
-	require.Equal(t, float64(phaseIndex), rows[0]["cohort_phase_index"])
-	require.Equal(t, float64(revision), rows[0]["cohort_revision"])
+	require.InDelta(t, float64(groupID), rows[0]["cohort_group_id"], 1e-9)
+	require.InDelta(t, float64(phaseIndex), rows[0]["cohort_phase_index"], 1e-9)
+	require.InDelta(t, float64(revision), rows[0]["cohort_revision"], 1e-9)
 	require.Equal(t, string(scheduledArm), rows[0]["cohort_scheduled_arm"])
 	require.Equal(t, string(intendedArm), rows[0]["blind_experiment_arm"])
 	require.Equal(t, applied, rows[0]["cohort_treatment_applied"])

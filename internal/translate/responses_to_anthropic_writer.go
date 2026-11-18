@@ -369,6 +369,7 @@ func (t *ResponsesToAnthropicWriter) translateResponsesEvent(raw []byte) error {
 		}
 		t.captureFinalResponse(data)
 		return nil
+	default:
 	}
 	return nil
 }
@@ -398,6 +399,7 @@ func (t *ResponsesToAnthropicWriter) handleOutputItemAdded(data []byte) error {
 		return t.emitContentBlockStartTool(index, t.toolLedger.ProjectID(oi, sanitizeToolUseID), entry.Name)
 	case responsesReasoningItem:
 		t.captureReasoningSignature(oi, item)
+	case responsesMessageItem, responsesCustomToolCallItem, responsesComputerCallItem:
 	}
 	return nil
 }
@@ -789,19 +791,6 @@ func malformedResponsesFrame(data []byte) bool {
 	return !gjson.ValidBytes(data)
 }
 
-func responsesTerminalIsFailure(resp gjson.Result) bool {
-	if !resp.Exists() {
-		return true
-	}
-	if resp.Get("status").String() == "failed" {
-		return true
-	}
-	if err := resp.Get("error"); err.Exists() && err.Type != gjson.Null {
-		return true
-	}
-	return resp.Get("status").String() == "incomplete" && resp.Get("incomplete_details.reason").String() != "max_output_tokens"
-}
-
 // responsesError builds an Anthropic error envelope from a Responses-style
 // type/message pair via ResponsesToAnthropicError, keeping the wire shape single-sourced.
 func responsesError(errType, msg string) []byte {
@@ -942,17 +931,7 @@ func (t *ResponsesToAnthropicWriter) emitReasoningSignatureDelta(oi, index int) 
 }
 
 func (t *ResponsesToAnthropicWriter) settleTools(resp gjson.Result) error {
-	for index, item := range resp.Get("output").Array() {
-		if responsesItemType(item.Get("type").String()) == responsesFunctionCallItem {
-			t.toolLedger.Close(index, item.Get("call_id").String(), item.Get("name").String(), item.Get("arguments").String())
-		}
-	}
-	for _, entry := range t.toolLedger.Entries() {
-		if err := t.emitAcceptedTool(entry.SourceIndex); err != nil {
-			return err
-		}
-	}
-	return nil
+	return settleResponseToolCalls(t.toolLedger, resp, t.emitAcceptedTool)
 }
 
 func (t *ResponsesToAnthropicWriter) emitAcceptedTool(oi int) error {

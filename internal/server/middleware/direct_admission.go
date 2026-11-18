@@ -92,7 +92,7 @@ func directRoutingModel(r *http.Request, body []byte) (router.RoutingModel, bool
 		return router.ModelAutomatic, true
 	}
 	if router.IsRoutingModel(model) {
-		return router.RoutingModel(model), true
+		return router.CanonicalRoutingModel(model), true
 	}
 	if strings.HasPrefix(model, "aiand-") {
 		return "", false // Unknown selectors are rejected by routing-model middleware.

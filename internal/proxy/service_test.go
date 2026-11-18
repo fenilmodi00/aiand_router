@@ -289,26 +289,6 @@ func TestService_ProxyOpenAIResponses_NativeMarkerOptOutPreservesContentType(t *
 	assert.NotContains(t, rec.Body.String(), "✦ **Aiand Router**")
 }
 
-// codexBadgeSentinelForTest mirrors translate's invisible provenance prefix.
-const codexBadgeSentinelForTest = "\u2063\u2060\u2063\u2060"
-
-// responsesTextDeltas collects response.output_text.delta payloads in order.
-func responsesTextDeltas(t *testing.T, raw []byte) []string {
-	t.Helper()
-	var deltas []string
-	for _, line := range strings.Split(string(raw), "\n") {
-		if !strings.HasPrefix(line, "data: ") {
-			continue
-		}
-		payload := strings.TrimPrefix(line, "data: ")
-		if gjson.Get(payload, "type").Str != "response.output_text.delta" {
-			continue
-		}
-		deltas = append(deltas, gjson.Get(payload, "delta").Str)
-	}
-	return deltas
-}
-
 func TestService_CodexRequestRoutesInfrastructureOpenAIModelWithoutOAuth(t *testing.T) {
 	provider := &fakeProvider{proxyResponse: func(w http.ResponseWriter) {
 		w.Header().Set("Content-Type", "application/json")

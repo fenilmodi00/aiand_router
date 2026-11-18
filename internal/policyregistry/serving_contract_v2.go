@@ -197,7 +197,7 @@ func (c CandidateV2) Validate(root string) error {
 	if c.SchemaVersion != ServingCandidateV2 {
 		return errors.New("unsupported serving candidate schema")
 	}
-	return c.CandidateComposition.validate(root)
+	return c.validate(root)
 }
 
 func (b LaneBinding) validate() error {

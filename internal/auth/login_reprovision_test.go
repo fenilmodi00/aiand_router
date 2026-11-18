@@ -84,7 +84,7 @@ func TestLoginWithKey_ReprovisionsAfterDisconnect(t *testing.T) {
 	// live, distinct session on the same account.
 	assert.NotEqual(t, first.Token, second.Token)
 	assert.Equal(t, accountID, second.Account.ID)
-	active, err := f.svc.VerifySessionToken(second.Token)
+	active, err := f.svc.VerifySessionToken(t.Context(), second.Token)
 	require.NoError(t, err)
 	assert.Equal(t, accountID, active.Session.AccountID)
 	assert.Equal(t, installationID, second.Account.InstallationID,
@@ -163,12 +163,12 @@ func TestLoginWithKey_SameUserTwoOrgsPartitionCleanly(t *testing.T) {
 		}
 	}
 	for _, c := range f.credentials.upserts {
-		require.NotEqual(t, seen[c.InstallationID], "credential",
+		require.NotEqual(t, "credential", seen[c.InstallationID],
 			"no installation may hold two credential rows")
 		seen[c.InstallationID] = "credential"
 	}
 	for _, k := range f.externalKeys.created {
-		require.NotEqual(t, seen[k.InstallationID], "external-key",
+		require.NotEqual(t, "external-key", seen[k.InstallationID],
 			"no installation may hold two propagated keys")
 		seen[k.InstallationID] = "external-key"
 	}

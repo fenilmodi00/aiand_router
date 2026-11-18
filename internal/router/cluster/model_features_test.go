@@ -48,7 +48,7 @@ func TestFeaturesMatchQualityMeans(t *testing.T) {
 			require.Truef(t, ok, "quality_means.json missing %s cluster %d", m, k)
 			got, ok := featureQualityMeans[k][m]
 			require.Truef(t, ok, "model_features.json missing %s cluster %d", m, k)
-			require.Equalf(t, want, got, "quality cell mismatch for %s cluster %d", m, k)
+			require.InDeltaf(t, want, got, 1e-9, "quality cell mismatch for %s cluster %d", m, k)
 		}
 		require.Equalf(t, axes[m], featureAxes[m], "operational axis mismatch for %s", m)
 	}

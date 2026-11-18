@@ -4,8 +4,8 @@ import (
 	"context"
 	"strings"
 
-	"aiand-os/router/internal/observability/otel"
 	"aiand-os/router/internal/router"
+	"aiand-os/router/internal/telemetry"
 	"aiand-os/router/internal/translate"
 )
 
@@ -57,8 +57,8 @@ func (e effortResolution) apply(opts *translate.EmitOptions) {
 
 // applyEffortAttrs stamps the effort actually dispatched with, alongside the
 // level routing selected and where it came from.
-func applyEffortAttrs(b *otel.AttrBuilder, e effortResolution) *otel.AttrBuilder {
-	return b.String("routing.arm_effort", e.Arm).
+func applyEffortAttrs(b *telemetry.AttrBuilder, e effortResolution) {
+	b.String("routing.arm_effort", e.Arm).
 		String("routing.selected_effort", e.Selected).
 		String("routing.sent_effort", e.Sent).
 		String("routing.effort_source", e.Source).

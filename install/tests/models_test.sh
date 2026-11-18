@@ -24,7 +24,7 @@ mkdir -p "$fake_bin"
 # -o, -w, and file-backed headers) and routes on the request path. $ROUTER_MODE decides which
 # router it impersonates:
 #   full    — serves the model-selection API
-#   managed — 404s /admin/v1/* (the Aiand-hosted router) but serves the catalog
+#   managed — 404s /admin/v1/* (the Aiand-hosted router) but serves ?scope=catalog
 #   down    — connection failure
 # Requests are appended to $REQUEST_LOG as "METHOD PATH BODY".
 cat >"$fake_bin/curl" <<'FAKE_CURL'
@@ -72,7 +72,7 @@ catalog='{"models":[{"model":"claude-opus-5","provider":"anthropic"},{"model":"g
 models='[{"model":"claude-opus-5","provider":"anthropic","enabled":true},{"model":"claude-haiku-4-5","provider":"anthropic","enabled":false},{"model":"gpt-5.6","provider":"openai","enabled":true}]'
 
 case "$path" in
-  /v1/router/models) emit 200 "$catalog" ;;
+  "/v1/router/models?scope=catalog") emit 200 "$catalog" ;;
 esac
 
 if [ "${ROUTER_MODE:-full}" = "managed" ]; then
@@ -269,6 +269,8 @@ ROUTER_MODE="managed"
 run_models "$home" -- --claude
 check "list against a router without the API still exits 0" "$rc" "0"
 contains "list falls back to the public catalog" "$out" "claude-opus-5"
+check "the fallback asks for the catalog scope" \
+  "$(grep -c '^GET /v1/router/models?scope=catalog ' "$REQUEST_LOG")" "1"
 contains "list says where model selection lives" "$out" "router.workaiand.ai/models"
 # The catalog endpoint reports what is deployed, not what this installation
 # enabled, so the fallback must not render on/off state it cannot know.

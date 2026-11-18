@@ -25,24 +25,6 @@ type forceModelMapStore struct {
 	usageKeys  [][sessionpin.SessionKeyLen]byte
 }
 
-type recoveryForceModelMapStore struct {
-	*forceModelMapStore
-	attempted []string
-}
-
-func (s *recoveryForceModelMapStore) AcquireRecoveryProbe(_ context.Context, _ [sessionpin.SessionKeyLen]byte, model string, _ uuid.UUID, _ time.Duration) (bool, error) {
-	s.attempted = append(s.attempted, model)
-	return true, nil
-}
-
-func (*recoveryForceModelMapStore) ReleaseRecoveryProbe(context.Context, [sessionpin.SessionKeyLen]byte, string, uuid.UUID) error {
-	return nil
-}
-
-func (*recoveryForceModelMapStore) ClearDemotionCooldown(context.Context, [sessionpin.SessionKeyLen]byte, string, string, time.Time) error {
-	return nil
-}
-
 func newForceModelMapStore() *forceModelMapStore {
 	return &forceModelMapStore{pins: make(map[string]sessionpin.Pin)}
 }
@@ -63,7 +45,7 @@ func (s *forceModelMapStore) Consume(_ context.Context, sessionKey [sessionpin.S
 	defer s.mu.Unlock()
 	key := forceModelMapKey(sessionKey, role)
 	pin, found := s.pins[key]
-	if !found || !pin.PinnedUntil.After(time.Now()) || (pin.Strategy != expected && !(pin.Strategy == "" && expected != router.StrategyHMMBeta)) {
+	if !found || !pin.PinnedUntil.After(time.Now()) || (pin.Strategy != expected && (pin.Strategy != "" || expected == router.StrategyHMMBeta)) {
 		return sessionpin.Pin{}, false, nil
 	}
 	delete(s.pins, key)
@@ -94,7 +76,7 @@ func (s *forceModelMapStore) UpdateUsage(_ context.Context, sessionKey [sessionp
 	defer s.mu.Unlock()
 	key := forceModelMapKey(sessionKey, role)
 	pin, found := s.pins[key]
-	if !found || (pin.Strategy != usage.Strategy && !(pin.Strategy == "" && usage.Strategy != router.StrategyHMMBeta)) {
+	if !found || (pin.Strategy != usage.Strategy && (pin.Strategy != "" || usage.Strategy == router.StrategyHMMBeta)) {
 		return nil
 	}
 	s.usageKeys = append(s.usageKeys, sessionKey)

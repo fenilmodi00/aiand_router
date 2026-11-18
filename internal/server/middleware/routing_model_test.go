@@ -45,6 +45,8 @@ func TestRoutingModelSelectsPolicyAndPreservesRequest(t *testing.T) {
 		want            router.Strategy
 	}{
 		{name: "default", model: string(router.ModelAutomatic), initial: router.StrategyHMMEmbedding, status: http.StatusOK, want: router.StrategyHMMEmbedding},
+		{name: "display name", model: router.ModelAutomaticDisplayName, initial: router.StrategyHMMEmbedding, status: http.StatusOK, want: router.StrategyHMMEmbedding},
+		{name: "upstream display name", model: "Weave Auto", initial: router.StrategyHMMEmbedding, status: http.StatusOK, want: router.StrategyHMMEmbedding},
 		{name: "hmm", model: string(router.ModelHMM), available: true, status: http.StatusOK, want: router.StrategyHMMBeta},
 		{name: "hmm unavailable", model: string(router.ModelHMM), status: http.StatusServiceUnavailable},
 		{name: "qwen", model: string(router.ModelQwen), target: policyregistry.TargetInternal, available: true, status: http.StatusOK, want: router.StrategyHMMQwen},
@@ -85,7 +87,7 @@ func TestRoutingModelSelectsPolicyAndPreservesRequest(t *testing.T) {
 				model, selected := router.RoutingModelFromContext(c.Request.Context())
 				require.Equal(t, router.IsRoutingModel(tc.model), selected)
 				if selected {
-					require.Equal(t, router.RoutingModel(tc.model), model)
+					require.Equal(t, router.CanonicalRoutingModel(tc.model), model)
 				}
 				c.Status(http.StatusOK)
 			})
@@ -102,7 +104,7 @@ func TestRoutingModelSelectsPolicyAndPreservesRequest(t *testing.T) {
 					ctx = policyregistry.WithServingSnapshot(ctx, snapshot)
 				}
 			}
-			req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(body)).WithContext(ctx)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", strings.NewReader(body)).WithContext(ctx)
 			if tc.force {
 				req.Header.Set(proxy.ForceModelHeader, "gpt-6.1-sol")
 			}
@@ -138,7 +140,7 @@ func TestClassifierThreadsRemainExplicitlyEnrolled(t *testing.T) {
 			c.Status(http.StatusOK)
 		})
 	}
-	startRequest := httptest.NewRequest(http.MethodPost, "/v1/router/threads", strings.NewReader(`{"new_chat_id":"`+uuid.NewString()+`"}`)).WithContext(ctx)
+	startRequest := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/router/threads", strings.NewReader(`{"new_chat_id":"`+uuid.NewString()+`"}`)).WithContext(ctx)
 	startResponse := httptest.NewRecorder()
 	engine.ServeHTTP(startResponse, startRequest)
 	require.Equal(t, http.StatusOK, startResponse.Code, startResponse.Body.String())
@@ -148,7 +150,7 @@ func TestClassifierThreadsRemainExplicitlyEnrolled(t *testing.T) {
 	require.NoError(t, json.Unmarshal(startResponse.Body.Bytes(), &ticket))
 	for _, path := range []string{"/v1/messages", "/v1/responses"} {
 		for _, token := range []string{"", "forged", ticket.Token} {
-			req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{"model":"`+string(router.ModelAutomatic)+`"}`)).WithContext(ctx)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, path, strings.NewReader(`{"model":"`+string(router.ModelAutomatic)+`"}`)).WithContext(ctx)
 			if token != "" {
 				req.Header.Set(proxy.ClassifierThreadHeader, token)
 			}

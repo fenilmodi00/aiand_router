@@ -23,11 +23,27 @@ func TestBillingTablesExistDetectsMissingTable(t *testing.T) {
 
 	tx, err := pool.Begin(ctx)
 	require.NoError(t, err)
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	_, err = tx.Exec(ctx, "DROP TABLE router.organization_spend_limits")
 	require.NoError(t, err)
 
 	ok, err = postgres.NewBillingRepo(tx).BillingTablesExist(ctx)
 	require.NoError(t, err)
 	assert.False(t, ok, "missing spend-limit table must fail billing readiness")
+}
+
+func TestMalformedSpendIDsEnforceNoCapWithoutError(t *testing.T) {
+	repo := postgres.NewBillingRepo(nil)
+	ctx := context.Background()
+
+	spent, keyCap, found, err := repo.GetAPIKeySpend(ctx, "not-a-uuid")
+	require.NoError(t, err)
+	assert.False(t, found)
+	assert.Nil(t, keyCap)
+	assert.Zero(t, spent)
+
+	spent, limit, err := repo.GetUserMonthlySpendAndLimit(ctx, "org", "not-a-uuid")
+	require.NoError(t, err)
+	assert.Nil(t, limit)
+	assert.Zero(t, spent)
 }

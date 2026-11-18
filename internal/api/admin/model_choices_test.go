@@ -18,9 +18,9 @@ func TestCatalogModelsHandler_SelectionDescribesModelIDs(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	hmm := &fakeHMMRoster{}
 	engine := gin.New()
-	engine.GET("/v1/router/models", admin.CatalogModelsHandler(fakeDeployedModels{}, hmm))
+	engine.GET("/v1/router/models", admin.CatalogModelsHandler(hmm))
 	response := httptest.NewRecorder()
-	engine.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/v1/router/models?scope=selection", nil))
+	engine.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/router/models?scope=selection", nil))
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 	require.Zero(t, hmm.calls, "descriptions must remain available when policy inference is unavailable")
 	var choices catalog.ModelChoicesResponse

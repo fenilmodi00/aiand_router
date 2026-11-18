@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestEmptyCandidateError_NoDiagnostics(t *testing.T) {
@@ -17,22 +18,22 @@ func TestEmptyCandidateError_SizeIsNotConfiguration(t *testing.T) {
 		{CatalogID: "moonshotai/kimi-k3", Reason: ExclusionContextWindow},
 		{CatalogID: "z-ai/glm-5.3", Reason: ExclusionRequested},
 	})
-	assert.ErrorIs(t, err, ErrContextWindowExceeded)
-	assert.NotErrorIs(t, err, ErrNoRoutableModels)
+	require.ErrorIs(t, err, ErrContextWindowExceeded)
+	require.NotErrorIs(t, err, ErrNoRoutableModels)
 
 	// An overflow-admitted model that is unavailable for another reason is
 	// not a context-window failure; compaction cannot fix its missing roster.
 	err = emptyCandidateError([]Diagnostic{
 		{CatalogID: "z-ai/glm-5.3-flash", Reason: ExclusionUnmappedRoster},
 	})
-	assert.ErrorIs(t, err, ErrNoRoutableModels)
-	assert.NotErrorIs(t, err, ErrContextWindowExceeded)
+	require.ErrorIs(t, err, ErrNoRoutableModels)
+	require.NotErrorIs(t, err, ErrContextWindowExceeded)
 
 	err = emptyCandidateError([]Diagnostic{
 		{CatalogID: "z-ai/glm-5.3", Reason: ExclusionUnsignedHistory},
 	})
-	assert.ErrorIs(t, err, ErrNoRoutableModels)
-	assert.NotErrorIs(t, err, ErrContextWindowExceeded)
+	require.ErrorIs(t, err, ErrNoRoutableModels)
+	require.NotErrorIs(t, err, ErrContextWindowExceeded)
 }
 
 func TestCandidateLogFields_GroupsExclusionsByReason(t *testing.T) {
@@ -61,15 +62,15 @@ func TestEmptyCandidateError_NamesMissingProviderCredentials(t *testing.T) {
 		{CatalogID: "deepseek/deepseek-v4.1-flash", Reason: ExclusionNoProvider},
 		{CatalogID: "moonshotai/kimi-k3", Reason: ExclusionUnmappedRoster},
 	})
-	assert.ErrorIs(t, err, ErrNoProviderCredentials)
-	assert.ErrorIs(t, err, ErrNoRoutableModels)
+	require.ErrorIs(t, err, ErrNoProviderCredentials)
+	require.ErrorIs(t, err, ErrNoRoutableModels)
 
 	err = emptyCandidateError([]Diagnostic{
 		{CatalogID: "z-ai/glm-5.3", Reason: ExclusionNoProvider},
 		{CatalogID: "moonshotai/kimi-k3", Reason: ExclusionRequested},
 	})
-	assert.ErrorIs(t, err, ErrNoRoutableModels)
-	assert.NotErrorIs(t, err, ErrNoProviderCredentials, "a requested exclusion is a model-selection cause")
+	require.ErrorIs(t, err, ErrNoRoutableModels)
+	require.NotErrorIs(t, err, ErrNoProviderCredentials, "a requested exclusion is a model-selection cause")
 
 	err = emptyCandidateError([]Diagnostic{
 		{CatalogID: "moonshotai/kimi-k3", Reason: ExclusionUnmappedRoster},

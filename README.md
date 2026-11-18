@@ -225,7 +225,9 @@ without shipping or maintaining a forked pi binary.
 
 **Cursor** *(early beta, performance may not be the best).* Settings →
 Models → *Override OpenAI Base URL* → `http://localhost:8080/v1`, paste
-`rk_...` as the API key.
+`rk_...` as the API key, and add a custom model named `Aiand Auto` (the router
+also accepts `aiand-auto`, `Weave Auto`, and `weave-auto`, and rejects other
+`aiand-` names).
 
 **Switching on/off.** After installing, `npx @aiand-os/router off --claude`
 (or `--codex` / `--opencode`) routes that client straight to its provider

@@ -18,7 +18,8 @@ func (f *fakeInner) Route(context.Context, router.Request) (router.Decision, err
 	return f.dec, f.err
 }
 
-func clusterDecision(scores map[string]float32, clusterIDs []int, model, provider string) router.Decision {
+func clusterDecision(scores map[string]float32, clusterIDs []int, model string) router.Decision {
+	const provider = "anthropic"
 	providers := make(map[string]string, len(scores))
 	for m := range scores {
 		providers[m] = provider
@@ -78,7 +79,7 @@ func TestRoute_PassthroughWithoutMetadata(t *testing.T) {
 func TestRoute_SamplesHigherPosteriorMean(t *testing.T) {
 	// haiku mean 0.8 > sonnet 0.75; zero noise -> pick haiku even if argmax was sonnet.
 	scores := map[string]float32{"claude-haiku-4-5": 0.5, "claude-sonnet-4-6": 0.9}
-	inner := clusterDecision(scores, []int{0}, "claude-sonnet-4-6", "anthropic")
+	inner := clusterDecision(scores, []int{0}, "claude-sonnet-4-6")
 	post, err := LoadPosterior("testdata/ts_posterior.json")
 	if err != nil {
 		t.Fatal(err)
@@ -109,7 +110,7 @@ func TestRoute_PropensityReflectsPosteriorOverlap(t *testing.T) {
 	// naive 1/n would also read 0.5 here; the dominant-arm test above is what
 	// distinguishes the fix, and this pins the estimator's calibration.
 	scores := map[string]float32{"claude-haiku-4-5": 0.5, "claude-sonnet-4-6": 0.5}
-	inner := clusterDecision(scores, []int{0}, "claude-haiku-4-5", "anthropic")
+	inner := clusterDecision(scores, []int{0}, "claude-haiku-4-5")
 	post := &Posterior{cells: map[int]map[string]Arm{
 		0: {
 			"claude-haiku-4-5":  {Mean: 0.5, Variance: 0.04},
@@ -132,7 +133,7 @@ func TestRoute_PropensityReflectsPosteriorOverlap(t *testing.T) {
 
 func TestRoute_KeepsArgmaxWhenSameModel(t *testing.T) {
 	scores := map[string]float32{"claude-haiku-4-5": 0.9, "claude-sonnet-4-6": 0.5}
-	inner := clusterDecision(scores, []int{0}, "claude-haiku-4-5", "anthropic")
+	inner := clusterDecision(scores, []int{0}, "claude-haiku-4-5")
 	post, err := LoadPosterior("testdata/ts_posterior.json")
 	if err != nil {
 		t.Fatal(err)
@@ -153,7 +154,7 @@ func TestRoute_KeepsArgmaxWhenSameModel(t *testing.T) {
 
 func TestRoute_UsesPerRequestProviderBinding(t *testing.T) {
 	scores := map[string]float32{"claude-haiku-4-5": 0.5, "claude-sonnet-4-6": 0.9}
-	inner := clusterDecision(scores, []int{0}, "claude-sonnet-4-6", "anthropic")
+	inner := clusterDecision(scores, []int{0}, "claude-sonnet-4-6")
 	inner.Metadata.CandidateProviders["claude-haiku-4-5"] = "openrouter"
 	post, err := LoadPosterior("testdata/ts_posterior.json")
 	if err != nil {

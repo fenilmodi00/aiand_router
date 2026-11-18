@@ -30,18 +30,18 @@ func TestHTTPRouterEndToEndWithSidecar(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/route":
-			require.NoError(t, json.NewDecoder(r.Body).Decode(&gotRoute))
-			require.NotEmpty(t, gotRoute.RouteID)
-			require.Contains(t, gotRoute.CandidateModels, "moonshotai/kimi-k3.1-pro")
-			require.NotContains(t, gotRoute.CandidateModels, "z-ai/glm-5.2")
-			require.Equal(t, providers.ProviderAIAND, gotRoute.CandidateProviders["moonshotai/kimi-k3.1-pro"])
+			assert.NoError(t, json.NewDecoder(r.Body).Decode(&gotRoute))
+			assert.NotEmpty(t, gotRoute.RouteID)
+			assert.Contains(t, gotRoute.CandidateModels, "moonshotai/kimi-k3.1-pro")
+			assert.NotContains(t, gotRoute.CandidateModels, "z-ai/glm-5.2")
+			assert.Equal(t, providers.ProviderAIAND, gotRoute.CandidateProviders["moonshotai/kimi-k3.1-pro"])
 			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"route_id": gotRoute.RouteID, "model": "moonshotai/kimi-k3.1-pro", "score": 0.72,
 				"score_kind": "policy_confidence", "reason": "policy delegated_work", "policy_group": "delegated",
 				"policy_label": "delegated_work", "propensity": 0.5, "display_marker": "Aiand Router: delegated_work",
 			})
 		case "/outcome":
-			require.NoError(t, json.NewDecoder(r.Body).Decode(&gotOutcome))
+			assert.NoError(t, json.NewDecoder(r.Body).Decode(&gotOutcome))
 			_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
 		default:
 			http.NotFound(w, r)
@@ -66,7 +66,7 @@ func TestHTTPRouterEndToEndWithSidecar(t *testing.T) {
 	assert.Equal(t, "moonshotai/kimi-k3.1-pro", decision.Model)
 	assert.Equal(t, providers.ProviderAIAND, decision.Provider)
 	assert.Equal(t, "hmm", decision.Metadata.Strategy)
-	assert.Equal(t, float32(0.5), decision.Metadata.Propensity)
+	assert.InDelta(t, float32(0.5), decision.Metadata.Propensity, 1e-6)
 	assert.Contains(t, decision.Metadata.DisplayMarker, "delegated_work")
 	assert.Equal(t, "please inspect the router source", gotRoute.PromptText)
 	assert.True(t, gotRoute.HasTools)

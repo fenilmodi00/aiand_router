@@ -27,19 +27,18 @@ func TestVersionHandler(t *testing.T) {
 	engine := gin.New()
 	engine.GET("/v1/version", admin.VersionHandler(nil))
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/version", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/version", nil)
 	rec := httptest.NewRecorder()
 	engine.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	var body struct {
-		Commit         string `json:"commit"`
-		CommitShort    string `json:"commit_short"`
-		PR             string `json:"pr"`
-		Display        string `json:"display"`
-		BuildTime      string `json:"build_time"`
-		ClusterVersion string `json:"cluster_version"`
+		Commit      string `json:"commit"`
+		CommitShort string `json:"commit_short"`
+		PR          string `json:"pr"`
+		Display     string `json:"display"`
+		BuildTime   string `json:"build_time"`
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
 
@@ -47,6 +46,7 @@ func TestVersionHandler(t *testing.T) {
 	assert.Equal(t, "0fb46ee", body.CommitShort)
 	assert.Equal(t, "572", body.PR)
 	assert.Equal(t, "#572 (0fb46ee)", body.Display)
+	assert.NotContains(t, rec.Body.String(), "cluster_version")
 	assert.NotContains(t, rec.Body.String(), "policy_release_id")
 }
 
@@ -65,7 +65,7 @@ func TestVersionHandlerReportsActivePolicyRelease(t *testing.T) {
 		ActivePolicySHA256: "abc123",
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/version", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/version", nil)
 	rec := httptest.NewRecorder()
 	engine.ServeHTTP(rec, req)
 

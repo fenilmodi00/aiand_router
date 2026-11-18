@@ -37,8 +37,6 @@ var ErrInvalidForwardedHeader = errors.New("auth: invalid forwarded header")
 // router does not implement.
 var ErrInvalidAuthType = errors.New("auth: invalid auth type")
 
-type Clock func() time.Time
-
 const (
 	blindExperimentFetchTimeout  = 5 * time.Second
 	blindExperimentFetchAttempts = 3
@@ -694,8 +692,8 @@ func (s *Service) verifyAPIKey(ctx context.Context, rawToken string, includeUpst
 			if cached.APIKey.Scope.Normalized() != ScopeRouting {
 				return nil, nil, nil, nil, ErrWrongKeyScope
 			}
-			s.fireMarkUsed(cached.APIKey, cached.Installation)
-			s.fireMarkFirstRequestServed(cached.APIKey.InstallationID)
+			s.fireMarkUsed(ctx, cached.APIKey, cached.Installation)
+			s.fireMarkFirstRequestServed(ctx, cached.APIKey.InstallationID)
 			if !includeUpstreamKeys {
 				return cached.Installation, cached.APIKey, nil, cached.ClusterModelLists, nil
 			}
@@ -720,16 +718,17 @@ func (s *Service) verifyAPIKey(ctx context.Context, rawToken string, includeUpst
 	}
 
 	var externalKeys []*ExternalAPIKey
+	cacheable := true
 	if includeUpstreamKeys && s.externalKeys != nil {
 		externalKeys, err = s.externalKeys.GetForInstallation(ctx, apiKey.InstallationID)
 		if err != nil {
 			// Non-fatal: proceed without external keys.
 			observability.FromContext(ctx).Warn("Failed to fetch external API keys", "installation_id", apiKey.InstallationID, "err", err)
+			cacheable = false
 		}
 	}
 
 	var clusterModelLists []ClusterModelList
-	clusterModelListsFetchOK := true
 	if s.clusterModelLists != nil {
 		clusterModelLists, err = s.clusterModelLists.GetForAPIKey(ctx, apiKey.ID)
 		if err != nil {
@@ -738,15 +737,15 @@ func (s *Service) verifyAPIKey(ctx context.Context, rawToken string, includeUpst
 			// disable per-key cluster restrictions for the full positive TTL.
 			observability.FromContext(ctx).Warn("Failed to fetch cluster model lists", "api_key_id", apiKey.ID, "err", err)
 			clusterModelLists = nil
-			clusterModelListsFetchOK = false
+			cacheable = false
 		}
 	}
 
-	if clusterModelListsFetchOK && includeUpstreamKeys {
+	if cacheable && includeUpstreamKeys {
 		s.cache.Set(keyHash, CachedKey{APIKey: apiKey, Installation: installation, ExternalKeys: externalKeys, ClusterModelLists: clusterModelLists})
 	}
-	s.fireMarkUsed(apiKey, installation)
-	s.fireMarkFirstRequestServed(apiKey.InstallationID)
+	s.fireMarkUsed(ctx, apiKey, installation)
+	s.fireMarkFirstRequestServed(ctx, apiKey.InstallationID)
 	return installation, apiKey, externalKeys, clusterModelLists, nil
 }
 
@@ -964,11 +963,11 @@ func (s *Service) fetchBlindExperiment(ctx context.Context, installationID, rout
 	case <-ctx.Done():
 		return BlindExperimentState{}, false
 	}
-	if result.Err != nil {
-		observability.FromContext(ctx).Warn("Failed to fetch blind router experiment assignment", "router_user_id", routerUserID, "err", result.Err)
-		return BlindExperimentState{}, false
+	state, ok := result.Val.(BlindExperimentState)
+	if !ok {
+		observability.FromContext(ctx).Warn("Failed to fetch blind router experiment assignment", "router_user_id", routerUserID, "err", result.Err, "value_type", fmt.Sprintf("%T", result.Val))
 	}
-	return result.Val.(BlindExperimentState), true
+	return state, ok
 }
 
 func userIdentityKey(email, claudeAccountUUID string) string {
@@ -978,14 +977,14 @@ func userIdentityKey(email, claudeAccountUUID string) string {
 	return "account:" + claudeAccountUUID
 }
 
-// fireMarkUsed runs the last_used_at update off the request path. Uses context.Background because
-// the parent ctx is often canceled (response written) before the UPDATE completes.
-func (s *Service) fireMarkUsed(apiKey *APIKey, installation *Installation) {
+// fireMarkUsed runs the last_used_at update off the request path. Detaches from the request's
+// cancellation because the parent ctx is often canceled (response written) before the UPDATE completes.
+func (s *Service) fireMarkUsed(ctx context.Context, apiKey *APIKey, installation *Installation) {
 	if apiKey == nil {
 		return
 	}
 	log := observability.Get().With("api_key_id", apiKey.ID)
-	observability.SafeGo(log, 2*time.Second, "fireMarkUsed", func(ctx context.Context) {
+	observability.SafeGoContext(ctx, log, 2*time.Second, "fireMarkUsed", func(ctx context.Context) {
 		firstUse, err := s.apiKeys.MarkUsed(ctx, apiKey.ID)
 		if err != nil {
 			log.Warn("Failed to mark router api key used", "err", err)
@@ -1005,9 +1004,9 @@ func (s *Service) fireMarkUsed(apiKey *APIKey, installation *Installation) {
 
 // fireMarkFirstRequestServed stamps the installation-level onboarding flag
 // off the request path (same rationale as fireMarkUsed; not called on the analytics path).
-func (s *Service) fireMarkFirstRequestServed(installationID string) {
+func (s *Service) fireMarkFirstRequestServed(ctx context.Context, installationID string) {
 	log := observability.Get().With("installation_id", installationID)
-	observability.SafeGo(log, 2*time.Second, "fireMarkFirstRequestServed", func(ctx context.Context) {
+	observability.SafeGoContext(ctx, log, 2*time.Second, "fireMarkFirstRequestServed", func(ctx context.Context) {
 		if err := s.installations.MarkFirstRequestServed(ctx, installationID); err != nil {
 			log.Warn("Failed to mark installation first request served", "err", err)
 		}

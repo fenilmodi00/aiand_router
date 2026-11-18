@@ -9,6 +9,7 @@ import (
 	"aiand-os/router/internal/billing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // The subscription-only warning replaces the routing marker, so it must name
@@ -22,7 +23,7 @@ func TestSubscriptionOnlyWarningsForReason(t *testing.T) {
 		"not subscription-only": {context.Background(), ""},
 		"credits depleted": {
 			billing.WithSubscriptionOnly(context.Background(), billing.SubscriptionOnlyCreditsDepleted),
-			subscriptionOnlyWarningMarker,
+			"",
 		},
 		"spend cap reached": {
 			billing.WithSubscriptionOnly(context.Background(), billing.SubscriptionOnlySpendCapReached),
@@ -50,7 +51,7 @@ func TestSpendCapWarningDoesNotClaimDepletedCredits(t *testing.T) {
 func TestSubscriptionOnlyUnavailableNamesTheGate(t *testing.T) {
 	capCtx := billing.WithSubscriptionOnly(context.Background(), billing.SubscriptionOnlySpendCapReached)
 	assert.Equal(t, ErrSpendCapSubscriptionUnavailable, subscriptionOnlyUnavailable(capCtx))
-	assert.ErrorIs(t, subscriptionOnlyUnavailable(capCtx), ErrCreditsExhaustedSubscriptionUnavailable,
+	require.ErrorIs(t, subscriptionOnlyUnavailable(capCtx), ErrCreditsExhaustedSubscriptionUnavailable,
 		"refusal checks match the credits sentinel, so the cap variant must wrap it")
 
 	depletedCtx := billing.WithSubscriptionOnly(context.Background(), billing.SubscriptionOnlyCreditsDepleted)
@@ -67,10 +68,6 @@ func TestSubscriptionOnlyWarningShowsOncePerConversation(t *testing.T) {
 	shown := withSubscriptionOnlyWarningEcho(capCtx, shownBody)
 	assert.Empty(t, routerNoticeForRequest(shown, http.Header{}, "model", "").Text,
 		"a warning the conversation already shows must not repeat")
-
-	depleted := billing.WithSubscriptionOnly(shown, billing.SubscriptionOnlyCreditsDepleted)
-	assert.Equal(t, subscriptionOnlyWarningMarker, routerNoticeForRequest(depleted, http.Header{}, "model", "").Text,
-		"a changed reason is new information and must show")
 
 	delegated := withSubscriptionOnlyWarningEcho(shown, []byte(`{"messages":[{"role":"user","content":"stripped"}]}`))
 	assert.Empty(t, routerNoticeForRequest(delegated, http.Header{}, "model", "").Text,

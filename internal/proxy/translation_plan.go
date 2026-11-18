@@ -5,13 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"time"
 
-	"aiand-os/router/internal/observability/apm"
-	"aiand-os/router/internal/observability/otel"
 	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/catalog"
+	"aiand-os/router/internal/telemetry"
 	"aiand-os/router/internal/translate"
 )
 
@@ -77,6 +75,15 @@ type translationPlanAppliedContextKey struct{}
 func translationRequirementsFromContext(ctx context.Context) (router.TranslationRequirements, bool) {
 	req, ok := ctx.Value(responsesRequirementsContextKey{}).(router.TranslationRequirements)
 	return req, ok && !req.IsZero()
+}
+
+// customToolExcludedModels re-applies the custom-tool exclusion for rescue
+// paths that rebuild their exclusions outside the scored request.
+func customToolExcludedModels(ctx context.Context) map[string]struct{} {
+	if requirements, ok := translationRequirementsFromContext(ctx); ok && requirements.CustomTools {
+		return catalog.CustomToolUnsupportedSet()
+	}
+	return nil
 }
 
 func responseTransformationsFromContext(ctx context.Context) []providers.RequestTransformation {
@@ -153,16 +160,35 @@ func (s *Service) planTranslation(req router.Request) TranslationPlan {
 	// mode it is semantic: sending media to a known text-only model cannot be
 	// repaired by an upstream fallback after a response starts.
 	if requirements.Images {
-		for model := range catalog.ImageUnsupportedSet() {
-			plan.Exclusions = append(plan.Exclusions, TranslationExclusion{
-				Code: "image_input_unsupported", Model: model, Enforced: plan.Enforced,
-			})
-			if plan.Enforced {
-				plan.ExcludedModels = router.WithModel(plan.ExcludedModels, model)
-			}
-		}
+		plan.excludeModels("image_input_unsupported", catalog.ImageUnsupportedSet(), plan.Enforced)
+	}
+
+	// A custom tool call the model cannot fill fails the committed stream, so
+	// this exclusion holds in every compatibility mode, like native search.
+	if requirements.CustomTools {
+		plan.excludeModels("custom_tool_unsupported", catalog.CustomToolUnsupportedSet(), true)
 	}
 	return plan
+}
+
+// compatibilityExcludesModel reports whether the request's content rules model
+// out regardless of context fit.
+func compatibilityExcludesModel(req router.Request, model string) bool {
+	return req.TranslationRequirements.Images && !catalog.AcceptsImages(model) ||
+		req.ImageCount > 0 && !catalog.AcceptsImageCount(model, req.ImageCount, req.EnabledProviders) ||
+		req.TranslationRequirements.CustomTools && !catalog.AcceptsCustomTools(model)
+}
+
+// excludeModels reports each model under code and, when enforced, removes it
+// from the candidate set.
+func (plan *TranslationPlan) excludeModels(code string, models map[string]struct{}, enforced bool) {
+	for model := range models {
+		plan.Exclusions = append(plan.Exclusions, TranslationExclusion{Code: code, Model: model, Enforced: enforced})
+		if !enforced {
+			continue
+		}
+		plan.ExcludedModels = router.WithModel(plan.ExcludedModels, model)
+	}
 }
 
 // translationConstraints is the compatibility matrix. Native source routing
@@ -299,17 +325,20 @@ func (s *Service) applyTranslationPlan(ctx context.Context, req router.Request) 
 	}
 	req.Exclusions = req.Exclusions.ExcludeSet(plan.ExcludedModels, router.ExclusionRequested)
 	for _, exclusion := range plan.Exclusions {
-		apm.RecordTranslationCompatibility(ctx,
-			exclusion.Code,
-			string(req.TranslationRequirements.SourceFormat),
-			familyName(plan.TargetFamily),
-			string(s.translationCompatibilityMode),
-			exclusion.Enforced,
-		)
-		otel.RecordLog(ctx, otel.LogRecord{
+		if metrics := s.translationMetrics; metrics != nil {
+			metrics.RecordTranslationCompatibility(
+				ctx,
+				exclusion.Code,
+				string(req.TranslationRequirements.SourceFormat),
+				familyName(plan.TargetFamily),
+				string(s.translationCompatibilityMode),
+				exclusion.Enforced,
+			)
+		}
+		telemetry.RecordLog(ctx, telemetry.LogRecord{
 			Name: "translation.compatibility",
-			Time: time.Now(),
-			Attrs: otel.NewAttrBuilder(7).
+			Time: s.clock.Now(),
+			Attrs: telemetry.NewAttrBuilder(7).
 				String("translation.requirement", exclusion.Code).
 				String("translation.source_format", string(req.TranslationRequirements.SourceFormat)).
 				String("translation.target_family", familyName(plan.TargetFamily)).

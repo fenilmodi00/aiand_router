@@ -6,18 +6,18 @@ import (
 	"aiand-os/router/internal/router"
 )
 
-func hysteresisDecision(model string, armScores map[string]float32) router.Decision {
+func hysteresisDecision(armScores map[string]float32) router.Decision {
 	return router.Decision{
-		Model: model,
+		Model: "z-ai/glm-5.3",
 		Metadata: &router.RoutingMetadata{
-			SelectedRosterArmID: "anthropic/" + model + ":high",
+			SelectedRosterArmID: "anthropic/z-ai/glm-5.3:high",
 			ArmScores:           armScores,
 		},
 	}
 }
 
 func TestEffortHysteresisAllowsGapAboveThreshold(t *testing.T) {
-	fresh := hysteresisDecision("z-ai/glm-5.3", map[string]float32{
+	fresh := hysteresisDecision(map[string]float32{
 		"anthropic/claude-opus-5:low":  4.0,
 		"anthropic/claude-opus-5:high": 6.0,
 	})
@@ -30,7 +30,7 @@ func TestEffortHysteresisAllowsGapAboveThreshold(t *testing.T) {
 }
 
 func TestEffortHysteresisAllowsCrossModelSwitch(t *testing.T) {
-	fresh := hysteresisDecision("z-ai/glm-5.3", map[string]float32{
+	fresh := hysteresisDecision(map[string]float32{
 		"anthropic/claude-opus-5:low":  4.0,
 		"anthropic/claude-opus-5:high": 4.5,
 	})
@@ -43,7 +43,7 @@ func TestEffortHysteresisAllowsCrossModelSwitch(t *testing.T) {
 }
 
 func TestEffortHysteresisAllowsStayOnModelTheFreshArmDoesNotDescribe(t *testing.T) {
-	fresh := hysteresisDecision("z-ai/glm-5.3", map[string]float32{
+	fresh := hysteresisDecision(map[string]float32{
 		"anthropic/claude-opus-5:low":  4.0,
 		"anthropic/claude-opus-5:high": 4.5,
 	})
@@ -56,7 +56,7 @@ func TestEffortHysteresisAllowsStayOnModelTheFreshArmDoesNotDescribe(t *testing.
 }
 
 func TestEffortHysteresisPassesThroughWithoutArmScores(t *testing.T) {
-	fresh := hysteresisDecision("z-ai/glm-5.3", nil)
+	fresh := hysteresisDecision(nil)
 
 	got := effortHysteresisHold(fresh, "claude-opus-5:low", "z-ai/glm-5.3", "high")
 
@@ -66,7 +66,7 @@ func TestEffortHysteresisPassesThroughWithoutArmScores(t *testing.T) {
 }
 
 func TestEffortHysteresisPassesThroughOnBarePin(t *testing.T) {
-	fresh := hysteresisDecision("z-ai/glm-5.3", map[string]float32{
+	fresh := hysteresisDecision(map[string]float32{
 		"anthropic/claude-opus-5:low":  4.0,
 		"anthropic/claude-opus-5:high": 4.5,
 	})
@@ -79,7 +79,7 @@ func TestEffortHysteresisPassesThroughOnBarePin(t *testing.T) {
 }
 
 func TestEffortHysteresisPassesThroughWhenIncumbentArmUnscored(t *testing.T) {
-	fresh := hysteresisDecision("z-ai/glm-5.3", map[string]float32{
+	fresh := hysteresisDecision(map[string]float32{
 		"anthropic/claude-opus-5:high": 4.5,
 	})
 
@@ -91,7 +91,7 @@ func TestEffortHysteresisPassesThroughWhenIncumbentArmUnscored(t *testing.T) {
 }
 
 func TestEffortHysteresisPassesThroughOnUnchangedEffort(t *testing.T) {
-	fresh := hysteresisDecision("z-ai/glm-5.3", map[string]float32{
+	fresh := hysteresisDecision(map[string]float32{
 		"anthropic/claude-opus-5:low": 4.0,
 	})
 

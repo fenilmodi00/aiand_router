@@ -77,7 +77,7 @@ func TestSidecarRouterReportsImageLimitWhenNoBindingCanServe(t *testing.T) {
 		HasImages:        true,
 	})
 	require.Error(t, err)
-	assert.ErrorIs(t, err, router.ErrStrategyUnavailable)
+	require.ErrorIs(t, err, router.ErrStrategyUnavailable)
 
 	prefiltered := router.Request{
 		EnabledProviders: set(providers.ProviderAIAND),
@@ -95,8 +95,9 @@ func TestSidecarRouterReportsImageLimitWhenNoBindingCanServe(t *testing.T) {
 	})
 	_, err = adapter.Route(context.Background(), prefiltered)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, policy.ErrImageLimitExceeded)
-	assert.ErrorIs(t, err, policy.ErrNoRoutableModels)
+	require.ErrorIs(t, err, policy.ErrImageLimitExceeded)
+	require.ErrorIs(t, err, policy.ErrNoRoutableModels)
+	require.NotErrorIs(t, err, router.ErrStrategyUnavailable, "an empty candidate set is not a policy outage")
 }
 
 func TestSidecarRouter_CoolingRescuePoolStaysWithinEligibleGroups(t *testing.T) {
@@ -236,7 +237,7 @@ func TestSidecarRouterOnboardsFutureStrategyWithoutProxyChanges(t *testing.T) {
 	require.Len(t, decider.query.Candidates, 1)
 	assert.Equal(t, "future/z-ai/glm-5.3", decider.query.Candidates[0].RosterID)
 	assert.Greater(t, decider.query.Candidates[0].InputUSDPer1M, 0.0)
-	assert.Greater(t, decider.query.Candidates[0].Capabilities.ContextWindow, 0)
+	assert.Positive(t, decider.query.Candidates[0].Capabilities.ContextWindow)
 
 	require.NoError(t, adapter.ReportOutcome(context.Background(), map[string]interface{}{"route_id": "route-future"}))
 	require.NoError(t, adapter.ReportFeedback(context.Background(), map[string]interface{}{"feedback": "positive"}))
@@ -870,4 +871,27 @@ func TestSidecarRouterCapabilityRefreshIsConcurrentSafe(t *testing.T) {
 	}
 
 	workers.Wait()
+}
+
+func TestSidecarRouterServesOnlyResolvedBindings(t *testing.T) {
+	served, outside := string(catalog.ModelIDGLM53), string(catalog.ModelIDKimiK3)
+	resolver := policy.NewResolver(
+		set(served),
+		set(providers.ProviderAIAND),
+		catalogRosterID,
+	)
+	req := router.Request{
+		EnabledProviders: set(providers.ProviderAIAND),
+		CustomBindings:   map[string][]string{served: {providers.ProviderAIAND}},
+	}
+	adapter := policy.NewSidecarRouter(policy.SidecarRouterConfig{Strategy: router.StrategyHMM}, &recordingPolicy{result: policy.Result{
+		Model:    outside,
+		Provider: providers.ProviderAIAND,
+	}}, resolver)
+
+	decision, err := adapter.Route(context.Background(), req)
+
+	require.ErrorIs(t, err, router.ErrStrategyUnavailable)
+	require.ErrorContains(t, err, "sidecar returned unknown arm")
+	assert.Empty(t, decision.Provider)
 }

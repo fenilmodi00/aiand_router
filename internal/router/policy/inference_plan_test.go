@@ -1,7 +1,6 @@
 package policy_test
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -270,12 +269,12 @@ func TestRegistryValidatesDeploymentTargets(t *testing.T) {
 
 	config.TargetOverrides = config.TargetOverrides[:len(config.TargetOverrides)-1]
 	err := policy.DefaultRegistry().ValidateDeployment(config)
-	assert.ErrorContains(t, err, "requires a typed deployment target")
+	require.ErrorContains(t, err, "requires a typed deployment target")
 
 	config = validDeploymentPolicyConfig()
 	config.TargetOverrides[0].Target.Provider = "other-provider"
 	err = policy.DefaultRegistry().ValidateDeployment(config)
-	assert.ErrorContains(t, err, "has no available catalog binding")
+	require.ErrorContains(t, err, "has no available catalog binding")
 
 	// An untiered catalog row exists but is not a routing target, so a
 	// deployment target naming it is refused as not routable.
@@ -382,7 +381,7 @@ func providerSet(providerNames ...string) map[string]struct{} {
 func assertResolutionErrorCode(t *testing.T, err error, expected policy.ResolutionErrorCode) {
 	t.Helper()
 	var resolutionErr *policy.ResolutionError
-	require.True(t, errors.As(err, &resolutionErr), "expected ResolutionError, got %v", err)
+	require.ErrorAs(t, err, &resolutionErr, "expected ResolutionError, got %v", err)
 	assert.Equal(t, expected, resolutionErr.Code)
 }
 

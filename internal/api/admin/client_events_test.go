@@ -55,8 +55,8 @@ func clientEventEngine(t *testing.T, observer auth.OnboardingObserver, now time.
 	return engine
 }
 
-func postClientEvent(engine *gin.Engine, token, body string) *httptest.ResponseRecorder {
-	request := httptest.NewRequest(http.MethodPost, "/v1/client-events", strings.NewReader(body))
+func postClientEvent(ctx context.Context, engine *gin.Engine, token, body string) *httptest.ResponseRecorder {
+	request := httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/client-events", strings.NewReader(body))
 	if token != "" {
 		request.Header.Set("Authorization", "Bearer "+token)
 	}
@@ -72,7 +72,7 @@ func TestClientEventHandlerReportsLifecycle(t *testing.T) {
 	recorder := &lifecycleRecorder{}
 	engine := clientEventEngine(t, recorder, now)
 
-	response := postClientEvent(engine, clientEventTestToken, `{"action":"off","harness":"codex","extra":"ignored"}`)
+	response := postClientEvent(t.Context(), engine, clientEventTestToken, `{"action":"off","harness":"codex","extra":"ignored"}`)
 
 	require.Equal(t, http.StatusNoContent, response.Code, response.Body.String())
 	require.Empty(t, response.Body.String())
@@ -80,6 +80,25 @@ func TestClientEventHandlerReportsLifecycle(t *testing.T) {
 		InstallationExternalID: "org-test", CredentialSubjectID: "subject", APIKeyID: "key",
 		Harness: auth.LifecycleHarnessCodex, Action: auth.HarnessLifecycleActionOff, OccurredAt: now,
 	}}, recorder.events)
+}
+
+func TestClientEventHandlerAcceptsCopilotAndClaudeDesktop(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	now := time.Date(2026, 9, 26, 12, 0, 0, 0, time.UTC)
+	for body, want := range map[string]auth.HarnessLifecycleEvent{
+		`{"action":"off","harness":"copilot"}`:              {Harness: auth.LifecycleHarnessCopilot, Action: auth.HarnessLifecycleActionOff},
+		`{"action":"uninstall","harness":"copilot"}`:        {Harness: auth.LifecycleHarnessCopilot, Action: auth.HarnessLifecycleActionUninstall},
+		`{"action":"connected","harness":"claude_desktop"}`: {Harness: auth.LifecycleHarnessDesktop, Action: auth.HarnessLifecycleActionConnected},
+		`{"action":"uninstall","harness":"claude_desktop"}`: {Harness: auth.LifecycleHarnessDesktop, Action: auth.HarnessLifecycleActionUninstall},
+	} {
+		t.Run(body, func(t *testing.T) {
+			recorder := &lifecycleRecorder{}
+			response := postClientEvent(t.Context(), clientEventEngine(t, recorder, now), clientEventTestToken, body)
+			require.Equal(t, http.StatusNoContent, response.Code, response.Body.String())
+			want.InstallationExternalID, want.CredentialSubjectID, want.APIKeyID, want.OccurredAt = "org-test", "subject", "key", now
+			require.Equal(t, []auth.HarnessLifecycleEvent{want}, recorder.events)
+		})
+	}
 }
 
 func TestClientEventHandlerRejectsInvalidBodies(t *testing.T) {
@@ -91,12 +110,13 @@ func TestClientEventHandlerRejectsInvalidBodies(t *testing.T) {
 		"unknown action":  `{"action":"status","harness":"claude_code"}`,
 		"unknown harness": `{"action":"on","harness":"cursor"}`,
 		"short harness":   `{"action":"on","harness":"claude"}`,
+		"dashed harness":  `{"action":"connected","harness":"claude-desktop"}`,
 		"not json":        `action=on`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			recorder := &lifecycleRecorder{}
 			engine := clientEventEngine(t, recorder, time.Now())
-			response := postClientEvent(engine, clientEventTestToken, body)
+			response := postClientEvent(t.Context(), engine, clientEventTestToken, body)
 			require.Equal(t, http.StatusBadRequest, response.Code)
 			require.JSONEq(t, `{"error":"invalid_body"}`, response.Body.String())
 			require.Empty(t, recorder.events)
@@ -110,7 +130,7 @@ func TestClientEventHandlerRequiresValidKey(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			recorder := &lifecycleRecorder{}
 			engine := clientEventEngine(t, recorder, time.Now())
-			response := postClientEvent(engine, token, `{"action":"uninstall","harness":"pi"}`)
+			response := postClientEvent(t.Context(), engine, token, `{"action":"uninstall","harness":"pi"}`)
 			require.Equal(t, http.StatusUnauthorized, response.Code)
 			require.Empty(t, recorder.events)
 		})
@@ -120,6 +140,6 @@ func TestClientEventHandlerRequiresValidKey(t *testing.T) {
 func TestClientEventHandlerWithoutObserver(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := clientEventEngine(t, nil, time.Now())
-	response := postClientEvent(engine, clientEventTestToken, `{"action":"on","harness":"opencode"}`)
+	response := postClientEvent(t.Context(), engine, clientEventTestToken, `{"action":"on","harness":"opencode"}`)
 	require.Equal(t, http.StatusNoContent, response.Code, response.Body.String())
 }

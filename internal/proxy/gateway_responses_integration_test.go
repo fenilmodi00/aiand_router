@@ -33,37 +33,6 @@ func writeOpenAIResponsesSSE(w http.ResponseWriter) {
 	}
 }
 
-func writeOpenAIChatSSE(w http.ResponseWriter) {
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.WriteHeader(http.StatusOK)
-	flusher, _ := w.(http.Flusher)
-	chunks := []string{
-		`data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"gpt-5.4-mini","choices":[{"index":0,"delta":{"role":"assistant","content":"hi"},"finish_reason":null}]}` + "\n\n",
-		`data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"gpt-5.4-mini","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":5,"completion_tokens":1}}` + "\n\n",
-		"data: [DONE]\n\n",
-	}
-	for _, c := range chunks {
-		_, _ = w.Write([]byte(c))
-		if flusher != nil {
-			flusher.Flush()
-		}
-	}
-}
-
-const gatewayToolTurn = `{"model":"gpt-5.4-mini","stream":true,"max_tokens":1024,"messages":[{"role":"user","content":"list files"}],` +
-	`"tools":[{"name":"read_file","input_schema":{"type":"object","properties":{"path":{"type":"string"}}}}]}`
-
-func gatewayService(t *testing.T, baseURL string) *proxy.Service {
-	t.Helper()
-	return proxy.NewService(
-		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-5.4-mini"}},
-		map[string]providers.Client{
-			providers.ProviderAIAND: openaicompat.NewGatewayClient("test-key", baseURL),
-		},
-		nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
-	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
-}
-
 // An upstream that mounts the Responses surface serves a direct Responses
 // ingress on it: the caller's own bytes go upstream unchanged apart from the
 // routed model.
@@ -134,19 +103,4 @@ func TestProxyOpenAIResponses_GatewayRejectionIsNotRetried(t *testing.T) {
 		"a genuine rejection is the client's error, not a signal to retry on chat/completions")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "400")
-}
-
-const anthropicToollessTurn = `{"model":"gpt-5.4-mini","stream":true,"max_tokens":1024,` +
-	`"messages":[{"role":"user","content":"summarize this repo"}]}`
-
-func directOpenAIService(t *testing.T, baseURL string, broad bool) *proxy.Service {
-	t.Helper()
-	return proxy.NewService(
-		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: "gpt-5.4-mini"}},
-		map[string]providers.Client{
-			providers.ProviderAIAND: openaicompat.NewClient("test-key", baseURL),
-		},
-		nil, false, nil, nil, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil,
-	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}}).
-		WithOpenAIResponsesBroad(broad)
 }

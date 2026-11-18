@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"aiand-os/router/internal/dispatch"
 	"aiand-os/router/internal/observability"
 	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/router"
@@ -92,10 +93,8 @@ func (s *Service) maybeDemoteArmAfterRescuedFailure(
 	primary router.Decision,
 	installationID uuid.UUID,
 	sessionKey [sessionpin.SessionKeyLen]byte,
-	role string,
-	pinRole string,
 ) string {
-	model, _ := s.maybeStrikeArmAfterRescuedFailure(ctx, rescueRan, hardPinned, primaryErr, primary, installationID, sessionKey, role, pinRole)
+	model, _ := s.maybeStrikeArmAfterRescuedFailure(ctx, rescueRan, hardPinned, primaryErr, primary, installationID, sessionKey, sessionpin.DefaultRole, sessionpin.DefaultRole)
 	return model
 }
 
@@ -136,12 +135,12 @@ func (s *Service) maybeStrikeArmAfterRescuedFailure(
 		reason = sessionpin.DemotionReasonResponseHeaderTimeout
 	} else if s.ResolveTransientRateLimit(ctx) && isTransientGatewayFailure(primaryErr) {
 		cooldown := s.ResolveRateLimitCooldown(ctx)
-		reason, cooldownUntil = sessionpin.DemotionReasonTransientFailure, s.clockNow().Add(cooldown)
-		rateLimitTurnFromContext(ctx).recordCooldown(cooldownUntil, cooldown)
+		reason, cooldownUntil = sessionpin.DemotionReasonTransientFailure, s.clock.Now().Add(cooldown)
+		dispatch.ThrottleLedgerFromContext(ctx).RecordCooldown(cooldownUntil, cooldown)
 	} else if s.ResolveTransientRateLimit(ctx) && isRateLimitedPrimaryFailure(primaryErr) {
 		cooldown := s.ResolveRateLimitCooldown(ctx)
-		reason, cooldownUntil = sessionpin.DemotionReasonRateLimited, s.clockNow().Add(cooldown)
-		rateLimitTurnFromContext(ctx).recordCooldown(cooldownUntil, cooldown)
+		reason, cooldownUntil = sessionpin.DemotionReasonRateLimited, s.clock.Now().Add(cooldown)
+		dispatch.ThrottleLedgerFromContext(ctx).RecordCooldown(cooldownUntil, cooldown)
 	}
 	if !s.demoteArmForSession(ctx, primary.Model, reason, cooldownUntil, upstreamStatus(primaryErr), installationID, sessionKey, role, pinRole) {
 		return "", ""
@@ -236,12 +235,12 @@ func (s *Service) demoteArmForSession(
 		cooldownUntil = time.Time{}
 	}
 	for _, strikeRole := range demotionRoles(role, pinRole) {
-		expired := expiredSessionPin(installationID, sessionKey, strikeRole, string(reason), strategy)
+		expired := expiredSessionPin(installationID, sessionKey, strikeRole, string(reason), strategy, s.clock.Now())
 		var err error
 		if cooldownUntil.IsZero() {
-			err = s.pinStore.ExpireAndDemoteModel(context.Background(), expired, model, reason)
+			err = s.pinStore.ExpireAndDemoteModel(context.WithoutCancel(ctx), expired, model, reason)
 		} else {
-			err = cooldownStore.ExpireAndCoolDownModel(context.Background(), expired, model, cooldownUntil, reason)
+			err = cooldownStore.ExpireAndCoolDownModel(context.WithoutCancel(ctx), expired, model, cooldownUntil, reason)
 		}
 		if err != nil {
 			log.Error("session model demotion failed", "err", err, "role", strikeRole, "model", model, "reason", string(reason))
@@ -303,15 +302,6 @@ func clusterAllowlistsPinModel(overrides map[string][]string, model string) bool
 		}
 	}
 	return true
-}
-
-// armDemotionReason is the completion line's companion to arm_demoted: empty
-// unless a model was actually withdrawn this turn.
-func armDemotionReason(demotedModel string) string {
-	if demotedModel == "" {
-		return ""
-	}
-	return string(sessionpin.DemotionReasonCommittedStreamFailure)
 }
 
 // armDemotionLogFields is the completion line's account of the turn's strikes.

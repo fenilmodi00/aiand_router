@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/binary"
 	"strings"
-	"time"
 
 	"aiand-os/router/internal/observability"
 	"aiand-os/router/internal/providers"
@@ -173,7 +172,7 @@ func (s *Service) handleLoopEscalation(
 		existing, found, err := s.pinStore.Get(ctx, sessionKey, role)
 		if err != nil {
 			log.Error("loop-escalation: prior pin lookup failed", "err", err)
-		} else if found && pinMatchesEffectiveStrategy(ctx, existing) && !(forceModelCleared && isUserForcedReason(existing.Reason)) {
+		} else if found && pinMatchesEffectiveStrategy(ctx, existing) && (!forceModelCleared || !isUserForcedReason(existing.Reason)) {
 			if existing.Reason == translate.ReasonLoopEscalation {
 				return // already rescued this session; don't re-pin or double-log
 			}
@@ -269,12 +268,12 @@ func (s *Service) handleLoopEscalation(
 			Reason:          translate.ReasonLoopEscalation,
 			Strategy:        router.StrategyFromContext(ctx),
 			TurnCount:       1,
-			PinnedUntil:     time.Now().Add(pinSessionTTL),
+			PinnedUntil:     s.clock.Now().Add(pinSessionTTL),
 			LastServedModel: lastServed,
 		}
-		// context.Background(): the request ctx may already be canceled by the
+		// context.WithoutCancel: the request ctx may already be canceled by the
 		// time this runs; the pin write must still land or the next turn re-loops.
-		if err := s.pinStore.Upsert(context.Background(), pin); err != nil {
+		if err := s.pinStore.Upsert(context.WithoutCancel(ctx), pin); err != nil {
 			log.Error("loop-escalation: pin upsert failed", "err", err)
 			return
 		}
@@ -297,7 +296,7 @@ func (s *Service) handleLoopEscalation(
 			DistinctRatio:    distinctRatio,
 			WindowSize:       int32(window),
 		}
-		if err := s.loopEscalationStore.InsertLoopEscalationEvent(context.Background(), event); err != nil {
+		if err := s.loopEscalationStore.InsertLoopEscalationEvent(context.WithoutCancel(ctx), event); err != nil {
 			log.Error("loop-escalation: event insert failed", "err", err)
 		}
 	}

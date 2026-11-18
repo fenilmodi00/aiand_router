@@ -59,7 +59,7 @@ func (s *Service) dispatchSubscriptionStateModels(ctx context.Context, in failov
 		sessionUnavailableModels = make(map[string]struct{})
 	}
 	for model, cooldownUntil := range sessionCooldownModelsFromContext(ctx) {
-		if cooldownUntil.After(s.clockNow()) {
+		if cooldownUntil.After(s.clock.Now()) {
 			sessionUnavailableModels[model] = struct{}{}
 		}
 	}
@@ -110,15 +110,15 @@ func (s *Service) dispatchSubscriptionStateModels(ctx context.Context, in failov
 }
 
 func (s *Service) subscriptionStatePaidTargetAvailable(ctx context.Context, headers http.Header, target router.Decision) bool {
-	resolvedCredentials := s.resolveCredentials(clearCredentials(ctx), target.Provider, target.Model, headers)
-	if s.subscriptionAPIAuthorization(s.withSubscriptionFundingAuthorization(ctx, headers), target.Provider, target.Model) != nil {
+	resolvedCredentials := s.resolveCredentials(clearCredentials(ctx), target.Provider, headers)
+	if s.subscriptionAPIAuthorization(s.withSubscriptionFundingAuthorization(ctx), target.Provider, target.Model) != nil {
 		return false
 	}
 	return len(s.resolveBindingsForDispatch(resolvedCredentials, target)) > 0
 }
 
 func (s *Service) dispatchSubscriptionStateTarget(ctx context.Context, in failoverInputs, target router.Decision, usesIncludedSubscription bool) (int, error) {
-	ctx = s.resolveCredentials(clearCredentials(ctx), target.Provider, target.Model, in.subscriptionStateHeaders)
+	ctx = s.resolveCredentials(clearCredentials(ctx), target.Provider, in.subscriptionStateHeaders)
 	resolvedTargetBindings := s.resolveBindingsForDispatch(ctx, target)
 	if !usesIncludedSubscription && in.onSubscriptionStatePaidTarget != nil {
 		in.onSubscriptionStatePaidTarget(target, resolvedTargetBindings)

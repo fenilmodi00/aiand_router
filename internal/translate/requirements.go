@@ -33,6 +33,9 @@ func (e *RequestEnvelope) TranslationRequirements(endpoint router.TranslationEnd
 		req.UsageDetail = gjson.GetBytes(e.body, "stream_options.include_usage").Bool()
 		req.Audio, req.Files = openAIMediaRequirements(e.body)
 		req.CitationsOrSearch = len(e.NativeServerTools()) > 0
+	case FormatOpenAIResponses, FormatGemini:
+		// Native passthrough and deleted wire formats carry no translated
+		// requirements; the caller's own surface decides eligibility.
 	}
 	return req
 }

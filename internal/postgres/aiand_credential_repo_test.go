@@ -47,15 +47,13 @@ func TestToAiandCredential_MapsRowAndKeepsCiphertextSealed(t *testing.T) {
 	assert.Equal(t, auth.AiandOriginDevice, credential.Origin)
 	assert.Equal(t, "ops@example.com", credential.UserEmail)
 	assert.Equal(t, "Acme", credential.OrgName)
-	assert.Equal(t, "", credential.OrgID, "NULL columns read back as empty strings")
+	assert.Empty(t, credential.OrgID, "NULL columns read back as empty strings")
 	assert.Equal(t, row.ExpiresAt.Time, credential.ExpiresAt)
 	assert.Equal(t, row.Origin, string(credential.Origin))
 }
 
 // errRowStub answers every QueryRow with a fixed error.
-type errRowStub struct {
-	err error
-}
+type errRowStub struct{}
 
 func (*errRowStub) Exec(context.Context, string, ...interface{}) (pgconn.CommandTag, error) {
 	return pgconn.CommandTag{}, errors.New("unexpected Exec")
@@ -145,15 +143,25 @@ func copyRowInto(row *sqlc.RouterAiandCredential, dest []any) error {
 	for i, v := range values {
 		switch target := dest[i].(type) {
 		case *uuid.UUID:
-			*target = v.(uuid.UUID)
+			if err := setFrom(target, v); err != nil {
+				return err
+			}
 		case *[]byte:
-			*target = v.([]byte)
+			if err := setFrom(target, v); err != nil {
+				return err
+			}
 		case *string:
-			*target = v.(string)
+			if err := setFrom(target, v); err != nil {
+				return err
+			}
 		case **string:
-			*target = v.(*string)
+			if err := setFrom(target, v); err != nil {
+				return err
+			}
 		case *pgtype.Timestamptz:
-			*target = v.(pgtype.Timestamptz)
+			if err := setFrom(target, v); err != nil {
+				return err
+			}
 		default:
 			return fmt.Errorf("unsupported scan target at %d: %T", i, dest[i])
 		}
@@ -320,31 +328,57 @@ func scanExpiringTargets(dest, values []any) error {
 	for i := range dest {
 		switch target := dest[i].(type) {
 		case *uuid.UUID:
-			*target = values[i].(uuid.UUID)
+			if err := setFrom(target, values[i]); err != nil {
+				return err
+			}
 		case *[]byte:
-			*target = values[i].([]byte)
+			if err := setFrom(target, values[i]); err != nil {
+				return err
+			}
 		case *string:
-			*target = values[i].(string)
+			if err := setFrom(target, values[i]); err != nil {
+				return err
+			}
 		case **string:
-			*target = values[i].(*string)
+			if err := setFrom(target, values[i]); err != nil {
+				return err
+			}
 		case *bool:
-			*target = values[i].(bool)
+			if err := setFrom(target, values[i]); err != nil {
+				return err
+			}
 		case **float64:
-			*target = values[i].(*float64)
+			if err := setFrom(target, values[i]); err != nil {
+				return err
+			}
 		case **int64:
-			*target = values[i].(*int64)
+			if err := setFrom(target, values[i]); err != nil {
+				return err
+			}
 		case *[]string:
-			*target = values[i].([]string)
+			if err := setFrom(target, values[i]); err != nil {
+				return err
+			}
 		case **[]byte:
-			*target = values[i].(*[]byte)
+			if err := setFrom(target, values[i]); err != nil {
+				return err
+			}
 		case *pgtype.Timestamp:
-			*target = values[i].(pgtype.Timestamp)
+			if err := setFrom(target, values[i]); err != nil {
+				return err
+			}
 		case *pgtype.Timestamptz:
-			*target = values[i].(pgtype.Timestamptz)
+			if err := setFrom(target, values[i]); err != nil {
+				return err
+			}
 		case *pgtype.UUID:
-			*target = values[i].(pgtype.UUID)
+			if err := setFrom(target, values[i]); err != nil {
+				return err
+			}
 		case *pgtype.Numeric:
-			*target = values[i].(pgtype.Numeric)
+			if err := setFrom(target, values[i]); err != nil {
+				return err
+			}
 		default:
 			return fmt.Errorf("unsupported scan target at %d: %T", i, dest[i])
 		}

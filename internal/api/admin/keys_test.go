@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -15,8 +16,7 @@ import (
 	"aiand-os/router/internal/api/admin"
 	"aiand-os/router/internal/auth"
 	"aiand-os/router/internal/providers"
-	"aiand-os/router/internal/router/cluster"
-
+	"aiand-os/router/internal/router"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -123,7 +123,7 @@ func TestListAPIKeysHandler_ReturnsKeysForInstallation(t *testing.T) {
 	require.NoError(t, err)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/admin/v1/keys", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/admin/v1/keys", nil)
 	apiKeysEngine(svc).ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -141,7 +141,7 @@ func TestIssueAPIKeyHandler_ReturnsTokenMatchingFingerprint(t *testing.T) {
 	svc := newAuthServiceForKeyTests(repo, nil)
 
 	body, _ := json.Marshal(map[string]string{"name": "ci-key"})
-	req := httptest.NewRequest(http.MethodPost, "/admin/v1/keys", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/admin/v1/keys", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	apiKeysEngine(svc).ServeHTTP(rec, req)
@@ -185,7 +185,7 @@ func TestIssueAPIKeyHandler_ScopeSelectsCredentialKind(t *testing.T) {
 			svc := newAuthServiceForKeyTests(&fakeAPIKeyRepository{}, nil)
 
 			body, _ := json.Marshal(map[string]string{"scope": tt.bodyScope})
-			req := httptest.NewRequest(http.MethodPost, "/admin/v1/keys", bytes.NewReader(body))
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/admin/v1/keys", bytes.NewReader(body))
 			req.Header.Set("Content-Type", "application/json")
 			rec := httptest.NewRecorder()
 			apiKeysEngine(svc).ServeHTTP(rec, req)
@@ -209,7 +209,7 @@ func TestIssueAPIKeyHandler_RejectsUnknownScope(t *testing.T) {
 	svc := newAuthServiceForKeyTests(&fakeAPIKeyRepository{}, nil)
 
 	body, _ := json.Marshal(map[string]string{"scope": "admin"})
-	req := httptest.NewRequest(http.MethodPost, "/admin/v1/keys", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/admin/v1/keys", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	apiKeysEngine(svc).ServeHTTP(rec, req)
@@ -225,7 +225,7 @@ func TestRotateAPIKeyHandler_PreservesScope(t *testing.T) {
 	oldKey, _, err := svc.IssueScopedAPIKey(context.Background(), testInstallationID, auth.ScopeAnalyticsRead, nil, nil)
 	require.NoError(t, err)
 
-	req := httptest.NewRequest(http.MethodPost, "/admin/v1/keys/"+oldKey.ID+"/rotate", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/admin/v1/keys/"+oldKey.ID+"/rotate", nil)
 	rec := httptest.NewRecorder()
 	apiKeysEngine(svc).ServeHTTP(rec, req)
 
@@ -247,7 +247,7 @@ func TestRotateAPIKeyHandler_SoftDeletesOldKeyAndIssuesNew(t *testing.T) {
 	oldKey, _, err := svc.IssueAPIKey(context.Background(), testInstallationID, nil, nil)
 	require.NoError(t, err)
 
-	req := httptest.NewRequest(http.MethodPost, "/admin/v1/keys/"+oldKey.ID+"/rotate", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/admin/v1/keys/"+oldKey.ID+"/rotate", nil)
 	rec := httptest.NewRecorder()
 	apiKeysEngine(svc).ServeHTTP(rec, req)
 
@@ -272,7 +272,7 @@ func TestRotateAPIKeyHandler_ForeignKeyIDReturnsNotFound(t *testing.T) {
 	foreignKey, _, err := svc.IssueAPIKey(context.Background(), "other-inst", nil, nil)
 	require.NoError(t, err)
 
-	req := httptest.NewRequest(http.MethodPost, "/admin/v1/keys/"+foreignKey.ID+"/rotate", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/admin/v1/keys/"+foreignKey.ID+"/rotate", nil)
 	rec := httptest.NewRecorder()
 	apiKeysEngine(svc).ServeHTTP(rec, req)
 
@@ -293,7 +293,7 @@ func TestListExternalKeysHandler_ReturnsProviderKeysForInstallation(t *testing.T
 	repo := &fakeExternalAPIKeyRepo{keys: []*auth.ExternalAPIKey{externalKey}}
 	svc := newAuthServiceForKeyTests(&fakeAPIKeyRepository{}, repo)
 
-	req := httptest.NewRequest(http.MethodGet, "/admin/v1/provider-keys", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/admin/v1/provider-keys", nil)
 	rec := httptest.NewRecorder()
 	apiKeysEngine(svc).ServeHTTP(rec, req)
 
@@ -370,7 +370,7 @@ func upsertKeyEngine(svc *auth.Service) *gin.Engine {
 	return upsertKeyEngineWithModels(svc, nil)
 }
 
-func upsertKeyEngineWithModels(svc *auth.Service, models admin.DeployedModelsSource) *gin.Engine {
+func upsertKeyEngineWithModels(svc *auth.Service, models admin.HMMRosterSource) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 	engine.POST("/admin/v1/provider-keys", func(c *gin.Context) {
@@ -390,7 +390,7 @@ func postProviderKeyWithBaseURL(engine *gin.Engine, provider, baseURL string) *h
 }
 
 func postProviderKeyBody(engine *gin.Engine, body []byte) *httptest.ResponseRecorder {
-	req := httptest.NewRequest(http.MethodPost, "/admin/v1/provider-keys", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/admin/v1/provider-keys", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	engine.ServeHTTP(rec, req)
@@ -475,24 +475,24 @@ func TestUpsertExternalKeyHandler_PersistsAndReturnsModelAliases(t *testing.T) {
 	t.Setenv(providers.APIKeyEnvVar(providers.ProviderAIAND), "")
 
 	repo := &fakeExternalAPIKeyRepo{}
-	models := fakeDeployedModels{entries: []cluster.DeployedEntry{
+	models := &fakeHMMRoster{entries: []router.DeployedEntry{
 		{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND},
 	}}
 	rec := postProviderKeyWithAliases(
 		upsertKeyEngineWithModels(newUpsertKeyService(repo), models),
 		providers.ProviderAIAND,
-		map[string]string{"z-ai/glm-5.3": " gateway-claude-fable-5 "},
+		map[string]string{"z-ai/glm-5.3": " gateway-glm-5.3 "},
 	)
 
 	require.Equal(t, http.StatusCreated, rec.Code)
-	assert.Equal(t, map[string]string{"z-ai/glm-5.3": "gateway-claude-fable-5"}, repo.createdAliases,
+	assert.Equal(t, map[string]string{"z-ai/glm-5.3": "gateway-glm-5.3"}, repo.createdAliases,
 		"the alias must reach the repository trimmed, or the endpoint gets a padded model name it can't match")
 
 	var body struct {
 		ModelAliases map[string]string `json:"model_aliases"`
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
-	assert.Equal(t, map[string]string{"z-ai/glm-5.3": "gateway-claude-fable-5"}, body.ModelAliases,
+	assert.Equal(t, map[string]string{"z-ai/glm-5.3": "gateway-glm-5.3"}, body.ModelAliases,
 		"the response must echo the stored aliases so the dashboard can show the mapping")
 }
 
@@ -500,13 +500,13 @@ func TestUpsertExternalKeyHandler_RejectsAliasForUnknownModel(t *testing.T) {
 	t.Setenv(providers.APIKeyEnvVar(providers.ProviderAIAND), "")
 
 	repo := &fakeExternalAPIKeyRepo{}
-	models := fakeDeployedModels{entries: []cluster.DeployedEntry{
+	models := &fakeHMMRoster{entries: []router.DeployedEntry{
 		{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND},
 	}}
 	rec := postProviderKeyWithAliases(
 		upsertKeyEngineWithModels(newUpsertKeyService(repo), models),
 		providers.ProviderAIAND,
-		map[string]string{"claude-fabel-5": "gateway-claude-fable-5"},
+		map[string]string{"z-ai/glm-5.4": "gateway-glm-5.3"},
 	)
 
 	assert.Equal(t, http.StatusBadRequest, rec.Code,
@@ -582,7 +582,7 @@ func TestUpsertExternalKeyHandler_RejectsCollidingHeaderDestinationsBeforeReplac
 		"invalid effective configuration must leave the active key untouched")
 }
 
-func aliasUpdateEngine(svc *auth.Service, models admin.DeployedModelsSource) *gin.Engine {
+func aliasUpdateEngine(svc *auth.Service, models admin.HMMRosterSource) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 	engine.PUT("/admin/v1/provider-keys/:id/model-aliases", func(c *gin.Context) {
@@ -593,7 +593,7 @@ func aliasUpdateEngine(svc *auth.Service, models admin.DeployedModelsSource) *gi
 
 func putModelAliases(engine *gin.Engine, id string, aliases map[string]string) *httptest.ResponseRecorder {
 	body, _ := json.Marshal(map[string]any{"model_aliases": aliases})
-	req := httptest.NewRequest(http.MethodPut, "/admin/v1/provider-keys/"+id+"/model-aliases", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPut, "/admin/v1/provider-keys/"+id+"/model-aliases", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	engine.ServeHTTP(rec, req)
@@ -604,39 +604,59 @@ func TestUpdateExternalKeyAliasesHandler_ReplacesAliasesWithoutTheSecret(t *test
 	repo := &fakeExternalAPIKeyRepo{keys: []*auth.ExternalAPIKey{
 		{ID: "ext-1", InstallationID: "inst-1", Provider: providers.ProviderAIAND},
 	}}
-	models := fakeDeployedModels{entries: []cluster.DeployedEntry{{Model: "gpt-5", Provider: providers.ProviderAIAND}}}
+	models := &fakeHMMRoster{entries: []router.DeployedEntry{{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND}}}
 
-	rec := putModelAliases(aliasUpdateEngine(newUpsertKeyService(repo), models), "ext-1", map[string]string{"gpt-5": "openai-gpt-5"})
+	rec := putModelAliases(aliasUpdateEngine(newUpsertKeyService(repo), models), "ext-1", map[string]string{"z-ai/glm-5.3": "gateway-glm-5.3"})
 
 	require.Equal(t, http.StatusOK, rec.Code)
-	assert.Equal(t, map[string]string{"gpt-5": "openai-gpt-5"}, repo.keys[0].ModelAliases,
+	assert.Equal(t, map[string]string{"z-ai/glm-5.3": "gateway-glm-5.3"}, repo.keys[0].ModelAliases,
 		"editing aliases must not require re-entering a credential the dashboard can't show")
 	var body struct {
 		ModelAliases map[string]string `json:"model_aliases"`
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
-	assert.Equal(t, map[string]string{"gpt-5": "openai-gpt-5"}, body.ModelAliases)
+	assert.Equal(t, map[string]string{"z-ai/glm-5.3": "gateway-glm-5.3"}, body.ModelAliases)
 }
 
 func TestUpdateExternalKeyAliasesHandler_RejectsUnknownCatalogModel(t *testing.T) {
 	repo := &fakeExternalAPIKeyRepo{keys: []*auth.ExternalAPIKey{
 		{ID: "ext-1", InstallationID: "inst-1", Provider: providers.ProviderAIAND},
 	}}
-	models := fakeDeployedModels{entries: []cluster.DeployedEntry{{Model: "gpt-5", Provider: providers.ProviderAIAND}}}
+	models := &fakeHMMRoster{entries: []router.DeployedEntry{{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND}}}
 
-	rec := putModelAliases(aliasUpdateEngine(newUpsertKeyService(repo), models), "ext-1", map[string]string{"gpt-6": "openai-gpt-6"})
+	rec := putModelAliases(aliasUpdateEngine(newUpsertKeyService(repo), models), "ext-1", map[string]string{"z-ai/glm-5.4": "gateway-glm-5.4"})
 
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 	assert.Nil(t, repo.keys[0].ModelAliases, "a typo'd catalog id must fail at write time, not silently at runtime")
+}
+
+func TestExternalKeyHandlers_RosterUnavailableIs503(t *testing.T) {
+	t.Setenv(providers.APIKeyEnvVar(providers.ProviderAIAND), "")
+	models := &fakeHMMRoster{err: errors.New("policy not loaded")}
+
+	repo := &fakeExternalAPIKeyRepo{keys: []*auth.ExternalAPIKey{
+		{ID: "ext-1", InstallationID: "inst-1", Provider: providers.ProviderAIAND},
+	}}
+	upsert := postProviderKeyWithAliases(
+		upsertKeyEngineWithModels(newUpsertKeyService(repo), models),
+		providers.ProviderAIAND,
+		map[string]string{"z-ai/glm-5.3": "gateway-glm-5.3"},
+	)
+	assert.Equal(t, http.StatusServiceUnavailable, upsert.Code)
+	assert.Zero(t, repo.created, "aliases must not be stored unvalidated when the roster is unavailable")
+
+	update := putModelAliases(aliasUpdateEngine(newUpsertKeyService(repo), models), "ext-1", map[string]string{"z-ai/glm-5.3": "gateway-glm-5.3"})
+	assert.Equal(t, http.StatusServiceUnavailable, update.Code)
+	assert.Nil(t, repo.keys[0].ModelAliases)
 }
 
 func TestUpdateExternalKeyAliasesHandler_ForeignKeyIsNotFound(t *testing.T) {
 	repo := &fakeExternalAPIKeyRepo{keys: []*auth.ExternalAPIKey{
 		{ID: "ext-1", InstallationID: "inst-2", Provider: providers.ProviderAIAND},
 	}}
-	models := fakeDeployedModels{entries: []cluster.DeployedEntry{{Model: "gpt-5", Provider: providers.ProviderAIAND}}}
+	models := &fakeHMMRoster{entries: []router.DeployedEntry{{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND}}}
 
-	rec := putModelAliases(aliasUpdateEngine(newUpsertKeyService(repo), models), "ext-1", map[string]string{"gpt-5": "openai-gpt-5"})
+	rec := putModelAliases(aliasUpdateEngine(newUpsertKeyService(repo), models), "ext-1", map[string]string{"z-ai/glm-5.3": "gateway-glm-5.3"})
 
 	assert.Equal(t, http.StatusNotFound, rec.Code, "another tenant's key must read as absent, not as a server error")
 	assert.Nil(t, repo.keys[0].ModelAliases)

@@ -2,7 +2,6 @@ package translate_test
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"testing"
 
@@ -65,10 +64,10 @@ func TestPrepareAnthropic_ClientCacheControlFidelity(t *testing.T) {
 		require.NoError(t, err)
 		var out map[string]any
 		require.NoError(t, json.Unmarshal(prep.Body, &out))
-		system := out["system"].([]any)
-		assert.Equal(t, map[string]any{"type": "ephemeral", "ttl": "1h"}, system[0].(map[string]any)["cache_control"])
-		lastMessage := out["messages"].([]any)[0].(map[string]any)
-		lastBlock := lastMessage["content"].([]any)[0].(map[string]any)
+		system := mustAs[[]any](t, out["system"])
+		assert.Equal(t, map[string]any{"type": "ephemeral", "ttl": "1h"}, mustAs[map[string]any](t, system[0])["cache_control"])
+		lastMessage := mustAs[map[string]any](t, mustAs[[]any](t, out["messages"])[0])
+		lastBlock := mustAs[map[string]any](t, mustAs[[]any](t, lastMessage["content"])[0])
 		assert.Equal(t, map[string]any{"type": "ephemeral"}, lastBlock["cache_control"])
 	})
 
@@ -78,6 +77,6 @@ func TestPrepareAnthropic_ClientCacheControlFidelity(t *testing.T) {
 		require.NoError(t, err)
 		_, err = env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "z-ai/glm-5.3"})
 		require.ErrorIs(t, err, translate.ErrAnthropicCacheControlOverflow)
-		assert.False(t, errors.Is(err, translate.ErrAnthropicCacheControlInvalid))
+		assert.NotErrorIs(t, err, translate.ErrAnthropicCacheControlInvalid)
 	})
 }

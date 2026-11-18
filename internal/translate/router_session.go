@@ -3,7 +3,7 @@ package translate
 // routerSessionTokens are the spellings of the router-session directive.
 // Codex reserves `/…` for its own built-ins and exposes the directive as a
 // `$name` skill, so both sigils are accepted here for the same reason
-// parseForceModelCommand accepts both.
+// parseForceModelCommandFromSource accepts both.
 var routerSessionTokens = [...]string{
 	"/router-session",
 	"$router-session",
@@ -22,8 +22,8 @@ var routerSessionTokens = [...]string{
 // Tool-result turns are deliberately excluded (extractLeadingCommand drops
 // them): an agent asking for the session id mid-turn wants it in context, not
 // a synthetic response that ends the turn.
-func (env *RequestEnvelope) ExtractRouterSessionCommand() bool {
-	return env.extractLeadingCommand(parseRouterSessionCommand)
+func (e *RequestEnvelope) ExtractRouterSessionCommand() bool {
+	return e.extractLeadingCommand(parseRouterSessionCommand)
 }
 
 // parseRouterSessionCommand recognizes the bare directive; parseBareDirective holds the

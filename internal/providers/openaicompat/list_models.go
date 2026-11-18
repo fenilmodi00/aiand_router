@@ -93,7 +93,7 @@ func (c *Client) getModelList(ctx context.Context, listURL string) ([]string, in
 		}
 		return nil, 0, providers.ErrModelDiscoveryTransport
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxModelListBytes))
 	if resp.StatusCode >= 400 {
 		return nil, resp.StatusCode, providers.NewModelListStatusError(resp.StatusCode)

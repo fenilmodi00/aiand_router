@@ -10,7 +10,6 @@ import (
 	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/bandit"
-	"aiand-os/router/internal/router/cluster"
 	"aiand-os/router/internal/router/decisionmodel"
 	"aiand-os/router/internal/router/eligibility"
 	"aiand-os/router/internal/router/hmm"
@@ -71,6 +70,7 @@ const (
 	DispatchErrorSpendCapReached
 	DispatchErrorDecisionModelUnavailable
 	DispatchErrorCompactionUnservable
+	DispatchErrorNoEligibleArm
 )
 
 // DispatchErrorClass is the format-agnostic classification of a dispatch
@@ -115,7 +115,7 @@ func ClassifyDispatchError(err error) (DispatchErrorClass, bool) {
 	switch {
 	case errors.Is(err, policy.ErrClassifierWarming):
 		return DispatchErrorClass{Kind: DispatchErrorPolicyUnavailable, Status: http.StatusServiceUnavailable,
-			Message: policy.ErrClassifierWarming.Error(), RetryAfter: true, LogLevel: "warn", LogMessage: "Classifier warming"}, true
+			Message: policy.ClassifierWarmingMessage, RetryAfter: true, LogLevel: "warn", LogMessage: "Classifier warming"}, true
 	case errors.Is(err, router.ErrClassifierHistoryUnavailable), errors.Is(err, router.ErrClassifierThreadInvalid):
 		return DispatchErrorClass{Kind: DispatchErrorClassifierHistory, Status: http.StatusConflict, Message: "Classifier thread history is unavailable or changed. Restore the complete original history; do not re-enroll a compacted thread.", LogLevel: "warn", LogMessage: "Classifier history rejected"}, true
 	case errors.Is(err, router.ErrClassifierInputTooLong):
@@ -303,7 +303,7 @@ func ClassifyDispatchError(err error) (DispatchErrorClass, bool) {
 	// Must precede the ErrNoEligibleProvider case: ErrAllowlistEmptiesPool
 	// wraps it, so the generic case would otherwise match first and report a
 	// missing-provider-keys problem for what is actually a config decision.
-	case errors.Is(err, cluster.ErrAllowlistEmptiesPool):
+	case errors.Is(err, router.ErrAllowlistEmptiesPool):
 		return DispatchErrorClass{
 			Kind:       DispatchErrorAllowlistEmptiesPool,
 			Status:     http.StatusBadRequest,
@@ -311,7 +311,7 @@ func ClassifyDispatchError(err error) (DispatchErrorClass, bool) {
 			LogLevel:   "warn",
 			LogMessage: "Model allowlist leaves no eligible candidates",
 		}, true
-	case errors.Is(err, cluster.ErrNoEligibleProvider):
+	case errors.Is(err, router.ErrNoEligibleProvider):
 		return noEligibleProviderClass(), true
 	case errors.Is(err, billing.ErrUserMonthlySpendLimitReached):
 		return DispatchErrorClass{
@@ -330,7 +330,7 @@ func ClassifyDispatchError(err error) (DispatchErrorClass, bool) {
 			LogLevel:   "error",
 			LogMessage: "Spend-limit check unavailable",
 		}, true
-	case errors.Is(err, cluster.ErrInvalidRoutingKnobs):
+	case errors.Is(err, router.ErrInvalidRoutingKnobs):
 		return DispatchErrorClass{
 			Kind:       DispatchErrorInvalidRoutingKnobs,
 			Status:     http.StatusBadRequest,
@@ -359,14 +359,8 @@ func ClassifyDispatchError(err error) (DispatchErrorClass, bool) {
 		}, true
 	case errors.Is(err, policy.ErrNoProviderCredentials):
 		return noEligibleProviderClass(), true
-	case errors.Is(err, policy.ErrNoRoutableModels):
-		return DispatchErrorClass{
-			Kind:       DispatchErrorNoRoutableModels,
-			Status:     http.StatusBadRequest,
-			Message:    "No model is routable for your organization: the current model and provider selection leaves nothing this request can run on. Ask your org admin to widen it.",
-			LogLevel:   "warn",
-			LogMessage: "Installation configuration leaves no routable model",
-		}, true
+	case errors.Is(err, policy.ErrNoRoutableModels), errors.Is(err, policy.ErrNoEligibleArm):
+		return routingEligibilityClass(err), true
 	case errors.Is(err, dispatch.ErrTargetMismatch):
 		return DispatchErrorClass{
 			Kind:       DispatchErrorPlanTargetMismatch,
@@ -422,15 +416,14 @@ func ClassifyDispatchError(err error) (DispatchErrorClass, bool) {
 			LogLevel:   "error",
 			LogMessage: "Policy routing unavailable",
 		}, true
-	case errors.Is(err, cluster.ErrClusterUnavailable):
+	case errors.Is(err, router.ErrRoutingUnavailable):
 		return DispatchErrorClass{
 			Kind:       DispatchErrorClusterUnavailable,
 			Status:     http.StatusServiceUnavailable,
-			Message:    "Router unavailable: cluster scorer failed and no fallback is configured.",
+			Message:    "Router unavailable: no routing policy could serve this request.",
 			RetryAfter: true,
 			LogLevel:   "error",
-			LogMessage: "Cluster routing unavailable",
-		}, true
+			LogMessage: "Routing unavailable"}, true
 	default:
 		return DispatchErrorClass{}, false
 	}
@@ -451,6 +444,9 @@ func classifyResolutionError(err *policy.ResolutionError) DispatchErrorClass {
 				LogMessage: "Inference plan rejected request-supplied override",
 			}
 		}
+	case policy.ResolutionErrorUnknownPurpose, policy.ResolutionErrorUnsupportedPurpose, policy.ResolutionErrorMissingSelection, policy.ResolutionErrorNoEligibleBinding, policy.ResolutionErrorConstraintViolation:
+		// Policy-side resolution failures carry no request-supplied override, so
+		// the generic routing-outage class below describes them.
 	}
 	return DispatchErrorClass{
 		Kind:       DispatchErrorPlanUnresolvable,
@@ -472,7 +468,7 @@ func unwrapToSentinelMessage(err error) string {
 			continue
 		}
 		if errors.Is(child, translate.ErrAnthropicCacheControlOverflow) || errors.Is(child, translate.ErrAnthropicCacheControlInvalid) {
-			return e.Error()
+			return translate.CacheControlClientMessage(e)
 		}
 	}
 	return err.Error()
@@ -486,7 +482,7 @@ func (k DispatchErrorKind) IsClientError() bool {
 	switch k {
 	case DispatchErrorClassifierHistory, DispatchErrorClassifierInputTooLong:
 		return true
-	case DispatchErrorRequestNotJSONObject, DispatchErrorResponsesChatCompletionsBody, DispatchErrorNoEligibleProvider, DispatchErrorAllowlistEmptiesPool, DispatchErrorContextWindowExceeded, DispatchErrorImageLimitExceeded, DispatchErrorInvalidRoutingKnobs, DispatchErrorTranslationIntrinsicallyIncompatible, DispatchErrorAnthropicCacheControlInvalid, DispatchErrorForcedModelExcluded, DispatchErrorForcedModelUnknown, DispatchErrorPassthroughModelUnknown, DispatchErrorForcedClusterUnsupportedStrategy, DispatchErrorForcedClusterUnservable, DispatchErrorNoRoutableModels, DispatchErrorPlanOverrideRejected, DispatchErrorProductIneligible:
+	case DispatchErrorRequestNotJSONObject, DispatchErrorResponsesChatCompletionsBody, DispatchErrorNoEligibleProvider, DispatchErrorAllowlistEmptiesPool, DispatchErrorContextWindowExceeded, DispatchErrorImageLimitExceeded, DispatchErrorInvalidRoutingKnobs, DispatchErrorTranslationIntrinsicallyIncompatible, DispatchErrorAnthropicCacheControlInvalid, DispatchErrorForcedModelExcluded, DispatchErrorForcedModelUnknown, DispatchErrorPassthroughModelUnknown, DispatchErrorForcedClusterUnsupportedStrategy, DispatchErrorForcedClusterUnservable, DispatchErrorNoRoutableModels, DispatchErrorPlanOverrideRejected, DispatchErrorProductIneligible, DispatchErrorNoEligibleArm:
 		return true
 	default:
 		return false

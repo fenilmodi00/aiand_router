@@ -51,9 +51,7 @@ func (s *Service) grantPostCommandContinuation(
 	pin.InstallationID = installationID
 	pin.Strategy = router.StrategyFromContext(ctx)
 	pin.TurnCount = 1
-	// A slash command can arrive just before the active pin expires. Renew the
-	// one-shot independently so its immediate follow-up remains eligible.
-	pin.PinnedUntil = pinExpiry(pin.Reason)
+	pin.PinnedUntil = pinExpiry(pin.Reason, s.clock.Now())
 	s.upsertPin(ctx, pin)
 	observability.FromContext(ctx).Info("stored one-shot post-command continuation", "model", pin.Model, "provider", pin.Provider, "role", role)
 }
@@ -90,7 +88,7 @@ func (s *Service) invalidatePostCommandContinuation(
 	if s.pinStore == nil {
 		return nil
 	}
-	_, _, err := s.pinStore.Consume(context.Background(), sessionKey, commandContinuationRole(role), router.StrategyFromContext(ctx))
+	_, _, err := s.pinStore.Consume(context.WithoutCancel(ctx), sessionKey, commandContinuationRole(role), router.StrategyFromContext(ctx))
 	if err != nil {
 		observability.FromContext(ctx).Error(
 			"post-command continuation invalidation failed",

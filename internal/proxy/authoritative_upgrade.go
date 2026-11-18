@@ -216,15 +216,15 @@ func (s *Service) authoritativeUpgradeFor(ctx context.Context, req router.Reques
 		decision.Evidence.MarginQualified = &qualified
 	}
 	if decision.Evidence.HasPin {
-		decision.Evidence.CacheCold = pinCacheCold(pin, decision.Evidence.PrefixBroken)
+		decision.Evidence.CacheCold = pinCacheCold(pin, decision.Evidence.PrefixBroken, s.clock.Now())
 		_, pinPriced := hmmEffectiveInputUSDPer1M(pin.Model, inputTokens)
 		_, freshPriced := hmmEffectiveInputUSDPer1M(fresh.Model, inputTokens)
 		decision.Evidence.PricingKnown = pinPriced && freshPriced
 		decision.Evidence.MoreExpensive = hmmFreshIsMoreExpensive(pin.Model, fresh.Model, inputTokens)
 		if !pin.FirstPinnedAt.IsZero() {
-			age := pinAge(pin)
+			age := pinAge(pin, s.clock.Now())
 			decision.PinAgeSec = &age
-			decision.Evidence.StalePin = s.authoritativeUpgradeConfig.StalePinAfter > 0 && time.Since(pin.FirstPinnedAt) >= s.authoritativeUpgradeConfig.StalePinAfter
+			decision.Evidence.StalePin = s.authoritativeUpgradeConfig.StalePinAfter > 0 && s.clock.Now().Sub(pin.FirstPinnedAt) >= s.authoritativeUpgradeConfig.StalePinAfter
 		}
 	}
 	if s.authoritativeUpgradeConfig.StalePinAfter > 0 {
@@ -259,6 +259,7 @@ func logAuthoritativeUpgrade(ctx context.Context, res turnLoopResult) {
 	case upgradeHold:
 		diverges := !res.StickyHit
 		wouldDiverge = &diverges
+	case upgradeExistingPolicy, upgradeNotApplicable, upgradeExcluded:
 	}
 	observability.FromContext(ctx).Info("authoritative upgrade evidence", "installation_id", res.InstallationID.String(), "role", res.PinRole, "mode", decision.Mode, "applied", decision.Applied, "holdout_control", decision.HoldoutControl, "turn_type", res.TurnType, "fresh_model", res.Fresh.Model, "fresh_provider", res.Fresh.Provider, "fresh_score", decision.FreshScore, "pin_model", decision.PinModel, "pin_provider", decision.PinProvider, "fresh_group", decision.Evidence.FreshGroup, "pin_group", decision.Evidence.PinGroup, "margin", decision.Evidence.Margin, "margin_threshold", decision.MarginThreshold, "requested_tier", decision.RequestedTier.String(), "pin_tier", decision.PinTier.String(), "explicit_requested_group", decision.Evidence.RequestedGroup, "cache_cold", decision.Evidence.CacheCold, "prefix_broken", decision.Evidence.PrefixBroken, "pin_age_sec", decision.PinAgeSec, "stale_pin_after_sec", decision.StalePinAfterSec, "vote_count", decision.Evidence.VoteCount, "required_votes", decision.Evidence.RequiredVotes, "demoted", decision.Evidence.Demoted, "fresh_eligible", decision.Evidence.FreshEligible, "outcome", decision.Verdict.Outcome, "reason", decision.Verdict.Reason, "served_model", res.Decision.Model, "pin_tier_path", res.PinTier, "would_diverge", wouldDiverge)
 }

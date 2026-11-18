@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 
 	"aiand-os/router/internal/observability"
-	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/requestcontext"
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/policy"
@@ -77,7 +76,7 @@ func (s *Service) anthropicRoutingRequest(
 		promptText = features.OnlyUserMessageText
 	}
 
-	enabledProviders := s.enabledProvidersForRequest(ctx, providers.ProviderAIAND, headers)
+	enabledProviders := s.enabledProvidersForRequest(ctx, headers)
 	outputReserve := contextWindowOutputReserve
 	if features.MaxTokens > outputReserve {
 		outputReserve = features.MaxTokens

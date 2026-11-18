@@ -1,7 +1,6 @@
 package translate_test
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -47,19 +46,19 @@ func TestAnthropicSameFormat_AddsTailCacheBreakpointWhenSystemAlreadyCached(t *t
 	body := []byte(`{"model":"z-ai/glm-5.3","max_tokens":1024,"system":[{"type":"text","text":"cached rules","cache_control":{"type":"ephemeral","ttl":"1h"}}],"messages":[{"role":"user","content":"first"},{"role":"assistant","content":"ok"},{"role":"user","content":"continue"}]}`)
 	out := parseAndEmit(t, body, "anthropic", translate.EmitOptions{TargetModel: "z-ai/glm-5.3", Capabilities: router.Lookup("z-ai/glm-5.3")})
 
-	system := out["system"].([]any)
+	system := mustAs[[]any](t, out["system"])
 	require.Len(t, system, 1)
-	assert.Equal(t, map[string]any{"type": "ephemeral", "ttl": "1h"}, system[0].(map[string]any)["cache_control"])
+	assert.Equal(t, map[string]any{"type": "ephemeral", "ttl": "1h"}, mustAs[map[string]any](t, system[0])["cache_control"])
 
-	messages := out["messages"].([]any)
+	messages := mustAs[[]any](t, out["messages"])
 	require.Len(t, messages, 3)
-	first := messages[0].(map[string]any)
+	first := mustAs[map[string]any](t, messages[0])
 	assert.Equal(t, "first", first["content"])
 
-	last := messages[2].(map[string]any)
-	blocks := last["content"].([]any)
+	last := mustAs[map[string]any](t, messages[2])
+	blocks := mustAs[[]any](t, last["content"])
 	require.Len(t, blocks, 1)
-	lastBlock := blocks[0].(map[string]any)
+	lastBlock := mustAs[map[string]any](t, blocks[0])
 	assert.Equal(t, "text", lastBlock["type"])
 	assert.Equal(t, "continue", lastBlock["text"])
 	assert.Equal(t, map[string]any{"type": "ephemeral"}, lastBlock["cache_control"])
@@ -69,16 +68,16 @@ func TestAnthropicSameFormat_SkipsSystemBreakpointBeforeLaterOneHourMessage(t *t
 	body := []byte(`{"model":"z-ai/glm-5.3","max_tokens":1024,"system":[{"type":"text","text":"rules"}],"messages":[{"role":"user","content":"first"},{"role":"assistant","content":"ok"},{"role":"user","content":"continue"},{"role":"assistant","content":"ok"},{"role":"user","content":[{"type":"text","text":"cached tail","cache_control":{"type":"ephemeral","ttl":"1h"}}]}]}`)
 	out := parseAndEmit(t, body, "anthropic", translate.EmitOptions{TargetModel: "z-ai/glm-5.3", Capabilities: router.Lookup("z-ai/glm-5.3")})
 
-	system := out["system"].([]any)
+	system := mustAs[[]any](t, out["system"])
 	require.Len(t, system, 1)
-	assert.NotContains(t, system[0].(map[string]any), "cache_control")
+	assert.NotContains(t, mustAs[map[string]any](t, system[0]), "cache_control")
 
-	messages := out["messages"].([]any)
+	messages := mustAs[[]any](t, out["messages"])
 	require.Len(t, messages, 5)
-	last := messages[4].(map[string]any)
-	blocks := last["content"].([]any)
+	last := mustAs[map[string]any](t, messages[4])
+	blocks := mustAs[[]any](t, last["content"])
 	require.Len(t, blocks, 1)
-	assert.Equal(t, map[string]any{"type": "ephemeral", "ttl": "1h"}, blocks[0].(map[string]any)["cache_control"])
+	assert.Equal(t, map[string]any{"type": "ephemeral", "ttl": "1h"}, mustAs[map[string]any](t, blocks[0])["cache_control"])
 }
 
 func TestAnthropicSameFormat_RejectsExplicitTTLOrderViolation(t *testing.T) {
@@ -113,9 +112,9 @@ func TestAnthropicSameFormat_FirstPartyCacheControlFields(t *testing.T) {
 			require.NoError(t, err)
 			var out map[string]any
 			require.NoError(t, json.Unmarshal(p.Body, &out))
-			system := out["system"].([]any)
+			system := mustAs[[]any](t, out["system"])
 			require.Len(t, system, 1)
-			assert.Equal(t, tc.want, system[0].(map[string]any)["cache_control"])
+			assert.Equal(t, tc.want, mustAs[map[string]any](t, system[0])["cache_control"])
 		})
 	}
 }
@@ -156,7 +155,7 @@ func TestAnthropicSameFormat_ToolCacheControlCountsTowardCapacity(t *testing.T) 
 		`"messages":[{"role":"user","content":"hi"}]}`)
 	out := parseAndEmit(t, body, "anthropic", translate.EmitOptions{TargetModel: "z-ai/glm-5.3", Capabilities: router.Lookup("z-ai/glm-5.3")})
 
-	lastMessage := out["messages"].([]any)[0].(map[string]any)
+	lastMessage := mustAs[map[string]any](t, mustAs[[]any](t, out["messages"])[0])
 	assert.Equal(t, "hi", lastMessage["content"], "capacity is full (1 tool + 3 system = 4), so the router injects no tail breakpoint")
 }
 
@@ -251,7 +250,7 @@ func TestOpenAISameFormat_MaxTokensRenamedForReasoning(t *testing.T) {
 	}
 	out := parseAndEmit(t, body, "openai", opts)
 	assert.NotContains(t, out, "max_tokens")
-	assert.Equal(t, float64(500), out["max_completion_tokens"])
+	assert.InDelta(t, float64(500), out["max_completion_tokens"], 1e-9)
 }
 
 func TestOpenAISameFormat_MaxTokensNotRenamedWhenCompTokensAlreadySet(t *testing.T) {
@@ -262,7 +261,7 @@ func TestOpenAISameFormat_MaxTokensNotRenamedWhenCompTokensAlreadySet(t *testing
 	}
 	out := parseAndEmit(t, body, "openai", opts)
 	assert.NotContains(t, out, "max_tokens")
-	assert.Equal(t, float64(1000), out["max_completion_tokens"])
+	assert.InDelta(t, float64(1000), out["max_completion_tokens"], 1e-9)
 }
 
 func TestOpenAISameFormat_ReasoningEffortDeletedForNonReasoning(t *testing.T) {
@@ -316,7 +315,7 @@ func TestOpenAISameFormat_OutputTokensClamped(t *testing.T) {
 		Capabilities: router.Lookup("gpt-4o"),
 	}
 	out := parseAndEmit(t, body, "openai", opts)
-	assert.LessOrEqual(t, out["max_tokens"].(float64), float64(16384))
+	assert.LessOrEqual(t, mustAs[float64](t, out["max_tokens"]), float64(16384))
 }
 
 func TestAnthropicSameFormat_ModelRewrite(t *testing.T) {
@@ -380,7 +379,7 @@ func TestAnthropicSameFormat_OmitsEmptyWebSearchDomainLists(t *testing.T) {
 	assert.Equal(t, "web_search_20250305", tool["type"])
 	assert.Equal(t, []any{"openrouter.ai", "docs.anthropic.com"}, tool["allowed_domains"])
 	assert.NotContains(t, tool, "blocked_domains", "Anthropic 400s empty domain lists; omit them")
-	assert.Equal(t, float64(8), tool["max_uses"])
+	assert.InDelta(t, float64(8), tool["max_uses"], 1e-9)
 }
 
 func TestAnthropicSameFormat_OmitsEmptyAllowedDomains(t *testing.T) {
@@ -930,11 +929,11 @@ func TestOpenAISameFormat_ComplexRequestPreservesStructure(t *testing.T) {
 	}
 	out := parseAndEmit(t, body, "openai", opts)
 	assert.Equal(t, "deepseek/deepseek-v4-flash", out["model"])
-	assert.Equal(t, 0.7, out["temperature"])
-	assert.Equal(t, 0.9, out["top_p"])
+	assert.InDelta(t, 0.7, out["temperature"], 1e-9)
+	assert.InDelta(t, 0.9, out["top_p"], 1e-9)
 	assert.Equal(t, true, out["stream"])
-	assert.Equal(t, float64(1), out["n"])
-	assert.Equal(t, 0.5, out["presence_penalty"])
+	assert.InDelta(t, float64(1), out["n"], 1e-9)
+	assert.InDelta(t, 0.5, out["presence_penalty"], 1e-9)
 	msgs, _ := out["messages"].([]any)
 	assert.Len(t, msgs, 4)
 	tools, _ := out["tools"].([]any)
@@ -970,12 +969,12 @@ func TestAnthropicSameFormat_MultipleThinkingBlocksAcrossMessages(t *testing.T) 
 	msg1, _ := msgs[1].(map[string]any)
 	content1, _ := msg1["content"].([]any)
 	require.Len(t, content1, 1)
-	assert.Equal(t, "text", content1[0].(map[string]any)["type"])
+	assert.Equal(t, "text", mustAs[map[string]any](t, content1[0])["type"])
 
 	msg3, _ := msgs[3].(map[string]any)
 	content3, _ := msg3["content"].([]any)
 	require.Len(t, content3, 1)
-	assert.Equal(t, "text", content3[0].(map[string]any)["type"])
+	assert.Equal(t, "text", mustAs[map[string]any](t, content3[0])["type"])
 }
 
 func TestAnthropicSameFormat_ManyThinkingBlocksInSingleMessage(t *testing.T) {
@@ -997,8 +996,8 @@ func TestAnthropicSameFormat_ManyThinkingBlocksInSingleMessage(t *testing.T) {
 	assistantMsg, _ := msgs[1].(map[string]any)
 	content, _ := assistantMsg["content"].([]any)
 	require.Len(t, content, 1, "all 200 thinking blocks should be stripped, leaving only the text block")
-	assert.Equal(t, "text", content[0].(map[string]any)["type"])
-	assert.Equal(t, "final", content[0].(map[string]any)["text"])
+	assert.Equal(t, "text", mustAs[map[string]any](t, content[0])["type"])
+	assert.Equal(t, "final", mustAs[map[string]any](t, content[0])["text"])
 }
 
 // TestAnthropicSameFormat_AllThinkingBlocksRemoved guards the Greptile P1 on
@@ -1033,7 +1032,7 @@ func TestAnthropicSameFormat_StringContentPreserved(t *testing.T) {
 	msg3, _ := msgs[3].(map[string]any)
 	content, _ := msg3["content"].([]any)
 	require.Len(t, content, 1)
-	assert.Equal(t, "text", content[0].(map[string]any)["type"])
+	assert.Equal(t, "text", mustAs[map[string]any](t, content[0])["type"])
 }
 
 func joinStrings(elems []string, sep string) string {
@@ -1054,7 +1053,7 @@ func TestOpenAISameFormat_ClampMaxCompletionTokens(t *testing.T) {
 		Capabilities: router.Lookup("gpt-4o"),
 	}
 	out := parseAndEmit(t, body, "openai", opts)
-	assert.LessOrEqual(t, out["max_completion_tokens"].(float64), float64(16384))
+	assert.LessOrEqual(t, mustAs[float64](t, out["max_completion_tokens"]), float64(16384))
 }
 
 func TestOpenAISameFormat_StreamUsagePreservesExistingOptions(t *testing.T) {
@@ -1103,15 +1102,6 @@ func TestAnthropicSameFormat_OutputConfigFormatStrippedOnRequest(t *testing.T) {
 	assert.NotContains(t, out, "output_config", "an emptied output_config must be pruned, not sent as {}")
 }
 
-// openAIReasoningSignature builds the cross-format envelope that
-// encodeOpenAIReasoningSignature mints, for use in test fixtures.
-func openAIReasoningSignature(t *testing.T, id, enc string) string {
-	t.Helper()
-	raw, err := json.Marshal(map[string]any{"v": 1, "provider": "openai", "id": id, "enc": enc})
-	require.NoError(t, err)
-	return base64.StdEncoding.EncodeToString(raw)
-}
-
 func TestAnthropicSameFormat_ForcedToolChoicePreservedForCapableModel(t *testing.T) {
 	body := []byte(`{"model":"z-ai/glm-5.3","messages":[{"role":"user","content":"hi"}],"max_tokens":1024,"tools":[{"type":"web_search_20260209","name":"web_search"}],"tool_choice":{"type":"tool","name":"web_search"}}`)
 	opts := translate.EmitOptions{
@@ -1131,26 +1121,26 @@ func TestOpenAIEmit_FillsMissingFunctionToolParameters(t *testing.T) {
 
 	nested := []byte(`{"model":"grok-4.6","messages":[{"role":"user","content":"hi"}],"tools":[{"type":"function","function":{"name":"read_file","parameters":{"type":"object"}}},{"type":"function","function":{"name":"noop"}},{"type":"function","function":{"name":"ping","parameters":null}}]}`)
 	out := parseAndEmit(t, nested, "openai", opts)
-	tools := out["tools"].([]any)
+	tools := mustAs[[]any](t, out["tools"])
 	require.Len(t, tools, 3)
-	fn0 := tools[0].(map[string]any)["function"].(map[string]any)
+	fn0 := mustAs[map[string]any](t, mustAs[map[string]any](t, tools[0])["function"])
 	assert.Equal(t, map[string]any{"type": "object"}, fn0["parameters"])
-	fn1 := tools[1].(map[string]any)["function"].(map[string]any)
+	fn1 := mustAs[map[string]any](t, mustAs[map[string]any](t, tools[1])["function"])
 	assert.Equal(t, empty, fn1["parameters"])
-	fn2 := tools[2].(map[string]any)["function"].(map[string]any)
+	fn2 := mustAs[map[string]any](t, mustAs[map[string]any](t, tools[2])["function"])
 	assert.Equal(t, empty, fn2["parameters"])
 
 	flat := []byte(`{"model":"grok-4.6","messages":[{"role":"user","content":"hi"}],"tools":[{"type":"function","name":"bash","parameters":{"type":"object"}},{"type":"function","name":"ping"},{"type":"function","name":"noop","parameters":null}]}`)
 	out = parseAndEmit(t, flat, "openai", opts)
-	tools = out["tools"].([]any)
+	tools = mustAs[[]any](t, out["tools"])
 	require.Len(t, tools, 3)
-	assert.Equal(t, map[string]any{"type": "object"}, tools[0].(map[string]any)["parameters"])
-	assert.Equal(t, empty, tools[1].(map[string]any)["parameters"])
-	assert.Equal(t, empty, tools[2].(map[string]any)["parameters"])
+	assert.Equal(t, map[string]any{"type": "object"}, mustAs[map[string]any](t, tools[0])["parameters"])
+	assert.Equal(t, empty, mustAs[map[string]any](t, tools[1])["parameters"])
+	assert.Equal(t, empty, mustAs[map[string]any](t, tools[2])["parameters"])
 
 	native := []byte(`{"model":"grok-4.6","messages":[{"role":"user","content":"hi"}],"tools":[{"type":"web_search"}]}`)
 	out = parseAndEmit(t, native, "openai", opts)
-	tool := out["tools"].([]any)[0].(map[string]any)
+	tool := mustAs[map[string]any](t, mustAs[[]any](t, out["tools"])[0])
 	assert.Equal(t, "web_search", tool["type"])
 	assert.NotContains(t, tool, "parameters")
 }

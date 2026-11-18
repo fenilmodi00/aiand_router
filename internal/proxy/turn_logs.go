@@ -9,15 +9,12 @@ import (
 	"net/http"
 	"slices"
 	"strings"
-	"time"
 	"unicode/utf8"
 
-	"aiand-os/router/internal/observability/otel"
 	"aiand-os/router/internal/providers"
+	"aiand-os/router/internal/telemetry"
 	"aiand-os/router/internal/translate"
-
 	"github.com/tidwall/gjson"
-	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 )
 
 // ContentCaptureMode controls how much request/response content the router
@@ -196,14 +193,14 @@ func sha256Hex(b []byte) string {
 // and appending content attributes per capture mode. Under CaptureOff, only
 // permanent upstream 4xx failures emit a metadata-only alert event. base is cloned
 // before appending so the span's attributes aren't mutated.
-func (s *Service) recordCallLog(ctx context.Context, base []*commonv1.KeyValue, routeMs int64, proxyErr error, reqBody, respBody []byte, respTruncated bool) {
+func (s *Service) recordCallLog(ctx context.Context, base []telemetry.Attr, routeMs int64, proxyErr error, reqBody, respBody []byte, respTruncated bool) {
 	mode := s.effectiveCaptureMode(ctx)
 	if mode == CaptureOff {
 		s.recordPermanentError(ctx, base, proxyErr, len(reqBody))
 		return
 	}
 
-	content := otel.NewAttrBuilder(7).
+	content := telemetry.NewAttrBuilder(7).
 		Int64("latency.route_ms", routeMs).
 		Int64("io.request_bytes", int64(len(reqBody))).
 		Int64("io.response_bytes", int64(len(respBody))).
@@ -216,16 +213,17 @@ func (s *Service) recordCallLog(ctx context.Context, base []*commonv1.KeyValue, 
 	case CaptureHashed:
 		content.String("io.request_sha256", sha256Hex(reqBody)).
 			String("io.response_sha256", sha256Hex(respBody))
+	case CaptureOff:
 	}
 
 	attrs := append(slices.Clone(base), content.Build()...)
-	sev := otel.SeverityInfo
+	sev := telemetry.SeverityInfo
 	if proxyErr != nil {
-		sev = otel.SeverityError
+		sev = telemetry.SeverityError
 	}
-	otel.RecordLog(ctx, otel.LogRecord{
+	telemetry.RecordLog(ctx, telemetry.LogRecord{
 		Name:     "router.call",
-		Time:     time.Now(),
+		Time:     s.clock.Now(),
 		Severity: sev,
 		Attrs:    attrs,
 	})
@@ -290,7 +288,7 @@ const (
 )
 
 // recordPermanentError includes a bounded provider error response for diagnosis.
-func (s *Service) recordPermanentError(ctx context.Context, base []*commonv1.KeyValue, proxyErr error, requestBytes int) {
+func (s *Service) recordPermanentError(ctx context.Context, base []telemetry.Attr, proxyErr error, requestBytes int) {
 	if proxyErr == nil {
 		return
 	}
@@ -305,7 +303,7 @@ func (s *Service) recordPermanentError(ctx context.Context, base []*commonv1.Key
 		return
 	}
 
-	attrs := make([]*commonv1.KeyValue, 0, 20)
+	attrs := make([]telemetry.Attr, 0, 20)
 	responsesSurface := false
 	for _, attr := range base {
 		switch attr.Key {
@@ -317,15 +315,15 @@ func (s *Service) recordPermanentError(ctx context.Context, base []*commonv1.Key
 		}
 	}
 	attrs = append(attrs, permanentErrorDiagnosticAttrs(proxyErr, requestBytes, s.redactor, responsesSurface)...)
-	otel.RecordLog(ctx, otel.LogRecord{
-		Name: permanentErrorEventName, Time: time.Now(),
-		Severity: otel.SeverityError, Attrs: attrs,
+	telemetry.RecordLog(ctx, telemetry.LogRecord{
+		Name: permanentErrorEventName, Time: s.clock.Now(),
+		Severity: telemetry.SeverityError, Attrs: attrs,
 	})
 }
 
-func permanentErrorDiagnosticAttrs(proxyErr error, requestBytes int, redact Redactor, responsesSurface ...bool) []*commonv1.KeyValue {
+func permanentErrorDiagnosticAttrs(proxyErr error, requestBytes int, redact Redactor, responsesSurface ...bool) []telemetry.Attr {
 	isResponsesSurface := len(responsesSurface) > 0 && responsesSurface[0]
-	attrs := otel.NewAttrBuilder(8).
+	attrs := telemetry.NewAttrBuilder(8).
 		String("upstream.error_class", string(classifyPermanentError(proxyErr, isResponsesSurface))).
 		String("request.size_bucket", string(requestSizeBucketFor(requestBytes)))
 
@@ -478,7 +476,8 @@ func safeUpstreamRequestID(headers http.Header) string {
 			continue
 		}
 		for _, char := range requestID {
-			if !((char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9') || strings.ContainsRune("-_.:/", char)) {
+			allowed := (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9') || strings.ContainsRune("-_.:/", char)
+			if !allowed {
 				requestID = ""
 				break
 			}

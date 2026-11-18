@@ -16,8 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func itoa(n int) string { return strconv.Itoa(n) }
-
 func gjsonStopReason(b []byte) string {
 	var m map[string]any
 	_ = json.Unmarshal(b, &m)
@@ -25,9 +23,9 @@ func gjsonStopReason(b []byte) string {
 	return s
 }
 
-func openAIReasoningTestSignature(t *testing.T, id, enc, scope string) string {
+func openAIReasoningTestSignature(t *testing.T, id, enc string) string {
 	t.Helper()
-	b, err := json.Marshal(map[string]any{"v": 1, "provider": "openai", "id": id, "enc": enc, "scope": scope})
+	b, err := json.Marshal(map[string]any{"v": 1, "provider": "openai", "id": id, "enc": enc, "scope": "scope_a"})
 	require.NoError(t, err)
 	return base64.StdEncoding.EncodeToString(b)
 }
@@ -65,7 +63,7 @@ func TestPrepareOpenAIResponses_SanitizesHistoricalToolName(t *testing.T) {
 	require.Len(t, input, 2)
 	call, _ := input[0].(map[string]any)
 	assert.Regexp(t, `^dots_schema_search_--scope_all_[0-9a-f]{10}$`, call["name"])
-	assert.Equal(t, "dots schema search --scope all", prep.ResponseToolNames[call["name"].(string)])
+	assert.Equal(t, "dots schema search --scope all", prep.ResponseToolNames[mustAs[string](t, call["name"])])
 }
 
 func topLevelResponsesFields(t *testing.T, body []byte) []string {
@@ -239,7 +237,7 @@ func TestPrepareOpenAIResponses_ClampsGeminiThoughtSignatureCallID(t *testing.T)
 // and the rejected turn ends the client session, so a turn dispatched
 // anywhere else drops the item instead of replaying it.
 func TestPrepareOpenAIResponses_DropsReasoningMintedOnAnotherAccount(t *testing.T) {
-	sig := openAIReasoningTestSignature(t, "rs_prev", "enc_prev", "scope_a")
+	sig := openAIReasoningTestSignature(t, "rs_prev", "enc_prev")
 	// Claude Code drops the thinking block but echoes the tool_use id, so the
 	// envelope rides on both carriers and both must honor the scope.
 	carrierID := "toolu_1__openai_reasoning__" + base64.RawURLEncoding.EncodeToString([]byte(sig))

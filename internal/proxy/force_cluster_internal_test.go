@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -16,7 +15,7 @@ import (
 
 func forceClusterRequest(t *testing.T, value string) *http.Request {
 	t.Helper()
-	r, err := http.NewRequest(http.MethodPost, "/v1/messages", nil)
+	r, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", nil)
 	require.NoError(t, err)
 	if value != "" {
 		r.Header.Set(ForceClusterHeader, value)
@@ -61,7 +60,7 @@ func TestApplyForceClusterHeader_RejectsNonSidecarStrategy(t *testing.T) {
 	label, err := applyForceClusterHeader(ctx, forceClusterRequest(t, "maximum"))
 
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, ErrForcedClusterUnsupportedStrategy))
+	require.ErrorIs(t, err, ErrForcedClusterUnsupportedStrategy)
 	assert.Empty(t, label)
 
 	cls, ok := ClassifyDispatchError(err)
@@ -87,16 +86,4 @@ func TestProxyMessages_ForceClusterOnNonSidecarStrategyRejects(t *testing.T) {
 	require.ErrorIs(t, err, ErrForcedClusterUnsupportedStrategy)
 	assert.Zero(t, fr.routeCalls, "must abort before routing runs")
 	assert.Zero(t, fp.proxyCalls, "must abort before dispatching upstream")
-}
-
-// forceClusterCapturingRouter records the request the turn loop routed with, so
-// the header's journey from ingress to router.Request is provable.
-type forceClusterCapturingRouter struct {
-	captured router.Request
-	decision router.Decision
-}
-
-func (r *forceClusterCapturingRouter) Route(_ context.Context, req router.Request) (router.Decision, error) {
-	r.captured = req
-	return r.decision, nil
 }

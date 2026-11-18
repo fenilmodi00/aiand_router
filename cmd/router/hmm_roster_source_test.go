@@ -13,7 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"aiand-os/router/internal/observability"
-	"aiand-os/router/internal/router/cluster"
+	"aiand-os/router/internal/policyregistry"
+	"aiand-os/router/internal/router"
 )
 
 type stubRosterFetcher struct {
@@ -56,6 +57,30 @@ func TestHMMRosterSource_MapsAndCaches(t *testing.T) {
 	assert.Equal(t, int64(1), fetch.calls.Load())
 }
 
+type stubActivePolicyFetcher struct {
+	*stubRosterFetcher
+	active atomic.Pointer[policyregistry.Snapshot]
+}
+
+func (s *stubActivePolicyFetcher) Active() *policyregistry.Snapshot { return s.active.Load() }
+
+func TestHMMRosterSource_RefetchesWhenActivePolicyChanges(t *testing.T) {
+	fetch := &stubActivePolicyFetcher{stubRosterFetcher: &stubRosterFetcher{ids: []string{"z-ai/glm-5.3"}}}
+	fetch.active.Store(&policyregistry.Snapshot{})
+	src := newHMMRosterSource(fetch, 0)
+
+	_, err := src.HMMDeployedModels(context.Background())
+	require.NoError(t, err)
+
+	fetch.ids = []string{"deepseek/deepseek-v4-pro"}
+	fetch.active.Store(&policyregistry.Snapshot{})
+	updated, err := src.HMMDeployedModels(context.Background())
+	require.NoError(t, err)
+	require.Len(t, updated, 1)
+	assert.Equal(t, "deepseek/deepseek-v4-pro", updated[0].Model, "a newly activated policy must not wait out the TTL")
+	assert.Equal(t, int64(2), fetch.calls.Load())
+}
+
 // countingHandler counts records at or above WARN; slog.Handler for tests.
 type countingHandler struct {
 	warns atomic.Int64
@@ -72,7 +97,7 @@ func (h *countingHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
 func (h *countingHandler) WithGroup(string) slog.Handler      { return h }
 
 func TestHMMRosterSource_WarnsOncePerRosterOnInvalidArms(t *testing.T) {
-	fetch := &stubRosterFetcher{ids: []string{"z-ai/glm-5.3", "openai/gpt-nonexistent"}}
+	fetch := &stubRosterFetcher{ids: []string{"z-ai/glm-5.3", "nope/gpt-nonexistent"}}
 	src := newHMMRosterSource(fetch, 0)
 	handler := &countingHandler{}
 	ctx := observability.WithLogger(context.Background(), slog.New(handler))
@@ -93,7 +118,7 @@ func TestHMMRosterSource_WarnsOncePerRosterOnInvalidArms(t *testing.T) {
 	assert.Equal(t, int64(1), handler.warns.Load())
 
 	// A different roster with invalid arms warns anew.
-	fetch.ids = []string{"z-ai/glm-5.3", "openai/gpt-other"}
+	fetch.ids = []string{"z-ai/glm-5.3", "nope/gpt-other"}
 	src.mu.Lock()
 	src.fetchedAt = src.fetchedAt.Add(-2 * hmmRosterTTL)
 	src.mu.Unlock()
@@ -111,7 +136,7 @@ func TestHMMRosterSource_WarnsOncePerRosterOnInvalidArms(t *testing.T) {
 	assert.Equal(t, int64(2), handler.warns.Load())
 
 	// ...so the same invalid roster reappearing warns again.
-	fetch.ids = []string{"z-ai/glm-5.3", "openai/gpt-nonexistent"}
+	fetch.ids = []string{"z-ai/glm-5.3", "nope/gpt-nonexistent"}
 	src.mu.Lock()
 	src.fetchedAt = src.fetchedAt.Add(-2 * hmmRosterTTL)
 	src.mu.Unlock()
@@ -191,7 +216,7 @@ func TestHMMRosterSource_CallerCancelDoesNotAbortSharedFetch(t *testing.T) {
 
 	cancelCtx, cancel := context.WithCancel(context.Background())
 	var wg sync.WaitGroup
-	var liveEntries []cluster.DeployedEntry
+	var liveEntries []router.DeployedEntry
 	var liveErr error
 
 	wg.Add(2)

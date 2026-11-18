@@ -45,6 +45,9 @@ check-inference-policy: ## Check that generated inference-policy projections are
 inference-boundary: check-inference-policy ## Reject new inference/provider bypasses and stale policy docs
 	go test ./internal/router/policy ./internal/architecture
 
+arch-ratchet: ## Fail if this branch grows functions or files past the size and complexity limits (BASE=origin/main)
+	go run ./scripts/arch_ratchet -base $(or $(BASE),origin/main)
+
 generate-agent-guides: ## Generate AGENTS.md mirrors from authoritative CLAUDE.md guides
 	@python3 scripts/generate_agent_guides.py
 
@@ -73,6 +76,7 @@ setup-install-tests: ## Install npm dependencies before running offline installe
 
 test-install: ## Run offline installer regression tests (after make setup-install-tests)
 	@bash install/tests/jq_bootstrap_test.sh
+	@bash install/tests/jq_compat_test.sh
 	@bash install/tests/claude-status_test.sh
 	@bash install/tests/codex_install_test.sh
 	@bash install/tests/build_skill_install_test.sh
@@ -241,7 +245,7 @@ check: check-agent-guides check-docs inference-boundary generate fmt vet build t
 	fi
 	@echo "All checks passed."
 
-.PHONY: doctor check-plan check-changed
+.PHONY: doctor check-plan check-changed arch-ratchet
 doctor: ## Read-only agent prerequisite discovery (no services or cloud calls)
 	python3 scripts/agent_checks.py doctor
 

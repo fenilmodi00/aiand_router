@@ -248,6 +248,9 @@ func (e Exclusions) kindSet(kind ExclusionKind) map[string]struct{} {
 
 func (e *Exclusions) setKind(kind ExclusionKind, set map[string]struct{}) {
 	switch kind {
+	case ExclusionRequested:
+		// Requested exclusions live only in the union: no marker set gates
+		// force re-admission for them.
 	case ExclusionSafety:
 		e.safety = set
 	case ExclusionContextWindow:

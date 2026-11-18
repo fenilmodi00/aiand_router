@@ -37,7 +37,7 @@ func TestClassifierPerCallHistoryWithinSingleHumanTurn(t *testing.T) {
 			require.Equal(t, router.ClassifierComplexity((response.ResponseIndex/2)%4), response.Complexity)
 		}
 		// A replacement replica must deduplicate this call, not the human turn.
-		replica := &Service{now: svc.now}
+		replica := &Service{clock: svc.clock}
 		require.NoError(t, replica.WithClassifierSessions(svc.classifierSessions.config, store, svc.classifierSessions.classifier))
 		retried, err := replica.classifyThread(ctx, input)
 		require.NoError(t, err)
@@ -64,9 +64,9 @@ func TestClassifierPerCallHistoryWithinSingleHumanTurn(t *testing.T) {
 
 func TestClassifierCodexExitErrorsAdvanceWithoutChangingReplay(t *testing.T) {
 	var inputs []router.AtomicClassificationRequest
-	svc, principal, _ := classifierSessionFixture(t, func(_ context.Context, input router.AtomicClassificationRequest) (router.ClassifierPrediction, error) {
+	svc, principal, _ := classifierSessionFixture(t, func(ctx context.Context, input router.AtomicClassificationRequest) (router.ClassifierPrediction, error) {
 		inputs = append(inputs, input)
-		return classifierMedium(context.Background(), input)
+		return classifierMedium(ctx, input)
 	})
 	ctx := classifierAdmit(t, svc, principal)
 	items := []json.RawMessage{json.RawMessage(`{"role":"user","content":"Synthetic task"}`)}
@@ -112,7 +112,7 @@ func TestClassifierLegacyPredictionsCannotBecomeCallHistory(t *testing.T) {
 	require.NoError(t, err)
 	prediction, err := svc.classifyThread(ctx, input)
 	require.NoError(t, err)
-	thread := ctx.Value(classifierThreadContextKey{}).(router.ClassifierThread)
+	thread := mustAs[router.ClassifierThread](t, ctx.Value(classifierThreadContextKey{}))
 	prediction.InputMessageCount = 0
 	store.turns[thread.ThreadID][prediction.TurnDigest] = prediction
 	_, err = svc.classifyThread(ctx, input)

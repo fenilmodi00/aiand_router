@@ -4,6 +4,8 @@ package proxy
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -24,7 +26,7 @@ import (
 // that the current permanent-strike policy implements transient recovery.
 func TestRecoveryAcceptanceRescued502HasBoundedWithdrawal(t *testing.T) {
 	store := &cooldownStubPinStore{}
-	svc := newRateLimitTestService(store, true, 45)
+	svc := newRateLimitTestService(store, true)
 	primary := router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDDeepSeekV4Pro.String()}
 	model, _ := svc.maybeStrikeArmAfterRescuedFailure(context.Background(), true, false,
 		&providers.UpstreamErrorResponse{Status: http.StatusBadGateway}, primary,
@@ -77,6 +79,18 @@ func (c *blockingRecoveryClient) Proxy(ctx context.Context, _ router.Decision, _
 
 func (*blockingRecoveryClient) Passthrough(context.Context, providers.PreparedRequest, http.ResponseWriter, *http.Request) error {
 	return providers.ErrNotImplemented
+}
+
+// writeChatCompletionText streams text as a complete chat/completions turn.
+func writeChatCompletionText(w http.ResponseWriter, text string) {
+	content, _ := json.Marshal(text)
+	for _, frame := range []string{
+		`{"id":"c1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":` + string(content) + `},"finish_reason":null}]}`,
+		`{"id":"c1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":3}}`,
+		"[DONE]",
+	} {
+		_, _ = io.WriteString(w, "data: "+frame+"\n\n")
+	}
 }
 
 type recoveryBucketRead struct {
@@ -153,7 +167,7 @@ func TestRecoveryAcceptanceCooldownExpiryAdmitsOneConcurrentProbe(t *testing.T) 
 	svc := NewService(scorer, map[string]providers.Client{providers.ProviderAIAND: provider},
 		nil, false, nil, store, false, providers.ProviderAIAND, recoveryOpusModel, nil).WithTransientRateLimit(true, 45)
 	now := rateLimitTestNow.Add(-time.Nanosecond)
-	svc.now = func() time.Time { return now }
+	svc.clock = func() time.Time { return now }
 	ctx, cancel := context.WithTimeout(twoModelGatewayContext(), 5*time.Second)
 	defer cancel()
 	body := []byte(`{"model":"gpt-6-luna","stream":true,"messages":[{"role":"user","content":"synthetic concurrent recovery"}]}`)

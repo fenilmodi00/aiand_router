@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/net/http2"
+
 	"aiand-os/router/internal/router"
 )
 
@@ -339,6 +341,34 @@ func IsResponseHeaderTimeout(err error) bool {
 		return false
 	}
 	return strings.Contains(urlErr.Err.Error(), "timeout awaiting response headers")
+}
+
+// IsHTTP2ConnectionLoss reports whether the provider's HTTP/2 connection
+// failed under the request: a stream reset, GOAWAY or connection error, or a
+// keepalive ping it never answered. net/http's bundled HTTP/2 client returns
+// unexported copies of the x/net error types; only its StreamError converts
+// via errors.As, so the rest are matched by the text both packages share.
+func IsHTTP2ConnectionLoss(err error) bool {
+	var streamErr http2.StreamError
+	var connErr http2.ConnectionError
+	if errors.As(err, &streamErr) || errors.As(err, &connErr) {
+		return true
+	}
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	if strings.Contains(msg, "http2: client connection lost") ||
+		strings.Contains(msg, "http2: server sent GOAWAY and closed the connection") {
+		return true
+	}
+	// net/http's unexported HTTP/2 ConnectionError has the bare message "connection error: <code>".
+	for e := err; e != nil; e = errors.Unwrap(e) {
+		if strings.HasPrefix(e.Error(), "connection error: ") {
+			return true
+		}
+	}
+	return false
 }
 
 // IsUpstreamModelNotFound reports whether err is a buffered upstream 404,

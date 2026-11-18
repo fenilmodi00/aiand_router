@@ -79,42 +79,17 @@ func responseHeaderTimeoutErr(t *testing.T) error {
 	defer close(release)
 
 	client := &http.Client{Transport: &http.Transport{ResponseHeaderTimeout: 10 * time.Millisecond}}
-	_, err := client.Get(upstream.URL)
+	request, buildErr := http.NewRequestWithContext(t.Context(), http.MethodGet, upstream.URL, nil)
+	require.NoError(t, buildErr)
+	resp, err := client.Do(request)
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
 
 	require.Error(t, err)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 	require.Contains(t, err.Error(), "timeout awaiting response headers")
 	return err
-}
-
-func TestPreludeBuffer_CommitsEagerPreludeAndBuffersProviderOutput(t *testing.T) {
-	rec := httptest.NewRecorder()
-	buf := newPreludeBuffer(rec)
-
-	buf.Header().Set("Content-Type", "text/event-stream")
-	buf.WriteHeader(http.StatusOK)
-	_, err := buf.Write([]byte("marker"))
-	require.NoError(t, err)
-	require.NoError(t, buf.CommitPrelude())
-	assert.True(t, buf.PreludeSent())
-	assert.False(t, buf.Committed())
-	assert.Equal(t, "marker", rec.Body.String())
-
-	buf.Seal()
-	buf.Discard()
-	assert.Equal(t, "marker", rec.Body.String())
-
-	_, err = buf.Write([]byte("fallback-marker"))
-	require.NoError(t, err)
-	require.NoError(t, buf.CommitPrelude())
-	assert.Equal(t, "markerfallback-marker", rec.Body.String())
-
-	buf.Seal()
-	_, err = buf.Write([]byte("provider-output"))
-	require.NoError(t, err)
-	require.NoError(t, buf.commit())
-	assert.True(t, buf.Committed())
-	assert.Equal(t, "markerfallback-markerprovider-output", rec.Body.String())
 }
 
 func TestDispatchWithFallback_PrimarySucceedsNoRetry(t *testing.T) {
@@ -127,7 +102,7 @@ func TestDispatchWithFallback_PrimarySucceedsNoRetry(t *testing.T) {
 	})
 
 	rec := httptest.NewRecorder()
-	buf := newPreludeBuffer(rec)
+	buf := dispatch.NewPreludeBuffer(rec)
 	r := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
 	winnerIdx, err := s.dispatchWithFallback(context.Background(), failoverInputs{
@@ -189,7 +164,7 @@ func TestDispatchWithFallback_RetriesOnRetryableBufferedError(t *testing.T) {
 	})
 
 	rec := httptest.NewRecorder()
-	buf := newPreludeBuffer(rec)
+	buf := dispatch.NewPreludeBuffer(rec)
 	r := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
 	winnerIdx, err := s.dispatchWithFallback(context.Background(), failoverInputs{
@@ -240,7 +215,7 @@ func TestDispatchWithFallback_SchemaRejectionDoesNotFailoverCrossBinding(t *test
 	})
 
 	rec := httptest.NewRecorder()
-	buf := newPreludeBuffer(rec)
+	buf := dispatch.NewPreludeBuffer(rec)
 	r := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
 	_, err := s.dispatchWithFallback(context.Background(), failoverInputs{
@@ -279,7 +254,7 @@ func TestDispatchWithFallback_RetriesOnTransportError(t *testing.T) {
 	})
 
 	rec := httptest.NewRecorder()
-	buf := newPreludeBuffer(rec)
+	buf := dispatch.NewPreludeBuffer(rec)
 	r := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
 	winnerIdx, err := s.dispatchWithFallback(context.Background(), failoverInputs{
@@ -317,7 +292,7 @@ func TestDispatchWithFallback_NoRetryOnNonRetryableStatus(t *testing.T) {
 	})
 
 	rec := httptest.NewRecorder()
-	buf := newPreludeBuffer(rec)
+	buf := dispatch.NewPreludeBuffer(rec)
 	r := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
 	winnerIdx, err := s.dispatchWithFallback(context.Background(), failoverInputs{
@@ -363,7 +338,7 @@ func TestDispatchWithFallback_ModelNotFoundFailsOverToNextBinding(t *testing.T) 
 	})
 
 	rec := httptest.NewRecorder()
-	buf := newPreludeBuffer(rec)
+	buf := dispatch.NewPreludeBuffer(rec)
 	r := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
 	winnerIdx, err := s.dispatchWithFallback(context.Background(), failoverInputs{
@@ -399,7 +374,7 @@ func TestDispatchWithFallback_ModelNotFoundSingleBindingFlushes(t *testing.T) {
 	s := newServiceWithProviders(t, map[string]providers.Client{"bedrock": only})
 
 	rec := httptest.NewRecorder()
-	buf := newPreludeBuffer(rec)
+	buf := dispatch.NewPreludeBuffer(rec)
 	r := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
 	_, err := s.dispatchWithFallback(context.Background(), failoverInputs{
@@ -441,7 +416,7 @@ func TestDispatchWithFallback_BillingBlockedFailsOverToNextBinding(t *testing.T)
 	})
 
 	rec := httptest.NewRecorder()
-	buf := newPreludeBuffer(rec)
+	buf := dispatch.NewPreludeBuffer(rec)
 	r := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
 	winnerIdx, err := s.dispatchWithFallback(context.Background(), failoverInputs{
@@ -478,7 +453,7 @@ func TestDispatchWithFallback_BillingBlockedSingleBindingFlushes(t *testing.T) {
 	s := newServiceWithProviders(t, map[string]providers.Client{"makora": only})
 
 	rec := httptest.NewRecorder()
-	buf := newPreludeBuffer(rec)
+	buf := dispatch.NewPreludeBuffer(rec)
 	r := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
 	_, err := s.dispatchWithFallback(context.Background(), failoverInputs{
@@ -518,7 +493,7 @@ func TestDispatchWithFallback_NoRetryAfterBytesFlushed(t *testing.T) {
 	})
 
 	rec := httptest.NewRecorder()
-	buf := newPreludeBuffer(rec)
+	buf := dispatch.NewPreludeBuffer(rec)
 	r := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
 	winnerIdx, err := s.dispatchWithFallback(context.Background(), failoverInputs{
@@ -558,7 +533,7 @@ func TestDispatchWithFallback_BothFailFinalBodyFlushed(t *testing.T) {
 	})
 
 	rec := httptest.NewRecorder()
-	buf := newPreludeBuffer(rec)
+	buf := dispatch.NewPreludeBuffer(rec)
 	r := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
 	winnerIdx, err := s.dispatchWithFallback(context.Background(), failoverInputs{
@@ -606,7 +581,7 @@ func TestDispatchWithFallback_SingleBindingExhaustsRetries(t *testing.T) {
 	s.retrySleep = noopSleep
 
 	rec := httptest.NewRecorder()
-	buf := newPreludeBuffer(rec)
+	buf := dispatch.NewPreludeBuffer(rec)
 	r := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
 	winnerIdx, err := s.dispatchWithFallback(context.Background(), failoverInputs{
@@ -658,7 +633,7 @@ func TestDispatchWithFallback_SlowAttemptsStopBeforeRetryCount(t *testing.T) {
 	const slowAttempt = 30 * time.Second
 	base := time.Now()
 	reads := 0
-	s.now = func() time.Time {
+	s.clock = func() time.Time {
 		now := base.Add(time.Duration(reads) * slowAttempt)
 		reads++
 		return now
@@ -666,7 +641,7 @@ func TestDispatchWithFallback_SlowAttemptsStopBeforeRetryCount(t *testing.T) {
 	require.Greater(t, slowAttempt, subscriptionRotationBudget, "attempt must outrun the budget for this test to mean anything")
 
 	rec := httptest.NewRecorder()
-	buf := newPreludeBuffer(rec)
+	buf := dispatch.NewPreludeBuffer(rec)
 	r := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
 	_, err := s.dispatchWithFallback(context.Background(), failoverInputs{
@@ -702,7 +677,7 @@ func TestDispatchWithFallback_SingleBindingRetrySucceeds(t *testing.T) {
 	s.retrySleep = noopSleep
 
 	rec := httptest.NewRecorder()
-	buf := newPreludeBuffer(rec)
+	buf := dispatch.NewPreludeBuffer(rec)
 	r := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
 	winnerIdx, err := s.dispatchWithFallback(context.Background(), failoverInputs{
@@ -736,7 +711,7 @@ func TestDispatchWithFallback_SingleBindingNonRetryableNoRetry(t *testing.T) {
 	s.retrySleep = noopSleep
 
 	rec := httptest.NewRecorder()
-	buf := newPreludeBuffer(rec)
+	buf := dispatch.NewPreludeBuffer(rec)
 	r := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
 	_, err := s.dispatchWithFallback(context.Background(), failoverInputs{
@@ -772,7 +747,7 @@ func TestDispatchWithFallback_SingleBindingBackoffAbortsOnCancel(t *testing.T) {
 	s.retrySleep = func(context.Context, time.Duration) error { return context.Canceled }
 
 	rec := httptest.NewRecorder()
-	buf := newPreludeBuffer(rec)
+	buf := dispatch.NewPreludeBuffer(rec)
 	r := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
 	_, err := s.dispatchWithFallback(context.Background(), failoverInputs{
@@ -897,7 +872,7 @@ func TestProvidersIsUpstreamProviderBillingBlocked(t *testing.T) {
 func TestPreludeBuffer_BuffersUntilSealedFirstWrite(t *testing.T) {
 	rec := httptest.NewRecorder()
 	rec.Header().Set("Content-Type", "application/json") // simulate middleware default
-	buf := newPreludeBuffer(rec)
+	buf := dispatch.NewPreludeBuffer(rec)
 
 	// Simulate translator.Prelude phase: set SSE content type, write status,
 	// emit message_start.
@@ -925,7 +900,7 @@ func TestPreludeBuffer_DiscardResetsBufferAndHeaders(t *testing.T) {
 	rec := httptest.NewRecorder()
 	rec.Header().Set("Content-Type", "application/json")
 	rec.Header().Set("Content-Length", "0")
-	buf := newPreludeBuffer(rec)
+	buf := dispatch.NewPreludeBuffer(rec)
 
 	// Attempt 1: Prelude writes + status + body.
 	buf.Header().Set("Content-Type", "text/event-stream")
@@ -961,7 +936,7 @@ func TestPreludeBuffer_DiscardResetsBufferAndHeaders(t *testing.T) {
 func TestPreludeBuffer_NoOpFlushPreCommit(t *testing.T) {
 	flushCount := 0
 	w := &fakeFlushTracker{ResponseRecorder: httptest.NewRecorder(), onFlush: func() { flushCount++ }}
-	buf := newPreludeBuffer(w)
+	buf := dispatch.NewPreludeBuffer(w)
 
 	buf.WriteHeader(http.StatusOK)
 	_, _ = buf.Write([]byte("prelude"))

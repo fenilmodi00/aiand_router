@@ -92,7 +92,8 @@ func TestForceParentDoesNotOverrideChildCompaction(t *testing.T) {
 	compaction, err := translate.ParseAnthropic([]byte(`{"model":"deepseek/deepseek-v4.1-flash","max_tokens":4096,"messages":[{"role":"user","content":"Implement the parser"},{"role":"assistant","content":"Inspecting the source"},{"role":"user","content":"Your task is to create a detailed summary. Do not call any tools."}]}`))
 	require.NoError(t, err)
 	store := newForceModelMapStore()
-	svc := NewService(nil, nil, nil, false, nil, store, false, providers.ProviderAIAND, catalog.ModelIDGLM53.String(), nil).WithCompactionHardPin(true)
+	svc := NewService(fixedRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDGLM53.String(), Reason: "cluster_scored"}},
+		map[string]providers.Client{providers.ProviderAIAND: nil}, nil, false, nil, store, false, providers.ProviderAIAND, catalog.ModelIDGLM53.String(), nil)
 	parentKey := deriveSessionKeyForRequest(ctx, parent, apiKeyID)
 	require.Equal(t, parentKey, deriveSessionKeyForRequest(ctx, compaction, apiKeyID))
 	features := compaction.RoutingFeatures(false)

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"aiand-os/router/internal/dispatch"
 	"aiand-os/router/internal/observability"
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/catalog"
@@ -95,15 +96,6 @@ func tierRescueModels(selected string, candidates []string, scores map[string]fl
 	return ordered
 }
 
-// rescueDecision resolves the first candidate the request is allowed to reach.
-func (s *Service) rescueDecision(ctx context.Context, failed router.Decision, candidates []string, est, sigSavings, outputReserve int) (router.Decision, bool) {
-	decisions := s.rescueDecisions(ctx, failed, candidates, est, sigSavings, outputReserve)
-	if len(decisions) == 0 {
-		return router.Decision{}, false
-	}
-	return decisions[0], true
-}
-
 // rescueDecisions resolves every candidate the request is allowed to reach, in
 // try order, under the same availability, exclusion, context-fit and
 // BYOK-gateway rules for every in-turn rescue (sibling failover,
@@ -113,7 +105,7 @@ func (s *Service) rescueDecisions(ctx context.Context, failed router.Decision, c
 		return nil
 	}
 	available := s.deploymentKeyedProviders
-	excludedModels := s.excludedModelsForRequest(ctx)
+	excludedModels := mergeExcludedModels(s.excludedModelsForRequest(ctx), customToolExcludedModels(ctx))
 	var candidateProviders map[string]string
 	if failed.Metadata != nil {
 		candidateProviders = failed.Metadata.CandidateProviders
@@ -273,7 +265,7 @@ func strikesInRescuePool(failed router.Decision, candidates, struck []string) []
 // candidate was left: the session's rescue pool was exhausted.
 func (s *Service) noteRescueReadmission(ctx context.Context, failed, rescuer router.Decision) {
 	if until, cooling := sessionCooldownModelsFromContext(ctx)[rescuer.Model]; cooling {
-		rateLimitTurnFromContext(ctx).recordRescuePoolExhausted(rescuer.Model)
+		dispatch.ThrottleLedgerFromContext(ctx).RecordRescuePoolExhausted(rescuer.Model)
 		observability.FromContext(ctx).Info("rescue pool exhausted, readmitting cooling-down model",
 			"failed_model", failed.Model,
 			"rescue_pool_readmitted", rescuer.Model,
@@ -284,7 +276,7 @@ func (s *Service) noteRescueReadmission(ctx context.Context, failed, rescuer rou
 	if !slices.Contains(sessionStrikeReadmitModelsFromContext(ctx), rescuer.Model) {
 		return
 	}
-	rateLimitTurnFromContext(ctx).recordRescuePoolExhausted(rescuer.Model)
+	dispatch.ThrottleLedgerFromContext(ctx).RecordRescuePoolExhausted(rescuer.Model)
 	observability.FromContext(ctx).Warn("rescue pool exhausted, readmitting session-demoted model",
 		"failed_model", failed.Model,
 		"rescue_pool_readmitted", rescuer.Model,
