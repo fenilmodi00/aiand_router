@@ -56,6 +56,22 @@ func TestCatalogModelsHandler_SortsByProviderThenModel(t *testing.T) {
 	assert.Equal(t, "z-ai/glm-5.3-flash", got.Models[3].Model)
 }
 
+func TestCatalogModelsHandler_ServesCatalogPricesPerRow(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	engine := gin.New()
+	engine.GET("/v1/router/models", admin.CatalogModelsHandler(fakeDeployedModels{}, &fakeHMMRoster{entries: []cluster.DeployedEntry{
+		{Model: "deepseek/deepseek-v4.1-flash", Provider: providers.ProviderAIAND},
+	}}))
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/router/models?strategy=hmm", nil)
+	rec := httptest.NewRecorder()
+	engine.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.JSONEq(t, `{"models":[{"model":"deepseek/deepseek-v4.1-flash","provider":"aiand","input_usd_per_1m":0.3,"output_usd_per_1m":0.6}]}`, rec.Body.String())
+}
+
 func TestCatalogModelsHandler_EmptyListReturnsEmptyArray(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
