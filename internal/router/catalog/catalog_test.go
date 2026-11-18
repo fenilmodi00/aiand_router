@@ -294,3 +294,11 @@ func TestKimiK31ProPricing(t *testing.T) {
 	assert.InDelta(t, 10.000, p.OutputUSDPer1M, 1e-9)
 	assert.InDelta(t, 0.20/2.00, p.CacheReadMultiplier, 1e-9)
 }
+
+// TestCustomToolUnsupportedSet locks the aiand catalog's exclusion set: no
+// served model is flagged, so custom-tool requests are not narrowed today.
+func TestCustomToolUnsupportedSet(t *testing.T) {
+	assert.Empty(t, CustomToolUnsupportedSet())
+	assert.True(t, AcceptsCustomTools(ModelIDDeepSeekV4Pro.String()))
+	assert.True(t, AcceptsCustomTools("not-a-catalog-model"))
+}

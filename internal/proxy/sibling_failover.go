@@ -113,7 +113,7 @@ func (s *Service) rescueDecisions(ctx context.Context, failed router.Decision, c
 		return nil
 	}
 	available := s.deploymentKeyedProviders
-	excludedModels := s.excludedModelsForRequest(ctx)
+	excludedModels := mergeExcludedModels(s.excludedModelsForRequest(ctx), customToolExcludedModels(ctx))
 	var candidateProviders map[string]string
 	if failed.Metadata != nil {
 		candidateProviders = failed.Metadata.CandidateProviders

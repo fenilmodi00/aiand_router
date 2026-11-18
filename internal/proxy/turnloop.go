@@ -1574,9 +1574,7 @@ func (s *Service) runTurnLoop(
 				// that must not be bypassed just because context happens to fit).
 				policyExcluded := s.excludedModelsForRequest(ctx)
 				_, policyExcludes := policyExcluded[pin.Model]
-				compatibilityExcludes := req.TranslationRequirements.Images && !catalog.AcceptsImages(pin.Model) ||
-					req.ImageCount > 0 && !catalog.AcceptsImageCount(pin.Model, req.ImageCount, req.EnabledProviders)
-				if !policyExcludes && !compatibilityExcludes {
+				if !policyExcludes && !compatibilityExcludesModel(req, pin.Model) {
 					// The fit-check just cleared this model's context-overflow
 					// exclusion, so it must not linger in the safety set and
 					// block usage bypass.
