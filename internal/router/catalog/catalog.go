@@ -223,6 +223,10 @@ type Model struct {
 	// ImageInput: default ImageInputUnknown; set ImageInputUnsupported on
 	// text-only models so the scorer keeps image-bearing turns off them.
 	ImageInput ImageInput
+	// CustomToolInput: default CustomToolInputUnknown; set
+	// CustomToolInputUnsupported when the model cannot fill a projected custom
+	// tool's {"input": string} wrapper, so custom-tool requests route around it.
+	CustomToolInput CustomToolInput
 	// ReasoningEfforts lists the reasoning-effort levels the upstream accepts,
 	// least to most expensive. Empty means the model exposes no reasoning
 	// menu, so the emit paths send no reasoning_effort at all. "none" means

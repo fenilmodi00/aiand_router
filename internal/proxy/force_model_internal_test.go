@@ -116,3 +116,41 @@ func TestResolveForceModel_MuseSparkOpenSpellings(t *testing.T) {
 		})
 	}
 }
+
+// Unversioned aliases follow the newest release of their target's family; the
+// aiand catalog has no newer family member today, so the resolved targets are
+// unchanged, and every one of them must still be a servable catalog row.
+// Aliases that spell a version stay exact.
+func TestUnversionedAliasesFollowNewestFamilyRelease(t *testing.T) {
+	for alias, want := range map[string]string{
+		"opus":     "z-ai/glm-5.3",
+		"sonnet":   "deepseek/deepseek-v4-pro",
+		"haiku":    "z-ai/glm-5.3-flash",
+		"kimi":     "moonshotai/kimi-k3",
+		"qwen":     "qwen/qwen3.8-27b",
+		"deepseek": "deepseek/deepseek-v4.1-flash",
+	} {
+		assert.Equal(t, want, forceModelAliases[alias], alias)
+	}
+	assert.Equal(t, "z-ai/glm-5.3", forceModelAliases["glm-5.3"], "versioned aliases stay exact")
+	assert.Equal(t, "deepseek/deepseek-v4.1-flash", forceModelAliases["sonnet-4-6"], "versioned aliases stay exact")
+
+	for alias, target := range forceModelAliases {
+		if strings.ContainsAny(alias, "0123456789") {
+			continue
+		}
+		_, ok := servableForceModel(target, "")
+		assert.True(t, ok, "unversioned alias %q resolves to servable %q", alias, target)
+	}
+}
+
+// A target that names no catalog row is left alone: family resolution never
+// invents a model.
+func TestUnversionedAliasesLeaveUnknownTargetsAlone(t *testing.T) {
+	aliases := unversionedAliasesFollowLatestFamilyRelease(map[string]string{
+		"unknown": "not-a-catalog-model",
+		"kimi":    "moonshotai/kimi-k3",
+	})
+	assert.Equal(t, "not-a-catalog-model", aliases["unknown"])
+	assert.Equal(t, "moonshotai/kimi-k3", aliases["kimi"])
+}

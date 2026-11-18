@@ -727,7 +727,7 @@ func TestHMMCostGate_SameTierPinDoesNotBlockConfidentUpgrade(t *testing.T) {
 	assert.Equal(t, hmmReasonConfidentUpgrade, plan.Reason)
 }
 
-func TestHMMCostGate_PhaseChangeFollowsFreshDecision(t *testing.T) {
+func TestHMMCostGate_PhaseChangeFollowsFreshDecisionWhenEVPositive(t *testing.T) {
 	svc := NewService(
 		nil,
 		map[string]providers.Client{providers.ProviderAIAND: nil},
@@ -763,7 +763,7 @@ func TestHMMCostGate_PhaseChangeFollowsFreshDecision(t *testing.T) {
 		activePin,
 		sessionpin.Pin{},
 		fresh,
-		100,
+		10_000,
 		false,
 	)
 
@@ -774,7 +774,7 @@ func TestHMMCostGate_PhaseChangeFollowsFreshDecision(t *testing.T) {
 	assert.Equal(t, hmmReasonPhaseChange, plan.Reason)
 }
 
-func TestHMMCostGate_HistoryPhaseChangeFollowsFreshDecision(t *testing.T) {
+func TestHMMCostGate_HistoryPhaseChangeFollowsFreshDecisionWhenEVPositive(t *testing.T) {
 	svc := NewService(
 		nil,
 		map[string]providers.Client{providers.ProviderAIAND: nil},
@@ -809,7 +809,7 @@ func TestHMMCostGate_HistoryPhaseChangeFollowsFreshDecision(t *testing.T) {
 		sessionpin.Pin{},
 		history,
 		fresh,
-		100,
+		10_000,
 		false,
 	)
 
