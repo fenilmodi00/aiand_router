@@ -13,6 +13,8 @@ linters:
     - bodyclose
     - nilerr
     - exhaustive
+    - noctx
+    - thelper
   settings:
     errcheck:
       exclude-functions:
