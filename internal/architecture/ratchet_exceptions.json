@@ -113,6 +113,36 @@
    "metric": "file_lines",
    "max": 2232,
    "reason": "Upstream port growth (#2290 stay pins, #2288 pin exemption, #2146 compat gate). Owner: fenilmodi00."
+  },
+  {
+   "subject": "internal/postgres.scanExpiringTargets",
+   "metric": "cognitive",
+   "max": 42,
+   "reason": "Upstream #2190/#2197 mechanical lint port grew this already-deep scan; splitting would diverge from upstream's shape. Owner: fenilmodi00."
+  },
+  {
+   "subject": "internal/proxy.Service.recordHMMTurnHistory",
+   "metric": "params",
+   "max": 9,
+   "reason": "Upstream #2201 port: ctx param added to the request-threaded fire-and-forget history write. Owner: fenilmodi00."
+  },
+  {
+   "subject": "internal/router/policy/inference_plan.go",
+   "metric": "file_lines",
+   "max": 508,
+   "reason": "Upstream #2194/#2197 lint hunks; one-line growth. Owner: fenilmodi00."
+  },
+  {
+   "subject": "internal/translate.translate_test.streamFamilies",
+   "metric": "lines",
+   "max": 197,
+   "reason": "Upstream #2197 testifylint port grew the fork-family table; upstream's own test exceeds the limit too. Owner: fenilmodi00."
+  },
+  {
+   "subject": "scripts/rotate_key_race_ext_check/main.go",
+   "metric": "file_lines",
+   "max": 585,
+   "reason": "Upstream #2195 noctx/thelper port (http.NewServer harness extraction); scripts are not production paths. Owner: fenilmodi00."
   }
  ]
 }
