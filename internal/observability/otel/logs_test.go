@@ -17,7 +17,8 @@ import (
 	collogspb "go.opentelemetry.io/proto/otlp/collector/logs/v1"
 
 	"aiand-os/router/internal/observability/otel"
-	"aiand-os/router/internal/telemetry")
+	"aiand-os/router/internal/telemetry"
+)
 
 // pathCollector records request bodies keyed by the URL path so trace and log
 // exports can be told apart (both hit the same base endpoint).
@@ -111,7 +112,7 @@ func TestBuffer_RecordLogAndFlush(t *testing.T) {
 		Time:     now,
 		Severity: telemetry.SeverityInfo,
 		Attrs: telemetry.NewAttrBuilder(2).
-			String("decision.model", "z-ai/glm-5.3").			String("io.request_body", `{"messages":[]}`).
+			String("decision.model", "z-ai/glm-5.3").String("io.request_body", `{"messages":[]}`).
 			Build(),
 	})
 	buf.RecordLog(telemetry.LogRecord{

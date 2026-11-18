@@ -24,7 +24,8 @@ import (
 	"aiand-os/router/internal/router/policy"
 	"aiand-os/router/internal/router/sessionpin"
 	"aiand-os/router/internal/telemetry"
-	"aiand-os/router/internal/translate")
+	"aiand-os/router/internal/translate"
+)
 
 var (
 	upgradeTestPinModel   = catalog.ModelIDGLM53Flash.String()

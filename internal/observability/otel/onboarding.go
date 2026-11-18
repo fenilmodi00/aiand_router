@@ -48,7 +48,7 @@ func (o *OnboardingObserver) HarnessLifecycle(event auth.HarnessLifecycleEvent) 
 		})
 		return
 	}
-// HarnessLifecycle records a client-reported off/on/uninstall of a harness.
+	// HarnessLifecycle records a client-reported off/on/uninstall of a harness.
 	buf := o.emitter.NewBuffer()
 	if buf == nil {
 		return

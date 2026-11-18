@@ -88,7 +88,7 @@ type compactionSession struct {
 	pins sessionpin.Store
 	// providers binds the served model when the request leaves
 	// EnabledProviders unrestricted.
-	providers      map[string]struct{}
+	providers map[string]struct{}
 	available map[string]struct{}
 	now       time.Time
 }

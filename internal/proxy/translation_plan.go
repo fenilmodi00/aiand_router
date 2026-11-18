@@ -11,7 +11,8 @@ import (
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/catalog"
 	"aiand-os/router/internal/telemetry"
-	"aiand-os/router/internal/translate")
+	"aiand-os/router/internal/translate"
+)
 
 // TranslationCompatibilityMode controls whether broad compatibility filters
 // only report (shadow) or constrain routing (enforce). Native-only safety

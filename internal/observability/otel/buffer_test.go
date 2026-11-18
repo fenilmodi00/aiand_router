@@ -16,7 +16,8 @@ import (
 	coltracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 
 	"aiand-os/router/internal/observability/otel"
-	"aiand-os/router/internal/telemetry")
+	"aiand-os/router/internal/telemetry"
+)
 
 type collector struct {
 	server   *httptest.Server

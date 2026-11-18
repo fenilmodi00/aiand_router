@@ -2231,8 +2231,6 @@ func (s *Service) newUsageExtractor(inner http.ResponseWriter, provider string) 
 	return s.emitter.NewUsageExtractor(inner, provider)
 }
 
-
-
 // WithTranslationMetrics installs adapter-backed translation counters on the
 // service and returns it for constructor chaining. A nil value preserves the
 // emitter-backed fallback when one is available.
