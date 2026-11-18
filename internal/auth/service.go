@@ -720,16 +720,17 @@ func (s *Service) verifyAPIKey(ctx context.Context, rawToken string, includeUpst
 	}
 
 	var externalKeys []*ExternalAPIKey
+	cacheable := true
 	if includeUpstreamKeys && s.externalKeys != nil {
 		externalKeys, err = s.externalKeys.GetForInstallation(ctx, apiKey.InstallationID)
 		if err != nil {
 			// Non-fatal: proceed without external keys.
 			observability.FromContext(ctx).Warn("Failed to fetch external API keys", "installation_id", apiKey.InstallationID, "err", err)
+			cacheable = false
 		}
 	}
 
 	var clusterModelLists []ClusterModelList
-	clusterModelListsFetchOK := true
 	if s.clusterModelLists != nil {
 		clusterModelLists, err = s.clusterModelLists.GetForAPIKey(ctx, apiKey.ID)
 		if err != nil {
@@ -738,11 +739,11 @@ func (s *Service) verifyAPIKey(ctx context.Context, rawToken string, includeUpst
 			// disable per-key cluster restrictions for the full positive TTL.
 			observability.FromContext(ctx).Warn("Failed to fetch cluster model lists", "api_key_id", apiKey.ID, "err", err)
 			clusterModelLists = nil
-			clusterModelListsFetchOK = false
+			cacheable = false
 		}
 	}
 
-	if clusterModelListsFetchOK && includeUpstreamKeys {
+	if cacheable && includeUpstreamKeys {
 		s.cache.Set(keyHash, CachedKey{APIKey: apiKey, Installation: installation, ExternalKeys: externalKeys, ClusterModelLists: clusterModelLists})
 	}
 	s.fireMarkUsed(apiKey, installation)
