@@ -189,7 +189,7 @@ func TestPolicyShadowComparisonCollectsUsageBypassRoute(t *testing.T) {
 // truncated) so a stored id always joins back to a real rollout.
 func TestNormalizeRolloutID(t *testing.T) {
 	assert.Equal(t, "run/cond/0/iid", proxy.NormalizeRolloutID("  run/cond/0/iid "))
-	assert.Equal(t, "", proxy.NormalizeRolloutID(strings.Repeat("x", 257)))
+	assert.Empty(t, proxy.NormalizeRolloutID(strings.Repeat("x", 257)))
 	assert.Equal(t, strings.Repeat("x", 256), proxy.NormalizeRolloutID(strings.Repeat("x", 256)))
 }
 

@@ -329,7 +329,7 @@ func StripRoutingBadgeFromResponsesInput(body []byte) ([]byte, error) {
 	changed := false
 	for _, item := range itemRaws {
 		itemType := item.Get("type").Str
-		if itemType != "message" && !(itemType == "" && item.Get("role").Str != "") {
+		if itemType != "message" && (itemType != "" || item.Get("role").Str == "") {
 			newItemRaws = append(newItemRaws, item.Raw)
 			continue
 		}
@@ -425,7 +425,7 @@ func StripFeedbackFooterFromResponsesInput(body []byte) ([]byte, error) {
 	changed := false
 	for _, item := range itemRaws {
 		itemType := item.Get("type").Str
-		if itemType != "message" && !(itemType == "" && item.Get("role").Str != "") {
+		if itemType != "message" && (itemType != "" || item.Get("role").Str == "") {
 			newItemRaws = append(newItemRaws, item.Raw)
 			continue
 		}

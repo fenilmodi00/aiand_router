@@ -2,7 +2,6 @@ package translate_test
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"testing"
 
@@ -78,6 +77,6 @@ func TestPrepareAnthropic_ClientCacheControlFidelity(t *testing.T) {
 		require.NoError(t, err)
 		_, err = env.PrepareAnthropic(http.Header{}, translate.EmitOptions{TargetModel: "z-ai/glm-5.3"})
 		require.ErrorIs(t, err, translate.ErrAnthropicCacheControlOverflow)
-		assert.False(t, errors.Is(err, translate.ErrAnthropicCacheControlInvalid))
+		assert.NotErrorIs(t, err, translate.ErrAnthropicCacheControlInvalid)
 	})
 }

@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -170,7 +169,7 @@ func TestDispatchPlanned_UnregisteredPurposeFailsClosed(t *testing.T) {
 	_, err := s.dispatchWithFallback(context.Background(), in)
 
 	var resolution *policy.ResolutionError
-	require.True(t, errors.As(err, &resolution))
+	require.ErrorAs(t, err, &resolution)
 	assert.Equal(t, policy.ResolutionErrorUnknownPurpose, resolution.Code)
 	assert.Equal(t, 0, primary.calls)
 }

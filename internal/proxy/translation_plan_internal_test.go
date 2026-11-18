@@ -3,7 +3,6 @@ package proxy
 import (
 	"aiand-os/router/internal/dispatch"
 	"context"
-	"errors"
 	"testing"
 
 	"aiand-os/router/internal/providers"
@@ -45,7 +44,7 @@ func TestApplyTranslationPlan_IntrinsicallyIncompatible(t *testing.T) {
 		TranslationRequirements: router.TranslationRequirements{NativeOnly: true},
 	})
 
-	assert.True(t, errors.Is(err, ErrTranslationIntrinsicallyIncompatible))
+	assert.ErrorIs(t, err, ErrTranslationIntrinsicallyIncompatible)
 }
 
 // The aiand catalog carries no CustomToolInputUnsupported rows, so a

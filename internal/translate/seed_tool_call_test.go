@@ -55,7 +55,7 @@ func TestSeedToolCallGate_ReleasesProseImmediately(t *testing.T) {
 	assert.Equal(t, " <seed:tool_call>", gate.Feed(" <seed:tool_call>"), "a mid-prose tag stays text")
 
 	var partial seedToolCallGate
-	assert.Equal(t, "", partial.Feed("\n<se"))
+	assert.Empty(t, partial.Feed("\n<se"))
 	assert.Equal(t, "\n<sea shell", partial.Feed("a shell"), "held bytes release once the prefix diverges")
 }
 

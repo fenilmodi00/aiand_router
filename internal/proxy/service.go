@@ -3750,7 +3750,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	preludeBuf := newPreludeBuffer(contentSink)
 	var rootSink http.ResponseWriter = preludeBuf
 	var captureW *captureWriter
-	var sink http.ResponseWriter = rootSink
+	var sink = rootSink
 	if cacheEligible {
 		captureW = newCaptureWriter(rootSink, semanticCacheMaxBodyBytes)
 		sink = captureW
@@ -3965,7 +3965,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	rescue.classifyPrimaryFailure()
 	rescue.siblingRescue(ctx)
 	rescue.finish(ctx)
-	decision, bindings, marker, proxyErr, effortServed = rescue.decision, rescue.bindings, rescue.marker, rescue.proxyErr, rescue.effortServed
+	decision, marker, proxyErr, effortServed = rescue.decision, rescue.marker, rescue.proxyErr, rescue.effortServed
 	compactionHandoverOutcome = rescue.compactionHandoverOutcome
 	winnerIdx, finalProvider := rescue.winnerIdx, rescue.finalProvider
 
@@ -6067,7 +6067,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	}
 
 	var captureW *captureWriter
-	var sink http.ResponseWriter = rootSink
+	var sink = rootSink
 	openAIPrelude := &requestNoticeStream{}
 	if cacheEligible {
 		captureW = newCaptureWriter(rootSink, semanticCacheMaxBodyBytes)
@@ -6346,7 +6346,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	rescue.notePrimaryFailure(ctx)
 	rescue.siblingRescue(ctx)
 	rescue.finish(ctx)
-	decision, bindings, marker, proxyErr, effortServed = rescue.decision, rescue.bindings, rescue.marker, rescue.proxyErr, rescue.effortServed
+	decision, marker, proxyErr, effortServed = rescue.decision, rescue.marker, rescue.proxyErr, rescue.effortServed
 	winnerIdx, finalProvider := rescue.winnerIdx, rescue.finalProvider
 
 	// Re-resolve credentials for the binding that actually served — each
