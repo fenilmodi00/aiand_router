@@ -255,7 +255,7 @@ func TestToolProgressMarker_EmptyWithoutToolCalls(t *testing.T) {
 	body := []byte(`{"model":"z-ai/glm-5.3-flash","max_tokens":256,"messages":[{"role":"user","content":"hi"}]}`)
 	env, err := translate.ParseAnthropic(body)
 	require.NoError(t, err)
-	assert.Equal(t, "", toolProgressMarker(env), "a tool-free turn has no tool-progress marker")
+	assert.Empty(t, toolProgressMarker(env), "a tool-free turn has no tool-progress marker")
 }
 
 func TestNoProgressTracker_TripsAfterThresholdHits(t *testing.T) {
@@ -417,7 +417,7 @@ func TestNoProgressTracker_DifferentRolesAreSeparateRings(t *testing.T) {
 
 func TestShortSessionKey_TruncatesAndRedactsZero(t *testing.T) {
 	var zero [sessionpin.SessionKeyLen]byte
-	assert.Equal(t, "", shortSessionKey(zero), "zero key must produce empty so logs distinguish missing-anchor from real")
+	assert.Empty(t, shortSessionKey(zero), "zero key must produce empty so logs distinguish missing-anchor from real")
 
 	key := sessionKeyFromString("0123456789ABCDEFsomemore")
 	got := shortSessionKey(key)

@@ -96,15 +96,6 @@ func tierRescueModels(selected string, candidates []string, scores map[string]fl
 	return ordered
 }
 
-// rescueDecision resolves the first candidate the request is allowed to reach.
-func (s *Service) rescueDecision(ctx context.Context, failed router.Decision, candidates []string, est, sigSavings, outputReserve int) (router.Decision, bool) {
-	decisions := s.rescueDecisions(ctx, failed, candidates, est, sigSavings, outputReserve)
-	if len(decisions) == 0 {
-		return router.Decision{}, false
-	}
-	return decisions[0], true
-}
-
 // rescueDecisions resolves every candidate the request is allowed to reach, in
 // try order, under the same availability, exclusion, context-fit and
 // BYOK-gateway rules for every in-turn rescue (sibling failover,

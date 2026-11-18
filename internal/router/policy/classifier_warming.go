@@ -1,12 +1,16 @@
 package policy
 
 import (
+	"errors"
+
 	"aiand-os/router/internal/router"
-	"fmt"
 )
 
 type ClassifierErrorCode string
 
 const ClassifierWarmingCode ClassifierErrorCode = "qwen_warming"
 
-var ErrClassifierWarming = fmt.Errorf("Qwen classifier is warming; run wv router prepare-model %s before retrying", router.ModelQwen)
+var ErrClassifierWarming = errors.New("qwen classifier is warming")
+
+// ClassifierWarmingMessage is the client-facing text for ErrClassifierWarming.
+const ClassifierWarmingMessage = "Qwen classifier is warming; run wv router prepare-model " + string(router.ModelQwen) + " before retrying"

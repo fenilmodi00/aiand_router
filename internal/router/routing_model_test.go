@@ -9,11 +9,11 @@ import (
 
 func TestRoutingModelIDsUseVersionedSnapshotNames(t *testing.T) {
 	versionedID := regexp.MustCompile(`^aiand-(hmm|qwen)-[0-9]{8}-[0-9]{4}v[0-9]+$`)
-	require.Equal(t, RoutingModel("aiand-auto"), ModelAutomatic)
+	require.Equal(t, ModelAutomatic, RoutingModel("aiand-auto"))
 	require.Regexp(t, versionedID, string(ModelHMM))
 	require.Regexp(t, versionedID, string(ModelQwen))
-	require.NotEqual(t, RoutingModel("aiand-hmm"), ModelHMM)
-	require.NotEqual(t, RoutingModel("aiand-qwen"), ModelQwen)
+	require.NotEqual(t, ModelHMM, RoutingModel("aiand-hmm"))
+	require.NotEqual(t, ModelQwen, RoutingModel("aiand-qwen"))
 }
 
 func TestAutomaticRoutingModelAcceptsDisplayName(t *testing.T) {

@@ -149,6 +149,7 @@ func TestCallerRoutingStateFollowsRoutingPrecedence(t *testing.T) {
 		return context.WithValue(ctx, auth.BlindExperimentContextKey{}, state)
 	}
 	withPolicy := func(t *testing.T, mode auth.RoutingPolicyMode, assigned bool) context.Context {
+		t.Helper()
 		authService := auth.NewService(nil, nil, nil, nil, nil, nil, time.Now).WithRoutingPolicies(routingPolicyStub{mode: mode, assigned: assigned}, nil)
 		ctx, err := authService.WithRoutingPolicy(context.Background(), "installation")
 		require.NoError(t, err)
@@ -174,14 +175,20 @@ func TestCallerRoutingStateFollowsRoutingPrecedence(t *testing.T) {
 		{name: "cohort passthrough phase", ctx: func(*testing.T) context.Context {
 			return experiment(context.Background(), auth.BlindExperimentState{Active: true, Arm: auth.BlindExperimentArmPassthrough, CohortExperimentID: "cohort"})
 		}, wantPassthrough: true, wantSource: callerRoutingSourceCohort},
-		{name: "teams policy unassigned", ctx: func(t *testing.T) context.Context { return withPolicy(t, auth.RoutingPolicyAssigned, false) }, wantPassthrough: true, wantSource: callerRoutingSourceRoutingPolicy},
+		{name: "teams policy unassigned", ctx: func(t *testing.T) context.Context {
+			t.Helper()
+			return withPolicy(t, auth.RoutingPolicyAssigned, false)
+		}, wantPassthrough: true, wantSource: callerRoutingSourceRoutingPolicy},
 		{name: "teams policy assigned overrides experiment passthrough", ctx: func(t *testing.T) context.Context {
+			t.Helper()
 			return experiment(withPolicy(t, auth.RoutingPolicyAssigned, true), passthroughArm)
 		}, wantSource: callerRoutingSourceRoutingPolicy},
 		{name: "passthrough policy suppresses experiment router on arm", ctx: func(t *testing.T) context.Context {
+			t.Helper()
 			return experiment(withPolicy(t, auth.RoutingPolicyPassthrough, false), auth.BlindExperimentState{Active: true, Arm: auth.BlindExperimentArmRouterOn})
 		}, wantPassthrough: true, wantSource: callerRoutingSourceRoutingPolicy},
 		{name: "inherit policy defers to experiment", ctx: func(t *testing.T) context.Context {
+			t.Helper()
 			return experiment(withPolicy(t, auth.RoutingPolicyInherit, false), passthroughArm)
 		}, wantPassthrough: true, wantSource: callerRoutingSourceExperiment},
 	} {

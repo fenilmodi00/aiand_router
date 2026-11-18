@@ -379,6 +379,7 @@ func streamFamilies() []streamFamily {
 				{name: "large text turn", body: largeAnthropicStream(), streaming: true, mustContain: []string{`"finish_reason":"stop"`, "data: [DONE]"}},
 			},
 			run: func(t *testing.T, fixture streamFixture, chunks [][]byte) streamObservation {
+				t.Helper()
 				rec := httptest.NewRecorder()
 				sink := &fakeUsageSink{}
 				w := translate.NewSSETranslator(rec, "claude-opus-4", sink)
@@ -407,6 +408,7 @@ func streamFamilies() []streamFamily {
 				{name: "large text turn", body: largeOpenAIChunkStream(), streaming: true, mustContain: []string{`"stop_reason":"end_turn"`, "event: message_stop"}, wantProgress: true},
 			},
 			run: func(t *testing.T, fixture streamFixture, chunks [][]byte) streamObservation {
+				t.Helper()
 				rec := httptest.NewRecorder()
 				sink := &fakeUsageSink{}
 				w := translate.NewAnthropicSSETranslator(rec, "gpt-x", sink)
@@ -438,6 +440,7 @@ func streamFamilies() []streamFamily {
 				{name: "large text and tool arguments", body: largeResponsesStream(), streaming: true, mustContain: []string{`"name":"write_file"`, "call_large", `"stop_reason":"tool_use"`, "event: message_stop"}, wantProgress: true},
 			},
 			run: func(t *testing.T, fixture streamFixture, chunks [][]byte) streamObservation {
+				t.Helper()
 				rec := httptest.NewRecorder()
 				sink := &fakeUsageSink{}
 				w := translate.NewResponsesToAnthropicWriter(rec, "z-ai/glm-5.3", sink)
@@ -469,6 +472,7 @@ func streamFamilies() []streamFamily {
 				{name: "large text and tool arguments", body: largeResponsesStream(), streaming: true, mustContain: []string{`"name":"write_file"`, "call_large", `"finish_reason":"tool_calls"`, "data: [DONE]"}, wantProgress: true},
 			},
 			run: func(t *testing.T, fixture streamFixture, chunks [][]byte) streamObservation {
+				t.Helper()
 				rec := httptest.NewRecorder()
 				sink := &fakeUsageSink{}
 				w := translate.NewResponsesToOpenAIChatWriter(rec, "z-ai/glm-5.3", sink)
@@ -490,6 +494,7 @@ func streamFamilies() []streamFamily {
 				{name: "large text turn", body: largeAnthropicStream(), streaming: true, mustContain: []string{"Aiand Router feedback", "event: message_stop"}},
 			},
 			run: func(t *testing.T, fixture streamFixture, chunks [][]byte) streamObservation {
+				t.Helper()
 				rec := httptest.NewRecorder()
 				w := translate.NewAnthropicRoutingFooterWriter(rec, testFooter)
 				commitUpstreamResponse(w, fixture.streaming)
@@ -504,6 +509,7 @@ func streamFamilies() []streamFamily {
 				{name: "large text turn", body: largeOpenAIChunkStream(), streaming: true, mustContain: []string{"Aiand Router feedback", "data: [DONE]"}},
 			},
 			run: func(t *testing.T, fixture streamFixture, chunks [][]byte) streamObservation {
+				t.Helper()
 				rec := httptest.NewRecorder()
 				w := translate.NewOpenAIRoutingFooterWriter(rec, testFooter)
 				commitUpstreamResponse(w, fixture.streaming)
@@ -520,6 +526,7 @@ func streamFamilies() []streamFamily {
 				{name: "large text turn", body: largeAnthropicStream(), streaming: true, mustContain: []string{"Aiand Router", "event: message_stop"}, wantProgress: true},
 			},
 			run: func(t *testing.T, fixture streamFixture, chunks [][]byte) streamObservation {
+				t.Helper()
 				rec := httptest.NewRecorder()
 				w := translate.NewAnthropicRoutingMarkerWriter(rec, "claude-opus-4", testMarker)
 				commitUpstreamResponse(w, fixture.streaming)
@@ -537,6 +544,7 @@ func streamFamilies() []streamFamily {
 				{name: "large text turn", body: largeOpenAIChunkStream(), streaming: true, mustContain: []string{"Aiand Router", "data: [DONE]"}, wantProgress: true},
 			},
 			run: func(t *testing.T, fixture streamFixture, chunks [][]byte) streamObservation {
+				t.Helper()
 				rec := httptest.NewRecorder()
 				w := translate.NewOpenAIRoutingMarkerWriter(rec, "gpt-x", testMarker)
 				commitUpstreamResponse(w, fixture.streaming)

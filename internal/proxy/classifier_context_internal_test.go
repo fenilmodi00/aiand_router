@@ -7,6 +7,7 @@ import (
 
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/translate"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -47,7 +48,7 @@ func TestClassifierContextProtocolParity(t *testing.T) {
 			require.Equal(t, 2, input.CompletedResponseCount)
 			require.Len(t, input.PrecedingResponses, 2)
 			require.Equal(t, "  answer  ", input.PrecedingResponses[0].Content)
-			require.Equal(t, "", input.PrecedingResponses[1].Content)
+			require.Empty(t, input.PrecedingResponses[1].Content)
 			require.Equal(t, 1, input.PrecedingResponses[1].ResponseIndex)
 			require.Equal(t, input.PrecedingResponses[0].PrefixDigest, input.PrecedingResponses[1].PrefixDigest)
 			require.NotEqual(t, input.TurnDigest, input.PrecedingResponses[0].PrefixDigest)

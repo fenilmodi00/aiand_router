@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -757,12 +756,4 @@ func writeSyntheticOpenAIResponse(w http.ResponseWriter, env *translate.RequestE
 
 func sseEvent(eventType, data string) string {
 	return "event: " + eventType + "\ndata: " + data + "\n\n"
-}
-
-func mustMarshalJSON(v any) string {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return "{}"
-	}
-	return string(b)
 }

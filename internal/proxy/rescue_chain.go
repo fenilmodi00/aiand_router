@@ -200,7 +200,7 @@ func (c *rescueChain) siblingRescue(ctx context.Context) {
 		rescueOrder = c.overflowRescue
 	}
 	c.siblingRescueOwed = (c.siblingViable || overflowRescued) && !c.deferredErrFlushed &&
-		!(c.explicitRequestedModel && isSubscriptionPoolError(c.proxyErr))
+		(!c.explicitRequestedModel || !isSubscriptionPoolError(c.proxyErr))
 	if c.siblingRescueOwed && c.proxyErr != nil && !preludeBuf.Committed() &&
 		(providers.IsRetryable(c.proxyErr) ||
 			providers.IsUpstreamModelNotFound(c.proxyErr) ||

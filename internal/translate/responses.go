@@ -329,7 +329,7 @@ func StripRoutingBadgeFromResponsesInput(body []byte) ([]byte, error) {
 	changed := false
 	for _, item := range itemRaws {
 		itemType := item.Get("type").Str
-		if itemType != "message" && !(itemType == "" && item.Get("role").Str != "") {
+		if itemType != "message" && (itemType != "" || item.Get("role").Str == "") {
 			newItemRaws = append(newItemRaws, item.Raw)
 			continue
 		}
@@ -425,7 +425,7 @@ func StripFeedbackFooterFromResponsesInput(body []byte) ([]byte, error) {
 	changed := false
 	for _, item := range itemRaws {
 		itemType := item.Get("type").Str
-		if itemType != "message" && !(itemType == "" && item.Get("role").Str != "") {
+		if itemType != "message" && (itemType != "" || item.Get("role").Str == "") {
 			newItemRaws = append(newItemRaws, item.Raw)
 			continue
 		}
@@ -1767,19 +1767,6 @@ func (t *ResponsesWriter) writeNativeResponsesEvent(event, delimiter []byte) err
 		}
 	}
 	return t.writeNativeResponsesFrame(rewritten, delimiter)
-}
-
-func (t *ResponsesWriter) shouldHoldNativeEvent(eventType responsesEventType, itemType responsesItemType) bool {
-	if t.footerText == "" || t.sawToolCall {
-		return false
-	}
-	switch eventType {
-	case responsesOutputTextDone, responsesContentPartDone:
-		return true
-	case responsesOutputItemDone:
-		return itemType == responsesMessageItem || itemType == ""
-	}
-	return false
 }
 
 func (t *ResponsesWriter) flushNativeHeldEvents(commitFooter bool) error {

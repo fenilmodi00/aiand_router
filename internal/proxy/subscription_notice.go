@@ -12,19 +12,6 @@ import (
 	"aiand-os/router/internal/translate"
 )
 
-// subscriptionSource names the caller-side subscription a funding notice
-// describes. It selects the marker text, not a routing lane.
-//
-// The router has one upstream (ai&), so both ingress surfaces — the Anthropic
-// Messages API and the OpenAI chat/responses APIs — resolve to the same
-// funding mode. The distinction survives only in the marker wording.
-type subscriptionSource string
-
-const (
-	subscriptionSourceClaude subscriptionSource = "claude"
-	subscriptionSourceCodex  subscriptionSource = "codex"
-)
-
 var (
 	// ErrSubscriptionPoolExhausted marks a turn the caller's own subscription
 	// could not serve, with no paid capacity left to fall back to.

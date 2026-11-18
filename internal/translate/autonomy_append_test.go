@@ -33,7 +33,7 @@ func TestAutonomyAppend_AnthropicAppendsUncachedBlockAfterClientCacheControl(t *
 	on, err := env.PrepareAnthropic(nil, translate.EmitOptions{TargetModel: "z-ai/glm-5.3", AppendAutonomySystem: true})
 	require.NoError(t, err)
 
-	assert.False(t, strings.Contains(string(off.Body), "operating autonomously"), "flag off must not touch the prompt")
+	assert.NotContains(t, string(off.Body), "operating autonomously", "flag off must not touch the prompt")
 
 	offSystem := gjson.GetBytes(off.Body, "system").Array()
 	onSystem := gjson.GetBytes(on.Body, "system").Array()

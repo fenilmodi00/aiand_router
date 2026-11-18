@@ -20,17 +20,17 @@ import (
 	"aiand-os/router/internal/translate"
 )
 
-// policyDeadlineTestErr mirrors the real chain: policyclient wraps context.DeadlineExceeded with %w;
+// errPolicyDeadlineTest mirrors the real chain: policyclient wraps context.DeadlineExceeded with %w;
 // SidecarRouter wraps that with hmm.ErrHMMUnavailable via %w:%w. Both must survive for errors.Is.
-var policyDeadlineTestErr = fmt.Errorf(
+var errPolicyDeadlineTest = fmt.Errorf(
 	"hmm_embedding: sidecar decide: policy sidecar retries exhausted: %w: %w",
 	context.DeadlineExceeded,
 	hmm.ErrHMMUnavailable,
 )
 
-// policyContractViolationTestErr mirrors a contract violation (sidecar_router.go:367/370): wraps
+// errPolicyContractViolationTest mirrors a contract violation (sidecar_router.go:367/370): wraps
 // ErrHMMUnavailable without a deadline/cancel, so isPolicyDeadlineErr must return false.
-var policyContractViolationTestErr = fmt.Errorf(
+var errPolicyContractViolationTest = fmt.Errorf(
 	"hmm_embedding: sidecar returned unknown arm %q or model %q: %w",
 	"bogus-arm", "bogus-model",
 	hmm.ErrHMMUnavailable,
@@ -59,7 +59,7 @@ func TestIsPolicyDeadlineErr(t *testing.T) {
 		},
 		{
 			name: "deadline exceeded wrapping ErrHMMUnavailable",
-			err:  policyDeadlineTestErr,
+			err:  errPolicyDeadlineTest,
 			want: true,
 		},
 		{
@@ -70,7 +70,7 @@ func TestIsPolicyDeadlineErr(t *testing.T) {
 		},
 		{
 			name: "contract violation (unknown arm) must still fail closed",
-			err:  policyContractViolationTestErr,
+			err:  errPolicyContractViolationTest,
 			want: false,
 		},
 		{
@@ -174,7 +174,7 @@ func TestTurnLoop_DeadlineFallbackToPin(t *testing.T) {
 		LastServedModel: pinnedModel,
 	}
 
-	svc := buildPolicyDeadlineFallbackService(t, strategy, policyDeadlineTestErr, store, true, "")
+	svc := buildPolicyDeadlineFallbackService(t, strategy, errPolicyDeadlineTest, store, true, "")
 
 	result, err := runPolicyDeadlineFallbackTurnLoop(t, svc, strategy)
 
@@ -206,7 +206,7 @@ func TestTurnLoop_DeadlineFallbackDefaultExcludedFailsClosed(t *testing.T) {
 	store := newStubPinStore()
 	store.getFound = false
 
-	svc := buildPolicyDeadlineFallbackService(t, strategy, policyDeadlineTestErr, store, true, defaultModel)
+	svc := buildPolicyDeadlineFallbackService(t, strategy, errPolicyDeadlineTest, store, true, defaultModel)
 
 	_, err := runPolicyDeadlineFallbackTurnLoop(t, svc, strategy, defaultModel)
 
@@ -228,7 +228,7 @@ func TestTurnLoop_DeadlineFallbackToTierThreeDefault(t *testing.T) {
 	store := newStubPinStore()
 	store.getFound = false // no pin: session start
 
-	svc := buildPolicyDeadlineFallbackService(t, strategy, policyDeadlineTestErr, store, true, defaultModel)
+	svc := buildPolicyDeadlineFallbackService(t, strategy, errPolicyDeadlineTest, store, true, defaultModel)
 
 	result, err := runPolicyDeadlineFallbackTurnLoop(t, svc, strategy)
 
@@ -255,7 +255,7 @@ func TestTurnLoop_DeadlineFallbackNoPinNoDefault(t *testing.T) {
 	store := newStubPinStore()
 	store.getFound = false
 
-	svc := buildPolicyDeadlineFallbackService(t, strategy, policyDeadlineTestErr, store, true, "")
+	svc := buildPolicyDeadlineFallbackService(t, strategy, errPolicyDeadlineTest, store, true, "")
 
 	_, err := runPolicyDeadlineFallbackTurnLoop(t, svc, strategy)
 
@@ -281,7 +281,7 @@ func TestTurnLoop_DeadlineFallbackKillSwitchOff(t *testing.T) {
 		LastServedModel: pinnedModel,
 	}
 
-	svc := buildPolicyDeadlineFallbackService(t, strategy, policyDeadlineTestErr, store, false, "")
+	svc := buildPolicyDeadlineFallbackService(t, strategy, errPolicyDeadlineTest, store, false, "")
 
 	_, err := runPolicyDeadlineFallbackTurnLoop(t, svc, strategy)
 
@@ -307,7 +307,7 @@ func TestTurnLoop_DeadlineFallbackContractViolationStillFailsClosed(t *testing.T
 		LastServedModel: pinnedModel,
 	}
 
-	svc := buildPolicyDeadlineFallbackService(t, strategy, policyContractViolationTestErr, store, true, "z-ai/glm-5.3-flash")
+	svc := buildPolicyDeadlineFallbackService(t, strategy, errPolicyContractViolationTest, store, true, "z-ai/glm-5.3-flash")
 
 	_, err := runPolicyDeadlineFallbackTurnLoop(t, svc, strategy)
 

@@ -173,6 +173,7 @@ func (e *RequestEnvelope) ClientSessionID() string {
 		return requestcontext.BodySessionID(e.body, requestcontext.ConversationAnthropic)
 	case FormatOpenAI:
 		return requestcontext.BodySessionID(e.body, requestcontext.ConversationChat)
+	case FormatOpenAIResponses:
 	}
 	return ""
 }
@@ -870,7 +871,7 @@ var routingMarkerPattern = routerOwnedNoticePattern
 // responses (see proxy.Service.feedbackFooter), absorbing leading newlines
 // and everything to end of line since there's no fixed end-anchor. Keep the
 // sentinel in sync with proxy.feedbackFooterText.
-var feedbackFooterPattern = regexp.MustCompile("\\n*_Aiand Router feedback:_ [^\\n]*")
+var feedbackFooterPattern = regexp.MustCompile(`\n*_Aiand Router feedback:_ [^\n]*`)
 
 // StripRoutingMarkerFromMessages removes the routing-marker snippet from every
 // text block in messages[*].content[*]. Stripping on ingress keeps it out of
@@ -1193,12 +1194,6 @@ func ResolveForceEffort(caps router.ModelSpec, level string) string {
 		}
 	}
 	return canonical
-}
-
-// resolveForceEffort is the package-private variant of ResolveForceEffort;
-// exists so call sites inside EmitOptions don't repeat caps + level extraction.
-func resolveForceEffort(opts EmitOptions) string {
-	return ResolveForceEffort(opts.Capabilities, opts.ForceEffort)
 }
 
 func resolveAnthropicOverrides(body []byte, opts EmitOptions) EmitOverrides {

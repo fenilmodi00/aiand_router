@@ -334,7 +334,7 @@ func loadBundleFromPath(fsys fs.FS, version, dir string) (*Bundle, error) {
 	var rankings Rankings
 	var qualityMeans Rankings
 	var modelAxes map[string]ModelAxis
-	var medianVerbosity float64 = 1.0
+	var medianVerbosity = 1.0
 
 	rawQualityMeans, err := fs.ReadFile(fsys, path.Join(dir, "quality_means.json"))
 	if err == nil {

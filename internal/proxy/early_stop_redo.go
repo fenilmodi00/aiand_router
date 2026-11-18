@@ -15,7 +15,6 @@ import (
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/catalog"
 	"aiand-os/router/internal/router/turntype"
-	"aiand-os/router/internal/telemetry"
 	"aiand-os/router/internal/translate"
 )
 
@@ -113,27 +112,23 @@ type earlyStopRedo struct {
 
 // earlyStopServed points at ProxyMessages' record of the attempt that served.
 type earlyStopServed struct {
-	decision   *router.Decision
-	bindings   *[]catalog.ProviderBinding
-	marker     *string
-	winnerIdx  *int
-	extractor  **telemetry.UsageExtractor
-	summary    *translate.ResponseSummary
-	reqStats   *providers.RequestMutationStats
-	fastServed *bool
-	effort     *effortResolution
+	decision  *router.Decision
+	bindings  *[]catalog.ProviderBinding
+	marker    *string
+	winnerIdx *int
+	summary   *translate.ResponseSummary
+	reqStats  *providers.RequestMutationStats
+	effort    *effortResolution
 }
 
 type earlyStopServedSnapshot struct {
-	decision   router.Decision
-	bindings   []catalog.ProviderBinding
-	marker     string
-	winnerIdx  int
-	extractor  *telemetry.UsageExtractor
-	summary    translate.ResponseSummary
-	reqStats   providers.RequestMutationStats
-	fastServed bool
-	effort     effortResolution
+	decision  router.Decision
+	bindings  []catalog.ProviderBinding
+	marker    string
+	winnerIdx int
+	summary   translate.ResponseSummary
+	reqStats  providers.RequestMutationStats
+	effort    effortResolution
 }
 
 func (p *earlyStopServed) save() earlyStopServedSnapshot {

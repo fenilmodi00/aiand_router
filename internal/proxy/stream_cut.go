@@ -222,6 +222,7 @@ func streamCutReplayRetryable(class streamFailureClass, err error) bool {
 	switch class {
 	case streamFailureClientCanceled, streamFailureDeadline:
 		return false
+	default:
 	}
 	status := upstreamStatus(err)
 	return status == 0 || providers.IsRetryableStatus(status)
