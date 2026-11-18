@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"context"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -39,35 +38,6 @@ func (c *failingClient) Passthrough(context.Context, providers.PreparedRequest, 
 	return providers.ErrNotImplemented
 }
 
-// servingClient streams one completed Responses turn on every dispatch.
-type servingClient struct {
-	err   error
-	calls int
-}
-
-func (c *servingClient) Proxy(_ context.Context, _ router.Decision, prep providers.PreparedRequest, w http.ResponseWriter, _ *http.Request) error {
-	c.calls++
-	if c.err != nil {
-		return c.err
-	}
-	w.Header().Set("Content-Type", "text/event-stream")
-	if prep.Endpoint == providers.EndpointChatCompletions {
-		writeChatCompletionText(w, "served by sibling")
-		return nil
-	}
-	for _, frame := range []string{
-		`{"type":"response.output_text.delta","output_index":0,"delta":"served by sibling"}`,
-		`{"type":"response.completed","response":{"id":"resp_1","status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"served by sibling"}]}],"usage":{"input_tokens":12,"output_tokens":3}}}`,
-	} {
-		_, _ = io.WriteString(w, "data: "+frame+"\n\n")
-	}
-	return nil
-}
-
-func (c *servingClient) Passthrough(context.Context, providers.PreparedRequest, http.ResponseWriter, *http.Request) error {
-	return providers.ErrNotImplemented
-}
-
 func rescuableDecision(reason string, withSibling bool) router.Decision {
 	d := router.Decision{
 		Provider: providers.ProviderAIAND,
@@ -83,7 +53,7 @@ func rescuableDecision(reason string, withSibling bool) router.Decision {
 	return d
 }
 
-func newRescuedFailureTurnService(store sessionpin.Store, decision router.Decision, primary, sibling providers.Client, flagOn bool) *Service {
+func newRescuedFailureTurnService(store sessionpin.Store, decision router.Decision, primary providers.Client, flagOn bool) *Service {
 	return NewService(
 		staticRouter{decision: decision},
 		map[string]providers.Client{
@@ -113,7 +83,7 @@ func TestProxyMessages_UnrescuedIdleFailureDemotesPrimary(t *testing.T) {
 		t.Run(ingress.name, func(t *testing.T) {
 			store := &demotionStubPinStore{}
 			primary := &failingClient{err: providers.ErrUpstreamIdleTimeout}
-			svc := newRescuedFailureTurnService(store, rescuableDecision("hmm:authoritative model="+rescuedPrimaryModel, false), primary, &servingClient{}, true)
+			svc := newRescuedFailureTurnService(store, rescuableDecision("hmm:authoritative model="+rescuedPrimaryModel, false), primary, true)
 			rec := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, ingress.path, strings.NewReader(string(ingress.body)))
 			var err error

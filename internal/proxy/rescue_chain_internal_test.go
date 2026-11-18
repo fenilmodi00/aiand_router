@@ -27,7 +27,7 @@ func (f *fakeRescueServices) resolveEffort(context.Context, router.Decision, rou
 	return effortResolution{}
 }
 
-func (f *fakeRescueServices) resolveCredentials(ctx context.Context, _, _ string, _ http.Header) context.Context {
+func (f *fakeRescueServices) resolveCredentials(ctx context.Context, _ string, _ http.Header) context.Context {
 	return ctx
 }
 

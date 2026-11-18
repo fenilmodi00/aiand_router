@@ -413,7 +413,7 @@ func TestThrottleRetryDelay_RecordsHonouredRetryAfter(t *testing.T) {
 	assert.Contains(t, fields, int64(3_000))
 }
 
-func cooldownTurnLoopService(store sessionpin.Store, transient bool) (*Service, *authoritativeTestRouter) {
+func cooldownTurnLoopService(store sessionpin.Store, transient bool) *Service {
 	scorer := &authoritativeTestRouter{decision: router.Decision{
 		Provider: providers.ProviderAIAND,
 		Model:    freshTurnModel,
@@ -423,5 +423,5 @@ func cooldownTurnLoopService(store sessionpin.Store, transient bool) (*Service, 
 		providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil).
 		WithTransientRateLimit(transient, 45)
 	svc.clock = func() time.Time { return rateLimitTestNow }
-	return svc, scorer
+	return svc
 }

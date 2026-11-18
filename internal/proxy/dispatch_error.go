@@ -444,6 +444,9 @@ func classifyResolutionError(err *policy.ResolutionError) DispatchErrorClass {
 				LogMessage: "Inference plan rejected request-supplied override",
 			}
 		}
+	case policy.ResolutionErrorUnknownPurpose, policy.ResolutionErrorUnsupportedPurpose, policy.ResolutionErrorMissingSelection, policy.ResolutionErrorNoEligibleBinding, policy.ResolutionErrorConstraintViolation:
+		// Policy-side resolution failures carry no request-supplied override, so
+		// the generic routing-outage class below describes them.
 	}
 	return DispatchErrorClass{
 		Kind:       DispatchErrorPlanUnresolvable,

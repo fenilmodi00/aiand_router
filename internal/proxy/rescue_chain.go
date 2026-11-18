@@ -18,7 +18,7 @@ import (
 type rescueServices interface {
 	dispatchWithFallback(ctx context.Context, in failoverInputs) (winnerIdx int, err error)
 	resolveEffort(ctx context.Context, decision router.Decision, caps router.ModelSpec, escalate bool) effortResolution
-	resolveCredentials(ctx context.Context, provider, model string, headers http.Header) context.Context
+	resolveCredentials(ctx context.Context, provider string, headers http.Header) context.Context
 	resolveBindingsForDispatch(ctx context.Context, decision router.Decision) []catalog.ProviderBinding
 	runCompactionHandover(ctx context.Context, env *translate.RequestEnvelope, reqHeaders http.Header, decisionModel string, scope router.Request) handoverOutcome
 	noteRescueReadmission(ctx context.Context, failed, rescuer router.Decision)
@@ -234,7 +234,7 @@ func (c *rescueChain) dispatchSibling(ctx context.Context, siblingDecision route
 	siblingOpts.ModelSwitched = true
 	siblingEffort := s.resolveEffort(ctx, siblingDecision, siblingOpts.Capabilities, c.routeRes.EscalateEffort)
 	siblingEffort.apply(&siblingOpts)
-	siblingCtx := s.resolveCredentials(subscriptionStatePaidRescueContext(ctx, siblingDecision.Model), siblingDecision.Provider, siblingDecision.Model, r.Header)
+	siblingCtx := s.resolveCredentials(subscriptionStatePaidRescueContext(ctx, siblingDecision.Model), siblingDecision.Provider, r.Header)
 	siblingBindings := s.resolveBindingsForDispatch(siblingCtx, siblingDecision)
 	siblingMarker := siblingMarkerFor(ctx, r.Header, c.routeRes, c.decision.Model, siblingDecision.Model)
 	siblingAttempt, siblingBuildErr := c.buildAttempt(siblingDecision, siblingOpts, siblingMarker)

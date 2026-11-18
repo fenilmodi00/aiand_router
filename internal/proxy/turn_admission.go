@@ -22,7 +22,7 @@ type turnAdmissionServices interface {
 
 var _ turnAdmissionServices = (*Service)(nil)
 
-func withTurnInput(ctx context.Context, s turnAdmissionServices, body []byte, headers http.Header, endpoint router.TranslationEndpoint) (context.Context, error) {
+func withTurnInput(ctx context.Context, s turnAdmissionServices, body []byte, endpoint router.TranslationEndpoint) (context.Context, error) {
 	ctx, err := s.withClassifierInput(ctx, body, endpoint)
 	if err != nil {
 		return ctx, err

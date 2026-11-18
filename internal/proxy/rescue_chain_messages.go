@@ -130,16 +130,16 @@ func (m *messagesRescue) redoIfStoppedEarly(ctx context.Context) {
 				header:  m.contentSink.Header(),
 				log:     log,
 				target:  m.earlyStopTarget,
-				build: func(target router.Decision) (dispatchAttempt, []catalog.ProviderBinding, string, effortResolution, context.Context, error) {
+				build: func(buildCtx context.Context, target router.Decision) (dispatchAttempt, []catalog.ProviderBinding, string, effortResolution, context.Context, error) {
 					redoOpts := opts
 					redoOpts.TargetModel = target.Model
 					redoOpts.TargetProvider = target.Provider
 					redoOpts.Capabilities = router.Lookup(target.Model)
 					redoOpts.ModelSwitched = true
-					redoEffort := s.resolveEffort(ctx, target, redoOpts.Capabilities, routeRes.EscalateEffort)
+					redoEffort := s.resolveEffort(buildCtx, target, redoOpts.Capabilities, routeRes.EscalateEffort)
 					redoEffort.apply(&redoOpts)
-					redoCtx := s.resolveCredentials(subscriptionStatePaidRescueContext(ctx, target.Model), target.Provider, target.Model, r.Header)
-					redoMarker := suppressMarkerIfRequested(ctx, r.Header, modelSelectionMarkerForRequest(ctx, routeRes, siblingRoutingMarkerFor(routeRes, m.decision.Model, target.Model), target.Model, markerReasonEarlyStop))
+					redoCtx := s.resolveCredentials(subscriptionStatePaidRescueContext(buildCtx, target.Model), target.Provider, r.Header)
+					redoMarker := suppressMarkerIfRequested(buildCtx, r.Header, modelSelectionMarkerForRequest(buildCtx, routeRes, siblingRoutingMarkerFor(routeRes, m.decision.Model, target.Model), target.Model, markerReasonEarlyStop))
 					redoAttempt, buildErr := m.buildAttempt(target, redoOpts, redoMarker)
 					return redoAttempt, s.resolveBindingsForDispatch(redoCtx, target), redoMarker, redoEffort, redoCtx, buildErr
 				},

@@ -173,7 +173,7 @@ func (e *RequestEnvelope) ClientSessionID() string {
 		return requestcontext.BodySessionID(e.body, requestcontext.ConversationAnthropic)
 	case FormatOpenAI:
 		return requestcontext.BodySessionID(e.body, requestcontext.ConversationChat)
-	case FormatOpenAIResponses:
+	case FormatOpenAIResponses, FormatGemini:
 	}
 	return ""
 }

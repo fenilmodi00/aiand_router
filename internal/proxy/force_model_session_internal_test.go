@@ -289,7 +289,7 @@ func TestRecordTurnUsage_ForcedDecisionWritesThreadHistoryOnly(t *testing.T) {
 		Role:       forceModelHistoryRole(role),
 	}
 
-	svc.recordTurnUsage(turnLoopResult{
+	svc.recordTurnUsage(context.Background(), turnLoopResult{
 		SessionKey: threadKey,
 		PinRole:    role,
 		Decision: router.Decision{

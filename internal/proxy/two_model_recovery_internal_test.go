@@ -20,7 +20,7 @@ const recoveryOpusModel = "z-ai/glm-5.3"
 // An in-process lease is a safety net for stores without durable leases: a
 // request that never released must not deny the arm forever.
 func TestLocalRecoveryProbeLeaseExpires(t *testing.T) {
-	svc, _ := cooldownTurnLoopService(&rolePinStore{byRole: map[string]sessionpin.Pin{}}, true)
+	svc := cooldownTurnLoopService(&rolePinStore{byRole: map[string]sessionpin.Pin{}}, true)
 	now := rateLimitTestNow
 	svc.clock = func() time.Time { return now }
 	key := nonZeroSessionKey()
@@ -39,7 +39,7 @@ func TestLocalRecoveryProbeLeaseExpires(t *testing.T) {
 }
 
 func TestRecoveryProbeLeaseCoversRequestDeadline(t *testing.T) {
-	svc, _ := cooldownTurnLoopService(&rolePinStore{byRole: map[string]sessionpin.Pin{}}, true)
+	svc := cooldownTurnLoopService(&rolePinStore{byRole: map[string]sessionpin.Pin{}}, true)
 
 	assert.Equal(t, recoveryProbeLeaseDuration, svc.recoveryProbeLeaseFor(context.Background()))
 
@@ -90,7 +90,7 @@ func TestRecoveryProbeSkipsModelWithoutEligibleProviderBinding(t *testing.T) {
 			recoveryOpusModel: rateLimitTestNow.Add(-time.Minute),
 		}},
 	}}}
-	svc, _ := cooldownTurnLoopService(store, true)
+	svc := cooldownTurnLoopService(store, true)
 	env, features := demotionTurnLoopEnv(t)
 	result, err := svc.runTurnLoop(context.Background(), env, features, "api-key", uuid.New(), "", http.Header{}, router.Request{
 		RequestedModel:       features.Model,

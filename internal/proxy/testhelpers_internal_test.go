@@ -2,10 +2,8 @@ package proxy
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
-	"net/http"
 	"net/http/httptest"
 	"testing"
 
@@ -92,16 +90,4 @@ type staticRouter struct{ decision router.Decision }
 
 func (s staticRouter) Route(context.Context, router.Request) (router.Decision, error) {
 	return s.decision, nil
-}
-
-// writeChatCompletionText streams text as a complete chat/completions turn.
-func writeChatCompletionText(w http.ResponseWriter, text string) {
-	content, _ := json.Marshal(text)
-	for _, frame := range []string{
-		`{"id":"c1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":` + string(content) + `},"finish_reason":null}]}`,
-		`{"id":"c1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":3}}`,
-		"[DONE]",
-	} {
-		_, _ = io.WriteString(w, "data: "+frame+"\n\n")
-	}
 }

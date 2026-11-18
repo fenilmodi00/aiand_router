@@ -62,7 +62,7 @@ func TestAutomaticUtilitySelectionDoesNotUseDeploymentShortcut(t *testing.T) {
 						assert.True(t, turn.CallerModelPassthrough)
 						assert.Equal(t, policy.OverrideSourceRequest, turn.Origin)
 					}
-					service.recordTurnUsage(turn, turn.Decision.Provider, turn.Decision.Model, 100, 10, 0, 0, false)
+					service.recordTurnUsage(ctx, turn, turn.Decision.Provider, turn.Decision.Model, 100, 10, 0, 0, false)
 					pins.mu.Lock()
 					defer pins.mu.Unlock()
 					if fixture.turnType == turntype.TitleGen {
