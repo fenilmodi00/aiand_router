@@ -4014,13 +4014,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 			subscriptionStateWinnerProvider: &subscriptionStateWinnerProvider,
 			alternatives:                    nil,
 			buildAlternative: func(target router.Decision) (dispatchAttempt, error) {
-				alternativeOpts := opts
-				alternativeOpts.TargetModel = target.Model
-				alternativeOpts.TargetProvider = target.Provider
-				alternativeOpts.Capabilities = router.Lookup(target.Model)
-				alternativeOpts.ModelSwitched = true
-				alternativeEffort := s.resolveEffort(ctx, target, alternativeOpts.Capabilities, routeRes.EscalateEffort)
-				alternativeEffort.apply(&alternativeOpts)
+				alternativeOpts, _ := switchedAttemptOptions(ctx, opts, target, routeRes.EscalateEffort, s.resolveEffort)
 				alternativeMarker := subscriptionTargetMarker(ctx, r.Header, routeRes, primaryDecision, target, pickedMarker)
 				return buildAttempt(target, alternativeOpts, alternativeMarker)
 			},
@@ -4072,13 +4066,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 				log:     log,
 				target:  earlyStopTarget,
 				build: func(target router.Decision) (dispatchAttempt, []catalog.ProviderBinding, string, effortResolution, context.Context, error) {
-					redoOpts := opts
-					redoOpts.TargetModel = target.Model
-					redoOpts.TargetProvider = target.Provider
-					redoOpts.Capabilities = router.Lookup(target.Model)
-					redoOpts.ModelSwitched = true
-					redoEffort := s.resolveEffort(ctx, target, redoOpts.Capabilities, routeRes.EscalateEffort)
-					redoEffort.apply(&redoOpts)
+					redoOpts, redoEffort := switchedAttemptOptions(ctx, opts, target, routeRes.EscalateEffort, s.resolveEffort)
 					redoCtx := s.resolveCredentials(subscriptionStatePaidRescueContext(ctx, target.Model), target.Provider, target.Model, r.Header)
 					redoMarker := suppressMarkerIfRequested(ctx, r.Header, modelSelectionMarkerForRequest(ctx, routeRes, siblingRoutingMarkerFor(routeRes, decision.Model, target.Model), target.Model, markerReasonEarlyStop))
 					redoAttempt, buildErr := buildAttempt(target, redoOpts, redoMarker)
@@ -4192,15 +4180,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 			if siblingRescueRan && (proxyErr == nil || preludeBuf.Committed() || ctx.Err() != nil) {
 				break
 			}
-			siblingOpts := opts
-			siblingOpts.TargetModel = siblingDecision.Model
-			siblingOpts.TargetProvider = siblingDecision.Provider
-			siblingOpts.Capabilities = router.Lookup(siblingDecision.Model)
-			// The turn now serves a model the session hasn't seen, so signed
-			// thinking blocks from the prior model must not be replayed verbatim.
-			siblingOpts.ModelSwitched = true
-			siblingEffort := s.resolveEffort(ctx, siblingDecision, siblingOpts.Capabilities, routeRes.EscalateEffort)
-			siblingEffort.apply(&siblingOpts)
+			siblingOpts, siblingEffort := switchedAttemptOptions(ctx, opts, siblingDecision, routeRes.EscalateEffort, s.resolveEffort)
 			siblingCtx := s.resolveCredentials(subscriptionStatePaidRescueContext(ctx, siblingDecision.Model), siblingDecision.Provider, siblingDecision.Model, r.Header)
 			siblingBindings := s.resolveBindingsForDispatch(siblingCtx, siblingDecision)
 			siblingMarker := siblingMarkerFor(ctx, r.Header, routeRes, decision.Model, siblingDecision.Model)
@@ -6682,13 +6662,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		subscriptionStateWinnerProvider: &subscriptionStateWinnerProvider,
 		alternatives:                    nil,
 		buildAlternative: func(target router.Decision) (dispatchAttempt, error) {
-			alternativeOpts := opts
-			alternativeOpts.TargetModel = target.Model
-			alternativeOpts.TargetProvider = target.Provider
-			alternativeOpts.Capabilities = router.Lookup(target.Model)
-			alternativeOpts.ModelSwitched = true
-			alternativeEffort := s.resolveEffort(ctx, target, alternativeOpts.Capabilities, routeRes.EscalateEffort)
-			alternativeEffort.apply(&alternativeOpts)
+			alternativeOpts, _ := switchedAttemptOptions(ctx, opts, target, routeRes.EscalateEffort, s.resolveEffort)
 			alternativeMarker := subscriptionTargetMarker(ctx, r.Header, routeRes, primaryDecision, target, pickedMarker)
 			return buildAttempt(target, alternativeOpts, alternativeMarker)
 		},
@@ -6763,13 +6737,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 			if siblingRescueRan && (proxyErr == nil || preludeBuf.Committed() || ctx.Err() != nil) {
 				break
 			}
-			siblingOpts := opts
-			siblingOpts.TargetModel = siblingDecision.Model
-			siblingOpts.TargetProvider = siblingDecision.Provider
-			siblingOpts.Capabilities = router.Lookup(siblingDecision.Model)
-			siblingOpts.ModelSwitched = true
-			siblingEffort := s.resolveEffort(ctx, siblingDecision, siblingOpts.Capabilities, routeRes.EscalateEffort)
-			siblingEffort.apply(&siblingOpts)
+			siblingOpts, siblingEffort := switchedAttemptOptions(ctx, opts, siblingDecision, routeRes.EscalateEffort, s.resolveEffort)
 			siblingCtx := s.resolveCredentials(subscriptionStatePaidRescueContext(ctx, siblingDecision.Model), siblingDecision.Provider, siblingDecision.Model, r.Header)
 			siblingBindings := s.resolveBindingsForDispatch(siblingCtx, siblingDecision)
 			siblingMarker := siblingMarkerFor(ctx, r.Header, routeRes, decision.Model, siblingDecision.Model)
