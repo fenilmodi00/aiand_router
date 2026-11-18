@@ -133,7 +133,7 @@ func TestMultiversion_DefaultRoutingDistribution_DelegatesToDefaultScorer(t *tes
 	// accumulate the same floats in different order, differing by a ULP.
 	require.Len(t, got, len(want))
 	for i := range want {
-		assert.Equal(t, want[i].QualityBias, got[i].QualityBias, "point %d dial position", i)
+		assert.InDelta(t, want[i].QualityBias, got[i].QualityBias, 1e-9, "point %d dial position", i)
 		assert.InDelta(t, want[i].ProjectedCostPer1KInputUSD, got[i].ProjectedCostPer1KInputUSD, 1e-9, "point %d projected cost", i)
 		require.Len(t, got[i].Models, len(want[i].Models), "point %d model mix", i)
 		for j := range want[i].Models {

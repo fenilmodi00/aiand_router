@@ -109,7 +109,7 @@ func SelectGroupsWithDomainPreferences(
 			scoresByGroup[group.Label] = scores
 			componentsByGroup[group.Label] = components
 			order, _ := ArmOrder(cluster, harness)
-			ordersByGroup[group.Label] = preferenceOrder(roster, group.Label, cluster, harness, order, qualityBias, hasPreferenceInputs || domainActive, scores)
+			ordersByGroup[group.Label] = preferenceOrder(roster, cluster, harness, order, qualityBias, hasPreferenceInputs || domainActive, scores)
 		}
 	}
 	depth := 0
@@ -168,7 +168,7 @@ func EffectiveAlpha(roster *rosterdata.Roster, label string, qualityBias float64
 	return defaultAlpha + (roster.Ranking.AlphaMax[label]-defaultAlpha)*((qualityBias-neutral)/(1-neutral))
 }
 
-func preferenceOrder(roster *rosterdata.Roster, label string, cluster rosterdata.Cluster, harness string, order []string, qualityBias *float64, hasPreferenceInputs bool, scores map[string]float32) []string {
+func preferenceOrder(roster *rosterdata.Roster, cluster rosterdata.Cluster, harness string, order []string, qualityBias *float64, hasPreferenceInputs bool, scores map[string]float32) []string {
 	if (qualityBias == nil || *qualityBias == roster.Ranking.QualityBiasNeutral || !isDynamicRoster(roster)) && !hasPreferenceInputs {
 		return order
 	}

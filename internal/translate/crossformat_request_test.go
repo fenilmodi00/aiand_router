@@ -259,7 +259,7 @@ func TestCrossFormat_OpenAIToAnthropic_SimpleText(t *testing.T) {
 
 	sys := getArray(t, doc, "system")
 	require.Len(t, sys, 1)
-	sysBlock := sys[0].(map[string]any)
+	sysBlock := mustAs[map[string]any](t, sys[0])
 	assert.Equal(t, "text", sysBlock["type"])
 	assert.Equal(t, "You are a coding assistant.", sysBlock["text"])
 
@@ -278,12 +278,12 @@ func TestCrossFormat_OpenAIToAnthropic_SimpleText(t *testing.T) {
 	assert.Equal(t, "user", u2["role"])
 	// The final message's string content is promoted to a text block so it can
 	// carry the injected prompt-cache breakpoint (see the cache-injection test).
-	u2blocks := u2["content"].([]any)
+	u2blocks := mustAs[[]any](t, u2["content"])
 	require.Len(t, u2blocks, 1)
-	assert.Equal(t, "Now what about 3+3?", u2blocks[0].(map[string]any)["text"])
+	assert.Equal(t, "Now what about 3+3?", mustAs[map[string]any](t, u2blocks[0])["text"])
 
-	assert.Equal(t, float64(0.7), doc["temperature"])
-	assert.Equal(t, float64(1024), doc["max_tokens"])
+	assert.InDelta(t, float64(0.7), doc["temperature"], 1e-9)
+	assert.InDelta(t, float64(1024), doc["max_tokens"], 1e-9)
 }
 
 func TestCrossFormat_OpenAIToAnthropic_ToolConversation(t *testing.T) {
@@ -297,7 +297,7 @@ func TestCrossFormat_OpenAIToAnthropic_ToolConversation(t *testing.T) {
 
 	tools := getArray(t, doc, "tools")
 	require.Len(t, tools, 2)
-	readTool := tools[0].(map[string]any)
+	readTool := mustAs[map[string]any](t, tools[0])
 	assert.Equal(t, "Read", readTool["name"])
 	assert.Equal(t, "Read a file", readTool["description"])
 	inputSchema := getMap(t, readTool, "input_schema")
@@ -312,9 +312,9 @@ func TestCrossFormat_OpenAIToAnthropic_ToolConversation(t *testing.T) {
 
 	assistantMsg := msgAt(t, msgs, 1)
 	assert.Equal(t, "assistant", assistantMsg["role"])
-	blocks := assistantMsg["content"].([]any)
+	blocks := mustAs[[]any](t, assistantMsg["content"])
 	require.Len(t, blocks, 1)
-	toolUseBlock := blocks[0].(map[string]any)
+	toolUseBlock := mustAs[map[string]any](t, blocks[0])
 	assert.Equal(t, "tool_use", toolUseBlock["type"])
 	assert.Equal(t, "call_abc", toolUseBlock["id"])
 	assert.Equal(t, "Read", toolUseBlock["name"])
@@ -323,9 +323,9 @@ func TestCrossFormat_OpenAIToAnthropic_ToolConversation(t *testing.T) {
 
 	toolResultMsg := msgAt(t, msgs, 2)
 	assert.Equal(t, "user", toolResultMsg["role"])
-	resultBlocks := toolResultMsg["content"].([]any)
+	resultBlocks := mustAs[[]any](t, toolResultMsg["content"])
 	require.Len(t, resultBlocks, 1)
-	resultBlock := resultBlocks[0].(map[string]any)
+	resultBlock := mustAs[map[string]any](t, resultBlocks[0])
 	assert.Equal(t, "tool_result", resultBlock["type"])
 	assert.Equal(t, "call_abc", resultBlock["tool_use_id"])
 	assert.Equal(t, "package main\n\nfunc main() {}", resultBlock["content"])
@@ -338,9 +338,9 @@ func TestCrossFormat_OpenAIToAnthropic_ToolConversation(t *testing.T) {
 	assert.Equal(t, "user", finalUser["role"])
 	// Final message string content is promoted to a text block carrying the
 	// injected prompt-cache breakpoint (see the cache-injection test).
-	finalBlocks := finalUser["content"].([]any)
+	finalBlocks := mustAs[[]any](t, finalUser["content"])
 	require.Len(t, finalBlocks, 1)
-	assert.Equal(t, "Now edit it to add a hello world print", finalBlocks[0].(map[string]any)["text"])
+	assert.Equal(t, "Now edit it to add a hello world print", mustAs[map[string]any](t, finalBlocks[0])["text"])
 }
 
 var openAICacheInjectionConversation = []byte(`{
@@ -371,8 +371,8 @@ func TestCrossFormat_OpenAIToAnthropic_CacheControlInjection(t *testing.T) {
 	// Only the LAST system block carries the breakpoint.
 	sys := getArray(t, doc, "system")
 	require.Len(t, sys, 2)
-	assert.Nil(t, sys[0].(map[string]any)["cache_control"], "non-last system block must not be marked")
-	assert.Equal(t, ephemeral, sys[1].(map[string]any)["cache_control"], "last system block must be marked")
+	assert.Nil(t, mustAs[map[string]any](t, sys[0])["cache_control"], "non-last system block must not be marked")
+	assert.Equal(t, ephemeral, mustAs[map[string]any](t, sys[1])["cache_control"], "last system block must be marked")
 
 	msgs := getArray(t, doc, "messages")
 	require.Len(t, msgs, 3)
@@ -384,9 +384,9 @@ func TestCrossFormat_OpenAIToAnthropic_CacheControlInjection(t *testing.T) {
 	// The final message's string content is promoted to a single text block
 	// carrying the breakpoint.
 	last := msgAt(t, msgs, 2)
-	lastBlocks := last["content"].([]any)
+	lastBlocks := mustAs[[]any](t, last["content"])
 	require.Len(t, lastBlocks, 1)
-	lastBlock := lastBlocks[0].(map[string]any)
+	lastBlock := mustAs[map[string]any](t, lastBlocks[0])
 	assert.Equal(t, "text", lastBlock["type"])
 	assert.Equal(t, "Second question.", lastBlock["text"])
 	assert.Equal(t, ephemeral, lastBlock["cache_control"])
@@ -417,9 +417,9 @@ func TestCrossFormat_OpenAIToAnthropic_CacheControlArrayLastBlock(t *testing.T) 
 
 	msgs := getArray(t, doc, "messages")
 	last := msgAt(t, msgs, len(msgs)-1)
-	blocks := last["content"].([]any)
+	blocks := mustAs[[]any](t, last["content"])
 	require.NotEmpty(t, blocks)
-	lastBlock := blocks[len(blocks)-1].(map[string]any)
+	lastBlock := mustAs[map[string]any](t, blocks[len(blocks)-1])
 	assert.Equal(t, "tool_result", lastBlock["type"], "last block stays a tool_result")
 	assert.Equal(t, "file contents", lastBlock["content"])
 	assert.Equal(t, ephemeral, lastBlock["cache_control"], "breakpoint attaches to the existing last block")
@@ -437,14 +437,14 @@ func TestCrossFormat_OpenAIToAnthropic_Image(t *testing.T) {
 	require.Len(t, msgs, 1)
 
 	userMsg := msgAt(t, msgs, 0)
-	content := userMsg["content"].([]any)
+	content := mustAs[[]any](t, userMsg["content"])
 	require.Len(t, content, 2)
 
-	textBlock := content[0].(map[string]any)
+	textBlock := mustAs[map[string]any](t, content[0])
 	assert.Equal(t, "text", textBlock["type"])
 	assert.Equal(t, "What is in this image?", textBlock["text"])
 
-	imgBlock := content[1].(map[string]any)
+	imgBlock := mustAs[map[string]any](t, content[1])
 	assert.Equal(t, "image", imgBlock["type"])
 	src := getMap(t, imgBlock, "source")
 	assert.Equal(t, "base64", src["type"])
@@ -462,8 +462,8 @@ func TestCrossFormat_OpenAIToAnthropic_MultipleSystemMessages(t *testing.T) {
 	doc := unmarshalBody(t, prep.Body)
 	sys := getArray(t, doc, "system")
 	require.Len(t, sys, 2, "both system messages must become blocks")
-	assert.Equal(t, "You follow strict formatting rules.", sys[0].(map[string]any)["text"])
-	assert.Equal(t, "Always respond in JSON.", sys[1].(map[string]any)["text"])
+	assert.Equal(t, "You follow strict formatting rules.", mustAs[map[string]any](t, sys[0])["text"])
+	assert.Equal(t, "Always respond in JSON.", mustAs[map[string]any](t, sys[1])["text"])
 
 	msgs := getArray(t, doc, "messages")
 	require.Len(t, msgs, 1)
@@ -482,7 +482,7 @@ func TestCrossFormat_OpenAIToAnthropic_MidConversationSystemMessageDemotedInPlac
 	doc := unmarshalBody(t, prep.Body)
 	sys := getArray(t, doc, "system")
 	require.Len(t, sys, 1, "only the leading system message is hoisted")
-	assert.Equal(t, "rules", sys[0].(map[string]any)["text"])
+	assert.Equal(t, "rules", mustAs[map[string]any](t, sys[0])["text"])
 
 	msgs := getArray(t, doc, "messages")
 	require.Len(t, msgs, 3)
@@ -490,7 +490,7 @@ func TestCrossFormat_OpenAIToAnthropic_MidConversationSystemMessageDemotedInPlac
 	assert.Equal(t, "user", last["role"])
 	blocks, _ := last["content"].([]any)
 	require.Len(t, blocks, 1)
-	assert.Equal(t, "be terse", blocks[0].(map[string]any)["text"])
+	assert.Equal(t, "be terse", mustAs[map[string]any](t, blocks[0])["text"])
 }
 
 func TestCrossFormat_OpenAIToAnthropic_AssistantTextAndToolCalls(t *testing.T) {
@@ -505,12 +505,12 @@ func TestCrossFormat_OpenAIToAnthropic_AssistantTextAndToolCalls(t *testing.T) {
 
 	assistantMsg := msgAt(t, msgs, 1)
 	assert.Equal(t, "assistant", assistantMsg["role"])
-	blocks := assistantMsg["content"].([]any)
+	blocks := mustAs[[]any](t, assistantMsg["content"])
 	require.Len(t, blocks, 2, "text block + tool_use block")
-	textBlock := blocks[0].(map[string]any)
+	textBlock := mustAs[map[string]any](t, blocks[0])
 	assert.Equal(t, "text", textBlock["type"])
 	assert.Equal(t, "Let me search for that.", textBlock["text"])
-	toolBlock := blocks[1].(map[string]any)
+	toolBlock := mustAs[map[string]any](t, blocks[1])
 	assert.Equal(t, "tool_use", toolBlock["type"])
 	assert.Equal(t, "search_prs", toolBlock["name"])
 }
@@ -531,15 +531,15 @@ func TestCrossFormat_OpenAIToAnthropic_AssistantArrayContentAndToolCalls(t *test
 
 	assistantMsg := msgAt(t, msgs, 1)
 	assert.Equal(t, "assistant", assistantMsg["role"])
-	blocks := assistantMsg["content"].([]any)
+	blocks := mustAs[[]any](t, assistantMsg["content"])
 	require.Len(t, blocks, 2, "text block + tool_use block")
-	textBlock := blocks[0].(map[string]any)
+	textBlock := mustAs[map[string]any](t, blocks[0])
 	assert.Equal(t, "text", textBlock["type"])
 	// Must flatten to the inner text, not the serialized parts array.
 	assert.Equal(t, "Let me search for that.", textBlock["text"])
-	assert.NotContains(t, textBlock["text"].(string), `"type":"text"`,
+	assert.NotContains(t, mustAs[string](t, textBlock["text"]), `"type":"text"`,
 		"parts array must not be serialized verbatim into the text block")
-	toolBlock := blocks[1].(map[string]any)
+	toolBlock := mustAs[map[string]any](t, blocks[1])
 	assert.Equal(t, "tool_use", toolBlock["type"])
 	assert.Equal(t, "search_prs", toolBlock["name"])
 }
@@ -555,9 +555,9 @@ func TestCrossFormat_OpenAIToAnthropic_EmptyToolArgs(t *testing.T) {
 	msgs := getArray(t, doc, "messages")
 
 	assistantMsg := msgAt(t, msgs, 1)
-	blocks := assistantMsg["content"].([]any)
+	blocks := mustAs[[]any](t, assistantMsg["content"])
 	require.Len(t, blocks, 1)
-	toolBlock := blocks[0].(map[string]any)
+	toolBlock := mustAs[map[string]any](t, blocks[0])
 	assert.Equal(t, "tool_use", toolBlock["type"])
 	input, ok := toolBlock["input"].(map[string]any)
 	require.True(t, ok, "input must be a JSON object, not a string")
@@ -575,11 +575,11 @@ func TestCrossFormat_OpenAIToAnthropic_NullToolResult(t *testing.T) {
 	msgs := getArray(t, doc, "messages")
 
 	toolResultMsg := msgAt(t, msgs, 2)
-	blocks := toolResultMsg["content"].([]any)
+	blocks := mustAs[[]any](t, toolResultMsg["content"])
 	require.Len(t, blocks, 1)
-	block := blocks[0].(map[string]any)
+	block := mustAs[map[string]any](t, blocks[0])
 	assert.Equal(t, "tool_result", block["type"])
-	assert.Equal(t, "", block["content"], "null tool content must become empty string")
+	assert.Empty(t, block["content"], "null tool content must become empty string")
 }
 func TestCrossFormat_AnthropicToOpenAI_SimpleText(t *testing.T) {
 	env, err := translate.ParseAnthropic(anthropicSimpleConversation)
@@ -615,7 +615,7 @@ func TestCrossFormat_AnthropicToOpenAI_SimpleText(t *testing.T) {
 	assert.Equal(t, "user", u3["role"])
 	assert.Equal(t, "Now what about 3+3?", u3["content"])
 
-	assert.Equal(t, float64(0.7), doc["temperature"])
+	assert.InDelta(t, float64(0.7), doc["temperature"], 1e-9)
 }
 
 func TestCrossFormat_AnthropicToOpenAI_ToolConversation(t *testing.T) {
@@ -632,7 +632,7 @@ func TestCrossFormat_AnthropicToOpenAI_ToolConversation(t *testing.T) {
 
 	tools := getArray(t, doc, "tools")
 	require.Len(t, tools, 2)
-	readTool := tools[0].(map[string]any)
+	readTool := mustAs[map[string]any](t, tools[0])
 	assert.Equal(t, "function", readTool["type"])
 	fn := getMap(t, readTool, "function")
 	assert.Equal(t, "Read", fn["name"])
@@ -647,9 +647,9 @@ func TestCrossFormat_AnthropicToOpenAI_ToolConversation(t *testing.T) {
 	assistantMsg := msgAt(t, msgs, 2)
 	assert.Equal(t, "assistant", assistantMsg["role"])
 	assert.Equal(t, "I will read the file.", assistantMsg["content"])
-	toolCalls := assistantMsg["tool_calls"].([]any)
+	toolCalls := mustAs[[]any](t, assistantMsg["tool_calls"])
 	require.Len(t, toolCalls, 1)
-	tc := toolCalls[0].(map[string]any)
+	tc := mustAs[map[string]any](t, toolCalls[0])
 	assert.Equal(t, "toolu_abc", tc["id"])
 	assert.Equal(t, "function", tc["type"])
 	tcFn := getMap(t, tc, "function")
@@ -694,7 +694,7 @@ func TestCrossFormat_AnthropicToOpenAI_EmptyAssistantKeepsContent(t *testing.T) 
 	require.Len(t, msgs, 3)
 	assistantMsg := msgAt(t, msgs, 1)
 	assert.Equal(t, "assistant", assistantMsg["role"])
-	assert.Equal(t, "", assistantMsg["content"])
+	assert.Empty(t, mustAs[string](t, assistantMsg["content"]))
 	assert.NotContains(t, assistantMsg, "tool_calls")
 }
 
@@ -728,7 +728,7 @@ func TestCrossFormat_AnthropicToOpenAI_OverlongToolUseIDClampedAndPaired(t *test
 	doc := unmarshalBody(t, prep.Body)
 	msgs := getArray(t, doc, "messages")
 
-	tc := msgAt(t, msgs, 1)["tool_calls"].([]any)[0].(map[string]any)
+	tc := mustAs[map[string]any](t, mustAs[[]any](t, msgAt(t, msgs, 1)["tool_calls"])[0])
 	emittedID, _ := tc["id"].(string)
 	assert.LessOrEqual(t, len(emittedID), 64, "tool_call id clamped under OpenAI limit")
 	assert.NotEqual(t, longID, emittedID, "over-length id was rewritten")
@@ -752,14 +752,14 @@ func TestCrossFormat_AnthropicToOpenAI_Image(t *testing.T) {
 	require.Len(t, msgs, 1)
 
 	userMsg := msgAt(t, msgs, 0)
-	content := userMsg["content"].([]any)
+	content := mustAs[[]any](t, userMsg["content"])
 	require.Len(t, content, 2)
 
-	textPart := content[0].(map[string]any)
+	textPart := mustAs[map[string]any](t, content[0])
 	assert.Equal(t, "text", textPart["type"])
 	assert.Equal(t, "What is in this image?", textPart["text"])
 
-	imgPart := content[1].(map[string]any)
+	imgPart := mustAs[map[string]any](t, content[1])
 	assert.Equal(t, "image_url", imgPart["type"])
 	imageURL := getMap(t, imgPart, "image_url")
 	url, ok := imageURL["url"].(string)
@@ -802,13 +802,13 @@ func TestCrossFormat_AnthropicToOpenAI_ToolResultImageHoisted(t *testing.T) {
 	toolMsg := msgAt(t, msgs, 2)
 	assert.Equal(t, "tool", toolMsg["role"])
 	assert.Equal(t, "toolu_1", toolMsg["tool_call_id"])
-	assert.Equal(t, "", toolMsg["content"], "text-only tool content stays empty")
+	assert.Empty(t, mustAs[string](t, toolMsg["content"]), "text-only tool content stays empty")
 
 	userMsg := msgAt(t, msgs, 3)
 	assert.Equal(t, "user", userMsg["role"], "hoisted image rides a trailing user message")
-	content := userMsg["content"].([]any)
+	content := mustAs[[]any](t, userMsg["content"])
 	require.Len(t, content, 1)
-	imgPart := content[0].(map[string]any)
+	imgPart := mustAs[map[string]any](t, content[0])
 	assert.Equal(t, "image_url", imgPart["type"])
 	imageURL := getMap(t, imgPart, "image_url")
 	url, ok := imageURL["url"].(string)
@@ -854,9 +854,9 @@ func TestCrossFormat_AnthropicToOpenAI_ToolResultTextAndImageSplit(t *testing.T)
 
 	userMsg := msgAt(t, msgs, 3)
 	assert.Equal(t, "user", userMsg["role"])
-	content := userMsg["content"].([]any)
+	content := mustAs[[]any](t, userMsg["content"])
 	require.Len(t, content, 1)
-	imgPart := content[0].(map[string]any)
+	imgPart := mustAs[map[string]any](t, content[0])
 	assert.Equal(t, "image_url", imgPart["type"], "only the image is hoisted")
 }
 
@@ -895,9 +895,9 @@ func TestCrossFormat_AnthropicToOpenAI_EmptyToolInputBecomesEmptyArgsString(t *t
 	msgs := getArray(t, doc, "messages")
 
 	assistantMsg := msgAt(t, msgs, 1)
-	toolCalls := assistantMsg["tool_calls"].([]any)
+	toolCalls := mustAs[[]any](t, assistantMsg["tool_calls"])
 	require.Len(t, toolCalls, 1)
-	tc := toolCalls[0].(map[string]any)
+	tc := mustAs[map[string]any](t, toolCalls[0])
 	fn := getMap(t, tc, "function")
 	argsStr, ok := fn["arguments"].(string)
 	require.True(t, ok, "arguments must be a JSON string")
@@ -922,10 +922,10 @@ func TestCrossFormat_OpenAIToAnthropic_ScalarFieldsCarriedThrough(t *testing.T) 
 	doc := unmarshalBody(t, prep.Body)
 	assert.Equal(t, "claude-sonnet-4-20250514", doc["model"])
 	assert.Equal(t, true, doc["stream"])
-	assert.Equal(t, float64(0.5), doc["temperature"])
-	assert.Equal(t, float64(0.9), doc["top_p"])
-	assert.Equal(t, float64(2048), doc["max_tokens"])
-	seqs := doc["stop_sequences"].([]any)
+	assert.InDelta(t, float64(0.5), doc["temperature"], 1e-9)
+	assert.InDelta(t, float64(0.9), doc["top_p"], 1e-9)
+	assert.InDelta(t, float64(2048), doc["max_tokens"], 1e-9)
+	seqs := mustAs[[]any](t, doc["stop_sequences"])
 	assert.Equal(t, []any{"STOP", "END"}, seqs)
 }
 
@@ -951,9 +951,9 @@ func TestCrossFormat_AnthropicToOpenAI_ScalarFieldsCarriedThrough(t *testing.T) 
 	doc := unmarshalBody(t, prep.Body)
 	assert.Equal(t, "gpt-4", doc["model"])
 	assert.Equal(t, true, doc["stream"])
-	assert.Equal(t, float64(0.3), doc["temperature"])
-	assert.Equal(t, float64(0.8), doc["top_p"])
-	stop := doc["stop"].([]any)
+	assert.InDelta(t, float64(0.3), doc["temperature"], 1e-9)
+	assert.InDelta(t, float64(0.8), doc["top_p"], 1e-9)
+	stop := mustAs[[]any](t, doc["stop"])
 	assert.Equal(t, []any{"STOP"}, stop)
 }
 
@@ -1002,7 +1002,7 @@ func TestCrossFormat_OpenAIToAnthropic_ToolParametersBecomesInputSchema(t *testi
 	doc := unmarshalBody(t, prep.Body)
 	tools := getArray(t, doc, "tools")
 	require.Len(t, tools, 1)
-	tool := tools[0].(map[string]any)
+	tool := mustAs[map[string]any](t, tools[0])
 	assert.Equal(t, "search", tool["name"])
 	assert.Equal(t, "Search the web", tool["description"])
 	inputSchema := getMap(t, tool, "input_schema")
@@ -1033,7 +1033,7 @@ func TestCrossFormat_AnthropicToOpenAI_InputSchemaBecomesParameters(t *testing.T
 	doc := unmarshalBody(t, prep.Body)
 	tools := getArray(t, doc, "tools")
 	require.Len(t, tools, 1)
-	tool := tools[0].(map[string]any)
+	tool := mustAs[map[string]any](t, tools[0])
 	assert.Equal(t, "function", tool["type"])
 	fn := getMap(t, tool, "function")
 	assert.Equal(t, "search", fn["name"])
@@ -1076,7 +1076,7 @@ func TestCrossFormat_AnthropicToOpenAI_StripsUnsupportedToolSchemaPattern(t *tes
 	doc := unmarshalBody(t, prep.Body)
 	tools := getArray(t, doc, "tools")
 	require.Len(t, tools, 1)
-	fn := getMap(t, tools[0].(map[string]any), "function")
+	fn := getMap(t, mustAs[map[string]any](t, tools[0]), "function")
 	params := getMap(t, fn, "parameters")
 	props := getMap(t, params, "properties")
 	amount := getMap(t, props, "amount")
@@ -1087,9 +1087,9 @@ func TestCrossFormat_AnthropicToOpenAI_StripsUnsupportedToolSchemaPattern(t *tes
 
 	msgs := getArray(t, doc, "messages")
 	assistant := msgAt(t, msgs, 1)
-	toolCalls := assistant["tool_calls"].([]any)
+	toolCalls := mustAs[[]any](t, assistant["tool_calls"])
 	require.Len(t, toolCalls, 1)
-	tcFn := getMap(t, toolCalls[0].(map[string]any), "function")
+	tcFn := getMap(t, mustAs[map[string]any](t, toolCalls[0]), "function")
 	argsStr, ok := tcFn["arguments"].(string)
 	require.True(t, ok)
 	var args map[string]any
@@ -1123,14 +1123,14 @@ func TestCrossFormat_OpenAIToAnthropic_ConsecutiveToolResultsMerge(t *testing.T)
 
 	toolMsg := msgAt(t, msgs, 2)
 	assert.Equal(t, "user", toolMsg["role"])
-	blocks := toolMsg["content"].([]any)
+	blocks := mustAs[[]any](t, toolMsg["content"])
 	require.Len(t, blocks, 2, "both results must be in one user message")
 
-	sf := blocks[0].(map[string]any)
+	sf := mustAs[map[string]any](t, blocks[0])
 	assert.Equal(t, "tool_result", sf["type"])
 	assert.Equal(t, "call_sf", sf["tool_use_id"])
 
-	ny := blocks[1].(map[string]any)
+	ny := mustAs[map[string]any](t, blocks[1])
 	assert.Equal(t, "tool_result", ny["type"])
 	assert.Equal(t, "call_ny", ny["tool_use_id"])
 }
@@ -1166,7 +1166,7 @@ func TestCrossFormat_AnthropicToOpenAI_ToolResultSplitIntoSeparateMessages(t *te
 
 	var toolRoleCount int
 	for _, m := range msgs {
-		msg := m.(map[string]any)
+		msg := mustAs[map[string]any](t, m)
 		if msg["role"] == "tool" {
 			toolRoleCount++
 		}
@@ -1194,7 +1194,7 @@ func TestCrossFormat_AnthropicToOpenAI_ToolWithoutDescription(t *testing.T) {
 
 	tools, _ := doc["tools"].([]any)
 	require.Len(t, tools, 1)
-	fn, _ := tools[0].(map[string]any)["function"].(map[string]any)
+	fn, _ := mustAs[map[string]any](t, tools[0])["function"].(map[string]any)
 	require.NotNil(t, fn)
 	assert.Equal(t, "Bash", fn["name"])
 	if desc, hasDesc := fn["description"]; hasDesc {
@@ -1318,7 +1318,7 @@ func TestCrossFormat_AnthropicToOpenAI_EmptyToolsNoSystemReminder(t *testing.T) 
 
 	msgs := getArray(t, doc, "messages")
 	for _, m := range msgs {
-		msg := m.(map[string]any)
+		msg := mustAs[map[string]any](t, m)
 		if msg["role"] == "system" {
 			content, _ := msg["content"].(string)
 			assert.NotContains(t, content, "file-edit tools",
@@ -1348,16 +1348,16 @@ func TestCrossFormat_AnthropicToOpenAI_ToolUseWithMissingName(t *testing.T) {
 
 	msgs := getArray(t, doc, "messages")
 	require.Len(t, msgs, 2)
-	assistant := msgs[1].(map[string]any)
+	assistant := mustAs[map[string]any](t, msgs[1])
 	toolCalls, ok := assistant["tool_calls"].([]any)
 	require.True(t, ok, "assistant message must still carry tool_calls; got: %s", string(prep.Body))
 	require.Len(t, toolCalls, 1, "the tool call must not be silently dropped")
 
-	call := toolCalls[0].(map[string]any)
+	call := mustAs[map[string]any](t, toolCalls[0])
 	assert.Equal(t, "toolu_123", call["id"], "the original tool_use id must be preserved, not replaced with a garbage id")
-	fn := call["function"].(map[string]any)
-	assert.Equal(t, "", fn["name"], "a missing name must pass through as empty, not a fabricated placeholder name")
-	assert.JSONEq(t, `{"x":1}`, fn["arguments"].(string), "arguments must survive untouched")
+	fn := mustAs[map[string]any](t, call["function"])
+	assert.Empty(t, mustAs[string](t, fn["name"]), "a missing name must pass through as empty, not a fabricated placeholder name")
+	assert.JSONEq(t, `{"x":1}`, mustAs[string](t, fn["arguments"]), "arguments must survive untouched")
 }
 
 func TestCrossFormat_AnthropicToOpenAI_ToolResultMissingToolUseID(t *testing.T) {
@@ -1380,9 +1380,9 @@ func TestCrossFormat_AnthropicToOpenAI_ToolResultMissingToolUseID(t *testing.T) 
 
 	msgs := getArray(t, doc, "messages")
 	require.Len(t, msgs, 1, "the tool_result message must not be silently dropped")
-	toolMsg := msgs[0].(map[string]any)
+	toolMsg := mustAs[map[string]any](t, msgs[0])
 	assert.Equal(t, "tool", toolMsg["role"])
-	assert.Equal(t, "", toolMsg["tool_call_id"], "a missing tool_use_id must pass through as empty, not a fabricated id")
+	assert.Empty(t, mustAs[string](t, toolMsg["tool_call_id"]), "a missing tool_use_id must pass through as empty, not a fabricated id")
 	assert.Equal(t, "done", toolMsg["content"])
 }
 
@@ -1422,19 +1422,19 @@ func TestSanitizeToolUseIDs_OpenAIToAnthropic(t *testing.T) {
 
 	var out map[string]any
 	require.NoError(t, json.Unmarshal(prep.Body, &out))
-	msgs := out["messages"].([]any)
+	msgs := mustAs[[]any](t, out["messages"])
 
 	// assistant message: tool_use.id must be sanitized
-	asst := msgs[0].(map[string]any)
-	content := asst["content"].([]any)
-	toolUse := content[0].(map[string]any)
+	asst := mustAs[map[string]any](t, msgs[0])
+	content := mustAs[[]any](t, asst["content"])
+	toolUse := mustAs[map[string]any](t, content[0])
 	assert.Equal(t, "tool_use", toolUse["type"])
 	assert.Equal(t, "functions_Read_0", toolUse["id"], "dots and colons must be replaced with underscores")
 
 	// user message: tool_result.tool_use_id must match
-	user := msgs[1].(map[string]any)
-	userContent := user["content"].([]any)
-	toolResult := userContent[0].(map[string]any)
+	user := mustAs[map[string]any](t, msgs[1])
+	userContent := mustAs[[]any](t, user["content"])
+	toolResult := mustAs[map[string]any](t, userContent[0])
 	assert.Equal(t, "tool_result", toolResult["type"])
 	assert.Equal(t, "functions_Read_0", toolResult["tool_use_id"], "tool_use_id must match the sanitized tool_use id")
 }
@@ -1460,14 +1460,14 @@ func TestSanitizeToolUseIDs_AnthropicToAnthropic(t *testing.T) {
 
 	var out map[string]any
 	require.NoError(t, json.Unmarshal(prep.Body, &out))
-	msgs := out["messages"].([]any)
+	msgs := mustAs[[]any](t, out["messages"])
 
-	asst := msgs[0].(map[string]any)
-	block := asst["content"].([]any)[0].(map[string]any)
+	asst := mustAs[map[string]any](t, msgs[0])
+	block := mustAs[map[string]any](t, mustAs[[]any](t, asst["content"])[0])
 	assert.Equal(t, "functions_Grep_11", block["id"], "tool_use.id must be sanitized in same-format path")
 
-	user := msgs[1].(map[string]any)
-	result := user["content"].([]any)[0].(map[string]any)
+	user := mustAs[map[string]any](t, msgs[1])
+	result := mustAs[map[string]any](t, mustAs[[]any](t, user["content"])[0])
 	assert.Equal(t, "functions_Grep_11", result["tool_use_id"], "tool_use_id must be sanitized in same-format path")
 }
 
@@ -1707,9 +1707,9 @@ func TestStripToolUseThoughtSignature_AnthropicToAnthropic(t *testing.T) {
 
 	var out map[string]any
 	require.NoError(t, json.Unmarshal(prep.Body, &out))
-	msgs := out["messages"].([]any)
+	msgs := mustAs[[]any](t, out["messages"])
 
-	block := msgs[0].(map[string]any)["content"].([]any)[0].(map[string]any)
+	block := mustAs[map[string]any](t, mustAs[[]any](t, mustAs[map[string]any](t, msgs[0])["content"])[0])
 	_, hasSig := block["thought_signature"]
 	assert.False(t, hasSig, "thought_signature must be stripped from tool_use before forwarding to Anthropic")
 	assert.Equal(t, "toolu_01__thought__c2ln", block["id"], "tool_use.id (signature round-trip channel) must be preserved")

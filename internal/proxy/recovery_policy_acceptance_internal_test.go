@@ -24,7 +24,7 @@ import (
 // that the current permanent-strike policy implements transient recovery.
 func TestRecoveryAcceptanceRescued502HasBoundedWithdrawal(t *testing.T) {
 	store := &cooldownStubPinStore{}
-	svc := newRateLimitTestService(store, true, 45)
+	svc := newRateLimitTestService(store, true)
 	primary := router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDDeepSeekV4Pro.String()}
 	model, _ := svc.maybeStrikeArmAfterRescuedFailure(context.Background(), true, false,
 		&providers.UpstreamErrorResponse{Status: http.StatusBadGateway}, primary,

@@ -33,7 +33,7 @@ func TestPrepareOpenAI_FromAnthropic_TinyBudgetKeptWhenEffortNone(t *testing.T) 
 	})
 	require.NoError(t, err)
 	out := mustUnmarshal(t, prep.Body)
-	assert.Equal(t, float64(64), out["max_completion_tokens"])
+	assert.InDelta(t, float64(64), out["max_completion_tokens"], 1e-9)
 }
 
 // Non-reasoning chat targets keep the caller's budget verbatim.
@@ -46,6 +46,6 @@ func TestPrepareOpenAI_FromAnthropic_TinyBudgetKeptForNonReasoningTarget(t *test
 	})
 	require.NoError(t, err)
 	out := mustUnmarshal(t, prep.Body)
-	assert.Equal(t, float64(64), out["max_tokens"])
+	assert.InDelta(t, float64(64), out["max_tokens"], 1e-9)
 	assert.Equal(t, []any{"</severity>"}, out["stop"])
 }

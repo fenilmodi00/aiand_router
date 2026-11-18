@@ -498,34 +498,44 @@ func loadCentroids(raw []byte) (*Centroids, error) {
 	return &Centroids{K: int(k), Dim: int(dim), Data: data}, nil
 }
 
-// loadRankings errors on malformed JSON, non-integer cluster keys,
-// empty rankings, or empty per-cluster entries.
-func loadRankings(raw []byte) (Rankings, error) {
+// decodeRankings validates a cluster-keyed rankings document: malformed JSON,
+// empty documents, non-integer cluster keys, and empty per-cluster entries are
+// all errors. name labels the document in error messages.
+func decodeRankings[F rankingsFile | qualityMeansFile](raw []byte, name string, clustersOf func(F) map[string]map[string]float32) (Rankings, error) {
 	if len(raw) == 0 {
-		return nil, fmt.Errorf("rankings.json is empty")
+		return nil, fmt.Errorf("%s is empty", name)
 	}
-	var f rankingsFile
+	var f F
 	if err := json.Unmarshal(raw, &f); err != nil {
-		return nil, fmt.Errorf("rankings.json parse: %w", err)
+		return nil, fmt.Errorf("%s parse: %w", name, err)
 	}
-	if len(f.Rankings) == 0 {
-		return nil, fmt.Errorf("rankings.json has no clusters")
+	clusters := clustersOf(f)
+	if len(clusters) == 0 {
+		return nil, fmt.Errorf("%s has no clusters", name)
 	}
-	out := make(Rankings, len(f.Rankings))
-	for kStr, models := range f.Rankings {
+	out := make(Rankings, len(clusters))
+	for kStr, models := range clusters {
 		var k int
 		// Sscanf("12abc",...) succeeds with k=12; round-trip via Sprintf
 		// to reject keys with trailing junk.
 		_, err := fmt.Sscanf(kStr, "%d", &k)
 		if err != nil || fmt.Sprintf("%d", k) != kStr {
-			return nil, fmt.Errorf("rankings.json: non-integer cluster key %q", kStr)
+			return nil, fmt.Errorf("%s: non-integer cluster key %q", name, kStr)
 		}
 		if len(models) == 0 {
-			return nil, fmt.Errorf("rankings.json: cluster %d has no models", k)
+			return nil, fmt.Errorf("%s: cluster %d has no models", name, k)
 		}
 		out[k] = models
 	}
 	return out, nil
+}
+
+// loadRankings errors on malformed JSON, non-integer cluster keys,
+// empty rankings, or empty per-cluster entries.
+func loadRankings(raw []byte) (Rankings, error) {
+	return decodeRankings(raw, "rankings.json", func(f rankingsFile) map[string]map[string]float32 {
+		return f.Rankings
+	})
 }
 
 type qualityMeansFile struct {
@@ -534,29 +544,9 @@ type qualityMeansFile struct {
 }
 
 func loadQualityMeans(raw []byte) (Rankings, error) {
-	if len(raw) == 0 {
-		return nil, fmt.Errorf("quality_means.json is empty")
-	}
-	var f qualityMeansFile
-	if err := json.Unmarshal(raw, &f); err != nil {
-		return nil, fmt.Errorf("quality_means.json parse: %w", err)
-	}
-	if len(f.QualityMeans) == 0 {
-		return nil, fmt.Errorf("quality_means.json has no clusters")
-	}
-	out := make(Rankings, len(f.QualityMeans))
-	for kStr, models := range f.QualityMeans {
-		var k int
-		_, err := fmt.Sscanf(kStr, "%d", &k)
-		if err != nil || fmt.Sprintf("%d", k) != kStr {
-			return nil, fmt.Errorf("quality_means.json: non-integer cluster key %q", kStr)
-		}
-		if len(models) == 0 {
-			return nil, fmt.Errorf("quality_means.json: cluster %d has no models", k)
-		}
-		out[k] = models
-	}
-	return out, nil
+	return decodeRankings(raw, "quality_means.json", func(f qualityMeansFile) map[string]map[string]float32 {
+		return f.QualityMeans
+	})
 }
 
 type modelAxesFile struct {
@@ -639,7 +629,7 @@ func resolveBinding(b RequestBindings, modelID, registryProvider string, availab
 
 // candidates returns the models these selectors may pick from: the bundle's
 // roster.
-func bindingCandidates(b RequestBindings, registry *ModelRegistry) []DeployedEntry {
+func bindingCandidates(registry *ModelRegistry) []DeployedEntry {
 	return registry.DeployedModels
 }
 
@@ -656,7 +646,7 @@ func inputCostPer1K(model string) (float64, bool) {
 
 func cheapestModelFiltered(registry *ModelRegistry, available, denySet, allowSet map[string]struct{}, bindings RequestBindings) (provider, model string, ok bool) {
 	var bestCost float64 = -1
-	for _, e := range bindingCandidates(bindings, registry) {
+	for _, e := range bindingCandidates(registry) {
 		resolved := resolveBinding(bindings, e.Model, e.Provider, available)
 		if resolved == "" {
 			continue

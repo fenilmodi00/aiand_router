@@ -13,13 +13,13 @@ import (
 )
 
 // samplerFields reports presence of temperature/top_p on an emitted body.
-func samplerFields(t *testing.T, body []byte) (map[string]any, bool, bool) {
+func samplerFields(t *testing.T, body []byte) (bool, bool) {
 	t.Helper()
 	var doc map[string]any
 	require.NoError(t, json.Unmarshal(body, &doc))
 	_, hasTemp := doc["temperature"]
 	_, hasTopP := doc["top_p"]
-	return doc, hasTemp, hasTopP
+	return hasTemp, hasTopP
 }
 
 func TestReasoningSamplers_AnthropicSource_KeepsTemperatureForNonGPT5(t *testing.T) {
@@ -39,7 +39,7 @@ func TestReasoningSamplers_AnthropicSource_KeepsTemperatureForNonGPT5(t *testing
 	})
 	require.NoError(t, err)
 
-	_, hasTemp, _ := samplerFields(t, out.Body)
+	hasTemp, _ := samplerFields(t, out.Body)
 	assert.True(t, hasTemp, "non-reasoning targets keep the client's temperature")
 }
 
@@ -52,7 +52,7 @@ func TestReasoningSamplers_OpenAIResponses_DropsTemperatureForOpenAIReasoningMod
 		Capabilities: router.NewSpec(router.CapReasoning),
 	})
 	require.NoError(t, err)
-	_, hasTemp, _ := samplerFields(t, out.Body)
+	hasTemp, _ := samplerFields(t, out.Body)
 	assert.False(t, hasTemp, "OpenAI reasoning models reject temperature independent of model generation")
 }
 
@@ -71,6 +71,6 @@ func TestReasoningSamplers_OpenAISource_KeepsTemperatureForOSSReasoning(t *testi
 	})
 	require.NoError(t, err)
 
-	_, hasTemp, _ := samplerFields(t, out.Body)
+	hasTemp, _ := samplerFields(t, out.Body)
 	assert.True(t, hasTemp, "OpenRouter OSS reasoning models sample normally")
 }

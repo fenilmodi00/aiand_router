@@ -125,7 +125,7 @@ func (e *RequestEnvelope) trimAnthropicLastN(n int) int {
 	if len(all) <= n {
 		return 0
 	}
-	keep, _ := recentMessagesWithUserTextBoundary(all, n, FormatAnthropic)
+	keep := recentMessagesWithUserTextBoundary(all, n, FormatAnthropic)
 	rebuilt, _ := stripOrphanedAnthropicToolResults(keep)
 	newMessages := "[" + strings.Join(rebuilt, ",") + "]"
 	out, err := sjson.SetRawBytes(e.body, "messages", []byte(newMessages))
@@ -231,7 +231,7 @@ func (e *RequestEnvelope) trimOpenAILastN(n int) int {
 	if len(others) <= n {
 		return 0
 	}
-	keep, _ := recentMessagesWithUserTextBoundary(others, n, FormatOpenAI)
+	keep := recentMessagesWithUserTextBoundary(others, n, FormatOpenAI)
 	keepRaw := make([]string, 0, len(keep))
 	for _, message := range keep {
 		keepRaw = append(keepRaw, message.Raw)
@@ -253,14 +253,14 @@ func (e *RequestEnvelope) trimOpenAILastN(n int) int {
 // the window still describes the user's request. Tool-result-only user entries
 // do not qualify, and a pulled-back user boundary resumes on an assistant turn
 // so the rewritten wire history does not contain consecutive user roles.
-func recentMessagesWithUserTextBoundary(messages []gjson.Result, limit int, format Format) ([]gjson.Result, bool) {
+func recentMessagesWithUserTextBoundary(messages []gjson.Result, limit int, format Format) []gjson.Result {
 	if limit <= 0 || len(messages) <= limit {
-		return messages, false
+		return messages
 	}
 	recent := messages[len(messages)-limit:]
 	for i := len(recent) - 1; i >= 0; i-- {
 		if isTextBearingUserMessage(recent[i], format) {
-			return recent, false
+			return recent
 		}
 	}
 	for i := len(messages) - limit - 1; i >= 0; i-- {
@@ -270,12 +270,12 @@ func recentMessagesWithUserTextBoundary(messages []gjson.Result, limit int, form
 		preserved := []gjson.Result{messages[i]}
 		for suffixStart := 1; suffixStart < len(recent); suffixStart++ {
 			if isAssistantMessage(recent[suffixStart], format) {
-				return append(preserved, recent[suffixStart:]...), true
+				return append(preserved, recent[suffixStart:]...)
 			}
 		}
-		return preserved, true
+		return preserved
 	}
-	return recent, false
+	return recent
 }
 
 func isAssistantMessage(message gjson.Result, _ Format) bool {

@@ -113,10 +113,7 @@ func (e *RequestEnvelope) PrepareOpenAI(in http.Header, opts EmitOptions) (provi
 		}
 	}
 	headers := make(http.Header)
-	body, err = applySessionAffinity(body, headers, opts)
-	if err != nil {
-		return providers.PreparedRequest{}, err
-	}
+	body = applySessionAffinity(body, headers, opts)
 	return providers.PreparedRequest{Body: body, Headers: headers, Stats: stats, ResponseToolNames: toolNames}, nil
 }
 
@@ -144,14 +141,14 @@ func (e *RequestEnvelope) PrepareOpenAI(in http.Header, opts EmitOptions) (provi
 // cacheable prefix (system + tools), preserving any caller-supplied key and
 // leaving prefix-less requests unhinted. Without this, an Anthropic→OpenAI
 // route re-bills the full prefix every turn (NULL cache_read in prod).
-func applySessionAffinity(body []byte, headers http.Header, opts EmitOptions) ([]byte, error) {
+func applySessionAffinity(body []byte, headers http.Header, opts EmitOptions) []byte {
 	// The single upstream is an OpenAI-compatible serverless surface, so it
 	// takes the generic x-session-affinity header, gated on a real session key
 	// (see doc comment above).
 	if providers.IsOpenAICompat(opts.TargetProvider) && opts.SessionAffinity != "" {
 		headers.Set("x-session-affinity", opts.SessionAffinity)
 	}
-	return body, nil
+	return body
 }
 
 func (e *RequestEnvelope) buildOpenAIFromOpenAI(opts EmitOptions) ([]byte, error) {
@@ -242,7 +239,7 @@ func (e *RequestEnvelope) buildOpenAIFromAnthropic(opts EmitOptions) ([]byte, pr
 	}
 
 	// System + Messages
-	writeOpenAISystemAndMessagesFromAnthropic(jw, body, opts)
+	writeOpenAISystemAndMessagesFromAnthropic(jw, body)
 
 	// Stop sequences — reasoning OpenAI models (gpt-5.x) reject `stop` on
 	// /v1/chat/completions ("Unsupported parameter: 'stop' is not supported").
@@ -387,7 +384,7 @@ func applyQwen3SamplersIfNeeded(body []byte, opts EmitOptions) ([]byte, error) {
 
 // writeOpenAISystemAndMessagesFromAnthropic emits the "messages" key into jw by
 // converting the Anthropic system field and messages array to OpenAI format.
-func writeOpenAISystemAndMessagesFromAnthropic(jw *jsonWriter, body []byte, opts EmitOptions) {
+func writeOpenAISystemAndMessagesFromAnthropic(jw *jsonWriter, body []byte) {
 	systemText := flattenAnthropicSystemGJSON(gjson.GetBytes(body, "system"))
 
 	jw.Key("messages")

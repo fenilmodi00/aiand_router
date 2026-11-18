@@ -9,6 +9,7 @@ import (
 	"aiand-os/router/internal/billing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // The subscription-only warning replaces the routing marker, so it must name
@@ -50,7 +51,7 @@ func TestSpendCapWarningDoesNotClaimDepletedCredits(t *testing.T) {
 func TestSubscriptionOnlyUnavailableNamesTheGate(t *testing.T) {
 	capCtx := billing.WithSubscriptionOnly(context.Background(), billing.SubscriptionOnlySpendCapReached)
 	assert.Equal(t, ErrSpendCapSubscriptionUnavailable, subscriptionOnlyUnavailable(capCtx))
-	assert.ErrorIs(t, subscriptionOnlyUnavailable(capCtx), ErrCreditsExhaustedSubscriptionUnavailable,
+	require.ErrorIs(t, subscriptionOnlyUnavailable(capCtx), ErrCreditsExhaustedSubscriptionUnavailable,
 		"refusal checks match the credits sentinel, so the cap variant must wrap it")
 
 	depletedCtx := billing.WithSubscriptionOnly(context.Background(), billing.SubscriptionOnlyCreditsDepleted)

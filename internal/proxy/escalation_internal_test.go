@@ -400,7 +400,7 @@ func TestEscalationRecordsServedHistoryWithoutReplacingBaselinePin(t *testing.T)
 	svc := NewService(nil, nil, nil, false, nil, pins, false, providers.ProviderAIAND, "z-ai/glm-5.3-flash", nil)
 	res := turnLoopResult{Strategy: router.StrategyHMMEmbedding, InstallationID: uuid.New(), PinRole: "default", Decision: router.Decision{Model: "deepseek/deepseek-v4.1-flash", Provider: providers.ProviderAIAND, Metadata: &router.RoutingMetadata{Strategy: string(router.StrategyHMMEmbedding), Escalation: &escalation.Decision{Baseline: escalation.Low, Effective: escalation.Medium, Outcome: escalation.OutcomePromoted, Constrained: true}}}}
 	res.SessionKey[0] = 1
-	svc.recordTurnUsage(context.Background(), res, providers.ProviderAIAND, "deepseek/deepseek-v4.1-flash", 100, 20, 0, 0, false)
+	svc.recordTurnUsage(res, providers.ProviderAIAND, "deepseek/deepseek-v4.1-flash", 100, 20, 0, 0, false)
 	require.Len(t, pins.upserts, 1)
 	require.Equal(t, hmmHistoryRole(res.PinRole), pins.upserts[0].Role)
 	require.Equal(t, "deepseek/deepseek-v4.1-flash", pins.lastUsage.ServedModel)

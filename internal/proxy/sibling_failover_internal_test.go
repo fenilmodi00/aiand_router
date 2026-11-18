@@ -30,8 +30,8 @@ func overloadedDecision(md *router.RoutingMetadata) router.Decision {
 }
 
 // firstSibling is the head of the rescue walk: the candidate the turn tries first.
-func firstSibling(s *Service, ctx context.Context, failed router.Decision, est, sigSavings, outputReserve int) (router.Decision, bool) {
-	decisions := s.siblingFailoverDecisions(ctx, failed, est, sigSavings, outputReserve)
+func firstSibling(s *Service, ctx context.Context, failed router.Decision, est, outputReserve int) (router.Decision, bool) {
+	decisions := s.siblingFailoverDecisions(ctx, failed, est, 0, outputReserve)
 	if len(decisions) == 0 {
 		return router.Decision{}, false
 	}
@@ -69,7 +69,7 @@ func TestSiblingFailoverSelectsImageCompatibleBinding(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := withRequestImageCount(context.Background(), tc.imageCount)
-			got, ok := firstSibling(s, ctx, failed, 1_000, 0, 0)
+			got, ok := firstSibling(s, ctx, failed, 1_000, 0)
 			require.True(t, ok)
 			assert.Equal(t, model, got.Model)
 			assert.Equal(t, tc.wantProvider, got.Provider)

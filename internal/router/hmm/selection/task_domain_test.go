@@ -36,10 +36,10 @@ func TestLiveSelectorTaskCorrectionPreservesComplexityAndEligibility(t *testing.
 	assert.Equal(t, baseline.Trace.ClassifierRanking, adjusted.Trace.ClassifierRanking)
 	assert.Equal(t, []string{"low", "high", "balanced", "maximum"}, adjusted.Trace.ClassifierRanking)
 	for index, fallback := range adjusted.RankedFallback {
-		assert.Equal(t, baseline.RankedFallback[index].Probability, fallback.Probability)
+		assert.InDelta(t, baseline.RankedFallback[index].Probability, fallback.Probability, 1e-9)
 		assert.Equal(t, baseline.RankedFallback[index].RosterArms, fallback.RosterArms)
 	}
-	assert.Equal(t, baseline.RankedFallback[0].Probability, adjusted.RankedFallback[0].Probability)
+	assert.InDelta(t, baseline.RankedFallback[0].Probability, adjusted.RankedFallback[0].Probability, 1e-9)
 	assert.Equal(t, baseline.RankedFallback[0].RosterArms, adjusted.RankedFallback[0].RosterArms)
 	components := adjusted.Trace.ScoreComponentsByGroup["low"]["vendor-a/quality"]
 	assert.InDelta(t, 30, components.BaseScore, 1e-6)

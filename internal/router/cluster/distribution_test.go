@@ -19,10 +19,10 @@ func TestDialToAlpha_EndpointsPin(t *testing.T) {
 	// cheapest, 1 -> best-per-cluster top quality.
 	for _, bp := range [][]float64{nil, {0, 1}, {0, 0.3, 0.55, 0.87, 1}} {
 		s := &Scorer{dialAlphaBreakpoints: bp}
-		assert.Equal(t, 0.0, s.dialToAlpha(0), "t=0 must map to alpha 0 (breakpoints %v)", bp)
-		assert.Equal(t, 1.0, s.dialToAlpha(1), "t=1 must map to alpha 1 (breakpoints %v)", bp)
-		assert.Equal(t, 0.0, s.dialToAlpha(-0.5), "t<0 clamps to 0")
-		assert.Equal(t, 1.0, s.dialToAlpha(1.5), "t>1 clamps to 1")
+		assert.InDelta(t, 0.0, s.dialToAlpha(0), 1e-9, "t=0 must map to alpha 0 (breakpoints %v)", bp)
+		assert.InDelta(t, 1.0, s.dialToAlpha(1), 1e-9, "t=1 must map to alpha 1 (breakpoints %v)", bp)
+		assert.InDelta(t, 0.0, s.dialToAlpha(-0.5), 1e-9, "t<0 clamps to 0")
+		assert.InDelta(t, 1.0, s.dialToAlpha(1.5), 1e-9, "t>1 clamps to 1")
 	}
 }
 
@@ -56,8 +56,8 @@ func TestComputeDialCalibration_AscendingPinnedEndpoints(t *testing.T) {
 	s := loadDialBundle(t)
 	bp := s.dialAlphaBreakpoints
 	require.GreaterOrEqual(t, len(bp), 4, "expected several mix breakpoints on the real bundle")
-	assert.Equal(t, 0.0, bp[0], "first breakpoint pins the price extreme")
-	assert.Equal(t, 1.0, bp[len(bp)-1], "last breakpoint pins the quality extreme")
+	assert.InDelta(t, 0.0, bp[0], 1e-9, "first breakpoint pins the price extreme")
+	assert.InDelta(t, 1.0, bp[len(bp)-1], 1e-9, "last breakpoint pins the quality extreme")
 	for i := 1; i < len(bp); i++ {
 		assert.Greater(t, bp[i], bp[i-1], "breakpoints must be strictly ascending")
 	}
@@ -117,8 +117,8 @@ func TestRoutingDistribution_EndpointsAndGradient(t *testing.T) {
 		minCost = math.Min(minCost, p.ProjectedCostPer1KInputUSD)
 		maxCost = math.Max(maxCost, p.ProjectedCostPer1KInputUSD)
 	}
-	assert.Equal(t, minCost, points[0].ProjectedCostPer1KInputUSD, "price end should be the cheapest point")
-	assert.Equal(t, maxCost, points[len(points)-1].ProjectedCostPer1KInputUSD, "quality end should be the priciest point")
+	assert.InDelta(t, minCost, points[0].ProjectedCostPer1KInputUSD, 1e-9, "price end should be the cheapest point")
+	assert.InDelta(t, maxCost, points[len(points)-1].ProjectedCostPer1KInputUSD, 1e-9, "quality end should be the priciest point")
 	assert.Greater(t, maxCost, minCost, "the dial must actually move projected cost")
 
 	// Gradient, not cliff: several interior positions must land strictly
@@ -244,7 +244,7 @@ func TestApplyDialAlpha_NilFloorIsUniformDial(t *testing.T) {
 	s.applyDialAlpha(0.3, knobs.Alpha, nil)
 	want := s.dialToAlpha(0.3)
 	for i := range knobs.Alpha {
-		assert.Equal(t, want, knobs.Alpha[i], "cluster %d must equal the uniform dial alpha with no floor", i)
+		assert.InDelta(t, want, knobs.Alpha[i], 1e-9, "cluster %d must equal the uniform dial alpha with no floor", i)
 	}
 }
 

@@ -26,7 +26,7 @@ func (r taskOutcomeResolver) Resolve(context.Context, taskdomain.Input) taskdoma
 func TestHTTPRouterCarriesTaskOutcomeThroughGoSelection(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var request map[string]any
-		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+		assert.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		assert.NotContains(t, request, "TaskDomain", "task text must not be added to the complexity wire contract")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"schema_version": policy.SchemaVersionV4, "classifier_artifact_id": "synthetic-classifier",

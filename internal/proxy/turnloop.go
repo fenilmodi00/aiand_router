@@ -1050,7 +1050,7 @@ func (s *Service) runTurnLoop(
 				// can fix, so it must not surface as a retryable router outage.
 				hardPinErr := router.ErrNoEligibleProvider
 				switch {
-				case s.hardPinBlockedByContextWindow(ctx, threadSessionKey, res, hardPinReq, req):
+				case s.hardPinBlockedByContextWindow(threadSessionKey, res, hardPinReq, req):
 					hardPinErr = policy.ErrContextWindowExceeded
 				}
 				log.Warn(
@@ -2938,7 +2938,7 @@ func sortedEnabledKeys(m map[string]struct{}) []string {
 // native prompt-too-long error instead of a retryable routing outage. A
 // compaction turn rechecks its own summarizer path too, which can reach models
 // the generic resolver cannot.
-func (s *Service) hardPinBlockedByContextWindow(ctx context.Context, sessionKey [sessionpin.SessionKeyLen]byte, res turnLoopResult, hardPinReq HardPinRequest, req router.Request) bool {
+func (s *Service) hardPinBlockedByContextWindow(sessionKey [sessionpin.SessionKeyLen]byte, res turnLoopResult, hardPinReq HardPinRequest, req router.Request) bool {
 	if !req.Exclusions.HasContextWindowExclusions() {
 		return false
 	}

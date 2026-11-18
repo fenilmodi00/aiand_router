@@ -42,12 +42,6 @@ func TestCPUGate_SingleflightSameKey(t *testing.T) {
 	release := make(chan struct{})
 	var calls atomic.Int32
 	var once sync.Once
-	fn := func() ([]float32, error) {
-		calls.Add(1)
-		once.Do(func() { close(started) })
-		<-release
-		return []float32{7, 8}, nil
-	}
 	type result struct {
 		vec []float32
 		err error
@@ -55,7 +49,12 @@ func TestCPUGate_SingleflightSameKey(t *testing.T) {
 	out := make(chan result, 2)
 	for range 2 {
 		go func() {
-			vec, err := g.Do(context.Background(), "same", fn)
+			vec, err := g.Do(context.Background(), "same", func() ([]float32, error) {
+				calls.Add(1)
+				once.Do(func() { close(started) })
+				<-release
+				return []float32{7, 8}, nil
+			})
 			out <- result{vec, err}
 		}()
 	}

@@ -269,12 +269,12 @@ func TestRegistryValidatesDeploymentTargets(t *testing.T) {
 
 	config.TargetOverrides = config.TargetOverrides[:len(config.TargetOverrides)-1]
 	err := policy.DefaultRegistry().ValidateDeployment(config)
-	assert.ErrorContains(t, err, "requires a typed deployment target")
+	require.ErrorContains(t, err, "requires a typed deployment target")
 
 	config = validDeploymentPolicyConfig()
 	config.TargetOverrides[0].Target.Provider = "other-provider"
 	err = policy.DefaultRegistry().ValidateDeployment(config)
-	assert.ErrorContains(t, err, "has no available catalog binding")
+	require.ErrorContains(t, err, "has no available catalog binding")
 
 	// An untiered catalog row exists but is not a routing target, so a
 	// deployment target naming it is refused as not routable.

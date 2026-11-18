@@ -18,7 +18,8 @@ func (f *fakeRouter) Route(context.Context, router.Request) (router.Decision, er
 	return f.dec, f.err
 }
 
-func clusterDecision(scores map[string]float32, model, provider string) router.Decision {
+func clusterDecision(scores map[string]float32, model string) router.Decision {
+	const provider = "anthropic"
 	return router.Decision{
 		Provider: provider,
 		Model:    model,
@@ -63,7 +64,7 @@ func TestRoute_PropagatesInnerError(t *testing.T) {
 
 func TestRoute_NoExplorationWhenBandWidthZero(t *testing.T) {
 	scores := map[string]float32{"haiku": 0.9, "opus": 0.89}
-	inner := clusterDecision(scores, "haiku", "anthropic")
+	inner := clusterDecision(scores, "haiku")
 	e := New(&fakeRouter{dec: inner}, staticProvider(map[string]string{"opus": "anthropic"}), 0)
 	dec, err := e.Route(context.Background(), router.Request{})
 	if err != nil {
@@ -79,7 +80,7 @@ func TestRoute_NoExplorationWhenBandWidthZero(t *testing.T) {
 
 func TestRoute_ForceModelBypassesExploration(t *testing.T) {
 	scores := map[string]float32{"haiku": 0.9, "opus": 0.89}
-	inner := clusterDecision(scores, "haiku", "anthropic")
+	inner := clusterDecision(scores, "haiku")
 	e := New(&fakeRouter{dec: inner}, staticProvider(map[string]string{"opus": "anthropic"}), 0.1)
 	withIntn(e, 1) // would select opus without the forced-model bypass
 
@@ -110,7 +111,7 @@ func TestRoute_NilMetadataPassesThrough(t *testing.T) {
 func TestRoute_SingletonBandKeepsArgmax(t *testing.T) {
 	// opus is far below the band, so the band is just {haiku}: no exploration.
 	scores := map[string]float32{"haiku": 0.9, "opus": 0.5}
-	inner := clusterDecision(scores, "haiku", "anthropic")
+	inner := clusterDecision(scores, "haiku")
 	e := New(&fakeRouter{dec: inner}, staticProvider(map[string]string{"opus": "openai"}), 0.05)
 	dec, err := e.Route(context.Background(), router.Request{})
 	if err != nil {
@@ -125,7 +126,7 @@ func TestRoute_SwitchesToInBandPeerWithPropensity(t *testing.T) {
 	// Band = {haiku, opus, sonnet} (all within 0.1 of max 0.9), sorted ->
 	// [haiku, opus, sonnet]. Force index 1 -> opus.
 	scores := map[string]float32{"haiku": 0.90, "opus": 0.85, "sonnet": 0.82}
-	inner := clusterDecision(scores, "haiku", "anthropic")
+	inner := clusterDecision(scores, "haiku")
 	e := New(&fakeRouter{dec: inner}, staticProvider(map[string]string{
 		"opus":   "anthropic",
 		"sonnet": "anthropic",
@@ -156,7 +157,7 @@ func TestRoute_RepairsBandPairWhenServingRunnerUp(t *testing.T) {
 	// exploration serves the runner-up sonnet. The pin pair must not collapse to
 	// {sonnet, sonnet}: it recomputes to the best remaining peer, opus.
 	scores := map[string]float32{"haiku": 0.82, "opus": 0.90, "sonnet": 0.85}
-	inner := clusterDecision(scores, "opus", "anthropic")
+	inner := clusterDecision(scores, "opus")
 	inner.Metadata.PairedModel = "sonnet"
 	inner.Metadata.PairedProvider = "anthropic"
 	inner.Metadata.PairedScore = 0.85
@@ -193,7 +194,7 @@ func TestRoute_DrawingArgmaxPreservesScorerPair(t *testing.T) {
 	// deliberately not what our own tie-break would pick) must be left intact
 	// rather than recomputed.
 	scores := map[string]float32{"haiku": 0.82, "opus": 0.90, "sonnet": 0.85}
-	inner := clusterDecision(scores, "opus", "anthropic")
+	inner := clusterDecision(scores, "opus")
 	inner.Metadata.PairedModel = "haiku"
 	inner.Metadata.PairedProvider = "anthropic"
 	inner.Metadata.PairedScore = 0.82
@@ -220,7 +221,7 @@ func TestRoute_DrawingArgmaxPreservesScorerPair(t *testing.T) {
 
 func TestRoute_UnknownProviderFallsBackToArgmax(t *testing.T) {
 	scores := map[string]float32{"haiku": 0.90, "opus": 0.88}
-	inner := clusterDecision(scores, "haiku", "anthropic")
+	inner := clusterDecision(scores, "haiku")
 	// Resolver knows nothing about opus -> must keep argmax.
 	e := New(&fakeRouter{dec: inner}, staticProvider(map[string]string{}), 0.1)
 	withIntn(e, 1) // would pick opus (index 1 of [haiku, opus]) if resolvable
@@ -237,7 +238,7 @@ func TestRoute_PrefersPerRequestProviderBinding(t *testing.T) {
 	// Under BYOK the scorer resolves opus to openrouter; the boot-time default
 	// resolver says bedrock. The explorer must serve the per-request binding.
 	scores := map[string]float32{"haiku": 0.90, "opus": 0.88}
-	inner := clusterDecision(scores, "haiku", "anthropic")
+	inner := clusterDecision(scores, "haiku")
 	inner.Metadata.CandidateProviders = map[string]string{
 		"haiku": "anthropic",
 		"opus":  "openrouter",
@@ -258,7 +259,7 @@ func TestRoute_PrefersPerRequestProviderBinding(t *testing.T) {
 
 func TestRoute_MetadataProviderUsedWhenResolverNil(t *testing.T) {
 	scores := map[string]float32{"haiku": 0.90, "opus": 0.88}
-	inner := clusterDecision(scores, "haiku", "anthropic")
+	inner := clusterDecision(scores, "haiku")
 	inner.Metadata.CandidateProviders = map[string]string{"opus": "anthropic"}
 	e := New(&fakeRouter{dec: inner}, nil, 0.1) // nil boot-time resolver
 	withIntn(e, 1)
@@ -273,7 +274,7 @@ func TestRoute_MetadataProviderUsedWhenResolverNil(t *testing.T) {
 
 func TestRoute_SwitchIsolatesCacheKey(t *testing.T) {
 	scores := map[string]float32{"haiku": 0.90, "opus": 0.88}
-	inner := clusterDecision(scores, "haiku", "anthropic")
+	inner := clusterDecision(scores, "haiku")
 	inner.Metadata.EffectiveKnobsHash = 42
 	e := New(&fakeRouter{dec: inner}, staticProvider(map[string]string{"opus": "anthropic"}), 0.1)
 	withIntn(e, 1) // -> opus (a switch)
@@ -291,7 +292,7 @@ func TestRoute_SwitchIsolatesCacheKey(t *testing.T) {
 
 func TestRoute_ArgmaxDrawKeepsCacheKey(t *testing.T) {
 	scores := map[string]float32{"haiku": 0.90, "opus": 0.88}
-	inner := clusterDecision(scores, "haiku", "anthropic")
+	inner := clusterDecision(scores, "haiku")
 	inner.Metadata.EffectiveKnobsHash = 42
 	e := New(&fakeRouter{dec: inner}, staticProvider(map[string]string{"opus": "anthropic"}), 0.1)
 	withIntn(e, 0) // -> haiku (the argmax; no switch)
@@ -306,7 +307,7 @@ func TestRoute_ArgmaxDrawKeepsCacheKey(t *testing.T) {
 
 func TestRoute_DrawingArgmaxRecordsTruePropensity(t *testing.T) {
 	scores := map[string]float32{"haiku": 0.90, "opus": 0.88}
-	inner := clusterDecision(scores, "haiku", "anthropic")
+	inner := clusterDecision(scores, "haiku")
 	e := New(&fakeRouter{dec: inner}, staticProvider(map[string]string{"opus": "anthropic"}), 0.1)
 	withIntn(e, 0) // [haiku, opus] -> haiku (the argmax)
 	dec, err := e.Route(context.Background(), router.Request{})

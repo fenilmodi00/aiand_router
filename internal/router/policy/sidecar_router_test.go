@@ -77,7 +77,7 @@ func TestSidecarRouterReportsImageLimitWhenNoBindingCanServe(t *testing.T) {
 		HasImages:        true,
 	})
 	require.Error(t, err)
-	assert.ErrorIs(t, err, router.ErrStrategyUnavailable)
+	require.ErrorIs(t, err, router.ErrStrategyUnavailable)
 
 	prefiltered := router.Request{
 		EnabledProviders: set(providers.ProviderAIAND),
@@ -95,8 +95,8 @@ func TestSidecarRouterReportsImageLimitWhenNoBindingCanServe(t *testing.T) {
 	})
 	_, err = adapter.Route(context.Background(), prefiltered)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, policy.ErrImageLimitExceeded)
-	assert.ErrorIs(t, err, policy.ErrNoRoutableModels)
+	require.ErrorIs(t, err, policy.ErrImageLimitExceeded)
+	require.ErrorIs(t, err, policy.ErrNoRoutableModels)
 	require.NotErrorIs(t, err, router.ErrStrategyUnavailable, "an empty candidate set is not a policy outage")
 }
 
@@ -892,6 +892,6 @@ func TestSidecarRouterServesOnlyResolvedBindings(t *testing.T) {
 	decision, err := adapter.Route(context.Background(), req)
 
 	require.ErrorIs(t, err, router.ErrStrategyUnavailable)
-	assert.ErrorContains(t, err, "sidecar returned unknown arm")
+	require.ErrorContains(t, err, "sidecar returned unknown arm")
 	assert.Empty(t, decision.Provider)
 }

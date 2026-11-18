@@ -112,7 +112,7 @@ func TestClassifierLegacyPredictionsCannotBecomeCallHistory(t *testing.T) {
 	require.NoError(t, err)
 	prediction, err := svc.classifyThread(ctx, input)
 	require.NoError(t, err)
-	thread := ctx.Value(classifierThreadContextKey{}).(router.ClassifierThread)
+	thread := mustAs[router.ClassifierThread](t, ctx.Value(classifierThreadContextKey{}))
 	prediction.InputMessageCount = 0
 	store.turns[thread.ThreadID][prediction.TurnDigest] = prediction
 	_, err = svc.classifyThread(ctx, input)

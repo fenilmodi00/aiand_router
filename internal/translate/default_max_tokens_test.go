@@ -19,7 +19,7 @@ func TestAnthropicSameFormat_ExistingMaxTokensUnchanged(t *testing.T) {
 		Capabilities: router.Lookup("z-ai/glm-5.3"),
 	}
 	out := parseAndEmit(t, body, "anthropic", opts)
-	assert.Equal(t, float64(1024), out["max_tokens"])
+	assert.InDelta(t, float64(1024), out["max_tokens"], 1e-9)
 }
 
 func TestOpenAISameFormat_DefaultMaxTokensInjectedForNonReasoningTarget(t *testing.T) {
@@ -29,7 +29,7 @@ func TestOpenAISameFormat_DefaultMaxTokensInjectedForNonReasoningTarget(t *testi
 		Capabilities: router.Lookup("gpt-4o"),
 	}
 	out := parseAndEmit(t, body, "openai", opts)
-	assert.Equal(t, float64(8192), out["max_tokens"])
+	assert.InDelta(t, float64(8192), out["max_tokens"], 1e-9)
 	assert.NotContains(t, out, "max_completion_tokens")
 }
 
@@ -40,7 +40,7 @@ func TestOpenAISameFormat_DefaultMaxCompletionTokensInjectedForReasoningTarget(t
 		Capabilities: reasoningSpec,
 	}
 	out := parseAndEmit(t, body, "openai", opts)
-	assert.Equal(t, float64(8192), out["max_completion_tokens"])
+	assert.InDelta(t, float64(8192), out["max_completion_tokens"], 1e-9)
 	assert.NotContains(t, out, "max_tokens")
 }
 
@@ -53,7 +53,7 @@ func TestOpenAISameFormat_DefaultCappedByGlobalCap(t *testing.T) {
 		Capabilities: router.Lookup("deepseek/deepseek-v4-flash"),
 	}
 	out := parseAndEmit(t, body, "openai", opts)
-	assert.Equal(t, float64(8192), out["max_tokens"])
+	assert.InDelta(t, float64(8192), out["max_tokens"], 1e-9)
 }
 
 func TestOpenAISameFormat_DefaultNotInjectedWhenMaxTokensPresent(t *testing.T) {
@@ -63,7 +63,7 @@ func TestOpenAISameFormat_DefaultNotInjectedWhenMaxTokensPresent(t *testing.T) {
 		Capabilities: router.Lookup("gpt-4o"),
 	}
 	out := parseAndEmit(t, body, "openai", opts)
-	assert.Equal(t, float64(512), out["max_tokens"])
+	assert.InDelta(t, float64(512), out["max_tokens"], 1e-9)
 }
 
 func TestOpenAISameFormat_DefaultNotInjectedWhenMaxCompletionTokensPresent(t *testing.T) {
@@ -73,7 +73,7 @@ func TestOpenAISameFormat_DefaultNotInjectedWhenMaxCompletionTokensPresent(t *te
 		Capabilities: router.Lookup("o3"),
 	}
 	out := parseAndEmit(t, body, "openai", opts)
-	assert.Equal(t, float64(512), out["max_completion_tokens"])
+	assert.InDelta(t, float64(512), out["max_completion_tokens"], 1e-9)
 	assert.NotContains(t, out, "max_tokens")
 }
 
@@ -89,7 +89,7 @@ func TestCrossFormat_AnthropicToOpenAI_DefaultMaxTokensInjectedWhenAbsent(t *tes
 	require.NoError(t, err)
 	var out map[string]any
 	require.NoError(t, json.Unmarshal(prep.Body, &out))
-	assert.Equal(t, float64(8192), out["max_tokens"])
+	assert.InDelta(t, float64(8192), out["max_tokens"], 1e-9)
 }
 
 // Invariant: default-injection must not mutate the source body bytes.
@@ -120,7 +120,7 @@ func TestOpenAISameFormat_ExplicitMaxTokensClampsToKimiK3Ceiling(t *testing.T) {
 		Capabilities: router.Lookup("moonshotai/kimi-k3"),
 	}
 	out := parseAndEmit(t, body, "openai", opts)
-	assert.Equal(t, float64(32000), out["max_tokens"])
+	assert.InDelta(t, float64(32000), out["max_tokens"], 1e-9)
 }
 
 // Regression: both GLM-5.3 arms missing from modelMaxOutputTokens; max_tokens was
@@ -133,6 +133,6 @@ func TestOpenAISameFormat_ExplicitMaxTokensNotClampedTo8192ForGLM53(t *testing.T
 			Capabilities: router.Lookup(model),
 		}
 		out := parseAndEmit(t, body, "openai", opts)
-		assert.Equal(t, float64(64000), out["max_tokens"], model)
+		assert.InDelta(t, float64(64000), out["max_tokens"], 1e-9, model)
 	}
 }
