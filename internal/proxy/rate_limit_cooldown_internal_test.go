@@ -77,7 +77,7 @@ func strikeRescuedPrimary(svc *Service, ctx context.Context, err error) (string,
 func TestRescued429_CoolsDownInsteadOfDemoting(t *testing.T) {
 	store := &cooldownStubPinStore{}
 	svc := newRateLimitTestService(store, true, 45)
-	ctx, turn := withRateLimitTurn(context.Background())
+	ctx, turn := dispatch.WithThrottleLedger(context.Background())
 
 	model, reason := strikeRescuedPrimary(svc, ctx, upstream429(""))
 
@@ -90,7 +90,7 @@ func TestRescued429_CoolsDownInsteadOfDemoting(t *testing.T) {
 		{role: hmmHistoryRole(sessionpin.DefaultRole), model: demotedArm, until: until, reason: sessionpin.DemotionReasonRateLimited},
 	}, store.cooldowns)
 
-	fields := turn.completionLogFields()
+	fields := turn.CompletionLogFields()
 	assert.Contains(t, fields, "demotion_expires_at")
 	assert.Contains(t, fields, until.Format(time.RFC3339))
 	assert.Contains(t, fields, int64(45_000))
@@ -157,8 +157,8 @@ func TestRescued429_FlagOffKeepsPermanentDemotion(t *testing.T) {
 	svc := newRateLimitTestService(store, false, 45)
 	ctx, turn := svc.withRateLimitTurn(context.Background())
 	assert.Nil(t, turn)
-	assert.Nil(t, turn.completionLogFields())
-	assert.Nil(t, svc.throttleRetryDelay(ctx))
+	assert.Nil(t, turn.CompletionLogFields())
+	assert.Nil(t, dispatch.ThrottleLedgerFromContext(ctx).RetryDelay(svc.clock.Now))
 
 	model, reason := strikeRescuedPrimary(svc, ctx, upstream429(""))
 
@@ -250,16 +250,16 @@ func TestRescueDecisions_ExhaustedPoolReadmitsCoolingArms(t *testing.T) {
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, SessionDemotedModelsContextKey{}, []string{"z-ai/glm-5.3-flash", "deepseek/deepseek-v4-pro", "qwen/qwen3.8-27b"})
 	ctx = context.WithValue(ctx, SessionCooldownModelsContextKey{}, cooling)
-	ctx, turn := withRateLimitTurn(ctx)
+	ctx, turn := dispatch.WithThrottleLedger(ctx)
 
 	got := s.siblingFailoverDecisions(ctx, overloadedDecision(md), 1_000, 0, 0)
 
 	assert.Equal(t, []string{"deepseek/deepseek-v4-pro", "z-ai/glm-5.3-flash"}, siblingModels(got),
 		"soonest-to-recover first; the permanently demoted haiku and the failed opus stay out")
-	assert.NotContains(t, turn.completionLogFields(), true, "nothing dispatched yet")
+	assert.NotContains(t, turn.CompletionLogFields(), true, "nothing dispatched yet")
 
 	s.noteRescueReadmission(ctx, overloadedDecision(md), got[0])
-	fields := turn.completionLogFields()
+	fields := turn.CompletionLogFields()
 	assert.Contains(t, fields, "rescue_pool_exhausted")
 	assert.Contains(t, fields, true)
 	assert.Contains(t, fields, []string{"deepseek/deepseek-v4-pro"})
@@ -280,14 +280,14 @@ func TestRescueDecisions_CoolingArmRanksBehindEligibleCandidates(t *testing.T) {
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, SessionDemotedModelsContextKey{}, []string{"deepseek/deepseek-v4-pro"})
 	ctx = context.WithValue(ctx, SessionCooldownModelsContextKey{}, map[string]time.Time{"deepseek/deepseek-v4-pro": rateLimitTestNow.Add(time.Minute)})
-	ctx, turn := withRateLimitTurn(ctx)
+	ctx, turn := dispatch.WithThrottleLedger(ctx)
 
 	got := s.siblingFailoverDecisions(ctx, overloadedDecision(md), 1_000, 0, 0)
 
 	assert.Equal(t, []string{"z-ai/glm-5.3-flash", "deepseek/deepseek-v4-pro"}, siblingModels(got))
 	s.noteRescueReadmission(ctx, overloadedDecision(md), got[0])
-	assert.Contains(t, turn.completionLogFields(), false)
-	assert.NotContains(t, turn.completionLogFields(), true)
+	assert.Contains(t, turn.CompletionLogFields(), false)
+	assert.NotContains(t, turn.CompletionLogFields(), true)
 }
 
 // Without cooldowns on ctx (flag off, or nothing cooling) an exhausted pool
@@ -397,7 +397,7 @@ func TestThrottleRetryDelay_RecordsHonouredRetryAfter(t *testing.T) {
 	svc := newRateLimitTestService(&cooldownStubPinStore{}, true, 45)
 	ctx, turn := svc.withRateLimitTurn(context.Background())
 	require.NotNil(t, turn)
-	retryDelay := svc.throttleRetryDelay(ctx)
+	retryDelay := dispatch.ThrottleLedgerFromContext(ctx).RetryDelay(svc.clock.Now)
 	require.NotNil(t, retryDelay)
 
 	delay, retry := retryDelay(dispatch.Attempt{}, upstream429("3"), 250*time.Millisecond)
@@ -408,7 +408,7 @@ func TestThrottleRetryDelay_RecordsHonouredRetryAfter(t *testing.T) {
 	assert.False(t, retry, "above the cap the turn goes straight to rescue")
 	assert.Zero(t, delay)
 
-	fields := turn.completionLogFields()
+	fields := turn.CompletionLogFields()
 	assert.Contains(t, fields, "retry_after_honoured")
 	assert.Contains(t, fields, int64(3_000))
 }

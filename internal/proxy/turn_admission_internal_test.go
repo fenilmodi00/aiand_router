@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/dispatch"
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/telemetry"
 )
@@ -33,7 +34,7 @@ func (f *fakeTurnAdmission) checkUserMonthlySpendLimit(ctx context.Context) (con
 	return ctx, f.spendErr
 }
 
-func (f *fakeTurnAdmission) withRateLimitTurn(ctx context.Context) (context.Context, *rateLimitTurn) {
+func (f *fakeTurnAdmission) withRateLimitTurn(ctx context.Context) (context.Context, *dispatch.ThrottleLedger) {
 	f.opened = append(f.opened, "rate limit")
 	return ctx, nil
 }

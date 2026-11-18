@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"aiand-os/router/internal/auth"
+	"aiand-os/router/internal/dispatch"
 	"aiand-os/router/internal/requestcontext"
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/telemetry"
@@ -15,7 +16,7 @@ type turnAdmissionServices interface {
 	withClassifierInput(ctx context.Context, body []byte, endpoint router.TranslationEndpoint) (context.Context, error)
 	effectiveCaptureMode(ctx context.Context) ContentCaptureMode
 	checkUserMonthlySpendLimit(ctx context.Context) (context.Context, error)
-	withRateLimitTurn(ctx context.Context) (context.Context, *rateLimitTurn)
+	withRateLimitTurn(ctx context.Context) (context.Context, *dispatch.ThrottleLedger)
 	newTelemetryRecorder() telemetry.Recorder
 }
 
@@ -30,7 +31,7 @@ func withTurnInput(ctx context.Context, s turnAdmissionServices, body []byte, he
 }
 
 type admittedTurn struct {
-	rateLimit *rateLimitTurn
+	rateLimit *dispatch.ThrottleLedger
 	facts     requestcontext.RequestFacts
 	start     time.Time
 }

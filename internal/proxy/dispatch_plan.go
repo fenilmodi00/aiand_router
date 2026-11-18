@@ -130,7 +130,7 @@ func (s *Service) dispatchPlanned(ctx context.Context, in failoverInputs, plan i
 			return errors.As(err, &abort)
 		},
 		// Nil unless transient_rate_limit is on for this request.
-		RetryDelay: s.throttleRetryDelay(ctx),
+		RetryDelay: dispatch.ThrottleLedgerFromContext(ctx).RetryDelay(s.clock.Now),
 	}
 	transport.Attempt = func(attemptCtx context.Context, attempt dispatch.Attempt, client providers.Client) error {
 		decision := in.initialDecision

@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"aiand-os/router/internal/dispatch"
 	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/router"
 
@@ -200,14 +201,14 @@ func TestRescueDecisions_StruckOutReadmissionKeepsGlobalExclusion(t *testing.T) 
 func TestNoteRescueReadmission_RecordsStruckOutArm(t *testing.T) {
 	s := siblingService(providers.ProviderAIAND)
 	ctx := context.WithValue(context.Background(), SessionStrikeReadmitModelsContextKey{}, []string{"deepseek/deepseek-v4-pro"})
-	ctx, turn := withRateLimitTurn(ctx)
+	ctx, turn := dispatch.WithThrottleLedger(ctx)
 	failed := overloadedDecision(&router.RoutingMetadata{})
 
 	s.noteRescueReadmission(ctx, failed, router.Decision{Model: "z-ai/glm-5.3-flash"})
-	assert.NotContains(t, turn.completionLogFields(), true)
+	assert.NotContains(t, turn.CompletionLogFields(), true)
 
 	s.noteRescueReadmission(ctx, failed, router.Decision{Model: "deepseek/deepseek-v4-pro"})
-	fields := turn.completionLogFields()
+	fields := turn.CompletionLogFields()
 	assert.Contains(t, fields, "rescue_pool_exhausted")
 	assert.Contains(t, fields, true)
 	assert.Contains(t, fields, []string{"deepseek/deepseek-v4-pro"})
