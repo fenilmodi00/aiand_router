@@ -207,69 +207,47 @@ func (e *Emitter) Shutdown(c context.Context) error {
 
 func (e *Emitter) worker() {
 	defer e.wg.Done()
-
-	batch := make([]*tracev1.Span, 0, e.batchSz)
-	timer := time.NewTimer(e.flushInt)
-	defer timer.Stop()
-
-	for {
-		select {
-		case span, ok := <-e.queue:
-			if !ok {
-				if len(batch) > 0 {
-					e.exportBatch(batch)
-				}
-				return
-			}
-			batch = append(batch, span)
-			if len(batch) >= e.batchSz {
-				e.exportBatch(batch)
-				batch = batch[:0]
-				// Go 1.23+ drains the channel inside Stop/Reset automatically;
-				// the old `if !timer.Stop() { <-timer.C }` idiom deadlocks.
-				timer.Reset(e.flushInt)
-			}
-
-		case <-timer.C:
-			if len(batch) > 0 {
-				e.exportBatch(batch)
-				batch = batch[:0]
-			}
-			timer.Reset(e.flushInt)
-		}
-	}
+	runBatchLoop(e.queue, e.batchSz, e.flushInt, e.exportBatch)
 }
 
 // logWorker mirrors worker for the log-record export pipeline.
 func (e *Emitter) logWorker() {
 	defer e.wg.Done()
+	runBatchLoop(e.logQueue, e.batchSz, e.flushInt, e.exportLogBatch)
+}
 
-	batch := make([]*logsv1.LogRecord, 0, e.batchSz)
-	timer := time.NewTimer(e.flushInt)
+// runBatchLoop drains src into batches of at most batchSz items, exporting on
+// batch-full, on flushInt elapse, and on channel close for the remainder. It is
+// the shared core of the span and log-record export workers.
+func runBatchLoop[T any](src <-chan T, batchSz int, flushInt time.Duration, export func([]T)) {
+	batch := make([]T, 0, batchSz)
+	timer := time.NewTimer(flushInt)
 	defer timer.Stop()
 
 	for {
 		select {
-		case rec, ok := <-e.logQueue:
+		case item, ok := <-src:
 			if !ok {
 				if len(batch) > 0 {
-					e.exportLogBatch(batch)
+					export(batch)
 				}
 				return
 			}
-			batch = append(batch, rec)
-			if len(batch) >= e.batchSz {
-				e.exportLogBatch(batch)
+			batch = append(batch, item)
+			if len(batch) >= batchSz {
+				export(batch)
 				batch = batch[:0]
-				timer.Reset(e.flushInt)
+				// Go 1.23+ drains the channel inside Stop/Reset automatically;
+				// the old `if !timer.Stop() { <-timer.C }` idiom deadlocks.
+				timer.Reset(flushInt)
 			}
 
 		case <-timer.C:
 			if len(batch) > 0 {
-				e.exportLogBatch(batch)
+				export(batch)
 				batch = batch[:0]
 			}
-			timer.Reset(e.flushInt)
+			timer.Reset(flushInt)
 		}
 	}
 }

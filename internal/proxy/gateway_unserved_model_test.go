@@ -95,7 +95,7 @@ func TestService_HardPin_TitleGen_GatewayModelNotFound_KeepsServedAliasesRoutabl
 	for i := 0; i < 2; i++ {
 		rec := httptest.NewRecorder()
 		require.NoError(t, svc.ProxyMessages(ctx, []byte(titleGenBody), rec,
-			httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))))
+			httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/messages", strings.NewReader(""))))
 		assert.Equal(t, servedAlias, rec.Header().Get(proxy.HeaderRouterModel))
 	}
 	require.Len(t, seen, 2)
@@ -127,7 +127,7 @@ func TestService_HardPin_TitleGen_VendorModelNotFound_DoesNotExcludeModel(t *tes
 	ctx := authedCtx(uuid.New().String())
 	for i := 0; i < 2; i++ {
 		require.Error(t, svc.ProxyMessages(ctx, []byte(titleGenBody), httptest.NewRecorder(),
-			httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))))
+			httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/messages", strings.NewReader(""))))
 	}
 	require.Len(t, seen, 2)
 	assert.NotContains(t, seen[1].ExcludedModels, servedAlias)

@@ -70,7 +70,7 @@ func TestService_GatewayForcedPinOutsideAllowlistServes(t *testing.T) {
 	ctx := gatewayAllowlistCtx([]string{"z-ai/glm-5.3"}, "z-ai/glm-5.3", "z-ai/glm-5.3")
 	rec := httptest.NewRecorder()
 	require.NoError(t, svc.ProxyMessages(ctx, []byte(body), rec,
-		httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))))
+		httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/messages", strings.NewReader(""))))
 
 	assert.Equal(t, 0, fr.routeCalls, "the force must not fall through to automatic routing")
 	assert.Equal(t, "z-ai/glm-5.3", rec.Header().Get(proxy.HeaderRouterModel))

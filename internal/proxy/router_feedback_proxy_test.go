@@ -109,7 +109,7 @@ func TestService_RouterFeedbackCommand_PersistsAndAcks(t *testing.T) {
 	installationID := uuid.New().String()
 	ctx := authedCtx(installationID)
 	rec := httptest.NewRecorder()
-	httpReq := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	httpReq := httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/messages", strings.NewReader(""))
 	require.NoError(t, svc.ProxyMessages(ctx, []byte(body), rec, httpReq))
 
 	assert.Equal(t, 0, fr.routeCalls, "router-feedback command must short-circuit routing")
@@ -153,7 +153,7 @@ func TestService_RouterFeedbackCommand_ForwardsPolicyFeedback(t *testing.T) {
 	installationID := uuid.New().String()
 	ctx := router.WithStrategy(authedCtx(installationID), router.StrategyRL)
 	rec := httptest.NewRecorder()
-	httpReq := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	httpReq := httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/messages", strings.NewReader(""))
 	require.NoError(t, svc.ProxyMessages(ctx, []byte(body), rec, httpReq))
 
 	assert.Equal(t, 0, fr.routeCalls)
@@ -194,7 +194,7 @@ func TestService_RouterFeedbackCommand_AcksBeforePolicyFeedbackCompletes(t *test
 
 	ctx := router.WithStrategy(authedCtx(uuid.NewString()), router.StrategyHMM)
 	rec := httptest.NewRecorder()
-	httpReq := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	httpReq := httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/messages", strings.NewReader(""))
 	done := make(chan error, 1)
 	go func() {
 		done <- svc.ProxyMessages(ctx, []byte(body), rec, httpReq)
@@ -238,7 +238,7 @@ func TestService_RouterFeedbackCommand_OmitsTrainingTranscriptWithoutPermission(
 	svc := newPinSvc(fr, store).WithHMMRouter(policyFeedback)
 
 	ctx := router.WithStrategy(authedCtx(uuid.NewString()), router.StrategyHMM)
-	require.NoError(t, svc.ProxyMessages(ctx, []byte(body), httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))))
+	require.NoError(t, svc.ProxyMessages(ctx, []byte(body), httptest.NewRecorder(), httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/messages", strings.NewReader(""))))
 	require.Eventually(t, func() bool {
 		return len(policyFeedback.Payloads()) == 1
 	}, time.Second, 10*time.Millisecond)
@@ -261,7 +261,7 @@ func TestService_RouterFeedbackCommand_DoesNotForwardPolicyFeedbackOutsideHMM(t 
 	svc := newPinSvc(fr, store).WithHMMRouter(policyFeedback)
 
 	rec := httptest.NewRecorder()
-	httpReq := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	httpReq := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", strings.NewReader(""))
 	require.NoError(t, svc.ProxyMessages(authedCtx(uuid.NewString()), []byte(body), rec, httpReq))
 
 	assert.Empty(t, policyFeedback.Payloads())
@@ -281,7 +281,7 @@ func TestService_RouterFeedbackCommand_OpenAIIngress(t *testing.T) {
 
 	ctx := authedCtx(uuid.New().String())
 	rec := httptest.NewRecorder()
-	httpReq := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(""))
+	httpReq := httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/chat/completions", strings.NewReader(""))
 	require.NoError(t, svc.ProxyOpenAIChatCompletion(ctx, []byte(body), rec, httpReq))
 
 	assert.Equal(t, 0, fr.routeCalls)
@@ -315,7 +315,7 @@ func TestService_RouterFeedbackCommand_EmptyFeedbackAsksForText(t *testing.T) {
 
 	ctx := authedCtx(uuid.New().String())
 	rec := httptest.NewRecorder()
-	httpReq := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	httpReq := httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/messages", strings.NewReader(""))
 	require.NoError(t, svc.ProxyMessages(ctx, []byte(body), rec, httpReq))
 
 	assert.Equal(t, 0, fr.routeCalls, "bare command must still short-circuit, not reach an upstream")
@@ -347,7 +347,7 @@ func TestService_RouterFeedbackCommand_ThumbsUpShortcutPersists(t *testing.T) {
 
 	ctx := authedCtx(uuid.New().String())
 	rec := httptest.NewRecorder()
-	httpReq := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	httpReq := httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/messages", strings.NewReader(""))
 	require.NoError(t, svc.ProxyMessages(ctx, []byte(body), rec, httpReq))
 
 	assert.Equal(t, 0, fr.routeCalls, "rating shortcut must short-circuit routing")
@@ -379,7 +379,7 @@ func TestService_RouterFeedbackCommand_ThumbsDownShortcutWithNote(t *testing.T) 
 
 	ctx := authedCtx(uuid.New().String())
 	rec := httptest.NewRecorder()
-	httpReq := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(""))
+	httpReq := httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/chat/completions", strings.NewReader(""))
 	require.NoError(t, svc.ProxyOpenAIChatCompletion(ctx, []byte(body), rec, httpReq))
 
 	require.Len(t, feedback.events, 1)
@@ -422,7 +422,7 @@ func TestService_RouterFeedbackCommand_SequenceResolvesTelemetryTurn(t *testing.
 
 	ctx := authedCtx(uuid.New().String())
 	rec := httptest.NewRecorder()
-	httpReq := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	httpReq := httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/messages", strings.NewReader(""))
 	require.NoError(t, svc.ProxyMessages(ctx, []byte(body), rec, httpReq))
 
 	require.Equal(t, []int{-2}, telem.seqCalls, "the parsed relative sequence must be resolved against telemetry")
@@ -452,7 +452,7 @@ func TestService_RouterFeedbackCommand_SequenceNotFoundAcksGuidance(t *testing.T
 
 	ctx := authedCtx(uuid.New().String())
 	rec := httptest.NewRecorder()
-	httpReq := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	httpReq := httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/messages", strings.NewReader(""))
 	require.NoError(t, svc.ProxyMessages(ctx, []byte(body), rec, httpReq))
 
 	assert.Equal(t, 0, fr.routeCalls, "an unresolvable sequence must short-circuit routing")
@@ -486,7 +486,7 @@ func TestService_RouterFeedbackCommand_DBErrorFallsBackToPin(t *testing.T) {
 
 	ctx := authedCtx(uuid.New().String())
 	rec := httptest.NewRecorder()
-	httpReq := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	httpReq := httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/messages", strings.NewReader(""))
 	require.NoError(t, svc.ProxyMessages(ctx, []byte(body), rec, httpReq))
 
 	require.Len(t, feedback.events, 1, "feedback must persist on transient DB errors, falling back to pin servedModel")
@@ -522,7 +522,7 @@ func TestService_RouterFeedbackCommand_NoSequenceKeepsPinServedModel(t *testing.
 
 	ctx := authedCtx(uuid.New().String())
 	rec := httptest.NewRecorder()
-	httpReq := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	httpReq := httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/messages", strings.NewReader(""))
 	require.NoError(t, svc.ProxyMessages(ctx, []byte(body), rec, httpReq))
 
 	assert.Empty(t, telem.seqCalls, "no sequence means no telemetry lookup")
@@ -551,7 +551,7 @@ func TestService_RouterFeedbackCommand_SequenceNoteOnlySkipsRequestFeedbackUpser
 
 	ctx := authedCtx(uuid.New().String())
 	rec := httptest.NewRecorder()
-	httpReq := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	httpReq := httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/messages", strings.NewReader(""))
 	require.NoError(t, svc.ProxyMessages(ctx, []byte(body), rec, httpReq))
 
 	require.Len(t, feedback.events, 1)
@@ -577,7 +577,7 @@ func TestService_RouterFeedbackCommand_SequenceWithRatingUpsertsRequestFeedback(
 
 	ctx := authedCtx(uuid.New().String())
 	rec := httptest.NewRecorder()
-	httpReq := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	httpReq := httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/messages", strings.NewReader(""))
 	require.NoError(t, svc.ProxyMessages(ctx, []byte(body), rec, httpReq))
 
 	require.Len(t, repo.upserts, 1, "a rated, sequence-resolved submission converges onto request_feedback")
@@ -612,7 +612,7 @@ func TestService_RouterFeedbackCommand_SequenceResolvesStrategyRoutesToItsReport
 		WithRouterFeedbackStore(feedback).
 		WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyRL, Router: rlReporter}).
 		WithHMMRouter(hmmReporter)
-	require.NoError(t, svc.ProxyMessages(ctx, []byte(body), httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))))
+	require.NoError(t, svc.ProxyMessages(ctx, []byte(body), httptest.NewRecorder(), httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/messages", strings.NewReader(""))))
 
 	require.Eventually(t, func() bool { return len(rlReporter.Payloads()) == 1 }, time.Second, 10*time.Millisecond)
 	require.Empty(t, hmmReporter.Payloads(), "current request is on cluster; HMM reporter must not be selected just because the current context might happen to be HMM somewhere else")
@@ -653,7 +653,7 @@ func TestService_RouterFeedbackCommand_SequenceRejectsHMMDeltaWithResolvedStrate
 		}).
 		WithAvailableModels(map[string]struct{}{"z-ai/glm-5.3": {}})
 	ctx = context.WithValue(ctx, proxy.PolicyTrainingAllowedContextKey{}, true)
-	require.NoError(t, svc.ProxyMessages(ctx, []byte(body), httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))))
+	require.NoError(t, svc.ProxyMessages(ctx, []byte(body), httptest.NewRecorder(), httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/messages", strings.NewReader(""))))
 
 	require.Eventually(t, func() bool { return len(hmmReporter.Payloads()) == 1 }, time.Second, 10*time.Millisecond)
 	payload := hmmReporter.Payloads()[0]
@@ -690,7 +690,7 @@ func TestService_RouterFeedbackCommand_NegativeOnePreservesTrainingDelta(t *test
 		WithAvailableModels(map[string]struct{}{"z-ai/glm-5.3-flash": {}})
 	ctx := router.WithStrategy(authedCtx(uuid.NewString()), router.StrategyHMMEmbedding)
 	ctx = context.WithValue(ctx, proxy.PolicyTrainingAllowedContextKey{}, true)
-	require.NoError(t, svc.ProxyMessages(ctx, body, httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))))
+	require.NoError(t, svc.ProxyMessages(ctx, body, httptest.NewRecorder(), httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/messages", strings.NewReader(""))))
 	require.Eventually(t, func() bool { return len(hmmReporter.Payloads()) == 1 }, time.Second, 10*time.Millisecond)
 	payload := hmmReporter.Payloads()[0]
 	assert.Equal(t, "hmm_embedding", payload["strategy"])
@@ -727,7 +727,7 @@ func TestService_RouterFeedbackCommand_ClusterResolvedTurnSkipsPolicyFeedback(t 
 	svc := newPinSvcWithTelemetry(fr, store, telem).
 		WithRouterFeedbackStore(feedback).
 		WithHMMRouter(hmmReporter)
-	require.NoError(t, svc.ProxyMessages(ctx, []byte(body), httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))))
+	require.NoError(t, svc.ProxyMessages(ctx, []byte(body), httptest.NewRecorder(), httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/messages", strings.NewReader(""))))
 
 	require.Len(t, feedback.events, 1, "durable feedback still persists")
 	assert.Equal(t, "req-cluster-turn", feedback.events[0].RequestID)

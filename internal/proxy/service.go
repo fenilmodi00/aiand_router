@@ -3054,6 +3054,154 @@ func (s *Service) repinOffRefusingModel(ctx context.Context, sessionKey [session
 // upstream reasoning phases that produce no translatable frames.
 var anthropicPingFrame = []byte(sseEvent("ping", `{"type":"ping"}`))
 
+// decisionSpanInputs carries the routing values the router.decision span needs
+// that the turn-loop result does not already hold.
+type decisionSpanInputs struct {
+	routeRes   turnLoopResult
+	sessionKey [sessionpin.SessionKeyLen]byte
+	start      time.Time
+	embedInput string
+	routeMs    int64
+	reqPricing catalog.Pricing
+	actPricing catalog.Pricing
+}
+
+// spanIdentityAttrs starts a span builder with the request identity attributes
+// every router span carries.
+func spanIdentityAttrs(ctx context.Context, facts requestcontext.RequestFacts, feats translate.RoutingFeatures, capacity int) *telemetry.AttrBuilder {
+	return telemetry.NewAttrBuilder(capacity).
+		String("request_id", facts.RequestID).
+		String("external_id", facts.ExternalID).
+		String("router_user_id", auth.UserIDFrom(ctx)).
+		String("client.device_id", facts.Client.DeviceID).
+		String("client.account_id", facts.Client.AccountID).
+		String("client.session_id", facts.Client.SessionID).
+		String("client.user_agent", facts.Client.UserAgent).
+		String("client.app", facts.Client.TelemetryClientApp()).
+		String("rollout_id", policyRolloutIDFromContext(ctx)).
+		String("requested.model", feats.Model)
+}
+
+// recordDecisionSpan builds and records the router.decision span. The
+// Anthropic Messages and OpenAI chat entry points record the same decision
+// facts, so the attribute schema is defined here once.
+func (s *Service) recordDecisionSpan(ctx context.Context, facts requestcontext.RequestFacts, feats translate.RoutingFeatures, decision router.Decision, in decisionSpanInputs) {
+	builder := spanIdentityAttrs(ctx, facts, feats, 46).
+		String("decision.model", decision.Model).
+		String("decision.provider", decision.Provider).
+		String("decision.reason", decision.Reason).
+		Bool("routing.policy_fallback", in.routeRes.PolicyFallback).
+		Bool("routing.sticky_hit", in.routeRes.StickyHit).
+		Bool("routing.session_pin_hit", in.routeRes.PinTier == "in_proc" || in.routeRes.PinTier == "postgres").
+		String("routing.session_pin_tier", in.routeRes.PinTier).
+		Int64("routing.session_pin_age_s", in.routeRes.PinAgeSec).
+		String("routing.turn_type", string(in.routeRes.TurnType)).
+		String("routing.embed_input", in.embedInput).
+		Int64("routing.estimated_input_tokens", int64(feats.Tokens)).
+		IntSlice("routing.cluster_ids", clusterIDsFromDecision(decision)).
+		Float64("catalog.requested_input_per_1m", in.reqPricing.InputUSDPer1M).
+		Float64("catalog.requested_output_per_1m", in.reqPricing.OutputUSDPer1M).
+		Float64("catalog.actual_input_per_1m", in.actPricing.InputUSDPer1M).
+		Float64("catalog.actual_output_per_1m", in.actPricing.OutputUSDPer1M).
+		Int64("latency.route_ms", in.routeMs)
+	applySubscriptionDecisionSpanTelemetry(ctx, builder, feats.Model, decision.Model)
+	applyServingSpanAttrs(ctx, builder)
+	applySidecarAttrs(builder, in.routeRes)
+	applyPlannerAttrs(builder, in.routeRes)
+	applyRoutingStateAttrs(builder, in.routeRes, decision.ServedIdentity(), in.sessionKey)
+	applyCallerRoutingAttrs(ctx, builder)
+	applyBlindExperimentOutcomeAttrs(ctx, builder, &in.routeRes, feats.Model, in.routeRes.Decision.Model)
+	telemetry.Record(ctx, telemetry.Span{
+		Name:  "router.decision",
+		Start: in.start,
+		End:   s.clock.Now(),
+		Attrs: builder.Build(),
+	})
+	telemetry.Flush(ctx)
+}
+
+// upstreamSpanInputs carries the per-attempt values the router.upstream span
+// records beyond the routing decision.
+type upstreamSpanInputs struct {
+	routeRes            turnLoopResult
+	sessionKey          [sessionpin.SessionKeyLen]byte
+	start               time.Time
+	finalProvider       string
+	summary             translate.ResponseSummary
+	refusal             *refusalObserver
+	extractor           *telemetry.UsageExtractor
+	rescue              *rescueChain
+	effortServed        effortResolution
+	requestedInputCost  float64
+	baselineWarmPrefill int
+	reqPricing          catalog.Pricing
+	actPricing          catalog.Pricing
+	proxyErr            error
+	proxyMs             int64
+	crossFormat         bool
+	winnerIdx           int
+}
+
+// upstreamSpanBuilder builds the router.upstream attributes both entry points
+// share: request identity, the served decision, usage, cost and dispatch
+// facts, plus the decorators applied to every upstream span. A nil refusal
+// omits the refusal attributes, which only the Anthropic-native path observes.
+// Callers append their surface-specific attributes to the result.
+func (s *Service) upstreamSpanBuilder(ctx context.Context, facts requestcontext.RequestFacts, feats translate.RoutingFeatures, decision router.Decision, in upstreamSpanInputs) *telemetry.AttrBuilder {
+	inTokens, outTokens := in.extractor.Tokens()
+	cacheCreation, cacheRead := in.extractor.CacheTokens()
+	usageMods := in.extractor.UsageModifiers()
+	builder := spanIdentityAttrs(ctx, facts, feats, 41).
+		String("decision.model", decision.Model).
+		String("decision.provider", in.finalProvider).
+		String("decision.reason", decision.Reason).
+		String("routing.turn_type", string(in.routeRes.TurnType)).
+		String("upstream.finish_reason", in.summary.UpstreamFinishReason).
+		String("upstream.stop_reason", in.summary.StopReason)
+	if in.refusal != nil {
+		builder.Bool("upstream.refusal", in.refusal.refused).
+			String("upstream.refusal_category", in.refusal.category)
+	}
+	builder.Int64("usage.input_tokens", int64(inTokens)).
+		Int64("usage.output_tokens", int64(outTokens)).
+		Int64("usage.cache_creation_input_tokens", int64(cacheCreation)).
+		Int64("usage.cache_read_input_tokens", int64(cacheRead)).
+		Int64("usage.cache_creation_1h_input_tokens", int64(usageMods.CacheCreation1h)).
+		String("usage.speed", string(in.extractor.Speed())).
+		String("usage.inference_geo", string(in.extractor.InferenceGeo())).
+		Float64("cost.requested_input_usd", in.requestedInputCost).
+		Int64("cost.baseline_warm_prefill_tokens", int64(in.baselineWarmPrefill)).
+		Float64("cost.requested_output_usd", catalog.EffectiveOutputCost(catalog.PromptTokens(inTokens, cacheCreation, cacheRead, decision.Provider), outTokens, in.reqPricing, usageMods)).
+		Float64("cost.actual_input_usd", catalog.EffectiveInputCost(inTokens, cacheCreation, cacheRead, in.actPricing, decision.Provider, usageMods)).
+		Float64("cost.actual_output_usd", catalog.EffectiveOutputCost(catalog.PromptTokens(inTokens, cacheCreation, cacheRead, decision.Provider), outTokens, in.actPricing, usageMods)).
+		Bool("cost.subscription_served", false).
+		Bool("cost.fast_mode", in.extractor.Speed() == catalog.SpeedFast).
+		Int64("latency.upstream_ms", in.proxyMs).
+		Int64("latency.total_ms", s.clock.Now().Sub(in.start).Milliseconds()).
+		Int64("upstream.status_code", int64(upstreamStatus(in.proxyErr))).
+		Bool("routing.cross_format", in.crossFormat).
+		String("dispatch.primary_provider", in.rescue.primaryProvider).
+		String("dispatch.primary_model", in.rescue.primaryModel).
+		String("dispatch.final_provider", in.finalProvider).
+		Int64("dispatch.fallback_attempts", int64(in.winnerIdx)).
+		Bool("dispatch.failover_used", in.rescue.failoverUsed).
+		Bool("dispatch.failover_attempted", in.rescue.failoverAttempted).
+		Bool("dispatch.subscription_failover", false).
+		Bool("dispatch.sibling_failover", in.rescue.siblingFailoverUsed)
+	if s.effectiveCaptureMode(ctx) == CaptureOff {
+		builder.Int64("request.message_count", int64(feats.MessageCount)).
+			Bool("request.has_tools", feats.HasTools)
+	}
+	applyPlannerAttrs(builder, in.routeRes)
+	applyRoutingStateAttrs(builder, in.routeRes, decision.ServedIdentity(), in.sessionKey)
+	applyCallerRoutingAttrs(ctx, builder)
+	applyBlindExperimentOutcomeAttrs(ctx, builder, &in.routeRes, feats.Model, decision.Model)
+	applyEffortAttrs(builder, in.effortServed)
+	s.applySubscriptionSpanTelemetry(ctx, builder, feats.Model, decision.Model)
+	addTimingAttrs(ctx, builder)
+	return builder
+}
+
 func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.ResponseWriter, r *http.Request) (returnErr error) {
 	w, finishBlindExperimentWriter := withBlindExperimentWriter(ctx, w, body)
 	defer finishBlindExperimentWriter()
@@ -3473,7 +3621,6 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	}
 	tt := routeRes.TurnType
 	stickyHit := routeRes.StickyHit
-	pinTier := routeRes.PinTier
 	pinAgeSec := routeRes.PinAgeSec
 	routeMs := s.clock.Now().Sub(routeStart).Milliseconds()
 	s.logPlannerOutcome(ctx, routeRes)
@@ -3622,48 +3769,15 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	actPricing, _ := catalog.PrimaryPriceFor(decision.Model)
 	reqDecisionPricing := reqPricing.ForInputTokens(feats.Tokens)
 	actDecisionPricing := actPricing.ForInputTokens(feats.Tokens)
-	decisionBuilder := telemetry.NewAttrBuilder(46).
-		String("request_id", facts.RequestID).
-		String("external_id", facts.ExternalID).
-		String("router_user_id", auth.UserIDFrom(ctx)).
-		String("client.device_id", facts.Client.DeviceID).
-		String("client.account_id", facts.Client.AccountID).
-		String("client.session_id", facts.Client.SessionID).
-		String("client.user_agent", facts.Client.UserAgent).
-		String("client.app", facts.Client.TelemetryClientApp()).
-		String("rollout_id", policyRolloutIDFromContext(ctx)).
-		String("requested.model", feats.Model).
-		String("decision.model", decision.Model).
-		String("decision.provider", decision.Provider).
-		String("decision.reason", decision.Reason).
-		Bool("routing.policy_fallback", routeRes.PolicyFallback).
-		Bool("routing.sticky_hit", stickyHit).
-		Bool("routing.session_pin_hit", pinTier == "in_proc" || pinTier == "postgres").
-		String("routing.session_pin_tier", pinTier).
-		Int64("routing.session_pin_age_s", pinAgeSec).
-		String("routing.turn_type", string(tt)).
-		String("routing.embed_input", embedInput).
-		Int64("routing.estimated_input_tokens", int64(feats.Tokens)).
-		IntSlice("routing.cluster_ids", clusterIDsFromDecision(decision)).
-		Float64("catalog.requested_input_per_1m", reqDecisionPricing.InputUSDPer1M).
-		Float64("catalog.requested_output_per_1m", reqDecisionPricing.OutputUSDPer1M).
-		Float64("catalog.actual_input_per_1m", actDecisionPricing.InputUSDPer1M).
-		Float64("catalog.actual_output_per_1m", actDecisionPricing.OutputUSDPer1M).
-		Int64("latency.route_ms", routeMs)
-	applySubscriptionDecisionSpanTelemetry(ctx, decisionBuilder, feats.Model, decision.Model)
-	applyServingSpanAttrs(ctx, decisionBuilder)
-	applySidecarAttrs(decisionBuilder, routeRes)
-	applyPlannerAttrs(decisionBuilder, routeRes)
-	applyRoutingStateAttrs(decisionBuilder, routeRes, decision.ServedIdentity(), sessionKey)
-	applyCallerRoutingAttrs(ctx, decisionBuilder)
-	applyBlindExperimentOutcomeAttrs(ctx, decisionBuilder, &routeRes, feats.Model, routeRes.Decision.Model)
-	telemetry.Record(ctx, telemetry.Span{
-		Name:  "router.decision",
-		Start: requestStart,
-		End:   s.clock.Now(),
-		Attrs: decisionBuilder.Build(),
+	s.recordDecisionSpan(ctx, facts, feats, decision, decisionSpanInputs{
+		routeRes:   routeRes,
+		sessionKey: sessionKey,
+		start:      requestStart,
+		embedInput: embedInput,
+		routeMs:    routeMs,
+		reqPricing: reqDecisionPricing,
+		actPricing: actDecisionPricing,
 	})
-	telemetry.Flush(ctx)
 
 	opts := translate.EmitOptions{
 		TargetModel:                       decision.Model,
@@ -3981,9 +4095,6 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	if actBindingPricing, ok := servedPricing(finalProvider, decision.Model); ok {
 		actPricing = actBindingPricing
 	}
-	// The upstream's own speed report — the client asked for speed:"fast", or
-	// the provider served the turn on its fast tier.
-	upstreamFast := extractor.Speed() == catalog.SpeedFast
 
 	// Cache store: only on success when body fits. Any top-p cluster id
 	// works for storage since LRU.Lookup scans all of them.
@@ -4021,67 +4132,30 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	if responseBuffer != nil && proxyErr == nil {
 		setRouterCostHeaders(w.Header(), routerResponseCostFromPricing(actPricing, decision.Provider, in, out, cacheCreation, cacheRead, usageMods))
 	}
-	upstreamBuilder := telemetry.NewAttrBuilder(41).
-		String("request_id", facts.RequestID).
-		String("external_id", facts.ExternalID).
-		String("router_user_id", auth.UserIDFrom(ctx)).
-		String("client.device_id", facts.Client.DeviceID).
-		String("client.account_id", facts.Client.AccountID).
-		String("client.session_id", facts.Client.SessionID).
-		String("client.user_agent", facts.Client.UserAgent).
-		String("client.app", facts.Client.TelemetryClientApp()).
-		String("rollout_id", policyRolloutIDFromContext(ctx)).
-		String("requested.model", feats.Model).
-		String("decision.model", decision.Model).
-		String("decision.provider", finalProvider).
-		String("decision.reason", decision.Reason).
-		String("routing.turn_type", string(routeRes.TurnType)).
-		String("upstream.finish_reason", respSummary.UpstreamFinishReason).
-		String("upstream.stop_reason", respSummary.StopReason).
-		Bool("upstream.refusal", refusalObs.refused).
-		String("upstream.refusal_category", refusalObs.category).
-		Int64("usage.input_tokens", int64(in)).
-		Int64("usage.output_tokens", int64(out)).
-		Int64("usage.cache_creation_input_tokens", int64(cacheCreation)).
-		Int64("usage.cache_read_input_tokens", int64(cacheRead)).
-		Int64("usage.cache_creation_1h_input_tokens", int64(usageMods.CacheCreation1h)).
-		String("usage.speed", string(extractor.Speed())).
-		String("usage.inference_geo", string(extractor.InferenceGeo())).
-		Float64("cost.requested_input_usd", requestedInputCost).
-		Int64("cost.baseline_warm_prefill_tokens", int64(baselineWarmPrefill)).
-		Float64("cost.requested_output_usd", catalog.EffectiveOutputCost(catalog.PromptTokens(in, cacheCreation, cacheRead, decision.Provider), out, reqPricing, usageMods)).
-		Float64("cost.actual_input_usd", catalog.EffectiveInputCost(in, cacheCreation, cacheRead, actPricing, decision.Provider, usageMods)).
-		Float64("cost.actual_output_usd", catalog.EffectiveOutputCost(catalog.PromptTokens(in, cacheCreation, cacheRead, decision.Provider), out, actPricing, usageMods)).
-		Bool("cost.subscription_served", false).
-		Bool("cost.fast_mode", upstreamFast).
-		Int64("latency.upstream_ms", proxyMs).
-		Int64("latency.total_ms", s.clock.Now().Sub(requestStart).Milliseconds()).
-		Int64("upstream.status_code", int64(upstreamStatus(proxyErr))).
-		Bool("routing.cross_format", crossFormat).
-		String("dispatch.primary_provider", rescue.primaryProvider).
-		String("dispatch.primary_model", rescue.primaryModel).
-		String("dispatch.final_provider", finalProvider).
-		Int64("dispatch.fallback_attempts", int64(winnerIdx)).
-		Bool("dispatch.failover_used", rescue.failoverUsed).
-		Bool("dispatch.failover_attempted", rescue.failoverAttempted).
-		// baseline_failover/subscription_failover stay in the span schema at
-		// constant false: their rescue lanes were cut with the multi-provider
-		// dispatch, but downstream readers key off the full field set.
-		Bool("dispatch.baseline_failover", false).
-		Bool("dispatch.subscription_failover", false).
-		Bool("dispatch.sibling_failover", rescue.siblingFailoverUsed).
+	upstreamBuilder := s.upstreamSpanBuilder(ctx, facts, feats, decision, upstreamSpanInputs{
+		routeRes:            routeRes,
+		sessionKey:          sessionKey,
+		start:               requestStart,
+		finalProvider:       finalProvider,
+		summary:             respSummary,
+		refusal:             refusalObs,
+		extractor:           extractor,
+		rescue:              rescue.rescueChain,
+		effortServed:        effortServed,
+		requestedInputCost:  requestedInputCost,
+		baselineWarmPrefill: baselineWarmPrefill,
+		reqPricing:          reqPricing,
+		actPricing:          actPricing,
+		proxyErr:            proxyErr,
+		proxyMs:             proxyMs,
+		crossFormat:         crossFormat,
+		winnerIdx:           winnerIdx,
+	})
+	// baseline_failover/subscription_failover stay in the span schema at
+	// constant false: their rescue lanes were cut with the multi-provider
+	// dispatch, but downstream readers key off the full field set.
+	upstreamBuilder.Bool("dispatch.baseline_failover", false).
 		Bool("dispatch.early_stop_redo", rescue.earlyStopRedone)
-	if s.effectiveCaptureMode(ctx) == CaptureOff {
-		upstreamBuilder.Int64("request.message_count", int64(feats.MessageCount)).
-			Bool("request.has_tools", feats.HasTools)
-	}
-	applyPlannerAttrs(upstreamBuilder, routeRes)
-	applyRoutingStateAttrs(upstreamBuilder, routeRes, decision.ServedIdentity(), sessionKey)
-	applyCallerRoutingAttrs(ctx, upstreamBuilder)
-	applyBlindExperimentOutcomeAttrs(ctx, upstreamBuilder, &routeRes, feats.Model, decision.Model)
-	applyEffortAttrs(upstreamBuilder, effortServed)
-	s.applySubscriptionSpanTelemetry(ctx, upstreamBuilder, feats.Model, decision.Model)
-	addTimingAttrs(ctx, upstreamBuilder)
 
 	obs := buildObservationContext(ctx, decision, routeRes.Fresh, s.effectiveCaptureMode(ctx))
 	obs.applySpanAttrs(upstreamBuilder)
@@ -5840,48 +5914,15 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	actPricing, _ := catalog.PrimaryPriceFor(decision.Model)
 	reqDecisionPricing := reqPricing.ForInputTokens(feats.Tokens)
 	actDecisionPricing := actPricing.ForInputTokens(feats.Tokens)
-	openaiDecisionBuilder := telemetry.NewAttrBuilder(46).
-		String("request_id", facts.RequestID).
-		String("external_id", facts.ExternalID).
-		String("router_user_id", auth.UserIDFrom(ctx)).
-		String("client.device_id", facts.Client.DeviceID).
-		String("client.account_id", facts.Client.AccountID).
-		String("client.session_id", facts.Client.SessionID).
-		String("client.user_agent", facts.Client.UserAgent).
-		String("client.app", facts.Client.TelemetryClientApp()).
-		String("rollout_id", policyRolloutIDFromContext(ctx)).
-		String("requested.model", feats.Model).
-		String("decision.model", decision.Model).
-		String("decision.provider", decision.Provider).
-		String("decision.reason", decision.Reason).
-		Bool("routing.policy_fallback", routeRes.PolicyFallback).
-		Bool("routing.sticky_hit", stickyHit).
-		Bool("routing.session_pin_hit", pinTier == "in_proc" || pinTier == "postgres").
-		String("routing.session_pin_tier", pinTier).
-		Int64("routing.session_pin_age_s", pinAgeSec).
-		String("routing.turn_type", string(tt)).
-		String("routing.embed_input", embedInput).
-		Int64("routing.estimated_input_tokens", int64(feats.Tokens)).
-		IntSlice("routing.cluster_ids", clusterIDsFromDecision(decision)).
-		Float64("catalog.requested_input_per_1m", reqDecisionPricing.InputUSDPer1M).
-		Float64("catalog.requested_output_per_1m", reqDecisionPricing.OutputUSDPer1M).
-		Float64("catalog.actual_input_per_1m", actDecisionPricing.InputUSDPer1M).
-		Float64("catalog.actual_output_per_1m", actDecisionPricing.OutputUSDPer1M).
-		Int64("latency.route_ms", routeMs)
-	applySubscriptionDecisionSpanTelemetry(ctx, openaiDecisionBuilder, feats.Model, decision.Model)
-	applyServingSpanAttrs(ctx, openaiDecisionBuilder)
-	applySidecarAttrs(openaiDecisionBuilder, routeRes)
-	applyPlannerAttrs(openaiDecisionBuilder, routeRes)
-	applyRoutingStateAttrs(openaiDecisionBuilder, routeRes, decision.ServedIdentity(), sessionKey)
-	applyCallerRoutingAttrs(ctx, openaiDecisionBuilder)
-	applyBlindExperimentOutcomeAttrs(ctx, openaiDecisionBuilder, &routeRes, feats.Model, routeRes.Decision.Model)
-	telemetry.Record(ctx, telemetry.Span{
-		Name:  "router.decision",
-		Start: requestStart,
-		End:   s.clock.Now(),
-		Attrs: openaiDecisionBuilder.Build(),
+	s.recordDecisionSpan(ctx, facts, feats, decision, decisionSpanInputs{
+		routeRes:   routeRes,
+		sessionKey: sessionKey,
+		start:      requestStart,
+		embedInput: embedInput,
+		routeMs:    routeMs,
+		reqPricing: reqDecisionPricing,
+		actPricing: actDecisionPricing,
 	})
-	telemetry.Flush(ctx)
 
 	opts := translate.EmitOptions{
 		TargetModel:        decision.Model,
@@ -6322,8 +6363,6 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	if actBindingPricing, ok := servedPricing(finalProvider, decision.Model); ok {
 		actPricing = actBindingPricing
 	}
-	// The upstream's own speed report (see ProxyMessages).
-	upstreamFast := extractor.Speed() == catalog.SpeedFast
 
 	if cacheEligible && proxyErr == nil && captureW != nil && s.semanticCacheStoreAllowed(ctx, cacheProvenance, decision, finalProvider) {
 		if body, status, ok := captureW.captured(); ok && status == http.StatusOK {
@@ -6361,63 +6400,27 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 			nativeRespSummary = true
 		}
 	}
-	openaiUpstreamBuilder := telemetry.NewAttrBuilder(41).
-		String("request_id", facts.RequestID).
-		String("external_id", facts.ExternalID).
-		String("router_user_id", auth.UserIDFrom(ctx)).
-		String("client.device_id", facts.Client.DeviceID).
-		String("client.account_id", facts.Client.AccountID).
-		String("client.session_id", facts.Client.SessionID).
-		String("client.user_agent", facts.Client.UserAgent).
-		String("client.app", facts.Client.TelemetryClientApp()).
-		String("rollout_id", policyRolloutIDFromContext(ctx)).
-		String("requested.model", feats.Model).
-		String("decision.model", decision.Model).
-		String("decision.provider", finalProvider).
-		String("decision.reason", decision.Reason).
-		String("routing.turn_type", string(routeRes.TurnType)).
-		String("upstream.finish_reason", respSummary.UpstreamFinishReason).
-		String("upstream.stop_reason", respSummary.StopReason).
-		Int64("usage.input_tokens", int64(in)).
-		Int64("usage.output_tokens", int64(out)).
-		Int64("usage.cache_creation_input_tokens", int64(cacheCreation)).
-		Int64("usage.cache_read_input_tokens", int64(cacheRead)).
-		Int64("usage.cache_creation_1h_input_tokens", int64(usageMods.CacheCreation1h)).
-		String("usage.speed", string(extractor.Speed())).
-		String("usage.inference_geo", string(extractor.InferenceGeo())).
-		Float64("cost.requested_input_usd", requestedInputCost).
-		Int64("cost.baseline_warm_prefill_tokens", int64(baselineWarmPrefill)).
-		Float64("cost.requested_output_usd", catalog.EffectiveOutputCost(catalog.PromptTokens(in, cacheCreation, cacheRead, decision.Provider), out, reqPricing, usageMods)).
-		Float64("cost.actual_input_usd", catalog.EffectiveInputCost(in, cacheCreation, cacheRead, actPricing, decision.Provider, usageMods)).
-		Float64("cost.actual_output_usd", catalog.EffectiveOutputCost(catalog.PromptTokens(in, cacheCreation, cacheRead, decision.Provider), out, actPricing, usageMods)).
-		Bool("cost.subscription_served", false).
-		Bool("cost.fast_mode", upstreamFast).
-		Int64("latency.upstream_ms", proxyMs).
-		Int64("latency.total_ms", s.clock.Now().Sub(requestStart).Milliseconds()).
-		Int64("upstream.status_code", int64(upstreamStatus(proxyErr))).
-		Bool("routing.cross_format", crossFormat).
-		String("dispatch.primary_provider", rescue.primaryProvider).
-		String("dispatch.primary_model", rescue.primaryModel).
-		String("dispatch.final_provider", finalProvider).
-		Int64("dispatch.fallback_attempts", int64(winnerIdx)).
-		Bool("dispatch.failover_used", rescue.failoverUsed).
-		Bool("dispatch.failover_attempted", rescue.failoverAttempted).
-		Bool("dispatch.subscription_failover", false).
-		Bool("dispatch.sibling_failover", rescue.siblingFailoverUsed)
+	openaiUpstreamBuilder := s.upstreamSpanBuilder(ctx, facts, feats, decision, upstreamSpanInputs{
+		routeRes:            routeRes,
+		sessionKey:          sessionKey,
+		start:               requestStart,
+		finalProvider:       finalProvider,
+		summary:             respSummary,
+		extractor:           extractor,
+		rescue:              rescue.rescueChain,
+		effortServed:        effortServed,
+		requestedInputCost:  requestedInputCost,
+		baselineWarmPrefill: baselineWarmPrefill,
+		reqPricing:          reqPricing,
+		actPricing:          actPricing,
+		proxyErr:            proxyErr,
+		proxyMs:             proxyMs,
+		crossFormat:         crossFormat,
+		winnerIdx:           winnerIdx,
+	})
 	if responsesSurface, _ := ctx.Value(responsesSurfaceContextKey{}).(bool); responsesSurface {
 		openaiUpstreamBuilder.String("request.api_surface", string(requestAPISurfaceResponses))
 	}
-	if s.effectiveCaptureMode(ctx) == CaptureOff {
-		openaiUpstreamBuilder.Int64("request.message_count", int64(feats.MessageCount)).
-			Bool("request.has_tools", feats.HasTools)
-	}
-	applyPlannerAttrs(openaiUpstreamBuilder, routeRes)
-	applyRoutingStateAttrs(openaiUpstreamBuilder, routeRes, decision.ServedIdentity(), sessionKey)
-	applyCallerRoutingAttrs(ctx, openaiUpstreamBuilder)
-	applyBlindExperimentOutcomeAttrs(ctx, openaiUpstreamBuilder, &routeRes, feats.Model, decision.Model)
-	applyEffortAttrs(openaiUpstreamBuilder, effortServed)
-	s.applySubscriptionSpanTelemetry(ctx, openaiUpstreamBuilder, feats.Model, decision.Model)
-	addTimingAttrs(ctx, openaiUpstreamBuilder)
 
 	openaiObs := buildObservationContext(ctx, decision, routeRes.Fresh, s.effectiveCaptureMode(ctx))
 	openaiObs.applySpanAttrs(openaiUpstreamBuilder)

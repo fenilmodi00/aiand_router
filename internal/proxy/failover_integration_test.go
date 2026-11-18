@@ -96,7 +96,7 @@ func TestProxyMessages_RoutingMarkerWaitsForProviderOutput(t *testing.T) {
 	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 
 	writer := newObservedResponseWriter()
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", strings.NewReader(""))
 	body := []byte(`{"model":"z-ai/glm-5.3-flash","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
 	done := make(chan error, 1)
 	go func() {
@@ -145,7 +145,7 @@ func TestProxyMessages_SingleBindingStreamingPreCommitError(t *testing.T) {
 		WithRetrySleep(noRetrySleep)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", strings.NewReader(""))
 	body := []byte(`{"model":"gpt-5","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
 
 	_ = svc.ProxyMessages(context.Background(), body, rec, req)
@@ -189,7 +189,7 @@ func TestProxyMessages_AnthropicSSEOverloadRetriesSameBinding(t *testing.T) {
 	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}}).
 		WithRetrySleep(noRetrySleep)
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", strings.NewReader(""))
 	body := []byte(`{"model":"z-ai/glm-5.3-flash","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
 
 	require.NoError(t, svc.ProxyMessages(context.Background(), body, rec, req))
@@ -248,7 +248,7 @@ func TestProxyMessages_BaselineOverloadExhaustionDoesNotDisableAnthropic(t *test
 	// Turn 1: OSS primary 503s (retryable), baseline rescues onto Anthropic,
 	// which itself exhausts on 529. First Anthropic strike, not yet disabled.
 	rec1 := httptest.NewRecorder()
-	req1 := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	req1 := httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/messages", strings.NewReader(""))
 	err1 := svc.ProxyMessages(ctx, body, rec1, req1)
 	require.Error(t, err1)
 	assert.Empty(t, store.disabledProviders, "one baseline-rescue exhaustion must not yet disable anthropic")
@@ -256,7 +256,7 @@ func TestProxyMessages_BaselineOverloadExhaustionDoesNotDisableAnthropic(t *test
 	// Turn 2: same OSS-fails-then-Anthropic-529s sequence. Without the fix,
 	// this would be the second consecutive Anthropic strike and disable it.
 	rec2 := httptest.NewRecorder()
-	req2 := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	req2 := httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/messages", strings.NewReader(""))
 	err2 := svc.ProxyMessages(ctx, body, rec2, req2)
 	require.Error(t, err2)
 	assert.Empty(t, store.disabledProviders,
@@ -292,7 +292,7 @@ func TestProxyMessages_BaselineFailoverSkipsBaselineOverContextWindow(t *testing
 	body := []byte(`{"model":"z-ai/glm-5.3-flash","stream":true,"messages":[{"role":"user","content":"` + filler + `"}]}`)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", strings.NewReader(""))
 	err := svc.ProxyMessages(context.Background(), body, rec, req)
 	require.Error(t, err, "the routed model's 502 surfaces when no baseline can fit the prompt")
 	assert.Empty(t, baseline.proxyBodies, "baseline failover must not dispatch a prompt larger than the baseline's context window")
@@ -344,7 +344,7 @@ func TestProxyMessages_GeminiNon400NotRetried(t *testing.T) {
 	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", strings.NewReader(""))
 	body := []byte(`{"model":"gemini-3.1-pro-preview","stream":true,` +
 		`"tools":[{"name":"Read","input_schema":{"type":"object","properties":{"file_path":{"type":"string"}},"required":["file_path"]}}],` +
 		`"messages":[{"role":"user","content":"who are you"}]}`)
@@ -375,7 +375,7 @@ func TestProxyMessages_UnrelatedAnthropic400NotRetried(t *testing.T) {
 	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", strings.NewReader(""))
 	body := []byte(`{"model":"deepseek/deepseek-v4-pro","stream":true,"max_tokens":1024,` +
 		`"output_config":{"format":{"type":"json_schema"}},"messages":[{"role":"user","content":"hi"}]}`)
 

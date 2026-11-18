@@ -44,7 +44,7 @@ func TestProxyOpenAIResponses_CodexDuplicateToolOutputsStayVerbatimOnNativeOpenA
 	}, nil, false, nil, nil, false, providers.ProviderAIAND, "gpt-5.6-sol", nil)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(""))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/responses", strings.NewReader(""))
 	require.NoError(t, svc.ProxyOpenAIResponses(codexClientCtx(), []byte(codexNotifyTurnBody), rec, req))
 
 	require.Len(t, openai.proxyBodies, 1)

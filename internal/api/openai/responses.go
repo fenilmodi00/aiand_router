@@ -1,14 +1,8 @@
 package openai
 
 import (
-	"io"
-	"net/http"
-
 	"aiand-os/router/internal/auth"
-	"aiand-os/router/internal/observability"
 	"aiand-os/router/internal/proxy"
-	"aiand-os/router/internal/requestcontext"
-	"aiand-os/router/internal/server/middleware"
 
 	"github.com/gin-gonic/gin"
 )
@@ -20,54 +14,10 @@ import (
 // chat error envelope verbatim, so writeOpenAIError is reused.
 func ResponsesHandler(svc *proxy.Service, authSvc *auth.Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		log := observability.FromGin(c)
-
-		body, err := io.ReadAll(io.LimitReader(c.Request.Body, proxy.MaxRequestBodyBytes+1))
-		if err != nil {
-			log.Debug("Failed to read request body", "err", err)
-			writeOpenAIError(c, http.StatusBadRequest, "invalid_request_error", "Failed to read request body.")
+		body, ok := prepareOpenAIProxyRequest(c, authSvc)
+		if !ok {
 			return
 		}
-		if len(body) > proxy.MaxRequestBodyBytes {
-			writeOpenAIError(c, http.StatusRequestEntityTooLarge, "invalid_request_error", "Request body too large.")
-			return
-		}
-
-		ctx := requestcontext.WithClientIdentity(c.Request.Context(), proxy.ClientIdentityFromHeaders(c.Request.Header))
-		ctx = proxy.ResolveUserFromContext(ctx, authSvc, middleware.InstallationFrom(c), middleware.APIKeyFrom(c))
-		ctx, err = proxy.ResolveRoutingAssignment(ctx, authSvc, middleware.InstallationFrom(c))
-		if err != nil {
-			log.Error("Failed to resolve routing assignment", "installation_id", middleware.InstallationFrom(c).ID, "err", err)
-			c.Header("Retry-After", "1")
-			writeOpenAIError(c, http.StatusServiceUnavailable, "api_error", "Routing policy temporarily unavailable.")
-			return
-		}
-		c.Request = c.Request.WithContext(ctx)
-
-		if err := svc.ProxyOpenAIResponses(c.Request.Context(), body, c.Writer, c.Request); err != nil {
-			cls, ok := proxy.ClassifyDispatchError(err)
-			if ok && cls.Kind == proxy.DispatchErrorUpstreamStatus {
-				if c.Writer.Written() {
-					return
-				}
-				writeOpenAIError(c, cls.Status, "api_error", cls.Message)
-				return
-			}
-			if c.Writer.Written() {
-				log.Error("Proxy failed mid-stream", "err", err)
-				return
-			}
-			if ok {
-				proxy.LogDispatchErrorClass(log, cls, err)
-				if cls.RetryAfter {
-					c.Header("Retry-After", "1")
-				}
-				writeOpenAIErrorWithCode(c, cls.Status, openAIErrorType(cls.Kind), cls.Message, proxy.OpenAIErrorCode(cls.Kind))
-				return
-			}
-			log.Error("Proxy failed", "err", err)
-			writeOpenAIError(c, http.StatusBadGateway, "api_error", "Upstream call failed.")
-			return
-		}
+		writeOpenAIProxyError(c, svc.ProxyOpenAIResponses(c.Request.Context(), body, c.Writer, c.Request))
 	}
 }

@@ -39,7 +39,7 @@ func TestBypassTelemetryRecordsOutcomeAndIncomingTools(t *testing.T) {
 			)
 			ctx := context.WithValue(bypassCtx(), proxy.InstallationIDContextKey{}, "55555555-5555-5555-5555-555555555555")
 			body := []byte(`{"model":"deepseek/deepseek-v4.1-flash","messages":[{"role":"user","content":"check"},{"role":"assistant","content":[{"type":"tool_use","id":"call-1","name":"Bash","input":{}}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"call-1","is_error":true,"content":"failed"}]}]}`)
-			req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+			req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/messages", strings.NewReader(""))
 			// A rejected upstream is a failed turn: the router reports it and
 			// the telemetry row records the error class.
 			if rejected {

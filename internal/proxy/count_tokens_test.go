@@ -25,7 +25,7 @@ func countTokensService(provider *fakeProvider) *proxy.Service {
 }
 
 func countTokensRequest() *http.Request {
-	return httptest.NewRequest(http.MethodPost, "/v1/messages/count_tokens", strings.NewReader(""))
+	return httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/v1/messages/count_tokens", strings.NewReader(""))
 }
 
 func assertLocalEstimate(t *testing.T, rec *httptest.ResponseRecorder) {

@@ -59,7 +59,7 @@ func TestCodexDesktopThreadTitleScoresWithoutMarker(t *testing.T) {
 		]
 	}`)
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/responses", nil)
 	ctx := context.WithValue(context.Background(), ClientIdentityContextKey{}, ClientIdentity{ClientApp: ClientAppCodex})
 
 	require.NoError(t, svc.ProxyOpenAIResponses(ctx, body, rec, req))

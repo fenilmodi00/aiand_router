@@ -48,7 +48,7 @@ func TestCodexNativeModelSelection_AutomaticAndLegacyStillScore(t *testing.T) {
 				input = `[` + codexModelSwitchInput + `,{"type":"message","role":"user","content":"review this change"}]`
 			}
 			body := []byte(`{"model":"` + tc.model + `","input":` + input + `,"reasoning":{"effort":"max"}}`)
-			req := httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+			req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/responses", nil)
 			if tc.optIn {
 				req.Header.Set(proxy.CodexNativeModelPinHeader, "1")
 			}

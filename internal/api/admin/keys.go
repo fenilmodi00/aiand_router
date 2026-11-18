@@ -48,23 +48,35 @@ func toAPIKeyResponse(k *auth.APIKey) apiKeyResponse {
 	}
 }
 
-func ListAPIKeysHandler(authSvc *auth.Service) gin.HandlerFunc {
+// listKeysHandler builds the shared list endpoint for both key kinds: resolve
+// the caller's installation, fetch its keys, and project each into the wire
+// shape under a single "keys" envelope.
+func listKeysHandler[K, R any](
+	authSvc *auth.Service,
+	list func(ctx context.Context, installationID string) ([]K, error),
+	project func(K) R,
+	errMsg string,
+) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		installation, ok := resolveInstallation(c, authSvc)
 		if !ok {
 			return
 		}
-		keys, err := authSvc.ListAPIKeys(c.Request.Context(), installation.ID)
+		keys, err := list(c.Request.Context(), installation.ID)
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Failed to list API keys."})
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": errMsg})
 			return
 		}
-		out := make([]apiKeyResponse, 0, len(keys))
+		out := make([]R, 0, len(keys))
 		for _, k := range keys {
-			out = append(out, toAPIKeyResponse(k))
+			out = append(out, project(k))
 		}
 		c.JSON(http.StatusOK, gin.H{"keys": out})
 	}
+}
+
+func ListAPIKeysHandler(authSvc *auth.Service) gin.HandlerFunc {
+	return listKeysHandler(authSvc, authSvc.ListAPIKeys, toAPIKeyResponse, "Failed to list API keys.")
 }
 
 // IssueAPIKeyHandler creates a new router API key for the installation. An
@@ -231,22 +243,7 @@ func toExternalKeyResponse(k *auth.ExternalAPIKey) externalKeyResponse {
 }
 
 func ListExternalKeysHandler(authSvc *auth.Service) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		installation, ok := resolveInstallation(c, authSvc)
-		if !ok {
-			return
-		}
-		keys, err := authSvc.ListExternalAPIKeys(c.Request.Context(), installation.ID)
-		if err != nil {
-			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Failed to list provider keys."})
-			return
-		}
-		out := make([]externalKeyResponse, 0, len(keys))
-		for _, k := range keys {
-			out = append(out, toExternalKeyResponse(k))
-		}
-		c.JSON(http.StatusOK, gin.H{"keys": out})
-	}
+	return listKeysHandler(authSvc, authSvc.ListExternalAPIKeys, toExternalKeyResponse, "Failed to list provider keys.")
 }
 
 // UpsertExternalKeyHandler stores a BYOK provider key; models (non-nil) validates aliases

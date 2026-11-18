@@ -68,7 +68,7 @@ func TestService_OpenCodeNativeSubagentSharesSessionIDButNotPin(t *testing.T) {
 	apiKeyID := uuid.New().String()
 
 	send := func(body string, headers map[string]string) proxy.ClientIdentity {
-		httpReq := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(""))
+		httpReq := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/responses", strings.NewReader(""))
 		httpReq.Header.Set("X-App", proxy.ClientAppOpencode)
 		for name, value := range headers {
 			httpReq.Header.Set(name, value)
@@ -112,7 +112,7 @@ func headerlessSender(t *testing.T, svc *proxy.Service, clientApp string) func(b
 	t.Helper()
 	apiKeyID := uuid.New().String()
 	return func(body string) *httptest.ResponseRecorder {
-		httpReq := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(""))
+		httpReq := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/responses", strings.NewReader(""))
 		httpReq.Header.Set("X-App", clientApp)
 		ctx := context.WithValue(authedCtx(apiKeyID), proxy.ClientIdentityContextKey{}, proxy.ClientIdentityFromHeaders(httpReq.Header))
 		rec := httptest.NewRecorder()
@@ -145,7 +145,7 @@ func TestService_OpenCodeChildSessionUsesSubAgentOverride(t *testing.T) {
 	svc := newOpenCodeTurnSvc(fr, newFakePinStore()).WithSubAgentOverride(providers.ProviderAIAND, overrideModel)
 	apiKeyID := uuid.New().String()
 	send := func(clientApp string, headers map[string]string) *httptest.ResponseRecorder {
-		httpReq := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(""))
+		httpReq := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/responses", strings.NewReader(""))
 		httpReq.Header.Set("X-App", clientApp)
 		for name, value := range headers {
 			httpReq.Header.Set(name, value)
