@@ -51,6 +51,11 @@ The installer also prompts for your API key (or reads `$AIAND_ROUTER_KEY`
 for non-interactive installs). Re-running it reuses the key already on disk,
 so you only ever paste it once — see [Staying up to date](#staying-up-to-date).
 
+The installer needs jq 1.6 or newer. When jq is missing, older than 1.6, or
+reports a version the installer can't parse, it downloads jq 1.8.1 from the jq
+GitHub release, verifies its SHA-256 checksum and keeps it in `~/.aiand/bin`
+for its own use. A jq already installed on your system is left unchanged.
+
 ### Self-hosted via `docker compose` (zero-config)
 
 If you're running the router locally with the bundled `docker-compose.yml`
