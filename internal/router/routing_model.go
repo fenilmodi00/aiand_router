@@ -12,9 +12,24 @@ const (
 	ModelDecision  RoutingModel = "aiand-decision-model-20261019-0001v1"
 )
 
+// ModelAutomaticDisplayName is the human-facing name for ModelAutomatic that
+// clients type into a custom-model field.
+const ModelAutomaticDisplayName = "Aiand Auto"
+
+// CanonicalRoutingModel maps a display name, or the upstream spellings clients
+// still send, onto the routing model it selects. Matching stays exact and
+// case-sensitive so other spellings are unchanged.
+func CanonicalRoutingModel(model string) RoutingModel {
+	switch model {
+	case ModelAutomaticDisplayName, "Weave Auto", "weave-auto":
+		return ModelAutomatic
+	}
+	return RoutingModel(model)
+}
+
 // IsRoutingModel reports whether model selects an automatic routing policy.
 func IsRoutingModel(model string) bool {
-	switch RoutingModel(model) {
+	switch CanonicalRoutingModel(model) {
 	case ModelAutomatic, ModelHMM, ModelQwen, ModelDecision:
 		return true
 	default:

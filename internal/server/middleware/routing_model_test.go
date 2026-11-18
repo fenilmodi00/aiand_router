@@ -45,6 +45,8 @@ func TestRoutingModelSelectsPolicyAndPreservesRequest(t *testing.T) {
 		want            router.Strategy
 	}{
 		{name: "default", model: string(router.ModelAutomatic), initial: router.StrategyHMMEmbedding, status: http.StatusOK, want: router.StrategyHMMEmbedding},
+		{name: "display name", model: router.ModelAutomaticDisplayName, initial: router.StrategyHMMEmbedding, status: http.StatusOK, want: router.StrategyHMMEmbedding},
+		{name: "upstream display name", model: "Weave Auto", initial: router.StrategyHMMEmbedding, status: http.StatusOK, want: router.StrategyHMMEmbedding},
 		{name: "hmm", model: string(router.ModelHMM), available: true, status: http.StatusOK, want: router.StrategyHMMBeta},
 		{name: "hmm unavailable", model: string(router.ModelHMM), status: http.StatusServiceUnavailable},
 		{name: "qwen", model: string(router.ModelQwen), target: policyregistry.TargetInternal, available: true, status: http.StatusOK, want: router.StrategyHMMQwen},
@@ -85,7 +87,7 @@ func TestRoutingModelSelectsPolicyAndPreservesRequest(t *testing.T) {
 				model, selected := router.RoutingModelFromContext(c.Request.Context())
 				require.Equal(t, router.IsRoutingModel(tc.model), selected)
 				if selected {
-					require.Equal(t, router.RoutingModel(tc.model), model)
+					require.Equal(t, router.CanonicalRoutingModel(tc.model), model)
 				}
 				c.Status(http.StatusOK)
 			})
