@@ -67,7 +67,7 @@ func TestProxyOpenAIChatCompletion_NativeStreamWithoutFinishReasonFailsInStream(
 	body := []byte(`{"model":"` + nativeChatModel + `","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
 
 	rec := httptest.NewRecorder()
-	err := svc.ProxyOpenAIChatCompletion(authedCtx(uuid.NewString()), body, rec, httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil))
+	err := svc.ProxyOpenAIChatCompletion(authedCtx(uuid.NewString()), body, rec, httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/chat/completions", nil))
 
 	require.Error(t, err)
 	require.Equal(t, []providers.Endpoint{providers.EndpointChatCompletions}, provider.proxyEndpoints)
@@ -81,7 +81,7 @@ func TestProxyOpenAIChatCompletion_EmptyNativeStreamRetriedBeforeCommit(t *testi
 	body := []byte(`{"model":"` + nativeChatModel + `","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
 
 	rec := httptest.NewRecorder()
-	require.NoError(t, svc.ProxyOpenAIChatCompletion(authedCtx(uuid.NewString()), body, rec, httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)))
+	require.NoError(t, svc.ProxyOpenAIChatCompletion(authedCtx(uuid.NewString()), body, rec, httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/chat/completions", nil)))
 
 	assert.Len(t, provider.proxyBodies, 2)
 	assert.Contains(t, rec.Body.String(), `"finish_reason":"stop"`)
@@ -94,7 +94,7 @@ func TestProxyOpenAIResponses_NativeStreamWithoutTerminalFailsInStream(t *testin
 	body := []byte(`{"model":"auto","stream":true,"input":"hi"}`)
 
 	rec := httptest.NewRecorder()
-	err := svc.ProxyOpenAIResponses(authedCtx(uuid.NewString()), body, rec, httptest.NewRequest(http.MethodPost, "/v1/responses", nil))
+	err := svc.ProxyOpenAIResponses(authedCtx(uuid.NewString()), body, rec, httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/responses", nil))
 
 	require.Error(t, err)
 	require.Equal(t, []providers.Endpoint{providers.EndpointResponses}, provider.proxyEndpoints)
@@ -108,7 +108,7 @@ func TestProxyOpenAIResponses_EmptyNativeStreamRetriedBeforeCommit(t *testing.T)
 	body := []byte(`{"model":"auto","stream":true,"input":"hi"}`)
 
 	rec := httptest.NewRecorder()
-	require.NoError(t, svc.ProxyOpenAIResponses(authedCtx(uuid.NewString()), body, rec, httptest.NewRequest(http.MethodPost, "/v1/responses", nil)))
+	require.NoError(t, svc.ProxyOpenAIResponses(authedCtx(uuid.NewString()), body, rec, httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/responses", nil)))
 
 	assert.Equal(t, []providers.Endpoint{providers.EndpointResponses, providers.EndpointResponses}, provider.proxyEndpoints)
 	assert.Contains(t, rec.Body.String(), "response.completed")

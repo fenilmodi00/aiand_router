@@ -32,7 +32,7 @@ func runVersionOverride(t *testing.T, installation *auth.Installation, header st
 		c.Status(http.StatusOK)
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/probe", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/probe", nil)
 	if header != "" {
 		req.Header.Set(middleware.ClusterVersionOverrideHeader, header)
 	}

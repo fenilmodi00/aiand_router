@@ -614,7 +614,7 @@ func TestProxyEntrypointsInterceptBetaWithoutRoutingUpstream(t *testing.T) {
 
 			var err error
 			if tt.openAI {
-				request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+				request = httptest.NewRequestWithContext(ctx, "POST", "/v1/chat/completions", nil)
 				err = svc.ProxyOpenAIChatCompletion(ctx, body, response, request)
 			} else {
 				err = svc.ProxyMessages(ctx, body, response, request)
@@ -728,7 +728,7 @@ func TestProxyEntrypointsStripHistoricalBetaArtifactsBeforeRouting(t *testing.T)
 			request := httptest.NewRequestWithContext(t.Context(), "POST", "/v1/messages", nil)
 			response := httptest.NewRecorder()
 			if tt.openAI {
-				request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+				request = httptest.NewRequestWithContext(t.Context(), "POST", "/v1/chat/completions", nil)
 				err = svc.ProxyOpenAIChatCompletion(context.Background(), body, response, request)
 			} else {
 				err = svc.ProxyMessages(context.Background(), body, response, request)

@@ -44,7 +44,7 @@ func TestEscalationTurnsBypassPopulatedSemanticCache(t *testing.T) {
 			svc := NewService(nil, nil, nil, false, semanticCache, newStubPinStore(), false, providers.ProviderAIAND, "z-ai/glm-5.3", nil).WithEscalation(store, &escalationTestObserver{}).WithPolicyStrategy(policy.StrategySpec{Strategy: router.StrategyHMMEmbedding, Router: classifier, Capabilities: policy.Capabilities{SchemaVersion: policy.SchemaVersionV1}})
 			ctx := context.WithValue(escalationCompletionContext(), ExternalIDContextKey{}, externalID)
 			recorder := httptest.NewRecorder()
-			err := tc.invoke(svc, ctx, []byte(tc.body), recorder, httptest.NewRequest(http.MethodPost, "/test", nil))
+			err := tc.invoke(svc, ctx, []byte(tc.body), recorder, httptest.NewRequestWithContext(ctx, http.MethodPost, "/test", nil))
 			require.ErrorIs(t, err, ErrProviderNotConfigured, "an opted-in observation must attempt dispatch instead of returning cached content")
 			require.NotContains(t, recorder.Body.String(), "cached")
 			require.Len(t, store.sessions, 1)

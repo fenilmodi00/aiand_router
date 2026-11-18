@@ -81,9 +81,9 @@ func accountSessionEngine(verifier auth.SessionVerifier, cache middleware.Accoun
 }
 
 func performAccountSessionRequest(engine *gin.Engine, cookie string) *httptest.ResponseRecorder {
-	req := httptest.NewRequest(http.MethodGet, "/probe", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/probe", nil)
 	if cookie != "" {
-		req.AddCookie(&http.Cookie{Name: auth.LoginSessionCookieName, Value: cookie})
+		req.AddCookie(&http.Cookie{Name: auth.LoginSessionCookieName, Value: cookie, Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode})
 	}
 	rr := httptest.NewRecorder()
 	engine.ServeHTTP(rr, req)
@@ -231,7 +231,7 @@ func TestAccountSessionOrAPIKeyBearerAccepted(t *testing.T) {
 		c.Status(http.StatusOK)
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/probe", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/probe", nil)
 	req.Header.Set(middleware.RouterKeyHeader, routerToken)
 	rr := httptest.NewRecorder()
 	engine.ServeHTTP(rr, req)
@@ -248,7 +248,7 @@ func TestAccountSessionStrictVariantRejectsBearer(t *testing.T) {
 	engine.Use(middleware.WithAccountSession(verifier, middleware.NewSessionLRUCache()))
 	engine.GET("/probe", func(c *gin.Context) { c.Status(http.StatusOK) })
 
-	req := httptest.NewRequest(http.MethodGet, "/probe", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/probe", nil)
 	req.Header.Set(middleware.RouterKeyHeader, routerToken)
 	rr := httptest.NewRecorder()
 	engine.ServeHTTP(rr, req)
@@ -267,7 +267,7 @@ func TestAccountSessionOrAPIKeyBothAbsentIs401(t *testing.T) {
 	engine.Use(middleware.WithAccountSessionOrAPIKey(verifier, middleware.NewSessionLRUCache(), svc, false))
 	engine.GET("/probe", func(c *gin.Context) { c.Status(http.StatusOK) })
 
-	req := httptest.NewRequest(http.MethodGet, "/probe", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/probe", nil)
 	rr := httptest.NewRecorder()
 	engine.ServeHTTP(rr, req)
 
@@ -295,8 +295,8 @@ func TestAccountSessionCookieNeverAuthenticatesDataPlane(t *testing.T) {
 	engine.Use(middleware.WithAuth(svc, false))
 	engine.GET("/probe", func(c *gin.Context) { c.Status(http.StatusOK) })
 
-	req := httptest.NewRequest(http.MethodGet, "/probe", nil)
-	req.AddCookie(&http.Cookie{Name: auth.LoginSessionCookieName, Value: token})
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/probe", nil)
+	req.AddCookie(&http.Cookie{Name: auth.LoginSessionCookieName, Value: token, Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode})
 	rr := httptest.NewRecorder()
 	engine.ServeHTTP(rr, req)
 
@@ -345,8 +345,8 @@ func TestAccountSessionOrAPIKeyCookieRunsHandlerExactlyOnce(t *testing.T) {
 		c.JSON(http.StatusOK, gin.H{"acct": probeAccount != nil, "inst": "inst-1", "ok": true})
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/probe", nil)
-	req.AddCookie(&http.Cookie{Name: auth.LoginSessionCookieName, Value: token})
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/probe", nil)
+	req.AddCookie(&http.Cookie{Name: auth.LoginSessionCookieName, Value: token, Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode})
 	rr := httptest.NewRecorder()
 	engine.ServeHTTP(rr, req)
 

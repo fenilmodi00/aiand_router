@@ -37,7 +37,7 @@ func TestProxyMessages_UpstreamOverflowIsLeftForNativeRendering(t *testing.T) {
 	)
 	rec := httptest.NewRecorder()
 	body := []byte(`{"model":"z-ai/glm-5.3-flash","max_tokens":64,"messages":[{"role":"user","content":"hi"}]}`)
-	err := svc.ProxyMessages(authedCtx(overflowInstallationID), body, rec, httptest.NewRequest(http.MethodPost, "/v1/messages", nil))
+	err := svc.ProxyMessages(authedCtx(overflowInstallationID), body, rec, httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", nil))
 
 	require.Error(t, err)
 	cls, ok := proxy.ClassifyDispatchError(err)
@@ -60,7 +60,7 @@ func proxyResponsesOverflow(t *testing.T, stream bool) *httptest.ResponseRecorde
 	if stream {
 		body = `{"model":"z-ai/glm-5.3-flash","input":"hi","stream":true}`
 	}
-	err := svc.ProxyOpenAIResponses(authedCtx(overflowInstallationID), []byte(body), rec, httptest.NewRequest(http.MethodPost, "/v1/responses", nil))
+	err := svc.ProxyOpenAIResponses(authedCtx(overflowInstallationID), []byte(body), rec, httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/responses", nil))
 	require.Error(t, err)
 	cls, ok := proxy.ClassifyDispatchError(err)
 	require.True(t, ok)
@@ -124,7 +124,7 @@ func TestTotalOverflowIgnoresWiderUnservableModel(t *testing.T) {
 	svc := hmmOverflowService(providers.ProviderAIAND, upstream, "z-ai/glm-5.3", "gemini-3.5-flash")
 	ctx := router.WithStrategy(authedCtx(overflowInstallationID), router.StrategyHMM)
 
-	err := svc.ProxyMessages(ctx, []byte(body), httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/v1/messages", nil))
+	err := svc.ProxyMessages(ctx, []byte(body), httptest.NewRecorder(), httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/messages", nil))
 
 	require.Error(t, err)
 	cls, ok := proxy.ClassifyDispatchError(err)
@@ -142,7 +142,7 @@ func TestHMMPolicyEmptiedPoolStaysNoRoutableModels(t *testing.T) {
 		proxy.InstallationExcludedModelsContextKey{}, []string{"z-ai/glm-5.3", "z-ai/glm-5.3-flash"})
 	body := []byte(`{"model":"z-ai/glm-5.3","max_tokens":1024,"messages":[{"role":"user","content":"hi"}]}`)
 
-	err := svc.ProxyMessages(ctx, body, httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/v1/messages", nil))
+	err := svc.ProxyMessages(ctx, body, httptest.NewRecorder(), httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/messages", nil))
 
 	require.Error(t, err)
 	cls, ok := proxy.ClassifyDispatchError(err)

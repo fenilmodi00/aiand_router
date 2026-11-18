@@ -95,7 +95,7 @@ func TestSessionlessRoutingAnnouncementMessages(t *testing.T) {
 			ctx := requestcontext.WithClientIdentity(authedCtx("11111111-1111-1111-1111-111111111111"), proxy.ClientIdentity{ClientApp: sessionlessClientApp})
 			rec := httptest.NewRecorder()
 			require.NoError(t, svc.ProxyMessages(ctx, sessionlessMessagesBody(t, test.announcement), rec,
-				httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))))
+				httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/messages", strings.NewReader(""))))
 			assert.Equal(t, test.wantBadge, strings.Contains(rec.Body.String(), "Aiand Router** → "+sessionlessServedModel), rec.Body.String())
 			assert.Contains(t, rec.Body.String(), "There are two files.")
 			require.Len(t, *upstreamBodies, 1)

@@ -188,9 +188,9 @@ func doJSON(t *testing.T, engine *gin.Engine, method, path, body string) (int, m
 	t.Helper()
 	var req *http.Request
 	if body == "" {
-		req = httptest.NewRequest(method, path, nil)
+		req = httptest.NewRequestWithContext(t.Context(), method, path, nil)
 	} else {
-		req = httptest.NewRequest(method, path, strings.NewReader(body))
+		req = httptest.NewRequestWithContext(t.Context(), method, path, strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 	}
 	rec := httptest.NewRecorder()
@@ -284,7 +284,7 @@ func TestPollAiandDeviceLoginHandler_SlowDownIs428WithRetryAfter(t *testing.T) {
 	code, _ := doJSON(t, engine, http.MethodPost, "/admin/v1/aiand/device/start", "")
 	require.Equal(t, http.StatusOK, code)
 
-	req := httptest.NewRequest(http.MethodPost, "/admin/v1/aiand/device/poll", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/admin/v1/aiand/device/poll", nil)
 	rec := httptest.NewRecorder()
 	engine.ServeHTTP(rec, req)
 	assert.Equal(t, http.StatusPreconditionRequired, rec.Code)
@@ -316,7 +316,7 @@ func TestPollAiandDeviceLoginHandler_SlowDownIsNonTerminal(t *testing.T) {
 	require.Equal(t, http.StatusOK, code)
 
 	poll := func() (int, map[string]any, http.Header) {
-		req := httptest.NewRequest(http.MethodPost, "/admin/v1/aiand/device/poll", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/admin/v1/aiand/device/poll", nil)
 		rec := httptest.NewRecorder()
 		engine.ServeHTTP(rec, req)
 		var body map[string]any
@@ -439,7 +439,7 @@ func TestAiandHandlers_UnauthenticatedRequestIs401(t *testing.T) {
 	engine := gin.New()
 	svc := newAiandService(&handlerFakeGateway{})
 	engine.POST("/admin/v1/aiand/paste", admin.PasteAiandKeyHandler(svc))
-	req := httptest.NewRequest(http.MethodPost, "/admin/v1/aiand/paste", strings.NewReader(`{"key": "sk-1"}`))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/admin/v1/aiand/paste", strings.NewReader(`{"key": "sk-1"}`))
 	rec := httptest.NewRecorder()
 	engine.ServeHTTP(rec, req)
 	assert.Equal(t, http.StatusUnauthorized, rec.Code, "no identity middleware, no access")

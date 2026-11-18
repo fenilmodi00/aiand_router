@@ -21,7 +21,7 @@ import (
 const plannedTestModel = "deepseek/deepseek-v4-pro"
 
 func plannedInputs(rec *httptest.ResponseRecorder, buf *preludeBuffer, bindings []catalog.ProviderBinding, body []byte) failoverInputs {
-	r := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/v1/messages", nil)
 	return failoverInputs{
 		w:               rec,
 		buf:             buf,

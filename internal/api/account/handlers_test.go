@@ -406,7 +406,7 @@ func TestMeWithSession(t *testing.T) {
 		},
 	}
 	engine := newRouter(svc)
-	req := httptest.NewRequest(http.MethodGet, "/account/v1/auth/me", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/account/v1/auth/me", nil)
 	req.AddCookie(&http.Cookie{Name: auth.LoginSessionCookieName, Value: "tok", Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode})
 	w := httptest.NewRecorder()
 	engine.ServeHTTP(w, req)
@@ -439,7 +439,7 @@ func TestMeWithoutSessionIs200Unauthenticated(t *testing.T) {
 func TestMeUnknownTokenStill200(t *testing.T) {
 	svc := &fakeLoginAPI{verifyErr: auth.ErrSessionNotFound}
 	engine := newRouter(svc)
-	req := httptest.NewRequest(http.MethodGet, "/account/v1/auth/me", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/account/v1/auth/me", nil)
 	req.AddCookie(&http.Cookie{Name: auth.LoginSessionCookieName, Value: "stale", Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode})
 	w := httptest.NewRecorder()
 	engine.ServeHTTP(w, req)
@@ -452,7 +452,7 @@ func TestMeUnknownTokenStill200(t *testing.T) {
 func TestLogoutRevokesRowAndClearsCookie(t *testing.T) {
 	svc := &fakeLoginAPI{}
 	engine := newRouter(svc)
-	req := httptest.NewRequest(http.MethodPost, "/account/v1/auth/logout", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/v1/auth/logout", nil)
 	req.AddCookie(&http.Cookie{Name: auth.LoginSessionCookieName, Value: "tok-123", Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode})
 	w := httptest.NewRecorder()
 	engine.ServeHTTP(w, req)
@@ -498,7 +498,7 @@ func TestLogoutWithoutCookieIsIdempotent200(t *testing.T) {
 func TestLogoutRepoFailureIs500(t *testing.T) {
 	svc := &fakeLoginAPI{logoutErr: errors.New("db down")}
 	engine := newRouter(svc)
-	req := httptest.NewRequest(http.MethodPost, "/account/v1/auth/logout", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/v1/auth/logout", nil)
 	req.AddCookie(&http.Cookie{Name: auth.LoginSessionCookieName, Value: "tok", Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode})
 	w := httptest.NewRecorder()
 	engine.ServeHTTP(w, req)
@@ -557,7 +557,7 @@ func findCookie(t *testing.T, w *httptest.ResponseRecorder, name string) *http.C
 func TestBrowserStartReturnsAuthorizeURLAndSetsCookie(t *testing.T) {
 	svc := &fakeLoginAPI{browserStart: browserTestStart()}
 	engine := newRouter(svc)
-	req := httptest.NewRequest(http.MethodPost, "/account/v1/auth/browser/start", strings.NewReader(`{"next":"/dashboard"}`))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/v1/auth/browser/start", strings.NewReader(`{"next":"/dashboard"}`))
 	req.RemoteAddr = peerA + ":41234"
 	req.Header.Set("Origin", browserTestOrigin)
 	w := httptest.NewRecorder()
@@ -592,7 +592,7 @@ func TestBrowserStartWithoutOriginIs400(t *testing.T) {
 func TestBrowserStartUnsupportedIs501WithoutCountingFailure(t *testing.T) {
 	svc := &fakeLoginAPI{browserStartErr: auth.ErrAiandBrowserUnsupported}
 	engine := newRouter(svc)
-	req := httptest.NewRequest(http.MethodPost, "/account/v1/auth/browser/start", strings.NewReader(`{}`))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/v1/auth/browser/start", strings.NewReader(`{}`))
 	req.RemoteAddr = peerA + ":41234"
 	req.Header.Set("Origin", browserTestOrigin)
 	w := httptest.NewRecorder()
@@ -602,7 +602,7 @@ func TestBrowserStartUnsupportedIs501WithoutCountingFailure(t *testing.T) {
 	// The fallback path must stay available: five more unsupported starts
 	// must not trip the limiter.
 	for range 5 {
-		req = httptest.NewRequest(http.MethodPost, "/account/v1/auth/browser/start", strings.NewReader(`{}`))
+		req = httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/v1/auth/browser/start", strings.NewReader(`{}`))
 		req.RemoteAddr = peerA + ":41234"
 		req.Header.Set("Origin", browserTestOrigin)
 		w = httptest.NewRecorder()
@@ -614,7 +614,7 @@ func TestBrowserStartUnsupportedIs501WithoutCountingFailure(t *testing.T) {
 func TestBrowserStartGatewayDownIs502AndCounts(t *testing.T) {
 	svc := &fakeLoginAPI{browserStartErr: auth.ErrAiandGatewayUnavailable}
 	engine := newRouter(svc)
-	req := httptest.NewRequest(http.MethodPost, "/account/v1/auth/browser/start", strings.NewReader(`{}`))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/v1/auth/browser/start", strings.NewReader(`{}`))
 	req.RemoteAddr = peerA + ":41234"
 	req.Header.Set("Origin", browserTestOrigin)
 	w := httptest.NewRecorder()
@@ -623,14 +623,14 @@ func TestBrowserStartGatewayDownIs502AndCounts(t *testing.T) {
 	assert.JSONEq(t, `{"error":"gateway_unavailable"}`, w.Body.String())
 	// Failures 2-5 still pass through to the service; the 6th hits the cap.
 	for range 4 {
-		req = httptest.NewRequest(http.MethodPost, "/account/v1/auth/browser/start", strings.NewReader(`{}`))
+		req = httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/v1/auth/browser/start", strings.NewReader(`{}`))
 		req.RemoteAddr = peerA + ":41234"
 		req.Header.Set("Origin", browserTestOrigin)
 		w = httptest.NewRecorder()
 		engine.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusBadGateway, w.Code)
 	}
-	req = httptest.NewRequest(http.MethodPost, "/account/v1/auth/browser/start", strings.NewReader(`{}`))
+	req = httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/v1/auth/browser/start", strings.NewReader(`{}`))
 	req.RemoteAddr = peerA + ":41234"
 	req.Header.Set("Origin", browserTestOrigin)
 	w = httptest.NewRecorder()
@@ -642,7 +642,7 @@ func TestBrowserExchangeSetsSessionCookieAndClearsFlowCookie(t *testing.T) {
 	state := "st-123"
 	svc := &fakeLoginAPI{browserResults: map[string]auth.LoginBrowserResult{state: browserTestResult()}}
 	engine := newRouter(svc)
-	req := httptest.NewRequest(http.MethodPost, "/account/v1/auth/browser/exchange", strings.NewReader(`{"code":"auth-code","state":"`+state+`"}`))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/v1/auth/browser/exchange", strings.NewReader(`{"code":"auth-code","state":"`+state+`"}`))
 	req.RemoteAddr = peerA + ":41234"
 	req.AddCookie(&http.Cookie{Name: auth.LoginBrowserCookieName, Value: "sealed-flow-blob", Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode})
 	w := httptest.NewRecorder()
@@ -683,7 +683,7 @@ func TestBrowserExchangeMissingCodeOrStateIs400(t *testing.T) {
 func TestBrowserExchangeStateMismatchIs400AndClearsCookie(t *testing.T) {
 	svc := &fakeLoginAPI{}
 	engine := newRouter(svc)
-	req := httptest.NewRequest(http.MethodPost, "/account/v1/auth/browser/exchange", strings.NewReader(`{"code":"c","state":"wrong"}`))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/v1/auth/browser/exchange", strings.NewReader(`{"code":"c","state":"wrong"}`))
 	req.RemoteAddr = peerA + ":41234"
 	req.AddCookie(&http.Cookie{Name: auth.LoginBrowserCookieName, Value: "sealed", Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode})
 	w := httptest.NewRecorder()
@@ -697,7 +697,7 @@ func TestBrowserExchangeRejectedGrantIs401(t *testing.T) {
 	state := "st-reject"
 	svc := &fakeLoginAPI{browserExchangeErrs: map[string]error{state: auth.ErrAiandInvalidGrant}}
 	engine := newRouter(svc)
-	req := httptest.NewRequest(http.MethodPost, "/account/v1/auth/browser/exchange", strings.NewReader(`{"code":"spent","state":"`+state+`"}`))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/v1/auth/browser/exchange", strings.NewReader(`{"code":"spent","state":"`+state+`"}`))
 	req.RemoteAddr = peerA + ":41234"
 	req.AddCookie(&http.Cookie{Name: auth.LoginBrowserCookieName, Value: "sealed", Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode})
 	w := httptest.NewRecorder()
@@ -710,7 +710,7 @@ func TestBrowserExchangeGatewayDownIs502(t *testing.T) {
 	state := "st-down"
 	svc := &fakeLoginAPI{browserExchangeErrs: map[string]error{state: auth.ErrAiandGatewayUnavailable}}
 	engine := newRouter(svc)
-	req := httptest.NewRequest(http.MethodPost, "/account/v1/auth/browser/exchange", strings.NewReader(`{"code":"c","state":"`+state+`"}`))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/v1/auth/browser/exchange", strings.NewReader(`{"code":"c","state":"`+state+`"}`))
 	req.RemoteAddr = peerA + ":41234"
 	req.AddCookie(&http.Cookie{Name: auth.LoginBrowserCookieName, Value: "sealed", Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode})
 	w := httptest.NewRecorder()
@@ -722,7 +722,7 @@ func TestBrowserExchangeGatewayDownIs502(t *testing.T) {
 func TestBrowserExchangeNoSessionCookieOnFailure(t *testing.T) {
 	svc := &fakeLoginAPI{}
 	engine := newRouter(svc)
-	req := httptest.NewRequest(http.MethodPost, "/account/v1/auth/browser/exchange", strings.NewReader(`{"code":"c","state":"s"}`))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/v1/auth/browser/exchange", strings.NewReader(`{"code":"c","state":"s"}`))
 	req.RemoteAddr = peerA + ":41234"
 	req.AddCookie(&http.Cookie{Name: auth.LoginBrowserCookieName, Value: "sealed", Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode})
 	w := httptest.NewRecorder()

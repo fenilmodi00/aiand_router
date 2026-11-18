@@ -262,7 +262,7 @@ func TestProxyOpenAIChatCompletion_NativeChatResponseSignals(t *testing.T) {
 			// A stop sequence has no Responses equivalent, so the turn stays on
 			// chat/completions and is served without a translator.
 			body := []byte(`{"model":"auto","stream":true,"stop":["END"],"messages":[{"role":"user","content":"read main.go"}]}`)
-			httpReq := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(""))
+			httpReq := httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/chat/completions", strings.NewReader(""))
 			_ = svc.ProxyOpenAIChatCompletion(ctx, body, rec, httpReq)
 
 			require.Len(t, provider.proxyEndpoints, 1)
@@ -345,7 +345,7 @@ func TestProxyOpenAIResponses_NativeResponseSignals(t *testing.T) {
 			ctx := context.WithValue(context.Background(), proxy.InstallationIDContextKey{}, installID)
 			rec := httptest.NewRecorder()
 			body := []byte(`{"model":"auto","stream":true,"input":"read main.go","tools":[{"type":"function","name":"read_file","parameters":{"type":"object"}}]}`)
-			httpReq := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(""))
+			httpReq := httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/responses", strings.NewReader(""))
 			_ = svc.ProxyOpenAIResponses(ctx, body, rec, httpReq)
 
 			require.Len(t, provider.proxyEndpoints, 1)

@@ -40,7 +40,7 @@ func handoffTestService() (*Service, *betaTestRouter, *betaCaptureProvider, cont
 func prepareTestHandoff(t *testing.T, svc *Service, ctx context.Context) preparedHandoff {
 	t.Helper()
 	recorder := httptest.NewRecorder()
-	require.NoError(t, svc.ProxyMessages(WithHandoffPreparation(ctx), []byte(handoffTestBody), recorder, httptest.NewRequest("POST", "/v1/route/handoff", nil)))
+	require.NoError(t, svc.ProxyMessages(WithHandoffPreparation(ctx), []byte(handoffTestBody), recorder, httptest.NewRequestWithContext(ctx, "POST", "/v1/route/handoff", nil)))
 	var prepared preparedHandoff
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &prepared), recorder.Body.String())
 	require.NotEmpty(t, prepared.Token)
@@ -126,11 +126,11 @@ func TestPiHandoffDisabledAndUtilityTurnsDoNotDispatch(t *testing.T) {
 		body, err := sjson.Set(handoffTestBody, "messages.0.content", prompt)
 		require.NoError(t, err)
 		recorder := httptest.NewRecorder()
-		require.NoError(t, svc.ProxyMessages(WithHandoffPreparation(ctx), []byte(body), recorder, httptest.NewRequest("POST", "/v1/route/handoff", nil)))
+		require.NoError(t, svc.ProxyMessages(WithHandoffPreparation(ctx), []byte(body), recorder, httptest.NewRequestWithContext(ctx, "POST", "/v1/route/handoff", nil)))
 		require.True(t, gjson.GetBytes(recorder.Body.Bytes(), "bypass").Bool())
 	}
 	svc.piHandoffSecret = nil
-	err := svc.ProxyMessages(WithHandoffPreparation(ctx), []byte(handoffTestBody), httptest.NewRecorder(), httptest.NewRequest("POST", "/v1/route/handoff", nil))
+	err := svc.ProxyMessages(WithHandoffPreparation(ctx), []byte(handoffTestBody), httptest.NewRecorder(), httptest.NewRequestWithContext(ctx, "POST", "/v1/route/handoff", nil))
 	require.ErrorIs(t, err, ErrHandoffUnavailable)
 	require.Zero(t, classifier.calls)
 	require.Empty(t, upstream.body)
@@ -145,12 +145,12 @@ func TestPiHandoffRejectsConcurrentForceAndCrossSessionCommandsBeforeMutation(t 
 	store.getFound = true
 	store.getPin = sessionpin.Pin{Model: "z-ai/glm-5.3-flash", Provider: providers.ProviderAIAND, Reason: translate.ReasonUserForceModel, PinnedUntil: time.Now().Add(time.Hour)}
 	svc.pinStore = store
-	err = svc.ProxyMessages(ctx, []byte(body), httptest.NewRecorder(), httptest.NewRequest("POST", "/v1/messages", nil))
+	err = svc.ProxyMessages(ctx, []byte(body), httptest.NewRecorder(), httptest.NewRequestWithContext(ctx, "POST", "/v1/messages", nil))
 	require.ErrorIs(t, err, ErrHandoffInvalid)
 	for _, prompt := range []string{"/beta", "/force-model claude-opus-4-7", "/unforce-model"} {
 		changed, err := sjson.Set(body, "messages.0.content", prompt)
 		require.NoError(t, err)
-		err = svc.ProxyMessages(ctx, []byte(changed), httptest.NewRecorder(), httptest.NewRequest("POST", "/v1/messages", nil))
+		err = svc.ProxyMessages(ctx, []byte(changed), httptest.NewRecorder(), httptest.NewRequestWithContext(ctx, "POST", "/v1/messages", nil))
 		require.ErrorIs(t, err, ErrHandoffInvalid)
 	}
 	require.Empty(t, upstream.body)

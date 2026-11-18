@@ -14,7 +14,7 @@ import (
 func TestProxyMessages_ThreadCreateServedStateless(t *testing.T) {
 	svc, p := bypassFixture(t)
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", strings.NewReader(""))
 	req.Header.Set("anthropic-beta", "claude-code-20250219,message-threads-2026-08-12,context-1m-2025-08-07")
 	body := []byte(`{"model":"` + bypassRequestedMdl + `","messages":[{"role":"user","content":"hi"}],"thread":{"type":"create"}}`)
 
@@ -33,7 +33,7 @@ func TestProxyMessages_ThreadCreateServedStateless(t *testing.T) {
 func TestProxyMessages_ThreadContinueAsksClientForFullHistory(t *testing.T) {
 	svc, p := bypassFixture(t)
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", strings.NewReader(""))
 	req.Header.Set("anthropic-beta", "message-threads-2026-08-12")
 	body := []byte(`{"model":"` + bypassRequestedMdl + `","messages":[{"role":"user","content":"next"}],"thread":{"type":"continue","previous_message_id":"msg_1"}}`)
 

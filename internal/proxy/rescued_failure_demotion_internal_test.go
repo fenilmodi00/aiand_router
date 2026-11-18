@@ -85,7 +85,7 @@ func TestProxyMessages_UnrescuedIdleFailureDemotesPrimary(t *testing.T) {
 			primary := &failingClient{err: providers.ErrUpstreamIdleTimeout}
 			svc := newRescuedFailureTurnService(store, rescuableDecision("hmm:authoritative model="+rescuedPrimaryModel, false), primary, true)
 			rec := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodPost, ingress.path, strings.NewReader(string(ingress.body)))
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, ingress.path, strings.NewReader(string(ingress.body)))
 			var err error
 			if ingress.openAI {
 				err = svc.ProxyOpenAIChatCompletion(rescuedFailureCtx(), ingress.body, rec, req)

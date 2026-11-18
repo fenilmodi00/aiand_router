@@ -172,7 +172,7 @@ func TestRecoveryAcceptanceCooldownExpiryAdmitsOneConcurrentProbe(t *testing.T) 
 	defer cancel()
 	body := []byte(`{"model":"gpt-6-luna","stream":true,"messages":[{"role":"user","content":"synthetic concurrent recovery"}]}`)
 	rec := httptest.NewRecorder()
-	require.NoError(t, svc.ProxyMessages(ctx, body, rec, httptest.NewRequest(http.MethodPost, "/v1/messages", nil)))
+	require.NoError(t, svc.ProxyMessages(ctx, body, rec, httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/messages", nil)))
 	require.Equal(t, recoveryOpusModel, rec.Header().Get(HeaderRouterModel))
 	require.Contains(t, (<-scorer.requests).AutomaticExcludedModels, catalog.ModelIDDeepSeekV4Pro.String(), "before expiry the real turn loop must load the history cooldown")
 	require.Empty(t, provider.entered)
@@ -184,7 +184,7 @@ func TestRecoveryAcceptanceCooldownExpiryAdmitsOneConcurrentProbe(t *testing.T) 
 		go func() {
 			defer callersDone.Done()
 			<-start
-			_ = svc.ProxyMessages(ctx, body, httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/v1/messages", nil))
+			_ = svc.ProxyMessages(ctx, body, httptest.NewRecorder(), httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/messages", nil))
 		}()
 	}
 	close(start)

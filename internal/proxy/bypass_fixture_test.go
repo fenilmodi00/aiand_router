@@ -40,7 +40,7 @@ func bypassCtx() context.Context {
 func bypassRequest(t *testing.T) (*httptest.ResponseRecorder, *http.Request, []byte) {
 	t.Helper()
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", strings.NewReader(""))
 	body := []byte(`{"model":"` + bypassRequestedMdl + `","messages":[{"role":"user","content":"hi"}]}`)
 	return rec, req, body
 }

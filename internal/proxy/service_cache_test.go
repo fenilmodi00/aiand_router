@@ -87,11 +87,11 @@ func TestService_Cache_HeuristicDecisionBypasses(t *testing.T) {
 	body := anthropicBody("ask")
 
 	rec1 := httptest.NewRecorder()
-	httpReq1 := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	httpReq1 := httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/messages", strings.NewReader(""))
 	require.NoError(t, svc.ProxyMessages(ctx, body, rec1, httpReq1))
 
 	rec2 := httptest.NewRecorder()
-	httpReq2 := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	httpReq2 := httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/messages", strings.NewReader(""))
 	require.NoError(t, svc.ProxyMessages(ctx, body, rec2, httpReq2))
 
 	assert.Len(t, provider.proxyBodies, 2, "decisions without RoutingMetadata must not be cached")
@@ -111,11 +111,11 @@ func TestService_Cache_MissingExternalIDBypasses(t *testing.T) {
 	// No externalID → cache bypassed (per-tenant scope is the only isolation).
 	ctx := context.Background()
 	rec1 := httptest.NewRecorder()
-	httpReq1 := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	httpReq1 := httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/messages", strings.NewReader(""))
 	require.NoError(t, svc.ProxyMessages(ctx, body, rec1, httpReq1))
 
 	rec2 := httptest.NewRecorder()
-	httpReq2 := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	httpReq2 := httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/messages", strings.NewReader(""))
 	require.NoError(t, svc.ProxyMessages(ctx, body, rec2, httpReq2))
 
 	assert.Len(t, provider.proxyBodies, 2, "without externalID the cache must not store or replay")
@@ -146,11 +146,11 @@ func TestService_Cache_HitOmitsFeedbackLink(t *testing.T) {
 	body := anthropicBody("ping")
 
 	rec1 := httptest.NewRecorder()
-	require.NoError(t, svc.ProxyMessages(ctx, body, rec1, httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))))
+	require.NoError(t, svc.ProxyMessages(ctx, body, rec1, httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/messages", strings.NewReader(""))))
 	require.NotEmpty(t, rec1.Header().Get(proxy.HeaderRouterFeedbackURL), "miss path must emit a feedback link")
 
 	rec2 := httptest.NewRecorder()
-	require.NoError(t, svc.ProxyMessages(ctx, body, rec2, httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))))
+	require.NoError(t, svc.ProxyMessages(ctx, body, rec2, httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/messages", strings.NewReader(""))))
 	require.Len(t, provider.proxyBodies, 1, "second call must be a cache hit")
 	require.Equal(t, proxy.RouterCacheHit, rec2.Header().Get(proxy.HeaderRouterCache))
 	assert.Empty(t, rec2.Header().Get(proxy.HeaderRouterFeedbackURL), "cache hit must not emit a feedback link (no telemetry to back it, and never replay the cached one)")
@@ -169,11 +169,11 @@ func TestService_Cache_DisabledByNilCache(t *testing.T) {
 	body := anthropicBody("ask")
 
 	rec1 := httptest.NewRecorder()
-	httpReq1 := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	httpReq1 := httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/messages", strings.NewReader(""))
 	require.NoError(t, svc.ProxyMessages(ctx, body, rec1, httpReq1))
 
 	rec2 := httptest.NewRecorder()
-	httpReq2 := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	httpReq2 := httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/messages", strings.NewReader(""))
 	require.NoError(t, svc.ProxyMessages(ctx, body, rec2, httpReq2))
 
 	assert.Len(t, provider.proxyBodies, 2, "nil cache must be a transparent passthrough")
@@ -218,7 +218,7 @@ func TestService_Cache_UnsafeRequestsCannotHitOrPopulate(t *testing.T) {
 				require.NoError(t, err)
 				invoke := func(body []byte) *httptest.ResponseRecorder {
 					rec := httptest.NewRecorder()
-					require.NoError(t, surface.invoke(svc, ctx, body, rec, httptest.NewRequest(http.MethodPost, "/test", nil)))
+					require.NoError(t, surface.invoke(svc, ctx, body, rec, httptest.NewRequestWithContext(ctx, http.MethodPost, "/test", nil)))
 					return rec
 				}
 				invoke(unsafe)
@@ -253,7 +253,7 @@ func TestService_Cache_RequestRestrictionsBypassPopulatedCache(t *testing.T) {
 				svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: provider}, nil, false, cache.New(cache.DefaultConfig()), nil, false, providers.ProviderAIAND, catalog.ModelIDGLM53Flash.String(), nil)
 				ctx := proxyContextWithExternalID(t, "tenant")
 				invoke := func(ctx context.Context) {
-					require.NoError(t, surface.invoke(svc, ctx, surface.plainBody, httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/test", nil)))
+					require.NoError(t, surface.invoke(svc, ctx, surface.plainBody, httptest.NewRecorder(), httptest.NewRequestWithContext(ctx, http.MethodPost, "/test", nil)))
 				}
 				invoke(ctx)
 				invoke(ctx)

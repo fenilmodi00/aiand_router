@@ -71,7 +71,7 @@ func TestCommandOutcomesAcrossSurfaces(t *testing.T) {
 					encoded, err := json.Marshal(body)
 					require.NoError(t, err)
 					rec := httptest.NewRecorder()
-					req := httptest.NewRequest(http.MethodPost, "/", nil)
+					req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/", nil)
 					requestContext := ctx
 					if command.excluded {
 						requestContext = context.WithValue(ctx, InstallationExcludedModelsContextKey{}, []string{"z-ai/glm-5.3"})

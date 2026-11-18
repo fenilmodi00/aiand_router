@@ -751,7 +751,7 @@ func (telemetryRepo) GetSessionCost(context.Context, string, string) (proxy.Sess
 // cookieReq issues a request with A's or B's session cookie.
 func (fx *isoFixture) cookieReq(t *testing.T, engine *gin.Engine, who, method, target, body string) *httptest.ResponseRecorder {
 	t.Helper()
-	req := httptest.NewRequest(method, target, strings.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(), method, target, strings.NewReader(body))
 	if body != "" {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -927,7 +927,7 @@ func TestIsolation_IDOR_OnboardingConfigRoutingPrefsAreOwnInstallation(t *testin
 		"/admin/v1/onboarding", "/admin/v1/config", "/admin/v1/routing-preferences",
 		"/admin/v1/keys", "/admin/v1/provider-keys", "/admin/v1/aiand-auth/status",
 	} {
-		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, nil)
 		rr := httptest.NewRecorder()
 		engine.ServeHTTP(rr, req)
 		assert.Equal(t, http.StatusUnauthorized, rr.Code, "%s must 401 without a session", path)

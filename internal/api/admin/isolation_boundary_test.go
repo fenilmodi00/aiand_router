@@ -125,7 +125,7 @@ func TestIsolation_Boundary_AccountCookieNeverAuthenticatesDataPlane(t *testing.
 	engine.Use(middleware.WithAuth(dataPlaneSvc, false))
 	engine.GET("/v1/probe", func(c *gin.Context) { c.Status(http.StatusOK) })
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/probe", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/probe", nil)
 	req.AddCookie(&http.Cookie{Name: auth.LoginSessionCookieName, Value: fx.accounts["A"].token, Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode})
 	rr := httptest.NewRecorder()
 	engine.ServeHTTP(rr, req)
@@ -151,7 +151,7 @@ func TestIsolation_Boundary_BearerNeverPassesManagementRoutes(t *testing.T) {
 
 	engine := fx.engine()
 	for name, token := range map[string]string{"rk_": rkToken, "ra_": raToken} {
-		req := httptest.NewRequest(http.MethodGet, "/admin/v1/keys", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/admin/v1/keys", nil)
 		req.Header.Set("Authorization", "Bearer "+token)
 		rr := httptest.NewRecorder()
 		engine.ServeHTTP(rr, req)
@@ -176,7 +176,7 @@ func TestIsolation_Boundary_ReadKeyAcceptedOnMetricsOrAPIKey(t *testing.T) {
 	// rk_ on the cookie-less metrics route: accepted (installation identity).
 	_, rkToken, err := fx.svc.IssueAPIKey(context.Background(), fx.accounts["A"].installation.ID, nil, nil)
 	require.NoError(t, err)
-	req := httptest.NewRequest(http.MethodGet, "/admin/v1/metrics/summary", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/admin/v1/metrics/summary", nil)
 	req.Header.Set("Authorization", "Bearer "+rkToken)
 	rr := httptest.NewRecorder()
 	engine.ServeHTTP(rr, req)
@@ -185,7 +185,7 @@ func TestIsolation_Boundary_ReadKeyAcceptedOnMetricsOrAPIKey(t *testing.T) {
 	// ra_ on the same route: rejected by withAPIKey (routing-scope-only).
 	_, raToken, err := fx.svc.IssueScopedAPIKey(context.Background(), fx.accounts["A"].installation.ID, auth.ScopeAnalyticsRead, nil, nil)
 	require.NoError(t, err)
-	req = httptest.NewRequest(http.MethodGet, "/admin/v1/metrics/summary", nil)
+	req = httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/admin/v1/metrics/summary", nil)
 	req.Header.Set("Authorization", "Bearer "+raToken)
 	rr = httptest.NewRecorder()
 	engine.ServeHTTP(rr, req)
@@ -211,7 +211,7 @@ func TestIsolation_Revocation_LogoutRevokesRowAndStolenCookieDies(t *testing.T) 
 	})
 	// The actual logout route semantics: revoke by token hash, then verify.
 	probe := func(token string) *httptest.ResponseRecorder {
-		req := httptest.NewRequest(http.MethodGet, "/admin/v1/keys", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/admin/v1/keys", nil)
 		req.AddCookie(&http.Cookie{Name: auth.LoginSessionCookieName, Value: token, Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode})
 		rr := httptest.NewRecorder()
 		full := fx.engine() // separate engine: cookie-required mgmt group
@@ -299,7 +299,7 @@ func TestIsolation_Revocation_ExpiredCacheEntryStillRejects(t *testing.T) {
 	// Revoke first (logout), then hit through a cache that has the
 	// pre-revocation positive entry: the verifier's rejection must win.
 	require.NoError(t, fx.loginLogout(fx.accounts["A"].token))
-	req := httptest.NewRequest(http.MethodGet, "/probe", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/probe", nil)
 	req.AddCookie(&http.Cookie{Name: auth.LoginSessionCookieName, Value: fx.accounts["A"].token, Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode})
 	rr := httptest.NewRecorder()
 	engine.ServeHTTP(rr, req)

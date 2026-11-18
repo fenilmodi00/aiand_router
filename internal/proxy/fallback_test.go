@@ -103,7 +103,7 @@ func TestDispatchWithFallback_PrimarySucceedsNoRetry(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	buf := dispatch.NewPreludeBuffer(rec)
-	r := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", nil)
 
 	winnerIdx, err := s.dispatchWithFallback(context.Background(), failoverInputs{
 		w:               rec,
@@ -138,7 +138,7 @@ func TestDispatchWithFallback_RejectsMissingPurposeBeforeAnyAttempt(t *testing.T
 		initialDecision: router.Decision{Model: "deepseek/deepseek-v4-pro"},
 		bindings:        []catalog.ProviderBinding{{Provider: "fireworks"}},
 		attempt: func(ctx context.Context, d router.Decision, p providers.Client) error {
-			return p.Proxy(ctx, d, providers.PreparedRequest{}, rec, httptest.NewRequest(http.MethodPost, "/v1/messages", nil))
+			return p.Proxy(ctx, d, providers.PreparedRequest{}, rec, httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/messages", nil))
 		},
 	})
 
@@ -165,7 +165,7 @@ func TestDispatchWithFallback_RetriesOnRetryableBufferedError(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	buf := dispatch.NewPreludeBuffer(rec)
-	r := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", nil)
 
 	winnerIdx, err := s.dispatchWithFallback(context.Background(), failoverInputs{
 		w:               rec,
@@ -216,7 +216,7 @@ func TestDispatchWithFallback_SchemaRejectionDoesNotFailoverCrossBinding(t *test
 
 	rec := httptest.NewRecorder()
 	buf := dispatch.NewPreludeBuffer(rec)
-	r := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", nil)
 
 	_, err := s.dispatchWithFallback(context.Background(), failoverInputs{
 		w:               rec,
@@ -255,7 +255,7 @@ func TestDispatchWithFallback_RetriesOnTransportError(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	buf := dispatch.NewPreludeBuffer(rec)
-	r := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", nil)
 
 	winnerIdx, err := s.dispatchWithFallback(context.Background(), failoverInputs{
 		w:               rec,
@@ -293,7 +293,7 @@ func TestDispatchWithFallback_NoRetryOnNonRetryableStatus(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	buf := dispatch.NewPreludeBuffer(rec)
-	r := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", nil)
 
 	winnerIdx, err := s.dispatchWithFallback(context.Background(), failoverInputs{
 		w:               rec,
@@ -339,7 +339,7 @@ func TestDispatchWithFallback_ModelNotFoundFailsOverToNextBinding(t *testing.T) 
 
 	rec := httptest.NewRecorder()
 	buf := dispatch.NewPreludeBuffer(rec)
-	r := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", nil)
 
 	winnerIdx, err := s.dispatchWithFallback(context.Background(), failoverInputs{
 		w:               rec,
@@ -375,7 +375,7 @@ func TestDispatchWithFallback_ModelNotFoundSingleBindingFlushes(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	buf := dispatch.NewPreludeBuffer(rec)
-	r := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", nil)
 
 	_, err := s.dispatchWithFallback(context.Background(), failoverInputs{
 		w:               rec,
@@ -417,7 +417,7 @@ func TestDispatchWithFallback_BillingBlockedFailsOverToNextBinding(t *testing.T)
 
 	rec := httptest.NewRecorder()
 	buf := dispatch.NewPreludeBuffer(rec)
-	r := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", nil)
 
 	winnerIdx, err := s.dispatchWithFallback(context.Background(), failoverInputs{
 		w:               rec,
@@ -454,7 +454,7 @@ func TestDispatchWithFallback_BillingBlockedSingleBindingFlushes(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	buf := dispatch.NewPreludeBuffer(rec)
-	r := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", nil)
 
 	_, err := s.dispatchWithFallback(context.Background(), failoverInputs{
 		w:               rec,
@@ -494,7 +494,7 @@ func TestDispatchWithFallback_NoRetryAfterBytesFlushed(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	buf := dispatch.NewPreludeBuffer(rec)
-	r := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", nil)
 
 	winnerIdx, err := s.dispatchWithFallback(context.Background(), failoverInputs{
 		w:               rec,
@@ -534,7 +534,7 @@ func TestDispatchWithFallback_BothFailFinalBodyFlushed(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	buf := dispatch.NewPreludeBuffer(rec)
-	r := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", nil)
 
 	winnerIdx, err := s.dispatchWithFallback(context.Background(), failoverInputs{
 		w:               rec,
@@ -582,7 +582,7 @@ func TestDispatchWithFallback_SingleBindingExhaustsRetries(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	buf := dispatch.NewPreludeBuffer(rec)
-	r := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", nil)
 
 	winnerIdx, err := s.dispatchWithFallback(context.Background(), failoverInputs{
 		w:               rec,
@@ -642,7 +642,7 @@ func TestDispatchWithFallback_SlowAttemptsStopBeforeRetryCount(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	buf := dispatch.NewPreludeBuffer(rec)
-	r := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", nil)
 
 	_, err := s.dispatchWithFallback(context.Background(), failoverInputs{
 		w:               rec,
@@ -678,7 +678,7 @@ func TestDispatchWithFallback_SingleBindingRetrySucceeds(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	buf := dispatch.NewPreludeBuffer(rec)
-	r := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", nil)
 
 	winnerIdx, err := s.dispatchWithFallback(context.Background(), failoverInputs{
 		w:               rec,
@@ -712,7 +712,7 @@ func TestDispatchWithFallback_SingleBindingNonRetryableNoRetry(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	buf := dispatch.NewPreludeBuffer(rec)
-	r := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", nil)
 
 	_, err := s.dispatchWithFallback(context.Background(), failoverInputs{
 		w:               rec,
@@ -748,7 +748,7 @@ func TestDispatchWithFallback_SingleBindingBackoffAbortsOnCancel(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	buf := dispatch.NewPreludeBuffer(rec)
-	r := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", nil)
 
 	_, err := s.dispatchWithFallback(context.Background(), failoverInputs{
 		w:               rec,

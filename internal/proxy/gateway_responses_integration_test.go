@@ -58,7 +58,7 @@ func TestProxyOpenAIResponses_GatewayServesTheResponsesSurface(t *testing.T) {
 	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(""))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/responses", strings.NewReader(""))
 	body := []byte(`{"model":"gpt-5.4-mini","input":"list files"}`)
 	require.NoError(t, svc.ProxyOpenAIResponses(context.Background(), body, rec, req))
 
@@ -93,7 +93,7 @@ func TestProxyOpenAIResponses_GatewayRejectionIsNotRetried(t *testing.T) {
 	).WithDeploymentKeyedProviders(map[string]struct{}{providers.ProviderAIAND: {}})
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(""))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/responses", strings.NewReader(""))
 	body := []byte(`{"model":"gpt-5.4-mini","input":"list files"}`)
 	err := svc.ProxyOpenAIResponses(context.Background(), body, rec, req)
 

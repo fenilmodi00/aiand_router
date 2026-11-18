@@ -48,7 +48,7 @@ func newSiblingRescueChain(svc rescueServices, primaryErr error, siblings ...rou
 	primary := router.Decision{Model: "primary-model", Provider: providers.ProviderAIAND}
 	c := &rescueChain{
 		svc:        svc,
-		r:          httptest.NewRequest(http.MethodPost, "/v1/messages", nil),
+		r:          httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/v1/messages", nil),
 		log:        slog.New(slog.NewTextHandler(io.Discard, nil)),
 		preludeBuf: newPreludeBuffer(httptest.NewRecorder()),
 		buildAttempt: func(router.Decision, translate.EmitOptions, string) (dispatchAttempt, error) {

@@ -72,7 +72,7 @@ func TestService_UtilityHardPin_CatalogTargetPerInstallation(t *testing.T) {
 			fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: catalog.ModelIDGLM53.String()}}
 			svc := newUtilityHardPinSvc(setup, fr)
 			rec := httptest.NewRecorder()
-			httpReq := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+			httpReq := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", strings.NewReader(""))
 
 			require.NoError(t, svc.ProxyMessages(setup.ctx(uuid.New().String()), []byte(exploreBody), rec, httpReq))
 
@@ -93,7 +93,7 @@ func TestService_UtilityHardPin_NoEligibleProviderIs400(t *testing.T) {
 	}
 	svc := newUtilityHardPinSvc(setup, &fakeRouter{})
 	rec := httptest.NewRecorder()
-	httpReq := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))
+	httpReq := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/messages", strings.NewReader(""))
 
 	err := svc.ProxyMessages(setup.ctx(uuid.New().String()), []byte(exploreBody), rec, httpReq)
 
