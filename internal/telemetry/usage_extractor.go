@@ -233,6 +233,7 @@ func (u *UsageExtractor) extractFromSSEEvent(eventType []byte, data []byte) {
 	switch providers.FamilyFor(u.provider) {
 	case providers.FamilyOpenAICompat:
 		u.extractOpenAISSE(data)
+	case providers.FamilyUnknown:
 	}
 }
 
@@ -289,6 +290,7 @@ func (u *UsageExtractor) tryExtractFromJSON() {
 	switch providers.FamilyFor(u.provider) {
 	case providers.FamilyOpenAICompat:
 		u.extractOpenAIChatJSONResponse(u.leftover)
+	case providers.FamilyUnknown:
 	}
 
 	u.RecordProviderUsage(facts)

@@ -178,6 +178,7 @@ func firstUserMessageText(body []byte, surface ConversationSurface) string {
 		if messages.Type == gjson.String {
 			return messages.String()
 		}
+	case ConversationAnthropic, ConversationChat:
 	}
 	var text string
 	messages.ForEach(func(_, message gjson.Result) bool {
@@ -203,6 +204,7 @@ func isUserMessage(message gjson.Result, surface ConversationSurface) bool {
 	switch surface {
 	case ConversationResponses:
 		return message.Get("type").String() == "message"
+	case ConversationAnthropic, ConversationChat:
 	}
 	return false
 }
