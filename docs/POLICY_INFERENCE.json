@@ -1,6 +1,6 @@
 {
   "schema_version": "inference_policy_registry_v2",
-  "registry_revision": "sha256:38f0ee012c1b3875ce996c075e13f89a4ba7bf1dafde990166b1bcedefe820ee",
+  "registry_revision": "sha256:a1e4f69ad850057caee77072385a2d720669eb40575c1b6f8c1d1b2156c541da",
   "policies": [
     {
       "purpose": "agent_shadow_evaluation",
@@ -109,9 +109,9 @@
       "purpose": "client_compaction",
       "dispatch_class": "client_authoritative",
       "policy_id": "client-compaction",
-      "policy_revision": "2",
+      "policy_revision": "3",
       "owner": "@steventohme",
-      "rationale": "Serve the client-supplied compaction turn on the session's own warm model when it is summary-grade, else the deployment compaction hard pin, rather than inventing another router summary operation.",
+      "rationale": "Authorize the Pi handoff summary on the session's previous model. Client compaction turns route as main inference: an eligible forced model, else the session pin, else the scorer.",
       "selection_strategy": "deployment_hard_pin",
       "candidate_source": "deployment",
       "hard_constraints": [

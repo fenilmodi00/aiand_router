@@ -14,7 +14,7 @@ description: Decide where new router behavior belongs before writing code — wh
 | changes wire format or streaming | Protocol & Ingress (pure format conversion stays in `internal/translate`) |
 | touches keys, BYOK, OAuth or subscriptions | Credential Brokerage |
 | chooses or filters models | Routing Policy (+ the `internal/router/policy` registry for inference purposes) |
-| does retry, fallback or provider calls | Inference Execution (port: `inference.Executor`) |
+| does retry, fallback or provider calls | Inference Execution (port: `inference.ResolvedPlan`) |
 | handles commands, compaction, handover or loops | Conversation Lifecycle |
 | is a model quirk | catalog data (see `add-model-or-quirk`) |
 | is new I/O | a port in the owning context, an adapter package, wiring in `cmd/router` (see `add-context-port`) |
