@@ -6350,7 +6350,9 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	// Responses entry point delegates the eager lifecycle and routing badge to
 	// this layer because it has the completed routing decision. Provider output
 	// remains separately buffered so retry and failover stay possible.
-	if rw, ok := w.(*translate.ResponsesWriter); ok {
+	responsesWriter, isResponses := w.(*translate.ResponsesWriter)
+	responseSwitch := responseProtocolSwitch{writer: responsesWriter}
+	if isResponses {
 		// A native OpenAI Responses route streams the original Responses
 		// bytes verbatim; cross-family routes stay in translation mode.
 		//
@@ -6363,17 +6365,14 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 			// marker already carries any funding warning when terminal
 			// surfaces are enabled.
 			// Parse native SSE when this client needs a badge and/or footer.
-			if supportsResponsesTerminalSurfaces(clientID.ClientApp) && (marker != "" || s.feedbackFooter(ctx, clientID.ClientApp, routeRes.TurnType, footerEchoed) != "") {
-				rw.SetPassthroughBadge()
-			} else {
-				rw.SetPassthrough()
-			}
+			responseSwitch.native(supportsResponsesTerminalSurfaces(clientID.ClientApp) &&
+				(marker != "" || s.feedbackFooter(ctx, clientID.ClientApp, routeRes.TurnType, footerEchoed) != ""))
 		}
 		if responsesPreludeWillEmit {
-			if err := rw.Prelude(true); err != nil {
+			if err := responsesWriter.Prelude(true); err != nil {
 				log.Error("Responses prelude failed", "err", err)
 			} else {
-				rw.Flush()
+				responsesWriter.Flush()
 				if err := responsesPreludeBuf.CommitPrelude(); err != nil {
 					return fmt.Errorf("commit Responses prelude: %w", err)
 				}
@@ -6389,7 +6388,6 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		sink = captureW
 	}
 
-	responsesWriter, isResponses := w.(*translate.ResponsesWriter)
 	makeMarkerSink := func(notice translate.RouterNotice) (http.ResponseWriter, error) {
 		if isResponses || verbatimPassthrough {
 			return sink, nil
@@ -6415,17 +6413,16 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	// than measured by a translator, so a count the router never computed stays
 	// unknown on the telemetry row.
 	nativeRespSummary := false
-	// buildAttempt composes the dispatch for one target model: same structure as
+	// buildProviderAttempt composes the dispatch for one target model: same structure as
 	// ProxyMessages', so a rescue on another model rebuilds the whole chain
 	// (emit, translator, marker) instead of reusing the failed model's.
 	//
 	// Dispatch keys off the provider's translation family, not a hardcoded name
 	// list, so a new OpenAI-compat provider routes here as soon as it has a
 	// ProviderFamilies entry (see internal/providers/provider.go).
-	buildAttempt := func(target router.Decision, targetOpts translate.EmitOptions, targetMarker string) (dispatchAttempt, error) {
+	buildProviderAttempt := func(target router.Decision, targetOpts translate.EmitOptions, targetMarker string) (dispatchAttempt, error) {
 		targetNotice := routerNoticeForRequest(ctx, r.Header, target.Model, targetMarker)
-		if rw, ok := w.(*translate.ResponsesWriter); ok {
-			rw.SetRoutedModel(target.Model)
+		if isResponses {
 			if targetMarker != "" && (!verbatimPassthrough || supportsResponsesTerminalSurfaces(clientID.ClientApp)) {
 				_, noticeErr := responsesNotices.prepare(r.Context(), responsesPreludeBuf, responsesPreludeBuf, translate.FormatOpenAIResponses, env.Stream(), targetNotice)
 				if noticeErr != nil {
@@ -6617,6 +6614,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		}
 	}
 
+	buildAttempt := responseSwitch.wrapBuilder(buildProviderAttempt)
 	attempt, attemptBuildErr := buildAttempt(decision, opts, marker)
 	if attemptBuildErr != nil {
 		finishInferenceSpan(inferenceSpan, decision, decision.Provider, -1, attemptBuildErr)
