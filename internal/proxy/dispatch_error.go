@@ -70,6 +70,7 @@ const (
 	DispatchErrorSpendCapReached
 	DispatchErrorDecisionModelUnavailable
 	DispatchErrorCompactionUnservable
+	DispatchErrorNoEligibleArm
 )
 
 // DispatchErrorClass is the format-agnostic classification of a dispatch
@@ -358,14 +359,8 @@ func ClassifyDispatchError(err error) (DispatchErrorClass, bool) {
 		}, true
 	case errors.Is(err, policy.ErrNoProviderCredentials):
 		return noEligibleProviderClass(), true
-	case errors.Is(err, policy.ErrNoRoutableModels):
-		return DispatchErrorClass{
-			Kind:       DispatchErrorNoRoutableModels,
-			Status:     http.StatusBadRequest,
-			Message:    "No model is routable for your organization: the current model and provider selection leaves nothing this request can run on. Ask your org admin to widen it.",
-			LogLevel:   "warn",
-			LogMessage: "Installation configuration leaves no routable model",
-		}, true
+	case errors.Is(err, policy.ErrNoRoutableModels), errors.Is(err, policy.ErrNoEligibleArm):
+		return routingEligibilityClass(err), true
 	case errors.Is(err, dispatch.ErrTargetMismatch):
 		return DispatchErrorClass{
 			Kind:       DispatchErrorPlanTargetMismatch,
@@ -484,7 +479,7 @@ func (k DispatchErrorKind) IsClientError() bool {
 	switch k {
 	case DispatchErrorClassifierHistory, DispatchErrorClassifierInputTooLong:
 		return true
-	case DispatchErrorRequestNotJSONObject, DispatchErrorResponsesChatCompletionsBody, DispatchErrorNoEligibleProvider, DispatchErrorAllowlistEmptiesPool, DispatchErrorContextWindowExceeded, DispatchErrorImageLimitExceeded, DispatchErrorInvalidRoutingKnobs, DispatchErrorTranslationIntrinsicallyIncompatible, DispatchErrorAnthropicCacheControlInvalid, DispatchErrorForcedModelExcluded, DispatchErrorForcedModelUnknown, DispatchErrorPassthroughModelUnknown, DispatchErrorForcedClusterUnsupportedStrategy, DispatchErrorForcedClusterUnservable, DispatchErrorNoRoutableModels, DispatchErrorPlanOverrideRejected, DispatchErrorProductIneligible:
+	case DispatchErrorRequestNotJSONObject, DispatchErrorResponsesChatCompletionsBody, DispatchErrorNoEligibleProvider, DispatchErrorAllowlistEmptiesPool, DispatchErrorContextWindowExceeded, DispatchErrorImageLimitExceeded, DispatchErrorInvalidRoutingKnobs, DispatchErrorTranslationIntrinsicallyIncompatible, DispatchErrorAnthropicCacheControlInvalid, DispatchErrorForcedModelExcluded, DispatchErrorForcedModelUnknown, DispatchErrorPassthroughModelUnknown, DispatchErrorForcedClusterUnsupportedStrategy, DispatchErrorForcedClusterUnservable, DispatchErrorNoRoutableModels, DispatchErrorPlanOverrideRejected, DispatchErrorProductIneligible, DispatchErrorNoEligibleArm:
 		return true
 	default:
 		return false
