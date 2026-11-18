@@ -6438,9 +6438,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 			// Split from attempt so a native dispatch that finds no Responses surface
 			// can re-emit onto chat/completions while still pre-commit.
 			dispatchOpenAI := func(actx context.Context, d router.Decision, p providers.Client, surface openAISurface, stripPromptCacheKey bool) error {
-				if rw, ok := w.(*translate.ResponsesWriter); ok {
-					rw.ResetAttempt()
-				}
+				resetResponsesAttempt(w)
 				var prep providers.PreparedRequest
 				switch surface {
 				case surfaceResponsesNative:
@@ -7213,9 +7211,16 @@ func (s *Service) ProxyOpenAIResponses(ctx context.Context, body []byte, w http.
 	nativeBody := body
 	conversionBody := body
 	var err error
+	// Router-authored reasoning items (rs_router_*) are replayed by Responses
+	// clients for continuity only; the native upstream has no use for them and
+	// rejects ids it did not mint.
+	nativeBody, err = translate.StripRouterReasoningFromResponsesInput(body)
+	if err != nil {
+		return err
+	}
 	if terminalResponses {
 		ctx = context.WithValue(ctx, responsesLastAnnouncedModelContextKey{}, translate.LastAnnouncedResponsesModel(body))
-		nativeBody, err = stripResponsesTerminalArtifacts(body)
+		nativeBody, err = stripResponsesTerminalArtifacts(nativeBody)
 		if err != nil {
 			return err
 		}
