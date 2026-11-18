@@ -528,6 +528,8 @@ Set `DATABASE_URL` directly, or compose it from the individual vars:
 
 | `ROUTER_RESTRICT_UPSTREAM_EGRESS` | follows `ROUTER_DEPLOYMENT_MODE` | When true, provider adapters refuse to dial an upstream that resolves outside the public internet (loopback, private, link-local, CGNAT). Defaults to true in `managed` mode and false in `selfhosted`, where pointing a provider at an in-cluster or loopback gateway is normal. While on, provider adapters also ignore `HTTP_PROXY`/`HTTPS_PROXY`, since a proxied connection makes the destination unverifiable. |
 
+| `ROUTER_INFERENCE_ORGANIZATION_ALLOWLIST` | *(none)* | Comma-separated organization IDs (installation external IDs) allowed to authenticate. When set, router keys for any other organization get `403 organization_not_allowed` before routing or dispatch. Signed internal test plans are exempt. Use it on shared non-production deployments so self-serve signups cannot spend provider keys. |
+
 
 
 | `ROUTER_MODEL_DISCOVERY_PRIVATE_ORIGINS` | *(none)* | Comma-separated exact origins allowed to use private addresses for model discovery (for example, `https://gateway.internal:8443`). Discovery always blocks non-public destinations otherwise and always ignores ambient proxies, regardless of `ROUTER_RESTRICT_UPSTREAM_EGRESS`. Entries may contain only scheme, host, and port; paths, wildcards, and CIDRs are rejected at startup. |
@@ -1648,6 +1650,17 @@ rule and cannot enable training. Shadow decisions are always non-dispatching,
 
 
 non-debug, and non-learning.
+
+`x-weave-flag-overrides` follows the same authorization rule. Its value is a
+JSON object of org-overridable flag keys, for example
+`{"planner_enabled":false,"escalation_active_classifier":"none"}`, validated by
+the same registry as stored org overrides and layered over them for that
+request only, so benchmark arms on one installation can each disable different
+components. For an authorized installation an unknown, non-overridable or
+invalid value is HTTP 400 (`flag_overrides_malformed`); for every other
+installation, or when `ROUTER_FLAG_OVERRIDES_DISABLED` is set, the header is
+ignored. Session-scoped behavior (pins, planner stays, escalation state) reads
+the flags on each turn, so send the same header on every turn of a session.
 
 
 

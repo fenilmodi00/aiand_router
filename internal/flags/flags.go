@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 )
@@ -582,6 +583,27 @@ func ValidateOverrides(o Overrides) error {
 	return validateEscalationOverrides(o)
 }
 
+// Overlay layers top over o for one request. Keys absent from top keep their
+// stored value; o is never mutated.
+func (o Overrides) Overlay(top Overrides) Overrides {
+	return Overrides{
+		Bools:   overlayValues(o.Bools, top.Bools),
+		Ints:    overlayValues(o.Ints, top.Ints),
+		Floats:  overlayValues(o.Floats, top.Floats),
+		Strings: overlayValues(o.Strings, top.Strings),
+	}
+}
+
+func overlayValues[V any](base, top map[Key]V) map[Key]V {
+	if len(base) == 0 && len(top) == 0 {
+		return nil
+	}
+	merged := make(map[Key]V, len(base)+len(top))
+	maps.Copy(merged, base)
+	maps.Copy(merged, top)
+	return merged
+}
+
 // Keys returns every overridden key, sorted, for logging and tests.
 func (o Overrides) Keys() (keys []Key) {
 	keys = make([]Key, 0, len(o.Bools)+len(o.Ints)+len(o.Floats)+len(o.Strings))
@@ -606,6 +628,20 @@ func (o Overrides) Keys() (keys []Key) {
 // registered and overridable, and every value must match its registered Kind;
 // a violation is returned as an error rather than silently dropped.
 func ParseOverrides(raw []byte) (o Overrides, err error) {
+	o, err = DecodeOverrides(raw)
+	if err != nil {
+		return Overrides{}, err
+	}
+	if err := ValidateOverrides(o); err != nil {
+		return Overrides{}, err
+	}
+	return o, nil
+}
+
+// DecodeOverrides decodes a flag_overrides JSONB payload without applying the
+// cross-key rules, so a caller can layer it over stored overrides and validate
+// the merged set instead.
+func DecodeOverrides(raw []byte) (o Overrides, err error) {
 	if len(raw) == 0 {
 		return Overrides{}, nil
 	}
@@ -630,9 +666,6 @@ func ParseOverrides(raw []byte) (o Overrides, err error) {
 		if err != nil {
 			return Overrides{}, err
 		}
-	}
-	if err := ValidateOverrides(o); err != nil {
-		return Overrides{}, err
 	}
 	return o, nil
 }

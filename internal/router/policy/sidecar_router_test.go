@@ -871,3 +871,26 @@ func TestSidecarRouterCapabilityRefreshIsConcurrentSafe(t *testing.T) {
 
 	workers.Wait()
 }
+
+func TestSidecarRouterServesOnlyResolvedBindings(t *testing.T) {
+	served, outside := string(catalog.ModelIDGLM53), string(catalog.ModelIDKimiK3)
+	resolver := policy.NewResolver(
+		set(served),
+		set(providers.ProviderAIAND),
+		catalogRosterID,
+	)
+	req := router.Request{
+		EnabledProviders: set(providers.ProviderAIAND),
+		CustomBindings:   map[string][]string{served: {providers.ProviderAIAND}},
+	}
+	adapter := policy.NewSidecarRouter(policy.SidecarRouterConfig{Strategy: router.StrategyHMM}, &recordingPolicy{result: policy.Result{
+		Model:    outside,
+		Provider: providers.ProviderAIAND,
+	}}, resolver)
+
+	decision, err := adapter.Route(context.Background(), req)
+
+	require.ErrorIs(t, err, router.ErrStrategyUnavailable)
+	assert.ErrorContains(t, err, "sidecar returned unknown arm")
+	assert.Empty(t, decision.Provider)
+}

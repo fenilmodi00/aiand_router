@@ -553,7 +553,9 @@ What each `off` does (and `on` reverses byte-for-byte):
 
 **Cursor** has no config file we own — its base URL lives in Cursor's own
 settings UI. To toggle it, open **Settings → Models → Override OpenAI Base
-URL** and turn the override (`<base-url>/v1`) on or off there.
+URL** and turn the override (`<base-url>/v1`) on or off there. Its custom
+model is named `Aiand Auto` (the router also accepts `aiand-auto`,
+`Weave Auto`, and `weave-auto`).
 
 ## Choosing which models the router may pick
 
