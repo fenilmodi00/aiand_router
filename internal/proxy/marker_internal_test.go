@@ -41,7 +41,7 @@ func TestModelSelectionReasoningOnlyForNewlyServedModel(t *testing.T) {
 	turn := turnLoopResult{Decision: router.Decision{Model: "new-model"}, PriorServedModel: "old-model"}
 	marker := routingMarkerFor(turn)
 	assert.Contains(t, modelSelectionMarkerForRequest(ctx, turn, marker, turn.Decision.Model, ""), " · best pick for this turn\n\n")
-	assert.Contains(t, modelSelectionMarkerForRequest(ctx, turn, siblingRoutingMarkerFor(turn, "overloaded-model", "rescue-model"), "rescue-model", siblingMarkerReason("overloaded-model")), " · switched after overloaded-model was overloaded\n\n")
+	assert.Contains(t, modelSelectionMarkerForRequest(ctx, turn, siblingRoutingMarkerFor(turn, "overloaded-model", "rescue-model"), "rescue-model", siblingMarkerReason("overloaded-model")), " · switched after overloaded-model was unavailable\n\n")
 
 	turn.PriorServedModel = "new-model"
 	assert.Equal(t, "✦ **Aiand Router** → new-model\n\n", modelSelectionMarkerForRequest(ctx, turn, "✦ **Aiand Router** → new-model\n\n", turn.Decision.Model, ""))
@@ -263,7 +263,7 @@ func TestSubscriptionTargetMarker_SwitchedModelIsWordedAsRescue(t *testing.T) {
 	target := router.Decision{Model: "gpt-6.1-sol", Provider: "openai"}
 	res := turnLoopResult{Decision: picked}
 
-	assert.Equal(t, "✦ **Aiand Router** → gpt-6.1-sol · switched after gpt-6-luna was overloaded\n\n",
+	assert.Equal(t, "✦ **Aiand Router** → gpt-6.1-sol · switched after gpt-6-luna was unavailable\n\n",
 		subscriptionTargetMarker(ctx, http.Header{}, res, picked, target, routingMarkerFor(res)))
 
 	optOut := http.Header{}
