@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -679,11 +680,11 @@ func TestScorer_ReturnsErrOnEmbedTimeout(t *testing.T) {
 type uncancellableEmbedder struct {
 	vec   []float32
 	delay time.Duration
-	calls int
+	calls atomic.Int64
 }
 
 func (u *uncancellableEmbedder) Embed(_ context.Context, _ string) ([]float32, error) {
-	u.calls++
+	u.calls.Add(1)
 	time.Sleep(u.delay)
 	return u.vec, nil
 }
@@ -706,7 +707,7 @@ func TestScorer_WaitsSingleFlightPastSoftEmbedTimeout(t *testing.T) {
 	decision, err := s.Route(context.Background(), router.Request{PromptText: strings.Repeat("x", 100)})
 	require.NoError(t, err, "a late first embed within the overall ceiling must succeed")
 	assert.Equal(t, "moonshotai/kimi-k3.1-pro", decision.Model)
-	assert.Equal(t, 1, emb.calls, "must never start a second Embed while the first runs")
+	assert.Equal(t, int64(1), emb.calls.Load(), "must never start a second Embed while the first runs")
 }
 
 // A persistently-slow uncancellable embed still fails closed at the overall
@@ -721,7 +722,7 @@ func TestScorer_FailsClosedOnOverallEmbedTimeout(t *testing.T) {
 	_, err := s.Route(context.Background(), router.Request{PromptText: strings.Repeat("x", 100)})
 	require.Error(t, err)
 	require.ErrorIs(t, err, ErrClusterUnavailable)
-	assert.Equal(t, 1, emb.calls, "fail-closed must not launch a parallel retry")
+	assert.Equal(t, int64(1), emb.calls.Load(), "fail-closed must not launch a parallel retry")
 }
 
 type slowEmbedder struct {
