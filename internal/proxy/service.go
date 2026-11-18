@@ -379,10 +379,9 @@ type Service struct {
 	// dispatchWithFallback. Tests inject a no-op to avoid real delays; prod
 	// leaves it nil and falls back to sleepWithContext.
 	retrySleep func(context.Context, time.Duration) error
-	// now, when non-nil, overrides the clock dispatchWithFallback uses to
-	// price the same-binding retry budget. Tests inject a fake to simulate a
-	// slow attempt without burning real time; prod leaves it nil (time.Now).
-	now func() time.Time
+	// clock, when non-nil, is the injectable time source the proxy reads instead
+	// of the wall clock. Tests inject a fake; prod wires time.Now.
+	clock auth.Clock
 	// feedbackRepo persists per-request human feedback (router.request_feedback)
 	// and reads it back for the no-login feedback page. Nil leaves the feedback
 	// endpoints' DB access disabled (Get/Submit return ErrFeedbackUnavailable).
@@ -419,11 +418,11 @@ var pinNeverExpires = time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC)
 // pinExpiry returns the PinnedUntil to record for a pin with the given decision
 // reason. User-forced pins get the never-expires sentinel; every other pin keeps
 // the sliding one-hour session TTL.
-func pinExpiry(reason string) time.Time {
+func pinExpiry(reason string, now time.Time) time.Time {
 	if strings.HasPrefix(reason, translate.ReasonUserForceModel) {
 		return pinNeverExpires
 	}
-	return time.Now().Add(pinSessionTTL)
+	return now.Add(pinSessionTTL)
 }
 
 // APIKeyIDContextKey is the request-context key for the authenticated api_key_id.
@@ -1578,7 +1577,7 @@ type localRecoveryProbeLease struct {
 func (s *Service) recoveryProbeLeaseFor(ctx context.Context) time.Duration {
 	leaseFor := recoveryProbeLeaseDuration
 	if deadline, hasDeadline := ctx.Deadline(); hasDeadline {
-		if untilDeadline := deadline.Add(time.Minute).Sub(s.clockNow()); untilDeadline > leaseFor {
+		if untilDeadline := deadline.Add(time.Minute).Sub(s.clock.Now()); untilDeadline > leaseFor {
 			leaseFor = untilDeadline
 		}
 	}
@@ -1615,7 +1614,7 @@ func (s *Service) acquireRecoveryProbe(ctx context.Context, sessionKey [sessionp
 		}, true
 	}
 	key := string(sessionKey[:]) + "\x00" + model
-	now := s.clockNow()
+	now := s.clock.Now()
 	s.recoveryProbeMu.Lock()
 	if lease, exists := s.recoveryProbeLeases[key]; exists && now.Before(lease.until) {
 		s.recoveryProbeMu.Unlock()
@@ -2836,9 +2835,9 @@ func (s *Service) PassthroughToNamedProvider(ctx context.Context, providerName s
 		prep = providers.PreparedRequest{Body: body, Headers: make(http.Header)}
 	}
 
-	proxyStart := time.Now()
+	proxyStart := s.clock.Now()
 	proxyErr := p.Passthrough(ctx, prep, w, r)
-	proxyMs := time.Since(proxyStart).Milliseconds()
+	proxyMs := s.clock.Now().Sub(proxyStart).Milliseconds()
 	log.Info("PassthroughToProvider complete", "provider", providerName, "proxy_ms", proxyMs, "proxy_err", proxyErr)
 	return proxyErr
 }
@@ -3035,7 +3034,7 @@ func (s *Service) repinOffRefusingModel(ctx context.Context, sessionKey [session
 		Reason:         reasonCyberRefusalRepin,
 		Strategy:       router.StrategyFromContext(ctx),
 		TurnCount:      1,
-		PinnedUntil:    pinExpiry(reasonCyberRefusalRepin),
+		PinnedUntil:    pinExpiry(reasonCyberRefusalRepin, s.clock.Now()),
 	}
 	// context.Background(): ctx may already be canceled here (response written,
 	// client disconnected); a canceled ctx would drop the re-pin write.
@@ -3086,7 +3085,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	ctx = withTurnFailures(ctx)
 	ctx, rateLimit := s.withRateLimitTurn(ctx)
 	log := observability.FromContext(ctx)
-	requestStart := time.Now()
+	requestStart := s.clock.Now()
 	requestID := requestIDFor(ctx)
 	ctx = telemetry.WithRecorder(ctx, s.newTelemetryRecorder())
 
@@ -3398,7 +3397,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 			"admitted_for_upstream", strings.Join(overflowAdmitted, ","),
 		)
 	}
-	routeStart := time.Now()
+	routeStart := s.clock.Now()
 	routingPromptText, routingMessages := routingInputForRequest(ctx, env, promptText, embedFlag)
 	req := router.Request{
 		RequestedModel:               feats.Model,
@@ -3454,7 +3453,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	}()
 	finishRoutingSpan(routeSpan, routeRes.Decision, routeErr)
 	if routeErr != nil {
-		log.Error("Routing failed", "err", routeErr, "route_ms", time.Since(routeStart).Milliseconds(), "requested_model", feats.Model, "total_input_tokens", feats.Tokens)
+		log.Error("Routing failed", "err", routeErr, "route_ms", s.clock.Now().Sub(routeStart).Milliseconds(), "requested_model", feats.Model, "total_input_tokens", feats.Tokens)
 		s.recordPolicyPinRouteFailure(ctx, requestID, requestStart, feats.Model, routeRes.TurnType, inboundUserPrompt, routeErr)
 		return routeErr
 	}
@@ -3485,7 +3484,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	stickyHit := routeRes.StickyHit
 	pinTier := routeRes.PinTier
 	pinAgeSec := routeRes.PinAgeSec
-	routeMs := time.Since(routeStart).Milliseconds()
+	routeMs := s.clock.Now().Sub(routeStart).Milliseconds()
 	s.logPlannerOutcome(ctx, routeRes)
 
 	// Cross-envelope no-progress detector: repeated identical fingerprints in a
@@ -3496,7 +3495,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	if !agentShadowMode && !routeRes.CallerModelPassthrough && !routeRes.AuthoritativePerTurn && toolBearingTurn && s.noProgress != nil {
 		fp := computeNoProgressFingerprint(decision, promptText, feats.MessageCount, toolProgressMarker(env))
 		role := roleForTier(catalog.TierFor(feats.Model))
-		if looped, count := s.noProgress.recordAndDetect(routeRes.SessionKey, installationID, role, fp, time.Now()); looped {
+		if looped, count := s.noProgress.recordAndDetect(routeRes.SessionKey, installationID, role, fp, s.clock.Now()); looped {
 			return s.handleNoProgressBreak(ctx, w, env, count, installationID, routeRes.SessionKey, role, decision.Model, decision.Provider, feats.Tokens, routeRes.Decision.Reason)
 		}
 	}
@@ -3532,7 +3531,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	if !agentShadowMode && s.ResolveStruggleShadowEnabled(ctx) && (turntype.DetectFromEnvelope(env, feats, "") == turntype.MainLoop || turntype.DetectFromEnvelope(env, feats, "") == turntype.ToolResult) {
 		var wall time.Duration
 		if !routeRes.PinFirstPinnedAt.IsZero() {
-			wall = time.Since(routeRes.PinFirstPinnedAt)
+			wall = s.clock.Now().Sub(routeRes.PinFirstPinnedAt)
 		}
 		if reasons := struggleReasons(routeRes.PinTurnCount, wall); len(reasons) > 0 {
 			role := roleForTier(catalog.TierFor(feats.Model))
@@ -3597,7 +3596,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 			telemetry.Record(ctx, telemetry.Span{
 				Name:  "router.cache_hit",
 				Start: requestStart,
-				End:   time.Now(),
+				End:   s.clock.Now(),
 				Attrs: telemetry.NewAttrBuilder(7).
 					String("request_id", requestID).
 					String("external_id", externalID).
@@ -3605,11 +3604,11 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 					String("decision.provider", decision.Provider).
 					Bool("cache.hit", true).
 					String("cache.format", string(cache.FormatAnthropic)).
-					Int64("latency.total_ms", time.Since(requestStart).Milliseconds()).
+					Int64("latency.total_ms", s.clock.Now().Sub(requestStart).Milliseconds()).
 					Build(),
 			})
 			telemetry.Flush(ctx)
-			log.Info("ProxyMessages cache hit", "requested_model", feats.Model, "baseline_model", s.baselineFor(ctx, feats.Model), "decision_model", decision.Model, "decision_provider", decision.Provider, "external_id", externalID, "total_ms", time.Since(requestStart).Milliseconds())
+			log.Info("ProxyMessages cache hit", "requested_model", feats.Model, "baseline_model", s.baselineFor(ctx, feats.Model), "decision_model", decision.Model, "decision_provider", decision.Provider, "external_id", externalID, "total_ms", s.clock.Now().Sub(requestStart).Milliseconds())
 			return nil
 		}
 		s.recordSemanticCacheMiss(ctx)
@@ -3670,7 +3669,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	telemetry.Record(ctx, telemetry.Span{
 		Name:  "router.decision",
 		Start: requestStart,
-		End:   time.Now(),
+		End:   s.clock.Now(),
 		Attrs: decisionBuilder.Build(),
 	})
 	telemetry.Flush(ctx)
@@ -3785,7 +3784,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	streamCut := newStreamCutObserver(nil)
 	streamCut.describeRequest(len(body), env)
 
-	proxyStart := time.Now()
+	proxyStart := s.clock.Now()
 	inferenceParentCtx := ctx
 	ctx, inferenceSpan := startInferenceSpan(ctx, decision, clientSessionIDForRequest(ctx, env))
 	defer inferenceSpan.End()
@@ -4302,7 +4301,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		}
 	}
 
-	proxyMs := time.Since(proxyStart).Milliseconds()
+	proxyMs := s.clock.Now().Sub(proxyStart).Milliseconds()
 	finishInferenceSpan(inferenceSpan, decision, finalProvider, winnerIdx, proxyErr)
 	ctx = restoreParentSpan(ctx, inferenceParentCtx)
 
@@ -4359,7 +4358,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 		Bool("cost.subscription_served", false).
 		Bool("cost.fast_mode", upstreamFast).
 		Int64("latency.upstream_ms", proxyMs).
-		Int64("latency.total_ms", time.Since(requestStart).Milliseconds()).
+		Int64("latency.total_ms", s.clock.Now().Sub(requestStart).Milliseconds()).
 		Int64("upstream.status_code", int64(upstreamStatus(proxyErr))).
 		Bool("routing.cross_format", crossFormat).
 		String("dispatch.primary_provider", primaryProvider).
@@ -4393,7 +4392,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	telemetry.Record(ctx, telemetry.Span{
 		Name:  "router.upstream",
 		Start: proxyStart,
-		End:   time.Now(),
+		End:   s.clock.Now(),
 		Attrs: upstreamBuilder.Build(),
 	})
 	respBody, respTrunc := capturedResponse(contentCap)
@@ -4443,7 +4442,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 			DecisionReason:           telemetryDecisionReason(ctx, decision.Reason),
 			RequestedAllowedModels:   requestedAllowedModelsForTelemetry(ctx),
 			EstimatedInputTokens:     int32(feats.Tokens),
-			ContextSnapshot:          contextSnapshotJSONForDecision(w.Header(), requestID, feats.Model, decision.Model, decision.Provider, requestStart, s.clockNow()),
+			ContextSnapshot:          contextSnapshotJSONForDecision(w.Header(), requestID, feats.Model, decision.Model, decision.Provider, requestStart, s.clock.Now()),
 			StickyHit:                stickyHit,
 			PinTier:                  routeRes.PinTier,
 			EmbedInput:               embedInput,
@@ -4455,7 +4454,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 			ActualOutputCostUSD:      catalog.EffectiveOutputCost(catalog.PromptTokens(in, cacheCreation, cacheRead, decision.Provider), out, actPricing, usageMods),
 			RouteLatencyMs:           routeMs,
 			UpstreamLatencyMs:        proxyMs,
-			TotalLatencyMs:           time.Since(requestStart).Milliseconds(),
+			TotalLatencyMs:           s.clock.Now().Sub(requestStart).Milliseconds(),
 			CrossFormat:              crossFormat,
 			UpstreamStatusCode:       int32(upstreamStatus(proxyErr)),
 			ClusterIDs:               obs.ClusterIDs,
@@ -4866,7 +4865,7 @@ func (s *Service) recordTurnUsage(ctx context.Context, res turnLoopResult, serve
 		CachedWriteTokens:   cacheCreation,
 		OutputTokens:        out,
 		OutputLimitReached:  outputLimitReached,
-		EndedAt:             time.Now(),
+		EndedAt:             s.clock.Now(),
 		ServedModel:         servedModel,
 		ServedProvider:      servedProvider,
 		PriorServedModel:    res.PriorServedModel,
@@ -4917,14 +4916,14 @@ func (s *Service) recordHMMTurnHistory(res turnLoopResult, servedProvider, serve
 		Reason:         hmmHistoryStoredReason(res),
 		Strategy:       router.StrategyFromContext(strategyCtx),
 		TurnCount:      1,
-		PinnedUntil:    pinExpiry(hmmHistoryReason),
+		PinnedUntil:    pinExpiry(hmmHistoryReason, s.clock.Now()),
 	})
 	// Zero tokens means a failed/empty upstream turn — don't clobber prior
 	// usage counters; the TTL-refreshing upsert above already ran.
 	if !hasUsage {
 		return
 	}
-	now := time.Now()
+	now := s.clock.Now()
 	if err := s.pinStore.UpdateUsage(context.Background(), res.SessionKey, role, sessionpin.Usage{
 		Strategy:            router.StrategyFromContext(strategyCtx),
 		InputTokens:         in,
@@ -5276,11 +5275,11 @@ func clusterIDsFromDecision(d router.Decision) []int {
 }
 
 // pinAge returns seconds since first_pinned_at.
-func pinAge(p sessionpin.Pin) int64 {
+func pinAge(p sessionpin.Pin, now time.Time) int64 {
 	if p.FirstPinnedAt.IsZero() {
 		return 0
 	}
-	d := time.Since(p.FirstPinnedAt)
+	d := now.Sub(p.FirstPinnedAt)
 	if d < 0 {
 		return 0
 	}
@@ -5757,7 +5756,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	ctx = withTurnFailures(ctx)
 	ctx, rateLimit := s.withRateLimitTurn(ctx)
 	log := observability.FromContext(ctx)
-	requestStart := time.Now()
+	requestStart := s.clock.Now()
 	requestID := requestIDFor(ctx)
 	ctx = telemetry.WithRecorder(ctx, s.newTelemetryRecorder())
 
@@ -6085,7 +6084,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		ClusterArmOverrides:    clusterArmOverridesForRequest(ctx),
 		ProductEligibility:     entitlement.ModelBoundaryFromContext(ctx),
 	}
-	routeStart := time.Now()
+	routeStart := s.clock.Now()
 	routeCtx, routeSpan := startRoutingSpan(ctx, routeRequest)
 	routeRes, err := s.runTurnLoop(routeCtx, env, feats, apiKeyID, installationID, subAgentHint, r.Header, routeRequest)
 	defer routeRes.releaseCooldownProbes()
@@ -6094,7 +6093,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		s.completeEscalation(ctx, routeRes, returnErr, escalationCapture, translate.EscalationResponseChat)
 	}()
 	finishRoutingSpan(routeSpan, routeRes.Decision, err)
-	routeMs := time.Since(routeStart).Milliseconds()
+	routeMs := s.clock.Now().Sub(routeStart).Milliseconds()
 	if err != nil {
 		log.Error("Routing failed for OpenAI request", "err", err, "route_ms", routeMs, "requested_model", feats.Model, "total_input_tokens", feats.Tokens)
 		s.recordPolicyPinRouteFailure(ctx, requestID, requestStart, feats.Model, routeRes.TurnType, inboundUserPromptOAI, err)
@@ -6146,7 +6145,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 			telemetry.Record(ctx, telemetry.Span{
 				Name:  "router.cache_hit",
 				Start: requestStart,
-				End:   time.Now(),
+				End:   s.clock.Now(),
 				Attrs: telemetry.NewAttrBuilder(7).
 					String("request_id", requestID).
 					String("external_id", externalID).
@@ -6154,11 +6153,11 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 					String("decision.provider", decision.Provider).
 					Bool("cache.hit", true).
 					String("cache.format", string(cache.FormatOpenAI)).
-					Int64("latency.total_ms", time.Since(requestStart).Milliseconds()).
+					Int64("latency.total_ms", s.clock.Now().Sub(requestStart).Milliseconds()).
 					Build(),
 			})
 			telemetry.Flush(ctx)
-			log.Info("ProxyOpenAIChatCompletion cache hit", "requested_model", feats.Model, "baseline_model", s.baselineFor(ctx, feats.Model), "decision_model", decision.Model, "decision_provider", decision.Provider, "external_id", externalID, "total_ms", time.Since(requestStart).Milliseconds())
+			log.Info("ProxyOpenAIChatCompletion cache hit", "requested_model", feats.Model, "baseline_model", s.baselineFor(ctx, feats.Model), "decision_model", decision.Model, "decision_provider", decision.Provider, "external_id", externalID, "total_ms", s.clock.Now().Sub(requestStart).Milliseconds())
 			return nil
 		}
 		s.recordSemanticCacheMiss(ctx)
@@ -6217,7 +6216,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	telemetry.Record(ctx, telemetry.Span{
 		Name:  "router.decision",
 		Start: requestStart,
-		End:   time.Now(),
+		End:   s.clock.Now(),
 		Attrs: openaiDecisionBuilder.Build(),
 	})
 	telemetry.Flush(ctx)
@@ -6401,7 +6400,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	// nil when the request has no tools; the translator treats nil as syntax-check-only.
 	toolValidator := env.ToolValidator()
 
-	proxyStart := time.Now()
+	proxyStart := s.clock.Now()
 	inferenceParentCtx := ctx
 	ctx, inferenceSpan := startInferenceSpan(ctx, decision, clientSessionIDForRequest(ctx, env))
 	defer inferenceSpan.End()
@@ -6864,7 +6863,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		}
 	}
 
-	proxyMs := time.Since(proxyStart).Milliseconds()
+	proxyMs := s.clock.Now().Sub(proxyStart).Milliseconds()
 	finishInferenceSpan(inferenceSpan, decision, finalProvider, winnerIdx, proxyErr)
 	ctx = restoreParentSpan(ctx, inferenceParentCtx)
 
@@ -6921,7 +6920,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		Bool("cost.subscription_served", false).
 		Bool("cost.fast_mode", upstreamFast).
 		Int64("latency.upstream_ms", proxyMs).
-		Int64("latency.total_ms", time.Since(requestStart).Milliseconds()).
+		Int64("latency.total_ms", s.clock.Now().Sub(requestStart).Milliseconds()).
 		Int64("upstream.status_code", int64(upstreamStatus(proxyErr))).
 		Bool("routing.cross_format", crossFormat).
 		String("dispatch.primary_provider", primaryProvider).
@@ -6953,7 +6952,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	telemetry.Record(ctx, telemetry.Span{
 		Name:  "router.upstream",
 		Start: proxyStart,
-		End:   time.Now(),
+		End:   s.clock.Now(),
 		Attrs: openaiUpstreamBuilder.Build(),
 	})
 	callLogBase := openaiUpstreamBuilder.Build()
@@ -7033,7 +7032,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 			DecisionReason:           telemetryDecisionReason(ctx, decision.Reason),
 			RequestedAllowedModels:   requestedAllowedModelsForTelemetry(ctx),
 			EstimatedInputTokens:     int32(feats.Tokens),
-			ContextSnapshot:          contextSnapshotJSONForDecision(w.Header(), requestID, feats.Model, decision.Model, decision.Provider, requestStart, s.clockNow()),
+			ContextSnapshot:          contextSnapshotJSONForDecision(w.Header(), requestID, feats.Model, decision.Model, decision.Provider, requestStart, s.clock.Now()),
 			StickyHit:                stickyHit,
 			PinTier:                  routeRes.PinTier,
 			EmbedInput:               embedInput,
@@ -7045,7 +7044,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 			ActualOutputCostUSD:      catalog.EffectiveOutputCost(catalog.PromptTokens(in, cacheCreation, cacheRead, decision.Provider), out, actPricing, usageMods),
 			RouteLatencyMs:           routeMs,
 			UpstreamLatencyMs:        proxyMs,
-			TotalLatencyMs:           time.Since(requestStart).Milliseconds(),
+			TotalLatencyMs:           s.clock.Now().Sub(requestStart).Milliseconds(),
 			CrossFormat:              crossFormat,
 			UpstreamStatusCode:       int32(upstreamStatus(proxyErr)),
 			ClusterIDs:               openaiObs.ClusterIDs,

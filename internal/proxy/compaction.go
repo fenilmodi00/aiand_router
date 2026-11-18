@@ -53,14 +53,14 @@ func (s *Service) routeCompaction(
 		pins:      s.pinStore,
 		providers: s.clients.NameSet(),
 		available: s.availableModels,
-		now:       time.Now(),
+		now:       s.clock.Now(),
 	}
 	decision, strikes, ok := session.decision(ctx, sessionKey, res.PinRole, req)
 	req = strikes.apply(req)
 	if ok {
 		// The scorer's roster gives the session model sibling rescue candidates.
 		scoreReq := req
-		scoreReq.PolicyTurnContext = buildPolicyTurnContext(req, res, sessionpin.Pin{}, sessionpin.Pin{})
+		scoreReq.PolicyTurnContext = buildPolicyTurnContext(req, res, sessionpin.Pin{}, sessionpin.Pin{}, s.clock.Now())
 		if fresh, err := s.routeFor(ctx, scoreReq); err == nil {
 			res.Fresh = fresh
 		}

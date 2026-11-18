@@ -116,7 +116,7 @@ func (s *Service) throttleRetryDelay(ctx context.Context) func(dispatch.Attempt,
 	return dispatch.ThrottlePolicy{
 		Cap:     dispatch.DefaultThrottleRetryAfterCap,
 		Backoff: dispatch.DefaultThrottleBackoff,
-		Now:     s.clockNow,
+		Now:     s.clock.Now,
 		Observe: turn.recordThrottle,
 	}.RetryDelay
 }

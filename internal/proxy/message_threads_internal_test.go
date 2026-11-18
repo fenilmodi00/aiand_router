@@ -16,7 +16,7 @@ import (
 )
 
 func TestProxyMessages_ThreadContinueBouncedBeforeClassifierHistory(t *testing.T) {
-	svc := &Service{now: time.Now}
+	svc := &Service{clock: time.Now}
 	ctx := router.WithStrategy(context.Background(), router.StrategyLLMClassifier)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(""))

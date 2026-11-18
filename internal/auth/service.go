@@ -37,8 +37,6 @@ var ErrInvalidForwardedHeader = errors.New("auth: invalid forwarded header")
 // router does not implement.
 var ErrInvalidAuthType = errors.New("auth: invalid auth type")
 
-type Clock func() time.Time
-
 const (
 	blindExperimentFetchTimeout  = 5 * time.Second
 	blindExperimentFetchAttempts = 3

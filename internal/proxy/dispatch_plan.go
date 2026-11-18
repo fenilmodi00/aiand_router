@@ -59,7 +59,7 @@ func (s *Service) inferenceExecutor() (*dispatch.Executor, error) {
 	}
 	var err error
 	s.defaultExecutorOnce.Do(func() {
-		opts := []dispatch.Option{dispatch.WithClock(s.clockNow)}
+		opts := []dispatch.Option{dispatch.WithClock(s.clock.Now)}
 		if s.retrySleep != nil {
 			opts = append(opts, dispatch.WithSleep(s.retrySleep))
 		}
