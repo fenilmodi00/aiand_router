@@ -291,7 +291,7 @@ function installPi(paths, baseUrl, key, email) {
     apiKey: key,
     authHeader: false,
     headers: { "X-Aiand-Router-Key": key, "X-App": "pi", "x-aiand-routing-marker": "off", "x-aiand-routing-alpha": "0.8", "x-aiand-routing-speed-weight": "0.05", "x-aiand-routing-output-cost-ratio": "0.5", "x-aiand-routing-expected-output-tokens": "3000", ...(email ? { "X-Aiand-User-Email": email } : {}) },
-    models: [{ id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6 (via Aiand Router)", reasoning: true, input: ["text", "image"], contextWindow: 1000000, maxTokens: 64000 }],
+    models: [{ id: "auto", name: "Aiand Router", reasoning: true, input: ["text", "image"], contextWindow: 1000000, maxTokens: 64000 }],
   };
   const settings = readJson(paths.settings);
   const state = readJson(paths.state);
@@ -299,7 +299,7 @@ function installPi(paths, baseUrl, key, email) {
   if (!Object.hasOwn(state, "defaultModel")) state.defaultModel = { exists: Object.hasOwn(settings, "defaultModel"), value: settings.defaultModel };
   settings.packages = [...new Set([...(settings.packages || []).filter((item) => !/^npm:@(?:workaiand\/(?:pi-)?router|aiand-os\/router)$/.test(item)), `npm:${packageName}`])];
   settings.defaultProvider = "aiand";
-  settings.defaultModel ||= "claude-sonnet-4-6";
+  settings.defaultModel = "auto";
   writeJson(paths.config, models);
   writeJson(paths.settings, settings);
   writeJson(paths.state, state);
@@ -368,6 +368,7 @@ function uninstall(paths, target) {
       const state = readJson(paths.state);
       settings.packages = (settings.packages || []).filter((item) => item !== `npm:${packageName}`);
       restoreField(settings, "defaultProvider", state.defaultProvider, "aiand");
+      restoreField(settings, "defaultModel", state.defaultModel, "auto");
       restoreField(settings, "defaultModel", state.defaultModel, "claude-sonnet-4-6");
       writeJson(paths.settings, settings);
     }
