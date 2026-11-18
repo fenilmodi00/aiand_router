@@ -430,7 +430,15 @@ fraction of upstream cost (e.g. `0.05` for 5%). The default is `0` — no
 
 
 
-fee, and no `byok_fee` row is written.
+fee, and no `byok_fee` row is written. A BYOK turn served while credits are
+
+
+
+depleted or a spend cap is reached is never charged the fee, so it adds
+
+
+
+nothing to the balance or to any spend cap.
 
 
 
