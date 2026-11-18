@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"aiand-os/router/internal/dispatch"
 	"aiand-os/router/internal/observability"
 	"aiand-os/router/internal/router"
 	"aiand-os/router/internal/router/catalog"
@@ -273,7 +274,7 @@ func strikesInRescuePool(failed router.Decision, candidates, struck []string) []
 // candidate was left: the session's rescue pool was exhausted.
 func (s *Service) noteRescueReadmission(ctx context.Context, failed, rescuer router.Decision) {
 	if until, cooling := sessionCooldownModelsFromContext(ctx)[rescuer.Model]; cooling {
-		rateLimitTurnFromContext(ctx).recordRescuePoolExhausted(rescuer.Model)
+		dispatch.ThrottleLedgerFromContext(ctx).RecordRescuePoolExhausted(rescuer.Model)
 		observability.FromContext(ctx).Info("rescue pool exhausted, readmitting cooling-down model",
 			"failed_model", failed.Model,
 			"rescue_pool_readmitted", rescuer.Model,
@@ -284,7 +285,7 @@ func (s *Service) noteRescueReadmission(ctx context.Context, failed, rescuer rou
 	if !slices.Contains(sessionStrikeReadmitModelsFromContext(ctx), rescuer.Model) {
 		return
 	}
-	rateLimitTurnFromContext(ctx).recordRescuePoolExhausted(rescuer.Model)
+	dispatch.ThrottleLedgerFromContext(ctx).RecordRescuePoolExhausted(rescuer.Model)
 	observability.FromContext(ctx).Warn("rescue pool exhausted, readmitting session-demoted model",
 		"failed_model", failed.Model,
 		"rescue_pool_readmitted", rescuer.Model,

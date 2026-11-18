@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"aiand-os/router/internal/dispatch"
 	"aiand-os/router/internal/observability"
 	"aiand-os/router/internal/providers"
 	"aiand-os/router/internal/router"
@@ -137,11 +138,11 @@ func (s *Service) maybeStrikeArmAfterRescuedFailure(
 	} else if s.ResolveTransientRateLimit(ctx) && isTransientGatewayFailure(primaryErr) {
 		cooldown := s.ResolveRateLimitCooldown(ctx)
 		reason, cooldownUntil = sessionpin.DemotionReasonTransientFailure, s.clockNow().Add(cooldown)
-		rateLimitTurnFromContext(ctx).recordCooldown(cooldownUntil, cooldown)
+		dispatch.ThrottleLedgerFromContext(ctx).RecordCooldown(cooldownUntil, cooldown)
 	} else if s.ResolveTransientRateLimit(ctx) && isRateLimitedPrimaryFailure(primaryErr) {
 		cooldown := s.ResolveRateLimitCooldown(ctx)
 		reason, cooldownUntil = sessionpin.DemotionReasonRateLimited, s.clockNow().Add(cooldown)
-		rateLimitTurnFromContext(ctx).recordCooldown(cooldownUntil, cooldown)
+		dispatch.ThrottleLedgerFromContext(ctx).RecordCooldown(cooldownUntil, cooldown)
 	}
 	if !s.demoteArmForSession(ctx, primary.Model, reason, cooldownUntil, upstreamStatus(primaryErr), installationID, sessionKey, role, pinRole) {
 		return "", ""
