@@ -475,7 +475,7 @@ func TestUpsertExternalKeyHandler_PersistsAndReturnsModelAliases(t *testing.T) {
 
 	repo := &fakeExternalAPIKeyRepo{}
 	models := fakeDeployedModels{entries: []router.DeployedEntry{
-		{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND},	}}
+		{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND}}}
 	rec := postProviderKeyWithAliases(
 		upsertKeyEngineWithModels(newUpsertKeyService(repo), models),
 		providers.ProviderAIAND,
@@ -499,7 +499,7 @@ func TestUpsertExternalKeyHandler_RejectsAliasForUnknownModel(t *testing.T) {
 
 	repo := &fakeExternalAPIKeyRepo{}
 	models := fakeDeployedModels{entries: []router.DeployedEntry{
-		{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND},	}}
+		{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND}}}
 	rec := postProviderKeyWithAliases(
 		upsertKeyEngineWithModels(newUpsertKeyService(repo), models),
 		providers.ProviderAIAND,

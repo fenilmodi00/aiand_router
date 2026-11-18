@@ -18,7 +18,8 @@ type fakeDistributionSource struct {
 	points           []router.DistributionPoint
 	err              error
 	lastGrid         int
-	lastExcludedMods map[string]struct{}}
+	lastExcludedMods map[string]struct{}
+}
 
 func (f *fakeDistributionSource) DefaultRoutingDistribution(gridN int, excludedModels, excludedProviders map[string]struct{}) ([]router.DistributionPoint, error) {
 	f.lastGrid = gridN
@@ -36,7 +37,7 @@ func newDistributionEngine(src admin.RoutingDistributionSource) *gin.Engine {
 func TestRoutingDistributionHandler_ReturnsPoints(t *testing.T) {
 	src := &fakeDistributionSource{points: []router.DistributionPoint{
 		{QualityBias: 0, Models: []router.ModelShare{{Model: "deepseek/deepseek-v4.1-flash", Share: 1}}, ProjectedCostPer1KInputUSD: 0.00014},
-		{QualityBias: 1, Models: []router.ModelShare{{Model: "z-ai/glm-5.3", Share: 1}}, ProjectedCostPer1KInputUSD: 0.005},	}}
+		{QualityBias: 1, Models: []router.ModelShare{{Model: "z-ai/glm-5.3", Share: 1}}, ProjectedCostPer1KInputUSD: 0.005}}}
 	engine := newDistributionEngine(src)
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/router/routing-distribution?grid=2", nil)

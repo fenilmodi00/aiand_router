@@ -13,7 +13,8 @@ import (
 	"aiand-os/router/internal/api/admin"
 	"aiand-os/router/internal/policyregistry"
 	"aiand-os/router/internal/router"
-	"aiand-os/router/internal/router/hmm/rosterdata")
+	"aiand-os/router/internal/router/hmm/rosterdata"
+)
 
 func profileDistributionSnapshot(arm string) *policyregistry.Snapshot {
 	return &policyregistry.Snapshot{Candidate: policyregistry.Candidate{Policy: &rosterdata.Roster{
