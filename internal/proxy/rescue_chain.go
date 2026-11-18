@@ -180,7 +180,7 @@ func (c *rescueChain) dispatchPrimaryAttempt(ctx context.Context, deferFlush boo
 	c.subscriptionPoolFailure = isSubscriptionPoolError(c.proxyErr)
 }
 
-func (c *rescueChain) notePrimaryFailure(ctx context.Context) {
+func (c *rescueChain) notePrimaryFailure() {
 	c.primaryFailureErr = c.proxyErr
 	c.primarySubscriptionArmFailure = c.proxyErr
 }

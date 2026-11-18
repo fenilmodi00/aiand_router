@@ -44,8 +44,8 @@ var _ sessionpin.CooldownStore = (*cooldownStubPinStore)(nil)
 
 var rateLimitTestNow = time.Date(2026, 9, 18, 12, 0, 0, 0, time.UTC)
 
-func newRateLimitTestService(store sessionpin.Store, transient bool, cooldownSeconds int) *Service {
-	svc := newRescuedDemotionTestService(store, true).WithTransientRateLimit(transient, cooldownSeconds)
+func newRateLimitTestService(store sessionpin.Store, transient bool) *Service {
+	svc := newRescuedDemotionTestService(store, true).WithTransientRateLimit(transient, 45)
 	svc.clock = func() time.Time { return rateLimitTestNow }
 	return svc
 }
@@ -76,7 +76,7 @@ func strikeRescuedPrimary(svc *Service, ctx context.Context, err error) (string,
 // made.
 func TestRescued429_CoolsDownInsteadOfDemoting(t *testing.T) {
 	store := &cooldownStubPinStore{}
-	svc := newRateLimitTestService(store, true, 45)
+	svc := newRateLimitTestService(store, true)
 	ctx, turn := dispatch.WithThrottleLedger(context.Background())
 
 	model, reason := strikeRescuedPrimary(svc, ctx, upstream429(""))
@@ -101,7 +101,7 @@ func TestRescued429_CoolsDownInsteadOfDemoting(t *testing.T) {
 // The per-org override on rate_limit_cooldown_seconds decides the expiry.
 func TestRescued429_CooldownHonoursOrgOverride(t *testing.T) {
 	store := &cooldownStubPinStore{}
-	svc := newRateLimitTestService(store, true, 45)
+	svc := newRateLimitTestService(store, true)
 	ctx := flags.WithOverrides(context.Background(), flags.Overrides{Ints: map[flags.Key]int{flags.KeyRateLimitCooldownSeconds: 120}})
 
 	_, reason := strikeRescuedPrimary(svc, ctx, upstream429(""))
@@ -119,7 +119,7 @@ func TestRescuedNon429_StaysPermanentUnderFlag(t *testing.T) {
 		providers.ErrUpstreamIdleTimeout,
 	} {
 		store := &cooldownStubPinStore{}
-		svc := newRateLimitTestService(store, true, 45)
+		svc := newRateLimitTestService(store, true)
 
 		model, reason := strikeRescuedPrimary(svc, context.Background(), err)
 
@@ -134,7 +134,7 @@ func TestRescuedNon429_StaysPermanentUnderFlag(t *testing.T) {
 func TestRescuedTransientGatewayFailureGetsBoundedCooldown(t *testing.T) {
 	for _, status := range []int{http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout} {
 		store := &cooldownStubPinStore{}
-		svc := newRateLimitTestService(store, true, 45)
+		svc := newRateLimitTestService(store, true)
 
 		model, reason := strikeRescuedPrimary(svc, context.Background(), &providers.UpstreamErrorResponse{Status: status})
 
@@ -154,7 +154,7 @@ func TestRescuedTransientGatewayFailureGetsBoundedCooldown(t *testing.T) {
 // extra completion fields.
 func TestRescued429_FlagOffKeepsPermanentDemotion(t *testing.T) {
 	store := &cooldownStubPinStore{}
-	svc := newRateLimitTestService(store, false, 45)
+	svc := newRateLimitTestService(store, false)
 	ctx, turn := svc.withRateLimitTurn(context.Background())
 	assert.Nil(t, turn)
 	assert.Nil(t, turn.CompletionLogFields())
@@ -176,7 +176,7 @@ func TestRescued429_FlagOffKeepsPermanentDemotion(t *testing.T) {
 // strike rather than leaving the arm unstruck.
 func TestRescued429_StoreWithoutCooldownsDemotesForSession(t *testing.T) {
 	store := &demotionStubPinStore{}
-	svc := newRateLimitTestService(store, true, 45)
+	svc := newRateLimitTestService(store, true)
 
 	model, reason := strikeRescuedPrimary(svc, context.Background(), upstream429(""))
 
@@ -394,7 +394,7 @@ func TestRescueDecisions_ReadmissionKeepsGlobalExclusionOnCoolingArm(t *testing.
 // turn's account as observer: an honoured Retry-After lands on the
 // completion line.
 func TestThrottleRetryDelay_RecordsHonouredRetryAfter(t *testing.T) {
-	svc := newRateLimitTestService(&cooldownStubPinStore{}, true, 45)
+	svc := newRateLimitTestService(&cooldownStubPinStore{}, true)
 	ctx, turn := svc.withRateLimitTurn(context.Background())
 	require.NotNil(t, turn)
 	retryDelay := dispatch.ThrottleLedgerFromContext(ctx).RetryDelay(svc.clock.Now)

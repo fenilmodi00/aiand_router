@@ -60,7 +60,7 @@ func TestV1WinMap(t *testing.T) {
 	for m, want := range expected {
 		require.Equalf(t, want, wins[m], "winner clusters for %s", m)
 	}
-	require.Equal(t, len(expected), len(wins), "distinct winner count: got "+fmt.Sprint(wins))
+	require.Len(t, wins, len(expected), "distinct winner count: got "+fmt.Sprint(wins))
 	require.Empty(t, wins[string(catalog.ModelIDKimiK3)], "kimi-k3 must not win any cluster in v1.0")
 	require.Empty(t, wins[string(catalog.ModelIDKimiK31Pro)], "kimi-k3.1-pro must not win any cluster in v1.0")
 }
@@ -89,7 +89,7 @@ func TestV1FeaturesMatchQualityMeans(t *testing.T) {
 			require.Truef(t, ok, "quality_means.json missing %s cluster %d", m, k)
 			got, ok := featureQualityMeans[k][m]
 			require.Truef(t, ok, "model_features.json missing %s cluster %d", m, k)
-			require.Equalf(t, want, got, "quality cell mismatch for %s cluster %d", m, k)
+			require.InDeltaf(t, want, got, 1e-9, "quality cell mismatch for %s cluster %d", m, k)
 		}
 		require.Equalf(t, bundle.ModelAxes[m], featureAxes[m], "operational axis mismatch for %s", m)
 	}

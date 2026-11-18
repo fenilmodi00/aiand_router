@@ -185,9 +185,9 @@ func TestAnthropicToOpenAIResponse_SimpleText(t *testing.T) {
 	assert.Equal(t, "stop", choice["finish_reason"])
 
 	u := usage(t, doc)
-	assert.Equal(t, float64(25), u["prompt_tokens"])
-	assert.Equal(t, float64(10), u["completion_tokens"])
-	assert.Equal(t, float64(35), u["total_tokens"])
+	assert.InDelta(t, float64(25), u["prompt_tokens"], 1e-9)
+	assert.InDelta(t, float64(10), u["completion_tokens"], 1e-9)
+	assert.InDelta(t, float64(35), u["total_tokens"], 1e-9)
 }
 
 func TestAnthropicToOpenAIResponse_ToolUse(t *testing.T) {
@@ -272,9 +272,9 @@ func TestAnthropicToOpenAIResponse_UsageTranslation(t *testing.T) {
 	out, err := translate.AnthropicToOpenAIResponse(body, "m")
 	require.NoError(t, err)
 	u := usage(t, unmarshal(t, out))
-	assert.Equal(t, float64(30), u["prompt_tokens"])
-	assert.Equal(t, float64(15), u["completion_tokens"])
-	assert.Equal(t, float64(45), u["total_tokens"])
+	assert.InDelta(t, float64(30), u["prompt_tokens"], 1e-9)
+	assert.InDelta(t, float64(15), u["completion_tokens"], 1e-9)
+	assert.InDelta(t, float64(45), u["total_tokens"], 1e-9)
 }
 
 func TestAnthropicToOpenAIResponse_MissingUsageReturnsZero(t *testing.T) {
@@ -282,9 +282,9 @@ func TestAnthropicToOpenAIResponse_MissingUsageReturnsZero(t *testing.T) {
 	out, err := translate.AnthropicToOpenAIResponse(body, "m")
 	require.NoError(t, err)
 	u := usage(t, unmarshal(t, out))
-	assert.Equal(t, float64(0), u["prompt_tokens"])
-	assert.Equal(t, float64(0), u["completion_tokens"])
-	assert.Equal(t, float64(0), u["total_tokens"])
+	assert.InDelta(t, float64(0), u["prompt_tokens"], 1e-9)
+	assert.InDelta(t, float64(0), u["completion_tokens"], 1e-9)
+	assert.InDelta(t, float64(0), u["total_tokens"], 1e-9)
 }
 func TestOpenAIToAnthropicResponse_SimpleText(t *testing.T) {
 	out, err := translate.OpenAIToAnthropicResponse(openAITextResponse, "gpt-4")
@@ -411,8 +411,8 @@ func TestOpenAIToAnthropicResponse_UsageTranslation(t *testing.T) {
 	require.NoError(t, err)
 	u, _ := unmarshal(t, out)["usage"].(map[string]any)
 	require.NotNil(t, u)
-	assert.Equal(t, float64(25), u["input_tokens"])
-	assert.Equal(t, float64(10), u["output_tokens"])
+	assert.InDelta(t, float64(25), u["input_tokens"], 1e-9)
+	assert.InDelta(t, float64(10), u["output_tokens"], 1e-9)
 }
 
 func TestOpenAIToAnthropicResponse_CachedUsageTranslation(t *testing.T) {
@@ -421,9 +421,9 @@ func TestOpenAIToAnthropicResponse_CachedUsageTranslation(t *testing.T) {
 	u, _ := unmarshal(t, out)["usage"].(map[string]any)
 	require.NotNil(t, u)
 	// 100 prompt_tokens - 80 cached = 20 fresh input_tokens
-	assert.Equal(t, float64(20), u["input_tokens"])
-	assert.Equal(t, float64(10), u["output_tokens"])
-	assert.Equal(t, float64(80), u["cache_read_input_tokens"])
+	assert.InDelta(t, float64(20), u["input_tokens"], 1e-9)
+	assert.InDelta(t, float64(10), u["output_tokens"], 1e-9)
+	assert.InDelta(t, float64(80), u["cache_read_input_tokens"], 1e-9)
 }
 
 func TestOpenAIToAnthropicResponse_FallbackModelFromRequest(t *testing.T) {

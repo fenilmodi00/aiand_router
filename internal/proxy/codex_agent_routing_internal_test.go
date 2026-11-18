@@ -221,7 +221,7 @@ func TestCodexAgentRoutingIsolation(t *testing.T) {
 		if turn.child {
 			ctx = childCtx
 		}
-		body := ctx.Value(nativeResponsesBodyContextKey{}).([]byte)
+		body := mustAs[[]byte](t, ctx.Value(nativeResponsesBodyContextKey{}))
 		recorder := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(string(body)))
 		require.NoError(t, svc.ProxyOpenAIResponses(ctx, body, recorder, req), "turn %d", i)

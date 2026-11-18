@@ -62,7 +62,7 @@ func overloadOrg(ctx context.Context) string {
 // The release runs with the turn's other probe releases and is a no-op once
 // the dispatch outcome has resolved the circuit.
 func (s *Service) claimOverloadProbe(ctx context.Context, req router.Request) (breaker.Probe, func(), bool) {
-	if s.overloadBreaker == nil || !s.ResolveProviderOverloaded(ctx) || !s.overloadProbeRescuable(ctx, req) {
+	if s.overloadBreaker == nil || !s.ResolveProviderOverloaded(ctx) || !s.overloadProbeRescuable(ctx) {
 		return breaker.Probe{}, nil, false
 	}
 	org := overloadOrg(ctx)
@@ -107,7 +107,7 @@ func (s *Service) withTurnOverloadProbe(ctx context.Context, res turnLoopResult)
 // by the sibling rescue instead of reaching the client: caller-model
 // passthrough never rescues, and the others only when siblingRescueAllowed
 // holds.
-func (s *Service) overloadProbeRescuable(ctx context.Context, req router.Request) bool {
+func (s *Service) overloadProbeRescuable(ctx context.Context) bool {
 	return !auth.RoutingPassthroughFrom(ctx) &&
 		s.siblingRescueAllowed(ctx)
 }

@@ -344,7 +344,7 @@ func TestScorer_ReturnsErrOnEmbedderError(t *testing.T) {
 
 	_, err := s.Route(context.Background(), router.Request{PromptText: strings.Repeat("x", 100)})
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, ErrClusterUnavailable))
+	assert.ErrorIs(t, err, ErrClusterUnavailable)
 }
 
 // panicEmbedder panics inside Embed to simulate a crash in the native
@@ -364,7 +364,7 @@ func TestScorer_RecoversFromEmbedPanic(t *testing.T) {
 
 	_, err := s.Route(context.Background(), router.Request{PromptText: strings.Repeat("x", 100)})
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, ErrClusterUnavailable))
+	require.ErrorIs(t, err, ErrClusterUnavailable)
 	assert.Contains(t, err.Error(), "embed panic")
 }
 
@@ -374,7 +374,7 @@ func TestScorer_ReturnsErrOnDimMismatch(t *testing.T) {
 
 	_, err := s.Route(context.Background(), router.Request{PromptText: strings.Repeat("x", 100)})
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, ErrClusterUnavailable))
+	assert.ErrorIs(t, err, ErrClusterUnavailable)
 }
 
 func TestScorer_TailTruncatesBeforeEmbed(t *testing.T) {
@@ -671,7 +671,7 @@ func TestScorer_ReturnsErrOnEmbedTimeout(t *testing.T) {
 
 	_, err := s.Route(context.Background(), router.Request{PromptText: strings.Repeat("x", 100)})
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, ErrClusterUnavailable))
+	assert.ErrorIs(t, err, ErrClusterUnavailable)
 }
 
 // uncancellableEmbedder ignores ctx like onnxEmbedder: hugot's RunPipeline
@@ -720,7 +720,7 @@ func TestScorer_FailsClosedOnOverallEmbedTimeout(t *testing.T) {
 
 	_, err := s.Route(context.Background(), router.Request{PromptText: strings.Repeat("x", 100)})
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, ErrClusterUnavailable))
+	require.ErrorIs(t, err, ErrClusterUnavailable)
 	assert.Equal(t, 1, emb.calls, "fail-closed must not launch a parallel retry")
 }
 
@@ -750,7 +750,7 @@ func TestTailTruncate(t *testing.T) {
 
 	in := "héllo"
 	got = TailTruncate(in, 4)
-	assert.True(t, len(got) <= 4)
+	assert.LessOrEqual(t, len(got), 4)
 	assert.True(t, strings.HasSuffix(in, got))
 	for _, r := range got {
 		assert.NotEqual(t, '�', r, "result must be valid UTF-8")
@@ -853,7 +853,7 @@ func TestScorer_EnabledProvidersGatesArgmax(t *testing.T) {
 		EnabledProviders: map[string]struct{}{"other-provider": {}},
 	})
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, ErrNoEligibleProvider))
+	assert.ErrorIs(t, err, ErrNoEligibleProvider)
 }
 
 // Installation with no resolvable provider keys must surface a
@@ -867,10 +867,10 @@ func TestScorer_EmptyEnabledProvidersReturnsErrNoEligibleProvider(t *testing.T) 
 		EnabledProviders: map[string]struct{}{"other-provider": {}},
 	})
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, ErrNoEligibleProvider))
+	require.ErrorIs(t, err, ErrNoEligibleProvider)
 	// Must not also surface as ErrClusterUnavailable; API maps these
 	// sentinels to different status codes (400 vs 503).
-	assert.False(t, errors.Is(err, ErrClusterUnavailable))
+	assert.NotErrorIs(t, err, ErrClusterUnavailable)
 }
 
 // Per-installation model exclusion drops the named model from argmax even
@@ -936,8 +936,8 @@ func TestScorer_ExcludedModelsEmptyingPoolReturnsErrNoEligibleProvider(t *testin
 		}),
 	})
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, ErrNoEligibleProvider))
-	assert.False(t, errors.Is(err, ErrClusterUnavailable))
+	require.ErrorIs(t, err, ErrNoEligibleProvider)
+	assert.NotErrorIs(t, err, ErrClusterUnavailable)
 }
 
 // ErrAllowlistEmptiesPool must wrap ErrNoEligibleProvider (existing checks keep
@@ -957,10 +957,10 @@ func TestScorer_AllowlistEmptyingPoolReturnsErrAllowlistEmptiesPool(t *testing.T
 		AllowedModels: map[string]struct{}{"some-retired-model": {}},
 	})
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, ErrAllowlistEmptiesPool))
-	assert.True(t, errors.Is(err, ErrNoEligibleProvider), "must still satisfy existing ErrNoEligibleProvider checks")
+	require.ErrorIs(t, err, ErrAllowlistEmptiesPool)
+	require.ErrorIs(t, err, ErrNoEligibleProvider, "must still satisfy existing ErrNoEligibleProvider checks")
 	assert.Contains(t, err.Error(), "some-retired-model", "the error must name the allowlist, not the desugared exclusions")
-	assert.False(t, errors.Is(err, ErrClusterUnavailable))
+	assert.NotErrorIs(t, err, ErrClusterUnavailable)
 }
 
 // If the AgenticLow filter would empty the eligible pool, fall back to

@@ -37,9 +37,9 @@ func classifierOnlyResult() policy.Result {
 	}
 }
 
-func classifierFallback(group string) []policy.PreviewGroup {
+func classifierFallback() []policy.PreviewGroup {
 	return []policy.PreviewGroup{{
-		Group:        group,
+		Group:        "maximum",
 		Probability:  0.8,
 		RosterArms:   []string{"anthropic/moonshotai/kimi-k3", "anthropic/z-ai/glm-5.3"},
 		EligibleArms: []string{"anthropic/moonshotai/kimi-k3", "anthropic/z-ai/glm-5.3"},
@@ -53,11 +53,11 @@ func TestArmSelectorPickIsServed(t *testing.T) {
 		assert.Equal(t, "maximum", input.PredictedLabel)
 		assert.ElementsMatch(t, []string{"anthropic/moonshotai/kimi-k3", "anthropic/z-ai/glm-5.3"}, input.CandidateRosterIDs)
 		require.NotNil(t, input.QualityBias)
-		assert.Equal(t, qualityBias, *input.QualityBias)
+		assert.InDelta(t, qualityBias, *input.QualityBias, 1e-9)
 		return policy.SelectionPick{
 			Group:          "maximum",
 			Arm:            "anthropic/z-ai/glm-5.3",
-			RankedFallback: classifierFallback("maximum"),
+			RankedFallback: classifierFallback(),
 			Trace: policy.SelectionTrace{
 				SelectedGroup: "maximum",
 				SelectedArm:   "anthropic/z-ai/glm-5.3",
@@ -80,7 +80,7 @@ func TestArmSelectorPickIsServed(t *testing.T) {
 	require.NotNil(t, decision.Metadata)
 	assert.Equal(t, "anthropic/z-ai/glm-5.3", decision.Metadata.SelectedRosterArmID)
 	assert.Equal(t, "maximum", decision.Metadata.PolicyGroup)
-	assert.Equal(t, float32(42), decision.Metadata.ArmScores["anthropic/z-ai/glm-5.3"])
+	assert.InDelta(t, float32(42), decision.Metadata.ArmScores["anthropic/z-ai/glm-5.3"], 1e-6)
 }
 
 func TestArmSelectorCanonicalizesOpenCodeAlias(t *testing.T) {
@@ -90,7 +90,7 @@ func TestArmSelectorCanonicalizesOpenCodeAlias(t *testing.T) {
 		return policy.SelectionPick{
 			Group:          "maximum",
 			Arm:            "anthropic/z-ai/glm-5.3",
-			RankedFallback: classifierFallback("maximum"),
+			RankedFallback: classifierFallback(),
 		}, nil
 	})
 
@@ -106,7 +106,7 @@ func TestArmSelectorPreservesPiSubagentIdentity(t *testing.T) {
 		return policy.SelectionPick{
 			Group:          "maximum",
 			Arm:            "anthropic/z-ai/glm-5.3",
-			RankedFallback: classifierFallback("maximum"),
+			RankedFallback: classifierFallback(),
 		}, nil
 	})
 
@@ -196,7 +196,7 @@ func TestArmSelectorNegotiatesV4(t *testing.T) {
 func TestArmSelectorYieldsToClusterOverride(t *testing.T) {
 	adapter := newSelectorAdapter(classifierOnlyResult())
 	adapter.WithArmSelector(func(_ context.Context, _ policy.SelectionInput) (policy.SelectionPick, error) {
-		return policy.SelectionPick{Group: "maximum", Arm: "moonshotai/kimi-k3", RankedFallback: classifierFallback("maximum")}, nil
+		return policy.SelectionPick{Group: "maximum", Arm: "moonshotai/kimi-k3", RankedFallback: classifierFallback()}, nil
 	})
 
 	decision, err := adapter.Route(context.Background(), router.Request{
@@ -236,7 +236,7 @@ func TestArmSelectorForceClusterUsesFinalGroupScores(t *testing.T) {
 		return policy.SelectionPick{
 			Group:          "maximum",
 			Arm:            "anthropic/moonshotai/kimi-k3",
-			RankedFallback: append(classifierFallback("maximum"), policy.PreviewGroup{Group: "low", Probability: 0.2, RosterArms: []string{"z-ai/glm-5.3"}, EligibleArms: []string{"z-ai/glm-5.3"}}),
+			RankedFallback: append(classifierFallback(), policy.PreviewGroup{Group: "low", Probability: 0.2, RosterArms: []string{"z-ai/glm-5.3"}, EligibleArms: []string{"z-ai/glm-5.3"}}),
 			ArmScoresByGroup: map[string]map[string]float32{
 				"maximum": {"moonshotai/kimi-k3": 90},
 				"low":     {"z-ai/glm-5.3": 20},

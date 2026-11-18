@@ -133,8 +133,8 @@ func TestPricingForInputTokens_ThresholdIsExclusive(t *testing.T) {
 		},
 	}
 
-	assert.Equal(t, 0.20, price.ForInputTokens(272_000).InputUSDPer1M)
-	assert.Equal(t, 0.40, price.ForInputTokens(272_001).InputUSDPer1M)
+	assert.InDelta(t, 0.20, price.ForInputTokens(272_000).InputUSDPer1M, 1e-9)
+	assert.InDelta(t, 0.40, price.ForInputTokens(272_001).InputUSDPer1M, 1e-9)
 }
 
 func TestSignedUSDToMicrosPreservesNegatives(t *testing.T) {
@@ -209,9 +209,9 @@ func TestSynthesizedBindingsInheritThePrimaryPrice(t *testing.T) {
 	require.Equal(t, custom, binding.Provider)
 	primary, ok := catalog.PriceFor(providers.ProviderAIAND, "z-ai/glm-5.3")
 	require.True(t, ok)
-	assert.Equal(t, primary.InputUSDPer1M, binding.Price.InputUSDPer1M)
+	assert.InDelta(t, primary.InputUSDPer1M, binding.Price.InputUSDPer1M, 1e-9)
 
 	bindings := catalog.EnumerateBindingsWithCustom("z-ai/glm-5.3", available, customs)
 	require.Len(t, bindings, 1)
-	assert.Equal(t, primary.InputUSDPer1M, bindings[0].Price.InputUSDPer1M)
+	assert.InDelta(t, primary.InputUSDPer1M, bindings[0].Price.InputUSDPer1M, 1e-9)
 }

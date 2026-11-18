@@ -45,10 +45,7 @@ func (e *RequestEnvelope) PrepareAnthropic(in http.Header, opts EmitOptions) (pr
 	var err error
 	switch e.format {
 	case FormatOpenAI:
-		body, err = e.buildAnthropicFromOpenAI(opts)
-		if err != nil {
-			return providers.PreparedRequest{}, fmt.Errorf("build anthropic from openai: %w", err)
-		}
+		body = e.buildAnthropicFromOpenAI(opts)
 	case FormatAnthropic:
 		body, err = e.buildAnthropicFromAnthropic(opts)
 		if err != nil {
@@ -99,7 +96,7 @@ func (e *RequestEnvelope) PrepareAnthropic(in http.Header, opts EmitOptions) (pr
 	if maxOutputTokens := modelMaxOutputTokens[router.StripDateSuffix(opts.TargetModel)]; maxOutputTokens > 0 {
 		body = clampFieldBytes(body, "max_tokens", int64(maxOutputTokens))
 	}
-	return providers.PreparedRequest{Body: body, Headers: deriveAnthropicHeaders(in, opts, body), ResponseToolNames: toolAliases}, nil
+	return providers.PreparedRequest{Body: body, Headers: deriveAnthropicHeaders(in, body), ResponseToolNames: toolAliases}, nil
 }
 
 // applyAnthropicSessionAffinity sets metadata.user_id to the session-affinity
@@ -109,7 +106,7 @@ func applyAnthropicSessionAffinity(body []byte, opts EmitOptions) ([]byte, error
 	return body, nil
 }
 
-func deriveAnthropicHeaders(in http.Header, opts EmitOptions, body []byte) http.Header {
+func deriveAnthropicHeaders(in http.Header, body []byte) http.Header {
 	h := make(http.Header)
 	if v := in.Get("anthropic-version"); v != "" {
 		h.Set("anthropic-version", v)
@@ -197,7 +194,7 @@ func joinKept(beta string, keep func(string) bool) string {
 	return strings.Join(kept, ",")
 }
 
-func (e *RequestEnvelope) buildAnthropicFromOpenAI(opts EmitOptions) ([]byte, error) {
+func (e *RequestEnvelope) buildAnthropicFromOpenAI(opts EmitOptions) []byte {
 	jw := newJSONWriter()
 	jw.Obj()
 	jw.Key("model")
@@ -222,7 +219,7 @@ func (e *RequestEnvelope) buildAnthropicFromOpenAI(opts EmitOptions) ([]byte, er
 		writeAnthropicToolChoice(jw, e.body)
 	}
 	jw.EndObj()
-	return jw.Bytes(), nil
+	return jw.Bytes()
 }
 
 // writeAnthropicSystemAndMessages extracts the leading run of system-role

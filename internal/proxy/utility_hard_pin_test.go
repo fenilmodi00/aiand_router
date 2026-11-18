@@ -98,7 +98,7 @@ func TestService_UtilityHardPin_NoEligibleProviderIs400(t *testing.T) {
 	err := svc.ProxyMessages(setup.ctx(uuid.New().String()), []byte(exploreBody), rec, httpReq)
 
 	require.ErrorIs(t, err, router.ErrNoEligibleProvider)
-	assert.NotErrorIs(t, err, router.ErrRoutingUnavailable)
+	require.NotErrorIs(t, err, router.ErrRoutingUnavailable)
 	class, ok := proxy.ClassifyDispatchError(err)
 	require.True(t, ok)
 	assert.Equal(t, proxy.DispatchErrorNoEligibleProvider, class.Kind)

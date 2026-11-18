@@ -18,8 +18,8 @@ func TestListingPricesEveryRowFromItsPrimaryBinding(t *testing.T) {
 		primary := m.Providers[0].Price
 		assert.Positive(t, row.InputUSDPer1M, row.Model)
 		assert.Positive(t, row.OutputUSDPer1M, row.Model)
-		assert.Equal(t, primary.InputUSDPer1M, row.InputUSDPer1M, row.Model)
-		assert.Equal(t, primary.OutputUSDPer1M, row.OutputUSDPer1M, row.Model)
+		assert.InDelta(t, primary.InputUSDPer1M, row.InputUSDPer1M, 1e-9, row.Model)
+		assert.InDelta(t, primary.OutputUSDPer1M, row.OutputUSDPer1M, 1e-9, row.Model)
 	}
 }
 
@@ -27,8 +27,8 @@ func TestNewModelListingPricesTheListedProvidersBinding(t *testing.T) {
 	for _, m := range Models {
 		for _, binding := range m.Providers {
 			row := NewModelListing(m.ID, binding.Provider)
-			assert.Equal(t, binding.Price.InputUSDPer1M, row.InputUSDPer1M, "%s via %s", m.ID, binding.Provider)
-			assert.Equal(t, binding.Price.OutputUSDPer1M, row.OutputUSDPer1M, "%s via %s", m.ID, binding.Provider)
+			assert.InDelta(t, binding.Price.InputUSDPer1M, row.InputUSDPer1M, 1e-9, "%s via %s", m.ID, binding.Provider)
+			assert.InDelta(t, binding.Price.OutputUSDPer1M, row.OutputUSDPer1M, 1e-9, "%s via %s", m.ID, binding.Provider)
 		}
 	}
 }

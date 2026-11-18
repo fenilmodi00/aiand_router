@@ -477,6 +477,8 @@ func fallbackBindings(spec PolicySpec, selected plannedBinding, resolved Resolve
 				candidates = append(candidates, plannedBinding(binding))
 			}
 		}
+	case FallbackKindLocalRecovery, FallbackKindFullHistory, FallbackKindRoutedDispatch, FallbackKindNone:
+		// These kinds carry no alternate catalog bindings.
 	}
 
 	alternatives := make([]plannedBinding, 0, len(candidates))

@@ -3961,7 +3961,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	rescue.holdPrimary()
 	rescue.dispatchPrimary(ctx)
 	rescue.redoIfStoppedEarly(ctx)
-	rescue.notePrimaryFailure(ctx)
+	rescue.notePrimaryFailure()
 	rescue.classifyPrimaryFailure()
 	rescue.siblingRescue(ctx)
 	rescue.finish(ctx)
@@ -4100,7 +4100,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 	telemetry.Flush(ctx)
 
 	if !agentShadowMode {
-		s.recordTurnUsage(ctx, routeRes, finalProvider, decision.ServedIdentity(), in, out, cacheCreation, cacheRead, extractor.OutputLimitReached())
+		s.recordTurnUsage(routeRes, finalProvider, decision.ServedIdentity(), in, out, cacheCreation, cacheRead, extractor.OutputLimitReached())
 		s.clearRecoveredCooldown(ctx, routeRes, decision.Model, proxyErr)
 	}
 
@@ -4362,7 +4362,7 @@ func (s *Service) ProxyMessages(ctx context.Context, body []byte, w http.Respons
 // applyPlannerAttrs stamps planner and handover attributes onto a span
 // attribute builder. Planner details are omitted when the planner did not run
 // so downstream nullable columns do not turn zero values into false evidence.
-func applyPlannerAttrs(b *telemetry.AttrBuilder, res turnLoopResult) *telemetry.AttrBuilder {
+func applyPlannerAttrs(b *telemetry.AttrBuilder, res turnLoopResult) {
 	if res.PlannerDecision.Reason != "" {
 		b.String("planner.outcome", plannerOutcomeAttr(res)).
 			String("planner.reason", res.PlannerDecision.Reason).
@@ -4391,7 +4391,6 @@ func applyPlannerAttrs(b *telemetry.AttrBuilder, res turnLoopResult) *telemetry.
 		Int64("handover.latency_ms", res.Handover.LatencyMS).
 		Int64("handover.summary_tokens", int64(res.Handover.SummaryTokens)).
 		Bool("handover.fallback_to_full_history", res.Handover.FallbackToFullHistory)
-	return b
 }
 
 func plannerOutcome(outcome planner.Outcome) string {
@@ -4405,9 +4404,9 @@ func plannerOutcome(outcome planner.Outcome) string {
 // STAY replaces the decision with a pin (nil Metadata) even when the sidecar ran this turn.
 // Timings and serving stats are independent, separately-nilable payloads on the same
 // Metadata, so each gets its own guard below.
-func applySidecarAttrs(b *telemetry.AttrBuilder, res turnLoopResult) *telemetry.AttrBuilder {
+func applySidecarAttrs(b *telemetry.AttrBuilder, res turnLoopResult) {
 	if res.Fresh.Metadata == nil {
-		return b
+		return
 	}
 	if st := res.Fresh.Metadata.SidecarTimings; st != nil {
 		if st.EmbedMs != nil {
@@ -4437,7 +4436,6 @@ func applySidecarAttrs(b *telemetry.AttrBuilder, res turnLoopResult) *telemetry.
 			b.Int64("routing.sidecar_overruns_live", *ss.OverrunsLive)
 		}
 	}
-	return b
 }
 
 // applyRoutingStateAttrs stamps thread identity and transition attrs; it
@@ -4450,8 +4448,8 @@ func applyRoutingStateAttrs(
 	res turnLoopResult,
 	servedIdentity string,
 	sessionKey [sessionpin.SessionKeyLen]byte,
-) *telemetry.AttrBuilder {
-	return b.String("routing.session_key", sessionKeyHex(sessionKey)).
+) {
+	b.String("routing.session_key", sessionKeyHex(sessionKey)).
 		String("routing.pin_role", res.PinRole).
 		String("routing.prior_served_model", res.PriorServedModel).
 		Bool("routing.model_changed", res.PriorServedModel != "" && res.PriorServedModel != servedIdentity).
@@ -4540,7 +4538,7 @@ func (s *Service) logPlannerOutcome(ctx context.Context, res turnLoopResult) {
 	)
 }
 
-func (s *Service) recordTurnUsage(ctx context.Context, res turnLoopResult, servedProvider, servedModel string, in, out, cacheCreation, cacheRead int, outputLimitReached bool) {
+func (s *Service) recordTurnUsage(res turnLoopResult, servedProvider, servedModel string, in, out, cacheCreation, cacheRead int, outputLimitReached bool) {
 	if s.pinStore == nil || res.HardPinned || res.CallerModelPassthrough {
 		return
 	}
@@ -6309,7 +6307,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 	ctx = rescue.armRescues(ctx)
 	rescue.holdPrimary()
 	rescue.dispatchPrimary(ctx)
-	rescue.notePrimaryFailure(ctx)
+	rescue.notePrimaryFailure()
 	rescue.siblingRescue(ctx)
 	rescue.finish(ctx)
 	decision, marker, proxyErr, effortServed = rescue.decision, rescue.marker, rescue.proxyErr, rescue.effortServed
@@ -6449,7 +6447,7 @@ func (s *Service) ProxyOpenAIChatCompletion(ctx context.Context, body []byte, w 
 		emitCallLog()
 	}
 
-	s.recordTurnUsage(ctx, routeRes, finalProvider, decision.ServedIdentity(), in, out, cacheCreation, cacheRead, extractor.OutputLimitReached())
+	s.recordTurnUsage(routeRes, finalProvider, decision.ServedIdentity(), in, out, cacheCreation, cacheRead, extractor.OutputLimitReached())
 	s.clearRecoveredCooldown(ctx, routeRes, decision.Model, proxyErr)
 
 	var subscriberSettlement subscriberSettlementState

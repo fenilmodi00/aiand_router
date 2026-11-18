@@ -14,8 +14,8 @@ import (
 // the only way it reaches a customer's own gateway.
 const customModel = "z-ai/glm-5.3"
 
-func customFor(provider string) map[string][]string {
-	return map[string][]string{customModel: {provider}}
+func customFor() map[string][]string {
+	return map[string][]string{customModel: {"custom_endpoint"}}
 }
 
 func TestResolveBindingWithCustom_ServesModelWithNoCatalogBinding(t *testing.T) {
@@ -26,7 +26,7 @@ func TestResolveBindingWithCustom_ServesModelWithNoCatalogBinding(t *testing.T) 
 	require.False(t, ok, "precondition: the catalog does not bind this model to the custom endpoint")
 
 	binding, ok := catalog.ResolveBindingWithCustom(
-		customModel, available, customFor(custom))
+		customModel, available, customFor())
 
 	require.True(t, ok)
 	assert.Equal(t, custom, binding.Provider)
@@ -46,7 +46,7 @@ func TestResolveBindingWithCustom_DirectVendorWins(t *testing.T) {
 			providers.ProviderAIAND: {},
 			custom:                  {},
 		},
-		customFor(custom),
+		customFor(),
 	)
 
 	require.True(t, ok)
@@ -57,7 +57,7 @@ func TestResolveBindingWithCustom_IgnoresUnavailableProvider(t *testing.T) {
 	_, ok := catalog.ResolveBindingWithCustom(
 		customModel,
 		map[string]struct{}{},
-		customFor("custom_endpoint"),
+		customFor(),
 	)
 
 	assert.False(t, ok)
@@ -71,7 +71,7 @@ func TestEnumerateBindingsWithCustom_CustomRanksAfterCatalog(t *testing.T) {
 			providers.ProviderAIAND: {},
 			custom:                  {},
 		},
-		customFor(custom),
+		customFor(),
 	)
 
 	require.Len(t, got, 2)

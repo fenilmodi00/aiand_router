@@ -45,7 +45,7 @@ func TestCompactionUnservableCarriesTrimCountsForClaudeCode(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			overflow := asCompactionUnservable(turntype.Compaction, decision, tc.cause)
-			require.NotNil(t, overflow)
+			require.Error(t, overflow)
 			err := withClientTrimCounts(context.WithValue(context.Background(), ClientIdentityContextKey{}, ClientIdentity{ClientApp: tc.clientApp}), overflow, tc.primaryErr)
 			class, ok := ClassifyDispatchError(err)
 			require.True(t, ok)

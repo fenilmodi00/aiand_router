@@ -68,8 +68,8 @@ func TestPriceFor_UnknownProviderForKnownModel(t *testing.T) {
 func TestPriceFor_KnownPair(t *testing.T) {
 	p, ok := PriceFor(providers.ProviderAIAND, "deepseek/deepseek-v4-pro")
 	require.True(t, ok)
-	assert.Equal(t, 1.00, p.InputUSDPer1M)
-	assert.Equal(t, 2.50, p.OutputUSDPer1M)
+	assert.InDelta(t, 1.00, p.InputUSDPer1M, 1e-9)
+	assert.InDelta(t, 2.50, p.OutputUSDPer1M, 1e-9)
 }
 
 func TestTierFor_KnownAndUnknown(t *testing.T) {
@@ -244,15 +244,15 @@ func TestContextWindowFor_KnownModels(t *testing.T) {
 
 func TestValidateDeployed_FlagsMissingAndUntiered(t *testing.T) {
 	err := ValidateDeployed([]string{"z-ai/glm-5.3"})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = ValidateDeployed([]string{"definitely-not-a-model"})
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "definitely-not-a-model")
 
 	// deepseek/deepseek-v4-pro-0813 is priced but has no tier (pin-only).
 	err = ValidateDeployed([]string{"deepseek/deepseek-v4-pro-0813"})
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "deepseek/deepseek-v4-pro-0813")
 }
 

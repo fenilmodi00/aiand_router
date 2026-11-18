@@ -13,7 +13,7 @@ type BindingRequest struct {
 	// request may not fail over (caller credentials, failover disabled, or
 	// the legacy all-registered mode), which serves the decision's provider only.
 	DeploymentKeyedProviders map[string]struct{}
-	ImageCount                int
+	ImageCount               int
 	// UserForced reports a /force-model decision (any forced reason), which
 	// keeps an image-capped binding instead of failing.
 	UserForced bool
