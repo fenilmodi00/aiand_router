@@ -465,7 +465,7 @@ func unwrapToSentinelMessage(err error) string {
 			continue
 		}
 		if errors.Is(child, translate.ErrAnthropicCacheControlOverflow) || errors.Is(child, translate.ErrAnthropicCacheControlInvalid) {
-			return e.Error()
+			return translate.CacheControlClientMessage(e)
 		}
 	}
 	return err.Error()

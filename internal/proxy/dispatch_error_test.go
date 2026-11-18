@@ -474,7 +474,7 @@ func TestClassifyDispatchError_QwenWarmingIsActionable(t *testing.T) {
 	classification, found := proxy.ClassifyDispatchError(fmt.Errorf("route: %w: %w", policy.ErrClassifierWarming, hmm.ErrHMMUnavailable))
 	require.True(t, found)
 	assert.Equal(t, http.StatusServiceUnavailable, classification.Status)
-	assert.Equal(t, "Qwen classifier is warming; run wv router prepare-model weave-qwen-20261008-0001v2 before retrying", classification.Message)
+	assert.Equal(t, fmt.Sprintf("Qwen classifier is warming; run wv router prepare-model %s before retrying", router.ModelQwen), classification.Message)
 	assert.True(t, classification.RetryAfter)
 }
 
