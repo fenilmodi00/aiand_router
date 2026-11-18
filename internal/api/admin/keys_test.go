@@ -15,8 +15,7 @@ import (
 	"aiand-os/router/internal/api/admin"
 	"aiand-os/router/internal/auth"
 	"aiand-os/router/internal/providers"
-	"aiand-os/router/internal/router/cluster"
-
+	"aiand-os/router/internal/router"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -475,9 +474,8 @@ func TestUpsertExternalKeyHandler_PersistsAndReturnsModelAliases(t *testing.T) {
 	t.Setenv(providers.APIKeyEnvVar(providers.ProviderAIAND), "")
 
 	repo := &fakeExternalAPIKeyRepo{}
-	models := fakeDeployedModels{entries: []cluster.DeployedEntry{
-		{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND},
-	}}
+	models := fakeDeployedModels{entries: []router.DeployedEntry{
+		{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND},	}}
 	rec := postProviderKeyWithAliases(
 		upsertKeyEngineWithModels(newUpsertKeyService(repo), models),
 		providers.ProviderAIAND,
@@ -500,9 +498,8 @@ func TestUpsertExternalKeyHandler_RejectsAliasForUnknownModel(t *testing.T) {
 	t.Setenv(providers.APIKeyEnvVar(providers.ProviderAIAND), "")
 
 	repo := &fakeExternalAPIKeyRepo{}
-	models := fakeDeployedModels{entries: []cluster.DeployedEntry{
-		{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND},
-	}}
+	models := fakeDeployedModels{entries: []router.DeployedEntry{
+		{Model: "z-ai/glm-5.3", Provider: providers.ProviderAIAND},	}}
 	rec := postProviderKeyWithAliases(
 		upsertKeyEngineWithModels(newUpsertKeyService(repo), models),
 		providers.ProviderAIAND,
@@ -604,8 +601,7 @@ func TestUpdateExternalKeyAliasesHandler_ReplacesAliasesWithoutTheSecret(t *test
 	repo := &fakeExternalAPIKeyRepo{keys: []*auth.ExternalAPIKey{
 		{ID: "ext-1", InstallationID: "inst-1", Provider: providers.ProviderAIAND},
 	}}
-	models := fakeDeployedModels{entries: []cluster.DeployedEntry{{Model: "gpt-5", Provider: providers.ProviderAIAND}}}
-
+	models := fakeDeployedModels{entries: []router.DeployedEntry{{Model: "gpt-5", Provider: providers.ProviderAIAND}}}
 	rec := putModelAliases(aliasUpdateEngine(newUpsertKeyService(repo), models), "ext-1", map[string]string{"gpt-5": "openai-gpt-5"})
 
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -622,8 +618,7 @@ func TestUpdateExternalKeyAliasesHandler_RejectsUnknownCatalogModel(t *testing.T
 	repo := &fakeExternalAPIKeyRepo{keys: []*auth.ExternalAPIKey{
 		{ID: "ext-1", InstallationID: "inst-1", Provider: providers.ProviderAIAND},
 	}}
-	models := fakeDeployedModels{entries: []cluster.DeployedEntry{{Model: "gpt-5", Provider: providers.ProviderAIAND}}}
-
+	models := fakeDeployedModels{entries: []router.DeployedEntry{{Model: "gpt-5", Provider: providers.ProviderAIAND}}}
 	rec := putModelAliases(aliasUpdateEngine(newUpsertKeyService(repo), models), "ext-1", map[string]string{"gpt-6": "openai-gpt-6"})
 
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
@@ -634,8 +629,7 @@ func TestUpdateExternalKeyAliasesHandler_ForeignKeyIsNotFound(t *testing.T) {
 	repo := &fakeExternalAPIKeyRepo{keys: []*auth.ExternalAPIKey{
 		{ID: "ext-1", InstallationID: "inst-2", Provider: providers.ProviderAIAND},
 	}}
-	models := fakeDeployedModels{entries: []cluster.DeployedEntry{{Model: "gpt-5", Provider: providers.ProviderAIAND}}}
-
+	models := fakeDeployedModels{entries: []router.DeployedEntry{{Model: "gpt-5", Provider: providers.ProviderAIAND}}}
 	rec := putModelAliases(aliasUpdateEngine(newUpsertKeyService(repo), models), "ext-1", map[string]string{"gpt-5": "openai-gpt-5"})
 
 	assert.Equal(t, http.StatusNotFound, rec.Code, "another tenant's key must read as absent, not as a server error")

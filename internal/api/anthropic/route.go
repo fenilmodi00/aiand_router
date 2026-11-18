@@ -8,9 +8,7 @@ import (
 	"aiand-os/router/internal/observability"
 	"aiand-os/router/internal/proxy"
 	"aiand-os/router/internal/router"
-	"aiand-os/router/internal/router/cluster"
 	"aiand-os/router/internal/server/middleware"
-
 	"github.com/gin-gonic/gin"
 )
 
@@ -37,7 +35,7 @@ func RouteHandler(svc *proxy.Service) gin.HandlerFunc {
 				writeAnthropicError(c, http.StatusBadRequest, "invalid_request_error", "Request body must be a JSON object.")
 				return
 			}
-			if errors.Is(routeErr, cluster.ErrInvalidRoutingKnobs) {
+			if errors.Is(routeErr, router.ErrInvalidRoutingKnobs) {
 				log.Warn("Invalid routing knobs supplied on route", "err", routeErr)
 				writeAnthropicError(c, http.StatusBadRequest, "invalid_request_error", "Invalid routing knobs supplied.")
 				return
@@ -94,7 +92,7 @@ func PreviewRouteHandler(svc *proxy.Service) gin.HandlerFunc {
 				writeAnthropicError(c, http.StatusBadRequest, "invalid_request_error", "Request body must be a JSON object.")
 				return
 			}
-			if errors.Is(previewErr, cluster.ErrInvalidRoutingKnobs) {
+			if errors.Is(previewErr, router.ErrInvalidRoutingKnobs) {
 				writeAnthropicError(c, http.StatusBadRequest, "invalid_request_error", "Invalid routing knobs supplied.")
 				return
 			}

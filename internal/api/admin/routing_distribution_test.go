@@ -8,21 +8,19 @@ import (
 	"testing"
 
 	"aiand-os/router/internal/api/admin"
-	"aiand-os/router/internal/router/cluster"
-
+	"aiand-os/router/internal/router"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type fakeDistributionSource struct {
-	points           []cluster.DistributionPoint
+	points           []router.DistributionPoint
 	err              error
 	lastGrid         int
-	lastExcludedMods map[string]struct{}
-}
+	lastExcludedMods map[string]struct{}}
 
-func (f *fakeDistributionSource) DefaultRoutingDistribution(gridN int, excludedModels, excludedProviders map[string]struct{}) ([]cluster.DistributionPoint, error) {
+func (f *fakeDistributionSource) DefaultRoutingDistribution(gridN int, excludedModels, excludedProviders map[string]struct{}) ([]router.DistributionPoint, error) {
 	f.lastGrid = gridN
 	f.lastExcludedMods = excludedModels
 	return f.points, f.err
@@ -36,10 +34,9 @@ func newDistributionEngine(src admin.RoutingDistributionSource) *gin.Engine {
 }
 
 func TestRoutingDistributionHandler_ReturnsPoints(t *testing.T) {
-	src := &fakeDistributionSource{points: []cluster.DistributionPoint{
-		{QualityBias: 0, Models: []cluster.ModelShare{{Model: "deepseek/deepseek-v4.1-flash", Share: 1}}, ProjectedCostPer1KInputUSD: 0.00014},
-		{QualityBias: 1, Models: []cluster.ModelShare{{Model: "z-ai/glm-5.3", Share: 1}}, ProjectedCostPer1KInputUSD: 0.005},
-	}}
+	src := &fakeDistributionSource{points: []router.DistributionPoint{
+		{QualityBias: 0, Models: []router.ModelShare{{Model: "deepseek/deepseek-v4.1-flash", Share: 1}}, ProjectedCostPer1KInputUSD: 0.00014},
+		{QualityBias: 1, Models: []router.ModelShare{{Model: "z-ai/glm-5.3", Share: 1}}, ProjectedCostPer1KInputUSD: 0.005},	}}
 	engine := newDistributionEngine(src)
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/router/routing-distribution?grid=2", nil)
@@ -50,7 +47,7 @@ func TestRoutingDistributionHandler_ReturnsPoints(t *testing.T) {
 	assert.Equal(t, 2, src.lastGrid, "grid query param should reach the source")
 
 	var got struct {
-		Points []cluster.DistributionPoint `json:"points"`
+		Points []router.DistributionPoint `json:"points"`
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
 	require.Len(t, got.Points, 2)
@@ -115,7 +112,7 @@ func TestRoutingDistributionHandler_SourceErrorIs503(t *testing.T) {
 func TestRoutingDistributionHandler_EmptyPoolIs400(t *testing.T) {
 	// Exclusions that empty the eligible pool are a client config error, not a
 	// server outage — the handler maps ErrNoEligibleProvider to 4xx.
-	engine := newDistributionEngine(&fakeDistributionSource{err: cluster.ErrNoEligibleProvider})
+	engine := newDistributionEngine(&fakeDistributionSource{err: router.ErrNoEligibleProvider})
 	req := httptest.NewRequest(http.MethodGet, "/v1/router/routing-distribution?excluded_models=a,b,c", nil)
 	rec := httptest.NewRecorder()
 	engine.ServeHTTP(rec, req)
