@@ -271,3 +271,20 @@ func TestAuthoritativeDowngradeControlsAreOrgOverridable(t *testing.T) {
 	assert.Equal(t, 3, flags.IntOr(ctx, flags.KeyHMMDowngradeHysteresisTurns, 0))
 	assert.Equal(t, 0, flags.IntOr(ctx, flags.KeyHMMDowngradeHysteresisShadowTurns, 2))
 }
+
+func TestOverridesOverlayReplacesOnlyLayeredKeys(t *testing.T) {
+	stored := flags.Overrides{
+		Bools: map[flags.Key]bool{flags.KeyPlannerEnabled: true, flags.KeySiblingFailover: true},
+		Ints:  map[flags.Key]int{flags.KeyLoopEscalationHoldoutPct: 10},
+	}
+	layered := stored.Overlay(flags.Overrides{
+		Bools:   map[flags.Key]bool{flags.KeyPlannerEnabled: false},
+		Strings: map[flags.Key]string{flags.KeyEscalationActiveClassifier: "none"},
+	})
+
+	assert.Equal(t, map[flags.Key]bool{flags.KeyPlannerEnabled: false, flags.KeySiblingFailover: true}, layered.Bools)
+	assert.Equal(t, map[flags.Key]int{flags.KeyLoopEscalationHoldoutPct: 10}, layered.Ints)
+	assert.Equal(t, map[flags.Key]string{flags.KeyEscalationActiveClassifier: "none"}, layered.Strings)
+	assert.Nil(t, layered.Floats)
+	assert.True(t, stored.Bools[flags.KeyPlannerEnabled], "overlay must not mutate the stored overrides")
+}
