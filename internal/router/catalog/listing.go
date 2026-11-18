@@ -6,11 +6,27 @@ import "sort"
 // the full compile-time catalog instead of a serving strategy's roster.
 const ScopeCatalog = "catalog"
 
-// ModelListing is one wire row of GET /v1/router/models: the ID clients send
-// and the primary provider the settings UI groups by.
+// ModelListing is one wire row of GET /v1/router/models: the ID clients send,
+// the primary provider the settings UI groups by, and the listed provider's
+// base per-1M-token prices so model pickers never keep their own price table.
+// Prices are omitted for a roster model the catalog cannot price.
 type ModelListing struct {
-	Model    string `json:"model"`
-	Provider string `json:"provider"`
+	Model          string  `json:"model"`
+	Provider       string  `json:"provider"`
+	InputUSDPer1M  float64 `json:"input_usd_per_1m,omitempty"`
+	OutputUSDPer1M float64 `json:"output_usd_per_1m,omitempty"`
+}
+
+// NewModelListing builds the wire row for a model served by provider, priced
+// from that provider's binding.
+func NewModelListing(model, provider string) ModelListing {
+	price, _ := PriceFor(provider, model)
+	return ModelListing{
+		Model:          model,
+		Provider:       provider,
+		InputUSDPer1M:  price.InputUSDPer1M,
+		OutputUSDPer1M: price.OutputUSDPer1M,
+	}
 }
 
 // ModelListingResponse is the body of GET /v1/router/models. Kept stable so
@@ -29,7 +45,7 @@ func Listing() []ModelListing {
 		if m.ID == "" {
 			continue
 		}
-		rows = append(rows, ModelListing{Model: m.ID, Provider: m.PrimaryProvider()})
+		rows = append(rows, NewModelListing(m.ID, m.PrimaryProvider()))
 	}
 	SortListing(rows)
 	return rows
