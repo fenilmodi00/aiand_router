@@ -20,7 +20,7 @@ const (
 // bypassFixture builds a service whose fake scorer would route to
 // bypassScorerPickMdl, with a fake provider that returns a minimal valid
 // Messages response so a routed turn completes.
-func bypassFixture(t *testing.T) (*proxy.Service, *fakeRouter, *fakeProvider) {
+func bypassFixture(t *testing.T) (*proxy.Service, *fakeProvider) {
 	t.Helper()
 	fr := &fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: bypassScorerPickMdl}}
 	p := &fakeProvider{proxyResponse: func(w http.ResponseWriter) {
@@ -29,7 +29,7 @@ func bypassFixture(t *testing.T) (*proxy.Service, *fakeRouter, *fakeProvider) {
 		_, _ = w.Write([]byte(`{"id":"msg_1","type":"message","role":"assistant","model":"` + bypassScorerPickMdl + `","content":[{"type":"text","text":"hi"}],"stop_reason":"end_turn","usage":{"input_tokens":1,"output_tokens":1}}`))
 	}}
 	svc := proxy.NewService(fr, map[string]providers.Client{providers.ProviderAIAND: p}, nil, false, nil, nil, false, providers.ProviderAIAND, bypassScorerPickMdl, nil)
-	return svc, fr, p
+	return svc, p
 }
 
 // bypassCtx returns the request context the bypass-era fixtures used.

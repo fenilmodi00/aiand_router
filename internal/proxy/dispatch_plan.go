@@ -123,7 +123,7 @@ func (s *Service) dispatchPlanned(ctx context.Context, in failoverInputs, plan i
 			// Fallback attempts re-resolve credentials against an empty header
 			// set: shouldFailover() already ruled out BYOK/client-credential
 			// paths, so the only source left is the deployment env key.
-			return resolveAndInjectCredentials(ctx, attempt.Target.Provider, in.initialDecision.Model, http.Header{}), nil
+			return resolveAndInjectCredentials(ctx, attempt.Target.Provider, http.Header{}), nil
 		},
 		Terminal: func(_ dispatch.Attempt, err error) bool {
 			var abort dispatchAbort

@@ -227,3 +227,20 @@ func (l *ToolCallLedger) ProjectID(index int, project func(string) string) strin
 	entry.projectedID = candidate
 	return candidate
 }
+
+// settleResponseToolCalls closes every function call in a terminal Responses
+// object, then emits the accepted ones through emit. Both Responses→client
+// writers reconcile their ledger the same way.
+func settleResponseToolCalls(ledger *ToolCallLedger, resp gjson.Result, emit func(sourceIndex int) error) error {
+	for index, item := range resp.Get("output").Array() {
+		if responsesItemType(item.Get("type").String()) == responsesFunctionCallItem {
+			ledger.Close(index, item.Get("call_id").String(), item.Get("name").String(), item.Get("arguments").String())
+		}
+	}
+	for _, entry := range ledger.Entries() {
+		if err := emit(entry.SourceIndex); err != nil {
+			return err
+		}
+	}
+	return nil
+}

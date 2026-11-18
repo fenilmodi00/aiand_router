@@ -51,6 +51,8 @@ func applySubscriberTelemetry(ctx context.Context, telemetry *InsertTelemetryPar
 	switch source {
 	case entitlement.CapacitySourceIncludedRouter:
 		telemetry.IncludedUsageMicros = &retail
+	case entitlement.CapacitySourcePrepaid, entitlement.CapacitySourceBillingOverride:
+		// Prepaid funds and billing overrides never draw on the included allowance.
 	}
 }
 
@@ -72,6 +74,8 @@ func markSubscriberTelemetryUnsettled(telemetry *InsertTelemetryParams) {
 	case entitlement.CapacitySourceIncludedRouter:
 		failed := true
 		telemetry.SettlementFailed = &failed
+	case entitlement.CapacitySourcePrepaid, entitlement.CapacitySourceBillingOverride:
+		// Only the included allowance is reconciled after the turn.
 	}
 }
 
@@ -80,6 +84,8 @@ func applySubscriberSettlementTelemetry(state subscriberSettlementState, telemet
 	case entitlement.CapacitySourceIncludedRouter:
 		failed := state.includedFailed
 		telemetry.SettlementFailed = &failed
+	case entitlement.CapacitySourcePrepaid, entitlement.CapacitySourceBillingOverride:
+		// Only the included allowance is reconciled after the turn.
 	}
 }
 

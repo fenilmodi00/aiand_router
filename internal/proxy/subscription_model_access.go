@@ -23,6 +23,6 @@ func anthropicSubscriptionModelRejected(err error) bool {
 		strings.HasPrefix(strings.ToLower(gjson.GetBytes(upstream.Body, "error.message").String()), "model:")
 }
 
-func (s *Service) resolveCredentials(ctx context.Context, provider, model string, headers http.Header) context.Context {
-	return resolveAndInjectCredentials(ctx, provider, model, headers)
+func (s *Service) resolveCredentials(ctx context.Context, provider string, headers http.Header) context.Context {
+	return resolveAndInjectCredentials(ctx, provider, headers)
 }

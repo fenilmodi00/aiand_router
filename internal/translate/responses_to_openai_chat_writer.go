@@ -395,17 +395,7 @@ func (t *ResponsesToOpenAIChatWriter) bufferToolArgs(data []byte, field string, 
 
 // settleTools reconciles unfinished calls before committing the stream terminal.
 func (t *ResponsesToOpenAIChatWriter) settleTools(resp gjson.Result) error {
-	for index, item := range resp.Get("output").Array() {
-		if responsesItemType(item.Get("type").String()) == responsesFunctionCallItem {
-			t.toolLedger.Close(index, item.Get("call_id").String(), item.Get("name").String(), item.Get("arguments").String())
-		}
-	}
-	for _, entry := range t.toolLedger.Entries() {
-		if err := t.emitToolCall(entry.SourceIndex); err != nil {
-			return err
-		}
-	}
-	return nil
+	return settleResponseToolCalls(t.toolLedger, resp, t.emitToolCall)
 }
 
 // captureFinalResponse records usage + finish reason from a terminal event's

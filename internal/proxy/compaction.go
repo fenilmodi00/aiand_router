@@ -3,7 +3,6 @@ package proxy
 import (
 	"context"
 	"maps"
-	"net/http"
 	"slices"
 	"time"
 
@@ -28,18 +27,17 @@ func (s *Service) routeCompaction(
 	ctx context.Context,
 	req router.Request,
 	res turnLoopResult,
-	reqHeaders http.Header,
 	sessionKey [sessionpin.SessionKeyLen]byte,
 	installationID uuid.UUID,
 	forceModelFound bool,
 	forceModelPin sessionpin.Pin,
 ) (turnLoopResult, error) {
 	if s.pinStore == nil {
-		return s.routeWithoutPin(ctx, req, res, reqHeaders, forceModelFound, forceModelPin)
+		return s.routeWithoutPin(ctx, req, res, forceModelFound, forceModelPin)
 	}
 	res.SessionKey = sessionKey
 	if forceModelFound && forcedPinEligible(forceModelPin, req) {
-		return s.routeWithoutPin(ctx, req, res, reqHeaders, forceModelFound, forceModelPin)
+		return s.routeWithoutPin(ctx, req, res, forceModelFound, forceModelPin)
 	}
 	session := compactionSession{
 		pins:      s.pinStore,
@@ -63,7 +61,7 @@ func (s *Service) routeCompaction(
 		res.Origin = policy.OverrideSourceSession
 		return res, nil
 	}
-	res, err := s.routeWithoutPin(ctx, req, res, reqHeaders, false, sessionpin.Pin{})
+	res, err := s.routeWithoutPin(ctx, req, res, false, sessionpin.Pin{})
 	if err != nil || res.CallerModelPassthrough {
 		return res, err
 	}

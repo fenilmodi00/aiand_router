@@ -620,7 +620,6 @@ func (s *Service) routeWithoutPin(
 	ctx context.Context,
 	req router.Request,
 	res turnLoopResult,
-	reqHeaders http.Header,
 	forceModelFound bool,
 	forceModelPin sessionpin.Pin,
 ) (turnLoopResult, error) {
@@ -994,7 +993,7 @@ func (s *Service) runTurnLoop(
 	if res.TurnType == turntype.Probe && !s.explicitUtilityHardPin {
 		res.SessionKey = [sessionpin.SessionKeyLen]byte{}
 		if automaticProbe {
-			return s.routeWithoutPin(ctx, req, res, reqHeaders, forceModelFound, forceModelPin)
+			return s.routeWithoutPin(ctx, req, res, forceModelFound, forceModelPin)
 		}
 		decision, err := s.callerModelPassthroughDecision(ctx, req)
 		if err != nil {
@@ -1050,7 +1049,7 @@ func (s *Service) runTurnLoop(
 				// can fix, so it must not surface as a retryable router outage.
 				hardPinErr := router.ErrNoEligibleProvider
 				switch {
-				case s.hardPinBlockedByContextWindow(threadSessionKey, res, hardPinReq, req):
+				case s.hardPinBlockedByContextWindow(hardPinReq, req):
 					hardPinErr = policy.ErrContextWindowExceeded
 				}
 				log.Warn(
@@ -1131,10 +1130,10 @@ func (s *Service) runTurnLoop(
 	}
 
 	if isUnpinnedScoredTurn(res.TurnType) {
-		return s.routeWithoutPin(ctx, req, res, reqHeaders, forceModelFound, forceModelPin)
+		return s.routeWithoutPin(ctx, req, res, forceModelFound, forceModelPin)
 	}
 	if res.TurnType == turntype.Compaction {
-		return s.routeCompaction(ctx, req, res, reqHeaders, threadSessionKey, installationID, forceModelFound, forceModelPin)
+		return s.routeCompaction(ctx, req, res, threadSessionKey, installationID, forceModelFound, forceModelPin)
 	}
 
 	// res.SessionKey must stay zero in no-pin-store mode, but trim detection
@@ -1162,7 +1161,7 @@ func (s *Service) runTurnLoop(
 	// Without a pin store, run the scorer and return its decision. The usage
 	// bypass intercepts the fresh scorer decision here too (no pins to honor).
 	if s.pinStore == nil {
-		return s.routeWithoutPin(ctx, req, res, reqHeaders, forceModelFound, forceModelPin)
+		return s.routeWithoutPin(ctx, req, res, forceModelFound, forceModelPin)
 	}
 
 	res.SessionKey = sessionKey
@@ -2878,7 +2877,7 @@ func (s *Service) writeNewPin(ctx context.Context, installationID uuid.UUID, ses
 	s.upsertPin(ctx, p)
 }
 
-// upsertPin synchronously persists a pin write. context.Background() is used
+// upsertPin synchronously persists a pin write. context.WithoutCancel is used
 // so the DB write survives request-ctx cancellation after the response has
 // finished streaming.
 func (s *Service) upsertPin(ctx context.Context, p sessionpin.Pin) {
@@ -2886,7 +2885,7 @@ func (s *Service) upsertPin(ctx context.Context, p sessionpin.Pin) {
 	if p.Strategy == "" {
 		p.Strategy = router.StrategyFromContext(ctx)
 	}
-	if err := s.pinStore.Upsert(context.Background(), p); err != nil {
+	if err := s.pinStore.Upsert(context.WithoutCancel(ctx), p); err != nil {
 		log.Error("session pin upsert failed", "err", err)
 		return
 	}
@@ -2938,7 +2937,7 @@ func sortedEnabledKeys(m map[string]struct{}) []string {
 // native prompt-too-long error instead of a retryable routing outage. A
 // compaction turn rechecks its own summarizer path too, which can reach models
 // the generic resolver cannot.
-func (s *Service) hardPinBlockedByContextWindow(sessionKey [sessionpin.SessionKeyLen]byte, res turnLoopResult, hardPinReq HardPinRequest, req router.Request) bool {
+func (s *Service) hardPinBlockedByContextWindow(hardPinReq HardPinRequest, req router.Request) bool {
 	if !req.Exclusions.HasContextWindowExclusions() {
 		return false
 	}

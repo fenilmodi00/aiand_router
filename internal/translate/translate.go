@@ -111,29 +111,45 @@ func writeOpenAIMessageFromAnthropic(jw *jsonWriter, content gjson.Result, ledge
 	}
 
 	if len(toolCallBlocks) > 0 {
-		jw.Key("tool_calls")
-		jw.Arr()
-		for _, block := range toolCallBlocks {
-			jw.Obj()
-			jw.Key("id")
-			jw.Str(block.ID)
-			jw.Key("type")
-			jw.Str("function")
-			jw.Key("function")
-			jw.Obj()
-			jw.Key("name")
-			jw.Str(block.Name)
-			// Anthropic input is a JSON object; OpenAI arguments is that object serialized as a string.
-			jw.Key("arguments")
-			jw.Str(block.Arguments)
-			jw.EndObj()
-			jw.EndObj()
+		calls := make([]openAIToolCall, len(toolCallBlocks))
+		for i, block := range toolCallBlocks {
+			calls[i] = openAIToolCall{id: block.ID, name: block.Name, args: block.Arguments}
 		}
-		jw.EndArr()
+		writeOpenAIToolCalls(jw, calls)
 	}
 
 	jw.EndObj()
 	return len(toolCallBlocks), issues
+}
+
+// openAIToolCall is one resolved tool call as a chat/completions client sees it.
+type openAIToolCall struct {
+	id   string
+	name string
+	args string
+}
+
+// writeOpenAIToolCalls emits the chat/completions tool_calls array.
+func writeOpenAIToolCalls(jw *jsonWriter, calls []openAIToolCall) {
+	jw.Key("tool_calls")
+	jw.Arr()
+	for _, call := range calls {
+		jw.Obj()
+		jw.Key("id")
+		jw.Str(call.id)
+		jw.Key("type")
+		jw.Str("function")
+		jw.Key("function")
+		jw.Obj()
+		jw.Key("name")
+		jw.Str(call.name)
+		// Anthropic input is a JSON object; OpenAI arguments is that object serialized as a string.
+		jw.Key("arguments")
+		jw.Str(call.args)
+		jw.EndObj()
+		jw.EndObj()
+	}
+	jw.EndArr()
 }
 
 // mapStopReason converts an Anthropic stop_reason to an OpenAI finish_reason.

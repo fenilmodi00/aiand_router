@@ -1,7 +1,7 @@
 package translate
 
 import (
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -86,7 +86,7 @@ func applyResponsesSessionAffinity(body []byte, opts EmitOptions) ([]byte, error
 // stableResponsesPromptCacheKey hashes the cacheable prefix (instructions + tools)
 // for Responses bodies and returns "" when there is none.
 func stableResponsesPromptCacheKey(body []byte) string {
-	h := sha1.New()
+	h := sha256.New()
 	var hasPrefix bool
 	if instructions := gjson.GetBytes(body, "instructions"); instructions.Raw != "" && instructions.Type != gjson.Null {
 		h.Write([]byte(instructions.Raw))
@@ -100,7 +100,7 @@ func stableResponsesPromptCacheKey(body []byte) string {
 	if !hasPrefix {
 		return ""
 	}
-	return "wv_" + hex.EncodeToString(h.Sum(nil))
+	return "wv_" + hex.EncodeToString(h.Sum(nil)[:20])
 }
 
 // ResponseTranslator is the common surface the proxy's cross-format OpenAI
@@ -665,26 +665,7 @@ func writeResponsesFunctionTools(jw *jsonWriter, tools []responsesFunctionTool) 
 // Responses tool_choice shape.
 func writeResponsesToolChoiceFromAnthropic(jw *jsonWriter, body []byte) {
 	kind, name := anthropicToolChoice(body)
-	switch kind {
-	case toolChoiceAuto:
-		jw.Key("tool_choice")
-		jw.Str("auto")
-	case toolChoiceRequired:
-		jw.Key("tool_choice")
-		jw.Str("required")
-	case toolChoiceNone:
-		jw.Key("tool_choice")
-		jw.Str("none")
-	case toolChoiceNamed:
-		jw.Key("tool_choice")
-		jw.Obj()
-		jw.Key("type")
-		jw.Str("function")
-		jw.Key("name")
-		jw.Str(sanitizeResponsesToolAlias(name))
-		jw.EndObj()
-	case toolChoiceAbsent, toolChoiceUnrecognized:
-	}
+	writeResponsesToolChoice(jw, kind, name)
 }
 
 func joinNonEmpty(parts []string) string {

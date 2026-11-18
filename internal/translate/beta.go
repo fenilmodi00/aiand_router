@@ -144,63 +144,14 @@ func parseBetaCommand(text string) (result BetaCommandResult, found bool, stripp
 }
 
 func isBetaCommandOnlyContent(content gjson.Result) bool {
-	switch {
-	case content.Type == gjson.String:
-		_, found, stripped := parseBetaCommand(content.String())
-		return found && isOnlyInjectedCommandText(stripped)
-	case content.Type == gjson.JSON && content.IsArray():
-		seenCommand := false
-		allSynthetic := true
-		content.ForEach(func(_, block gjson.Result) bool {
-			if block.Get("type").String() != "text" {
-				allSynthetic = false
-				return false
-			}
-			text := block.Get("text").String()
-			if strings.TrimSpace(text) == "" || isClaudeCodeInjectedBlock(text) {
-				return true
-			}
-			_, found, stripped := parseBetaCommand(text)
-			if found && isOnlyInjectedCommandText(stripped) {
-				seenCommand = true
-				return true
-			}
-			allSynthetic = false
-			return false
-		})
-		return seenCommand && allSynthetic
-	default:
-		return false
-	}
+	return commandOnlyContent(content, func(text string) (bool, string) {
+		_, found, stripped := parseBetaCommand(text)
+		return found, stripped
+	})
 }
 
 func isBetaAckOnlyContent(content gjson.Result) bool {
-	switch {
-	case content.Type == gjson.String:
-		return isBetaAckText(content.String())
-	case content.Type == gjson.JSON && content.IsArray():
-		seenAck := false
-		allSynthetic := true
-		content.ForEach(func(_, block gjson.Result) bool {
-			if block.Get("type").String() != "text" {
-				allSynthetic = false
-				return false
-			}
-			text := block.Get("text").String()
-			if strings.TrimSpace(text) == "" {
-				return true
-			}
-			if isBetaAckText(text) {
-				seenAck = true
-				return true
-			}
-			allSynthetic = false
-			return false
-		})
-		return seenAck && allSynthetic
-	default:
-		return false
-	}
+	return ackOnlyContent(content, isBetaAckText)
 }
 
 func isBetaAckText(text string) bool {

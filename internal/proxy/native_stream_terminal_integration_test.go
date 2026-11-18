@@ -52,18 +52,18 @@ func scriptedStream(attempts ...[]string) *fakeProvider {
 	}}
 }
 
-func nativeSurfaceService(provider *fakeProvider, providerName, model string) *proxy.Service {
+func nativeSurfaceService(provider *fakeProvider, model string) *proxy.Service {
 	return proxy.NewService(
-		&fakeRouter{decision: router.Decision{Provider: providerName, Model: model, Reason: "test"}},
-		map[string]providers.Client{providerName: provider},
-		nil, false, nil, nil, false, providerName, model, nil,
-	).WithOpenAIResponsesBroad(providerName == providers.ProviderAIAND).
+		&fakeRouter{decision: router.Decision{Provider: providers.ProviderAIAND, Model: model, Reason: "test"}},
+		map[string]providers.Client{providers.ProviderAIAND: provider},
+		nil, false, nil, nil, false, providers.ProviderAIAND, model, nil,
+	).WithOpenAIResponsesBroad(true).
 		WithRetrySleep(noRetrySleep)
 }
 
 func TestProxyOpenAIChatCompletion_NativeStreamWithoutFinishReasonFailsInStream(t *testing.T) {
 	provider := scriptedStream(chatCutFrames)
-	svc := nativeSurfaceService(provider, providers.ProviderAIAND, nativeChatModel)
+	svc := nativeSurfaceService(provider, nativeChatModel)
 	body := []byte(`{"model":"` + nativeChatModel + `","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
 
 	rec := httptest.NewRecorder()
@@ -77,7 +77,7 @@ func TestProxyOpenAIChatCompletion_NativeStreamWithoutFinishReasonFailsInStream(
 
 func TestProxyOpenAIChatCompletion_EmptyNativeStreamRetriedBeforeCommit(t *testing.T) {
 	provider := scriptedStream(nil, chatCompleteFrames)
-	svc := nativeSurfaceService(provider, providers.ProviderAIAND, nativeChatModel)
+	svc := nativeSurfaceService(provider, nativeChatModel)
 	body := []byte(`{"model":"` + nativeChatModel + `","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
 
 	rec := httptest.NewRecorder()
@@ -90,7 +90,7 @@ func TestProxyOpenAIChatCompletion_EmptyNativeStreamRetriedBeforeCommit(t *testi
 
 func TestProxyOpenAIResponses_NativeStreamWithoutTerminalFailsInStream(t *testing.T) {
 	provider := scriptedStream(responsesCutFrames)
-	svc := nativeSurfaceService(provider, providers.ProviderAIAND, nativeResponsesModel)
+	svc := nativeSurfaceService(provider, nativeResponsesModel)
 	body := []byte(`{"model":"auto","stream":true,"input":"hi"}`)
 
 	rec := httptest.NewRecorder()
@@ -104,7 +104,7 @@ func TestProxyOpenAIResponses_NativeStreamWithoutTerminalFailsInStream(t *testin
 
 func TestProxyOpenAIResponses_EmptyNativeStreamRetriedBeforeCommit(t *testing.T) {
 	provider := scriptedStream(nil, responsesCompleteFrames)
-	svc := nativeSurfaceService(provider, providers.ProviderAIAND, nativeResponsesModel)
+	svc := nativeSurfaceService(provider, nativeResponsesModel)
 	body := []byte(`{"model":"auto","stream":true,"input":"hi"}`)
 
 	rec := httptest.NewRecorder()

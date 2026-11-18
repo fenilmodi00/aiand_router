@@ -30,12 +30,7 @@ func responsesToOpenAIChatResponse(body []byte, requestModel string, toolValidat
 	}
 
 	var text, reasoning strings.Builder
-	type toolCall struct {
-		id   string
-		name string
-		args string
-	}
-	var toolCalls []toolCall
+	var toolCalls []openAIToolCall
 	var issues []toolcheck.Issue
 	ledger := NewToolCallLedger()
 	outputIndex := 0
@@ -65,7 +60,7 @@ func responsesToOpenAIChatResponse(body []byte, requestModel string, toolValidat
 			if call.Issue != nil {
 				issues = append(issues, *call.Issue)
 			}
-			toolCalls = append(toolCalls, toolCall{
+			toolCalls = append(toolCalls, openAIToolCall{
 				id:   ledger.ProjectID(index, clampOpenAIToolCallID),
 				name: call.Name,
 				args: call.Arguments,
@@ -119,24 +114,7 @@ func responsesToOpenAIChatResponse(body []byte, requestModel string, toolValidat
 		jw.Str(reasoning.String())
 	}
 	if len(toolCalls) > 0 {
-		jw.Key("tool_calls")
-		jw.Arr()
-		for _, call := range toolCalls {
-			jw.Obj()
-			jw.Key("id")
-			jw.Str(call.id)
-			jw.Key("type")
-			jw.Str("function")
-			jw.Key("function")
-			jw.Obj()
-			jw.Key("name")
-			jw.Str(call.name)
-			jw.Key("arguments")
-			jw.Str(call.args)
-			jw.EndObj()
-			jw.EndObj()
-		}
-		jw.EndArr()
+		writeOpenAIToolCalls(jw, toolCalls)
 	}
 	jw.EndObj()
 	jw.Key("finish_reason")

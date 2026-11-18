@@ -298,6 +298,12 @@ func writeResponsesToolsFromOpenAI(jw *jsonWriter, body []byte) {
 // Responses tool_choice shape.
 func writeResponsesToolChoiceFromOpenAI(jw *jsonWriter, body []byte) {
 	kind, name := openAIToolChoice(body)
+	writeResponsesToolChoice(jw, kind, name)
+}
+
+// writeResponsesToolChoice emits the Responses tool_choice object for a
+// source-format tool choice; both source formats share the vocabulary.
+func writeResponsesToolChoice(jw *jsonWriter, kind toolChoiceKind, name string) {
 	switch kind {
 	case toolChoiceAuto:
 		jw.Key("tool_choice")

@@ -97,7 +97,7 @@ func TestCompactionWithoutSessionPinUsesScorer(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	assert.NotErrorIs(t, err, cluster.ErrClusterUnavailable)
+	require.NotErrorIs(t, err, cluster.ErrClusterUnavailable)
 	assert.Equal(t, turntype.Compaction, turn.TurnType)
 	assert.Equal(t, compactionScoredModel, turn.Decision.Model)
 	assert.Equal(t, int32(1), f.scorerCalls.Load())

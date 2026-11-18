@@ -104,7 +104,7 @@ func collectChatStream(t *testing.T, body string) chatStreamResult {
 func proxySeedChat(t *testing.T, body []byte, frames []string) *httptest.ResponseRecorder {
 	t.Helper()
 	provider := scriptedStream(frames)
-	svc := nativeSurfaceService(provider, providers.ProviderAIAND, seedMarkupModel)
+	svc := nativeSurfaceService(provider, seedMarkupModel)
 	rec := httptest.NewRecorder()
 	require.NoError(t, svc.ProxyOpenAIChatCompletion(authedCtx(uuid.NewString()), body, rec, httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)))
 	return rec
@@ -190,7 +190,7 @@ func TestProxyOpenAIChatCompletion_SeedToolCallMarkupNonStreaming(t *testing.T) 
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"id":"gen-1","object":"chat.completion","model":"` + seedMarkupModel + `","choices":[{"index":0,"message":{"role":"assistant","content":` + quoteJSON(content) + `},"finish_reason":"stop"}],"usage":{"prompt_tokens":40,"completion_tokens":20}}`))
 	}}
-	svc := nativeSurfaceService(provider, providers.ProviderAIAND, seedMarkupModel)
+	svc := nativeSurfaceService(provider, seedMarkupModel)
 	rec := httptest.NewRecorder()
 	require.NoError(t, svc.ProxyOpenAIChatCompletion(authedCtx(uuid.NewString()), seedMarkupChatBody(false), rec, httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)))
 

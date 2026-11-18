@@ -4,6 +4,8 @@ package proxy
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -77,6 +79,18 @@ func (c *blockingRecoveryClient) Proxy(ctx context.Context, _ router.Decision, _
 
 func (*blockingRecoveryClient) Passthrough(context.Context, providers.PreparedRequest, http.ResponseWriter, *http.Request) error {
 	return providers.ErrNotImplemented
+}
+
+// writeChatCompletionText streams text as a complete chat/completions turn.
+func writeChatCompletionText(w http.ResponseWriter, text string) {
+	content, _ := json.Marshal(text)
+	for _, frame := range []string{
+		`{"id":"c1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":` + string(content) + `},"finish_reason":null}]}`,
+		`{"id":"c1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":3}}`,
+		"[DONE]",
+	} {
+		_, _ = io.WriteString(w, "data: "+frame+"\n\n")
+	}
 }
 
 type recoveryBucketRead struct {

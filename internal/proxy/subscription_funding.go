@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"context"
-	"net/http"
 
 	"aiand-os/router/internal/dispatch"
 	"aiand-os/router/internal/inference"
@@ -17,7 +16,7 @@ import (
 // protect. The seam stays because the dispatch executor consults it, and a
 // future credential source that CAN be a subscription has exactly one place to
 // enforce it.
-func (s *Service) withSubscriptionFundingAuthorization(ctx context.Context, headers http.Header) context.Context {
+func (s *Service) withSubscriptionFundingAuthorization(ctx context.Context) context.Context {
 	ctx = WithManagedSubscriptionUsage(ctx)
 	if dispatch.AuthorizationFromContext(ctx) != nil {
 		return ctx
@@ -31,7 +30,7 @@ func (s *Service) withSubscriptionFundingAuthorization(ctx context.Context, head
 // under the request's funding mode. Nothing is ever funded by a caller
 // subscription, so the answer is always "yes".
 func (s *Service) subscriptionAPIAuthorization(ctx context.Context, provider, model string) error {
-	ctx = s.withSubscriptionFundingAuthorization(ctx, nil)
+	ctx = s.withSubscriptionFundingAuthorization(ctx)
 	return dispatch.AuthorizationFromContext(ctx)(clearCredentials(ctx), inference.Target{Provider: provider, CatalogID: model})
 }
 

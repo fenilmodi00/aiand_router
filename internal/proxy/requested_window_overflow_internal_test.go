@@ -8,6 +8,7 @@ import (
 	"aiand-os/router/internal/router/policy"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // pastRequestedWindow classification, unit-tested directly: v0's catalog has
@@ -39,7 +40,7 @@ func TestAsRequestedWindowOverflow(t *testing.T) {
 	// Past the window, pre-output, retryable: rewrite to the client's native
 	// prompt-too-long so it compacts instead of resending the same history.
 	err := asRequestedWindowOverflow(retryable, true, false)
-	assert.ErrorIs(t, err, policy.ErrContextWindowExceeded)
+	require.ErrorIs(t, err, policy.ErrContextWindowExceeded)
 
 	// Already an overflow, a rate limit, or a committed stream: pass through.
 	assert.Equal(t, overflow, asRequestedWindowOverflow(overflow, true, false))

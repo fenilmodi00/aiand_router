@@ -300,9 +300,9 @@ func TestPolicyPinServedGuard(t *testing.T) {
 	sticky := turnLoopResult{Decision: router.Decision{Model: "m"}, StickyHit: true, PinTier: "sticky"}
 	utility := turnLoopResult{Decision: router.Decision{Model: "m"}, HardPinned: true, Purpose: inference.Purpose("title_generation")}
 
-	assert.NoError(t, policyPinServed(pinnedContext(true), served))
+	require.NoError(t, policyPinServed(pinnedContext(true), served))
 	require.ErrorIs(t, policyPinServed(pinnedContext(true), sticky), router.ErrPolicyPinUnavailable)
-	assert.NoError(t, policyPinServed(pinnedContext(true), utility), "utility hard pins are never policy-scored")
-	assert.NoError(t, policyPinServed(pinnedContext(false), sticky))
-	assert.NoError(t, policyPinServed(context.Background(), sticky))
+	require.NoError(t, policyPinServed(pinnedContext(true), utility), "utility hard pins are never policy-scored")
+	require.NoError(t, policyPinServed(pinnedContext(false), sticky))
+	require.NoError(t, policyPinServed(context.Background(), sticky))
 }

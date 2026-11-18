@@ -25,7 +25,7 @@ func TestEnabledProvidersForRequest_DeploymentKeyedStillCrossSurface(t *testing.
 		passthroughEligibleProviders: map[string]struct{}{},
 	}
 
-	got := s.enabledProvidersForRequest(context.Background(), providers.ProviderAIAND, http.Header{})
+	got := s.enabledProvidersForRequest(context.Background(), http.Header{})
 	assert.Contains(t, got, providers.ProviderAIAND)
 	assert.Contains(t, got, providers.ProviderAIAND,
 		"env-keyed providers must remain eligible cross-surface; only passthrough is surface-scoped")
@@ -47,7 +47,7 @@ func TestEnabledProvidersForRequest_GatewayKeyDisplacesVendors(t *testing.T) {
 		{Provider: providers.ProviderAIAND, Plaintext: []byte("pat")},
 	})
 
-	got := s.enabledProvidersForRequest(ctx, providers.ProviderAIAND, http.Header{})
+	got := s.enabledProvidersForRequest(ctx, http.Header{})
 
 	assert.Equal(t, map[string]struct{}{providers.ProviderAIAND: {}}, got)
 }
@@ -66,7 +66,7 @@ func TestEnabledProvidersForRequest_VendorByokKeyDoesNotDisplaceVendors(t *testi
 		{Provider: providers.ProviderAIAND, Plaintext: []byte("pat")},
 	})
 
-	got := s.enabledProvidersForRequest(ctx, providers.ProviderAIAND, http.Header{})
+	got := s.enabledProvidersForRequest(ctx, http.Header{})
 
 	assert.Contains(t, got, providers.ProviderAIAND,
 		"a vendor BYOK key is not a gateway and must not narrow the eligible set")

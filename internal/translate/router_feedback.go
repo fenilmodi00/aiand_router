@@ -183,34 +183,10 @@ func parseRouterFeedbackCommand(text string) (res RouterFeedbackResult, found bo
 }
 
 func isRouterFeedbackCommandOnlyContent(content gjson.Result) bool {
-	switch {
-	case content.Type == gjson.String:
-		_, found, stripped := parseRouterFeedbackCommand(content.String())
-		return found && isOnlyInjectedCommandText(stripped)
-	case content.Type == gjson.JSON && content.IsArray():
-		seenCommand := false
-		allSynthetic := true
-		content.ForEach(func(_, block gjson.Result) bool {
-			if block.Get("type").String() != "text" {
-				allSynthetic = false
-				return false
-			}
-			text := block.Get("text").String()
-			if strings.TrimSpace(text) == "" || isClaudeCodeInjectedBlock(text) {
-				return true
-			}
-			_, found, stripped := parseRouterFeedbackCommand(text)
-			if found && isOnlyInjectedCommandText(stripped) {
-				seenCommand = true
-				return true
-			}
-			allSynthetic = false
-			return false
-		})
-		return seenCommand && allSynthetic
-	default:
-		return false
-	}
+	return commandOnlyContent(content, func(text string) (bool, string) {
+		_, found, stripped := parseRouterFeedbackCommand(text)
+		return found, stripped
+	})
 }
 
 func isOnlyInjectedCommandText(text string) bool {
@@ -219,32 +195,7 @@ func isOnlyInjectedCommandText(text string) bool {
 }
 
 func isRouterFeedbackAckOnlyContent(content gjson.Result) bool {
-	switch {
-	case content.Type == gjson.String:
-		return isRouterFeedbackAckText(content.String())
-	case content.Type == gjson.JSON && content.IsArray():
-		seenAck := false
-		allSynthetic := true
-		content.ForEach(func(_, block gjson.Result) bool {
-			if block.Get("type").String() != "text" {
-				allSynthetic = false
-				return false
-			}
-			text := block.Get("text").String()
-			if strings.TrimSpace(text) == "" {
-				return true
-			}
-			if isRouterFeedbackAckText(text) {
-				seenAck = true
-				return true
-			}
-			allSynthetic = false
-			return false
-		})
-		return seenAck && allSynthetic
-	default:
-		return false
-	}
+	return ackOnlyContent(content, isRouterFeedbackAckText)
 }
 
 func isRouterFeedbackAckText(text string) bool {
