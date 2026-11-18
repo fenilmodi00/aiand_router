@@ -308,6 +308,21 @@ func (t *SSETranslator) handleContentBlockDelta(data []byte) error {
 		t.bw.WriteString("\n\n")
 		return t.flushEvent()
 
+	case "thinking_delta":
+		thinking := gjson.GetBytes(data, "delta.thinking").Str
+		if thinking == "" {
+			return nil
+		}
+		if err := t.lifecycle.Output(0); err != nil {
+			return err
+		}
+		t.writeChunkHeader()
+		t.bw.WriteString(`"choices":[{"index":0,"delta":{"reasoning_content":`)
+		sse.WriteJSONString(t.bw, thinking)
+		t.bw.WriteString(`},"finish_reason":null}]}`)
+		t.bw.WriteString("\n\n")
+		return t.flushEvent()
+
 	case "input_json_delta":
 		if t.currentIsTool {
 			t.toolLedger.AppendArguments(t.currentToolSource, "", "", gjson.GetBytes(data, "delta.partial_json").String())
@@ -451,6 +466,9 @@ type AnthropicSSETranslator struct {
 	// real text arrives, or dropped if only whitespace ever comes.
 	pendingText strings.Builder
 	toolBlocks  map[int]int
+	// toolSignatures keeps a deferred parallel call's thought signature
+	// until finishToolBlocks opens its block.
+	toolSignatures map[int]string
 	// toolValidator validates/repairs buffered tool args (see toolcheck). Nil
 	// means syntax-check-only.
 	toolValidator *toolcheck.Validator
@@ -570,14 +588,15 @@ const upstreamErrorBodyCap = 8 << 10
 func NewAnthropicSSETranslator(w http.ResponseWriter, requestModel string, sink UsageSink) *AnthropicSSETranslator {
 	flusher, _ := w.(http.Flusher)
 	return &AnthropicSSETranslator{
-		inner:        w,
-		flusher:      flusher,
-		bw:           bufio.NewWriterSize(w, 8192),
-		requestModel: requestModel,
-		toolBlocks:   make(map[int]int),
-		usageSink:    sink,
-		lifecycle:    NewStreamLifecycle(),
-		toolLedger:   NewToolCallLedger(),
+		inner:          w,
+		flusher:        flusher,
+		bw:             bufio.NewWriterSize(w, 8192),
+		requestModel:   requestModel,
+		toolBlocks:     make(map[int]int),
+		toolSignatures: make(map[int]string),
+		usageSink:      sink,
+		lifecycle:      NewStreamLifecycle(),
+		toolLedger:     NewToolCallLedger(),
 	}
 }
 
@@ -1124,52 +1143,10 @@ func (t *AnthropicSSETranslator) emitDelta(delta gjson.Result) error {
 
 	var emitErr error
 	toolCalls.ForEach(func(_, tc gjson.Result) bool {
-		idx := int(tc.Get("index").Int())
-		entry := t.toolLedger.AppendArguments(idx, tc.Get("id").String(), tc.Get("function.name").String(), tc.Get("function.arguments").String())
-		if entry.Name == "" {
-			return true
-		}
-		if err := t.lifecycle.Output(t.blockIdx); err != nil {
-			emitErr = err
-			return false
-		}
-		if _, ok := t.toolBlocks[idx]; !ok {
-			sig := tc.Get("function.thought_signature").Str
-			if sig == "" {
-				sig = tc.Get("thought_signature").Str
-			}
-			if emitErr = t.openToolUseBlock(idx, entry.Name, sig); emitErr != nil {
-				return false
-			}
-		}
-
-		return true
+		emitErr = t.emitToolCallDelta(tc)
+		return emitErr == nil
 	})
 	return emitErr
-}
-
-// openToolUseBlock closes any open text/thinking block and starts the
-// tool_use block for ledger entry idx; finishStream emits its arguments.
-func (t *AnthropicSSETranslator) openToolUseBlock(idx int, name, sig string) error {
-	id := t.toolLedger.ProjectID(idx, t.uniqueToolUseID)
-	if t.textOpen {
-		if err := t.emitContentBlockStop(t.blockIdx - 1); err != nil {
-			return err
-		}
-		t.textOpen = false
-	}
-	if t.thinkingOpen {
-		if err := t.emitContentBlockStop(t.blockIdx - 1); err != nil {
-			return err
-		}
-		t.thinkingOpen = false
-	}
-	blockIdx := t.blockIdx
-	t.toolBlocks[idx] = blockIdx
-	t.toolUseEmitted = true
-	t.toolUseCount++
-	t.blockIdx++
-	return t.emitContentBlockStartTool(blockIdx, id, name, sig)
 }
 
 // appendContentText routes visible content text through the Seed tool-call
@@ -1199,9 +1176,6 @@ func (t *AnthropicSSETranslator) resolveSeedToolCalls() error {
 	}
 	for idx, call := range calls {
 		t.toolLedger.AppendArguments(idx, "", call.Name, call.Arguments)
-		if err := t.openToolUseBlock(idx, call.Name, ""); err != nil {
-			return err
-		}
 	}
 	t.seedToolCallsRecovered = len(calls)
 	t.log().Warn("AnthropicSSE recovered tool calls from Seed text markup",
@@ -1210,15 +1184,6 @@ func (t *AnthropicSSETranslator) resolveSeedToolCalls() error {
 		"tool_calls", len(calls),
 	)
 	return nil
-}
-
-func (t *AnthropicSSETranslator) emitValidatedToolArgsDelta(sourceIndex, blockIdx int) error {
-	entry, _ := t.toolLedger.Entry(sourceIndex)
-	call := entry.Accept(t.toolValidator)
-	if call.Issue != nil {
-		t.toolCallIssues = append(t.toolCallIssues, *call.Issue)
-	}
-	return t.emitContentBlockDeltaJSON(blockIdx, call.Arguments)
 }
 
 // routerNudgeCommand is the Bash payload synthesized when the upstream
@@ -1389,20 +1354,9 @@ func (t *AnthropicSSETranslator) finishStream() error {
 		}
 		t.thinkingOpen = false
 	}
-	for _, entry := range t.toolLedger.Entries() {
-		blockIdx, opened := t.toolBlocks[entry.SourceIndex]
-		if !opened {
-			entry.Accept(t.toolValidator)
-			continue
-		}
-		if err := t.emitValidatedToolArgsDelta(entry.SourceIndex, blockIdx); err != nil {
-			return err
-		}
-		if err := t.emitContentBlockStop(blockIdx); err != nil {
-			return err
-		}
+	if err := t.finishToolBlocks(); err != nil {
+		return err
 	}
-	t.toolBlocks = map[int]int{}
 
 	// Upstream error seen after Prelude committed: surface it as an `error`
 	// event, not a clean end_turn (which agent harnesses would silently accept
