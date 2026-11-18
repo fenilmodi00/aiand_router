@@ -72,9 +72,11 @@ func (e *RequestEnvelope) PrepareAnthropic(in http.Header, opts EmitOptions) (pr
 	if err != nil {
 		return providers.PreparedRequest{}, err
 	}
-	body, err = normalizeAnthropicFinalAssistant(body)
+	// The fork serves only aiand, which accepts prefill, so the deleted
+	// CapAssistantPrefillUnsupported arm folds to its false arm: never drop.
+	body, err = prepareAnthropicMessageTail(body, true)
 	if err != nil {
-		return providers.PreparedRequest{}, fmt.Errorf("normalize anthropic final assistant: %w", err)
+		return providers.PreparedRequest{}, err
 	}
 	body, err = applyAnthropicCachePolicy(body, true)
 	if err != nil {
