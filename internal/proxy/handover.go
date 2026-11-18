@@ -266,7 +266,7 @@ func prepareSummaryCall(env *translate.RequestEnvelope, target inference.Target,
 // non-streaming Chat Completions response, reporting non-2xx as an upstream
 // status error so the executor can classify it.
 func summaryFromResponse(resp *http.Response, target inference.Target) (string, handover.Usage, error) {
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 400 {
 		return "", handover.Usage{}, fmt.Errorf("handover: %w", &providers.UpstreamStatusError{Status: resp.StatusCode})
 	}

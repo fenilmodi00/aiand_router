@@ -293,7 +293,7 @@ func main() {
 		logger.Error("Failed to create Pub/Sub client", "err", err)
 		panic(err)
 	}
-	defer pubsubClient.Close()
+	defer func() { _ = pubsubClient.Close() }()
 
 	publisher := pubsubClient.Publisher(pubsubTopicID)
 	notifier := routerpubsub.NewInvalidationNotifier(publisher)
@@ -819,7 +819,7 @@ func main() {
 				logger.Error("Router policy registry failed to initialize; refusing to boot", "err", registryErr)
 				panic(registryErr)
 			}
-			defer gcsRegistry.Close()
+			defer func() { _ = gcsRegistry.Close() }()
 			policyRegistry = gcsRegistry
 			policyEnvironment = policyregistry.Environment(policyEnvironmentRaw)
 		}
